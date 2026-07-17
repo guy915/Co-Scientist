@@ -121,32 +121,24 @@ def test_has_readable_report_reflects_report_presence(
     assert seed._has_readable_report(run, isolated_db) is True
 
 
+def _demo_run_row(id_: str, goal: str) -> RunRow:
+    return RunRow(
+        id=id_,
+        research_goal=goal,
+        profile="default",
+        status="completed",
+        provider="mock",
+        config={},
+        client_id=DEMO_CLIENT_ID,
+        created_at=0.0,
+        updated_at=0.0,
+        completed_at=0.0,
+        error=None,
+    )
+
+
 def test_runs_by_goal_indexes_by_research_goal() -> None:
-    a = RunRow(
-        id="a",
-        research_goal="goal-a",
-        profile="default",
-        status="completed",
-        provider="mock",
-        config={},
-        client_id=DEMO_CLIENT_ID,
-        created_at=0.0,
-        updated_at=0.0,
-        completed_at=0.0,
-        error=None,
-    )
-    b = RunRow(
-        id="b",
-        research_goal="goal-b",
-        profile="default",
-        status="completed",
-        provider="mock",
-        config={},
-        client_id=DEMO_CLIENT_ID,
-        created_at=0.0,
-        updated_at=0.0,
-        completed_at=0.0,
-        error=None,
-    )
+    a = _demo_run_row("a", "goal-a")
+    b = _demo_run_row("b", "goal-b")
     indexed = seed._runs_by_goal([a, b])
     assert indexed == {"goal-a": a, "goal-b": b}

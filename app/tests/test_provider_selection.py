@@ -29,30 +29,32 @@ def test_engine_importable_returns_false_on_exception(
     assert provider._engine_importable() is False
 
 
-def test_select_provider_mock_when_no_provider_key(
+@pytest.mark.parametrize(
+    ("has_key", "engine_importable", "expected"),
+    [
+        (False, None, "mock"),
+        (True, False, "mock"),
+        (True, True, "engine"),
+    ],
+    ids=[
+        "mock_when_no_provider_key",
+        "mock_when_engine_not_importable",
+        "engine_when_available",
+    ],
+)
+def test_select_provider(
     monkeypatch: pytest.MonkeyPatch,
+    has_key: bool,
+    engine_importable: bool | None,
+    expected: str,
 ) -> None:
     monkeypatch.delenv("COSCIENTIST_FORCE_MOCK", raising=False)
-    monkeypatch.setattr(provider, "_has_provider_key", lambda: False)
-    assert provider.select_provider() == "mock"
-
-
-def test_select_provider_mock_when_engine_not_importable(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.delenv("COSCIENTIST_FORCE_MOCK", raising=False)
-    monkeypatch.setattr(provider, "_has_provider_key", lambda: True)
-    monkeypatch.setattr(provider, "_engine_importable", lambda: False)
-    assert provider.select_provider() == "mock"
-
-
-def test_select_provider_returns_engine_when_available(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.delenv("COSCIENTIST_FORCE_MOCK", raising=False)
-    monkeypatch.setattr(provider, "_has_provider_key", lambda: True)
-    monkeypatch.setattr(provider, "_engine_importable", lambda: True)
-    assert provider.select_provider() == "engine"
+    monkeypatch.setattr(provider, "_has_provider_key", lambda: has_key)
+    if engine_importable is not None:
+        monkeypatch.setattr(
+            provider, "_engine_importable", lambda: engine_importable
+        )
+    assert provider.select_provider() == expected
 
 
 def test_missing_engine_never_substitutes_mock_science(

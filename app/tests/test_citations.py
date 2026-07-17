@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import pytest
+
 from app.citations import (
     ALL_STATES,
     CitationRecord,
@@ -18,32 +20,42 @@ def test_states_are_exactly_four() -> None:
     }
 
 
-def test_unavailable_when_no_url() -> None:
+@pytest.mark.parametrize(
+    ("url", "abstract", "claim", "available", "expected"),
+    [
+        ("", "anything", "anything", True, "unavailable"),
+        ("https://example.org", "anything", "anything", False, "unavailable"),
+        (
+            "https://example.org/1",
+            "mitochondrial biogenesis brown adipose thermogenesis "
+            "cold response",
+            "mitochondrial biogenesis brown adipose thermogenesis "
+            "cold response",
+            True,
+            "verified",
+        ),
+        (
+            "https://example.org/1",
+            "this paper studies algebraic topology and category theory",
+            "protein folding kinetics in chaperonin complexes",
+            True,
+            "unsupported",
+        ),
+    ],
+    ids=[
+        "unavailable_when_no_url",
+        "unavailable_when_flag_false",
+        "verified_when_strong_overlap",
+        "unsupported_when_no_overlap",
+    ],
+)
+def test_classify_citation(
+    url: str, abstract: str, claim: str, available: bool, expected: str
+) -> None:
     r = CitationRecord(
-        url="", abstract="anything", claim="anything", available=True
+        url=url, abstract=abstract, claim=claim, available=available
     )
-    assert classify_citation(r) == "unavailable"
-
-
-def test_unavailable_when_flag_false() -> None:
-    r = CitationRecord(
-        url="https://example.org",
-        abstract="anything",
-        claim="anything",
-        available=False,
-    )
-    assert classify_citation(r) == "unavailable"
-
-
-def test_verified_when_strong_overlap() -> None:
-    r = CitationRecord(
-        url="https://example.org/1",
-        abstract="mitochondrial biogenesis brown adipose thermogenesis "
-        "cold response",
-        claim="mitochondrial biogenesis brown adipose thermogenesis "
-        "cold response",
-    )
-    assert classify_citation(r) == "verified"
+    assert classify_citation(r) == expected
 
 
 def test_partial_when_some_overlap() -> None:
@@ -63,12 +75,3 @@ def test_partial_when_some_overlap() -> None:
         "factors matter",
     )
     assert classify_citation(r2) in {"partial", "verified"}
-
-
-def test_unsupported_when_no_overlap() -> None:
-    r = CitationRecord(
-        url="https://example.org/1",
-        abstract="this paper studies algebraic topology and category theory",
-        claim="protein folding kinetics in chaperonin complexes",
-    )
-    assert classify_citation(r) == "unsupported"

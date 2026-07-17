@@ -128,6 +128,25 @@ def _engine_stream(
     )
 
 
+def _reviewed_boundary(
+    run_id: str,
+) -> Callable[[list[dict[str, Any]]], bool]:
+    """Build a ``_drain_until`` predicate for the engine's resume boundary.
+
+    True once a checkpoint exists whose hypotheses are all reviewed — the
+    engine's pre-orchestrator safe-resume boundary.
+    """
+
+    def _safe_boundary(_seen: list[dict[str, Any]]) -> bool:
+        cp = store.get_latest_checkpoint(run_id)
+        if cp is None:
+            return False
+        hyps = cp["state"].get("state", {}).get("hypotheses", [])
+        return bool(hyps) and all(h.get("reviews") for h in hyps)
+
+    return _safe_boundary
+
+
 async def test_engine_run_persists_real_state_checkpoints(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -160,15 +179,9 @@ async def test_engine_resume_preserves_work_and_reports_once(
 
     # Interrupt once a safe checkpoint exists with reviewed hypotheses (the
     # engine's pre-orchestrator resume boundary).
-    def _safe_boundary(_seen: list[dict[str, Any]]) -> bool:
-        cp = store.get_latest_checkpoint(run.id)
-        if cp is None:
-            return False
-        hyps = cp["state"].get("state", {}).get("hypotheses", [])
-        return bool(hyps) and all(h.get("reviews") for h in hyps)
-
     await _drain_until(
-        _engine_stream(run.id, run.research_goal, cfg), _safe_boundary
+        _engine_stream(run.id, run.research_goal, cfg),
+        _reviewed_boundary(run.id),
     )
 
     checkpoint = store.get_latest_checkpoint(run.id)
@@ -309,15 +322,9 @@ async def test_engine_resume_does_not_repeat_completed_llm_calls(
     calls["n"] = 0
     run = store.create_run("Engine resume calls", "standard", "engine", {})
 
-    def _safe_boundary(_seen: list[dict[str, Any]]) -> bool:
-        cp = store.get_latest_checkpoint(run.id)
-        if cp is None:
-            return False
-        hyps = cp["state"].get("state", {}).get("hypotheses", [])
-        return bool(hyps) and all(h.get("reviews") for h in hyps)
-
     await _drain_until(
-        _engine_stream(run.id, run.research_goal, cfg), _safe_boundary
+        _engine_stream(run.id, run.research_goal, cfg),
+        _reviewed_boundary(run.id),
     )
     calls_before_resume = calls["n"]
 
@@ -348,15 +355,9 @@ async def test_launch_resume_drives_engine_resume_end_to_end(
     cfg = _engine_cfg()
     run = store.create_run("Launch resume", "standard", "engine", {})
 
-    def _safe_boundary(_seen: list[dict[str, Any]]) -> bool:
-        cp = store.get_latest_checkpoint(run.id)
-        if cp is None:
-            return False
-        hyps = cp["state"].get("state", {}).get("hypotheses", [])
-        return bool(hyps) and all(h.get("reviews") for h in hyps)
-
     await _drain_until(
-        _engine_stream(run.id, run.research_goal, cfg), _safe_boundary
+        _engine_stream(run.id, run.research_goal, cfg),
+        _reviewed_boundary(run.id),
     )
     pre_resume_seqs = {e["seq"] for e in store.list_events(run.id)}
     assert pre_resume_seqs  # supervisor..review events were persisted

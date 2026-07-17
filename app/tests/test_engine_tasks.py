@@ -33,6 +33,30 @@ def _task_state(run_id: str) -> dict[str, Any]:
     }
 
 
+def _seed_checkpoint(
+    run_id: str,
+    state: dict[str, Any],
+    *,
+    stage: str = "fixture",
+    db_path: str | None = None,
+) -> int:
+    """Serialize ``state`` and commit it as an engine checkpoint, return seq."""
+    from co_scientist.checkpoint import (
+        CHECKPOINT_VERSION,
+        serialize_workflow_state,
+    )
+
+    envelope = serialize_workflow_state(state, last_event_seq=0)
+    return store.save_checkpoint(
+        run_id,
+        stage=stage,
+        schema_version=CHECKPOINT_VERSION,
+        last_event_seq=0,
+        state={"provider": "engine", **envelope},
+        db_path=db_path,
+    )
+
+
 class _Generator:
     tool_registry = None
 
@@ -83,19 +107,11 @@ def test_scientist_inputs_merge_into_engine_state_once(
 
 def test_scientist_input_reopens_completed_engine_run(isolated_db: str) -> None:
     """A completed engine report can continue from its durable checkpoint."""
-    from co_scientist.checkpoint import (
-        CHECKPOINT_VERSION,
-        serialize_workflow_state,
-    )
-
     run = store.create_run("Continuation", "standard", "engine", {})
-    envelope = serialize_workflow_state(_task_state(run.id), last_event_seq=0)
-    checkpoint_seq = store.save_checkpoint(
+    checkpoint_seq = _seed_checkpoint(
         run.id,
+        _task_state(run.id),
         stage="engine_task:final",
-        schema_version=CHECKPOINT_VERSION,
-        last_event_seq=0,
-        state={"provider": "engine", **envelope},
         db_path=isolated_db,
     )
     store.update_run_status(
@@ -660,25 +676,13 @@ async def test_verification_children_commit_through_single_aggregator(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Verification results update state only at the aggregate boundary."""
-    from co_scientist.checkpoint import (
-        CHECKPOINT_VERSION,
-        serialize_workflow_state,
-    )
-
     run = store.create_run("Task-level science", "standard", "engine", {})
     state = _task_state(run.id)
     state["hypotheses"] = [
         Hypothesis(text=f"candidate-{index}", elo_rating=1200 + index)
         for index in range(3)
     ]
-    envelope = serialize_workflow_state(state, last_event_seq=0)
-    checkpoint_seq = store.save_checkpoint(
-        run.id,
-        stage="fixture",
-        schema_version=CHECKPOINT_VERSION,
-        last_event_seq=0,
-        state={"provider": "engine", **envelope},
-    )
+    checkpoint_seq = _seed_checkpoint(run.id, state)
     node = store.enqueue_task(
         run.id,
         f"{engine_tasks.NODE_TASK_PREFIX}deep_verification",
@@ -768,11 +772,7 @@ async def test_ranking_matches_are_separate_sequential_checkpointed_tasks(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Every Elo match observes the checkpoint committed by its predecessor."""
-    from co_scientist.checkpoint import (
-        CHECKPOINT_VERSION,
-        restore_workflow_state,
-        serialize_workflow_state,
-    )
+    from co_scientist.checkpoint import restore_workflow_state
 
     run = store.create_run("Task-level science", "standard", "engine", {})
     state = _task_state(run.id)
@@ -803,14 +803,7 @@ async def test_ranking_matches_are_separate_sequential_checkpointed_tasks(
             ],
         }
     )
-    envelope = serialize_workflow_state(state, last_event_seq=0)
-    checkpoint_seq = store.save_checkpoint(
-        run.id,
-        stage="fixture",
-        schema_version=CHECKPOINT_VERSION,
-        last_event_seq=0,
-        state={"provider": "engine", **envelope},
-    )
+    checkpoint_seq = _seed_checkpoint(run.id, state)
     node = store.enqueue_task(
         run.id,
         f"{engine_tasks.NODE_TASK_PREFIX}ranking",
@@ -996,11 +989,7 @@ async def test_generation_strategies_are_independently_leased_and_aggregated(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Debate and assumptions generation share a plan but execute separately."""
-    from co_scientist.checkpoint import (
-        CHECKPOINT_VERSION,
-        restore_workflow_state,
-        serialize_workflow_state,
-    )
+    from co_scientist.checkpoint import restore_workflow_state
     from co_scientist.models import GenerationMethod
 
     run = store.create_run("Task-level science", "standard", "engine", {})
@@ -1012,14 +1001,7 @@ async def test_generation_strategies_are_independently_leased_and_aggregated(
             "enable_tool_calling_generation": False,
         }
     )
-    envelope = serialize_workflow_state(state, last_event_seq=0)
-    checkpoint_seq = store.save_checkpoint(
-        run.id,
-        stage="fixture",
-        schema_version=CHECKPOINT_VERSION,
-        last_event_seq=0,
-        state={"provider": "engine", **envelope},
-    )
+    checkpoint_seq = _seed_checkpoint(run.id, state)
     node = store.enqueue_task(
         run.id,
         f"{engine_tasks.NODE_TASK_PREFIX}generate",
@@ -1125,11 +1107,7 @@ async def test_mature_reflection_modes_are_independent_durable_tasks(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Observation, full, simulation, and recurrent modes lease separately."""
-    from co_scientist.checkpoint import (
-        CHECKPOINT_VERSION,
-        restore_workflow_state,
-        serialize_workflow_state,
-    )
+    from co_scientist.checkpoint import restore_workflow_state
 
     run = store.create_run("Task-level science", "standard", "engine", {})
     state = _task_state(run.id)
@@ -1146,14 +1124,7 @@ async def test_mature_reflection_modes_are_independent_durable_tasks(
             "current_iteration": 2,
         }
     )
-    envelope = serialize_workflow_state(state, last_event_seq=0)
-    checkpoint_seq = store.save_checkpoint(
-        run.id,
-        stage="fixture",
-        schema_version=CHECKPOINT_VERSION,
-        last_event_seq=0,
-        state={"provider": "engine", **envelope},
-    )
+    checkpoint_seq = _seed_checkpoint(run.id, state)
     node = store.enqueue_task(
         run.id,
         f"{engine_tasks.NODE_TASK_PREFIX}comprehensive_reflection",

@@ -6,9 +6,17 @@ import sys
 import types
 
 import pytest
+from fastapi.testclient import TestClient
 
 from app import store
 from tests._client import make_client
+
+
+def _client_with_run(goal: str) -> tuple[TestClient, str]:
+    """Return a client plus the id of a freshly created draft run."""
+    client = make_client()
+    run_id = client.post("/api/runs", json={"research_goal": goal}).json()["id"]
+    return client, run_id
 
 
 def test_csv_upload_preserves_table_coordinates() -> None:
@@ -81,10 +89,7 @@ def test_pdf_ocr_includes_figures_on_text_pages(
 def test_text_upload_is_extracted_with_immutable_provenance(
     isolated_db: str,
 ) -> None:
-    client = make_client()
-    run_id = client.post(
-        "/api/runs", json={"research_goal": "Use private kinase evidence"}
-    ).json()["id"]
+    client, run_id = _client_with_run("Use private kinase evidence")
     content = b"Kinase X inhibition reduced growth in the private assay."
 
     response = client.post(
@@ -120,10 +125,7 @@ def test_image_upload_is_ocr_extracted_with_multimodal_provenance(
         "_extract_image_ocr",
         lambda _data: "Figure 1: Kinase X reduced tumour volume by 42%.",
     )
-    client = make_client()
-    run_id = client.post(
-        "/api/runs", json={"research_goal": "Inspect private figure"}
-    ).json()["id"]
+    client, run_id = _client_with_run("Inspect private figure")
 
     response = client.post(
         f"/api/runs/{run_id}/attachments/upload",
@@ -143,10 +145,7 @@ def test_image_upload_is_ocr_extracted_with_multimodal_provenance(
 def test_invalid_image_is_rejected_without_persisting_evidence(
     isolated_db: str,
 ) -> None:
-    client = make_client()
-    run_id = client.post(
-        "/api/runs", json={"research_goal": "Inspect private figure"}
-    ).json()["id"]
+    client, run_id = _client_with_run("Inspect private figure")
 
     response = client.post(
         f"/api/runs/{run_id}/attachments/upload",

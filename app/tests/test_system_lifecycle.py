@@ -14,22 +14,8 @@ from __future__ import annotations
 
 import json
 
-from fastapi import FastAPI
-from fastapi.testclient import TestClient
-
+from tests._client import make_client
 from tests._client import wait_for_status as _wait_status
-
-
-def _app() -> FastAPI:
-    """Import and return the FastAPI app lazily.
-
-    Deferred so ``app.main`` (which reads settings from the environment at
-    import time) only imports after the ``isolated_db`` fixture has set its
-    environment variables.
-    """
-    import app.main as main_module
-
-    return main_module.app
 
 
 def _sse_event_types(text: str) -> list[str]:
@@ -51,7 +37,7 @@ def test_full_user_journey_from_diagnostics_to_completed_report(
     safety verdicts, report JSON + report.md consistency, and the run
     showing up in the run list.
     """
-    with TestClient(_app()) as client:
+    with make_client() as client:
         health = client.get("/health")
         assert health.status_code == 200
         assert health.json()["status"] == "healthy"
@@ -147,7 +133,7 @@ def test_safety_blocked_goal_surfaces_through_the_api(
     row, the safety endpoint, the (still-empty) hypotheses list, the
     now-missing report endpoints, and the run listing.
     """
-    with TestClient(_app()) as client:
+    with make_client() as client:
         create = client.post(
             "/api/runs",
             json={

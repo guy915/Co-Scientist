@@ -17,6 +17,18 @@ import pytest
 from app import store
 
 
+def _insert_legacy_report_row(
+    db_path: str, run_id: str, report_id: str, markdown_path: str | None
+) -> None:
+    """Insert a report row with no ``markdown_text`` (pre-column schema)."""
+    with store.connect(db_path) as conn:
+        conn.execute(
+            "INSERT INTO reports (id, run_id, payload_json, markdown_path, "
+            "markdown_text, created_at) VALUES (?,?,?,?,?,?)",
+            (report_id, run_id, "{}", markdown_path, None, 0.0),
+        )
+
+
 def test_save_report_logs_warning_on_disk_write_failure(
     isolated_db: str,
     monkeypatch: pytest.MonkeyPatch,
@@ -54,12 +66,9 @@ def test_read_report_markdown_falls_back_to_disk_when_db_text_missing(
     md_file = tmp_path / "on_disk.md"
     md_file.write_text("# From disk", encoding="utf-8")
 
-    with store.connect(isolated_db) as conn:
-        conn.execute(
-            "INSERT INTO reports (id, run_id, payload_json, markdown_path, "
-            "markdown_text, created_at) VALUES (?,?,?,?,?,?)",
-            ("report-disk-1", run.id, "{}", str(md_file), None, 0.0),
-        )
+    _insert_legacy_report_row(
+        isolated_db, run.id, "report-disk-1", str(md_file)
+    )
 
     text = store.read_report_markdown(run.id, db_path=isolated_db)
     assert text == "# From disk"
@@ -72,12 +81,7 @@ def test_read_report_markdown_none_without_db_text_or_path(
     run = store.create_run(
         "no source goal", "default", "mock", {}, db_path=isolated_db
     )
-    with store.connect(isolated_db) as conn:
-        conn.execute(
-            "INSERT INTO reports (id, run_id, payload_json, markdown_path, "
-            "markdown_text, created_at) VALUES (?,?,?,?,?,?)",
-            ("report-disk-2", run.id, "{}", None, None, 0.0),
-        )
+    _insert_legacy_report_row(isolated_db, run.id, "report-disk-2", None)
 
     assert store.read_report_markdown(run.id, db_path=isolated_db) is None
 
@@ -102,11 +106,8 @@ def test_read_report_markdown_none_when_disk_file_missing(
     )
     missing_path = tmp_path / "does_not_exist.md"
 
-    with store.connect(isolated_db) as conn:
-        conn.execute(
-            "INSERT INTO reports (id, run_id, payload_json, markdown_path, "
-            "markdown_text, created_at) VALUES (?,?,?,?,?,?)",
-            ("report-disk-3", run.id, "{}", str(missing_path), None, 0.0),
-        )
+    _insert_legacy_report_row(
+        isolated_db, run.id, "report-disk-3", str(missing_path)
+    )
 
     assert store.read_report_markdown(run.id, db_path=isolated_db) is None

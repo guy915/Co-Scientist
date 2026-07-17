@@ -9,6 +9,7 @@ from fastapi.testclient import TestClient
 from app import store
 from tests._client import make_client as _client
 from tests._client import wait_for_status
+from tests.test_engine_tasks import _seed_checkpoint, _task_state
 
 
 def test_append_and_list_messages(isolated_db: str) -> None:
@@ -186,12 +187,6 @@ def test_send_message_endpoint(isolated_db: str) -> None:
 
 def test_steering_reopens_completed_engine_run(isolated_db: str) -> None:
     """Post-report steering continues from the durable engine checkpoint."""
-    from co_scientist.checkpoint import (
-        CHECKPOINT_VERSION,
-        serialize_workflow_state,
-    )
-    from co_scientist.models import ExecutionMetrics
-
     client = _client()
     client.headers.update({"X-Client-ID": "test-client"})
     run = store.create_run(
@@ -203,26 +198,13 @@ def test_steering_reopens_completed_engine_run(isolated_db: str) -> None:
         db_path=isolated_db,
     )
     state = {
-        "run_id": run.id,
+        **_task_state(run.id),
         "research_goal": run.research_goal,
-        "model_name": "fixture",
-        "supervisor_model_name": "fixture",
-        "hypotheses": [],
-        "articles": [],
-        "messages": [],
-        "metrics": ExecutionMetrics(),
-        "mcp_available": False,
         "current_iteration": 1,
         "start_time": 1.0,
     }
-    envelope = serialize_workflow_state(state, last_event_seq=0)
-    store.save_checkpoint(
-        run.id,
-        stage="engine_task:final",
-        schema_version=CHECKPOINT_VERSION,
-        last_event_seq=0,
-        state={"provider": "engine", **envelope},
-        db_path=isolated_db,
+    _seed_checkpoint(
+        run.id, state, stage="engine_task:final", db_path=isolated_db
     )
     store.update_run_status(
         run.id, store.RunStatus.COMPLETED, db_path=isolated_db

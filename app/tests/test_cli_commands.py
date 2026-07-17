@@ -546,22 +546,26 @@ def test_cancel_active_run(
     _wait_status(cli_server, run_id, "cancelled", "cancel-client")
 
 
-def test_cancel_terminal_run_errors(
-    completed_run: tuple[str, str, str], capsys: pytest.CaptureFixture[str]
+@pytest.mark.parametrize(
+    ("verb", "expected_err"),
+    [
+        ("cancel", "already finished"),
+        ("resume", "already completed"),
+    ],
+)
+def test_terminal_run_verb_errors(
+    completed_run: tuple[str, str, str],
+    capsys: pytest.CaptureFixture[str],
+    verb: str,
+    expected_err: str,
 ) -> None:
-    base, run_id, client_id = completed_run
-    # A finished run has no active handle and is terminal, so the API rejects
-    # the cancel with 409; the CLI relays that as a non-zero exit.
-    assert _invoke(base, "runs", "cancel", run_id, client_id=client_id) == 1
-    assert "already finished" in capsys.readouterr().err
+    """A finished run rejects cancel/resume.
 
-
-def test_resume_completed_run_errors(
-    completed_run: tuple[str, str, str], capsys: pytest.CaptureFixture[str]
-) -> None:
+    The API 409s and the CLI relays it as a non-zero exit with a message.
+    """
     base, run_id, client_id = completed_run
-    assert _invoke(base, "runs", "resume", run_id, client_id=client_id) == 1
-    assert "already completed" in capsys.readouterr().err
+    assert _invoke(base, "runs", verb, run_id, client_id=client_id) == 1
+    assert expected_err in capsys.readouterr().err
 
 
 def test_missing_run_errors(

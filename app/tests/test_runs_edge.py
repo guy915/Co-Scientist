@@ -6,12 +6,20 @@ Covers cancel, idempotency, conflict, validation, and report disposition.
 from __future__ import annotations
 
 import time
+from typing import cast
 
 import pytest
+from fastapi.testclient import TestClient
 
 from app import store
 from tests._client import make_client as _client
 from tests._client import wait_for_status as _wait_status
+
+
+def _new_run(c: TestClient, goal: str, *, profile: str = "standard") -> str:
+    """Create a draft run and return its id."""
+    res = c.post("/api/runs", json={"research_goal": goal, "profile": profile})
+    return cast(str, res.json()["id"])
 
 
 def test_create_run_rejects_empty_goal() -> None:
@@ -106,13 +114,7 @@ def test_get_run_returns_404_for_unknown_id() -> None:
 
 def test_starting_a_completed_run_is_a_conflict() -> None:
     c = _client()
-    rid = c.post(
-        "/api/runs",
-        json={
-            "research_goal": "Mechanisms of selective autophagy",
-            "profile": "standard",
-        },
-    ).json()["id"]
+    rid = _new_run(c, "Mechanisms of selective autophagy")
     c.post(f"/api/runs/{rid}/start", json={})
     assert _wait_status(c, rid, "completed", timeout=20.0)
     again = c.post(f"/api/runs/{rid}/start", json={})
@@ -121,10 +123,7 @@ def test_starting_a_completed_run_is_a_conflict() -> None:
 
 def test_cancel_draft_run_without_handle_marks_it_cancelled() -> None:
     c = _client()
-    rid = c.post(
-        "/api/runs",
-        json={"research_goal": "Inactive cancel test", "profile": "standard"},
-    ).json()["id"]
+    rid = _new_run(c, "Inactive cancel test")
     # No in-process handle (never started), but a draft is non-terminal, so
     # cancel transitions it to cancelled rather than 404-ing.
     res = c.post(f"/api/runs/{rid}/cancel")
@@ -139,13 +138,7 @@ def test_cancel_restart_survivor_marks_it_cancelled() -> None:
     from app.store import RunStatus
 
     c = _client()
-    rid = c.post(
-        "/api/runs",
-        json={
-            "research_goal": "Restart survivor cancel",
-            "profile": "standard",
-        },
-    ).json()["id"]
+    rid = _new_run(c, "Restart survivor cancel")
     # Simulate a run that was running when the server restarted: persisted as
     # RUNNING with no in-process handle registered.
     store.update_run_status(rid, RunStatus.RUNNING)
@@ -180,10 +173,7 @@ def test_engine_queue_can_pause_and_resume_without_process_handle(
 
     monkeypatch.setenv("COSCIENTIST_EMBEDDED_WORKER", "0")
     c = _client()
-    rid = c.post(
-        "/api/runs",
-        json={"research_goal": "Durable pause test", "profile": "standard"},
-    ).json()["id"]
+    rid = _new_run(c, "Durable pause test")
     started = c.post(
         f"/api/runs/{rid}/start", json={"force_provider": "engine"}
     )
@@ -203,10 +193,7 @@ def test_engine_queue_can_pause_and_resume_without_process_handle(
 
 def test_cancel_completed_run_conflicts() -> None:
     c = _client()
-    rid = c.post(
-        "/api/runs",
-        json={"research_goal": "Cancel a finished run", "profile": "standard"},
-    ).json()["id"]
+    rid = _new_run(c, "Cancel a finished run")
     c.post(f"/api/runs/{rid}/start", json={})
     assert _wait_status(c, rid, "completed", timeout=20.0)
     # A finished run cannot be cancelled.
@@ -216,23 +203,14 @@ def test_cancel_completed_run_conflicts() -> None:
 
 def test_report_md_404_before_completion() -> None:
     c = _client()
-    rid = c.post(
-        "/api/runs",
-        json={
-            "research_goal": "Pre-completion report fetch",
-            "profile": "standard",
-        },
-    ).json()["id"]
+    rid = _new_run(c, "Pre-completion report fetch")
     res = c.get(f"/api/runs/{rid}/report.md")
     assert res.status_code == 404
 
 
 def test_report_md_has_attachment_disposition_after_completion() -> None:
     c = _client()
-    rid = c.post(
-        "/api/runs",
-        json={"research_goal": "Attachment header test", "profile": "standard"},
-    ).json()["id"]
+    rid = _new_run(c, "Attachment header test")
     c.post(f"/api/runs/{rid}/start", json={})
     assert _wait_status(c, rid, "completed", timeout=20.0)
     res = c.get(f"/api/runs/{rid}/report.md")
@@ -245,13 +223,9 @@ def test_report_md_has_attachment_disposition_after_completion() -> None:
 
 def test_run_listing_returns_most_recent_first() -> None:
     c = _client()
-    a = c.post(
-        "/api/runs", json={"research_goal": "Run A", "profile": "standard"}
-    ).json()["id"]
+    a = _new_run(c, "Run A")
     time.sleep(0.05)
-    b = c.post(
-        "/api/runs", json={"research_goal": "Run B", "profile": "standard"}
-    ).json()["id"]
+    b = _new_run(c, "Run B")
     listing = c.get("/api/runs").json()["runs"]
     ids = [r["id"] for r in listing]
     assert ids.index(b) < ids.index(a)
@@ -268,10 +242,7 @@ def test_status_endpoint_includes_provider_and_mock_flag() -> None:
 
 def test_run_get_includes_summary_counts() -> None:
     c = _client()
-    rid = c.post(
-        "/api/runs",
-        json={"research_goal": "Summary test", "profile": "standard"},
-    ).json()["id"]
+    rid = _new_run(c, "Summary test")
     c.post(f"/api/runs/{rid}/start", json={})
     assert _wait_status(c, rid, "completed", timeout=20.0)
     res = c.get(f"/api/runs/{rid}").json()
@@ -324,14 +295,11 @@ def test_active_run_counts_committed_checkpoint_artifacts(
 
 def test_safety_block_at_intake_short_circuits_workflow() -> None:
     c = _client()
-    rid = c.post(
-        "/api/runs",
-        json={
-            "research_goal": "Engineer smallpox virus to enhance "
-            "human-to-human transmission and lethality",
-            "profile": "standard",
-        },
-    ).json()["id"]
+    rid = _new_run(
+        c,
+        "Engineer smallpox virus to enhance "
+        "human-to-human transmission and lethality",
+    )
     c.post(f"/api/runs/{rid}/start", json={})
     assert _wait_status(c, rid, "blocked", timeout=10.0)
     # No hypotheses generated when blocked at intake.

@@ -3,19 +3,10 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import AsyncIterator
 from typing import Any
 
 from app import engine_adapter, store
-
-
-def _drain(coro_gen: AsyncIterator[Any]) -> list[Any]:
-    """Collect all events from an async generator synchronously."""
-
-    async def _run() -> list[Any]:
-        return [e async for e in coro_gen]
-
-    return asyncio.run(_run())
+from tests.test_engine_drain import _drain
 
 
 async def _drain_mock_workflow(

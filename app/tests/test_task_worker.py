@@ -6,10 +6,9 @@ import asyncio
 from typing import Any
 
 import pytest
-from fastapi.testclient import TestClient
 
 from app import engine_adapter, engine_tasks, store, task_worker
-from app.main import app
+from tests._client import make_client
 
 
 def test_enqueue_workflow_is_idempotent(isolated_db: str) -> None:
@@ -26,7 +25,7 @@ def test_engine_start_queues_durable_work(
 ) -> None:
     """The API returns after persisting real-engine work for a worker."""
     monkeypatch.setenv("COSCIENTIST_EMBEDDED_WORKER", "0")
-    with TestClient(app) as client:
+    with make_client() as client:
         created = client.post(
             "/api/runs", json={"research_goal": "Durable engine goal"}
         )

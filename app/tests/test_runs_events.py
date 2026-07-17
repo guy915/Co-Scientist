@@ -12,6 +12,8 @@ from __future__ import annotations
 import asyncio
 from collections.abc import AsyncIterator
 
+import pytest
+
 from app import runs_events, store
 from app.runs_registry import _RunHandle
 from app.store import RunStatus
@@ -110,24 +112,25 @@ def test_should_skip_tick_times_out_but_tenth_tick_does_not_skip() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_terminal_status_from_event_non_status_type_returns_none() -> None:
-    ev = {"type": "log", "payload": {}}
-    assert runs_events._terminal_status_from_event(ev) is None
-
-
-def test_terminal_status_from_event_returns_terminal_status() -> None:
-    ev = {"type": "status", "payload": {"status": "completed"}}
-    assert runs_events._terminal_status_from_event(ev) == "completed"
-
-
-def test_terminal_status_from_event_ignores_non_terminal_status() -> None:
-    ev = {"type": "status", "payload": {"status": "running"}}
-    assert runs_events._terminal_status_from_event(ev) is None
-
-
-def test_terminal_status_from_event_handles_missing_payload() -> None:
-    ev = {"type": "status", "payload": None}
-    assert runs_events._terminal_status_from_event(ev) is None
+@pytest.mark.parametrize(
+    ("event", "expected"),
+    [
+        ({"type": "log", "payload": {}}, None),
+        ({"type": "status", "payload": {"status": "completed"}}, "completed"),
+        ({"type": "status", "payload": {"status": "running"}}, None),
+        ({"type": "status", "payload": None}, None),
+    ],
+    ids=[
+        "non_status_type_returns_none",
+        "returns_terminal_status",
+        "ignores_non_terminal_status",
+        "handles_missing_payload",
+    ],
+)
+def test_terminal_status_from_event(
+    event: dict[str, object], expected: str | None
+) -> None:
+    assert runs_events._terminal_status_from_event(event) == expected
 
 
 # ---------------------------------------------------------------------------
