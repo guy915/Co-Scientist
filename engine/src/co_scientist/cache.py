@@ -51,6 +51,25 @@ __all__ = [
     "get_node_cache_stats",
 ]
 
+
+def _resolve_cache_env() -> tuple[bool, str]:
+    """Read the cache enabled flag and directory from the environment.
+
+    Each accessor calls this once, on the first call in the process, before it
+    memoizes its singleton: HypothesisGenerator must set
+    COSCIENTIST_CACHE_ENABLED/_DIR (see its __init__) before the first LLM
+    call; later os.environ edits are ignored.
+
+    Returns:
+        A ``(cache_enabled, cache_dir)`` pair.
+    """
+    cache_enabled_str = os.getenv(
+        "COSCIENTIST_CACHE_ENABLED", str(DEFAULT_CACHE_ENABLED).lower()
+    )
+    cache_dir = os.getenv("COSCIENTIST_CACHE_DIR", DEFAULT_CACHE_DIR)
+    return parse_bool_env(cache_enabled_str), cache_dir
+
+
 # Global cache instance (can be configured via environment variable)
 _global_cache: LLMCache | None = None
 
@@ -60,17 +79,7 @@ def get_cache() -> LLMCache:
     global _global_cache
 
     if _global_cache is None:
-        # First call in the process wins: the env vars are read once and the
-        # resulting LLMCache is memoized below, so HypothesisGenerator must
-        # set COSCIENTIST_CACHE_ENABLED/_DIR (see its __init__) before the
-        # first LLM call in the process; later os.environ edits are ignored.
-        # Check environment variable for cache configuration
-        cache_enabled_str = os.getenv(
-            "COSCIENTIST_CACHE_ENABLED", str(DEFAULT_CACHE_ENABLED).lower()
-        )
-        cache_enabled = parse_bool_env(cache_enabled_str)
-        cache_dir = os.getenv("COSCIENTIST_CACHE_DIR", DEFAULT_CACHE_DIR)
-
+        cache_enabled, cache_dir = _resolve_cache_env()
         _global_cache = LLMCache(cache_dir=cache_dir, enabled=cache_enabled)
 
         if cache_enabled:
@@ -100,14 +109,7 @@ def get_node_cache() -> NodeCache:
     global _global_node_cache
 
     if _global_node_cache is None:
-        # Same one-shot env-var-read-then-memoize pattern as get_cache().
-        # Reuse same cache enabled flag as LLM cache
-        cache_enabled_str = os.getenv(
-            "COSCIENTIST_CACHE_ENABLED", str(DEFAULT_CACHE_ENABLED).lower()
-        )
-        cache_enabled = parse_bool_env(cache_enabled_str)
-        cache_dir = os.getenv("COSCIENTIST_CACHE_DIR", DEFAULT_CACHE_DIR)
-
+        cache_enabled, cache_dir = _resolve_cache_env()
         _global_node_cache = NodeCache(
             cache_dir=cache_dir, enabled=cache_enabled
         )

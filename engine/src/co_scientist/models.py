@@ -13,6 +13,23 @@ from typing import Any
 from co_scientist.constants import INITIAL_ELO_RATING
 
 
+def _known_field_kwargs(cls: Any, data: dict[str, Any]) -> dict[str, Any]:
+    """Return the items of ``data`` whose keys are fields of ``cls``.
+
+    Dropping unknown keys keeps older serialized payloads loadable if a field
+    is later removed; the caller splats the result into ``cls(...)``.
+
+    Args:
+        cls: The dataclass whose field names are the allowed keys.
+        data: A ``to_dict`` payload, possibly carrying stale keys.
+
+    Returns:
+        A dict of ``data`` items restricted to ``cls``'s field names.
+    """
+    field_names = {f.name for f in dataclasses.fields(cls)}
+    return {k: v for k, v in data.items() if k in field_names}
+
+
 class GenerationMethod(str, enum.Enum):
     """How a hypothesis was generated (the four techniques of SSR §4)."""
 
@@ -324,8 +341,7 @@ class ExecutionMetrics:
         Ignoring unknown keys keeps older checkpoints loadable if a metric
         field is later removed.
         """
-        fields = {f.name for f in dataclasses.fields(cls)}
-        return cls(**{k: v for k, v in data.items() if k in fields})
+        return cls(**_known_field_kwargs(cls, data))
 
 
 def _merge_phase_times(
@@ -340,16 +356,12 @@ def _merge_phase_times(
     Returns:
         A new dict with combined wall-clock seconds per phase.
     """
-    merged_phase_times = {}
-
-    for phase, time_val in existing_phase_times.items():
-        merged_phase_times[phase] = time_val
+    merged_phase_times = dict(existing_phase_times)
 
     for phase, time_val in new_phase_times.items():
-        if phase in merged_phase_times:
-            merged_phase_times[phase] += time_val
-        else:
-            merged_phase_times[phase] = time_val
+        merged_phase_times[phase] = (
+            merged_phase_times.get(phase, 0.0) + time_val
+        )
 
     return merged_phase_times
 
@@ -496,5 +508,4 @@ class Article:
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "Article":
         """Rebuild from a ``to_dict`` payload, ignoring unknown keys."""
-        fields = {f.name for f in dataclasses.fields(cls)}
-        return cls(**{k: v for k, v in data.items() if k in fields})
+        return cls(**_known_field_kwargs(cls, data))

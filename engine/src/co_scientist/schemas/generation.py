@@ -7,6 +7,54 @@ generation, novelty analysis, and validation synthesis.
 
 from typing import Any
 
+# Field sub-schemas shared verbatim across the generation schemas below,
+# referenced by identity (nothing mutates schema dicts at runtime; sharing
+# schema objects is the established pattern -- see schemas/review.py). The
+# validation-synthesis schema keeps its own "hypothesis" wording (it describes
+# a *final* hypothesis), so that field is not shared.
+_HYPOTHESIS_FIELD: dict[str, Any] = {
+    "type": "string",
+    "description": (
+        "Mechanistic scientific hypothesis stated in"
+        " the natural language of the goal's"
+        " domain: name the entities, mechanism,"
+        " direction of effect, conditions, and"
+        " the specific testable prediction. Do"
+        " not use a fixed 'We want to develop'"
+        " phrasing or an artificial length cap"
+    ),
+}
+
+_EXPLANATION_FIELD: dict[str, Any] = {
+    "type": "string",
+    "description": (
+        "Step-by-step layman explanation breaking"
+        " down the technical hypothesis"
+        " (4-6 sentences)"
+    ),
+}
+
+_EXPERIMENT_FIELD: dict[str, Any] = {
+    "type": "string",
+    "description": (
+        "Concrete experiment design with models,"
+        " datasets, metrics, and validation"
+        " criteria (4-6 sentences)"
+    ),
+}
+
+_LITERATURE_GROUNDING_FIELD: dict[str, Any] = {
+    "type": "string",
+    "description": (
+        "2-4 sentences grounding the hypothesis in"
+        " the provided reference list. Use ONLY the"
+        " bracketed [C*] citation keys supplied"
+        " (e.g. [C1], [C2], [C3]) — do NOT invent"
+        " author-year citations. If no reference"
+        " list was provided, state that explicitly."
+    ),
+}
+
 # Generation schema
 # Shapes the final-turn output of the debate-based generation node
 # (nodes/generation/debate.py) for both the
@@ -24,45 +72,10 @@ GENERATION_SCHEMA: dict[str, Any] = {
                 "items": {
                     "type": "object",
                     "properties": {
-                        "hypothesis": {
-                            "type": "string",
-                            "description": (
-                                "Mechanistic scientific hypothesis stated in"
-                                " the natural language of the goal's"
-                                " domain: name the entities, mechanism,"
-                                " direction of effect, conditions, and"
-                                " the specific testable prediction. Do"
-                                " not use a fixed 'We want to develop'"
-                                " phrasing or an artificial length cap"
-                            ),
-                        },
-                        "explanation": {
-                            "type": "string",
-                            "description": (
-                                "Step-by-step layman explanation breaking"
-                                " down the technical hypothesis"
-                                " (4-6 sentences)"
-                            ),
-                        },
-                        "literature_grounding": {
-                            "type": "string",
-                            "description": (
-                                "2-4 sentences grounding the hypothesis in"
-                                " the provided reference list. Use ONLY the"
-                                " bracketed [C*] citation keys supplied"
-                                " (e.g. [C1], [C2], [C3]) — do NOT invent"
-                                " author-year citations. If no reference"
-                                " list was provided, state that explicitly."
-                            ),
-                        },
-                        "experiment": {
-                            "type": "string",
-                            "description": (
-                                "Concrete experiment design with models,"
-                                " datasets, metrics, and validation"
-                                " criteria (4-6 sentences)"
-                            ),
-                        },
+                        "hypothesis": _HYPOTHESIS_FIELD,
+                        "explanation": _EXPLANATION_FIELD,
+                        "literature_grounding": _LITERATURE_GROUNDING_FIELD,
+                        "experiment": _EXPERIMENT_FIELD,
                         "category": {
                             "type": "string",
                             "description": (
@@ -106,34 +119,9 @@ GENERATION_DRAFT_SCHEMA: dict[str, Any] = {
                 "items": {
                     "type": "object",
                     "properties": {
-                        "hypothesis": {
-                            "type": "string",
-                            "description": (
-                                "Mechanistic scientific hypothesis stated in"
-                                " the natural language of the goal's"
-                                " domain: name the entities, mechanism,"
-                                " direction of effect, conditions, and"
-                                " the specific testable prediction. Do"
-                                " not use a fixed 'We want to develop'"
-                                " phrasing or an artificial length cap"
-                            ),
-                        },
-                        "explanation": {
-                            "type": "string",
-                            "description": (
-                                "Step-by-step layman explanation breaking"
-                                " down the technical hypothesis"
-                                " (4-6 sentences)"
-                            ),
-                        },
-                        "experiment": {
-                            "type": "string",
-                            "description": (
-                                "Concrete experiment design with models,"
-                                " datasets, metrics, and validation"
-                                " criteria (4-6 sentences)"
-                            ),
-                        },
+                        "hypothesis": _HYPOTHESIS_FIELD,
+                        "explanation": _EXPLANATION_FIELD,
+                        "experiment": _EXPERIMENT_FIELD,
                         "gap_reasoning": {
                             "type": "string",
                             "description": (
@@ -201,33 +189,9 @@ HYPOTHESIS_VALIDATION_SYNTHESIS_SCHEMA: dict[str, Any] = {
                                 "pivoted)"
                             ),
                         },
-                        "explanation": {
-                            "type": "string",
-                            "description": (
-                                "Step-by-step layman explanation breaking"
-                                " down the technical hypothesis"
-                                " (4-6 sentences)"
-                            ),
-                        },
-                        "literature_grounding": {
-                            "type": "string",
-                            "description": (
-                                "2-4 sentences grounding the hypothesis in"
-                                " the provided reference list. Use ONLY the"
-                                " bracketed [C*] citation keys supplied"
-                                " (e.g. [C1], [C2], [C3]) — do NOT invent"
-                                " author-year citations. If no reference"
-                                " list was provided, state that explicitly."
-                            ),
-                        },
-                        "experiment": {
-                            "type": "string",
-                            "description": (
-                                "Concrete experiment design with models,"
-                                " datasets, metrics, and validation"
-                                " criteria (4-6 sentences)"
-                            ),
-                        },
+                        "explanation": _EXPLANATION_FIELD,
+                        "literature_grounding": _LITERATURE_GROUNDING_FIELD,
+                        "experiment": _EXPERIMENT_FIELD,
                         "category": {
                             "type": "string",
                             "description": (

@@ -14,6 +14,7 @@ from typing import Any, cast
 
 from langgraph.graph import add_messages
 
+from co_scientist.generator.graph import _TASK_ROUTES as _ORCHESTRATOR_ROUTES
 from co_scientist.models import merge_metrics
 from co_scientist.nodes.comprehensive_reflection import (
     comprehensive_reflection_node,
@@ -50,15 +51,6 @@ TASK_NODES: dict[str, TaskNode] = {
     "evolve": evolve_node,
     "proximity": proximity_node,
     "research_overview": research_overview_node,
-}
-
-_ORCHESTRATOR_ROUTES = {
-    "generate": "generate",
-    "reflect": "review",
-    "rank": "safety_screen",
-    "evolve": "meta_review",
-    "proximity": "proximity",
-    "terminate": "research_overview",
 }
 
 

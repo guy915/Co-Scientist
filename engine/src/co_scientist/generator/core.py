@@ -45,6 +45,11 @@ from co_scientist.state import WorkflowState
 
 logger = logging.getLogger(__name__)
 
+# LangGraph super-step budget for one run: each node visit consumes a step,
+# so higher max-iteration runs need headroom well above LangGraph's default
+# of 25. Applied to every graph invocation (ainvoke and both astream paths).
+_GRAPH_RECURSION_LIMIT = 100
+
 
 class HypothesisGenerator(McpAvailabilityMixin):
     """Async wrapper for hypothesis generation using LangGraph.
@@ -412,10 +417,9 @@ class HypothesisGenerator(McpAvailabilityMixin):
 
         assert self._graph is not None  # built by _prepare_generation
         try:
-            # Run the workflow. Uses 100 recursion limit to support higher max
-            # iterations.
             final_state = await self._graph.ainvoke(
-                initial_state, config={"recursion_limit": 100}
+                initial_state,
+                config={"recursion_limit": _GRAPH_RECURSION_LIMIT},
             )
 
             # Format result to match expected interface
@@ -509,7 +513,8 @@ class HypothesisGenerator(McpAvailabilityMixin):
         assert self._graph is not None
         try:
             async for chunk in self._graph.astream(
-                initial_state, config={"recursion_limit": 100}
+                initial_state,
+                config={"recursion_limit": _GRAPH_RECURSION_LIMIT},
             ):
                 # Chunk is a dict with node names as keys
                 for node_name, node_state in chunk.items():
@@ -548,7 +553,7 @@ class HypothesisGenerator(McpAvailabilityMixin):
             async for mode, data in self._graph.astream(
                 initial_state,
                 stream_mode=["updates", "values"],
-                config={"recursion_limit": 100},
+                config={"recursion_limit": _GRAPH_RECURSION_LIMIT},
             ):
                 if mode == "updates":
                     updates: dict[str, Any] = cast(dict[str, Any], data)

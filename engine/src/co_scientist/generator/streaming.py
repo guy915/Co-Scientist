@@ -167,24 +167,14 @@ def _build_stream_state_dict(
     Returns:
         The dict yielded to the caller alongside the completed node's name.
     """
-    metrics = cumulative_state["metrics"]
     state_dict = {key: cumulative_state[key] for key in _STREAMED_STATE_KEYS}
     state_dict.update(
         {
             "hypotheses": [h.to_dict() for h in cumulative_state["hypotheses"]],
             "articles": [a.to_dict() for a in cumulative_state["articles"]],
             "research_plan": cumulative_state["research_plan"],
-            "metrics": {
-                "hypothesis_count": metrics.hypothesis_count,
-                "reviews_count": metrics.reviews_count,
-                "tournaments_count": metrics.tournaments_count,
-                "evolutions_count": metrics.evolutions_count,
-                "llm_calls": metrics.llm_calls,
-                # Included so streaming callers see the full
-                # ExecutionMetrics, matching _build_generation_result.
-                "total_time": metrics.total_time,
-                "phase_times": metrics.phase_times,
-            },
+            # Full ExecutionMetrics, matching _build_generation_result.
+            "metrics": cumulative_state["metrics"].to_dict(),
         }
     )
     return state_dict
@@ -221,13 +211,7 @@ def _build_generation_result(
         "safety_decisions": final_state.get("safety_decisions", []),
         "held_for_review": final_state.get("held_for_review", []),
         "execution_time": execution_time,
-        "metrics": {
-            "total_time": execution_time,
-            "hypothesis_count": metrics.hypothesis_count,
-            "reviews_count": metrics.reviews_count,
-            "tournaments_count": metrics.tournaments_count,
-            "evolutions_count": metrics.evolutions_count,
-            "phase_times": metrics.phase_times,
-            "llm_calls": metrics.llm_calls,
-        },
+        # total_time reports the ainvoke wall-clock, overriding the metric's
+        # own accumulated value.
+        "metrics": {**metrics.to_dict(), "total_time": execution_time},
     }

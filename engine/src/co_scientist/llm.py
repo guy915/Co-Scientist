@@ -17,6 +17,11 @@ from jsonschema.exceptions import ValidationError as ValidationError
 from co_scientist import llm_request
 from co_scientist import prompts as prompts
 from co_scientist.cache import LLMCache, NullCache, get_cache
+from co_scientist.constants import (
+    DEFAULT_MAX_TOKENS,
+    EXTENDED_MAX_TOKENS,
+    HIGH_TEMPERATURE,
+)
 from co_scientist.llm_json import (
     _backfill_required_fields as _backfill_required_fields,
 )
@@ -166,8 +171,8 @@ async def _prepare_llm_call(
 async def call_llm(
     prompt: str,
     model_name: str,
-    max_tokens: int = 4000,
-    temperature: float = 0.7,
+    max_tokens: int = DEFAULT_MAX_TOKENS,
+    temperature: float = HIGH_TEMPERATURE,
     force_json: bool = False,
     json_schema: dict[str, Any] | None = None,
     use_cache: bool = True,
@@ -305,8 +310,8 @@ async def _call_llm_for_json(
 async def call_llm_json(
     prompt: str,
     model_name: str,
-    max_tokens: int = 4000,
-    temperature: float = 0.7,
+    max_tokens: int = DEFAULT_MAX_TOKENS,
+    temperature: float = HIGH_TEMPERATURE,
     json_schema: dict[str, Any] | None = None,
     max_attempts: int = 5,
     use_cache: bool = True,
@@ -417,8 +422,8 @@ async def call_llm_with_tools(
     model_name: str,
     tools: list[dict[str, Any]],
     tool_executor: Callable[[Any], Awaitable[dict[str, Any]]],
-    max_tokens: int = 8000,
-    temperature: float = 0.7,
+    max_tokens: int = EXTENDED_MAX_TOKENS,
+    temperature: float = HIGH_TEMPERATURE,
     max_iterations: int = 10,
     use_cache: bool = True,
     run_id: str | None = None,
