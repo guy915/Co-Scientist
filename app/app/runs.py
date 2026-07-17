@@ -235,6 +235,16 @@ async def create_run(
     return run.to_dict()
 
 
+def _runs_payload(runs: list[store.RunRow]) -> dict[str, Any]:
+    """Serialize runs with their per-run execution progress attached."""
+    return {
+        "runs": [
+            {**r.to_dict(), "execution_progress": store.task_progress(r.id)}
+            for r in runs
+        ]
+    }
+
+
 @router.get("")
 async def list_runs(
     request: Request,
@@ -242,12 +252,7 @@ async def list_runs(
 ) -> dict[str, Any]:
     """List the requesting client's runs, most recent first."""
     runs = store.list_runs(client_id=_client_id(request), limit=limit)
-    return {
-        "runs": [
-            {**r.to_dict(), "execution_progress": store.task_progress(r.id)}
-            for r in runs
-        ]
-    }
+    return _runs_payload(runs)
 
 
 # Registered before /{run_id} so the literal path wins route matching.
@@ -255,12 +260,7 @@ async def list_runs(
 async def list_demo_runs() -> dict[str, Any]:
     """List the seeded demo runs, which are visible to every client."""
     runs = store.list_runs(client_id=store.DEMO_CLIENT_ID)
-    return {
-        "runs": [
-            {**r.to_dict(), "execution_progress": store.task_progress(r.id)}
-            for r in runs
-        ]
-    }
+    return _runs_payload(runs)
 
 
 @router.get("/{run_id}")
@@ -557,6 +557,14 @@ def _ensure_resumable_checkpoint(run_id: str, provider: str) -> None:
     )
 
 
+def _has_paused_engine_task(run_id: str) -> bool:
+    """Return whether the run has a paused engine-provider task queued."""
+    return any(
+        task.status == "paused" and task.task_type.startswith("engine.")
+        for task in store.list_tasks(run_id)
+    )
+
+
 @router.post("/{run_id}/resume")
 async def resume_run(run_id: str) -> dict[str, Any]:
     """Resume a paused or interrupted run from its last checkpoint.
@@ -571,11 +579,7 @@ async def resume_run(run_id: str) -> dict[str, Any]:
         raise HTTPException(status_code=409, detail="run already completed")
     if run.status in (RunStatus.RUNNING.value, RunStatus.SYNTHESIZING.value):
         raise HTTPException(status_code=409, detail="run already in progress")
-    has_paused_engine_task = any(
-        task.status == "paused" and task.task_type.startswith("engine.")
-        for task in store.list_tasks(run_id)
-    )
-    if not store.has_checkpoint(run_id) and not has_paused_engine_task:
+    if not store.has_checkpoint(run_id) and not _has_paused_engine_task(run_id):
         raise HTTPException(status_code=409, detail="run has no checkpoint")
     await _launch_resume(run_id)
     return {"id": run_id, "status": "queued"}
@@ -602,11 +606,7 @@ async def _launch_resume(run_id: str) -> None:
     run = _run_or_404(run_id)
     checkpoint = store.get_latest_checkpoint(run_id)
     engine_resume = engine_adapter.is_engine_checkpoint(checkpoint)
-    has_paused_engine_task = any(
-        task.status == "paused" and task.task_type.startswith("engine.")
-        for task in store.list_tasks(run_id)
-    )
-    if engine_resume or has_paused_engine_task:
+    if engine_resume or _has_paused_engine_task(run_id):
         store.update_run_status(run_id, RunStatus.QUEUED)
         store.append_event(
             run_id,
@@ -722,7 +722,7 @@ async def stream_events(
 @router.get("/{run_id}/hypotheses")
 async def get_hypotheses(run_id: str) -> dict[str, Any]:
     """Return the run's hypotheses with Elo state, lineage, and verification."""
-    _require_run(run_id)
+    run = _run_or_404(run_id)
     from app.report_render import _unverified_hypothesis_ids
 
     hyps = store.list_hypotheses(run_id)
@@ -732,8 +732,7 @@ async def get_hypotheses(run_id: str) -> dict[str, Any]:
     # Mock demo runs are illustrative fixtures, not assessed science, so they
     # are never badged (they carry simulated "insufficient" claim rows that
     # would otherwise flag every idea).
-    run = store.get_run(run_id)
-    if run is not None and run.provider == "mock":
+    if run.provider == "mock":
         for hyp in hyps:
             hyp["unverified"] = False
     else:

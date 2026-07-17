@@ -25,6 +25,13 @@ from app.store.models import (
 
 logger = logging.getLogger(__name__)
 
+# Statuses that mark a run as occupying a concurrency slot / still in flight.
+_ACTIVE_RUN_STATUSES: tuple[str, str, str] = (
+    RunStatus.QUEUED.value,
+    RunStatus.RUNNING.value,
+    RunStatus.SYNTHESIZING.value,
+)
+
 
 def create_run(
     research_goal: str,
@@ -141,16 +148,11 @@ def reserve_run_capacity(
         True when the slot was reserved and the run queued; False when the
         quota was already full or the run was no longer startable.
     """
-    active = (
-        RunStatus.QUEUED.value,
-        RunStatus.RUNNING.value,
-        RunStatus.SYNTHESIZING.value,
-    )
     with transaction(db_path) as conn:
         count = conn.execute(
             "SELECT COUNT(*) FROM runs WHERE client_id=? AND profile=? "
             "AND status IN (?,?,?) AND id!=?",
-            (client_id, profile, *active, run_id),
+            (client_id, profile, *_ACTIVE_RUN_STATUSES, run_id),
         ).fetchone()[0]
         if int(count) >= limit:
             return False
@@ -388,11 +390,6 @@ def reconcile_interrupted_runs(
     Returns:
         ``{"failed": [...], "resumable": [...]}`` — the ids in each outcome.
     """
-    interrupted = (
-        RunStatus.QUEUED.value,
-        RunStatus.RUNNING.value,
-        RunStatus.SYNTHESIZING.value,
-    )
     now = _now()
     reason = "Run interrupted by a server restart."
     failed: list[str] = []
@@ -400,7 +397,7 @@ def reconcile_interrupted_runs(
     with connect(db_path) as conn:
         rows = conn.execute(
             "SELECT id FROM runs WHERE status IN (?,?,?)",
-            interrupted,
+            _ACTIVE_RUN_STATUSES,
         ).fetchall()
         for row in rows:
             rid = row["id"]
@@ -465,6 +462,33 @@ _HUMAN_REVIEWER = "scientist"
 _HUMAN_EVIDENCE_SOURCE = "attachment"
 
 
+def _delete_agent_derived_rows(conn: sqlite3.Connection, run_id: str) -> None:
+    """Delete a run's agent-authored hypotheses/reviews/evidence rows.
+
+    Scientist contributions (manual hypotheses, human reviews, attachments)
+    are preserved. ``hypothesis_state`` is keyed by hypothesis_id (no run_id),
+    so it is cleared via the run's hypotheses before those rows are removed.
+    """
+    conn.execute(
+        "DELETE FROM hypothesis_state WHERE hypothesis_id IN "
+        "(SELECT id FROM hypotheses WHERE run_id=? AND "
+        "created_by_agent != ?)",
+        (run_id, _HUMAN_HYPOTHESIS_ORIGIN),
+    )
+    conn.execute(
+        "DELETE FROM hypotheses WHERE run_id=? AND created_by_agent != ?",
+        (run_id, _HUMAN_HYPOTHESIS_ORIGIN),
+    )
+    conn.execute(
+        "DELETE FROM reviews WHERE run_id=? AND reviewer_agent != ?",
+        (run_id, _HUMAN_REVIEWER),
+    )
+    conn.execute(
+        "DELETE FROM evidence WHERE run_id=? AND source != ?",
+        (run_id, _HUMAN_EVIDENCE_SOURCE),
+    )
+
+
 def clear_run_derived_data(
     run_id: str,
     db_path: str | None = None,
@@ -506,26 +530,7 @@ def clear_run_derived_data(
         "run_metrics",
     )
     with _use_conn(conn, db_path) as conn:
-        # hypothesis_state is keyed by hypothesis_id (no run_id), so clear it
-        # via the run's hypotheses before those rows are deleted below.
-        conn.execute(
-            "DELETE FROM hypothesis_state WHERE hypothesis_id IN "
-            "(SELECT id FROM hypotheses WHERE run_id=? AND "
-            "created_by_agent != ?)",
-            (run_id, _HUMAN_HYPOTHESIS_ORIGIN),
-        )
-        conn.execute(
-            "DELETE FROM hypotheses WHERE run_id=? AND created_by_agent != ?",
-            (run_id, _HUMAN_HYPOTHESIS_ORIGIN),
-        )
-        conn.execute(
-            "DELETE FROM reviews WHERE run_id=? AND reviewer_agent != ?",
-            (run_id, _HUMAN_REVIEWER),
-        )
-        conn.execute(
-            "DELETE FROM evidence WHERE run_id=? AND source != ?",
-            (run_id, _HUMAN_EVIDENCE_SOURCE),
-        )
+        _delete_agent_derived_rows(conn, run_id)
         for table in run_scoped:
             conn.execute(f"DELETE FROM {table} WHERE run_id=?", (run_id,))
 
@@ -543,24 +548,7 @@ def clear_publication_artifacts(
     `_persist_final_state` deterministically reconstructs.
     """
     with _use_conn(conn, db_path) as active:
-        active.execute(
-            "DELETE FROM hypothesis_state WHERE hypothesis_id IN "
-            "(SELECT id FROM hypotheses WHERE run_id=? AND "
-            "created_by_agent != ?)",
-            (run_id, _HUMAN_HYPOTHESIS_ORIGIN),
-        )
-        active.execute(
-            "DELETE FROM hypotheses WHERE run_id=? AND created_by_agent != ?",
-            (run_id, _HUMAN_HYPOTHESIS_ORIGIN),
-        )
-        active.execute(
-            "DELETE FROM reviews WHERE run_id=? AND reviewer_agent != ?",
-            (run_id, _HUMAN_REVIEWER),
-        )
-        active.execute(
-            "DELETE FROM evidence WHERE run_id=? AND source != ?",
-            (run_id, _HUMAN_EVIDENCE_SOURCE),
-        )
+        _delete_agent_derived_rows(active, run_id)
         for table in (
             "matches",
             "citations",

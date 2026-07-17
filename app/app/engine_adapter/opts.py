@@ -82,14 +82,15 @@ def _steering_preference_part(
 
 
 def _fold_steering_preferences(
-    run_id: str, db_path: str | None, setup_text: str
+    db_path: str | None,
+    setup_text: str,
+    pending_steering: list[store.MessageRow],
 ) -> str | None:
     """Fold setup guidance and queued user steering into one "preferences" opt.
 
     Steering consumed here is marked applied so a later iteration does not
     replay the same message. Returns None when there is nothing to fold.
     """
-    pending_steering = store.get_pending_steering(run_id, db_path=db_path)
     preference_parts: list[str] = []
     _append_if(preference_parts, setup_text)
     _append_if(
@@ -128,10 +129,13 @@ def _build_engine_opts(
     # (folding marks it applied): the engine's orchestrator then schedules a
     # high-priority GENERATE to incorporate it at the next safe boundary,
     # rather than the steering only appearing as initial preference text.
-    if store.get_pending_steering(run_id, db_path=db_path):
+    pending_steering = store.get_pending_steering(run_id, db_path=db_path)
+    if pending_steering:
         initial_opts["pending_steering"] = True
     preferences = _fold_steering_preferences(
-        run_id, db_path, str(initial_opts.get("run_setup_guidance") or "")
+        db_path,
+        str(initial_opts.get("run_setup_guidance") or ""),
+        pending_steering,
     )
     if preferences:
         initial_opts["preferences"] = preferences

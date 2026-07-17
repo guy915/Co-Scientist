@@ -252,14 +252,25 @@ def _released_claim_evidence(
     return released
 
 
-def _contradicted_hypothesis_ids(run_id: str, db_path: str | None) -> set[str]:
+def _contradicted_hypothesis_ids(
+    run_id: str,
+    db_path: str | None,
+    claim_edges: list[dict[str, Any]] | None = None,
+) -> set[str]:
     """Ids of hypotheses with a claim the evidence contradicts.
 
     Contradicted ideas have evidence *against* them, so the rank-and-publish
     policy withholds them from the report entirely -- unlike merely-unsupported
     ideas, which are published with an "Unverified" badge.
+
+    ``claim_edges`` may be passed to reuse an already-fetched edge list;
+    when omitted it is queried from the store.
     """
-    edges = store.list_claim_evidence(run_id, db_path=db_path)
+    edges = (
+        claim_edges
+        if claim_edges is not None
+        else store.list_claim_evidence(run_id, db_path=db_path)
+    )
     return {
         str(edge["hypothesis_id"])
         for edge in edges
@@ -299,6 +310,7 @@ def _exclude_unsafe_hypotheses(
     run_id: str,
     hyps: list[dict[str, Any]],
     db_path: str | None,
+    claim_edges: list[dict[str, Any]] | None = None,
 ) -> list[dict[str, Any]]:
     """Drop hypotheses a safety review or the publication gate blocks.
 
@@ -317,11 +329,13 @@ def _exclude_unsafe_hypotheses(
         hyps: The run's hypotheses (store rows with a ``statement`` and,
             normally, a persisted ``safety_status``).
         db_path: Optional override for the SQLite database path.
+        claim_edges: Pre-fetched claim-evidence edges to reuse; queried from
+            the store when omitted.
 
     Returns:
         The hypotheses safe to synthesize, in the original order.
     """
-    contradicted = _contradicted_hypothesis_ids(run_id, db_path)
+    contradicted = _contradicted_hypothesis_ids(run_id, db_path, claim_edges)
     safe: list[dict[str, Any]] = []
     for hyp in hyps:
         if hyp.get("status") == "rejected":
@@ -407,12 +421,12 @@ def _build_report_content(
         A tuple of (report payload, rendered markdown).
     """
     all_hyps = store.list_hypotheses(run_id, db_path=db_path)
+    claim_edges = store.list_claim_evidence(run_id, db_path=db_path)
     # Exclude any hypothesis a per-hypothesis safety review blocks (recorded as
     # an audit decision) before it can appear in the leaderboard or top ideas.
-    hyps = _exclude_unsafe_hypotheses(run_id, all_hyps, db_path)
+    hyps = _exclude_unsafe_hypotheses(run_id, all_hyps, db_path, claim_edges)
     counts = store.summary_counts(run_id, db_path=db_path)
     leaderboard = live_leaderboard(hyps)
-    claim_edges = store.list_claim_evidence(run_id, db_path=db_path)
     evidence = store.list_evidence(run_id, db_path=db_path)
     released_claim_edges = _released_claim_evidence(hyps, claim_edges, evidence)
     synthesized_topics = _synthesized_knowledge_base_topics(

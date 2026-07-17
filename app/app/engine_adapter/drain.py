@@ -136,7 +136,7 @@ def _persist_hypothesis_state(
         elo_rating=int(h.get("elo_rating", INITIAL_ELO)),
         win_delta=int(h.get("win_count", 0)),
         loss_delta=int(h.get("loss_count", 0)),
-        novelty=float(h.get("score", 0) or 0) or None,
+        novelty=_score_or_none(h.get("score", 0)),
         status=(
             "rejected"
             if h.get("review_disposition")
