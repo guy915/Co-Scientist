@@ -191,6 +191,7 @@ def build_system_prompt(
     matches: list[dict[str, Any]],
     history: list[Any],
     manifest: list[dict[str, Any]],
+    audience_context: str = "",
 ) -> str:
     """Assemble the grounded-Q&A system prompt from a run's current state.
 
@@ -201,6 +202,8 @@ def build_system_prompt(
         matches: Tournament match rows.
         history: Prior messages (MessageRow) excluding the current question.
         manifest: The numbered evidence manifest for citation grounding.
+        audience_context: Optional background about the user's field, appended
+            when non-empty so answers are aware of the audience's research.
 
     Returns:
         The system prompt string.
@@ -230,7 +233,7 @@ def build_system_prompt(
         for m in history[-10:]
     )
 
-    return (
+    prompt = (
         f"You are a concise research assistant helping the user understand "
         f"an ongoing AI-driven hypothesis generation run.\n\n"
         f"Research goal: {research_goal}\n\n"
@@ -247,6 +250,12 @@ def build_system_prompt(
         f"speculating. Do not repeat the question. When a statement is "
         f"supported by a listed source, cite it inline as [n]."
     )
+    if audience_context.strip():
+        prompt += (
+            f"\n\nBackground about the user's field:\n"
+            f"{audience_context.strip()}"
+        )
+    return prompt
 
 
 def _offline_hypothesis_lines(
