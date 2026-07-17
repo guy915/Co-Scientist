@@ -21,8 +21,9 @@ from co_scientist.agents.generation.literature_review import queries
 from co_scientist.agents.generation.literature_review.helpers import (
     SearchConfig,
 )
-from co_scientist.config import ToolConfig, ToolRegistry, WorkflowConfig
+from co_scientist.config import ToolConfig, WorkflowConfig
 from co_scientist.mcp_client import MCPToolClient
+from tests._mcp import FakeCallToolClient, make_tool_lookup_registry
 from tests._state import make_state
 
 _DEFAULT_SEARCH_CONFIG = SearchConfig(
@@ -47,47 +48,6 @@ def _tool_config(mcp_tool_name: str = "query_gen") -> ToolConfig:
     return ToolConfig(server="s", mcp_tool_name=mcp_tool_name)
 
 
-class _FakeMCPClient:
-    """Minimal ``call_tool``-only stand-in for ``MCPToolClient``.
-
-    Records every call and either returns a fixed response or raises a
-    configured error, so success and failure paths can be driven without a
-    live MCP server.
-    """
-
-    def __init__(
-        self, response: Any = None, error: Exception | None = None
-    ) -> None:
-        """Store the response (or error) every ``call_tool`` invocation uses.
-
-        Args:
-            response: Value returned by ``call_tool`` when no error is set.
-            error: Exception raised by ``call_tool`` instead of returning.
-        """
-        self._response = response
-        self._error = error
-        self.calls: list[tuple[str, dict[str, Any]]] = []
-
-    async def call_tool(self, tool_name: str, **kwargs: Any) -> Any:
-        """Record the call and return the response or raise the error."""
-        self.calls.append((tool_name, kwargs))
-        if self._error is not None:
-            raise self._error
-        return self._response
-
-
-class _StubRegistry:
-    """Minimal stand-in for ``ToolRegistry`` exposing only ``get_tool``."""
-
-    def __init__(self, tools: dict[str, ToolConfig]) -> None:
-        """Store the tool-id -> ToolConfig map ``get_tool`` resolves."""
-        self._tools = tools
-
-    def get_tool(self, tool_id: str) -> ToolConfig | None:
-        """Resolve a tool id to its configured ToolConfig, or None."""
-        return self._tools.get(tool_id)
-
-
 # =============================================================================
 # _generate_queries_via_mcp
 # =============================================================================
@@ -97,7 +57,7 @@ async def test_generate_queries_via_mcp_success_returns_parsed_queries() -> (
     None
 ):
     """A successful MCP call returns the parsed query list."""
-    client = _FakeMCPClient(response=["query one", "query two"])
+    client = FakeCallToolClient(response=["query one", "query two"])
 
     result = await queries._generate_queries_via_mcp(
         cast(MCPToolClient, client), "goal", "qgen_tool", "boolean"
@@ -115,7 +75,7 @@ async def test_generate_queries_via_mcp_error_returns_empty_list() -> None:
     An empty list here is the signal that lets ``_phase1_generate_queries``
     fall through to LLM-based generation.
     """
-    client = _FakeMCPClient(error=RuntimeError("mcp down"))
+    client = FakeCallToolClient(error=RuntimeError("mcp down"))
 
     result = await queries._generate_queries_via_mcp(
         cast(MCPToolClient, client), "goal", "qgen_tool", "boolean"
@@ -173,7 +133,7 @@ def test_resolve_query_generation_tool_missing_tool_config_returns_none() -> (
     """A configured tool id the registry can't resolve returns None."""
     workflow = WorkflowConfig(query_generation_tool="qgen_missing")
     config = _search_config(
-        tool_registry=cast(ToolRegistry, _StubRegistry({})),
+        tool_registry=make_tool_lookup_registry({}),
         workflow=workflow,
     )
 
@@ -187,9 +147,7 @@ def test_resolve_query_generation_tool_returns_name_and_format() -> None:
         query_generation_tool="qgen_tool", query_format="natural_language"
     )
     config = _search_config(
-        tool_registry=cast(
-            ToolRegistry, _StubRegistry({"qgen_tool": tool_config})
-        ),
+        tool_registry=make_tool_lookup_registry({"qgen_tool": tool_config}),
         workflow=workflow,
     )
 
@@ -211,12 +169,10 @@ async def test_try_mcp_query_generation_calls_the_resolved_tool() -> None:
         query_generation_tool="qgen_tool", query_format="boolean"
     )
     config = _search_config(
-        tool_registry=cast(
-            ToolRegistry, _StubRegistry({"qgen_tool": tool_config})
-        ),
+        tool_registry=make_tool_lookup_registry({"qgen_tool": tool_config}),
         workflow=workflow,
     )
-    client = _FakeMCPClient(response=["alpha", "beta"])
+    client = FakeCallToolClient(response=["alpha", "beta"])
     state = make_state(research_goal="goal x")
 
     result = await queries._try_mcp_query_generation(

@@ -24,14 +24,13 @@ from typing import Any
 import pytest
 from jsonschema.exceptions import ValidationError
 
-from co_scientist import llm
-from co_scientist.cache import LLMCache
 from co_scientist.llm import (
     _supports_json_schema_response_format,
     call_llm,
     call_llm_json,
 )
 from co_scientist.llm_json import _backfill_required_fields
+from tests._llm_fake import disable_llm_cache as _disable_cache
 
 # --- helpers ---------------------------------------------------------------
 
@@ -62,15 +61,6 @@ def _completion(content: str) -> SimpleNamespace:
         role="assistant", content=content, tool_calls=None
     )
     return SimpleNamespace(choices=[SimpleNamespace(message=message)])
-
-
-def _disable_cache(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Force ``llm.get_cache`` to hand back a disabled cache.
-
-    Args:
-        monkeypatch: The pytest monkeypatch fixture.
-    """
-    monkeypatch.setattr(llm, "get_cache", lambda: LLMCache(enabled=False))
 
 
 def _patch_registry(

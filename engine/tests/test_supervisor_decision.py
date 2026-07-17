@@ -9,19 +9,20 @@ import pytest
 from co_scientist.agents.supervisor import supervisor_decision
 from co_scientist.scheduling import Budget, SchedulerStats, TaskType
 from co_scientist.state import WorkflowState
+from tests._state import make_state
 
 
 def _state() -> WorkflowState:
-    return {  # type: ignore[typeddict-item]
-        "research_goal": "Find a testable mechanism.",
-        "supervisor_model_name": "test/model",
-        "run_id": "run-1",
-        "supervisor_guidance": {"workflow_plan": {}},
-        "task_history": [],
-        "meta_review": {},
-        "pending_steering": False,
-        "held_for_review": [],
-    }
+    return make_state(
+        research_goal="Find a testable mechanism.",
+        supervisor_model_name="test/model",
+        run_id="run-1",
+        supervisor_guidance={"workflow_plan": {}},
+        task_history=[],
+        meta_review={},
+        pending_steering=False,
+        held_for_review=[],
+    )
 
 
 @pytest.mark.asyncio

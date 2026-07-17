@@ -23,10 +23,9 @@ from typing import Any
 
 import pytest
 
-from co_scientist import llm
 from co_scientist import prompts as prompts_mod
-from co_scientist.cache import LLMCache
 from co_scientist.llm import call_llm, call_llm_json, call_llm_with_tools
+from tests._llm_fake import disable_llm_cache as _disable_cache
 
 # The real prompt writer, captured at import time -- i.e. before the autouse
 # ``_no_prompt_disk_writes`` conftest fixture swaps in its per-test no-op.
@@ -83,18 +82,6 @@ def _tool_call(call_id: str, name: str, arguments: str) -> SimpleNamespace:
     return SimpleNamespace(
         id=call_id, function=SimpleNamespace(name=name, arguments=arguments)
     )
-
-
-def _disable_cache(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Force ``llm.get_cache`` to hand back a disabled cache.
-
-    A disabled ``LLMCache`` returns ``None`` from ``get`` and no-ops in ``set``,
-    so the completion path always runs and nothing leaks between tests.
-
-    Args:
-        monkeypatch: The pytest monkeypatch fixture.
-    """
-    monkeypatch.setattr(llm, "get_cache", lambda: LLMCache(enabled=False))
 
 
 def _patch_acompletion(

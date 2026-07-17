@@ -10,11 +10,11 @@ LiteLLM shape the provider reads (``.id``, ``.function.name``,
 """
 
 import json
-import types
 from typing import Any, cast
 
 from co_scientist.mcp_client import MCPToolClient
 from co_scientist.tools.provider import MCPToolProvider
+from tests._mcp import make_tool_call
 
 
 class FakeMCPClient:
@@ -70,14 +70,6 @@ class FailingMCPClient(FakeMCPClient):
     async def execute_tool_call(self, tool_call: Any) -> dict[str, Any]:
         """Raise to simulate a tool execution failure."""
         raise RuntimeError(f"server unavailable for {tool_call.function.name}")
-
-
-def _make_tool_call(name: str, arguments: str, call_id: str = "call-1") -> Any:
-    """Build a LiteLLM-shaped tool call via SimpleNamespace."""
-    return types.SimpleNamespace(
-        id=call_id,
-        function=types.SimpleNamespace(name=name, arguments=arguments),
-    )
 
 
 def _make_provider(fake: FakeMCPClient) -> MCPToolProvider:
@@ -141,7 +133,7 @@ async def test_execute_delegates_known_tool_to_client() -> None:
     provider = _make_provider(fake)
     provider.get_tools(mcp_whitelist=["pubmed_search"])
 
-    tool_call = _make_tool_call(
+    tool_call = make_tool_call(
         "pubmed_search", json.dumps({"query": "cancer"}), call_id="call-mcp"
     )
     result = await provider.execute_tool_call(tool_call)
@@ -156,7 +148,7 @@ async def test_execute_unknown_tool_returns_error_response() -> None:
     """An unlisted tool name yields an error tool-response, not a raise."""
     provider = _make_provider(FakeMCPClient())
     # No get_tools call, so no tool names are tracked.
-    tool_call = _make_tool_call("nope_tool", "{}", call_id="call-x")
+    tool_call = make_tool_call("nope_tool", "{}", call_id="call-x")
     result = await provider.execute_tool_call(tool_call)
 
     assert result["role"] == "tool"
@@ -172,7 +164,7 @@ async def test_execute_client_failure_returns_error_response() -> None:
     provider = _make_provider(fake)
     provider.get_tools(mcp_whitelist=["pubmed_search"])
 
-    tool_call = _make_tool_call("pubmed_search", "{}")
+    tool_call = make_tool_call("pubmed_search", "{}")
     result = await provider.execute_tool_call(tool_call)
 
     payload = json.loads(result["content"])
@@ -188,7 +180,7 @@ async def test_execute_known_tool_without_client_errors() -> None:
     # Drop the client after names are tracked to force the None branch.
     provider.mcp_client = None
 
-    tool_call = _make_tool_call("pubmed_search", "{}")
+    tool_call = make_tool_call("pubmed_search", "{}")
     result = await provider.execute_tool_call(tool_call)
 
     payload = json.loads(result["content"])
@@ -206,8 +198,8 @@ async def test_tracked_executor_counts_calls_per_tool() -> None:
     provider.get_tools(mcp_whitelist=["pubmed_search"])
     executor, counts = provider.tracked_executor("Draft")
 
-    await executor(_make_tool_call("pubmed_search", "{}"))
-    await executor(_make_tool_call("pubmed_search", "{}"))
+    await executor(make_tool_call("pubmed_search", "{}"))
+    await executor(make_tool_call("pubmed_search", "{}"))
 
     assert counts == {"pubmed_search": 2}
     assert len(fake.executed) == 2

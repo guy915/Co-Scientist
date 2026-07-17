@@ -28,6 +28,7 @@ from co_scientist.agents.generation.literature_review.helpers import (
 from co_scientist.config import ToolRegistry
 from co_scientist.config.schema import ToolConfig, WorkflowConfig
 from co_scientist.mcp_client import MCPToolClient
+from tests._mcp import make_tool_lookup_registry as _registry
 from tests._state import make_state
 
 
@@ -73,23 +74,6 @@ def _client(
         MCPToolClient,
         _FakeMCPClient(results, available_tools, error_tools),
     )
-
-
-class _FakeToolRegistry:
-    """Duck-typed stand-in exposing only the ``get_tool`` lookup used here."""
-
-    def __init__(self, tools: dict[str, ToolConfig]) -> None:
-        """Store the tool_id -> ToolConfig map returned by ``get_tool``."""
-        self._tools = tools
-
-    def get_tool(self, tool_id: str) -> ToolConfig | None:
-        """Return the configured tool, or None for an unknown id."""
-        return self._tools.get(tool_id)
-
-
-def _registry(tools: dict[str, ToolConfig]) -> ToolRegistry:
-    """Build a fake registry typed as ToolRegistry for the phase signatures."""
-    return cast(ToolRegistry, _FakeToolRegistry(tools))
 
 
 def _search_config(

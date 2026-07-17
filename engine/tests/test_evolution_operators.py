@@ -12,7 +12,7 @@ from co_scientist.agents.evolution.evolution_operators import (
 )
 from co_scientist.agents.evolution.evolve import evolve_single_hypothesis
 from co_scientist.agents.evolution.evolve_prompt import _build_evolution_prompt
-from co_scientist.models import Hypothesis
+from tests._state import make_hypothesis
 
 
 def test_portfolio_contains_every_disclosed_operator() -> None:
@@ -37,7 +37,7 @@ def test_selection_rotates_across_parent_and_iteration() -> None:
 def test_prompt_requires_assigned_operator() -> None:
     """Combination tasks explicitly permit synthesis instead of preservation."""
     prompt, _ = _build_evolution_prompt(
-        hypothesis=Hypothesis(text="Parent mechanism."),
+        hypothesis=make_hypothesis("Parent mechanism."),
         other_hypotheses_texts=["Complementary peer mechanism."],
         meta_review={},
         removed_duplicates=[],
@@ -55,7 +55,7 @@ def test_prompt_requires_assigned_operator() -> None:
 def test_out_of_box_prompt_permits_core_mechanism_replacement() -> None:
     """Divergent evolution is not contradicted by a preservation directive."""
     prompt, _ = _build_evolution_prompt(
-        hypothesis=Hypothesis(text="Parent mechanism."),
+        hypothesis=make_hypothesis("Parent mechanism."),
         other_hypotheses_texts=[],
         meta_review={},
         removed_duplicates=[],
@@ -94,8 +94,8 @@ async def test_every_operator_executes_as_a_distinct_evolution_task(
         }
 
     monkeypatch.setattr(evolve, "call_llm_json", fake_llm)
-    parent = Hypothesis(
-        text="A parent proposal links metabolic state to recovery kinetics."
+    parent = make_hypothesis(
+        "A parent proposal links metabolic state to recovery kinetics."
     )
 
     child, detail = await evolve_single_hypothesis(

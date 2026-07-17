@@ -14,20 +14,7 @@ resurrecting anything.
 
 from co_scientist.models import Hypothesis
 from co_scientist.state import AppendHypotheses, deduplicate_hypotheses
-
-
-def make_hypothesis(text: str, score: float = 0.0) -> Hypothesis:
-    """Builds a minimal ``Hypothesis`` for reducer tests.
-
-    Args:
-        text: The hypothesis text.
-        score: A distinguishing marker identifying a surviving instance.
-
-    Returns:
-        A ``Hypothesis`` instance.
-    """
-    return Hypothesis(text=text, score=score)
-
+from tests._state import make_hypothesis
 
 # --- Empty-update guard -----------------------------------------------------
 

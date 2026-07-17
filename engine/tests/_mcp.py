@@ -37,6 +37,63 @@ def string_tool(name: str, result: Any) -> StructuredTool:
     )
 
 
+# --- Fake MCPToolClient (call_tool duck) ------------------------------------
+
+
+class FakeCallToolClient:
+    """Minimal ``call_tool``-only stand-in for ``MCPToolClient``.
+
+    Records every call and either returns a fixed response or raises a
+    configured error, so success and failure paths can be driven without a
+    live MCP server.
+    """
+
+    def __init__(
+        self, response: Any = None, error: Exception | None = None
+    ) -> None:
+        """Store the response (or error) every ``call_tool`` invocation uses.
+
+        Args:
+            response: Value returned by ``call_tool`` when no error is set.
+            error: Exception raised by ``call_tool`` instead of returning.
+        """
+        self._response = response
+        self._error = error
+        self.calls: list[tuple[str, dict[str, Any]]] = []
+
+    async def call_tool(self, tool_name: str, **kwargs: Any) -> Any:
+        """Record the call and return the response or raise the error."""
+        self.calls.append((tool_name, kwargs))
+        if self._error is not None:
+            raise self._error
+        return self._response
+
+
+# --- Minimal get_tool-only ToolRegistry stub --------------------------------
+
+
+class ToolLookupRegistry:
+    """Minimal ``ToolRegistry`` stand-in exposing only ``get_tool``.
+
+    Resolves a tool id to its configured value via a dict lookup, returning
+    None for an unknown id. Used by the literature-review phase/helper tests
+    that need nothing more than tool-config resolution.
+    """
+
+    def __init__(self, tools: dict[str, Any]) -> None:
+        """Store the tool-id -> config map ``get_tool`` resolves."""
+        self._tools = tools
+
+    def get_tool(self, tool_id: str) -> Any:
+        """Resolve a tool id to its configured value, or None."""
+        return self._tools.get(tool_id)
+
+
+def make_tool_lookup_registry(tools: dict[str, Any]) -> Any:
+    """Build a ToolLookupRegistry typed as the ToolRegistry code expects."""
+    return cast(Any, ToolLookupRegistry(tools))
+
+
 # --- Fake ToolRegistry (config-driven multi-server path) --------------------
 
 

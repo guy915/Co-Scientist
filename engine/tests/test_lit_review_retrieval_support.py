@@ -21,29 +21,12 @@ from typing import Any, cast
 from co_scientist.agents.generation.literature_review import (
     retrieval_support as rs,
 )
-from co_scientist.config import ToolRegistry
 from co_scientist.config.schema import (
     SearchSourceConfig,
     ToolConfig,
     WorkflowConfig,
 )
-
-
-class _FakeToolRegistry:
-    """Duck-typed stand-in exposing only the ``get_tool`` lookup used here."""
-
-    def __init__(self, tools: dict[str, ToolConfig]) -> None:
-        """Store the tool_id -> ToolConfig map returned by ``get_tool``."""
-        self._tools = tools
-
-    def get_tool(self, tool_id: str) -> ToolConfig | None:
-        """Return the configured tool, or None for an unknown id."""
-        return self._tools.get(tool_id)
-
-
-def _registry(tools: dict[str, ToolConfig]) -> ToolRegistry:
-    """Build a fake registry typed as ToolRegistry for the helper signatures."""
-    return cast(ToolRegistry, _FakeToolRegistry(tools))
+from tests._mcp import make_tool_lookup_registry as _registry
 
 
 def _tool(mcp_tool_name: str) -> ToolConfig:

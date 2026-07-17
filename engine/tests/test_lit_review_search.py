@@ -26,6 +26,7 @@ from co_scientist.config import (
     WorkflowConfig,
 )
 from co_scientist.mcp_client import MCPToolClient
+from tests._mcp import FakeCallToolClient, make_tool_lookup_registry
 from tests._state import make_state
 
 
@@ -36,40 +37,11 @@ def _tool_config(
     return ToolConfig(server="s", mcp_tool_name=mcp_tool_name, **overrides)
 
 
-class _FakeMCPClient:
-    """Minimal ``call_tool``-only stand-in for ``MCPToolClient``.
-
-    Records every call and either returns a fixed response or raises a
-    configured error, so success and failure paths can be driven without a
-    live MCP server.
-    """
-
-    def __init__(
-        self, response: Any = None, error: Exception | None = None
-    ) -> None:
-        """Store the response (or error) every ``call_tool`` invocation uses.
-
-        Args:
-            response: Value returned by ``call_tool`` when no error is set.
-            error: Exception raised by ``call_tool`` instead of returning.
-        """
-        self._response = response
-        self._error = error
-        self.calls: list[tuple[str, dict[str, Any]]] = []
-
-    async def call_tool(self, tool_name: str, **kwargs: Any) -> Any:
-        """Record the call and return the response or raise the error."""
-        self.calls.append((tool_name, kwargs))
-        if self._error is not None:
-            raise self._error
-        return self._response
-
-
 class _SequencedMCPClient:
     """Fake MCP client that returns queued responses in call order.
 
     Used where different calls (e.g. one per query) must yield distinct
-    payloads, unlike ``_FakeMCPClient``'s single fixed response.
+    payloads, unlike ``FakeCallToolClient``'s single fixed response.
     """
 
     def __init__(self, responses: list[Any]) -> None:
@@ -88,18 +60,6 @@ class _SequencedMCPClient:
         if isinstance(outcome, Exception):
             raise outcome
         return outcome
-
-
-class _StubRegistry:
-    """Minimal stand-in for ``ToolRegistry`` exposing only ``get_tool``."""
-
-    def __init__(self, tools: dict[str, ToolConfig]) -> None:
-        """Store the tool-id -> ToolConfig map ``get_tool`` resolves."""
-        self._tools = tools
-
-    def get_tool(self, tool_id: str) -> ToolConfig | None:
-        """Resolve a tool id to its configured ToolConfig, or None."""
-        return self._tools.get(tool_id)
 
 
 # =============================================================================
@@ -161,7 +121,7 @@ def test_tag_source_name_tags_dict_entries_only() -> None:
 async def test_search_source_for_query_success_tags_results() -> None:
     """A successful call normalizes and tags the source name onto results."""
     tool_config = _tool_config()
-    client = _FakeMCPClient(response={"P1": {"title": "T1"}})
+    client = FakeCallToolClient(response={"P1": {"title": "T1"}})
     errors: list[str] = []
 
     result = await search._search_source_for_query(
@@ -219,7 +179,7 @@ async def test_search_source_for_query_error_appends_message_and_empties() -> (
 ):
     """A raised exception is swallowed, described, and appended to errors."""
     tool_config = _tool_config()
-    client = _FakeMCPClient(error=ConnectionError("boom"))
+    client = FakeCallToolClient(error=ConnectionError("boom"))
     errors: list[str] = []
 
     result = await search._search_source_for_query(
@@ -245,8 +205,8 @@ async def test_search_source_for_query_error_appends_message_and_empties() -> (
 
 async def test_search_single_source_missing_tool_config_returns_empty() -> None:
     """An unresolvable source tool logs and returns an empty result set."""
-    registry = _StubRegistry({})
-    client = _FakeMCPClient()
+    registry = make_tool_lookup_registry({})
+    client = FakeCallToolClient()
     source = SearchSourceConfig(tool="missing_tool")
 
     result = await search._search_single_source(
@@ -265,8 +225,8 @@ async def test_search_single_source_missing_tool_config_returns_empty() -> None:
 async def test_search_single_source_collects_across_queries() -> None:
     """Every query for a resolved source is searched and merged together."""
     tool_config = _tool_config(mcp_tool_name="search_pubmed")
-    registry = _StubRegistry({"pubmed_ft": tool_config})
-    client = _FakeMCPClient(response={"P1": {"title": "T1"}})
+    registry = make_tool_lookup_registry({"pubmed_ft": tool_config})
+    client = FakeCallToolClient(response={"P1": {"title": "T1"}})
     source = SearchSourceConfig(tool="pubmed_ft", papers_per_query=2)
 
     tool_id, results = await search._search_single_source(
@@ -299,7 +259,8 @@ async def test_phase2_collect_papers_multi_source_merges_and_dedupes() -> None:
     collapses to a single entry.
     """
     tool_a = _tool_config(mcp_tool_name="search_a")
-    registry = _StubRegistry({"src_a": tool_a})  # src_b is unresolvable.
+    # src_b is unresolvable.
+    registry = make_tool_lookup_registry({"src_a": tool_a})
     workflow = WorkflowConfig(
         search_sources=[
             SearchSourceConfig(tool="src_a", papers_per_query=2),
@@ -349,7 +310,7 @@ async def test_multi_source_collection_respects_unique_evidence_budget() -> (
     """Ranked multi-source results are capped to the configured corpus size."""
     tool_a = _tool_config(mcp_tool_name="search_a")
     tool_b = _tool_config(mcp_tool_name="search_b")
-    registry = _StubRegistry({"src_a": tool_a, "src_b": tool_b})
+    registry = make_tool_lookup_registry({"src_a": tool_a, "src_b": tool_b})
     workflow = WorkflowConfig(
         search_sources=[
             SearchSourceConfig(tool="src_a", papers_per_query=4),
