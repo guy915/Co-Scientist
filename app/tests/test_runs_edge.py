@@ -16,9 +16,13 @@ from tests._client import make_client as _client
 from tests._client import wait_for_status as _wait_status
 
 
-def _new_run(c: TestClient, goal: str, *, profile: str = "standard") -> str:
-    """Create a draft run and return its id."""
-    res = c.post("/api/runs", json={"research_goal": goal, "profile": profile})
+def _new_run(c: TestClient, goal: str, *, tier: str = "express") -> str:
+    """Create a draft run and return its id.
+
+    Defaults to the express tier so workflow-driving edge cases run the engine
+    on the offline backend with the smallest envelope.
+    """
+    res = c.post("/api/runs", json={"research_goal": goal, "tier": tier})
     return cast(str, res.json()["id"])
 
 
@@ -231,12 +235,14 @@ def test_run_listing_returns_most_recent_first() -> None:
     assert ids.index(b) < ids.index(a)
 
 
-def test_status_endpoint_includes_provider_and_mock_flag() -> None:
+def test_status_endpoint_includes_provider_and_backend() -> None:
     c = _client()
     res = c.get("/status")
     assert res.status_code == 200
     data = res.json()
-    assert data["provider"] == "mock"
+    assert data["provider"] == "engine"
+    assert data["llm_backend"] == "offline"
+    # Deprecated mirror of the offline backend, retained for older clients.
     assert data["mock_mode"] is True
 
 
@@ -249,8 +255,8 @@ def test_run_get_includes_summary_counts() -> None:
     assert "summary" in res
     summary = res["summary"]
     assert summary["events"] >= 10
-    assert summary["hypotheses"] >= 5
-    assert summary["matches"] >= 6
+    assert summary["hypotheses"] >= 2
+    assert summary["matches"] >= 2
 
 
 def test_active_run_counts_committed_checkpoint_artifacts(

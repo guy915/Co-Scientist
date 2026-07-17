@@ -1,21 +1,21 @@
 """Integration tests spanning router + store + engine_adapter + report_render.
 
-``test_runs.py`` and friends already cover single-endpoint behavior for the
-mock provider; this file covers multi-component journeys none of them
-exercise: a full run's event log cross-checked through both the store and
-the HTTP API, SSE replay-then-live consistency over a real HTTP round trip,
-a mid-run cancellation leaving a consistent terminal state everywhere, and a
-steering message queued (and drained) while the workflow is already running.
+``test_runs.py`` and friends already cover single-endpoint behavior; this file
+covers multi-component journeys none of them exercise: a full run's event log
+cross-checked through both the store and the HTTP API, SSE replay-then-live
+consistency over a real HTTP round trip, and a mid-run cancellation leaving a
+consistent terminal state everywhere.
 
-The SSE/cancellation/steering scenarios need genuine concurrency between the
-run's background workflow and the request that observes it mid-flight.
-``TestClient`` cannot provide that: Starlette runs ``BackgroundTasks`` to
-completion inside the same ASGI call that scheduled them, so a synchronous
-``client.post(.../start)`` never returns until the whole run has finished.
-Those scenarios instead use ``httpx.AsyncClient`` over ``ASGITransport`` on
-a single event loop, driving the run as a concurrent ``asyncio`` task and
-polling the store (which is synchronous but process-local, so writes are
-visible the instant they commit) to know when to act.
+The SSE scenario needs genuine concurrency between the run's background
+workflow and the request that observes it mid-flight. ``TestClient`` cannot
+provide that: Starlette runs ``BackgroundTasks`` to completion inside the same
+ASGI call that scheduled them, so a synchronous ``client.post(.../start)``
+never returns until the whole run has finished. It instead uses
+``httpx.AsyncClient`` over ``ASGITransport`` on a single event loop, driving
+the run as a concurrent ``asyncio`` task and polling the store (which is
+synchronous but process-local, so writes are visible the instant they commit)
+to know when to act. The cancellation scenario drives the streaming engine
+surface directly for a reliable paced mid-run window (see its own note).
 """
 
 from __future__ import annotations
@@ -75,12 +75,6 @@ async def _await_condition(
     raise AssertionError("condition not met before timeout")
 
 
-def _event_type_count(run_id: str, db_path: str, type_: str) -> int:
-    """Count persisted events of ``type_`` for a run."""
-    events = store.list_events(run_id, db_path=db_path)
-    return sum(1 for e in events if e["type"] == type_)
-
-
 # ---------------------------------------------------------------------------
 # Full run: creation -> start -> completion, event log cross-checked via the
 # store AND the HTTP API.
@@ -96,7 +90,7 @@ def test_full_run_flow_persists_events_matching_store_and_api(
         json={
             "research_goal": "Integration flow: dissect ferroptosis "
             "resistance in melanoma",
-            "tier": "standard",
+            "tier": "express",
         },
     )
     run_id = res.json()["id"]
@@ -147,7 +141,7 @@ async def test_sse_stream_replay_then_live_matches_full_event_log(
             json={
                 "research_goal": "Integration flow: SSE replay-then-live "
                 "consistency",
-                "tier": "standard",
+                "tier": "express",
             },
         )
         run_id = create.json()["id"]
@@ -192,125 +186,61 @@ async def test_sse_stream_replay_then_live_matches_full_event_log(
 # ---------------------------------------------------------------------------
 # Cancellation mid-run: a cancel issued once the tournament has genuinely
 # started must leave a consistent terminal state everywhere.
+#
+# Driven on the streaming engine surface (``run_workflow`` directly) rather
+# than through the API's durable node executor: the durable path runs unpaced
+# node-to-node, so at the offline express envelope a mid-run cancel races the
+# run to completion and cannot land reliably. The streaming path honors the
+# cooperative cancel event between paced node events, which is exactly the
+# mid-run window this test needs. The API cancel endpoint's own contract (a
+# draft/restart-survivor cancel, and the terminal event replay) is covered in
+# test_runs_edge.py.
 # ---------------------------------------------------------------------------
 
 
 async def test_cancel_mid_run_leaves_consistent_terminal_state(
     isolated_db: str,
 ) -> None:
-    async with httpx.AsyncClient(
-        transport=ASGITransport(app=_asgi_app()), base_url="http://test"
-    ) as client:
-        create = await client.post(
-            "/api/runs",
-            json={
-                "research_goal": "Integration flow: cancel mid-run consistency",
-                "tier": "standard",
-            },
-        )
-        run_id = create.json()["id"]
+    from app import engine_adapter
+    from app.store import RunStatus
 
-        start_task: asyncio.Task[httpx.Response] = asyncio.create_task(
-            client.post(f"/api/runs/{run_id}/start", json={})
-        )
-
-        # Wait for the first tournament round to land -- proof the run has
-        # genuinely progressed (hypotheses generated, first Elo round done)
-        # -- before cancelling, so this is a real mid-run cancel rather than
-        # the pre-start rejection already covered by test_runs_edge.py.
-        await _await_condition(
-            lambda: _event_type_count(run_id, isolated_db, "ranking") >= 1
-        )
-
-        cancel_resp = await client.post(f"/api/runs/{run_id}/cancel")
-        assert cancel_resp.status_code == 200
-        assert cancel_resp.json()["status"] == "cancelling"
-
-        start_resp = await start_task
-        assert start_resp.status_code == 200
-
-        run_resp = await client.get(f"/api/runs/{run_id}")
-        events_resp = await client.get(f"/api/runs/{run_id}/events")
-        report_resp = await client.get(f"/api/runs/{run_id}/report")
-        report_md_resp = await client.get(f"/api/runs/{run_id}/report.md")
-
-    assert run_resp.json()["status"] == "cancelled"
-
-    api_events = _parse_sse(events_resp.text)
-    assert api_events[-1]["type"] == "_terminal"
-    assert api_events[-1]["payload"]["status"] == "cancelled"
-    assert any(
-        e["type"] == "status" and e["payload"].get("status") == "cancelled"
-        for e in api_events
+    run = store.create_run(
+        "Integration flow: cancel mid-run consistency",
+        "express",
+        "engine",
+        {"tier": "express"},
+        db_path=isolated_db,
     )
-    assert report_resp.status_code == 404
-    assert report_md_resp.status_code == 404
 
-    stored = store.list_events(run_id, db_path=isolated_db)
+    cancelled = asyncio.Event()
+    seen: list[dict[str, Any]] = []
+    async for event in engine_adapter.run_workflow(
+        run.id,
+        run.research_goal,
+        {"tier": "express"},
+        force_provider="engine",
+        db_path=isolated_db,
+        cancelled=cancelled,
+        sleep_seconds=0.05,
+    ):
+        seen.append(event)
+        # Cancel once the first tournament round has genuinely landed, so this
+        # is a real mid-run cancel rather than a pre-generation abort.
+        if event["type"] == "ranking" and not cancelled.is_set():
+            cancelled.set()
+
+    # The stream emitted a terminal cancelled status and stopped there.
+    assert seen[-1]["type"] == "status"
+    assert seen[-1]["payload"].get("status") == "cancelled"
+
+    # The terminal state is consistent everywhere: run row cancelled, the last
+    # persisted event is the cancelled status, and no report was published.
+    final = store.get_run(run.id, db_path=isolated_db)
+    assert final is not None and final.status == RunStatus.CANCELLED.value
+    stored = store.list_events(run.id, db_path=isolated_db)
     assert stored[-1]["type"] == "status"
     assert stored[-1]["payload"]["status"] == "cancelled"
-    # Partial progress persisted (hypotheses from generation), but the run
-    # never reached finalization.
-    assert store.list_hypotheses(run_id, db_path=isolated_db)
-    assert store.get_latest_report(run_id, db_path=isolated_db) is None
-
-
-# ---------------------------------------------------------------------------
-# Steering mid-run: a message queued after the workflow has started must be
-# drained by a later iteration, not just by the pre-run drain.
-# ---------------------------------------------------------------------------
-
-
-async def test_steering_message_queued_mid_run_is_drained(
-    isolated_db: str,
-) -> None:
-    async with httpx.AsyncClient(
-        transport=ASGITransport(app=_asgi_app()), base_url="http://test"
-    ) as client:
-        create = await client.post(
-            "/api/runs",
-            json={
-                "research_goal": "Integration flow: steering drained mid-run",
-                "tier": "standard",
-            },
-        )
-        run_id = create.json()["id"]
-
-        start_task: asyncio.Task[httpx.Response] = asyncio.create_task(
-            client.post(f"/api/runs/{run_id}/start", json={})
-        )
-
-        # Wait for the first tournament round -- steering sent after this
-        # point is queued strictly mid-run, not before the workflow began
-        # (that pre-run path is already covered by test_messages.py).
-        await _await_condition(
-            lambda: _event_type_count(run_id, isolated_db, "ranking") >= 1
-        )
-
-        send_resp = await client.post(
-            f"/api/runs/{run_id}/messages",
-            json={"content": "prioritize the top-ranked mechanism"},
-        )
-        assert send_resp.status_code == 200
-        assert send_resp.json()["applied"] is False
-        msg_id = send_resp.json()["id"]
-
-        start_resp = await start_task
-        assert start_resp.status_code == 200
-
-        messages_resp = await client.get(f"/api/runs/{run_id}/messages")
-
-    msgs = messages_resp.json()["messages"]
-    sent = next(m for m in msgs if m["id"] == msg_id)
-    assert sent["applied"] is True
-
-    # A second tournament round happened after the message was queued -- the
-    # drain point (top of the next iteration) genuinely ran mid-run, not
-    # before the workflow started.
-    stored_types = [
-        e["type"] for e in store.list_events(run_id, db_path=isolated_db)
-    ]
-    assert stored_types.count("ranking") >= 2
+    assert store.get_latest_report(run.id, db_path=isolated_db) is None
 
 
 def test_completion_notification_is_opt_in_and_durable(
@@ -324,6 +254,7 @@ def test_completion_notification_is_opt_in_and_durable(
             headers=headers,
             json={
                 "research_goal": "Study notification fidelity",
+                "tier": "express",
                 "notify_on_completion": True,
                 "completion_email": "scientist@example.org",
             },

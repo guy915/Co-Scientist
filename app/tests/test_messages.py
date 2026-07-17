@@ -164,7 +164,7 @@ def _make_run(client: TestClient, goal: str = "test goal") -> str:
     client.headers.update({"X-Client-ID": "test-client"})
     res = client.post(
         "/api/runs",
-        json={"research_goal": goal, "profile": "standard"},
+        json={"research_goal": goal, "tier": "express"},
     )
     assert res.status_code == 200
     return cast(str, res.json()["id"])
@@ -286,16 +286,39 @@ def test_steering_messages_applied_after_run(isolated_db: str) -> None:
     assert steering[0]["applied"] is True
 
 
-def test_milestone_messages_generated_after_run(isolated_db: str) -> None:
-    """Milestone messages should be generated as the run progresses."""
-    client = _client()
-    run_id = _make_run(client, goal="test milestone generation")
+def test_milestone_messages_generated_by_engine_stream(
+    isolated_db: str,
+) -> None:
+    """The engine stream surfaces node milestones as system chat messages.
 
-    client.post(f"/api/runs/{run_id}/start", json={})
-    wait_for_status(client, run_id, "completed", timeout=20.0, interval=0.1)
+    Milestones are emitted on the streaming engine path (the surface the demo
+    seeder and resume worker drive), not the durable node executor the API's
+    ``/start`` uses. Drive that path directly and assert the milestone
+    side-messages land, each authored by ``system``.
+    """
+    from app import engine_adapter
+    from tests._client import drain as _drain
 
-    msgs = client.get(f"/api/runs/{run_id}/messages").json()["messages"]
-    milestones = [m for m in msgs if m["kind"] == "milestone"]
+    run = store.create_run(
+        "test milestone generation",
+        "express",
+        "engine",
+        {"tier": "express"},
+        client_id="test-client",
+        db_path=isolated_db,
+    )
+    _drain(
+        engine_adapter.run_workflow(
+            run.id,
+            run.research_goal,
+            {"tier": "express"},
+            force_provider="engine",
+            db_path=isolated_db,
+            sleep_seconds=0,
+        )
+    )
+
+    msgs = store.list_messages(run.id, db_path=isolated_db)
+    milestones = [m for m in msgs if m.kind == "milestone"]
     assert len(milestones) >= 1
-    kinds = [m["sender"] for m in milestones]
-    assert all(k == "system" for k in kinds)
+    assert all(m.sender == "system" for m in milestones)

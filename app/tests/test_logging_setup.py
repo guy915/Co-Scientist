@@ -173,12 +173,16 @@ def test_workflow_records_carry_the_run_id(isolated_db: str) -> None:
     try:
         client = _client()
         created = client.post(
-            "/api/runs", json={"research_goal": "Correlate logs with events"}
+            "/api/runs",
+            json={
+                "research_goal": "Correlate logs with events",
+                "tier": "express",
+            },
         )
         run_id = created.json()["id"]
         started = client.post(f"/api/runs/{run_id}/start", json={})
         assert started.status_code == 200
-        assert _wait_status(client, run_id, "completed")
+        assert _wait_status(client, run_id, "completed", timeout=30.0)
     finally:
         logging.getLogger().removeHandler(capture)
 

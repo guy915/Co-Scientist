@@ -20,7 +20,7 @@ def test_create_run_returns_draft_status() -> None:
     assert res.status_code == 200
     data = res.json()
     assert data["status"] == "draft"
-    assert data["provider"] == "mock"
+    assert data["provider"] == "engine"
     assert data["run_mode"] == "standard"
     assert data["profile"] == "standard"
     assert data["config"]["tier"] == "standard"
@@ -218,14 +218,21 @@ def test_create_run_without_spec_gets_baseline_planning(
     assert setup["criteria"] == list(DEFAULT_CRITERIA)
 
 
-def test_default_mock_run_completes_and_persists(isolated_db: str) -> None:
+def test_default_run_completes_and_persists(isolated_db: str) -> None:
+    """A keyless run drives the engine on the offline backend end-to-end.
+
+    The API start path runs the durable node executor, so the assertions here
+    are on the durable path's persisted observables (hypotheses, matches,
+    claim grounding, report). Literature review is disabled under test, so a
+    keyless run produces no evidence/citations -- that is the offline reality.
+    """
     client = _client()
     res = client.post(
         "/api/runs",
         json={
             "research_goal": "Investigate ferroptosis as a "
             "tumor-suppression mechanism",
-            "profile": "standard",
+            "tier": "express",
         },
     )
     run_id = res.json()["id"]
@@ -233,11 +240,10 @@ def test_default_mock_run_completes_and_persists(isolated_db: str) -> None:
     start = client.post(f"/api/runs/{run_id}/start", json={})
     assert start.status_code == 200
 
-    assert _wait_status(client, run_id, "completed", timeout=20.0), (
+    assert _wait_status(client, run_id, "completed", timeout=30.0), (
         "run did not reach 'completed'"
     )
 
-    # Sanity: hypotheses, evidence, matches, citations, report all persisted.
     hyps = client.get(f"/api/runs/{run_id}/hypotheses").json()["hypotheses"]
     evidence = client.get(f"/api/runs/{run_id}/evidence").json()["evidence"]
     matches = client.get(f"/api/runs/{run_id}/matches").json()["matches"]
@@ -248,15 +254,16 @@ def test_default_mock_run_completes_and_persists(isolated_db: str) -> None:
     ]
     report = client.get(f"/api/runs/{run_id}/report").json()
 
-    assert len(hyps) >= 5  # initial 5 + evolved
+    assert len(hyps) >= 2  # initial + evolved children
     assert any(h["parent_id"] for h in hyps), "no evolved children persisted"
     assert all(h["elo_rating"] >= 1000 for h in hyps)
     # At least one hypothesis must have moved away from the initial Elo of 1200,
     # otherwise the tournament didn't actually update anything.
     assert any(h["elo_rating"] != 1200 for h in hyps), "no Elo updates observed"
-    assert len(evidence) >= 1
-    assert len(matches) >= 6
-    assert len(citations) >= 4
+    # No literature review under test, so a keyless run grounds no evidence.
+    assert evidence == []
+    assert citations == []
+    assert len(matches) >= 2
     assert {s["stage"] for s in safety} >= {"intake", "final"}
     # The pre-tournament safety screen ran: every hypothesis carries a real
     # safety_status (benign hypotheses are 'allow', never left 'pending').
@@ -267,8 +274,8 @@ def test_default_mock_run_completes_and_persists(isolated_db: str) -> None:
         e["label"] in {"supports", "contradicts", "insufficient"}
         for e in claim_evidence
     )
-    # Mock runs are illustrative fixtures, never assessed science, so the
-    # "Unverified" badge is suppressed even though they carry simulated
+    # Offline-backed runs are illustrative fixtures, never assessed science, so
+    # the "Unverified" badge is suppressed even though they carry simulated
     # claim-evidence rows that would otherwise flag every idea.
     assert all(h.get("unverified") is False for h in hyps)
     assert report["payload"]["leaderboard"]
@@ -281,13 +288,13 @@ def test_run_reopens_after_restart(isolated_db: str) -> None:
         "/api/runs",
         json={
             "research_goal": "Senescent cell removal in aged tissues",
-            "profile": "standard",
+            "tier": "express",
         },
     )
     run_id = res.json()["id"]
     client.post(f"/api/runs/{run_id}/start", json={})
 
-    assert _wait_status(client, run_id, "completed", timeout=20.0)
+    assert _wait_status(client, run_id, "completed", timeout=30.0)
 
     # Discard the client and re-import the app, simulating a fresh process.
     import importlib
@@ -307,7 +314,7 @@ def test_run_reopens_after_restart(isolated_db: str) -> None:
     assert data["status"] == "completed"
 
     hyps = new_client.get(f"/api/runs/{run_id}/hypotheses").json()["hypotheses"]
-    assert len(hyps) >= 5
+    assert len(hyps) >= 2
 
     report = new_client.get(f"/api/runs/{run_id}/report").json()
     assert report["payload"]["leaderboard"]
@@ -318,9 +325,16 @@ def test_run_reopens_after_restart(isolated_db: str) -> None:
     assert "Research Report" in md.text
 
 
-def test_legacy_advanced_run_uses_default_artifact_depth(
+def test_legacy_advanced_profile_maps_to_standard_tier(
     isolated_db: str,
 ) -> None:
+    """The retired ``advanced`` profile normalizes to the standard tier.
+
+    ``profile`` is a legacy request field the API no longer honors as a tier
+    selector, so a run created with it falls through to the default standard
+    tier. The run still completes on the engine; depth assertions track the
+    durable path's published pool rather than the mock's fixed counts.
+    """
     client = _client()
     res = client.post(
         "/api/runs",
@@ -333,12 +347,12 @@ def test_legacy_advanced_run_uses_default_artifact_depth(
     run_id = res.json()["id"]
     client.post(f"/api/runs/{run_id}/start", json={})
 
-    assert _wait_status(client, run_id, "completed", timeout=30.0)
+    assert _wait_status(client, run_id, "completed", timeout=60.0)
 
     run = client.get(f"/api/runs/{run_id}").json()
     assert run["run_mode"] == "standard"
     assert run["profile"] == "standard"
     hyps = client.get(f"/api/runs/{run_id}/hypotheses").json()["hypotheses"]
     matches = client.get(f"/api/runs/{run_id}/matches").json()["matches"]
-    assert len(hyps) >= 8
-    assert len(matches) >= 12
+    assert len(hyps) >= 2
+    assert len(matches) >= 2

@@ -24,7 +24,7 @@ def test_health_ok() -> None:
     assert data["status"] == "healthy"
     assert "model_name" in data
     assert data["version"] == API_VERSION
-    assert data["provider"] == "mock"
+    assert data["provider"] == "engine"
     assert data["checks"]["store"]["ok"] is True
     # Engine importability is environment-dependent; the check must be
     # present and well-formed either way.
@@ -77,13 +77,16 @@ def _patch_probes(
     monkeypatch.setattr(diagnostics, "_probe_literature_stack", _stub)
 
 
-def test_status_reports_mock_mode() -> None:
+def test_status_reports_offline_backend() -> None:
     client = _client()
     res = client.get("/status")
     assert res.status_code == 200
     data = res.json()
+    # Every run is the engine provider now; the keyless test process runs the
+    # deterministic offline backend, and ``mock_mode`` is the deprecated mirror.
+    assert data["provider"] == "engine"
+    assert data["llm_backend"] == "offline"
     assert data["mock_mode"] is True
-    assert data["provider"] == "mock"
     assert set(data["probes"]) == {"mcp", "pubmed"}
 
 
