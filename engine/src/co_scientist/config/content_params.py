@@ -11,6 +11,11 @@ placeholder.
 import re
 from typing import Any
 
+# Matches a bare "{placeholder}" reference; compiled once here rather than
+# on every resolve_content_params() call (invoked per paper during content
+# fetching).
+_PLACEHOLDER_PATTERN = re.compile(r"\{(\w+)\}")
+
 
 def _apply_placeholder_match(
     resolved_value: Any,
@@ -142,11 +147,9 @@ def resolve_content_params(
         return {}
 
     resolved: dict[str, Any] = {}
-    placeholder_pattern = re.compile(r"\{(\w+)\}")
-
     for key, value in params.items():
         resolved[key] = _resolve_content_param_value(
-            value, context, placeholder_pattern
+            value, context, _PLACEHOLDER_PATTERN
         )
 
     return resolved

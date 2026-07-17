@@ -7,6 +7,7 @@ from typing import Any
 
 from co_scientist.prompts._common import (
     _format_bullet_list,
+    _format_bullet_section,
     _format_csv_list,
     _format_meta_review_context,
     _format_run_guidance,
@@ -168,18 +169,6 @@ def get_supervisor_prompt(
     )
 
 
-def _format_meta_review_key_areas_section(key_areas: list[Any]) -> list[str]:
-    """Format the key-research-areas slice of meta-review guidance."""
-    if not key_areas:
-        return []
-
-    sections = ["**Key Research Areas:**\n"]
-    for area in key_areas:
-        sections.append(f"- {area}\n")
-    sections.append("\n")
-    return sections
-
-
 def _format_meta_review_evolution_phase_section(
     evolution_phase: dict[str, Any],
 ) -> list[str]:
@@ -211,9 +200,9 @@ def _format_supervisor_guidance_for_meta_review(
     workflow_plan = supervisor_guidance.get("workflow_plan", {})
 
     sections = ["## Supervisor Guidance\n"]
-    sections.extend(
-        _format_meta_review_key_areas_section(
-            goal_analysis.get("key_areas", [])
+    sections.append(
+        _format_bullet_section(
+            "Key Research Areas", goal_analysis.get("key_areas", [])
         )
     )
     sections.extend(

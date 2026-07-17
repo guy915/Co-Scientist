@@ -3,6 +3,7 @@
 from typing import Any
 
 from co_scientist.prompts._common import (
+    _format_bullet_section,
     _format_meta_review_context,
     _format_run_guidance,
 )
@@ -160,11 +161,8 @@ def _format_key_areas_guidance(
     if not key_areas:
         return ""
 
-    sections = ["## Supervisor Guidance\n", f"**{header}:**\n"]
-    for area in key_areas:
-        sections.append(f"- {area}\n")
-    sections.append(f"\n{trailer}\n")
-    return "".join(sections)
+    bullets = _format_bullet_section(header, key_areas)
+    return f"## Supervisor Guidance\n{bullets}{trailer}\n"
 
 
 def _format_supervisor_guidance_for_ranking(

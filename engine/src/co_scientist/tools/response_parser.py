@@ -14,6 +14,10 @@ from co_scientist.tools.response_parser_transforms import apply_transform
 
 logger = logging.getLogger(__name__)
 
+# Matches a "field[N]" (or "[N]") array-index path segment; compiled once
+# here rather than on every path segment descended during response parsing.
+_INDEXED_PART_RE = re.compile(r"(\w+)\[(\d+)\]")
+
 
 def _is_quoted_literal(expr: str) -> bool:
     """True when expr is a single-quoted static string literal ('...')."""
@@ -249,7 +253,7 @@ class ResponseParser:
         # Handle array index notation
         # "field[N]" first descends into "field", then indexes into the
         # resulting list; a bare "[N]" (empty field) indexes directly.
-        match = re.match(r"(\w+)\[(\d+)\]", part)
+        match = _INDEXED_PART_RE.match(part)
         if match:
             return self._navigate_indexed_part(current, match)
         if isinstance(current, dict):

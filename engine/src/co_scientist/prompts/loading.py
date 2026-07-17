@@ -21,6 +21,10 @@ logger = logging.getLogger(__name__)
 # templates/ directory is also declared as package-data for the latter case.
 _PROMPTS_DIR = Path(__file__).parent / "templates"
 
+# Matches a "{{variable}}" template placeholder; compiled once here rather
+# than on every substitute_variables() call (one per rendered prompt).
+_VARIABLE_PATTERN = re.compile(r"\{\{([^}]+)\}\}")
+
 # Helper functions for saving prompts to disk
 # These are a debugging aid only (writing the fully-rendered prompt text
 # under .coscientist_prompts/) and are not part of the load_prompt() render
@@ -193,7 +197,7 @@ def substitute_variables(template: str, variables: dict[str, Any]) -> str:
         return str(value)
 
     # Replace {{variable}} patterns
-    return re.sub(r"\{\{([^}]+)\}\}", replacer, template)
+    return _VARIABLE_PATTERN.sub(replacer, template)
 
 
 # Domain variable injection from YAML config
