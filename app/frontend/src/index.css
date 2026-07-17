@@ -512,22 +512,7 @@ textarea {
   }
 }
 
-/* Muted text color utility */
-.text-muted-foreground {
-  color: var(--color-th-muted-fg);
-}
-
 .wb-skeleton {
   background: var(--cosci-skeleton-bg, #f0f4f9);
   border-radius: 0.375rem;
-}
-
-.wb-link {
-  color: var(--color-th-link);
-  text-decoration: underline;
-  text-underline-offset: 2px;
-  text-decoration-thickness: 1px;
-}
-.wb-link:hover {
-  color: var(--color-th-link-hover);
 }

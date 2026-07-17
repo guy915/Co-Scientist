@@ -27,7 +27,7 @@ const FALLBACK_TITLE_CLASSES =
   'flex items-center gap-2 text-lg font-semibold leading-none ' +
   'text-th-destructive';
 
-const FALLBACK_DESCRIPTION_CLASSES = 'mt-2 text-sm text-muted-foreground';
+const FALLBACK_DESCRIPTION_CLASSES = 'mt-2 text-sm text-th-muted-fg';
 
 const FALLBACK_BUTTON_CLASSES =
   'inline-flex min-h-10 cursor-pointer items-center justify-center ' +
