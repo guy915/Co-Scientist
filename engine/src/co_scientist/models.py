@@ -195,6 +195,11 @@ class Hypothesis:
             return 0.0
         return (self.win_count / self.total_matches) * 100
 
+    @property
+    def latest_review(self) -> HypothesisReview | None:
+        """The most recent review, or None if the hypothesis has none."""
+        return self.reviews[-1] if self.reviews else None
+
     def is_rankable(self) -> bool:
         """Return whether this hypothesis may enter the Elo tournament.
 

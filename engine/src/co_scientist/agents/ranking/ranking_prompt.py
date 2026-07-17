@@ -18,9 +18,9 @@ def _review_summary(hypothesis: Hypothesis) -> dict[str, Any] | None:
     Returns:
         Review summary dict, or None if the hypothesis has no reviews
     """
-    if not hypothesis.reviews:
+    latest_review = hypothesis.latest_review
+    if latest_review is None:
         return None
-    latest_review = hypothesis.reviews[-1]
     return {
         "scores": latest_review.scores,
         "overall_score": latest_review.overall_score,

@@ -80,9 +80,9 @@ def _build_review_feedback(hypothesis: Hypothesis) -> str:
         JSON-formatted review feedback, or an empty string if the
         hypothesis has no reviews yet.
     """
-    if not hypothesis.reviews:
+    latest_review = hypothesis.latest_review
+    if latest_review is None:
         return ""
-    latest_review = hypothesis.reviews[-1]
     return json.dumps(
         {
             "overall_score": latest_review.overall_score,
