@@ -187,8 +187,6 @@ class _CollectionResult:
         search_errors: Error strings from any failed search calls.
         background_context: Context-enrichment text for Phase 4 synthesis.
         context_enrichment_sources: Raw KG source dicts for citation keys.
-        with_fulltext: Count of papers that have usable fulltext.
-        without_fulltext: Count of papers missing usable fulltext.
     """
 
     all_paper_metadata: dict[str, dict[str, Any]]
@@ -196,8 +194,6 @@ class _CollectionResult:
     search_errors: list[str]
     background_context: str
     context_enrichment_sources: list[dict[str, Any]]
-    with_fulltext: int
-    without_fulltext: int
 
 
 async def _collect_and_enrich_papers(
@@ -209,8 +205,8 @@ async def _collect_and_enrich_papers(
     """Phases 2 through 2.6: collect, discover PDFs, fetch content/enrichment.
 
     Returns:
-        A _CollectionResult bundling the collected papers and fulltext
-        counts.
+        A _CollectionResult bundling the collected papers and enrichment
+        context.
     """
     search_errors: list[str] = []
     all_paper_metadata, paper_source_map = await _phase2_collect_papers(
@@ -265,8 +261,6 @@ async def _collect_and_enrich_papers(
         search_errors=search_errors,
         background_context=background_context,
         context_enrichment_sources=context_enrichment_sources,
-        with_fulltext=with_fulltext,
-        without_fulltext=without_fulltext,
     )
 
 

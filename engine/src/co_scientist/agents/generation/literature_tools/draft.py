@@ -53,49 +53,59 @@ def _log_lit_review_context(
         )
 
 
-def _setup_draft_tool_provider(
+def _setup_tool_provider(
     mcp_client: Any,
     tool_registry: Optional["ToolRegistry"],
+    workflow_name: str,
+    label: str,
+    log: logging.Logger,
 ) -> tuple[MCPToolProvider, list[Any], Optional["ToolRegistry"]]:
-    """Resolve the tool registry/whitelist and init the draft tool provider.
+    """Resolve the tool registry/whitelist and init an MCP tool provider.
 
-    Fallback chain: passed-in registry (threaded from WorkflowState) ->
-    process-global registry (covers standalone/dev scripts that never thread
-    one through state) -> no whitelist at all (provider uses every
-    available tool).
+    Shared by the draft phase here and the validation synthesis stage
+    (validate_synthesis.py). Fallback chain: passed-in registry (threaded
+    from WorkflowState) -> process-global registry (covers standalone/dev
+    scripts that never thread one through state) -> no whitelist at all
+    (provider uses every available tool).
 
     Args:
         mcp_client: MCP client for tool access.
         tool_registry: optional ToolRegistry for config-driven tool
             selection; resolved from the global registry when None.
+        workflow_name: registry workflow key selecting the tool whitelist.
+        label: short phase label used in log messages.
+        log: the calling module's logger, so log records keep their
+            per-phase attribution.
 
     Returns:
         Tuple of (provider, openai_tools, resolved tool_registry).
     """
     if tool_registry is None:
         try:
+            # Imported at call time so tests can monkeypatch
+            # config.get_tool_registry on the config module namespace.
             from co_scientist.config import (
                 get_tool_registry,
             )
 
             tool_registry = get_tool_registry()
-            logger.info("Using global tool registry")
+            log.info("Using global tool registry for %s", label)
         except Exception as e:
-            logger.warning("Failed to get tool registry: %s", e)
+            log.warning("Failed to get tool registry: %s", e)
 
     provider = MCPToolProvider(mcp_client=mcp_client)
 
     if tool_registry:
-        tool_ids = tool_registry.get_tools_for_workflow("draft_generation")
+        tool_ids = tool_registry.get_tools_for_workflow(workflow_name)
         mcp_whitelist = tool_registry.get_mcp_tool_names(tool_ids)
-        logger.info("Using tool registry whitelist: %s", mcp_whitelist)
+        log.info("Tool whitelist for %s: %s", label, mcp_whitelist)
     else:
         # No registry available - let provider use all available tools
         mcp_whitelist = None
-        logger.warning("No tool registry - using all available MCP tools")
+        log.warning("No tool registry - using all available MCP tools")
 
     tools_dict, openai_tools = provider.get_tools(mcp_whitelist=mcp_whitelist)
-    logger.info("Initialized draft provider with %s tools", len(tools_dict))
+    log.info("Initialized %s provider with %s tools", label, len(tools_dict))
 
     return provider, openai_tools, tool_registry
 
@@ -302,8 +312,8 @@ async def draft_hypotheses(
     )
 
     # Initialize hybrid tool provider with draft-specific whitelist
-    provider, openai_tools, tool_registry = _setup_draft_tool_provider(
-        mcp_client, tool_registry
+    provider, openai_tools, tool_registry = _setup_tool_provider(
+        mcp_client, tool_registry, "draft_generation", "draft", logger
     )
 
     # Calculate dynamic iteration budget based on hypotheses count

@@ -9,9 +9,8 @@ Orchestrates a multi-phase literature review process:
 6. Synthesize findings into articles_with_reasoning
 
 The phase-sequence helpers live in the sibling ``run_config``, ``outcomes``,
-and ``orchestration`` modules and are re-exported here (the ``queries`` and
-``search`` modules import ``_describe_exc`` from this module, and tests
-exercise several of the private helpers through it). This module keeps the
+and ``orchestration`` modules and are re-exported here (tests exercise
+several of the private helpers through this namespace). This module keeps the
 top-level orchestrator plus the cache/availability gates whose external seams
 (``get_node_cache``, ``check_literature_source_available``,
 ``get_mcp_client``) tests monkeypatch on this namespace.

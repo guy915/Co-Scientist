@@ -29,38 +29,6 @@ from co_scientist.state import WorkflowState
 logger = logging.getLogger(__name__)
 
 
-def _match_hypothesis_to_cluster(
-    hypotheses: list[Hypothesis],
-    hyp_text: str,
-    cluster_id: str,
-    similarity_degree: str,
-) -> None:
-    """Assigns cluster id/degree to the hypothesis matching hyp_text.
-
-    Matches by the first 100 chars of text -- cheap, and robust to minor
-    whitespace or formatting drift the LLM may introduce when quoting.
-    Mutates the matching hypothesis in place.
-
-    Args:
-        hypotheses: All hypotheses being analyzed for proximity.
-        hyp_text: Hypothesis text as echoed back by the LLM.
-        cluster_id: Cluster id to assign to the matching hypothesis.
-        similarity_degree: Similarity degree to assign if not already set.
-    """
-    for hyp in hypotheses:
-        # Match by text (first 100 chars for robustness)
-        if hyp.text[:100] == hyp_text[:100]:
-            hyp.similarity_cluster_id = cluster_id
-            # Store similarity degree (only set if not already set)
-            # First match wins: if the LLM's clusters overlap and a
-            # hypothesis appears more than once, its degree is fixed by
-            # whichever cluster is processed first rather than being
-            # overwritten by later matches.
-            if hyp.similarity_degree is None:
-                hyp.similarity_degree = similarity_degree
-            break
-
-
 def _assign_cluster_ids(
     hypotheses: list[Hypothesis], similarity_clusters: list[dict[str, Any]]
 ) -> None:
@@ -75,16 +43,28 @@ def _assign_cluster_ids(
         hypotheses: All hypotheses being analyzed for proximity.
         similarity_clusters: Clusters as returned by the proximity LLM call.
     """
+    # First-occurrence prefix index: if several hypotheses share the same
+    # 100-char prefix, the earliest one wins (matching by list order).
+    by_prefix: dict[str, Hypothesis] = {}
+    for hyp in hypotheses:
+        by_prefix.setdefault(hyp.text[:100], hyp)
+
     for cluster in similarity_clusters:
         cluster_id = cluster.get("cluster_id", "unknown")
-        similar_hypotheses = cluster.get("similar_hypotheses", [])
-
-        for similar_hyp in similar_hypotheses:
-            hyp_text = similar_hyp.get("text", "")
-            similarity_degree = similar_hyp.get("similarity_degree", "low")
-            _match_hypothesis_to_cluster(
-                hypotheses, hyp_text, cluster_id, similarity_degree
-            )
+        for similar_hyp in cluster.get("similar_hypotheses", []):
+            matched = by_prefix.get(similar_hyp.get("text", "")[:100])
+            if matched is None:
+                continue
+            matched.similarity_cluster_id = cluster_id
+            # Store similarity degree (only set if not already set)
+            # First match wins: if the LLM's clusters overlap and a
+            # hypothesis appears more than once, its degree is fixed by
+            # whichever cluster is processed first rather than being
+            # overwritten by later matches.
+            if matched.similarity_degree is None:
+                matched.similarity_degree = similar_hyp.get(
+                    "similarity_degree", "low"
+                )
 
 
 def _partition_by_similarity_degree(
@@ -251,7 +231,7 @@ def _prepare_hypotheses_for_analysis(
     Sends only the fields the clustering prompt needs, plus a positional
     `index` used only for prompt authoring; matching responses back to
     Hypothesis objects is done by text prefix, not this index (see
-    _match_hypothesis_to_cluster).
+    _assign_cluster_ids).
 
     Args:
         hypotheses: All hypotheses being analyzed for proximity.

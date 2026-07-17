@@ -15,6 +15,9 @@ from typing import TYPE_CHECKING, Any, NamedTuple, Optional
 from co_scientist.agents.generation.citations import (
     hypothesis_from_llm_output,
 )
+from co_scientist.agents.generation.literature_tools.draft import (
+    _setup_tool_provider,
+)
 from co_scientist.constants import (
     EXTENDED_MAX_TOKENS,
     VALIDATION_SYNTHESIS_MAX_TOKENS_CAP,
@@ -82,33 +85,8 @@ def _setup_validation_tool_provider(
         Tuple of (provider, openai_tools, resolved tool_registry,
         max_iterations).
     """
-    # get tool registry if not provided
-    if tool_registry is None:
-        try:
-            from co_scientist.config import (
-                get_tool_registry,
-            )
-
-            tool_registry = get_tool_registry()
-            logger.info("Using global tool registry for validation")
-        except Exception as e:
-            logger.warning("Failed to get tool registry: %s", e)
-
-    # Initialize hybrid tool provider
-    provider = MCPToolProvider(mcp_client=mcp_client)
-
-    # Get tool whitelist from registry
-    if tool_registry:
-        tool_ids = tool_registry.get_tools_for_workflow("validation")
-        mcp_whitelist = tool_registry.get_mcp_tool_names(tool_ids)
-        logger.info("Validation tool whitelist: %s", mcp_whitelist)
-    else:
-        mcp_whitelist = None
-        logger.warning("No tool registry - using all available MCP tools")
-
-    tools_dict, openai_tools = provider.get_tools(mcp_whitelist=mcp_whitelist)
-    logger.info(
-        "Initialized validation provider with %s tools", len(tools_dict)
+    provider, openai_tools, tool_registry = _setup_tool_provider(
+        mcp_client, tool_registry, "validation", "validation", logger
     )
 
     # Calculate iteration budget for synthesis

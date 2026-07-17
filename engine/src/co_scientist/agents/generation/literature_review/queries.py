@@ -13,6 +13,9 @@ from co_scientist.agents.generation.literature_review.helpers import (
     determine_query_source_type,
     parse_mcp_query_result,
 )
+from co_scientist.agents.generation.literature_review.outcomes import (
+    _describe_exc,
+)
 from co_scientist.constants import (
     DEFAULT_MAX_TOKENS,
     HIGH_TEMPERATURE,
@@ -36,12 +39,6 @@ async def _generate_queries_via_mcp(
     query_format: str,
 ) -> list[str]:
     """Generate queries using MCP tool."""
-    # Imported locally to avoid a module-level import cycle: node.py owns
-    # _describe_exc and imports this module at load time.
-    from co_scientist.agents.generation.literature_review.node import (
-        _describe_exc,
-    )
-
     try:
         result = await mcp_client.call_tool(
             tool_name,

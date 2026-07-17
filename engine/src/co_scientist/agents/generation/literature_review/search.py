@@ -16,6 +16,9 @@ from co_scientist.agents.generation.literature_review.helpers import (
     merge_search_results,
     normalize_search_response,
 )
+from co_scientist.agents.generation.literature_review.outcomes import (
+    _describe_exc,
+)
 from co_scientist.constants import LITERATURE_REVIEW_RECENCY_YEARS
 from co_scientist.mcp_client import MCPToolClient
 from co_scientist.state import WorkflowState
@@ -129,12 +132,6 @@ async def _search_source_for_query(
     still complete; the caller aggregates errors to distinguish "zero
     results" from "search broke".
     """
-    # Imported locally to avoid a module-level import cycle: node.py owns
-    # _describe_exc and imports this module at load time.
-    from co_scientist.agents.generation.literature_review.node import (
-        _describe_exc,
-    )
-
     try:
         tool_params = _build_query_tool_params(
             query, slug, run_id, papers_per_query, tool_config
@@ -219,12 +216,6 @@ async def _search_single_query(
     errors: list[str] | None = None,
 ) -> tuple[int, dict[str, dict[str, Any]]]:
     """Search single query (for single-source mode)."""
-    # Imported locally to avoid a module-level import cycle: node.py owns
-    # _describe_exc and imports this module at load time.
-    from co_scientist.agents.generation.literature_review.node import (
-        _describe_exc,
-    )
-
     logger.debug(
         "Searching query %s (%s papers): %s...", index, papers_count, query[:80]
     )

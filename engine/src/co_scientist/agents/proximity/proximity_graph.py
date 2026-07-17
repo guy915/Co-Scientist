@@ -33,8 +33,8 @@ PROXIMITY_METHOD = "llm-cluster"
 PROXIMITY_METHOD_VERSION = "1"
 
 # The proximity LLM echoes each hypothesis's text back per cluster; matching is
-# done on the first 100 chars (nodes/proximity.py::_match_hypothesis_to_cluster
-# uses the same prefix), so a re-quote that drifts past char 100 still resolves.
+# done on the first 100 chars (nodes/proximity.py::_assign_cluster_ids uses
+# the same prefix), so a re-quote that drifts past char 100 still resolves.
 _MATCH_PREFIX_CHARS = 100
 
 

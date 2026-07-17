@@ -14,6 +14,7 @@ All helper names are re-exported here for compatibility.
 
 import asyncio
 import logging
+from collections import Counter
 from collections.abc import Coroutine
 from typing import Any
 
@@ -212,27 +213,17 @@ async def _execute_generation_tasks(
 # Main coordinator function
 
 
-def _count_sources_by_type(
-    reference_index: ReferenceIndex, source_type: str
-) -> int:
-    """Count reference-index sources whose "type" field matches source_type."""
-    return sum(
-        1
-        for s in reference_index.sources.values()
-        if s.get("type") == source_type
-    )
-
-
 def _log_reference_index_summary(reference_index: ReferenceIndex) -> None:
     """Log a paper/KG-source breakdown of a non-empty reference index."""
     if reference_index.is_empty():
         return
     # Keys are uniformly "C<n>"; the paper/KG split lives in each source's
     # "type" field (see build_reference_index).
+    counts = Counter(s.get("type") for s in reference_index.sources.values())
     logger.info(
         "Built reference index: %s paper(s), %s KG source(s)",
-        _count_sources_by_type(reference_index, "paper"),
-        _count_sources_by_type(reference_index, "knowledge_graph"),
+        counts["paper"],
+        counts["knowledge_graph"],
     )
 
 

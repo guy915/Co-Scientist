@@ -8,6 +8,9 @@ empty-search diagnostics, and the no-papers / no-fulltext failure results.
 import logging
 from typing import Any
 
+from co_scientist.agents.generation.literature_review.article_support import (
+    _has_fulltext,
+)
 from co_scientist.agents.generation.literature_review.helpers import (
     build_articles_from_metadata,
     make_failure_result,
@@ -137,11 +140,7 @@ async def _handle_no_fulltext_available(
 def _log_sample_papers(all_paper_metadata: dict[str, dict[str, Any]]) -> None:
     """Debug-log a small sample of collected papers before Phase 3 analysis."""
     for paper_id, meta in list(all_paper_metadata.items())[:3]:
-        has_ft = bool(
-            meta.get("pmc_full_text_id")
-            or meta.get("fulltext")
-            or meta.get("pdf_url")
-        )
+        has_ft = _has_fulltext(meta)
         logger.debug(
             "Paper %s: title='%s...' has_fulltext=%s",
             paper_id,
