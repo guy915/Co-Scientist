@@ -27,7 +27,7 @@ help:
 	@echo "  make test         Run viewer backend pytest suite"
 	@echo "  make test-app     Run viewer backend pytest suite"
 	@echo "  make test-engine  Run engine pytest suite"
-	@echo "  make test-all     Run backend pytest suites (engine + app)"
+	@echo "  make test-all     Run backend pytest suites (engine + app) + parity gate"
 	@echo "  make e2e          Run the browser end-to-end suite (headless, isolated stack)"
 	@echo "  make lint         Lint backend (ruff)"
 	@echo "  make typecheck    Typecheck backend (mypy)"
