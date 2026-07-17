@@ -106,9 +106,6 @@ def _merge_engine_state(
             final_state[key] = state[key]
 
 
-_emit_cancelled_event = emit_cancel_or_pause
-
-
 async def _emit_engine_node_event(
     run_id: str,
     node_name: str,
@@ -211,7 +208,7 @@ async def _stream_engine_nodes(
         resume=resume,
     ):
         if cancelled and cancelled.is_set():
-            yield await _emit_cancelled_event(run_id, db_path, emit)
+            yield await emit_cancel_or_pause(run_id, db_path, emit)
             return
 
         # Update final_state from each yielded cumulative snapshot.

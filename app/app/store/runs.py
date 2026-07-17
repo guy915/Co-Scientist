@@ -32,6 +32,17 @@ _ACTIVE_RUN_STATUSES: tuple[str, str, str] = (
     RunStatus.SYNTHESIZING.value,
 )
 
+# Run-scoped tables whose rows are all deterministically reconstructed by the
+# final drain, so both the full and publication-only resets delete them
+# wholesale.
+_REPLAYABLE_ARTIFACT_TABLES: tuple[str, ...] = (
+    "matches",
+    "citations",
+    "claim_evidence",
+    "proximity_edges",
+    "run_metrics",
+)
+
 
 def create_run(
     research_goal: str,
@@ -523,11 +534,7 @@ def clear_run_derived_data(
         "run_events",
         "reports",
         "safety_decisions",
-        "matches",
-        "citations",
-        "claim_evidence",
-        "proximity_edges",
-        "run_metrics",
+        *_REPLAYABLE_ARTIFACT_TABLES,
     )
     with _use_conn(conn, db_path) as conn:
         _delete_agent_derived_rows(conn, run_id)
@@ -549,13 +556,7 @@ def clear_publication_artifacts(
     """
     with _use_conn(conn, db_path) as active:
         _delete_agent_derived_rows(active, run_id)
-        for table in (
-            "matches",
-            "citations",
-            "claim_evidence",
-            "proximity_edges",
-            "run_metrics",
-        ):
+        for table in _REPLAYABLE_ARTIFACT_TABLES:
             active.execute(f"DELETE FROM {table} WHERE run_id=?", (run_id,))
         active.execute(
             "DELETE FROM safety_decisions WHERE run_id=? "

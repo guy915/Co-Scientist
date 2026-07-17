@@ -47,12 +47,6 @@ _CLAIM_FIELD_ROLES = (
 )
 
 
-def _claim_source_text(hyp: Mapping[str, Any]) -> str:
-    """Return the combined text a hypothesis's atomic claims come from."""
-    parts = [str(hyp.get(field) or "") for field, _role in _CLAIM_FIELD_ROLES]
-    return " ".join(part for part in parts if part)
-
-
 def _claim_records(hyp: Mapping[str, Any]) -> list[tuple[str, str]]:
     """Return atomic claims paired with their categorical/speculative role."""
     roles: dict[str, str] = {}

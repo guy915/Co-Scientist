@@ -64,7 +64,7 @@ from app import (
     store,
     task_worker,
 )
-from app.auth import require_principal
+from app.auth import client_id
 from app.hypothesis_screening import screen_hypotheses
 from app.logging_setup import run_log_context
 from app.runs_events import _event_stream
@@ -129,15 +129,6 @@ def _require_run(run_id: str) -> None:
 # ---------------------------------------------------------------------------
 
 
-# Client isolation is header-based: the frontend sends a per-browser
-# X-Client-ID and list endpoints only return runs created with the same id.
-# A missing header yields '' (shared by all header-less callers). This is
-# scoping for a friendlier multi-user demo, not authentication.
-def _client_id(request: Request) -> str:
-    """Return the verified researcher subject or compatibility scope."""
-    return require_principal(request).subject
-
-
 async def _populate_run_title(run_id: str, goal: str) -> None:
     """Generate a run's short session title and persist it (best-effort).
 
@@ -177,7 +168,7 @@ async def create_run(
         interview = store.get_interview(req.interview_id)
         if (
             interview is None
-            or interview["client_id"] != _client_id(request)
+            or interview["client_id"] != client_id(request)
             or interview["status"] != "completed"
         ):
             raise HTTPException(
@@ -211,7 +202,7 @@ async def create_run(
         profile=run_mode,
         provider=provider,
         config=config,
-        client_id=_client_id(request),
+        client_id=client_id(request),
         title=(interview["fields"].get("title") if interview else None),
     )
     # First entry in the run's event log, so replays show creation metadata.
@@ -237,12 +228,18 @@ async def create_run(
 
 def _runs_payload(runs: list[store.RunRow]) -> dict[str, Any]:
     """Serialize runs with their per-run execution progress attached."""
-    return {
-        "runs": [
-            {**r.to_dict(), "execution_progress": store.task_progress(r.id)}
-            for r in runs
-        ]
-    }
+    # One connection for every per-run progress query instead of opening a
+    # fresh SQLite connection per row (up to `limit` of them on a list call).
+    with store.connect() as conn:
+        return {
+            "runs": [
+                {
+                    **r.to_dict(),
+                    "execution_progress": store.task_progress(r.id, conn=conn),
+                }
+                for r in runs
+            ]
+        }
 
 
 @router.get("")
@@ -251,7 +248,7 @@ async def list_runs(
     limit: int = Query(100, ge=1, le=1000),
 ) -> dict[str, Any]:
     """List the requesting client's runs, most recent first."""
-    runs = store.list_runs(client_id=_client_id(request), limit=limit)
+    runs = store.list_runs(client_id=client_id(request), limit=limit)
     return _runs_payload(runs)
 
 
@@ -736,7 +733,7 @@ async def get_hypotheses(run_id: str) -> dict[str, Any]:
         for hyp in hyps:
             hyp["unverified"] = False
     else:
-        unverified = _unverified_hypothesis_ids(run_id, None)
+        unverified = _unverified_hypothesis_ids(run_id, None, hyps)
         for hyp in hyps:
             hyp["unverified"] = str(hyp.get("id")) in unverified
     return {"hypotheses": hyps}
@@ -786,7 +783,7 @@ async def adjudicate_safety(
 ) -> dict[str, Any]:
     """Resolve one held safety decision and update the run lifecycle."""
     run = _run_or_404(run_id)
-    reviewer = _client_id(request)
+    reviewer = client_id(request)
     if not reviewer:
         raise HTTPException(
             status_code=403, detail="an identified reviewer is required"
@@ -864,7 +861,7 @@ async def add_human_hypothesis(
     the admission decision and is not persisted (HTTP 200 with admitted=false).
     """
     _require_run(run_id)
-    author = _client_id(request) or req.author
+    author = client_id(request) or req.author
     admission = human_input.admit_human_hypothesis(
         text=req.statement, author=author, title=req.title
     )
@@ -924,7 +921,7 @@ async def add_human_review(
         raise HTTPException(
             status_code=404, detail="hypothesis not found in this run"
         )
-    author = _client_id(request) or req.author
+    author = client_id(request) or req.author
     try:
         review = human_input.build_human_review(
             hypothesis_id=req.hypothesis_id,
@@ -1017,7 +1014,7 @@ async def upload_attachment(
 ) -> dict[str, Any]:
     """Extract and index a real scientist-uploaded document with provenance."""
     _require_run(run_id)
-    _client_id(request)  # Require the run's authenticated researcher context.
+    client_id(request)  # Require the run's authenticated researcher context.
     if not consent:
         raise HTTPException(
             status_code=422, detail="consent is required to index a document"
@@ -1043,7 +1040,7 @@ async def upload_attachment(
     )
     message = store.append_message(
         run_id,
-        _client_id(request),
+        client_id(request),
         "Use the uploaded private research document "
         f"'{title}' in subsequent work.",
         "steering",

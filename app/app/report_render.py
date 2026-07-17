@@ -24,6 +24,7 @@ from app.hypothesis_safety import (
     is_blocking_status,
     review_hypothesis_safety,
 )
+from app.hypothesis_screening import record_hypothesis_block
 from app.report_events import EmitFn as EmitFn
 from app.report_events import article_stub as article_stub
 from app.report_events import emit_cancel_or_pause as emit_cancel_or_pause
@@ -35,10 +36,9 @@ from app.report_markdown import (
     format_deep_verification_critique as format_deep_verification_critique,
 )
 from app.safety import (
-    POLICY_VERSION,
     apply_safety_gate,
-    screen_contextual,
     screen_final,
+    screen_with_escalation,
 )
 from app.store import RunStatus
 
@@ -278,7 +278,11 @@ def _contradicted_hypothesis_ids(
     }
 
 
-def _unverified_hypothesis_ids(run_id: str, db_path: str | None) -> set[str]:
+def _unverified_hypothesis_ids(
+    run_id: str,
+    db_path: str | None,
+    hyps: list[dict[str, Any]] | None = None,
+) -> set[str]:
     """Ids of published hypotheses that lack an evidence-supported claim.
 
     A hypothesis is "verified" once at least one of its claims has a
@@ -290,6 +294,9 @@ def _unverified_hypothesis_ids(run_id: str, db_path: str | None) -> set[str]:
     as for mock demo runs -- none of its ideas were assessed, so none is
     reported unverified (the badge means "assessed and unsupported", not
     "not yet assessed").
+
+    ``hyps`` may be passed to reuse an already-fetched hypothesis list;
+    when omitted it is queried from the store.
     """
     edges = store.list_claim_evidence(run_id, db_path=db_path)
     if not edges:
@@ -299,10 +306,12 @@ def _unverified_hypothesis_ids(run_id: str, db_path: str | None) -> set[str]:
         for edge in edges
         if edge.get("label") == "supports"
     }
-    all_hypothesis_ids = {
-        str(hypothesis.get("id"))
-        for hypothesis in store.list_hypotheses(run_id, db_path=db_path)
-    }
+    rows = (
+        hyps
+        if hyps is not None
+        else store.list_hypotheses(run_id, db_path=db_path)
+    )
+    all_hypothesis_ids = {str(hypothesis.get("id")) for hypothesis in rows}
     return all_hypothesis_ids - supported
 
 
@@ -365,16 +374,8 @@ def _exclude_unsafe_hypotheses(
         # Fallback for a row the screen never touched (legacy run).
         review = review_hypothesis_safety(str(hyp.get("statement") or ""))
         if review.blocks_tournament:
-            store.add_safety_decision(
-                run_id,
-                stage="hypothesis",
-                decision="block",
-                reason=(
-                    f"hypothesis {hyp.get('id')}: {review.outcome.value} "
-                    f"({review.reason})"
-                ),
-                matches=list(review.matches),
-                db_path=db_path,
+            record_hypothesis_block(
+                run_id, hyp.get("id"), review, db_path=db_path
             )
             logger.warning(
                 "Excluding hypothesis %s from synthesis: %s",
@@ -537,12 +538,14 @@ async def finalize_report(
         db_path=db_path,
     )
 
-    final = screen_final(markdown)
-    approved = store.safety_stage_is_approved(
-        run_id, "final", POLICY_VERSION, db_path=db_path
+    final = await screen_with_escalation(
+        run_id,
+        "final",
+        markdown,
+        screen_final(markdown),
+        provider=provider,
+        db_path=db_path,
     )
-    if provider != "mock" and not approved:
-        final = await screen_contextual(markdown, "final", deterministic=final)
     async for event in apply_safety_gate(run_id, final, emit, db_path=db_path):
         yield event
     if final.decision in {"block", "hold"}:

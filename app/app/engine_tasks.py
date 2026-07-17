@@ -398,16 +398,15 @@ def _save_state_and_enqueue(
             state={"provider": _CHECKPOINT_PROVIDER, **envelope},
             conn=conn,
         )
-        if task.task_type == f"{NODE_TASK_PREFIX}orchestrator":
+        is_orchestrator = task.task_type == f"{NODE_TASK_PREFIX}orchestrator"
+        if is_orchestrator:
             _apply_supervisor_queue_actions(
                 task.run_id,
                 state.get("supervisor_queue_actions") or [],
                 conn,
             )
         priority = (
-            int(state.get("next_task_priority", 90))
-            if task.task_type == f"{NODE_TASK_PREFIX}orchestrator"
-            else 90
+            int(state.get("next_task_priority", 90)) if is_orchestrator else 90
         )
         successor_task = store.enqueue_task(
             task.run_id,

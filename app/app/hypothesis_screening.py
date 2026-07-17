@@ -110,6 +110,39 @@ def _apply_redaction(
     )
 
 
+def record_hypothesis_block(
+    run_id: str,
+    hyp_id: Any,
+    review: HypothesisSafetyReview,
+    *,
+    conn: sqlite3.Connection | None = None,
+    db_path: str | None = None,
+) -> None:
+    """Record the ``safety_decisions`` audit row for a blocked hypothesis.
+
+    Shared by the pre-tournament screen and the report path's legacy fallback
+    so the block decision's stage/reason/matches shape has a single definition.
+
+    Args:
+        run_id: Identifier of the run being screened.
+        hyp_id: The blocked hypothesis's id, interpolated into the reason.
+        review: The blocking safety review supplying the outcome and matches.
+        conn: Optional open connection to reuse (e.g. from ``transaction``).
+        db_path: Optional override for the SQLite database path.
+    """
+    store.add_safety_decision(
+        run_id,
+        stage="hypothesis",
+        decision="block",
+        reason=(
+            f"hypothesis {hyp_id}: {review.outcome.value} ({review.reason})"
+        ),
+        matches=list(review.matches),
+        conn=conn,
+        db_path=db_path,
+    )
+
+
 @dataclasses.dataclass(frozen=True)
 class ScreeningResult:
     """Outcome of screening a run's hypotheses before the tournament."""
@@ -179,17 +212,8 @@ def screen_hypotheses(
             _apply_redaction(run_id, hyp, review, conn=conn, db_path=db_path)
         if review.blocks_tournament:
             blocked.add(hyp_id)
-            store.add_safety_decision(
-                run_id,
-                stage="hypothesis",
-                decision="block",
-                reason=(
-                    f"hypothesis {hyp_id}: {review.outcome.value} "
-                    f"({review.reason})"
-                ),
-                matches=list(review.matches),
-                conn=conn,
-                db_path=db_path,
+            record_hypothesis_block(
+                run_id, hyp_id, review, conn=conn, db_path=db_path
             )
             logger.warning(
                 "Excluding hypothesis %s from the tournament: %s",

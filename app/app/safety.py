@@ -33,6 +33,7 @@ __all__ = [
     "screen_contextual",
     "screen_final",
     "screen_intake",
+    "screen_with_escalation",
 ]
 
 
@@ -224,6 +225,42 @@ async def screen_contextual(
             requires_review=True,
             assessor=f"semantic:{model}:error",
         )
+
+
+async def screen_with_escalation(
+    run_id: str,
+    stage: str,
+    text: str,
+    deterministic: SafetyDecision,
+    *,
+    provider: str,
+    db_path: str | None = None,
+) -> SafetyDecision:
+    """Escalate a deterministic screen to contextual assessment when warranted.
+
+    Both the intake and final gates first run their deterministic screen, then
+    escalate to the contextual model unless the provider is the mock or this
+    stage was already human-approved on the run. Returns ``deterministic``
+    unchanged when no escalation applies, so callers can gate on the result
+    either way.
+
+    Args:
+        run_id: Identifier of the run being gated.
+        stage: Safety stage being screened (``"intake"`` or ``"final"``).
+        text: The content the contextual screen would re-assess.
+        deterministic: The already-computed deterministic decision.
+        provider: The active workflow provider; the mock never escalates.
+        db_path: Optional override for the SQLite database path.
+
+    Returns:
+        The decision to gate on: escalated when applicable, else deterministic.
+    """
+    approved = store.safety_stage_is_approved(
+        run_id, stage, POLICY_VERSION, db_path=db_path
+    )
+    if provider != "mock" and not approved:
+        return await screen_contextual(text, stage, deterministic=deterministic)
+    return deterministic
 
 
 async def apply_safety_gate(

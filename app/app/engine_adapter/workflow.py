@@ -21,10 +21,9 @@ from app.mock_workflow import run_mock_workflow
 from app.report_render import EmitFn, make_emitter
 from app.run_modes import normalize_run_tier, resolved_run_config
 from app.safety import (
-    POLICY_VERSION,
     apply_safety_gate,
-    screen_contextual,
     screen_intake,
+    screen_with_escalation,
 )
 
 logger = logging.getLogger(__name__)
@@ -177,14 +176,14 @@ async def run_workflow(
     # the run before any hypotheses are generated. On resume the original goal
     # was already screened, so re-gating would only duplicate the intake event.
     if not resume:
-        intake = screen_intake(research_goal)
-        approved = store.safety_stage_is_approved(
-            run_id, "intake", POLICY_VERSION, db_path=db_path
+        intake = await screen_with_escalation(
+            run_id,
+            "intake",
+            research_goal,
+            screen_intake(research_goal),
+            provider=provider,
+            db_path=db_path,
         )
-        if provider != "mock" and not approved:
-            intake = await screen_contextual(
-                research_goal, "intake", deterministic=intake
-            )
         async for event in apply_safety_gate(
             run_id, intake, emit, db_path=db_path
         ):
