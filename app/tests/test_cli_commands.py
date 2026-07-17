@@ -396,6 +396,65 @@ def test_read_collection_text_and_json(
     assert len(data[key]) == len(text_lines)
 
 
+@pytest.mark.parametrize(
+    ("command", "key"),
+    [
+        ("matches", "matches"),
+        ("proximity", "proximity"),
+        ("claim-evidence", "claim_evidence"),
+    ],
+)
+def test_new_read_collections_json(
+    completed_run: tuple[str, str, str],
+    capsys: pytest.CaptureFixture[str],
+    command: str,
+    key: str,
+) -> None:
+    base, run_id, client_id = completed_run
+    assert (
+        _invoke(base, "runs", command, run_id, "--json", client_id=client_id)
+        == 0
+    )
+    data = json.loads(capsys.readouterr().out)
+    assert isinstance(data[key], list)
+
+
+def test_metrics_text_output(
+    completed_run: tuple[str, str, str], capsys: pytest.CaptureFixture[str]
+) -> None:
+    base, run_id, client_id = completed_run
+    assert _invoke(base, "runs", "metrics", run_id, client_id=client_id) == 0
+    assert capsys.readouterr().out.strip()
+
+
+def test_wait_follows_run_to_completed(
+    cli_server: str, capsys: pytest.CaptureFixture[str]
+) -> None:
+    run_id = _create(cli_server, "wait-client", tier="express")
+    _start(cli_server, run_id, "wait-client")
+    assert (
+        _invoke(
+            cli_server,
+            "runs",
+            "wait",
+            run_id,
+            "--interval",
+            "0.2",
+            client_id="wait-client",
+        )
+        == 0
+    )
+    lines = capsys.readouterr().out.splitlines()
+    assert lines[-1] == f"{run_id}\tcompleted"
+
+
+def test_config_shows_defaults(
+    cli_server: str, capsys: pytest.CaptureFixture[str]
+) -> None:
+    assert _invoke(cli_server, "config") == 0
+    assert "max_iterations" in capsys.readouterr().out
+
+
 # ---------------------------------------------------------------------------
 # Reports
 # ---------------------------------------------------------------------------
