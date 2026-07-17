@@ -122,7 +122,9 @@ class _FakeGenerator:
 
 
 def _run_fake_engine(
-    monkeypatch: pytest.MonkeyPatch, goal: str
+    monkeypatch: pytest.MonkeyPatch,
+    goal: str,
+    generator_cls: type[_FakeGenerator] = _FakeGenerator,
 ) -> tuple[Any, list[Any]]:
     """Patch in the fake generator and drain a full engine-provider run.
 
@@ -132,11 +134,12 @@ def _run_fake_engine(
     Args:
         monkeypatch: The pytest monkeypatch fixture.
         goal: The research goal to create the run with.
+        generator_cls: The fake generator class to install as the engine.
 
     Returns:
         A tuple of the created run and its drained events.
     """
-    fake_module = types.SimpleNamespace(HypothesisGenerator=_FakeGenerator)
+    fake_module = types.SimpleNamespace(HypothesisGenerator=generator_cls)
     monkeypatch.setitem(sys.modules, "co_scientist", fake_module)
     # This suite validates the engine event vocabulary, not the safety gate;
     # keep the app-level semantic screen offline so its real provider call
@@ -245,18 +248,12 @@ def test_engine_adapter_persists_streamed_metrics(
             for node in _ENGINE_NODES:
                 yield node, state
 
-    fake_module = types.SimpleNamespace(HypothesisGenerator=_MetricsGenerator)
-    monkeypatch.setitem(sys.modules, "co_scientist", fake_module)
-
-    run = store.create_run("Metrics persistence goal", "standard", "engine", {})
-    _drain(
-        engine_adapter.run_workflow(
-            run.id,
-            run.research_goal,
-            run.config,
-            force_provider="engine",
-            sleep_seconds=0,
-        )
+    # Route through _run_fake_engine rather than draining inline: it also
+    # forces the semantic intake screen offline. Without that, a real
+    # provider call classifies the goal and intermittently withholds the
+    # run at intake, so no metrics ever land (the historical flake here).
+    run, _ = _run_fake_engine(
+        monkeypatch, "Metrics persistence goal", _MetricsGenerator
     )
 
     persisted = store.get_run_metrics(run.id, db_path=isolated_db)
