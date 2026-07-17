@@ -240,8 +240,12 @@ class MCPToolClient:
             "executing mcp tool: %s with args: %s", tool_name, tool_args
         )
 
-        # Execute using the original MCP tool
-        result = await self._tools_dict[tool_name].ainvoke(tool_args)
+        # Execute using the original MCP tool. Unwrap the content-block
+        # list shape exactly like call_tool, so the tool message carries
+        # the inner string the provider expects, not a list of dicts.
+        result = _unwrap_tool_result(
+            await self._tools_dict[tool_name].ainvoke(tool_args)
+        )
 
         logger.debug(
             "mcp tool result for %s: %s%s",

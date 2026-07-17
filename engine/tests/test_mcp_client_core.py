@@ -237,3 +237,24 @@ async def test_execute_tool_call_returns_tool_response_message(
     assert result["name"] == "pubmed_search"
     assert result["tool_call_id"] == "call-42"
     assert result["content"] == "search-result"
+
+
+async def test_execute_tool_call_unwraps_list_of_text_dicts(
+    _patch_mcp_seam: type[FakeMultiServerMCPClient],
+) -> None:
+    """The LLM tool path unwraps ``[{"text": ...}]`` results like call_tool.
+
+    langchain-mcp-adapters 0.3.0 returns every single-text tool result as a
+    list of content blocks, so the tool-loop message content must be reduced
+    to the inner string for the provider to read it.
+    """
+    _patch_mcp_seam.tools = [
+        string_tool("blocks", [{"text": "inner-text", "type": "text"}]),
+    ]
+    client = MCPToolClient(server_url="http://x.test/mcp")
+    await client.initialize()
+
+    call = make_tool_call("blocks", "{}", call_id="call-7")
+    result = await client.execute_tool_call(call)
+
+    assert result["content"] == "inner-text"
