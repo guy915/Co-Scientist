@@ -144,13 +144,9 @@ export function splitAbstractSections(raw: string): AbstractSection[] {
     if (trimmed) sections.push({label, html: renderInlineHtml(trimmed)});
   };
 
-  if (marks.length === 0) {
-    pushSection(null, text);
-    return withFallback(sections, text);
-  }
-
-  // Any text before the first label is unlabeled lead-in.
-  pushSection(null, text.slice(0, marks[0].start));
+  // Any text before the first label is unlabeled lead-in; with no labels at
+  // all, that lead-in is the whole abstract (a single unlabeled section).
+  pushSection(null, text.slice(0, marks[0]?.start ?? text.length));
   marks.forEach((mark, index) => {
     const bodyEnd =
       index + 1 < marks.length ? marks[index + 1].start : text.length;

@@ -63,11 +63,10 @@ const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string) || '';
 export function exchangeAccessCode(
   accessCode: string,
 ): Promise<{access_token: string; researcher_id: string; expires_in: number}> {
-  return fetchJson('/api/auth/exchange', {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({access_code: accessCode}),
-  });
+  return fetchJson(
+    '/api/auth/exchange',
+    jsonRequest({access_code: accessCode}),
+  );
 }
 
 /** Header identifying the calling browser client to the backend. */
@@ -76,6 +75,18 @@ function clientHeaders(): Record<string, string> {
   return token
     ? {Authorization: `Bearer ${token}`}
     : {'X-Client-ID': getClientId()};
+}
+
+/**
+ * Auth query string for a direct browser navigation (download/SSE URLs that
+ * carry no request headers): the signed session token when present, else the
+ * client id, mirroring `clientHeaders`.
+ */
+function authQuery(): string {
+  const token = getAccessToken();
+  return token
+    ? `access_token=${encodeURIComponent(token)}`
+    : `client_id=${encodeURIComponent(getClientId())}`;
 }
 
 /** Statuses for a run whose workflow is still in progress. */
@@ -96,21 +107,11 @@ export function isActiveStatus(status: RunStatus | undefined): boolean {
 }
 
 /**
- * Returns the first value in `values` that is neither null nor undefined, or
- * undefined when every value is nullish.
- */
-function firstDefined<T>(...values: (T | null | undefined)[]): T | undefined {
-  return values.find(
-    (value): value is T => value !== null && value !== undefined,
-  );
-}
-
-/**
  * The run's effective goal: the durable setup goal when set, else the
  * top-level research goal. Returns '' when the run is not yet loaded.
  */
 export function runGoal(run: Run | null | undefined): string {
-  return firstDefined(run?.config.setup?.goal, run?.research_goal) ?? '';
+  return run?.config.setup?.goal ?? run?.research_goal ?? '';
 }
 
 /**
@@ -407,22 +408,12 @@ export async function startRun(
  *
  * @param id Run identifier.
  * @param key Sub-resource path segment, doubling as the response key.
- * @param init Optional fetch options (e.g. client headers).
- * @param errorPrefix Optional prefix for error messages.
  * @returns The unwrapped array.
  */
-function getRunList<T>(
-  id: string,
-  key: string,
-  init?: RequestInit,
-  errorPrefix?: string,
-): Promise<T[]> {
-  return fetchField<string, T[]>(
-    `/api/runs/${id}/${key}`,
-    key,
-    init || {headers: clientHeaders()},
-    errorPrefix,
-  );
+function getRunList<T>(id: string, key: string): Promise<T[]> {
+  return fetchField<string, T[]>(`/api/runs/${id}/${key}`, key, {
+    headers: clientHeaders(),
+  });
 }
 
 /**
@@ -476,11 +467,10 @@ export function adjudicateSafety(
   decisionId: number,
   resolution: 'approved' | 'rejected',
 ): Promise<{decision_id: number; resolution: string}> {
-  return fetchJson(`/api/runs/${runId}/safety/${decisionId}/adjudicate`, {
-    method: 'POST',
-    headers: {...clientHeaders(), 'Content-Type': 'application/json'},
-    body: JSON.stringify({resolution}),
-  });
+  return fetchJson(
+    `/api/runs/${runId}/safety/${decisionId}/adjudicate`,
+    jsonRequest({resolution}, true),
+  );
 }
 
 /**
@@ -566,11 +556,7 @@ export async function getReport(id: string): Promise<Report | null> {
 
 /** Returns the browser-download URL for a persisted Markdown Goal Report. */
 export function reportMarkdownUrl(id: string): string {
-  const token = getAccessToken();
-  const query = token
-    ? `access_token=${encodeURIComponent(token)}`
-    : `client_id=${encodeURIComponent(getClientId())}`;
-  return `${API_BASE_URL}/api/runs/${id}/report.md?${query}`;
+  return `${API_BASE_URL}/api/runs/${id}/report.md?${authQuery()}`;
 }
 
 /** Streams a grounded report-level or idea-level Agent answer to completion. */
@@ -578,11 +564,10 @@ export async function askRunQuestion(
   id: string,
   question: string,
 ): Promise<string> {
-  const res = await fetch(`${API_BASE_URL}/api/runs/${id}/messages/ask`, {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json', ...clientHeaders()},
-    body: JSON.stringify({question}),
-  });
+  const res = await fetch(
+    `${API_BASE_URL}/api/runs/${id}/messages/ask`,
+    jsonRequest({question}, true),
+  );
   let answer = '';
   interface AnswerFrame {
     type: string;
@@ -639,11 +624,7 @@ export function getSharedGoalReport(token: string): Promise<SharedGoalReport> {
  * @returns The absolute events endpoint URL.
  */
 export function eventsStreamUrl(id: string): string {
-  const token = getAccessToken();
-  const query = token
-    ? `access_token=${encodeURIComponent(token)}`
-    : `client_id=${encodeURIComponent(getClientId())}`;
-  return `${API_BASE_URL}/api/runs/${id}/events?${query}`;
+  return `${API_BASE_URL}/api/runs/${id}/events?${authQuery()}`;
 }
 
 /** One persisted row of a run's append-only event log. */
