@@ -14,6 +14,7 @@ from co_scientist.prompts.generation_debate import (
     _format_supervisor_guidance_for_debate,
     get_debate_generation_prompt,
 )
+from co_scientist.prompts.loading import load_prompt
 
 # --- _format_debate_attributes ----------------------------------------------
 
@@ -230,3 +231,26 @@ def test_debate_prompt_does_not_force_clone_sentence_template() -> None:
     assert "2-3 sentences" not in prompt
     assert "mechanistic" in prompt.lower()
     assert "falsification" in prompt.lower()
+
+
+def test_research_expansion_feedback_is_wired() -> None:
+    """Research expansion re-runs generation informed by the meta-review.
+
+    The mechanism is the meta-review context threaded into the generation
+    prompts (consumed when the orchestrator re-enters generate in a later
+    cycle), so assert the placeholder is present in the ``generation_after_
+    debate`` prompt the research-expansion technique re-runs.
+    """
+    raw = load_prompt(
+        "generation_after_debate",
+        {
+            "research_goal": "A goal",
+            "domain_context": "",
+            "meta_review_context": "META-REVIEW-FEEDBACK-MARKER",
+            "num_hypotheses": 2,
+            "hypotheses_so_far": "",
+            "debate_transcript": "",
+        },
+    )
+    # The meta-review feedback is substituted into the prompt (not dropped).
+    assert "META-REVIEW-FEEDBACK-MARKER" in raw

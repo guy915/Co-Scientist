@@ -53,21 +53,25 @@ async def _discover_pdf_link(
         return (paper_id, None)
 
 
-def _apply_pdf_discovery_results(
+def _apply_metadata_field(
     all_paper_metadata: dict[str, dict[str, Any]],
     results: list[tuple[str, str | None]],
+    field: str,
 ) -> int:
-    """Write discovered PDF URLs back into paper metadata, in place.
+    """Write per-paper results back into a metadata field, in place.
+
+    Shared by Phase 2.4 (``pdf_url``) and Phase 2.5 (``fulltext``): a result is
+    applied only when it is non-empty and its paper is still present.
 
     Returns:
-        The number of papers updated with a newly discovered pdf_url.
+        The number of papers updated with a non-empty value.
     """
-    discovered_count = 0
-    for paper_id, pdf_url in results:
-        if pdf_url and paper_id in all_paper_metadata:
-            all_paper_metadata[paper_id]["pdf_url"] = pdf_url
-            discovered_count += 1
-    return discovered_count
+    updated_count = 0
+    for paper_id, value in results:
+        if value and paper_id in all_paper_metadata:
+            all_paper_metadata[paper_id][field] = value
+            updated_count += 1
+    return updated_count
 
 
 async def _run_pdf_discovery(
@@ -94,7 +98,7 @@ async def _run_pdf_discovery(
         for pid, meta, tool_name, url_field in papers_needing_discovery
     ]
     results = await asyncio.gather(*tasks)
-    return _apply_pdf_discovery_results(all_paper_metadata, results)
+    return _apply_metadata_field(all_paper_metadata, results, "pdf_url")
 
 
 async def _phase2_4_discover_pdf_links(
@@ -199,23 +203,6 @@ async def _fetch_paper_content(
         return (paper_id, None)
 
 
-def _apply_fetched_content(
-    all_paper_metadata: dict[str, dict[str, Any]],
-    results: list[tuple[str, str | None]],
-) -> int:
-    """Write fetched fulltext back into paper metadata, in place.
-
-    Returns:
-        The number of papers updated with newly fetched fulltext.
-    """
-    fetched_count = 0
-    for paper_id, content in results:
-        if content and paper_id in all_paper_metadata:
-            all_paper_metadata[paper_id]["fulltext"] = content
-            fetched_count += 1
-    return fetched_count
-
-
 def _build_content_runtime_context(state: "WorkflowState") -> dict[str, Any]:
     """Builds the runtime context used to resolve per-tool content params.
 
@@ -262,7 +249,7 @@ async def _run_content_fetch(
         for pid, meta, content_cfg in papers_needing_content
     ]
     results = await asyncio.gather(*tasks)
-    return _apply_fetched_content(all_paper_metadata, results)
+    return _apply_metadata_field(all_paper_metadata, results, "fulltext")
 
 
 async def _phase2_5_fetch_content(

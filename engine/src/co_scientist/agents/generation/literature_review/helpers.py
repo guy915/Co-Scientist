@@ -78,10 +78,7 @@ from co_scientist.agents.generation.literature_review.retrieval_support import (
     _first_link_url as _first_link_url,
 )
 from co_scientist.agents.generation.literature_review.retrieval_support import (
-    _lookup_content_config as _lookup_content_config,
-)
-from co_scientist.agents.generation.literature_review.retrieval_support import (
-    _lookup_pdf_discovery_config as _lookup_pdf_discovery_config,
+    _lookup_source_config as _lookup_source_config,
 )
 from co_scientist.agents.generation.literature_review.retrieval_support import (
     _parse_content_from_dict as _parse_content_from_dict,

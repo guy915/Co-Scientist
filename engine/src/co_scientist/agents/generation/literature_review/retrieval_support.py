@@ -9,7 +9,7 @@ tools' heterogeneous result shapes.
 import json
 import logging
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Optional, cast
+from typing import TYPE_CHECKING, Any, Optional, TypeVar, cast
 
 if TYPE_CHECKING:
     from co_scientist.config import (
@@ -19,6 +19,25 @@ if TYPE_CHECKING:
     )
 
 logger = logging.getLogger(__name__)
+
+_ConfigT = TypeVar("_ConfigT")
+
+
+def _lookup_source_config(
+    pid: str,
+    paper_source_map: dict[str, str],
+    config: dict[str, _ConfigT],
+) -> _ConfigT | None:
+    """Look up a paper's per-source config entry, if any.
+
+    Keyed by the paper's originating source (recorded by
+    merge_search_results), falling back to a single default config in
+    single-source mode. Shared by both PDF discovery (``tuple[str, str]``
+    values) and content retrieval (``ContentToolConfig`` values).
+    """
+    source_tool_id = paper_source_map.get(pid, "_default")
+    return config.get(source_tool_id) or config.get("_default")
+
 
 # =============================================================================
 # PDF discovery helpers
@@ -98,23 +117,6 @@ def build_pdf_discovery_config(
     return _build_default_pdf_config(workflow, tool_registry)
 
 
-def _lookup_pdf_discovery_config(
-    pid: str,
-    paper_source_map: dict[str, str],
-    pdf_discovery_config: dict[str, tuple[str, str]],
-) -> tuple[str, str] | None:
-    """Look up a paper's PDF-discovery (tool_name, url_field), if any.
-
-    Keyed by the paper's originating source (recorded by
-    merge_search_results), falling back to a single default config in
-    single-source mode.
-    """
-    source_tool_id = paper_source_map.get(pid, "_default")
-    return pdf_discovery_config.get(source_tool_id) or pdf_discovery_config.get(
-        "_default"
-    )
-
-
 def _resolve_pdf_discovery_entry(
     pid: str,
     meta: dict[str, Any],
@@ -129,9 +131,7 @@ def _resolve_pdf_discovery_entry(
     if not isinstance(meta, dict) or meta.get("pdf_url"):
         return None
 
-    config = _lookup_pdf_discovery_config(
-        pid, paper_source_map, pdf_discovery_config
-    )
+    config = _lookup_source_config(pid, paper_source_map, pdf_discovery_config)
     if not config:
         return None
 
@@ -315,21 +315,6 @@ def build_content_config(
     return _build_default_content_config(workflow, tool_registry)
 
 
-def _lookup_content_config(
-    pid: str,
-    paper_source_map: dict[str, str],
-    content_config: dict[str, ContentToolConfig],
-) -> ContentToolConfig | None:
-    """Look up a paper's content-retrieval config, if any.
-
-    Keyed by the paper's originating source (recorded by
-    merge_search_results), falling back to a single default config in
-    single-source mode.
-    """
-    source_tool_id = paper_source_map.get(pid, "_default")
-    return content_config.get(source_tool_id) or content_config.get("_default")
-
-
 def _resolve_content_entry(
     pid: str,
     meta: dict[str, Any],
@@ -345,7 +330,7 @@ def _resolve_content_entry(
     if not isinstance(meta, dict) or meta.get("fulltext"):
         return None
 
-    cfg = _lookup_content_config(pid, paper_source_map, content_config)
+    cfg = _lookup_source_config(pid, paper_source_map, content_config)
     if not cfg:
         return None
 

@@ -154,11 +154,11 @@ async def test_discover_pdf_link_tool_error_returns_none() -> None:
 
 
 # =============================================================================
-# _apply_pdf_discovery_results
+# _apply_metadata_field (pdf_url)
 # =============================================================================
 
 
-def test_apply_pdf_discovery_results_updates_matching_papers() -> None:
+def test_apply_metadata_field_pdf_url_updates_matching_papers() -> None:
     """Discovered URLs are written back only for papers present with a hit."""
     metadata = {"p1": {"title": "A"}, "p2": {"title": "B"}}
     results = [
@@ -167,17 +167,17 @@ def test_apply_pdf_discovery_results_updates_matching_papers() -> None:
         ("missing", "http://x/c.pdf"),  # not in metadata: ignored
     ]
 
-    count = lr_content._apply_pdf_discovery_results(metadata, results)
+    count = lr_content._apply_metadata_field(metadata, results, "pdf_url")
 
     assert count == 1
     assert metadata["p1"]["pdf_url"] == "http://x/a.pdf"
     assert "pdf_url" not in metadata["p2"]
 
 
-def test_apply_pdf_discovery_results_empty_list() -> None:
+def test_apply_metadata_field_empty_list() -> None:
     """An empty results list updates nothing and counts zero."""
     metadata: dict[str, dict[str, Any]] = {"p1": {"title": "A"}}
-    assert lr_content._apply_pdf_discovery_results(metadata, []) == 0
+    assert lr_content._apply_metadata_field(metadata, [], "pdf_url") == 0
 
 
 # =============================================================================
@@ -342,11 +342,11 @@ async def test_fetch_paper_content_tool_error_returns_none() -> None:
 
 
 # =============================================================================
-# _apply_fetched_content
+# _apply_metadata_field (fulltext)
 # =============================================================================
 
 
-def test_apply_fetched_content_updates_matching_papers() -> None:
+def test_apply_metadata_field_fulltext_updates_matching_papers() -> None:
     """Fetched fulltext is written back only for papers present with a hit."""
     metadata = {"p1": {"title": "A"}, "p2": {"title": "B"}}
     results = [
@@ -355,7 +355,7 @@ def test_apply_fetched_content_updates_matching_papers() -> None:
         ("missing", "orphan content"),
     ]
 
-    count = lr_content._apply_fetched_content(metadata, results)
+    count = lr_content._apply_metadata_field(metadata, results, "fulltext")
 
     assert count == 1
     assert metadata["p1"]["fulltext"] == "the full body"

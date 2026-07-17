@@ -62,10 +62,9 @@ def test_init_server_configs_used_directly() -> None:
     assert client.server_url == "http://s1.test/mcp"
 
 
-def test_available_tools_empty_before_initialize() -> None:
-    """Before initialize, available_tools is empty and has_tool is False."""
+def test_has_tool_false_before_initialize() -> None:
+    """Before initialize, has_tool reports every tool as unavailable."""
     client = MCPToolClient(server_url="http://x.test/mcp")
-    assert client.available_tools == []
     assert client.has_tool("anything") is False
 
 
@@ -83,10 +82,6 @@ async def test_initialize_populates_tools_and_openai_schemas(
     client = MCPToolClient(server_url="http://x.test/mcp")
     await client.initialize()
 
-    assert set(client.available_tools) == {
-        "pubmed_search",
-        "check_pubmed_available",
-    }
     assert client.has_tool("pubmed_search") is True
     tools_dict, openai_tools = client.get_tools()
     assert set(tools_dict.keys()) == {"pubmed_search", "check_pubmed_available"}
@@ -142,7 +137,7 @@ async def test_concurrent_initialize_waits_for_complete_tool_index(
     release.set()
     await asyncio.gather(first, second)
     assert calls == 1
-    assert client.available_tools == ["t1"]
+    assert client.has_tool("t1")
 
 
 def test_get_tools_before_initialize_raises() -> None:

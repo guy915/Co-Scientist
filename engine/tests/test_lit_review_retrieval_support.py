@@ -188,27 +188,27 @@ def test_build_pdf_discovery_config_single_source_dispatch() -> None:
 
 
 # =============================================================================
-# _lookup_pdf_discovery_config
+# _lookup_source_config (PDF-discovery tuple values)
 # =============================================================================
 
 
 def test_lookup_pdf_discovery_config_by_source() -> None:
     """A paper's own source config is preferred when present."""
     config = {"pubmed": ("mcp_pubmed", "url"), "_default": ("mcp_def", "url2")}
-    result = rs._lookup_pdf_discovery_config("p1", {"p1": "pubmed"}, config)
+    result = rs._lookup_source_config("p1", {"p1": "pubmed"}, config)
     assert result == ("mcp_pubmed", "url")
 
 
 def test_lookup_pdf_discovery_config_falls_back_to_default() -> None:
     """An unmapped source falls back to the ``_default`` config entry."""
     config = {"_default": ("mcp_def", "url2")}
-    result = rs._lookup_pdf_discovery_config("p1", {}, config)
+    result = rs._lookup_source_config("p1", {}, config)
     assert result == ("mcp_def", "url2")
 
 
 def test_lookup_pdf_discovery_config_none_available() -> None:
     """No matching source config and no default returns None."""
-    assert rs._lookup_pdf_discovery_config("p1", {}, {}) is None
+    assert rs._lookup_source_config("p1", {}, {}) is None
 
 
 # =============================================================================
@@ -479,7 +479,7 @@ def test_build_content_config_single_source_dispatch() -> None:
 
 
 # =============================================================================
-# _lookup_content_config
+# _lookup_source_config (ContentToolConfig values)
 # =============================================================================
 
 
@@ -493,7 +493,7 @@ def test_lookup_content_config_by_source() -> None:
     )
     config = {"arxiv": cfg, "_default": default_cfg}
 
-    result = rs._lookup_content_config("p1", {"p1": "arxiv"}, config)
+    result = rs._lookup_source_config("p1", {"p1": "arxiv"}, config)
 
     assert result is cfg
 
@@ -503,13 +503,13 @@ def test_lookup_content_config_falls_back_to_default() -> None:
     default_cfg = rs.ContentToolConfig(
         mcp_tool_name="mcp_def", url_field="pdf_url", content_params={}
     )
-    result = rs._lookup_content_config("p1", {}, {"_default": default_cfg})
+    result = rs._lookup_source_config("p1", {}, {"_default": default_cfg})
     assert result is default_cfg
 
 
 def test_lookup_content_config_none_available() -> None:
     """No matching source config and no default returns None."""
-    assert rs._lookup_content_config("p1", {}, {}) is None
+    assert rs._lookup_source_config("p1", {}, {}) is None
 
 
 # =============================================================================

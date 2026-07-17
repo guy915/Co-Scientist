@@ -284,29 +284,11 @@ class MCPToolClient:
 
         return _filter_tools_by_whitelist(self._tools_dict, whitelist)
 
-    def get_server_for_tool(self, tool_name: str) -> str | None:
-        """Get the server ID that provides a specific tool.
-
-        Args:
-            tool_name: Name of the tool
-
-        Returns:
-            Server ID or None if unknown
-        """
-        return self._tool_to_server.get(tool_name)
-
     def has_tool(self, tool_name: str) -> bool:
         """Check if a tool is available."""
         if self._tools_dict is None:
             return False
         return tool_name in self._tools_dict
-
-    @property
-    def available_tools(self) -> list[str]:
-        """Get list of available tool names."""
-        if self._tools_dict is None:
-            return []
-        return list(self._tools_dict.keys())
 
 
 # Process-wide singleton, shared across nodes so they reuse one MCP session

@@ -165,7 +165,7 @@ async def test_get_mcp_client_caches_single_instance(
     # The transport is constructed once: the second call reuses the cached
     # client and initialize() short-circuits.
     assert _patch_mcp_seam.instances_created == 1
-    assert first.available_tools == ["t1"]
+    assert first.has_tool("t1")
 
 
 async def test_get_mcp_client_force_new_rebuilds(
@@ -218,9 +218,11 @@ async def test_initialize_with_registry_tracks_tool_to_server(
     client = MCPToolClient(tool_registry=registry)
     await client.initialize()
 
-    assert client.get_server_for_tool("pubmed_search") == "pubmed_server"
+    # initialize records the providing server for each tool in the map that
+    # backed the (now-removed) get_server_for_tool accessor.
+    assert client._tool_to_server.get("pubmed_search") == "pubmed_server"
     # A tool the registry doesn't know about maps to no server.
-    assert client.get_server_for_tool("orphan_tool") is None
+    assert client._tool_to_server.get("orphan_tool") is None
 
 
 async def test_check_mcp_available_with_registry_true(
