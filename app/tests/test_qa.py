@@ -10,25 +10,16 @@ which is exercised end to end against a fake ``litellm`` module swapped into
 
 from __future__ import annotations
 
-import asyncio
 import logging
 import sys
-from collections.abc import AsyncIterator
 from types import SimpleNamespace
 
 import pytest
 
 from app import qa, store
 from app.config import settings
+from tests._client import drain as _drain
 from tests._client import fake_litellm as _fake_litellm
-
-
-def _drain(gen: AsyncIterator[str]) -> list[str]:
-    async def _run() -> list[str]:
-        return [frame async for frame in gen]
-
-    return asyncio.run(_run())
-
 
 # ---------------------------------------------------------------------------
 # _eligible_citations / build_evidence_manifest edge case
@@ -167,12 +158,10 @@ def test_stream_llm_deltas_yields_only_nonempty_chunks(
         sys.modules, "litellm", _fake_litellm(["Hello", "", " world"])
     )
 
-    async def _run() -> list[str]:
-        return [
-            d async for d in qa._stream_llm_deltas("model", "sys prompt", "q?")
-        ]
-
-    assert asyncio.run(_run()) == ["Hello", " world"]
+    assert _drain(qa._stream_llm_deltas("model", "sys prompt", "q?")) == [
+        "Hello",
+        " world",
+    ]
 
 
 # ---------------------------------------------------------------------------

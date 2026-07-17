@@ -2,13 +2,25 @@
 
 from __future__ import annotations
 
+import asyncio
 import time
 import types
 from collections.abc import AsyncIterator, Callable
 from types import SimpleNamespace
-from typing import Any
+from typing import Any, TypeVar
 
 from fastapi.testclient import TestClient
+
+_T = TypeVar("_T")
+
+
+def drain(gen: AsyncIterator[_T]) -> list[_T]:
+    """Collect every item an async generator yields into a list."""
+
+    async def _run() -> list[_T]:
+        return [item async for item in gen]
+
+    return asyncio.run(_run())
 
 
 def make_client() -> TestClient:

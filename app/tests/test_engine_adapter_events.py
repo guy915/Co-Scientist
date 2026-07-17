@@ -6,8 +6,8 @@ frontend reads. CI only exercises the mock path, so these fake-driven tests are
 the sole guard on the node->type mapping, the normalized payload shape, and the
 milestone messages derived from it.
 
-The shared ``_drain`` helper is imported from ``test_engine_drain`` to avoid
-duplicating setup across the two behavior-focused test modules.
+The shared ``drain`` helper (collect an async generator into a list) comes
+from ``tests._client``.
 """
 
 from __future__ import annotations
@@ -20,7 +20,7 @@ from typing import Any
 import pytest
 
 from app import engine_adapter, store
-from tests.test_engine_drain import _drain
+from tests._client import drain as _drain
 
 # Node names streamed by the real engine (generator.py ``add_node`` calls) and
 # the canonical event type each must be normalized to by the adapter.

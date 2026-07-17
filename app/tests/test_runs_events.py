@@ -10,13 +10,13 @@ in-process producer handles.
 from __future__ import annotations
 
 import asyncio
-from collections.abc import AsyncIterator
 
 import pytest
 
 from app import runs_events, store
 from app.runs_registry import _RunHandle
 from app.store import RunStatus
+from tests._client import drain as _drain
 
 
 class _FakeRequest:
@@ -42,15 +42,6 @@ class _FakeRequest:
         ):
             return True
         return self.disconnected
-
-
-def _drain(gen: AsyncIterator[str]) -> list[str]:
-    """Collect every frame yielded by an SSE async generator."""
-
-    async def _run() -> list[str]:
-        return [frame async for frame in gen]
-
-    return asyncio.run(_run())
 
 
 # ---------------------------------------------------------------------------

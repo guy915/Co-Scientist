@@ -6,7 +6,7 @@ import asyncio
 from typing import Any
 
 from app import engine_adapter, store
-from tests.test_engine_drain import _drain
+from tests._client import drain as _drain
 
 
 async def _drain_mock_workflow(

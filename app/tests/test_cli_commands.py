@@ -24,6 +24,7 @@ import httpx
 import pytest
 
 from app.cli.main import main
+from tests._client import wait_for
 
 # app/ directory (parent of tests/), used as PYTHONPATH for the subprocess.
 APP_DIR = pathlib.Path(__file__).resolve().parents[1]
@@ -178,12 +179,10 @@ def _wait_status(
     timeout: float = 30.0,
 ) -> None:
     """Poll until ``run_id`` reaches ``target`` status, or raise on timeout."""
-    deadline = time.time() + timeout
-    while time.time() < deadline:
-        if _status(base, run_id, client_id) == target:
-            return
-        time.sleep(0.05)
-    raise AssertionError(f"run {run_id} did not reach {target}")
+    if not wait_for(
+        lambda: _status(base, run_id, client_id) == target, timeout=timeout
+    ):
+        raise AssertionError(f"run {run_id} did not reach {target}")
 
 
 @pytest.fixture(scope="module")

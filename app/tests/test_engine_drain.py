@@ -14,39 +14,58 @@ canonical-fidelity additions:
 - Citations are classified through the shared four-state classifier.
 
 The adapter's streamed event vocabulary is covered separately in
-``test_engine_adapter_events``, which imports the shared ``_drain`` helper from
-here to avoid duplicating setup.
+``test_engine_adapter_events``.
 """
 
 from __future__ import annotations
 
-import asyncio
-from collections.abc import AsyncIterator
 from typing import Any
 
 from app import engine_adapter, report_render, store
+from tests._client import drain as _drain
+
+
+def _engine_hypothesis(
+    hyp_id: str, text: str, **overrides: Any
+) -> dict[str, Any]:
+    """Build a synthetic engine hypothesis with the drain's optional keys.
+
+    The drain reads Elo, win/loss counts, reviews, citations, evolution
+    history, and deep-verification fields via ``.get(key, default)``, so a
+    fixture only needs to spell out the fields under test; the rest default
+    here instead of being repeated in every hypothesis literal.
+    """
+    return {
+        "id": hyp_id,
+        "text": text,
+        "elo_rating": 1200,
+        "win_count": 0,
+        "loss_count": 0,
+        "reviews": [],
+        "citation_map": {},
+        "evolution_history": [],
+        "deep_verification_probes": [],
+        "deep_verification_verdict": None,
+        **overrides,
+    }
 
 
 def _final_state_with_features() -> dict[str, Any]:
     """Build a synthetic engine final state carrying the new features."""
     return {
         "hypotheses": [
-            {
-                "id": "eng-hyp-a",
-                "text": "Reparixin inhibits CXCR1 to suppress breast cancer "
+            _engine_hypothesis(
+                "eng-hyp-a",
+                "Reparixin inhibits CXCR1 to suppress breast cancer "
                 "stem cells.",
-                "explanation": "Blocking CXCR1 reduces the stem-cell pool.",
-                "literature_grounding": "CXCR1 is enriched in breast CSCs.",
-                "experiment": "Treat patient-derived xenografts with "
-                "reparixin.",
-                "elo_rating": 1320,
-                "win_count": 4,
-                "loss_count": 1,
-                "score": 0.8,
-                "reviews": [],
-                "citation_map": {},
-                "evolution_history": [],
-                "deep_verification_probes": [
+                explanation="Blocking CXCR1 reduces the stem-cell pool.",
+                literature_grounding="CXCR1 is enriched in breast CSCs.",
+                experiment="Treat patient-derived xenografts with reparixin.",
+                elo_rating=1320,
+                win_count=4,
+                loss_count=1,
+                score=0.8,
+                deep_verification_probes=[
                     {
                         "question": "Does CXCR1 signaling drive the stem-cell "
                         "phenotype?",
@@ -63,23 +82,18 @@ def _final_state_with_features() -> dict[str, Any]:
                         "assumption_is_fundamental": False,
                     },
                 ],
-                "deep_verification_verdict": "weakened",
-            },
-            {
-                "id": "eng-hyp-b",
-                "text": "A control hypothesis with no probes.",
-                "explanation": "",
-                "literature_grounding": "",
-                "experiment": "",
-                "elo_rating": 1180,
-                "win_count": 1,
-                "loss_count": 3,
-                "reviews": [],
-                "citation_map": {},
-                "evolution_history": [],
-                "deep_verification_probes": [],
-                "deep_verification_verdict": None,
-            },
+                deep_verification_verdict="weakened",
+            ),
+            _engine_hypothesis(
+                "eng-hyp-b",
+                "A control hypothesis with no probes.",
+                explanation="",
+                literature_grounding="",
+                experiment="",
+                elo_rating=1180,
+                win_count=1,
+                loss_count=3,
+            ),
         ],
         "articles": [
             {
@@ -168,14 +182,6 @@ def _final_state_with_features() -> dict[str, Any]:
     }
 
 
-def _drain(gen: AsyncIterator[Any]) -> list[Any]:
-
-    async def _run() -> list[Any]:
-        return [e async for e in gen]
-
-    return asyncio.run(_run())
-
-
 def _persist_and_finalize(
     run: Any, final_state: dict[str, Any], db_path: str
 ) -> None:
@@ -260,37 +266,22 @@ def _final_state_with_lineage() -> dict[str, Any]:
     """
     return {
         "hypotheses": [
-            {
-                "id": "parent-1",
-                "text": "Parent hypothesis about kinase X.",
-                "parent_id": None,
-                "generation": 0,
-                "origin": "generation",
-                "elo_rating": 1200,
-                "win_count": 0,
-                "loss_count": 0,
-                "reviews": [],
-                "citation_map": {},
-                "evolution_history": [],
-                "deep_verification_probes": [],
-                "deep_verification_verdict": None,
-            },
-            {
-                "id": "child-1",
-                "text": "Child hypothesis: kinase X plus cofactor W.",
-                "parent_id": "parent-1",
-                "generation": 1,
-                "origin": "evolution",
+            _engine_hypothesis(
+                "parent-1",
+                "Parent hypothesis about kinase X.",
+                parent_id=None,
+                generation=0,
+                origin="generation",
+            ),
+            _engine_hypothesis(
+                "child-1",
+                "Child hypothesis: kinase X plus cofactor W.",
+                parent_id="parent-1",
+                generation=1,
+                origin="evolution",
                 # Explicitly empty: lineage must come from the fields above.
-                "evolution_history": [],
-                "elo_rating": 1200,
-                "win_count": 0,
-                "loss_count": 0,
-                "reviews": [],
-                "citation_map": {},
-                "deep_verification_probes": [],
-                "deep_verification_verdict": None,
-            },
+                evolution_history=[],
+            ),
         ],
         "articles": [],
         "tournament_matchups": [],
@@ -801,11 +792,11 @@ def _final_state_with_citations() -> dict[str, Any]:
     grounding = "CXCR1 signaling drives breast cancer stem cell renewal"
     return {
         "hypotheses": [
-            {
-                "id": "eng-hyp-a",
-                "text": "Blocking CXCR1 suppresses breast cancer stem cells.",
-                "literature_grounding": grounding,
-                "citation_map": {
+            _engine_hypothesis(
+                "eng-hyp-a",
+                "Blocking CXCR1 suppresses breast cancer stem cells.",
+                literature_grounding=grounding,
+                citation_map={
                     "C1": {
                         "type": "paper",
                         "title": "CXCR1 drives CSC renewal",
@@ -825,7 +816,7 @@ def _final_state_with_citations() -> dict[str, Any]:
                         "display": "INDRA: CXCR1 -> STAT3",
                     },
                 },
-            }
+            )
         ],
         "articles": [
             {
