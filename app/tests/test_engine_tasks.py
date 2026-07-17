@@ -1221,3 +1221,86 @@ async def test_mature_reflection_modes_are_independent_durable_tasks(
     assert (
         successor.task_type == f"{engine_tasks.NODE_TASK_PREFIX}safety_screen"
     )
+
+
+@pytest.mark.asyncio
+async def test_execute_finalize_emits_post_drain_stage_events(
+    isolated_db: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The durable finalize task emits the three post-drain stage events.
+
+    Pins the production ``execute_finalize`` path end to end: it must pop the
+    drain's ``safety_counts``/``grounding_counts`` (which are not
+    ``finalize_report`` kwargs), emit ``safety.hypothesis``,
+    ``citation.grounding``, and ``citation_audit`` from them, and still run
+    ``finalize_report`` to completion. Without the pop this path would raise
+    ``TypeError: finalize_report() got an unexpected keyword argument``.
+    """
+    run = store.create_run("Task-level science", "standard", "engine", {})
+    hypothesis = Hypothesis(
+        text="Astrocyte lactate accelerates synaptic ATP recovery.",
+        literature_grounding=(
+            "Astrocyte lactate accelerates synaptic ATP recovery."
+        ),
+    )
+    state = _task_state(run.id)
+    state["hypotheses"] = [hypothesis]
+    # An article whose abstract carries the hypothesis's claim so grounding
+    # finds support (blocked=0) rather than quarantining it as unsupported.
+    state["articles"] = [
+        Article(
+            title="Synaptic energetics",
+            url="https://example.org/synaptic",
+            abstract="Astrocyte lactate accelerates synaptic ATP recovery.",
+        )
+    ]
+    _seed_checkpoint(run.id, state, db_path=isolated_db)
+    task = store.enqueue_task(
+        run.id,
+        engine_tasks.FINALIZE_TASK,
+        {},
+        idempotency_key="finalize",
+        db_path=isolated_db,
+    )
+    # Restore builds a real generator otherwise; the fixture generator carries a
+    # null tool_registry, which restore_workflow_state accepts.
+    monkeypatch.setattr(
+        engine_tasks,
+        "_generator_for_restore",
+        lambda *_: _Generator(state),
+    )
+
+    result = await engine_tasks.execute_finalize(task, db_path=isolated_db)
+
+    # finalize_report ran to completion (no leaked kwargs, no TypeError).
+    assert result["status"] == store.RunStatus.COMPLETED.value
+    assert store.get_latest_report(run.id, db_path=isolated_db) is not None
+
+    events = store.list_events(run.id, db_path=isolated_db)
+    by_type = {e["type"]: e["payload"] for e in events}
+
+    assert set(by_type["safety.hypothesis"]) == {
+        "screened",
+        "blocked",
+        "eligible",
+    }
+    assert by_type["safety.hypothesis"] == {
+        "screened": 1,
+        "blocked": 0,
+        "eligible": 1,
+    }
+    assert set(by_type["citation.grounding"]) == {
+        "grounded",
+        "blocked",
+        "eligible",
+    }
+    assert by_type["citation.grounding"] == {
+        "grounded": 1,
+        "blocked": 0,
+        "eligible": 1,
+    }
+    # No citation_map on the hypothesis, so every state count is zero, but the
+    # full citation-state vocabulary is present in the audit payload.
+    citation_audit = by_type["citation_audit"]
+    assert citation_audit
+    assert all(isinstance(v, int) for v in citation_audit.values())

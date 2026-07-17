@@ -256,20 +256,18 @@ def test_engine_adapter_emits_canonical_event_types(
     ):
         assert stage_type in types_emitted
 
-    safety_payload = by_type["safety.hypothesis"]
-    assert set(safety_payload) == {"screened", "blocked", "eligible"}
-    assert safety_payload["screened"] == 2  # both persisted hypotheses
-    assert (
-        safety_payload["eligible"]
-        == safety_payload["screened"] - safety_payload["blocked"]
-    )
-
-    grounding_payload = by_type["citation.grounding"]
-    assert set(grounding_payload) == {"grounded", "blocked", "eligible"}
-    assert (
-        grounding_payload["eligible"]
-        == grounding_payload["grounded"] - grounding_payload["blocked"]
-    )
+    # Concrete deterministic counts (both benign hypotheses, both grounded by
+    # A1's abstract): neither screening nor grounding blocks anything here.
+    assert by_type["safety.hypothesis"] == {
+        "screened": 2,
+        "blocked": 0,
+        "eligible": 2,
+    }
+    assert by_type["citation.grounding"] == {
+        "grounded": 2,
+        "blocked": 0,
+        "eligible": 2,
+    }
 
     citation_audit_payload = by_type["citation_audit"]
     # No citation_map on the fake hypotheses, so every state count is zero,
@@ -290,6 +288,13 @@ def test_engine_adapter_generates_canonical_milestones(
     assert "Research plan ready" in text
     assert "2 hypotheses generated" in text
     assert "1 matches" in text  # ranking milestone counts len(matches)
+    # Milestones for the newly-enriched node types, derived from the same
+    # canonical payloads the builders emit (only eng-h1 carries a review /
+    # deep-verification probe in the fixture).
+    assert "1 hypotheses reviewed" in text
+    assert "1 clusters identified" in text
+    assert "1 hypotheses verified" in text
+    assert "Research overview ready" in text
 
 
 def test_engine_adapter_persists_streamed_metrics(

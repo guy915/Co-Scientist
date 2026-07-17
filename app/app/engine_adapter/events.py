@@ -240,15 +240,34 @@ def _milestone_evolve(payload: dict[str, Any]) -> str:
     return f"{count} hypotheses evolved (iteration {itr})"
 
 
+def _milestone_reflection(payload: dict[str, Any]) -> str:
+    """Build the milestone text for a completed reflection pass."""
+    return f"{payload.get('reviewed', 0)} hypotheses reviewed"
+
+
+def _milestone_proximity(payload: dict[str, Any]) -> str:
+    """Build the milestone text for a completed proximity/clustering pass."""
+    return f"{len(payload.get('clusters') or {})} clusters identified"
+
+
+def _milestone_deep_verification(payload: dict[str, Any]) -> str:
+    """Build the milestone text for a completed deep-verification pass."""
+    return f"{payload.get('verified', 0)} hypotheses verified"
+
+
 # Per-node-type milestone builders, keyed by the canonical event type. Nodes
-# with no entry (e.g. ``reflection``, ``review``) generate no milestone,
-# mirroring ``_PAYLOAD_BUILDERS``'s dispatch shape above.
+# with no entry (e.g. ``review``) generate no milestone, mirroring
+# ``_PAYLOAD_BUILDERS``'s dispatch shape above.
 _MILESTONE_BUILDERS: dict[str, Callable[[dict[str, Any]], str]] = {
     "supervisor.plan": lambda _: "Research plan ready — supervisor complete",
     "generate": _milestone_generate,
     "ranking": _milestone_ranking,
     "meta_review": lambda _: "Meta-review complete",
     "evolve": _milestone_evolve,
+    "reflection": _milestone_reflection,
+    "proximity": _milestone_proximity,
+    "deep_verification": _milestone_deep_verification,
+    "research_overview": lambda _: "Research overview ready",
 }
 
 
