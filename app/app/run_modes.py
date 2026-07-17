@@ -265,6 +265,27 @@ def _apply_literature_review_override(
     base["enable_literature_review"] = bool(raw_value)
 
 
+# Valid explicit values for the "llm_backend" override; any other raw value
+# (including None) resolves to None, letting offline_mode() decide at run
+# time -- see _apply_llm_backend_override.
+_LLM_BACKEND_VALUES = ("offline", "real")
+
+
+def _apply_llm_backend_override(
+    base: dict[str, Any], unused_key: str, raw_value: Any
+) -> None:
+    """Normalize and merge the LLM backend override into `base`, in place.
+
+    A caller (e.g. the demo seeder) may pin a run to "offline" or "real",
+    bypassing the process-level ``offline_mode()`` predicate for that run.
+    An unrecognized or absent value resolves to None, the "let the caller
+    decide at run time" default.
+    """
+    base["llm_backend"] = (
+        raw_value if raw_value in _LLM_BACKEND_VALUES else None
+    )
+
+
 # Per-key override handlers; any key without a dedicated handler is a
 # numeric knob and falls back to `_apply_numeric_override`. Every handler
 # shares `_apply_numeric_override`'s (base, key, raw_value) signature so the
@@ -274,6 +295,7 @@ _OVERRIDE_HANDLERS: dict[str, Callable[[dict[str, Any], str, Any], None]] = {
     "tier": _apply_tier_override,
     "focus": _apply_focus_override,
     "enable_literature_review": _apply_literature_review_override,
+    "llm_backend": _apply_llm_backend_override,
 }
 
 
@@ -338,4 +360,8 @@ def resolved_run_config(
     # config so downstream consumers need no fallbacks of their own.
     base.setdefault("k_factor", DEFAULT_K_FACTOR)
     base.setdefault("enable_literature_review", True)
+    # "offline" | "real" | None; None means "let offline_mode() decide at run
+    # time" (see run_workflow), so a plain dict without this key still reads
+    # correctly.
+    base.setdefault("llm_backend", None)
     return base

@@ -16,7 +16,7 @@ from app import store
 from app.engine_adapter.engine_stream import _real_engine_stream
 from app.engine_adapter.events import _format_milestone
 from app.engine_adapter.opts import _drain_pre_run_steering
-from app.engine_adapter.provider import select_provider
+from app.engine_adapter.provider import offline_mode, select_provider
 from app.mock_workflow import run_mock_workflow
 from app.report_render import EmitFn, make_emitter
 from app.run_modes import normalize_run_tier, resolved_run_config
@@ -137,6 +137,36 @@ async def _dispatch_provider(
         yield event
 
 
+def _resolve_offline_backend(cfg: dict[str, Any]) -> bool:
+    """Return whether this run's engine execution should be offline-backed.
+
+    The resolved config's ``llm_backend`` key wins when a caller pinned it
+    explicitly ("offline" or "real"); otherwise falls back to the
+    process-level ``offline_mode()`` predicate, matching prior behavior for
+    any run that does not set the override.
+    """
+    backend = cfg.get("llm_backend")
+    if backend == "offline":
+        return True
+    if backend == "real":
+        return False
+    return offline_mode()
+
+
+def _sync_engine_llm_backend(
+    run_id: str, cfg: dict[str, Any], db_path: str | None
+) -> None:
+    """Persist the resolved offline/real backend for an engine-provider run.
+
+    Written before the engine stream is dispatched, so every later reader
+    (``run_used_offline``, used by report finalization and hypothesis
+    badging) reflects the resolved config's override rather than whatever
+    was derived when the run row was created.
+    """
+    backend = "offline" if _resolve_offline_backend(cfg) else "real"
+    store.set_run_llm_backend(run_id, backend, db_path=db_path)
+
+
 async def run_workflow(
     run_id: str,
     research_goal: str,
@@ -168,6 +198,12 @@ async def run_workflow(
     provider = force_provider or select_provider()
     cfg = resolved_run_config(config)
     run_mode = normalize_run_tier(str(cfg.get("tier") or ""))
+
+    # Only the engine provider selects a model from the offline/real split;
+    # sync the run row before dispatch so the generator built downstream
+    # (which re-reads the row via run_used_offline) sees the resolved value.
+    if provider == "engine":
+        _sync_engine_llm_backend(run_id, cfg, db_path)
 
     logger.info(
         "starting workflow run=%s provider=%s run_mode=%s",

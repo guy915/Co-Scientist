@@ -145,6 +145,30 @@ def run_used_offline(run: RunRow) -> bool:
     return run.llm_backend == "offline"
 
 
+def set_run_llm_backend(
+    run_id: str, llm_backend: str, db_path: str | None = None
+) -> None:
+    """Set a run's persisted LLM backend (idempotent; no-op if the run is gone).
+
+    Written when a run's resolved config carries an explicit ``llm_backend``
+    override (e.g. a demo run pinned to the offline engine backend), so
+    ``run_used_offline`` reports the override rather than the value derived
+    at creation time. The override must land here before/when the workflow
+    starts, since every later reader (report finalization, hypothesis
+    badging) re-fetches the row rather than reusing the resolved config.
+
+    Args:
+        run_id: Identifier of the run to update.
+        llm_backend: The backend to persist, "offline" or "real".
+        db_path: Optional override for the SQLite database path.
+    """
+    with connect(db_path) as conn:
+        conn.execute(
+            "UPDATE runs SET llm_backend = ? WHERE id = ?",
+            (llm_backend, run_id),
+        )
+
+
 def set_run_title(run_id: str, title: str, db_path: str | None = None) -> None:
     """Set a run's short session title (idempotent; no-op if the run is gone).
 
