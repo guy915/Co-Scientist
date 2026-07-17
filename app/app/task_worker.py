@@ -98,6 +98,13 @@ async def _execute_workflow_task(
             force_provider=force_provider,
             resume=resume,
             cancelled=stop_signal,  # type: ignore[arg-type]
+            # This legacy "run.workflow" task type predates the node-level
+            # durable executor (engine_tasks.py) that now drives real engine
+            # runs; historically it ran unpaced because the boundary emitter
+            # ignored sleep_seconds for the engine path. Pin it explicitly so
+            # unifying that pacing (see workflow.py) does not newly slow this
+            # path down.
+            sleep_seconds=0.0,
         ):
             pass
     final = store.get_run(run.id, db_path=db_path)

@@ -156,6 +156,12 @@ async def run_workflow(
     continues from the last checkpoint instead of running from the goal; the
     mock re-derives deterministically and ignores the flag. Intake screening
     is skipped on resume — the goal was already gated on the original run.
+
+    ``sleep_seconds`` paces every event emitted through this boundary's
+    emitter -- intake plus the real-engine node stream -- so both providers
+    trickle out events on the same clock. The mock builds its own emitter
+    downstream (also fed the same ``sleep_seconds``), since its scripted
+    stages need pacing independent of this boundary.
     """
     # force_provider lets a caller (e.g. seed.py's demo seeding) pin the
     # provider explicitly, bypassing select_provider()'s env/import probes.
@@ -170,7 +176,7 @@ async def run_workflow(
         run_mode,
     )
 
-    emit = make_emitter(run_id, db_path=db_path)
+    emit = make_emitter(run_id, db_path=db_path, sleep_seconds=sleep_seconds)
 
     # Intake safety gate, shared by every provider. A hard block short-circuits
     # the run before any hypotheses are generated. On resume the original goal
