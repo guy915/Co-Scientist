@@ -221,9 +221,10 @@ async def create_run(
             "tier": tier,
         },
     )
-    # Title generation needs a real model, so only when a provider is
-    # configured (mock/offline and tests keep the goal-clause fallback).
-    if provider == "engine":
+    # Title generation needs a real model, so only when a provider credential
+    # is configured. Every run is now the engine provider, so gate on the LLM
+    # backend instead: offline/keyless runs keep the goal-clause fallback.
+    if provider == "engine" and not engine_adapter.offline_mode():
         background_tasks.add_task(
             _populate_run_title, run.id, req.research_goal
         )
@@ -1174,11 +1175,11 @@ async def ask_question(run_id: str, req: AskRequest) -> StreamingResponse:
     # only gathers state and wires the SSE response.
     manifest = qa.build_evidence_manifest(evidence, citations)
 
-    # Keyless demo posture: with the mock provider selected there is no
-    # language model to call, so synthesize a deterministic answer grounded in
-    # the run's own artifacts rather than streaming an API-key error. The real
-    # LLM path is unchanged for a configured provider.
-    if engine_adapter.select_provider() == "mock":
+    # Keyless/offline posture: with no configured provider there is no language
+    # model to call, so synthesize a deterministic answer grounded in the run's
+    # own artifacts rather than streaming an API-key error. The real LLM path is
+    # unchanged for a configured provider.
+    if engine_adapter.offline_mode():
         answer = qa.build_offline_answer(
             run.research_goal, hypotheses, reviews, manifest
         )

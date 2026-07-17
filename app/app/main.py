@@ -314,10 +314,18 @@ class SystemStatusResponse(BaseModel):
     )
     mcp_server_url: str = Field(..., description="configured mcp server url")
     provider: str = Field(
-        "mock", description="active workflow provider: 'mock' | 'engine'"
+        "engine", description="active workflow provider (always 'engine')"
     )
     mock_mode: bool = Field(
-        False, description="true when running deterministic mock workflow"
+        False,
+        description=(
+            "deprecated mirror of the offline backend, kept for older "
+            "clients; true when running the deterministic offline backend"
+        ),
+    )
+    llm_backend: str = Field(
+        "real",
+        description="active LLM backend: 'offline' (deterministic) | 'real'",
     )
     has_provider_key: bool = Field(
         False, description="any LLM provider key is set"

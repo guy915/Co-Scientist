@@ -73,13 +73,25 @@ def offline_mode() -> bool:
 
 
 def select_provider() -> str:
-    """Return 'mock' or 'engine'. Persisted on the run row."""
-    if os.getenv("COSCIENTIST_FORCE_MOCK") == "1":
-        return "mock"  # explicit override, e.g. for tests or local dev
-    if not _has_provider_key():
-        return "mock"  # no LLM credentials configured
+    """Return the workflow provider, always ``"engine"``.
+
+    The mock provider has been retired: every run -- keyless or configured --
+    executes on the real engine graph, with keyless/forced runs pinned to the
+    deterministic offline LLM backend (see ``offline_mode``). The engine is
+    therefore a hard runtime dependency; this raises ``RuntimeError`` when the
+    ``co_scientist`` package is not importable rather than silently falling
+    back to a mock that no longer exists.
+
+    Raises:
+        RuntimeError: When the ``co_scientist`` engine package cannot be
+            imported. Called at startup (the lifespan hook), so an unusable
+            deployment fails loudly there instead of at the first run.
+    """
     if not _engine_importable():
-        return "mock"  # co_scientist package not installed/importable
+        raise RuntimeError(
+            "co_scientist engine is not importable; it is a hard dependency "
+            "of the app now that the mock provider has been retired"
+        )
     return "engine"
 
 
@@ -94,8 +106,11 @@ def system_status() -> dict[str, Any]:
 
     return {
         "provider": provider,
-        # Deprecated mirror of the mock/engine split; prefer ``llm_backend``.
-        "mock_mode": provider == "mock",
+        # Deprecated mirror of the offline/real split, kept for older clients
+        # that still read it; prefer ``llm_backend``. Now that every run is on
+        # the engine, this tracks the LLM backend rather than a retired mock
+        # provider: an offline-backed process reports ``True``.
+        "mock_mode": offline_mode(),
         "llm_backend": "offline" if offline_mode() else "real",
         "has_provider_key": has_key,
         "engine_importable": engine,
