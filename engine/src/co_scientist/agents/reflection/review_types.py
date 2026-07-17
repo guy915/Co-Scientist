@@ -2,8 +2,9 @@
 
 Google's Reflection agent applies six kinds of review. This module names them
 as a single enum and maps each to the prompt template and structured-output
-schema that implement it, so the set is explicit and dispatchable rather than
-implied by scattered nodes:
+schema that implement it, so the set is named explicitly in one place rather
+than implied by scattered nodes (the nodes that apply each review still live
+separately):
 
 - ``INITIAL`` -- a quick, tool-free screen (``review`` / ``review_batch``).
 - ``FULL`` -- an in-depth correctness/quality/novelty + assumptions review

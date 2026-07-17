@@ -141,7 +141,7 @@ async def _verify_one(
     semaphore: asyncio.Semaphore,
     tool_registry: Any | None,
     evidence_context: str,
-    state: WorkflowState | None = None,
+    state: WorkflowState,
 ) -> dict[str, Any] | None:
     """Run probing-question deep verification for one hypothesis.
 
@@ -152,7 +152,7 @@ async def _verify_one(
         semaphore: Concurrency limiter shared across verifications.
         tool_registry: Optional registry for domain-specific prompt variables.
         evidence_context: Bounded analyzed-source excerpts.
-        state: Full state used to execute targeted probe retrieval when set.
+        state: Full state used to execute targeted probe retrieval.
 
     Returns:
         The parsed deep-verification result, or None if the call failed.
@@ -162,13 +162,12 @@ async def _verify_one(
     # probing questions target those patterns, so meta-review reaches this
     # agent too (the disclosed all-agent feedback loop, audit E28). Additive:
     # empty when no meta-review exists yet.
-    if state is not None:
-        meta_context = _format_meta_review_context(state.get("meta_review"))
-        if meta_context:
-            evidence_context = (
-                f"{evidence_context}\n\nCross-agent meta-review feedback "
-                f"(recurring patterns to probe):\n{meta_context}"
-            )
+    meta_context = _format_meta_review_context(state.get("meta_review"))
+    if meta_context:
+        evidence_context = (
+            f"{evidence_context}\n\nCross-agent meta-review feedback "
+            f"(recurring patterns to probe):\n{meta_context}"
+        )
     # Semaphore bounds how many of these run concurrently across the whole
     # top-k batch, shared with the caller via the `semaphore` argument.
     async with semaphore:
@@ -180,8 +179,6 @@ async def _verify_one(
                 tool_registry,
                 evidence_context,
             )
-            if state is None:
-                return initial
             queries = _probe_queries(initial)
             articles, retrieval_errors = await _retrieve_probe_evidence(
                 state, queries

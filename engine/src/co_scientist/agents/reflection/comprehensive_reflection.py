@@ -1,4 +1,8 @@
-"""Tool-grounded full, simulation, and recurrent Reflection reviews."""
+"""Tool-grounded observation, full, simulation, and recurrent reviews.
+
+Also runs the observation review for hypotheses that reached this node
+without passing through the initial reflection node.
+"""
 
 import asyncio
 import json
@@ -279,10 +283,13 @@ async def comprehensive_reflection_node(state: WorkflowState) -> dict[str, Any]:
         for hypothesis in hypotheses
         if hypothesis.review_disposition == "viable"
     ]
-    calls = await _run_missing_observation_reviews(state, viable)
-    calls += sum(
-        await asyncio.gather(*[_review_hypothesis(state, h) for h in viable])
+    # The observation reviews and the full/simulation/recurrent review batch
+    # have no data dependency on each other, so overlap their LLM latency.
+    observation_calls, review_counts = await asyncio.gather(
+        _run_missing_observation_reviews(state, viable),
+        asyncio.gather(*[_review_hypothesis(state, h) for h in viable]),
     )
+    calls = observation_calls + sum(review_counts)
     return {
         "hypotheses": hypotheses,
         "articles": state.get("articles") or [],

@@ -78,8 +78,10 @@ async def safety_screen_node(
         review = review_hypothesis_safety(_screen_text(h))
         h.safety_status = review.outcome.value
 
-        if review.outcome == SafetyOutcome.UNCERTAIN:
-            new_held.append(h.to_dict())
+        if (
+            review.outcome == SafetyOutcome.UNCERTAIN
+            or review.blocks_tournament
+        ):
             new_decisions.append(
                 {
                     "hypothesis_id": h.id,
@@ -87,6 +89,8 @@ async def safety_screen_node(
                     **review.to_dict(),
                 }
             )
+        if review.outcome == SafetyOutcome.UNCERTAIN:
+            new_held.append(h.to_dict())
             logger.warning(
                 "Safety screen: UNCERTAIN hypothesis held for review: "
                 "%s... (id=%s)",
@@ -94,13 +98,6 @@ async def safety_screen_node(
                 h.id,
             )
         elif review.blocks_tournament:
-            new_decisions.append(
-                {
-                    "hypothesis_id": h.id,
-                    "text_prefix": h.text[:120],
-                    **review.to_dict(),
-                }
-            )
             logger.warning(
                 "Safety screen: blocked hypothesis (%s): %s... (id=%s)",
                 review.outcome.value,

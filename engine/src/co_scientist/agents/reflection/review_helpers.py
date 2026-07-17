@@ -3,7 +3,7 @@
 Batch-prompt preparation, response parsing, strategy selection, review
 validation, and hypothesis attachment - the non-LLM building blocks the
 review node composes. The LLM-calling functions and the node itself live in
-``nodes/review.py``.
+the sibling ``review.py``.
 """
 
 import logging

@@ -358,9 +358,10 @@ def _apply_reflection_results(
     """Applies per-hypothesis reflection results onto their hypotheses.
 
     Mutates each hypothesis in place: sets reflection_notes (including the
-    "Classification: <value>" suffix that nodes/ranking.py later parses back
-    out of reflection_notes to show reflection context in tournament
-    matchup prompts) and, when present, merges INDRA enrichment items.
+    "Classification: <value>" suffix that agents/ranking/ranking_prompt.py
+    later parses back out of reflection_notes to show reflection context in
+    tournament matchup prompts) and, when present, merges INDRA enrichment
+    items.
 
     Args:
         hypotheses: hypotheses analyzed, in the same order as
