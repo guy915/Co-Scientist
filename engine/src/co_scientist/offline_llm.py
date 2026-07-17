@@ -19,10 +19,15 @@ while different prompts must differ. This is done by seeding a
 name)`` once per call and drawing every string leaf from it -- the
 deterministic traversal order of ``_fill_schema`` means identical inputs
 draw the same sequence of random values (so the response is
-byte-identical), while each leaf drawn from that same sequence differs
-from the last (so string leaves stay unique within one response, which
-matters because ``co_scientist.state.deduplicate_hypotheses`` collapses
-hypotheses with equal normalized text).
+byte-identical), while each leaf is also tagged with its 1-based position
+within the response (so string leaves stay unique within one response even
+when the word-bank draw repeats, which matters because
+``co_scientist.state.deduplicate_hypotheses`` collapses hypotheses with
+equal normalized text). Leaf text itself is drawn from a small
+pseudo-scientific phrase bank (ported from the retired mock workflow's
+content vocabulary) rather than a bare hex digest, so offline runs --
+including the production site's demo runs -- render human-presentable
+prose instead of ``offline-<hash>`` placeholders.
 
 ``_fill_schema`` takes the leaf-value generator as a plain callable rather
 than baking in either strategy, so ``tests/_llm_fake.py`` can share this
@@ -33,6 +38,7 @@ just within one response).
 """
 
 import hashlib
+import itertools
 import json
 import logging
 import random
@@ -47,6 +53,61 @@ logger = logging.getLogger(__name__)
 
 OFFLINE_MODEL_PREFIX = "offline/"
 DEFAULT_OFFLINE_MODEL = f"{OFFLINE_MODEL_PREFIX}deterministic"
+
+# Word banks for `_leaf_text`, ported from the retired mock workflow's
+# content vocabulary (formerly `app/app/mock_workflow_seeds.py`). Parallel
+# in spirit to that module's `_HYPOTHESIS_ANGLES`/`_HYPOTHESIS_TARGETS`, but
+# generic rather than hypothesis-specific: `_fill_schema` calls the leaf
+# generator once per string leaf across every schema (titles, mechanisms,
+# review prose, ranking rationale, ...) with no knowledge of which property
+# it is filling, so the phrase these combine into must read plausibly in
+# any of those slots.
+_PROSE_ANGLES: list[str] = [
+    "modulating regulatory feedback in",
+    "rerouting metabolic flux through",
+    "perturbing transcriptional control of",
+    "stabilizing a transient intermediate in",
+    "decoupling co-expression in",
+    "enforcing temporal restriction on",
+    "exploiting allosteric switching in",
+    "leveraging cross-pathway interference in",
+]
+_PROSE_TARGETS: list[str] = [
+    "the proposed mechanism",
+    "the dominant pathway",
+    "the upstream regulator",
+    "the rate-limiting step",
+    "the downstream effector",
+    "the bottleneck enzyme",
+    "the canonical signalling module",
+]
+
+
+def _leaf_text(rng: random.Random, ordinal: int) -> str:
+    """Builds one deterministic, human-presentable pseudo-scientific leaf.
+
+    Args:
+        rng: The per-call seeded RNG (see ``_seed_for``); each call draws
+            one angle and one target from it, advancing the shared
+            sequence so a later leaf in the same response reads
+            differently.
+        ordinal: 1-based position of this leaf within the current
+            response. Appended as a bracketed index (in the style of an
+            inline citation marker) so leaves stay unique within one
+            response even on the rare word-bank collision -- the same
+            role the mock workflow's per-index title numbering played.
+
+    Returns:
+        A short pseudo-scientific sentence fragment suitable for any
+        free-text schema field (title, statement, mechanism, review
+        prose, ranking rationale, ...).
+    """
+    angle = _PROSE_ANGLES[rng.randrange(len(_PROSE_ANGLES))]
+    target = rng.choice(_PROSE_TARGETS)
+    return (
+        f"{angle.capitalize()} {target}, yielding a measurable effect "
+        f"distinct from current consensus [{ordinal}]"
+    )
 
 
 def is_offline_model(model_name: str) -> bool:
@@ -307,9 +368,10 @@ async def offline_acompletion(**completion_args: Any) -> Any:
             return _build_response(_supervisor_allocation_response(prompt))
 
         rng = random.Random(_seed_for(model, prompt, schema_name))
+        ordinals = itertools.count(1)
 
         def leaf_fn() -> str:
-            return f"offline-{rng.getrandbits(64):016x}"
+            return _leaf_text(rng, next(ordinals))
 
         schema = json_schema["schema"]
         length_hint = _ARRAY_LENGTH_HINTS.get(schema_name)
@@ -322,7 +384,7 @@ async def offline_acompletion(**completion_args: Any) -> Any:
         content = "{}"
     else:
         rng = random.Random(_seed_for(model, prompt, ""))
-        content = f"offline response {rng.getrandbits(64):016x}"
+        content = _leaf_text(rng, 1)
     return _build_response(content)
 
 
