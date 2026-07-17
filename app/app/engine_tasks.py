@@ -1831,11 +1831,20 @@ async def execute_finalize(
     report_inputs = _persist_final_state(
         run_id=run.id, final_state=final_state, db_path=db_path
     )
+    # Popped before the rest of report_inputs is spread into finalize_report
+    # below (which does not accept them as kwargs); emitted as the same
+    # post-drain stage events the streaming engine path emits, so both engine
+    # execution modes carry identical per-stage fidelity.
+    safety_counts = report_inputs.pop("safety_counts")
+    grounding_counts = report_inputs.pop("grounding_counts")
     metrics = final_state.get("metrics") or {}
     execution_time = max(0.0, time.time() - float(state.get("start_time", 0)))
     store.save_run_metrics(run.id, metrics, db_path=db_path)
     store.update_run_status(run.id, RunStatus.SYNTHESIZING, db_path=db_path)
     emit = make_emitter(run.id, db_path=db_path)
+    await emit("safety.hypothesis", safety_counts)
+    await emit("citation.grounding", grounding_counts)
+    await emit("citation_audit", dict(report_inputs["citation_summary"]))
     async for _ in finalize_report(
         run_id=run.id,
         research_goal=run.research_goal,

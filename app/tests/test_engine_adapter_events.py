@@ -63,6 +63,11 @@ def _engine_streaming_state() -> dict[str, Any]:
                 "win_count": 2,
                 "loss_count": 0,
                 "evolution_history": [],
+                "reviews": [{"review_summary": "Sound mechanism."}],
+                "deep_verification_verdict": "verified",
+                "deep_verification_probes": [
+                    {"question": "Does X cause Y?", "answer": "Yes, via Z."}
+                ],
             },
             {
                 "id": "eng-h2",
@@ -71,6 +76,7 @@ def _engine_streaming_state() -> dict[str, Any]:
                 "win_count": 1,
                 "loss_count": 1,
                 "evolution_history": [{"round": 1}],
+                "reviews": [],
             },
         ],
         "articles": [
@@ -93,9 +99,27 @@ def _engine_streaming_state() -> dict[str, Any]:
                 "winner": "a",
             }
         ],
-        "meta_review": {},
+        "meta_review": {
+            "summary": "Leading hypotheses converge on one mechanism.",
+            "common_strengths": ["Clear mechanism"],
+            "common_weaknesses": ["Thin evidence"],
+        },
         "evolution_details": [],
-        "research_overview": {},
+        "research_overview": {
+            "overview": {"summary": "Targeting the pathway looks promising."},
+            "nih_specific_aims": {"introduction": "Background.", "aims": []},
+        },
+        "proximity_graph": {
+            "edges": [
+                {
+                    "source": "eng-h1",
+                    "target": "eng-h2",
+                    "similarity": 0.8,
+                    "cluster_id": "cluster-0",
+                }
+            ],
+            "meta": {"method": "embedding", "version": 1},
+        },
         "current_iteration": 1,
     }
 
@@ -199,6 +223,59 @@ def test_engine_adapter_emits_canonical_event_types(
     assert by_type["literature_review"]["count"] == 1
     assert len(by_type["literature_review"]["evidence"]) == 1
     assert by_type["supervisor.plan"]["agents"]
+
+    # Full-fidelity payloads: only eng-h1 carries reviews/deep-verification.
+    assert by_type["reflection"]["reviewed"] == 1
+    assert by_type["proximity"]["clusters"] == {"cluster-0": 2}
+    assert (
+        by_type["meta_review"]["critique"]
+        == "Leading hypotheses converge on one mechanism."
+    )
+    assert by_type["meta_review"]["top_k_ids"] == ["eng-h1", "eng-h2"]
+    assert by_type["deep_verification"]["verified"] == 1
+    assert by_type["deep_verification"]["probes"] == [
+        {
+            "hypothesis_id": "eng-h1",
+            "verdict": "verified",
+            "probes": [
+                {"question": "Does X cause Y?", "answer": "Yes, via Z."}
+            ],
+        }
+    ]
+    assert by_type["research_overview"]["research_overview"] == {
+        "overview": {"summary": "Targeting the pathway looks promising."},
+        "nih_specific_aims": {"introduction": "Background.", "aims": []},
+    }
+
+    # Post-drain stage events: emitted once after the engine's own node
+    # stream finishes, from counts the drain computed while persisting.
+    for stage_type in (
+        "safety.hypothesis",
+        "citation.grounding",
+        "citation_audit",
+    ):
+        assert stage_type in types_emitted
+
+    safety_payload = by_type["safety.hypothesis"]
+    assert set(safety_payload) == {"screened", "blocked", "eligible"}
+    assert safety_payload["screened"] == 2  # both persisted hypotheses
+    assert (
+        safety_payload["eligible"]
+        == safety_payload["screened"] - safety_payload["blocked"]
+    )
+
+    grounding_payload = by_type["citation.grounding"]
+    assert set(grounding_payload) == {"grounded", "blocked", "eligible"}
+    assert (
+        grounding_payload["eligible"]
+        == grounding_payload["grounded"] - grounding_payload["blocked"]
+    )
+
+    citation_audit_payload = by_type["citation_audit"]
+    # No citation_map on the fake hypotheses, so every state count is zero,
+    # but the full citation-state vocabulary is still present.
+    assert citation_audit_payload
+    assert all(isinstance(v, int) for v in citation_audit_payload.values())
 
 
 def test_engine_adapter_generates_canonical_milestones(

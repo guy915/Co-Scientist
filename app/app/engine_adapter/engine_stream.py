@@ -270,13 +270,22 @@ async def _persist_and_report(
 
     Builds, screens, persists, and emits the report through the shared
     finalize path (final safety gate included), so the engine is gated and
-    reported on exactly the same terms as the mock.
+    reported on exactly the same terms as the mock. Also emits the
+    post-drain ``safety.hypothesis``, ``citation.grounding``, and
+    ``citation_audit`` stage events from counts the drain already computed,
+    so the engine path carries the same per-stage fidelity the mock's
+    scripted stages do.
     """
     report_inputs = _persist_final_state(
         run_id=run_id,
         final_state=final_state,
         db_path=db_path,
     )
+    safety_counts = report_inputs.pop("safety_counts")
+    grounding_counts = report_inputs.pop("grounding_counts")
+    yield await emit("safety.hypothesis", safety_counts)
+    yield await emit("citation.grounding", grounding_counts)
+    yield await emit("citation_audit", dict(report_inputs["citation_summary"]))
     _persist_run_metrics(
         run_id,
         final_state.get("metrics"),
