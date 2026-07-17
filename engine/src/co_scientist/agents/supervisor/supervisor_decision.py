@@ -29,6 +29,11 @@ _PRODUCTIVE_TASKS = (
     TaskType.PROXIMITY,
 )
 
+# Work tasks grow the hypothesis pool and advance the iteration counter, unlike
+# maintenance tasks (reflect/rank/proximity). Shared so the orchestrator's
+# iteration bookkeeping and the post-budget growth guard here agree on the set.
+WORK_TASKS = frozenset({TaskType.GENERATE, TaskType.EVOLVE})
+
 _DECISION_SCHEMA: dict[str, Any] = {
     "name": "supervisor_allocation",
     "schema": {
@@ -70,9 +75,19 @@ _DECISION_SCHEMA: dict[str, Any] = {
 
 
 def _hard_stop(
-    stats: SchedulerStats, budget: Budget
+    stats: SchedulerStats,
+    budget: Budget,
+    baseline: SupervisorDecision,
 ) -> SupervisorDecision | None:
-    """Return a code-enforced stop that no model allocation may bypass."""
+    """Return a code-enforced stop that no model allocation may bypass.
+
+    Args:
+        stats: Live statistics derived from workflow state.
+        budget: The run's hard compute limits.
+        baseline: The disclosed scheduler's decision for these same
+            stats/budget, reused for the satisfied-completion/convergence
+            fall-through rather than recomputed.
+    """
     reason: tuple[TerminationReason, str] | None = None
     if stats.cancelled:
         reason = (TerminationReason.CANCELLED, "run cancelled")
@@ -93,7 +108,6 @@ def _hard_stop(
     if reason is None:
         # Satisfied completion and convergence are evaluated by the disclosed
         # scheduler predicates after required review/ranking/proximity work.
-        baseline = decide_next_task(stats, budget)
         return baseline if baseline.terminate else None
     termination_reason, message = reason
     return SupervisorDecision(
@@ -113,7 +127,7 @@ def _planning_prompt(
         "research_plan": state.get("supervisor_guidance") or {},
         "statistics": stats.to_dict(),
         "budget": budget.to_dict(),
-        "recent_tasks": list(state.get("task_history", []))[-12:],
+        "recent_tasks": state.get("task_history", [])[-12:],
         "meta_review": state.get("meta_review") or {},
         "pending_steering": state.get("pending_steering") or False,
         "held_for_review": len(state.get("held_for_review", [])),
@@ -170,7 +184,13 @@ async def choose_supervisor_task(
     Returns:
         The validated decision and its provenance label.
     """
-    stop = _hard_stop(stats, budget)
+    # The disclosed scheduler's decision for these stats/budget. Computed once
+    # and reused for the hard-stop fall-through, the non-progress fallback, the
+    # post-budget growth guard, and the exception fallback -- decide_next_task
+    # is pure and stats/budget do not change across those uses.
+    baseline = decide_next_task(stats, budget)
+
+    stop = _hard_stop(stats, budget, baseline)
     if stop is not None:
         return stop, "hard-invariant"
 
@@ -196,7 +216,6 @@ async def choose_supervisor_task(
             queue_actions=tuple(response.get("queue_actions") or ()),
         )
         validated = validate_decision(proposed, stats)
-        baseline = decide_next_task(stats, budget)
         if _repeats_without_iteration_progress(
             state, stats, validated, baseline
         ):
@@ -208,7 +227,7 @@ async def choose_supervisor_task(
         if (
             not stats.pending_steering
             and stats.iteration >= budget.max_iterations
-            and validated.next_task in {TaskType.GENERATE, TaskType.EVOLVE}
+            and validated.next_task in WORK_TASKS
         ):
             # Once the exploration budget is spent, the model may select the
             # required review/ranking/proximity cleanup but cannot grow the
@@ -217,5 +236,5 @@ async def choose_supervisor_task(
         return validated, "model"
     except Exception as exc:
         logger.warning("Supervisor allocation failed; using fallback: %s", exc)
-        fallback = validate_decision(decide_next_task(stats, budget), stats)
+        fallback = validate_decision(baseline, stats)
         return fallback, "reconstructed-fallback"

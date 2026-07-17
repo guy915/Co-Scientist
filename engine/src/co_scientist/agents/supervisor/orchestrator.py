@@ -18,6 +18,7 @@ import time
 from typing import Any
 
 from co_scientist.agents.supervisor.supervisor_decision import (
+    WORK_TASKS,
     choose_supervisor_task,
 )
 from co_scientist.constants import INITIAL_ELO_RATING
@@ -266,9 +267,14 @@ async def orchestrator_node(state: WorkflowState) -> dict[str, Any]:
     iteration = state.get("current_iteration", 0)
     # A work cycle (generate/evolve) advances the iteration counter; a
     # maintenance task (proximity/rank/reflect) and termination do not.
-    if decision.next_task in (TaskType.GENERATE, TaskType.EVOLVE):
+    if decision.next_task in WORK_TASKS:
         iteration += 1
     observable_reason = _observable_decision_reason(stats, decision)
+    termination_reason_value = (
+        decision.termination_reason.value
+        if decision.termination_reason is not None
+        else None
+    )
 
     logger.info(
         "Orchestrator scheduled %s (iteration %s): %s",
@@ -283,11 +289,7 @@ async def orchestrator_node(state: WorkflowState) -> dict[str, Any]:
         observable_reason,
         _PROGRESS_ORCHESTRATOR,
         next_task=decision.next_task.value,
-        termination_reason=(
-            decision.termination_reason.value
-            if decision.termination_reason is not None
-            else None
-        ),
+        termination_reason=termination_reason_value,
         decision_provenance=decision_provenance,
     )
 
@@ -305,11 +307,7 @@ async def orchestrator_node(state: WorkflowState) -> dict[str, Any]:
         # orchestrator has seen it (and scheduled work to incorporate it) so
         # the loop does not re-trigger on the same message.
         "pending_steering": False,
-        "termination_reason": (
-            decision.termination_reason.value
-            if decision.termination_reason is not None
-            else None
-        ),
+        "termination_reason": termination_reason_value,
         "messages": phase_message(
             "orchestrator",
             observable_reason,

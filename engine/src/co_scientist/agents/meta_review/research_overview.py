@@ -170,18 +170,35 @@ def _build_contact_candidates(
     return candidates
 
 
+def _format_or_placeholder(
+    records: dict[str, dict[str, Any]], template: str, empty_message: str
+) -> str:
+    """Render bounded records as bullet lines, or a placeholder when empty.
+
+    Args:
+        records: Bounded records keyed by a stable id.
+        template: A str.format template applied to each record's fields.
+        empty_message: Returned verbatim when there are no records.
+
+    Returns:
+        Newline-joined bullet lines, or empty_message.
+    """
+    if not records:
+        return empty_message
+    return "\n".join(template.format(**record) for record in records.values())
+
+
 def _format_contact_candidates(
     candidates: dict[str, dict[str, Any]],
 ) -> str:
     """Format the verified candidate pool for the synthesis prompt."""
-    if not candidates:
-        return "No verified literature authors available."
-    return "\n".join(
+    return _format_or_placeholder(
+        candidates,
         (
             "- {candidate_id}: {name}; paper={source_title}; "
             "source_id={source_id}; url={source_url}"
-        ).format(**candidate)
-        for candidate in candidates.values()
+        ),
+        "No verified literature authors available.",
     )
 
 
@@ -243,14 +260,13 @@ def _build_evidence_corpus(
 
 def _format_evidence_corpus(corpus: dict[str, dict[str, Any]]) -> str:
     """Format bounded analyzed evidence for cross-source synthesis."""
-    if not corpus:
-        return "No verified evidence corpus available."
-    return "\n".join(
+    return _format_or_placeholder(
+        corpus,
         (
             "- {evidence_id}: title={title}; source={source}; "
             "source_id={source_id}; abstract={abstract}"
-        ).format(**evidence)
-        for evidence in corpus.values()
+        ),
+        "No verified evidence corpus available.",
     )
 
 
