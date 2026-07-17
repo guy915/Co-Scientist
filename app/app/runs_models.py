@@ -12,6 +12,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
+from app.audience import AUDIENCE_PATTERN, audience_context
 from app.run_modes import (
     RUN_FOCUS_PATTERN,
     RUN_TIER_PATTERN,
@@ -47,6 +48,9 @@ class CreateRunRequest(BaseModel):
         pattern=r"^[^@\s]+@[^@\s]+\.[^@\s]+$",
     )
     notify_on_completion: bool = False
+    # Self-declared audience (honor system). Only "sbi_ucd" changes behavior:
+    # it injects lab context into planning. Persisted for provenance.
+    audience: str | None = Field(None, pattern=AUDIENCE_PATTERN)
 
 
 class StartRunRequest(BaseModel):
@@ -65,6 +69,7 @@ class AskRequest(BaseModel):
     """Body for POST /api/runs/{id}/messages/ask (Q&A)."""
 
     question: str = Field(..., min_length=1)
+    audience: str | None = Field(None, pattern=AUDIENCE_PATTERN)
 
 
 class HumanHypothesisRequest(BaseModel):
@@ -132,6 +137,8 @@ def _run_overrides_from_request(
         "focus": focus,
         "setup": setup,
     }
+    if req.audience is not None:
+        overrides["audience"] = req.audience
     # Only explicitly-sent knobs become overrides; each (key, value) pair
     # is dropped when the request left the field unset.
     numeric_overrides: tuple[tuple[str, Any], ...] = (
@@ -161,6 +168,7 @@ def _build_create_run_config(
         criteria=req.criteria,
         focus=focus,
         tier=tier,
+        audience_context=audience_context(req.audience),
     )
     overrides = _run_overrides_from_request(
         req, focus=focus, tier=tier, setup=setup
