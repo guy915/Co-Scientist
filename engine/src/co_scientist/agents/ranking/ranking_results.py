@@ -165,41 +165,6 @@ def _build_matchup_detail(
     }
 
 
-def _apply_matchup_results(
-    pairings: list[tuple[Hypothesis, Hypothesis]],
-    results: list[tuple[str, dict[str, Any]]],
-    *,
-    k_factor: int | None = None,
-) -> list[dict[str, Any]]:
-    """Applies Elo updates for judged matchups and collects their details.
-
-    Judgments are computed concurrently by the caller (independent of Elo,
-    since judge_matchup only sees text/reviews/etc.), but ratings are
-    applied here sequentially in pairing order, so a hypothesis appearing
-    in multiple pairings picks up each prior update before the next one is
-    scored.
-
-    Args:
-        pairings: Per-round (hypothesis_a, hypothesis_b) pairs.
-        results: Per-round (winner, response) judgments, aligned with
-            pairings.
-        k_factor: Optional run-specific Elo sensitivity.
-
-    Returns:
-        List of matchup detail dicts, one per round, for the UI's
-        "Performance against other ideas" view.
-    """
-    matchup_details = []
-    for (hyp_a, hyp_b), (winner, response) in zip(
-        pairings, results, strict=True
-    ):
-        outcome = _apply_matchup_elo(hyp_a, hyp_b, winner, k_factor=k_factor)
-        matchup_details.append(
-            _build_matchup_detail(hyp_a, hyp_b, winner, response, outcome)
-        )
-    return matchup_details
-
-
 def _build_ranking_delta(
     hypotheses: list[Hypothesis],
     matchup_details: list[dict[str, Any]],

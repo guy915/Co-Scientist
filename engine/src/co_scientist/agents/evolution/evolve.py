@@ -243,8 +243,8 @@ async def evolve_single_hypothesis(
 def _select_evolution_pool(
     state: WorkflowState,
     hypotheses: list[Hypothesis],
-) -> tuple[int, list[Hypothesis]]:
-    """Determines how many hypotheses to evolve and selects the top-k pool.
+) -> list[Hypothesis]:
+    """Selects the top-k hypotheses to evolve.
 
     Args:
         state: Current workflow state.
@@ -252,23 +252,16 @@ def _select_evolution_pool(
             sorted by descending Elo rating (set by ranking_node).
 
     Returns:
-        Tuple of (actual number of hypotheses to evolve, top_k hypotheses
-        to evolve).
+        The top_k hypotheses to evolve. ``len(top_k)`` is the real attempt
+        count (which may be below the configured maximum when fewer
+        hypotheses are available), so callers report progress off it.
     """
     evolution_max_count = state.get("evolution_max_count", 10)
 
-    # Calculate actual number to evolve (may be less than max if fewer
-    # hypotheses available), so progress reporting counts real attempts
-    # rather than the configured maximum.
-    actual_count = min(len(hypotheses), evolution_max_count)
-
-    # Get top-k hypotheses
     # hypotheses arrives already sorted by descending Elo rating (set by
     # ranking_node's return), so a plain slice selects the top performers
     # without needing to re-sort here.
-    top_k = hypotheses[:evolution_max_count]
-
-    return actual_count, top_k
+    return hypotheses[:evolution_max_count]
 
 
 async def _prepare_evolution_round(
@@ -286,7 +279,8 @@ async def _prepare_evolution_round(
         Tuple of (top_k hypotheses to evolve, flattened previously removed
         duplicate texts, supervisor guidance for the evolution phase).
     """
-    actual_count, top_k = _select_evolution_pool(state, hypotheses)
+    top_k = _select_evolution_pool(state, hypotheses)
+    actual_count = len(top_k)
 
     logger.info("Evolving top %s hypotheses", actual_count)
 
@@ -301,7 +295,7 @@ async def _prepare_evolution_round(
     logger.info(
         "Evolving %s hypotheses with strategic context sampling "
         "(max 15 context hypotheses per evolution)",
-        len(top_k),
+        actual_count,
     )
 
     # Get previously removed duplicates

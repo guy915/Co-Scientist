@@ -8,38 +8,38 @@ from co_scientist.agents.evolution.evolution_operators import (
     EvolutionOperator,
     operator_instruction,
 )
+from co_scientist.constants import truncate
 from co_scientist.models import Hypothesis
 from co_scientist.prompts import load_prompt_with_schema
 
 logger = logging.getLogger(__name__)
 
 
-def _log_truncated_items(label: str, items: list[str]) -> None:
-    """Logs a debug header and up to 3 items, each truncated to 100 chars.
+def _log_debug_items(
+    label: str, items: list[str], *, truncate_items: bool = False
+) -> None:
+    """Logs a debug header and up to the first 3 items.
 
     Args:
         label: Human-readable field label (e.g. "common Strengths").
         items: Meta-review items to log.
+        truncate_items: Truncate each item to 100 chars when set.
     """
     if not items:
         return
     logger.debug("%s (%s):", label, len(items))
     for item in items[:3]:  # Show first 3
-        logger.debug("- %s%s", item[:100], "..." if len(item) > 100 else "")
+        logger.debug("- %s", truncate(item, 100) if truncate_items else item)
+
+
+def _log_truncated_items(label: str, items: list[str]) -> None:
+    """Logs a debug header and up to 3 items, each truncated to 100 chars."""
+    _log_debug_items(label, items, truncate_items=True)
 
 
 def _log_items(label: str, items: list[str]) -> None:
-    """Logs a debug header and up to 3 items verbatim.
-
-    Args:
-        label: Human-readable field label (e.g. "strategic Recommendations").
-        items: Meta-review items to log.
-    """
-    if not items:
-        return
-    logger.debug("%s (%s):", label, len(items))
-    for item in items[:3]:  # Show first 3
-        logger.debug("- %s", item)
+    """Logs a debug header and up to 3 items verbatim."""
+    _log_debug_items(label, items)
 
 
 def _log_meta_review_debug(meta_review: dict[str, Any]) -> None:
