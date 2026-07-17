@@ -1,5 +1,6 @@
 import {createRun, startRun, uploadRunDocument} from '@/api/runs';
 import {conciseTitle} from '@/lib/text';
+import {RUNS_CHANGED_EVENT} from '../dom_events';
 import {type StartedSession} from '../pages/chat_timeline_cards';
 import {appendChatMessage, emitDiagnosticEvent} from './chat_session_helpers';
 import {type ExecuteStartDeps, type HandlerDeps} from './chat_session_types';
@@ -55,7 +56,7 @@ async function executeStart({
   await reloadHistory();
   // Tell the shell sidebar (which owns a separate history copy) that a new
   // run exists, so it appears immediately instead of only after a reload.
-  window.dispatchEvent(new Event('cosci-runs-changed'));
+  window.dispatchEvent(new Event(RUNS_CHANGED_EVENT));
   return session;
 }
 

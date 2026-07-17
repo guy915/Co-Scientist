@@ -31,14 +31,10 @@ function completedDurationLabel(run: Run): string | null {
   return formatDurationPhrase(seconds, {subMinute: true});
 }
 
-// Total wall-clock duration for a finished (or presumed-finished) run, driven
-// by the run's real timestamps: the measured span when available, "In
-// progress" for active runs, and the raw status otherwise.
+// Total wall-clock duration for a finished run, driven by the run's real
+// timestamps: the measured span when available, else the raw status label.
 function formatHomeRunDuration(run: Run): string {
-  const completed = completedDurationLabel(run);
-  if (completed !== null) return completed;
-  if (isActiveStatus(run.status)) return 'In progress';
-  return formatHomeRunStatus(run);
+  return completedDurationLabel(run) ?? formatHomeRunStatus(run);
 }
 
 // Elapsed time since an active run was created, floored at zero to guard

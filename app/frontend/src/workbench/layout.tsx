@@ -4,9 +4,10 @@ import {
   useNavigate,
   type NavigateFunction,
 } from 'react-router-dom';
+import {joinClasses} from './classes';
 import {SettingsDialog} from './components/settings_dialog';
 import {NEW_CHAT_EVENT} from './dom_events';
-import {isMobileViewport} from './hooks/use_is_mobile';
+import {closeDrawerIfMobile} from './hooks/use_is_mobile';
 import {ShellHeader} from './layout_header';
 import {useChatHistory, useHeaderTitle, useLayoutChrome} from './layout_hooks';
 import {NavRail} from './layout_nav_rail';
@@ -84,11 +85,11 @@ function deriveRoutePresentation(pathname: string): {
 // and the ~700px breakpoint in shell_surface.css for the iOS-safe dvh
 // sizing).
 function shellClassFor(isRunRoute: boolean, navOpen: boolean): string {
-  return [
+  return joinClasses(
     'ucs-app-shell',
     isRunRoute ? 'report-shell' : 'home-shell',
     navOpen ? SHELL_OPEN_GRID_CLASSES : SHELL_COLLAPSED_GRID_CLASSES,
-  ].join(' ');
+  );
 }
 
 // Builds the "New chat" / product-lockup handler: resets the chat workspace
@@ -99,7 +100,7 @@ function createStartNewChatHandler(
   setNavOpen: (open: boolean) => void,
 ): () => void {
   return () => {
-    if (isMobileViewport()) setNavOpen(false);
+    closeDrawerIfMobile(setNavOpen);
     // Lets the chat workspace page (mounted separately) know to reset its own
     // session state; see ChatWorkspace's listener.
     window.dispatchEvent(new Event(NEW_CHAT_EVENT));

@@ -58,7 +58,11 @@ describe('smoothScrollToSection', () => {
     (pane as unknown as {scrollTo: typeof scrollTo}).scrollTo = scrollTo;
     pane.scrollTop = 50;
 
-    const result = smoothScrollToSection('section-1');
+    const result = smoothScrollToSection(
+      'section-1',
+      0,
+      '.idea-detail-pane, .cosci-report-scroll',
+    );
 
     expect(result).toBe(true);
     expect(scrollTo).toHaveBeenCalledWith({
@@ -81,7 +85,11 @@ describe('smoothScrollToSection', () => {
     (pane as unknown as {scrollTo: typeof scrollTo}).scrollTo = scrollTo;
     pane.scrollTop = 0;
 
-    const result = smoothScrollToSection('section-2', 16);
+    const result = smoothScrollToSection(
+      'section-2',
+      16,
+      '.idea-detail-pane, .cosci-report-scroll',
+    );
 
     expect(result).toBe(true);
     expect(scrollTo).toHaveBeenCalledWith({

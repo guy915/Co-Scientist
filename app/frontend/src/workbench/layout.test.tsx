@@ -3,6 +3,7 @@ import {MemoryRouter} from 'react-router-dom';
 import {beforeEach, describe, expect, it, vi} from 'vitest';
 import type {Run} from '@/api/runs';
 import {makeRun} from '@/test-fixtures';
+import {DIAGNOSTIC_EVENT} from './dom_events';
 import {RunHistoryProvider} from './hooks/run_history_context';
 import {Layout} from './layout';
 import {ThemeProvider} from './theme_context';
@@ -264,7 +265,7 @@ describe('Layout', () => {
 
     fireEvent(
       window,
-      new CustomEvent('cosci-diagnostic-event', {
+      new CustomEvent(DIAGNOSTIC_EVENT, {
         detail: {
           stage: 'LIFECYCLE',
           run: 'Investigate glucose homeostasis',

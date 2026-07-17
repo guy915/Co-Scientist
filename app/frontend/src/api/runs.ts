@@ -492,9 +492,7 @@ export function getClaimEvidence(id: string): Promise<ClaimEvidenceRow[]> {
 
 /** Return the persisted weighted hypothesis proximity graph. */
 export function getProximity(id: string): Promise<ProximityEdge[]> {
-  return fetchJson<{proximity: ProximityEdge[]}>(`/api/runs/${id}/proximity`, {
-    headers: clientHeaders(),
-  }).then(response => response.proximity);
+  return getRunList<ProximityEdge>(id, 'proximity');
 }
 
 /** Submit a scientist-authored hypothesis through the shared safety gate. */
@@ -594,9 +592,7 @@ export function createReportShare(id: string): Promise<ReportShare> {
 
 /** Lists active grants without disclosing their bearer tokens. */
 export function listReportShares(id: string): Promise<ReportShare[]> {
-  return fetchField(`/api/runs/${id}/shares`, 'shares', {
-    headers: clientHeaders(),
-  });
+  return getRunList<ReportShare>(id, 'shares');
 }
 
 /** Revokes one public report capability. */

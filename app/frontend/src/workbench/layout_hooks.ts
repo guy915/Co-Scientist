@@ -9,7 +9,7 @@ import {
 import {type SettingsSection} from './components/settings_dialog';
 import {HEADER_TITLE_EVENT} from './dom_events';
 import {useRunHistoryContext} from './hooks/run_history_context';
-import {isMobileViewport} from './hooks/use_is_mobile';
+import {closeDrawerIfMobile} from './hooks/use_is_mobile';
 
 /**
  * Which header popover is open. Only one of the two can be open at a time
@@ -78,7 +78,7 @@ function useDismissChromeOnNavigate(
 ) {
   useEffect(() => {
     setActivePanel(null);
-    if (isMobileViewport()) setNavOpen(false);
+    closeDrawerIfMobile(setNavOpen);
   }, [pathname]);
 }
 
@@ -91,7 +91,7 @@ function useEscapeClosesDrawer(
   useEffect(() => {
     if (!navOpen) return;
     function onKeyDown(event: KeyboardEvent) {
-      if (event.key === 'Escape' && isMobileViewport()) setNavOpen(false);
+      if (event.key === 'Escape') closeDrawerIfMobile(setNavOpen);
     }
     window.addEventListener('keydown', onKeyDown);
     return () => {
@@ -153,7 +153,7 @@ function useChromeActions(
     setActivePanel(null);
     // The dialog overlays the content; drop the mobile drawer beneath it so
     // dismissing the dialog doesn't land back on a stale overlay.
-    if (isMobileViewport()) setNavOpen(false);
+    closeDrawerIfMobile(setNavOpen);
     setSettingsSection(section);
   }
 

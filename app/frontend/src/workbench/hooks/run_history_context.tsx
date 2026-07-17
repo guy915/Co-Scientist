@@ -8,6 +8,7 @@ import {
 } from 'react';
 import {useLocation} from 'react-router-dom';
 import {isActiveStatus, loadRunHistory, type Run} from '@/api/runs';
+import {RUNS_CHANGED_EVENT} from '../dom_events';
 
 interface RunHistoryContextValue {
   history: Run[];
@@ -46,9 +47,9 @@ export function RunHistoryProvider({children}: {children: ReactNode}) {
 
   useEffect(() => {
     void reload();
-    window.addEventListener('cosci-runs-changed', reload);
+    window.addEventListener(RUNS_CHANGED_EVENT, reload);
     return () => {
-      window.removeEventListener('cosci-runs-changed', reload);
+      window.removeEventListener(RUNS_CHANGED_EVENT, reload);
     };
   }, [reload, pathname]);
 

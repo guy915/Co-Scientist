@@ -1,14 +1,12 @@
 import {type ChangeEvent, useState} from 'react';
 import {
-  type RunFocus,
-  type RunTier,
   type RunWithSummary,
   type SafetyDecision,
   adjudicateSafety,
   runGoal,
   uploadRunDocument,
 } from '@/api/runs';
-import {FOCUS_OPTIONS, TIER_OPTIONS} from '../run_spec';
+import {FOCUS_OPTIONS, TIER_OPTIONS, runOptionLabel} from '../run_spec';
 import {
   REPORT_H3_CLASSES,
   ReportDocument,
@@ -28,16 +26,6 @@ function goalDetailsLists(setup: RunWithSummary['config']['setup']): {
     attributes: setup.attributes,
     criteria: setup.criteria,
   };
-}
-
-// Human-readable label for a stored run tier/focus, falling back to the
-// default when the value is missing or a legacy value.
-function tierLabel(tier: RunTier | undefined): string {
-  return TIER_OPTIONS.find(option => option.id === tier)?.label ?? 'Standard';
-}
-
-function focusLabel(focus: RunFocus | undefined): string {
-  return FOCUS_OPTIONS.find(option => option.id === focus)?.label ?? 'Balance';
 }
 
 /** Run Specifications preserves the final interview contract and run mode. */
@@ -69,10 +57,12 @@ export function RunSpecificationsView({
         <strong>Title:</strong> {run?.title || 'Optional'}
       </p>
       <p>
-        <strong>Run type:</strong> {tierLabel(run?.config.tier)}
+        <strong>Run type:</strong>{' '}
+        {runOptionLabel(TIER_OPTIONS, run?.config.tier, 'Standard')}
       </p>
       <p>
-        <strong>Focus:</strong> {focusLabel(run?.config.focus)}
+        <strong>Focus:</strong>{' '}
+        {runOptionLabel(FOCUS_OPTIONS, run?.config.focus, 'Balance')}
       </p>
       {criteria.length > 0 && (
         <p>

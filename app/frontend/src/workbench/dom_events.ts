@@ -13,3 +13,6 @@ export const NEW_CHAT_EVENT = 'cosci-new-chat';
 
 /** A diagnostic log line for the shell's Logs popover. */
 export const DIAGNOSTIC_EVENT = 'cosci-diagnostic-event';
+
+/** Signals that the run list changed so run history should reload. */
+export const RUNS_CHANGED_EVENT = 'cosci-runs-changed';

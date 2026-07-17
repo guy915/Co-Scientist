@@ -25,6 +25,17 @@ export function isMobileViewport(): boolean {
 }
 
 /**
+ * Collapses the off-canvas nav drawer, but only on phone viewports where it
+ * overlays content. On desktop the rail is persistent and its open/collapsed
+ * state is a user preference, so it is left untouched.
+ *
+ * @param setNavOpen The drawer's open-state setter.
+ */
+export function closeDrawerIfMobile(setNavOpen: (open: boolean) => void): void {
+  if (isMobileViewport()) setNavOpen(false);
+}
+
+/**
  * Tracks whether the viewport matches the phone breakpoint.
  *
  * The initial value is read synchronously so the FIRST render already uses

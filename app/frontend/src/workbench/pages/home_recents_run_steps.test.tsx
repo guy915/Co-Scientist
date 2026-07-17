@@ -1,22 +1,14 @@
 import {render, screen} from '@testing-library/react';
 import {describe, expect, it} from 'vitest';
 import type {Run} from '@/api/runs';
+import {makeRun} from '@/test-fixtures';
 import {RunStepFlow} from './home_recents_run_steps';
 
 // A running engine run leased on `active_task`: the only live progress signal
 // that provider reports (it emits no stage events).
 function runOn(active_task: string): Run {
-  return {
-    id: 'r1',
-    research_goal: 'goal',
-    profile: 'standard',
+  return makeRun({
     status: 'running',
-    provider: 'engine',
-    config: {},
-    created_at: 0,
-    updated_at: 0,
-    completed_at: null,
-    error: null,
     latest_stage: null,
     execution_progress: {
       determinate: false,
@@ -26,7 +18,7 @@ function runOn(active_task: string): Run {
       active_task,
       queued_tasks: 1,
     },
-  } as Run;
+  });
 }
 
 function labels(selector: string): (string | null | undefined)[] {

@@ -154,6 +154,17 @@ export function IdeasTab({
   );
 }
 
+// The mobile and desktop idea views are interchangeable (IdeasTab picks one by
+// viewport), so they share one prop shape.
+interface IdeaViewProps {
+  sorted: Hypothesis[];
+  selected: Hypothesis | null;
+  reviews: Review[];
+  matches: MatchRow[];
+  claimEvidence: ClaimEvidenceRow[];
+  onSelect: (id: string) => void;
+}
+
 // Master-detail: the list swaps to a single idea on tap. There is no back
 // affordance here — the user returns to the list by tapping the "All Ideas"
 // tab, which remounts this view (see RunDetail's tab handler).
@@ -164,14 +175,7 @@ function MobileIdeaView({
   matches,
   claimEvidence,
   onSelect,
-}: {
-  sorted: Hypothesis[];
-  selected: Hypothesis | null;
-  reviews: Review[];
-  matches: MatchRow[];
-  claimEvidence: ClaimEvidenceRow[];
-  onSelect: (id: string) => void;
-}) {
+}: IdeaViewProps) {
   return (
     <div className={IDEA_MOBILE_VIEW_CLASSES}>
       {selected ? (
@@ -209,14 +213,7 @@ function DesktopIdeaSplit({
   matches,
   claimEvidence,
   onSelect,
-}: {
-  sorted: Hypothesis[];
-  selected: Hypothesis | null;
-  reviews: Review[];
-  matches: MatchRow[];
-  claimEvidence: ClaimEvidenceRow[];
-  onSelect: (id: string) => void;
-}) {
+}: IdeaViewProps) {
   return (
     <div className={IDEA_SPLIT_SHELL_CLASSES}>
       <div className={IDEA_SPLIT_GRID_CLASSES}>

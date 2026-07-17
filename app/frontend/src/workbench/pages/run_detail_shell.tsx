@@ -4,21 +4,13 @@ import {Icon, type IconName} from '@/components/icon';
 import {TruncatedLabel} from '../components/truncated_label';
 import {TABS, type TabName} from '../run_tabs';
 
-// Material icon shown per tab in the nav bar (keyed by TabName so a missing
-// entry is a compile error, not a silent blank icon).
-const TAB_ICON_NAMES: Record<TabName, IconName> = {
-  details: 'assignment',
-  learning: 'menu_book',
-  overview: 'summarize',
-  ideas: 'lightbulb',
-};
-
-// Human-readable label shown per tab in the nav bar.
-const TAB_LABELS: Record<TabName, string> = {
-  details: 'Goal Details',
-  learning: 'Learning',
-  overview: 'Research Overview',
-  ideas: 'All Ideas',
+// Icon and label shown per tab in the nav bar (keyed by TabName so a missing
+// entry is a compile error, not a silent blank tab).
+const TAB_META: Record<TabName, {icon: IconName; label: string}> = {
+  details: {icon: 'assignment', label: 'Goal Details'},
+  learning: {icon: 'menu_book', label: 'Learning'},
+  overview: {icon: 'summarize', label: 'Research Overview'},
+  ideas: {icon: 'lightbulb', label: 'All Ideas'},
 };
 
 const REPORT_TITLEBAR_CLASSES =
@@ -139,10 +131,10 @@ export function ReportTabNav({
           <Icon
             className={REPORT_TAB_ICON_CLASSES}
             aria-hidden="true"
-            name={TAB_ICON_NAMES[tabName]}
+            name={TAB_META[tabName].icon}
           />
           <span className={REPORT_TAB_LABEL_CLASSES}>
-            {TAB_LABELS[tabName]}
+            {TAB_META[tabName].label}
           </span>
         </button>
       ))}

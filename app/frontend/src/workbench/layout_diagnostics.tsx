@@ -2,6 +2,7 @@ import {useEffect, useRef, useState, type ReactNode} from 'react';
 import {getRunEvents, type RunEvent} from '@/api/runs';
 import {Icon, type IconName} from '@/components/icon';
 import {copyText} from '@/lib/clipboard';
+import {joinClasses} from './classes';
 import {DIAGNOSTIC_EVENT} from './dom_events';
 import {tooltipClassNames} from './tooltip';
 
@@ -37,14 +38,14 @@ interface DiagnosticLogEventDetail {
 // Sizing/positioning for the logs popover: capped to the viewport (dvh) with
 // a narrower width override under the 720px breakpoint. The `!` overrides
 // beat the shared .ucs-popover defaults applied by the parent's ShellPopover.
-const LOGS_POPOVER_CLASSES = [
+const LOGS_POPOVER_CLASSES = joinClasses(
   'ucs-popover--logs',
   'top-[calc(100%+0.45rem)] right-0 !w-[min(32rem,calc(100vw-2rem))]',
   'max-h-[min(32rem,calc(100dvh-6rem))] grid-rows-[auto_auto_minmax(0,1fr)]',
   '!gap-0 overflow-hidden !p-0 !border-cosci-logs-border ' +
     '!bg-cosci-logs-surface',
   'max-[720px]:right-[-0.5rem] max-[720px]:!w-[min(18.5rem,calc(100vw-1.5rem))]',
-].join(' ');
+);
 
 const LOGS_BUTTON_CLASSES =
   'ucs-logs-button relative inline-flex h-[2.35rem] min-w-max cursor-pointer ' +

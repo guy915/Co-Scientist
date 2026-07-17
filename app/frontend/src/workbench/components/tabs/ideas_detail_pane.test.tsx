@@ -239,6 +239,7 @@ describe('SectionsRail', () => {
     expect(smoothScrollToSection).toHaveBeenCalledWith(
       'hypothesis-overview',
       16,
+      '.idea-detail-pane, .cosci-report-scroll',
     );
     // dispatchEvent returns false when a cancelable event's default was
     // prevented.

@@ -11,7 +11,7 @@ import {
 import {applyMd3Theme} from '../lib/theme';
 
 // The user's stored preference: 'system' defers to the OS color scheme.
-type Mode = 'system' | 'light' | 'dark';
+export type Mode = 'system' | 'light' | 'dark';
 // What is actually applied to the document after resolving 'system'.
 type ResolvedMode = 'light' | 'dark';
 

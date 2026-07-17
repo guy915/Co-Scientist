@@ -7,13 +7,20 @@
  * @param sectionId The DOM id of the section element to scroll to.
  * @param offset Extra pixels to leave above the section (e.g. for sticky
  *   headers).
+ * @param preferredSelector CSS selector for caller-known scroll panes to
+ *   prefer over generic overflow detection (e.g. an app's report pane). When
+ *   omitted, only the generic ancestor walk is used.
  * @returns True when the target element exists and a scroll was initiated.
  */
-export function smoothScrollToSection(sectionId: string, offset = 0): boolean {
+export function smoothScrollToSection(
+  sectionId: string,
+  offset = 0,
+  preferredSelector?: string,
+): boolean {
   const target = document.getElementById(sectionId);
   if (!target) return false;
 
-  const container = findScrollContainer(target);
+  const container = findScrollContainer(target, preferredSelector);
   if (container) {
     // Convert the target's viewport-relative position into a scrollTop for the
     // container: current scroll plus the on-screen delta between the two.
@@ -33,15 +40,18 @@ export function smoothScrollToSection(sectionId: string, offset = 0): boolean {
 }
 
 /**
- * Finds the ancestor element that actually scrolls the target: a known app
- * scroll pane when present, otherwise the nearest ancestor with a scrollable
- * overflow-y and real overflow.
+ * Finds the ancestor element that actually scrolls the target: a
+ * caller-named scroll pane when one matches, otherwise the nearest ancestor
+ * with a scrollable overflow-y and real overflow.
  */
-function findScrollContainer(target: HTMLElement): HTMLElement | null {
-  // Known workbench scroll panes take priority over generic detection.
-  const preferred = target.closest<HTMLElement>(
-    '.idea-detail-pane, .cosci-report-scroll',
-  );
+function findScrollContainer(
+  target: HTMLElement,
+  preferredSelector?: string,
+): HTMLElement | null {
+  // Caller-named scroll panes take priority over generic detection.
+  const preferred = preferredSelector
+    ? target.closest<HTMLElement>(preferredSelector)
+    : null;
   if (preferred) return preferred;
 
   // Generic fallback: walk up until an ancestor both allows vertical

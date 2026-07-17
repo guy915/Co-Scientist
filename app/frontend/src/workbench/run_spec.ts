@@ -106,6 +106,23 @@ export const FOCUS_OPTIONS: RunFocusOption[] = [
 ];
 
 /**
+ * Looks up an option's display label by id (e.g. TIER_OPTIONS/FOCUS_OPTIONS),
+ * returning `fallback` when the id isn't recognized (missing or legacy value).
+ *
+ * @param options The option list to search.
+ * @param value The stored id to resolve.
+ * @param fallback Label to use when `value` matches no option.
+ * @returns The matched option's label, or `fallback`.
+ */
+export function runOptionLabel(
+  options: readonly {id: string; label: string}[],
+  value: string | undefined,
+  fallback: string,
+): string {
+  return options.find(option => option.id === value)?.label ?? fallback;
+}
+
+/**
  * Whether the spec's completion-notification email passes the minimal
  * shape check used to enable "Start research" (anything@anything.tld);
  * trivially true when notification is off.

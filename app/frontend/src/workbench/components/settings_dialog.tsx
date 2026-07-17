@@ -3,7 +3,7 @@ import {useEffect, useRef, useState} from 'react';
 import {Icon, type IconName} from '@/components/icon';
 import {getStoredApiKey, setStoredApiKey} from '@/lib/api_key';
 import {useToast} from '../hooks/use_toast';
-import {useTheme} from '../theme_context';
+import {type Mode, useTheme} from '../theme_context';
 
 /**
  * The dialog's section rail options; also the type of the currently-open
@@ -12,12 +12,10 @@ import {useTheme} from '../theme_context';
  */
 export type SettingsSection = 'appearance' | 'model' | 'help';
 
-type ThemeMode = 'system' | 'light' | 'dark';
-
 // Options rendered in the Appearance section's theme segmented control.
 // Selecting one calls useTheme()'s setMode, which persists the choice (see
 // theme_context.tsx) and updates the resolved MD3 theme immediately.
-const THEME_MODES: {mode: ThemeMode; icon: IconName; label: string}[] = [
+const THEME_MODES: {mode: Mode; icon: IconName; label: string}[] = [
   {mode: 'system', icon: 'computer', label: 'System'},
   {mode: 'light', icon: 'light_mode', label: 'Light'},
   {mode: 'dark', icon: 'dark_mode', label: 'Dark'},
@@ -73,8 +71,8 @@ function AppearanceSection({
   mode,
   setMode,
 }: {
-  mode: ThemeMode;
-  setMode: (mode: ThemeMode) => void;
+  mode: Mode;
+  setMode: (mode: Mode) => void;
 }) {
   return (
     <section className="ucs-settings-card">
@@ -309,7 +307,7 @@ function SettingsPanel({
   apiKeyField,
 }: {
   section: SettingsSection;
-  theme: {mode: ThemeMode; setMode: (mode: ThemeMode) => void};
+  theme: {mode: Mode; setMode: (mode: Mode) => void};
   apiKeyField: {
     apiKey: string;
     onApiKeyChange: (value: string) => void;

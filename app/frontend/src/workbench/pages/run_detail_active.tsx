@@ -2,6 +2,7 @@ import {useEffect, useMemo, useState} from 'react';
 import {type RunWithSummary} from '@/api/runs';
 import {Icon, type IconName} from '@/components/icon';
 import type {StreamEvent} from '@/hooks/use_run_stream';
+import {joinClasses} from '../classes';
 import {RunExecutionProgress} from './home_recents_run_steps';
 
 /**
@@ -105,6 +106,14 @@ interface ActivityMeta {
   tone: string;
 }
 
+// The safety screen surfaces under two phase names (the engine node
+// `safety_screen` and the dotted `safety.*` event kind); both render the same.
+const SAFETY_META: ActivityMeta = {
+  title: 'Safety screening',
+  icon: 'encrypted',
+  tone: 'text-th-warning',
+};
+
 const ACTIVITY_META: Record<string, ActivityMeta> = {
   bootstrap: {
     title: 'Initializing run',
@@ -179,16 +188,8 @@ const ACTIVITY_META: Record<string, ActivityMeta> = {
     icon: 'chess',
     tone: 'text-cosci-teal',
   },
-  safety_screen: {
-    title: 'Safety screening',
-    icon: 'encrypted',
-    tone: 'text-th-warning',
-  },
-  safety: {
-    title: 'Safety screening',
-    icon: 'encrypted',
-    tone: 'text-th-warning',
-  },
+  safety_screen: SAFETY_META,
+  safety: SAFETY_META,
 };
 
 // The phase a step represents. scientific_task events carry the engine node in
@@ -276,18 +277,18 @@ function ActivityItem({
         />
       )}
       <span
-        className={[
+        className={joinClasses(
           'relative z-[1] grid size-[2.125rem] shrink-0 place-items-center',
           'rounded-full',
           isLatest ? 'animate-pulse bg-th-primary' : 'bg-cosci-hover',
-        ].join(' ')}
+        )}
       >
         <Icon
           name={icon}
-          className={[
+          className={joinClasses(
             'text-[1.15rem]',
             isLatest ? 'text-th-primary-fg' : tone,
-          ].join(' ')}
+          )}
         />
       </span>
       <div className="min-w-0 flex-1">

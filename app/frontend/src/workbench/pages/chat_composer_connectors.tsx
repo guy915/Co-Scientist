@@ -7,6 +7,7 @@ import {
 } from 'react';
 import {type Connector} from '@/api/system';
 import {Icon, type IconName} from '@/components/icon';
+import {joinClasses} from '../classes';
 import {useSystemStatus} from '../hooks/use_system_status';
 import {tooltipClassNames} from '../tooltip';
 import {
@@ -187,12 +188,12 @@ function ConnectorsMenu({
           />
           <span>{connector.display}</span>
           <span
-            className={[
+            className={joinClasses(
               CONNECTOR_TOGGLE_BASE_CLASSES,
               pubmedEnabled
                 ? CONNECTOR_TOGGLE_ON_CLASSES
                 : CONNECTOR_TOGGLE_OFF_CLASSES,
-            ].join(' ')}
+            )}
             aria-hidden="true"
           />
         </button>

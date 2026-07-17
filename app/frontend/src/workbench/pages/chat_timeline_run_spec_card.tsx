@@ -8,6 +8,7 @@ import {
   FOCUS_OPTIONS,
   TIER_OPTIONS,
   isCompletionEmailValid,
+  runOptionLabel,
 } from '../run_spec';
 import {tooltipClassNames} from '../tooltip';
 import {
@@ -325,18 +326,9 @@ function formatRunSpecResponse(spec: InferredRunSpec): string {
     spec.title || 'Optional',
     '',
     '## Setup Options',
-    `* **Focus:** ${runOptionLabel(FOCUS_OPTIONS, spec.focus)}`,
-    `* **Run type:** ${runOptionLabel(TIER_OPTIONS, spec.tier)}`,
+    `* **Focus:** ${runOptionLabel(FOCUS_OPTIONS, spec.focus, spec.focus)}`,
+    `* **Run type:** ${runOptionLabel(TIER_OPTIONS, spec.tier, spec.tier)}`,
   ].join('\n');
-}
-
-// Looks up an option's display label by id (e.g. FOCUS_OPTIONS/TIER_OPTIONS),
-// falling back to the raw value if the id isn't recognized.
-function runOptionLabel(
-  options: readonly {id: string; label: string}[],
-  value: string,
-): string {
-  return options.find(option => option.id === value)?.label || value;
 }
 
 // One term/detail row in the spec definition list (dt/dd pair).

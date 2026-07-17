@@ -1,15 +1,10 @@
 import {fireEvent, render, screen} from '@testing-library/react';
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
+import {makeMessage as makeSharedMessage} from '@/test-fixtures';
 import {ChatBubble, type ChatEntry} from './chat_timeline_bubble';
 
 function makeMessage(overrides: Partial<ChatEntry> = {}): ChatEntry {
-  return {
-    id: 'm1',
-    role: 'user',
-    content: 'Hello there',
-    created_at: 1,
-    ...overrides,
-  };
+  return makeSharedMessage({content: 'Hello there', ...overrides});
 }
 
 function renderBubble(overrides: Partial<ChatEntry> = {}) {

@@ -148,6 +148,17 @@ function thinkingTimelineItems({
   ];
 }
 
+// Merges a partial spec edit into the pending draft, leaving a null draft
+// (already confirmed/cancelled) untouched.
+function updateDraftSpec(
+  setDraft: Dispatch<SetStateAction<SpecStage | null>>,
+  patch: Partial<InferredRunSpec>,
+): void {
+  setDraft(current =>
+    current ? {...current, spec: {...current.spec, ...patch}} : current,
+  );
+}
+
 // Editable draft run spec awaiting confirmation: focus/tier edits write
 // straight back into draftSpec, and cancel/edit/retry/start delegate to the
 // session hook's handlers.
@@ -181,28 +192,14 @@ function draftTimelineItems({
           isStarting={isStarting}
           intro={draft.intro}
           onFocusChange={(focus: RunFocus) =>
-            setDraft(current =>
-              current ? {...current, spec: {...current.spec, focus}} : current,
-            )
+            updateDraftSpec(setDraft, {focus})
           }
-          onTierChange={(tier: RunTier) =>
-            setDraft(current =>
-              current ? {...current, spec: {...current.spec, tier}} : current,
-            )
-          }
+          onTierChange={(tier: RunTier) => updateDraftSpec(setDraft, {tier})}
           onNotificationChange={(enabled, email) =>
-            setDraft(current =>
-              current
-                ? {
-                    ...current,
-                    spec: {
-                      ...current.spec,
-                      notifyOnCompletion: enabled,
-                      completionEmail: email,
-                    },
-                  }
-                : current,
-            )
+            updateDraftSpec(setDraft, {
+              notifyOnCompletion: enabled,
+              completionEmail: email,
+            })
           }
           onCancel={handleCancelDraftSpec}
           onEdit={() => handleEditPlan(draft.spec)}

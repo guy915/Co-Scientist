@@ -15,6 +15,12 @@ const IDEA_DETAIL_PANE_CLASSES =
   'pt-[1.45rem] pb-14 max-[720px]:flex-none max-[720px]:overflow-y-visible ' +
   'max-[720px]:px-4';
 
+// The scroll pane a section rail jump targets: the detail pane itself (which
+// scrolls below 720px) or its `.cosci-report-scroll` ancestor (the desktop
+// scroller, owned by run_detail.tsx). Passed to the generic smoothScroll
+// helper so that lib carries no app-specific class knowledge.
+const IDEA_SCROLL_PANE_SELECTOR = '.idea-detail-pane, .cosci-report-scroll';
+
 const IDEA_DETAIL_EMPTY_CLASSES =
   `${IDEA_DETAIL_PANE_CLASSES} empty place-items-center text-center ` +
   'text-[var(--md-sys-color-on-surface-variant)]';
@@ -470,7 +476,11 @@ function smoothSectionClick(
   event: MouseEvent<HTMLAnchorElement>,
   sectionId: string,
 ) {
-  const didScroll = smoothScrollToSection(sectionId, 16);
+  const didScroll = smoothScrollToSection(
+    sectionId,
+    16,
+    IDEA_SCROLL_PANE_SELECTOR,
+  );
   if (!didScroll) return;
   event.preventDefault();
 }
