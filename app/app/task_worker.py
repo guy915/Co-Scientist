@@ -195,9 +195,13 @@ async def run_once(
         )
     )
     try:
-        result = await _execute_until_lease_lost(
-            task, lease_lost, db_path=db_path
-        )
+        # Tag every record emitted while this task runs with its run id. The
+        # execution coroutine is created inside this context, so the copied
+        # contextvar propagates to it (and to any node task it spawns).
+        with run_log_context(task.run_id):
+            result = await _execute_until_lease_lost(
+                task, lease_lost, db_path=db_path
+            )
     except _LeaseLostError:
         # The durable row already records cancellation, pause, or competing
         # ownership; the revoked worker must not overwrite that outcome.
