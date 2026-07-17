@@ -2,9 +2,9 @@ import {fireEvent, render, screen, waitFor} from '@testing-library/react';
 import {MemoryRouter, Route, Routes, useLocation} from 'react-router-dom';
 import {beforeEach, describe, expect, it, vi} from 'vitest';
 import * as runsApi from '@/api/runs';
-import type {MatchRow, RunWithSummary} from '@/api/runs';
+import type {RunWithSummary} from '@/api/runs';
 import {RunDetail} from './run_detail';
-import {makeHypothesis} from '@/test-fixtures';
+import {makeHypothesis, makeMatch} from '@/test-fixtures';
 
 // Controllable stream mock: tests mutate `streamState` then rerender to drive
 // the event-driven refetch effect. `setStream` replaces the events array so its
@@ -80,8 +80,6 @@ const makeRun = (
     },
     ...timing,
   }) as unknown as RunWithSummary;
-
-const makeMatch = (id: number): MatchRow => ({id}) as unknown as MatchRow;
 
 function LocationDisplay() {
   const location = useLocation();

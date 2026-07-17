@@ -6,31 +6,9 @@ import {
   buildTimelineItems,
   type BuildTimelineItemsArgs,
 } from './chat_workspace_timeline';
-import type {ChatEntry, StartedSession} from './chat_timeline_cards';
-import type {InferredRunSpec} from '../run_spec';
+import type {StartedSession} from './chat_timeline_cards';
 import type {SpecStage} from '../hooks/chat_session_types';
-
-function makeSpec(overrides: Partial<InferredRunSpec> = {}): InferredRunSpec {
-  return {
-    goal: 'Study liver fibrosis',
-    requirements: ['Req A'],
-    attributes: ['Attr A'],
-    criteria: ['Crit A'],
-    focus: 'balance',
-    tier: 'standard',
-    ...overrides,
-  };
-}
-
-function makeMessage(overrides: Partial<ChatEntry> = {}): ChatEntry {
-  return {
-    id: 'm1',
-    role: 'user',
-    content: 'Hello',
-    created_at: 1,
-    ...overrides,
-  };
-}
+import {makeMessage, makeSpec} from '@/test-fixtures';
 
 function baseArgs(
   overrides: Partial<BuildTimelineItemsArgs> = {},

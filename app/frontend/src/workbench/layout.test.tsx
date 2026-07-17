@@ -2,6 +2,7 @@ import {fireEvent, render, screen, waitFor} from '@testing-library/react';
 import {MemoryRouter} from 'react-router-dom';
 import {beforeEach, describe, expect, it, vi} from 'vitest';
 import type {Run} from '@/api/runs';
+import {makeRun} from '@/test-fixtures';
 import {RunHistoryProvider} from './hooks/run_history_context';
 import {Layout} from './layout';
 import {ThemeProvider} from './theme_context';
@@ -54,16 +55,14 @@ function renderLayout(path = '/') {
 
 function runFixture(id: string, goal: string) {
   return {
-    id,
-    research_goal: goal,
-    profile: 'standard',
-    status: 'completed',
-    provider: 'mock',
-    config: {},
-    created_at: 1,
-    updated_at: 2,
-    completed_at: 3,
-    error: null,
+    ...makeRun({
+      id,
+      research_goal: goal,
+      provider: 'mock',
+      created_at: 1,
+      updated_at: 2,
+      completed_at: 3,
+    }),
     summary: {events: 1, hypotheses: 1, evidence: 1, matches: 1, reviews: 1},
   };
 }

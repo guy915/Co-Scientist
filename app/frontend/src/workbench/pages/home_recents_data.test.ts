@@ -1,27 +1,12 @@
 import {describe, expect, it} from 'vitest';
 import type {Run, RunStatus} from '@/api/runs';
+import {makeRun} from '@/test-fixtures';
 import {
   formatHomeRunDate,
   formatHomeRunTimeChip,
   homeRunScore,
   homeRunStepIndex,
 } from './home_recents_data';
-
-function makeRun(overrides: Partial<Run> = {}): Run {
-  return {
-    id: 'r1',
-    research_goal: 'Investigate glucose homeostasis',
-    profile: 'standard',
-    status: 'completed',
-    provider: 'mock',
-    config: {},
-    created_at: 1_700_000_000,
-    updated_at: 1_700_000_100,
-    completed_at: 1_700_000_600,
-    error: null,
-    ...overrides,
-  } as Run;
-}
 
 describe('formatHomeRunDate', () => {
   it('formats a unix-seconds timestamp as a long localized date', () => {

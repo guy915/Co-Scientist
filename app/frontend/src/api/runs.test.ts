@@ -264,43 +264,26 @@ describe('getProximity', () => {
   });
 });
 
-describe('getEvidence', () => {
-  it('GETs /api/runs/:id/evidence and unwraps .evidence', async () => {
-    const evidence = [{id: 'e1'}];
-    fetchMock().mockResolvedValue(jsonResponse({evidence}));
+describe('collection fetchers unwrap their keyed payload', () => {
+  // getEvidence/getMatches/getReviews share one shape: GET the run-scoped
+  // endpoint and unwrap the same-named array from the response body.
+  const unwrapCases: [string, (id: string) => Promise<unknown>, unknown[]][] = [
+    ['evidence', getEvidence, [{id: 'e1'}]],
+    ['matches', getMatches, [{id: 1}]],
+    ['reviews', getReviews, [{id: 1}]],
+  ];
 
-    const result = await getEvidence('r1');
+  it.each(unwrapCases)(
+    'GETs /api/runs/:id/%s and unwraps it',
+    async (key, fetcher, value) => {
+      fetchMock().mockResolvedValue(jsonResponse({[key]: value}));
 
-    const [url] = firstCall();
-    expect(url).toBe('/api/runs/r1/evidence');
-    expect(result).toEqual(evidence);
-  });
-});
+      const result = await fetcher('r1');
 
-describe('getMatches', () => {
-  it('GETs /api/runs/:id/matches and unwraps .matches', async () => {
-    const matches = [{id: 1}];
-    fetchMock().mockResolvedValue(jsonResponse({matches}));
-
-    const result = await getMatches('r1');
-
-    const [url] = firstCall();
-    expect(url).toBe('/api/runs/r1/matches');
-    expect(result).toEqual(matches);
-  });
-});
-
-describe('getReviews', () => {
-  it('GETs /api/runs/:id/reviews and unwraps .reviews', async () => {
-    const reviews = [{id: 1}];
-    fetchMock().mockResolvedValue(jsonResponse({reviews}));
-
-    const result = await getReviews('r1');
-
-    const [url] = firstCall();
-    expect(url).toBe('/api/runs/r1/reviews');
-    expect(result).toEqual(reviews);
-  });
+      expect(firstCall()[0]).toBe(`/api/runs/r1/${key}`);
+      expect(result).toEqual(value);
+    },
+  );
 });
 
 describe('listDemoRuns', () => {

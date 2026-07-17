@@ -1,7 +1,7 @@
 import {render, screen, waitFor} from '@testing-library/react';
 import {MemoryRouter} from 'react-router-dom';
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
-import type {Run} from '@/api/runs';
+import {makeRun} from '@/test-fixtures';
 import {RunHistoryProvider, useRunHistoryContext} from './run_history_context';
 
 vi.mock('@/api/runs', async () => {
@@ -12,21 +12,6 @@ vi.mock('@/api/runs', async () => {
 
 const {loadRunHistory} = await import('@/api/runs');
 const loadMock = vi.mocked(loadRunHistory);
-
-function makeRun(status: Run['status']): Run {
-  return {
-    id: 'r1',
-    research_goal: 'goal',
-    profile: 'standard',
-    status,
-    provider: 'engine',
-    config: {},
-    created_at: 0,
-    updated_at: 0,
-    completed_at: null,
-    error: null,
-  } as Run;
-}
 
 function HistoryProbe() {
   const {history} = useRunHistoryContext();
@@ -56,7 +41,7 @@ describe('RunHistoryProvider', () => {
   it('refreshes on a timer while a run is still executing', async () => {
     // The recents step flow reads a run's live phase off this list, and no
     // navigation or run-start event fires as the run advances.
-    loadMock.mockResolvedValue([makeRun('running')]);
+    loadMock.mockResolvedValue([makeRun({status: 'running'})]);
     renderProvider();
     await waitFor(() =>
       expect(screen.getByTestId('count')).toHaveTextContent('1'),
@@ -70,7 +55,7 @@ describe('RunHistoryProvider', () => {
   });
 
   it('stops refreshing once no run is executing', async () => {
-    loadMock.mockResolvedValue([makeRun('completed')]);
+    loadMock.mockResolvedValue([makeRun({status: 'completed'})]);
     renderProvider();
     await waitFor(() =>
       expect(screen.getByTestId('count')).toHaveTextContent('1'),
@@ -82,11 +67,11 @@ describe('RunHistoryProvider', () => {
   });
 
   it('stops refreshing after the executing run reaches a terminal status', async () => {
-    loadMock.mockResolvedValue([makeRun('running')]);
+    loadMock.mockResolvedValue([makeRun({status: 'running'})]);
     renderProvider();
     await waitFor(() => expect(loadMock).toHaveBeenCalledTimes(1));
 
-    loadMock.mockResolvedValue([makeRun('completed')]);
+    loadMock.mockResolvedValue([makeRun({status: 'completed'})]);
     // Let the poll observe the terminal status and the timer tear down. A
     // refresh already in flight when the status turns terminal may still land,
     // so this asserts that polling settles rather than a call count.

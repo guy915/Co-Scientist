@@ -2,7 +2,7 @@ import {describe, expect, it, vi} from 'vitest';
 import {buildChatHandlers} from './chat_session_handlers';
 import type {HandlerDeps} from './chat_session_types';
 import type {ChatEntry} from '../pages/chat_timeline_cards';
-import type {InferredRunSpec} from '../run_spec';
+import {makeMessage, makeSpec} from '@/test-fixtures';
 import {addInterviewTurn, createInterview, type Interview} from '@/api/runs';
 
 vi.mock('@/api/runs', async importOriginal => {
@@ -33,28 +33,6 @@ function makeInterview(overrides: Partial<Interview> = {}): Interview {
     created_at: 1,
     updated_at: 2,
     completed_at: null,
-    ...overrides,
-  };
-}
-
-function makeSpec(overrides: Partial<InferredRunSpec> = {}): InferredRunSpec {
-  return {
-    goal: 'Study liver fibrosis',
-    requirements: ['Req A'],
-    attributes: ['Attr A'],
-    criteria: ['Crit A'],
-    focus: 'balance',
-    tier: 'standard',
-    ...overrides,
-  };
-}
-
-function makeMessage(overrides: Partial<ChatEntry> = {}): ChatEntry {
-  return {
-    id: 'm1',
-    role: 'user',
-    content: 'Hello',
-    created_at: 1,
     ...overrides,
   };
 }

@@ -2,6 +2,7 @@ import {render} from '@testing-library/react';
 import {MemoryRouter, useLocation} from 'react-router-dom';
 import {vi} from 'vitest';
 import type {Run} from '@/api/runs';
+import {makeHypothesis, makeRun} from '@/test-fixtures';
 import {RunHistoryProvider} from '../hooks/run_history_context';
 import {ChatWorkspace} from './chat_workspace';
 
@@ -78,16 +79,14 @@ function LocationProbe() {
  */
 export function minimalRun(overrides = {}) {
   return {
-    id: 'run-1',
-    research_goal: 'Investigate glucose homeostasis.',
-    profile: 'standard',
-    status: 'completed',
-    provider: 'mock',
-    config: {},
-    created_at: 1,
-    updated_at: 2,
-    completed_at: 3,
-    error: null,
+    ...makeRun({
+      id: 'run-1',
+      research_goal: 'Investigate glucose homeostasis.',
+      provider: 'mock',
+      created_at: 1,
+      updated_at: 2,
+      completed_at: 3,
+    }),
     top_elo: 1200,
     summary: {events: 4, hypotheses: 1, evidence: 1, matches: 1, reviews: 1},
     ...overrides,
@@ -95,11 +94,9 @@ export function minimalRun(overrides = {}) {
 }
 
 /** A representative hypothesis record returned by the getHypotheses mock. */
-export const hypothesis = {
+export const hypothesis = makeHypothesis({
   id: 'hyp-1',
   run_id: 'run-1',
-  parent_id: null,
-  generation: 0,
   title: 'Mitochondrial feedback hypothesis',
   statement: 'A testable statement.',
   mechanism: 'Mitochondrial biogenesis rewires the feedback pathway.',
@@ -110,13 +107,7 @@ export const hypothesis = {
   elo_rating: 1240,
   win_count: 3,
   loss_count: 1,
-  novelty_score: null,
-  plausibility_score: null,
-  testability_score: null,
-  safety_status: null,
-  status: null,
-  cluster_id: null,
-};
+});
 
 /**
  * Resets globals/mocks and installs the default `@/api/runs` mock responses

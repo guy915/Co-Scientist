@@ -1,7 +1,7 @@
 import {render, screen} from '@testing-library/react';
 import {describe, expect, it} from 'vitest';
-import type {Hypothesis, MatchRow, Report, RunWithSummary} from '@/api/runs';
-import {makeHypothesis} from '@/test-fixtures';
+import type {Hypothesis, Report, RunWithSummary} from '@/api/runs';
+import {makeHypothesis, makeMatch} from '@/test-fixtures';
 import {ResearchOverviewView} from './run_detail_overview';
 
 function makeRun(overrides: Partial<RunWithSummary> = {}): RunWithSummary {
@@ -14,10 +14,6 @@ function makeRun(overrides: Partial<RunWithSummary> = {}): RunWithSummary {
     completed_at: 1_700_000_000 + 3 * 3600,
     ...overrides,
   } as unknown as RunWithSummary;
-}
-
-function makeMatch(id: number, overrides: Partial<MatchRow> = {}): MatchRow {
-  return {id, ...overrides} as unknown as MatchRow;
 }
 
 function makeReport(overrides: Partial<Report['payload']> = {}): Report {

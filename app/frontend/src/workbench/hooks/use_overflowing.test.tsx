@@ -1,5 +1,5 @@
 import {render, screen} from '@testing-library/react';
-import {beforeAll, describe, expect, it} from 'vitest';
+import {describe, expect, it} from 'vitest';
 import {useOverflowing} from './use_overflowing';
 
 // jsdom has no layout engine, so drive the two measurements the hook reads.
@@ -34,14 +34,6 @@ function Probe({count}: {count: number}) {
     </div>
   );
 }
-
-beforeAll(() => {
-  window.ResizeObserver = class {
-    observe() {}
-    unobserve() {}
-    disconnect() {}
-  } as unknown as typeof ResizeObserver;
-});
 
 describe('useOverflowing', () => {
   it('reports no overflow when the children fit the box', () => {
