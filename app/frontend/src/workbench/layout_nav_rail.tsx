@@ -3,7 +3,10 @@ import {Link} from 'react-router-dom';
 import {type Run} from '@/api/runs';
 import {Icon, type IconName} from '@/components/icon';
 import {conciseTitle} from '@/lib/text';
-import {type SettingsSection} from './components/settings_dialog';
+import {
+  SETTINGS_SECTIONS,
+  type SettingsSection,
+} from './components/settings_dialog';
 import {TruncatedLabel} from './components/truncated_label';
 import {useOverflowing} from './hooks/use_overflowing';
 import {type ShellPanel} from './layout_hooks';
@@ -74,7 +77,7 @@ const CHAT_HISTORY_MORE_CLASSES = 'ucs-chat-more';
 
 // Per-region class bundles for the rail's expanded vs collapsed presentation,
 // keyed by the single `navOpen` flag (see NavRail below). Replaces what would
-// otherwise be six parallel `navOpen ? ... : ...` ternaries with one lookup.
+// otherwise be parallel `navOpen ? ... : ...` ternaries with one lookup.
 const NAV_RAIL_VARIANTS = {
   open: {
     panel: NAV_PANEL_OPEN_CLASSES,
@@ -83,6 +86,8 @@ const NAV_RAIL_VARIANTS = {
     bottom: NAV_BOTTOM_CLASSES,
     item: NAV_ITEM_OPEN_CLASSES,
     label: NAV_LABEL_OPEN_CLASSES,
+    sideContent: `${SIDE_CONTENT_CLASSES} ${SIDE_CONTENT_OPEN_CLASSES}`,
+    settingsControl: `${SETTINGS_CONTROL_CLASSES} ucs-settings-control--open`,
   },
   collapsed: {
     panel: NAV_PANEL_COLLAPSED_CLASSES,
@@ -91,6 +96,9 @@ const NAV_RAIL_VARIANTS = {
     bottom: NAV_BOTTOM_COLLAPSED_CLASSES,
     item: NAV_ITEM_COLLAPSED_CLASSES,
     label: NAV_LABEL_COLLAPSED_CLASSES,
+    sideContent: `${SIDE_CONTENT_CLASSES} ${SIDE_CONTENT_COLLAPSED_CLASSES}`,
+    settingsControl:
+      `${SETTINGS_CONTROL_CLASSES} ` + 'ucs-settings-control--collapsed',
   },
 } as const;
 
@@ -222,10 +230,9 @@ function ChatHistorySidebar({
   showAllChats: boolean;
   onToggleShowAllChats: () => void;
 }) {
-  const sideContentClasses = [
-    SIDE_CONTENT_CLASSES,
-    navOpen ? SIDE_CONTENT_OPEN_CLASSES : SIDE_CONTENT_COLLAPSED_CLASSES,
-  ].join(' ');
+  const sideContentClasses = (
+    navOpen ? NAV_RAIL_VARIANTS.open : NAV_RAIL_VARIANTS.collapsed
+  ).sideContent;
   const visibleHistory = showAllChats ? history : history.slice(0, 10);
   const hasExtraChats = history.length > 10;
   // Only scroll the list when the rail cannot fit it. A scroll container clips
@@ -269,20 +276,9 @@ function ChatHistorySidebar({
   );
 }
 
-// [label, icon, section] for each row of the Settings popover menu, in
-// display order.
-const SETTINGS_MENU_ITEMS: readonly [
-  label: string,
-  icon: IconName,
-  section: SettingsSection,
-][] = [
-  ['Appearance', 'palette', 'appearance'],
-  ['Model', 'neurology', 'model'],
-  ['Help', 'help', 'help'],
-];
-
-// The Settings popover menu itself (Appearance/Model/Help), shown while the
-// rail's Settings control is the active panel.
+// The Settings popover menu itself, shown while the rail's Settings control
+// is the active panel. Its rows come from the dialog's own SETTINGS_SECTIONS
+// so the menu and the dialog's section rail always agree.
 function SettingsPopoverMenu({
   onOpenSettings,
 }: {
@@ -291,7 +287,7 @@ function SettingsPopoverMenu({
   return (
     <ShellPopover className={`${RAIL_POPOVER_CLASSES} ucs-popover--menu`}>
       <div className={SETTINGS_MENU_CLASSES} role="menu">
-        {SETTINGS_MENU_ITEMS.map(([label, icon, section]) => (
+        {SETTINGS_SECTIONS.map(({label, icon, section}) => (
           <SettingsMenuButton
             key={section}
             label={label}
@@ -322,14 +318,7 @@ function RailSettingsControl({
   const nav = navOpen ? NAV_RAIL_VARIANTS.open : NAV_RAIL_VARIANTS.collapsed;
 
   return (
-    <div
-      ref={settingsControlRef}
-      className={`${SETTINGS_CONTROL_CLASSES} ${
-        navOpen
-          ? 'ucs-settings-control--open'
-          : 'ucs-settings-control--collapsed'
-      }`}
-    >
+    <div ref={settingsControlRef} className={nav.settingsControl}>
       <NavActionButton
         label="Settings"
         icon="settings"

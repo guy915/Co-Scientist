@@ -1,6 +1,7 @@
 import {type FormEvent, useState} from 'react';
 import {type Run} from '@/api/runs';
 import {Icon, type IconName} from '@/components/icon';
+import {joinClasses} from '../classes';
 import {useIsMobile} from '../hooks/use_is_mobile';
 import {
   HOME_LOGO_CLASSES,
@@ -208,13 +209,11 @@ function HomeGreeting({isMobile}: {isMobile: boolean}) {
           {SESSION_STEPS.map((step, index) => (
             <li
               key={step.n}
-              className={[
+              className={joinClasses(
                 HOME_STEP_ITEM_CLASSES,
-                index === 1 ? HOME_STEP_ITEM_CENTER_CLASSES : '',
-                index === 2 ? HOME_STEP_ITEM_END_CLASSES : '',
-              ]
-                .filter(Boolean)
-                .join(' ')}
+                index === 1 && HOME_STEP_ITEM_CENTER_CLASSES,
+                index === 2 && HOME_STEP_ITEM_END_CLASSES,
+              )}
             >
               <span className={HOME_STEP_NUMBER_CLASSES}>{step.n}</span>
               <div>
@@ -349,13 +348,11 @@ function SuggestionPreviewBubble({
 }) {
   return (
     <p
-      className={[
+      className={joinClasses(
         HOME_SUGGESTION_PREVIEW_CLASSES,
         positionClass,
-        isPreviewed ? HOME_SUGGESTION_PREVIEW_VISIBLE_CLASSES : '',
-      ]
-        .filter(Boolean)
-        .join(' ')}
+        isPreviewed && HOME_SUGGESTION_PREVIEW_VISIBLE_CLASSES,
+      )}
       aria-hidden={!isPreviewed}
     >
       {text}
@@ -383,12 +380,10 @@ function SuggestionTriggerButton({
   return (
     <button
       type="button"
-      className={[
+      className={joinClasses(
         HOME_SUGGESTION_BUTTON_CLASSES,
-        isPreviewed ? HOME_SUGGESTION_BUTTON_PREVIEWED_CLASSES : '',
-      ]
-        .filter(Boolean)
-        .join(' ')}
+        isPreviewed && HOME_SUGGESTION_BUTTON_PREVIEWED_CLASSES,
+      )}
       onPointerEnter={() => onPreview(suggestion.preview)}
       onPointerLeave={() => onPreview(null)}
       onFocus={() => onPreview(suggestion.preview)}

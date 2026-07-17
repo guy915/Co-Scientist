@@ -5,6 +5,7 @@ import {
   type NavigateFunction,
 } from 'react-router-dom';
 import {SettingsDialog} from './components/settings_dialog';
+import {NEW_CHAT_EVENT} from './dom_events';
 import {isMobileViewport} from './hooks/use_is_mobile';
 import {ShellHeader} from './layout_header';
 import {useChatHistory, useHeaderTitle, useLayoutChrome} from './layout_hooks';
@@ -100,8 +101,8 @@ function createStartNewChatHandler(
   return () => {
     if (isMobileViewport()) setNavOpen(false);
     // Lets the chat workspace page (mounted separately) know to reset its own
-    // session state; see ChatWorkspace's listener for 'cosci-new-chat'.
-    window.dispatchEvent(new Event('cosci-new-chat'));
+    // session state; see ChatWorkspace's listener.
+    window.dispatchEvent(new Event(NEW_CHAT_EVENT));
     void navigate('/', {state: {cosciAction: 'new-chat'}});
   };
 }

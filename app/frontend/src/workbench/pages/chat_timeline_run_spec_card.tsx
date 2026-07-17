@@ -2,7 +2,13 @@ import {type ReactNode} from 'react';
 import {type RunFocus, type RunTier} from '@/api/runs';
 import {Icon} from '@/components/icon';
 import {conciseTitle} from '@/lib/text';
-import {type InferredRunSpec, FOCUS_OPTIONS, TIER_OPTIONS} from '../run_spec';
+import {joinClasses} from '../classes';
+import {
+  type InferredRunSpec,
+  FOCUS_OPTIONS,
+  TIER_OPTIONS,
+  isCompletionEmailValid,
+} from '../run_spec';
 import {tooltipClassNames} from '../tooltip';
 import {
   OPTION_CARD_BASE_CLASSES,
@@ -201,10 +207,7 @@ function RunSpecDocument({
         isStarting={isStarting}
         onCancel={onCancel}
         onStart={onStart}
-        canStart={
-          !spec.notifyOnCompletion ||
-          /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(spec.completionEmail || '')
-        }
+        canStart={isCompletionEmailValid(spec)}
       />
     </div>
   );
@@ -385,12 +388,10 @@ function RunOptionGroup({
         {options.map(option => (
           <label
             key={option.id}
-            className={[
+            className={joinClasses(
               OPTION_CARD_BASE_CLASSES,
               disabled ? 'cursor-default' : 'cursor-pointer',
-            ]
-              .filter(Boolean)
-              .join(' ')}
+            )}
           >
             <input
               type="radio"
@@ -402,12 +403,10 @@ function RunOptionGroup({
               onChange={() => onChange(option.id)}
             />
             <span
-              className={[
+              className={joinClasses(
                 OPTION_MARKER_CLASSES,
-                option.id === value ? OPTION_MARKER_SELECTED_CLASSES : '',
-              ]
-                .filter(Boolean)
-                .join(' ')}
+                option.id === value && OPTION_MARKER_SELECTED_CLASSES,
+              )}
               aria-hidden="true"
             />
             <strong className={OPTION_LABEL_CLASSES}>{option.label}</strong>

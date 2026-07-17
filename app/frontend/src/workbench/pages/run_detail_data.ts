@@ -20,6 +20,7 @@ import {
 } from '@/api/runs';
 import {useDebouncedCallback} from '@/hooks/use_debounced_callback';
 import {type StreamEvent, useRunStream} from '@/hooks/use_run_stream';
+import {HEADER_TITLE_EVENT} from '../dom_events';
 
 type RunDataKey =
   | 'hypotheses'
@@ -290,11 +291,9 @@ function useRunDerivedState(run: RunWithSummary | null, terminal: boolean) {
   }, [run]);
 
   useEffect(() => {
-    window.dispatchEvent(
-      new CustomEvent('cosci-header-title', {detail: title}),
-    );
+    window.dispatchEvent(new CustomEvent(HEADER_TITLE_EVENT, {detail: title}));
     return () => {
-      window.dispatchEvent(new CustomEvent('cosci-header-title', {detail: ''}));
+      window.dispatchEvent(new CustomEvent(HEADER_TITLE_EVENT, {detail: ''}));
     };
   }, [title]);
 

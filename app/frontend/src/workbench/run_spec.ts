@@ -42,7 +42,6 @@ export interface RunFocusOption {
   id: RunFocus;
   label: string;
   description: string;
-  icon: string;
 }
 
 /**
@@ -85,27 +84,33 @@ export const FOCUS_OPTIONS: RunFocusOption[] = [
     label: 'Prefer evidence',
     description:
       'Prioritizes well-established methods and data for high-confidence, incremental advances.',
-    icon: 'fact_check',
   },
   {
     id: 'balance',
     label: 'Balance',
     description:
       'A mix of established techniques and novel approaches for a comprehensive strategy.',
-    icon: 'balance',
   },
   {
     id: 'prefer_novelty',
     label: 'Prefer novelty',
     description:
       'Favors unconventional ideas and exploratory methods for creative, higher-risk solutions.',
-    icon: 'auto_awesome',
   },
   {
     id: 'breakthrough',
     label: 'Breakthrough',
     description:
       'Focuses on high-risk, high-reward strategies with the potential for paradigm shifts.',
-    icon: 'rocket_launch',
   },
 ];
+
+/**
+ * Whether the spec's completion-notification email passes the minimal
+ * shape check used to enable "Start research" (anything@anything.tld);
+ * trivially true when notification is off.
+ */
+export function isCompletionEmailValid(spec: InferredRunSpec): boolean {
+  if (!spec.notifyOnCompletion) return true;
+  return /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(spec.completionEmail || '');
+}

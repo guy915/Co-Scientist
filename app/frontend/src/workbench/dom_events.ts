@@ -1,0 +1,15 @@
+/**
+ * Names of the window-level CustomEvents the workbench uses to talk across
+ * React trees (the shell chrome and the routed pages render in separate
+ * subtrees, so a window event is the decoupled channel between them).
+ * Dispatchers and listeners import the same constant so they can't drift.
+ */
+
+/** Detail: the header title string to show ('' clears it). */
+export const HEADER_TITLE_EVENT = 'cosci-header-title';
+
+/** Resets the chat workspace to a fresh session. */
+export const NEW_CHAT_EVENT = 'cosci-new-chat';
+
+/** A diagnostic log line for the shell's Logs popover. */
+export const DIAGNOSTIC_EVENT = 'cosci-diagnostic-event';

@@ -28,19 +28,25 @@ export interface ChatSessionDeps {
   pubmedEnabled: boolean;
 }
 
-/** Dependencies shared by `executeStart` and `startDraftRun`. */
-export interface ExecuteStartDeps {
+/**
+ * Dependencies shared by `executeStart` and `startDraftRun`: the snapshotted
+ * spec plus the relevant slice of `HandlerDeps` (callers pass the same
+ * values they received there).
+ */
+export type ExecuteStartDeps = Pick<
+  HandlerDeps,
+  | 'pubmedEnabled'
+  | 'reloadHistory'
+  | 'setConfirmed'
+  | 'setDraft'
+  | 'setStartedSession'
+  | 'setMessages'
+  | 'pendingAttachments'
+  | 'setPendingAttachments'
+> & {
   specToStart: InferredRunSpec;
   specCreatedAt: number;
-  pubmedEnabled: boolean;
-  reloadHistory: () => Promise<void>;
-  setConfirmed: (stage: SpecStage | null) => void;
-  setDraft: (stage: SpecStage | null) => void;
-  setStartedSession: (session: StartedSession) => void;
-  setMessages: Dispatch<SetStateAction<ChatEntry[]>>;
-  pendingAttachments: File[];
-  setPendingAttachments: (files: File[]) => void;
-}
+};
 
 /**
  * Every value/setter the module-level handler functions might need; each

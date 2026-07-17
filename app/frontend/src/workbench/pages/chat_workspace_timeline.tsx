@@ -31,6 +31,12 @@ export interface TimelineItem {
   node: ReactNode;
 }
 
+// Fixed ids of the (at most one each) run-spec card entries. The scroll hook
+// (chat_workspace_scroll.ts) anchors these tall cards to the top when they
+// arrive, so it matches on the same constants.
+export const DRAFT_SPEC_ITEM_ID = 'draft-spec';
+export const CONFIRMED_SPEC_ITEM_ID = 'confirmed-spec';
+
 /**
  * Dependencies buildTimelineItems (and the per-category helpers below) need to
  * render each kind of timeline entry.
@@ -166,7 +172,7 @@ function draftTimelineItems({
   if (!draft) return [];
   return [
     {
-      id: 'draft-spec',
+      id: DRAFT_SPEC_ITEM_ID,
       at: draft.createdAt,
       order: 50,
       node: (
@@ -222,7 +228,7 @@ function confirmedSpecTimelineItems({
   if (!confirmed) return [];
   return [
     {
-      id: 'confirmed-spec',
+      id: CONFIRMED_SPEC_ITEM_ID,
       at: confirmed.createdAt,
       order: 50,
       node: (

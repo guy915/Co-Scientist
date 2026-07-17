@@ -20,16 +20,21 @@ export function formatHomeRunDate(timestamp: number): string {
   return HOME_RUN_DATE_FMT.format(new Date(timestamp * 1000));
 }
 
+// Duration phrase for a span in seconds; a sub-minute span renders as
+// "< 1 minute" rather than being rounded up.
+function flooredDurationPhrase(seconds: number): string {
+  if (seconds < 60) return '< 1 minute';
+  return formatDurationPhrase(seconds);
+}
+
 // Real wall-clock duration phrase from the run's persisted start/end
-// timestamps, or null when no usable end timestamp is recorded. A sub-minute
-// real span renders as "< 1 minute" rather than being rounded up.
+// timestamps, or null when no usable end timestamp is recorded.
 function completedDurationLabel(run: Run): string | null {
   const endTime = run.completed_at ?? run.updated_at;
   if (!endTime) return null;
   const seconds = endTime - run.created_at;
   if (seconds < 0) return null;
-  if (seconds < 60) return '< 1 minute';
-  return formatDurationPhrase(seconds);
+  return flooredDurationPhrase(seconds);
 }
 
 // Total wall-clock duration for a finished (or presumed-finished) run, driven
@@ -49,8 +54,7 @@ function formatHomeRunElapsed(run: Run): string {
     0,
     (run.updated_at || Date.now() / 1000) - run.created_at,
   );
-  if (elapsedSeconds < 60) return '< 1 minute';
-  return formatDurationPhrase(elapsedSeconds);
+  return flooredDurationPhrase(elapsedSeconds);
 }
 
 /**

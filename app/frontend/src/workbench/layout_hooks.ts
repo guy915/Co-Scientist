@@ -7,6 +7,7 @@ import {
   type SetStateAction,
 } from 'react';
 import {type SettingsSection} from './components/settings_dialog';
+import {HEADER_TITLE_EVENT} from './dom_events';
 import {useRunHistoryContext} from './hooks/run_history_context';
 import {isMobileViewport} from './hooks/use_is_mobile';
 
@@ -57,9 +58,9 @@ export function useHeaderTitle(contextKey: string): string {
       const custom = event as CustomEvent<string>;
       setOverrideTitle(custom.detail || '');
     }
-    window.addEventListener('cosci-header-title', onHeaderTitle);
+    window.addEventListener(HEADER_TITLE_EVENT, onHeaderTitle);
     return () => {
-      window.removeEventListener('cosci-header-title', onHeaderTitle);
+      window.removeEventListener(HEADER_TITLE_EVENT, onHeaderTitle);
     };
   }, []);
 

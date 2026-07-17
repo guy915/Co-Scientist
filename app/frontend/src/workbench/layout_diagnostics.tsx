@@ -2,6 +2,7 @@ import {useEffect, useRef, useState, type ReactNode} from 'react';
 import {getRunEvents, type RunEvent} from '@/api/runs';
 import {Icon, type IconName} from '@/components/icon';
 import {copyText} from '@/lib/clipboard';
+import {DIAGNOSTIC_EVENT} from './dom_events';
 import {tooltipClassNames} from './tooltip';
 
 type DiagnosticLogLevel = 'info' | 'success' | 'error';
@@ -276,9 +277,9 @@ function useDiagnosticLog() {
       setEntries(current => [...current, entry]);
       setCopied(false); // new entries invalidate a prior "Copied" confirmation
     }
-    window.addEventListener('cosci-diagnostic-event', onDiagnosticEvent);
+    window.addEventListener(DIAGNOSTIC_EVENT, onDiagnosticEvent);
     return () => {
-      window.removeEventListener('cosci-diagnostic-event', onDiagnosticEvent);
+      window.removeEventListener(DIAGNOSTIC_EVENT, onDiagnosticEvent);
     };
   }, []);
 

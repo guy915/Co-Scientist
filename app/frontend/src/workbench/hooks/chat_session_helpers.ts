@@ -1,6 +1,10 @@
 import {type Dispatch, type SetStateAction} from 'react';
 import {makePrefixedId} from '@/lib/id';
+import {DIAGNOSTIC_EVENT} from '../dom_events';
 import {type ChatEntry} from '../pages/chat_timeline_cards';
+
+/** The chat session's diagnostic-log categories. */
+export type DiagnosticStage = 'LIFECYCLE' | 'CHAT';
 
 /**
  * Fires a fire-and-forget diagnostic line for the shell's Logs popover
@@ -13,13 +17,13 @@ export function emitDiagnosticEvent({
   level = 'info',
   payload = {},
 }: {
-  stage: string;
+  stage: DiagnosticStage;
   run?: string;
   level?: 'info' | 'success' | 'error';
   payload?: Record<string, unknown>;
 }) {
   window.dispatchEvent(
-    new CustomEvent('cosci-diagnostic-event', {
+    new CustomEvent(DIAGNOSTIC_EVENT, {
       detail: {stage, run, level, payload},
     }),
   );

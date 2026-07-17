@@ -24,13 +24,11 @@ const RECENTS_HEADING_ICON_CLASSES = 'reference-recents-heading-icon';
 
 const RECENTS_HEADING_CLASSES = 'reference-recents-heading-title';
 
-const RECENTS_LIST_CLASSES = HOME_RECENTS_LIST_CLASSES;
-
 const EMPTY_RECENTS_PANEL_CLASSES =
   RECENTS_PANEL_CLASSES + ' reference-recents--empty';
 
 const EMPTY_RECENTS_LIST_CLASSES =
-  RECENTS_LIST_CLASSES + ' reference-recents-list--empty';
+  HOME_RECENTS_LIST_CLASSES + ' reference-recents-list--empty';
 
 const EMPTY_RECENTS_ITEM_CLASSES = 'reference-recents-empty-item';
 
@@ -71,7 +69,7 @@ function recentsPanelClassNames(hasVisibleRuns: boolean): {
   list: string;
 } {
   return hasVisibleRuns
-    ? {panel: RECENTS_PANEL_CLASSES, list: RECENTS_LIST_CLASSES}
+    ? {panel: RECENTS_PANEL_CLASSES, list: HOME_RECENTS_LIST_CLASSES}
     : {panel: EMPTY_RECENTS_PANEL_CLASSES, list: EMPTY_RECENTS_LIST_CLASSES};
 }
 

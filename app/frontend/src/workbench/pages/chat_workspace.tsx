@@ -2,6 +2,7 @@ import {useCallback, useEffect, useState} from 'react';
 import {createPortal} from 'react-dom';
 import {useLocation, useNavigate} from 'react-router-dom';
 import {conciseTitle} from '@/lib/text';
+import {HEADER_TITLE_EVENT, NEW_CHAT_EVENT} from '../dom_events';
 import {useToast, type ToastState} from '../hooks/use_toast';
 import {useRunHistory} from '../hooks/use_run_history';
 import {useChatSession} from '../hooks/use_chat_session';
@@ -146,9 +147,9 @@ function syncHeaderTitle(
     : startedSession
       ? startedSession.title
       : '';
-  window.dispatchEvent(new CustomEvent('cosci-header-title', {detail: title}));
+  window.dispatchEvent(new CustomEvent(HEADER_TITLE_EVENT, {detail: title}));
   return () => {
-    window.dispatchEvent(new CustomEvent('cosci-header-title', {detail: ''}));
+    window.dispatchEvent(new CustomEvent(HEADER_TITLE_EVENT, {detail: ''}));
   };
 }
 
@@ -174,9 +175,9 @@ function ToastPortal({toast}: {toast: ToastState | null}) {
   );
 }
 
-// Listens for the nav rail's global "new chat" / "focus composer" custom
-// events, which fire outside React's tree (e.g. from the app shell header),
-// and handles the same two actions when they arrive as router navigation
+// Listens for the nav rail's global "new chat" custom event, which fires
+// outside React's tree (e.g. from the app shell header), and handles the
+// new-chat/focus-composer actions when they arrive as router navigation
 // state instead (see ChatWorkspaceLocationState), clearing that state so it
 // doesn't re-fire on a later re-render or back/forward navigation.
 function useChatWorkspaceGlobalEvents({
@@ -190,13 +191,11 @@ function useChatWorkspaceGlobalEvents({
   const navigate = useNavigate();
 
   useEffect(() => {
-    window.addEventListener('cosci-new-chat', resetWorkspace);
-    window.addEventListener('cosci-focus-composer', focusComposer);
+    window.addEventListener(NEW_CHAT_EVENT, resetWorkspace);
     return () => {
-      window.removeEventListener('cosci-new-chat', resetWorkspace);
-      window.removeEventListener('cosci-focus-composer', focusComposer);
+      window.removeEventListener(NEW_CHAT_EVENT, resetWorkspace);
     };
-  }, [focusComposer, resetWorkspace]);
+  }, [resetWorkspace]);
 
   useEffect(() => {
     const state = location.state as ChatWorkspaceLocationState | null;

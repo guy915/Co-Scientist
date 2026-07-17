@@ -1,4 +1,4 @@
-import type {MouseEvent, ReactNode} from 'react';
+import {useMemo, type MouseEvent, type ReactNode} from 'react';
 import type {
   ClaimEvidenceRow,
   Hypothesis,
@@ -108,6 +108,26 @@ export function HypothesisDetail({
   matches: MatchRow[];
   claimEvidence?: ClaimEvidenceRow[];
 }) {
+  // Memoized on their inputs so unrelated re-renders (e.g. SSE updates to
+  // sibling collections) skip re-scanning the run's full review/match/claim
+  // sets. Computed before the empty-state return to satisfy the rules of
+  // hooks, hence the null guards.
+  const review = useMemo(
+    () => (hypothesis ? findHypothesisReview(hypothesis, reviews) : undefined),
+    [hypothesis, reviews],
+  );
+  const latestMatch = useMemo(
+    () => (hypothesis ? findLatestMatch(hypothesis, matches) : undefined),
+    [hypothesis, matches],
+  );
+  const claims = useMemo(
+    () =>
+      hypothesis
+        ? claimEvidence.filter(c => c.hypothesis_id === hypothesis.id)
+        : [],
+    [hypothesis, claimEvidence],
+  );
+
   if (!hypothesis) {
     return (
       <section className={IDEA_DETAIL_EMPTY_CLASSES}>
@@ -117,40 +137,36 @@ export function HypothesisDetail({
     );
   }
 
-  const review = findHypothesisReview(hypothesis, reviews);
-  const latestMatch = findLatestMatch(hypothesis, matches);
-  const claims = claimEvidence.filter(c => c.hypothesis_id === hypothesis.id);
-
   return (
     <section
       className={IDEA_DETAIL_PANE_CLASSES}
       aria-label="Hypothesis detail"
     >
-      <DetailSection title={SECTIONS.overview} level={2}>
+      <DetailSection title={SECTIONS.overview}>
         <p>{hypothesis.statement}</p>
       </DetailSection>
 
-      <DetailSection title={SECTIONS.description} level={2}>
+      <DetailSection title={SECTIONS.description}>
         <HypothesisDescriptionContent hypothesis={hypothesis} />
       </DetailSection>
 
-      <DetailSection title={SECTIONS.provenance} level={2}>
+      <DetailSection title={SECTIONS.provenance}>
         <HypothesisProvenanceContent hypothesis={hypothesis} claims={claims} />
       </DetailSection>
 
-      <DetailSection title={SECTIONS.reviewSummary} level={2}>
+      <DetailSection title={SECTIONS.reviewSummary}>
         <p>{reviewSummaryText(review)}</p>
       </DetailSection>
 
-      <DetailSection title={SECTIONS.fullReview} level={2}>
+      <DetailSection title={SECTIONS.fullReview}>
         <p>{reviewCritiqueText(review)}</p>
       </DetailSection>
 
-      <DetailSection title={SECTIONS.tournament} level={2}>
+      <DetailSection title={SECTIONS.tournament}>
         <p>{tournamentSummaryText(hypothesis)}</p>
       </DetailSection>
 
-      <DetailSection title={SECTIONS.matchSummary} level={2}>
+      <DetailSection title={SECTIONS.matchSummary}>
         <MatchSummaryContent latestMatch={latestMatch} />
       </DetailSection>
     </section>
@@ -406,22 +422,17 @@ function sectionSlug(title: string): string {
 }
 
 // One titled block within the detail pane. `id` (from sectionSlug) is the
-// anchor target for SectionsRail's links and the deep-link hash. `level`
-// selects h2 vs h3 for the heading's own semantic weight independent of the
-// rail's flat link list.
+// anchor target for SectionsRail's links and the deep-link hash.
 function DetailSection({
   title,
   children,
-  level = 3,
 }: {
   title: string;
   children: ReactNode;
-  level?: 2 | 3;
 }) {
-  const Heading = level === 2 ? 'h2' : 'h3';
   return (
     <section className={IDEA_DETAIL_SECTION_CLASSES} id={sectionSlug(title)}>
-      <Heading>{title}</Heading>
+      <h2>{title}</h2>
       <div>{children}</div>
     </section>
   );

@@ -1,6 +1,10 @@
 import {type RefObject, useEffect, useRef} from 'react';
 import {type StartedSession} from './chat_timeline_cards';
-import {type TimelineItem} from './chat_workspace_timeline';
+import {
+  CONFIRMED_SPEC_ITEM_ID,
+  DRAFT_SPEC_ITEM_ID,
+  type TimelineItem,
+} from './chat_workspace_timeline';
 
 // Cheap fingerprint of the timeline's identity/order, used to detect when it
 // actually changed shape/order without deep-comparing React nodes, plus
@@ -21,8 +25,8 @@ function timelineScrollTarget(
   // visible; anything else (chat bubbles) anchors to the bottom as usual.
   const anchorMode: 'top' | 'bottom' = startedSession
     ? 'bottom'
-    : latestTimelineItemId === 'draft-spec' ||
-        latestTimelineItemId === 'confirmed-spec'
+    : latestTimelineItemId === DRAFT_SPEC_ITEM_ID ||
+        latestTimelineItemId === CONFIRMED_SPEC_ITEM_ID
       ? 'top'
       : 'bottom';
   return {signature, anchorMode};

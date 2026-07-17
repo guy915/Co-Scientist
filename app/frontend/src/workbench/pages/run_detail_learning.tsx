@@ -1,4 +1,4 @@
-import {useState} from 'react';
+import {useMemo, useState} from 'react';
 import {type Evidence, type Report} from '@/api/runs';
 import {Icon} from '@/components/icon';
 import {splitAbstractSections} from '@/lib/format_abstract';
@@ -61,12 +61,18 @@ function useLearningViewState(
   // Section ids currently showing their "Details" block; toggled independently
   // per section so expanding one does not affect the others.
   const [expandedSectionIds, setExpandedSectionIds] = useState<string[]>([]);
-  const sections = learningSections(goal, evidence, report);
+  const sections = useMemo(
+    () => learningSections(goal, evidence, report),
+    [goal, evidence, report],
+  );
   // Case-insensitive substring match across title, source, and authors.
-  const filteredReferences = evidence.filter(item => {
-    const haystack = `${item.title} ${item.source} ${item.authors.join(' ')}`;
-    return haystack.toLowerCase().includes(query.trim().toLowerCase());
-  });
+  const filteredReferences = useMemo(() => {
+    const needle = query.trim().toLowerCase();
+    return evidence.filter(item => {
+      const haystack = `${item.title} ${item.source} ${item.authors.join(' ')}`;
+      return haystack.toLowerCase().includes(needle);
+    });
+  }, [evidence, query]);
   function toggleSection(sectionId: string) {
     setExpandedSectionIds(current =>
       current.includes(sectionId)
@@ -381,9 +387,7 @@ function learningSections(
   const fallbackGoal =
     goal ||
     'the biological mechanisms and experimental systems relevant to this research goal';
-  const seedEvidence = evidence;
-
-  if (!seedEvidence.length) {
+  if (!evidence.length) {
     return [
       {
         id: 'knowledge-unavailable',
@@ -396,7 +400,7 @@ function learningSections(
     ];
   }
 
-  return seedEvidence.slice(0, 3).map((item, index) => ({
+  return evidence.slice(0, 3).map((item, index) => ({
     id: `learning-section-${index + 1}`,
     title: learningTitle(item.title, index),
     summary:

@@ -23,8 +23,10 @@ const THEME_MODES: {mode: ThemeMode; icon: IconName; label: string}[] = [
   {mode: 'dark', icon: 'dark_mode', label: 'Dark'},
 ];
 
-// Section-rail entries, in display order.
-const SECTIONS: {
+// Section-rail entries, in display order. Also consumed by the nav rail's
+// Settings popover menu (layout_nav_rail.tsx), so the two surfaces can't
+// drift apart.
+export const SETTINGS_SECTIONS: {
   section: SettingsSection;
   icon: IconName;
   label: string;
@@ -162,7 +164,8 @@ function ModelSection({
 }
 
 // Section rail: list of nav buttons for switching between the dialog's
-// sections (see SECTIONS above), highlighting whichever is currently active.
+// sections (see SETTINGS_SECTIONS above), highlighting whichever is
+// currently active.
 function SettingsNav({
   section,
   onSectionChange,
@@ -172,7 +175,7 @@ function SettingsNav({
 }) {
   return (
     <nav className="ucs-settings-dialog-nav" aria-label="Settings sections">
-      {SECTIONS.map(item => {
+      {SETTINGS_SECTIONS.map(item => {
         const active = item.section === section;
         return (
           <button

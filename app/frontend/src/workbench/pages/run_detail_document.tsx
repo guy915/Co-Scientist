@@ -1,4 +1,5 @@
 import {type ReactNode} from 'react';
+import {joinClasses} from '../classes';
 
 // Shared Tailwind class-name constants and layout primitives for the
 // document-style report content ("details"/"learning"/"overview" tabs in
@@ -48,11 +49,8 @@ export function ReportDocument({
   children: ReactNode;
   className?: string;
 }) {
-  const documentClassName = [REPORT_DOCUMENT_CLASSES, className]
-    .filter(Boolean)
-    .join(' ');
   return (
-    <article className={documentClassName}>
+    <article className={joinClasses(REPORT_DOCUMENT_CLASSES, className)}>
       <h2 className={REPORT_H2_CLASSES}>{title}</h2>
       {children}
     </article>

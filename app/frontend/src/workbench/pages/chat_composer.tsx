@@ -6,6 +6,7 @@ import {
   useLayoutEffect,
   useRef,
 } from 'react';
+import {joinClasses} from '../classes';
 import {Icon} from '@/components/icon';
 import {tooltipClassNames} from '../tooltip';
 import {
@@ -90,7 +91,6 @@ export function Composer({
   } = useComposerState(input, large);
 
   const referenceLabel = composerReferenceLabel(setupDraftMode);
-  const submitLabel = 'Send';
   // There is nothing to send while the input is blank, and nothing to send it
   // to while the session is still answering. Both gate submission only; the
   // textarea is never disabled, so typing and focus survive either state.
@@ -126,7 +126,6 @@ export function Composer({
         pubmedEnabled={pubmedEnabled}
         onPubmedEnabledChange={onPubmedEnabledChange}
         submitDisabled={submitDisabled}
-        submitLabel={submitLabel}
       />
     </form>
   );
@@ -139,14 +138,12 @@ function composerFormClassName(
   large: boolean,
   hasAttachments: boolean,
 ) {
-  return [
+  return joinClasses(
     COMPOSER_BASE_CLASSES,
-    input.trim() ? 'has-input' : '',
-    large ? HOME_COMPOSER_CLASSES : '',
-    hasAttachments ? REFERENCE_COMPOSER_ATTACHED_CLASSES : '',
-  ]
-    .filter(Boolean)
-    .join(' ');
+    input.trim() && 'has-input',
+    large && HOME_COMPOSER_CLASSES,
+    hasAttachments && REFERENCE_COMPOSER_ATTACHED_CLASSES,
+  );
 }
 
 // The floating-label copy shown above the textarea: "edit session details"
@@ -224,12 +221,10 @@ function ComposerTextareaField({
   return (
     <label className={COMPOSER_LABEL_CLASSES}>
       <span
-        className={[
+        className={joinClasses(
           COMPOSER_LABEL_TEXT_CLASSES,
-          input.trim() ? COMPOSER_LABEL_TEXT_HIDDEN_CLASSES : '',
-        ]
-          .filter(Boolean)
-          .join(' ')}
+          input.trim() && COMPOSER_LABEL_TEXT_HIDDEN_CLASSES,
+        )}
       >
         <Icon
           aria-hidden="true"
@@ -249,12 +244,10 @@ function ComposerTextareaField({
         // away (see `autoFocus`); it does not take focus from elsewhere on
         // the page, and the home composer leaves it unset.
         autoFocus={autoFocus}
-        className={[
+        className={joinClasses(
           COMPOSER_TEXTAREA_CLASSES,
-          large ? HOME_COMPOSER_TEXTAREA_CLASSES : '',
-        ]
-          .filter(Boolean)
-          .join(' ')}
+          large && HOME_COMPOSER_TEXTAREA_CLASSES,
+        )}
         onChange={e => setInput(e.target.value)}
         onKeyDown={e => handleComposerKeyDown(e, submitDisabled)}
       />
@@ -273,7 +266,6 @@ function ComposerFooter({
   pubmedEnabled,
   onPubmedEnabledChange,
   submitDisabled,
-  submitLabel,
 }: {
   connectorsOpen: boolean;
   onToggleConnectors: () => void;
@@ -283,7 +275,6 @@ function ComposerFooter({
   pubmedEnabled: boolean;
   onPubmedEnabledChange?: (value: boolean) => void;
   submitDisabled: boolean;
-  submitLabel: string;
 }) {
   return (
     <div className={COMPOSER_ACTIONS_CLASSES}>
@@ -302,7 +293,7 @@ function ComposerFooter({
           className: COMPOSER_SUBMIT_BUTTON_CLASSES,
           placement: 'top',
         })}
-        aria-label={submitLabel}
+        aria-label="Send"
         data-tooltip="Submit"
         disabled={submitDisabled}
       >
