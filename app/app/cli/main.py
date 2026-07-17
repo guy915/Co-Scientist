@@ -16,7 +16,7 @@ import sys
 from collections.abc import Callable
 from typing import cast
 
-from app.cli import runs_cmd, status_cmd
+from app.cli import logs_cmd, runs_cmd, status_cmd
 from app.cli.http import DEFAULT_API_URL, ApiClient, CliError
 from app.version import API_VERSION
 
@@ -129,6 +129,54 @@ def _add_config(
     )
     _json_flag(parser)
     parser.set_defaults(handler=status_cmd.handle_config)
+
+
+def _add_logs(
+    sub: argparse._SubParsersAction[argparse.ArgumentParser],
+    common: argparse.ArgumentParser,
+) -> None:
+    """Register the top-level ``logs`` command."""
+    parser = sub.add_parser(
+        "logs",
+        parents=[common],
+        help="query the app-wide persisted log records",
+    )
+    parser.add_argument(
+        "--run", metavar="RUN_ID", help="only records bound to this run"
+    )
+    parser.add_argument(
+        "--level",
+        metavar="LEVEL",
+        help="minimum level, e.g. warning (case-insensitive)",
+    )
+    parser.add_argument(
+        "--grep", metavar="TEXT", help="message substring filter"
+    )
+    parser.add_argument(
+        "--after-id",
+        dest="after_id",
+        type=int,
+        default=0,
+        metavar="N",
+        help="only records with id greater than N",
+    )
+    parser.add_argument(
+        "--limit", type=int, default=100, metavar="N", help="max records"
+    )
+    parser.add_argument(
+        "--follow",
+        action="store_true",
+        help="keep polling for new records until interrupted",
+    )
+    parser.add_argument(
+        "--interval",
+        type=float,
+        default=2.0,
+        metavar="SECONDS",
+        help="poll interval used with --follow (default %(default)s)",
+    )
+    _json_flag(parser)
+    parser.set_defaults(handler=logs_cmd.handle_logs)
 
 
 def _add_create(
@@ -418,6 +466,7 @@ def build_parser() -> argparse.ArgumentParser:
     common = _common_parser()
     _add_status(sub, common)
     _add_config(sub, common)
+    _add_logs(sub, common)
     _add_runs(sub, common)
     return parser
 

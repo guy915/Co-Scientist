@@ -455,6 +455,16 @@ def test_config_shows_defaults(
     assert "max_iterations" in capsys.readouterr().out
 
 
+def test_logs_shows_captured_server_records(
+    cli_server: str, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """The server persists its own startup logs; `cosci logs` reads them."""
+    assert _invoke(cli_server, "logs", "--grep", "Starting Co-Scientist") == 0
+    out = capsys.readouterr().out
+    assert "Starting Co-Scientist server" in out
+    assert "INFO" in out
+
+
 # ---------------------------------------------------------------------------
 # Reports
 # ---------------------------------------------------------------------------

@@ -47,6 +47,12 @@ from app.store.interviews import (
     get_interview,
     update_interview,
 )
+from app.store.logs import (
+    append_log,
+    latest_log_id,
+    list_logs,
+    prune_logs,
+)
 from app.store.messages import (
     append_message,
     get_pending_steering,
@@ -142,6 +148,7 @@ __all__ = [
     "add_safety_decision",
     "append_event",
     "append_interview_turn",
+    "append_log",
     "append_message",
     "cancel_run_tasks",
     "cancel_task",
@@ -166,12 +173,14 @@ __all__ = [
     "get_task",
     "has_checkpoint",
     "latest_event_seq",
+    "latest_log_id",
     "list_active_engine_task_run_ids",
     "list_citations",
     "list_claim_evidence",
     "list_events",
     "list_evidence",
     "list_hypotheses",
+    "list_logs",
     "list_matches",
     "list_messages",
     "list_proximity_edges",
@@ -182,6 +191,7 @@ __all__ = [
     "list_tasks",
     "mark_steering_applied",
     "pause_run_tasks",
+    "prune_logs",
     "read_report_markdown",
     "reconcile_interrupted_runs",
     "redact_hypothesis_fields",

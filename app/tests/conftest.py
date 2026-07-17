@@ -32,3 +32,11 @@ def isolated_db(
 
     _store_db._initialized.discard(db_path)
     yield db_path
+    # Stop any persistent log capture while this test's env is still bound:
+    # importing app.main installs capture at import time, and leaving it
+    # running would spill stray records into later tests' databases (or
+    # drain into the wrong one). Runs before monkeypatch undoes the env, so
+    # queued records land in THIS test's db. TestClient lifespans reinstall.
+    from app.logging_setup import shutdown_log_capture
+
+    shutdown_log_capture()

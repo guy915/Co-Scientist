@@ -67,6 +67,7 @@ from app import (
 from app.auth import client_id
 from app.hypothesis_screening import screen_hypotheses
 from app.logging_setup import run_log_context
+from app.logs_api import logs_payload
 from app.runs_events import _event_stream
 from app.runs_models import (
     AskRequest,
@@ -833,6 +834,29 @@ async def get_metrics(run_id: str) -> dict[str, Any]:
     """
     _require_run(run_id)
     return {"metrics": store.get_run_metrics(run_id)}
+
+
+@router.get("/{run_id}/logs")
+async def get_run_logs(
+    run_id: str,
+    after_id: int = Query(0, ge=0),
+    limit: int = Query(200, ge=1, le=1000),
+    min_level: str | None = None,
+    q: str | None = None,
+) -> dict[str, Any]:
+    """Return the run's persisted application log records, oldest-first.
+
+    Run-scoped view of ``GET /api/logs``: same filters and payload shape,
+    with ``run_id`` fixed to this run.
+    """
+    _require_run(run_id)
+    return logs_payload(
+        after_id=after_id,
+        limit=limit,
+        min_level=min_level,
+        run_id=run_id,
+        q=q,
+    )
 
 
 @router.get("/{run_id}/claim-evidence")

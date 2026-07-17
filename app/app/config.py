@@ -60,6 +60,14 @@ class Settings(BaseSettings):
     # app/logging_setup.py. Any other value falls back to text.
     log_format: str = "text"
 
+    # Persistent log capture: mirror every record that reaches the root
+    # logger into the app_logs table (served by /api/logs and the UI Logs
+    # panel). Level names follow the stdlib; unknown values fall back to
+    # INFO. The row cap bounds the table via periodic pruning.
+    log_capture_enabled: bool = True
+    log_capture_level: str = "INFO"
+    log_capture_max_rows: int = 20000
+
     # /status availability probes: per-probe network timeout and how long
     # a probe pair's result is reused before re-probing the MCP server.
     status_probe_timeout_seconds: float = 3.0

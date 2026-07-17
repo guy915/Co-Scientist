@@ -587,6 +587,22 @@ CREATE TABLE IF NOT EXISTS claim_evidence (
 );
 CREATE INDEX IF NOT EXISTS idx_claim_ev_hyp ON claim_evidence(hypothesis_id);
 
+-- Persisted application log records captured from the Python root logger
+-- (see app/logging_setup.py). App-wide: run_id is NULL for records emitted
+-- outside any run context. Deliberately no FK to runs -- log history
+-- survives run deletion. Retention is enforced by store.prune_logs.
+CREATE TABLE IF NOT EXISTS app_logs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    created_at REAL NOT NULL,
+    level TEXT NOT NULL,             -- level name: INFO, WARNING, ...
+    levelno INTEGER NOT NULL,        -- numeric level for range filtering
+    logger TEXT NOT NULL,            -- dotted logger name
+    message TEXT NOT NULL,
+    run_id TEXT,
+    exc_text TEXT                    -- formatted traceback, when attached
+);
+CREATE INDEX IF NOT EXISTS idx_app_logs_run ON app_logs(run_id, id);
+
 -- Explainable hypothesis-proximity landscape persisted from the engine.
 CREATE TABLE IF NOT EXISTS proximity_edges (
     id INTEGER PRIMARY KEY AUTOINCREMENT,

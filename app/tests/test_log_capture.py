@@ -1,0 +1,121 @@
+"""Tests for persistent log capture (root logger -> app_logs table)."""
+
+from __future__ import annotations
+
+import logging
+
+import pytest
+
+from app import store
+from app.logging_setup import (
+    configure_log_capture,
+    run_log_context,
+    shutdown_log_capture,
+)
+
+
+@pytest.fixture(autouse=True)
+def _teardown_capture() -> object:
+    """Always stop capture after a test so later tests start clean."""
+    yield
+    shutdown_log_capture()
+
+
+def _flush() -> None:
+    """Stop the capture pipeline, draining queued records to the store."""
+    shutdown_log_capture()
+
+
+def _test_logger() -> logging.Logger:
+    """Return the test logger with an explicit level.
+
+    The test process never calls ``configure_logging``, so the root
+    logger sits at its WARNING default; an explicit level makes INFO
+    records propagate so the capture handler's own threshold is what is
+    under test.
+    """
+    test_logger = logging.getLogger("app.capture_test")
+    test_logger.setLevel(logging.INFO)
+    return test_logger
+
+
+def test_capture_persists_records_with_run_id(isolated_db: str) -> None:
+    configure_log_capture()
+    test_logger = _test_logger()
+    test_logger.info("plain record %d", 7)
+    with run_log_context("run-42"):
+        test_logger.warning("scoped record")
+    _flush()
+    rows = store.list_logs(db_path=isolated_db)
+    by_message = {row["message"]: row for row in rows}
+    assert by_message["plain record 7"]["run_id"] is None
+    assert by_message["plain record 7"]["level"] == "INFO"
+    assert by_message["plain record 7"]["logger"] == "app.capture_test"
+    assert by_message["scoped record"]["run_id"] == "run-42"
+
+
+def test_capture_formats_exception_text(isolated_db: str) -> None:
+    configure_log_capture()
+    test_logger = _test_logger()
+    try:
+        raise ValueError("kaboom")
+    except ValueError:
+        test_logger.exception("operation failed")
+    _flush()
+    rows = store.list_logs(db_path=isolated_db)
+    assert len(rows) == 1
+    assert rows[0]["message"] == "operation failed"
+    assert "ValueError: kaboom" in rows[0]["exc_text"]
+
+
+def test_capture_respects_level_threshold(isolated_db: str) -> None:
+    configure_log_capture(level=logging.WARNING)
+    test_logger = _test_logger()
+    test_logger.info("too quiet")
+    test_logger.error("loud enough")
+    _flush()
+    rows = store.list_logs(db_path=isolated_db)
+    assert [row["message"] for row in rows] == ["loud enough"]
+
+
+def test_configure_prunes_existing_backlog(isolated_db: str) -> None:
+    for i in range(10):
+        store.append_log(
+            level="INFO",
+            levelno=logging.INFO,
+            logger_name="app.capture_test",
+            message=f"old {i}",
+            db_path=isolated_db,
+        )
+    configure_log_capture(max_rows=4)
+    _flush()
+    assert len(store.list_logs(db_path=isolated_db)) == 4
+
+
+def test_reconfigure_does_not_duplicate_records(isolated_db: str) -> None:
+    configure_log_capture()
+    configure_log_capture()
+    _test_logger().info("once only")
+    _flush()
+    rows = store.list_logs(db_path=isolated_db)
+    assert [row["message"] for row in rows] == ["once only"]
+
+
+def test_store_failure_does_not_break_logging(
+    isolated_db: str,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    def boom(**kwargs: object) -> int:
+        raise RuntimeError("db exploded")
+
+    monkeypatch.setattr("app.logging_setup.store.append_log", boom)
+    configure_log_capture()
+    test_logger = _test_logger()
+    # Neither call may raise, even though every write fails.
+    test_logger.info("first")
+    test_logger.info("second")
+    _flush()
+    err = capsys.readouterr().err
+    # One warning latch, not one line per failed record.
+    assert err.count("log capture") == 1
