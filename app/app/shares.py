@@ -7,20 +7,15 @@ from typing import Any
 from fastapi import APIRouter, HTTPException, Request, Response
 
 from app import store
-from app.auth import require_principal
+from app.auth import client_id
 
 router = APIRouter(tags=["shares"])
-
-
-def _client_id(request: Request) -> str:
-    """Return the verified researcher subject or compatibility scope."""
-    return require_principal(request).subject
 
 
 def _owned_run(run_id: str, request: Request) -> store.RunRow:
     """Return a run only when the requesting browser owns it."""
     run = store.get_run(run_id)
-    if run is None or run.client_id != _client_id(request):
+    if run is None or run.client_id != client_id(request):
         raise HTTPException(status_code=404, detail="run not found")
     return run
 
@@ -31,7 +26,7 @@ async def create_share(run_id: str, request: Request) -> dict[str, Any]:
     _owned_run(run_id, request)
     if store.get_latest_report(run_id) is None:
         raise HTTPException(status_code=409, detail="Goal Report not ready")
-    return store.create_report_share(run_id, _client_id(request))
+    return store.create_report_share(run_id, client_id(request))
 
 
 @router.get("/api/runs/{run_id}/shares")
@@ -49,7 +44,7 @@ async def revoke_share(
 ) -> Response:
     """Revoke one public capability immediately."""
     _owned_run(run_id, request)
-    if not store.revoke_report_share(share_id, run_id, _client_id(request)):
+    if not store.revoke_report_share(share_id, run_id, client_id(request)):
         raise HTTPException(status_code=404, detail="share not found")
     return Response(status_code=204)
 

@@ -36,6 +36,7 @@ from __future__ import annotations
 
 import dataclasses
 import enum
+import functools
 import re
 from collections.abc import Callable, Collection, Sequence
 
@@ -246,11 +247,21 @@ class ClaimAssessment:
         return self.label is EntailmentLabel.CONTRADICTS
 
 
+# Short tokens (length <= 3) are dropped as noise, except these acronyms that
+# carry real domain meaning.
+_SHORT_TOKEN_EXCEPTIONS = frozenset({"aml"})
+
+
+@functools.lru_cache(maxsize=256)
 def _tokens(text: str) -> frozenset[str]:
-    """Normalized concept tokens for deterministic retrieval and fallback."""
+    """Normalized concept tokens for deterministic retrieval and fallback.
+
+    Cached because the same claim is re-tokenized across every candidate
+    passage during retrieval and assessment.
+    """
     tokens: set[str] = set()
     for token in re.findall(r"[a-z0-9]+", text.lower()):
-        if len(token) <= 3 and token not in {"aml"}:
+        if len(token) <= 3 and token not in _SHORT_TOKEN_EXCEPTIONS:
             continue
         tokens.add(_CONCEPT_ALIASES.get(token, token))
     return frozenset(tokens)
@@ -369,10 +380,13 @@ def deterministic_assessor(
         score = _lexical_score(claim, passage.text)
         lowered = passage.text.lower()
         has_marker = any(m in lowered for m in _CONTRADICTION_MARKERS)
-        quote = _best_sentence(claim, passage.text)
+        # Only locate the best sentence for passages that actually qualify;
+        # sentence splitting is wasted work for the rest.
         if has_marker and score >= support_threshold / 2:
+            quote = _best_sentence(claim, passage.text)
             contradicting.append((passage.evidence_id, quote))
         elif score >= support_threshold:
+            quote = _best_sentence(claim, passage.text)
             supporting.append((passage.evidence_id, quote))
 
     if contradicting:
@@ -575,51 +589,38 @@ def publication_gate(
         for claim in unsupported
         if allow_speculative or claim in speculative_set
     )
+    speculative_lookup = set(speculative)
     blocking_unsupported = tuple(
-        claim for claim in unsupported if claim not in set(speculative)
+        claim for claim in unsupported if claim not in speculative_lookup
     )
 
-    if contradicted:
+    def _result(decision: GateDecision, reason: str) -> GateResult:
         return GateResult(
+            decision, reason, contradicted, unsupported, speculative
+        )
+
+    if contradicted:
+        return _result(
             GateDecision.BLOCK,
             f"{len(contradicted)} fundamental claim(s) contradicted",
-            contradicted,
-            unsupported,
-            speculative,
         )
     if not assessments:
-        return GateResult(
-            GateDecision.BLOCK,
-            "no atomic claims could be assessed",
-            contradicted,
-            unsupported,
-            speculative,
-        )
+        return _result(GateDecision.BLOCK, "no atomic claims could be assessed")
     if require_supported_claim and not any(
         assessment.label is EntailmentLabel.SUPPORTS
         for assessment in assessments
     ):
-        return GateResult(
-            GateDecision.BLOCK,
-            "no evidence-supported contextual claim",
-            contradicted,
-            unsupported,
-            speculative,
+        return _result(
+            GateDecision.BLOCK, "no evidence-supported contextual claim"
         )
     if blocking_unsupported:
-        return GateResult(
+        return _result(
             GateDecision.BLOCK,
             f"{len(blocking_unsupported)} categorical claim(s) lack support",
-            contradicted,
-            unsupported,
-            speculative,
         )
-    return GateResult(
+    return _result(
         GateDecision.ALLOW,
         "all fundamental claims supported"
         if not unsupported
         else "categorical claims supported; novel claims labeled speculative",
-        contradicted,
-        unsupported,
-        speculative,
     )

@@ -322,12 +322,35 @@ async def _apply_pre_ranking_evidence_gate(state: dict[str, Any]) -> None:
             hypothesis.review_disposition = prior_disposition
 
 
-def _generator_and_opts(
-    task: ScientificTask, db_path: str | None
-) -> tuple[Any, dict[str, Any]]:
+def _require_run(task: ScientificTask, db_path: str | None) -> store.RunRow:
+    """Return the task's run or raise if it has been deleted."""
     run = store.get_run(task.run_id, db_path=db_path)
     if run is None:
         raise RuntimeError(f"run {task.run_id} no longer exists")
+    return run
+
+
+def _require_item_task(
+    item_id: Any, db_path: str | None, *, kind: str
+) -> ScientificTask:
+    """Return a fan-out item task or raise if it has vanished mid-flight."""
+    item = store.get_task(str(item_id), db_path=db_path)
+    if item is None:
+        raise RuntimeError(f"{kind} {item_id} disappeared")
+    return item
+
+
+def _successor_task_type(successor: str | None) -> str:
+    """Map a node successor to its durable task type (finalize when None)."""
+    if successor is None:
+        return FINALIZE_TASK
+    return f"{NODE_TASK_PREFIX}{successor}"
+
+
+def _generator_and_opts(
+    task: ScientificTask, db_path: str | None
+) -> tuple[Any, dict[str, Any]]:
+    run = _require_run(task, db_path)
     cfg = resolved_run_config(run.config)
     generator = _build_generator(_import_hypothesis_generator(), cfg)
     return generator, _build_engine_opts(cfg, run.id, db_path)
@@ -335,9 +358,7 @@ def _generator_and_opts(
 
 def _generator_for_restore(task: ScientificTask, db_path: str | None) -> Any:
     """Build a registry-compatible generator without consuming steering."""
-    run = store.get_run(task.run_id, db_path=db_path)
-    if run is None:
-        raise RuntimeError(f"run {task.run_id} no longer exists")
+    run = _require_run(task, db_path)
     return _build_generator(
         _import_hypothesis_generator(), resolved_run_config(run.config)
     )
@@ -361,9 +382,7 @@ def _save_state_and_enqueue(
         state,
         last_event_seq=store.latest_event_seq(task.run_id, db_path=db_path),
     )
-    successor_type = (
-        FINALIZE_TASK if successor is None else f"{NODE_TASK_PREFIX}{successor}"
-    )
+    successor_type = _successor_task_type(successor)
     with store.transaction(db_path) as conn:
         latest = store.get_latest_checkpoint(task.run_id, conn=conn)
         latest_seq = int(latest["seq"]) if latest else 0
@@ -540,9 +559,7 @@ async def execute_bootstrap(
     task: ScientificTask, *, db_path: str | None = None
 ) -> dict[str, Any]:
     """Safety-gate a run, prepare state, and enqueue the Supervisor task."""
-    run = store.get_run(task.run_id, db_path=db_path)
-    if run is None:
-        raise RuntimeError(f"run {task.run_id} no longer exists")
+    run = _require_run(task, db_path)
     emit = make_emitter(run.id, db_path=db_path)
     decision = await screen_contextual(
         run.research_goal,
@@ -601,6 +618,38 @@ def _latest_task_checkpoint(
     if checkpoint is None:
         raise RuntimeError("specialist task has no workflow checkpoint")
     return checkpoint, int(checkpoint["seq"])
+
+
+def _restore_item_checkpoint(
+    task: ScientificTask, db_path: str | None, *, superseded: str
+) -> tuple[dict[str, Any], int]:
+    """Restore the read-only workflow state a fan-out item task runs against.
+
+    Rejects a task whose leased checkpoint a newer one has already replaced,
+    then rebuilds the immutable state from the current checkpoint.
+
+    Args:
+        task: The leased fan-out item task.
+        db_path: Optional override for the SQLite database path.
+        superseded: Item label for the ``SupersededTaskError`` message.
+
+    Returns:
+        The restored workflow state dict and the leased checkpoint sequence.
+
+    Raises:
+        SupersededTaskError: When the leased checkpoint was superseded.
+    """
+    from co_scientist.checkpoint import restore_workflow_state
+
+    checkpoint, current_seq = _latest_task_checkpoint(task, db_path)
+    expected_seq = int(task.inputs["checkpoint_seq"])
+    if current_seq != expected_seq:
+        raise SupersededTaskError(f"{superseded} checkpoint was superseded")
+    generator = _generator_for_restore(task, db_path)
+    state = restore_workflow_state(
+        checkpoint["state"], tool_registry=generator.tool_registry
+    )
+    return state, expected_seq
 
 
 def _enqueue_review_fanout(
@@ -898,15 +947,9 @@ async def execute_review_item(
 ) -> dict[str, Any]:
     """Review one hypothesis without mutating the shared workflow checkpoint."""
     from co_scientist.agents.reflection.review import review_single_hypothesis
-    from co_scientist.checkpoint import restore_workflow_state
 
-    checkpoint, current_seq = _latest_task_checkpoint(task, db_path)
-    expected_seq = int(task.inputs["checkpoint_seq"])
-    if current_seq != expected_seq:
-        raise SupersededTaskError("review item checkpoint was superseded")
-    generator = _generator_for_restore(task, db_path)
-    state = restore_workflow_state(
-        checkpoint["state"], tool_registry=generator.tool_registry
+    state, expected_seq = _restore_item_checkpoint(
+        task, db_path, superseded="review item"
     )
     hypothesis_id = str(task.inputs["hypothesis_id"])
     hypothesis = next(
@@ -966,9 +1009,7 @@ async def execute_review_aggregate(
     successful = 0
     failed = 0
     for item_id in task.inputs.get("item_task_ids", []):
-        item = store.get_task(str(item_id), db_path=db_path)
-        if item is None:
-            raise RuntimeError(f"review item {item_id} disappeared")
+        item = _require_item_task(item_id, db_path, kind="review item")
         if item.status != "completed" or not item.result:
             failed += 1
             hypothesis_id = str(item.inputs.get("hypothesis_id", ""))
@@ -1017,21 +1058,13 @@ async def execute_verification_item(
     task: ScientificTask, *, db_path: str | None = None
 ) -> dict[str, Any]:
     """Deep-verify one hypothesis without mutating the workflow checkpoint."""
-    import asyncio
-
     from co_scientist.agents.reflection.deep_verification import (
         _verification_evidence_context,
         _verify_one,
     )
-    from co_scientist.checkpoint import restore_workflow_state
 
-    checkpoint, current_seq = _latest_task_checkpoint(task, db_path)
-    expected_seq = int(task.inputs["checkpoint_seq"])
-    if current_seq != expected_seq:
-        raise SupersededTaskError("verification item checkpoint was superseded")
-    generator = _generator_for_restore(task, db_path)
-    state = restore_workflow_state(
-        checkpoint["state"], tool_registry=generator.tool_registry
+    state, expected_seq = _restore_item_checkpoint(
+        task, db_path, superseded="verification item"
     )
     hypothesis_id = str(task.inputs["hypothesis_id"])
     hypothesis = next(
@@ -1072,17 +1105,9 @@ async def execute_generation_strategy(
     from co_scientist.agents.generation.literature_tools import (
         generate_with_tools,
     )
-    from co_scientist.checkpoint import restore_workflow_state
 
-    checkpoint, current_seq = _latest_task_checkpoint(task, db_path)
-    expected_seq = int(task.inputs["checkpoint_seq"])
-    if current_seq != expected_seq:
-        raise SupersededTaskError(
-            "generation strategy checkpoint was superseded"
-        )
-    generator = _generator_for_restore(task, db_path)
-    state = restore_workflow_state(
-        checkpoint["state"], tool_registry=generator.tool_registry
+    state, expected_seq = _restore_item_checkpoint(
+        task, db_path, superseded="generation strategy"
     )
     strategy = str(task.inputs["strategy"])
     count = int(task.inputs["count"])
@@ -1159,9 +1184,7 @@ async def execute_generation_aggregate(
     transcripts: list[dict[str, Any]] = []
     failed = 0
     for item_id in task.inputs.get("item_task_ids", []):
-        item = store.get_task(str(item_id), db_path=db_path)
-        if item is None:
-            raise RuntimeError(f"generation strategy {item_id} disappeared")
+        item = _require_item_task(item_id, db_path, kind="generation strategy")
         if item.status != "completed" or not item.result:
             failed += 1
             continue
@@ -1213,15 +1236,9 @@ async def execute_mature_reflection_item(
         analyze_single_hypothesis,
     )
     from co_scientist.agents.reflection.review_types import ReviewType
-    from co_scientist.checkpoint import restore_workflow_state
 
-    checkpoint, current_seq = _latest_task_checkpoint(task, db_path)
-    expected_seq = int(task.inputs["checkpoint_seq"])
-    if current_seq != expected_seq:
-        raise SupersededTaskError("mature reflection checkpoint was superseded")
-    generator = _generator_for_restore(task, db_path)
-    state = restore_workflow_state(
-        checkpoint["state"], tool_registry=generator.tool_registry
+    state, expected_seq = _restore_item_checkpoint(
+        task, db_path, superseded="mature reflection"
     )
     hypothesis_id = str(task.inputs["hypothesis_id"])
     hypothesis = next(
@@ -1291,9 +1308,7 @@ async def execute_mature_reflection_aggregate(
     failed = 0
     reflection_results: list[dict[str, Any]] = []
     for item_id in task.inputs.get("item_task_ids", []):
-        item = store.get_task(str(item_id), db_path=db_path)
-        if item is None:
-            raise RuntimeError(f"reflection task {item_id} disappeared")
+        item = _require_item_task(item_id, db_path, kind="reflection task")
         if item.status != "completed" or not item.result:
             failed += 1
             continue
@@ -1378,9 +1393,7 @@ async def execute_verification_aggregate(
     llm_calls = 0
     verification_results: list[dict[str, Any]] = []
     for item_id in task.inputs.get("item_task_ids", []):
-        item = store.get_task(str(item_id), db_path=db_path)
-        if item is None:
-            raise RuntimeError(f"verification item {item_id} disappeared")
+        item = _require_item_task(item_id, db_path, kind="verification item")
         if item.status != "completed" or not item.result:
             failed += 1
             continue
@@ -1727,9 +1740,7 @@ async def execute_node_task(
     run = store.get_run(task.run_id, db_path=db_path)
     if run is None or run.status == RunStatus.CANCELLED.value:
         raise RuntimeError("run cancelled during specialist execution")
-    successor_type = (
-        FINALIZE_TASK if successor is None else f"{NODE_TASK_PREFIX}{successor}"
-    )
+    successor_type = _successor_task_type(successor)
     if run.status == RunStatus.PAUSED.value:
         checkpoint_seq = _save_paused_state(
             task,
@@ -1784,9 +1795,7 @@ async def execute_finalize(
     """Drain the final checkpoint and publish through the shared report gate."""
     from co_scientist.checkpoint import restore_workflow_state
 
-    run = store.get_run(task.run_id, db_path=db_path)
-    if run is None:
-        raise RuntimeError(f"run {task.run_id} no longer exists")
+    run = _require_run(task, db_path)
     if run.status == RunStatus.CANCELLED.value:
         raise RuntimeError("run cancelled before finalization")
     if (

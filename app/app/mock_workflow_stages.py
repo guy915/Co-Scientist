@@ -123,39 +123,6 @@ async def _emit_cancelled_if_set(
     return await emit_cancel_or_pause(run_id, db_path, emit)
 
 
-async def _maybe_evolve_and_meta_review_round(
-    should_run: bool,
-    run_id: str,
-    research_goal: str,
-    db_path: str | None,
-    rng: random.Random,
-    hyp_ids: list[str],
-    elo_state: dict[str, int],
-    evolution_max_count: int,
-    itr: int,
-    emit: EmitFn,
-) -> AsyncIterator[dict[str, Any]]:
-    """Run the evolve/meta-review round when `should_run`, else yield nothing.
-
-    `should_run` is false only for the trailing ranking-only pass after the
-    last iteration, so evolve/meta never runs beyond `max_iterations`.
-    """
-    if not should_run:
-        return
-    async for event in _run_evolve_and_meta_review_round(
-        run_id,
-        research_goal,
-        db_path,
-        rng,
-        hyp_ids,
-        elo_state,
-        evolution_max_count,
-        itr,
-        emit,
-    ):
-        yield event
-
-
 # Version of the app-level (envelope) checkpoint the mock writes at iteration
 # boundaries. Bumped only if the envelope shape below changes.
 APP_CHECKPOINT_SCHEMA_VERSION = 1
@@ -230,19 +197,19 @@ async def _run_tournament_iterations(
 
         # Only run evolve/meta inside iterations, not after the final
         # ranking pass.
-        async for event in _maybe_evolve_and_meta_review_round(
-            itr <= cfg["max_iterations"],
-            run_id,
-            research_goal,
-            db_path,
-            rng,
-            hyp_ids,
-            elo_state,
-            cfg["evolution_max_count"],
-            itr,
-            emit,
-        ):
-            yield event
+        if itr <= cfg["max_iterations"]:
+            async for event in _run_evolve_and_meta_review_round(
+                run_id,
+                research_goal,
+                db_path,
+                rng,
+                hyp_ids,
+                elo_state,
+                cfg["evolution_max_count"],
+                itr,
+                emit,
+            ):
+                yield event
 
 
 async def _finalize_mock_run(

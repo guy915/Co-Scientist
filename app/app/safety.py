@@ -83,6 +83,20 @@ class SafetyDecision:
         }
 
 
+def _decision_from_review(stage: str, review: Any) -> SafetyDecision:
+    """Build a :class:`SafetyDecision` from a policy ``review`` result."""
+    return SafetyDecision(
+        stage=stage,
+        decision=review.decision,
+        reason=review.reason,
+        matches=list(review.matches),
+        category=review.category,
+        risk_domains=list(review.risk_domains),
+        requires_review=review.requires_review,
+        policy_version=review.policy_version,
+    )
+
+
 def screen_intake(goal: str) -> SafetyDecision:
     """Run the input gate. Returns block / redact / allow."""
     review = review_content_safety(
@@ -90,31 +104,13 @@ def screen_intake(goal: str) -> SafetyDecision:
         "intake",
         strict_intake=SAFETY_MODE == SafetyMode.STRICT,
     )
-    return SafetyDecision(
-        stage="intake",
-        decision=review.decision,
-        reason=review.reason,
-        matches=list(review.matches),
-        category=review.category,
-        risk_domains=list(review.risk_domains),
-        requires_review=review.requires_review,
-        policy_version=review.policy_version,
-    )
+    return _decision_from_review("intake", review)
 
 
 def screen_final(report_markdown: str) -> SafetyDecision:
     """Final-output gate. Block on hard hits; annotate dual-use otherwise."""
     review = review_content_safety(report_markdown or "", "final")
-    return SafetyDecision(
-        stage="final",
-        decision=review.decision,
-        reason=review.reason,
-        matches=list(review.matches),
-        category=review.category,
-        risk_domains=list(review.risk_domains),
-        requires_review=review.requires_review,
-        policy_version=review.policy_version,
-    )
+    return _decision_from_review("final", review)
 
 
 def _semantic_credential_available(model: str) -> bool:
@@ -157,8 +153,11 @@ async def screen_contextual(
     )
     if baseline.decision == "block":
         return baseline
-    model = settings.semantic_safety_model or settings.supervisor_model_name
-    model = model or settings.model_name
+    model = (
+        settings.semantic_safety_model
+        or settings.supervisor_model_name
+        or settings.model_name
+    )
     if (
         not settings.semantic_safety_enabled
         or not _semantic_credential_available(model)

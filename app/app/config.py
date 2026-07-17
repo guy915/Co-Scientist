@@ -124,6 +124,11 @@ class Settings(BaseSettings):
 settings = Settings()
 
 
+def _is_deepseek(model_name: str) -> bool:
+    """Whether ``model_name`` targets a DeepSeek model (thinking-capable)."""
+    return "deepseek" in model_name.lower()
+
+
 def deepseek_non_thinking_extra_body(model_name: str) -> dict[str, object]:
     """Return an ``extra_body`` that disables DeepSeek V4 thinking mode.
 
@@ -145,11 +150,9 @@ def deepseek_non_thinking_extra_body(model_name: str) -> dict[str, object]:
     Returns:
         ``{"thinking": {"type": "disabled"}}`` for DeepSeek models, else ``{}``.
     """
-    return (
-        {"thinking": {"type": "disabled"}}
-        if "deepseek" in model_name.lower()
-        else {}
-    )
+    if not _is_deepseek(model_name):
+        return {}
+    return {"thinking": {"type": "disabled"}}
 
 
 def deepseek_thinking_kwargs(model_name: str) -> dict[str, object]:
@@ -173,7 +176,7 @@ def deepseek_thinking_kwargs(model_name: str) -> dict[str, object]:
         ``{"extra_body": {"thinking": {"type": "enabled"}}, "reasoning_effort":
         "low"}`` for DeepSeek models, else ``{}``.
     """
-    if "deepseek" not in model_name.lower():
+    if not _is_deepseek(model_name):
         return {}
     return {
         "extra_body": {"thinking": {"type": "enabled"}},

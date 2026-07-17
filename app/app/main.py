@@ -413,12 +413,14 @@ async def get_system_status() -> dict[str, Any]:
 
     adapter_status = engine_adapter.system_status()
 
+    # Both legs are required: the literature_review node needs the MCP server
+    # up AND its PubMed-backed tools answering.
+    literature_available = mcp.available and pubmed.available
+
     return {
         "mcp_available": mcp.available,
         "pubmed_available": pubmed.available,
-        # Both legs are required: the literature_review node needs the MCP
-        # server up AND its PubMed-backed tools answering.
-        "literature_review_available": mcp.available and pubmed.available,
+        "literature_review_available": literature_available,
         "probes": {
             "mcp": {"state": mcp.state, "error": mcp.error},
             "pubmed": {"state": pubmed.state, "error": pubmed.error},
@@ -426,7 +428,7 @@ async def get_system_status() -> dict[str, Any]:
         # User-facing data-source connectors for the composer menu, derived
         # from literature availability plus the configured tools YAML.
         "connectors": engine_adapter.connectors_report(
-            literature_available=mcp.available and pubmed.available,
+            literature_available=literature_available,
             enabled_tools=adapter_status.get("enabled_tools"),
         ),
         # provider/mock_mode/model_name/etc. from engine_adapter.system_status

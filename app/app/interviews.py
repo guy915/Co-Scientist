@@ -13,7 +13,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from app import store
-from app.auth import require_principal
+from app.auth import client_id
 from app.config import deepseek_thinking_kwargs, settings
 from app.qa import sse_frame
 
@@ -89,15 +89,10 @@ class InterviewFieldsRequest(BaseModel):
     title: str | None = Field(None, max_length=200)
 
 
-def _client_id(request: Request) -> str:
-    """Return the verified researcher subject or compatibility scope."""
-    return require_principal(request).subject
-
-
 def _owned_interview(interview_id: str, request: Request) -> dict[str, Any]:
     """Return an owned interview or raise without leaking its existence."""
     interview = store.get_interview(interview_id)
-    if interview is None or interview["client_id"] != _client_id(request):
+    if interview is None or interview["client_id"] != client_id(request):
         raise HTTPException(status_code=404, detail="interview not found")
     return interview
 
@@ -438,7 +433,7 @@ async def create_interview(
 ) -> StreamingResponse:
     """Start a durable Agent interview and stream its opening turn."""
     interview = store.create_interview(
-        _client_id(request), body.research_challenge
+        client_id(request), body.research_challenge
     )
     return _interview_stream(str(interview["id"]))
 

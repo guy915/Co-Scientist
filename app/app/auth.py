@@ -124,6 +124,11 @@ def require_principal(request: Request) -> Principal:
     return principal
 
 
+def client_id(request: Request) -> str:
+    """Return the verified researcher subject or compatibility scope."""
+    return require_principal(request).subject
+
+
 def _configured_codes() -> dict[str, str]:
     """Parse configured researcher-to-code mapping, failing closed."""
     try:
