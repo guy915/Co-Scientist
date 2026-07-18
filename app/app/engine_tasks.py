@@ -1051,7 +1051,14 @@ async def execute_review_aggregate(
         expected_checkpoint_seq=current_seq,
         db_path=db_path,
     )
-    _emit_node_milestone(task.run_id, "review", committed, db_path)
+    await _emit_node_completion(
+        task.run_id,
+        "review",
+        "comprehensive_reflection",
+        committed,
+        checkpoint_seq,
+        db_path,
+    )
     return {
         "checkpoint_seq": checkpoint_seq,
         "successor_task_id": successor_id,
@@ -1223,7 +1230,9 @@ async def execute_generation_aggregate(
         expected_checkpoint_seq=current_seq,
         db_path=db_path,
     )
-    _emit_node_milestone(task.run_id, "generate", committed, db_path)
+    await _emit_node_completion(
+        task.run_id, "generate", successor, committed, checkpoint_seq, db_path
+    )
     return {
         "checkpoint_seq": checkpoint_seq,
         "successor_task_id": successor_id,
@@ -1360,8 +1369,13 @@ async def execute_mature_reflection_aggregate(
         expected_checkpoint_seq=current_seq,
         db_path=db_path,
     )
-    _emit_node_milestone(
-        task.run_id, "comprehensive_reflection", committed, db_path
+    await _emit_node_completion(
+        task.run_id,
+        "comprehensive_reflection",
+        "safety_screen",
+        committed,
+        checkpoint_seq,
+        db_path,
     )
     return {
         "checkpoint_seq": checkpoint_seq,
@@ -1438,7 +1452,14 @@ async def execute_verification_aggregate(
         expected_checkpoint_seq=current_seq,
         db_path=db_path,
     )
-    _emit_node_milestone(task.run_id, "deep_verification", committed, db_path)
+    await _emit_node_completion(
+        task.run_id,
+        "deep_verification",
+        "ranking",
+        committed,
+        checkpoint_seq,
+        db_path,
+    )
     return {
         "checkpoint_seq": checkpoint_seq,
         "successor_task_id": successor_id,
@@ -1666,7 +1687,14 @@ async def execute_ranking_finalize(
         expected_checkpoint_seq=current_seq,
         db_path=db_path,
     )
-    _emit_node_milestone(task.run_id, "ranking", committed, db_path)
+    await _emit_node_completion(
+        task.run_id,
+        "ranking",
+        "orchestrator",
+        committed,
+        checkpoint_seq,
+        db_path,
+    )
     return {
         "checkpoint_seq": checkpoint_seq,
         "successor_task_id": successor_id,
@@ -1773,16 +1801,8 @@ async def execute_node_task(
         expected_checkpoint_seq=current_seq,
         db_path=db_path,
     )
-    _emit_node_milestone(task.run_id, node_name, committed, db_path)
-    emit = make_emitter(task.run_id, db_path=db_path)
-    await emit(
-        "scientific_task",
-        {
-            "task": node_name,
-            "status": "completed",
-            "checkpoint_seq": checkpoint_seq,
-            "successor": successor,
-        },
+    await _emit_node_completion(
+        task.run_id, node_name, successor, committed, checkpoint_seq, db_path
     )
     return {
         "checkpoint_seq": checkpoint_seq,
@@ -1845,6 +1865,46 @@ def _emit_node_milestone(
         store.append_message(
             run_id, "system", milestone, "milestone", db_path=db_path
         )
+
+
+async def _emit_node_completion(
+    run_id: str,
+    node_name: str,
+    successor: str | None,
+    committed: dict[str, Any],
+    checkpoint_seq: int,
+    db_path: str | None,
+) -> None:
+    """Emit the milestone and ``scientific_task`` event for one node.
+
+    Pairs the two side-effects the streaming path's ``_emit_engine_node_event``
+    couples for every node: a milestone chat message (a no-op for node types
+    without one) and the ``scientific_task`` completion event the frontend's
+    live-activity feed (``ACTIVITY_META``) and mid-run refetch logic key on.
+
+    Before this, the five fan-out aggregate completions (``generate``,
+    ``review``, ``comprehensive_reflection``, ``deep_verification``,
+    ``ranking`` -- the node types where the durable path's actual scientific
+    work happens) emitted no event of any kind, leaving the live-activity feed
+    blind to exactly the nodes doing the substantive work. Only the generic
+    ``execute_node_task`` completion path emitted ``scientific_task``.
+
+    Callers place this immediately after the node's checkpoint commit,
+    downstream of that function's existing checkpoint-replay/supersession
+    guard, so a redelivered or replayed task never double-emits either side
+    effect (same reasoning as ``_emit_node_milestone``).
+    """
+    _emit_node_milestone(run_id, node_name, committed, db_path)
+    emit = make_emitter(run_id, db_path=db_path)
+    await emit(
+        "scientific_task",
+        {
+            "task": node_name,
+            "status": "completed",
+            "checkpoint_seq": checkpoint_seq,
+            "successor": successor,
+        },
+    )
 
 
 async def execute_finalize(

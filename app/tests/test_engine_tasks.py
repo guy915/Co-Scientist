@@ -597,6 +597,15 @@ async def test_review_fanout_uses_independent_leases_and_one_aggregate_commit(
     assert checkpoint is not None and checkpoint["seq"] == 3
     persisted = checkpoint["state"]["state"]["hypotheses"]
     assert [hypothesis["score"] for hypothesis in persisted] == [8.0, 8.0]
+    # The review fan-out aggregate -- one of the five node types the fan-out
+    # architecture previously left silent on the event stream -- now emits
+    # its own scientific_task completion, same as the generic node path.
+    events = store.list_events(run.id, db_path=isolated_db)
+    review_events = [e for e in events if e["payload"].get("task") == "review"]
+    assert len(review_events) == 1
+    assert (
+        review_events[0]["payload"]["successor"] == "comprehensive_reflection"
+    )
 
 
 @pytest.mark.asyncio
@@ -773,6 +782,12 @@ async def test_verification_children_commit_through_single_aggregator(
     assert [message.content for message in milestones] == [
         "3 hypotheses verified"
     ]
+    events = store.list_events(run.id, db_path=isolated_db)
+    verification_events = [
+        e for e in events if e["payload"].get("task") == "deep_verification"
+    ]
+    assert len(verification_events) == 1
+    assert verification_events[0]["payload"]["successor"] == "ranking"
 
 
 @pytest.mark.asyncio
@@ -901,6 +916,12 @@ async def test_ranking_matches_are_separate_sequential_checkpointed_tasks(
     assert [message.content for message in milestones] == [
         "Tournament complete (iteration 0, 3 matches)"
     ]
+    events = store.list_events(run.id, db_path=isolated_db)
+    ranking_events = [
+        e for e in events if e["payload"].get("task") == "ranking"
+    ]
+    assert len(ranking_events) == 1
+    assert ranking_events[0]["payload"]["successor"] == "orchestrator"
 
 
 @pytest.mark.asyncio
@@ -1133,6 +1154,12 @@ async def test_generation_strategies_are_independently_leased_and_aggregated(
     assert [message.content for message in milestones] == [
         "3 hypotheses generated (initial)"
     ]
+    events = store.list_events(run.id, db_path=isolated_db)
+    generate_events = [
+        e for e in events if e["payload"].get("task") == "generate"
+    ]
+    assert len(generate_events) == 1
+    assert generate_events[0]["payload"]["successor"] == "review"
     successor = store.claim_task("review", run_id=run.id, db_path=isolated_db)
     assert successor is not None
     assert successor.task_type == f"{engine_tasks.NODE_TASK_PREFIX}review"
@@ -1257,6 +1284,16 @@ async def test_mature_reflection_modes_are_independent_durable_tasks(
     assert (
         successor.task_type == f"{engine_tasks.NODE_TASK_PREFIX}safety_screen"
     )
+    # The mature-reflection fan-out aggregate now emits its own
+    # scientific_task completion, matching the other four aggregates.
+    events = store.list_events(run.id, db_path=isolated_db)
+    reflection_events = [
+        e
+        for e in events
+        if e["payload"].get("task") == "comprehensive_reflection"
+    ]
+    assert len(reflection_events) == 1
+    assert reflection_events[0]["payload"]["successor"] == "safety_screen"
 
 
 @pytest.mark.asyncio
