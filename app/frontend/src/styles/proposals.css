@@ -359,12 +359,17 @@
   opacity: 0.22;
 }
 
-.proposals-node:focus-visible {
+/* A focusable <g> still takes the browser's default ring on a plain mouse
+   click, so the reset has to be on :focus — scoping it to :focus-visible
+   leaves the click case showing the UA outline. */
+.proposals-node:focus {
   outline: none;
 }
 
+/* Keyboard focus keeps a ring, in the app's accent rather than the
+   Settings rail's selection blue. */
 .proposals-node:focus-visible rect {
-  stroke: var(--cosci-blue);
+  stroke: var(--cosci-step-dot-bg);
   stroke-width: 3;
 }
 

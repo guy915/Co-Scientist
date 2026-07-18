@@ -43,6 +43,20 @@ describe('ProposalsPage', () => {
     ).toBeInTheDocument();
   });
 
+  it('closes the detail when the open node is chosen again', async () => {
+    renderPage('/proposals?node=live-session');
+    expect(screen.getByLabelText('Live sessions detail')).toBeInTheDocument();
+    await userEvent.click(
+      screen.getByRole('button', {name: /^Live sessions\./}),
+    );
+    expect(screen.queryByLabelText('Live sessions detail')).toBeNull();
+  });
+
+  it('hides the legends while a detail is open', () => {
+    const {container} = renderPage('/proposals?node=live-session');
+    expect(container.querySelector('.proposals-legend')).toBeNull();
+  });
+
   it('ignores an unknown node in the query string', () => {
     const {container} = renderPage('/proposals?node=not-a-proposal');
     expect(container.querySelector('.proposals-detail')).toBeNull();

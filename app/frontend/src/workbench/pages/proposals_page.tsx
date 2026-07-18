@@ -42,10 +42,11 @@ export function ProposalsPage() {
   const select = useCallback(
     (id: string) => {
       // `replace` keeps the back button meaningful: walking the argument
-      // node to node should not fill history with every hop.
-      setParams(id ? {node: id} : {}, {replace: true});
+      // node to node should not fill history with every hop. Choosing the
+      // open node again closes it, so the same gesture opens and dismisses.
+      setParams(id && id !== selectedId ? {node: id} : {}, {replace: true});
     },
-    [setParams],
+    [setParams, selectedId],
   );
 
   const clearSelection = useCallback(() => {
@@ -65,16 +66,20 @@ export function ProposalsPage() {
           onActivate={setActiveId}
           onSelect={select}
         />
-        <ProposalsLegend
-          selectedKinds={selectedKinds}
-          onToggleKind={kind =>
-            setSelectedKinds(current => toggled(current, kind))
-          }
-          selectedClusters={selectedClusters}
-          onToggleCluster={cluster =>
-            setSelectedClusters(current => toggled(current, cluster))
-          }
-        />
+        {/* The legends explain the whole graph; while one proposal is open
+            the detail panel is the thing being read, so they step aside. */}
+        {!selected && (
+          <ProposalsLegend
+            selectedKinds={selectedKinds}
+            onToggleKind={kind =>
+              setSelectedKinds(current => toggled(current, kind))
+            }
+            selectedClusters={selectedClusters}
+            onToggleCluster={cluster =>
+              setSelectedClusters(current => toggled(current, cluster))
+            }
+          />
+        )}
       </div>
       {selected && (
         <ProposalsDetail
