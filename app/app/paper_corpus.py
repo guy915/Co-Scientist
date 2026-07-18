@@ -38,11 +38,11 @@ from app.run_corpus import (
 
 logger = logging.getLogger(__name__)
 
-# Where sanitized papers live. Kept outside the package (and out of git) by
-# default: the corpus is publisher-copyrighted full text and this repository
-# is public. Override to point at a mounted volume in a deployment.
+# Where sanitized papers live: `corpus/sbi_ucd` at the repository root, which
+# is `app/app/paper_corpus.py` -> app/app -> app -> root. Override to point at
+# a mounted copy in a deployment that does not ship the repository tree.
 CORPUS_ENV_VAR = "SBI_CORPUS_DIR"
-_DEFAULT_CORPUS_DIR = Path(__file__).resolve().parents[3] / "corpus" / "sbi_ucd"
+_DEFAULT_CORPUS_DIR = Path(__file__).resolve().parents[2] / "corpus" / "sbi_ucd"
 
 # A passage large enough to carry an argument, small enough that several fit
 # in a prompt beside everything else a call already carries.

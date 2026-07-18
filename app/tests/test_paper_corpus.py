@@ -1,7 +1,8 @@
 """Tests for paper-corpus sanitation, chunking, and retrieval.
 
-Every test builds its own corpus in a temp directory. The real corpus is
-publisher-copyrighted and git-ignored, so nothing here may assume it exists.
+Every test builds its own corpus in a temp directory rather than reading the
+committed one, so behaviour is pinned to fixed inputs and does not shift when
+a paper is re-ingested.
 """
 
 from __future__ import annotations
@@ -137,6 +138,20 @@ def test_retrieval_finds_the_relevant_paper(tmp_path: Path) -> None:
     hits = retriever.retrieve("trametinib MEK feedback", k=3)
     assert hits
     assert hits[0].document.title == "MAPK Feedback Paper"
+
+
+def test_default_corpus_directory_is_inside_the_repository() -> None:
+    """The default path is load-bearing now that the corpus is committed.
+
+    It resolved one level too high for a while and nothing caught it: every
+    other test sets the environment override, and an absent corpus is a
+    supported state, so the wrong path failed silently as "no corpus".
+    """
+    default = paper_corpus._DEFAULT_CORPUS_DIR
+    assert default.name == "sbi_ucd"
+    # app/app/paper_corpus.py -> app/app -> app -> the repository root, which
+    # is the directory holding both `app` and `corpus`.
+    assert (default.parent.parent / "app").is_dir()
 
 
 def test_absent_corpus_is_not_an_error(tmp_path: Path) -> None:

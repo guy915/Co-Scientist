@@ -60,7 +60,9 @@ cache/
 .claude/
 .remember/
 
-# Lab paper corpus: publisher-copyrighted full text, and this repo is public.
-# Rebuild with: python -m app.corpus_ingest <pdf-dir>
-corpus/*
-!corpus/README.md
+# Paper corpus. The corpus is committed: the papers are open access, so the
+# app works from a clean checkout with no setup. These two are the exception
+# -- both carry an Elsevier "All rights reserved" notice -- so they are held
+# back. Rebuild any of it with: python -m app.corpus_ingest <pdf-dir>
+corpus/sbi_ucd/modular-response-analysis-of-cellular-regulatory-networks.md
+corpus/sbi_ucd/reconstructing-static-and-dynamic-models-of-signaling-pathways-using-modular-res.md

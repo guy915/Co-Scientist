@@ -115,10 +115,13 @@ numbered manifest.
 LiteLLM as text prompts and there is no PDF input path, so binary is not
 merely wasteful here — it does not work.
 
-**The corpus stays out of git.** It is publisher-copyrighted full text and
-this repository is public, so `corpus/` is ignored except its README, and the
-location is configurable via `SBI_CORPUS_DIR`. An absent corpus is the normal
-state of a checkout: retrieval returns nothing and every surface falls back.
+**The corpus is committed.** The papers are open access, so a clean checkout
+gets working retrieval with no setup, and deployments that ship the
+repository tree need no extra configuration. Two Elsevier papers carrying
+"All rights reserved" are git-ignored by name. The location stays
+configurable via `SBI_CORPUS_DIR` for deployments that mount it elsewhere,
+and an absent or partial corpus is not an error: retrieval returns nothing
+and every surface falls back.
 
 **Retrieval is audience-gated.** One group's library is never served to
 another audience.

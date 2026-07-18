@@ -1,13 +1,18 @@
 # Paper corpora
 
 Sanitized full text of a research group's own papers, searched by the
-audience-gated corpus retriever. **The papers themselves are not in git.**
-They are publisher-copyrighted and this repository is public, so everything
-in this directory except this file is ignored.
+audience-gated corpus retriever.
 
-A checkout without a corpus is the normal state. Retrieval returns nothing,
-the MCP tool reports an empty result, and every surface falls back to its
-previous behaviour.
+The corpus is committed, so a clean checkout has working retrieval with no
+setup. The papers are open access. Two exceptions carry an Elsevier "All
+rights reserved" notice and are git-ignored by name, so rebuild locally if
+you want them:
+
+- `modular-response-analysis-of-cellular-regulatory-networks`
+- `reconstructing-static-and-dynamic-models-of-signaling-pathways-...`
+
+An absent or partial corpus is not an error. Retrieval returns nothing, the
+MCP tool reports an empty result, and every surface falls back.
 
 ## Building the SBI/UCD corpus
 
