@@ -1,4 +1,4 @@
-import {useMemo, type ReactNode} from 'react';
+import {useMemo} from 'react';
 import {
   clusters,
   leadsFrom,
@@ -14,7 +14,6 @@ import {
   edgeGeometry,
   neighborsOf,
   nodePositions,
-  type Box,
 } from './proposals_layout';
 
 /**
@@ -46,9 +45,6 @@ function labelLines(label: string): string[] {
  * @param props.selectedClusters Highlighted categories; empty means all.
  * @param props.onActivate Hover/focus a node, or null on leave.
  * @param props.onSelect Open a node's detail.
- * @param props.view Visible region, defaulting to the whole canvas. The
- *   layout editor passes a live one so panning and zooming redraw.
- * @param props.overlay Rendered above the graph, for the editor's handles.
  */
 export function ProposalsGraph({
   activeId,
@@ -57,8 +53,6 @@ export function ProposalsGraph({
   selectedClusters,
   onActivate,
   onSelect,
-  view = CANVAS,
-  overlay,
 }: {
   activeId: string | null;
   selectedId: string | null;
@@ -66,8 +60,6 @@ export function ProposalsGraph({
   selectedClusters: Set<ClusterId>;
   onActivate: (id: string | null) => void;
   onSelect: (id: string) => void;
-  view?: Box;
-  overlay?: ReactNode;
 }) {
   // The node driving isolation: an explicit hover wins, otherwise the open
   // selection keeps its relationships lit so the detail panel and the graph
@@ -99,7 +91,7 @@ export function ProposalsGraph({
   return (
     <svg
       className="proposals-graph"
-      viewBox={`${view.x} ${view.y} ${view.width} ${view.height}`}
+      viewBox={`${CANVAS.x} ${CANVAS.y} ${CANVAS.width} ${CANVAS.height}`}
       role="img"
       aria-label={
         'Relationship graph of the proposals. The same content is written ' +
@@ -228,8 +220,6 @@ export function ProposalsGraph({
           );
         })}
       </g>
-
-      {overlay}
     </svg>
   );
 }

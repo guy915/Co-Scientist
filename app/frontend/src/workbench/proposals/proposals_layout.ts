@@ -49,16 +49,16 @@ const ROW = {top: 295, bottom: 640};
 // wide and would otherwise collide left-to-right. `start` rotates the ring
 // so the first node lands at the top. Every `ry` stays within HALF_SPAN so
 // the shared hull height covers each cluster's nodes.
-export interface Ring {
+interface Ring {
   center: Point;
   rx: number;
   ry: number;
   start: number;
 }
 
-export type Rings = Record<ClusterId, Ring>;
+type Rings = Record<ClusterId, Ring>;
 
-export const RINGS: Rings = {
+const RINGS: Rings = {
   evaluation: {center: {x: 442, y: ROW.top}, rx: 122, ry: 85, start: -90},
   scaling: {center: {x: 976, y: ROW.top}, rx: 141, ry: 85, start: -90},
   // rx has to keep the two nodes that share a y on the ring from colliding:
@@ -74,7 +74,7 @@ export const RINGS: Rings = {
  * around their cluster's ring in data order, so inserting a node into
  * proposals_data.ts places it without touching this module.
  */
-export function nodePositionsFor(rings: Rings): Record<string, Point> {
+function nodePositionsFor(rings: Rings): Record<string, Point> {
   const positions: Record<string, Point> = {};
   for (const cluster of clusters) {
     const ring = rings[cluster.id];
@@ -98,7 +98,7 @@ export const nodePositions = nodePositionsFor(RINGS);
  * nodes, but height is shared: a row of boxes that differ by twenty pixels
  * reads as a mistake rather than as a difference in content.
  */
-export function clusterBoundsFor(
+function clusterBoundsFor(
   rings: Rings,
   positions: Record<string, Point>,
   clusterId: ClusterId,
@@ -180,9 +180,7 @@ export interface EdgeGeometry {
 /**
  * Path geometry for every edge, in the same order as `edges`.
  */
-export function edgeGeometryFor(
-  positions: Record<string, Point>,
-): EdgeGeometry[] {
+function edgeGeometryFor(positions: Record<string, Point>): EdgeGeometry[] {
   return edges.map((edge, index) => {
     const from = positions[edge.from];
     const to = positions[edge.to];

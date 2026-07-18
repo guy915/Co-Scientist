@@ -8,9 +8,6 @@ import {
 import {ProposalsDetail} from '../proposals/proposals_detail';
 import {ProposalsGraph} from '../proposals/proposals_graph';
 import {ProposalsLegend} from '../proposals/proposals_legend';
-// TEMPORARY: delete along with proposals_layout_editor.tsx once the cluster
-// arrangement is settled.
-import {useLayoutEditor} from '../proposals/proposals_layout_editor';
 
 // Adds or removes one member, which is all either legend needs: an empty
 // set means "no filter", so unselecting the last chip restores the graph
@@ -35,9 +32,6 @@ export function ProposalsPage() {
   const [selectedClusters, setSelectedClusters] = useState<Set<ClusterId>>(
     new Set(),
   );
-
-  const editing = params.get('edit') === '1';
-  const editor = useLayoutEditor();
 
   const selectedId = params.get('node');
   const selected = useMemo(
@@ -71,27 +65,20 @@ export function ProposalsPage() {
           selectedClusters={selectedClusters}
           onActivate={setActiveId}
           onSelect={select}
-          view={editing ? editor.view : undefined}
-          overlay={editing ? editor.overlay : undefined}
         />
-        {editing && editor.panel}
         {/* The legends explain the whole graph; while one proposal is open
-            the detail panel is the thing being read, so they step aside.
-            While editing they stay, outlined: they overlay the canvas, so
-            their footprint is part of the layout being decided. */}
+            the detail panel is the thing being read, so they step aside. */}
         {!selected && (
-          <div className={editing ? 'proposals-legend-ghost' : undefined}>
-            <ProposalsLegend
-              selectedKinds={selectedKinds}
-              onToggleKind={kind =>
-                setSelectedKinds(current => toggled(current, kind))
-              }
-              selectedClusters={selectedClusters}
-              onToggleCluster={cluster =>
-                setSelectedClusters(current => toggled(current, cluster))
-              }
-            />
-          </div>
+          <ProposalsLegend
+            selectedKinds={selectedKinds}
+            onToggleKind={kind =>
+              setSelectedKinds(current => toggled(current, kind))
+            }
+            selectedClusters={selectedClusters}
+            onToggleCluster={cluster =>
+              setSelectedClusters(current => toggled(current, cluster))
+            }
+          />
         )}
       </div>
       {selected && (
