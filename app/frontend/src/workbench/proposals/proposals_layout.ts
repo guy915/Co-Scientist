@@ -22,21 +22,33 @@ export interface Point {
   y: number;
 }
 
+// The two rows every cluster sits on. Clusters share a row's center line so
+// their hulls line up exactly rather than approximately. The top row starts
+// low enough to clear the corner legends, which overlay the canvas down to
+// roughly y=140 in these coordinates.
+const ROW = {top: 290, bottom: 630};
+
 // Cluster anchors, hand-placed so that the clusters with the most traffic
 // between them sit adjacent and long edges stay rare. `rx`/`ry` size the
 // ring the cluster's nodes sit on: wider than tall, because node boxes are
 // wide and would otherwise collide left-to-right. `start` rotates the ring
-// so the first node lands at the top.
+// so the first node lands at the top. Every `ry` stays within HALF_SPAN so
+// the shared hull height covers each cluster's nodes.
 const RINGS: Record<
   ClusterId,
   {center: Point; rx: number; ry: number; start: number}
 > = {
-  scaling: {center: {x: 250, y: 325}, rx: 110, ry: 95, start: -90},
-  evaluation: {center: {x: 625, y: 155}, rx: 125, ry: 100, start: -90},
-  interaction: {center: {x: 305, y: 630}, rx: 125, ry: 100, start: -90},
-  knowledge: {center: {x: 1000, y: 190}, rx: 0, ry: 78, start: -90},
-  capabilities: {center: {x: 830, y: 520}, rx: 160, ry: 100, start: -90},
+  evaluation: {center: {x: 420, y: ROW.top}, rx: 130, ry: 84, start: -90},
+  scaling: {center: {x: 900, y: ROW.top}, rx: 118, ry: 84, start: -90},
+  interaction: {center: {x: 235, y: ROW.bottom}, rx: 115, ry: 84, start: -90},
+  knowledge: {center: {x: 600, y: ROW.bottom}, rx: 0, ry: 84, start: -90},
+  capabilities: {center: {x: 965, y: ROW.bottom}, rx: 125, ry: 84, start: -90},
 };
+
+// The furthest any node sits from its row's center line. Every hull is drawn
+// this tall, so the five cluster boxes are identical in height and the two
+// rows read as rows.
+const HALF_SPAN = Math.max(...Object.values(RINGS).map(ring => ring.ry));
 
 export const clusterCenters: Record<ClusterId, Point> = {
   scaling: RINGS.scaling.center,
@@ -67,6 +79,25 @@ export const nodePositions: Record<string, Point> = (() => {
   }
   return positions;
 })();
+
+/**
+ * The soft box drawn behind each cluster. Width follows the cluster's own
+ * nodes, but height is shared: a row of boxes that differ by twenty pixels
+ * reads as a mistake rather than as a difference in content.
+ */
+export function clusterBounds(clusterId: ClusterId) {
+  const members = nodes.filter(node => node.cluster === clusterId);
+  const xs = members.map(node => nodePositions[node.id].x);
+  const padX = NODE.width / 2 + 26;
+  const padY = NODE.height / 2 + 34;
+  const height = (HALF_SPAN + padY) * 2;
+  return {
+    x: Math.min(...xs) - padX,
+    y: RINGS[clusterId].center.y - height / 2,
+    width: Math.max(...xs) - Math.min(...xs) + padX * 2,
+    height,
+  };
+}
 
 /** Stable key for an unordered node pair. */
 function pairKey(edge: Edge): string {

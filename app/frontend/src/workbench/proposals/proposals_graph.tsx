@@ -10,6 +10,7 @@ import {
 import {
   CANVAS,
   NODE,
+  clusterBounds,
   edgeGeometry,
   neighborsOf,
   nodePositions,
@@ -32,23 +33,6 @@ function labelLines(label: string): string[] {
   }
   if (breakAt === -1) return [label];
   return [label.slice(0, breakAt), label.slice(breakAt + 1)];
-}
-
-// Cluster hulls: a soft rounded rect behind each cluster's nodes, so the
-// grouping reads spatially before any label is processed. Sized from the
-// ring extents rather than hardcoded.
-function clusterBounds(clusterId: string) {
-  const members = nodes.filter(node => node.cluster === clusterId);
-  const xs = members.map(node => nodePositions[node.id].x);
-  const ys = members.map(node => nodePositions[node.id].y);
-  const padX = NODE.width / 2 + 26;
-  const padY = NODE.height / 2 + 34;
-  return {
-    x: Math.min(...xs) - padX,
-    y: Math.min(...ys) - padY,
-    width: Math.max(...xs) - Math.min(...xs) + padX * 2,
-    height: Math.max(...ys) - Math.min(...ys) + padY * 2,
-  };
 }
 
 /**
