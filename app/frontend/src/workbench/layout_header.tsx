@@ -1,12 +1,62 @@
-import {type RefObject} from 'react';
+import {type ReactNode, type RefObject} from 'react';
 import {Icon} from '@/components/icon';
+import {useAudience} from './audience_context';
 import {GoogleLabsIcon} from './components/google_labs_icon';
 import {TruncatedLabel} from './components/truncated_label';
 import {DiagnosticsControl} from './layout_diagnostics';
+import {GoogleTeamControl} from './layout_google_control';
 import {type ShellPanel} from './layout_hooks';
+import {PilotControl} from './layout_pilot_control';
 import {NAV_ICON_CLASSES, ShellPopover} from './layout_primitives';
 import {SystemStatusIndicator} from './layout_status';
 import {tooltipClassNames} from './tooltip';
+
+// The header's rightmost control depends on the selected audience: the Google
+// team sees a personal note, SBI/UCD pilots see an early-access guide, and
+// everyone else sees the diagnostics Logs popover. All three share the shell's
+// popover slot ('logs') so they stay mutually exclusive with Settings.
+function AudienceHeaderControl({
+  activePanel,
+  onTogglePanel,
+  activeRunId,
+}: {
+  activePanel: ShellPanel | null;
+  onTogglePanel: (panel: ShellPanel) => void;
+  activeRunId?: string;
+}) {
+  const {audience} = useAudience();
+  const open = activePanel === 'logs';
+  const onToggle = () => onTogglePanel('logs');
+  const renderPopover = (children: ReactNode, className: string) => (
+    <ShellPopover className={className}>{children}</ShellPopover>
+  );
+  if (audience === 'google') {
+    return (
+      <GoogleTeamControl
+        open={open}
+        onToggle={onToggle}
+        renderPopover={renderPopover}
+      />
+    );
+  }
+  if (audience === 'sbi_ucd') {
+    return (
+      <PilotControl
+        open={open}
+        onToggle={onToggle}
+        renderPopover={renderPopover}
+      />
+    );
+  }
+  return (
+    <DiagnosticsControl
+      open={open}
+      onToggle={onToggle}
+      runId={activeRunId}
+      renderPopover={renderPopover}
+    />
+  );
+}
 
 const HEADER_CLASSES = 'ucs-header-action-bar';
 
@@ -106,13 +156,10 @@ export function ShellHeader({
       </div>
       <div ref={logsControlRef} className={HEADER_ACTIONS_CLASSES}>
         <SystemStatusIndicator />
-        <DiagnosticsControl
-          open={activePanel === 'logs'}
-          onToggle={() => onTogglePanel('logs')}
-          runId={activeRunId}
-          renderPopover={(children, className) => (
-            <ShellPopover className={className}>{children}</ShellPopover>
-          )}
+        <AudienceHeaderControl
+          activePanel={activePanel}
+          onTogglePanel={onTogglePanel}
+          activeRunId={activeRunId}
         />
       </div>
     </header>
