@@ -2,6 +2,7 @@ import {useMemo} from 'react';
 import {
   clusters,
   nodes,
+  type ClusterId,
   type EdgeKind,
   type ProposalNode,
 } from './proposals_data';
@@ -55,20 +56,23 @@ function clusterBounds(clusterId: string) {
  * @param props.activeId Node being hovered or focused; its relationships are
  *   isolated and everything unconnected recedes.
  * @param props.selectedId Node whose detail is open.
- * @param props.visibleKinds Edge kinds currently passing the filter.
+ * @param props.selectedKinds Highlighted edge kinds; empty means all.
+ * @param props.selectedClusters Highlighted categories; empty means all.
  * @param props.onActivate Hover/focus a node, or null on leave.
  * @param props.onSelect Open a node's detail.
  */
 export function ProposalsGraph({
   activeId,
   selectedId,
-  visibleKinds,
+  selectedKinds,
+  selectedClusters,
   onActivate,
   onSelect,
 }: {
   activeId: string | null;
   selectedId: string | null;
-  visibleKinds: Set<EdgeKind>;
+  selectedKinds: Set<EdgeKind>;
+  selectedClusters: Set<ClusterId>;
   onActivate: (id: string | null) => void;
   onSelect: (id: string) => void;
 }) {
@@ -78,10 +82,25 @@ export function ProposalsGraph({
   const focusId = activeId ?? selectedId;
   const lit = useMemo(() => (focusId ? neighborsOf(focusId) : null), [focusId]);
 
+  // An empty legend selection is not a filter: it means nothing has been
+  // picked out, so everything stays at full strength.
+  const clusterFilter = selectedClusters.size > 0;
+  const kindFilter = selectedKinds.size > 0;
+
+  function inSelectedCluster(id: string): boolean {
+    const node = nodes.find(entry => entry.id === id);
+    return node ? selectedClusters.has(node.cluster) : false;
+  }
+
+  // Hovering takes precedence over the category legend: one is a momentary
+  // question about a single node, the other a standing filter.
   function nodeState(node: ProposalNode): string {
-    if (!focusId) return '';
-    if (node.id === focusId) return ' is-focus';
-    return lit?.has(node.id) ? ' is-linked' : ' is-dim';
+    if (focusId) {
+      if (node.id === focusId) return ' is-focus';
+      return lit?.has(node.id) ? ' is-linked' : ' is-dim';
+    }
+    if (clusterFilter && !selectedClusters.has(node.cluster)) return ' is-dim';
+    return '';
   }
 
   return (
@@ -136,11 +155,21 @@ export function ProposalsGraph({
 
       <g className="proposals-edges">
         {edgeGeometry.map(({edge, path}, index) => {
-          if (!visibleKinds.has(edge.kind)) return null;
+          // The relationship legend hides; the category legend only dims,
+          // since hiding an edge whose endpoints are still drawn would read
+          // as the relationship not existing.
+          if (kindFilter && !selectedKinds.has(edge.kind)) return null;
           const touchesFocus =
             focusId !== null && (edge.from === focusId || edge.to === focusId);
-          const state =
-            focusId === null ? '' : touchesFocus ? ' is-lit' : ' is-dim';
+          const touchesCluster =
+            inSelectedCluster(edge.from) || inSelectedCluster(edge.to);
+          const state = focusId
+            ? touchesFocus
+              ? ' is-lit'
+              : ' is-dim'
+            : clusterFilter && !touchesCluster
+              ? ' is-dim'
+              : '';
           const directed =
             edge.kind === 'enables' || edge.kind === 'compensates';
           return (

@@ -83,7 +83,7 @@
   padding: 0.6rem 0.8rem;
 }
 
-.proposals-legend.is-groups {
+.proposals-legend.is-categories {
   left: 0.25rem;
 }
 
@@ -112,17 +112,12 @@
   font-size: 0.78rem;
 }
 
-.proposals-legend-item {
-  display: flex;
-  align-items: center;
-  gap: 0.45rem;
-}
-
 .proposals-legend-swatch {
   width: 0.7rem;
   height: 0.7rem;
   flex: none;
   border-radius: 3px;
+  background: var(--chip-color);
 }
 
 .proposals-legend-sample {
@@ -132,43 +127,66 @@
   overflow: visible;
 }
 
-/* The filter button carries no chrome until hovered: the legend reads as a
-   label first and a control second. */
-.proposals-filter {
+/* Every legend entry is a toggle, so it is drawn as a chip rather than a
+   line of text: a resting surface, a hover state, and a filled selected
+   state. `--chip-color` is the entry's own hue, set by the is-* class
+   below, so selecting a chip previews what it highlights. */
+.proposals-chip {
   display: flex;
+  width: 100%;
   align-items: center;
   gap: 0.45rem;
-  border: 0;
-  border-radius: 0.4rem;
-  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 9999px;
+  background: var(--cosci-hover);
   color: inherit;
   cursor: pointer;
   font: inherit;
   font-size: 0.78rem;
-  padding: 0.1rem 0.3rem;
+  padding: 0.2rem 0.7rem 0.2rem 0.5rem;
   text-align: left;
+  transition:
+    background 120ms ease,
+    border-color 120ms ease;
 }
 
-.proposals-filter:hover {
-  background: var(--cosci-hover);
+.proposals-chip:hover {
+  border-color: var(--chip-color);
 }
 
-.proposals-filter.is-off {
-  opacity: 0.35;
-}
-
-.proposals-reset {
-  justify-self: start;
-  margin-top: 0.15rem;
-  border: 0;
-  border-radius: 9999px;
-  background: var(--cosci-step-dot-bg);
-  color: var(--cosci-step-dot-text);
-  cursor: pointer;
-  font: inherit;
-  font-size: 0.7rem;
+.proposals-chip.is-on {
+  border-color: var(--chip-color);
+  background: color-mix(in srgb, var(--chip-color) 22%, transparent);
+  color: var(--chip-color);
   font-weight: 600;
-  padding: 0.2rem 0.7rem;
+}
+
+.proposals-chip.is-scaling {
+  --chip-color: var(--proposal-scaling);
+}
+.proposals-chip.is-evaluation {
+  --chip-color: var(--proposal-evaluation);
+}
+.proposals-chip.is-interaction {
+  --chip-color: var(--proposal-interaction);
+}
+.proposals-chip.is-knowledge {
+  --chip-color: var(--proposal-knowledge);
+}
+.proposals-chip.is-capabilities {
+  --chip-color: var(--proposal-capabilities);
+}
+.proposals-chip.is-synergy {
+  --chip-color: var(--proposal-synergy);
+}
+.proposals-chip.is-enables {
+  --chip-color: var(--proposal-enables);
+}
+.proposals-chip.is-compensates {
+  --chip-color: var(--proposal-compensates);
+}
+.proposals-chip.is-tension {
+  --chip-color: var(--proposal-tension);
 }
 
 /* Graph --------------------------------------------------------------- */
@@ -298,21 +316,6 @@
   --proposal-node-color: var(--proposal-capabilities);
 }
 
-.proposals-legend-swatch.is-scaling {
-  background: var(--proposal-scaling);
-}
-.proposals-legend-swatch.is-evaluation {
-  background: var(--proposal-evaluation);
-}
-.proposals-legend-swatch.is-interaction {
-  background: var(--proposal-interaction);
-}
-.proposals-legend-swatch.is-knowledge {
-  background: var(--proposal-knowledge);
-}
-.proposals-legend-swatch.is-capabilities {
-  background: var(--proposal-capabilities);
-}
 
 .proposals-node:hover rect,
 .proposals-node.is-focus rect {

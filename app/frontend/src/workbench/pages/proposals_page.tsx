@@ -1,22 +1,37 @@
 import {useCallback, useMemo, useState} from 'react';
 import {useSearchParams} from 'react-router-dom';
-import {EDGE_KINDS, nodes, type EdgeKind} from '../proposals/proposals_data';
+import {
+  nodes,
+  type ClusterId,
+  type EdgeKind,
+} from '../proposals/proposals_data';
 import {ProposalsDetail} from '../proposals/proposals_detail';
 import {ProposalsGraph} from '../proposals/proposals_graph';
 import {ProposalsLegend} from '../proposals/proposals_legend';
 
-const ALL_KINDS = new Set<EdgeKind>(EDGE_KINDS.map(entry => entry.kind));
+// Adds or removes one member, which is all either legend needs: an empty
+// set means "no filter", so unselecting the last chip restores the graph
+// without a separate reset control.
+function toggled<T>(current: Set<T>, value: T): Set<T> {
+  const next = new Set(current);
+  if (next.has(value)) next.delete(value);
+  else next.add(value);
+  return next;
+}
 
 /**
  * The proposals relationship graph, sized to fill the viewport. The graph is
- * the whole page: the two legends explain it and the detail panel reads one
- * proposal at a time. Selection lives in the query string so a particular
- * proposal can be linked to and shared.
+ * the whole page: the two legends explain and filter it, and the detail
+ * panel reads one proposal at a time. Selection lives in the query string so
+ * a particular proposal can be linked to and shared.
  */
 export function ProposalsPage() {
   const [params, setParams] = useSearchParams();
   const [activeId, setActiveId] = useState<string | null>(null);
-  const [visibleKinds, setVisibleKinds] = useState<Set<EdgeKind>>(ALL_KINDS);
+  const [selectedKinds, setSelectedKinds] = useState<Set<EdgeKind>>(new Set());
+  const [selectedClusters, setSelectedClusters] = useState<Set<ClusterId>>(
+    new Set(),
+  );
 
   const selectedId = params.get('node');
   const selected = useMemo(
@@ -37,25 +52,6 @@ export function ProposalsPage() {
     setParams({}, {replace: true});
   }, [setParams]);
 
-  function toggleKind(kind: EdgeKind) {
-    setVisibleKinds(current => {
-      const next = new Set(current);
-      if (next.has(kind)) next.delete(kind);
-      else next.add(kind);
-      return next;
-    });
-  }
-
-  function onlyKind(kind: EdgeKind) {
-    setVisibleKinds(current =>
-      // A second click on an already-isolated kind restores everything, so
-      // the filter never becomes a trap.
-      current.size === 1 && current.has(kind)
-        ? new Set(ALL_KINDS)
-        : new Set([kind]),
-    );
-  }
-
   return (
     <div className="proposals-page">
       {/* The stage carries no styling of its own — it exists only as the
@@ -64,15 +60,20 @@ export function ProposalsPage() {
         <ProposalsGraph
           activeId={activeId}
           selectedId={selectedId}
-          visibleKinds={visibleKinds}
+          selectedKinds={selectedKinds}
+          selectedClusters={selectedClusters}
           onActivate={setActiveId}
           onSelect={select}
         />
         <ProposalsLegend
-          visibleKinds={visibleKinds}
-          onToggleKind={toggleKind}
-          onOnlyKind={onlyKind}
-          onReset={() => setVisibleKinds(new Set(ALL_KINDS))}
+          selectedKinds={selectedKinds}
+          onToggleKind={kind =>
+            setSelectedKinds(current => toggled(current, kind))
+          }
+          selectedClusters={selectedClusters}
+          onToggleCluster={cluster =>
+            setSelectedClusters(current => toggled(current, cluster))
+          }
         />
       </div>
       {selected && (
