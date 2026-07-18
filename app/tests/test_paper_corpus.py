@@ -181,6 +181,47 @@ def test_retrieve_for_handles_an_empty_query(installed: None) -> None:
     assert paper_corpus.retrieve_for("sbi_ucd", "   ", k=3) == []
 
 
+def test_the_whole_result_is_judged_by_its_best_passage(
+    installed: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Weak matches everywhere are worse than no matches at all.
+
+    Common words score above zero against almost any passage, so without a
+    floor "has this group studied X?" always comes back with paragraphs and
+    invites the model to answer yes. This pins the mechanism; the threshold's
+    calibration against the real corpus is pinned separately, because idf
+    depends on corpus size and cannot be judged from a two-paper fixture.
+    """
+    hits = paper_corpus.retrieve_for("sbi_ucd", "trametinib MEK", k=5)
+    assert hits
+    # Raising the floor above the best hit discards the entire result rather
+    # than returning its weaker members.
+    monkeypatch.setattr(paper_corpus, "MIN_TOP_SCORE", hits[0].score + 1)
+    assert paper_corpus.retrieve_for("sbi_ucd", "trametinib MEK", k=5) == []
+
+
+def test_the_floor_is_calibrated_to_the_committed_corpus() -> None:
+    """The threshold is a measured constant, so measure it.
+
+    Genuine questions score an order of magnitude above nonsense ones, but
+    only on a corpus of this size: idf shifts with the number of passages.
+    If the corpus is substantially re-ingested, re-check this.
+    """
+    retriever = paper_corpus.build_retriever()
+    assert retriever is not None, "the corpus is committed and should load"
+
+    def top(query: str) -> float:
+        hits = retriever.retrieve(query, k=20)
+        return hits[0].score if hits else 0.0
+
+    real = top("paradoxical ERK activation RAF dimerization")
+    nonsense = top("zzz nothing matches here")
+    assert real >= paper_corpus.MIN_TOP_SCORE < 1.0
+    assert nonsense < paper_corpus.MIN_TOP_SCORE
+    # The separation is what makes a single threshold viable at all.
+    assert real > nonsense * 5
+
+
 def test_format_passages_attributes_every_passage(installed: None) -> None:
     hits = paper_corpus.retrieve_for("sbi_ucd", "STAT3 survivin", k=2)
     rendered = paper_corpus.format_passages(hits)

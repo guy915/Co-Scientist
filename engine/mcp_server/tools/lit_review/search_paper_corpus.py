@@ -31,6 +31,13 @@ _TOKEN = re.compile(r"[a-z0-9]+")
 # carry an argument and small enough that several fit in one prompt.
 _TARGET_CHUNK_CHARS = 450 * 4
 
+# Also kept in step with app/app/paper_corpus.py's MIN_TOP_SCORE. Common
+# words match weakly almost everywhere, so without a floor an agent asking
+# "has this group studied X?" always gets passages back and may conclude they
+# did. Measured on the real corpus: genuine questions top out at 0.28-0.36,
+# a nonsense query at 0.035.
+_MIN_TOP_SCORE = 0.05
+
 
 def _tokenize(text: str) -> list[str]:
     """Lowercase word/number tokens (length > 2) for retrieval scoring."""
@@ -196,6 +203,11 @@ def search_paper_corpus(query: str, max_passages: int = 5) -> str:
 
     # Highest score first, then position for a deterministic tie-break.
     scored.sort(key=lambda pair: (-pair[0], pair[1]))
+
+    # Judge the whole result by its best passage: a weak top score means the
+    # query found nothing, not that it found many mediocre things.
+    if not scored or scored[0][0] < _MIN_TOP_SCORE:
+        return json.dumps({})
 
     results = {}
     for score, position in scored[: max(1, max_passages)]:

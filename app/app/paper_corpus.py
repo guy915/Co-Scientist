@@ -359,6 +359,18 @@ CORPUS_AUDIENCE = "sbi_ucd"
 CHAT_PASSAGES = 20
 RUN_PASSAGES = 10
 
+# Term-frequency scoring returns something for almost any query: ask about
+# the weather and common words still match a few paragraphs weakly. If even
+# the best passage scores below this, the corpus has nothing on the topic,
+# and handing back its weak tail invites the model to read unrelated
+# paragraphs as the group's prior work -- the same failure as a tool that
+# cannot distinguish "no results" from "request failed".
+#
+# Measured against the real corpus: genuine questions top out at 0.28-0.36,
+# a nonsense query at 0.035. A wholly out-of-domain query already scores
+# nothing at all.
+MIN_TOP_SCORE = 0.05
+
 _cached_retriever: KeywordCorpusRetriever | None = None
 _cache_loaded = False
 
@@ -395,14 +407,20 @@ def retrieve_for(
 
     Returns:
         The best passages, or an empty list when the audience has no corpus,
-        the corpus is not installed, or nothing matched.
+        the corpus is not installed, or nothing matched it well enough to be
+        worth reading.
     """
     if audience != CORPUS_AUDIENCE or not query.strip():
         return []
     retriever = _retriever()
     if retriever is None:
         return []
-    return retriever.retrieve(query, k=k)
+    hits = retriever.retrieve(query, k=k)
+    # Judge the whole result by its best passage: a weak top score means the
+    # query found nothing, not that it found many mediocre things.
+    if not hits or hits[0].score < MIN_TOP_SCORE:
+        return []
+    return hits
 
 
 def format_passages(hits: list[RetrievedDocument]) -> str:

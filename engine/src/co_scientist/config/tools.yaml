@@ -44,6 +44,19 @@ tools:
           source_id: "@key"
           source: "'group_corpus'"
 
+      # The literature-review pipeline calls sources with canonical parameter
+      # names, so map them onto this tool's own. Without this the corpus is
+      # unusable as a search source: it would be called with `max_papers`,
+      # which it does not accept. The rest have no meaning for a local corpus
+      # -- there is no run-scoped download directory and nothing to filter by
+      # recency, since the group's back catalogue is the point.
+      parameter_mapping:
+        query: "query"
+        max_papers: "max_passages"
+        slug: null
+        recency_years: null
+        run_id: null
+
       prompt_snippet: |
         Use `search_paper_corpus` to search the user's own research group's published papers.
         - Consult it before external sources when the question touches the group's own methods
@@ -281,6 +294,13 @@ workflows:
   # Literature review phase - comprehensive paper analysis
   literature_review:
     search_sources:
+      # The group's own papers are searched alongside the public databases.
+      # Listed first so their passages lead the deduplicated corpus: on a
+      # question the group has already published on, their own result is the
+      # one that should anchor the review.
+      - tool: "paper_corpus_search"
+        papers_per_query: 4
+        enabled: true
       - tool: "pubmed_fulltext"
         papers_per_query: 4
         enabled: true

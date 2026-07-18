@@ -67,6 +67,21 @@ def test_unmatched_query_returns_empty(corpus: Path) -> None:
     assert json.loads(search_paper_corpus("zzzz nonexistent term")) == {}
 
 
+def test_a_weak_best_match_discards_the_whole_result(
+    corpus: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Kept in step with app.paper_corpus: judge the result by its best hit.
+
+    Term-frequency scoring returns something for almost any query, so an
+    agent asking "has this group studied X?" would always get passages back
+    and could conclude they had.
+    """
+    assert json.loads(search_paper_corpus("trametinib MEK", 3))
+    monkeypatch.setattr(module, "_MIN_TOP_SCORE", 10.0)
+    module._index.cache_clear()
+    assert json.loads(search_paper_corpus("trametinib MEK", 3)) == {}
+
+
 def test_results_are_deterministic(corpus: Path) -> None:
     """Ties break on position, so repeated calls agree."""
     once = search_paper_corpus("phosphorylation", 5)
