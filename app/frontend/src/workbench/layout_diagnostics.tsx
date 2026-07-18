@@ -1,6 +1,7 @@
 import {useEffect, useRef, useState, type ReactNode} from 'react';
 import {useLocation} from 'react-router-dom';
 import {
+  APP_LOGS_CHANGED_EVENT,
   deleteAppLogs,
   getAppLogs,
   postAppLogs,
@@ -200,7 +201,7 @@ function buildAppLogEntry(record: AppLogRecord): DiagnosticLogEntry {
   };
 }
 
-// How often the open popover refreshes the persisted backend log.
+// How often the persisted backend log is re-fetched in the background.
 const APP_LOGS_POLL_MS = 5_000;
 
 // The fetched window plus the store's newest row id. The badge is
@@ -212,10 +213,12 @@ interface PersistedAppLogs {
 }
 
 // Fetches the app-wide persisted log: on mount (so the badge count is
-// real), whenever `version` bumps (an in-page event or Clear changed the
-// store), and on a poll while the popover is open. The same fetch runs on
+// real), whenever `version` bumps (Clear changed the store), whenever
+// the api layer announces a change (a click or error was just
+// persisted), and on a steady background poll — popover open or not, so
+// the badge never depends on opening the panel. The same fetch runs on
 // every route, so navigating never changes what the panel shows.
-function usePersistedAppLogs(open: boolean, version: number): PersistedAppLogs {
+function usePersistedAppLogs(version: number): PersistedAppLogs {
   const [logs, setLogs] = useState<PersistedAppLogs>({
     entries: [],
     lastId: 0,
@@ -237,16 +240,14 @@ function usePersistedAppLogs(open: boolean, version: number): PersistedAppLogs {
         });
     };
     load();
-    if (!open)
-      return () => {
-        disposed = true;
-      };
     const timer = window.setInterval(load, APP_LOGS_POLL_MS);
+    window.addEventListener(APP_LOGS_CHANGED_EVENT, load);
     return () => {
       disposed = true;
       window.clearInterval(timer);
+      window.removeEventListener(APP_LOGS_CHANGED_EVENT, load);
     };
-  }, [open, version]);
+  }, [version]);
 
   return logs;
 }
@@ -385,7 +386,7 @@ export function DiagnosticsControl({
   const [copied, setCopied] = useState(false); // Copy button shows "Copied"
   useDiagnosticIngest(bumpVersion);
   useNavigationLog(bumpVersion);
-  const {entries, lastId} = usePersistedAppLogs(open, version);
+  const {entries, lastId} = usePersistedAppLogs(version);
   const counts = summarizeDiagnosticEntries(entries);
 
   async function onCopy() {

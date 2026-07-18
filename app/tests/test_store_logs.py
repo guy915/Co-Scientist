@@ -102,18 +102,15 @@ def test_prune_logs_keeps_newest(isolated_db: str) -> None:
     assert store.prune_logs(max_rows=4, db_path=isolated_db) == 0
 
 
-def test_clear_logs_empties_but_ids_keep_increasing(
-    isolated_db: str,
-) -> None:
+def test_clear_logs_empties_and_restarts_ids(isolated_db: str) -> None:
     for i in range(3):
         _append(isolated_db, f"m{i}")
-    last_before = store.latest_log_id(db_path=isolated_db)
     assert store.clear_logs(db_path=isolated_db) == 3
     assert store.list_logs(db_path=isolated_db) == []
-    # Ids stay monotonic across a clear so pollers' after_id cursors and
-    # the UI's consecutive numbering never regress.
-    new_id = _append(isolated_db, "after clear")
-    assert new_id > last_before
+    # A clear is a fresh start: ids restart at 1 so the id-numbered UI
+    # badge reads as a count again. Followers detect the reset via
+    # last_id dropping below their cursor.
+    assert _append(isolated_db, "after clear") == 1
 
 
 def test_clear_logs_on_empty_table_returns_zero(isolated_db: str) -> None:

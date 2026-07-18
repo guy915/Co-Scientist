@@ -63,11 +63,18 @@ def format_log_line(row: dict[str, Any]) -> str:
 
 
 def _extract(body: Any, after_id: int) -> tuple[list[dict[str, Any]], int]:
-    """Pull the row list and next cursor out of a /api/logs payload."""
+    """Pull the row list and next cursor out of a /api/logs payload.
+
+    When the server's ``last_id`` drops below the follower's cursor the
+    log was cleared and its ids restarted, so the cursor resets instead
+    of stalling forever above the fresh ids.
+    """
     if not isinstance(body, dict):
         return [], after_id
     rows = [row for row in body.get("logs", []) if isinstance(row, dict)]
     last = body.get("last_id")
+    if isinstance(last, int) and last < after_id:
+        after_id = 0
     cursor = last if isinstance(last, int) else after_id
     for row in rows:
         row_id = row.get("id")

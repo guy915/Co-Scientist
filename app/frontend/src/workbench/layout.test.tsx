@@ -1,4 +1,4 @@
-import {fireEvent, render, screen, waitFor} from '@testing-library/react';
+import {act, fireEvent, render, screen, waitFor} from '@testing-library/react';
 import {MemoryRouter} from 'react-router-dom';
 import {beforeEach, describe, expect, it, vi} from 'vitest';
 import type {Run} from '@/api/runs';
@@ -46,7 +46,12 @@ vi.mock('@/api/runs', async importOriginal => ({
 
 vi.mock('@/api/system', () => systemApiMock);
 
-vi.mock('@/api/logs', () => logsApiMock);
+// Spread the real module so constants (APP_LOGS_CHANGED_EVENT) stay real
+// while the network calls are faked.
+vi.mock('@/api/logs', async importOriginal => ({
+  ...(await importOriginal<typeof import('@/api/logs')>()),
+  ...logsApiMock,
+}));
 
 function renderLayout(path = '/') {
   return render(
@@ -696,6 +701,63 @@ describe('Layout', () => {
     // waitFor: the scroll happens in a passive effect after the render
     // that findByText observed.
     await waitFor(() => expect(list.scrollTop).toBe(1000));
+  });
+
+  it('refreshes the badge when the api announces a log change', async () => {
+    renderLayout();
+    await screen.findByRole('button', {name: /Logs 0/i});
+
+    // A client record was persisted somewhere (e.g. a button click was
+    // logged): the api layer announces it and the badge updates without
+    // the popover ever being opened.
+    logsApiMock.getAppLogs.mockResolvedValue({
+      logs: [
+        {
+          id: 7,
+          created_at: 1_700_000_007,
+          level: 'INFO',
+          levelno: 20,
+          logger: 'ui.interaction',
+          message: 'click: "Start" (button)',
+          run_id: null,
+          exc_text: null,
+        },
+      ],
+      last_id: 7,
+      total: 1,
+    });
+    const {APP_LOGS_CHANGED_EVENT} = await import('@/api/logs');
+    fireEvent(window, new Event(APP_LOGS_CHANGED_EVENT));
+
+    expect(
+      await screen.findByRole('button', {name: /Logs 7/i}),
+    ).toBeInTheDocument();
+  });
+
+  it('keeps the badge fresh in the background while the popover is closed', async () => {
+    vi.useFakeTimers();
+    try {
+      renderLayout();
+      // Flush the initial mount-time loads.
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0);
+      });
+      expect(screen.getByRole('button', {name: /Logs 0/i})).toBeInTheDocument();
+
+      logsApiMock.getAppLogs.mockResolvedValue({
+        logs: [],
+        last_id: 9,
+        total: 0,
+      });
+      // No popover open, no events: only the periodic background poll
+      // can pick up the new high-water mark.
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(5_000);
+      });
+      expect(screen.getByRole('button', {name: /Logs 9/i})).toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('shows the mock-mode status chip when /status reports mock mode', async () => {

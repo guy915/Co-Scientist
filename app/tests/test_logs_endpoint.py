@@ -114,14 +114,18 @@ def test_run_logs_endpoint_unknown_run_is_404(isolated_db: str) -> None:
     assert make_client().get("/api/runs/nope/logs").status_code == 404
 
 
-def test_delete_logs_clears_and_reports_count(isolated_db: str) -> None:
+def test_delete_logs_clears_and_restarts_ids(isolated_db: str) -> None:
     _seed(isolated_db, "one")
     _seed(isolated_db, "two")
     client = make_client()
     response = client.request("DELETE", "/api/logs")
     assert response.status_code == 200
     assert response.json()["deleted"] == 2
-    assert client.get("/api/logs").json()["logs"] == []
+    body = client.get("/api/logs").json()
+    assert body["logs"] == []
+    assert body["last_id"] == 0
+    # Records after a clear restart at id 1: the log reads as brand new.
+    assert _seed(isolated_db, "fresh") == 1
 
 
 def test_post_logs_ingests_ui_records(isolated_db: str) -> None:

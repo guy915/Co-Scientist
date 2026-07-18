@@ -185,11 +185,14 @@ def clear_logs(
 ) -> int:
     """Delete every persisted log row and return the deleted count.
 
-    Ids stay monotonic across a clear (AUTOINCREMENT), so pollers'
-    ``after_id`` cursors and the UI's consecutive numbering never regress.
+    A clear is a fresh start: the AUTOINCREMENT sequence is reset so the
+    next record gets id 1 and the id-numbered UI badge reads as a count
+    again. Followers holding an ``after_id`` cursor detect the reset by
+    ``last_id`` dropping below their cursor and start over from 0.
     """
     with _use_conn(conn, db_path) as c:
         cur = c.execute("DELETE FROM app_logs")
+        c.execute("DELETE FROM sqlite_sequence WHERE name = 'app_logs'")
         return int(cur.rowcount or 0)
 
 

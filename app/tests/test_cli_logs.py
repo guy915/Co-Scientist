@@ -119,6 +119,36 @@ def test_logs_follow_polls_from_last_id(
     assert "after_id=2" in urls[2]
 
 
+def test_logs_follow_recovers_from_a_server_clear(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    urls: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        urls.append(str(request.url))
+        if len(urls) == 1:
+            return httpx.Response(
+                200, json={"logs": [_row(50, "old line")], "last_id": 50}
+            )
+        if len(urls) == 2:
+            # The log was cleared server-side: ids restarted from 1, so
+            # last_id dropped below the follower's cursor.
+            return httpx.Response(200, json={"logs": [], "last_id": 0})
+        if len(urls) == 3:
+            return httpx.Response(
+                200, json={"logs": [_row(1, "fresh line")], "last_id": 1}
+            )
+        raise KeyboardInterrupt()
+
+    rc = logs_cmd.handle_logs(_args(follow=True), _client(handler))
+    assert rc == 130
+    out = capsys.readouterr().out
+    assert "old line" in out
+    # The cursor reset instead of stalling above the restarted ids.
+    assert "fresh line" in out
+    assert "after_id=0" in urls[2]
+
+
 def test_logs_json_emits_payload(capsys: pytest.CaptureFixture[str]) -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(

@@ -42,6 +42,17 @@ export function getAppLogs(afterId = 0, limit = 1000): Promise<AppLogsPayload> {
   return fetchJson(`/api/logs?after_id=${afterId}&limit=${limit}`);
 }
 
+/**
+ * Window event fired after this module successfully changes the
+ * persisted log (a POST or a clear), so any open Logs panel or badge can
+ * refetch immediately instead of waiting for its next poll.
+ */
+export const APP_LOGS_CHANGED_EVENT = 'cosci-app-logs-changed';
+
+function announceAppLogsChanged(): void {
+  window.dispatchEvent(new Event(APP_LOGS_CHANGED_EVENT));
+}
+
 /** One frontend record for the ingestion endpoint (POST /api/logs). */
 export interface ClientLogRecord {
   message: string;
@@ -53,17 +64,26 @@ export interface ClientLogRecord {
 }
 
 /** Persists frontend log records into the app-wide log. */
-export function postAppLogs(
+export async function postAppLogs(
   records: ClientLogRecord[],
 ): Promise<{added: number; last_id: number}> {
-  return fetchJson('/api/logs', {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({records}),
-  });
+  const result = await fetchJson<{added: number; last_id: number}>(
+    '/api/logs',
+    {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({records}),
+    },
+  );
+  announceAppLogsChanged();
+  return result;
 }
 
 /** Deletes every persisted log record; returns the deleted count. */
-export function deleteAppLogs(): Promise<{deleted: number}> {
-  return fetchJson('/api/logs', {method: 'DELETE'});
+export async function deleteAppLogs(): Promise<{deleted: number}> {
+  const result = await fetchJson<{deleted: number}>('/api/logs', {
+    method: 'DELETE',
+  });
+  announceAppLogsChanged();
+  return result;
 }
