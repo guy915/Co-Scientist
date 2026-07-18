@@ -46,16 +46,6 @@ export const GOOGLE_NOTE: {
   linkLabel: 'לצפייה בהצעות',
 };
 
-// DRAFT: recommendations page copy (heading + bullet points).
-export const GOOGLE_RECOMMENDATIONS: {heading: string; points: string[]} = {
-  heading: 'Recommendations for the official Co-Scientist',
-  points: [
-    'Surface the tournament reasoning to end users, not just final ranks.',
-    'Make literature-grounding failures visible instead of silent.',
-    'Offer a lightweight express tier for fast iteration.',
-  ],
-};
-
 // DRAFT: copy for the SBI/UCD feedback form in the header popover.
 export const PILOT_FEEDBACK: {
   title: string;

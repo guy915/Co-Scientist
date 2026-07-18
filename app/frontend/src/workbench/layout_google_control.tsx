@@ -65,7 +65,7 @@ export function GoogleTeamControl({
           // action button sits at the right edge.
           <div className="ucs-team-note" dir="rtl" lang="he">
             <p>{GOOGLE_NOTE.message}</p>
-            <Link className="ucs-panel-button" to="/recommendations">
+            <Link className="ucs-panel-button" to="/proposals">
               {GOOGLE_NOTE.linkLabel}
             </Link>
           </div>,

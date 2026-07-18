@@ -6,7 +6,7 @@ import {useGlobalShortcuts} from './hooks/use_global_shortcuts';
 import {RunHistoryProvider} from './hooks/run_history_context';
 import {Layout} from './layout';
 import {ChatWorkspace} from './pages/chat_workspace';
-import {RecommendationsPage} from './pages/recommendations_page';
+import {ProposalsPage} from './pages/proposals_page';
 import {RunDetail} from './pages/run_detail';
 import {SharedGoalReportPage} from './pages/shared_goal_report';
 import {ResearcherAccessPage} from './pages/researcher_access';
@@ -62,13 +62,19 @@ export function WorkbenchApp() {
                   }
                 />
                 <Route
-                  path="/recommendations"
+                  path="/proposals"
                   element={
                     <>
-                      <NoIndex title="Recommendations" />
-                      <RecommendationsPage />
+                      <NoIndex title="Proposals" />
+                      <ProposalsPage />
                     </>
                   }
+                />
+                {/* The page was published as /recommendations before it
+                    became the proposals graph; keep the old path working. */}
+                <Route
+                  path="/recommendations"
+                  element={<Navigate to="/proposals" replace />}
                 />
                 <Route
                   path="/shared/:token"
