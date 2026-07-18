@@ -97,13 +97,18 @@ export function ProposalsGraph({
       <defs>
         {/* context-stroke keeps the arrowhead the same color as the edge it
             terminates, including while dimmed. */}
+        {/* userSpaceOnUse rather than the default strokeWidth units: the
+            arrowhead should track the drawing's scale, not the line's
+            weight, so highlighting an edge thickens it without inflating
+            its head. */}
         <marker
           id="proposal-arrow"
           viewBox="0 0 10 10"
           refX="9"
           refY="5"
-          markerWidth="7"
-          markerHeight="7"
+          markerUnits="userSpaceOnUse"
+          markerWidth={13 * layout.scale}
+          markerHeight={13 * layout.scale}
           orient="auto-start-reverse"
         >
           <path d="M 0 0 L 10 5 L 0 10 z" fill="context-stroke" />

@@ -6,6 +6,10 @@
    readable when the hues are hard to separate, or in print. */
 
 :root {
+  /* Stroke scale. Overridden inside the graph, which is the only place that
+     shrinks; the legend's samples keep their own size. */
+  --s: 1;
+
   /* Cluster hues. `scaling` takes the app's own teal; the rest are chosen
      to stay distinguishable from it and from each other at node size. */
   --proposal-scaling: #1f7a72;
@@ -233,6 +237,11 @@
    is the same size as text in the legends, and zooming moves both together. */
 .proposals-graph {
   display: block;
+  /* Stroke widths, dash patterns, and — through markerUnits="strokeWidth" —
+     the arrowheads are all sized from this, so they scale with the drawing
+     instead of staying at full size while it shrinks. It stays 1 outside
+     the graph, where the legend redraws the same classes at a fixed size. */
+  --s: var(--proposals-scale, 1);
   /* Type inside the drawing scales with it, so a node label keeps its
      proportion to the node box at every size. */
   font-size: calc(1rem * var(--proposals-scale, 1));
@@ -272,8 +281,8 @@
 .proposals-hull rect {
   fill: var(--cosci-hover);
   stroke: var(--cosci-border);
-  stroke-dasharray: 3 5;
-  stroke-width: 1;
+  stroke-dasharray: calc(3px * var(--s)) calc(5px * var(--s));
+  stroke-width: calc(1px * var(--s));
 }
 
 .proposals-hull-label {
@@ -303,7 +312,7 @@
 .proposals-edge {
   fill: none;
   stroke: var(--proposal-edge);
-  stroke-width: 1.75;
+  stroke-width: calc(1.75px * var(--s));
   /* Slightly held back so a busy graph does not read as noise; the lit
      state below brings the focused relationships to full strength. */
   opacity: 0.85;
@@ -312,29 +321,29 @@
 
 .proposals-edge.is-synergy {
   stroke: var(--proposal-synergy);
-  stroke-width: 2;
+  stroke-width: calc(2px * var(--s));
 }
 
 .proposals-edge.is-enables {
   stroke: var(--proposal-enables);
-  stroke-width: 2;
+  stroke-width: calc(2px * var(--s));
 }
 
 .proposals-edge.is-compensates {
   stroke: var(--proposal-compensates);
-  stroke-dasharray: 7 4;
+  stroke-dasharray: calc(7px * var(--s)) calc(4px * var(--s));
 }
 
 .proposals-edge.is-tension {
   stroke: var(--proposal-tension);
-  stroke-dasharray: 1 4;
+  stroke-dasharray: calc(1px * var(--s)) calc(4px * var(--s));
   stroke-linecap: round;
-  stroke-width: 2.75;
+  stroke-width: calc(2.75px * var(--s));
 }
 
 .proposals-edge.is-lit {
   opacity: 1;
-  stroke-width: 3;
+  stroke-width: calc(3px * var(--s));
 }
 
 .proposals-edge.is-dim {
@@ -348,7 +357,7 @@
 .proposals-node rect {
   fill: var(--cosci-menu-bg);
   stroke: var(--proposal-node-color, var(--cosci-border));
-  stroke-width: 1.5;
+  stroke-width: calc(1.5px * var(--s));
   transition: opacity 120ms ease;
 }
 
@@ -379,7 +388,7 @@
 .proposals-node:hover rect,
 .proposals-node.is-focus rect {
   fill: var(--proposal-node-color);
-  stroke-width: 2;
+  stroke-width: calc(2px * var(--s));
 }
 
 .proposals-node:hover text,
@@ -388,11 +397,11 @@
 }
 
 .proposals-node.is-selected rect {
-  stroke-width: 3;
+  stroke-width: calc(3px * var(--s));
 }
 
 .proposals-node.is-linked rect {
-  stroke-width: 2.5;
+  stroke-width: calc(2.5px * var(--s));
 }
 
 .proposals-node.is-dim {
@@ -410,7 +419,7 @@
    Settings rail's selection blue. */
 .proposals-node:focus-visible rect {
   stroke: var(--cosci-step-dot-bg);
-  stroke-width: 3;
+  stroke-width: calc(3px * var(--s));
 }
 
 /* Detail panel -------------------------------------------------------- */
