@@ -128,37 +128,55 @@
 }
 
 /* Every legend entry is a toggle, so it is drawn as a chip rather than a
-   line of text: a resting surface, a hover state, and a filled selected
-   state. `--chip-color` is the entry's own hue, set by the is-* class
-   below, so selecting a chip previews what it highlights. */
+   line of text: a resting surface, a grey hover, and a selected state
+   filled with the entry's own hue (`--chip-color`, set by the is-* classes
+   below) so a selected chip previews what it highlights. No borders in any
+   state. */
 .proposals-chip {
   display: flex;
-  width: 100%;
+  width: fit-content;
   align-items: center;
   gap: 0.45rem;
-  border: 1px solid transparent;
-  border-radius: 9999px;
+  border: 0;
+  border-radius: 0.45rem;
   background: var(--cosci-hover);
   color: inherit;
   cursor: pointer;
   font: inherit;
   font-size: 0.78rem;
-  padding: 0.2rem 0.7rem 0.2rem 0.5rem;
+  padding: 0.2rem 0.6rem 0.2rem 0.45rem;
   text-align: left;
-  transition:
-    background 120ms ease,
-    border-color 120ms ease;
+  transition: background 120ms ease;
 }
 
 .proposals-chip:hover {
-  border-color: var(--chip-color);
+  background: color-mix(in srgb, var(--cosci-text) 10%, var(--cosci-hover));
 }
 
 .proposals-chip.is-on {
-  border-color: var(--chip-color);
   background: color-mix(in srgb, var(--chip-color) 22%, transparent);
   color: var(--chip-color);
   font-weight: 600;
+}
+
+/* The label reserves the width of its own bold copy, so turning a chip on
+   does not resize it. The hidden twin sits in the same grid cell as the
+   visible text, making the cell as wide as the wider of the two. */
+.proposals-chip-label {
+  display: inline-grid;
+}
+
+.proposals-chip-label::after,
+.proposals-chip-label > span {
+  grid-area: 1 / 1;
+}
+
+.proposals-chip-label::after {
+  content: attr(data-text);
+  height: 0;
+  font-weight: 600;
+  overflow: hidden;
+  visibility: hidden;
 }
 
 .proposals-chip.is-scaling {

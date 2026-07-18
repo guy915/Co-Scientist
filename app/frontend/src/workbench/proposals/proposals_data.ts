@@ -106,7 +106,7 @@ export const clusters: Cluster[] = [
   },
   {
     id: 'knowledge',
-    label: 'Knowledge and discovery',
+    label: 'Knowledge discovery',
     blurb:
       'Keeping what a run learns, and mining it for connections nobody ' +
       'asked about.',

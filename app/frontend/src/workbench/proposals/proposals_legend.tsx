@@ -81,7 +81,12 @@ export function ProposalsLegend({
                     className="proposals-legend-swatch"
                     aria-hidden="true"
                   />
-                  <span>{cluster.label}</span>
+                  <span
+                    className="proposals-chip-label"
+                    data-text={cluster.label}
+                  >
+                    <span>{cluster.label}</span>
+                  </span>
                 </button>
               </li>
             );
@@ -107,7 +112,9 @@ export function ProposalsLegend({
                   onClick={() => onToggleKind(kind)}
                 >
                   <EdgeSample kind={kind} />
-                  <span>{label}</span>
+                  <span className="proposals-chip-label" data-text={label}>
+                    <span>{label}</span>
+                  </span>
                 </button>
               </li>
             );
