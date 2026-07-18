@@ -12,7 +12,7 @@ The phase-sequence helpers live in the sibling ``run_config``, ``outcomes``,
 and ``orchestration`` modules and are re-exported here (tests exercise
 several of the private helpers through this namespace). This module keeps the
 top-level orchestrator plus the cache/availability gates whose external seams
-(``get_node_cache``, ``check_literature_source_available``,
+(``get_node_cache``, ``check_mcp_available``,
 ``get_mcp_client``) tests monkeypatch on this namespace.
 """
 
@@ -95,7 +95,7 @@ from co_scientist.agents.generation.literature_review.run_config import (
 )
 from co_scientist.cache import NodeCache, get_node_cache
 from co_scientist.mcp_client import (
-    check_literature_source_available,
+    check_mcp_available,
     get_mcp_client,
 )
 from co_scientist.nodes.progress import emit_progress
@@ -199,29 +199,35 @@ async def _check_cache(
     return cached
 
 
-async def _check_source_available(
+async def _check_server_available(
     state: WorkflowState,
     config: SearchConfig,
 ) -> dict[str, Any] | None:
-    """Verify the configured literature MCP source is reachable.
+    """Verify the literature MCP server is reachable.
 
-    Fails fast (before spending any LLM calls on query generation) if the
-    configured literature MCP tool is unreachable.
+    Fails fast (before spending any LLM calls on query generation) only if
+    the MCP server itself is unreachable -- in which case no search source
+    can run. It deliberately does not gate on any single source's health:
+    the node searches several sources (the group's local corpus, PubMed,
+    OpenAlex), each of whose failures is swallowed downstream so the others
+    still complete. Gating on one source (historically PubMed) would let an
+    unavailable remote service veto sources that are perfectly reachable,
+    including the always-available local corpus.
 
     Returns:
-        A failure result dict if unavailable, else None to continue.
+        A failure result dict if the server is unreachable, else None.
     """
-    source_available = await check_literature_source_available(
+    server_available = await check_mcp_available(
         tool_registry=config.tool_registry
     )
-    if source_available:
+    if server_available:
         return None
 
-    logger.error("Literature source MCP service unavailable")
+    logger.error("Literature review MCP server unavailable")
     await emit_progress(
         state,
         "literature_review_error",
-        "Literature review failed (source unavailable)",
+        "Literature review failed (MCP server unavailable)",
         0.2,
     )
     return make_failure_result("literature source service unavailable")
@@ -251,7 +257,7 @@ async def literature_review_node(state: WorkflowState) -> dict[str, Any]:
     if cached is not None:
         return cached
 
-    unavailable_result = await _check_source_available(state, config)
+    unavailable_result = await _check_server_available(state, config)
     if unavailable_result is not None:
         return unavailable_result
 
