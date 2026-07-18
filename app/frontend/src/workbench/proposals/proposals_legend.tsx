@@ -1,3 +1,5 @@
+import {useEffect, useState} from 'react';
+import {Icon} from '@/components/icon';
 import {EDGE_KINDS, clusters, type EdgeKind} from './proposals_data';
 
 // A short sample of each edge's stroke, drawn with the same classes the
@@ -32,9 +34,61 @@ function EdgeSample({kind}: {kind: EdgeKind}) {
   );
 }
 
+type Panel = 'groups' | 'relationships';
+
+// One legend button plus the popover it opens. The popover is a sibling of
+// the button inside a positioned wrapper, so it anchors to its own button.
+function LegendPopover({
+  id,
+  label,
+  note,
+  open,
+  onToggle,
+  children,
+}: {
+  id: Panel;
+  label: string;
+  note?: string;
+  open: boolean;
+  onToggle: (panel: Panel) => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="proposals-legend-anchor">
+      <button
+        type="button"
+        className={
+          open ? 'proposals-legend-button is-open' : 'proposals-legend-button'
+        }
+        aria-expanded={open}
+        onClick={() => onToggle(id)}
+      >
+        <span>{label}</span>
+        {/* Filter state has to show on the closed button: with the legend
+            hidden there is nothing else to say the graph is filtered. */}
+        {note && <span className="proposals-legend-badge">{note}</span>}
+        <Icon
+          aria-hidden="true"
+          className="proposals-legend-chevron"
+          name="expand_more"
+        />
+      </button>
+      {open && (
+        <div
+          className="proposals-legend-popover"
+          role="group"
+          aria-label={label}
+        >
+          {children}
+        </div>
+      )}
+    </div>
+  );
+}
+
 /**
- * Legend and edge filter. Sits above the graph: it is what makes the graph
- * readable, so it has to be read first.
+ * The graph's two legends, as popovers over the canvas: groups (node hue)
+ * and relationships (edge color and stroke, which double as the filter).
  *
  * @param props.visibleKinds Edge kinds currently shown.
  * @param props.onToggleKind Flip one kind on or off.
@@ -53,11 +107,37 @@ export function ProposalsLegend({
   onOnlyKind: (kind: EdgeKind) => void;
   onReset: () => void;
 }) {
+  const [open, setOpen] = useState<Panel | null>(null);
   const allVisible = visibleKinds.size === EDGE_KINDS.length;
+
+  useEffect(() => {
+    if (!open) return;
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') setOpen(null);
+    }
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [open]);
+
+  // Names the active filter on the closed button, e.g. "Tension only".
+  const filterNote = allVisible
+    ? undefined
+    : visibleKinds.size === 1
+      ? `${EDGE_KINDS.find(entry => visibleKinds.has(entry.kind))?.label} only`
+      : `${visibleKinds.size} of ${EDGE_KINDS.length}`;
+
+  function toggle(panel: Panel) {
+    setOpen(current => (current === panel ? null : panel));
+  }
+
   return (
     <div className="proposals-legend">
-      <section className="proposals-legend-block">
-        <h2 className="proposals-legend-title">Groups</h2>
+      <LegendPopover
+        id="groups"
+        label="Groups"
+        open={open === 'groups'}
+        onToggle={toggle}
+      >
         <ul className="proposals-legend-list">
           {clusters.map(cluster => (
             <li key={cluster.id} className="proposals-legend-item">
@@ -71,15 +151,18 @@ export function ProposalsLegend({
             </li>
           ))}
         </ul>
-      </section>
+      </LegendPopover>
 
-      <section className="proposals-legend-block">
-        <h2 className="proposals-legend-title">
-          Relationships
-          <span className="proposals-legend-hint">
-            Select one to show only that kind
-          </span>
-        </h2>
+      <LegendPopover
+        id="relationships"
+        label="Relationships"
+        note={filterNote}
+        open={open === 'relationships'}
+        onToggle={toggle}
+      >
+        <p className="proposals-legend-hint">
+          Select one to show only that kind
+        </p>
         <ul className="proposals-legend-list">
           {EDGE_KINDS.map(({kind, label, blurb}) => {
             const on = visibleKinds.has(kind);
@@ -113,7 +196,7 @@ export function ProposalsLegend({
             Show all relationships
           </button>
         )}
-      </section>
+      </LegendPopover>
     </div>
   );
 }

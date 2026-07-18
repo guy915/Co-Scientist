@@ -66,6 +66,14 @@ export function ProposalsPage() {
           onActivate={setActiveId}
           onSelect={select}
         />
+        {/* Inside the canvas: the legends float over the graph rather than
+            taking space from it. */}
+        <ProposalsLegend
+          visibleKinds={visibleKinds}
+          onToggleKind={toggleKind}
+          onOnlyKind={onlyKind}
+          onReset={() => setVisibleKinds(new Set(ALL_KINDS))}
+        />
       </div>
       {selected && (
         <ProposalsDetail
@@ -74,12 +82,6 @@ export function ProposalsPage() {
           onClose={clearSelection}
         />
       )}
-      <ProposalsLegend
-        visibleKinds={visibleKinds}
-        onToggleKind={toggleKind}
-        onOnlyKind={onlyKind}
-        onReset={() => setVisibleKinds(new Set(ALL_KINDS))}
-      />
     </div>
   );
 }

@@ -80,8 +80,20 @@ describe('ProposalsPage', () => {
     ).toBeInTheDocument();
   });
 
+  it('keeps each legend behind its own popover', async () => {
+    renderPage();
+    // The graph owns the whole page, so neither legend is on screen until
+    // its button is used.
+    expect(screen.queryByText(/Mutually amplifying/)).toBeNull();
+    await userEvent.click(screen.getByRole('button', {name: /Relationships/}));
+    expect(screen.getByText(/Mutually amplifying/)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', {name: /Relationships/}));
+    expect(screen.queryByText(/Mutually amplifying/)).toBeNull();
+  });
+
   it('filters the graph down to a single relationship kind', async () => {
     const {container} = renderPage();
+    await userEvent.click(screen.getByRole('button', {name: /Relationships/}));
     await userEvent.click(screen.getByRole('button', {name: /Tension —/}));
     const drawn = container.querySelectorAll(
       '.proposals-graph .proposals-edge',
@@ -90,8 +102,21 @@ describe('ProposalsPage', () => {
     expect(drawn).toHaveLength(tensions.length);
   });
 
+  it('names the active filter on the closed legend button', async () => {
+    renderPage();
+    await userEvent.click(screen.getByRole('button', {name: /Relationships/}));
+    await userEvent.click(screen.getByRole('button', {name: /Tension —/}));
+    await userEvent.keyboard('{Escape}');
+    // With the popover shut there is nothing else to say the graph is
+    // filtered, so the button has to carry it.
+    expect(
+      screen.getByRole('button', {name: /Relationships.*Tension only/}),
+    ).toBeInTheDocument();
+  });
+
   it('restores every kind from the reset control', async () => {
     const {container} = renderPage();
+    await userEvent.click(screen.getByRole('button', {name: /Relationships/}));
     await userEvent.click(screen.getByRole('button', {name: /Tension —/}));
     await userEvent.click(
       screen.getByRole('button', {name: 'Show all relationships'}),
