@@ -5,11 +5,10 @@
 // page never scrolls, and nothing is ever transform-scaled, so text is drawn
 // at a real font size rather than stretched.
 //
-// The legends are part of that single factor — their width is derived from
-// it rather than measured, and their type scales with it — so the graph and
-// the legends keep the same proportions at every window size and zoom level.
-// That is what a fitted viewBox got wrong: it resized the drawing while
-// leaving the fixed-size legends alone.
+// The legends keep their own fixed size — they are ordinary UI, not part of
+// the drawing — so the layout reserves their width and fits the graph into
+// what is left. The gap from a legend to the nearest cluster is one of the
+// drawing's own gaps, so it stays consistent with every other gap.
 //
 // Content lives in proposals_data.ts; colors live in CSS.
 
@@ -41,12 +40,11 @@ const CLEAR_BASE = 26;
 const RY_BASE = 96;
 
 /**
- * Legend card width at full size. Derived, not measured: the card is sized
- * in `em` against the scaled root size, so its width is always this times
- * the scale. Measuring it instead would make the scale depend on a length
- * that depends on the scale.
+ * Legend card width, in real pixels at every scale: the card is `12.5rem`
+ * and does not shrink with the drawing. Fixed rather than measured, so the
+ * scale never depends on a length that depends on the scale.
  */
-const LEGEND_BASE = 216;
+const LEGEND_WIDTH = 200;
 
 /** Used when the container has not been measured yet (tests, first paint). */
 const FALLBACK = {width: 1440, height: 760};
@@ -165,12 +163,14 @@ function rowRadius(row: ClusterId[], available: number): number {
   return Math.max(fitted, minimumRowRadius(row));
 }
 
-/** The narrowest and shortest the whole drawing can be drawn, at base size. */
+/**
+ * The narrowest and shortest the drawing can be, at base size. The top row's
+ * figure excludes the legends: their width is fixed, so it is subtracted
+ * from the space before the scale is worked out rather than scaled with it.
+ */
 const MINIMUM = {
-  width: Math.max(
-    minimumRowWidth(TOP_ROW, LEGEND_BASE * 2),
-    minimumRowWidth(BOTTOM_ROW, 0),
-  ),
+  topRow: minimumRowWidth(TOP_ROW, 0),
+  bottomRow: minimumRowWidth(BOTTOM_ROW, 0),
   height: (RY_BASE + PAD_BASE.y) * 4 + ROW_GAP_BASE,
 };
 
@@ -204,12 +204,19 @@ export function computeLayout(stage: Stage): Layout {
   const height = stage.height || FALLBACK.height;
 
   // Never larger than base size, and never so large that it overflows: this
-  // is what keeps the page free of scrollbars in both directions.
-  const scale = Math.min(1, width / MINIMUM.width, height / MINIMUM.height);
+  // is what keeps the page free of scrollbars in both directions. The top
+  // row competes only for what the fixed-width legends leave behind.
+  const scale = Math.min(
+    1,
+    Math.max(0, width - LEGEND_WIDTH * 2) / MINIMUM.topRow,
+    width / MINIMUM.bottomRow,
+    height / MINIMUM.height,
+  );
 
-  // Work in base units, then scale once at the end.
+  // Work in base units, then scale once at the end. The legends are the one
+  // length that does not scale, so they convert the other way.
   const room = {width: width / scale, height: height / scale};
-  const legend = LEGEND_BASE;
+  const legend = LEGEND_WIDTH / scale;
 
   const hullHeight = (RY_BASE + PAD_BASE.y) * 2;
   const top = Math.max(0, (room.height - (hullHeight * 2 + ROW_GAP_BASE)) / 2);

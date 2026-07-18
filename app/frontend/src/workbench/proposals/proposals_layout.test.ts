@@ -39,21 +39,34 @@ describe('proposals layout', () => {
   });
 
   it('leaves the same gap to each legend, at every size', () => {
-    // The legend card is 13.5em against the scaled root size, which is what
-    // the layout reserves for it — so the two gaps are equal by construction
-    // rather than by tuning, and stay equal as the scale changes.
-    const legendWidth = (scale: number) => 216 * scale;
+    // The legend card is a fixed 12.5rem, which is exactly what the layout
+    // reserves for it — so the two gaps are equal by construction rather
+    // than by tuning, and stay equal as the drawing scales.
+    const LEGEND = 200;
     for (const stage of STAGES) {
       const layout = computeLayout(stage);
       const row = layout.hulls
         .filter(hull => hull.id === 'evaluation' || hull.id === 'interaction')
         .sort((a, b) => a.bounds.x - b.bounds.x);
-      const left = row[0].bounds.x - legendWidth(layout.scale);
+      const left = row[0].bounds.x - LEGEND;
       const right =
-        stage.width -
-        legendWidth(layout.scale) -
-        (row[1].bounds.x + row[1].bounds.width);
+        stage.width - LEGEND - (row[1].bounds.x + row[1].bounds.width);
       expect(left).toBeCloseTo(right, 1);
+    }
+  });
+
+  it('keeps the legends clear of the top row', () => {
+    // The legends no longer shrink, so on a small stage they take a larger
+    // share of it. The clusters must still start beyond them.
+    for (const stage of STAGES) {
+      const layout = computeLayout(stage);
+      const row = layout.hulls
+        .filter(hull => hull.id === 'evaluation' || hull.id === 'interaction')
+        .sort((a, b) => a.bounds.x - b.bounds.x);
+      expect(row[0].bounds.x).toBeGreaterThanOrEqual(200);
+      expect(row[1].bounds.x + row[1].bounds.width).toBeLessThanOrEqual(
+        stage.width - 200,
+      );
     }
   });
 

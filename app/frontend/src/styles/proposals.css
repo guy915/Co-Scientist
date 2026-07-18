@@ -78,14 +78,14 @@
   z-index: 2;
   top: 0;
   box-sizing: border-box;
-  /* 13.5em against the scaled root size is exactly the width the layout
-     reserves for a card, so the gap to the nearest cluster is exact. */
-  width: 13.5em;
+  /* Exactly the width the layout reserves for a card, so the gap to the
+     nearest cluster is exact. */
+  width: 12.5rem;
   display: grid;
-  gap: 0.3em;
-  border-radius: 0.85em;
+  gap: 0.3rem;
+  border-radius: 0.85rem;
   background: var(--cosci-panel);
-  padding: 0.6em 0.8em;
+  padding: 0.6rem 0.8rem;
 }
 
 .proposals-legend.is-categories {
@@ -100,9 +100,9 @@
 }
 
 .proposals-legend-title {
-  margin: 0 0 0.1em;
+  margin: 0 0 0.1rem;
   color: var(--cosci-muted);
-  font-size: 0.68em;
+  font-size: 0.68rem;
   font-weight: 600;
   letter-spacing: 0.07em;
   text-transform: uppercase;
@@ -110,24 +110,24 @@
 
 .proposals-legend-list {
   display: grid;
-  gap: 0.15em;
+  gap: 0.15rem;
   margin: 0;
   padding: 0;
   list-style: none;
-  font-size: 0.78em;
+  font-size: 0.78rem;
 }
 
 .proposals-legend-swatch {
-  width: 0.7em;
-  height: 0.7em;
+  width: 0.7rem;
+  height: 0.7rem;
   flex: none;
-  border-radius: 0.2em;
+  border-radius: 3px;
   background: var(--chip-color);
 }
 
 .proposals-legend-sample {
-  width: 2.9em;
-  height: 0.8em;
+  width: 44px;
+  height: 12px;
   flex: none;
   overflow: visible;
 }
@@ -141,7 +141,7 @@
   display: flex;
   width: 100%;
   align-items: center;
-  gap: 0.45em;
+  gap: 0.45rem;
   border: 0;
   /* Fully rounded ends, matching the pills used elsewhere in the app. */
   border-radius: 9999px;
@@ -149,7 +149,7 @@
   color: inherit;
   cursor: pointer;
   font: inherit;
-  padding: 0.45em 0.7em 0.45em 0.55em;
+  padding: 0.45rem 0.7rem 0.45rem 0.55rem;
   text-align: left;
   transition: background 120ms ease;
 }
@@ -223,10 +223,9 @@
   overflow: hidden;
   grid-row: 1;
   grid-column: 1;
-  /* One scale for the whole drawing, set by the layout. Everything inside
-     sizes itself in `em` against it, so the legends and the graph shrink
-     together and the stage never needs to scroll. */
-  font-size: calc(1rem * var(--proposals-scale, 1));
+  /* `--proposals-scale` is set here by the layout and read by the graph.
+     The legends deliberately do not use it: they are ordinary UI and keep
+     their own size, and the layout reserves room for them. */
 }
 
 /* The SVG is sized to the stage in real pixels and its geometry is computed
@@ -234,6 +233,9 @@
    is the same size as text in the legends, and zooming moves both together. */
 .proposals-graph {
   display: block;
+  /* Type inside the drawing scales with it, so a node label keeps its
+     proportion to the node box at every size. */
+  font-size: calc(1rem * var(--proposals-scale, 1));
 }
 
 .proposals-hull rect {
