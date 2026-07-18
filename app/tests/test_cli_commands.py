@@ -42,6 +42,7 @@ _WAIT_BUDGET = 90.0
 # the run and `ask` take the deterministic offline path rather than a paid call.
 _KEY_VARS = (
     "GEMINI_API_KEY",
+    "GOOGLE_API_KEY",
     "OPENAI_API_KEY",
     "ANTHROPIC_API_KEY",
     "AZURE_API_KEY",
@@ -79,6 +80,11 @@ def cli_server(tmp_path_factory: pytest.TempPathFactory) -> Iterator[str]:
             # call or probes a (possibly live) local MCP server.
             "COSCIENTIST_FORCE_OFFLINE": "1",
             "FORCE_LITERATURE_REVIEW": "0",
+            # Offline runs already skip contextual screening, but assert that
+            # here rather than inheriting it: the screen calls a real (never
+            # offline-routed) model, so leaving it on would make the suite's
+            # offline guarantee depend on no provider key being reachable.
+            "SEMANTIC_SAFETY_ENABLED": "false",
             "COSCIENTIST_DB_PATH": str(home / "coscientist.db"),
             "COSCIENTIST_REPORTS_DIR": str(reports),
         }
