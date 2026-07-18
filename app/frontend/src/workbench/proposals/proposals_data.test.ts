@@ -6,7 +6,16 @@ import {
   nodes,
   type EdgeKind,
 } from './proposals_data';
-import {edgeGeometry, nodePositions} from './proposals_layout';
+import {computeLayout} from './proposals_layout';
+
+// The layout is a function of the space it is given, so these assertions
+// pin it to one representative stage rather than to a module constant.
+const {positions: nodePositions, edges: edgeGeometry} = computeLayout({
+  width: 1440,
+  height: 760,
+  legendLeft: 230,
+  legendRight: 230,
+});
 import {degreeOf, relationsOf} from './proposals_relations';
 
 describe('proposals data', () => {

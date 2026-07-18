@@ -8,6 +8,8 @@ import {
 import {ProposalsDetail} from '../proposals/proposals_detail';
 import {ProposalsGraph} from '../proposals/proposals_graph';
 import {ProposalsLegend} from '../proposals/proposals_legend';
+import {computeLayout} from '../proposals/proposals_layout';
+import {useStage} from '../proposals/use_stage';
 
 // Adds or removes one member, which is all either legend needs: an empty
 // set means "no filter", so unselecting the last chip restores the graph
@@ -53,11 +55,16 @@ export function ProposalsPage() {
     setParams({}, {replace: true});
   }, [setParams]);
 
+  // The graph is laid out into the space it is actually given, in real
+  // pixels, so the measurement has to come first and the geometry second.
+  const [stageRef, stage] = useStage(selected === null);
+  const layout = useMemo(() => computeLayout(stage), [stage]);
+
   return (
     <div className="proposals-page">
-      {/* The stage carries no styling of its own — it exists only as the
-          positioning context the corner legends anchor to. */}
-      <div className="proposals-stage">
+      {/* The stage is what gets measured: the graph fills it exactly, and
+          the legends are positioned in its corners. */}
+      <div className="proposals-stage" ref={stageRef}>
         <ProposalsGraph
           activeId={activeId}
           selectedId={selectedId}
@@ -65,23 +72,22 @@ export function ProposalsPage() {
           selectedClusters={selectedClusters}
           onActivate={setActiveId}
           onSelect={select}
-          /* The legends explain the whole graph; while one proposal is open
-             the detail panel is the thing being read, so they step aside. */
-          legend={
-            selected ? null : (
-              <ProposalsLegend
-                selectedKinds={selectedKinds}
-                onToggleKind={kind =>
-                  setSelectedKinds(current => toggled(current, kind))
-                }
-                selectedClusters={selectedClusters}
-                onToggleCluster={cluster =>
-                  setSelectedClusters(current => toggled(current, cluster))
-                }
-              />
-            )
-          }
+          layout={layout}
         />
+        {/* The legends explain the whole graph; while one proposal is open
+            the detail panel is the thing being read, so they step aside. */}
+        {!selected && (
+          <ProposalsLegend
+            selectedKinds={selectedKinds}
+            onToggleKind={kind =>
+              setSelectedKinds(current => toggled(current, kind))
+            }
+            selectedClusters={selectedClusters}
+            onToggleCluster={cluster =>
+              setSelectedClusters(current => toggled(current, cluster))
+            }
+          />
+        )}
       </div>
       {selected && (
         <ProposalsDetail

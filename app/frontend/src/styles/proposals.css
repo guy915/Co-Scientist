@@ -70,29 +70,35 @@
 /* Legends ------------------------------------------------------------- */
 
 /* Names only, in a card in each top corner: categories left, relationships
-   right. The cards live inside the SVG, in a foreignObject, so they are
-   scaled by the same transform as the graph — resizing or zooming the page
-   changes them exactly as much as it changes everything else. That means
-   every length here is in canvas units rather than rem: at the canvas's own
-   scale one unit is one pixel. */
+   right. These are ordinary elements above the graph — the graph is laid out
+   in real pixels around whatever width they report, so nothing here needs to
+   agree with a drawing scale. */
 .proposals-legend {
+  position: absolute;
+  z-index: 2;
+  top: 0;
   display: grid;
-  gap: 6px;
-  border-radius: 16px;
+  gap: 0.3rem;
+  border-radius: 0.85rem;
   background: var(--cosci-panel);
-  padding: 12px 15px;
+  padding: 0.6rem 0.8rem;
+}
+
+.proposals-legend.is-categories {
+  left: 0;
 }
 
 /* Sits in the right corner but reads left-to-right like its neighbour:
    swatch first, then the name. */
 .proposals-legend.is-relationships {
+  right: 0;
   justify-items: start;
 }
 
 .proposals-legend-title {
-  margin: 0 0 2px;
+  margin: 0 0 0.1rem;
   color: var(--cosci-muted);
-  font-size: 13px;
+  font-size: 0.68rem;
   font-weight: 600;
   letter-spacing: 0.07em;
   text-transform: uppercase;
@@ -100,23 +106,23 @@
 
 .proposals-legend-list {
   display: grid;
-  gap: 3px;
+  gap: 0.15rem;
   margin: 0;
   padding: 0;
   list-style: none;
-  font-size: 14px;
+  font-size: 0.78rem;
 }
 
 .proposals-legend-swatch {
-  width: 13px;
-  height: 13px;
+  width: 0.7rem;
+  height: 0.7rem;
   flex: none;
   border-radius: 3px;
   background: var(--chip-color);
 }
 
 .proposals-legend-sample {
-  width: 42px;
+  width: 44px;
   height: 12px;
   flex: none;
   overflow: visible;
@@ -131,7 +137,7 @@
   display: flex;
   width: 100%;
   align-items: center;
-  gap: 8px;
+  gap: 0.45rem;
   border: 0;
   /* Fully rounded ends, matching the pills used elsewhere in the app. */
   border-radius: 9999px;
@@ -139,8 +145,8 @@
   color: inherit;
   cursor: pointer;
   font: inherit;
-  font-size: 14px;
-  padding: 8px 12px 8px 10px;
+  font-size: 0.78rem;
+  padding: 0.45rem 0.7rem 0.45rem 0.55rem;
   text-align: left;
   transition: background 120ms ease;
 }
@@ -211,17 +217,18 @@
   position: relative;
   min-width: 0;
   min-height: 0;
+  /* The drawing claims the width its clusters need; on a window too narrow
+     for that it scrolls rather than overlapping itself. */
+  overflow: auto;
   grid-row: 1;
   grid-column: 1;
 }
 
-/* The SVG fills the cell in both axes; preserveAspectRatio (the default
-   xMidYMid meet) scales the drawing to fit and centers it, so the graph is
-   never clipped and never forces a scrollbar. */
+/* The SVG is sized to the stage in real pixels and its geometry is computed
+   to match, so there is no viewBox and nothing is scaled: text in the graph
+   is the same size as text in the legends, and zooming moves both together. */
 .proposals-graph {
   display: block;
-  width: 100%;
-  height: 100%;
 }
 
 .proposals-hull rect {
@@ -232,9 +239,9 @@
 }
 
 .proposals-hull-label {
-  font-size: 13.5px;
+  font-size: 0.72rem;
   font-weight: 600;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.05em;
   text-transform: uppercase;
 }
 
@@ -309,7 +316,7 @@
 
 .proposals-node text {
   fill: var(--cosci-text);
-  font-size: 13px;
+  font-size: 0.8rem;
   font-weight: 500;
   pointer-events: none;
 }

@@ -1,7 +1,13 @@
-// Deterministic geometry for the proposals graph. Positions are computed
-// from fixed per-cluster rings rather than a force simulation, so the same
-// data always lays out identically on every machine and a selected node can
-// be linked to. Content lives in proposals_data.ts; colors live in CSS.
+// Geometry for the proposals graph, computed from the space it is given.
+//
+// Everything here is in CSS pixels and is laid out 1:1 — the drawing is never
+// scaled to fit. Resizing the window re-runs the layout so the clusters
+// re-flow, and zooming behaves the way it does anywhere else on the page:
+// every element, the legends included, changes by the same amount. A fitted
+// viewBox would instead shrink the drawing while leaving fixed-size siblings
+// alone, which is what made the legends drift against the clusters.
+//
+// Content lives in proposals_data.ts; colors live in CSS.
 
 import {
   clusters,
@@ -12,9 +18,38 @@ import {
   type Edge,
 } from './proposals_data';
 
-// Wider than tall, and closer to the shape of the window than a 3:2 canvas
-// would be: the graph is fitted with `meet`, so a canvas whose proportions
-// disagree with the viewport is letterboxed and everything renders smaller.
+/** Node box. Labels wrap to at most two lines inside it. */
+export const NODE = {width: 186, height: 54};
+
+/** One spacing value, used between clusters and around the rows. */
+const GAP = 40;
+
+/** Space between the two rows. */
+const ROW_GAP = 48;
+
+/** Breathing room between a cluster's outermost nodes and its hull. */
+const PAD = {x: NODE.width / 2 + 26, y: NODE.height / 2 + 32};
+
+/** Smallest empty space allowed between two node boxes. */
+const CLEAR = 26;
+
+/** Ring half-height, clamped so tall or short windows stay sensible. */
+const RY = {min: 66, max: 104};
+
+/** Used when the container has not been measured yet (tests, first paint). */
+const FALLBACK = {width: 1440, height: 760};
+
+// Which row each cluster sits on, left to right. The top row is the one that
+// has to share its line with the legends, so it holds the two clusters that
+// need the least width.
+const TOP_ROW: ClusterId[] = ['evaluation', 'interaction'];
+const BOTTOM_ROW: ClusterId[] = ['capabilities', 'knowledge', 'scaling'];
+
+export interface Point {
+  x: number;
+  y: number;
+}
+
 export interface Box {
   x: number;
   y: number;
@@ -22,143 +57,200 @@ export interface Box {
   height: number;
 }
 
-export const CANVAS: Box = {x: 0, y: 0, width: 1500, height: 800};
+export interface EdgeGeometry {
+  edge: Edge;
+  /** SVG path data: a straight line, or a quadratic curve when offset. */
+  path: string;
+}
+
+export interface Layout {
+  width: number;
+  height: number;
+  positions: Record<string, Point>;
+  hulls: {id: ClusterId; label: string; bounds: Box}[];
+  edges: EdgeGeometry[];
+}
+
+/** The space the graph has to work with, in CSS pixels. */
+export interface Stage {
+  width: number;
+  height: number;
+  /** Width of each legend card, or 0 when it is not shown. */
+  legendLeft: number;
+  legendRight: number;
+}
+
+/** Angles, in radians, of a ring of `count` nodes starting at the top. */
+function ringAngles(count: number): number[] {
+  return Array.from(
+    {length: count},
+    (_, index) => ((-90 + (index * 360) / count) * Math.PI) / 180,
+  );
+}
 
 /**
- * The two legend cards, in canvas units. They are drawn inside the SVG, so
- * these are real coordinates rather than an estimate of where some HTML
- * happens to land: the clusters can be spaced against them exactly, and the
- * spacing holds at every window size and zoom level.
+ * How many multiples of `rx` a ring of `count` nodes spans horizontally.
+ * Derived rather than tabulated, so adding a proposal cannot invalidate it.
+ */
+function extentFactor(count: number): number {
+  const cosines = ringAngles(count).map(Math.cos);
+  return Math.max(...cosines) - Math.min(...cosines);
+}
+
+/**
+ * The smallest `rx` at which no two nodes in the ring overlap. Two nodes are
+ * clear of each other if either axis separates them, so only the pairs that
+ * fail vertically constrain the horizontal radius.
+ */
+function minimumRx(count: number, ry: number): number {
+  const angles = ringAngles(count);
+  let required = 0;
+  for (let i = 0; i < count; i++) {
+    for (let j = i + 1; j < count; j++) {
+      const dSin = Math.abs(Math.sin(angles[i]) - Math.sin(angles[j]));
+      if (dSin * ry - NODE.height >= CLEAR) continue;
+      const dCos = Math.abs(Math.cos(angles[i]) - Math.cos(angles[j]));
+      if (dCos < 1e-6) continue;
+      required = Math.max(required, (NODE.width + CLEAR) / dCos);
+    }
+  }
+  return required;
+}
+
+function memberIds(clusterId: ClusterId): string[] {
+  return nodes.filter(node => node.cluster === clusterId).map(node => node.id);
+}
+
+/** Hull width for a cluster whose ring has the given radius. */
+function hullWidth(clusterId: ClusterId, rx: number): number {
+  return extentFactor(memberIds(clusterId).length) * rx + PAD.x * 2;
+}
+
+/** The ring radius below which a row's nodes would start overlapping. */
+function minimumRowRadius(row: ClusterId[], ry: number): number {
+  return Math.max(...row.map(id => minimumRx(memberIds(id).length, ry)));
+}
+
+/**
+ * The ring radius that makes a row of clusters fill `available`, never
+ * smaller than the radius each cluster needs to keep its nodes apart.
+ */
+function rowRadius(row: ClusterId[], available: number, ry: number): number {
+  const factors = row.reduce(
+    (total, id) => total + extentFactor(memberIds(id).length),
+    0,
+  );
+  const forNodes = available - PAD.x * 2 * row.length;
+  const fitted = factors > 0 ? forNodes / factors : 0;
+  return Math.max(fitted, minimumRowRadius(row, ry));
+}
+
+/** Width a row occupies at `rx`, including the gaps around and between it. */
+function rowWidth(row: ClusterId[], rx: number, reserved: number): number {
+  const hulls = row.reduce((total, id) => total + hullWidth(id, rx), 0);
+  return hulls + GAP * (row.length + 1) + reserved;
+}
+
+/** Ring centers for one row, laid left to right from `start`. */
+function placeRow(
+  row: ClusterId[],
+  rx: number,
+  start: number,
+  y: number,
+): Record<string, {center: Point; rx: number}> {
+  const placed: Record<string, {center: Point; rx: number}> = {};
+  let x = start;
+  for (const id of row) {
+    const width = hullWidth(id, rx);
+    placed[id] = {center: {x: x + width / 2, y}, rx};
+    x += width + GAP;
+  }
+  return placed;
+}
+
+/**
+ * Lay the whole graph out inside `stage`.
  *
- * `height` is only the box the card is laid out in; the card itself is as
- * tall as its contents.
+ * The top row is placed between the legend cards with an equal gap on each
+ * side and between its clusters; the bottom row runs the full width. Both
+ * rows are sized from the space left over, so the drawing fills the stage
+ * rather than being scaled into it.
  */
-export const LEGEND = {
-  width: 210,
-  height: 340,
-  y: 16,
-  categories: {x: 16},
-  relationships: {x: 1500 - 16 - 210},
-};
+export function computeLayout(stage: Stage): Layout {
+  const width = stage.width || FALLBACK.width;
+  const height = stage.height || FALLBACK.height;
 
-/** Node box, in canvas units. Labels wrap to at most two lines inside it. */
-export const NODE = {width: 178, height: 52};
+  const rowHeight = (height - ROW_GAP) / 2;
+  const ry = Math.min(RY.max, Math.max(RY.min, rowHeight / 2 - PAD.y));
+  const hullHeight = (ry + PAD.y) * 2;
+  const top = Math.max(0, (height - (hullHeight * 2 + ROW_GAP)) / 2);
 
-export interface Point {
-  x: number;
-  y: number;
-}
+  // The top row shares its line with the legends: one gap to the left card,
+  // one between the clusters, one to the right card.
+  const reserved = stage.legendLeft + stage.legendRight;
 
-// The two rows every cluster sits on. Clusters share a row's center line so
-// their hulls line up exactly rather than approximately.
-//
-// The top row sits between the legend cards with an equal gap on each side;
-// the bottom row is clear of them and is centered on the canvas.
-//
-// The two rows are placed together, keeping 55 units between them, so the
-// drawing moves as a whole rather than stretching.
-const ROW_GAP = 55;
+  // Below a certain width the clusters cannot shrink any further without
+  // their own nodes colliding, so the drawing claims the width it needs and
+  // the stage scrolls. Overlapping the legends instead would hide content.
+  const floors = {
+    top: minimumRowRadius(TOP_ROW, ry),
+    bottom: minimumRowRadius(BOTTOM_ROW, ry),
+  };
+  const needed = Math.max(
+    rowWidth(TOP_ROW, floors.top, reserved),
+    rowWidth(BOTTOM_ROW, floors.bottom, 0),
+  );
+  const canvasWidth = Math.max(width, needed);
 
-/** Breathing room between a cluster's outermost nodes and its hull. */
-const PAD = {x: NODE.width / 2 + 26, y: NODE.height / 2 + 34};
+  const topRx = rowRadius(
+    TOP_ROW,
+    canvasWidth - reserved - GAP * (TOP_ROW.length + 1),
+    ry,
+  );
+  const bottomRx = rowRadius(
+    BOTTOM_ROW,
+    canvasWidth - GAP * (BOTTOM_ROW.length + 1),
+    ry,
+  );
 
-/** Every ring is the same height, which is what equalizes the hulls. */
-const RING_RY = 85;
+  const rings = {
+    ...placeRow(TOP_ROW, topRx, stage.legendLeft + GAP, top + hullHeight / 2),
+    ...placeRow(BOTTOM_ROW, bottomRx, GAP, top + hullHeight * 1.5 + ROW_GAP),
+  };
 
-const ROW_HEIGHT = (RING_RY + PAD.y) * 2;
-
-// Centered vertically: equal space above the top row and below the bottom.
-const ROWS_TOP = (CANVAS.height - (ROW_HEIGHT * 2 + ROW_GAP)) / 2;
-const ROW = {
-  top: ROWS_TOP + ROW_HEIGHT / 2,
-  bottom: ROWS_TOP + ROW_HEIGHT * 1.5 + ROW_GAP,
-};
-
-// Cluster anchors. The top row takes the middle two clusters by width and
-// the bottom row the other three, so the narrow row is the one that has to
-// fit between the legends.
-//
-// `rx`/`ry` size the ring the cluster's nodes sit on: wider than tall,
-// because node boxes are wide and would otherwise collide left-to-right.
-// `start` rotates the ring so the first node lands at the top. Every `ry`
-// is equal, which is what makes the hulls share a height.
-interface Ring {
-  center: Point;
-  rx: number;
-  ry: number;
-  start: number;
-}
-
-type Rings = Record<ClusterId, Ring>;
-
-const RINGS: Rings = {
-  evaluation: {center: {x: 498, y: ROW.top}, rx: 117, ry: RING_RY, start: -90},
-  interaction: {
-    center: {x: 1002, y: ROW.top},
-    rx: 117,
-    ry: RING_RY,
-    start: -90,
-  },
-  capabilities: {
-    center: {x: 368, y: ROW.bottom},
-    rx: 185,
-    ry: RING_RY,
-    start: -90,
-  },
-  knowledge: {center: {x: 814, y: ROW.bottom}, rx: 0, ry: RING_RY, start: -90},
-  scaling: {center: {x: 1197, y: ROW.bottom}, rx: 130, ry: RING_RY, start: -90},
-};
-
-/**
- * Position of every node, keyed by node id. Nodes are distributed evenly
- * around their cluster's ring in data order, so inserting a node into
- * proposals_data.ts places it without touching this module.
- */
-function nodePositionsFor(rings: Rings): Record<string, Point> {
   const positions: Record<string, Point> = {};
   for (const cluster of clusters) {
     const ring = rings[cluster.id];
-    const members = nodes.filter(node => node.cluster === cluster.id);
-    members.forEach((node, index) => {
-      const step = 360 / members.length;
-      const radians = ((ring.start + index * step) * Math.PI) / 180;
-      positions[node.id] = {
-        x: ring.center.x + Math.cos(radians) * ring.rx,
-        y: ring.center.y + Math.sin(radians) * ring.ry,
+    const members = memberIds(cluster.id);
+    ringAngles(members.length).forEach((angle, index) => {
+      positions[members[index]] = {
+        x: ring.center.x + Math.cos(angle) * ring.rx,
+        y: ring.center.y + Math.sin(angle) * ry,
       };
     });
   }
-  return positions;
-}
 
-export const nodePositions = nodePositionsFor(RINGS);
+  const hulls = clusters.map(cluster => {
+    const xs = memberIds(cluster.id).map(id => positions[id].x);
+    return {
+      id: cluster.id,
+      label: cluster.label,
+      bounds: {
+        x: Math.min(...xs) - PAD.x,
+        y: rings[cluster.id].center.y - hullHeight / 2,
+        width: Math.max(...xs) - Math.min(...xs) + PAD.x * 2,
+        height: hullHeight,
+      },
+    };
+  });
 
-/**
- * The soft box drawn behind each cluster. Width follows the cluster's own
- * nodes, but height is shared: a row of boxes that differ by twenty pixels
- * reads as a mistake rather than as a difference in content.
- */
-function clusterBoundsFor(
-  rings: Rings,
-  positions: Record<string, Point>,
-  clusterId: ClusterId,
-) {
-  const members = nodes.filter(node => node.cluster === clusterId);
-  const xs = members.map(node => positions[node.id].x);
-  // The furthest any node sits from its row's center line, so every hull is
-  // drawn the same height and the two rows read as rows.
-  const halfSpan = Math.max(...Object.values(rings).map(ring => ring.ry));
-  const height = (halfSpan + PAD.y) * 2;
   return {
-    x: Math.min(...xs) - PAD.x,
-    y: rings[clusterId].center.y - height / 2,
-    width: Math.max(...xs) - Math.min(...xs) + PAD.x * 2,
+    width: canvasWidth,
     height,
+    positions,
+    hulls,
+    edges: edgeGeometry(positions),
   };
-}
-
-export function clusterBounds(clusterId: ClusterId) {
-  return clusterBoundsFor(RINGS, nodePositions, clusterId);
 }
 
 /** Stable key for an unordered node pair. */
@@ -183,7 +275,7 @@ const edgeOffsets: number[] = (() => {
     const index = seen.get(key) ?? 0;
     seen.set(key, index + 1);
     if (total === 1) return 0;
-    return (index - (total - 1) / 2) * 42;
+    return (index - (total - 1) / 2) * 44;
   });
 })();
 
@@ -207,18 +299,8 @@ function boundaryPoint(box: Point, toward: Point, pad: number): Point {
   return {x: box.x + dx * scale, y: box.y + dy * scale};
 }
 
-export interface EdgeGeometry {
-  edge: Edge;
-  /** SVG path data: a straight line, or a quadratic curve when offset. */
-  path: string;
-  /** Midpoint of the drawn curve, for hit-testing and labels. */
-  mid: Point;
-}
-
-/**
- * Path geometry for every edge, in the same order as `edges`.
- */
-function edgeGeometryFor(positions: Record<string, Point>): EdgeGeometry[] {
+/** Path geometry for every edge, in the same order as `edges`. */
+function edgeGeometry(positions: Record<string, Point>): EdgeGeometry[] {
   return edges.map((edge, index) => {
     const from = positions[edge.from];
     const to = positions[edge.to];
@@ -239,25 +321,18 @@ function edgeGeometryFor(positions: Record<string, Point>): EdgeGeometry[] {
     // Trim both ends to the node boundary, aiming at the control point so
     // curved edges leave and arrive at sensible angles.
     const start = boundaryPoint(from, offset === 0 ? to : control, 4);
-    const end = boundaryPoint(to, offset === 0 ? from : control, 8);
-
-    const path =
-      offset === 0
-        ? `M ${start.x} ${start.y} L ${end.x} ${end.y}`
-        : `M ${start.x} ${start.y} Q ${control.x} ${control.y} ${end.x} ${end.y}`;
+    const end = boundaryPoint(to, offset === 0 ? from : control, 9);
 
     return {
       edge,
-      path,
-      mid: {
-        x: (start.x + end.x) / 2 + (-dy / length) * offset * 0.5,
-        y: (start.y + end.y) / 2 + (dx / length) * offset * 0.5,
-      },
+      path:
+        offset === 0
+          ? `M ${start.x} ${start.y} L ${end.x} ${end.y}`
+          : `M ${start.x} ${start.y} Q ${control.x} ${control.y} ` +
+            `${end.x} ${end.y}`,
     };
   });
 }
-
-export const edgeGeometry = edgeGeometryFor(nodePositions);
 
 /**
  * Node ids `id` leads to, in no particular order. Incoming arrows are left

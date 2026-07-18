@@ -1,20 +1,12 @@
-import {useMemo, type ReactNode} from 'react';
+import {useMemo} from 'react';
 import {
-  clusters,
   leadsFrom,
   nodes,
   type ClusterId,
   type EdgeKind,
   type ProposalNode,
 } from './proposals_data';
-import {
-  CANVAS,
-  NODE,
-  clusterBounds,
-  edgeGeometry,
-  neighborsOf,
-  nodePositions,
-} from './proposals_layout';
+import {NODE, neighborsOf, type Layout} from './proposals_layout';
 
 /**
  * Splits a label across at most two lines, breaking at the space nearest the
@@ -45,8 +37,7 @@ function labelLines(label: string): string[] {
  * @param props.selectedClusters Highlighted categories; empty means all.
  * @param props.onActivate Hover/focus a node, or null on leave.
  * @param props.onSelect Open a node's detail.
- * @param props.legend Legend cards, drawn inside the canvas so they scale
- *   with it.
+ * @param props.layout Geometry for the space the graph was given.
  */
 export function ProposalsGraph({
   activeId,
@@ -55,7 +46,7 @@ export function ProposalsGraph({
   selectedClusters,
   onActivate,
   onSelect,
-  legend,
+  layout,
 }: {
   activeId: string | null;
   selectedId: string | null;
@@ -63,7 +54,7 @@ export function ProposalsGraph({
   selectedClusters: Set<ClusterId>;
   onActivate: (id: string | null) => void;
   onSelect: (id: string) => void;
-  legend?: ReactNode;
+  layout: Layout;
 }) {
   // The node driving isolation: an explicit hover wins, otherwise the open
   // selection keeps its relationships lit so the detail panel and the graph
@@ -95,7 +86,8 @@ export function ProposalsGraph({
   return (
     <svg
       className="proposals-graph"
-      viewBox={`${CANVAS.x} ${CANVAS.y} ${CANVAS.width} ${CANVAS.height}`}
+      width={layout.width}
+      height={layout.height}
       role="img"
       aria-label={
         'Relationship graph of the proposals. The same content is written ' +
@@ -119,31 +111,28 @@ export function ProposalsGraph({
       </defs>
 
       <g className="proposals-hulls">
-        {clusters.map(cluster => {
-          const bounds = clusterBounds(cluster.id);
-          return (
-            <g key={cluster.id} className={`proposals-hull is-${cluster.id}`}>
-              <rect
-                x={bounds.x}
-                y={bounds.y}
-                width={bounds.width}
-                height={bounds.height}
-                rx={28}
-              />
-              <text
-                x={bounds.x + 16}
-                y={bounds.y + 22}
-                className="proposals-hull-label"
-              >
-                {cluster.label}
-              </text>
-            </g>
-          );
-        })}
+        {layout.hulls.map(({id, label, bounds}) => (
+          <g key={id} className={`proposals-hull is-${id}`}>
+            <rect
+              x={bounds.x}
+              y={bounds.y}
+              width={bounds.width}
+              height={bounds.height}
+              rx={26}
+            />
+            <text
+              x={bounds.x + 18}
+              y={bounds.y + 24}
+              className="proposals-hull-label"
+            >
+              {label}
+            </text>
+          </g>
+        ))}
       </g>
 
       <g className="proposals-edges">
-        {edgeGeometry.map(({edge, path}, index) => {
+        {layout.edges.map(({edge, path}, index) => {
           // The relationship legend hides; the category legend only dims,
           // since hiding an edge whose endpoints are still drawn would read
           // as the relationship not existing.
@@ -177,7 +166,7 @@ export function ProposalsGraph({
 
       <g className="proposals-nodes">
         {nodes.map(node => {
-          const position = nodePositions[node.id];
+          const position = layout.positions[node.id];
           const lines = labelLines(node.label);
           const selected = node.id === selectedId;
           return (
@@ -224,8 +213,6 @@ export function ProposalsGraph({
           );
         })}
       </g>
-
-      {legend}
     </svg>
   );
 }
