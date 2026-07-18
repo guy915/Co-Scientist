@@ -2,17 +2,15 @@
 
 Engine resume itself (restore a persisted ``WorkflowState`` and continue from
 the last checkpoint without redoing completed work) is covered end-to-end in
-``test_resume_engine.py``. This file covers the surrounding store + endpoint
-seams that resume relies on: ``clear_run_derived_data`` preserving scientist
-contributions while dropping agent artifacts, event-seq continuity across a
-resume boundary, the pause override that keeps an engine run resumable, and the
+``test_resume_engine.py``, including the durable pause/resume path
+(``test_runs_edge.py::test_engine_queue_can_pause_and_resume_without_process_handle``).
+This file covers the surrounding store + endpoint seams that resume relies on:
+``clear_run_derived_data`` preserving scientist contributions while dropping
+agent artifacts, event-seq continuity across a resume boundary, and the
 resume/pause endpoint guards.
 """
 
 from __future__ import annotations
-
-from collections.abc import AsyncIterator
-from typing import Any
 
 from app import store
 from tests._client import make_client as _client
@@ -163,74 +161,3 @@ def test_pause_endpoint_404_when_not_active(isolated_db: str) -> None:
     ).json()["id"]
     res = client.post(f"/api/runs/{run_id}/pause")
     assert res.status_code == 404
-
-
-async def test_paused_engine_run_lands_in_paused_not_cancelled(
-    isolated_db: str,
-) -> None:
-    """The pause override fires end-to-end for a no-checkpoint engine run.
-
-    Reproduces the exact broken sequence: an engine run with no per-iteration
-    checkpoint, handle.paused set, and the workflow ending on the cancel
-    signal (having set CANCELLED, as the engine adapter does). The task must
-    override the terminal status to the resumable PAUSED, not leave it
-    CANCELLED.
-    """
-    from app import engine_adapter
-    from app.runs import _ensure_resumable_checkpoint, _run_workflow_task
-    from app.runs_registry import _active, _RunHandle
-    from app.store import RunStatus
-
-    run = store.create_run("Engine pause e2e", "express", "engine", {})
-    store.update_run_status(run.id, RunStatus.RUNNING)
-
-    async def _fake_run_workflow(**_kwargs: object) -> AsyncIterator[Any]:
-        # The engine adapter marks the run CANCELLED when it sees the cancel
-        # signal, then the stream ends. Mirror that, yielding nothing further.
-        store.update_run_status(run.id, RunStatus.CANCELLED)
-        for _ in ():  # an async generator that yields nothing
-            yield
-
-    original = engine_adapter.run_workflow
-    engine_adapter.run_workflow = _fake_run_workflow  # type: ignore[assignment]
-    try:
-        handle = _RunHandle()
-        handle.paused = True
-        _active[run.id] = handle
-        # What the pause endpoint does before signalling:
-        _ensure_resumable_checkpoint(run.id, "engine")
-
-        await _run_workflow_task(
-            run.id, run.research_goal, run.config, None, handle
-        )
-    finally:
-        engine_adapter.run_workflow = original
-        _active.pop(run.id, None)
-
-    reopened = store.get_run(run.id)
-    assert reopened is not None
-    assert reopened.status == RunStatus.PAUSED.value
-    assert store.has_checkpoint(run.id)
-
-
-def test_ensure_resumable_checkpoint_makes_engine_run_resumable(
-    isolated_db: str,
-) -> None:
-    """Pausing ensures a checkpoint so an engine run is resumable, not lost.
-
-    The engine provider does not checkpoint per iteration, so without this the
-    pause-override in _run_workflow_task could never fire for an engine run and
-    /resume would 409 forever.
-    """
-    from app.runs import _ensure_resumable_checkpoint
-
-    run = store.create_run("Engine pause", "express", "engine", {})
-    assert not store.has_checkpoint(run.id)
-
-    _ensure_resumable_checkpoint(run.id, "engine")
-    assert store.has_checkpoint(run.id)
-
-    # Idempotent: a second pause does not add a second checkpoint.
-    _ensure_resumable_checkpoint(run.id, "engine")
-    latest = store.get_latest_checkpoint(run.id)
-    assert latest is not None and latest["seq"] == 1

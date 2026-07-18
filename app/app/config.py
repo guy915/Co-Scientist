@@ -38,11 +38,12 @@ class Settings(BaseSettings):
     coscientist_cache_enabled: bool = True  # bridged to env for the engine
     coscientist_cache_dir: str = "./cache"
 
-    # Elo tournament tuning. Defaults mirror the engine's constants.py so the
-    # mock and real tournament behave identically (test_elo_engine_parity).
-    elo_initial: int = 1200
+    # Elo tournament K-factor. The initial rating itself is re-exported from
+    # the engine's constants.py (app/elo.py's INITIAL_ELO), which is the
+    # actual owner of the tournament math; this stays app-owned so per-
+    # deployment tuning does not require an engine change
+    # (test_elo_engine_parity guards it against engine drift).
     elo_k_factor: int = 24
-    elo_upset_margin: int = 100
 
     # Safety filter aggressiveness: "standard" or "strict". safety.py coerces
     # this into its SafetyMode enum, defaulting to standard on any other value.
@@ -86,11 +87,11 @@ class Settings(BaseSettings):
     # Relative paths resolve from the server working directory.
     tools_config: str | None = None
 
-    # Claim-grounding entailment assessor for the real-engine path:
+    # Claim-grounding entailment assessor for the engine path:
     # "deterministic" (offline lexical + negation, no provider) or "llm" (the
-    # NLI assessor in claim_verifier.py, using claim_verifier_model). The mock
-    # path and offline tests explicitly select deterministic mode; production
-    # real-engine runs default to semantic claim assessment.
+    # NLI assessor in claim_verifier.py, using claim_verifier_model). Offline
+    # tests explicitly select deterministic mode; production runs default to
+    # semantic claim assessment.
     claim_assessor: str = "llm"
     # Model for the "llm" claim assessor; falls back to model_name when unset.
     claim_verifier_model: str | None = None

@@ -1,15 +1,13 @@
-"""Shared report finalization for both workflow providers.
+"""Shared report finalization for the workflow provider.
 
-Homed here (rather than inside a single provider) so the real-engine drain
-(``engine_adapter``) and the deterministic mock (``mock_workflow``) build the
-report payload, render its markdown, run the final safety gate, and emit the
-report/completed events through one implementation -- keeping the persisted
-report, the final-gate policy, and the streamed event shapes identical across
-providers.
+Homed separately from ``engine_adapter`` so building the report payload,
+rendering its markdown, running the final safety gate, and emitting the
+report/completed events stay independently nameable/testable, through one
+implementation.
 
 The report content builders live in ``report_markdown`` and the event-payload
-helpers in ``report_events``; the names both providers consume are re-exported
-here so callers keep a single ``app.report_render`` import surface.
+helpers in ``report_events``; their names are re-exported here so callers
+keep a single ``app.report_render`` import surface.
 """
 
 from __future__ import annotations

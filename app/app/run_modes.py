@@ -7,9 +7,6 @@ from typing import Any
 
 from app.elo import DEFAULT_K_FACTOR
 
-# Default retained as an import-compatible constant; new rows persist the
-# selected Standard/Advanced mode rather than an invented canonical value.
-CANONICAL_RUN_MODE = "standard"
 # Tier controls run size/depth; focus controls ranking emphasis. The
 # *_PATTERN regexes are used by the API's pydantic Field validation, so
 # invalid values 422 at the edge while None falls through to the defaults.

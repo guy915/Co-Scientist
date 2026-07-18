@@ -20,20 +20,6 @@ from app.run_modes import (
 )
 
 
-def _drain_pre_run_steering(run_id: str, db_path: str | None) -> None:
-    """Mark any steering queued before the run started as applied.
-
-    Drains steering queued before the run started (e.g. via the composer) so
-    it is not left "pending" and re-applied later inside run_mock_workflow's
-    own per-iteration steering check.
-    """
-    pre_run_steering = store.get_pending_steering(run_id, db_path=db_path)
-    if pre_run_steering:
-        store.mark_steering_applied(
-            [m.id for m in pre_run_steering], db_path=db_path
-        )
-
-
 def _clean_list_field(setup: dict[str, Any], key: str) -> list[str]:
     """Return a setup dict's list field, stringified and cleaned."""
     return clean_string_list([str(value) for value in setup.get(key) or []])

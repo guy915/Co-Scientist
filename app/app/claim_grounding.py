@@ -68,8 +68,8 @@ def build_assessor(mode: str, model: str) -> tuple[Assessor, str]:
 
     ``mode == "llm"`` builds the semantic NLI assessor (imported lazily so the
     deterministic default never pulls in the LLM path); anything else is the
-    offline deterministic assessor. Used by the real-engine drain to honor
-    ``settings.claim_assessor``; the mock path always grounds deterministically.
+    offline deterministic assessor. Used by the engine drain to honor
+    ``settings.claim_assessor``.
     """
     if mode == "llm":
         from app.claim_verifier import make_llm_assessor
