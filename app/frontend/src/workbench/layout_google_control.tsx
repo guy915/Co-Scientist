@@ -1,7 +1,7 @@
 import {type ReactNode} from 'react';
 import {Link} from 'react-router-dom';
 import {Icon} from '@/components/icon';
-import {GOOGLE_MESSAGE} from './audience_content';
+import {GOOGLE_NOTE} from './audience_content';
 import {tooltipClassNames} from './tooltip';
 
 const BUTTON_CLASSES =
@@ -41,7 +41,7 @@ export function GoogleTeamControl({
           className: BUTTON_CLASSES,
           placement: 'left',
         })}
-        data-tooltip="Team note"
+        data-tooltip={GOOGLE_NOTE.label}
         aria-expanded={open}
         onClick={onToggle}
       >
@@ -50,14 +50,19 @@ export function GoogleTeamControl({
           className="text-[1.05rem]"
           name="rate_review"
         />
-        <span>Team note</span>
+        {/* lang marks the Hebrew for screen readers and font selection; the
+            button keeps the header's LTR flow, since its icon-then-label
+            order matches the other header controls. */}
+        <span lang="he">{GOOGLE_NOTE.label}</span>
       </button>
       {open &&
         renderPopover(
-          <div className="grid gap-3 p-4">
-            <p>{GOOGLE_MESSAGE}</p>
+          // The panel is Hebrew prose, so it renders RTL as a unit: text
+          // aligns right and trailing punctuation lands on the correct side.
+          <div className="grid gap-3 p-4 text-right" dir="rtl" lang="he">
+            <p>{GOOGLE_NOTE.message}</p>
             <Link className="text-th-primary underline" to="/recommendations">
-              View recommendations
+              {GOOGLE_NOTE.linkLabel}
             </Link>
           </div>,
           POPOVER_CLASSES,

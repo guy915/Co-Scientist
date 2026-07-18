@@ -25,11 +25,22 @@ export const AUDIENCE_OPTIONS: {
   },
 ];
 
-// DRAFT: personal message shown to the Google team in the header popover.
-export const GOOGLE_MESSAGE =
-  'Thank you for the AI Co-Scientist work that inspired this project. ' +
-  'This is an independent replication built to study the architecture. ' +
-  'I would love your feedback — see my recommendations for the product.';
+// DRAFT: personal note shown to the Google team in the header popover. The
+// reviewing team is Israeli, so this surface is in Hebrew and renders RTL
+// (see GoogleTeamControl, which sets dir/lang). The affiliation chooser
+// itself stays in English: it is shown before anyone has identified.
+export const GOOGLE_NOTE: {
+  label: string;
+  message: string;
+  linkLabel: string;
+} = {
+  label: 'הודעה לצוות',
+  message:
+    'תודה על העבודה על AI Co-Scientist — היא ההשראה לפרויקט הזה. ' +
+    'זהו שחזור עצמאי שנבנה כדי ללמוד את הארכיטקטורה לעומק. ' +
+    'אשמח מאוד לשמוע את דעתכם, וריכזתי גם כמה המלצות למוצר הרשמי.',
+  linkLabel: 'לצפייה בהמלצות',
+};
 
 // DRAFT: recommendations page copy (heading + bullet points).
 export const GOOGLE_RECOMMENDATIONS: {heading: string; points: string[]} = {

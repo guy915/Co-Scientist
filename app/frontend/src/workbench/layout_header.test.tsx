@@ -2,6 +2,7 @@ import {render, screen} from '@testing-library/react';
 import {MemoryRouter} from 'react-router-dom';
 import {beforeEach, describe, expect, it} from 'vitest';
 import {type Audience, AudienceProvider} from './audience_context';
+import {GOOGLE_NOTE} from './audience_content';
 import {ShellHeader} from './layout_header';
 
 // Seeding localStorage would not drive this: the provider deliberately drops
@@ -42,7 +43,7 @@ describe('ShellHeader audience control', () => {
   it('shows the team control for google', () => {
     renderHeader('google');
     expect(
-      screen.getByRole('button', {name: /Team note/i}),
+      screen.getByRole('button', {name: GOOGLE_NOTE.label}),
     ).toBeInTheDocument();
   });
 });
