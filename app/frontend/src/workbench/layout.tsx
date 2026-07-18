@@ -5,6 +5,7 @@ import {
   type NavigateFunction,
 } from 'react-router-dom';
 import {joinClasses} from './classes';
+import {AudienceGate} from './components/audience_dialog';
 import {SettingsDialog} from './components/settings_dialog';
 import {NEW_CHAT_EVENT} from './dom_events';
 import {closeDrawerIfMobile} from './hooks/use_is_mobile';
@@ -190,6 +191,7 @@ export function Layout({children}: {children: ReactNode}) {
           onClose={() => setSettingsSection(null)}
         />
       )}
+      <AudienceGate />
     </div>
   );
 }

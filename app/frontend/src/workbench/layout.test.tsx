@@ -3,6 +3,7 @@ import {MemoryRouter} from 'react-router-dom';
 import {beforeEach, describe, expect, it, vi} from 'vitest';
 import type {Run} from '@/api/runs';
 import {makeRun} from '@/test-fixtures';
+import {AudienceProvider} from './audience_context';
 import {DIAGNOSTIC_EVENT} from './dom_events';
 import {RunHistoryProvider} from './hooks/run_history_context';
 import {Layout} from './layout';
@@ -43,13 +44,15 @@ vi.mock('@/api/system', () => systemApiMock);
 function renderLayout(path = '/') {
   return render(
     <ThemeProvider>
-      <MemoryRouter initialEntries={[path]}>
-        <RunHistoryProvider>
-          <Layout>
-            <main>Workspace content</main>
-          </Layout>
-        </RunHistoryProvider>
-      </MemoryRouter>
+      <AudienceProvider>
+        <MemoryRouter initialEntries={[path]}>
+          <RunHistoryProvider>
+            <Layout>
+              <main>Workspace content</main>
+            </Layout>
+          </RunHistoryProvider>
+        </MemoryRouter>
+      </AudienceProvider>
     </ThemeProvider>,
   );
 }
