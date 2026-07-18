@@ -37,13 +37,12 @@ export const GOOGLE_NOTE: {
   label: 'הודעה לצוות',
   // English source, kept alongside the translation so the wording can be
   // revised without back-translating: "This is an independent recreation of
-  // AI Co-Scientist, built to learn how the system works. After studying the
-  // publication and surveying competing tools, I've collected a few
-  // suggestions for the official product."
+  // AI Co-Scientist, built to learn how the system works. After reading the
+  // paper and researching competitors, I've added a few suggestions for the
+  // official product."
   message:
-    'זהו שחזור עצמאי של AI Co-Scientist, שנבנה כדי ללמוד איך המערכת עובדת. ' +
-    'לאחר שלמדתי את המאמר וסקרתי כלים מתחרים, ריכזתי כמה הצעות ' +
-    'למוצר הרשמי.',
+    'זה שחזור עצמאי של AI Co-Scientist, שנבנה כדי ללמוד איך המערכת עובדת. ' +
+    'לאחר שקראתי את המאמר וחקרתי על מתחרים, הוספתי כמה הצעות למוצר הרשמי.',
   linkLabel: 'לצפייה בהצעות',
 };
 
