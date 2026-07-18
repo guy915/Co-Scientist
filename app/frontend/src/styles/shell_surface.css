@@ -709,6 +709,46 @@
   opacity: 0.85;
 }
 
+/* Filled action button used inside header popovers (the feedback form's
+   submit, the team note's link to the recommendations page). */
+.ucs-panel-button {
+  display: inline-block;
+  border: 0;
+  border-radius: 9999px;
+  background: var(--cosci-blue);
+  color: var(--cosci-menu-bg);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 600;
+  padding: 0.45rem 1.1rem;
+  text-decoration: none;
+}
+
+.ucs-panel-button:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+/* Hebrew note to the Google team. `justify-items: start` resolves against
+   the inline direction, so under dir="rtl" the button hugs the right edge
+   without any RTL-specific rule. */
+.ucs-team-note {
+  display: grid;
+  gap: 0.85rem;
+  justify-items: start;
+  padding: 1rem;
+}
+
+/* The UA's default paragraph margin would pad the text top and bottom
+   inside the panel, reading as vertical centering. Zeroed here rather than
+   globally: a global reset collapses the rendered Goal Report markdown. */
+.ucs-team-note p {
+  margin: 0;
+  font-size: 0.9rem;
+  line-height: 1.6;
+}
+
 /* Pilot feedback form in the SBI/UCD header popover. Reuses the settings
    dialog's field and selection vocabulary so the panel reads as part of the
    same product surface. */
@@ -788,23 +828,6 @@
 .ucs-feedback-status {
   color: var(--cosci-muted);
   font-size: 0.75rem;
-}
-
-.ucs-feedback-submit {
-  border: 0;
-  border-radius: 9999px;
-  background: var(--cosci-blue);
-  color: var(--cosci-menu-bg);
-  cursor: pointer;
-  font: inherit;
-  font-size: 0.82rem;
-  font-weight: 600;
-  padding: 0.45rem 1.1rem;
-}
-
-.ucs-feedback-submit:disabled {
-  cursor: default;
-  opacity: 0.5;
 }
 
 /* Get-help FAQ: native <details> accordion, styled as stacked rows with a

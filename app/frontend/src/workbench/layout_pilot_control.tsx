@@ -156,7 +156,7 @@ export function PilotControl({
             <div className="ucs-feedback-actions">
               <button
                 type="submit"
-                className="ucs-feedback-submit"
+                className="ucs-panel-button"
                 disabled={sending || !form.message.trim()}
               >
                 {sending ? PILOT_FEEDBACK.sending : PILOT_FEEDBACK.submit}

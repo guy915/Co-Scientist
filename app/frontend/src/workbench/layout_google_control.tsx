@@ -44,24 +44,28 @@ export function GoogleTeamControl({
         data-tooltip={GOOGLE_NOTE.label}
         aria-expanded={open}
         onClick={onToggle}
+        // dir on the flex container itself flips the main axis, so the icon
+        // (first in the DOM) renders to the right of the Hebrew label. Set
+        // here rather than on a child: direction is resolved by the flex
+        // container, so a child would have no effect on the order.
+        dir="rtl"
+        lang="he"
       >
         <Icon
           aria-hidden="true"
           className="text-[1.05rem]"
           name="rate_review"
         />
-        {/* lang marks the Hebrew for screen readers and font selection; the
-            button keeps the header's LTR flow, since its icon-then-label
-            order matches the other header controls. */}
-        <span lang="he">{GOOGLE_NOTE.label}</span>
+        <span>{GOOGLE_NOTE.label}</span>
       </button>
       {open &&
         renderPopover(
-          // The panel is Hebrew prose, so it renders RTL as a unit: text
-          // aligns right and trailing punctuation lands on the correct side.
-          <div className="grid gap-3 p-4 text-right" dir="rtl" lang="he">
+          // Hebrew prose, so the panel renders RTL as a unit: text aligns
+          // right, trailing punctuation lands on the correct side, and the
+          // action button sits at the right edge.
+          <div className="ucs-team-note" dir="rtl" lang="he">
             <p>{GOOGLE_NOTE.message}</p>
-            <Link className="text-th-primary underline" to="/recommendations">
+            <Link className="ucs-panel-button" to="/recommendations">
               {GOOGLE_NOTE.linkLabel}
             </Link>
           </div>,
