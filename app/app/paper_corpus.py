@@ -349,11 +349,15 @@ def build_retriever(
 # reading of the field.
 CORPUS_AUDIENCE = "sbi_ucd"
 
-# How many passages each surface takes. Chat can afford more because it makes
-# one call; the run path's passages ride the literature channel into planning
-# and query generation, where they compete with the goal itself.
-CHAT_PASSAGES = 6
-RUN_PASSAGES = 4
+# How many passages each surface takes. The configured models have 1M-token
+# windows and a passage is ~450 tokens, so these are set by usefulness rather
+# than by budget: the retriever already drops anything scoring zero, but a
+# long tail of weak matches dilutes the strong ones. Chat takes more because
+# it makes one call and its query is a real question; the run path's passages
+# ride the literature channel into planning and query generation, where they
+# are bullet points competing with the goal itself.
+CHAT_PASSAGES = 20
+RUN_PASSAGES = 10
 
 _cached_retriever: KeywordCorpusRetriever | None = None
 _cache_loaded = False
