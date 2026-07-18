@@ -78,7 +78,6 @@
   top: 0.25rem;
   display: grid;
   gap: 0.3rem;
-  border: 1px solid var(--cosci-border);
   border-radius: 0.85rem;
   background: var(--cosci-panel);
   padding: 0.6rem 0.8rem;
@@ -88,9 +87,11 @@
   left: 0.25rem;
 }
 
+/* Sits in the right corner but reads left-to-right like its neighbour:
+   swatch first, then the name. */
 .proposals-legend.is-relationships {
   right: 0.25rem;
-  justify-items: end;
+  justify-items: start;
 }
 
 .proposals-legend-title {
@@ -115,10 +116,6 @@
   display: flex;
   align-items: center;
   gap: 0.45rem;
-}
-
-.proposals-legend.is-relationships .proposals-legend-item {
-  justify-content: end;
 }
 
 .proposals-legend-swatch {
@@ -161,7 +158,7 @@
 }
 
 .proposals-reset {
-  justify-self: end;
+  justify-self: start;
   margin-top: 0.15rem;
   border: 0;
   border-radius: 9999px;
