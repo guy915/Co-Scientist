@@ -69,23 +69,27 @@
 
 /* Legends ------------------------------------------------------------- */
 
-/* Names only, overlaid in the top corners: groups left, relationships
-   right. No card or background — they sit directly on the page, so the
-   graph reads as the whole surface. */
+/* Names only, in a card overlaid in each top corner: groups left,
+   relationships right. The graph itself has no container — these float
+   above it. */
 .proposals-legend {
   position: absolute;
   z-index: 2;
-  top: 0;
+  top: 0.25rem;
   display: grid;
   gap: 0.3rem;
+  border: 1px solid var(--cosci-border);
+  border-radius: 0.85rem;
+  background: var(--cosci-panel);
+  padding: 0.6rem 0.8rem;
 }
 
 .proposals-legend.is-groups {
-  left: 0;
+  left: 0.25rem;
 }
 
 .proposals-legend.is-relationships {
-  right: 0;
+  right: 0.25rem;
   justify-items: end;
 }
 
