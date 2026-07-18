@@ -135,11 +135,12 @@ def _stub_probe_pair(
 ) -> object:
     """Build a fake `_probe_literature_stack` that counts its invocations."""
 
-    async def _stub() -> tuple[ProbeResult, ProbeResult]:
+    async def _stub() -> tuple[ProbeResult, ProbeResult, ProbeResult]:
         calls.append(1)
         return (
             ProbeResult(available=True, state=PROBE_UP),
             ProbeResult(available=False, state=PROBE_DOWN),
+            ProbeResult(available=True, state=PROBE_UP),
         )
 
     return _stub
@@ -203,9 +204,9 @@ async def test_probe_stack_reports_error_when_engine_unavailable(
     # import ...` raise ImportError without touching the real installation.
     monkeypatch.setitem(sys.modules, "co_scientist.mcp_client", None)
 
-    mcp, pubmed = await diagnostics._probe_literature_stack()
+    mcp, pubmed, web_search = await diagnostics._probe_literature_stack()
 
-    for result in (mcp, pubmed):
+    for result in (mcp, pubmed, web_search):
         assert result.available is False
         assert result.state == PROBE_ERROR
         assert result.error is not None

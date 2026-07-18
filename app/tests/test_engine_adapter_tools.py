@@ -16,6 +16,7 @@ import pytest
 from app.config import settings
 from app.engine_adapter.opts import _build_generator
 from app.engine_adapter.tools import (
+    connectors_report,
     tools_config_report,
     validate_tools_config,
 )
@@ -120,3 +121,85 @@ def test_tools_config_report_none_is_valid_defaults() -> None:
     assert report["tools_config"] is None
     assert report["tools_config_valid"] is True
     assert report["enabled_tools"] is None
+
+
+def test_build_generator_enables_web_search_by_default() -> None:
+    """A config without the toggle disables nothing (web search is on)."""
+    _build_generator(_FakeGenerator, _cfg())
+    assert _FakeGenerator.last_kwargs["disable_tools"] == []
+
+
+def test_build_generator_disables_web_search_when_toggled_off() -> None:
+    """Turning the connector off disables the engine's web_search tool."""
+    cfg = _cfg() | {"enable_web_search": False}
+    _build_generator(_FakeGenerator, cfg)
+    assert _FakeGenerator.last_kwargs["disable_tools"] == ["web_search"]
+
+
+def test_disabling_web_search_keeps_read_url() -> None:
+    """read_url is the shared content-fetch tool and must survive.
+
+    It is the ``content_tool`` for PDF/full-text retrieval in the arXiv,
+    Google Scholar, and web configs, so disabling it with web search would
+    break literature retrieval for unrelated sources.
+    """
+    cfg = _cfg() | {"enable_web_search": False}
+    _build_generator(_FakeGenerator, cfg)
+    assert "read_url" not in _FakeGenerator.last_kwargs["disable_tools"]
+
+
+def test_connectors_report_lists_web_search_when_available() -> None:
+    """The connector appears on live availability, with no tools config.
+
+    enabled_tools is None whenever TOOLS_CONFIG is unset (the default), so
+    without the availability route the row would never render.
+    """
+    connectors = connectors_report(
+        literature_available=True,
+        enabled_tools=None,
+        web_search_available=True,
+    )
+    assert {"id": "web_search", "display": "Web search"} in connectors
+
+
+def test_connectors_report_omits_web_search_when_unavailable() -> None:
+    """No provider key on the MCP server means no web search row."""
+    connectors = connectors_report(
+        literature_available=True,
+        enabled_tools=None,
+        web_search_available=False,
+    )
+    assert all(item["id"] != "web_search" for item in connectors)
+
+
+def test_connectors_report_defaults_web_search_unavailable() -> None:
+    """Callers that omit the flag get the conservative answer."""
+    connectors = connectors_report(
+        literature_available=True, enabled_tools=None
+    )
+    assert all(item["id"] != "web_search" for item in connectors)
+
+
+def test_connectors_report_still_falls_back_to_pubmed() -> None:
+    """Nothing available still yields a non-empty menu."""
+    connectors = connectors_report(
+        literature_available=False,
+        enabled_tools=None,
+        web_search_available=False,
+    )
+    assert connectors == [{"id": "pubmed", "display": "PubMed"}]
+
+
+def test_resolved_run_config_enables_web_search_by_default() -> None:
+    """The toggle is on by default, matching the literature stack."""
+    from app.run_modes import resolved_run_config
+
+    assert resolved_run_config().get("enable_web_search") is True
+
+
+def test_resolved_run_config_honors_web_search_override() -> None:
+    """An explicit off from the request survives config resolution."""
+    from app.run_modes import resolved_run_config
+
+    cfg = resolved_run_config(overrides={"enable_web_search": False})
+    assert cfg["enable_web_search"] is False

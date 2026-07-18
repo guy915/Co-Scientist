@@ -298,11 +298,18 @@ class SystemStatusResponse(BaseModel):
             "and pubmed)"
         ),
     )
+    web_search_available: bool = Field(
+        False,
+        description=(
+            "whether the mcp server advertises its web search tool, which "
+            "it does only when a search-provider api key is configured"
+        ),
+    )
     probes: dict[str, ProbeStatus] = Field(
         ...,
         description=(
-            "per-probe detail (mcp, pubmed), distinguishing a served "
-            "'down' from a probe error"
+            "per-probe detail (mcp, pubmed, web_search), distinguishing a "
+            "served 'down' from a probe error"
         ),
     )
     mcp_server_url: str = Field(..., description="configured mcp server url")
@@ -409,7 +416,7 @@ async def get_system_status() -> dict[str, Any]:
     cached for a short TTL (see app/diagnostics.py); the ``probes`` field
     distinguishes a server that answered "down" from a probe that errored.
     """
-    mcp, pubmed = await diagnostics.probe_literature_stack_cached()
+    mcp, pubmed, web_search = await diagnostics.probe_literature_stack_cached()
 
     adapter_status = engine_adapter.system_status()
 
@@ -421,15 +428,23 @@ async def get_system_status() -> dict[str, Any]:
         "mcp_available": mcp.available,
         "pubmed_available": pubmed.available,
         "literature_review_available": literature_available,
+        # True only when the MCP server advertises its web search tool, which
+        # requires a search-provider API key on that server.
+        "web_search_available": web_search.available,
         "probes": {
             "mcp": {"state": mcp.state, "error": mcp.error},
             "pubmed": {"state": pubmed.state, "error": pubmed.error},
+            "web_search": {
+                "state": web_search.state,
+                "error": web_search.error,
+            },
         },
         # User-facing data-source connectors for the composer menu, derived
-        # from literature availability plus the configured tools YAML.
+        # from live availability plus the configured tools YAML.
         "connectors": engine_adapter.connectors_report(
             literature_available=literature_available,
             enabled_tools=adapter_status.get("enabled_tools"),
+            web_search_available=web_search.available,
         ),
         # provider/mock_mode/model_name/etc. from engine_adapter.system_status
         **adapter_status,

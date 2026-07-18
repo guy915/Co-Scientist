@@ -369,6 +369,43 @@ async def check_pubmed_available_via_mcp(
     return await check_literature_source_available(server_url, tool_registry)
 
 
+async def check_tool_available(
+    tool_name: str,
+    server_url: str | None = None,
+    tool_registry: Optional["ToolRegistry"] = None,
+) -> bool:
+    """Check whether the MCP server advertises a specific tool.
+
+    Some tools are registered conditionally by the server (``search_web``
+    only appears when a provider API key is configured), so asking the
+    server what it exposes is the only honest way to tell whether a
+    capability is usable.
+
+    Args:
+        tool_name: MCP tool name to look for, e.g. "search_web".
+        server_url: URL of the MCP server (legacy).
+        tool_registry: Optional ToolRegistry for multi-server configs.
+
+    Returns:
+        True if the server responded and lists that tool, False otherwise.
+    """
+    if server_url is None and tool_registry is None:
+        server_url = _resolve_server_url()
+
+    try:
+        test_client = MCPToolClient(
+            server_url=server_url, tool_registry=tool_registry
+        )
+        await test_client.initialize()
+        return test_client.has_tool(tool_name)
+    except Exception as e:
+        # Broad catch to False, matching the other probes here: this result
+        # only gates whether a capability is offered, and an unreachable
+        # server must degrade to "not available" rather than raise.
+        logger.debug("tool availability check failed for %s: %s", tool_name, e)
+        return False
+
+
 async def check_mcp_available(
     server_url: str | None = None,
     tool_registry: Optional["ToolRegistry"] = None,

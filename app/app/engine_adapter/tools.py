@@ -25,32 +25,44 @@ logger = logging.getLogger(__name__)
 # wired up so it appears in the menu automatically.
 _KNOWN_CONNECTORS: tuple[tuple[str, str], ...] = (
     ("pubmed", "PubMed"),
+    ("web_search", "Web search"),
     ("indra", "INDRA"),
 )
 
 
 def connectors_report(
-    *, literature_available: bool, enabled_tools: list[str] | None
+    *,
+    literature_available: bool,
+    enabled_tools: list[str] | None,
+    web_search_available: bool = False,
 ) -> list[dict[str, str]]:
     """Derive the user-facing data-source connectors for the composer menu.
 
-    PubMed is the literature base and is listed whenever the literature stack
-    is available; any other known connector is listed when the configured tools
-    YAML enables a matching tool. Falls back to PubMed so the menu is never
-    empty.
+    Two connectors are listed on live availability rather than on the tools
+    YAML: PubMed (the literature base) and web search. Both need the
+    availability route because ``enabled_tools`` is None whenever no
+    ``TOOLS_CONFIG`` is set, which is the default -- without it neither would
+    ever appear on a default deployment. Every other known connector is
+    listed when the configured tools YAML enables a matching tool. Falls back
+    to PubMed so the menu is never empty.
 
     Args:
         literature_available: Whether the MCP + PubMed literature stack is up.
         enabled_tools: Enabled tool ids from a readable tools config, or None.
+        web_search_available: Whether the MCP server advertises the web
+            search tool, which it does only when a provider key is set.
 
     Returns:
         Ordered connectors, each ``{"id": ..., "display": ...}``.
     """
     tool_blob = " ".join(enabled_tools or []).lower()
+    available_by_probe = {
+        "pubmed": literature_available,
+        "web_search": web_search_available,
+    }
     connectors: list[dict[str, str]] = []
     for key, display in _KNOWN_CONNECTORS:
-        matched = key in tool_blob or (key == "pubmed" and literature_available)
-        if matched:
+        if key in tool_blob or available_by_probe.get(key, False):
             connectors.append({"id": key, "display": display})
     if not connectors:
         connectors.append({"id": "pubmed", "display": "PubMed"})

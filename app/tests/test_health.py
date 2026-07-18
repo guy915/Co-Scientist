@@ -67,12 +67,16 @@ def test_health_degraded_when_key_set_but_engine_missing(
 
 
 def _patch_probes(
-    monkeypatch: pytest.MonkeyPatch, mcp: ProbeResult, pubmed: ProbeResult
+    monkeypatch: pytest.MonkeyPatch,
+    mcp: ProbeResult,
+    pubmed: ProbeResult,
+    web_search: ProbeResult | None = None,
 ) -> None:
-    """Patch the uncached probe pair; the autouse fixture cleared the cache."""
+    """Patch the uncached probe triple; the autouse fixture cleared cache."""
+    resolved_web = web_search or ProbeResult(available=False, state="down")
 
-    async def _stub() -> tuple[ProbeResult, ProbeResult]:
-        return mcp, pubmed
+    async def _stub() -> tuple[ProbeResult, ProbeResult, ProbeResult]:
+        return mcp, pubmed, resolved_web
 
     monkeypatch.setattr(diagnostics, "_probe_literature_stack", _stub)
 
@@ -84,7 +88,7 @@ def test_status_reports_mock_mode() -> None:
     data = res.json()
     assert data["mock_mode"] is True
     assert data["provider"] == "mock"
-    assert set(data["probes"]) == {"mcp", "pubmed"}
+    assert set(data["probes"]) == {"mcp", "pubmed", "web_search"}
 
 
 def test_status_requires_both_probes_for_literature_review(
@@ -163,3 +167,38 @@ def test_status_reports_configured_supervisor_model(
     data = _client().get("/status").json()
     assert data["supervisor_model_name"] == "strategic/model"
     assert data["model_name"] == "worker/model"
+
+
+def test_status_reports_web_search_available(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A server advertising the web search tool surfaces the connector."""
+    _patch_probes(
+        monkeypatch,
+        ProbeResult(available=True, state="up"),
+        ProbeResult(available=True, state="up"),
+        ProbeResult(available=True, state="up"),
+    )
+
+    data = _client().get("/status").json()
+
+    assert data["web_search_available"] is True
+    assert data["probes"]["web_search"]["state"] == "up"
+    assert any(item["id"] == "web_search" for item in data["connectors"])
+
+
+def test_status_omits_web_search_connector_when_down(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """No provider key on the MCP server means no web search connector."""
+    _patch_probes(
+        monkeypatch,
+        ProbeResult(available=True, state="up"),
+        ProbeResult(available=True, state="up"),
+        ProbeResult(available=False, state="down"),
+    )
+
+    data = _client().get("/status").json()
+
+    assert data["web_search_available"] is False
+    assert all(item["id"] != "web_search" for item in data["connectors"])

@@ -265,6 +265,13 @@ def _apply_literature_review_override(
     base["enable_literature_review"] = bool(raw_value)
 
 
+def _apply_web_search_override(
+    base: dict[str, Any], unused_key: str, raw_value: Any
+) -> None:
+    """Coerce and merge the web-search toggle into `base`, in place."""
+    base["enable_web_search"] = bool(raw_value)
+
+
 # Per-key override handlers; any key without a dedicated handler is a
 # numeric knob and falls back to `_apply_numeric_override`. Every handler
 # shares `_apply_numeric_override`'s (base, key, raw_value) signature so the
@@ -274,6 +281,7 @@ _OVERRIDE_HANDLERS: dict[str, Callable[[dict[str, Any], str, Any], None]] = {
     "tier": _apply_tier_override,
     "focus": _apply_focus_override,
     "enable_literature_review": _apply_literature_review_override,
+    "enable_web_search": _apply_web_search_override,
 }
 
 
@@ -338,4 +346,7 @@ def resolved_run_config(
     # config so downstream consumers need no fallbacks of their own.
     base.setdefault("k_factor", DEFAULT_K_FACTOR)
     base.setdefault("enable_literature_review", True)
+    # Web search is on by default, matching the literature stack. It is a
+    # no-op unless the MCP server actually offers the tool.
+    base.setdefault("enable_web_search", True)
     return base

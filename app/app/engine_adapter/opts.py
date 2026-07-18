@@ -154,6 +154,28 @@ def _build_engine_opts(
     return initial_opts
 
 
+def _resolve_disabled_tools(cfg: dict[str, Any]) -> list[str]:
+    """Map the run's connector toggles onto engine tool ids to disable.
+
+    Only ``web_search`` is disabled when the web-search connector is off.
+    ``read_url`` is deliberately left enabled: it is the generic
+    content-fetch tool, used as the ``content_tool`` for PDF and full-text
+    retrieval in the arXiv, Google Scholar, and web configs, so disabling it
+    here would break literature retrieval for unrelated sources.
+
+    Args:
+        cfg: Resolved run config; ``resolved_run_config`` guarantees the
+            toggle keys are present.
+
+    Returns:
+        Engine tool ids to disable for this run, empty when nothing is off.
+    """
+    disabled: list[str] = []
+    if not cfg.get("enable_web_search", True):
+        disabled.append("web_search")
+    return disabled
+
+
 def _build_generator(generator_cls: Any, cfg: dict[str, Any]) -> Any:
     """Construct a fresh `HypothesisGenerator` from the run's resolved config.
 
@@ -179,4 +201,7 @@ def _build_generator(generator_cls: Any, cfg: dict[str, Any]) -> Any:
         # leaves the engine on its default PubMed-only tools. Startup already
         # validated this path is readable (see app.main lifespan).
         tools_config=settings.tools_config,
+        # Per-run connector toggles, applied by the engine's ToolRegistry as
+        # `tool.enabled = False` for each id.
+        disable_tools=_resolve_disabled_tools(cfg),
     )

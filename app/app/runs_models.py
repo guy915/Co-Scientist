@@ -42,6 +42,7 @@ class CreateRunRequest(BaseModel):
     evolution_max_count: int | None = None
     k_factor: int | None = None
     enable_literature_review: bool | None = None
+    enable_web_search: bool | None = None
     completion_email: str | None = Field(
         None,
         pattern=r"^[^@\s]+@[^@\s]+\.[^@\s]+$",
@@ -140,6 +141,7 @@ def _run_overrides_from_request(
         ("evolution_max_count", req.evolution_max_count),
         ("k_factor", req.k_factor),
         ("enable_literature_review", req.enable_literature_review),
+        ("enable_web_search", req.enable_web_search),
     )
     for key, value in numeric_overrides:
         if value is not None:
