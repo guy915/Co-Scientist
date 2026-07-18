@@ -765,6 +765,14 @@ async def test_verification_children_commit_through_single_aggregator(
     assert restored[0]["enrichments"]["deep_verification"][
         "retrieval_queries"
     ] == ["probe query"]
+    milestones = [
+        message
+        for message in store.list_messages(run.id, db_path=isolated_db)
+        if message.kind == "milestone"
+    ]
+    assert [message.content for message in milestones] == [
+        "3 hypotheses verified"
+    ]
 
 
 @pytest.mark.asyncio
@@ -885,6 +893,14 @@ async def test_ranking_matches_are_separate_sequential_checkpointed_tasks(
         sum(task.task_type == engine_tasks.RANKING_MATCH_TASK for task in tasks)
         == 3
     )
+    milestones = [
+        message
+        for message in store.list_messages(run.id, db_path=isolated_db)
+        if message.kind == "milestone"
+    ]
+    assert [message.content for message in milestones] == [
+        "Tournament complete (iteration 0, 3 matches)"
+    ]
 
 
 @pytest.mark.asyncio
@@ -933,6 +949,18 @@ async def test_worker_consumes_independent_specialist_task_chain(
         "engine.finalize",
     ]
     assert all(task.status == "completed" for task in tasks)
+    # Each milestone-bearing node completion appends its chat message once,
+    # in commit order -- the same milestones the streaming path emits for
+    # `supervisor.plan` and `research_overview` (see events.py).
+    milestones = [
+        message
+        for message in store.list_messages(run.id, db_path=isolated_db)
+        if message.kind == "milestone"
+    ]
+    assert [message.content for message in milestones] == [
+        "Research plan ready — supervisor complete",
+        "Research overview ready",
+    ]
 
 
 @pytest.mark.asyncio
@@ -1097,6 +1125,14 @@ async def test_generation_strategies_are_independently_leased_and_aggregated(
         hypothesis.generation_method for hypothesis in restored["hypotheses"]
     }
     assert methods == {GenerationMethod.DEBATE, GenerationMethod.ASSUMPTIONS}
+    milestones = [
+        message
+        for message in store.list_messages(run.id, db_path=isolated_db)
+        if message.kind == "milestone"
+    ]
+    assert [message.content for message in milestones] == [
+        "3 hypotheses generated (initial)"
+    ]
     successor = store.claim_task("review", run_id=run.id, db_path=isolated_db)
     assert successor is not None
     assert successor.task_type == f"{engine_tasks.NODE_TASK_PREFIX}review"
@@ -1304,3 +1340,113 @@ async def test_execute_finalize_emits_post_drain_stage_events(
     citation_audit = by_type["citation_audit"]
     assert citation_audit
     assert all(isinstance(v, int) for v in citation_audit.values())
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("node_name", "extra_state", "expected_milestone"),
+    [
+        pytest.param(
+            "reflection",
+            {
+                "hypotheses": [
+                    Hypothesis(
+                        text="Reviewed idea",
+                        reviews=[
+                            HypothesisReview(
+                                review_summary="ok",
+                                scores={},
+                                safety_ethical_concerns="",
+                                detailed_feedback={},
+                                constructive_feedback="",
+                                overall_score=70.0,
+                            )
+                        ],
+                    )
+                ]
+            },
+            "1 hypotheses reviewed",
+            id="reflection",
+        ),
+        pytest.param(
+            "evolve",
+            {
+                "hypotheses": [
+                    Hypothesis(
+                        text="Evolved idea", evolution_history=["refined"]
+                    )
+                ]
+            },
+            "1 hypotheses evolved (iteration 0)",
+            id="evolve",
+        ),
+        pytest.param(
+            "proximity",
+            {
+                "proximity_graph": {
+                    "edges": [
+                        {"source": "h1", "target": "h2", "cluster_id": "c1"}
+                    ]
+                }
+            },
+            "1 clusters identified",
+            id="proximity",
+        ),
+        pytest.param(
+            "meta_review",
+            {"meta_review": {"summary": "Synthesis complete."}},
+            "Meta-review complete",
+            id="meta_review",
+        ),
+    ],
+)
+async def test_generic_node_completion_emits_matching_milestone(
+    isolated_db: str,
+    monkeypatch: pytest.MonkeyPatch,
+    node_name: str,
+    extra_state: dict[str, Any],
+    expected_milestone: str,
+) -> None:
+    """The remaining milestone-bearing nodes append their canonical chat text.
+
+    Covers the four node types (reflection, evolve, proximity, meta_review)
+    the streaming path milestones (see events.py's ``_MILESTONE_BUILDERS``)
+    that no other durable-executor test happens to exercise through
+    ``execute_node_task``'s generic completion path -- supervisor.plan and
+    research_overview are covered by
+    ``test_worker_consumes_independent_specialist_task_chain``, generate by
+    ``test_generation_strategies_are_independently_leased_and_aggregated``,
+    ranking by
+    ``test_ranking_matches_are_separate_sequential_checkpointed_tasks``, and
+    deep_verification by
+    ``test_verification_children_commit_through_single_aggregator``.
+    """
+    run = store.create_run("Task-level science", "standard", "engine", {})
+    checkpoint_seq = _seed_checkpoint(run.id, _task_state(run.id))
+    node = store.enqueue_task(
+        run.id,
+        f"{engine_tasks.NODE_TASK_PREFIX}{node_name}",
+        {"checkpoint_seq": checkpoint_seq},
+        idempotency_key=f"milestone-{node_name}",
+        db_path=isolated_db,
+    )
+    leased = store.claim_task("worker", run_id=run.id, db_path=isolated_db)
+    assert leased is not None and leased.id == node.id
+
+    async def execute(
+        _name: str, state: dict[str, Any]
+    ) -> tuple[dict[str, Any], str | None]:
+        return {**state, **extra_state}, None
+
+    import co_scientist.task_runtime as runtime
+
+    monkeypatch.setattr(runtime, "execute_task_node", execute)
+    result = await engine_tasks.execute_node_task(leased, db_path=isolated_db)
+    assert store.complete_task(leased.id, "worker", result, db_path=isolated_db)
+
+    milestones = [
+        message
+        for message in store.list_messages(run.id, db_path=isolated_db)
+        if message.kind == "milestone"
+    ]
+    assert [message.content for message in milestones] == [expected_milestone]

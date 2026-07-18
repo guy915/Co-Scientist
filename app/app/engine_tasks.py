@@ -1051,6 +1051,7 @@ async def execute_review_aggregate(
         expected_checkpoint_seq=current_seq,
         db_path=db_path,
     )
+    _emit_node_milestone(task.run_id, "review", committed, db_path)
     return {
         "checkpoint_seq": checkpoint_seq,
         "successor_task_id": successor_id,
@@ -1222,6 +1223,7 @@ async def execute_generation_aggregate(
         expected_checkpoint_seq=current_seq,
         db_path=db_path,
     )
+    _emit_node_milestone(task.run_id, "generate", committed, db_path)
     return {
         "checkpoint_seq": checkpoint_seq,
         "successor_task_id": successor_id,
@@ -1358,6 +1360,9 @@ async def execute_mature_reflection_aggregate(
         expected_checkpoint_seq=current_seq,
         db_path=db_path,
     )
+    _emit_node_milestone(
+        task.run_id, "comprehensive_reflection", committed, db_path
+    )
     return {
         "checkpoint_seq": checkpoint_seq,
         "successor_task_id": successor_id,
@@ -1433,6 +1438,7 @@ async def execute_verification_aggregate(
         expected_checkpoint_seq=current_seq,
         db_path=db_path,
     )
+    _emit_node_milestone(task.run_id, "deep_verification", committed, db_path)
     return {
         "checkpoint_seq": checkpoint_seq,
         "successor_task_id": successor_id,
@@ -1660,6 +1666,7 @@ async def execute_ranking_finalize(
         expected_checkpoint_seq=current_seq,
         db_path=db_path,
     )
+    _emit_node_milestone(task.run_id, "ranking", committed, db_path)
     return {
         "checkpoint_seq": checkpoint_seq,
         "successor_task_id": successor_id,
@@ -1766,6 +1773,7 @@ async def execute_node_task(
         expected_checkpoint_seq=current_seq,
         db_path=db_path,
     )
+    _emit_node_milestone(task.run_id, node_name, committed, db_path)
     emit = make_emitter(task.run_id, db_path=db_path)
     await emit(
         "scientific_task",
@@ -1792,6 +1800,51 @@ def _plain_final_state(state: dict[str, Any]) -> dict[str, Any]:
         "articles": [item.to_dict() for item in state.get("articles") or []],
         "metrics": metrics.to_dict() if metrics else {},
     }
+
+
+def _emit_node_milestone(
+    run_id: str,
+    node_name: str,
+    state: dict[str, Any],
+    db_path: str | None,
+) -> None:
+    """Append the milestone chat message the streaming path emits for a node.
+
+    Reuses ``events.py``'s canonical vocabulary (``_canonical_event_type``,
+    ``_canonical_engine_payload``, ``_format_milestone``) so the durable and
+    streaming engine paths never carry two copies of the milestone strings.
+    A no-op for node types with no milestone builder (e.g. ``review``,
+    ``orchestrator``, ``safety_screen``, ``comprehensive_reflection``) --
+    checked before the state conversion below so those completions pay no
+    extra cost.
+
+    Callers place this immediately after the node's checkpoint commit (the
+    same call site as the durable path's ``scientific_task`` event, where one
+    exists), which is only reached once per real checkpoint advance -- a
+    redelivered/replayed task returns earlier, at the function's existing
+    idempotency guard, so a retried task never emits a duplicate milestone.
+    A crash between the checkpoint commit and this call loses that node's
+    milestone rather than duplicating it, the same failure mode the existing
+    ``scientific_task`` emit already has.
+    """
+    from app.engine_adapter.events import (
+        _MILESTONE_BUILDERS,
+        _canonical_engine_payload,
+        _canonical_event_type,
+        _format_milestone,
+    )
+
+    node_type = _canonical_event_type(node_name)
+    if node_type not in _MILESTONE_BUILDERS:
+        return
+    payload = _canonical_engine_payload(
+        node_name, node_type, _plain_final_state(state)
+    )
+    milestone = _format_milestone(node_type, payload)
+    if milestone:
+        store.append_message(
+            run_id, "system", milestone, "milestone", db_path=db_path
+        )
 
 
 async def execute_finalize(
