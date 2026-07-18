@@ -43,12 +43,14 @@ export interface Point {
 // use the full width.
 const ROW = {top: 295, bottom: 640};
 
-// Cluster anchors, hand-placed so that the clusters with the most traffic
-// between them sit adjacent and long edges stay rare. `rx`/`ry` size the
-// ring the cluster's nodes sit on: wider than tall, because node boxes are
-// wide and would otherwise collide left-to-right. `start` rotates the ring
-// so the first node lands at the top. Every `ry` stays within HALF_SPAN so
-// the shared hull height covers each cluster's nodes.
+// Cluster anchors. The top row takes the middle two clusters by width and
+// the bottom row the other three, so the narrow row is the one that has to
+// fit between the legends.
+//
+// `rx`/`ry` size the ring the cluster's nodes sit on: wider than tall,
+// because node boxes are wide and would otherwise collide left-to-right.
+// `start` rotates the ring so the first node lands at the top. Every `ry`
+// is equal, which is what makes the hulls share a height.
 interface Ring {
   center: Point;
   rx: number;
@@ -60,13 +62,10 @@ type Rings = Record<ClusterId, Ring>;
 
 const RINGS: Rings = {
   evaluation: {center: {x: 442, y: ROW.top}, rx: 122, ry: 85, start: -90},
-  scaling: {center: {x: 976, y: ROW.top}, rx: 141, ry: 85, start: -90},
-  // rx has to keep the two nodes that share a y on the ring from colliding:
-  // for five nodes those sit 1.176*rx apart, so rx below ~170 overlaps at
-  // this node width.
-  capabilities: {center: {x: 321, y: ROW.bottom}, rx: 185, ry: 85, start: -90},
-  knowledge: {center: {x: 761, y: ROW.bottom}, rx: 0, ry: 85, start: -90},
-  interaction: {center: {x: 1140, y: ROW.bottom}, rx: 115, ry: 85, start: -90},
+  interaction: {center: {x: 976, y: ROW.top}, rx: 122, ry: 85, start: -90},
+  capabilities: {center: {x: 317, y: ROW.bottom}, rx: 185, ry: 85, start: -90},
+  knowledge: {center: {x: 763, y: ROW.bottom}, rx: 0, ry: 85, start: -90},
+  scaling: {center: {x: 1146, y: ROW.bottom}, rx: 130, ry: 85, start: -90},
 };
 
 /**
