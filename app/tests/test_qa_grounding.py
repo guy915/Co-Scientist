@@ -66,14 +66,40 @@ def test_system_prompt_enforces_grounding_only() -> None:
         manifest=build_evidence_manifest([_evidence("e1")], []),
     )
     lowered = prompt.lower()
-    assert "only from this run" in lowered
-    assert "do not draw on outside knowledge" in lowered
+    # Claims about the run are confined to the run's own artifacts, and the
+    # assistant declines rather than filling the gap when they fall short.
+    assert "must come only from the artifacts above" in lowered
     assert "do not contain the answer" in lowered
     # It grounds citations to the numbered manifest, never invented ones.
     assert "never invent a citation" in lowered
     # The run's own goal and hypothesis are in the grounding context.
     assert "A goal" in prompt
     assert "H1" in prompt
+
+
+def test_system_prompt_separates_background_from_run_claims() -> None:
+    """Field background is usable as background, but is not citable.
+
+    The audience's lab context is not run evidence. Answering "what is a
+    DPD?" from it is correct; citing it as [n] alongside the numbered
+    manifest is not, since [n] must resolve to a real retrieved source.
+    """
+    prompt = build_system_prompt(
+        research_goal="A goal",
+        hypotheses=[],
+        reviews=[],
+        matches=[],
+        history=[],
+        manifest=build_evidence_manifest([_evidence("e1")], []),
+        audience_context="The lab uses Modular Response Analysis.",
+    )
+    lowered = prompt.lower()
+    assert "modular response analysis" in lowered
+    assert "never cite it as [n]" in lowered
+    # The background is appended after the rule that governs its use.
+    assert lowered.index("never cite it as [n]") < lowered.index(
+        "modular response analysis"
+    )
 
 
 def test_manifest_keeps_strongest_state_per_evidence() -> None:

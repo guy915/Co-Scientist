@@ -64,7 +64,7 @@ from app import (
     store,
     task_worker,
 )
-from app.audience import audience_context
+from app.audience import audience_chat_context
 from app.auth import client_id
 from app.hypothesis_screening import screen_hypotheses
 from app.logging_setup import run_log_context
@@ -1189,7 +1189,7 @@ async def ask_question(run_id: str, req: AskRequest) -> StreamingResponse:
         matches,
         history,
         manifest,
-        audience_context=audience_context(req.audience),
+        audience_context=audience_chat_context(req.audience),
     )
     return StreamingResponse(
         qa.stream_answer(

@@ -244,12 +244,17 @@ def build_system_prompt(
         f"numbered list; never invent a citation):\n"
         f"{evidence_lines or '(no evidence retrieved)'}\n\n"
         f"Conversation history:\n{conv_lines or '(none)'}\n\n"
-        f"Answer ONLY from this run's hypotheses, reviews, matches, and "
-        f"evidence above -- do not draw on outside knowledge. If the run's "
-        f"artifacts do not contain the answer, say so plainly rather than "
-        f"speculating. Do not repeat the question. When a statement is "
-        f"supported by a listed source, cite it inline as [n]."
+        f"Claims about this run -- what the hypotheses say, how they were "
+        f"reviewed or ranked, and what the evidence shows -- must come ONLY "
+        f"from the artifacts above. If the run's artifacts do not contain "
+        f"the answer, say so plainly rather than speculating. Background "
+        f"about the user's field and its methods may draw on the background "
+        f"section below when one is present, but never cite it as [n]: "
+        f"inline citations refer only to the numbered evidence list. Do not "
+        f"repeat the question. When a statement is supported by a listed "
+        f"source, cite it inline as [n]."
     )
+    # Appended last so the grounding rule above governs how it may be used.
     if audience_context.strip():
         prompt += (
             f"\n\nBackground about the user's field:\n"
