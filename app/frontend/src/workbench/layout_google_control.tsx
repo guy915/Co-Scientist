@@ -56,10 +56,7 @@ export function GoogleTeamControl({
         renderPopover(
           <div className="grid gap-3 p-4">
             <p>{GOOGLE_MESSAGE}</p>
-            <Link
-              className="text-cosci-primary underline"
-              to="/recommendations"
-            >
+            <Link className="text-th-primary underline" to="/recommendations">
               View recommendations
             </Link>
           </div>,

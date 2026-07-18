@@ -245,7 +245,11 @@ export function AffiliationSection() {
             key={option.value}
             type="button"
             aria-pressed={audience === option.value}
-            className="rounded-xl border border-cosci-border p-4 text-left hover:bg-cosci-hover aria-pressed:border-cosci-primary"
+            className={
+              audience === option.value
+                ? 'rounded-xl border-2 border-th-primary bg-cosci-hover p-4 text-left'
+                : 'rounded-xl border border-cosci-border p-4 text-left hover:bg-cosci-hover'
+            }
             onClick={() => setAudience(option.value)}
           >
             <span className="block font-semibold">{option.title}</span>

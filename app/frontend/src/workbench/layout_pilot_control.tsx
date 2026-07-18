@@ -68,7 +68,7 @@ export function PilotControl({
               </ul>
             </div>
             <a
-              className="text-cosci-primary underline"
+              className="text-th-primary underline"
               href={`mailto:${PILOT_FEEDBACK_EMAIL}?subject=Co-Scientist%20pilot%20feedback`}
             >
               Send feedback
