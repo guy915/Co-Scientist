@@ -23,7 +23,10 @@ from typing import Any
 
 import pytest
 
+from co_scientist import cache as cache_mod
+from co_scientist import llm
 from co_scientist import prompts as prompts_mod
+from co_scientist.cache import LLMCache
 from co_scientist.llm import call_llm, call_llm_json, call_llm_with_tools
 from tests._llm_fake import disable_llm_cache as _disable_cache
 
@@ -158,6 +161,63 @@ async def test_call_llm_invoked_once(monkeypatch: pytest.MonkeyPatch) -> None:
     await call_llm("a prompt", "test-model")
 
     assert state["calls"] == 1
+
+
+# --- cache-override scoping (cache.scoped_cache_override) -------------------
+
+
+async def test_scoped_cache_override_false_skips_get_cache(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A task-scoped disable bypasses ``get_cache()`` even for use_cache=True.
+
+    Regression test for the fix to a production bug: a per-generator
+    ``enable_cache=False`` used to be applied by mutating
+    ``COSCIENTIST_CACHE_ENABLED`` (memoized process-wide by
+    ``cache.get_cache()``), so one generator's disabled cache could silently
+    disable caching for every other generator in the same process. The fix
+    scopes the disable to the current task via
+    ``cache.scoped_cache_override`` instead: ``_prepare_llm_call`` must
+    consult that per-task override and never even call the memoized
+    ``get_cache()`` singleton while it is active.
+    """
+    calls = {"get_cache": 0}
+
+    def _tracking_get_cache() -> LLMCache:
+        calls["get_cache"] += 1
+        return LLMCache(enabled=True)
+
+    monkeypatch.setattr(llm, "get_cache", _tracking_get_cache)
+    _patch_acompletion(monkeypatch, [_completion(_message("fresh"))])
+
+    with cache_mod.scoped_cache_override(False):
+        result = await call_llm("a prompt", "test-model", use_cache=True)
+
+    assert result == "fresh"
+    assert calls["get_cache"] == 0
+
+
+async def test_no_scoped_override_still_uses_get_cache(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """With no active scope, the process-default ``get_cache()`` is used.
+
+    Companion to the test above: the per-task override must be opt-in, so a
+    call made with no ``scoped_cache_override`` active (the common case)
+    keeps consulting the process-wide singleton exactly as before.
+    """
+    calls = {"get_cache": 0}
+
+    def _tracking_get_cache() -> LLMCache:
+        calls["get_cache"] += 1
+        return LLMCache(enabled=False)
+
+    monkeypatch.setattr(llm, "get_cache", _tracking_get_cache)
+    _patch_acompletion(monkeypatch, [_completion(_message("fresh"))])
+
+    await call_llm("a prompt", "test-model", use_cache=True)
+
+    assert calls["get_cache"] == 1
 
 
 # --- call_llm_json ---------------------------------------------------------

@@ -40,10 +40,7 @@ from co_scientist.generator.run_setup import (
     _build_tool_registry as _build_tool_registry,
 )
 from co_scientist.generator.run_setup import (
-    _cache_enabled_env_value as _cache_enabled_env_value,
-)
-from co_scientist.generator.run_setup import (
-    _configure_cache_env as _configure_cache_env,
+    _configure_cache_dir_env as _configure_cache_dir_env,
 )
 from co_scientist.generator.run_setup import (
     _resolve_dev_isolation_flag as _resolve_dev_isolation_flag,

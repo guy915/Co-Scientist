@@ -11,8 +11,11 @@ accessors, and re-exports every name historically importable from
 ``co_scientist.cache``.
 """
 
+import contextlib
 import logging
 import os
+from collections.abc import Iterator
+from contextvars import ContextVar
 from typing import Any
 
 from co_scientist.cache_llm import LLMCache, NullCache
@@ -43,12 +46,14 @@ __all__ = [
     "LLMCache",
     "NodeCache",
     "NullCache",
+    "cache_enabled_override",
     "clear_cache",
     "clear_node_cache",
     "get_cache",
     "get_cache_stats",
     "get_node_cache",
     "get_node_cache_stats",
+    "scoped_cache_override",
 ]
 
 
@@ -56,9 +61,12 @@ def _resolve_cache_env() -> tuple[bool, str]:
     """Read the cache enabled flag and directory from the environment.
 
     Each accessor calls this once, on the first call in the process, before it
-    memoizes its singleton: HypothesisGenerator must set
-    COSCIENTIST_CACHE_ENABLED/_DIR (see its __init__) before the first LLM
-    call; later os.environ edits are ignored.
+    memoizes its singleton: whichever caller (a caller that has deliberately
+    exported COSCIENTIST_CACHE_ENABLED/_DIR into its own process, e.g. an
+    ops deployment) runs first "wins" that setting for the rest of the
+    process; later os.environ edits are ignored. A single generator's
+    per-instance ``enable_cache`` preference does not take this path -- see
+    ``scoped_cache_override`` for how that is scoped instead.
 
     Returns:
         A ``(cache_enabled, cache_dir)`` pair.
@@ -68,6 +76,56 @@ def _resolve_cache_env() -> tuple[bool, str]:
     )
     cache_dir = os.getenv("COSCIENTIST_CACHE_DIR", DEFAULT_CACHE_DIR)
     return parse_bool_env(cache_enabled_str), cache_dir
+
+
+# Per-task override for whether the *current* asyncio task should treat
+# caching as disabled, regardless of the process-wide default above. This
+# is how HypothesisGenerator(enable_cache=False) takes effect (see
+# generator/core.py): a context variable rather than an env-var mutation, so
+# it never touches the memoized global singleton or any other
+# concurrently-running generator's calls. asyncio.create_task/gather copy
+# the active context at creation time, so this also reaches any child task
+# spawned during the scoped generator's own execution (e.g. parallel
+# review/debate calls within one run).
+_cache_enabled_override: ContextVar[bool | None] = ContextVar(
+    "cache_enabled_override", default=None
+)
+
+
+def cache_enabled_override() -> bool | None:
+    """Return the current task's cache-enabled override, if one is scoped.
+
+    Returns:
+        ``True``/``False`` when a ``scoped_cache_override`` context is
+        active, else ``None`` (defer to the process default in
+        ``get_cache()``).
+    """
+    return _cache_enabled_override.get()
+
+
+@contextlib.contextmanager
+def scoped_cache_override(enable_cache: bool | None) -> Iterator[None]:
+    """Scope a cache-enabled preference to the current asyncio task.
+
+    Args:
+        enable_cache: ``False`` forces every cache lookup made within this
+            context to miss (see ``llm._prepare_llm_call``), ``True`` defers
+            to the process default (per-instance force-enable is not
+            supported -- see the module docstring), and ``None`` is a no-op
+            so callers can pass a generator's optional constructor argument
+            straight through.
+
+    Yields:
+        None.
+    """
+    if enable_cache is None:
+        yield
+        return
+    token = _cache_enabled_override.set(enable_cache)
+    try:
+        yield
+    finally:
+        _cache_enabled_override.reset(token)
 
 
 # Global cache instance (can be configured via environment variable)

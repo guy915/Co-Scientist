@@ -16,7 +16,12 @@ from jsonschema.exceptions import ValidationError as ValidationError
 
 from co_scientist import llm_request
 from co_scientist import prompts as prompts
-from co_scientist.cache import LLMCache, NullCache, get_cache
+from co_scientist.cache import (
+    LLMCache,
+    NullCache,
+    cache_enabled_override,
+    get_cache,
+)
 from co_scientist.constants import (
     DEFAULT_MAX_TOKENS,
     EXTENDED_MAX_TOKENS,
@@ -154,8 +159,13 @@ async def _prepare_llm_call(
 
     temperature = _clamp_temperature(model_name, temperature)
 
-    # NullCache when caching is bypassed for this call.
-    cache: LLMCache | NullCache = get_cache() if use_cache else NullCache()
+    # NullCache when this call opted out, or the current task's generator
+    # was constructed with enable_cache=False (see
+    # cache.scoped_cache_override) -- scoped to this task rather than the
+    # process-wide get_cache() singleton, so it never disables caching for
+    # any other concurrently-running generator.
+    cache_active = use_cache and cache_enabled_override() is not False
+    cache: LLMCache | NullCache = get_cache() if cache_active else NullCache()
     cached_response = cache.get(
         prompt, model_name, temperature, max_tokens, **cache_key_kwargs
     )
