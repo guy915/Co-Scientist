@@ -9,6 +9,7 @@ from typing import Any
 import pytest
 from mcp_server.tools.web.providers import (
     _brave_freshness,
+    clean_snippet,
     normalize_brave,
     normalize_tavily,
     resolve_provider,
@@ -61,6 +62,45 @@ def test_normalize_brave_maps_fields() -> None:
 
 def test_normalize_brave_respects_max_results() -> None:
     assert len(normalize_brave(_BRAVE_PAYLOAD, max_results=1)) == 1
+
+
+@pytest.mark.parametrize(
+    "raw,expected",
+    [
+        ("<strong>GLP-1</strong> agonists", "GLP-1 agonists"),
+        ("Trials &amp; results", "Trials & results"),
+        ("line one\n\n  line two", "line one line two"),
+        ("<p>nested <em>tags</em> here</p>", "nested tags here"),
+        # Encoded markup must not survive as a live tag: strip first, then
+        # unescape, so this stays inert text.
+        ("&lt;script&gt;alert(1)&lt;/script&gt;", "<script>alert(1)</script>"),
+        (None, ""),
+        ("", ""),
+        (123, ""),
+    ],
+)
+def test_clean_snippet(raw: Any, expected: str) -> None:
+    assert clean_snippet(raw) == expected
+
+
+def test_normalize_brave_strips_markup_from_snippets() -> None:
+    """Brave wraps query terms in <strong>; the agent must never see tags."""
+    payload = {
+        "web": {
+            "results": [
+                {
+                    "title": "<strong>GLP-1</strong> readout",
+                    "url": "https://example.com/a",
+                    "description": "<strong>GLP-1</strong> met the endpoint.",
+                }
+            ]
+        }
+    }
+    entry = normalize_brave(payload, max_results=1)
+    first = entry[next(iter(entry))]
+    assert first["title"] == "GLP-1 readout"
+    assert first["abstract"] == "GLP-1 met the endpoint."
+    assert "<" not in first["abstract"]
 
 
 def test_normalize_brave_skips_results_without_url() -> None:

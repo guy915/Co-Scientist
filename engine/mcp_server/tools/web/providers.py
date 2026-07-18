@@ -10,14 +10,43 @@ Tavily (agent-oriented, returns extracted page content alongside results).
 """
 
 import hashlib
+import html
 import logging
 import os
+import re
 from collections.abc import Awaitable, Callable
 from typing import Any
 
 import httpx
 
 logger = logging.getLogger(__name__)
+
+# Search snippets arrive with markup: Brave wraps query-term matches in
+# <strong>, and providers pass through entities from the source page. The
+# agent should never see tags, so snippets are cleaned to plain text on the
+# way in, the same guarantee read_url gives for page bodies.
+_TAG_RE = re.compile(r"<[^>]+>")
+_WHITESPACE_RE = re.compile(r"\s+")
+
+
+def clean_snippet(raw: Any) -> str:
+    """Strips markup and normalizes whitespace in a result snippet.
+
+    Args:
+        raw: Snippet text from a provider, possibly containing HTML tags
+            and character entities.
+
+    Returns:
+        Plain text with tags removed, entities decoded, and runs of
+        whitespace collapsed. Empty string for missing or non-string input.
+    """
+    if not isinstance(raw, str) or not raw:
+        return ""
+    # Unescape after stripping tags so an encoded "&lt;b&gt;" in the source
+    # text cannot reintroduce a tag that the strip already removed.
+    text = html.unescape(_TAG_RE.sub("", raw))
+    return _WHITESPACE_RE.sub(" ", text).strip()
+
 
 _BRAVE_URL = "https://api.search.brave.com/res/v1/web/search"
 _TAVILY_URL = "https://api.tavily.com/search"
@@ -89,12 +118,13 @@ def normalize_brave(data: Any, max_results: int) -> dict[str, Any]:
         if not url:
             continue
         out[_result_id("brave", index, url)] = {
-            "title": item.get("title") or "",
+            "title": clean_snippet(item.get("title")),
             "url": url,
-            # Brave's "description" is the result snippet. It maps onto
-            # abstract because that is the field the engine's article
-            # pipeline already reads for summary text.
-            "abstract": item.get("description") or "",
+            # Brave's "description" is the result snippet, with query terms
+            # wrapped in <strong>. It maps onto abstract because that is the
+            # field the engine's article pipeline already reads for summary
+            # text.
+            "abstract": clean_snippet(item.get("description")),
             "source": "web",
             "published_date": item.get("page_age") or item.get("age") or "",
             "site": (item.get("profile") or {}).get("name")
@@ -128,11 +158,11 @@ def normalize_tavily(data: Any, max_results: int) -> dict[str, Any]:
         if not url:
             continue
         out[_result_id("tavily", index, url)] = {
-            "title": item.get("title") or "",
+            "title": clean_snippet(item.get("title")),
             "url": url,
             # Tavily returns extracted page text, not just a snippet, so a
             # hit is often usable without a follow-up read_url call.
-            "abstract": item.get("content") or "",
+            "abstract": clean_snippet(item.get("content")),
             "source": "web",
             "published_date": item.get("published_date") or "",
             "score": item.get("score"),
