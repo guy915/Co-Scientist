@@ -175,6 +175,20 @@ class _CaptureQueueHandler(logging.handlers.QueueHandler):
     cannot see), so the record crosses the thread boundary as plain data.
     """
 
+    def emit(self, record: logging.LogRecord) -> None:
+        """Enqueue the record once, even when attached at several loggers.
+
+        The handler is attached to root *and* uvicorn's loggers; when a
+        record propagates through the hierarchy (dev/test setups where
+        uvicorn's production logging config is absent), every attachment
+        point would enqueue it. Mark the shared record object so only the
+        first attachment wins.
+        """
+        if getattr(record, "_cosci_captured", False):
+            return
+        record._cosci_captured = True
+        super().emit(record)
+
     def prepare(self, record: logging.LogRecord) -> logging.LogRecord:
         """Materialize message and exception text; strip live objects.
 
@@ -241,6 +255,27 @@ class _StoreWriteHandler(logging.Handler):
                 )
 
 
+# Loggers uvicorn configures with propagate=False in production; the
+# capture handler is attached to them directly so HTTP access/error logs
+# persist too. "uvicorn.error" propagates to "uvicorn", so listing it is
+# unnecessary.
+_EXTRA_CAPTURE_LOGGERS = ("uvicorn", "uvicorn.access")
+
+
+def _drop_self_noise(record: logging.LogRecord) -> bool:
+    """Filter out access records for the log-polling endpoint itself.
+
+    The UI and ``cosci logs --follow`` poll ``/api/logs``; persisting each
+    poll's access line would make the log grow by being looked at.
+    """
+    if record.name != "uvicorn.access":
+        return True
+    try:
+        return "/api/logs" not in record.getMessage()
+    except Exception:
+        return True
+
+
 class LogCapture:
     """Handle for one installed capture pipeline (handler + listener)."""
 
@@ -252,10 +287,21 @@ class LogCapture:
         """Keep the pieces needed to detach and drain the pipeline."""
         self._handler = handler
         self._listener = listener
+        self._stopped = False
 
     def stop(self) -> None:
-        """Detach from the root logger and drain queued records."""
+        """Detach from every attached logger and drain queued records.
+
+        Idempotent: ``QueueListener.stop`` drops its thread reference and
+        raises if called twice, and a pipeline can legitimately be stopped
+        both explicitly and again by ``shutdown_log_capture``.
+        """
+        if self._stopped:
+            return
+        self._stopped = True
         logging.getLogger().removeHandler(self._handler)
+        for name in _EXTRA_CAPTURE_LOGGERS:
+            logging.getLogger(name).removeHandler(self._handler)
         # QueueListener.stop() enqueues a sentinel and joins the writer
         # thread, so every record enqueued before this call is persisted.
         self._listener.stop()
@@ -291,11 +337,18 @@ def configure_log_capture(
     handler = _CaptureQueueHandler(record_queue)
     handler.setLevel(level)
     handler.addFilter(RunIdFilter())
+    handler.addFilter(_drop_self_noise)
     listener = logging.handlers.QueueListener(
         record_queue, _StoreWriteHandler(max_rows)
     )
     listener.start()
     logging.getLogger().addHandler(handler)
+    # Also attach to uvicorn's non-propagating loggers so HTTP access and
+    # server-error records persist. Where those loggers DO propagate
+    # (dev/test without uvicorn's logging config), the handler's per-record
+    # dedupe mark keeps each record captured exactly once.
+    for name in _EXTRA_CAPTURE_LOGGERS:
+        logging.getLogger(name).addHandler(handler)
     _capture = LogCapture(handler, listener)
     return _capture
 

@@ -29,6 +29,7 @@ def _args(**overrides: Any) -> argparse.Namespace:
         "limit": 100,
         "follow": False,
         "interval": 0.0,
+        "clear": False,
         "json": False,
     }
     base.update(overrides)
@@ -126,6 +127,21 @@ def test_logs_json_emits_payload(capsys: pytest.CaptureFixture[str]) -> None:
 
     assert logs_cmd.handle_logs(_args(json=True), _client(handler)) == 0
     assert '"hello"' in capsys.readouterr().out
+
+
+def test_logs_clear_deletes_and_reports(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    seen: list[tuple[str, str]] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append((request.method, request.url.path))
+        return httpx.Response(200, json={"deleted": 7})
+
+    rc = logs_cmd.handle_logs(_args(clear=True), _client(handler))
+    assert rc == 0
+    assert seen == [("DELETE", "/api/logs")]
+    assert "deleted\t7" in capsys.readouterr().out
 
 
 def test_parser_wires_logs_command() -> None:

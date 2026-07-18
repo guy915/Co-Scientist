@@ -10,14 +10,21 @@ when the newest rows did not match their filter.
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query
+from pydantic import BaseModel, Field
 
 from app import store
 from app.logging_setup import level_to_number
 
 router = APIRouter(tags=["logs"])
+
+# Bounds for client-submitted records: enough for a burst of UI events,
+# small enough that the open endpoint cannot be used to flood the table.
+MAX_CLIENT_BATCH = 50
+MAX_CLIENT_MESSAGE_CHARS = 2000
 
 
 def _min_levelno(min_level: str | None) -> int:
@@ -60,6 +67,58 @@ def logs_payload(
         limit=limit,
     )
     return {"logs": rows, "last_id": store.latest_log_id()}
+
+
+class ClientLogRecord(BaseModel):
+    """One log record submitted by the frontend."""
+
+    message: str
+    level: str = "info"
+    logger: str = "ui"
+    run_id: str | None = None
+
+
+class ClientLogBatch(BaseModel):
+    """A batch of frontend log records."""
+
+    records: list[ClientLogRecord] = Field(
+        ..., min_length=1, max_length=MAX_CLIENT_BATCH
+    )
+
+
+@router.post("/api/logs")
+async def post_logs(batch: ClientLogBatch) -> dict[str, Any]:
+    """Ingest frontend log records into the persisted app-wide log.
+
+    Records are namespaced under the ``ui.`` logger prefix so their origin
+    stays obvious next to backend records; unknown level names fall back
+    to INFO and messages are truncated to a sane length.
+    """
+    for record in batch.records:
+        levelno = level_to_number(record.level) or logging.INFO
+        logger_name = (
+            record.logger
+            if record.logger.startswith("ui")
+            else f"ui.{record.logger}"
+        )
+        store.append_log(
+            level=logging.getLevelName(levelno),
+            levelno=levelno,
+            logger_name=logger_name,
+            message=record.message[:MAX_CLIENT_MESSAGE_CHARS],
+            run_id=record.run_id,
+        )
+    return {"added": len(batch.records), "last_id": store.latest_log_id()}
+
+
+@router.delete("/api/logs")
+async def delete_logs() -> dict[str, Any]:
+    """Delete every persisted log record and report the count.
+
+    Ids keep increasing after a clear, so open pollers and ``after_id``
+    cursors keep working.
+    """
+    return {"deleted": store.clear_logs()}
 
 
 @router.get("/api/logs")

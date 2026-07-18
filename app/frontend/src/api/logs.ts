@@ -37,3 +37,29 @@ export interface AppLogsPayload {
 export function getAppLogs(afterId = 0, limit = 200): Promise<AppLogsPayload> {
   return fetchJson(`/api/logs?after_id=${afterId}&limit=${limit}`);
 }
+
+/** One frontend record for the ingestion endpoint (POST /api/logs). */
+export interface ClientLogRecord {
+  message: string;
+  /** Level name; unknown values fall back to INFO server-side. */
+  level?: string;
+  /** Logger suffix; persisted under the `ui.` namespace. */
+  logger?: string;
+  run_id?: string;
+}
+
+/** Persists frontend log records into the app-wide log. */
+export function postAppLogs(
+  records: ClientLogRecord[],
+): Promise<{added: number; last_id: number}> {
+  return fetchJson('/api/logs', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({records}),
+  });
+}
+
+/** Deletes every persisted log record; returns the deleted count. */
+export function deleteAppLogs(): Promise<{deleted: number}> {
+  return fetchJson('/api/logs', {method: 'DELETE'});
+}

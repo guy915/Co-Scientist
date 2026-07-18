@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import logging.handlers
 
 import pytest
 
@@ -99,6 +100,92 @@ def test_reconfigure_does_not_duplicate_records(isolated_db: str) -> None:
     _flush()
     rows = store.list_logs(db_path=isolated_db)
     assert [row["message"] for row in rows] == ["once only"]
+
+
+def test_capture_includes_non_propagating_uvicorn_loggers(
+    isolated_db: str,
+) -> None:
+    """Persist HTTP access records from uvicorn's own loggers.
+
+    Uvicorn configures those loggers with propagate=False in production,
+    so the capture handler must be attached to them directly.
+    """
+    access = logging.getLogger("uvicorn.access")
+    prior_propagate = access.propagate
+    prior_level = access.level
+    access.propagate = False  # mirror uvicorn's production config
+    access.setLevel(logging.INFO)
+    try:
+        configure_log_capture()
+        access.info('127.0.0.1:1 - "GET /status HTTP/1.1" 200')
+        _flush()
+    finally:
+        access.propagate = prior_propagate
+        access.setLevel(prior_level)
+    rows = store.list_logs(db_path=isolated_db)
+    assert ['"GET /status HTTP/1.1"' in row["message"] for row in rows] == [
+        True
+    ]
+
+
+def test_capture_skips_own_polling_endpoint_access_logs(
+    isolated_db: str,
+) -> None:
+    """Drop access records for the log endpoint itself.
+
+    Otherwise polling the log view would append to the log being viewed.
+    """
+    access = logging.getLogger("uvicorn.access")
+    prior_propagate = access.propagate
+    prior_level = access.level
+    access.propagate = False
+    access.setLevel(logging.INFO)
+    try:
+        configure_log_capture()
+        access.info('127.0.0.1:1 - "GET /api/logs?after_id=0 HTTP/1.1" 200')
+        access.info('127.0.0.1:1 - "GET /api/runs HTTP/1.1" 200')
+        _flush()
+    finally:
+        access.propagate = prior_propagate
+        access.setLevel(prior_level)
+    messages = [row["message"] for row in store.list_logs(db_path=isolated_db)]
+    assert any("/api/runs" in message for message in messages)
+    assert not any("/api/logs" in message for message in messages)
+
+
+def test_propagating_uvicorn_record_is_captured_once(
+    isolated_db: str,
+) -> None:
+    """Capture a propagating record exactly once.
+
+    Without uvicorn's production config the access logger propagates to
+    root, so the handler is reachable at several attachment points.
+    """
+    access = logging.getLogger("uvicorn.access")
+    prior_level = access.level
+    access.setLevel(logging.INFO)
+    assert access.propagate  # in-process default
+    try:
+        configure_log_capture()
+        access.info('127.0.0.1:1 - "GET /api/runs HTTP/1.1" 200')
+        _flush()
+    finally:
+        access.setLevel(prior_level)
+    rows = store.list_logs(db_path=isolated_db)
+    assert len(rows) == 1
+
+
+def test_capture_stop_detaches_uvicorn_loggers(isolated_db: str) -> None:
+    capture = configure_log_capture()
+    access = logging.getLogger("uvicorn.access")
+    attached = [
+        handler
+        for handler in access.handlers
+        if isinstance(handler, logging.handlers.QueueHandler)
+    ]
+    assert attached
+    capture.stop()
+    assert not [handler for handler in access.handlers if handler in attached]
 
 
 def test_store_failure_does_not_break_logging(

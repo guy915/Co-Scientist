@@ -49,6 +49,7 @@ from app.store.interviews import (
 )
 from app.store.logs import (
     append_log,
+    clear_logs,
     latest_log_id,
     list_logs,
     prune_logs,
@@ -154,6 +155,7 @@ __all__ = [
     "cancel_task",
     "checkpoint_wal",
     "claim_task",
+    "clear_logs",
     "clear_publication_artifacts",
     "clear_run_derived_data",
     "complete_task",

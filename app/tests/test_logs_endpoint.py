@@ -88,3 +88,64 @@ def test_run_logs_endpoint_scopes_to_run(isolated_db: str) -> None:
 
 def test_run_logs_endpoint_unknown_run_is_404(isolated_db: str) -> None:
     assert make_client().get("/api/runs/nope/logs").status_code == 404
+
+
+def test_delete_logs_clears_and_reports_count(isolated_db: str) -> None:
+    _seed(isolated_db, "one")
+    _seed(isolated_db, "two")
+    client = make_client()
+    response = client.request("DELETE", "/api/logs")
+    assert response.status_code == 200
+    assert response.json()["deleted"] == 2
+    assert client.get("/api/logs").json()["logs"] == []
+
+
+def test_post_logs_ingests_ui_records(isolated_db: str) -> None:
+    client = make_client()
+    response = client.post(
+        "/api/logs",
+        json={
+            "records": [
+                {"message": "clicked start", "logger": "session"},
+                {
+                    "message": "stream dropped",
+                    "level": "error",
+                    "logger": "ui.stream",
+                    "run_id": "run-1",
+                },
+            ]
+        },
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["added"] == 2
+    rows = client.get("/api/logs").json()["logs"]
+    by_message = {row["message"]: row for row in rows}
+    # Client records are namespaced under ui.* so their origin is obvious.
+    assert by_message["clicked start"]["logger"] == "ui.session"
+    assert by_message["clicked start"]["level"] == "INFO"
+    assert by_message["stream dropped"]["logger"] == "ui.stream"
+    assert by_message["stream dropped"]["level"] == "ERROR"
+    assert by_message["stream dropped"]["run_id"] == "run-1"
+
+
+def test_post_logs_maps_unknown_level_to_info(isolated_db: str) -> None:
+    client = make_client()
+    client.post(
+        "/api/logs",
+        json={"records": [{"message": "did it", "level": "success"}]},
+    )
+    rows = client.get("/api/logs").json()["logs"]
+    assert rows[0]["level"] == "INFO"
+
+
+def test_post_logs_caps_batch_and_truncates_messages(
+    isolated_db: str,
+) -> None:
+    client = make_client()
+    too_many = {"records": [{"message": "m"}] * 51}
+    assert client.post("/api/logs", json=too_many).status_code == 422
+
+    client.post("/api/logs", json={"records": [{"message": "x" * 5000}]})
+    rows = client.get("/api/logs").json()["logs"]
+    assert len(rows[0]["message"]) == 2000

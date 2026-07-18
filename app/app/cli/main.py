@@ -175,6 +175,11 @@ def _add_logs(
         metavar="SECONDS",
         help="poll interval used with --follow (default %(default)s)",
     )
+    parser.add_argument(
+        "--clear",
+        action="store_true",
+        help="delete every persisted log record instead of reading",
+    )
     _json_flag(parser)
     parser.set_defaults(handler=logs_cmd.handle_logs)
 

@@ -1,6 +1,12 @@
 import {useEffect, useRef, useState, type ReactNode} from 'react';
-import {getAppLogs, type AppLogRecord} from '@/api/logs';
-import {getRunEvents, type RunEvent} from '@/api/runs';
+import {useLocation} from 'react-router-dom';
+import {
+  deleteAppLogs,
+  getAppLogs,
+  postAppLogs,
+  type AppLogRecord,
+  type ClientLogRecord,
+} from '@/api/logs';
 import {Icon, type IconName} from '@/components/icon';
 import {copyText} from '@/lib/clipboard';
 import {joinClasses} from './classes';
@@ -9,22 +15,23 @@ import {tooltipClassNames} from './tooltip';
 
 type DiagnosticLogLevel = 'info' | 'success' | 'error';
 
-// One rendered row in the Logs panel; assigned a local monotonic id and
-// formatted timestamp when the underlying event is received (see the
-// `cosci-diagnostic-event` listener in DiagnosticsControl below). Entries
-// come from three sources: ephemeral session events dispatched in-page,
-// the active run's persisted event log, and the app-wide persisted
-// backend log records (both fetched from the API); `source` disambiguates
-// them for stable list keys.
+// One rendered row in the Logs panel. Every entry comes from the single
+// persisted app-wide log (the backend's app_logs table): backend records
+// are captured server-side, and in-page diagnostic events are POSTed to
+// the same log before being re-fetched. That keeps the panel identical on
+// every route, numbered by the store's consecutive row ids.
 interface DiagnosticLogEntry {
   id: number;
-  source: 'session' | 'run' | 'app';
+  source: 'app';
   time: string;
   run: string;
   stage: string;
   level: DiagnosticLogLevel;
   payload: Record<string, unknown>;
 }
+
+// How many of the newest entries the Copy action serializes.
+const COPY_LIMIT = 50;
 
 // Shape of the `cosci-diagnostic-event` CustomEvent's `detail`, as dispatched
 // by callers elsewhere in the app (e.g. useChatSession's emitDiagnosticEvent)
@@ -135,46 +142,21 @@ function formatDiagnosticTime(date = new Date()): string {
   return DIAGNOSTIC_TIME_FMT.format(date);
 }
 
-// Builds a log entry from a raw diagnostic-event detail, filling in the
-// per-field defaults (run/level/payload) the dispatched CustomEvent may omit.
-function buildDiagnosticEntry(
-  id: number,
+// Converts a raw diagnostic-event detail into the record shape the
+// ingestion endpoint accepts. The payload rides inside the message so the
+// persisted line stays greppable from the CLI too.
+function detailToClientRecord(
   detail: DiagnosticLogEventDetail,
-): DiagnosticLogEntry {
+): ClientLogRecord {
+  const payload = detail.payload || {};
+  const suffix = Object.keys(payload).length
+    ? ` ${JSON.stringify(payload)}`
+    : '';
   return {
-    id,
-    source: 'session',
-    time: formatDiagnosticTime(),
-    run: detail.run || 'Current session',
-    stage: detail.stage,
-    level: detail.level || 'info',
-    payload: detail.payload || {},
-  };
-}
-
-// Level for a persisted run event: terminal failures and blocks read as
-// errors, publication/completion as success, everything else as info.
-function persistedEventLevel(event: RunEvent): DiagnosticLogLevel {
-  const status = event.payload['status'];
-  if (status === 'failed' || status === 'blocked') return 'error';
-  if (event.type === 'report' || status === 'completed') return 'success';
-  return 'info';
-}
-
-// Maps one persisted run_events row into a rendered log entry. The run
-// column shows the short run id (matching how the backend logs it).
-function buildPersistedEntry(
-  runId: string,
-  event: RunEvent,
-): DiagnosticLogEntry {
-  return {
-    id: event.seq,
-    source: 'run',
-    time: formatDiagnosticTime(new Date(event.created_at * 1000)),
-    run: `Run ${runId.slice(0, 8)}`,
-    stage: event.type,
-    level: persistedEventLevel(event),
-    payload: event.payload,
+    message: `${detail.stage}${suffix}`,
+    level: detail.level === 'error' ? 'error' : 'info',
+    logger: 'session',
+    ...(detail.run ? {run_id: detail.run} : {}),
   };
 }
 
@@ -205,15 +187,17 @@ function buildAppLogEntry(record: AppLogRecord): DiagnosticLogEntry {
 // How often the open popover refreshes the persisted backend log.
 const APP_LOGS_POLL_MS = 5_000;
 
-// Fetches the app-wide persisted backend log while the popover is open
-// (initial load plus a poll), so the panel shows everything the server
-// captured — including records from before this page load and records
-// emitted outside any run context.
-function usePersistedAppLogs(open: boolean): DiagnosticLogEntry[] {
+// Fetches the app-wide persisted log: on mount (so the badge count is
+// real), whenever `version` bumps (an in-page event or Clear changed the
+// store), and on a poll while the popover is open. The same fetch runs on
+// every route, so navigating never changes what the panel shows.
+function usePersistedAppLogs(
+  open: boolean,
+  version: number,
+): DiagnosticLogEntry[] {
   const [entries, setEntries] = useState<DiagnosticLogEntry[]>([]);
 
   useEffect(() => {
-    if (!open) return;
     let disposed = false;
     const load = () => {
       getAppLogs()
@@ -226,44 +210,16 @@ function usePersistedAppLogs(open: boolean): DiagnosticLogEntry[] {
         });
     };
     load();
+    if (!open)
+      return () => {
+        disposed = true;
+      };
     const timer = window.setInterval(load, APP_LOGS_POLL_MS);
     return () => {
       disposed = true;
       window.clearInterval(timer);
     };
-  }, [open]);
-
-  return entries;
-}
-
-// Fetches the active run's persisted event log each time the popover opens,
-// so reloads (which lose the ephemeral session log) still show the run's
-// durable timeline. No run in scope (home routes) yields an empty list.
-function usePersistedRunEvents(
-  runId: string | undefined,
-  open: boolean,
-): DiagnosticLogEntry[] {
-  const [entries, setEntries] = useState<DiagnosticLogEntry[]>([]);
-
-  useEffect(() => {
-    if (!runId) {
-      setEntries([]);
-      return;
-    }
-    if (!open) return;
-    let disposed = false;
-    getRunEvents(runId)
-      .then(events => {
-        if (disposed) return;
-        setEntries(events.map(event => buildPersistedEntry(runId, event)));
-      })
-      .catch(() => {
-        if (!disposed) setEntries([]);
-      });
-    return () => {
-      disposed = true;
-    };
-  }, [runId, open]);
+  }, [open, version]);
 
   return entries;
 }
@@ -303,48 +259,52 @@ function LogsTriggerButton({
   );
 }
 
-// Accumulates `cosci-diagnostic-event` CustomEvents dispatched anywhere in
-// the app into an in-memory (non-persisted) log for local debugging, plus
-// the Clear/Copy actions and the "Copied" confirmation flag.
-function useDiagnosticLog() {
-  const [entries, setEntries] = useState<DiagnosticLogEntry[]>([]);
-  const [copied, setCopied] = useState(false); // Copy button shows "Copied"
-  // Monotonic id source for entries; a ref (not state) because it is only
-  // read/written imperatively and must not itself trigger re-renders.
-  const nextEntryId = useRef(1);
+// Ships `cosci-diagnostic-event` CustomEvents dispatched anywhere in the
+// app to the persisted log, then notifies the caller so the list can
+// refresh. Subscribed for the component's whole lifetime (not only while
+// the popover is open) so no event is lost.
+function useDiagnosticIngest(onIngested: () => void) {
+  const onIngestedRef = useRef(onIngested);
+  onIngestedRef.current = onIngested;
 
-  function clearLogs() {
-    nextEntryId.current = 1;
-    setEntries([]);
-    setCopied(false);
-  }
-
-  // Takes the full displayed list (persisted + session) so Copy captures
-  // exactly what the panel shows, not just this hook's session entries.
-  async function copyLogs(displayed: DiagnosticLogEntry[]) {
-    await copyText(JSON.stringify(displayed, null, 2));
-    setCopied(true);
-  }
-
-  // Subscribed for the component's whole lifetime (no deps) rather than only
-  // while the popover is open, so events fired while it is closed still land
-  // in the log and the trigger's count badge stays accurate.
   useEffect(() => {
     function onDiagnosticEvent(event: Event) {
       const custom = event as CustomEvent<DiagnosticLogEventDetail>;
       if (!custom.detail?.stage) return; // ignore malformed events
-      const entry = buildDiagnosticEntry(nextEntryId.current, custom.detail);
-      nextEntryId.current += 1;
-      setEntries(current => [...current, entry]);
-      setCopied(false); // new entries invalidate a prior "Copied" confirmation
+      postAppLogs([detailToClientRecord(custom.detail)])
+        .then(() => onIngestedRef.current())
+        .catch(() => {
+          // Offline or API down: drop the event rather than break the page.
+        });
     }
     window.addEventListener(DIAGNOSTIC_EVENT, onDiagnosticEvent);
     return () => {
       window.removeEventListener(DIAGNOSTIC_EVENT, onDiagnosticEvent);
     };
   }, []);
+}
 
-  return {entries, copied, clearLogs, copyLogs};
+// Persists page loads and route changes into the same log, so UI
+// navigation shows up next to backend records.
+function useNavigationLog(onIngested: () => void) {
+  const {pathname} = useLocation();
+  const onIngestedRef = useRef(onIngested);
+  onIngestedRef.current = onIngested;
+  const lastLogged = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (lastLogged.current === pathname) return;
+    const message =
+      lastLogged.current === null
+        ? `page loaded at ${pathname}`
+        : `navigated to ${pathname}`;
+    lastLogged.current = pathname;
+    postAppLogs([{message, logger: 'navigation'}])
+      .then(() => onIngestedRef.current())
+      .catch(() => {
+        // Offline or API down: navigation logging is best-effort.
+      });
+  }, [pathname]);
 }
 
 // Per-level entry tallies plus the number of distinct runs represented, for
@@ -370,53 +330,67 @@ function summarizeDiagnosticEntries(
 /**
  * Header "Logs" button plus its diagnostics popover.
  *
- * The panel shows the active run's persisted event log (fetched from the
- * API whenever the popover opens, so it survives reloads) ahead of the
- * ephemeral session events dispatched in-page. Clear only drops the
- * session entries; the persisted timeline is the store's, not ours.
+ * The panel renders the persisted app-wide log — the same list on every
+ * route, numbered by the store's consecutive ids. In-page diagnostic
+ * events and route navigations are shipped to that log via the ingestion
+ * endpoint, Clear deletes the persisted log (server-side), and Copy
+ * serializes only the newest {@link COPY_LIMIT} entries.
  *
  * @param props.open Whether the popover is shown; owned by the parent shell
  *   so it stays mutually exclusive with the Settings popover.
  * @param props.onToggle Requests the parent flip `open`.
- * @param props.runId The active run route's id, if any; enables the
- *   persisted-event section.
  * @param props.renderPopover Lets the parent wrap the panel content in its
  *   own positioned popover container (shared with the Settings menu).
  */
 export function DiagnosticsControl({
   open,
   onToggle,
-  runId,
   renderPopover,
 }: {
   open: boolean;
   onToggle: () => void;
-  runId?: string;
   renderPopover: (children: ReactNode, className: string) => ReactNode;
 }) {
-  const {entries, copied, clearLogs, copyLogs} = useDiagnosticLog();
-  const appLogs = usePersistedAppLogs(open);
-  const persisted = usePersistedRunEvents(runId, open);
-  // Persisted history first (backend logs, then the run timeline — both
-  // predate this session), then live session entries.
-  const combined = [...appLogs, ...persisted, ...entries];
-  const counts = summarizeDiagnosticEntries(combined);
+  // Bumped whenever the persisted log changed (ingest, navigation, clear)
+  // so the fetch effect re-runs immediately instead of waiting for a poll.
+  const [version, setVersion] = useState(0);
+  const bumpVersion = () => setVersion(current => current + 1);
+  const [copied, setCopied] = useState(false); // Copy button shows "Copied"
+  useDiagnosticIngest(bumpVersion);
+  useNavigationLog(bumpVersion);
+  const entries = usePersistedAppLogs(open, version);
+  const counts = summarizeDiagnosticEntries(entries);
+
+  async function onCopy() {
+    await copyText(JSON.stringify(entries.slice(-COPY_LIMIT), null, 2));
+    setCopied(true);
+  }
+
+  async function onClear() {
+    try {
+      await deleteAppLogs();
+    } catch {
+      // Unreachable API: leave the list as-is; the next poll re-syncs.
+    }
+    setCopied(false);
+    bumpVersion();
+  }
 
   return (
     <>
       <LogsTriggerButton
         open={open}
-        count={combined.length}
+        count={entries.length}
         onToggle={onToggle}
       />
       {open &&
         renderPopover(
           <DiagnosticLogsPanel
-            entries={combined}
+            entries={entries}
             copied={copied}
             counts={counts}
-            onClear={clearLogs}
-            onCopy={() => void copyLogs(combined)}
+            onClear={() => void onClear()}
+            onCopy={() => void onCopy()}
           />,
           LOGS_POPOVER_CLASSES,
         )}
@@ -427,8 +401,20 @@ export function DiagnosticsControl({
 // Scrolling list of log entries (each entry's id/time/run/stage meta row plus
 // its JSON payload), or an empty-state message when there are none.
 function DiagnosticLogList({entries}: {entries: DiagnosticLogEntry[]}) {
+  // Keep the newest entry in view: logs read bottom-up, and an opened
+  // panel (or a refresh) should land on what just happened.
+  const listRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const list = listRef.current;
+    if (list) list.scrollTop = list.scrollHeight;
+  }, [entries.length]);
+
   return (
-    <div className={DIAGNOSTIC_LIST_CLASSES} aria-label="Log events">
+    <div
+      ref={listRef}
+      className={DIAGNOSTIC_LIST_CLASSES}
+      aria-label="Log events"
+    >
       {entries.map(entry => (
         <article
           key={`${entry.source}-${entry.id}`}

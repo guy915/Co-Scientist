@@ -6,7 +6,12 @@ import {createRoot} from 'react-dom/client';
 import {BrowserRouter} from 'react-router-dom';
 import './index.css'; // Tailwind layers + --color-th-* theme bridge variables
 import './styles/index.css'; // app-specific global styles
+import {installUiErrorLogging} from './lib/ui_logging';
 import {WorkbenchApp} from './workbench/workbench_app';
+
+// Installed before the first render so a crash during mount is persisted
+// to the app-wide log rather than lost to the browser console.
+installUiErrorLogging();
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {

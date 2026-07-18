@@ -79,8 +79,10 @@ def cli_server(tmp_path_factory: pytest.TempPathFactory) -> Iterator[str]:
             "127.0.0.1",
             "--port",
             str(port),
+            # INFO so uvicorn emits HTTP access records, which the log
+            # capture pipeline persists (asserted below).
             "--log-level",
-            "warning",
+            "info",
         ],
         cwd=str(home),
         env=env,
@@ -161,6 +163,14 @@ def _start(base: str, run_id: str, client_id: str) -> None:
         json_body={},
     )
     resp.raise_for_status()
+
+
+def _grep_logs(base: str, needle: str) -> bool:
+    """Return whether any persisted log message contains ``needle``."""
+    response = _api(base, "GET", f"/api/logs?q={needle}&limit=200")
+    if response.status_code != 200:
+        return False
+    return bool(response.json().get("logs"))
 
 
 def _status(base: str, run_id: str, client_id: str) -> str:
@@ -463,6 +473,51 @@ def test_logs_shows_captured_server_records(
     out = capsys.readouterr().out
     assert "Starting Co-Scientist server" in out
     assert "INFO" in out
+
+
+def test_logs_capture_http_requests(
+    cli_server: str, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Uvicorn access records are captured against a real server."""
+    _api(cli_server, "GET", "/health").raise_for_status()
+    assert wait_for(lambda: _grep_logs(cli_server, "/health"), timeout=15.0), (
+        "no access log for /health was captured"
+    )
+    assert _invoke(cli_server, "logs", "--grep", "/health") == 0
+    assert "GET /health" in capsys.readouterr().out
+
+
+def test_logs_ingests_client_records_and_clears(
+    cli_server: str, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Round-trip client ingestion through the CLI.
+
+    UI-submitted records land in the same log the CLI reads, and --clear
+    empties it.
+    """
+    _api(
+        cli_server,
+        "POST",
+        "/api/logs",
+        json_body={
+            "records": [
+                {
+                    "message": "ui clicked run",
+                    "level": "info",
+                    "logger": "session",
+                }
+            ]
+        },
+    ).raise_for_status()
+    assert _invoke(cli_server, "logs", "--grep", "ui clicked run") == 0
+    out = capsys.readouterr().out
+    assert "ui clicked run" in out
+    assert "ui.session" in out  # namespaced as a client record
+
+    assert _invoke(cli_server, "logs", "--clear") == 0
+    assert "deleted" in capsys.readouterr().out
+    assert _invoke(cli_server, "logs", "--grep", "ui clicked run") == 0
+    assert "ui clicked run" not in capsys.readouterr().out
 
 
 # ---------------------------------------------------------------------------

@@ -81,8 +81,17 @@ def handle_logs(args: argparse.Namespace, client: ApiClient) -> int:
 
     Text mode prints one line per record. ``--json`` emits the raw
     payload for a single query, or one JSON object per new record when
-    following. Ctrl-C ends a follow with exit code 130.
+    following. ``--clear`` deletes every persisted record instead of
+    reading. Ctrl-C ends a follow with exit code 130.
     """
+    if args.clear:
+        body = client.request_json("DELETE", "/api/logs")
+        if args.json:
+            emit_json(body)
+        else:
+            deleted = body.get("deleted", "") if isinstance(body, dict) else ""
+            print(f"deleted\t{deleted}")
+        return 0
     follow: bool = args.follow
     interval: float = args.interval
     as_json: bool = args.json

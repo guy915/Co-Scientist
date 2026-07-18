@@ -128,6 +128,21 @@ def prune_logs(
         return int(cur.rowcount or 0)
 
 
+def clear_logs(
+    *,
+    db_path: str | None = None,
+    conn: sqlite3.Connection | None = None,
+) -> int:
+    """Delete every persisted log row and return the deleted count.
+
+    Ids stay monotonic across a clear (AUTOINCREMENT), so pollers'
+    ``after_id`` cursors and the UI's consecutive numbering never regress.
+    """
+    with _use_conn(conn, db_path) as c:
+        cur = c.execute("DELETE FROM app_logs")
+        return int(cur.rowcount or 0)
+
+
 def latest_log_id(
     *,
     db_path: str | None = None,
