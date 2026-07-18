@@ -33,10 +33,14 @@ describe('AudienceGate', () => {
     expect(window.localStorage.getItem('cosci-audience')).toBe('sbi_ucd');
   });
 
-  it('does not show the dialog when an audience is already stored', () => {
+  // TEMPORARY, paired with RESTORE_ON_MOUNT in audience_context.tsx: a stored
+  // choice is deliberately forgotten on mount, so the gate reopens on every
+  // load. Restore the "does not show the dialog when an audience is already
+  // stored" assertion when that flag flips back to true.
+  it('shows the dialog again even when an audience is stored', () => {
     window.localStorage.setItem('cosci-audience', 'general');
     renderGate();
-    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
   });
 });
 

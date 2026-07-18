@@ -13,6 +13,13 @@ import {
 export type Audience = 'general' | 'google' | 'sbi_ucd';
 
 const STORAGE_KEY = 'cosci-audience';
+
+// TEMPORARY: while the mode controls are being designed, the choice is
+// forgotten on reload so the dialog shows on every visit. The value is still
+// written to storage during the session, because the run-start path
+// (hooks/chat_session_start_run.ts) reads it from there outside React; only
+// the read-on-mount is suppressed. Flip back to true to restore persistence.
+const RESTORE_ON_MOUNT = false;
 const VALID: readonly Audience[] = ['general', 'google', 'sbi_ucd'];
 
 interface AudienceContextValue {
@@ -26,6 +33,12 @@ const AudienceContext = createContext<AudienceContextValue | null>(null);
 // environments) read as null so the first-visit dialog shows.
 function readStoredAudience(): Audience | null {
   if (typeof window === 'undefined') return null;
+  if (!RESTORE_ON_MOUNT) {
+    // Drop the previous session's choice so the stored value never disagrees
+    // with the null state we start from.
+    window.localStorage.removeItem(STORAGE_KEY);
+    return null;
+  }
   const stored = window.localStorage.getItem(STORAGE_KEY);
   return VALID.includes(stored as Audience) ? (stored as Audience) : null;
 }

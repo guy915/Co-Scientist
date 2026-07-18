@@ -1,13 +1,26 @@
 import {render, screen} from '@testing-library/react';
+import {useEffect} from 'react';
 import {MemoryRouter} from 'react-router-dom';
 import {beforeEach, describe, expect, it} from 'vitest';
-import {AudienceProvider} from './audience_context';
+import {type Audience, AudienceProvider, useAudience} from './audience_context';
 import {ShellHeader} from './layout_header';
 
-function renderHeader() {
+// Drives the provider through its public setter. Seeding localStorage would
+// not work: the provider deliberately drops the stored value on mount while
+// the mode controls are being designed (see RESTORE_ON_MOUNT).
+function SetAudience({audience}: {audience: Audience | null}) {
+  const {setAudience} = useAudience();
+  useEffect(() => {
+    if (audience) setAudience(audience);
+  }, [audience, setAudience]);
+  return null;
+}
+
+function renderHeader(audience: Audience | null = null) {
   return render(
     <MemoryRouter>
       <AudienceProvider>
+        <SetAudience audience={audience} />
         <ShellHeader
           navOpen={false}
           toggleNav={() => {}}
@@ -26,14 +39,12 @@ describe('ShellHeader audience control', () => {
   beforeEach(() => window.localStorage.clear());
 
   it('shows Logs for the general audience', () => {
-    window.localStorage.setItem('cosci-audience', 'general');
-    renderHeader();
+    renderHeader('general');
     expect(screen.getByRole('button', {name: /Logs/i})).toBeInTheDocument();
   });
 
   it('shows the pilot control for sbi_ucd', () => {
-    window.localStorage.setItem('cosci-audience', 'sbi_ucd');
-    renderHeader();
+    renderHeader('sbi_ucd');
     expect(
       screen.getByRole('button', {name: /Early access/i}),
     ).toBeInTheDocument();
@@ -41,8 +52,7 @@ describe('ShellHeader audience control', () => {
   });
 
   it('shows the team control for google', () => {
-    window.localStorage.setItem('cosci-audience', 'google');
-    renderHeader();
+    renderHeader('google');
     expect(
       screen.getByRole('button', {name: /Team note/i}),
     ).toBeInTheDocument();

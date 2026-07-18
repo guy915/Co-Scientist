@@ -25,10 +25,15 @@ describe('audience_context', () => {
     expect(window.localStorage.getItem(STORAGE_KEY)).toBe('sbi_ucd');
   });
 
-  it('reads a stored audience on mount', () => {
+  // TEMPORARY, paired with RESTORE_ON_MOUNT in audience_context.tsx: the
+  // choice is deliberately forgotten on reload while the mode controls are
+  // being designed. Restore the "reads a stored audience on mount" assertion
+  // when that flag flips back to true.
+  it('forgets a stored audience on mount', () => {
     window.localStorage.setItem(STORAGE_KEY, 'google');
     const {result} = renderHook(() => useAudience(), {wrapper});
-    expect(result.current.audience).toBe('google');
+    expect(result.current.audience).toBeNull();
+    expect(window.localStorage.getItem(STORAGE_KEY)).toBeNull();
   });
 
   it('treats an unknown stored value as null', () => {
