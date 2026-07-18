@@ -3,15 +3,89 @@
 The run_events table is the canonical timeline the SSE endpoint replays
 on client reconnect or restart; rows are only ever appended, with a
 per-run monotonic sequence number assigned at insert time.
+
+Every appended event is also mirrored into the persisted application log
+as a compact ``app.run_stage`` record, so a run's stage narrative
+(generate, reflection, ranking, ...) is readable from the Logs panel and
+``cosci logs`` — the event stream itself is only reachable over SSE.
+Payloads are summarized rather than serialized: the mirrored line must
+stay cheap to read, since the whole point is that following a run should
+not cost what replaying its events does.
 """
 
 from __future__ import annotations
 
+import contextlib
 import json
+import logging
 import sqlite3
 from typing import Any
 
 from app.store.db import _now, _use_conn, connect
+
+_stage_logger = logging.getLogger("app.run_stage")
+
+# Caps for the mirrored line: bulk collections become their size, long
+# strings are clipped, and the whole message is bounded.
+_STAGE_MAX_CHARS = 200
+_STAGE_VALUE_MAX_CHARS = 60
+
+
+def _summarize_value(key: str, value: Any) -> str | None:
+    """Render one payload entry compactly, or None to omit it."""
+    if isinstance(value, (bool, int, float)):
+        return f"{key}={value}"
+    if isinstance(value, str):
+        text = " ".join(value.split())
+        if not text:
+            return None
+        if len(text) > _STAGE_VALUE_MAX_CHARS:
+            text = text[:_STAGE_VALUE_MAX_CHARS] + "..."
+        return f"{key}={text}"
+    if isinstance(value, (list, dict)):
+        # Size, never contents: payloads carry whole hypothesis and
+        # match collections.
+        return f"{key}={len(value)}"
+    return None
+
+
+def summarize_stage_payload(payload: dict[str, Any]) -> str:
+    """Summarize an event payload as a short ``key=value`` string.
+
+    Whole pairs are dropped once the budget is spent rather than cutting
+    mid-pair, which would read as a key whose value went missing.
+    """
+    parts: list[str] = []
+    used = 0
+    for key, value in payload.items():
+        rendered = _summarize_value(key, value)
+        if rendered is None:
+            continue
+        cost = len(rendered) + (1 if parts else 0)
+        if used + cost > _STAGE_MAX_CHARS:
+            parts.append("...")
+            break
+        parts.append(rendered)
+        used += cost
+    return " ".join(parts)
+
+
+def _log_stage(run_id: str, type_: str, payload: dict[str, Any]) -> None:
+    """Mirror one event into the app log as an ``app.run_stage`` record.
+
+    Imported lazily because ``app.logging_setup`` imports ``app.store``;
+    binding the run id through ``run_log_context`` keeps the record
+    run-scoped even when the caller is outside a run context.
+    """
+    from app.logging_setup import run_log_context
+
+    summary = summarize_stage_payload(payload)
+    message = f"{type_} {summary}".strip()
+    # Both bindings are needed: `extra` makes the record self-describing
+    # for any handler, while the context satisfies the RunIdFilter that
+    # handlers attach (it would otherwise overwrite run_id with None).
+    with run_log_context(run_id):
+        _stage_logger.info("%s", message, extra={"run_id": run_id})
 
 
 def _append_event(
@@ -39,6 +113,10 @@ def _append_event(
         "WHERE run_id=?)), ?, ?, ?) RETURNING seq",
         (run_id, run_id, run_id, type_, json.dumps(payload), created_at),
     ).fetchone()
+    # Mirroring is best-effort: this is the canonical timeline, and a
+    # logging failure must never take its write down.
+    with contextlib.suppress(Exception):
+        _log_stage(run_id, type_, payload)
     return int(row["seq"])
 
 
