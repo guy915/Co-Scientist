@@ -112,17 +112,19 @@ export function ProposalsGraph({
 
       <g className="proposals-hulls">
         {layout.hulls.map(({id, label, bounds}) => (
-          <g key={id} className={`proposals-hull is-${id}`}>
+          <g
+            key={id}
+            className={`proposals-hull is-${id}`}
+            transform={`translate(${bounds.x}, ${bounds.y})`}
+          >
             <rect
-              x={bounds.x}
-              y={bounds.y}
               width={bounds.width}
               height={bounds.height}
               rx={26 * layout.scale}
             />
             <text
-              x={bounds.x + 18 * layout.scale}
-              y={bounds.y + 25 * layout.scale}
+              x={18 * layout.scale}
+              y={25 * layout.scale}
               className="proposals-hull-label"
             >
               {label}

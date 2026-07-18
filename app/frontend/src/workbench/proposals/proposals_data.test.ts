@@ -99,18 +99,17 @@ describe('proposals layout', () => {
     expect(withinScaling).toBeLessThan(acrossGroups);
   });
 
-  it('bows apart the edges of a doubled pair', () => {
+  it('separates the edges of a doubled pair', () => {
     const doubled = edgeGeometry.filter(
       ({edge}) =>
         [edge.from, edge.to].includes('persistent-kb') &&
         [edge.from, edge.to].includes('transitivity'),
     );
     expect(doubled).toHaveLength(2);
-    // A quadratic segment means the edge was offset off the straight line.
-    for (const geometry of doubled) {
-      expect(geometry.path).toContain('Q');
-    }
+    // Two edges between the same pair must not be drawn on top of each
+    // other; the router bows at least one of them off the straight line.
     expect(doubled[0].path).not.toBe(doubled[1].path);
+    expect(doubled.some(geometry => geometry.path.includes('Q'))).toBe(true);
   });
 
   it('draws a lone edge straight', () => {

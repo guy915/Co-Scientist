@@ -18,17 +18,27 @@ const ORIGIN_LABEL: Record<ProposalNode['origin'], string> = {
  */
 export function ProposalsDetail({
   node,
+  leaving = false,
   onSelect,
   onClose,
+  onLeft,
 }: {
   node: ProposalNode;
+  /** True once the panel has been dismissed and is sliding back out. */
+  leaving?: boolean;
   onSelect: (id: string) => void;
   onClose: () => void;
+  onLeft?: () => void;
 }) {
   const cluster = clusters.find(entry => entry.id === node.cluster);
   const relations = relationsOf(node.id);
   return (
-    <aside className="proposals-detail" aria-label={`${node.label} detail`}>
+    <aside
+      className={leaving ? 'proposals-detail is-leaving' : 'proposals-detail'}
+      aria-label={`${node.label} detail`}
+      aria-hidden={leaving || undefined}
+      onAnimationEnd={leaving ? onLeft : undefined}
+    >
       <header className="proposals-detail-head">
         <div>
           <p className={`proposals-detail-cluster is-${node.cluster}`}>

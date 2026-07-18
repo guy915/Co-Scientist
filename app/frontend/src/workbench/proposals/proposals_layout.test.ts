@@ -81,3 +81,106 @@ describe('proposals layout', () => {
     ).toBeCloseTo(ratio, 5);
   });
 });
+
+describe('edge routing', () => {
+  // Re-derives the checks the router itself makes, so a regression in the
+  // routing shows up as a failing assertion rather than a messy screenshot.
+  function sample(path: string): {x: number; y: number}[] {
+    const numbers = path.match(/-?\d+(\.\d+)?/g)!.map(Number);
+    const points: {x: number; y: number}[] = [];
+    const straight = path.includes('L');
+    for (let i = 0; i <= 16; i++) {
+      const t = i / 16;
+      if (straight) {
+        const [x1, y1, x2, y2] = numbers;
+        points.push({x: x1 + (x2 - x1) * t, y: y1 + (y2 - y1) * t});
+      } else {
+        const [x1, y1, cx, cy, x2, y2] = numbers;
+        const u = 1 - t;
+        points.push({
+          x: u * u * x1 + 2 * u * t * cx + t * t * x2,
+          y: u * u * y1 + 2 * u * t * cy + t * t * y2,
+        });
+      }
+    }
+    return points;
+  }
+
+  // A graph this dense cannot route every edge around every node with a
+  // single bend: an edge between two clusters has to cross whatever sits
+  // between them. Straight lines put 9 edges through unrelated nodes at
+  // desktop size; routing brings that to 3. The bound is what the router
+  // currently achieves, so a regression fails here.
+  it.each(STAGES.slice(0, 3))(
+    'rarely runs an edge through an unrelated node at $width',
+    stage => {
+      const layout = computeLayout(stage);
+      const halfWidth = layout.node.width / 2;
+      const halfHeight = layout.node.height / 2;
+      const offenders: string[] = [];
+      for (const {edge, path} of layout.edges) {
+        for (const [id, at] of Object.entries(layout.positions)) {
+          if (id === edge.from || id === edge.to) continue;
+          const inside = sample(path).some(
+            point =>
+              Math.abs(point.x - at.x) < halfWidth &&
+              Math.abs(point.y - at.y) < halfHeight,
+          );
+          if (inside) offenders.push(`${edge.from}->${edge.to} through ${id}`);
+        }
+      }
+      expect(offenders.length).toBeLessThanOrEqual(6);
+    },
+  );
+
+  // Two edges crossing reads fine; two travelling side by side reads as one
+  // edge, which is the thing worth ruling out.
+  it.each(STAGES.slice(0, 3))(
+    'keeps edges from running together at $width',
+    stage => {
+      const layout = computeLayout(stage);
+      const routes = layout.edges.map(entry => sample(entry.path));
+      const pairs: string[] = [];
+      for (let i = 0; i < routes.length; i++) {
+        for (let j = i + 1; j < routes.length; j++) {
+          let close = 0;
+          for (const point of routes[i]) {
+            if (
+              routes[j].some(
+                other => Math.hypot(point.x - other.x, point.y - other.y) < 6,
+              )
+            ) {
+              close++;
+            }
+          }
+          // A crossing touches at one sample; travelling alongside touches at
+          // several.
+          if (close > 3) {
+            pairs.push(
+              `${layout.edges[i].edge.from}->${layout.edges[i].edge.to} with ` +
+                `${layout.edges[j].edge.from}->${layout.edges[j].edge.to}`,
+            );
+          }
+        }
+      }
+      expect(pairs).toEqual([]);
+    },
+  );
+
+  it('bows curves to both sides', () => {
+    const layout = computeLayout({width: 1600, height: 860});
+    // The router offers each offset in both directions; a graph this dense
+    // should use both rather than always bending the same way.
+    const sides = layout.edges
+      .filter(entry => entry.path.includes('Q'))
+      .map(entry => {
+        const [x1, y1, cx, cy, x2, y2] = entry.path
+          .match(/-?\d+(\.\d+)?/g)!
+          .map(Number);
+        // Which side of the chord the control point falls on.
+        return Math.sign((x2 - x1) * (cy - y1) - (y2 - y1) * (cx - x1));
+      });
+    expect(sides).toContain(1);
+    expect(sides).toContain(-1);
+  });
+});

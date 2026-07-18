@@ -282,32 +282,6 @@ export function computeLayout(stage: Stage): Layout {
   };
 }
 
-/** Stable key for an unordered node pair. */
-function pairKey(edge: Edge): string {
-  return [edge.from, edge.to].sort().join('~');
-}
-
-/**
- * Perpendicular offset for each edge, so that two edges between the same
- * pair of nodes (persistent-kb/transitivity carries both an `enables` and a
- * `compensates`) bow apart instead of drawing on top of each other.
- */
-const edgeOffsets: number[] = (() => {
-  const counts = new Map<string, number>();
-  for (const edge of edges) {
-    counts.set(pairKey(edge), (counts.get(pairKey(edge)) ?? 0) + 1);
-  }
-  const seen = new Map<string, number>();
-  return edges.map(edge => {
-    const key = pairKey(edge);
-    const total = counts.get(key) ?? 1;
-    const index = seen.get(key) ?? 0;
-    seen.set(key, index + 1);
-    if (total === 1) return 0;
-    return (index - (total - 1) / 2) * 44;
-  });
-})();
-
 /**
  * Where a line aimed at a box's center crosses the box edge. Endpoints stop
  * at the boundary so an arrowhead reads as pointing at the node rather than
@@ -333,41 +307,163 @@ function boundaryPoint(
   return {x: box.x + dx * reach, y: box.y + dy * reach};
 }
 
-/** Path geometry for every edge, in the same order as `edges`. */
+/**
+ * Offsets tried when routing an edge, in order. Zero is a straight line; the
+ * rest bow the curve to one side or the other by growing amounts, so a
+ * blocked edge is nudged as little as the obstruction allows. Both signs are
+ * offered at each distance: a curve is free to bow either way.
+ */
+const OFFSETS = [
+  0, 20, -20, 40, -40, 60, -60, 80, -80, 100, -100, 120, -120, 140, -140, 160,
+  -160, 180, -180, 200, -200, 220, -220, 240, -240, 260, -260, 280, -280, 300,
+  -300, 320, -320,
+];
+
+/** How close two edges may run before they read as one line. */
+const EDGE_CLEARANCE = 9;
+
+/** How close an edge may pass to a node it does not connect. */
+const NODE_CLEARANCE = 10;
+
+/** Points sampled along an edge when testing it against its neighbours. */
+const SAMPLES = 16;
+
+interface Route {
+  path: string;
+  points: Point[];
+}
+
+/** Builds one candidate route for an edge at the given perpendicular offset. */
+function route(from: Point, to: Point, offset: number, scale: number): Route {
+  // Control point sits perpendicular to the midpoint, bowing the curve away
+  // from whatever the straight line would have run into.
+  const dx = to.x - from.x;
+  const dy = to.y - from.y;
+  const length = Math.hypot(dx, dy) || 1;
+  const control: Point = {
+    x: (from.x + to.x) / 2 + (-dy / length) * offset,
+    y: (from.y + to.y) / 2 + (dx / length) * offset,
+  };
+
+  // Trim both ends to the node boundary, aiming at the control point so
+  // curved edges leave and arrive at sensible angles.
+  const start = boundaryPoint(from, offset === 0 ? to : control, 4, scale);
+  const end = boundaryPoint(to, offset === 0 ? from : control, 9, scale);
+
+  const points: Point[] = [];
+  for (let i = 0; i <= SAMPLES; i++) {
+    const t = i / SAMPLES;
+    if (offset === 0) {
+      points.push({
+        x: start.x + (end.x - start.x) * t,
+        y: start.y + (end.y - start.y) * t,
+      });
+      continue;
+    }
+    const inverse = 1 - t;
+    points.push({
+      x:
+        inverse * inverse * start.x +
+        2 * inverse * t * control.x +
+        t * t * end.x,
+      y:
+        inverse * inverse * start.y +
+        2 * inverse * t * control.y +
+        t * t * end.y,
+    });
+  }
+
+  return {
+    path:
+      offset === 0
+        ? `M ${start.x} ${start.y} L ${end.x} ${end.y}`
+        : `M ${start.x} ${start.y} Q ${control.x} ${control.y} ` +
+          `${end.x} ${end.y}`,
+    points,
+  };
+}
+
+/** How many unrelated nodes a route passes through. */
+function nodeHits(
+  candidate: Route,
+  edge: Edge,
+  positions: Record<string, Point>,
+  scale: number,
+): number {
+  const halfWidth = (NODE_BASE.width / 2) * scale + NODE_CLEARANCE;
+  const halfHeight = (NODE_BASE.height / 2) * scale + NODE_CLEARANCE;
+  let hits = 0;
+  for (const node of nodes) {
+    if (node.id === edge.from || node.id === edge.to) continue;
+    const at = positions[node.id];
+    const through = candidate.points.some(
+      point =>
+        Math.abs(point.x - at.x) < halfWidth &&
+        Math.abs(point.y - at.y) < halfHeight,
+    );
+    if (through) hits++;
+  }
+  return hits;
+}
+
+/**
+ * Whether two routes run together rather than merely crossing. Crossings are
+ * unavoidable in a graph this dense and read fine; two lines travelling side
+ * by side at the same angle are what looks like a single edge.
+ */
+function runsAlongside(a: Route, b: Route): boolean {
+  let close = 0;
+  for (const point of a.points) {
+    for (const other of b.points) {
+      if (Math.hypot(point.x - other.x, point.y - other.y) < EDGE_CLEARANCE) {
+        close++;
+        if (close > 2) return true;
+        break;
+      }
+    }
+  }
+  return false;
+}
+
+/**
+ * Path geometry for every edge, in the same order as `edges`.
+ *
+ * Every offset is scored — nodes passed through, edges run alongside, and a
+ * small penalty for bending at all — and the best is taken. Scoring rather
+ * than taking the first clear route matters for the long edges that cross a
+ * cluster: no single bend clears them, so the cheapest one should win rather
+ * than falling back to a straight line through three nodes. The order is
+ * fixed, so the result is deterministic.
+ */
 function edgeGeometry(
   positions: Record<string, Point>,
   scale: number,
 ): EdgeGeometry[] {
-  return edges.map((edge, index) => {
+  const placed: Route[] = [];
+  return edges.map(edge => {
     const from = positions[edge.from];
     const to = positions[edge.to];
-    const offset = edgeOffsets[index] * scale;
-
-    // Control point sits perpendicular to the midpoint, bowing the curve away
-    // from any sibling edge sharing the same pair.
-    const midX = (from.x + to.x) / 2;
-    const midY = (from.y + to.y) / 2;
-    const dx = to.x - from.x;
-    const dy = to.y - from.y;
-    const length = Math.hypot(dx, dy) || 1;
-    const control: Point = {
-      x: midX + (-dy / length) * offset,
-      y: midY + (dx / length) * offset,
-    };
-
-    // Trim both ends to the node boundary, aiming at the control point so
-    // curved edges leave and arrive at sensible angles.
-    const start = boundaryPoint(from, offset === 0 ? to : control, 4, scale);
-    const end = boundaryPoint(to, offset === 0 ? from : control, 9, scale);
-
-    return {
-      edge,
-      path:
-        offset === 0
-          ? `M ${start.x} ${start.y} L ${end.x} ${end.y}`
-          : `M ${start.x} ${start.y} Q ${control.x} ${control.y} ` +
-            `${end.x} ${end.y}`,
-    };
+    // The straight line is always a valid answer, so it seeds the search
+    // and there is never an empty result to guard against.
+    let best = route(from, to, 0, scale);
+    let bestCost = Infinity;
+    for (const offset of OFFSETS) {
+      const candidate = route(from, to, offset * scale, scale);
+      const alongside = placed.filter(other =>
+        runsAlongside(candidate, other),
+      ).length;
+      const cost =
+        nodeHits(candidate, edge, positions, scale) * 100 +
+        alongside * 60 +
+        Math.abs(offset) / 100;
+      if (cost < bestCost) {
+        best = candidate;
+        bestCost = cost;
+      }
+      if (cost < 1) break;
+    }
+    placed.push(best);
+    return {edge, path: best.path};
   });
 }
 

@@ -4,6 +4,7 @@ import {
   nodes,
   type ClusterId,
   type EdgeKind,
+  type ProposalNode,
 } from '../proposals/proposals_data';
 import {ProposalsDetail} from '../proposals/proposals_detail';
 import {ProposalsGraph} from '../proposals/proposals_graph';
@@ -35,6 +36,10 @@ export function ProposalsPage() {
     new Set(),
   );
 
+  // The panel slides out rather than vanishing, so the node stays rendered
+  // until the animation finishes. `leaving` holds it there in the meantime.
+  const [leaving, setLeaving] = useState<ProposalNode | null>(null);
+
   const selectedId = params.get('node');
   const selected = useMemo(
     () => nodes.find(node => node.id === selectedId) ?? null,
@@ -46,14 +51,18 @@ export function ProposalsPage() {
       // `replace` keeps the back button meaningful: walking the argument
       // node to node should not fill history with every hop. Choosing the
       // open node again closes it, so the same gesture opens and dismisses.
+      if (id === selectedId) setLeaving(selected);
       setParams(id && id !== selectedId ? {node: id} : {}, {replace: true});
     },
-    [setParams, selectedId],
+    [setParams, selectedId, selected],
   );
 
   const clearSelection = useCallback(() => {
+    if (selected) setLeaving(selected);
     setParams({}, {replace: true});
-  }, [setParams]);
+  }, [setParams, selected]);
+
+  const shown = selected ?? leaving;
 
   // The graph is laid out into the space it is actually given, in real
   // pixels, so the measurement has to come first and the geometry second.
@@ -93,11 +102,14 @@ export function ProposalsPage() {
           />
         )}
       </div>
-      {selected && (
+      {shown && (
         <ProposalsDetail
-          node={selected}
+          key={shown.id}
+          node={shown}
+          leaving={selected === null}
           onSelect={select}
           onClose={clearSelection}
+          onLeft={() => setLeaving(null)}
         />
       )}
     </div>

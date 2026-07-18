@@ -44,12 +44,16 @@ describe('ProposalsPage', () => {
   });
 
   it('closes the detail when the open node is chosen again', async () => {
-    renderPage('/proposals?node=live-session');
-    expect(screen.getByLabelText('Live sessions detail')).toBeInTheDocument();
+    const {container} = renderPage('/proposals?node=live-session');
+    expect(container.querySelector('.proposals-detail')).toBeInTheDocument();
     await userEvent.click(
       screen.getByRole('button', {name: /^Live sessions\./}),
     );
-    expect(screen.queryByLabelText('Live sessions detail')).toBeNull();
+    // The panel stays mounted while it slides back out, so dismissal shows
+    // up as the leaving state rather than as an immediate unmount.
+    expect(
+      container.querySelector('.proposals-detail.is-leaving'),
+    ).not.toBeNull();
   });
 
   it('lights only the relationships the selected node leads with', () => {
