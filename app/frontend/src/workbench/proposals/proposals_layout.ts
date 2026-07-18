@@ -42,10 +42,16 @@ const ROW = {top: 295, bottom: 640};
 // wide and would otherwise collide left-to-right. `start` rotates the ring
 // so the first node lands at the top. Every `ry` stays within HALF_SPAN so
 // the shared hull height covers each cluster's nodes.
-const RINGS: Record<
-  ClusterId,
-  {center: Point; rx: number; ry: number; start: number}
-> = {
+export interface Ring {
+  center: Point;
+  rx: number;
+  ry: number;
+  start: number;
+}
+
+export type Rings = Record<ClusterId, Ring>;
+
+export const RINGS: Rings = {
   evaluation: {center: {x: 442, y: ROW.top}, rx: 122, ry: 85, start: -90},
   scaling: {center: {x: 976, y: ROW.top}, rx: 141, ry: 85, start: -90},
   // rx has to keep the two nodes that share a y on the ring from colliding:
@@ -56,28 +62,15 @@ const RINGS: Record<
   interaction: {center: {x: 1140, y: ROW.bottom}, rx: 115, ry: 85, start: -90},
 };
 
-// The furthest any node sits from its row's center line. Every hull is drawn
-// this tall, so the five cluster boxes are identical in height and the two
-// rows read as rows.
-const HALF_SPAN = Math.max(...Object.values(RINGS).map(ring => ring.ry));
-
-export const clusterCenters: Record<ClusterId, Point> = {
-  scaling: RINGS.scaling.center,
-  evaluation: RINGS.evaluation.center,
-  interaction: RINGS.interaction.center,
-  knowledge: RINGS.knowledge.center,
-  capabilities: RINGS.capabilities.center,
-};
-
 /**
  * Position of every node, keyed by node id. Nodes are distributed evenly
  * around their cluster's ring in data order, so inserting a node into
  * proposals_data.ts places it without touching this module.
  */
-export const nodePositions: Record<string, Point> = (() => {
+export function nodePositionsFor(rings: Rings): Record<string, Point> {
   const positions: Record<string, Point> = {};
   for (const cluster of clusters) {
-    const ring = RINGS[cluster.id];
+    const ring = rings[cluster.id];
     const members = nodes.filter(node => node.cluster === cluster.id);
     members.forEach((node, index) => {
       const step = 360 / members.length;
@@ -89,25 +82,38 @@ export const nodePositions: Record<string, Point> = (() => {
     });
   }
   return positions;
-})();
+}
+
+export const nodePositions = nodePositionsFor(RINGS);
 
 /**
  * The soft box drawn behind each cluster. Width follows the cluster's own
  * nodes, but height is shared: a row of boxes that differ by twenty pixels
  * reads as a mistake rather than as a difference in content.
  */
-export function clusterBounds(clusterId: ClusterId) {
+export function clusterBoundsFor(
+  rings: Rings,
+  positions: Record<string, Point>,
+  clusterId: ClusterId,
+) {
   const members = nodes.filter(node => node.cluster === clusterId);
-  const xs = members.map(node => nodePositions[node.id].x);
+  const xs = members.map(node => positions[node.id].x);
   const padX = NODE.width / 2 + 26;
   const padY = NODE.height / 2 + 34;
-  const height = (HALF_SPAN + padY) * 2;
+  // The furthest any node sits from its row's center line, so every hull is
+  // drawn the same height and the two rows read as rows.
+  const halfSpan = Math.max(...Object.values(rings).map(ring => ring.ry));
+  const height = (halfSpan + padY) * 2;
   return {
     x: Math.min(...xs) - padX,
-    y: RINGS[clusterId].center.y - height / 2,
+    y: rings[clusterId].center.y - height / 2,
     width: Math.max(...xs) - Math.min(...xs) + padX * 2,
     height,
   };
+}
+
+export function clusterBounds(clusterId: ClusterId) {
+  return clusterBoundsFor(RINGS, nodePositions, clusterId);
 }
 
 /** Stable key for an unordered node pair. */
@@ -167,42 +173,48 @@ export interface EdgeGeometry {
 /**
  * Path geometry for every edge, in the same order as `edges`.
  */
-export const edgeGeometry: EdgeGeometry[] = edges.map((edge, index) => {
-  const from = nodePositions[edge.from];
-  const to = nodePositions[edge.to];
-  const offset = edgeOffsets[index];
+export function edgeGeometryFor(
+  positions: Record<string, Point>,
+): EdgeGeometry[] {
+  return edges.map((edge, index) => {
+    const from = positions[edge.from];
+    const to = positions[edge.to];
+    const offset = edgeOffsets[index];
 
-  // Control point sits perpendicular to the midpoint, bowing the curve away
-  // from any sibling edge sharing the same pair.
-  const midX = (from.x + to.x) / 2;
-  const midY = (from.y + to.y) / 2;
-  const dx = to.x - from.x;
-  const dy = to.y - from.y;
-  const length = Math.hypot(dx, dy) || 1;
-  const control: Point = {
-    x: midX + (-dy / length) * offset,
-    y: midY + (dx / length) * offset,
-  };
+    // Control point sits perpendicular to the midpoint, bowing the curve away
+    // from any sibling edge sharing the same pair.
+    const midX = (from.x + to.x) / 2;
+    const midY = (from.y + to.y) / 2;
+    const dx = to.x - from.x;
+    const dy = to.y - from.y;
+    const length = Math.hypot(dx, dy) || 1;
+    const control: Point = {
+      x: midX + (-dy / length) * offset,
+      y: midY + (dx / length) * offset,
+    };
 
-  // Trim both ends to the node boundary, aiming at the control point so
-  // curved edges leave and arrive at sensible angles.
-  const start = boundaryPoint(from, offset === 0 ? to : control, 4);
-  const end = boundaryPoint(to, offset === 0 ? from : control, 8);
+    // Trim both ends to the node boundary, aiming at the control point so
+    // curved edges leave and arrive at sensible angles.
+    const start = boundaryPoint(from, offset === 0 ? to : control, 4);
+    const end = boundaryPoint(to, offset === 0 ? from : control, 8);
 
-  const path =
-    offset === 0
-      ? `M ${start.x} ${start.y} L ${end.x} ${end.y}`
-      : `M ${start.x} ${start.y} Q ${control.x} ${control.y} ${end.x} ${end.y}`;
+    const path =
+      offset === 0
+        ? `M ${start.x} ${start.y} L ${end.x} ${end.y}`
+        : `M ${start.x} ${start.y} Q ${control.x} ${control.y} ${end.x} ${end.y}`;
 
-  return {
-    edge,
-    path,
-    mid: {
-      x: (start.x + end.x) / 2 + (-dy / length) * offset * 0.5,
-      y: (start.y + end.y) / 2 + (dx / length) * offset * 0.5,
-    },
-  };
-});
+    return {
+      edge,
+      path,
+      mid: {
+        x: (start.x + end.x) / 2 + (-dy / length) * offset * 0.5,
+        y: (start.y + end.y) / 2 + (dx / length) * offset * 0.5,
+      },
+    };
+  });
+}
+
+export const edgeGeometry = edgeGeometryFor(nodePositions);
 
 /**
  * Node ids `id` leads to, in no particular order. Incoming arrows are left

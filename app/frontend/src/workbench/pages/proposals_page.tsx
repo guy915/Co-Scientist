@@ -8,6 +8,9 @@ import {
 import {ProposalsDetail} from '../proposals/proposals_detail';
 import {ProposalsGraph} from '../proposals/proposals_graph';
 import {ProposalsLegend} from '../proposals/proposals_legend';
+// TEMPORARY: delete along with proposals_layout_editor.tsx once the cluster
+// arrangement is settled.
+import {useLayoutEditor} from '../proposals/proposals_layout_editor';
 
 // Adds or removes one member, which is all either legend needs: an empty
 // set means "no filter", so unselecting the last chip restores the graph
@@ -32,6 +35,9 @@ export function ProposalsPage() {
   const [selectedClusters, setSelectedClusters] = useState<Set<ClusterId>>(
     new Set(),
   );
+
+  const editing = params.get('edit') === '1';
+  const editor = useLayoutEditor();
 
   const selectedId = params.get('node');
   const selected = useMemo(
@@ -65,10 +71,13 @@ export function ProposalsPage() {
           selectedClusters={selectedClusters}
           onActivate={setActiveId}
           onSelect={select}
+          rings={editing ? editor.rings : undefined}
+          overlay={editing ? editor.overlay : undefined}
         />
         {/* The legends explain the whole graph; while one proposal is open
             the detail panel is the thing being read, so they step aside. */}
-        {!selected && (
+        {editing && editor.panel}
+        {!selected && !editing && (
           <ProposalsLegend
             selectedKinds={selectedKinds}
             onToggleKind={kind =>

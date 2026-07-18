@@ -1,4 +1,4 @@
-import {useMemo} from 'react';
+import {useMemo, type ReactNode} from 'react';
 import {
   clusters,
   leadsFrom,
@@ -10,10 +10,12 @@ import {
 import {
   CANVAS,
   NODE,
-  clusterBounds,
-  edgeGeometry,
+  RINGS,
+  clusterBoundsFor,
+  edgeGeometryFor,
   neighborsOf,
-  nodePositions,
+  nodePositionsFor,
+  type Rings,
 } from './proposals_layout';
 
 /**
@@ -45,6 +47,9 @@ function labelLines(label: string): string[] {
  * @param props.selectedClusters Highlighted categories; empty means all.
  * @param props.onActivate Hover/focus a node, or null on leave.
  * @param props.onSelect Open a node's detail.
+ * @param props.rings Ring table to lay out from. Defaults to the committed
+ *   one; the layout editor passes a live copy so dragging redraws.
+ * @param props.overlay Rendered above the graph, for the editor's handles.
  */
 export function ProposalsGraph({
   activeId,
@@ -53,6 +58,8 @@ export function ProposalsGraph({
   selectedClusters,
   onActivate,
   onSelect,
+  rings = RINGS,
+  overlay,
 }: {
   activeId: string | null;
   selectedId: string | null;
@@ -60,7 +67,14 @@ export function ProposalsGraph({
   selectedClusters: Set<ClusterId>;
   onActivate: (id: string | null) => void;
   onSelect: (id: string) => void;
+  rings?: Rings;
+  overlay?: (positions: Record<string, {x: number; y: number}>) => ReactNode;
 }) {
+  const nodePositions = useMemo(() => nodePositionsFor(rings), [rings]);
+  const edgeGeometry = useMemo(
+    () => edgeGeometryFor(nodePositions),
+    [nodePositions],
+  );
   // The node driving isolation: an explicit hover wins, otherwise the open
   // selection keeps its relationships lit so the detail panel and the graph
   // agree about what is being discussed.
@@ -116,7 +130,7 @@ export function ProposalsGraph({
 
       <g className="proposals-hulls">
         {clusters.map(cluster => {
-          const bounds = clusterBounds(cluster.id);
+          const bounds = clusterBoundsFor(rings, nodePositions, cluster.id);
           return (
             <g key={cluster.id} className={`proposals-hull is-${cluster.id}`}>
               <rect
@@ -220,6 +234,8 @@ export function ProposalsGraph({
           );
         })}
       </g>
+
+      {overlay?.(nodePositions)}
     </svg>
   );
 }
