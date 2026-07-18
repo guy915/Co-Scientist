@@ -29,7 +29,7 @@ describe('PilotControl feedback form', () => {
 
   it('submits the note with its category and audience', async () => {
     renderPanel();
-    await userEvent.click(screen.getByRole('radio', {name: /Idea/i}));
+    await userEvent.click(screen.getByRole('radio', {name: /Suggestion/i}));
     await userEvent.type(
       screen.getByPlaceholderText(/What would you like us to know/i),
       'Add a compare view.',
@@ -39,7 +39,7 @@ describe('PilotControl feedback form', () => {
     await waitFor(() =>
       expect(apiMock.submitFeedback).toHaveBeenCalledWith({
         message: 'Add a compare view.',
-        category: 'idea',
+        category: 'suggestion',
         audience: 'sbi_ucd',
       }),
     );
@@ -73,6 +73,6 @@ describe('PilotControl feedback form', () => {
 
   it('defaults to the bug category', () => {
     renderPanel();
-    expect(screen.getByRole('radio', {name: /Something broke/i})).toBeChecked();
+    expect(screen.getByRole('radio', {name: /^Bug$/i})).toBeChecked();
   });
 });

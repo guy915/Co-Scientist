@@ -154,12 +154,6 @@ export function PilotControl({
               onChange={event => form.setMessage(event.target.value)}
             />
             <div className="ucs-feedback-actions">
-              {/* Outcome and the button share a row: the message sits inline
-                  rather than shifting the form's height when it appears. */}
-              <span aria-live="polite" className="ucs-feedback-status">
-                {form.state === 'sent' && PILOT_FEEDBACK.thanks}
-                {form.state === 'error' && PILOT_FEEDBACK.error}
-              </span>
               <button
                 type="submit"
                 className="ucs-feedback-submit"
@@ -167,6 +161,12 @@ export function PilotControl({
               >
                 {sending ? PILOT_FEEDBACK.sending : PILOT_FEEDBACK.submit}
               </button>
+              {/* Outcome and the button share a row: the message sits inline
+                  rather than shifting the form's height when it appears. */}
+              <span aria-live="polite" className="ucs-feedback-status">
+                {form.state === 'sent' && PILOT_FEEDBACK.thanks}
+                {form.state === 'error' && PILOT_FEEDBACK.error}
+              </span>
             </div>
           </form>,
           POPOVER_CLASSES,

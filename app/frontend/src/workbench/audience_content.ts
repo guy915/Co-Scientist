@@ -65,12 +65,13 @@ export const PILOT_FEEDBACK: {
 // Category options offered by the feedback form. The values mirror
 // FEEDBACK_CATEGORIES in app/feedback.py, which validates them.
 export const FEEDBACK_CATEGORIES: readonly {
-  value: 'bug' | 'idea' | 'confusing';
+  value: 'bug' | 'suggestion' | 'question' | 'praise';
   label: string;
 }[] = [
-  {value: 'bug', label: 'Something broke'},
-  {value: 'idea', label: 'Idea'},
-  {value: 'confusing', label: 'Confusing'},
+  {value: 'bug', label: 'Bug'},
+  {value: 'suggestion', label: 'Suggestion'},
+  {value: 'question', label: 'Question'},
+  {value: 'praise', label: 'Praise'},
 ];
 
 // DRAFT: SBI/UCD-tailored home suggestions. Same shape as the default

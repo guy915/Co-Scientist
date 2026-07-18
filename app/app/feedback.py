@@ -22,7 +22,12 @@ router = APIRouter(tags=["feedback"])
 
 # Categories the form offers. Kept in lockstep with FEEDBACK_CATEGORIES in
 # the frontend's audience_content.ts, which renders the same set.
-FEEDBACK_CATEGORIES: tuple[str, ...] = ("bug", "idea", "confusing")
+FEEDBACK_CATEGORIES: tuple[str, ...] = (
+    "bug",
+    "suggestion",
+    "question",
+    "praise",
+)
 
 CATEGORY_PATTERN: str = f"^({'|'.join(FEEDBACK_CATEGORIES)})$"
 

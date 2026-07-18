@@ -571,7 +571,8 @@ CREATE TABLE IF NOT EXISTS feedback (
     id         INTEGER PRIMARY KEY AUTOINCREMENT,
     client_id  TEXT NOT NULL,
     audience   TEXT NOT NULL,
-    -- bug | idea | confusing (see FEEDBACK_CATEGORIES in app/feedback.py)
+    -- bug | suggestion | question | praise
+    -- (see FEEDBACK_CATEGORIES in app/feedback.py)
     category   TEXT NOT NULL,
     message    TEXT NOT NULL,
     created_at REAL NOT NULL

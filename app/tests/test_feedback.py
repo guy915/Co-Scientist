@@ -13,7 +13,7 @@ def test_submit_stores_the_note() -> None:
         "/api/feedback",
         json={
             "message": "The tournament view is confusing.",
-            "category": "confusing",
+            "category": "question",
             "audience": "sbi_ucd",
         },
     )
@@ -21,7 +21,7 @@ def test_submit_stores_the_note() -> None:
     assert response.status_code == 201
     note = response.json()
     assert note["message"] == "The tournament view is confusing."
-    assert note["category"] == "confusing"
+    assert note["category"] == "question"
     assert note["audience"] == "sbi_ucd"
     assert note["id"] > 0
 
@@ -36,7 +36,7 @@ def test_missing_audience_defaults_to_general() -> None:
 
     response = client.post(
         "/api/feedback",
-        json={"message": "Nice work.", "category": "idea"},
+        json={"message": "Nice work.", "category": "suggestion"},
     )
 
     assert response.status_code == 201
@@ -59,7 +59,7 @@ def test_rejects_unknown_category() -> None:
 
     response = client.post(
         "/api/feedback",
-        json={"message": "hi", "category": "praise"},
+        json={"message": "hi", "category": "complaint"},
     )
 
     assert response.status_code == 422
@@ -92,7 +92,7 @@ def test_notes_are_listed_newest_first() -> None:
     for message in ("first", "second"):
         client.post(
             "/api/feedback",
-            json={"message": message, "category": "idea"},
+            json={"message": message, "category": "suggestion"},
         )
 
     assert [n["message"] for n in store.list_feedback()] == [

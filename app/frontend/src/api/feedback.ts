@@ -5,7 +5,7 @@ import type {Audience} from '@/workbench/audience_context';
 import {clientHeaders, fetchJson} from './runs';
 
 /** Note categories the form offers; mirrors FEEDBACK_CATEGORIES server-side. */
-export type FeedbackCategory = 'bug' | 'idea' | 'confusing';
+export type FeedbackCategory = 'bug' | 'suggestion' | 'question' | 'praise';
 
 /** A stored feedback note as returned by the backend. */
 export interface FeedbackNote {
