@@ -155,8 +155,14 @@ def _build_generator(
         cfg: The run's resolved config.
         offline: When True the run is backed by the deterministic offline
             router, so both models are pinned to ``DEFAULT_OFFLINE_MODEL`` and
-            caching is disabled (the router is already deterministic, and its
-            ``offline/`` responses must never be persisted to the shared cache).
+            caching is disabled for this generator's own calls (scoped to its
+            own execution -- see ``co_scientist.cache.scoped_cache_override``
+            -- so it never disables caching for a concurrently-running real
+            run in the same embedded worker). This is a minor optimization,
+            not a correctness requirement: the router is already
+            deterministic, and a cached ``offline/``-prefixed entry could
+            never be served to (or collide with) a real-model call, since the
+            cache key includes the model name.
 
     Returns:
         A constructed generator instance.
