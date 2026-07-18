@@ -2,7 +2,7 @@ import {render, screen, within} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import {MemoryRouter} from 'react-router-dom';
 import {describe, expect, it} from 'vitest';
-import {edges, nodes} from '../proposals/proposals_data';
+import {EDGE_KINDS, clusters, edges, nodes} from '../proposals/proposals_data';
 import {ProposalsPage} from './proposals_page';
 
 function renderPage(path = '/proposals') {
@@ -80,21 +80,24 @@ describe('ProposalsPage', () => {
     ).toBeInTheDocument();
   });
 
-  it('keeps each legend behind its own popover', async () => {
-    renderPage();
-    // The graph owns the whole page, so neither legend is on screen until
-    // its button is used.
-    expect(screen.queryByText(/Mutually amplifying/)).toBeNull();
-    await userEvent.click(screen.getByRole('button', {name: /Relationships/}));
-    expect(screen.getByText(/Mutually amplifying/)).toBeInTheDocument();
-    await userEvent.click(screen.getByRole('button', {name: /Relationships/}));
-    expect(screen.queryByText(/Mutually amplifying/)).toBeNull();
+  it('names every group and relationship kind in the legends', () => {
+    const {container} = renderPage();
+    // Scoped to the legend: cluster names also appear as the graph's own
+    // group labels.
+    const groups = within(
+      container.querySelector<HTMLElement>('.proposals-legend.is-groups')!,
+    );
+    for (const cluster of clusters) {
+      expect(groups.getByText(cluster.label)).toBeInTheDocument();
+    }
+    for (const {label} of EDGE_KINDS) {
+      expect(screen.getByRole('button', {name: label})).toBeInTheDocument();
+    }
   });
 
   it('filters the graph down to a single relationship kind', async () => {
     const {container} = renderPage();
-    await userEvent.click(screen.getByRole('button', {name: /Relationships/}));
-    await userEvent.click(screen.getByRole('button', {name: /Tension —/}));
+    await userEvent.click(screen.getByRole('button', {name: 'Tension'}));
     const drawn = container.querySelectorAll(
       '.proposals-graph .proposals-edge',
     );
@@ -102,25 +105,23 @@ describe('ProposalsPage', () => {
     expect(drawn).toHaveLength(tensions.length);
   });
 
-  it('names the active filter on the closed legend button', async () => {
+  it('marks the filtered-out kinds as unpressed', async () => {
     renderPage();
-    await userEvent.click(screen.getByRole('button', {name: /Relationships/}));
-    await userEvent.click(screen.getByRole('button', {name: /Tension —/}));
-    await userEvent.keyboard('{Escape}');
-    // With the popover shut there is nothing else to say the graph is
-    // filtered, so the button has to carry it.
-    expect(
-      screen.getByRole('button', {name: /Relationships.*Tension only/}),
-    ).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', {name: 'Tension'}));
+    expect(screen.getByRole('button', {name: 'Tension'})).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+    expect(screen.getByRole('button', {name: 'Synergy'})).toHaveAttribute(
+      'aria-pressed',
+      'false',
+    );
   });
 
   it('restores every kind from the reset control', async () => {
     const {container} = renderPage();
-    await userEvent.click(screen.getByRole('button', {name: /Relationships/}));
-    await userEvent.click(screen.getByRole('button', {name: /Tension —/}));
-    await userEvent.click(
-      screen.getByRole('button', {name: 'Show all relationships'}),
-    );
+    await userEvent.click(screen.getByRole('button', {name: 'Tension'}));
+    await userEvent.click(screen.getByRole('button', {name: 'Show all'}));
     expect(
       container.querySelectorAll('.proposals-graph .proposals-edge'),
     ).toHaveLength(edges.length);

@@ -58,7 +58,9 @@ export function ProposalsPage() {
 
   return (
     <div className="proposals-page">
-      <div className="proposals-canvas">
+      {/* The stage carries no styling of its own — it exists only as the
+          positioning context the corner legends anchor to. */}
+      <div className="proposals-stage">
         <ProposalsGraph
           activeId={activeId}
           selectedId={selectedId}
@@ -66,8 +68,6 @@ export function ProposalsPage() {
           onActivate={setActiveId}
           onSelect={select}
         />
-        {/* Inside the canvas: the legends float over the graph rather than
-            taking space from it. */}
         <ProposalsLegend
           visibleKinds={visibleKinds}
           onToggleKind={toggleKind}
