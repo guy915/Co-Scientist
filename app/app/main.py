@@ -252,7 +252,7 @@ class HealthResponse(BaseModel):
     version: str
     model_name: str
     provider: str = Field(
-        ..., description="active workflow provider: 'mock' | 'engine'"
+        ..., description="active workflow provider (always 'engine')"
     )
     checks: dict[str, HealthCheckResult] = Field(
         ..., description="individual check outcomes: store, engine"
@@ -419,8 +419,8 @@ async def get_system_status() -> dict[str, Any]:
     """Checks system availability for literature review features.
 
     Returns availability status for mcp server and pubmed api, plus
-    provider/mock-mode info from the engine adapter so the UI can render
-    a "Mock Mode" banner. Probes run under a bounded timeout and are
+    provider/llm-backend info from the engine adapter so the UI can render
+    an "Offline mode" chip. Probes run under a bounded timeout and are
     cached for a short TTL (see app/diagnostics.py); the ``probes`` field
     distinguishes a server that answered "down" from a probe that errored.
     """

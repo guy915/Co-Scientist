@@ -10,8 +10,7 @@ app/
 │   ├── main.py     App setup and diagnostics endpoints (/health, /config, /status)
 │   ├── runs.py     Durable run-lifecycle router (create / start / stream / cancel)
 │   ├── store/      SQLite persistence layer (WAL, append-only event log)
-│   ├── engine_adapter/    Bridges to engine or mock workflow
-│   ├── mock_workflow.py   Deterministic mock for dev without an LLM key
+│   ├── engine_adapter/    Provider selection + offline/real LLM backend switch
 │   ├── elo.py      Elo rating utilities
 │   ├── citations.py       Citation extraction helpers
 │   ├── safety.py   Safety decision storage
@@ -34,7 +33,7 @@ The backend stores every run and its event log in a local SQLite database (`cosc
 
 - Python 3.10+
 - Node.js / [Bun](https://bun.sh) (frontend)
-- Optional LLM provider API key. With no key set, the app runs deterministic mock mode.
+- Optional LLM provider API key. With no key set, the app runs on the engine's deterministic offline LLM backend.
 
 ### Local development (no Docker)
 
@@ -49,7 +48,7 @@ pip install -e ../engine
 make install
 
 # Copy and edit the env file
-cp .env.example .env   # leave keys empty for mock mode
+cp .env.example .env   # leave keys empty for offline mode
 
 # Start the API server (hot-reload)
 make dev               # listens on :8008
@@ -66,7 +65,7 @@ cd app
 curl -fsSL https://pixi.sh/install.sh | bash
 
 pixi install
-cp .env.example .env   # leave keys empty for mock mode
+cp .env.example .env   # leave keys empty for offline mode
 pixi run dev           # listens on :8008
 ```
 
@@ -87,7 +86,7 @@ Open `http://localhost:5173` in your browser.
 ```bash
 cd app
 
-cp .env.example .env   # leave keys empty for mock mode
+cp .env.example .env   # leave keys empty for offline mode
 
 docker compose up --build
 ```
@@ -108,7 +107,8 @@ All backend settings are read from `.env` (or environment variables). See `.env.
 
 | Variable | Default | Description |
 |---|---|---|
-| `GEMINI_API_KEY` / `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` / `DEEPSEEK_API_KEY` | — | Optional provider keys. If none are set, the app uses mock mode. |
+| `GEMINI_API_KEY` / `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` / `DEEPSEEK_API_KEY` | — | Optional provider keys. If none are set, the app uses the offline LLM backend. |
+| `COSCIENTIST_FORCE_OFFLINE` | `0` | Force the offline LLM backend even when a provider key is set (deprecated alias: `COSCIENTIST_FORCE_MOCK`) |
 | `MODEL_NAME` | `gemini/gemini-2.5-flash` | LiteLLM model ID |
 | `SUPERVISOR_MODEL_NAME` | — | Optional stronger model for supervisor and meta-review |
 | `CHAT_MODEL_NAME` | — | Optional model for Chat tab Q&A; defaults to `MODEL_NAME` |
@@ -204,7 +204,7 @@ error, so `set -e` scripts fail fast.
 | `cosci runs list` | `GET /api/runs` |
 | `cosci runs show RUN_ID` | `GET /api/runs/{id}` |
 | `cosci runs create "GOAL" [opts]` | `POST /api/runs` |
-| `cosci runs start RUN_ID [--provider mock\|engine]` | `POST /api/runs/{id}/start` |
+| `cosci runs start RUN_ID` | `POST /api/runs/{id}/start` |
 | `cosci runs pause\|resume\|cancel RUN_ID` | `POST /api/runs/{id}/{action}` |
 | `cosci runs watch RUN_ID [--after SEQ]` | `GET /api/runs/{id}/events` (SSE) |
 | `cosci runs hypotheses\|evidence\|reviews\|citations\|safety RUN_ID` | `GET /api/runs/{id}/{table}` |
@@ -223,10 +223,10 @@ error, so `set -e` scripts fail fast.
 reaches a terminal or paused status. `ask` streams the answer to stdout; with no
 model key configured it prints the server's fallback to stderr and exits 1.
 
-End-to-end, fully offline against the mock provider (no API keys):
+End-to-end, fully offline against the engine's deterministic offline LLM backend (no API keys):
 
 ```bash
-cosci status                                   # provider: mock
+cosci status                                   # provider: engine, llm_backend: offline
 RUN=$(cosci runs create "Explore X" --tier express | cut -f1)
 cosci runs start "$RUN"
 cosci runs watch "$RUN"                         # tails to completion
@@ -268,9 +268,9 @@ bun run lint     # gts lint
 bun run fix      # gts fix (format + autofix)
 ```
 
-## Mock mode
+## Offline mode
 
-If the engine is not installed or no LLM API key is set, the server falls back to a deterministic mock workflow that returns pre-built hypotheses and evidence. The `/status` endpoint reports `mock_mode: true`. This is useful for frontend development and CI.
+Every run executes on the real engine; the engine is a hard runtime dependency. If no LLM API key is set (or `COSCIENTIST_FORCE_OFFLINE=1` is set — the deprecated alias `COSCIENTIST_FORCE_MOCK=1` is still honored), the server pins the engine's `offline/` model backend instead of a real provider, producing deterministic, schema-valid hypotheses and evidence with no API spend. The `/status` endpoint reports `llm_backend: "offline"` (`mock_mode: true` remains as a deprecated mirror). This is useful for frontend development and CI.
 
 ## Literature review (MCP)
 

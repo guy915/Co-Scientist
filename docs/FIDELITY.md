@@ -69,11 +69,20 @@ These features are described in the published material but are not implemented h
 -   **Vector / hybrid retrieval.** The store has no vector column; proximity
     clustering in mock mode is a constant-id strategy.
 
-## Mock Mode disclosure
+## Offline Mode disclosure
 
-When no LLM key is set, the `/status` endpoint reports `mock_mode: true`. The persisted `runs.provider` column records which provider produced each run so historical runs from one mode are clearly distinguishable from the other.
+Every run executes on the real engine. When no LLM key is set (or
+`COSCIENTIST_FORCE_OFFLINE=1`, deprecated alias `COSCIENTIST_FORCE_MOCK=1`,
+is set), the `/status` endpoint reports `llm_backend: "offline"`
+(`mock_mode: true` remains as a deprecated mirror). The persisted
+`runs.llm_backend` column records which backend produced each run so
+historical runs from one mode are clearly distinguishable from the other.
 
-The mock workflow is **deterministic**: same goal + same run mode + same `run_id` produces byte-identical hypotheses, citations, and matchups. This is intentional — it lets the implementation behave like a published academic artefact rather than a demo that drifts run-to-run.
+The offline backend is **deterministic**: same model + prompt + response
+schema produces byte-identical output, so same goal + same run mode + same
+`run_id` produces byte-identical hypotheses, citations, and matchups. This
+is intentional — it lets the implementation behave like a published
+academic artefact rather than a demo that drifts run-to-run.
 
 ## Calibration against the published research
 

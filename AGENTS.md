@@ -102,9 +102,8 @@ Tasks are mirrored under `[tool.pixi.tasks]` — `pixi run dev` etc. work identi
 | `config.py` | Pydantic settings (model names, API keys, DB path, Elo tuning, safety mode) |
 | `runs.py` | Durable run-lifecycle router (`/api/runs` endpoint group) |
 | `store/` | SQLite persistence layer (WAL mode, append-only event log) |
-| `engine_adapter/` | Engine/mock provider selection; runs the intake safety gate at the shared `run_workflow` boundary and streams events |
-| `mock_workflow.py` | Deterministic mock workflow (full agent-equivalent sequence) |
-| `report_render.py` | Shared report payload/markdown builders, the `finalize_report` path (final safety gate + report/completed emission), and event-payload stubs used by both providers |
+| `engine_adapter/` | Provider selection (always `"engine"`) and the offline/real LLM-backend switch; runs the intake safety gate at the shared `run_workflow` boundary and streams events |
+| `report_render.py` | Shared report payload/markdown builders, the `finalize_report` path (final safety gate + report/completed emission), and event-payload stubs shared across the offline and real LLM backends |
 | `elo.py` | Elo rating utilities |
 | `citations.py` | Citation classification (verified, partial, unsupported, unavailable) |
 | `safety.py` | Intake/final-output screening; the intake gate runs at the shared `run_workflow` boundary and the final gate in the shared `report_render.finalize_report` path, so both are shared across providers |
@@ -126,7 +125,7 @@ Run lifecycle (in `runs.py`, mounted at `/api/runs`) — **primary API used by t
 - `POST /api/runs/{id}/messages` — queue user steering message; `GET` to list.
 - `POST /api/runs/{id}/messages/ask` — Q&A with streaming LLM response (uses `chat_model_name` config).
 
-A single `HypothesisGenerator` instance is constructed in the `lifespan` startup hook and reused across requests. Per-run overrides (`max_iterations`, `initial_hypotheses_count`, `evolution_max_count`) come from the request body. The `engine_adapter/` package selects between the real engine and `mock_workflow.py` based on configuration and availability.
+A single `HypothesisGenerator` instance is constructed in the `lifespan` startup hook and reused across requests. Per-run overrides (`max_iterations`, `initial_hypotheses_count`, `evolution_max_count`) come from the request body. Every run executes on the real engine (`engine_adapter.select_provider()` always returns `"engine"`; the engine is a hard runtime dependency). Keyless runs and runs with `COSCIENTIST_FORCE_OFFLINE=1` set are pinned instead to the engine's deterministic offline LLM backend (`co_scientist.offline_llm`), which intercepts `litellm.acompletion` for `offline/`-prefixed models rather than calling a real provider.
 
 ### Frontend (`frontend/`)
 
@@ -196,7 +195,7 @@ Vercel reads `VITE_API_BASE_URL=https://api-production-97eb.up.railway.app` (set
 
 ## Required environment
 
-Both projects use **LiteLLM** for model dispatch. Set the relevant provider key (`DEEPSEEK_API_KEY`, `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, …) and `MODEL_NAME` (e.g. `deepseek/deepseek-chat`) before running. The app defaults to `gemini/gemini-2.5-flash` locally; production uses DeepSeek. The viewer also reads `MCP_SERVER_URL` (default `http://localhost:8888/mcp`), `TOOLS_CONFIG` (path or http URL to a YAML tools config), `SUPERVISOR_MODEL_NAME` (separate strategic model for supervisor/meta-review), and `CHAT_MODEL_NAME` (model for Chat tab Q&A). Full list of viewer env vars in `app/.env.example`.
+Both projects use **LiteLLM** for model dispatch. Set the relevant provider key (`DEEPSEEK_API_KEY`, `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, …) and `MODEL_NAME` (e.g. `deepseek/deepseek-chat`) before running. The app defaults to `gemini/gemini-2.5-flash` locally; production uses DeepSeek. The viewer also reads `MCP_SERVER_URL` (default `http://localhost:8888/mcp`), `TOOLS_CONFIG` (path or http URL to a YAML tools config), `SUPERVISOR_MODEL_NAME` (separate strategic model for supervisor/meta-review), and `CHAT_MODEL_NAME` (model for Chat tab Q&A). Full list of viewer env vars in `app/.env.example`. With no provider key set, or with `COSCIENTIST_FORCE_OFFLINE=1` (deprecated alias `COSCIENTIST_FORCE_MOCK=1`), the viewer runs every hypothesis-generation call through the engine's deterministic offline LLM backend instead of a real provider — no key required.
 
 ## Git hygiene
 

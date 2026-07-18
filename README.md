@@ -63,7 +63,7 @@ unavailable.</sub>
 <tr>
 <td valign="top">
 
-**Mock mode**<br/>
+**Offline mode**<br/>
 <sub>Full pipeline without an LLM key. Deterministic, free, instant.</sub>
 
 </td>
@@ -98,7 +98,7 @@ configuration.
 
 | Path | Purpose |
 | --- | --- |
-| `app/` | FastAPI API, SQLite run store, mock workflow, and React workbench |
+| `app/` | FastAPI API, SQLite run store, and React workbench |
 | `app/frontend/` | Vite + React + TypeScript UI |
 | `engine/` | LangGraph hypothesis-generation engine and reference MCP server |
 | `docs/` | Live architecture, fidelity notes, screenshots, and diagrams |
@@ -134,25 +134,28 @@ dashboard remains available for deeper inspection:
 | **Tournament** | Leaderboard + per-iteration matchup log with Elo deltas and judge rationale |
 | **Chat** | Scientist-in-the-loop steering: auto, manual, and QA conversation modes |
 
-### Mock mode vs real engine
+### Offline mode vs real engine
 
-The system reports its mode at `/status`:
+Every run goes through the same LangGraph engine; only the LLM backend
+underneath changes. The system reports which one at `/status`:
 
-| | Mock mode | Real engine |
+| | Offline mode | Real engine |
 | - | - | - |
 | **Trigger** | No LLM key in `.env` | Any provider key set (`DEEPSEEK_API_KEY`, `OPENAI_API_KEY`, …) |
-| **Behaviour** | Deterministic seed → 11 agent steps, stable hypotheses and Elo | LangGraph engine, real LLM calls |
+| **Behaviour** | Same LangGraph engine, deterministic seeded content in place of real LLM calls | LangGraph engine, real LLM calls |
 | **Cost** | Free | Provider billing applies |
 
-Force mock mode for development with `COSCIENTIST_FORCE_MOCK=1`. Check the
-current mode with `curl localhost:8008/status | jq .mock_mode`.
+Force offline mode for development with `COSCIENTIST_FORCE_OFFLINE=1` (the
+deprecated alias `COSCIENTIST_FORCE_MOCK=1` is still honored). Check the
+current backend with `curl localhost:8008/status | jq .llm_backend`
+(`mock_mode` remains as a deprecated mirror of the same value).
 
 ### Environment
 
-Copy `.env.example` to `.env`. Empty keys keep you in mock mode.
+Copy `.env.example` to `.env`. Empty keys keep you in offline mode.
 
 ```
-DEEPSEEK_API_KEY=                    # empty = mock mode; any provider key triggers real engine
+DEEPSEEK_API_KEY=                    # empty = offline mode; any provider key triggers the real LLM backend
 MODEL_NAME=deepseek/deepseek-chat    # LiteLLM format
 COSCIENTIST_DB_PATH=./coscientist.db
 SAFETY_MODE=standard                 # 'strict' for dual-use filtering

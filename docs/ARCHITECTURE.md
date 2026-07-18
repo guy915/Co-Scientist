@@ -25,8 +25,8 @@ This document describes the current runtime shape of the Co-Scientist workspace.
 |   main.py        — composes router, CORS, lifespan                 |
 |   config.py      — pydantic-settings                               |
 |   runs.py        — /api/runs/* lifecycle, read, messages, and SSE   |
-|   engine_adapter/ — provider selection + bridge to mock/engine     |
-|   mock_workflow.py — deterministic offline pipeline                 |
+|   engine_adapter/ — provider selection + offline/real LLM backend  |
+|                     switch; bridges to the engine                  |
 |   store/         — SQLite store (runs/events/hypotheses/evidence/  |
 |                    citations/matches/reviews/reports/safety)       |
 |   elo.py         — pure Elo helpers (initial=1200, configurable K) |
@@ -34,23 +34,23 @@ This document describes the current runtime shape of the Co-Scientist workspace.
 |   citations.py   — verified|partial|unsupported|unavailable        |
 +------------------------------+-------------------------------------+
                                |
-        +----------------------+--------------------+
-        |                                           |
-+-------v--------+                       +----------v-----------+
-| mock workflow  |                       | co_scientist     |
-| (default)      |                       | LangGraph engine     |
-+----------------+                       | (real, optional)     |
-                                         +----------+-----------+
-                                                    |
-                                         (optional) v
-                                         +----------------------+
-                                         | MCP literature server|
-                                         +----------------------+
+                               v
+                     +----------------------+
+                     | co_scientist         |
+                     | LangGraph engine     |
+                     | (offline or real LLM |
+                     |  backend)            |
+                     +----------+-----------+
+                                |
+                     (optional) v
+                     +----------------------+
+                     | MCP literature server|
+                     +----------------------+
 ```
 
 ## Pipeline events (canonical timeline)
 
-The mock workflow and the engine adapter both emit events into the same event-log table. The mock workflow guarantees the full sequence:
+Every run executes on the engine, and the engine adapter emits its events into the same event-log table regardless of which LLM backend (offline or real) is behind it. A standard run produces this canonical sequence:
 
 ```
 1.  lifecycle      (created)
@@ -98,13 +98,14 @@ Tables (SQLite, WAL):
 
 ## Provider selection
 
-`engine_adapter.select_provider()` returns `"engine"` iff:
+`engine_adapter.select_provider()` always returns `"engine"` — the app's earlier mock workflow has been retired, and the engine is now a hard runtime dependency (a missing `co_scientist` install raises at startup instead of silently falling back).
 
-1. `COSCIENTIST_FORCE_MOCK` is unset, AND
-2. at least one supported provider key is set, AND
-3. `co_scientist` is importable.
+What varies per run is the **LLM backend**, not the provider. `engine_adapter.offline_mode()` returns `True` when:
 
-Otherwise it returns `"mock"`. The chosen value is persisted on the run row so a re-opened run remembers which engine produced it.
+1. `COSCIENTIST_FORCE_OFFLINE=1` is set (or its deprecated alias `COSCIENTIST_FORCE_MOCK=1`), OR
+2. no supported provider key is configured.
+
+An offline-backed run still executes the real engine graph; `co_scientist.offline_llm.install_offline_router()` intercepts `litellm.acompletion` for `offline/`-prefixed models and returns deterministic, schema-valid content instead of calling a real provider. The resolved backend (`"offline"` | `"real"`) is persisted per run as `llm_backend` and reported at `/status`; `mock_mode` remains as a deprecated mirror of the same value. A re-opened run remembers which backend produced it.
 
 ## Frontend state
 
@@ -120,13 +121,16 @@ This means a hard refresh, a backend restart, or a new browser session all produ
 ## Why this shape
 
 -   Original engine LangGraph workflow is preserved —
-    `engine_adapter.run_workflow` calls the engine when a key is available, only
-    translating event names.
+    `engine_adapter.run_workflow` always calls the engine, translating event
+    names; only the LLM backend underneath (offline or real) varies with
+    configuration.
 -   FastAPI single-file app is preserved; the new router is mounted alongside
     the diagnostics endpoints (`/health`, `/config`, `/status`).
 -   Frontend stack is preserved: React 19 + Vite 7 + Tailwind v4 + Bun + gts.
     The workbench lives under `src/workbench/`, with public landing and demo
     pages under `src/public/`.
--   The mock workflow exists so the system has **observable behaviour without
-    any external dependency**. This unlocks CI, deterministic tests, and a
-    usable demo without provider keys.
+-   The engine's offline LLM backend exists so the system has **observable
+    behaviour without any external dependency**. The same LangGraph graph
+    runs either way; only `litellm.acompletion` for `offline/` models is
+    intercepted. This unlocks CI, deterministic tests, and a usable demo
+    without provider keys.

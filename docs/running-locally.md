@@ -35,7 +35,7 @@ Individual pieces: `make dev-api`, `make dev-ui`, `make dev-mcp`.
   run from `engine/` so `mcp_server.server:app` resolves). `make dev-mcp`
   creates a 3.12 venv and starts it. PubMed needs a contact email —
   `ENTREZ_EMAIL` in `engine/mcp_server/.env` (NCBI courtesy identifier, not
-  auth). Without it: `pubmed_available: false`, literature falls back to mock.
+  auth). Without it: `pubmed_available: false`, literature falls back to LLM-only (no PubMed retrieval).
   Check status: `curl -s localhost:8008/status` → `mcp_available`,
   `pubmed_available`, `literature_review_available`.
 
