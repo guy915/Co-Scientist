@@ -6,7 +6,7 @@ import {
   type EdgeKind,
   type ProposalNode,
 } from './proposals_data';
-import {NODE, neighborsOf, type Layout} from './proposals_layout';
+import {neighborsOf, type Layout} from './proposals_layout';
 
 /**
  * Splits a label across at most two lines, breaking at the space nearest the
@@ -118,11 +118,11 @@ export function ProposalsGraph({
               y={bounds.y}
               width={bounds.width}
               height={bounds.height}
-              rx={26}
+              rx={26 * layout.scale}
             />
             <text
-              x={bounds.x + 18}
-              y={bounds.y + 24}
+              x={bounds.x + 18 * layout.scale}
+              y={bounds.y + 25 * layout.scale}
               className="proposals-hull-label"
             >
               {label}
@@ -196,15 +196,22 @@ export function ProposalsGraph({
               }}
             >
               <rect
-                x={-NODE.width / 2}
-                y={-NODE.height / 2}
-                width={NODE.width}
-                height={NODE.height}
-                rx={12}
+                x={-layout.node.width / 2}
+                y={-layout.node.height / 2}
+                width={layout.node.width}
+                height={layout.node.height}
+                rx={12 * layout.scale}
               />
-              <text textAnchor="middle" y={lines.length === 1 ? 5 : -4}>
+              <text
+                textAnchor="middle"
+                y={(lines.length === 1 ? 5 : -4) * layout.scale}
+              >
                 {lines.map((line, lineIndex) => (
-                  <tspan key={line} x={0} dy={lineIndex === 0 ? 0 : 16}>
+                  <tspan
+                    key={line}
+                    x={0}
+                    dy={lineIndex === 0 ? 0 : 17 * layout.scale}
+                  >
                     {line}
                   </tspan>
                 ))}

@@ -77,11 +77,15 @@
   position: absolute;
   z-index: 2;
   top: 0;
+  box-sizing: border-box;
+  /* 13.5em against the scaled root size is exactly the width the layout
+     reserves for a card, so the gap to the nearest cluster is exact. */
+  width: 13.5em;
   display: grid;
-  gap: 0.3rem;
-  border-radius: 0.85rem;
+  gap: 0.3em;
+  border-radius: 0.85em;
   background: var(--cosci-panel);
-  padding: 0.6rem 0.8rem;
+  padding: 0.6em 0.8em;
 }
 
 .proposals-legend.is-categories {
@@ -96,9 +100,9 @@
 }
 
 .proposals-legend-title {
-  margin: 0 0 0.1rem;
+  margin: 0 0 0.1em;
   color: var(--cosci-muted);
-  font-size: 0.68rem;
+  font-size: 0.68em;
   font-weight: 600;
   letter-spacing: 0.07em;
   text-transform: uppercase;
@@ -106,24 +110,24 @@
 
 .proposals-legend-list {
   display: grid;
-  gap: 0.15rem;
+  gap: 0.15em;
   margin: 0;
   padding: 0;
   list-style: none;
-  font-size: 0.78rem;
+  font-size: 0.78em;
 }
 
 .proposals-legend-swatch {
-  width: 0.7rem;
-  height: 0.7rem;
+  width: 0.7em;
+  height: 0.7em;
   flex: none;
-  border-radius: 3px;
+  border-radius: 0.2em;
   background: var(--chip-color);
 }
 
 .proposals-legend-sample {
-  width: 44px;
-  height: 12px;
+  width: 2.9em;
+  height: 0.8em;
   flex: none;
   overflow: visible;
 }
@@ -137,7 +141,7 @@
   display: flex;
   width: 100%;
   align-items: center;
-  gap: 0.45rem;
+  gap: 0.45em;
   border: 0;
   /* Fully rounded ends, matching the pills used elsewhere in the app. */
   border-radius: 9999px;
@@ -145,8 +149,7 @@
   color: inherit;
   cursor: pointer;
   font: inherit;
-  font-size: 0.78rem;
-  padding: 0.45rem 0.7rem 0.45rem 0.55rem;
+  padding: 0.45em 0.7em 0.45em 0.55em;
   text-align: left;
   transition: background 120ms ease;
 }
@@ -217,11 +220,13 @@
   position: relative;
   min-width: 0;
   min-height: 0;
-  /* The drawing claims the width its clusters need; on a window too narrow
-     for that it scrolls rather than overlapping itself. */
-  overflow: auto;
+  overflow: hidden;
   grid-row: 1;
   grid-column: 1;
+  /* One scale for the whole drawing, set by the layout. Everything inside
+     sizes itself in `em` against it, so the legends and the graph shrink
+     together and the stage never needs to scroll. */
+  font-size: calc(1rem * var(--proposals-scale, 1));
 }
 
 /* The SVG is sized to the stage in real pixels and its geometry is computed
@@ -239,7 +244,7 @@
 }
 
 .proposals-hull-label {
-  font-size: 0.72rem;
+  font-size: 0.72em;
   font-weight: 600;
   letter-spacing: 0.05em;
   text-transform: uppercase;
@@ -316,7 +321,7 @@
 
 .proposals-node text {
   fill: var(--cosci-text);
-  font-size: 0.8rem;
+  font-size: 0.8em;
   font-weight: 500;
   pointer-events: none;
 }

@@ -1,4 +1,4 @@
-import {useCallback, useMemo, useState} from 'react';
+import {useCallback, useMemo, useState, type CSSProperties} from 'react';
 import {useSearchParams} from 'react-router-dom';
 import {
   nodes,
@@ -57,14 +57,18 @@ export function ProposalsPage() {
 
   // The graph is laid out into the space it is actually given, in real
   // pixels, so the measurement has to come first and the geometry second.
-  const [stageRef, stage] = useStage(selected === null);
+  const [stageRef, stage] = useStage();
   const layout = useMemo(() => computeLayout(stage), [stage]);
 
   return (
     <div className="proposals-page">
       {/* The stage is what gets measured: the graph fills it exactly, and
           the legends are positioned in its corners. */}
-      <div className="proposals-stage" ref={stageRef}>
+      <div
+        className="proposals-stage"
+        ref={stageRef}
+        style={{'--proposals-scale': layout.scale} as CSSProperties}
+      >
         <ProposalsGraph
           activeId={activeId}
           selectedId={selectedId}

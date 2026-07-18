@@ -13,8 +13,6 @@ import {computeLayout} from './proposals_layout';
 const {positions: nodePositions, edges: edgeGeometry} = computeLayout({
   width: 1440,
   height: 760,
-  legendLeft: 230,
-  legendRight: 230,
 });
 import {degreeOf, relationsOf} from './proposals_relations';
 

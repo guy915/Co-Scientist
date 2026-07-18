@@ -1,11 +1,15 @@
 // Geometry for the proposals graph, computed from the space it is given.
 //
-// Everything here is in CSS pixels and is laid out 1:1 — the drawing is never
-// scaled to fit. Resizing the window re-runs the layout so the clusters
-// re-flow, and zooming behaves the way it does anywhere else on the page:
-// every element, the legends included, changes by the same amount. A fitted
-// viewBox would instead shrink the drawing while leaving fixed-size siblings
-// alone, which is what made the legends drift against the clusters.
+// Every length below is a base size in CSS pixels. The layout multiplies all
+// of them by one factor, chosen so the drawing exactly fits the stage: the
+// page never scrolls, and nothing is ever transform-scaled, so text is drawn
+// at a real font size rather than stretched.
+//
+// The legends are part of that single factor — their width is derived from
+// it rather than measured, and their type scales with it — so the graph and
+// the legends keep the same proportions at every window size and zoom level.
+// That is what a fitted viewBox got wrong: it resized the drawing while
+// leaving the fixed-size legends alone.
 //
 // Content lives in proposals_data.ts; colors live in CSS.
 
@@ -18,23 +22,31 @@ import {
   type Edge,
 } from './proposals_data';
 
-/** Node box. Labels wrap to at most two lines inside it. */
-export const NODE = {width: 186, height: 54};
+/** Base node box. Labels wrap to at most two lines inside it. */
+const NODE_BASE = {width: 186, height: 54};
 
 /** One spacing value, used between clusters and around the rows. */
-const GAP = 40;
+const GAP_BASE = 40;
 
 /** Space between the two rows. */
-const ROW_GAP = 48;
+const ROW_GAP_BASE = 48;
 
 /** Breathing room between a cluster's outermost nodes and its hull. */
-const PAD = {x: NODE.width / 2 + 26, y: NODE.height / 2 + 32};
+const PAD_BASE = {x: NODE_BASE.width / 2 + 26, y: NODE_BASE.height / 2 + 32};
 
 /** Smallest empty space allowed between two node boxes. */
-const CLEAR = 26;
+const CLEAR_BASE = 26;
 
-/** Ring half-height, clamped so tall or short windows stay sensible. */
-const RY = {min: 66, max: 104};
+/** Ring half-height at full size. */
+const RY_BASE = 96;
+
+/**
+ * Legend card width at full size. Derived, not measured: the card is sized
+ * in `em` against the scaled root size, so its width is always this times
+ * the scale. Measuring it instead would make the scale depend on a length
+ * that depends on the scale.
+ */
+const LEGEND_BASE = 216;
 
 /** Used when the container has not been measured yet (tests, first paint). */
 const FALLBACK = {width: 1440, height: 760};
@@ -66,6 +78,9 @@ export interface EdgeGeometry {
 export interface Layout {
   width: number;
   height: number;
+  /** Everything below is already multiplied by this; it also sizes type. */
+  scale: number;
+  node: {width: number; height: number};
   positions: Record<string, Point>;
   hulls: {id: ClusterId; label: string; bounds: Box}[];
   edges: EdgeGeometry[];
@@ -75,9 +90,6 @@ export interface Layout {
 export interface Stage {
   width: number;
   height: number;
-  /** Width of each legend card, or 0 when it is not shown. */
-  legendLeft: number;
-  legendRight: number;
 }
 
 /** Angles, in radians, of a ring of `count` nodes starting at the top. */
@@ -100,18 +112,19 @@ function extentFactor(count: number): number {
 /**
  * The smallest `rx` at which no two nodes in the ring overlap. Two nodes are
  * clear of each other if either axis separates them, so only the pairs that
- * fail vertically constrain the horizontal radius.
+ * fail vertically constrain the horizontal radius. Computed at base size and
+ * scaled with everything else.
  */
-function minimumRx(count: number, ry: number): number {
+function minimumRx(count: number): number {
   const angles = ringAngles(count);
   let required = 0;
   for (let i = 0; i < count; i++) {
     for (let j = i + 1; j < count; j++) {
       const dSin = Math.abs(Math.sin(angles[i]) - Math.sin(angles[j]));
-      if (dSin * ry - NODE.height >= CLEAR) continue;
+      if (dSin * RY_BASE - NODE_BASE.height >= CLEAR_BASE) continue;
       const dCos = Math.abs(Math.cos(angles[i]) - Math.cos(angles[j]));
       if (dCos < 1e-6) continue;
-      required = Math.max(required, (NODE.width + CLEAR) / dCos);
+      required = Math.max(required, (NODE_BASE.width + CLEAR_BASE) / dCos);
     }
   }
   return required;
@@ -121,35 +134,45 @@ function memberIds(clusterId: ClusterId): string[] {
   return nodes.filter(node => node.cluster === clusterId).map(node => node.id);
 }
 
-/** Hull width for a cluster whose ring has the given radius. */
+/** Hull width at base size for a cluster whose ring has radius `rx`. */
 function hullWidth(clusterId: ClusterId, rx: number): number {
-  return extentFactor(memberIds(clusterId).length) * rx + PAD.x * 2;
+  return extentFactor(memberIds(clusterId).length) * rx + PAD_BASE.x * 2;
 }
 
 /** The ring radius below which a row's nodes would start overlapping. */
-function minimumRowRadius(row: ClusterId[], ry: number): number {
-  return Math.max(...row.map(id => minimumRx(memberIds(id).length, ry)));
+function minimumRowRadius(row: ClusterId[]): number {
+  return Math.max(...row.map(id => minimumRx(memberIds(id).length)));
+}
+
+/** Width a row needs at its tightest, including the gaps around it. */
+function minimumRowWidth(row: ClusterId[], reserved: number): number {
+  const rx = minimumRowRadius(row);
+  const hulls = row.reduce((total, id) => total + hullWidth(id, rx), 0);
+  return hulls + GAP_BASE * (row.length + 1) + reserved;
 }
 
 /**
- * The ring radius that makes a row of clusters fill `available`, never
- * smaller than the radius each cluster needs to keep its nodes apart.
+ * The ring radius that makes a row fill `available`, never smaller than the
+ * radius each cluster needs to keep its own nodes apart.
  */
-function rowRadius(row: ClusterId[], available: number, ry: number): number {
+function rowRadius(row: ClusterId[], available: number): number {
   const factors = row.reduce(
     (total, id) => total + extentFactor(memberIds(id).length),
     0,
   );
-  const forNodes = available - PAD.x * 2 * row.length;
+  const forNodes = available - PAD_BASE.x * 2 * row.length;
   const fitted = factors > 0 ? forNodes / factors : 0;
-  return Math.max(fitted, minimumRowRadius(row, ry));
+  return Math.max(fitted, minimumRowRadius(row));
 }
 
-/** Width a row occupies at `rx`, including the gaps around and between it. */
-function rowWidth(row: ClusterId[], rx: number, reserved: number): number {
-  const hulls = row.reduce((total, id) => total + hullWidth(id, rx), 0);
-  return hulls + GAP * (row.length + 1) + reserved;
-}
+/** The narrowest and shortest the whole drawing can be drawn, at base size. */
+const MINIMUM = {
+  width: Math.max(
+    minimumRowWidth(TOP_ROW, LEGEND_BASE * 2),
+    minimumRowWidth(BOTTOM_ROW, 0),
+  ),
+  height: (RY_BASE + PAD_BASE.y) * 4 + ROW_GAP_BASE,
+};
 
 /** Ring centers for one row, laid left to right from `start`. */
 function placeRow(
@@ -163,7 +186,7 @@ function placeRow(
   for (const id of row) {
     const width = hullWidth(id, rx);
     placed[id] = {center: {x: x + width / 2, y}, rx};
-    x += width + GAP;
+    x += width + GAP_BASE;
   }
   return placed;
 }
@@ -171,51 +194,45 @@ function placeRow(
 /**
  * Lay the whole graph out inside `stage`.
  *
- * The top row is placed between the legend cards with an equal gap on each
- * side and between its clusters; the bottom row runs the full width. Both
- * rows are sized from the space left over, so the drawing fills the stage
- * rather than being scaled into it.
+ * One scale is chosen so the drawing fits the stage in both axes; every
+ * length is then multiplied by it. The top row is placed between the legend
+ * cards with an equal gap on each side and between its clusters, and the
+ * bottom row runs the full width.
  */
 export function computeLayout(stage: Stage): Layout {
   const width = stage.width || FALLBACK.width;
   const height = stage.height || FALLBACK.height;
 
-  const rowHeight = (height - ROW_GAP) / 2;
-  const ry = Math.min(RY.max, Math.max(RY.min, rowHeight / 2 - PAD.y));
-  const hullHeight = (ry + PAD.y) * 2;
-  const top = Math.max(0, (height - (hullHeight * 2 + ROW_GAP)) / 2);
+  // Never larger than base size, and never so large that it overflows: this
+  // is what keeps the page free of scrollbars in both directions.
+  const scale = Math.min(1, width / MINIMUM.width, height / MINIMUM.height);
+
+  // Work in base units, then scale once at the end.
+  const room = {width: width / scale, height: height / scale};
+  const legend = LEGEND_BASE;
+
+  const hullHeight = (RY_BASE + PAD_BASE.y) * 2;
+  const top = Math.max(0, (room.height - (hullHeight * 2 + ROW_GAP_BASE)) / 2);
 
   // The top row shares its line with the legends: one gap to the left card,
   // one between the clusters, one to the right card.
-  const reserved = stage.legendLeft + stage.legendRight;
-
-  // Below a certain width the clusters cannot shrink any further without
-  // their own nodes colliding, so the drawing claims the width it needs and
-  // the stage scrolls. Overlapping the legends instead would hide content.
-  const floors = {
-    top: minimumRowRadius(TOP_ROW, ry),
-    bottom: minimumRowRadius(BOTTOM_ROW, ry),
-  };
-  const needed = Math.max(
-    rowWidth(TOP_ROW, floors.top, reserved),
-    rowWidth(BOTTOM_ROW, floors.bottom, 0),
-  );
-  const canvasWidth = Math.max(width, needed);
-
   const topRx = rowRadius(
     TOP_ROW,
-    canvasWidth - reserved - GAP * (TOP_ROW.length + 1),
-    ry,
+    room.width - legend * 2 - GAP_BASE * (TOP_ROW.length + 1),
   );
   const bottomRx = rowRadius(
     BOTTOM_ROW,
-    canvasWidth - GAP * (BOTTOM_ROW.length + 1),
-    ry,
+    room.width - GAP_BASE * (BOTTOM_ROW.length + 1),
   );
 
   const rings = {
-    ...placeRow(TOP_ROW, topRx, stage.legendLeft + GAP, top + hullHeight / 2),
-    ...placeRow(BOTTOM_ROW, bottomRx, GAP, top + hullHeight * 1.5 + ROW_GAP),
+    ...placeRow(TOP_ROW, topRx, legend + GAP_BASE, top + hullHeight / 2),
+    ...placeRow(
+      BOTTOM_ROW,
+      bottomRx,
+      GAP_BASE,
+      top + hullHeight * 1.5 + ROW_GAP_BASE,
+    ),
   };
 
   const positions: Record<string, Point> = {};
@@ -224,8 +241,8 @@ export function computeLayout(stage: Stage): Layout {
     const members = memberIds(cluster.id);
     ringAngles(members.length).forEach((angle, index) => {
       positions[members[index]] = {
-        x: ring.center.x + Math.cos(angle) * ring.rx,
-        y: ring.center.y + Math.sin(angle) * ry,
+        x: (ring.center.x + Math.cos(angle) * ring.rx) * scale,
+        y: (ring.center.y + Math.sin(angle) * RY_BASE) * scale,
       };
     });
   }
@@ -236,20 +253,25 @@ export function computeLayout(stage: Stage): Layout {
       id: cluster.id,
       label: cluster.label,
       bounds: {
-        x: Math.min(...xs) - PAD.x,
-        y: rings[cluster.id].center.y - hullHeight / 2,
-        width: Math.max(...xs) - Math.min(...xs) + PAD.x * 2,
-        height: hullHeight,
+        x: Math.min(...xs) - PAD_BASE.x * scale,
+        y: (rings[cluster.id].center.y - hullHeight / 2) * scale,
+        width: Math.max(...xs) - Math.min(...xs) + PAD_BASE.x * 2 * scale,
+        height: hullHeight * scale,
       },
     };
   });
 
   return {
-    width: canvasWidth,
+    width,
     height,
+    scale,
+    node: {
+      width: NODE_BASE.width * scale,
+      height: NODE_BASE.height * scale,
+    },
     positions,
     hulls,
-    edges: edgeGeometry(positions),
+    edges: edgeGeometry(positions, scale),
   };
 }
 
@@ -284,27 +306,35 @@ const edgeOffsets: number[] = (() => {
  * at the boundary so an arrowhead reads as pointing at the node rather than
  * disappearing beneath it.
  */
-function boundaryPoint(box: Point, toward: Point, pad: number): Point {
+function boundaryPoint(
+  box: Point,
+  toward: Point,
+  pad: number,
+  scale: number,
+): Point {
   const dx = toward.x - box.x;
   const dy = toward.y - box.y;
   if (dx === 0 && dy === 0) return box;
-  const halfWidth = NODE.width / 2 + pad;
-  const halfHeight = NODE.height / 2 + pad;
-  // Scale the direction vector until it first touches a side, then take
+  const halfWidth = (NODE_BASE.width / 2 + pad) * scale;
+  const halfHeight = (NODE_BASE.height / 2 + pad) * scale;
+  // Stretch the direction vector until it first touches a side, then take
   // whichever side it reaches first.
-  const scale = Math.min(
+  const reach = Math.min(
     dx === 0 ? Infinity : halfWidth / Math.abs(dx),
     dy === 0 ? Infinity : halfHeight / Math.abs(dy),
   );
-  return {x: box.x + dx * scale, y: box.y + dy * scale};
+  return {x: box.x + dx * reach, y: box.y + dy * reach};
 }
 
 /** Path geometry for every edge, in the same order as `edges`. */
-function edgeGeometry(positions: Record<string, Point>): EdgeGeometry[] {
+function edgeGeometry(
+  positions: Record<string, Point>,
+  scale: number,
+): EdgeGeometry[] {
   return edges.map((edge, index) => {
     const from = positions[edge.from];
     const to = positions[edge.to];
-    const offset = edgeOffsets[index];
+    const offset = edgeOffsets[index] * scale;
 
     // Control point sits perpendicular to the midpoint, bowing the curve away
     // from any sibling edge sharing the same pair.
@@ -320,8 +350,8 @@ function edgeGeometry(positions: Record<string, Point>): EdgeGeometry[] {
 
     // Trim both ends to the node boundary, aiming at the control point so
     // curved edges leave and arrive at sensible angles.
-    const start = boundaryPoint(from, offset === 0 ? to : control, 4);
-    const end = boundaryPoint(to, offset === 0 ? from : control, 9);
+    const start = boundaryPoint(from, offset === 0 ? to : control, 4, scale);
+    const end = boundaryPoint(to, offset === 0 ? from : control, 9, scale);
 
     return {
       edge,
