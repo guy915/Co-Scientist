@@ -65,21 +65,23 @@ export function ProposalsPage() {
           selectedClusters={selectedClusters}
           onActivate={setActiveId}
           onSelect={select}
+          /* The legends explain the whole graph; while one proposal is open
+             the detail panel is the thing being read, so they step aside. */
+          legend={
+            selected ? null : (
+              <ProposalsLegend
+                selectedKinds={selectedKinds}
+                onToggleKind={kind =>
+                  setSelectedKinds(current => toggled(current, kind))
+                }
+                selectedClusters={selectedClusters}
+                onToggleCluster={cluster =>
+                  setSelectedClusters(current => toggled(current, cluster))
+                }
+              />
+            )
+          }
         />
-        {/* The legends explain the whole graph; while one proposal is open
-            the detail panel is the thing being read, so they step aside. */}
-        {!selected && (
-          <ProposalsLegend
-            selectedKinds={selectedKinds}
-            onToggleKind={kind =>
-              setSelectedKinds(current => toggled(current, kind))
-            }
-            selectedClusters={selectedClusters}
-            onToggleCluster={cluster =>
-              setSelectedClusters(current => toggled(current, cluster))
-            }
-          />
-        )}
       </div>
       {selected && (
         <ProposalsDetail

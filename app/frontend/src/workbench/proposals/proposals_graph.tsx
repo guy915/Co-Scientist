@@ -1,4 +1,4 @@
-import {useMemo} from 'react';
+import {useMemo, type ReactNode} from 'react';
 import {
   clusters,
   leadsFrom,
@@ -45,6 +45,8 @@ function labelLines(label: string): string[] {
  * @param props.selectedClusters Highlighted categories; empty means all.
  * @param props.onActivate Hover/focus a node, or null on leave.
  * @param props.onSelect Open a node's detail.
+ * @param props.legend Legend cards, drawn inside the canvas so they scale
+ *   with it.
  */
 export function ProposalsGraph({
   activeId,
@@ -53,6 +55,7 @@ export function ProposalsGraph({
   selectedClusters,
   onActivate,
   onSelect,
+  legend,
 }: {
   activeId: string | null;
   selectedId: string | null;
@@ -60,6 +63,7 @@ export function ProposalsGraph({
   selectedClusters: Set<ClusterId>;
   onActivate: (id: string | null) => void;
   onSelect: (id: string) => void;
+  legend?: ReactNode;
 }) {
   // The node driving isolation: an explicit hover wins, otherwise the open
   // selection keeps its relationships lit so the detail panel and the graph
@@ -220,6 +224,8 @@ export function ProposalsGraph({
           );
         })}
       </g>
+
+      {legend}
     </svg>
   );
 }

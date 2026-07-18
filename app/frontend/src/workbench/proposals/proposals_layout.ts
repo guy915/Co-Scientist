@@ -22,7 +22,24 @@ export interface Box {
   height: number;
 }
 
-export const CANVAS: Box = {x: 0, y: 0, width: 1400, height: 800};
+export const CANVAS: Box = {x: 0, y: 0, width: 1500, height: 800};
+
+/**
+ * The two legend cards, in canvas units. They are drawn inside the SVG, so
+ * these are real coordinates rather than an estimate of where some HTML
+ * happens to land: the clusters can be spaced against them exactly, and the
+ * spacing holds at every window size and zoom level.
+ *
+ * `height` is only the box the card is laid out in; the card itself is as
+ * tall as its contents.
+ */
+export const LEGEND = {
+  width: 210,
+  height: 340,
+  y: 16,
+  categories: {x: 16},
+  relationships: {x: 1500 - 16 - 210},
+};
 
 /** Node box, in canvas units. Labels wrap to at most two lines inside it. */
 export const NODE = {width: 178, height: 52};
@@ -35,12 +52,8 @@ export interface Point {
 // The two rows every cluster sits on. Clusters share a row's center line so
 // their hulls line up exactly rather than approximately.
 //
-// The corner legends are fixed-size HTML overlaying a canvas that scales to
-// fit, so anything shrinking the CSS-pixel viewport — resizing the window or
-// zooming the page — makes them cover more of the drawing. There is no
-// canvas coordinate that describes them, so the rows are not positioned
-// against one: both are centered on the canvas, which is symmetric at every
-// size, and the legends are simply given the top corners to sit in.
+// The top row sits between the legend cards with an equal gap on each side;
+// the bottom row is clear of them and is centered on the canvas.
 //
 // The two rows are placed together, keeping 55 units between them, so the
 // drawing moves as a whole rather than stretching.
@@ -79,16 +92,21 @@ interface Ring {
 type Rings = Record<ClusterId, Ring>;
 
 const RINGS: Rings = {
-  evaluation: {center: {x: 419, y: ROW.top}, rx: 146, ry: RING_RY, start: -90},
-  interaction: {center: {x: 981, y: ROW.top}, rx: 146, ry: RING_RY, start: -90},
+  evaluation: {center: {x: 498, y: ROW.top}, rx: 117, ry: RING_RY, start: -90},
+  interaction: {
+    center: {x: 1002, y: ROW.top},
+    rx: 117,
+    ry: RING_RY,
+    start: -90,
+  },
   capabilities: {
-    center: {x: 317, y: ROW.bottom},
+    center: {x: 368, y: ROW.bottom},
     rx: 185,
     ry: RING_RY,
     start: -90,
   },
-  knowledge: {center: {x: 763, y: ROW.bottom}, rx: 0, ry: RING_RY, start: -90},
-  scaling: {center: {x: 1146, y: ROW.bottom}, rx: 130, ry: RING_RY, start: -90},
+  knowledge: {center: {x: 814, y: ROW.bottom}, rx: 0, ry: RING_RY, start: -90},
+  scaling: {center: {x: 1197, y: ROW.bottom}, rx: 130, ry: RING_RY, start: -90},
 };
 
 /**

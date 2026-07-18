@@ -69,35 +69,30 @@
 
 /* Legends ------------------------------------------------------------- */
 
-/* Names only, in a card overlaid in each top corner: groups left,
-   relationships right. The graph itself has no container — these float
-   above it. */
+/* Names only, in a card in each top corner: categories left, relationships
+   right. The cards live inside the SVG, in a foreignObject, so they are
+   scaled by the same transform as the graph — resizing or zooming the page
+   changes them exactly as much as it changes everything else. That means
+   every length here is in canvas units rather than rem: at the canvas's own
+   scale one unit is one pixel. */
 .proposals-legend {
-  position: absolute;
-  z-index: 2;
-  top: 0.25rem;
   display: grid;
-  gap: 0.3rem;
-  border-radius: 0.85rem;
+  gap: 6px;
+  border-radius: 16px;
   background: var(--cosci-panel);
-  padding: 0.6rem 0.8rem;
-}
-
-.proposals-legend.is-categories {
-  left: 0.25rem;
+  padding: 12px 15px;
 }
 
 /* Sits in the right corner but reads left-to-right like its neighbour:
    swatch first, then the name. */
 .proposals-legend.is-relationships {
-  right: 0.25rem;
   justify-items: start;
 }
 
 .proposals-legend-title {
-  margin: 0 0 0.1rem;
+  margin: 0 0 2px;
   color: var(--cosci-muted);
-  font-size: 0.68rem;
+  font-size: 13px;
   font-weight: 600;
   letter-spacing: 0.07em;
   text-transform: uppercase;
@@ -105,23 +100,23 @@
 
 .proposals-legend-list {
   display: grid;
-  gap: 0.15rem;
+  gap: 3px;
   margin: 0;
   padding: 0;
   list-style: none;
-  font-size: 0.78rem;
+  font-size: 14px;
 }
 
 .proposals-legend-swatch {
-  width: 0.7rem;
-  height: 0.7rem;
+  width: 13px;
+  height: 13px;
   flex: none;
   border-radius: 3px;
   background: var(--chip-color);
 }
 
 .proposals-legend-sample {
-  width: 44px;
+  width: 42px;
   height: 12px;
   flex: none;
   overflow: visible;
@@ -136,7 +131,7 @@
   display: flex;
   width: 100%;
   align-items: center;
-  gap: 0.45rem;
+  gap: 8px;
   border: 0;
   /* Fully rounded ends, matching the pills used elsewhere in the app. */
   border-radius: 9999px;
@@ -144,8 +139,8 @@
   color: inherit;
   cursor: pointer;
   font: inherit;
-  font-size: 0.78rem;
-  padding: 0.45rem 0.7rem 0.45rem 0.55rem;
+  font-size: 14px;
+  padding: 8px 12px 8px 10px;
   text-align: left;
   transition: background 120ms ease;
 }

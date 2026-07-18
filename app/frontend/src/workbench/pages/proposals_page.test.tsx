@@ -31,7 +31,7 @@ describe('ProposalsPage', () => {
       nodes.length,
     );
     expect(
-      container.querySelectorAll('.proposals-graph .proposals-edge'),
+      container.querySelectorAll('.proposals-edges .proposals-edge'),
     ).toHaveLength(edges.length);
   });
 
@@ -135,7 +135,7 @@ describe('ProposalsPage', () => {
   it('shows every edge while nothing is selected', () => {
     const {container} = renderPage();
     expect(
-      container.querySelectorAll('.proposals-graph .proposals-edge'),
+      container.querySelectorAll('.proposals-edges .proposals-edge'),
     ).toHaveLength(edges.length);
   });
 
@@ -144,7 +144,7 @@ describe('ProposalsPage', () => {
     await userEvent.click(screen.getByRole('button', {name: 'Tension'}));
     const tensions = edges.filter(edge => edge.kind === 'tension');
     expect(
-      container.querySelectorAll('.proposals-graph .proposals-edge'),
+      container.querySelectorAll('.proposals-edges .proposals-edge'),
     ).toHaveLength(tensions.length);
   });
 
@@ -156,7 +156,7 @@ describe('ProposalsPage', () => {
       edge => edge.kind === 'tension' || edge.kind === 'synergy',
     );
     expect(
-      container.querySelectorAll('.proposals-graph .proposals-edge'),
+      container.querySelectorAll('.proposals-edges .proposals-edge'),
     ).toHaveLength(both.length);
     expect(screen.getByRole('button', {name: 'Tension'})).toHaveAttribute(
       'aria-pressed',
@@ -172,7 +172,7 @@ describe('ProposalsPage', () => {
     await userEvent.click(tension);
     expect(tension).toHaveAttribute('aria-pressed', 'false');
     expect(
-      container.querySelectorAll('.proposals-graph .proposals-edge'),
+      container.querySelectorAll('.proposals-edges .proposals-edge'),
     ).toHaveLength(edges.length);
   });
 

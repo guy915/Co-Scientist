@@ -4,6 +4,7 @@ import {
   type ClusterId,
   type EdgeKind,
 } from './proposals_data';
+import {LEGEND} from './proposals_layout';
 
 // A short sample of each edge's stroke, drawn with the same classes the
 // graph uses so the legend cannot drift from what it explains.
@@ -60,67 +61,81 @@ export function ProposalsLegend({
 }) {
   return (
     <>
-      <div className="proposals-legend is-categories">
-        <h2 className="proposals-legend-title">Categories</h2>
-        <ul className="proposals-legend-list">
-          {clusters.map(cluster => {
-            const on = selectedClusters.has(cluster.id);
-            return (
-              <li key={cluster.id}>
-                <button
-                  type="button"
-                  className={
-                    on
-                      ? `proposals-chip is-${cluster.id} is-on`
-                      : `proposals-chip is-${cluster.id}`
-                  }
-                  aria-pressed={on}
-                  onClick={() => onToggleCluster(cluster.id)}
-                >
-                  <span
-                    className="proposals-legend-swatch"
-                    aria-hidden="true"
-                  />
-                  <span
-                    className="proposals-chip-label"
-                    data-text={cluster.label}
+      <foreignObject
+        x={LEGEND.categories.x}
+        y={LEGEND.y}
+        width={LEGEND.width}
+        height={LEGEND.height}
+      >
+        <div className="proposals-legend is-categories">
+          <h2 className="proposals-legend-title">Categories</h2>
+          <ul className="proposals-legend-list">
+            {clusters.map(cluster => {
+              const on = selectedClusters.has(cluster.id);
+              return (
+                <li key={cluster.id}>
+                  <button
+                    type="button"
+                    className={
+                      on
+                        ? `proposals-chip is-${cluster.id} is-on`
+                        : `proposals-chip is-${cluster.id}`
+                    }
+                    aria-pressed={on}
+                    onClick={() => onToggleCluster(cluster.id)}
                   >
-                    <span>{cluster.label}</span>
-                  </span>
-                </button>
-              </li>
-            );
-          })}
-        </ul>
-      </div>
+                    <span
+                      className="proposals-legend-swatch"
+                      aria-hidden="true"
+                    />
+                    <span
+                      className="proposals-chip-label"
+                      data-text={cluster.label}
+                    >
+                      <span>{cluster.label}</span>
+                    </span>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      </foreignObject>
 
-      <div className="proposals-legend is-relationships">
-        <h2 className="proposals-legend-title">Relationships</h2>
-        <ul className="proposals-legend-list">
-          {EDGE_KINDS.map(({kind, label}) => {
-            const on = selectedKinds.has(kind);
-            return (
-              <li key={kind}>
-                <button
-                  type="button"
-                  className={
-                    on
-                      ? `proposals-chip is-${kind} is-on`
-                      : `proposals-chip is-${kind}`
-                  }
-                  aria-pressed={on}
-                  onClick={() => onToggleKind(kind)}
-                >
-                  <EdgeSample kind={kind} />
-                  <span className="proposals-chip-label" data-text={label}>
-                    <span>{label}</span>
-                  </span>
-                </button>
-              </li>
-            );
-          })}
-        </ul>
-      </div>
+      <foreignObject
+        x={LEGEND.relationships.x}
+        y={LEGEND.y}
+        width={LEGEND.width}
+        height={LEGEND.height}
+      >
+        <div className="proposals-legend is-relationships">
+          <h2 className="proposals-legend-title">Relationships</h2>
+          <ul className="proposals-legend-list">
+            {EDGE_KINDS.map(({kind, label}) => {
+              const on = selectedKinds.has(kind);
+              return (
+                <li key={kind}>
+                  <button
+                    type="button"
+                    className={
+                      on
+                        ? `proposals-chip is-${kind} is-on`
+                        : `proposals-chip is-${kind}`
+                    }
+                    aria-pressed={on}
+                    onClick={() => onToggleKind(kind)}
+                  >
+                    <EdgeSample kind={kind} />
+                    <span className="proposals-chip-label" data-text={label}>
+                      <span>{label}</span>
+                    </span>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      </foreignObject>
     </>
   );
 }
