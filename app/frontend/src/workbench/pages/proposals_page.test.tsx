@@ -52,6 +52,24 @@ describe('ProposalsPage', () => {
     expect(screen.queryByLabelText('Live sessions detail')).toBeNull();
   });
 
+  it('lights only the relationships the selected node leads with', () => {
+    // Live sessions has three outgoing "enables" arrows and one mutual
+    // tension authored from the other end; all four lead away from it.
+    const {container} = renderPage('/proposals?node=live-session');
+    expect(container.querySelectorAll('.proposals-edge.is-lit')).toHaveLength(
+      4,
+    );
+  });
+
+  it('leaves an incoming arrow unlit at its target', () => {
+    // Question generation only receives an "enables" arrow, so selecting it
+    // lights nothing: the arrow is a statement about Live sessions.
+    const {container} = renderPage('/proposals?node=question-generation');
+    expect(container.querySelectorAll('.proposals-edge.is-lit')).toHaveLength(
+      0,
+    );
+  });
+
   it('hides the legends while a detail is open', () => {
     const {container} = renderPage('/proposals?node=live-session');
     expect(container.querySelector('.proposals-legend')).toBeNull();

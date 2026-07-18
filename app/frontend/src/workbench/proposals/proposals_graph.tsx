@@ -1,6 +1,7 @@
 import {useMemo} from 'react';
 import {
   clusters,
+  leadsFrom,
   nodes,
   type ClusterId,
   type EdgeKind,
@@ -159,8 +160,9 @@ export function ProposalsGraph({
           // since hiding an edge whose endpoints are still drawn would read
           // as the relationship not existing.
           if (kindFilter && !selectedKinds.has(edge.kind)) return null;
-          const touchesFocus =
-            focusId !== null && (edge.from === focusId || edge.to === focusId);
+          // Only what the focused node leads to: an incoming arrow is a
+          // statement about its source, not about the node being read.
+          const touchesFocus = focusId !== null && leadsFrom(edge, focusId);
           const touchesCluster =
             inSelectedCluster(edge.from) || inSelectedCluster(edge.to);
           const state = focusId

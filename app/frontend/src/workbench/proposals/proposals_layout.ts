@@ -6,6 +6,7 @@
 import {
   clusters,
   edges,
+  leadsFrom,
   nodes,
   type ClusterId,
   type Edge,
@@ -161,12 +162,16 @@ export const edgeGeometry: EdgeGeometry[] = edges.map((edge, index) => {
   };
 });
 
-/** Node ids directly connected to `id`, in no particular order. */
+/**
+ * Node ids `id` leads to, in no particular order. Incoming arrows are left
+ * out: hovering a proposal answers "what does this one carry", not "what
+ * points at it".
+ */
 export function neighborsOf(id: string): Set<string> {
   const found = new Set<string>();
   for (const edge of edges) {
-    if (edge.from === id) found.add(edge.to);
-    if (edge.to === id) found.add(edge.from);
+    if (!leadsFrom(edge, id)) continue;
+    found.add(edge.from === id ? edge.to : edge.from);
   }
   return found;
 }

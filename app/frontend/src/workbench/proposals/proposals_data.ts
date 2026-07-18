@@ -88,6 +88,20 @@ export const EDGE_KINDS: {
   },
 ];
 
+const DIRECTED = new Set<EdgeKind>(
+  EDGE_KINDS.filter(entry => entry.directed).map(entry => entry.kind),
+);
+
+/**
+ * Whether an edge leads away from `id`. A directed edge does so only from
+ * its source; an undirected one has no source, so either endpoint leads
+ * away along it.
+ */
+export function leadsFrom(edge: Edge, id: string): boolean {
+  if (edge.from === id) return true;
+  return edge.to === id && !DIRECTED.has(edge.kind);
+}
+
 export const clusters: Cluster[] = [
   {
     id: 'scaling',
