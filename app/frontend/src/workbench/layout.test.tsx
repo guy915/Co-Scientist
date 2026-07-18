@@ -88,6 +88,7 @@ describe('Layout', () => {
     systemApiMock.getSystemStatus.mockReset();
     systemApiMock.getSystemStatus.mockResolvedValue({
       mock_mode: false,
+      llm_backend: 'real',
       provider: 'engine',
       model_name: 'test/model',
     });
@@ -406,15 +407,16 @@ describe('Layout', () => {
     ).toBeInTheDocument();
   });
 
-  it('shows the mock-mode status chip when /status reports mock mode', async () => {
+  it('shows the offline-mode status chip when /status reports the offline backend', async () => {
     systemApiMock.getSystemStatus.mockResolvedValue({
       mock_mode: true,
-      provider: 'mock',
+      llm_backend: 'offline',
+      provider: 'engine',
       model_name: 'test/model',
     });
 
     renderLayout();
 
-    expect(await screen.findByRole('status')).toHaveTextContent('Mock mode');
+    expect(await screen.findByRole('status')).toHaveTextContent('Offline mode');
   });
 });
