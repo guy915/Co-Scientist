@@ -138,15 +138,16 @@
   align-items: center;
   gap: 0.45rem;
   border: 0;
-  /* Between a pill and a square: at this chip height a pill radius would be
-     ~13px, so this stays visibly a rounded rectangle. */
-  border-radius: 0.6rem;
+  /* A 25px-tall chip leaves almost no gap between "square" and "pill" (a
+     pill would be ~12.5px), so the chip is given a little more height and
+     the radius sits clearly below half of it. */
+  border-radius: 0.7rem;
   background: var(--cosci-hover);
   color: inherit;
   cursor: pointer;
   font: inherit;
   font-size: 0.78rem;
-  padding: 0.2rem 0.6rem 0.2rem 0.45rem;
+  padding: 0.35rem 0.65rem 0.35rem 0.5rem;
   text-align: left;
   transition: background 120ms ease;
 }
