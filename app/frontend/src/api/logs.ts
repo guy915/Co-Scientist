@@ -26,15 +26,19 @@ export interface AppLogsPayload {
   logs: AppLogRecord[];
   /** Table high-water mark; poll again with `after_id` set to this. */
   last_id: number;
+  /** Size of the whole matching set, ignoring `after_id` and `limit`. */
+  total: number;
 }
 
 /**
  * Fetches persisted backend log records, oldest-first.
  *
  * @param afterId Only records with an id greater than this.
- * @param limit Maximum records returned (the newest matches).
+ * @param limit Maximum records returned (the newest matches). Defaults to
+ *   the server-side maximum so the popover window covers as much of the
+ *   log as one request allows.
  */
-export function getAppLogs(afterId = 0, limit = 200): Promise<AppLogsPayload> {
+export function getAppLogs(afterId = 0, limit = 1000): Promise<AppLogsPayload> {
   return fetchJson(`/api/logs?after_id=${afterId}&limit=${limit}`);
 }
 

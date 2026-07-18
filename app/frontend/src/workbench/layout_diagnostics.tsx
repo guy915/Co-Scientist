@@ -122,8 +122,10 @@ const DIAGNOSTIC_ENTRY_RUN_CLASSES = 'truncate';
 const DIAGNOSTIC_ENTRY_STAGE_CLASSES =
   'max-[720px]:col-start-2 max-[720px]:col-end-[-1]';
 
+// Payload blocks grow with their content: text wraps (including long
+// unbroken tokens) and nothing scrolls inside an entry.
 const DIAGNOSTIC_CODE_CLASSES =
-  'm-0 max-h-20 overflow-auto rounded-[0.55rem] ' +
+  'm-0 rounded-[0.55rem] whitespace-pre-wrap [overflow-wrap:anywhere] ' +
   'bg-cosci-logs-panel-bg px-[0.7rem] py-[0.55rem] font-mono ' +
   'text-[0.72rem] leading-[1.3] text-cosci-logs-code-fg';
 
@@ -187,15 +189,22 @@ function buildAppLogEntry(record: AppLogRecord): DiagnosticLogEntry {
 // How often the open popover refreshes the persisted backend log.
 const APP_LOGS_POLL_MS = 5_000;
 
+// The fetched window plus the store's true matching-row count. `total`
+// can exceed `entries.length` when the log outgrows one fetch window.
+interface PersistedAppLogs {
+  entries: DiagnosticLogEntry[];
+  total: number;
+}
+
 // Fetches the app-wide persisted log: on mount (so the badge count is
 // real), whenever `version` bumps (an in-page event or Clear changed the
 // store), and on a poll while the popover is open. The same fetch runs on
 // every route, so navigating never changes what the panel shows.
-function usePersistedAppLogs(
-  open: boolean,
-  version: number,
-): DiagnosticLogEntry[] {
-  const [entries, setEntries] = useState<DiagnosticLogEntry[]>([]);
+function usePersistedAppLogs(open: boolean, version: number): PersistedAppLogs {
+  const [logs, setLogs] = useState<PersistedAppLogs>({
+    entries: [],
+    total: 0,
+  });
 
   useEffect(() => {
     let disposed = false;
@@ -203,10 +212,13 @@ function usePersistedAppLogs(
       getAppLogs()
         .then(payload => {
           if (disposed) return;
-          setEntries(payload.logs.map(buildAppLogEntry));
+          setLogs({
+            entries: payload.logs.map(buildAppLogEntry),
+            total: payload.total,
+          });
         })
         .catch(() => {
-          if (!disposed) setEntries([]);
+          if (!disposed) setLogs({entries: [], total: 0});
         });
     };
     load();
@@ -221,7 +233,7 @@ function usePersistedAppLogs(
     };
   }, [open, version]);
 
-  return entries;
+  return logs;
 }
 
 // Header "Logs" trigger button: shows the running entry count as a badge
@@ -358,7 +370,7 @@ export function DiagnosticsControl({
   const [copied, setCopied] = useState(false); // Copy button shows "Copied"
   useDiagnosticIngest(bumpVersion);
   useNavigationLog(bumpVersion);
-  const entries = usePersistedAppLogs(open, version);
+  const {entries, total} = usePersistedAppLogs(open, version);
   const counts = summarizeDiagnosticEntries(entries);
 
   async function onCopy() {
@@ -378,15 +390,12 @@ export function DiagnosticsControl({
 
   return (
     <>
-      <LogsTriggerButton
-        open={open}
-        count={entries.length}
-        onToggle={onToggle}
-      />
+      <LogsTriggerButton open={open} count={total} onToggle={onToggle} />
       {open &&
         renderPopover(
           <DiagnosticLogsPanel
             entries={entries}
+            total={total}
             copied={copied}
             counts={counts}
             onClear={() => void onClear()}
@@ -398,20 +407,35 @@ export function DiagnosticsControl({
   );
 }
 
+// How close to the bottom (px) still counts as "pinned to the newest
+// entry" for auto-follow purposes.
+const PIN_THRESHOLD_PX = 24;
+
 // Scrolling list of log entries (each entry's id/time/run/stage meta row plus
 // its JSON payload), or an empty-state message when there are none.
 function DiagnosticLogList({entries}: {entries: DiagnosticLogEntry[]}) {
-  // Keep the newest entry in view: logs read bottom-up, and an opened
-  // panel (or a refresh) should land on what just happened.
+  // Opening the panel lands on the newest entry (the list mounts pinned).
+  // After that, new records only auto-scroll while the user is still at
+  // the bottom — scrolling up to read must never be interrupted.
   const listRef = useRef<HTMLDivElement>(null);
+  const pinnedRef = useRef(true);
   useEffect(() => {
     const list = listRef.current;
-    if (list) list.scrollTop = list.scrollHeight;
+    if (list && pinnedRef.current) list.scrollTop = list.scrollHeight;
   }, [entries.length]);
+
+  function onScroll() {
+    const list = listRef.current;
+    if (!list) return;
+    const distanceFromBottom =
+      list.scrollHeight - list.scrollTop - list.clientHeight;
+    pinnedRef.current = distanceFromBottom <= PIN_THRESHOLD_PX;
+  }
 
   return (
     <div
       ref={listRef}
+      onScroll={onScroll}
       className={DIAGNOSTIC_LIST_CLASSES}
       aria-label="Log events"
     >
@@ -511,12 +535,14 @@ function DiagnosticLogsHeader({
 
 // [label, count, chip class] rows for the summary chips; the Errors chip
 // switches to the danger styling only when there is at least one error.
+// The Total chip reports the store's matching-row count (which can exceed
+// the fetched window); the per-level chips tally the window itself.
 function buildDiagnosticChips(
-  entryCount: number,
+  total: number,
   counts: DiagnosticCounts,
 ): [string, number, string][] {
   return [
-    ['Total', entryCount, DIAGNOSTIC_CHIP_CLASSES],
+    ['Total', total, DIAGNOSTIC_CHIP_CLASSES],
     [
       'Errors',
       counts.errorCount,
@@ -535,18 +561,20 @@ function buildDiagnosticChips(
 // stays in DiagnosticsControl; this only renders what it is handed.
 function DiagnosticLogsPanel({
   entries,
+  total,
   copied,
   counts,
   onClear,
   onCopy,
 }: {
   entries: DiagnosticLogEntry[];
+  total: number;
   copied: boolean;
   counts: DiagnosticCounts;
   onClear: () => void;
   onCopy: () => void;
 }) {
-  const chips = buildDiagnosticChips(entries.length, counts);
+  const chips = buildDiagnosticChips(total, counts);
 
   return (
     <>

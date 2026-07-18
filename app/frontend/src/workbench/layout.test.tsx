@@ -92,7 +92,7 @@ describe('Layout', () => {
     apiMock.getRunEvents.mockReset();
     apiMock.getRunEvents.mockResolvedValue([]);
     logsApiMock.getAppLogs.mockReset();
-    logsApiMock.getAppLogs.mockResolvedValue({logs: [], last_id: 0});
+    logsApiMock.getAppLogs.mockResolvedValue({logs: [], last_id: 0, total: 0});
     logsApiMock.postAppLogs.mockReset();
     logsApiMock.postAppLogs.mockResolvedValue({added: 1, last_id: 1});
     logsApiMock.deleteAppLogs.mockReset();
@@ -332,13 +332,14 @@ describe('Layout', () => {
         },
       ],
       last_id: 1,
+      total: 1,
     });
     renderLayout();
 
     fireEvent.click(await screen.findByRole('button', {name: /Logs 1/i}));
     expect(await screen.findByText(/server started/)).toBeInTheDocument();
 
-    logsApiMock.getAppLogs.mockResolvedValue({logs: [], last_id: 1});
+    logsApiMock.getAppLogs.mockResolvedValue({logs: [], last_id: 1, total: 0});
     fireEvent.click(screen.getByRole('button', {name: 'Clear'}));
 
     // Clear deletes server-side, not just in this tab's memory.
@@ -359,7 +360,11 @@ describe('Layout', () => {
       run_id: null,
       exc_text: null,
     }));
-    logsApiMock.getAppLogs.mockResolvedValue({logs: many, last_id: 60});
+    logsApiMock.getAppLogs.mockResolvedValue({
+      logs: many,
+      last_id: 60,
+      total: 60,
+    });
     const writeText = vi.fn().mockResolvedValue(undefined);
     Object.assign(navigator, {clipboard: {writeText}});
     renderLayout();
@@ -453,6 +458,7 @@ describe('Layout', () => {
         },
       ],
       last_id: 41,
+      total: 1,
     });
     renderLayout('/runs/demo-ferroptosis/ideas');
 
@@ -490,6 +496,7 @@ describe('Layout', () => {
         },
       ],
       last_id: 4,
+      total: 2,
     });
     renderLayout('/');
 
@@ -509,6 +516,112 @@ describe('Layout', () => {
     // Clear drops only session entries; persisted backend logs remain.
     fireEvent.click(screen.getByRole('button', {name: 'Clear'}));
     expect(screen.getByText(/workflow exploded/)).toBeInTheDocument();
+  });
+
+  it('shows the server total on the badge, not the fetched window size', async () => {
+    // The store holds 311 rows but the fetch window only returned 2: the
+    // badge and Total chip must report the server's count.
+    logsApiMock.getAppLogs.mockResolvedValue({
+      logs: [310, 311].map(id => ({
+        id,
+        created_at: 1_700_000_000 + id,
+        level: 'INFO',
+        levelno: 20,
+        logger: 'app.main',
+        message: `record ${id}`,
+        run_id: null,
+        exc_text: null,
+      })),
+      last_id: 311,
+      total: 311,
+    });
+    renderLayout();
+
+    const button = await screen.findByRole('button', {name: /Logs 311/i});
+    fireEvent.click(button);
+    expect(await screen.findByText('Total 311')).toBeInTheDocument();
+  });
+
+  it('renders log payloads without clamping or inner scrolling', async () => {
+    logsApiMock.getAppLogs.mockResolvedValue({
+      logs: [
+        {
+          id: 1,
+          created_at: 1_700_000_000,
+          level: 'INFO',
+          levelno: 20,
+          logger: 'app.main',
+          message: 'a long message that must wrap freely',
+          run_id: null,
+          exc_text: null,
+        },
+      ],
+      last_id: 1,
+      total: 1,
+    });
+    const {container} = renderLayout();
+
+    fireEvent.click(await screen.findByRole('button', {name: /Logs 1/i}));
+    await screen.findByText(/wrap freely/);
+
+    const block = container.querySelector('.ucs-diagnostic-entry pre');
+    expect(block).not.toBeNull();
+    // The block grows with its content: text wraps, nothing scrolls.
+    expect(block!.className).toContain('whitespace-pre-wrap');
+    expect(block!.className).not.toContain('overflow-auto');
+    expect(block!.className).not.toContain('max-h');
+  });
+
+  it('does not jump to the end while the user is scrolled up', async () => {
+    const record = (id: number) => ({
+      id,
+      created_at: 1_700_000_000 + id,
+      level: 'INFO',
+      levelno: 20,
+      logger: 'app.main',
+      message: `record ${id}`,
+      run_id: null,
+      exc_text: null,
+    });
+    logsApiMock.getAppLogs.mockResolvedValue({
+      logs: [record(1), record(2)],
+      last_id: 2,
+      total: 2,
+    });
+    renderLayout();
+
+    fireEvent.click(await screen.findByRole('button', {name: /Logs 2/i}));
+    const list = await screen.findByLabelText('Log events');
+
+    // Simulate a scrollable list with the user scrolled well above the
+    // bottom (jsdom does no layout, so the geometry is stubbed).
+    Object.defineProperty(list, 'scrollHeight', {
+      configurable: true,
+      value: 1000,
+    });
+    Object.defineProperty(list, 'clientHeight', {
+      configurable: true,
+      value: 100,
+    });
+    list.scrollTop = 100;
+    fireEvent.scroll(list);
+
+    // New records arrive (an in-page event bumps the fetch version).
+    logsApiMock.getAppLogs.mockResolvedValue({
+      logs: [record(1), record(2), record(3)],
+      last_id: 3,
+      total: 3,
+    });
+    fireEvent(
+      window,
+      new CustomEvent(DIAGNOSTIC_EVENT, {
+        detail: {stage: 'LIFECYCLE', level: 'info', payload: {}},
+      }),
+    );
+    await screen.findByText(/record 3/);
+
+    // Reading position is preserved; only opening the popover jumps down.
+    expect(list.scrollTop).toBe(100);
   });
 
   it('shows the mock-mode status chip when /status reports mock mode', async () => {

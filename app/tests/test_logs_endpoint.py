@@ -69,6 +69,30 @@ def test_logs_endpoint_supports_incremental_polling(
     assert [row["message"] for row in body["logs"]] == ["new line"]
 
 
+def test_logs_endpoint_total_counts_beyond_limit(isolated_db: str) -> None:
+    for i in range(5):
+        _seed(isolated_db, f"line {i}")
+    body = make_client().get("/api/logs", params={"limit": 2}).json()
+    # The window is capped, but `total` reports every matching row so the
+    # UI badge can show the true table size.
+    assert len(body["logs"]) == 2
+    assert body["total"] == 5
+
+
+def test_logs_endpoint_total_respects_filters_not_cursor(
+    isolated_db: str,
+) -> None:
+    _seed(isolated_db, "quiet info")
+    cursor = _seed(isolated_db, "bad error", level="ERROR", levelno=40)
+    client = make_client()
+    body = client.get("/api/logs", params={"min_level": "warning"}).json()
+    assert body["total"] == 1
+    # `after_id` is a paging cursor; it must not shrink the total.
+    body = client.get("/api/logs", params={"after_id": cursor}).json()
+    assert body["logs"] == []
+    assert body["total"] == 2
+
+
 def test_logs_endpoint_rejects_unknown_level(isolated_db: str) -> None:
     response = make_client().get("/api/logs", params={"min_level": "LOUDEST"})
     assert response.status_code == 422

@@ -50,6 +50,7 @@ from app.store.interviews import (
 from app.store.logs import (
     append_log,
     clear_logs,
+    count_logs,
     latest_log_id,
     list_logs,
     prune_logs,
@@ -160,6 +161,7 @@ __all__ = [
     "clear_run_derived_data",
     "complete_task",
     "connect",
+    "count_logs",
     "create_interview",
     "create_report_share",
     "create_run",

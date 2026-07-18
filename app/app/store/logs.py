@@ -68,6 +68,25 @@ def append_log(
         return int(cur.lastrowid or 0)
 
 
+def _log_filters(
+    *,
+    after_id: int,
+    min_levelno: int,
+    run_id: str | None,
+    contains: str | None,
+) -> tuple[str, list[Any]]:
+    """Build the shared WHERE clause and parameters for log queries."""
+    where = ["id > ?", "levelno >= ?"]
+    params: list[Any] = [after_id, min_levelno]
+    if run_id is not None:
+        where.append("run_id = ?")
+        params.append(run_id)
+    if contains:
+        where.append("message LIKE ? ESCAPE '\\'")
+        params.append(f"%{_escape_like(contains)}%")
+    return " AND ".join(where), params
+
+
 def list_logs(
     *,
     after_id: int = 0,
@@ -93,23 +112,54 @@ def list_logs(
         db_path: Optional override for the SQLite database path.
         conn: Optional open connection to reuse.
     """
-    where = ["id > ?", "levelno >= ?"]
-    params: list[Any] = [after_id, min_levelno]
-    if run_id is not None:
-        where.append("run_id = ?")
-        params.append(run_id)
-    if contains:
-        where.append("message LIKE ? ESCAPE '\\'")
-        params.append(f"%{_escape_like(contains)}%")
+    where, params = _log_filters(
+        after_id=after_id,
+        min_levelno=min_levelno,
+        run_id=run_id,
+        contains=contains,
+    )
     params.append(limit)
     query = (
         "SELECT * FROM (SELECT * FROM app_logs WHERE "
-        + " AND ".join(where)
+        + where
         + " ORDER BY id DESC LIMIT ?) ORDER BY id ASC"
     )
     with _use_conn(conn, db_path) as c:
         rows = c.execute(query, params).fetchall()
     return [dict(row) for row in rows]
+
+
+def count_logs(
+    *,
+    min_levelno: int = 0,
+    run_id: str | None = None,
+    contains: str | None = None,
+    db_path: str | None = None,
+    conn: sqlite3.Connection | None = None,
+) -> int:
+    """Count every row matching the filters, ignoring paging.
+
+    Unlike :func:`list_logs` there is no ``after_id`` or ``limit``: this
+    is the size of the whole matching set, so the UI can show a true
+    total next to a capped window.
+
+    Args:
+        min_levelno: Minimum numeric level (e.g. ``logging.WARNING``).
+        run_id: Only rows bound to this run.
+        contains: Case-insensitive message substring filter.
+        db_path: Optional override for the SQLite database path.
+        conn: Optional open connection to reuse.
+    """
+    where, params = _log_filters(
+        after_id=0,
+        min_levelno=min_levelno,
+        run_id=run_id,
+        contains=contains,
+    )
+    query = "SELECT COUNT(*) AS n FROM app_logs WHERE " + where
+    with _use_conn(conn, db_path) as c:
+        row = c.execute(query, params).fetchone()
+    return int(row["n"])
 
 
 def prune_logs(

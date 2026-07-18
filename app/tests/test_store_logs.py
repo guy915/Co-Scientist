@@ -76,6 +76,21 @@ def test_list_filters_by_run_and_substring(isolated_db: str) -> None:
     assert [row["message"] for row in rows] == ["run line one"]
 
 
+def test_count_logs_ignores_limit_and_respects_filters(
+    isolated_db: str,
+) -> None:
+    for i in range(5):
+        _append(isolated_db, f"info {i}")
+    _append(isolated_db, "bad", level="ERROR", levelno=logging.ERROR)
+    _append(isolated_db, "scoped", run_id="run-1")
+    assert store.count_logs(db_path=isolated_db) == 7
+    assert (
+        store.count_logs(min_levelno=logging.WARNING, db_path=isolated_db) == 1
+    )
+    assert store.count_logs(run_id="run-1", db_path=isolated_db) == 1
+    assert store.count_logs(contains="info", db_path=isolated_db) == 5
+
+
 def test_prune_logs_keeps_newest(isolated_db: str) -> None:
     for i in range(10):
         _append(isolated_db, f"m{i}")

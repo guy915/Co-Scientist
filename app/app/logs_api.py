@@ -3,9 +3,10 @@
 Owns ``GET /api/logs`` and the payload/filter logic that the run-scoped
 ``GET /api/runs/{id}/logs`` endpoint (in ``app.runs``) shares, so both
 endpoints accept identical query parameters and return the same shape:
-``{"logs": [...], "last_id": N}``. ``last_id`` is the table's high-water
-mark regardless of filters, letting pollers resume with ``after_id`` even
-when the newest rows did not match their filter.
+``{"logs": [...], "last_id": N, "total": N}``. ``last_id`` is the table's
+high-water mark regardless of filters, letting pollers resume with
+``after_id`` even when the newest rows did not match their filter;
+``total`` is the size of the whole matching set, ignoring the window.
 """
 
 from __future__ import annotations
@@ -59,14 +60,18 @@ def logs_payload(
     Raises:
         HTTPException: 422 when ``min_level`` is not a known level name.
     """
+    min_levelno = _min_levelno(min_level)
     rows = store.list_logs(
         after_id=after_id,
-        min_levelno=_min_levelno(min_level),
+        min_levelno=min_levelno,
         run_id=run_id,
         contains=q,
         limit=limit,
     )
-    return {"logs": rows, "last_id": store.latest_log_id()}
+    # `total` counts the whole matching set (no cursor, no limit) so the
+    # UI badge shows the true size even when the window is capped.
+    total = store.count_logs(min_levelno=min_levelno, run_id=run_id, contains=q)
+    return {"logs": rows, "last_id": store.latest_log_id(), "total": total}
 
 
 class ClientLogRecord(BaseModel):
