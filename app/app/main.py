@@ -95,19 +95,17 @@ async def lifespan(
     else:
         logger.info("Tools config: not set (generator defaults)")
 
-    # Logged once at startup so ops can tell at a glance whether this process
-    # will run the real engine or fall back to the deterministic mock.
+    # Logged once at startup. select_provider() always returns "engine" now
+    # (or raises if the engine is not importable) -- there is no mock fallback.
     provider = engine_adapter.select_provider()
     logger.info("Workflow provider: %s", provider)
 
     # Fail loudly if a configured tools_config path is unreadable rather than
     # silently running the engine's default tools (the historical bug: the
     # setting was logged but never forwarded to the generator, so a bad path
-    # went unnoticed). Gated to the real engine: the mock never uses tools, so
-    # a stale env var must not break mock/dev boot. The generator is built per
-    # run, so this is validated here at startup, once.
-    if provider == "engine":
-        engine_adapter.validate_tools_config(settings.tools_config)
+    # went unnoticed). The generator is built per run, so this is validated
+    # here at startup, once.
+    engine_adapter.validate_tools_config(settings.tools_config)
 
     # Reconcile runs left non-terminal by a previous process: a fresh process
     # has no workflow tasks running, so anything still queued/running was

@@ -117,44 +117,22 @@ def test_lifespan_logs_configured_tools_config(
 def test_lifespan_fails_on_unreadable_tools_config(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A configured but unreadable ``tools_config`` fails a real-engine boot.
+    """A configured but unreadable ``tools_config`` fails startup.
 
     Guards the historical bug where a bad TOOLS_CONFIG was logged but never
-    forwarded, so the run silently fell back to default tools. The check is
-    gated to the real engine (the mock never uses tools), so force the
-    engine provider here since the suite otherwise runs mock-forced.
+    forwarded, so the run silently fell back to default tools. Every run is
+    on the engine now, so the validation runs unconditionally at startup.
     """
     import app.main as main_module
-    from app import engine_adapter
     from app.config import settings
 
     monkeypatch.setattr(settings, "tools_config", "/no/such/tools.yaml")
-    monkeypatch.setattr(engine_adapter, "select_provider", lambda: "engine")
 
     with (
         pytest.raises(RuntimeError, match="tools_config"),
         TestClient(main_module.app),
     ):
         pass
-
-
-def test_lifespan_skips_tools_validation_for_mock_provider(
-    isolated_db: str, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """A mock-provider boot ignores an unreadable tools_config (never used).
-
-    The mock workflow does not touch the engine's tools, so a stale
-    TOOLS_CONFIG must not break mock/dev startup.
-    """
-    import app.main as main_module
-    from app import engine_adapter
-    from app.config import settings
-
-    monkeypatch.setattr(settings, "tools_config", "/no/such/tools.yaml")
-    monkeypatch.setattr(engine_adapter, "select_provider", lambda: "mock")
-
-    with TestClient(main_module.app) as client:
-        assert client.get("/health").status_code == 200
 
 
 def test_status_reports_effective_tools_config(
