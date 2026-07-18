@@ -30,10 +30,7 @@ def test_engine_start_queues_durable_work(
             "/api/runs", json={"research_goal": "Durable engine goal"}
         )
         run_id = created.json()["id"]
-        started = client.post(
-            f"/api/runs/{run_id}/start",
-            json={"force_provider": "engine"},
-        )
+        started = client.post(f"/api/runs/{run_id}/start", json={})
     assert started.status_code == 200
     assert started.json()["status"] == "queued"
     [task] = store.list_tasks(run_id, db_path=isolated_db)

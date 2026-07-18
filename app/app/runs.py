@@ -319,7 +319,8 @@ async def start_run(
 
     Args:
         run_id: Path identifier of the run to start.
-        req: Request body with optional provider override settings.
+        req: Request body (empty; kept to preserve the endpoint's body
+            contract for existing clients).
         background: FastAPI background task registry for the embedded-worker
             compatibility mode.
 

@@ -79,14 +79,10 @@ def test_standard_and_advanced_concurrency_limits(
         for index in range(4)
     ]
     for run_id in standard_ids[:3]:
-        response = client.post(
-            f"/api/runs/{run_id}/start",
-            json={"force_provider": "engine"},
-        )
+        response = client.post(f"/api/runs/{run_id}/start", json={})
         assert response.status_code == 200
     blocked_standard = client.post(
-        f"/api/runs/{standard_ids[3]}/start",
-        json={"force_provider": "engine"},
+        f"/api/runs/{standard_ids[3]}/start", json={}
     )
     assert blocked_standard.status_code == 409
 
@@ -98,14 +94,8 @@ def test_standard_and_advanced_concurrency_limits(
         ).json()["id"]
         for index in range(2)
     ]
-    first_advanced = client.post(
-        f"/api/runs/{advanced_ids[0]}/start",
-        json={"force_provider": "engine"},
-    )
-    second_advanced = client.post(
-        f"/api/runs/{advanced_ids[1]}/start",
-        json={"force_provider": "engine"},
-    )
+    first_advanced = client.post(f"/api/runs/{advanced_ids[0]}/start", json={})
+    second_advanced = client.post(f"/api/runs/{advanced_ids[1]}/start", json={})
     assert first_advanced.status_code == 200
     assert second_advanced.status_code == 409
 
@@ -178,9 +168,7 @@ def test_engine_queue_can_pause_and_resume_without_process_handle(
     monkeypatch.setenv("COSCIENTIST_EMBEDDED_WORKER", "0")
     c = _client()
     rid = _new_run(c, "Durable pause test")
-    started = c.post(
-        f"/api/runs/{rid}/start", json={"force_provider": "engine"}
-    )
+    started = c.post(f"/api/runs/{rid}/start", json={})
     assert started.status_code == 200
 
     paused = c.post(f"/api/runs/{rid}/pause")
