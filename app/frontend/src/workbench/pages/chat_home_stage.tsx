@@ -29,6 +29,8 @@ import {
 } from './chat_home_classes';
 import {Composer} from './chat_composer';
 import {HomeRecentsPanel} from './home_recents';
+import {type Audience, useAudience} from '../audience_context';
+import {SBI_SUGGESTIONS} from '../audience_content';
 import {GoogleLabsIcon} from '../components/google_labs_icon';
 import {TruncatedLabel} from '../components/truncated_label';
 
@@ -77,6 +79,13 @@ export const SUGGESTIONS: readonly {
 ];
 
 type Suggestion = (typeof SUGGESTIONS)[number];
+
+/** Home suggestions for an audience: SBI's tailored set, else the default. */
+export function activeSuggestions(
+  audience: Audience | null,
+): readonly Suggestion[] {
+  return audience === 'sbi_ucd' ? SBI_SUGGESTIONS : SUGGESTIONS;
+}
 
 // Copy for the desktop-only 1-2-3 onboarding timeline rendered below the
 // title (hidden on mobile to save vertical space; see the `!isMobile` guard).
@@ -146,6 +155,8 @@ export function HomeStage({
   const [hoveredSuggestion, setHoveredSuggestion] = useState<string | null>(
     null,
   );
+  const {audience} = useAudience();
+  const suggestions = activeSuggestions(audience);
   // Mobile shows suggestions as a single-line glyph list, so the label
   // truncates to one line (word-level, via TruncatedLabel); desktop keeps the
   // two-line card. Tracks viewport width so the line budget follows the
@@ -166,6 +177,7 @@ export function HomeStage({
         <HomeGreeting isMobile={isMobile} />
         <HomeSuggestionRow
           isMobile={isMobile}
+          suggestions={suggestions}
           hoveredSuggestion={hoveredSuggestion}
           onPreview={setHoveredSuggestion}
           onSelect={selectSuggestion}
@@ -233,18 +245,20 @@ function HomeGreeting({isMobile}: {isMobile: boolean}) {
 // fills the composer when a card is selected.
 function HomeSuggestionRow({
   isMobile,
+  suggestions,
   hoveredSuggestion,
   onPreview,
   onSelect,
 }: {
   isMobile: boolean;
+  suggestions: readonly Suggestion[];
   hoveredSuggestion: string | null;
   onPreview: (text: string | null) => void;
   onSelect: (text: string) => void;
 }) {
   return (
     <div className={HOME_SUGGESTION_ROW_CLASSES}>
-      {SUGGESTIONS.map((suggestion, index) => (
+      {suggestions.map((suggestion, index) => (
         <SuggestionCard
           key={suggestion.preview}
           suggestion={suggestion}
