@@ -47,10 +47,20 @@ function readStoredAudience(): Audience | null {
  * Provides the self-declared audience and persists changes to localStorage.
  *
  * @param props.children The subtree that consumes the audience context.
+ * @param props.initialAudience Starts the provider already resolved instead
+ *   of reading storage. Consumers that act on the *first* rendered value —
+ *   AudienceGate decides whether to open the chooser — cannot be exercised by
+ *   setting the audience afterwards, since that lands a render too late.
  */
-export function AudienceProvider({children}: {children: ReactNode}) {
+export function AudienceProvider({
+  children,
+  initialAudience,
+}: {
+  children: ReactNode;
+  initialAudience?: Audience;
+}) {
   const [audience, setAudienceState] = useState<Audience | null>(
-    readStoredAudience,
+    () => initialAudience ?? readStoredAudience(),
   );
 
   useEffect(() => {

@@ -1,26 +1,16 @@
 import {render, screen} from '@testing-library/react';
-import {useEffect} from 'react';
 import {MemoryRouter} from 'react-router-dom';
 import {beforeEach, describe, expect, it} from 'vitest';
-import {type Audience, AudienceProvider, useAudience} from './audience_context';
+import {type Audience, AudienceProvider} from './audience_context';
 import {ShellHeader} from './layout_header';
 
-// Drives the provider through its public setter. Seeding localStorage would
-// not work: the provider deliberately drops the stored value on mount while
-// the mode controls are being designed (see RESTORE_ON_MOUNT).
-function SetAudience({audience}: {audience: Audience | null}) {
-  const {setAudience} = useAudience();
-  useEffect(() => {
-    if (audience) setAudience(audience);
-  }, [audience, setAudience]);
-  return null;
-}
-
-function renderHeader(audience: Audience | null = null) {
+// Seeding localStorage would not drive this: the provider deliberately drops
+// the stored value on mount while the mode controls are being designed (see
+// RESTORE_ON_MOUNT), so the audience is declared to the provider directly.
+function renderHeader(audience?: Audience) {
   return render(
     <MemoryRouter>
-      <AudienceProvider>
-        <SetAudience audience={audience} />
+      <AudienceProvider initialAudience={audience}>
         <ShellHeader
           navOpen={false}
           toggleNav={() => {}}

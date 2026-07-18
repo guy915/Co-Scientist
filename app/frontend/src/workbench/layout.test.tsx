@@ -44,7 +44,9 @@ vi.mock('@/api/system', () => systemApiMock);
 function renderLayout(path = '/') {
   return render(
     <ThemeProvider>
-      <AudienceProvider>
+      {/* Declared up front so AudienceGate doesn't open the affiliation
+          chooser over the shell these tests are asserting on. */}
+      <AudienceProvider initialAudience="general">
         <MemoryRouter initialEntries={[path]}>
           <RunHistoryProvider>
             <Layout>

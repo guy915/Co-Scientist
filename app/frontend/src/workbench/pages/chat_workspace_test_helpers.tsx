@@ -59,7 +59,9 @@ export {apiMock};
 export function renderWorkspace() {
   return render(
     <MemoryRouter>
-      <AudienceProvider>
+      {/* Declared up front so AudienceGate doesn't open the affiliation
+          chooser over the workspace these tests are asserting on. */}
+      <AudienceProvider initialAudience="general">
         <RunHistoryProvider>
           <ChatWorkspace />
           <LocationProbe />

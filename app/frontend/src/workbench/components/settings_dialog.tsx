@@ -233,12 +233,20 @@ function HelpSection() {
   );
 }
 
-/** Settings section letting the user change their declared affiliation. */
+/**
+ * Settings section letting the user change their declared affiliation. Also
+ * serves as the first-visit chooser: AudienceGate opens Settings here when no
+ * audience has been picked yet.
+ */
 export function AffiliationSection() {
   const {audience, setAudience} = useAudience();
   return (
     <section className="ucs-settings-card">
       <h3 className="ucs-settings-card-title">Affiliation</h3>
+      <p className="ucs-settings-card-copy">
+        This tailors the workspace to how you use Co-Scientist. You can change
+        it here at any time.
+      </p>
       <div className="grid gap-3">
         {AUDIENCE_OPTIONS.map(option => (
           <button
