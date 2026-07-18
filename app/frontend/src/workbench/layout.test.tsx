@@ -551,6 +551,92 @@ describe('Layout', () => {
     expect(logsApiMock.getAppLogs).toHaveBeenCalledWith(0, 100);
   });
 
+  it('never shows more than the 100 newest records', async () => {
+    // The fetch already asks for 100, but the panel enforces the cap
+    // itself too: even an oversized payload renders as the newest 100.
+    const many = Array.from({length: 120}, (_, index) => ({
+      id: index + 1,
+      created_at: 1_700_000_000 + index,
+      level: 'INFO',
+      levelno: 20,
+      logger: 'app.main',
+      message: `record ${index + 1}`,
+      run_id: null,
+      exc_text: null,
+    }));
+    logsApiMock.getAppLogs.mockResolvedValue({
+      logs: many,
+      last_id: 120,
+      total: 120,
+    });
+    const {container} = renderLayout();
+
+    fireEvent.click(await screen.findByRole('button', {name: /Logs 120/i}));
+    await screen.findByText(/record 120/);
+
+    const entries = container.querySelectorAll('.ucs-diagnostic-entry');
+    expect(entries).toHaveLength(100);
+    // The newest 100 (21..120), not the oldest.
+    expect(screen.queryByText(/record 20$/)).toBeNull();
+    expect(entries[0].textContent).toContain('#21');
+  });
+
+  it('ignores stale out-of-order log responses', async () => {
+    const payload = (id: number) => ({
+      logs: [
+        {
+          id,
+          created_at: 1_700_000_000 + id,
+          level: 'INFO',
+          levelno: 20,
+          logger: 'app.main',
+          message: `record ${id}`,
+          run_id: null,
+          exc_text: null,
+        },
+      ],
+      last_id: id,
+      total: 1,
+    });
+    // Let the mount-time loads settle first — including the remount
+    // caused by the navigation-log version bump — so both racing
+    // requests below belong to the same effect generation (the
+    // `disposed` guard must not be what saves us).
+    renderLayout();
+    await waitFor(() =>
+      expect(logsApiMock.getAppLogs.mock.calls.length).toBeGreaterThanOrEqual(
+        2,
+      ),
+    );
+    await act(async () => {
+      // let the remounted effect finish its initial load
+    });
+
+    // The next request hangs (stale); the one after answers fresh. The
+    // stale response then arrives LAST and must be dropped.
+    let resolveStale: (value: unknown) => void = () => {};
+    const hanging = new Promise(resolve => {
+      resolveStale = resolve;
+    });
+    logsApiMock.getAppLogs
+      .mockReturnValueOnce(hanging)
+      .mockResolvedValue(payload(2));
+
+    const {APP_LOGS_CHANGED_EVENT} = await import('@/api/logs');
+    fireEvent(window, new Event(APP_LOGS_CHANGED_EVENT));
+    fireEvent(window, new Event(APP_LOGS_CHANGED_EVENT));
+    await screen.findByRole('button', {name: /Logs 2/i});
+
+    resolveStale(payload(1));
+    await act(async () => {
+      // give the stale response a real window to (wrongly) land
+      await new Promise(resolve => setTimeout(resolve, 20));
+    });
+    // The late stale response did not overwrite the fresher one.
+    expect(screen.queryByRole('button', {name: /Logs 1$/})).toBeNull();
+    expect(screen.getByRole('button', {name: /Logs 2/i})).toBeInTheDocument();
+  });
+
   it('renders the message as plain text with the level in the meta row', async () => {
     logsApiMock.getAppLogs.mockResolvedValue({
       logs: [

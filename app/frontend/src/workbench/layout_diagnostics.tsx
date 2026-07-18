@@ -227,18 +227,28 @@ function usePersistedAppLogs(version: number): PersistedAppLogs {
 
   useEffect(() => {
     let disposed = false;
+    // Requests can resolve out of order (an announce-triggered load can
+    // race the poll); only the most recently issued request may apply.
+    let latestRequest = 0;
     const load = () => {
+      const request = ++latestRequest;
       getAppLogs(0, PANEL_LIMIT)
         .then(payload => {
-          if (disposed) return;
-          const entries = payload.logs.map(buildAppLogEntry);
+          if (disposed || request !== latestRequest) return;
+          // The request already asks for PANEL_LIMIT records, but the
+          // cap is enforced here too: whatever the payload size, the
+          // panel shows at most the newest PANEL_LIMIT.
+          const entries = payload.logs
+            .slice(-PANEL_LIMIT)
+            .map(buildAppLogEntry);
           setLogs({
             entries,
             newestId: entries.length ? entries[entries.length - 1].id : 0,
           });
         })
         .catch(() => {
-          if (!disposed) setLogs({entries: [], newestId: 0});
+          if (!disposed && request === latestRequest)
+            setLogs({entries: [], newestId: 0});
         });
     };
     load();
