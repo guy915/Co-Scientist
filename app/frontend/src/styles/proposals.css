@@ -599,7 +599,7 @@
 .proposals-editor-panel {
   position: absolute;
   z-index: 3;
-  top: 0.25rem;
+  bottom: 0.25rem;
   left: 0.25rem;
   display: grid;
   width: 21rem;
@@ -642,4 +642,25 @@
 .proposals-editor-scale {
   color: var(--cosci-muted);
   font-variant-numeric: tabular-nums;
+}
+
+/* The legends keep their real size while editing, outlined so the canvas
+   they cover is visible as a constraint rather than a surprise. */
+.proposals-legend-ghost .proposals-legend {
+  opacity: 0.75;
+  outline: 2px dashed var(--cosci-blue);
+  outline-offset: 2px;
+  pointer-events: none;
+}
+
+/* The panel has to sit over the graph somewhere, so it recedes until
+   pointed at rather than permanently hiding a cluster. */
+.proposals-editor-panel {
+  opacity: 0.35;
+  transition: opacity 120ms ease;
+}
+
+.proposals-editor-panel:hover,
+.proposals-editor-panel:focus-within {
+  opacity: 1;
 }

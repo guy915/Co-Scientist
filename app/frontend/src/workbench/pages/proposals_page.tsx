@@ -74,20 +74,24 @@ export function ProposalsPage() {
           rings={editing ? editor.rings : undefined}
           overlay={editing ? editor.overlay : undefined}
         />
-        {/* The legends explain the whole graph; while one proposal is open
-            the detail panel is the thing being read, so they step aside. */}
         {editing && editor.panel}
-        {!selected && !editing && (
-          <ProposalsLegend
-            selectedKinds={selectedKinds}
-            onToggleKind={kind =>
-              setSelectedKinds(current => toggled(current, kind))
-            }
-            selectedClusters={selectedClusters}
-            onToggleCluster={cluster =>
-              setSelectedClusters(current => toggled(current, cluster))
-            }
-          />
+        {/* The legends explain the whole graph; while one proposal is open
+            the detail panel is the thing being read, so they step aside.
+            While editing they stay, outlined: they overlay the canvas, so
+            their footprint is part of the layout being decided. */}
+        {!selected && (
+          <div className={editing ? 'proposals-legend-ghost' : undefined}>
+            <ProposalsLegend
+              selectedKinds={selectedKinds}
+              onToggleKind={kind =>
+                setSelectedKinds(current => toggled(current, kind))
+              }
+              selectedClusters={selectedClusters}
+              onToggleCluster={cluster =>
+                setSelectedClusters(current => toggled(current, cluster))
+              }
+            />
+          </div>
         )}
       </div>
       {selected && (
