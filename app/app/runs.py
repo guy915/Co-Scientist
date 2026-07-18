@@ -843,6 +843,7 @@ async def get_run_logs(
     limit: int = Query(200, ge=1, le=1000),
     min_level: str | None = None,
     q: str | None = None,
+    verbose: bool = False,
 ) -> dict[str, Any]:
     """Return the run's persisted application log records, oldest-first.
 
@@ -856,6 +857,7 @@ async def get_run_logs(
         min_level=min_level,
         run_id=run_id,
         q=q,
+        verbose=verbose,
     )
 
 

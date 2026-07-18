@@ -91,6 +91,36 @@ def test_count_logs_ignores_limit_and_respects_filters(
     assert store.count_logs(contains="info", db_path=isolated_db) == 5
 
 
+def test_noise_loggers_hidden_below_warning(isolated_db: str) -> None:
+    _append(isolated_db, "run started", logger_name="app.runs")
+    _append(isolated_db, "GET /status", logger_name="uvicorn.access")
+    _append(isolated_db, "clicked", logger_name="ui.interaction")
+    _append(
+        isolated_db,
+        "request failed",
+        logger_name="uvicorn.access",
+        level="WARNING",
+        levelno=logging.WARNING,
+    )
+    noise = ("uvicorn.access", "ui.interaction")
+    rows = store.list_logs(noise_loggers=noise, db_path=isolated_db)
+    # INFO chatter from noise loggers is hidden; WARNING+ always shows,
+    # and INFO from other loggers is untouched.
+    assert [row["message"] for row in rows] == [
+        "run started",
+        "request failed",
+    ]
+    assert store.count_logs(noise_loggers=noise, db_path=isolated_db) == 2
+    # Without the filter everything is still there.
+    assert store.count_logs(db_path=isolated_db) == 4
+
+
+def test_noise_loggers_match_by_prefix(isolated_db: str) -> None:
+    _append(isolated_db, "pool note", logger_name="httpx.client")
+    rows = store.list_logs(noise_loggers=("httpx",), db_path=isolated_db)
+    assert rows == []
+
+
 def test_prune_logs_keeps_newest(isolated_db: str) -> None:
     for i in range(10):
         _append(isolated_db, f"m{i}")

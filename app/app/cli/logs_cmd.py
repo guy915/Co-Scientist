@@ -28,6 +28,8 @@ def _logs_path(args: argparse.Namespace, after_id: int) -> str:
         params["min_level"] = args.level
     if args.grep:
         params["q"] = args.grep
+    if args.all:
+        params["verbose"] = 1
     return "/api/logs?" + urllib.parse.urlencode(params)
 
 

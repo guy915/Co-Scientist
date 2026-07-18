@@ -27,6 +27,25 @@ router = APIRouter(tags=["logs"])
 MAX_CLIENT_BATCH = 50
 MAX_CLIENT_MESSAGE_CHARS = 2000
 
+# High-volume logger prefixes hidden from the default view (below
+# WARNING): per-request access records, per-click/-navigation UI
+# records, and dependency chatter. Everything is still captured; pass
+# ``verbose=1`` (CLI: ``cosci logs --all``) for the full stream. The
+# default keeps the log readable for humans and cheap in tokens for
+# coding agents.
+NOISE_LOGGERS: tuple[str, ...] = (
+    "uvicorn.access",
+    "ui.interaction",
+    "ui.navigation",
+    "httpx",
+    "httpcore",
+    "urllib3",
+    "litellm",
+    # Availability probes repeat on every /status poll; their WARNINGs
+    # (e.g. "MCP server unavailable") still surface.
+    "co_scientist.mcp_client",
+)
+
 
 def _min_levelno(min_level: str | None) -> int:
     """Map a level name to its numeric value; 422 on unknown names."""
@@ -47,6 +66,7 @@ def logs_payload(
     min_level: str | None,
     run_id: str | None,
     q: str | None,
+    verbose: bool = False,
 ) -> dict[str, Any]:
     """Build the shared logs response for the given filters.
 
@@ -56,21 +76,30 @@ def logs_payload(
         min_level: Minimum level name, case-insensitive; None for all.
         run_id: Only rows bound to this run; None for app-wide.
         q: Case-insensitive message substring filter.
+        verbose: Include high-volume noise records (HTTP access, UI
+            clicks/navigation, dependency chatter) below WARNING.
 
     Raises:
         HTTPException: 422 when ``min_level`` is not a known level name.
     """
     min_levelno = _min_levelno(min_level)
+    noise_loggers = None if verbose else NOISE_LOGGERS
     rows = store.list_logs(
         after_id=after_id,
         min_levelno=min_levelno,
         run_id=run_id,
         contains=q,
+        noise_loggers=noise_loggers,
         limit=limit,
     )
     # `total` counts the whole matching set (no cursor, no limit) so the
     # UI badge shows the true size even when the window is capped.
-    total = store.count_logs(min_levelno=min_levelno, run_id=run_id, contains=q)
+    total = store.count_logs(
+        min_levelno=min_levelno,
+        run_id=run_id,
+        contains=q,
+        noise_loggers=noise_loggers,
+    )
     return {"logs": rows, "last_id": store.latest_log_id(), "total": total}
 
 
@@ -133,11 +162,15 @@ async def get_logs(
     min_level: str | None = None,
     run_id: str | None = None,
     q: str | None = None,
+    verbose: bool = False,
 ) -> dict[str, Any]:
     """Return persisted application log records, oldest-first.
 
     App-wide: includes records emitted outside any run context. Filter to
-    one run with ``run_id`` (or use ``GET /api/runs/{id}/logs``).
+    one run with ``run_id`` (or use ``GET /api/runs/{id}/logs``). The
+    default view hides high-volume noise (HTTP access records, UI
+    clicks/navigation, dependency chatter) below WARNING; ``verbose=1``
+    returns everything.
     """
     return logs_payload(
         after_id=after_id,
@@ -145,4 +178,5 @@ async def get_logs(
         min_level=min_level,
         run_id=run_id,
         q=q,
+        verbose=verbose,
     )

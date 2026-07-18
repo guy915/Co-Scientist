@@ -166,8 +166,12 @@ def _start(base: str, run_id: str, client_id: str) -> None:
 
 
 def _grep_logs(base: str, needle: str) -> bool:
-    """Return whether any persisted log message contains ``needle``."""
-    response = _api(base, "GET", f"/api/logs?q={needle}&limit=200")
+    """Return whether any persisted log message contains ``needle``.
+
+    Queries verbosely: these helpers verify capture, and high-volume
+    records are hidden from the default view.
+    """
+    response = _api(base, "GET", f"/api/logs?q={needle}&limit=200&verbose=1")
     if response.status_code != 200:
         return False
     return bool(response.json().get("logs"))
@@ -478,12 +482,18 @@ def test_logs_shows_captured_server_records(
 def test_logs_capture_http_requests(
     cli_server: str, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    """Uvicorn access records are captured against a real server."""
+    """Uvicorn access records are captured against a real server.
+
+    Access records are noise: hidden from the default view, visible
+    with --all.
+    """
     _api(cli_server, "GET", "/health").raise_for_status()
     assert wait_for(lambda: _grep_logs(cli_server, "/health"), timeout=15.0), (
         "no access log for /health was captured"
     )
     assert _invoke(cli_server, "logs", "--grep", "/health") == 0
+    assert "GET /health" not in capsys.readouterr().out
+    assert _invoke(cli_server, "logs", "--all", "--grep", "/health") == 0
     assert "GET /health" in capsys.readouterr().out
 
 

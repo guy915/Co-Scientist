@@ -180,6 +180,14 @@ def _add_logs(
         action="store_true",
         help="delete every persisted log record instead of reading",
     )
+    parser.add_argument(
+        "--all",
+        action="store_true",
+        help=(
+            "include high-volume records hidden by default (HTTP access, "
+            "UI clicks/navigation, dependency chatter below warning)"
+        ),
+    )
     _json_flag(parser)
     parser.set_defaults(handler=logs_cmd.handle_logs)
 

@@ -30,6 +30,7 @@ def _args(**overrides: Any) -> argparse.Namespace:
         "follow": False,
         "interval": 0.0,
         "clear": False,
+        "all": False,
         "json": False,
     }
     base.update(overrides)
@@ -91,6 +92,21 @@ def test_logs_passes_filters(capsys: pytest.CaptureFixture[str]) -> None:
     assert "min_level=warning" in url
     assert "q=boom" in url
     assert "after_id=5" in url
+    # Default view: no verbose flag is sent.
+    assert "verbose" not in url
+
+
+def test_logs_all_requests_verbose_records(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    urls: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        urls.append(str(request.url))
+        return httpx.Response(200, json={"logs": [], "last_id": 0})
+
+    assert logs_cmd.handle_logs(_args(all=True), _client(handler)) == 0
+    assert "verbose=1" in urls[0]
 
 
 def test_logs_follow_polls_from_last_id(

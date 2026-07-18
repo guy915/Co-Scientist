@@ -524,10 +524,10 @@ describe('Layout', () => {
     expect(screen.getByText(/workflow exploded/)).toBeInTheDocument();
   });
 
-  it('numbers the badge by the newest log id', async () => {
-    // The badge must agree with the visible "#id" numbering: it shows the
-    // newest log id, not the row count (ids survive a clear) and not the
-    // fetched window size.
+  it('numbers the badge by the newest visible record id', async () => {
+    // The badge must agree with the visible "#id" numbering: it shows
+    // the newest record in the (noise-filtered) view — not the store's
+    // global high-water mark, which can be a hidden noise record.
     logsApiMock.getAppLogs.mockResolvedValue({
       logs: [555, 556].map(id => ({
         id,
@@ -539,7 +539,7 @@ describe('Layout', () => {
         run_id: null,
         exc_text: null,
       })),
-      last_id: 556,
+      last_id: 600,
       total: 399,
     });
     renderLayout();
@@ -745,12 +745,23 @@ describe('Layout', () => {
       expect(screen.getByRole('button', {name: /Logs 0/i})).toBeInTheDocument();
 
       logsApiMock.getAppLogs.mockResolvedValue({
-        logs: [],
+        logs: [
+          {
+            id: 9,
+            created_at: 1_700_000_009,
+            level: 'INFO',
+            levelno: 20,
+            logger: 'app.main',
+            message: 'run finished',
+            run_id: null,
+            exc_text: null,
+          },
+        ],
         last_id: 9,
-        total: 0,
+        total: 1,
       });
       // No popover open, no events: only the periodic background poll
-      // can pick up the new high-water mark.
+      // can pick up the new record.
       await act(async () => {
         await vi.advanceTimersByTimeAsync(5_000);
       });

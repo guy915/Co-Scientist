@@ -11,11 +11,17 @@ single INSERT.
 
 from __future__ import annotations
 
+import logging
 import sqlite3
 import time
+from collections.abc import Sequence
 from typing import Any
 
 from app.store.db import _use_conn
+
+# Noise-logger records below this level are hidden when a noise filter
+# is applied; warnings and errors always surface regardless of source.
+NOISE_VISIBLE_LEVELNO = logging.WARNING
 
 
 def _escape_like(text: str) -> str:
@@ -74,6 +80,7 @@ def _log_filters(
     min_levelno: int,
     run_id: str | None,
     contains: str | None,
+    noise_loggers: Sequence[str] | None,
 ) -> tuple[str, list[Any]]:
     """Build the shared WHERE clause and parameters for log queries."""
     where = ["id > ?", "levelno >= ?"]
@@ -84,6 +91,13 @@ def _log_filters(
     if contains:
         where.append("message LIKE ? ESCAPE '\\'")
         params.append(f"%{_escape_like(contains)}%")
+    if noise_loggers:
+        # Hide sub-WARNING records whose logger starts with any noise
+        # prefix; WARNING+ from those loggers still matches.
+        likes = " OR ".join(["logger LIKE ? ESCAPE '\\'"] * len(noise_loggers))
+        where.append(f"NOT (levelno < ? AND ({likes}))")
+        params.append(NOISE_VISIBLE_LEVELNO)
+        params.extend(f"{_escape_like(name)}%" for name in noise_loggers)
     return " AND ".join(where), params
 
 
@@ -93,6 +107,7 @@ def list_logs(
     min_levelno: int = 0,
     run_id: str | None = None,
     contains: str | None = None,
+    noise_loggers: Sequence[str] | None = None,
     limit: int = 200,
     db_path: str | None = None,
     conn: sqlite3.Connection | None = None,
@@ -108,6 +123,8 @@ def list_logs(
         min_levelno: Minimum numeric level (e.g. ``logging.WARNING``).
         run_id: Only rows bound to this run.
         contains: Case-insensitive message substring filter.
+        noise_loggers: Logger-name prefixes whose sub-WARNING records are
+            hidden; None disables the filter.
         limit: Maximum rows returned.
         db_path: Optional override for the SQLite database path.
         conn: Optional open connection to reuse.
@@ -117,6 +134,7 @@ def list_logs(
         min_levelno=min_levelno,
         run_id=run_id,
         contains=contains,
+        noise_loggers=noise_loggers,
     )
     params.append(limit)
     query = (
@@ -134,6 +152,7 @@ def count_logs(
     min_levelno: int = 0,
     run_id: str | None = None,
     contains: str | None = None,
+    noise_loggers: Sequence[str] | None = None,
     db_path: str | None = None,
     conn: sqlite3.Connection | None = None,
 ) -> int:
@@ -147,6 +166,8 @@ def count_logs(
         min_levelno: Minimum numeric level (e.g. ``logging.WARNING``).
         run_id: Only rows bound to this run.
         contains: Case-insensitive message substring filter.
+        noise_loggers: Logger-name prefixes whose sub-WARNING records are
+            hidden; None disables the filter.
         db_path: Optional override for the SQLite database path.
         conn: Optional open connection to reuse.
     """
@@ -155,6 +176,7 @@ def count_logs(
         min_levelno=min_levelno,
         run_id=run_id,
         contains=contains,
+        noise_loggers=noise_loggers,
     )
     query = "SELECT COUNT(*) AS n FROM app_logs WHERE " + where
     with _use_conn(conn, db_path) as c:

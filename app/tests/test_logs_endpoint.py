@@ -93,6 +93,52 @@ def test_logs_endpoint_total_respects_filters_not_cursor(
     assert body["total"] == 2
 
 
+def test_logs_endpoint_hides_noise_by_default(isolated_db: str) -> None:
+    _seed(isolated_db, "run started")
+    store.append_log(
+        level="INFO",
+        levelno=logging.INFO,
+        logger_name="uvicorn.access",
+        message="GET /status 200",
+        db_path=isolated_db,
+    )
+    store.append_log(
+        level="ERROR",
+        levelno=logging.ERROR,
+        logger_name="uvicorn.access",
+        message="request blew up",
+        db_path=isolated_db,
+    )
+    # MCP availability probes repeat on every /status poll: noise too.
+    store.append_log(
+        level="INFO",
+        levelno=logging.INFO,
+        logger_name="co_scientist.mcp_client",
+        message="initializing MCP client",
+        db_path=isolated_db,
+    )
+    client = make_client()
+
+    # Default: high-volume chatter (HTTP access, clicks, navigation,
+    # dependency loggers) is hidden below WARNING; errors always show.
+    body = client.get("/api/logs").json()
+    assert [row["message"] for row in body["logs"]] == [
+        "run started",
+        "request blew up",
+    ]
+    assert body["total"] == 2
+
+    # verbose=1 opts back into the full stream.
+    body = client.get("/api/logs", params={"verbose": "1"}).json()
+    assert [row["message"] for row in body["logs"]] == [
+        "run started",
+        "GET /status 200",
+        "request blew up",
+        "initializing MCP client",
+    ]
+    assert body["total"] == 4
+
+
 def test_logs_endpoint_rejects_unknown_level(isolated_db: str) -> None:
     response = make_client().get("/api/logs", params={"min_level": "LOUDEST"})
     assert response.status_code == 422

@@ -204,12 +204,13 @@ function buildAppLogEntry(record: AppLogRecord): DiagnosticLogEntry {
 // How often the persisted backend log is re-fetched in the background.
 const APP_LOGS_POLL_MS = 5_000;
 
-// The fetched window plus the store's newest row id. The badge is
-// numbered by `lastId` so it always agrees with the visible "#id" rows
-// (row counts would drift, since ids survive a clear).
+// The fetched window plus the id of its newest record. The badge is
+// numbered by `newestId` so it always agrees with the visible "#id"
+// rows — the server's global high-water mark can be a hidden noise
+// record, and row counts would drift since ids survive pruning.
 interface PersistedAppLogs {
   entries: DiagnosticLogEntry[];
-  lastId: number;
+  newestId: number;
 }
 
 // Fetches the app-wide persisted log: on mount (so the badge count is
@@ -221,7 +222,7 @@ interface PersistedAppLogs {
 function usePersistedAppLogs(version: number): PersistedAppLogs {
   const [logs, setLogs] = useState<PersistedAppLogs>({
     entries: [],
-    lastId: 0,
+    newestId: 0,
   });
 
   useEffect(() => {
@@ -230,13 +231,14 @@ function usePersistedAppLogs(version: number): PersistedAppLogs {
       getAppLogs(0, PANEL_LIMIT)
         .then(payload => {
           if (disposed) return;
+          const entries = payload.logs.map(buildAppLogEntry);
           setLogs({
-            entries: payload.logs.map(buildAppLogEntry),
-            lastId: payload.last_id,
+            entries,
+            newestId: entries.length ? entries[entries.length - 1].id : 0,
           });
         })
         .catch(() => {
-          if (!disposed) setLogs({entries: [], lastId: 0});
+          if (!disposed) setLogs({entries: [], newestId: 0});
         });
     };
     load();
@@ -386,7 +388,7 @@ export function DiagnosticsControl({
   const [copied, setCopied] = useState(false); // Copy button shows "Copied"
   useDiagnosticIngest(bumpVersion);
   useNavigationLog(bumpVersion);
-  const {entries, lastId} = usePersistedAppLogs(version);
+  const {entries, newestId} = usePersistedAppLogs(version);
   const counts = summarizeDiagnosticEntries(entries);
 
   async function onCopy() {
@@ -406,12 +408,12 @@ export function DiagnosticsControl({
 
   return (
     <>
-      <LogsTriggerButton open={open} count={lastId} onToggle={onToggle} />
+      <LogsTriggerButton open={open} count={newestId} onToggle={onToggle} />
       {open &&
         renderPopover(
           <DiagnosticLogsPanel
             entries={entries}
-            lastId={lastId}
+            newestId={newestId}
             copied={copied}
             counts={counts}
             onClear={() => void onClear()}
@@ -560,11 +562,11 @@ function DiagnosticLogsHeader({
 // The Total chip shows the newest log id (matching the badge and the
 // visible "#id" rows); the per-level chips tally the shown window.
 function buildDiagnosticChips(
-  lastId: number,
+  newestId: number,
   counts: DiagnosticCounts,
 ): [string, number, string][] {
   return [
-    ['Total', lastId, DIAGNOSTIC_CHIP_CLASSES],
+    ['Total', newestId, DIAGNOSTIC_CHIP_CLASSES],
     [
       'Errors',
       counts.errorCount,
@@ -583,20 +585,20 @@ function buildDiagnosticChips(
 // stays in DiagnosticsControl; this only renders what it is handed.
 function DiagnosticLogsPanel({
   entries,
-  lastId,
+  newestId,
   copied,
   counts,
   onClear,
   onCopy,
 }: {
   entries: DiagnosticLogEntry[];
-  lastId: number;
+  newestId: number;
   copied: boolean;
   counts: DiagnosticCounts;
   onClear: () => void;
   onCopy: () => void;
 }) {
-  const chips = buildDiagnosticChips(lastId, counts);
+  const chips = buildDiagnosticChips(newestId, counts);
 
   return (
     <>
