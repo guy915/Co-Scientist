@@ -27,11 +27,21 @@ interface DiagnosticLogEntry {
   run: string;
   stage: string;
   level: DiagnosticLogLevel;
+  /** Level name (INFO, ERROR, ...) shown in the meta row. */
+  levelName: string;
+  /** The log message, rendered as plain text. */
+  message: string;
+  /** Formatted traceback, appended below the message when present. */
+  excText: string | null;
+  /** Structured form kept for the Copy action (machine-readable). */
   payload: Record<string, unknown>;
 }
 
 // How many of the newest entries the Copy action serializes.
 const COPY_LIMIT = 50;
+
+// How many of the newest records the panel fetches and shows.
+const PANEL_LIMIT = 100;
 
 // Shape of the `cosci-diagnostic-event` CustomEvent's `detail`, as dispatched
 // by callers elsewhere in the app (e.g. useChatSession's emitDiagnosticEvent)
@@ -112,10 +122,11 @@ const DIAGNOSTIC_LIST_CLASSES =
 const DIAGNOSTIC_ENTRY_CLASSES = 'ucs-diagnostic-entry grid gap-1';
 
 const DIAGNOSTIC_ENTRY_META_CLASSES =
-  'ucs-diagnostic-entry-meta grid grid-cols-[auto_auto_minmax(0,1fr)_auto] ' +
+  'ucs-diagnostic-entry-meta grid ' +
+  'grid-cols-[auto_auto_auto_minmax(0,1fr)_auto] ' +
   'items-center gap-2 text-[0.72rem] font-semibold ' +
   'text-cosci-logs-meta ' +
-  'max-[720px]:grid-cols-[auto_auto_minmax(0,1fr)]';
+  'max-[720px]:grid-cols-[auto_auto_auto_minmax(0,1fr)]';
 
 const DIAGNOSTIC_ENTRY_RUN_CLASSES = 'truncate';
 
@@ -178,6 +189,9 @@ function buildAppLogEntry(record: AppLogRecord): DiagnosticLogEntry {
     run: record.run_id ? `Run ${record.run_id.slice(0, 8)}` : 'Server',
     stage: record.logger,
     level: appLogLevel(record),
+    levelName: record.level,
+    message: record.message,
+    excText: record.exc_text,
     payload: {
       level: record.level,
       message: record.message,
@@ -189,11 +203,12 @@ function buildAppLogEntry(record: AppLogRecord): DiagnosticLogEntry {
 // How often the open popover refreshes the persisted backend log.
 const APP_LOGS_POLL_MS = 5_000;
 
-// The fetched window plus the store's true matching-row count. `total`
-// can exceed `entries.length` when the log outgrows one fetch window.
+// The fetched window plus the store's newest row id. The badge is
+// numbered by `lastId` so it always agrees with the visible "#id" rows
+// (row counts would drift, since ids survive a clear).
 interface PersistedAppLogs {
   entries: DiagnosticLogEntry[];
-  total: number;
+  lastId: number;
 }
 
 // Fetches the app-wide persisted log: on mount (so the badge count is
@@ -203,22 +218,22 @@ interface PersistedAppLogs {
 function usePersistedAppLogs(open: boolean, version: number): PersistedAppLogs {
   const [logs, setLogs] = useState<PersistedAppLogs>({
     entries: [],
-    total: 0,
+    lastId: 0,
   });
 
   useEffect(() => {
     let disposed = false;
     const load = () => {
-      getAppLogs()
+      getAppLogs(0, PANEL_LIMIT)
         .then(payload => {
           if (disposed) return;
           setLogs({
             entries: payload.logs.map(buildAppLogEntry),
-            total: payload.total,
+            lastId: payload.last_id,
           });
         })
         .catch(() => {
-          if (!disposed) setLogs({entries: [], total: 0});
+          if (!disposed) setLogs({entries: [], lastId: 0});
         });
     };
     load();
@@ -370,7 +385,7 @@ export function DiagnosticsControl({
   const [copied, setCopied] = useState(false); // Copy button shows "Copied"
   useDiagnosticIngest(bumpVersion);
   useNavigationLog(bumpVersion);
-  const {entries, total} = usePersistedAppLogs(open, version);
+  const {entries, lastId} = usePersistedAppLogs(open, version);
   const counts = summarizeDiagnosticEntries(entries);
 
   async function onCopy() {
@@ -390,12 +405,12 @@ export function DiagnosticsControl({
 
   return (
     <>
-      <LogsTriggerButton open={open} count={total} onToggle={onToggle} />
+      <LogsTriggerButton open={open} count={lastId} onToggle={onToggle} />
       {open &&
         renderPopover(
           <DiagnosticLogsPanel
             entries={entries}
-            total={total}
+            lastId={lastId}
             copied={copied}
             counts={counts}
             onClear={() => void onClear()}
@@ -416,13 +431,16 @@ const PIN_THRESHOLD_PX = 24;
 function DiagnosticLogList({entries}: {entries: DiagnosticLogEntry[]}) {
   // Opening the panel lands on the newest entry (the list mounts pinned).
   // After that, new records only auto-scroll while the user is still at
-  // the bottom — scrolling up to read must never be interrupted.
+  // the bottom — scrolling up to read must never be interrupted. Keyed by
+  // the newest id, not the count: at the window cap the count stops
+  // changing while the ids keep advancing.
   const listRef = useRef<HTMLDivElement>(null);
   const pinnedRef = useRef(true);
+  const newestId = entries.length ? entries[entries.length - 1].id : 0;
   useEffect(() => {
     const list = listRef.current;
     if (list && pinnedRef.current) list.scrollTop = list.scrollHeight;
-  }, [entries.length]);
+  }, [newestId]);
 
   function onScroll() {
     const list = listRef.current;
@@ -447,13 +465,16 @@ function DiagnosticLogList({entries}: {entries: DiagnosticLogEntry[]}) {
           <div className={DIAGNOSTIC_ENTRY_META_CLASSES}>
             <span>#{entry.id}</span>
             <span>[{entry.time}]</span>
+            <span>{entry.levelName}</span>
             <span className={DIAGNOSTIC_ENTRY_RUN_CLASSES}>{entry.run}</span>
             <strong className={DIAGNOSTIC_ENTRY_STAGE_CLASSES}>
               {entry.stage}:
             </strong>
           </div>
           <pre className={DIAGNOSTIC_CODE_CLASSES}>
-            {JSON.stringify(entry.payload, null, 2)}
+            {entry.excText
+              ? `${entry.message}\n\n${entry.excText}`
+              : entry.message}
           </pre>
         </article>
       ))}
@@ -535,14 +556,14 @@ function DiagnosticLogsHeader({
 
 // [label, count, chip class] rows for the summary chips; the Errors chip
 // switches to the danger styling only when there is at least one error.
-// The Total chip reports the store's matching-row count (which can exceed
-// the fetched window); the per-level chips tally the window itself.
+// The Total chip shows the newest log id (matching the badge and the
+// visible "#id" rows); the per-level chips tally the shown window.
 function buildDiagnosticChips(
-  total: number,
+  lastId: number,
   counts: DiagnosticCounts,
 ): [string, number, string][] {
   return [
-    ['Total', total, DIAGNOSTIC_CHIP_CLASSES],
+    ['Total', lastId, DIAGNOSTIC_CHIP_CLASSES],
     [
       'Errors',
       counts.errorCount,
@@ -561,20 +582,20 @@ function buildDiagnosticChips(
 // stays in DiagnosticsControl; this only renders what it is handed.
 function DiagnosticLogsPanel({
   entries,
-  total,
+  lastId,
   copied,
   counts,
   onClear,
   onCopy,
 }: {
   entries: DiagnosticLogEntry[];
-  total: number;
+  lastId: number;
   copied: boolean;
   counts: DiagnosticCounts;
   onClear: () => void;
   onCopy: () => void;
 }) {
-  const chips = buildDiagnosticChips(total, counts);
+  const chips = buildDiagnosticChips(lastId, counts);
 
   return (
     <>

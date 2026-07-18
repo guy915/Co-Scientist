@@ -462,7 +462,8 @@ describe('Layout', () => {
     });
     renderLayout('/runs/demo-ferroptosis/ideas');
 
-    fireEvent.click(await screen.findByRole('button', {name: /Logs 1/i}));
+    // The badge is numbered by the newest id (41), matching the "#41" row.
+    fireEvent.click(await screen.findByRole('button', {name: /Logs 41/i}));
 
     // Entering a run subpage must not swap the log for a run-scoped view:
     // the panel is the app-wide stream everywhere, numbered by store id.
@@ -518,11 +519,12 @@ describe('Layout', () => {
     expect(screen.getByText(/workflow exploded/)).toBeInTheDocument();
   });
 
-  it('shows the server total on the badge, not the fetched window size', async () => {
-    // The store holds 311 rows but the fetch window only returned 2: the
-    // badge and Total chip must report the server's count.
+  it('numbers the badge by the newest log id', async () => {
+    // The badge must agree with the visible "#id" numbering: it shows the
+    // newest log id, not the row count (ids survive a clear) and not the
+    // fetched window size.
     logsApiMock.getAppLogs.mockResolvedValue({
-      logs: [310, 311].map(id => ({
+      logs: [555, 556].map(id => ({
         id,
         created_at: 1_700_000_000 + id,
         level: 'INFO',
@@ -532,17 +534,19 @@ describe('Layout', () => {
         run_id: null,
         exc_text: null,
       })),
-      last_id: 311,
-      total: 311,
+      last_id: 556,
+      total: 399,
     });
     renderLayout();
 
-    const button = await screen.findByRole('button', {name: /Logs 311/i});
+    const button = await screen.findByRole('button', {name: /Logs 556/i});
     fireEvent.click(button);
-    expect(await screen.findByText('Total 311')).toBeInTheDocument();
+    expect(await screen.findByText('Total 556')).toBeInTheDocument();
+    // The panel window is the newest 100 records.
+    expect(logsApiMock.getAppLogs).toHaveBeenCalledWith(0, 100);
   });
 
-  it('renders log payloads without clamping or inner scrolling', async () => {
+  it('renders the message as plain text with the level in the meta row', async () => {
     logsApiMock.getAppLogs.mockResolvedValue({
       logs: [
         {
@@ -555,21 +559,38 @@ describe('Layout', () => {
           run_id: null,
           exc_text: null,
         },
+        {
+          id: 2,
+          created_at: 1_700_000_001,
+          level: 'ERROR',
+          levelno: 40,
+          logger: 'app.engine_adapter',
+          message: 'workflow exploded',
+          run_id: null,
+          exc_text: 'Traceback: boom',
+        },
       ],
-      last_id: 1,
-      total: 1,
+      last_id: 2,
+      total: 2,
     });
     const {container} = renderLayout();
 
-    fireEvent.click(await screen.findByRole('button', {name: /Logs 1/i}));
+    fireEvent.click(await screen.findByRole('button', {name: /Logs 2/i}));
     await screen.findByText(/wrap freely/);
 
-    const block = container.querySelector('.ucs-diagnostic-entry pre');
-    expect(block).not.toBeNull();
+    const blocks = container.querySelectorAll('.ucs-diagnostic-entry pre');
+    expect(blocks).toHaveLength(2);
+    // No JSON scaffolding: the block is the message itself, and a
+    // traceback follows on its own lines.
+    expect(blocks[0].textContent).toBe('a long message that must wrap freely');
+    expect(blocks[1].textContent).toBe('workflow exploded\n\nTraceback: boom');
+    // The level moved to the meta row instead of a payload field.
+    expect(screen.getByText('INFO')).toBeInTheDocument();
+    expect(screen.getByText('ERROR')).toBeInTheDocument();
     // The block grows with its content: text wraps, nothing scrolls.
-    expect(block!.className).toContain('whitespace-pre-wrap');
-    expect(block!.className).not.toContain('overflow-auto');
-    expect(block!.className).not.toContain('max-h');
+    expect(blocks[0].className).toContain('whitespace-pre-wrap');
+    expect(blocks[0].className).not.toContain('overflow-auto');
+    expect(blocks[0].className).not.toContain('max-h');
   });
 
   it('does not jump to the end while the user is scrolled up', async () => {
@@ -622,6 +643,59 @@ describe('Layout', () => {
 
     // Reading position is preserved; only opening the popover jumps down.
     expect(list.scrollTop).toBe(100);
+  });
+
+  it('keeps following the newest record at the window cap when pinned', async () => {
+    const record = (id: number) => ({
+      id,
+      created_at: 1_700_000_000 + id,
+      level: 'INFO',
+      levelno: 20,
+      logger: 'app.main',
+      message: `record ${id}`,
+      run_id: null,
+      exc_text: null,
+    });
+    logsApiMock.getAppLogs.mockResolvedValue({
+      logs: [record(1), record(2)],
+      last_id: 2,
+      total: 2,
+    });
+    renderLayout();
+
+    fireEvent.click(await screen.findByRole('button', {name: /Logs 2/i}));
+    const list = await screen.findByLabelText('Log events');
+
+    Object.defineProperty(list, 'scrollHeight', {
+      configurable: true,
+      value: 1000,
+    });
+    Object.defineProperty(list, 'clientHeight', {
+      configurable: true,
+      value: 100,
+    });
+    list.scrollTop = 900; // at the bottom: pinned
+    fireEvent.scroll(list);
+
+    // The window is at its cap: a new record replaces the oldest, so the
+    // entry COUNT stays the same and only the ids advance. Auto-follow
+    // must still fire for the pinned reader.
+    logsApiMock.getAppLogs.mockResolvedValue({
+      logs: [record(2), record(3)],
+      last_id: 3,
+      total: 3,
+    });
+    fireEvent(
+      window,
+      new CustomEvent(DIAGNOSTIC_EVENT, {
+        detail: {stage: 'LIFECYCLE', level: 'info', payload: {}},
+      }),
+    );
+    await screen.findByText(/record 3/);
+
+    // waitFor: the scroll happens in a passive effect after the render
+    // that findByText observed.
+    await waitFor(() => expect(list.scrollTop).toBe(1000));
   });
 
   it('shows the mock-mode status chip when /status reports mock mode', async () => {
