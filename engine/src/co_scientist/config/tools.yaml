@@ -20,9 +20,11 @@ servers:
 tools:
   search_tools:
     # The research group's own papers, held as sanitized full text on the MCP
-    # server rather than fetched from a publisher. Returns passages, not whole
-    # papers, so a hit lands in a prompt intact. Silently empty when no corpus
-    # is installed, which is the default.
+    # server rather than fetched from a publisher. This is the search half of
+    # a search-then-read pair: it returns passages so scoring can discriminate
+    # between paragraphs rather than blur whole papers together, and
+    # paper_corpus_fetch below reads the winner in full. Silently empty when
+    # no corpus is installed, which is the default.
     paper_corpus_search:
       server: "default_pubmed"
       mcp_tool_name: "search_paper_corpus"
@@ -46,7 +48,9 @@ tools:
         Use `search_paper_corpus` to search the user's own research group's published papers.
         - Consult it before external sources when the question touches the group's own methods
           or prior findings; it is the authoritative record of what they have already shown.
-        - Returns passages of full text, not abstracts, already attributed to their paper.
+        - Returns short passages, each with a `paper_id`. Passages are for locating the right
+          paper, not for reading it: when a passage looks relevant but does not settle the
+          question, call `fetch_paper(paper_id)` to read the whole thing.
         - Returns nothing when the group has no corpus installed; fall back to PubMed.
         - Example: search_paper_corpus(query="RAF dimerization paradoxical ERK activation")
 
@@ -59,6 +63,43 @@ tools:
           type: "integer"
           default: 5
           description: "Maximum number of passages to return"
+
+    # The read step after the search step, mirroring pubmed_search ->
+    # pubmed_fulltext. Papers run 8k-24k tokens, which is a small fraction of
+    # the configured models' context, so reading one in full is cheap when a
+    # passage is not enough.
+    paper_corpus_fetch:
+      server: "default_pubmed"
+      mcp_tool_name: "fetch_paper"
+      display_name: "Group Paper Full Text"
+      description: "Read one of the research group's own papers in full, by paper_id"
+      category: "search"
+      source_type: "academic"
+      enabled: true
+
+      response_format:
+        type: "json"
+        results_path: "."
+        is_dict: true
+        field_mapping:
+          title: "title"
+          content: "content"
+          source_id: "source_id"
+          source: "'group_corpus'"
+
+      prompt_snippet: |
+        Use `fetch_paper` to read one of the group's own papers in full.
+        - Takes a `paper_id` from a `search_paper_corpus` result.
+        - Use it when a passage is promising but incomplete: to check what a method actually
+          did, what the controls were, or what the paper concluded rather than claimed.
+        - Prefer one fetch of the right paper over many searches of the wrong one.
+        - Example: fetch_paper(paper_id="control-of-cell-state-transitions")
+
+      parameters:
+        paper_id:
+          type: "string"
+          required: true
+          description: "The paper_id returned by search_paper_corpus"
 
     # PubMed metadata search (used in draft phase)
     pubmed_search:
@@ -257,6 +298,7 @@ workflows:
     search_tools:
       - "pubmed_search"
       - "paper_corpus_search"
+      - "paper_corpus_fetch"
 
   # Validation phase - fulltext searches for novelty checking
   validation:
@@ -264,6 +306,7 @@ workflows:
       - "pubmed_fulltext"
       - "openalex_search"
       - "paper_corpus_search"
+      - "paper_corpus_fetch"
 
   reflection:
     search_tools:
@@ -272,6 +315,7 @@ workflows:
       - "chembl_search"
       - "uniprot_search"
       - "paper_corpus_search"
+      - "paper_corpus_fetch"
 
 # Global Settings
 settings:

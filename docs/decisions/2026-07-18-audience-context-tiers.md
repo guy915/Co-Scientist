@@ -96,13 +96,31 @@ The run path deliberately uses the literature channel rather than
 `run_setup_guidance`: literature reaches planning and query generation, while
 setup guidance reaches every tournament comparison.
 
-The MCP tool makes retrieval genuinely agentic — `call_llm_with_tools` lets
+The MCP side makes retrieval genuinely agentic — `call_llm_with_tools` lets
 generation, validation, and reflection agents query mid-reasoning rather than
-receiving a fixed set chosen up front. It carries a small self-contained
-scorer instead of importing the viewer's, because `mcp_server` is separately
-installable and must not depend on the web application; the alternative, a
-network hop back into the app, would make literature search depend on its own
-caller.
+receiving a fixed set chosen up front. It is a **pair**, mirroring
+`pubmed_search` → `pubmed_fulltext`: `search_paper_corpus` returns passages
+with a `paper_id`, and `fetch_paper` reads that paper in full.
+
+The pair exists because passages are the right unit for *finding* a paper and
+the wrong one for *reading* it. Chunking is what makes scoring discriminate —
+term-frequency over 15 whole documents blurs every paper together, while over
+627 passages it locates the paragraph. But a passage that raises a question
+cannot answer it, and papers here run 8k–24k tokens against a 1M-token model
+window, so reading one in full costs about 2% of the context. An earlier
+design offered only search, which left an agent able to find a promising
+passage and unable to read the rest.
+
+Both tools carry a small self-contained scorer instead of importing the
+viewer's, because `mcp_server` is separately installable and must not depend
+on the web application; the alternative, a network hop back into the app,
+would make literature search depend on its own caller. That duplication has
+already drifted once — the viewer split oversized paragraphs and the server
+did not, so a paper whose body was one long line came back as a single
+passage covering all of it. Both sides now split, and a test pins it.
+
+`fetch_paper` treats its `paper_id` as untrusted: it is model output, so the
+resolved path is checked to be inside the corpus directory.
 
 **Retrieved passages are not run evidence.** Chat renders them under their
 paper title with an explicit instruction not to cite them as `[n]` and not to

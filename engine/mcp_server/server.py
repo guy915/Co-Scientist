@@ -50,6 +50,7 @@ from mcp_server.tools.lit_review.pubmed_search_with_fulltext import (
     pubmed_search_with_fulltext,
 )
 from mcp_server.tools.lit_review.search_paper_corpus import (
+    fetch_paper,
     search_paper_corpus,
 )
 from mcp_server.tools.lit_review.search_pubmed import (
@@ -78,6 +79,7 @@ _MCP_TOOLS = (
     (pubmed_search_with_fulltext, "pubmed_search_with_fulltext"),
     (search_openalex, "search_openalex"),
     (search_paper_corpus, "search_paper_corpus"),
+    (fetch_paper, "fetch_paper"),
     (search_chembl, "search_chembl"),
     (search_uniprot, "search_uniprot"),
     (query_gene_disease_network, "query_gene_disease_network"),

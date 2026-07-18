@@ -51,12 +51,38 @@ def _paragraphs(text: str) -> list[str]:
     return paragraphs
 
 
+def _split_oversized(paragraphs: list[str], budget: int) -> list[str]:
+    """Break any paragraph larger than the budget on sentence boundaries.
+
+    Kept in step with `app.paper_corpus`. Without it a passage is only as
+    small as the largest paragraph, so a flattened table -- or any paper
+    whose body arrives as one long line -- yields a single passage that is
+    effectively the whole paper, defeating the point of searching passages.
+    """
+    out: list[str] = []
+    for paragraph in paragraphs:
+        if len(paragraph) <= budget:
+            out.append(paragraph)
+            continue
+        part: list[str] = []
+        size = 0
+        for sentence in re.split(r"(?<=[.?!])\s+", paragraph):
+            if size and size + len(sentence) > budget:
+                out.append(" ".join(part))
+                part, size = [], 0
+            part.append(sentence)
+            size += len(sentence) + 1
+        if part:
+            out.append(" ".join(part))
+    return out
+
+
 def _chunk(title: str, text: str) -> list[tuple[str, str]]:
     """Split one paper into (title, passage) pairs."""
     chunks: list[tuple[str, str]] = []
     current: list[str] = []
     size = 0
-    for paragraph in _paragraphs(text):
+    for paragraph in _split_oversized(_paragraphs(text), _TARGET_CHUNK_CHARS):
         if size and size + len(paragraph) > _TARGET_CHUNK_CHARS:
             chunks.append((title, " ".join(current)))
             current, size = [], 0
@@ -68,19 +94,20 @@ def _chunk(title: str, text: str) -> list[tuple[str, str]]:
 
 
 @lru_cache(maxsize=1)
-def _index() -> tuple[list[tuple[str, str]], dict[str, float]]:
+def _index() -> tuple[list[tuple[str, str, str]], dict[str, float]]:
     """Load, chunk, and index the corpus once per process.
 
     Returns:
-        The passages as (title, text) pairs, and the per-term idf weights.
-        Both are empty when no corpus is installed.
+        The passages as (paper_id, title, text) triples, and the per-term idf
+        weights. Both are empty when no corpus is installed. The paper_id is
+        carried so a search hit can be followed by `fetch_paper`.
     """
     root = Path(os.environ.get(CORPUS_ENV_VAR, ""))
     if not root or not root.is_dir():
         logger.info("No paper corpus configured at %s", CORPUS_ENV_VAR)
         return [], {}
 
-    passages: list[tuple[str, str]] = []
+    passages: list[tuple[str, str, str]] = []
     for path in sorted(root.iterdir()):
         if path.suffix not in (".md", ".txt"):
             continue
@@ -91,15 +118,51 @@ def _index() -> tuple[list[tuple[str, str]], dict[str, float]]:
             continue
         first = text.lstrip().split("\n", 1)[0].strip()
         title = first[2:].strip() if first.startswith("# ") else path.stem
-        passages.extend(_chunk(title, text))
+        passages.extend(
+            (path.stem, chunk_title, body)
+            for chunk_title, body in _chunk(title, text)
+        )
 
     df: Counter[str] = Counter()
-    for _, body in passages:
+    for _, _, body in passages:
         df.update(set(_tokenize(body)))
     n = len(passages) or 1
     idf = {term: math.log(1 + n / (1 + c)) for term, c in df.items()}
     logger.info("Indexed %d passages from %s", len(passages), root)
     return passages, idf
+
+
+def fetch_paper(paper_id: str) -> str:
+    """Fetches one paper from the group's corpus in full.
+
+    The natural follow-up to `search_paper_corpus`: search locates the paper
+    and the relevant passage, this reads the whole thing when a passage is
+    not enough to settle the question.
+
+    Args:
+        paper_id: The `paper_id` from a search result.
+
+    Returns:
+        A JSON object with the paper's title and complete sanitized text, or
+        an empty object when the id is unknown or no corpus is installed.
+    """
+    root = Path(os.environ.get(CORPUS_ENV_VAR, ""))
+    if not root or not root.is_dir():
+        return json.dumps({})
+    # Resolve inside the corpus directory and confirm the result is still
+    # within it, so a crafted id cannot walk out into the filesystem.
+    for suffix in (".md", ".txt"):
+        path = (root / f"{paper_id}{suffix}").resolve()
+        if not path.is_file() or root.resolve() not in path.parents:
+            continue
+        text = path.read_text(encoding="utf-8", errors="replace")
+        first = text.lstrip().split("\n", 1)[0].strip()
+        title = first[2:].strip() if first.startswith("# ") else path.stem
+        return json.dumps(
+            {paper_id: {"title": title, "content": text, "source_id": paper_id}}
+        )
+    logger.info("No paper in corpus with id %s", paper_id)
+    return json.dumps({})
 
 
 def search_paper_corpus(query: str, max_passages: int = 5) -> str:
@@ -111,9 +174,9 @@ def search_paper_corpus(query: str, max_passages: int = 5) -> str:
         max_passages: Maximum number of passages to return.
 
     Returns:
-        A JSON object keyed by passage id, each with the source paper's title
-        and the matching text. Empty when no corpus is installed or nothing
-        matched.
+        A JSON object keyed by passage id, each with the source paper's title,
+        the matching text, and the `paper_id` to pass to `fetch_paper` for the
+        full text. Empty when no corpus is installed or nothing matched.
     """
     passages, idf = _index()
     if not passages:
@@ -121,7 +184,7 @@ def search_paper_corpus(query: str, max_passages: int = 5) -> str:
 
     terms = _tokenize(query)
     scored: list[tuple[float, int]] = []
-    for position, (_, body) in enumerate(passages):
+    for position, (_, _, body) in enumerate(passages):
         tokens = _tokenize(body)
         counts = Counter(tokens)
         length = len(tokens) or 1
@@ -136,10 +199,11 @@ def search_paper_corpus(query: str, max_passages: int = 5) -> str:
 
     results = {}
     for score, position in scored[: max(1, max_passages)]:
-        title, body = passages[position]
+        paper_id, title, body = passages[position]
         results[f"corpus-{position:04d}"] = {
             "title": title,
             "abstract": body,
+            "paper_id": paper_id,
             "score": round(score, 6),
         }
     return json.dumps(results)

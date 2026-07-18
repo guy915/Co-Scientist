@@ -1,7 +1,7 @@
-"""Tests for the local paper-corpus search tool.
+"""Tests for the local paper-corpus search and fetch tools.
 
-The real corpus is git-ignored publisher content, so each test builds its
-own in a temp directory and points the tool at it.
+Each test builds its own corpus in a temp directory rather than reading the
+committed one, so behaviour is pinned to fixed inputs.
 """
 
 import json
@@ -9,9 +9,11 @@ from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
-
 from mcp_server.tools.lit_review import search_paper_corpus as module
-from mcp_server.tools.lit_review.search_paper_corpus import search_paper_corpus
+from mcp_server.tools.lit_review.search_paper_corpus import (
+    fetch_paper,
+    search_paper_corpus,
+)
 
 
 @pytest.fixture(autouse=True)
@@ -70,3 +72,52 @@ def test_results_are_deterministic(corpus: Path) -> None:
     once = search_paper_corpus("phosphorylation", 5)
     module._index.cache_clear()
     assert search_paper_corpus("phosphorylation", 5) == once
+
+
+def test_search_then_fetch_reads_the_whole_paper(corpus: Path) -> None:
+    """The two tools compose: search locates, fetch reads.
+
+    A passage is for deciding which paper matters; it is not the paper. An
+    agent that finds a promising passage has to be able to read the rest.
+    """
+    hit = next(iter(json.loads(search_paper_corpus("trametinib", 1)).values()))
+    full = json.loads(fetch_paper(hit["paper_id"]))
+    body = next(iter(full.values()))
+    assert body["title"] == hit["title"]
+    # The whole paper, not the passage that led to it.
+    assert len(body["content"]) > len(hit["abstract"])
+
+
+def test_fetch_rejects_an_unknown_paper(corpus: Path) -> None:
+    assert json.loads(fetch_paper("no-such-paper")) == {}
+
+
+def test_fetch_refuses_to_escape_the_corpus_directory(
+    corpus: Path, tmp_path: Path
+) -> None:
+    """A paper_id is model output, so it is treated as untrusted input."""
+    (tmp_path / "secret.md").write_text("# Secret\n\nnope", encoding="utf-8")
+    assert json.loads(fetch_paper("../secret")) == {}
+    assert json.loads(fetch_paper("/etc/hosts")) == {}
+
+
+def test_fetch_without_a_corpus_returns_empty(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv(module.CORPUS_ENV_VAR, raising=False)
+    assert json.loads(fetch_paper("anything")) == {}
+
+
+def test_a_body_on_one_long_line_still_yields_several_passages(
+    corpus: Path,
+) -> None:
+    """Search must return passages even when the paper has no line breaks.
+
+    This scorer is a second implementation of the viewer's, and it drifted:
+    the viewer split oversized paragraphs and this did not, so a paper whose
+    body is one long line came back as a single passage covering all of it.
+    """
+    results = json.loads(search_paper_corpus("trametinib MEK", 10))
+    assert len(results) > 1
+    longest = max(len(v["abstract"]) for v in results.values())
+    assert longest <= module._TARGET_CHUNK_CHARS * 2
