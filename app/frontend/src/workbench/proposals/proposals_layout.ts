@@ -36,11 +36,11 @@ export interface Point {
 // their hulls line up exactly rather than approximately.
 //
 // The corner legends are fixed-size HTML overlaying the canvas, so the
-// narrower the window the more canvas they cover — at 1280px wide they
-// reach y=286 and x=195/1223. Two rows plus that band do not fit in 800
-// units, so the top row clears the legends horizontally instead: its two
-// clusters are inset to sit between them, while the bottom row is free to
-// use the full width.
+// narrower the window the more canvas they cover — around 1280px wide they
+// reach x=226 on the left and x=1191 on the right. The top row is inset to
+// keep clear of them at comfortable widths, but not far enough to clear
+// them on a small window: below roughly 1400px the left card covers the
+// start of the Evaluation rigor label.
 const ROW = {top: 295, bottom: 640};
 
 // Cluster anchors. The top row takes the middle two clusters by width and
@@ -61,8 +61,8 @@ interface Ring {
 type Rings = Record<ClusterId, Ring>;
 
 const RINGS: Rings = {
-  evaluation: {center: {x: 442, y: ROW.top}, rx: 122, ry: 85, start: -90},
-  interaction: {center: {x: 976, y: ROW.top}, rx: 122, ry: 85, start: -90},
+  evaluation: {center: {x: 419, y: ROW.top}, rx: 146, ry: 85, start: -90},
+  interaction: {center: {x: 981, y: ROW.top}, rx: 146, ry: 85, start: -90},
   capabilities: {center: {x: 317, y: ROW.bottom}, rx: 185, ry: 85, start: -90},
   knowledge: {center: {x: 763, y: ROW.bottom}, rx: 0, ry: 85, start: -90},
   scaling: {center: {x: 1146, y: ROW.bottom}, rx: 130, ry: 85, start: -90},
