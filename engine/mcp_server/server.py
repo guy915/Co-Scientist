@@ -53,27 +53,43 @@ from mcp_server.tools.lit_review.search_pubmed import (
     check_pubmed_available,
     search_pubmed,
 )
+from mcp_server.tools.web import read_url, search_web
+from mcp_server.tools.web.providers import resolve_provider
 
 logger = logging.getLogger(__name__)
 
 # Log startup configuration
 entrez_email_present = bool(os.environ.get("ENTREZ_EMAIL"))
 
+# A web search provider is optional. When no provider key is configured the
+# search_web tool is left unregistered rather than registered and always
+# failing, so agents never spend a tool-calling turn on a capability this
+# deployment cannot serve. read_url needs no key and is always available.
+_web_provider = resolve_provider()
+web_search_provider = _web_provider[0] if _web_provider else None
+
 logger.info("MCP server starting")
-logger.debug("API keys present: ENTREZ_EMAIL=%s", entrez_email_present)
+logger.debug(
+    "API keys present: ENTREZ_EMAIL=%s, web_search_provider=%s",
+    entrez_email_present,
+    web_search_provider or "none",
+)
 
 # FastMCP app exposing the tools below over the MCP protocol (JSON-RPC over
 # HTTP, given stateless_http=True above).
 mcp = FastMCP("co-scientist-lit-review")
 
-# Registered MCP tools in advertised order: literature review followed by INDRA
-# CoGex knowledge-graph tools. The ``/`` handler derives its ``mcp_tools``
-# manifest from this same list so registration and manifest cannot drift.
+# Registered MCP tools in advertised order: literature review, web access,
+# then INDRA CoGex knowledge-graph tools. The ``/`` handler derives its
+# ``mcp_tools`` manifest from this same list so registration and manifest
+# cannot drift.
 _MCP_TOOLS = (
     (check_pubmed_available, "check_pubmed_available"),
     (search_pubmed, "search_pubmed"),
     (pubmed_search_with_fulltext, "pubmed_search_with_fulltext"),
     (search_openalex, "search_openalex"),
+    *(((search_web, "search_web"),) if web_search_provider else ()),
+    (read_url, "read_url"),
     (search_chembl, "search_chembl"),
     (search_uniprot, "search_uniprot"),
     (query_gene_disease_network, "query_gene_disease_network"),
@@ -124,11 +140,13 @@ async def root() -> JSONResponse:
             "mcp_tools": [name for _, name in _MCP_TOOLS],
             "api_keys_configured": {
                 "ENTREZ_EMAIL": entrez_email_present,
+                "WEB_SEARCH": web_search_provider is not None,
             },
             "integrations": {
                 "indra_cogex": os.getenv(
                     "INDRA_COGEX_URL", "https://discovery.indra.bio"
                 ),
+                "web_search_provider": web_search_provider,
             },
         }
     )

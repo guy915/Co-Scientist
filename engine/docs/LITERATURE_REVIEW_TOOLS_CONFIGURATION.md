@@ -318,6 +318,7 @@ The `source_type` field determines query generation strategy:
 | `"pubmed"` | Boolean (AND/OR/NOT) | PubMed-specific syntax |
 | `"academic"` | Natural language | General academic search (Google Scholar) |
 | `"preprint"` | Natural language | arXiv, bioRxiv, etc. |
+| `"web"` | Natural language | Open-web search (see [Web Search](WEB_SEARCH.md)) |
 | `"knowledge_graph"` | Gene/protein names | INDRA, STRING, etc. |
 | `"vulnerability_database"` | Topic keywords | NVD/CVE databases |
 

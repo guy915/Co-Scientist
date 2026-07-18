@@ -45,10 +45,25 @@ server, which is separately installable, separately deployed (the Railway
 
 A search tool alone returns a list of links, which an agent cannot act on.
 The pairing is what makes browsing agentic: the model searches, reads the
-promising hits, and searches again with what it learned. Both tools are
-registered in the `draft_generation`, `validation`, and `reflection`
-workflows, which run through `call_llm_with_tools` — the model chooses when
-and whether to call them, and how to follow up.
+promising hits, and searches again with what it learned.
+
+The agentic loop lives in one place: the `draft_generation` workflow, which
+runs through `call_llm_with_tools`. Both tools are registered there, and the
+model chooses when and whether to call them. That loop is gated on
+`enable_tool_calling_generation`, an engine option (the web app does not
+expose it yet), so agentic browsing is reached through the library API.
+
+`validation` and `reflection` are **not** tool-calling loops — they are
+direct-call paths. Validation picks the first search-category tool in order
+(novelty should be checked against academic sources, so web is excluded), and
+reflection queries knowledge graphs by entity, not free text. Wiring web into
+them would be inert at best and mis-invoked at worst, so it is left out.
+
+The second, non-agentic path is the `literature_review` node: a config can
+list `web_search` as a search source with `read_url` as its content tool.
+This is a fixed search-then-read pipeline, not model-driven, but it is how a
+running deployment (which selects behavior through its tools YAML) uses the
+web. It is opt-in — see below.
 
 ### Provider abstraction
 
@@ -150,13 +165,10 @@ not accidentally regressed later.
   (web providers take neither a corpus slug nor a publication-year filter;
   recency is expressed in days).
 - `read_tools.read_url`.
-- Both added to `workflows.draft_generation`, `workflows.validation`, and
-  `workflows.reflection`.
-
-Deliberately **not** added to `workflows.literature_review.search_sources`.
-That node is the evidence-grounding path, and its citations are quality-gated
-against academic sources; mixing arbitrary web pages into it silently changes
-what a "verified citation" means. Domains that want it opt in explicitly.
+- Both added to `workflows.draft_generation` only — the one tool-calling
+  loop. Left out of `validation` and `reflection` (direct-call paths where
+  web tools are inert or ill-fitting) and out of
+  `literature_review.search_sources` (the quality-gated grounding path).
 
 **`src/co_scientist/config/examples/web_research.yaml`** — a new example for
 exactly that opt-in: web as a first-class literature-review source, with
