@@ -192,6 +192,7 @@ def build_system_prompt(
     history: list[Any],
     manifest: list[dict[str, Any]],
     audience_context: str = "",
+    corpus_passages: str = "",
 ) -> str:
     """Assemble the grounded-Q&A system prompt from a run's current state.
 
@@ -204,6 +205,8 @@ def build_system_prompt(
         manifest: The numbered evidence manifest for citation grounding.
         audience_context: Optional background about the user's field, appended
             when non-empty so answers are aware of the audience's research.
+        corpus_passages: Optional passages retrieved from the audience's own
+            papers for this question, appended when non-empty.
 
     Returns:
         The system prompt string.
@@ -259,6 +262,17 @@ def build_system_prompt(
         prompt += (
             f"\n\nBackground about the user's field:\n"
             f"{audience_context.strip()}"
+        )
+    # Passages are real published text, unlike the background, so they may be
+    # quoted and must be attributed -- but by paper title, since they are not
+    # in the numbered manifest and [n] has to keep resolving to it.
+    if corpus_passages.strip():
+        prompt += (
+            f"\n\nPassages from the user's own group's published papers, "
+            f"retrieved for this question. Attribute anything you take from "
+            f"them by paper title, never as [n]. They are the group's prior "
+            f"work, not results from this run -- do not present them as "
+            f"findings this run produced:\n{corpus_passages.strip()}"
         )
     return prompt
 

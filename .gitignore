@@ -59,3 +59,8 @@ cache/
 .agents/
 .claude/
 .remember/
+
+# Lab paper corpus: publisher-copyrighted full text, and this repo is public.
+# Rebuild with: python -m app.corpus_ingest <pdf-dir>
+corpus/*
+!corpus/README.md

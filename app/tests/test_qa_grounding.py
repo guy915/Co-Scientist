@@ -102,6 +102,41 @@ def test_system_prompt_separates_background_from_run_claims() -> None:
     )
 
 
+def test_system_prompt_marks_corpus_passages_as_prior_work() -> None:
+    """Retrieved passages are the group's own papers, not this run's output.
+
+    They are quotable and must be attributed by title, but they are not in
+    the numbered manifest, so [n] must not be used for them -- and they must
+    not be reported as findings this run produced.
+    """
+    prompt = build_system_prompt(
+        research_goal="A goal",
+        hypotheses=[],
+        reviews=[],
+        matches=[],
+        history=[],
+        manifest=build_evidence_manifest([_evidence("e1")], []),
+        corpus_passages='From "Control of cell state transitions":\nThe STV.',
+    )
+    lowered = prompt.lower()
+    assert "control of cell state transitions" in lowered
+    assert "attribute anything you take from them by paper title" in lowered
+    assert "not results from this run" in lowered
+
+
+def test_system_prompt_omits_the_corpus_section_when_empty() -> None:
+    """No corpus installed must not leave an empty heading in the prompt."""
+    prompt = build_system_prompt(
+        research_goal="A goal",
+        hypotheses=[],
+        reviews=[],
+        matches=[],
+        history=[],
+        manifest=build_evidence_manifest([_evidence("e1")], []),
+    )
+    assert "published papers" not in prompt.lower()
+
+
 def test_manifest_keeps_strongest_state_per_evidence() -> None:
     """When an item is cited by several claims, the strongest state wins."""
     evidence = [_evidence("e1")]

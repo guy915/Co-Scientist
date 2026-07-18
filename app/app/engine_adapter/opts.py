@@ -10,7 +10,7 @@ from __future__ import annotations
 import os
 from typing import Any
 
-from app import run_corpus, store
+from app import paper_corpus, run_corpus, store
 from app.config import settings
 from app.run_modes import (
     clean_string_list,
@@ -142,15 +142,28 @@ def _build_engine_opts(
     initial_opts["enable_literature_review_node"] = (
         _resolve_literature_review_toggle(cfg)
     )
+    goal = str((cfg.get("setup") or {}).get("goal") or "")
     private_sources = run_corpus.engine_context_sources(
         store.list_evidence(run_id, db_path=db_path),
-        str((cfg.get("setup") or {}).get("goal") or ""),
+        goal,
     )
+    literature = [str(item["display"]) for item in private_sources]
     if private_sources:
         initial_opts["context_enrichment_sources"] = private_sources
-        initial_opts["user_inputs"] = {
-            "literature": [str(item["display"]) for item in private_sources]
-        }
+    # The audience's own papers, retrieved against this run's goal. They join
+    # the literature channel rather than run_setup_guidance deliberately:
+    # literature reaches planning and query generation, while setup guidance
+    # reaches every tournament comparison, and ranking is roughly quadratic.
+    literature.extend(
+        paper_corpus.format_passages([hit])
+        for hit in paper_corpus.retrieve_for(
+            str(cfg.get("audience") or ""),
+            goal,
+            k=paper_corpus.RUN_PASSAGES,
+        )
+    )
+    if literature:
+        initial_opts["user_inputs"] = {"literature": literature}
     return initial_opts
 
 

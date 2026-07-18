@@ -49,6 +49,9 @@ from mcp_server.tools.lit_review.openalex_search import search_openalex
 from mcp_server.tools.lit_review.pubmed_search_with_fulltext import (
     pubmed_search_with_fulltext,
 )
+from mcp_server.tools.lit_review.search_paper_corpus import (
+    search_paper_corpus,
+)
 from mcp_server.tools.lit_review.search_pubmed import (
     check_pubmed_available,
     search_pubmed,
@@ -74,6 +77,7 @@ _MCP_TOOLS = (
     (search_pubmed, "search_pubmed"),
     (pubmed_search_with_fulltext, "pubmed_search_with_fulltext"),
     (search_openalex, "search_openalex"),
+    (search_paper_corpus, "search_paper_corpus"),
     (search_chembl, "search_chembl"),
     (search_uniprot, "search_uniprot"),
     (query_gene_disease_network, "query_gene_disease_network"),

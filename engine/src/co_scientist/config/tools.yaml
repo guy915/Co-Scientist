@@ -19,6 +19,47 @@ servers:
 # Organized by category: search_tools, read_tools, utility_tools
 tools:
   search_tools:
+    # The research group's own papers, held as sanitized full text on the MCP
+    # server rather than fetched from a publisher. Returns passages, not whole
+    # papers, so a hit lands in a prompt intact. Silently empty when no corpus
+    # is installed, which is the default.
+    paper_corpus_search:
+      server: "default_pubmed"
+      mcp_tool_name: "search_paper_corpus"
+      display_name: "Group Paper Corpus"
+      description: "Search the research group's own published papers for passages on a topic"
+      category: "search"
+      source_type: "academic"
+      enabled: true
+
+      response_format:
+        type: "json"
+        results_path: "."
+        is_dict: true
+        field_mapping:
+          title: "title"
+          abstract: "abstract"
+          source_id: "@key"
+          source: "'group_corpus'"
+
+      prompt_snippet: |
+        Use `search_paper_corpus` to search the user's own research group's published papers.
+        - Consult it before external sources when the question touches the group's own methods
+          or prior findings; it is the authoritative record of what they have already shown.
+        - Returns passages of full text, not abstracts, already attributed to their paper.
+        - Returns nothing when the group has no corpus installed; fall back to PubMed.
+        - Example: search_paper_corpus(query="RAF dimerization paradoxical ERK activation")
+
+      parameters:
+        query:
+          type: "string"
+          required: true
+          description: "Search terms; technical vocabulary works best"
+        max_passages:
+          type: "integer"
+          default: 5
+          description: "Maximum number of passages to return"
+
     # PubMed metadata search (used in draft phase)
     pubmed_search:
       server: "default_pubmed"
@@ -215,12 +256,14 @@ workflows:
   draft_generation:
     search_tools:
       - "pubmed_search"
+      - "paper_corpus_search"
 
   # Validation phase - fulltext searches for novelty checking
   validation:
     search_tools:
       - "pubmed_fulltext"
       - "openalex_search"
+      - "paper_corpus_search"
 
   reflection:
     search_tools:
@@ -228,6 +271,7 @@ workflows:
       - "openalex_search"
       - "chembl_search"
       - "uniprot_search"
+      - "paper_corpus_search"
 
 # Global Settings
 settings:

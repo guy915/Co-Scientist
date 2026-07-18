@@ -53,38 +53,79 @@ injection sites and token budgets. Those address whoever edits the file, not
 the model, and shipping them wasted roughly 100 tokens per call explaining
 the cost of the very call they rode in.
 
-## Rejected: retrieval over the paper corpus
+## The paper corpus: retrieval, not injection
 
-Fifteen PDFs extract to about **336k tokens** of text — seventeen times the
-overview, and the smallest single paper still exceeds the entire run-path
-budget. Nothing near that can be injected, so using the corpus means building
-extraction, chunking, embeddings, a store, and a retrieval tool.
+Fifteen PDFs extract to about **331k tokens**. Sanitation removes roughly a
+third — references alone are 21% — leaving **~223k tokens**, still some 250×
+the run-path budget and larger than most context windows. Injection was never
+on the table; the only question was how retrieval reaches an agent.
 
-We did not build it, because the papers are published with DOIs and PubMed
-IDs and the literature-review agent already searches PubMed. Instead the
-profile names the methods (cSTAR, MRA, BMRA, STV, DPD) and the reference
-lists the canonical papers, so those names shape the queries literature
-review generates and the real papers come back through the existing channel.
-Literature review is query-driven and accepts no seed references, which is
-why the route is indirect.
+**Sanitation.** `app/app/corpus_ingest.py` extracts with `pdftotext` and
+strips references, back matter, repeated page furniture, and figure debris.
+Two cases needed more than a heading match: journals vary the wording
+("REFERENCES AND NOTES"), and PNAS prints no heading at all — the
+bibliography simply starts as a numbered list. The latter is detected by
+citation density, then walked *backwards* to the first entry, because long
+entries wrap onto continuation lines that dilute any forward window and leave
+the opening references behind. Two citation lines survive across the corpus.
 
-Revisit when runs demonstrably cite adjacent literature while missing the
-group's own work. That is the signal; absent it, this is speculative
-infrastructure.
+**Chunks are documents.** A whole paper is ~22k tokens, so retrieving one is
+no better than injecting it. Splitting papers into ~450-token passages makes
+each a `CorpusDocument`, which the existing `KeywordCorpusRetriever` already
+scores — chunking was the only missing piece, not retrieval. Oversized
+paragraphs are split on sentence boundaries so one flattened table cannot
+produce a passage that crowds out a prompt.
 
-## Constraint for whoever builds it
+**Keyword scoring, not embeddings.** No vector infrastructure exists anywhere
+in the repo, so RAG means a new dependency and a store. It also would not
+obviously win: this corpus is jargon-dense (STV, DPD, BMRA, trametinib,
+SH-SY5Y) and queries share that vocabulary, which is where term-frequency
+scoring is strongest and vocabulary mismatch is mildest. `CorpusRetriever`
+remains the seam, so a vector backend can replace this without touching
+callers.
+
+**Three access paths, each querying at a moment when a query exists:**
+
+| Surface | Query | Passages |
+|---|---|---|
+| Chat Q&A | the user's question | 6 |
+| Run planning | the research goal | 4, via `user_inputs["literature"]` |
+| `search_paper_corpus` MCP tool | whatever the agent asks | agent's choice |
+
+The run path deliberately uses the literature channel rather than
+`run_setup_guidance`: literature reaches planning and query generation, while
+setup guidance reaches every tournament comparison.
+
+The MCP tool makes retrieval genuinely agentic — `call_llm_with_tools` lets
+generation, validation, and reflection agents query mid-reasoning rather than
+receiving a fixed set chosen up front. It carries a small self-contained
+scorer instead of importing the viewer's, because `mcp_server` is separately
+installable and must not depend on the web application; the alternative, a
+network hop back into the app, would make literature search depend on its own
+caller.
+
+**Retrieved passages are not run evidence.** Chat renders them under their
+paper title with an explicit instruction not to cite them as `[n]` and not to
+present them as findings this run produced. `[n]` must keep resolving to the
+numbered manifest.
+
+## Constraints
 
 **Extract text; never hand an agent PDF binary.** Engine calls go through
 LiteLLM as text prompts and there is no PDF input path, so binary is not
 merely wasteful here — it does not work.
 
-Quality notes from extracting the corpus with `pdftotext`:
+**The corpus stays out of git.** It is publisher-copyrighted full text and
+this repository is public, so `corpus/` is ignored except its README, and the
+location is configurable via `SBI_CORPUS_DIR`. An absent corpus is the normal
+state of a checkout: retrieval returns nothing and every surface falls back.
 
-- Body prose comes out clean, with column order preserved.
-- **Figure labels and equations fragment** into isolated glyphs ("ST", "V",
-  "Hyperplane" on separate lines). Any ingestion needs to drop short
-  fragmented lines, and must not treat that noise as content.
-- The maths largely does not survive. For MRA and cSTAR the equations *are*
-  the contribution, so the group's own overview document — which carries them
-  as clean LaTeX — is the better source for notation, and the papers are the
-  better source for findings and method prose.
+**Retrieval is audience-gated.** One group's library is never served to
+another audience.
+
+Quality notes from `pdftotext`: body prose comes out clean with column order
+preserved, but **figure labels and equations fragment** into isolated glyphs,
+which is why short unpunctuated lines are dropped. The maths largely does not
+survive — for MRA and cSTAR the equations *are* the contribution, so the
+group's overview document (clean LaTeX) remains the better source for
+notation, and the papers are the better source for findings prose.

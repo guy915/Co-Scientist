@@ -59,6 +59,7 @@ from app import (
     engine_adapter,
     engine_tasks,
     human_input,
+    paper_corpus,
     qa,
     run_corpus,
     store,
@@ -1190,6 +1191,13 @@ async def ask_question(run_id: str, req: AskRequest) -> StreamingResponse:
         history,
         manifest,
         audience_context=audience_chat_context(req.audience),
+        corpus_passages=paper_corpus.format_passages(
+            paper_corpus.retrieve_for(
+                req.audience,
+                req.question,
+                k=paper_corpus.CHAT_PASSAGES,
+            )
+        ),
     )
     return StreamingResponse(
         qa.stream_answer(
