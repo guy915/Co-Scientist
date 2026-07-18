@@ -12,10 +12,13 @@ import {
   type Edge,
 } from './proposals_data';
 
-export const CANVAS = {width: 1200, height: 800};
+// Wider than tall, and closer to the shape of the window than a 3:2 canvas
+// would be: the graph is fitted with `meet`, so a canvas whose proportions
+// disagree with the viewport is letterboxed and everything renders smaller.
+export const CANVAS = {width: 1400, height: 800};
 
 /** Node box, in canvas units. Labels wrap to at most two lines inside it. */
-export const NODE = {width: 152, height: 44};
+export const NODE = {width: 178, height: 52};
 
 export interface Point {
   x: number;
@@ -23,10 +26,15 @@ export interface Point {
 }
 
 // The two rows every cluster sits on. Clusters share a row's center line so
-// their hulls line up exactly rather than approximately. The top row starts
-// low enough to clear the corner legends, which overlay the canvas down to
-// roughly y=140 in these coordinates.
-const ROW = {top: 290, bottom: 630};
+// their hulls line up exactly rather than approximately.
+//
+// The corner legends are fixed-size HTML overlaying the canvas, so the
+// narrower the window the more canvas they cover — at 1280px wide they
+// reach y=286 and x=195/1223. Two rows plus that band do not fit in 800
+// units, so the top row clears the legends horizontally instead: its two
+// clusters are inset to sit between them, while the bottom row is free to
+// use the full width.
+const ROW = {top: 295, bottom: 640};
 
 // Cluster anchors, hand-placed so that the clusters with the most traffic
 // between them sit adjacent and long edges stay rare. `rx`/`ry` size the
@@ -38,11 +46,14 @@ const RINGS: Record<
   ClusterId,
   {center: Point; rx: number; ry: number; start: number}
 > = {
-  evaluation: {center: {x: 420, y: ROW.top}, rx: 130, ry: 84, start: -90},
-  scaling: {center: {x: 900, y: ROW.top}, rx: 118, ry: 84, start: -90},
-  interaction: {center: {x: 235, y: ROW.bottom}, rx: 115, ry: 84, start: -90},
-  knowledge: {center: {x: 600, y: ROW.bottom}, rx: 0, ry: 84, start: -90},
-  capabilities: {center: {x: 965, y: ROW.bottom}, rx: 125, ry: 84, start: -90},
+  evaluation: {center: {x: 442, y: ROW.top}, rx: 122, ry: 85, start: -90},
+  scaling: {center: {x: 976, y: ROW.top}, rx: 141, ry: 85, start: -90},
+  // rx has to keep the two nodes that share a y on the ring from colliding:
+  // for five nodes those sit 1.176*rx apart, so rx below ~170 overlaps at
+  // this node width.
+  capabilities: {center: {x: 321, y: ROW.bottom}, rx: 185, ry: 85, start: -90},
+  knowledge: {center: {x: 761, y: ROW.bottom}, rx: 0, ry: 85, start: -90},
+  interaction: {center: {x: 1140, y: ROW.bottom}, rx: 115, ry: 85, start: -90},
 };
 
 // The furthest any node sits from its row's center line. Every hull is drawn

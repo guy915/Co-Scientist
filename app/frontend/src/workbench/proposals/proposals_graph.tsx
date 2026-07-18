@@ -207,11 +207,11 @@ export function ProposalsGraph({
                 y={-NODE.height / 2}
                 width={NODE.width}
                 height={NODE.height}
-                rx={10}
+                rx={12}
               />
-              <text textAnchor="middle" y={lines.length === 1 ? 4 : -3}>
+              <text textAnchor="middle" y={lines.length === 1 ? 5 : -4}>
                 {lines.map((line, lineIndex) => (
-                  <tspan key={line} x={0} dy={lineIndex === 0 ? 0 : 14}>
+                  <tspan key={line} x={0} dy={lineIndex === 0 ? 0 : 16}>
                     {line}
                   </tspan>
                 ))}
