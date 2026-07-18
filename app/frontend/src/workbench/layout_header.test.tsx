@@ -5,9 +5,8 @@ import {type Audience, AudienceProvider} from './audience_context';
 import {GOOGLE_NOTE} from './audience_content';
 import {ShellHeader} from './layout_header';
 
-// Seeding localStorage would not drive this: the provider deliberately drops
-// the stored value on mount while the mode controls are being designed (see
-// RESTORE_ON_MOUNT), so the audience is declared to the provider directly.
+// The audience is declared to the provider directly rather than seeded into
+// localStorage, so these cases do not depend on the storage read.
 function renderHeader(audience?: Audience) {
   return render(
     <MemoryRouter>
