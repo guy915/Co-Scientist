@@ -86,6 +86,15 @@ def _common_parser() -> argparse.ArgumentParser:
         ),
     )
     common.add_argument(
+        "--logs-token",
+        default=os.environ.get("COSCIENTIST_LOGS_TOKEN"),
+        metavar="TOKEN",
+        help=(
+            "admin token for the app-wide log view when the API is not "
+            "local (env COSCIENTIST_LOGS_TOKEN)"
+        ),
+    )
+    common.add_argument(
         "--timeout",
         type=float,
         default=_default_timeout(),
@@ -503,6 +512,7 @@ def main(argv: list[str] | None = None) -> int:
     client = ApiClient(
         args.api_url,
         args.client_id,
+        logs_token=args.logs_token,
         timeout=args.timeout,
         verbose=args.verbose,
     )

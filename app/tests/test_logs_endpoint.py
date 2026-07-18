@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 
 from app import store
-from tests._client import make_client
+from tests._client import make_operator_client
 
 
 def _seed(
@@ -29,7 +29,7 @@ def _seed(
 def test_logs_endpoint_returns_rows_and_last_id(isolated_db: str) -> None:
     first = _seed(isolated_db, "first line")
     last = _seed(isolated_db, "second line")
-    response = make_client().get("/api/logs")
+    response = make_operator_client().get("/api/logs")
     assert response.status_code == 200
     body = response.json()
     messages = [row["message"] for row in body["logs"]]
@@ -46,7 +46,7 @@ def test_logs_endpoint_applies_filters(isolated_db: str) -> None:
     _seed(isolated_db, "quiet info")
     _seed(isolated_db, "bad error", level="ERROR", levelno=logging.ERROR)
     _seed(isolated_db, "scoped info", run_id="run-1")
-    client = make_client()
+    client = make_operator_client()
 
     body = client.get("/api/logs", params={"min_level": "warning"}).json()
     assert [row["message"] for row in body["logs"]] == ["bad error"]
@@ -62,7 +62,7 @@ def test_logs_endpoint_supports_incremental_polling(
     isolated_db: str,
 ) -> None:
     _seed(isolated_db, "old line")
-    client = make_client()
+    client = make_operator_client()
     cursor = client.get("/api/logs").json()["last_id"]
     _seed(isolated_db, "new line")
     body = client.get("/api/logs", params={"after_id": cursor}).json()
@@ -72,7 +72,7 @@ def test_logs_endpoint_supports_incremental_polling(
 def test_logs_endpoint_total_counts_beyond_limit(isolated_db: str) -> None:
     for i in range(5):
         _seed(isolated_db, f"line {i}")
-    body = make_client().get("/api/logs", params={"limit": 2}).json()
+    body = make_operator_client().get("/api/logs", params={"limit": 2}).json()
     # The window is capped, but `total` reports every matching row so the
     # UI badge can show the true table size.
     assert len(body["logs"]) == 2
@@ -84,7 +84,7 @@ def test_logs_endpoint_total_respects_filters_not_cursor(
 ) -> None:
     _seed(isolated_db, "quiet info")
     cursor = _seed(isolated_db, "bad error", level="ERROR", levelno=40)
-    client = make_client()
+    client = make_operator_client()
     body = client.get("/api/logs", params={"min_level": "warning"}).json()
     assert body["total"] == 1
     # `after_id` is a paging cursor; it must not shrink the total.
@@ -117,7 +117,7 @@ def test_logs_endpoint_hides_noise_by_default(isolated_db: str) -> None:
         message="initializing MCP client",
         db_path=isolated_db,
     )
-    client = make_client()
+    client = make_operator_client()
 
     # Default: high-volume chatter (HTTP access, clicks, navigation,
     # dependency loggers) is hidden below WARNING; errors always show.
@@ -140,12 +140,14 @@ def test_logs_endpoint_hides_noise_by_default(isolated_db: str) -> None:
 
 
 def test_logs_endpoint_rejects_unknown_level(isolated_db: str) -> None:
-    response = make_client().get("/api/logs", params={"min_level": "LOUDEST"})
+    response = make_operator_client().get(
+        "/api/logs", params={"min_level": "LOUDEST"}
+    )
     assert response.status_code == 422
 
 
 def test_run_logs_endpoint_scopes_to_run(isolated_db: str) -> None:
-    client = make_client()
+    client = make_operator_client()
     created = client.post(
         "/api/runs", json={"research_goal": "logs endpoint test"}
     )
@@ -157,13 +159,13 @@ def test_run_logs_endpoint_scopes_to_run(isolated_db: str) -> None:
 
 
 def test_run_logs_endpoint_unknown_run_is_404(isolated_db: str) -> None:
-    assert make_client().get("/api/runs/nope/logs").status_code == 404
+    assert make_operator_client().get("/api/runs/nope/logs").status_code == 404
 
 
 def test_delete_logs_clears_and_restarts_ids(isolated_db: str) -> None:
     _seed(isolated_db, "one")
     _seed(isolated_db, "two")
-    client = make_client()
+    client = make_operator_client()
     response = client.request("DELETE", "/api/logs")
     assert response.status_code == 200
     assert response.json()["deleted"] == 2
@@ -175,7 +177,7 @@ def test_delete_logs_clears_and_restarts_ids(isolated_db: str) -> None:
 
 
 def test_post_logs_ingests_ui_records(isolated_db: str) -> None:
-    client = make_client()
+    client = make_operator_client()
     response = client.post(
         "/api/logs",
         json={
@@ -204,7 +206,7 @@ def test_post_logs_ingests_ui_records(isolated_db: str) -> None:
 
 
 def test_post_logs_maps_unknown_level_to_info(isolated_db: str) -> None:
-    client = make_client()
+    client = make_operator_client()
     client.post(
         "/api/logs",
         json={"records": [{"message": "did it", "level": "success"}]},
@@ -216,7 +218,7 @@ def test_post_logs_maps_unknown_level_to_info(isolated_db: str) -> None:
 def test_post_logs_caps_batch_and_truncates_messages(
     isolated_db: str,
 ) -> None:
-    client = make_client()
+    client = make_operator_client()
     too_many = {"records": [{"message": "m"}] * 51}
     assert client.post("/api/logs", json=too_many).status_code == 422
 

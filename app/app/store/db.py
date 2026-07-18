@@ -175,6 +175,9 @@ def _add_column_if_missing(
 
 def _run_migrations(conn: sqlite3.Connection) -> None:
     """Apply idempotent in-place schema migrations to an open connection."""
+    # Records ingested before client isolation stay un-owned, so they are
+    # visible only to operators -- failing closed for existing rows.
+    _add_column_if_missing(conn, "app_logs", "client_id", "TEXT")
     if _add_column_if_missing(
         conn, "runs", "client_id", "TEXT NOT NULL DEFAULT ''"
     ):
@@ -599,9 +602,11 @@ CREATE TABLE IF NOT EXISTS app_logs (
     logger TEXT NOT NULL,            -- dotted logger name
     message TEXT NOT NULL,
     run_id TEXT,
-    exc_text TEXT                    -- formatted traceback, when attached
+    exc_text TEXT,                   -- formatted traceback, when attached
+    client_id TEXT                   -- owning client for ingested UI records
 );
 CREATE INDEX IF NOT EXISTS idx_app_logs_run ON app_logs(run_id, id);
+CREATE INDEX IF NOT EXISTS idx_app_logs_client ON app_logs(client_id, id);
 
 -- Explainable hypothesis-proximity landscape persisted from the engine.
 CREATE TABLE IF NOT EXISTS proximity_edges (

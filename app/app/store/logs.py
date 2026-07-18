@@ -37,6 +37,7 @@ def append_log(
     message: str,
     run_id: str | None = None,
     exc_text: str | None = None,
+    client_id: str | None = None,
     created_at: float | None = None,
     db_path: str | None = None,
     conn: sqlite3.Connection | None = None,
@@ -50,6 +51,8 @@ def append_log(
         message: The fully formatted log message.
         run_id: Run the record belongs to, if it was run-scoped.
         exc_text: Pre-formatted traceback text, when one was attached.
+        client_id: Owning client for records ingested from a UI; None for
+            server-side records, which only operators may read.
         created_at: Record timestamp; defaults to now.
         db_path: Optional override for the SQLite database path.
         conn: Optional open connection to reuse.
@@ -60,7 +63,7 @@ def append_log(
     with _use_conn(conn, db_path) as c:
         cur = c.execute(
             "INSERT INTO app_logs (created_at, level, levelno, logger, "
-            "message, run_id, exc_text) VALUES (?,?,?,?,?,?,?)",
+            "message, run_id, exc_text, client_id) VALUES (?,?,?,?,?,?,?,?)",
             (
                 created_at if created_at is not None else time.time(),
                 level,
@@ -69,6 +72,7 @@ def append_log(
                 message,
                 run_id,
                 exc_text,
+                client_id,
             ),
         )
         return int(cur.lastrowid or 0)
@@ -81,6 +85,7 @@ def _log_filters(
     run_id: str | None,
     contains: str | None,
     noise_loggers: Sequence[str] | None,
+    scope_client_id: str | None = None,
 ) -> tuple[str, list[Any]]:
     """Build the shared WHERE clause and parameters for log queries."""
     where = ["id > ?", "levelno >= ?"]
@@ -98,6 +103,14 @@ def _log_filters(
         where.append(f"NOT (levelno < ? AND ({likes}))")
         params.append(NOISE_VISIBLE_LEVELNO)
         params.extend(f"{_escape_like(name)}%" for name in noise_loggers)
+    if scope_client_id is not None:
+        # A client sees records it submitted plus records belonging to
+        # runs it owns; un-owned server records stay operator-only.
+        where.append(
+            "(client_id = ? OR run_id IN "
+            "(SELECT id FROM runs WHERE client_id = ?))"
+        )
+        params.extend([scope_client_id, scope_client_id])
     return " AND ".join(where), params
 
 
@@ -108,6 +121,7 @@ def list_logs(
     run_id: str | None = None,
     contains: str | None = None,
     noise_loggers: Sequence[str] | None = None,
+    scope_client_id: str | None = None,
     limit: int = 200,
     db_path: str | None = None,
     conn: sqlite3.Connection | None = None,
@@ -125,6 +139,8 @@ def list_logs(
         contains: Case-insensitive message substring filter.
         noise_loggers: Logger-name prefixes whose sub-WARNING records are
             hidden; None disables the filter.
+        scope_client_id: Restrict to one client's own records; None reads
+            app-wide (operators only).
         limit: Maximum rows returned.
         db_path: Optional override for the SQLite database path.
         conn: Optional open connection to reuse.
@@ -135,6 +151,7 @@ def list_logs(
         run_id=run_id,
         contains=contains,
         noise_loggers=noise_loggers,
+        scope_client_id=scope_client_id,
     )
     params.append(limit)
     query = (
@@ -153,6 +170,7 @@ def count_logs(
     run_id: str | None = None,
     contains: str | None = None,
     noise_loggers: Sequence[str] | None = None,
+    scope_client_id: str | None = None,
     db_path: str | None = None,
     conn: sqlite3.Connection | None = None,
 ) -> int:
@@ -168,6 +186,8 @@ def count_logs(
         contains: Case-insensitive message substring filter.
         noise_loggers: Logger-name prefixes whose sub-WARNING records are
             hidden; None disables the filter.
+        scope_client_id: Restrict to one client's own records; None reads
+            app-wide (operators only).
         db_path: Optional override for the SQLite database path.
         conn: Optional open connection to reuse.
     """
@@ -177,6 +197,7 @@ def count_logs(
         run_id=run_id,
         contains=contains,
         noise_loggers=noise_loggers,
+        scope_client_id=scope_client_id,
     )
     query = "SELECT COUNT(*) AS n FROM app_logs WHERE " + where
     with _use_conn(conn, db_path) as c:
@@ -202,6 +223,7 @@ def prune_logs(
 
 def clear_logs(
     *,
+    scope_client_id: str | None = None,
     db_path: str | None = None,
     conn: sqlite3.Connection | None = None,
 ) -> int:
@@ -212,6 +234,20 @@ def clear_logs(
     again. Followers holding an ``after_id`` cursor detect the reset by
     ``last_id`` dropping below their cursor and start over from 0.
     """
+    if scope_client_id is not None:
+        # Scoped clears must not reset the shared id sequence, which
+        # other clients' cursors and numbering depend on.
+        where, params = _log_filters(
+            after_id=0,
+            min_levelno=0,
+            run_id=None,
+            contains=None,
+            noise_loggers=None,
+            scope_client_id=scope_client_id,
+        )
+        with _use_conn(conn, db_path) as c:
+            cur = c.execute(f"DELETE FROM app_logs WHERE {where}", params)
+            return int(cur.rowcount or 0)
     with _use_conn(conn, db_path) as c:
         cur = c.execute("DELETE FROM app_logs")
         c.execute("DELETE FROM sqlite_sequence WHERE name = 'app_logs'")

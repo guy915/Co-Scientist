@@ -104,6 +104,7 @@ class ApiClient:
         self,
         base_url: str,
         client_id: str | None = None,
+        logs_token: str | None = None,
         *,
         timeout: float = 30.0,
         retry_wait: float = 0.5,
@@ -116,6 +117,9 @@ class ApiClient:
             base_url: Base URL of the Co-Scientist API. A bare host:port
                 without a scheme is treated as ``http://``.
             client_id: Optional ``X-Client-ID`` header value.
+            logs_token: Optional ``X-Logs-Token`` value, granting the
+                app-wide log view when the API is not reached over
+                loopback (Docker, or a remote deployment).
             timeout: Per-request timeout in seconds (streams read without one).
             retry_wait: Seconds to sleep between GET retry attempts.
             verbose: When true, log every request's method, path, status, and
@@ -130,6 +134,8 @@ class ApiClient:
         self._headers: dict[str, str] = {}
         if client_id:
             self._headers["X-Client-ID"] = client_id
+        if logs_token:
+            self._headers["X-Logs-Token"] = logs_token
         self._timeout = timeout
         self._retry_wait = retry_wait
         self._verbose = verbose

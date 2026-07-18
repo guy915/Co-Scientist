@@ -85,7 +85,6 @@ async function submitComposerMessage({
       stageDraftSpec(spec, sentAt + 0.002, agentTurn?.content);
       emitDiagnosticEvent({
         stage: 'LIFECYCLE',
-        run: conciseTitle(spec.goal),
         payload: {event: 'interview_completed', interview_id: updated.id},
       });
     } else {
@@ -101,7 +100,6 @@ async function submitComposerMessage({
       }
       emitDiagnosticEvent({
         stage: 'CHAT',
-        run: conciseTitle(updated.fields.research_challenge),
         payload: {event: 'interview_advanced', interview_id: updated.id},
       });
     }
@@ -143,7 +141,6 @@ function cancelDraftSpec({
   setToast('The session was canceled');
   emitDiagnosticEvent({
     stage: 'LIFECYCLE',
-    run: title,
     payload: {event: 'draft_cancelled'},
   });
 }
@@ -164,7 +161,6 @@ function editPlan({
   focusComposer();
   emitDiagnosticEvent({
     stage: 'CHAT',
-    run: conciseTitle(spec.goal),
     payload: {event: 'plan_edit_requested'},
   });
 }
@@ -210,7 +206,6 @@ async function copyMessagePrompt({
   });
   emitDiagnosticEvent({
     stage: 'CHAT',
-    run: conciseTitle(promptText),
     payload: {event: 'prompt_copied'},
   });
 }

@@ -70,14 +70,13 @@ async function startDraftRun(
   const {specToStart, setError} = deps;
   emitDiagnosticEvent({
     stage: 'LIFECYCLE',
-    run: conciseTitle(specToStart.goal),
     payload: {event: 'start_requested'},
   });
   try {
     const session = await executeStart(deps);
     emitDiagnosticEvent({
       stage: 'LIFECYCLE',
-      run: session.title,
+      runId: session.id,
       level: 'success',
       payload: {event: 'start_queued', run_id: session.id},
     });
@@ -85,7 +84,6 @@ async function startDraftRun(
     setError(err instanceof Error ? err.message : String(err));
     emitDiagnosticEvent({
       stage: 'LIFECYCLE',
-      run: conciseTitle(specToStart.goal),
       level: 'error',
       payload: {
         event: 'start_failed',

@@ -34,6 +34,20 @@ def make_client() -> TestClient:
     return TestClient(app)
 
 
+def make_operator_client() -> TestClient:
+    """Return a TestClient that looks like a loopback (operator) caller.
+
+    The log endpoints grant the app-wide view to loopback callers -- the
+    local CLI and agents -- and scope everyone else to their own
+    records. Tests covering app-wide behaviour use this; tests covering
+    remote access control use :func:`make_client`, whose requests report
+    a non-loopback host.
+    """
+    from app.main import app
+
+    return TestClient(app, client=("127.0.0.1", 50000))
+
+
 def wait_for(
     predicate: Callable[[], bool],
     *,

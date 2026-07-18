@@ -67,6 +67,12 @@ class Settings(BaseSettings):
     log_capture_enabled: bool = True
     log_capture_level: str = "INFO"
     log_capture_max_rows: int = 20000
+    # Grants the app-wide log view to non-loopback callers (ops/CLI in
+    # Docker or against a remote deployment). Empty means loopback only.
+    logs_admin_token: str = ""
+    # Per-client ceiling on POST /api/logs, which is open by necessity
+    # (browsers must be able to report their own errors).
+    logs_ingest_per_minute: int = 120
 
     # /status availability probes: per-probe network timeout and how long
     # a probe pair's result is reused before re-probing the MCP server.

@@ -56,6 +56,13 @@ const PANEL_LIMIT = 100;
 // to surface a diagnostic line without those callers depending on this
 // component directly.
 interface DiagnosticLogEventDetail {
+  /**
+   * Real run id, when the event belongs to a run. Never a title: this
+   * lands in the persisted record's `run_id`, which is served over the
+   * API, so goal-derived text here would publish research content.
+   */
+  runId?: string;
+  /** Human label for display only; never persisted. */
   run?: string;
   stage: string;
   level?: DiagnosticLogLevel;
@@ -177,7 +184,7 @@ function detailToClientRecord(
     message: `${detail.stage}${suffix}`,
     level: detail.level === 'error' ? 'error' : 'info',
     logger: 'session',
-    ...(detail.run ? {run_id: detail.run} : {}),
+    ...(detail.runId ? {run_id: detail.runId} : {}),
   };
 }
 

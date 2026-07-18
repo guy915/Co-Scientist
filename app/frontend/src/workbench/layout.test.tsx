@@ -283,6 +283,33 @@ describe('Layout', () => {
     expect(screen.queryByText('Diagnostic Logs')).toBeNull();
   });
 
+  it('never persists goal text as a run id', async () => {
+    renderLayout();
+
+    // Callers used to pass a goal-derived title as `run`, which was
+    // stored in the run_id column and served over the API. Only a real
+    // run id may become run_id; a display title is ignored.
+    fireEvent(
+      window,
+      new CustomEvent(DIAGNOSTIC_EVENT, {
+        detail: {
+          stage: 'LIFECYCLE',
+          run: 'Novel oncology target X in pancreatic cancer',
+          level: 'info',
+          payload: {event: 'start_requested'},
+        },
+      }),
+    );
+
+    await waitFor(() => expect(logsApiMock.postAppLogs).toHaveBeenCalled());
+    const posted = logsApiMock.postAppLogs.mock.calls
+      .flatMap(call => call[0] as {message: string; run_id?: string}[])
+      .filter(record => record.message.startsWith('LIFECYCLE'));
+    expect(posted).toHaveLength(1);
+    expect(posted[0].run_id).toBeUndefined();
+    expect(JSON.stringify(posted[0])).not.toContain('oncology');
+  });
+
   it('ships in-page diagnostic events to the persisted log', async () => {
     renderLayout();
 
@@ -291,7 +318,7 @@ describe('Layout', () => {
       new CustomEvent(DIAGNOSTIC_EVENT, {
         detail: {
           stage: 'LIFECYCLE',
-          run: 'run-abc',
+          runId: 'run-abc',
           level: 'info',
           payload: {event: 'draft_created'},
         },
