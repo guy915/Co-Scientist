@@ -10,12 +10,11 @@ import {
 import {
   CANVAS,
   NODE,
-  RINGS,
-  clusterBoundsFor,
-  edgeGeometryFor,
+  clusterBounds,
+  edgeGeometry,
   neighborsOf,
-  nodePositionsFor,
-  type Rings,
+  nodePositions,
+  type Box,
 } from './proposals_layout';
 
 /**
@@ -47,8 +46,8 @@ function labelLines(label: string): string[] {
  * @param props.selectedClusters Highlighted categories; empty means all.
  * @param props.onActivate Hover/focus a node, or null on leave.
  * @param props.onSelect Open a node's detail.
- * @param props.rings Ring table to lay out from. Defaults to the committed
- *   one; the layout editor passes a live copy so dragging redraws.
+ * @param props.view Visible region, defaulting to the whole canvas. The
+ *   layout editor passes a live one so panning and zooming redraw.
  * @param props.overlay Rendered above the graph, for the editor's handles.
  */
 export function ProposalsGraph({
@@ -58,7 +57,7 @@ export function ProposalsGraph({
   selectedClusters,
   onActivate,
   onSelect,
-  rings = RINGS,
+  view = CANVAS,
   overlay,
 }: {
   activeId: string | null;
@@ -67,14 +66,9 @@ export function ProposalsGraph({
   selectedClusters: Set<ClusterId>;
   onActivate: (id: string | null) => void;
   onSelect: (id: string) => void;
-  rings?: Rings;
-  overlay?: (positions: Record<string, {x: number; y: number}>) => ReactNode;
+  view?: Box;
+  overlay?: ReactNode;
 }) {
-  const nodePositions = useMemo(() => nodePositionsFor(rings), [rings]);
-  const edgeGeometry = useMemo(
-    () => edgeGeometryFor(nodePositions),
-    [nodePositions],
-  );
   // The node driving isolation: an explicit hover wins, otherwise the open
   // selection keeps its relationships lit so the detail panel and the graph
   // agree about what is being discussed.
@@ -105,7 +99,7 @@ export function ProposalsGraph({
   return (
     <svg
       className="proposals-graph"
-      viewBox={`0 0 ${CANVAS.width} ${CANVAS.height}`}
+      viewBox={`${view.x} ${view.y} ${view.width} ${view.height}`}
       role="img"
       aria-label={
         'Relationship graph of the proposals. The same content is written ' +
@@ -130,7 +124,7 @@ export function ProposalsGraph({
 
       <g className="proposals-hulls">
         {clusters.map(cluster => {
-          const bounds = clusterBoundsFor(rings, nodePositions, cluster.id);
+          const bounds = clusterBounds(cluster.id);
           return (
             <g key={cluster.id} className={`proposals-hull is-${cluster.id}`}>
               <rect
@@ -235,7 +229,7 @@ export function ProposalsGraph({
         })}
       </g>
 
-      {overlay?.(nodePositions)}
+      {overlay}
     </svg>
   );
 }

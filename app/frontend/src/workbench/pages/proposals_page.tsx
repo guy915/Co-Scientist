@@ -71,7 +71,7 @@ export function ProposalsPage() {
           selectedClusters={selectedClusters}
           onActivate={setActiveId}
           onSelect={select}
-          rings={editing ? editor.rings : undefined}
+          view={editing ? editor.view : undefined}
           overlay={editing ? editor.overlay : undefined}
         />
         {editing && editor.panel}

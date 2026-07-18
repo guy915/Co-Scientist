@@ -582,9 +582,15 @@
 .proposals-editor-move {
   fill: transparent;
   cursor: grab;
+}
+
+/* The drawing's own bounds, so its edges stay visible while framing it. */
+.proposals-editor-extent {
+  fill: none;
+  pointer-events: none;
   stroke: var(--cosci-blue);
-  stroke-dasharray: 4 4;
-  stroke-width: 1.5;
+  stroke-dasharray: 6 6;
+  stroke-width: 2;
 }
 
 .proposals-editor-move:active {

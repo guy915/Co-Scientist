@@ -15,7 +15,14 @@ import {
 // Wider than tall, and closer to the shape of the window than a 3:2 canvas
 // would be: the graph is fitted with `meet`, so a canvas whose proportions
 // disagree with the viewport is letterboxed and everything renders smaller.
-export const CANVAS = {width: 1400, height: 800};
+export interface Box {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+export const CANVAS: Box = {x: 0, y: 0, width: 1400, height: 800};
 
 /** Node box, in canvas units. Labels wrap to at most two lines inside it. */
 export const NODE = {width: 178, height: 52};
