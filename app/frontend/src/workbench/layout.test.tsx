@@ -467,13 +467,12 @@ describe('Layout', () => {
     });
     renderLayout('/runs/demo-ferroptosis/ideas');
 
-    // The badge is numbered by the newest id (41), matching the "#41" row.
-    fireEvent.click(await screen.findByRole('button', {name: /Logs 41/i}));
+    fireEvent.click(await screen.findByRole('button', {name: /Logs 1/i}));
 
     // Entering a run subpage must not swap the log for a run-scoped view:
-    // the panel is the app-wide stream everywhere, numbered by store id.
+    // the panel is the app-wide stream everywhere.
     expect(await screen.findByText(/server started/)).toBeInTheDocument();
-    expect(screen.getByText('#41')).toBeInTheDocument();
+    expect(screen.getByText('#1')).toBeInTheDocument();
     expect(apiMock.getRunEvents).not.toHaveBeenCalled();
   });
 
@@ -524,12 +523,12 @@ describe('Layout', () => {
     expect(screen.getByText(/workflow exploded/)).toBeInTheDocument();
   });
 
-  it('numbers the badge by the newest visible record id', async () => {
-    // The badge must agree with the visible "#id" numbering: it shows
-    // the newest record in the (noise-filtered) view — not the store's
-    // global high-water mark, which can be a hidden noise record.
+  it('renumbers shown records consecutively, ignoring store id gaps', async () => {
+    // Store ids are global and include filtered-out noise, so a
+    // filtered view has holes (#12, #13, #30, #31) that read as failed
+    // renders. The panel numbers what it shows instead.
     logsApiMock.getAppLogs.mockResolvedValue({
-      logs: [555, 556].map(id => ({
+      logs: [12, 13, 30, 31].map(id => ({
         id,
         created_at: 1_700_000_000 + id,
         level: 'INFO',
@@ -539,16 +538,79 @@ describe('Layout', () => {
         run_id: null,
         exc_text: null,
       })),
-      last_id: 600,
-      total: 399,
+      last_id: 33,
+      total: 4,
     });
     renderLayout();
 
-    const button = await screen.findByRole('button', {name: /Logs 556/i});
-    fireEvent.click(button);
-    expect(await screen.findByText('Total 556')).toBeInTheDocument();
-    // The panel window is the newest 100 records.
+    fireEvent.click(await screen.findByRole('button', {name: /Logs 4/i}));
+    await screen.findByText(/record 12/);
+
+    const numbers = Array.from(
+      document.querySelectorAll('.ucs-diagnostic-entry-meta'),
+    ).map(el => el.querySelector('span')?.textContent);
+    expect(numbers).toEqual(['#1', '#2', '#3', '#4']);
+    // The badge is the newest row's number, so header and list agree.
+    expect(await screen.findByText('Total 4')).toBeInTheDocument();
     expect(logsApiMock.getAppLogs).toHaveBeenCalledWith(0, 100);
+  });
+
+  it('numbers a capped window by position in the whole filtered stream', async () => {
+    // 250 records match the filter but only the newest 100 are fetched:
+    // those are records 151..250, not 1..100.
+    const logs = Array.from({length: 100}, (_, index) => ({
+      id: 1000 + index * 3,
+      created_at: 1_700_000_000 + index,
+      level: 'INFO',
+      levelno: 20,
+      logger: 'app.main',
+      message: `record ${index}`,
+      run_id: null,
+      exc_text: null,
+    }));
+    logsApiMock.getAppLogs.mockResolvedValue({
+      logs,
+      last_id: 5000,
+      total: 250,
+    });
+    renderLayout();
+
+    fireEvent.click(await screen.findByRole('button', {name: /Logs 250/i}));
+    await screen.findByText(/record 99/);
+
+    const metas = document.querySelectorAll('.ucs-diagnostic-entry-meta');
+    expect(metas[0].querySelector('span')?.textContent).toBe('#151');
+    expect(metas[99].querySelector('span')?.textContent).toBe('#250');
+  });
+
+  it('copies the real store ids, not the display numbers', async () => {
+    logsApiMock.getAppLogs.mockResolvedValue({
+      logs: [12, 30].map(id => ({
+        id,
+        created_at: 1_700_000_000 + id,
+        level: 'INFO',
+        levelno: 20,
+        logger: 'app.main',
+        message: `record ${id}`,
+        run_id: null,
+        exc_text: null,
+      })),
+      last_id: 33,
+      total: 2,
+    });
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.assign(navigator, {clipboard: {writeText}});
+    renderLayout();
+
+    fireEvent.click(await screen.findByRole('button', {name: /Logs 2/i}));
+    fireEvent.click(screen.getByRole('button', {name: 'Copy'}));
+
+    await waitFor(() => expect(writeText).toHaveBeenCalled());
+    const copied = JSON.parse(writeText.mock.calls[0][0] as string);
+    // Copy stays cross-referenceable with `cosci logs` and after_id
+    // cursors, which speak store ids.
+    expect(copied.map((e: {id: number}) => e.id)).toEqual([12, 30]);
+    expect(copied.map((e: {number: number}) => e.number)).toEqual([1, 2]);
   });
 
   it('never shows more than the 100 newest records', async () => {
@@ -596,7 +658,7 @@ describe('Layout', () => {
         },
       ],
       last_id: id,
-      total: 1,
+      total: id,
     });
     // Let the mount-time loads settle first — including the remount
     // caused by the navigation-log version bump — so both racing
@@ -810,7 +872,7 @@ describe('Layout', () => {
         },
       ],
       last_id: 7,
-      total: 1,
+      total: 7,
     });
     const {APP_LOGS_CHANGED_EVENT} = await import('@/api/logs');
     fireEvent(window, new Event(APP_LOGS_CHANGED_EVENT));
@@ -844,7 +906,7 @@ describe('Layout', () => {
           },
         ],
         last_id: 9,
-        total: 1,
+        total: 9,
       });
       // No popover open, no events: only the periodic background poll
       // can pick up the new record.

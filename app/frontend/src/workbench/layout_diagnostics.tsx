@@ -22,7 +22,14 @@ type DiagnosticLogLevel = 'info' | 'success' | 'error';
 // the same log before being re-fetched. That keeps the panel identical on
 // every route, numbered by the store's consecutive row ids.
 interface DiagnosticLogEntry {
+  /** Real store row id: stable, but gapped once noise is filtered. */
   id: number;
+  /**
+   * Position in the filtered stream, rendered as "#N". Store ids are
+   * assigned globally (hidden noise consumes them), so showing them
+   * raw makes a filtered list look like rows failed to render.
+   */
+  number: number;
   source: 'app';
   time: string;
   run: string;
@@ -182,9 +189,13 @@ function appLogLevel(record: AppLogRecord): DiagnosticLogLevel {
 
 // Maps one persisted app_logs record into a rendered log entry. Records
 // with no run id are attributed to the server itself.
-function buildAppLogEntry(record: AppLogRecord): DiagnosticLogEntry {
+function buildAppLogEntry(
+  record: AppLogRecord,
+  number: number,
+): DiagnosticLogEntry {
   return {
     id: record.id,
+    number,
     source: 'app',
     time: formatDiagnosticTime(new Date(record.created_at * 1000)),
     run: record.run_id ? `Run ${record.run_id.slice(0, 8)}` : 'Server',
@@ -204,13 +215,12 @@ function buildAppLogEntry(record: AppLogRecord): DiagnosticLogEntry {
 // How often the persisted backend log is re-fetched in the background.
 const APP_LOGS_POLL_MS = 5_000;
 
-// The fetched window plus the id of its newest record. The badge is
-// numbered by `newestId` so it always agrees with the visible "#id"
-// rows — the server's global high-water mark can be a hidden noise
-// record, and row counts would drift since ids survive pruning.
+// The fetched window plus the size of the whole filtered stream. The
+// newest shown record is numbered `total`, so the badge and the top row
+// carry the same number however much noise is hidden behind them.
 interface PersistedAppLogs {
   entries: DiagnosticLogEntry[];
-  newestId: number;
+  total: number;
 }
 
 // Fetches the app-wide persisted log: on mount (so the badge count is
@@ -222,7 +232,7 @@ interface PersistedAppLogs {
 function usePersistedAppLogs(version: number): PersistedAppLogs {
   const [logs, setLogs] = useState<PersistedAppLogs>({
     entries: [],
-    newestId: 0,
+    total: 0,
   });
 
   useEffect(() => {
@@ -238,17 +248,21 @@ function usePersistedAppLogs(version: number): PersistedAppLogs {
           // The request already asks for PANEL_LIMIT records, but the
           // cap is enforced here too: whatever the payload size, the
           // panel shows at most the newest PANEL_LIMIT.
-          const entries = payload.logs
-            .slice(-PANEL_LIMIT)
-            .map(buildAppLogEntry);
+          const shown = payload.logs.slice(-PANEL_LIMIT);
+          // Number backwards from the stream total so the newest row is
+          // always `total`: a capped window shows 151..250, not 1..100.
+          const total = Math.max(payload.total, shown.length);
+          const first = total - shown.length + 1;
           setLogs({
-            entries,
-            newestId: entries.length ? entries[entries.length - 1].id : 0,
+            entries: shown.map((record, index) =>
+              buildAppLogEntry(record, first + index),
+            ),
+            total,
           });
         })
         .catch(() => {
           if (!disposed && request === latestRequest)
-            setLogs({entries: [], newestId: 0});
+            setLogs({entries: [], total: 0});
         });
     };
     load();
@@ -398,7 +412,7 @@ export function DiagnosticsControl({
   const [copied, setCopied] = useState(false); // Copy button shows "Copied"
   useDiagnosticIngest(bumpVersion);
   useNavigationLog(bumpVersion);
-  const {entries, newestId} = usePersistedAppLogs(version);
+  const {entries, total} = usePersistedAppLogs(version);
   const counts = summarizeDiagnosticEntries(entries);
 
   async function onCopy() {
@@ -418,12 +432,12 @@ export function DiagnosticsControl({
 
   return (
     <>
-      <LogsTriggerButton open={open} count={newestId} onToggle={onToggle} />
+      <LogsTriggerButton open={open} count={total} onToggle={onToggle} />
       {open &&
         renderPopover(
           <DiagnosticLogsPanel
             entries={entries}
-            newestId={newestId}
+            total={total}
             copied={copied}
             counts={counts}
             onClear={() => void onClear()}
@@ -476,7 +490,7 @@ function DiagnosticLogList({entries}: {entries: DiagnosticLogEntry[]}) {
           className={DIAGNOSTIC_ENTRY_CLASSES}
         >
           <div className={DIAGNOSTIC_ENTRY_META_CLASSES}>
-            <span>#{entry.id}</span>
+            <span>#{entry.number}</span>
             <span>[{entry.time}]</span>
             <span>{entry.levelName}</span>
             <span className={DIAGNOSTIC_ENTRY_RUN_CLASSES}>{entry.run}</span>
@@ -569,14 +583,14 @@ function DiagnosticLogsHeader({
 
 // [label, count, chip class] rows for the summary chips; the Errors chip
 // switches to the danger styling only when there is at least one error.
-// The Total chip shows the newest log id (matching the badge and the
-// visible "#id" rows); the per-level chips tally the shown window.
+// The Total chip is the size of the filtered stream, which is also the
+// newest row's number; the per-level chips tally the shown window.
 function buildDiagnosticChips(
-  newestId: number,
+  total: number,
   counts: DiagnosticCounts,
 ): [string, number, string][] {
   return [
-    ['Total', newestId, DIAGNOSTIC_CHIP_CLASSES],
+    ['Total', total, DIAGNOSTIC_CHIP_CLASSES],
     [
       'Errors',
       counts.errorCount,
@@ -595,20 +609,20 @@ function buildDiagnosticChips(
 // stays in DiagnosticsControl; this only renders what it is handed.
 function DiagnosticLogsPanel({
   entries,
-  newestId,
+  total,
   copied,
   counts,
   onClear,
   onCopy,
 }: {
   entries: DiagnosticLogEntry[];
-  newestId: number;
+  total: number;
   copied: boolean;
   counts: DiagnosticCounts;
   onClear: () => void;
   onCopy: () => void;
 }) {
-  const chips = buildDiagnosticChips(newestId, counts);
+  const chips = buildDiagnosticChips(total, counts);
 
   return (
     <>
