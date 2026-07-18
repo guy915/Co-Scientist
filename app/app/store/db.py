@@ -134,7 +134,13 @@ def _use_conn(
 def _init_schema(conn: sqlite3.Connection) -> None:
     """Create tables/indexes if absent, enable WAL, then run migrations."""
     # Every statement is CREATE TABLE/INDEX IF NOT EXISTS, so this is safe to
-    # run against an already-populated database on every process start.
+    # run against an already-populated database on every process start --
+    # with one constraint: because CREATE TABLE IF NOT EXISTS does NOT alter
+    # an existing table, no statement here may reference a column added by
+    # _run_migrations. Such a statement would raise, aborting executescript
+    # mid-way (and, since the path is only marked initialized on success,
+    # failing every later connect too). Index those columns in
+    # _run_migrations, after the ALTER that adds them.
     conn.executescript(_SCHEMA)
     conn.execute("PRAGMA journal_mode=WAL")  # Readers do not block writers.
     # NOTE: foreign_keys is a PER-CONNECTION pragma (unlike WAL, which is
@@ -178,6 +184,12 @@ def _run_migrations(conn: sqlite3.Connection) -> None:
     # Records ingested before client isolation stay un-owned, so they are
     # visible only to operators -- failing closed for existing rows.
     _add_column_if_missing(conn, "app_logs", "client_id", "TEXT")
+    # Indexed here rather than in _SCHEMA: the column above may have just been
+    # added, and _SCHEMA runs first (see the note beside idx_app_logs_run).
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_app_logs_client "
+        "ON app_logs(client_id, id)"
+    )
     if _add_column_if_missing(
         conn, "runs", "client_id", "TEXT NOT NULL DEFAULT ''"
     ):
@@ -606,7 +618,11 @@ CREATE TABLE IF NOT EXISTS app_logs (
     client_id TEXT                   -- owning client for ingested UI records
 );
 CREATE INDEX IF NOT EXISTS idx_app_logs_run ON app_logs(run_id, id);
-CREATE INDEX IF NOT EXISTS idx_app_logs_client ON app_logs(client_id, id);
+-- NOTE: the index over client_id is created in _run_migrations, not here.
+-- CREATE TABLE IF NOT EXISTS is a no-op against an existing table, so on a
+-- database from an older build this column does not exist yet when _SCHEMA
+-- runs; indexing it here would abort executescript before the migration
+-- that adds it could run. See _run_migrations.
 
 -- Explainable hypothesis-proximity landscape persisted from the engine.
 CREATE TABLE IF NOT EXISTS proximity_edges (
