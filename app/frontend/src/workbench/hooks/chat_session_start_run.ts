@@ -67,7 +67,7 @@ async function executeStart({
 async function startDraftRun(
   deps: ExecuteStartDeps & {setError: (message: string) => void},
 ): Promise<void> {
-  const {specToStart, setError} = deps;
+  const {setError} = deps;
   emitDiagnosticEvent({
     stage: 'LIFECYCLE',
     payload: {event: 'start_requested'},

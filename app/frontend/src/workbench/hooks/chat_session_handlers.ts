@@ -2,7 +2,6 @@ import {type Dispatch, type FormEvent, type SetStateAction} from 'react';
 import {addInterviewTurn, createInterview, type Interview} from '@/api/runs';
 import {interviewToRunSpec, type InferredRunSpec} from '../run_spec';
 import {copyText} from '@/lib/clipboard';
-import {conciseTitle} from '@/lib/text';
 import {type ChatEntry} from '../pages/chat_timeline_cards';
 import {type ToastState} from './use_toast';
 import {appendChatMessage, emitDiagnosticEvent} from './chat_session_helpers';
@@ -119,21 +118,18 @@ async function submitComposerMessage({
 // returning the workspace to its empty state. Takes its dependencies as
 // arguments instead of closing over hook state.
 function cancelDraftSpec({
-  draft,
   setInput,
   clearSessionState,
   setMessages,
   setError,
   setToast,
 }: {
-  draft: SpecStage | null;
   setInput: (value: string) => void;
   clearSessionState: () => void;
   setMessages: (value: ChatEntry[]) => void;
   setError: (message: string | null) => void;
   setToast: (value: string | ToastState | null) => void;
 }) {
-  const title = draft ? conciseTitle(draft.spec.goal) : undefined;
   setInput('');
   clearSessionState();
   setMessages([]);
