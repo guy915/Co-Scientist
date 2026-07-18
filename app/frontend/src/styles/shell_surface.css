@@ -637,20 +637,21 @@
   font-size: 0.95rem;
 }
 
-/* Affiliation picker: borderless rows whose selected state is a filled tint,
-   the same selection language as the dialog's section rail and the theme
-   segment. The radio inputs stay in the markup but are visually hidden, so
-   the group keeps native arrow-key navigation and screen-reader semantics
-   without drawing a control. */
+/* Affiliation picker: borderless rows on their own surface, lifting off the
+   surrounding .ucs-settings-card. Selection is a filled tint, the same
+   language as the dialog's section rail and the theme segment. The radio
+   inputs stay in the markup but are visually hidden, so the group keeps
+   native arrow-key navigation and screen-reader semantics without drawing a
+   control. */
 .ucs-affiliation-group {
   display: grid;
-  gap: 0.35rem;
+  gap: 0.5rem;
 }
 
 .ucs-affiliation-option {
   display: block;
   border-radius: 0.75rem;
-  background: transparent;
+  background: var(--cosci-menu-bg);
   cursor: pointer;
   padding: 0.7rem 0.9rem;
 }
