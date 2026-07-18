@@ -399,6 +399,42 @@ def test_thinking_disabled_drops_reasoning_effort() -> None:
     assert "reasoning_effort" not in args
 
 
+def test_dashscope_deepseek_uses_enable_thinking_flag() -> None:
+    """DeepSeek-on-DashScope thinks via the provider's own boolean knob.
+
+    DashScope's compatible-mode endpoint ignores DeepSeek's native
+    ``thinking`` object and defaults thinking OFF, so the native format
+    would silently disable reasoning. It also has no ``reasoning_effort``
+    tiers.
+    """
+    from co_scientist.llm_request import _build_completion_args
+
+    args = _build_completion_args(
+        "prompt", "dashscope/deepseek-v4-flash", 100, 0.5, False, None
+    )
+
+    assert args["extra_body"] == {"enable_thinking": True}
+    assert "reasoning_effort" not in args
+
+
+def test_dashscope_deepseek_thinking_opt_out() -> None:
+    """The thinking opt-out maps to enable_thinking=False on DashScope."""
+    from co_scientist.llm_request import _build_completion_args
+
+    args = _build_completion_args(
+        "prompt",
+        "dashscope/deepseek-v4-pro",
+        100,
+        0.5,
+        False,
+        None,
+        enable_thinking=False,
+    )
+
+    assert args["extra_body"] == {"enable_thinking": False}
+    assert "reasoning_effort" not in args
+
+
 def test_thinking_params_absent_for_non_deepseek_models() -> None:
     """The thinking params are DeepSeek-specific and never sent elsewhere."""
     from co_scientist.llm_request import _build_completion_args

@@ -102,6 +102,11 @@ def _clamp_temperature(model_name: str, temperature: float) -> float:
 _JSON_OBJECT_ONLY_MODEL_FAMILIES: tuple[str, ...] = ("deepseek",)
 
 
+def _is_dashscope(model_name: str) -> bool:
+    """Whether ``model_name`` routes through Alibaba Cloud DashScope."""
+    return model_name.lower().startswith("dashscope/")
+
+
 def deepseek_thinking_extra_body(
     model_name: str, *, enabled: bool = True
 ) -> dict[str, Any]:
@@ -120,6 +125,11 @@ def deepseek_thinking_extra_body(
     via ``enabled=False``: its pairwise matchups run O(n^2) times per cycle, so
     reasoning there dominates run latency (see ``agents/ranking/ranking.py``).
 
+    DashScope (Alibaba Cloud) serves the same DeepSeek models behind its
+    OpenAI-compatible endpoint but controls thinking with a different knob:
+    ``enable_thinking`` (bool), with thinking OFF by default. The explicit
+    field below covers both providers' defaults.
+
     Args:
         model_name: Model name in litellm format.
         enabled: Whether to request thinking mode. False explicitly disables
@@ -128,10 +138,12 @@ def deepseek_thinking_extra_body(
 
     Returns:
         ``{"thinking": {"type": "enabled"|"disabled"}}`` for DeepSeek models,
-        else ``{}``.
+        ``{"enable_thinking": bool}`` for DeepSeek-on-DashScope, else ``{}``.
     """
     lowered = model_name.lower()
     if any(family in lowered for family in _JSON_OBJECT_ONLY_MODEL_FAMILIES):
+        if _is_dashscope(model_name):
+            return {"enable_thinking": enabled}
         return {"thinking": {"type": "enabled" if enabled else "disabled"}}
     return {}
 
@@ -276,9 +288,10 @@ def _build_completion_args(
     thinking = deepseek_thinking_extra_body(model_name, enabled=enable_thinking)
     if thinking:
         completion_args["extra_body"] = thinking
-        if enable_thinking:
+        if enable_thinking and not _is_dashscope(model_name):
             # Lightest reasoning tier that still thinks, to bound the latency
-            # and token cost of reasoning on every call.
+            # and token cost of reasoning on every call. DashScope's
+            # compatible-mode endpoint does not support reasoning_effort.
             completion_args["reasoning_effort"] = "low"
 
     return completion_args

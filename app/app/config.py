@@ -129,6 +129,17 @@ def _is_deepseek(model_name: str) -> bool:
     return "deepseek" in model_name.lower()
 
 
+def _is_dashscope(model_name: str) -> bool:
+    """Whether ``model_name`` routes through Alibaba Cloud DashScope.
+
+    DashScope serves the same DeepSeek V4 tiers behind its OpenAI-compatible
+    endpoint but controls thinking with ``enable_thinking`` (bool, default
+    off) instead of DeepSeek's native ``thinking`` object, and does not
+    support ``reasoning_effort``.
+    """
+    return model_name.lower().startswith("dashscope/")
+
+
 def deepseek_non_thinking_extra_body(model_name: str) -> dict[str, object]:
     """Return an ``extra_body`` that disables DeepSeek V4 thinking mode.
 
@@ -148,10 +159,13 @@ def deepseek_non_thinking_extra_body(model_name: str) -> dict[str, object]:
         model_name: Model name in litellm format.
 
     Returns:
-        ``{"thinking": {"type": "disabled"}}`` for DeepSeek models, else ``{}``.
+        ``{"thinking": {"type": "disabled"}}`` for DeepSeek models,
+        ``{"enable_thinking": False}`` for DeepSeek-on-DashScope, else ``{}``.
     """
     if not _is_deepseek(model_name):
         return {}
+    if _is_dashscope(model_name):
+        return {"enable_thinking": False}
     return {"thinking": {"type": "disabled"}}
 
 
@@ -174,10 +188,14 @@ def deepseek_thinking_kwargs(model_name: str) -> dict[str, object]:
 
     Returns:
         ``{"extra_body": {"thinking": {"type": "enabled"}}, "reasoning_effort":
-        "low"}`` for DeepSeek models, else ``{}``.
+        "low"}`` for DeepSeek models, ``{"extra_body": {"enable_thinking":
+        True}}`` for DeepSeek-on-DashScope (which has no reasoning_effort
+        tiers), else ``{}``.
     """
     if not _is_deepseek(model_name):
         return {}
+    if _is_dashscope(model_name):
+        return {"extra_body": {"enable_thinking": True}}
     return {
         "extra_body": {"thinking": {"type": "enabled"}},
         "reasoning_effort": "low",

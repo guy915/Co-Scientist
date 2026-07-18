@@ -39,6 +39,7 @@ def _has_provider_key() -> bool:
             "ANTHROPIC_API_KEY",
             "AZURE_API_KEY",
             "DEEPSEEK_API_KEY",
+            "DASHSCOPE_API_KEY",
         )
     )
 

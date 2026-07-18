@@ -19,6 +19,25 @@ from app.engine_adapter import provider
 from app.engine_adapter.engine_stream import _real_engine_stream
 
 
+def test_dashscope_key_counts_as_provider_credential(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A DashScope key alone must not silently fall back to mock mode."""
+    for key in (
+        "GEMINI_API_KEY",
+        "OPENAI_API_KEY",
+        "ANTHROPIC_API_KEY",
+        "AZURE_API_KEY",
+        "DEEPSEEK_API_KEY",
+        "DASHSCOPE_API_KEY",
+    ):
+        monkeypatch.delenv(key, raising=False)
+    assert provider._has_provider_key() is False
+
+    monkeypatch.setenv("DASHSCOPE_API_KEY", "sk-test")
+    assert provider._has_provider_key() is True
+
+
 def test_engine_importable_returns_false_on_exception(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
