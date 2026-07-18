@@ -1,12 +1,12 @@
 // TEMPORARY: a layout editor for /proposals, reached with ?edit=1.
 //
 // It exists to settle the cluster arrangement by dragging rather than by
-// guessing coordinates. Drag a cluster to move it, drag its bottom-right
-// handle to resize its ring, then copy the printed ring table into
-// proposals_layout.ts. Once the layout is committed this file and its two
-// call sites in proposals_page.tsx should be deleted.
+// guessing coordinates. Drag a cluster to move it, drag any bottom-right
+// handle to resize every cluster at once, then copy the printed ring table
+// into proposals_layout.ts. Once the layout is committed this file and its
+// two call sites in proposals_page.tsx should be deleted.
 
-import {useCallback, useRef, useState} from 'react';
+import {useCallback, useEffect, useRef, useState} from 'react';
 import {clusters, type ClusterId} from './proposals_data';
 import {
   RINGS,
@@ -15,13 +15,38 @@ import {
   type Rings,
 } from './proposals_layout';
 
-/** Rings are cloned so editing never mutates the committed table. */
-function cloneRings(rings: Rings): Rings {
+/**
+ * What the editor actually varies: where each cluster sits, and one scale
+ * shared by all of them. Ring radii are never edited per cluster — the
+ * clusters are meant to stay uniform, so resizing is a single number.
+ */
+interface Draft {
+  centers: Record<ClusterId, Point>;
+  scale: number;
+}
+
+const INITIAL: Draft = {
+  centers: Object.fromEntries(
+    clusters.map(cluster => [cluster.id, {...RINGS[cluster.id].center}]),
+  ) as Record<ClusterId, Point>,
+  scale: 1,
+};
+
+/** The committed radii, which the shared scale multiplies. */
+function ringsFor(draft: Draft): Rings {
   return Object.fromEntries(
-    Object.entries(rings).map(([id, ring]) => [
-      id,
-      {...ring, center: {...ring.center}},
-    ]),
+    clusters.map(cluster => {
+      const base = RINGS[cluster.id];
+      return [
+        cluster.id,
+        {
+          center: draft.centers[cluster.id],
+          rx: base.rx * draft.scale,
+          ry: base.ry * draft.scale,
+          start: base.start,
+        },
+      ];
+    }),
   ) as Rings;
 }
 
@@ -29,7 +54,7 @@ function cloneRings(rings: Rings): Rings {
 function printRings(rings: Rings): string {
   const lines = clusters.map(cluster => {
     const ring = rings[cluster.id];
-    const round = (value: number) => Math.round(value);
+    const round = Math.round;
     return (
       `  ${cluster.id}: {center: {x: ${round(ring.center.x)}, ` +
       `y: ${round(ring.center.y)}}, rx: ${round(ring.rx)}, ` +
@@ -41,7 +66,7 @@ function printRings(rings: Rings): string {
 
 type Drag =
   | {kind: 'move'; cluster: ClusterId; from: Point; center: Point}
-  | {kind: 'resize'; cluster: ClusterId; from: Point; rx: number; ry: number};
+  | {kind: 'resize'; from: Point; scale: number; unit: number};
 
 /**
  * Editing state and the handles drawn over the graph.
@@ -49,8 +74,29 @@ type Drag =
  * @returns The live ring table, the SVG overlay, and the readout panel.
  */
 export function useLayoutEditor() {
-  const [rings, setRings] = useState<Rings>(() => cloneRings(RINGS));
+  const [draft, setDraft] = useState<Draft>(INITIAL);
+  // Every gesture pushes the state it started from, so undo steps back one
+  // drag rather than one pointer sample.
+  const [history, setHistory] = useState<Draft[]>([]);
   const drag = useRef<Drag | null>(null);
+
+  const undo = useCallback(() => {
+    setHistory(past => {
+      if (past.length === 0) return past;
+      setDraft(past[past.length - 1]);
+      return past.slice(0, -1);
+    });
+  }, []);
+
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key !== 'z' || !(event.metaKey || event.ctrlKey)) return;
+      event.preventDefault();
+      undo();
+    }
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [undo]);
 
   // Pointer coordinates arrive in screen space; every ring value is in canvas
   // space, so each event is mapped through the SVG's inverse matrix.
@@ -69,6 +115,11 @@ export function useLayoutEditor() {
     [],
   );
 
+  const beginDrag = useCallback((next: Drag, current: Draft) => {
+    setHistory(past => [...past, current]);
+    drag.current = next;
+  }, []);
+
   const onPointerMove = useCallback(
     (event: React.PointerEvent<SVGElement>) => {
       const active = drag.current;
@@ -76,16 +127,24 @@ export function useLayoutEditor() {
       const at = toCanvas(event);
       const dx = at.x - active.from.x;
       const dy = at.y - active.from.y;
-      setRings(current => {
-        const next = cloneRings(current);
-        const ring = next[active.cluster];
+      setDraft(current => {
         if (active.kind === 'move') {
-          ring.center = {x: active.center.x + dx, y: active.center.y + dy};
-        } else {
-          ring.rx = Math.max(0, active.rx + dx);
-          ring.ry = Math.max(20, active.ry + dy);
+          return {
+            ...current,
+            centers: {
+              ...current.centers,
+              [active.cluster]: {
+                x: active.center.x + dx,
+                y: active.center.y + dy,
+              },
+            },
+          };
         }
-        return next;
+        // Dragging the corner outward grows every cluster together. The
+        // handle's own distance from its cluster center sets the unit, so
+        // the box tracks the pointer at roughly 1:1.
+        const scale = active.scale + (dx + dy) / (2 * active.unit);
+        return {...current, scale: Math.min(3, Math.max(0.35, scale))};
       });
     },
     [toCanvas],
@@ -96,15 +155,17 @@ export function useLayoutEditor() {
     event.currentTarget.releasePointerCapture(event.pointerId);
   }, []);
 
+  const rings = ringsFor(draft);
+
   const overlay = useCallback(
     (positions: Record<string, Point>) => (
       <g className="proposals-editor">
         {clusters.map(cluster => {
           const bounds = clusterBoundsFor(rings, positions, cluster.id);
-          const ring = rings[cluster.id];
+          const center = draft.centers[cluster.id];
           return (
             <g key={cluster.id}>
-              {/* The whole box moves the cluster. */}
+              {/* The whole box moves this cluster. */}
               <rect
                 className="proposals-editor-move"
                 x={bounds.x}
@@ -114,17 +175,20 @@ export function useLayoutEditor() {
                 rx={28}
                 onPointerDown={event => {
                   event.currentTarget.setPointerCapture(event.pointerId);
-                  drag.current = {
-                    kind: 'move',
-                    cluster: cluster.id,
-                    from: toCanvas(event),
-                    center: {...ring.center},
-                  };
+                  beginDrag(
+                    {
+                      kind: 'move',
+                      cluster: cluster.id,
+                      from: toCanvas(event),
+                      center: {...center},
+                    },
+                    draft,
+                  );
                 }}
                 onPointerMove={onPointerMove}
                 onPointerUp={endDrag}
               />
-              {/* The corner grows or shrinks the ring the nodes sit on. */}
+              {/* Any corner resizes every cluster: the scale is shared. */}
               <rect
                 className="proposals-editor-resize"
                 x={bounds.x + bounds.width - 20}
@@ -134,13 +198,22 @@ export function useLayoutEditor() {
                 rx={4}
                 onPointerDown={event => {
                   event.currentTarget.setPointerCapture(event.pointerId);
-                  drag.current = {
-                    kind: 'resize',
-                    cluster: cluster.id,
-                    from: toCanvas(event),
-                    rx: ring.rx,
-                    ry: ring.ry,
+                  const corner = {
+                    x: bounds.x + bounds.width,
+                    y: bounds.y + bounds.height,
                   };
+                  beginDrag(
+                    {
+                      kind: 'resize',
+                      from: toCanvas(event),
+                      scale: draft.scale,
+                      unit:
+                        (Math.abs(corner.x - center.x) +
+                          Math.abs(corner.y - center.y)) /
+                          2 || 100,
+                    },
+                    draft,
+                  );
                 }}
                 onPointerMove={onPointerMove}
                 onPointerUp={endDrag}
@@ -150,23 +223,40 @@ export function useLayoutEditor() {
         })}
       </g>
     ),
-    [rings, toCanvas, onPointerMove, endDrag],
+    [rings, draft, toCanvas, beginDrag, onPointerMove, endDrag],
   );
 
   const panel = (
     <div className="proposals-editor-panel">
       <p>
-        Drag a cluster to move it; drag its bottom-right square to resize. When
-        it looks right, copy this and paste it into proposals_layout.ts.
+        Drag a cluster to move it. Drag any bottom-right square to resize them
+        all — the scale is shared. Ctrl/Cmd+Z undoes. When it looks right, copy
+        this into proposals_layout.ts.
       </p>
       <textarea readOnly rows={9} value={printRings(rings)} />
-      <button
-        type="button"
-        className="ucs-panel-button"
-        onClick={() => setRings(cloneRings(RINGS))}
-      >
-        Reset
-      </button>
+      <div className="proposals-editor-actions">
+        <button
+          type="button"
+          className="ucs-panel-button"
+          onClick={undo}
+          disabled={history.length === 0}
+        >
+          Undo ({history.length})
+        </button>
+        <button
+          type="button"
+          className="ucs-panel-button"
+          onClick={() => {
+            setHistory(past => [...past, draft]);
+            setDraft(INITIAL);
+          }}
+        >
+          Reset
+        </button>
+      </div>
+      <p className="proposals-editor-scale">
+        Scale {draft.scale.toFixed(2)}&times;
+      </p>
     </div>
   );
 

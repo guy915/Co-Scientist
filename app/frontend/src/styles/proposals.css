@@ -628,3 +628,18 @@
   padding: 0.5rem;
   resize: vertical;
 }
+
+.proposals-editor-actions {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.proposals-editor-actions button:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+.proposals-editor-scale {
+  color: var(--cosci-muted);
+  font-variant-numeric: tabular-nums;
+}
