@@ -292,6 +292,18 @@ workflows:
       - tool: "openalex_search"
         papers_per_query: 4
         enabled: true
+      # Web search runs alongside the academic sources so grey literature,
+      # news, and very recent developments can reach a hypothesis. It is
+      # weighted lower than the peer-reviewed sources on purpose, and its
+      # results carry source "web" so they stay distinguishable downstream.
+      # Skipped automatically when the MCP server has no provider key (the
+      # tool is not registered) or when the run turns the connector off.
+      - tool: "web_search"
+        papers_per_query: 2
+        enabled: true
+        # Web hits are snippets; fetch the page so analysis has real text.
+        content_tool: "read_url"
+        content_url_field: "url"
     deduplicate_across_sources: true
     context_enrichment_tools:
       - "chembl_search"

@@ -246,6 +246,38 @@ async def _search_single_query(
         return (index, {})
 
 
+def _sources_with_enabled_tools(
+    sources: list["SearchSourceConfig"],
+    tool_registry: "ToolRegistry",
+) -> list["SearchSourceConfig"]:
+    """Drops sources whose backing tool is disabled for this run.
+
+    A source carries its own ``enabled`` flag from the YAML, but a tool can
+    also be switched off per run via ``disable_tools`` (the app's connector
+    toggles do exactly that). Without this check a disabled tool would still
+    be called here, so turning a connector off would not actually stop its
+    searches.
+
+    Args:
+        sources: Sources the workflow config marks enabled.
+        tool_registry: Registry holding the per-run enabled flags.
+
+    Returns:
+        The subset whose tool resolves and is still enabled.
+    """
+    kept = []
+    for source in sources:
+        tool = tool_registry.get_tool(source.tool)
+        if tool is not None and tool.enabled:
+            kept.append(source)
+        else:
+            logger.debug(
+                "skipping search source %s: tool disabled or missing",
+                source.tool,
+            )
+    return kept
+
+
 async def _search_all_sources(
     enabled_sources: list["SearchSourceConfig"],
     queries: list[str],
@@ -300,7 +332,9 @@ async def _phase2_collect_papers_multi_source(
     # Multi-source mode guarantees a configured workflow and tool registry.
     assert config.workflow is not None
     assert config.tool_registry is not None
-    enabled_sources = config.workflow.get_enabled_search_sources()
+    enabled_sources = _sources_with_enabled_tools(
+        config.workflow.get_enabled_search_sources(), config.tool_registry
+    )
     logger.info(
         "Phase 2: collecting papers from %s sources", len(enabled_sources)
     )

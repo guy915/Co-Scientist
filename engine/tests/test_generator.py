@@ -112,7 +112,7 @@ def test_lazy_state_is_unset_before_first_run() -> None:
     assert workflow is not None and workflow.is_multi_source()
     assert [
         source.tool for source in workflow.get_enabled_search_sources()
-    ] == ["pubmed_fulltext", "openalex_search"]
+    ] == ["pubmed_fulltext", "openalex_search", "web_search"]
 
 
 def test_enable_cache_true_sets_env(monkeypatch: pytest.MonkeyPatch) -> None:

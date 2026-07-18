@@ -39,12 +39,19 @@ result = await generator.generate(
 )
 ```
 
-**Grounded web search — the `literature_review` phase.** When a config lists
-`web_search` as a literature-review search source, the node searches the web
-and (with `read_url` as the content tool) reads the pages as part of its fixed
-search-then-analyze pipeline. This is not model-driven, but it is how a running
-deployment — which selects behavior through its tools YAML — puts the web to
-use. See the opt-in section below.
+**Grounded web search — the `literature_review` phase.** `web_search` is a
+literature-review search source in the default config, alongside PubMed and
+OpenAlex, with `read_url` as its content tool so snippets are expanded into
+real page text before analysis. It is weighted lower than the peer-reviewed
+sources (`papers_per_query: 2` against their 4) and its results carry
+`source: "web"`, so web-derived evidence stays distinguishable from
+peer-reviewed evidence downstream.
+
+This is the path that runs in the app today, because the tool-calling
+generation loop above is off unless a caller opts in. If you would rather keep
+web content out of the evidence base entirely, delete the `web_search` entry
+from `literature_review.search_sources` — the tool stays available to the
+agentic phase.
 
 `web_search` is deliberately **not** in the `validation` or `reflection`
 workflows. Those are direct-call paths, not tool-calling loops: validation
@@ -93,22 +100,19 @@ maps to `disable_tools=["web_search"]` on the engine's tool registry.
 Google Scholar, and web configs use to pull PDFs and full text, so disabling
 it here would break literature retrieval for unrelated sources.
 
-## Opt in to grounded web search
+## Web-first research
 
-By default `web_search` is **not** a literature-review search source. That node
-is the evidence grounding path, and its citations are quality-checked against
-academic sources; adding arbitrary web pages there would quietly change what a
-verified citation means.
-
-To opt in — appropriate for domains with no strong academic index, or when
-recency matters more than peer review — use the `web_research.yaml` example:
+The default config keeps the academic sources primary and web search
+supplementary. For domains with no strong academic index, or when recency
+matters more than peer review, `web_research.yaml` inverts that — web leads,
+OpenAlex backs it up:
 
 ```bash
 export TOOLS_CONFIG=src/co_scientist/config/examples/web_research.yaml
 ```
 
-It makes the web a first-class literature-review source and sets the two
-things that configuration must get right:
+It makes the web the leading literature-review source and sets the two things
+such a configuration must get right:
 
 - `query_format: "natural_language"`. The default is `"boolean"`, which emits
   PubMed `AND`/`OR`/`NOT` syntax. A web engine ANDs every token in a query

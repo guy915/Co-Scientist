@@ -59,11 +59,20 @@ direct-call paths. Validation picks the first search-category tool in order
 reflection queries knowledge graphs by entity, not free text. Wiring web into
 them would be inert at best and mis-invoked at worst, so it is left out.
 
-The second, non-agentic path is the `literature_review` node: a config can
-list `web_search` as a search source with `read_url` as its content tool.
-This is a fixed search-then-read pipeline, not model-driven, but it is how a
-running deployment (which selects behavior through its tools YAML) uses the
-web. It is opt-in — see below.
+The second, non-agentic path is the `literature_review` node, where
+`web_search` is a default search source with `read_url` as its content tool.
+This is a fixed search-then-read pipeline, not model-driven, but it is the
+path that actually runs in the app, since the tool-calling loop above is off
+unless a caller opts in.
+
+**Revised after implementation.** The first draft kept web out of
+`literature_review` to protect what a "verified citation" means. That left the
+capability unreachable through the product: the app never enables tool-calling
+generation, so a web-search connector toggle would have been inert. Since the
+connector is meant to be on by default like PubMed, web search has to be in
+the path that actually runs. It is weighted below the peer-reviewed sources
+(`papers_per_query: 2` vs 4) and tagged `source: "web"` so the provenance
+distinction survives, and removing the entry restores the original behavior.
 
 ### Provider abstraction
 
@@ -165,10 +174,10 @@ not accidentally regressed later.
   (web providers take neither a corpus slug nor a publication-year filter;
   recency is expressed in days).
 - `read_tools.read_url`.
-- Both added to `workflows.draft_generation` only — the one tool-calling
-  loop. Left out of `validation` and `reflection` (direct-call paths where
-  web tools are inert or ill-fitting) and out of
-  `literature_review.search_sources` (the quality-gated grounding path).
+- Both added to `workflows.draft_generation` (the one tool-calling loop) and
+  `web_search` to `literature_review.search_sources` (the path that runs in
+  the app). Left out of `validation` and `reflection`, direct-call paths
+  where web tools are inert or ill-fitting.
 
 **`src/co_scientist/config/examples/web_research.yaml`** — a new example for
 exactly that opt-in: web as a first-class literature-review source, with
