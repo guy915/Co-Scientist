@@ -35,11 +35,16 @@ export const GOOGLE_NOTE: {
   linkLabel: string;
 } = {
   label: 'הודעה לצוות',
+  // English source, kept alongside the translation so the wording can be
+  // revised without back-translating: "This is an independent recreation of
+  // AI Co-Scientist, built to learn how the system works. After studying the
+  // publication and surveying competing tools, I've collected a few
+  // suggestions for the official product."
   message:
-    'תודה על העבודה על AI Co-Scientist — היא ההשראה לפרויקט הזה. ' +
-    'זהו שחזור עצמאי שנבנה כדי ללמוד את הארכיטקטורה לעומק. ' +
-    'אשמח מאוד לשמוע את דעתכם, וריכזתי גם כמה המלצות למוצר הרשמי.',
-  linkLabel: 'לצפייה בהמלצות',
+    'זהו שחזור עצמאי של AI Co-Scientist, שנבנה כדי ללמוד איך המערכת עובדת. ' +
+    'לאחר שלמדתי את המאמר וסקרתי כלים מתחרים, ריכזתי כמה הצעות ' +
+    'למוצר הרשמי.',
+  linkLabel: 'לצפייה בהצעות',
 };
 
 // DRAFT: recommendations page copy (heading + bullet points).
