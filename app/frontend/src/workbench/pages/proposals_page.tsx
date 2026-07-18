@@ -1,12 +1,6 @@
 import {useCallback, useMemo, useState} from 'react';
 import {useSearchParams} from 'react-router-dom';
-import {
-  EDGE_KINDS,
-  PAGE_COPY,
-  edges,
-  nodes,
-  type EdgeKind,
-} from '../proposals/proposals_data';
+import {EDGE_KINDS, nodes, type EdgeKind} from '../proposals/proposals_data';
 import {ProposalsDetail} from '../proposals/proposals_detail';
 import {ProposalsGraph} from '../proposals/proposals_graph';
 import {ProposalsLegend} from '../proposals/proposals_legend';
@@ -14,8 +8,10 @@ import {ProposalsLegend} from '../proposals/proposals_legend';
 const ALL_KINDS = new Set<EdgeKind>(EDGE_KINDS.map(entry => entry.kind));
 
 /**
- * The proposals relationship graph. Selection lives in the query string so a
- * particular proposal can be linked to and shared.
+ * The proposals relationship graph, sized to fill the viewport. The graph is
+ * the whole page: the two legends explain it and the detail panel reads one
+ * proposal at a time. Selection lives in the query string so a particular
+ * proposal can be linked to and shared.
  */
 export function ProposalsPage() {
   const [params, setParams] = useSearchParams();
@@ -61,45 +57,29 @@ export function ProposalsPage() {
   }
 
   return (
-    // A div, not a <main>: the shell already renders one around every route,
-    // and nesting a second landmark is invalid.
     <div className="proposals-page">
-      <header className="proposals-header">
-        <h1 className="proposals-title">{PAGE_COPY.title}</h1>
-        <p className="proposals-standfirst">{PAGE_COPY.standfirst}</p>
-        <p className="proposals-intro">{PAGE_COPY.intro}</p>
-        <p className="proposals-count">
-          {nodes.length} proposals, {edges.length} relationships.
-        </p>
-      </header>
-
+      <div className="proposals-canvas">
+        <ProposalsGraph
+          activeId={activeId}
+          selectedId={selectedId}
+          visibleKinds={visibleKinds}
+          onActivate={setActiveId}
+          onSelect={select}
+        />
+      </div>
+      {selected && (
+        <ProposalsDetail
+          node={selected}
+          onSelect={select}
+          onClose={clearSelection}
+        />
+      )}
       <ProposalsLegend
         visibleKinds={visibleKinds}
         onToggleKind={toggleKind}
         onOnlyKind={onlyKind}
         onReset={() => setVisibleKinds(new Set(ALL_KINDS))}
       />
-
-      <p className="proposals-hint">{PAGE_COPY.graphHint}</p>
-
-      <div className="proposals-stage">
-        <div className="proposals-canvas">
-          <ProposalsGraph
-            activeId={activeId}
-            selectedId={selectedId}
-            visibleKinds={visibleKinds}
-            onActivate={setActiveId}
-            onSelect={select}
-          />
-        </div>
-        {selected && (
-          <ProposalsDetail
-            node={selected}
-            onSelect={select}
-            onClose={clearSelection}
-          />
-        )}
-      </div>
     </div>
   );
 }

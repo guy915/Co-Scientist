@@ -1,6 +1,5 @@
 // Shared reading of the edge list: how one node's relationships are phrased
-// for a human. Used by both the detail panel and the prose rendering, so the
-// two cannot describe the same edge differently.
+// for a human, as shown in the detail panel.
 
 import {
   EDGE_KINDS,

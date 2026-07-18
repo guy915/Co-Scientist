@@ -46,7 +46,7 @@ export interface Edge {
 }
 
 /**
- * Edge semantics, used by the legend and the prose rendering. `directed`
+ * Edge semantics, used by the legend and the detail panel. `directed`
  * drives the arrowhead: undirected kinds describe a mutual relationship, so
  * from/to carry no meaning beyond authoring order.
  */
@@ -54,7 +54,7 @@ export const EDGE_KINDS: {
   kind: EdgeKind;
   label: string;
   directed: boolean;
-  /** Reads as "<from> <phrase> <to>" in the prose rendering. */
+  /** Reads as "<from> <phrase> <to>" in the detail panel. */
   phrase: string;
   blurb: string;
 }[] = [
@@ -578,20 +578,3 @@ export const edges: Edge[] = [
       'are not comparable without normalization.',
   },
 ];
-
-/** Page copy. Kept here so the whole page is one content edit. */
-export const PAGE_COPY = {
-  title: 'Proposals',
-  standfirst:
-    'Eighteen proposed improvements to the AI Co-Scientist architecture, ' +
-    'and how they interact.',
-  intro:
-    'Anyone can list eighteen feature ideas. The argument here is in the ' +
-    'edges: some of these are only viable together, some cancel each ' +
-    'other out, and one — brute-force generation — is at once the ' +
-    'highest-leverage and highest-risk proposal, because most of the ' +
-    'tension in the system routes through it.',
-  graphHint:
-    'Hover a proposal to isolate its relationships, or select one to read ' +
-    'them.',
-};
