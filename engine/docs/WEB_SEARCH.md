@@ -78,6 +78,21 @@ turn. Check what a running server exposes:
 curl http://localhost:8888/ | jq '.mcp_tools, .integrations.web_search_provider'
 ```
 
+## The app's Web search connector
+
+The workbench composer lists **Web search** in its Connectors menu next to
+PubMed, on by default. It appears only when the API's `/status` probe finds
+the MCP server advertising `search_web` — that is, only when a provider key is
+configured — so a deployment without a key never offers a toggle it cannot
+honor. `/status` exposes this as `web_search_available` and a
+`probes.web_search` entry.
+
+Turning it off sends `enable_web_search: false` with the run, which the API
+maps to `disable_tools=["web_search"]` on the engine's tool registry.
+`read_url` stays enabled: it is the shared content-fetch tool that the arXiv,
+Google Scholar, and web configs use to pull PDFs and full text, so disabling
+it here would break literature retrieval for unrelated sources.
+
 ## Opt in to grounded web search
 
 By default `web_search` is **not** a literature-review search source. That node
@@ -118,6 +133,12 @@ test it directly against a captured payload — see `tests/test_web_search.py`.
 **Fetched page content is data, not instructions.** A page the agent reads may
 contain text addressed to an AI system. The engine treats all tool results as
 data to evaluate, and nothing about these tools changes that.
+
+**No raw HTML reaches the model.** `read_url` runs HTML through the extractor
+in `extract.py` (headings, paragraphs, and lists preserved; scripts, styles,
+nav, and footers dropped) and PDFs through pypdf. Search snippets are cleaned
+too — Brave wraps matched query terms in `<strong>` — so neither tool emits
+markup.
 
 **`read_url` screens every URL before fetching it.** The URL comes from an LLM,
 influenced by search results the LLM did not write, and in production the MCP
