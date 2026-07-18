@@ -12,6 +12,11 @@ import {
 // verification. `null` means the user has not chosen yet (show the dialog).
 export type Audience = 'general' | 'google' | 'sbi_ucd';
 
+// What an unchosen audience resolves to. The general audience is the plain
+// workspace, so this is also the safe fallback for anyone who dismisses the
+// chooser without answering.
+export const DEFAULT_AUDIENCE: Audience = 'general';
+
 const STORAGE_KEY = 'cosci-audience';
 
 // TEMPORARY: while the mode controls are being designed, the choice is

@@ -2,7 +2,7 @@ import type {RefObject} from 'react';
 import {useEffect, useRef, useState} from 'react';
 import {Icon, type IconName} from '@/components/icon';
 import {getStoredApiKey, setStoredApiKey} from '@/lib/api_key';
-import {useAudience} from '../audience_context';
+import {DEFAULT_AUDIENCE, useAudience} from '../audience_context';
 import {AUDIENCE_OPTIONS} from '../audience_content';
 import {useToast} from '../hooks/use_toast';
 import {type Mode, useTheme} from '../theme_context';
@@ -240,6 +240,10 @@ function HelpSection() {
  */
 export function AffiliationSection() {
   const {audience, setAudience} = useAudience();
+  // Show the default as selected while the answer is still unset, so the
+  // dialog reflects what dismissing it without choosing will commit (see
+  // AudienceGate).
+  const selected = audience ?? DEFAULT_AUDIENCE;
   return (
     <section className="ucs-settings-card">
       <h3 className="ucs-settings-card-title">Affiliation</h3>
@@ -247,22 +251,22 @@ export function AffiliationSection() {
         This tailors the workspace to how you use Co-Scientist. You can change
         it here at any time.
       </p>
-      <div className="grid gap-3">
+      <div className="ucs-affiliation-group">
         {AUDIENCE_OPTIONS.map(option => (
-          <button
-            key={option.value}
-            type="button"
-            aria-pressed={audience === option.value}
-            className={
-              audience === option.value
-                ? 'rounded-xl border-2 border-th-primary bg-cosci-hover p-4 text-left'
-                : 'rounded-xl border border-cosci-border p-4 text-left hover:bg-cosci-hover'
-            }
-            onClick={() => setAudience(option.value)}
-          >
-            <span className="block font-semibold">{option.title}</span>
-            <span className="block text-cosci-muted">{option.blurb}</span>
-          </button>
+          <label key={option.value} className="ucs-affiliation-option">
+            <input
+              className="ucs-affiliation-input"
+              type="radio"
+              name="cosci-affiliation"
+              value={option.value}
+              checked={selected === option.value}
+              onChange={() => setAudience(option.value)}
+            />
+            <span>
+              <span className="ucs-affiliation-title">{option.title}</span>
+              <span className="ucs-affiliation-blurb">{option.blurb}</span>
+            </span>
+          </label>
         ))}
       </div>
     </section>

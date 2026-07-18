@@ -637,6 +637,79 @@
   font-size: 0.95rem;
 }
 
+/* Affiliation picker: a native radio group styled as stacked rows. Real
+   <input type="radio"> elements carry the roving-focus and arrow-key
+   behavior for free; the visual dot is the input itself, restyled via
+   appearance: none. Sits on --cosci-menu-bg so the rows lift off the
+   surrounding .ucs-settings-card rather than blending into it. */
+.ucs-affiliation-group {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.ucs-affiliation-option {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: 0.7rem;
+  border: 1px solid var(--cosci-border);
+  border-radius: 0.75rem;
+  background: var(--cosci-menu-bg);
+  cursor: pointer;
+  padding: 0.75rem 0.9rem;
+}
+
+.ucs-affiliation-option:hover {
+  background: var(--cosci-menu-row-hover);
+}
+
+/* Selection recolors the border and title only. The row keeps its 1px border
+   at every state so choosing one never shifts the stack by a pixel. */
+.ucs-affiliation-option:has(:checked) {
+  border-color: var(--cosci-blue);
+}
+
+.ucs-affiliation-option:has(:focus-visible) {
+  outline: 1px solid var(--cosci-blue);
+  outline-offset: 1px;
+}
+
+.ucs-affiliation-input {
+  appearance: none;
+  width: 1.05rem;
+  height: 1.05rem;
+  margin: 0.1rem 0 0;
+  border: 2px solid var(--cosci-muted);
+  border-radius: 9999px;
+  cursor: pointer;
+}
+
+.ucs-affiliation-input:checked {
+  border-color: var(--cosci-blue);
+  background: radial-gradient(
+    circle,
+    var(--cosci-blue) 0 45%,
+    transparent 47%
+  );
+}
+
+.ucs-affiliation-title {
+  display: block;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.ucs-affiliation-option:has(:checked) .ucs-affiliation-title {
+  color: var(--cosci-blue);
+}
+
+.ucs-affiliation-blurb {
+  display: block;
+  margin-top: 0.15rem;
+  color: var(--cosci-muted);
+  font-size: 0.78rem;
+}
+
 /* Get-help FAQ: native <details> accordion, styled as stacked rows with a
    chevron that rotates when the row is open. */
 .ucs-faq {

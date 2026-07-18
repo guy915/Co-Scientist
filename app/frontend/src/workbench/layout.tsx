@@ -191,7 +191,10 @@ export function Layout({children}: {children: ReactNode}) {
           onClose={() => setSettingsSection(null)}
         />
       )}
-      <AudienceGate onOpenAffiliation={() => openSettings('affiliation')} />
+      <AudienceGate
+        onOpenAffiliation={() => openSettings('affiliation')}
+        chooserOpen={settingsSection === 'affiliation'}
+      />
     </div>
   );
 }
