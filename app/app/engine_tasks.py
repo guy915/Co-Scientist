@@ -18,7 +18,11 @@ from app.engine_adapter.opts import _build_engine_opts, _build_generator
 from app.engine_adapter.provider import _import_hypothesis_generator
 from app.report_render import finalize_report, make_emitter
 from app.run_modes import normalize_run_tier, resolved_run_config
-from app.safety import apply_safety_gate, screen_contextual, screen_intake
+from app.safety import (
+    apply_safety_gate,
+    screen_intake,
+    screen_with_escalation,
+)
 from app.store import RunStatus, ScientificTask
 
 _CHECKPOINT_PROVIDER = "engine"
@@ -566,10 +570,19 @@ async def execute_bootstrap(
     """Safety-gate a run, prepare state, and enqueue the Supervisor task."""
     run = _require_run(task, db_path)
     emit = make_emitter(run.id, db_path=db_path)
-    decision = await screen_contextual(
-        run.research_goal,
+    # Via screen_with_escalation, not screen_contextual directly: the
+    # escalation wrapper carries the two guards this durable path must honor
+    # as much as the streaming one does -- an offline-backed run never pays
+    # for a real contextual model call, and a stage a human already approved
+    # is not re-screened (which would otherwise let a fresh contextual verdict
+    # re-hold an approved run on every resume).
+    decision = await screen_with_escalation(
+        run.id,
         "intake",
-        deterministic=screen_intake(run.research_goal),
+        run.research_goal,
+        screen_intake(run.research_goal),
+        provider=run.provider,
+        db_path=db_path,
     )
     async for _ in apply_safety_gate(run.id, decision, emit, db_path=db_path):
         pass

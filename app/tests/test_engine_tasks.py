@@ -12,7 +12,7 @@ from co_scientist.models import (
     HypothesisReview,
 )
 
-from app import engine_tasks, store, task_worker
+from app import engine_tasks, safety, store, task_worker
 from app.safety import screen_intake
 
 
@@ -67,7 +67,15 @@ class _Generator:
         return self.state
 
 
-async def _deterministic_screen(text: str, *_: Any, **__: Any) -> Any:
+async def _deterministic_screen(
+    _run_id: str, _stage: str, text: str, *_: Any, **__: Any
+) -> Any:
+    """Stand in for the intake escalation with its deterministic verdict.
+
+    Matches ``screen_with_escalation``'s signature (run id, stage, then the
+    screened text) and returns what that wrapper returns for any run these
+    tests create: the deterministic decision, with no contextual model call.
+    """
     return screen_intake(text)
 
 
@@ -386,7 +394,7 @@ async def test_bootstrap_commits_state_and_enqueues_supervisor(
         engine_tasks, "_generator_and_opts", lambda *_: (generator, {})
     )
     monkeypatch.setattr(
-        engine_tasks, "screen_contextual", _deterministic_screen
+        engine_tasks, "screen_with_escalation", _deterministic_screen
     )
 
     result = await engine_tasks.execute_bootstrap(leased, db_path=isolated_db)
@@ -402,6 +410,61 @@ async def test_bootstrap_commits_state_and_enqueues_supervisor(
 
 
 @pytest.mark.asyncio
+async def test_bootstrap_never_escalates_an_offline_backed_run(
+    isolated_db: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An offline-backed run's intake gate makes no contextual model call.
+
+    The durable bootstrap screens through ``screen_with_escalation``, whose
+    offline guard must hold here exactly as it does on the streaming path.
+    Without it the contextual model is called for keyless/offline runs, and a
+    nondeterministic "uncertain" verdict silently pauses a run that should
+    have completed. Patched at ``app.safety.screen_contextual`` -- the seam the
+    escalation wrapper itself calls -- so the guard is exercised, not bypassed.
+    """
+    run = store.create_run(
+        "Task-level science",
+        "standard",
+        "engine",
+        {},
+        llm_backend="offline",
+        db_path=isolated_db,
+    )
+    engine_tasks.enqueue_bootstrap(run.id, db_path=isolated_db)
+    leased = store.claim_task("worker", run_id=run.id, db_path=isolated_db)
+    assert leased is not None
+    monkeypatch.setattr(
+        engine_tasks,
+        "_generator_and_opts",
+        lambda *_: (_Generator(_task_state(run.id)), {}),
+    )
+
+    async def _fail_if_called(*_: Any, **__: Any) -> Any:
+        raise AssertionError(
+            "offline-backed run escalated to the contextual safety model"
+        )
+
+    # Patched in both namespaces: ``app.safety`` is the seam the escalation
+    # wrapper calls, and ``engine_tasks`` is where a direct
+    # ``screen_contextual`` import rebinds it -- so reintroducing the call fails
+    # rather than silently escalating again (raising=False: the name is absent
+    # while the code routes through the wrapper, which is the point).
+    monkeypatch.setattr(safety, "screen_contextual", _fail_if_called)
+    monkeypatch.setattr(
+        engine_tasks, "screen_contextual", _fail_if_called, raising=False
+    )
+
+    result = await engine_tasks.execute_bootstrap(leased, db_path=isolated_db)
+
+    # The success path returns the committed checkpoint, not a status verdict;
+    # a withheld/paused run would carry one instead of enqueuing a successor.
+    assert result.get("status") != "withheld"
+    assert "checkpoint_seq" in result
+    refreshed = store.get_run(run.id, db_path=isolated_db)
+    assert refreshed is not None and refreshed.status != "paused"
+
+
+@pytest.mark.asyncio
 async def test_node_task_commits_once_and_schedules_successor(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -414,7 +477,7 @@ async def test_node_task_commits_once_and_schedules_successor(
         engine_tasks, "_generator_and_opts", lambda *_: (generator, {})
     )
     monkeypatch.setattr(
-        engine_tasks, "screen_contextual", _deterministic_screen
+        engine_tasks, "screen_with_escalation", _deterministic_screen
     )
     result = await engine_tasks.execute_bootstrap(leased, db_path=isolated_db)
     assert store.complete_task(
@@ -522,7 +585,7 @@ async def test_review_fanout_uses_independent_leases_and_one_aggregate_commit(
         engine_tasks, "_generator_for_restore", lambda *_: generator
     )
     monkeypatch.setattr(
-        engine_tasks, "screen_contextual", _deterministic_screen
+        engine_tasks, "screen_with_escalation", _deterministic_screen
     )
     engine_tasks.enqueue_bootstrap(run.id, db_path=isolated_db)
     await task_worker.run_once("bootstrap", run_id=run.id, db_path=isolated_db)
@@ -939,7 +1002,7 @@ async def test_worker_consumes_independent_specialist_task_chain(
         engine_tasks, "_generator_for_restore", lambda *_: generator
     )
     monkeypatch.setattr(
-        engine_tasks, "screen_contextual", _deterministic_screen
+        engine_tasks, "screen_with_escalation", _deterministic_screen
     )
 
     successors = {
@@ -998,7 +1061,7 @@ async def test_inflight_pause_checkpoints_exact_successor(
         engine_tasks, "_generator_and_opts", lambda *_: (generator, {})
     )
     monkeypatch.setattr(
-        engine_tasks, "screen_contextual", _deterministic_screen
+        engine_tasks, "screen_with_escalation", _deterministic_screen
     )
     result = await engine_tasks.execute_bootstrap(leased, db_path=isolated_db)
     assert store.complete_task(

@@ -30,6 +30,14 @@ from tests._client import wait_for
 # app/ directory (parent of tests/), used as PYTHONPATH for the subprocess.
 APP_DIR = pathlib.Path(__file__).resolve().parents[1]
 
+# Ceiling for every poll loop in this file (server boot, run progress, status
+# transitions). Offline runs finish in seconds standalone, but under the full
+# app suite CPU contention stretches the same envelope past 30s, which is how
+# these fixtures used to flake. Polling returns as soon as the predicate holds,
+# so a generous ceiling costs green runs nothing while a genuine hang still
+# fails deterministically.
+_WAIT_BUDGET = 90.0
+
 # Provider keys the parent env might carry; stripped from the server's env so
 # the run and `ask` take the deterministic offline path rather than a paid call.
 _KEY_VARS = (
@@ -52,7 +60,7 @@ def _free_port() -> int:
 
 @pytest.fixture(scope="session")
 def cli_server(tmp_path_factory: pytest.TempPathFactory) -> Iterator[str]:
-    """Spawn a mock-mode uvicorn server on a free port and yield its base URL.
+    """Spawn an offline-backend uvicorn server on a free port, yield its URL.
 
     The server runs from an isolated cwd so neither ``load_dotenv`` nor
     pydantic-settings find the repo ``.env`` (no provider keys leak in), with a
@@ -107,7 +115,7 @@ def cli_server(tmp_path_factory: pytest.TempPathFactory) -> Iterator[str]:
 
 def _await_health(proc: subprocess.Popen[bytes], base: str) -> None:
     """Block until the server answers /health, or fail the fixture."""
-    deadline = time.time() + 30
+    deadline = time.time() + _WAIT_BUDGET
     while time.time() < deadline:
         if proc.poll() is not None:
             raise RuntimeError(f"server exited early (code {proc.returncode})")
@@ -182,7 +190,7 @@ def _wait_status(
     target: str,
     client_id: str,
     *,
-    timeout: float = 30.0,
+    timeout: float = _WAIT_BUDGET,
 ) -> None:
     """Poll until ``run_id`` reaches ``target`` status, or raise on timeout."""
     if not wait_for(
@@ -547,7 +555,7 @@ def test_pause_then_resume_cycle(
             )
             >= 1
         ),
-        timeout=30.0,
+        timeout=_WAIT_BUDGET,
     ), "run did not commit hypotheses before pause"
     assert (
         _invoke(cli_server, "runs", "pause", run_id, client_id="pause-client")
@@ -563,7 +571,7 @@ def test_pause_then_resume_cycle(
         == 0
     )
     assert "queued" in capsys.readouterr().out
-    _wait_status(cli_server, run_id, "completed", "pause-client", timeout=60)
+    _wait_status(cli_server, run_id, "completed", "pause-client")
 
 
 def test_cancel_active_run(
@@ -581,7 +589,7 @@ def test_cancel_active_run(
             )
             >= 1
         ),
-        timeout=30.0,
+        timeout=_WAIT_BUDGET,
     ), "run did not commit hypotheses before cancel"
     assert (
         _invoke(cli_server, "runs", "cancel", run_id, client_id="cancel-client")
