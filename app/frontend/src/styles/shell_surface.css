@@ -637,60 +637,54 @@
   font-size: 0.95rem;
 }
 
-/* Affiliation picker: a native radio group styled as stacked rows. Real
-   <input type="radio"> elements carry the roving-focus and arrow-key
-   behavior for free; the visual dot is the input itself, restyled via
-   appearance: none. Sits on --cosci-menu-bg so the rows lift off the
-   surrounding .ucs-settings-card rather than blending into it. */
+/* Affiliation picker: borderless rows whose selected state is a filled tint,
+   the same selection language as the dialog's section rail and the theme
+   segment. The radio inputs stay in the markup but are visually hidden, so
+   the group keeps native arrow-key navigation and screen-reader semantics
+   without drawing a control. */
 .ucs-affiliation-group {
   display: grid;
-  gap: 0.5rem;
+  gap: 0.35rem;
 }
 
 .ucs-affiliation-option {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  align-items: start;
-  gap: 0.7rem;
-  border: 1px solid var(--cosci-border);
+  display: block;
   border-radius: 0.75rem;
-  background: var(--cosci-menu-bg);
+  background: transparent;
   cursor: pointer;
-  padding: 0.75rem 0.9rem;
+  padding: 0.7rem 0.9rem;
 }
 
 .ucs-affiliation-option:hover {
   background: var(--cosci-menu-row-hover);
 }
 
-/* Selection recolors the border and title only. The row keeps its 1px border
-   at every state so choosing one never shifts the stack by a pixel. */
-.ucs-affiliation-option:has(:checked) {
-  border-color: var(--cosci-blue);
+.ucs-affiliation-option:has(:checked),
+.ucs-affiliation-option:has(:checked):hover {
+  background: #d3e3fd;
+  color: #0b57d0;
 }
 
+:root[data-theme='dark'] .ucs-affiliation-option:has(:checked),
+:root[data-theme='dark'] .ucs-affiliation-option:has(:checked):hover {
+  background: #0842a0;
+  color: #d3e3fd;
+}
+
+/* Keyboard focus still needs to be visible with the input itself hidden, so
+   the row carries the ring. */
 .ucs-affiliation-option:has(:focus-visible) {
-  outline: 1px solid var(--cosci-blue);
-  outline-offset: 1px;
+  outline: 2px solid var(--cosci-blue);
+  outline-offset: 2px;
 }
 
 .ucs-affiliation-input {
-  appearance: none;
-  width: 1.05rem;
-  height: 1.05rem;
-  margin: 0.1rem 0 0;
-  border: 2px solid var(--cosci-muted);
-  border-radius: 9999px;
-  cursor: pointer;
-}
-
-.ucs-affiliation-input:checked {
-  border-color: var(--cosci-blue);
-  background: radial-gradient(
-    circle,
-    var(--cosci-blue) 0 45%,
-    transparent 47%
-  );
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  overflow: hidden;
 }
 
 .ucs-affiliation-title {
@@ -699,15 +693,19 @@
   font-weight: 500;
 }
 
-.ucs-affiliation-option:has(:checked) .ucs-affiliation-title {
-  color: var(--cosci-blue);
-}
-
+/* Muted only while unselected: on the filled row the blurb inherits the
+   selection's foreground and is softened instead, so it stays legible
+   against the tint in both themes. */
 .ucs-affiliation-blurb {
   display: block;
   margin-top: 0.15rem;
   color: var(--cosci-muted);
   font-size: 0.78rem;
+}
+
+.ucs-affiliation-option:has(:checked) .ucs-affiliation-blurb {
+  color: inherit;
+  opacity: 0.85;
 }
 
 /* Get-help FAQ: native <details> accordion, styled as stacked rows with a

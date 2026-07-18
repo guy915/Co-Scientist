@@ -262,10 +262,8 @@ export function AffiliationSection() {
               checked={selected === option.value}
               onChange={() => setAudience(option.value)}
             />
-            <span>
-              <span className="ucs-affiliation-title">{option.title}</span>
-              <span className="ucs-affiliation-blurb">{option.blurb}</span>
-            </span>
+            <span className="ucs-affiliation-title">{option.title}</span>
+            <span className="ucs-affiliation-blurb">{option.blurb}</span>
           </label>
         ))}
       </div>
