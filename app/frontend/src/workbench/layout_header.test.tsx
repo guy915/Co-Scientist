@@ -7,7 +7,7 @@ import {ShellHeader} from './layout_header';
 
 // The audience is declared to the provider directly rather than seeded into
 // localStorage, so these cases do not depend on the storage read.
-function renderHeader(audience?: Audience) {
+function renderHeader(audience?: Audience, activePanel: 'logs' | null = null) {
   return render(
     <MemoryRouter>
       <AudienceProvider initialAudience={audience}>
@@ -16,7 +16,7 @@ function renderHeader(audience?: Audience) {
           toggleNav={() => {}}
           startNewChat={() => {}}
           headerTitle=""
-          activePanel={null}
+          activePanel={activePanel}
           onTogglePanel={() => {}}
           logsControlRef={{current: null}}
         />
@@ -44,5 +44,27 @@ describe('ShellHeader audience control', () => {
     expect(
       screen.getByRole('button', {name: GOOGLE_NOTE.label}),
     ).toBeInTheDocument();
+  });
+
+  it('offers the note, the site, and a way to reply', () => {
+    renderHeader('google', 'logs');
+    expect(
+      screen.getByRole('link', {name: GOOGLE_NOTE.linkLabel}),
+    ).toHaveAttribute('href', '/proposals');
+    // Both leave the app, so both open in their own tab.
+    for (const [label, href] of [
+      [GOOGLE_NOTE.aboutLabel, GOOGLE_NOTE.aboutUrl],
+      [GOOGLE_NOTE.contactLabel, GOOGLE_NOTE.contactUrl],
+    ]) {
+      const link = screen.getByRole('link', {name: label});
+      expect(link).toHaveAttribute('href', href);
+      expect(link).toHaveAttribute('target', '_blank');
+    }
+  });
+
+  it('addresses the reply to the maintainer with a subject', () => {
+    const url = new URL(GOOGLE_NOTE.contactUrl);
+    expect(url.searchParams.get('to')).toBe('guybarel2006@gmail.com');
+    expect(url.searchParams.get('su')).toBeTruthy();
   });
 });

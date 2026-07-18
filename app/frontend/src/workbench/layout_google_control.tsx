@@ -44,12 +44,6 @@ export function GoogleTeamControl({
         data-tooltip={GOOGLE_NOTE.label}
         aria-expanded={open}
         onClick={onToggle}
-        // dir on the flex container itself flips the main axis, so the icon
-        // (first in the DOM) renders to the right of the Hebrew label. Set
-        // here rather than on a child: direction is resolved by the flex
-        // container, so a child would have no effect on the order.
-        dir="rtl"
-        lang="he"
       >
         <Icon
           aria-hidden="true"
@@ -65,9 +59,30 @@ export function GoogleTeamControl({
           // action button sits at the right edge.
           <div className="ucs-team-note" dir="rtl" lang="he">
             <p>{GOOGLE_NOTE.message}</p>
-            <Link className="ucs-panel-button" to="/proposals">
-              {GOOGLE_NOTE.linkLabel}
-            </Link>
+            {/* Under dir="rtl" the row reads right to left, so the
+                suggestions link stays where it was, "about me" sits beside
+                it, and contact lands on the left. */}
+            <div className="ucs-team-note-actions">
+              <Link className="ucs-panel-button" to="/proposals">
+                {GOOGLE_NOTE.linkLabel}
+              </Link>
+              <a
+                className="ucs-panel-button is-tonal"
+                href={GOOGLE_NOTE.aboutUrl}
+                target="_blank"
+                rel="noreferrer"
+              >
+                {GOOGLE_NOTE.aboutLabel}
+              </a>
+              <a
+                className="ucs-panel-button is-tonal"
+                href={GOOGLE_NOTE.contactUrl}
+                target="_blank"
+                rel="noreferrer"
+              >
+                {GOOGLE_NOTE.contactLabel}
+              </a>
+            </div>
           </div>,
           POPOVER_CLASSES,
         )}

@@ -741,6 +741,28 @@
   opacity: 0.5;
 }
 
+/* Secondary actions beside a filled one. A tonal fill rather than an outline:
+   the shell's cards carry no borders, and three filled pills in a row would
+   read as three equal choices. The fill is mixed toward the text rather than
+   taken from --cosci-hover directly, which in dark is the popover's own
+   background and would leave the pill invisible. */
+.ucs-panel-button.is-tonal {
+  background: color-mix(in srgb, var(--cosci-hover) 88%, var(--cosci-text));
+  color: var(--cosci-text);
+}
+
+.ucs-panel-button.is-tonal:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--cosci-hover) 76%, var(--cosci-text));
+}
+
+/* Row of actions under the note. Wraps rather than overflowing: the panel is
+   capped at 28rem and the labels are translated. */
+.ucs-team-note-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
 /* Hebrew note to the Google team. `justify-items: start` resolves against
    the inline direction, so under dir="rtl" the button hugs the right edge
    without any RTL-specific rule. */
