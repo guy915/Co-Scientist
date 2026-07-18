@@ -710,19 +710,30 @@
 }
 
 /* Filled action button used inside header popovers (the feedback form's
-   submit, the team note's link to the recommendations page). */
+   submit, the team note's link to the recommendations page). Takes the app's
+   teal accent from the same baseline tokens as the header pill it drops out
+   of; --cosci-blue is the settings rail's selection color, not an action
+   color. */
 .ucs-panel-button {
   display: inline-block;
   border: 0;
   border-radius: 9999px;
-  background: var(--cosci-blue);
-  color: var(--cosci-menu-bg);
+  background: var(--cosci-step-dot-bg);
+  color: var(--cosci-step-dot-text);
   cursor: pointer;
   font: inherit;
   font-size: 0.82rem;
   font-weight: 600;
   padding: 0.45rem 1.1rem;
   text-decoration: none;
+}
+
+.ucs-panel-button:hover:not(:disabled) {
+  background: color-mix(
+    in srgb,
+    var(--cosci-step-dot-bg) 88%,
+    var(--cosci-step-dot-text)
+  );
 }
 
 .ucs-panel-button:disabled {
@@ -789,16 +800,14 @@
   padding: 0.35rem 0.7rem;
 }
 
+/* Selected chip fills with the app's teal accent. A translucent tint was
+   tried first and read as *less* prominent than the unselected chips, whose
+   background is a solid neutral; filling inverts that back. Both tokens
+   re-theme, so no dark-mode override is needed. */
 .ucs-feedback-chip--selected,
 .ucs-feedback-chip--selected:hover {
-  background: #d3e3fd;
-  color: #0b57d0;
-}
-
-:root[data-theme='dark'] .ucs-feedback-chip--selected,
-:root[data-theme='dark'] .ucs-feedback-chip--selected:hover {
-  background: #0842a0;
-  color: #d3e3fd;
+  background: var(--cosci-step-dot-bg);
+  color: var(--cosci-step-dot-text);
 }
 
 .ucs-feedback-input {
