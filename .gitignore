@@ -60,9 +60,5 @@ cache/
 .claude/
 .remember/
 
-# Paper corpus. The corpus is committed: the papers are open access, so the
-# app works from a clean checkout with no setup. These two are the exception
-# -- both carry an Elsevier "All rights reserved" notice -- so they are held
-# back. Rebuild any of it with: python -m app.corpus_ingest <pdf-dir>
-corpus/sbi_ucd/modular-response-analysis-of-cellular-regulatory-networks.md
-corpus/sbi_ucd/reconstructing-static-and-dynamic-models-of-signaling-pathways-using-modular-res.md
+# The paper corpus is committed in full, so retrieval works from a clean
+# checkout with no setup. Rebuild it with: python -m app.corpus_ingest <dir>

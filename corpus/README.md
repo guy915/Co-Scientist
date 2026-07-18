@@ -3,16 +3,13 @@
 Sanitized full text of a research group's own papers, searched by the
 audience-gated corpus retriever.
 
-The corpus is committed, so a clean checkout has working retrieval with no
-setup. The papers are open access. Two exceptions carry an Elsevier "All
-rights reserved" notice and are git-ignored by name, so rebuild locally if
-you want them:
+The corpus is committed in full, so a clean checkout has working retrieval
+with no setup and a deployment that ships the repository tree needs no extra
+configuration.
 
-- `modular-response-analysis-of-cellular-regulatory-networks`
-- `reconstructing-static-and-dynamic-models-of-signaling-pathways-...`
-
-An absent or partial corpus is not an error. Retrieval returns nothing, the
-MCP tool reports an empty result, and every surface falls back.
+An absent or partial corpus is still not an error. Retrieval returns nothing,
+the MCP tool reports an empty result, and every surface falls back to its
+previous behaviour.
 
 ## Building the SBI/UCD corpus
 
