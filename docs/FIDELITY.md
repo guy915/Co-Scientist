@@ -78,11 +78,19 @@ is set), the `/status` endpoint reports `llm_backend: "offline"`
 `runs.llm_backend` column records which backend produced each run so
 historical runs from one mode are clearly distinguishable from the other.
 
-The offline backend is **deterministic**: same model + prompt + response
-schema produces byte-identical output, so same goal + same run mode + same
-`run_id` produces byte-identical hypotheses, citations, and matchups. This
-is intentional — it lets the implementation behave like a published
-academic artefact rather than a demo that drifts run-to-run.
+The offline backend is **deterministic at the call level**: an identical
+completion call (same model + prompt + response schema) always produces
+byte-identical output. This keeps a single LLM call reproducible and lets the
+suite assert on offline responses without a live provider.
+
+Full-run byte-reproducibility does **not** hold on the engine. Unlike the
+retired mock (which re-derived an entire run from `run_id` and so was
+byte-identical run-to-run), the engine embeds fresh per-run identifiers
+(e.g. UUIDs) into its prompts, so the same goal + run mode + `run_id`
+generally yields *different* prompts across runs and therefore different
+hypotheses, citations, and matchups. This run-level reproducibility was
+deliberately given up in the offline-LLM migration; only per-call
+determinism is guaranteed.
 
 ## Calibration against the published research
 
