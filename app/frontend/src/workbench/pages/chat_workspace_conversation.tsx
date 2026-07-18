@@ -101,6 +101,8 @@ export function ConversationView({
   setupDraftMode,
   pubmedEnabled,
   onPubmedEnabledChange,
+  webSearchEnabled,
+  onWebSearchEnabledChange,
 }: {
   scrollRef: RefObject<HTMLDivElement | null>;
   timelineItems: TimelineItem[];
@@ -112,6 +114,8 @@ export function ConversationView({
   setupDraftMode: boolean;
   pubmedEnabled: boolean;
   onPubmedEnabledChange: (value: boolean) => void;
+  webSearchEnabled: boolean;
+  onWebSearchEnabledChange: (value: boolean) => void;
 }) {
   return (
     <>
@@ -126,6 +130,8 @@ export function ConversationView({
         setupDraftMode={setupDraftMode}
         pubmedEnabled={pubmedEnabled}
         onPubmedEnabledChange={onPubmedEnabledChange}
+        webSearchEnabled={webSearchEnabled}
+        onWebSearchEnabledChange={onWebSearchEnabledChange}
       />
     </>
   );
@@ -174,6 +180,8 @@ function ComposerSection({
   setupDraftMode,
   pubmedEnabled,
   onPubmedEnabledChange,
+  webSearchEnabled,
+  onWebSearchEnabledChange,
 }: {
   composerRef: RefObject<HTMLDivElement | null>;
   session: Pick<
@@ -183,6 +191,8 @@ function ComposerSection({
   setupDraftMode: boolean;
   pubmedEnabled: boolean;
   onPubmedEnabledChange: (value: boolean) => void;
+  webSearchEnabled: boolean;
+  onWebSearchEnabledChange: (value: boolean) => void;
 }) {
   const {input, setInput, isStarting, handleSubmit} = session;
   return (
@@ -196,6 +206,8 @@ function ComposerSection({
           autoFocus
           pubmedEnabled={pubmedEnabled}
           onPubmedEnabledChange={onPubmedEnabledChange}
+          webSearchEnabled={webSearchEnabled}
+          onWebSearchEnabledChange={onWebSearchEnabledChange}
           onSubmit={handleSubmit}
         />
       </div>

@@ -45,6 +45,7 @@ function makeDeps() {
     focusComposer: vi.fn(),
     setToast: vi.fn(),
     pubmedEnabled: true,
+    webSearchEnabled: true,
   };
 }
 

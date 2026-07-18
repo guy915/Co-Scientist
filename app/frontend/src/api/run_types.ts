@@ -80,6 +80,7 @@ export interface RunConfig {
   tournament_pairs?: number;
   evidence_count?: number;
   enable_literature_review?: boolean;
+  enable_web_search?: boolean;
   k_factor?: number;
   tier?: RunTier;
   focus?: RunFocus;

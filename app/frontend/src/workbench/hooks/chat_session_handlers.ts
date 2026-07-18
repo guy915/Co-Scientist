@@ -302,5 +302,6 @@ export function toHandlerDeps(
     focusComposer: view.focusComposer,
     reloadHistory: view.reloadHistory,
     pubmedEnabled: view.pubmedEnabled,
+    webSearchEnabled: view.webSearchEnabled,
   };
 }

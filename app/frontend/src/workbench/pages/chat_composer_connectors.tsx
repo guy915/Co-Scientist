@@ -25,8 +25,15 @@ import {
 } from './chat_home_classes';
 
 // Shown until /status responds (and if it reports none), so the menu is never
-// empty.
+// empty. Only PubMed belongs here: it is the always-present literature base,
+// whereas web search exists only when the MCP server has a provider key.
+// Listing web search optimistically would flash a connector that a deployment
+// without a key does not actually have.
 const DEFAULT_CONNECTORS: Connector[] = [{id: 'pubmed', display: 'PubMed'}];
+
+// The connector id whose row drives the standalone web-search toggle; every
+// other id shares the literature toggle (see ConnectorsMenu).
+const WEB_SEARCH_CONNECTOR_ID = 'web_search';
 
 /**
  * Owns the connectors-menu open flag and the outside-mousedown listener that
@@ -60,7 +67,7 @@ export function useConnectorsMenu() {
 /**
  * Renders the composer's file/connector toolbar row: the hidden file input
  * and its trigger button, the Connectors button, and (while open) the
- * connectors menu with its PubMed toggle row.
+ * connectors menu with its connector toggle rows.
  */
 export function SourceControls({
   connectorsOpen,
@@ -70,6 +77,8 @@ export function SourceControls({
   onFilesChanged,
   pubmedEnabled,
   onPubmedEnabledChange,
+  webSearchEnabled,
+  onWebSearchEnabledChange,
 }: {
   connectorsOpen: boolean;
   onToggleConnectors: () => void;
@@ -78,6 +87,8 @@ export function SourceControls({
   onFilesChanged: (e: ChangeEvent<HTMLInputElement>) => void;
   pubmedEnabled: boolean;
   onPubmedEnabledChange?: (value: boolean) => void;
+  webSearchEnabled: boolean;
+  onWebSearchEnabledChange?: (value: boolean) => void;
 }) {
   return (
     <div className={COMPOSER_SOURCE_CONTROLS_CLASSES} ref={sourceControlsRef}>
@@ -105,6 +116,8 @@ export function SourceControls({
         <ConnectorsMenu
           pubmedEnabled={pubmedEnabled}
           onPubmedEnabledChange={onPubmedEnabledChange}
+          webSearchEnabled={webSearchEnabled}
+          onWebSearchEnabledChange={onWebSearchEnabledChange}
         />
       ) : null}
     </div>
@@ -148,16 +161,23 @@ function SourceToolbarButton({
 }
 
 // Connectors menu: the available data sources come from the backend (/status),
-// derived from literature availability plus the configured tools YAML, so newly
-// configured connectors appear here automatically. They share the single
-// literature-retrieval toggle, since the engine enables its data sources as one
-// stack. Closed by the outside-mousedown effect in the parent composer.
+// derived from literature and web-search availability plus the configured tools
+// YAML, so newly configured connectors appear here automatically. Each row keys
+// its checked state and handler off `connector.id`: the web-search row drives
+// its own independent toggle, while every literature source (PubMed, INDRA, ...)
+// shares the single literature-retrieval toggle, since the engine enables that
+// stack as one unit. Closed by the outside-mousedown effect in the parent
+// composer.
 function ConnectorsMenu({
   pubmedEnabled,
   onPubmedEnabledChange,
+  webSearchEnabled,
+  onWebSearchEnabledChange,
 }: {
   pubmedEnabled: boolean;
   onPubmedEnabledChange?: (value: boolean) => void;
+  webSearchEnabled: boolean;
+  onWebSearchEnabledChange?: (value: boolean) => void;
 }) {
   const {status} = useSystemStatus();
   const connectors = status?.connectors?.length
@@ -172,32 +192,40 @@ function ConnectorsMenu({
       <div className={CONNECTORS_MENU_HEADER_CLASSES}>
         <span>Connectors</span>
       </div>
-      {connectors.map(connector => (
-        <button
-          type="button"
-          role="menuitemcheckbox"
-          aria-checked={pubmedEnabled}
-          className={CONNECTORS_MENU_ROW_CLASSES}
-          key={connector.id}
-          onClick={() => onPubmedEnabledChange?.(!pubmedEnabled)}
-        >
-          <Icon
-            className={CONNECTOR_ICON_CLASSES}
-            aria-hidden="true"
-            name="article"
-          />
-          <span>{connector.display}</span>
-          <span
-            className={joinClasses(
-              CONNECTOR_TOGGLE_BASE_CLASSES,
-              pubmedEnabled
-                ? CONNECTOR_TOGGLE_ON_CLASSES
-                : CONNECTOR_TOGGLE_OFF_CLASSES,
-            )}
-            aria-hidden="true"
-          />
-        </button>
-      ))}
+      {connectors.map(connector => {
+        const isWebSearch = connector.id === WEB_SEARCH_CONNECTOR_ID;
+        const checked = isWebSearch ? webSearchEnabled : pubmedEnabled;
+        const toggle = () =>
+          isWebSearch
+            ? onWebSearchEnabledChange?.(!webSearchEnabled)
+            : onPubmedEnabledChange?.(!pubmedEnabled);
+        return (
+          <button
+            type="button"
+            role="menuitemcheckbox"
+            aria-checked={checked}
+            className={CONNECTORS_MENU_ROW_CLASSES}
+            key={connector.id}
+            onClick={toggle}
+          >
+            <Icon
+              className={CONNECTOR_ICON_CLASSES}
+              aria-hidden="true"
+              name={isWebSearch ? 'search' : 'article'}
+            />
+            <span>{connector.display}</span>
+            <span
+              className={joinClasses(
+                CONNECTOR_TOGGLE_BASE_CLASSES,
+                checked
+                  ? CONNECTOR_TOGGLE_ON_CLASSES
+                  : CONNECTOR_TOGGLE_OFF_CLASSES,
+              )}
+              aria-hidden="true"
+            />
+          </button>
+        );
+      })}
     </div>
   );
 }

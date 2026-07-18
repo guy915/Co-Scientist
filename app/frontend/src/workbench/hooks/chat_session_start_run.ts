@@ -13,6 +13,7 @@ async function executeStart({
   specToStart,
   specCreatedAt,
   pubmedEnabled,
+  webSearchEnabled,
   reloadHistory,
   setConfirmed,
   setDraft,
@@ -39,6 +40,7 @@ async function executeStart({
       ? specToStart.completionEmail
       : undefined,
     enable_literature_review: pubmedEnabled,
+    enable_web_search: webSearchEnabled,
   });
   const session: StartedSession = {
     id: created.id,
@@ -105,6 +107,7 @@ async function startDraftRun(
 export async function promoteDraftToRun({
   draft,
   pubmedEnabled,
+  webSearchEnabled,
   reloadHistory,
   setIsStarting,
   setError,
@@ -129,6 +132,7 @@ export async function promoteDraftToRun({
       specToStart,
       specCreatedAt,
       pubmedEnabled,
+      webSearchEnabled,
       reloadHistory,
       setConfirmed,
       setDraft,

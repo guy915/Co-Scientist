@@ -14,6 +14,26 @@ beforeEach(() => {
   installChatWorkspaceMocks();
 });
 
+// Drives the connectors menu off a real /status payload. Only the connectors
+// list is read by the menu, so the rest of the response is left out. Must run
+// after installChatWorkspaceMocks, which clears stubbed globals.
+function stubStatusConnectors(
+  connectors: {id: string; display: string}[] = [
+    {id: 'pubmed', display: 'PubMed'},
+    {id: 'web_search', display: 'Web search'},
+  ],
+) {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({connectors}),
+      text: async () => '',
+    })) as unknown as typeof fetch,
+  );
+}
+
 describe('ChatWorkspace composer', () => {
   it('shows composer file and connector source controls', async () => {
     renderWorkspace();
@@ -40,6 +60,64 @@ describe('ChatWorkspace composer', () => {
     expect(
       screen.queryByRole('menu', {name: 'Connectors'}),
     ).not.toBeInTheDocument();
+  });
+
+  it('lists the web search connector reported by /status, on by default', async () => {
+    stubStatusConnectors();
+    renderWorkspace();
+
+    fireEvent.click(screen.getByRole('button', {name: 'Connectors'}));
+
+    const webSearch = await screen.findByRole('menuitemcheckbox', {
+      name: 'Web search',
+    });
+    expect(webSearch).toHaveAttribute('aria-checked', 'true');
+    expect(
+      screen.getByRole('menuitemcheckbox', {name: 'PubMed'}),
+    ).toHaveAttribute('aria-checked', 'true');
+  });
+
+  it('omits the web search connector when /status does not report it', async () => {
+    // The MCP server only advertises its web search tool when a provider key
+    // is configured, so a deployment without one must not offer the row.
+    stubStatusConnectors([{id: 'pubmed', display: 'PubMed'}]);
+    renderWorkspace();
+
+    fireEvent.click(screen.getByRole('button', {name: 'Connectors'}));
+
+    await screen.findByRole('menuitemcheckbox', {name: 'PubMed'});
+    expect(
+      screen.queryByRole('menuitemcheckbox', {name: 'Web search'}),
+    ).not.toBeInTheDocument();
+  });
+
+  it('toggles web search independently of PubMed', async () => {
+    stubStatusConnectors();
+    renderWorkspace();
+
+    fireEvent.click(screen.getByRole('button', {name: 'Connectors'}));
+    const webSearch = await screen.findByRole('menuitemcheckbox', {
+      name: 'Web search',
+    });
+
+    fireEvent.click(webSearch);
+
+    // Turning web search off must leave the literature toggle untouched: both
+    // rows used to share one boolean, so this is the regression guard.
+    expect(
+      screen.getByRole('menuitemcheckbox', {name: 'Web search'}),
+    ).toHaveAttribute('aria-checked', 'false');
+    const pubmed = screen.getByRole('menuitemcheckbox', {name: 'PubMed'});
+    expect(pubmed).toHaveAttribute('aria-checked', 'true');
+
+    fireEvent.click(pubmed);
+
+    expect(
+      screen.getByRole('menuitemcheckbox', {name: 'PubMed'}),
+    ).toHaveAttribute('aria-checked', 'false');
+    expect(
+      screen.getByRole('menuitemcheckbox', {name: 'Web search'}),
+    ).toHaveAttribute('aria-checked', 'false');
   });
 
   it('shows uploaded file previews in the composer', async () => {
