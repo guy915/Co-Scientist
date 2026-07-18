@@ -35,9 +35,7 @@ describe('ShellHeader audience control', () => {
 
   it('shows the pilot control for sbi_ucd', () => {
     renderHeader('sbi_ucd');
-    expect(
-      screen.getByRole('button', {name: /Early access/i}),
-    ).toBeInTheDocument();
+    expect(screen.getByRole('button', {name: /Feedback/i})).toBeInTheDocument();
     expect(screen.queryByRole('button', {name: /Logs/i})).toBeNull();
   });
 

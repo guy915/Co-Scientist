@@ -69,8 +69,12 @@ export function exchangeAccessCode(
   );
 }
 
-/** Header identifying the calling browser client to the backend. */
-function clientHeaders(): Record<string, string> {
+/**
+ * Header identifying the calling browser client to the backend. Exported for
+ * sibling API clients (e.g. `@/api/feedback`) so the auth-header policy stays
+ * defined once.
+ */
+export function clientHeaders(): Record<string, string> {
   const token = getAccessToken();
   return token
     ? {Authorization: `Bearer ${token}`}

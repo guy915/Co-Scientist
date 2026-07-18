@@ -709,6 +709,105 @@
   opacity: 0.85;
 }
 
+/* Pilot feedback form in the SBI/UCD header popover. Reuses the settings
+   dialog's field and selection vocabulary so the panel reads as part of the
+   same product surface. */
+.ucs-feedback-form {
+  display: grid;
+  gap: 0.7rem;
+  padding: 1rem;
+}
+
+.ucs-feedback-title {
+  margin: 0;
+  font-family: 'Google Sans', system-ui, sans-serif;
+  font-size: 1rem;
+  font-weight: 500;
+}
+
+.ucs-feedback-intro {
+  margin: -0.3rem 0 0;
+  color: var(--cosci-muted);
+  font-size: 0.8rem;
+}
+
+.ucs-feedback-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.ucs-feedback-chip {
+  border: 0;
+  border-radius: 9999px;
+  background: var(--cosci-menu-row-hover);
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 500;
+  padding: 0.35rem 0.7rem;
+}
+
+.ucs-feedback-chip--selected,
+.ucs-feedback-chip--selected:hover {
+  background: #d3e3fd;
+  color: #0b57d0;
+}
+
+:root[data-theme='dark'] .ucs-feedback-chip--selected,
+:root[data-theme='dark'] .ucs-feedback-chip--selected:hover {
+  background: #0842a0;
+  color: #d3e3fd;
+}
+
+.ucs-feedback-input {
+  box-sizing: border-box;
+  width: 100%;
+  border: 1px solid var(--cosci-border);
+  border-radius: 0.75rem;
+  background: var(--cosci-menu-bg);
+  color: var(--cosci-menu-text);
+  font: inherit;
+  font-size: 0.85rem;
+  padding: 0.6rem 0.75rem;
+  resize: vertical;
+}
+
+.ucs-feedback-input:focus-visible {
+  border-color: var(--cosci-blue);
+  outline: 1px solid var(--cosci-blue);
+}
+
+.ucs-feedback-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+}
+
+.ucs-feedback-status {
+  color: var(--cosci-muted);
+  font-size: 0.75rem;
+}
+
+.ucs-feedback-submit {
+  border: 0;
+  border-radius: 9999px;
+  background: var(--cosci-blue);
+  color: var(--cosci-menu-bg);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 600;
+  padding: 0.45rem 1.1rem;
+}
+
+.ucs-feedback-submit:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
 /* Get-help FAQ: native <details> accordion, styled as stacked rows with a
    chevron that rotates when the row is open. */
 .ucs-faq {

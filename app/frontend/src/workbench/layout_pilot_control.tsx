@@ -1,6 +1,8 @@
-import {type ReactNode} from 'react';
+import {useState, type ReactNode} from 'react';
+import {submitFeedback, type FeedbackCategory} from '@/api/feedback';
 import {Icon} from '@/components/icon';
-import {PILOT_FEEDBACK_EMAIL, PILOT_GUIDE} from './audience_content';
+import {useAudience} from './audience_context';
+import {FEEDBACK_CATEGORIES, PILOT_FEEDBACK} from './audience_content';
 import {tooltipClassNames} from './tooltip';
 
 const BUTTON_CLASSES =
@@ -13,10 +15,85 @@ const BUTTON_CLASSES =
 
 const POPOVER_CLASSES =
   'ucs-popover--logs top-[calc(100%+0.45rem)] right-0 ' +
-  '!w-[min(28rem,calc(100vw-2rem))] !p-0';
+  '!w-[min(24rem,calc(100vw-2rem))] !p-0';
+
+// Submission lifecycle. 'sent' latches until the panel is reopened, so the
+// tester gets an explicit confirmation rather than a silently cleared box.
+type SendState = 'idle' | 'sending' | 'sent' | 'error';
+
+// Owns the draft note and its submission. Extracted from the panel below so
+// the rendering stays a plain function of this state.
+function useFeedbackForm() {
+  const {audience} = useAudience();
+  const [category, setCategory] = useState<FeedbackCategory>('bug');
+  const [message, setMessage] = useState('');
+  const [state, setState] = useState<SendState>('idle');
+
+  async function send() {
+    if (!message.trim()) return;
+    setState('sending');
+    try {
+      await submitFeedback({message: message.trim(), category, audience});
+      setMessage('');
+      setState('sent');
+    } catch {
+      setState('error');
+    }
+  }
+
+  return {
+    category,
+    setCategory,
+    message,
+    // Editing after a failed or completed send returns the form to idle, so
+    // the previous outcome does not linger over a fresh note.
+    setMessage: (value: string) => {
+      setMessage(value);
+      if (state === 'sent' || state === 'error') setState('idle');
+    },
+    state,
+    send,
+  };
+}
+
+// Category chips; the selected one carries the same filled tint the rest of
+// the shell uses for selection.
+function CategoryChips({
+  category,
+  onSelect,
+}: {
+  category: FeedbackCategory;
+  onSelect: (value: FeedbackCategory) => void;
+}) {
+  return (
+    <div
+      className="ucs-feedback-chips"
+      role="radiogroup"
+      aria-label="Feedback category"
+    >
+      {FEEDBACK_CATEGORIES.map(option => (
+        <button
+          key={option.value}
+          type="button"
+          role="radio"
+          aria-checked={category === option.value}
+          className={
+            category === option.value
+              ? 'ucs-feedback-chip ucs-feedback-chip--selected'
+              : 'ucs-feedback-chip'
+          }
+          onClick={() => onSelect(option.value)}
+        >
+          {option.label}
+        </button>
+      ))}
+    </div>
+  );
+}
 
 /**
- * Header control replacing Logs for SBI/UCD: an early-access pilot guide.
+ * Header control replacing Logs for SBI/UCD: a short feedback form posting to
+ * the pilot feedback endpoint.
  *
  * @param props.open Whether the popover is shown.
  * @param props.onToggle Requests the parent flip `open`.
@@ -31,6 +108,9 @@ export function PilotControl({
   onToggle: () => void;
   renderPopover: (children: ReactNode, className: string) => ReactNode;
 }) {
+  const form = useFeedbackForm();
+  const sending = form.state === 'sending';
+
   return (
     <>
       <button
@@ -39,41 +119,56 @@ export function PilotControl({
           className: BUTTON_CLASSES,
           placement: 'left',
         })}
-        data-tooltip="Early access"
+        data-tooltip="Send feedback"
         aria-expanded={open}
         onClick={onToggle}
       >
         <Icon aria-hidden="true" className="text-[1.05rem]" name="stars" />
-        <span>Early access</span>
+        <span>Feedback</span>
       </button>
       {open &&
         renderPopover(
-          <div className="grid gap-3 p-4">
-            <h2 className="text-base font-semibold">{PILOT_GUIDE.title}</h2>
-            <p className="text-cosci-muted">{PILOT_GUIDE.intro}</p>
-            <div>
-              <h3 className="font-semibold">Try these</h3>
-              <ul className="list-disc pl-5">
-                {PILOT_GUIDE.tryThese.map(item => (
-                  <li key={item}>{item}</li>
-                ))}
-              </ul>
+          <form
+            className="ucs-feedback-form"
+            onSubmit={event => {
+              event.preventDefault();
+              void form.send();
+            }}
+          >
+            <h2 className="ucs-feedback-title">{PILOT_FEEDBACK.title}</h2>
+            <p className="ucs-feedback-intro">{PILOT_FEEDBACK.intro}</p>
+            <CategoryChips
+              category={form.category}
+              onSelect={form.setCategory}
+            />
+            <label className="sr-only" htmlFor="cosci-feedback-message">
+              {PILOT_FEEDBACK.placeholder}
+            </label>
+            <textarea
+              id="cosci-feedback-message"
+              className="ucs-feedback-input"
+              rows={4}
+              placeholder={PILOT_FEEDBACK.placeholder}
+              value={form.message}
+              disabled={sending}
+              onChange={event => form.setMessage(event.target.value)}
+            />
+            <div className="ucs-feedback-actions">
+              {/* Outcome and the button share a row: the message sits inline
+                  rather than shifting the form's height when it appears. */}
+              <span aria-live="polite" className="ucs-feedback-status">
+                {form.state === 'sent' && PILOT_FEEDBACK.thanks}
+                {form.state === 'error' && PILOT_FEEDBACK.error}
+              </span>
+              <button
+                type="submit"
+                className="ucs-feedback-submit"
+                disabled={sending || !form.message.trim()}
+              >
+                {sending ? PILOT_FEEDBACK.sending : PILOT_FEEDBACK.submit}
+              </button>
             </div>
-            <div>
-              <h3 className="font-semibold">Known limitations</h3>
-              <ul className="list-disc pl-5">
-                {PILOT_GUIDE.limitations.map(item => (
-                  <li key={item}>{item}</li>
-                ))}
-              </ul>
-            </div>
-            <a
-              className="text-th-primary underline"
-              href={`mailto:${PILOT_FEEDBACK_EMAIL}?subject=Co-Scientist%20pilot%20feedback`}
-            >
-              Send feedback
-            </a>
-          </div>,
+          </form>,
           POPOVER_CLASSES,
         )}
     </>

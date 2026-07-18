@@ -41,29 +41,37 @@ export const GOOGLE_RECOMMENDATIONS: {heading: string; points: string[]} = {
   ],
 };
 
-// DRAFT: SBI/UCD early-access pilot guide shown in the header popover.
-export const PILOT_GUIDE: {
+// DRAFT: copy for the SBI/UCD feedback form in the header popover.
+export const PILOT_FEEDBACK: {
   title: string;
   intro: string;
-  tryThese: string[];
-  limitations: string[];
+  placeholder: string;
+  submit: string;
+  sending: string;
+  thanks: string;
+  error: string;
 } = {
-  title: 'Early access',
+  title: 'Send feedback',
   intro:
-    'Welcome to the SBI/UCD pilot. Co-Scientist is tailored to your ' +
-    'signalling and cancer-biology work.',
-  tryThese: [
-    'Ask for mechanistic hypotheses grounded in signalling networks.',
-    'Request an experiment plan for a promising hypothesis.',
-  ],
-  limitations: [
-    'Literature grounding is best-effort and may miss recent work.',
-    'Runs can take several minutes at higher tiers.',
-  ],
+    'You are an early tester. Tell us what broke, what confused you, or ' +
+    'what you wish it did.',
+  placeholder: 'What would you like us to know?',
+  submit: 'Send',
+  sending: 'Sending...',
+  thanks: 'Thanks — your feedback was sent.',
+  error: 'Could not send that. Please try again.',
 };
 
-// DRAFT: feedback address for the pilot.
-export const PILOT_FEEDBACK_EMAIL = 'guybarel2006@gmail.com';
+// Category options offered by the feedback form. The values mirror
+// FEEDBACK_CATEGORIES in app/feedback.py, which validates them.
+export const FEEDBACK_CATEGORIES: readonly {
+  value: 'bug' | 'idea' | 'confusing';
+  label: string;
+}[] = [
+  {value: 'bug', label: 'Something broke'},
+  {value: 'idea', label: 'Idea'},
+  {value: 'confusing', label: 'Confusing'},
+];
 
 // DRAFT: SBI/UCD-tailored home suggestions. Same shape as the default
 // SUGGESTIONS in chat_home_stage.tsx.
