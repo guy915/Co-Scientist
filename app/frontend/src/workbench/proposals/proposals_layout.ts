@@ -36,13 +36,30 @@ export interface Point {
 // their hulls line up exactly rather than approximately.
 //
 // The corner legends are fixed-size HTML overlaying a canvas that scales to
-// fit, so anything that shrinks the CSS-pixel viewport — resizing the window
-// or zooming the page — makes them cover more of the drawing. Their inner
-// edges sit at x=77/1336 on a 1900px window, x=226/1191 at 1280px, and
-// x=241/1176 at 150% zoom. The top row is centered in that band as measured
-// at the first of those, so it reads as evenly inset there; on a small or
-// zoomed-in window the cards move in over its ends.
-const ROW = {top: 272, bottom: 640};
+// fit, so anything shrinking the CSS-pixel viewport — resizing the window or
+// zooming the page — makes them cover more of the drawing. There is no
+// canvas coordinate that describes them, so the rows are not positioned
+// against one: both are centered on the canvas, which is symmetric at every
+// size, and the legends are simply given the top corners to sit in.
+//
+// The two rows are placed together, keeping 55 units between them, so the
+// drawing moves as a whole rather than stretching.
+const ROW_GAP = 55;
+
+/** Breathing room between a cluster's outermost nodes and its hull. */
+const PAD = {x: NODE.width / 2 + 26, y: NODE.height / 2 + 34};
+
+/** Every ring is the same height, which is what equalizes the hulls. */
+const RING_RY = 85;
+
+const ROW_HEIGHT = (RING_RY + PAD.y) * 2;
+
+// Centered vertically: equal space above the top row and below the bottom.
+const ROWS_TOP = (CANVAS.height - (ROW_HEIGHT * 2 + ROW_GAP)) / 2;
+const ROW = {
+  top: ROWS_TOP + ROW_HEIGHT / 2,
+  bottom: ROWS_TOP + ROW_HEIGHT * 1.5 + ROW_GAP,
+};
 
 // Cluster anchors. The top row takes the middle two clusters by width and
 // the bottom row the other three, so the narrow row is the one that has to
@@ -62,11 +79,16 @@ interface Ring {
 type Rings = Record<ClusterId, Ring>;
 
 const RINGS: Rings = {
-  evaluation: {center: {x: 425, y: ROW.top}, rx: 146, ry: 85, start: -90},
-  interaction: {center: {x: 987, y: ROW.top}, rx: 146, ry: 85, start: -90},
-  capabilities: {center: {x: 317, y: ROW.bottom}, rx: 185, ry: 85, start: -90},
-  knowledge: {center: {x: 763, y: ROW.bottom}, rx: 0, ry: 85, start: -90},
-  scaling: {center: {x: 1146, y: ROW.bottom}, rx: 130, ry: 85, start: -90},
+  evaluation: {center: {x: 419, y: ROW.top}, rx: 146, ry: RING_RY, start: -90},
+  interaction: {center: {x: 981, y: ROW.top}, rx: 146, ry: RING_RY, start: -90},
+  capabilities: {
+    center: {x: 317, y: ROW.bottom},
+    rx: 185,
+    ry: RING_RY,
+    start: -90,
+  },
+  knowledge: {center: {x: 763, y: ROW.bottom}, rx: 0, ry: RING_RY, start: -90},
+  scaling: {center: {x: 1146, y: ROW.bottom}, rx: 130, ry: RING_RY, start: -90},
 };
 
 /**
@@ -105,16 +127,14 @@ function clusterBoundsFor(
 ) {
   const members = nodes.filter(node => node.cluster === clusterId);
   const xs = members.map(node => positions[node.id].x);
-  const padX = NODE.width / 2 + 26;
-  const padY = NODE.height / 2 + 34;
   // The furthest any node sits from its row's center line, so every hull is
   // drawn the same height and the two rows read as rows.
   const halfSpan = Math.max(...Object.values(rings).map(ring => ring.ry));
-  const height = (halfSpan + padY) * 2;
+  const height = (halfSpan + PAD.y) * 2;
   return {
-    x: Math.min(...xs) - padX,
+    x: Math.min(...xs) - PAD.x,
     y: rings[clusterId].center.y - height / 2,
-    width: Math.max(...xs) - Math.min(...xs) + padX * 2,
+    width: Math.max(...xs) - Math.min(...xs) + PAD.x * 2,
     height,
   };
 }
