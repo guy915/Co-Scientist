@@ -462,8 +462,11 @@ async def _launch_resume(run_id: str) -> None:
       that resume never re-emits.
     - Legacy (pre-flip) envelope checkpoint: there is no persisted engine
       state to restore, so the durable worker re-bootstraps the run from its
-      goal/config instead of a true resume. Derived data IS cleared so the
-      fresh run does not duplicate rows or events alongside the old ones.
+      goal/config instead of a true resume. Derived data AND the stale
+      envelope checkpoint are cleared so the fresh run neither duplicates rows
+      or events nor trips the durable bootstrap's empty-checkpoint guard
+      (``engine_tasks.execute_bootstrap`` asserts an empty checkpoint
+      history).
 
     A completed run is never relaunched by callers.
     """
@@ -474,6 +477,7 @@ async def _launch_resume(run_id: str) -> None:
     ) or _has_paused_engine_task(run_id)
     if not true_resume:
         store.clear_run_derived_data(run_id)
+        store.clear_checkpoints(run_id)
     store.update_run_status(run_id, RunStatus.QUEUED)
     store.append_event(
         run_id,

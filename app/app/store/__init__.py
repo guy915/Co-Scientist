@@ -24,6 +24,7 @@ store`` / ``from app.store import ...`` unchanged.
 from __future__ import annotations
 
 from app.store.checkpoints import (
+    clear_checkpoints,
     get_latest_checkpoint,
     has_checkpoint,
     save_checkpoint,
@@ -149,6 +150,7 @@ __all__ = [
     "cancel_task",
     "checkpoint_wal",
     "claim_task",
+    "clear_checkpoints",
     "clear_publication_artifacts",
     "clear_run_derived_data",
     "complete_task",
