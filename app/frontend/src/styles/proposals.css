@@ -138,11 +138,8 @@
   align-items: center;
   gap: 0.45rem;
   border: 0;
-  /* The chip is a wide rectangle, so a radius that reads as generous on a
-     small control still looks square here. Height and radius are raised
-     together: the radius stays under half the height, so the ends are
-     clearly rounded corners rather than a stadium. */
-  border-radius: 0.85rem;
+  /* Fully rounded ends, matching the pills used elsewhere in the app. */
+  border-radius: 9999px;
   background: var(--cosci-hover);
   color: inherit;
   cursor: pointer;
