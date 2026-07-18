@@ -10,7 +10,6 @@ import {
 import {ProposalsDetail} from '../proposals/proposals_detail';
 import {ProposalsGraph} from '../proposals/proposals_graph';
 import {ProposalsLegend} from '../proposals/proposals_legend';
-import {ProposalsText} from '../proposals/proposals_text';
 
 const ALL_KINDS = new Set<EdgeKind>(EDGE_KINDS.map(entry => entry.kind));
 
@@ -62,7 +61,9 @@ export function ProposalsPage() {
   }
 
   return (
-    <main className="proposals-page">
+    // A div, not a <main>: the shell already renders one around every route,
+    // and nesting a second landmark is invalid.
+    <div className="proposals-page">
       <header className="proposals-header">
         <h1 className="proposals-title">{PAGE_COPY.title}</h1>
         <p className="proposals-standfirst">{PAGE_COPY.standfirst}</p>
@@ -99,12 +100,6 @@ export function ProposalsPage() {
           />
         )}
       </div>
-
-      <section className="proposals-prose">
-        <h2 className="proposals-prose-title">{PAGE_COPY.textHeading}</h2>
-        <p className="proposals-prose-intro">{PAGE_COPY.textIntro}</p>
-        <ProposalsText onSelect={select} />
-      </section>
-    </main>
+    </div>
   );
 }

@@ -1,10 +1,9 @@
 /* Proposals relationship graph (/proposals).
 
-   Two visual channels carry meaning and must not be confused:
-   - hue = cluster membership (the --proposal-* colors below)
-   - stroke style = relationship kind (solid / arrow / dashed / dotted)
-   Edges are deliberately neutral in color so the kind stays legible to
-   anyone who cannot separate the cluster hues. */
+   Cluster membership is carried by node hue; relationship kind is carried by
+   BOTH edge color and stroke style (solid / arrow / dashed / dotted). The
+   stroke styles are kept alongside the colors deliberately: the kind stays
+   readable when the hues are hard to separate, or in print. */
 
 :root {
   /* Cluster hues. `scaling` takes the app's own teal; the rest are chosen
@@ -14,8 +13,14 @@
   --proposal-interaction: #2c5fb8;
   --proposal-knowledge: #7c4a9c;
   --proposal-capabilities: #a33b62;
+
+  /* Relationship colors, chosen to read as what they mean: growth, ordering,
+     repair, conflict. */
+  --proposal-synergy: #17855a;
+  --proposal-enables: #3f51b5;
+  --proposal-compensates: #b06a12;
+  --proposal-tension: #c0392b;
   --proposal-edge: #8b8f8d;
-  --proposal-edge-lit: #33383a;
 }
 
 :root[data-theme='dark'] {
@@ -24,8 +29,11 @@
   --proposal-interaction: #8fb4f2;
   --proposal-knowledge: #c39ae0;
   --proposal-capabilities: #ef92b2;
+  --proposal-synergy: #4ecf95;
+  --proposal-enables: #8f9ff0;
+  --proposal-compensates: #e8a95a;
+  --proposal-tension: #f08279;
   --proposal-edge: #6b6f6e;
-  --proposal-edge-lit: #e3e3e3;
 }
 
 .proposals-page {
@@ -33,7 +41,9 @@
   gap: 2rem;
   width: min(100% - 2rem, 76rem);
   margin: 0 auto;
-  padding: 3rem 0 5rem;
+  /* The shell header already sits above this; a large pad on top of it
+     reads as dead space. */
+  padding: 1.5rem 0 4rem;
   color: var(--cosci-text);
 }
 
@@ -208,8 +218,8 @@
 .proposals-graph {
   display: block;
   width: 100%;
-  /* Below this the nodes stop being readable; the prose section carries
-     the content at narrow widths. */
+  /* Below this the node labels stop being readable, so the canvas scrolls
+     horizontally rather than shrinking further. */
   min-width: 46rem;
   height: auto;
 }
@@ -244,38 +254,46 @@
   fill: var(--proposal-capabilities);
 }
 
-/* Edge kind is stroke style only — never hue. */
+/* Edge kind is carried by color and stroke style together. */
 .proposals-edge {
   fill: none;
   stroke: var(--proposal-edge);
-  stroke-width: 1.5;
-  transition: opacity 120ms ease, stroke 120ms ease;
+  stroke-width: 1.75;
+  /* Slightly held back so a busy graph does not read as noise; the lit
+     state below brings the focused relationships to full strength. */
+  opacity: 0.85;
+  transition: opacity 120ms ease, stroke-width 120ms ease;
 }
 
 .proposals-edge.is-synergy {
+  stroke: var(--proposal-synergy);
   stroke-width: 2;
 }
 
 .proposals-edge.is-enables {
-  stroke-width: 1.75;
+  stroke: var(--proposal-enables);
+  stroke-width: 2;
 }
 
 .proposals-edge.is-compensates {
+  stroke: var(--proposal-compensates);
   stroke-dasharray: 7 4;
 }
 
 .proposals-edge.is-tension {
+  stroke: var(--proposal-tension);
   stroke-dasharray: 1 4;
   stroke-linecap: round;
-  stroke-width: 2.5;
+  stroke-width: 2.75;
 }
 
 .proposals-edge.is-lit {
-  stroke: var(--proposal-edge-lit);
+  opacity: 1;
+  stroke-width: 3;
 }
 
 .proposals-edge.is-dim {
-  opacity: 0.12;
+  opacity: 0.1;
 }
 
 .proposals-node {
@@ -483,7 +501,7 @@
   list-style: none;
 }
 
-/* The left rule repeats the edge's stroke style, tying a written
+/* The left rule repeats the edge's color and stroke style, tying a written
    relationship back to the line drawn for it in the graph. */
 .proposals-relation {
   border-left: 3px solid var(--proposal-edge);
@@ -491,19 +509,23 @@
 }
 
 .proposals-relation.is-synergy {
+  border-left-color: var(--proposal-synergy);
   border-left-style: solid;
 }
 
 .proposals-relation.is-enables {
+  border-left-color: var(--proposal-enables);
   border-left-style: double;
   border-left-width: 4px;
 }
 
 .proposals-relation.is-compensates {
+  border-left-color: var(--proposal-compensates);
   border-left-style: dashed;
 }
 
 .proposals-relation.is-tension {
+  border-left-color: var(--proposal-tension);
   border-left-style: dotted;
 }
 
@@ -537,97 +559,3 @@
   line-height: 1.5;
 }
 
-/* Prose rendering ----------------------------------------------------- */
-
-.proposals-prose {
-  display: grid;
-  gap: 0.5rem;
-  border-top: 1px solid var(--cosci-border);
-  padding-top: 2rem;
-}
-
-.proposals-prose-title {
-  margin: 0;
-  font-family: 'Google Sans', system-ui, sans-serif;
-  font-size: 1.75rem;
-  font-weight: 400;
-}
-
-.proposals-prose-intro {
-  margin: 0 0 1rem;
-  color: var(--cosci-muted);
-}
-
-.proposals-text {
-  display: grid;
-  gap: 2.5rem;
-}
-
-.proposals-text-group {
-  display: grid;
-  gap: 0.5rem;
-}
-
-.proposals-text-group-title {
-  margin: 0;
-  font-family: 'Google Sans', system-ui, sans-serif;
-  font-size: 1.25rem;
-  font-weight: 500;
-}
-
-.proposals-text-group-title.is-scaling {
-  color: var(--proposal-scaling);
-}
-.proposals-text-group-title.is-evaluation {
-  color: var(--proposal-evaluation);
-}
-.proposals-text-group-title.is-interaction {
-  color: var(--proposal-interaction);
-}
-.proposals-text-group-title.is-knowledge {
-  color: var(--proposal-knowledge);
-}
-.proposals-text-group-title.is-capabilities {
-  color: var(--proposal-capabilities);
-}
-
-.proposals-text-group-blurb {
-  margin: 0 0 0.75rem;
-  color: var(--cosci-muted);
-  font-size: 0.9rem;
-}
-
-.proposals-entry {
-  display: grid;
-  gap: 0.5rem;
-  max-width: 46rem;
-  border-top: 1px solid var(--cosci-border);
-  padding-top: 1.1rem;
-  /* Anchored deep links from the graph land below the sticky header. */
-  scroll-margin-top: 5rem;
-}
-
-.proposals-entry-title {
-  margin: 0;
-  font-size: 1rem;
-  font-weight: 600;
-}
-
-.proposals-entry p {
-  margin: 0;
-  font-size: 0.88rem;
-  line-height: 1.6;
-}
-
-.proposals-entry-problem {
-  color: var(--cosci-muted);
-}
-
-@media print {
-  /* The graph does not print usefully; the prose is the printed artifact. */
-  .proposals-legend,
-  .proposals-stage,
-  .proposals-hint {
-    display: none;
-  }
-}

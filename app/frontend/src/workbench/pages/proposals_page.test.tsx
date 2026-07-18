@@ -14,11 +14,14 @@ function renderPage(path = '/proposals') {
 }
 
 describe('ProposalsPage', () => {
-  it('renders every proposal in the prose section', () => {
-    const {container} = renderPage();
+  it('names every proposal for assistive technology', () => {
+    renderPage();
+    // The graph is the only rendering of the content, so each node has to
+    // carry its own accessible name.
     for (const node of nodes) {
-      // Anchored by id so the graph and a deep link address the same thing.
-      expect(container.querySelector(`#proposal-${node.id}`)).not.toBeNull();
+      expect(
+        screen.getByRole('button', {name: new RegExp(`^${node.label}\\.`)}),
+      ).toBeInTheDocument();
     }
   });
 

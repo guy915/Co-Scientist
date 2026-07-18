@@ -594,8 +594,4 @@ export const PAGE_COPY = {
   graphHint:
     'Hover a proposal to isolate its relationships, or select one to read ' +
     'them.',
-  textHeading: 'Every proposal in full',
-  textIntro:
-    'The same content as the graph above, in reading order, with every ' +
-    'relationship written out.',
 };
