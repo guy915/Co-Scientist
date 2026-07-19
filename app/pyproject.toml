@@ -71,6 +71,11 @@ default = { features = ["dev"], solve-group = "default" }
 [tool.ruff]
 line-length = 80
 target-version = "py310"
+# dev/ holds offline maintenance scripts, not shipped code. build_catalog.py
+# carries published abstracts as verbatim string literals, which cannot be
+# wrapped without corrupting the text they exist to preserve. The engine
+# excludes its own dev/ for the same reason.
+exclude = ["dev"]
 
 [tool.ruff.lint]
 select = [

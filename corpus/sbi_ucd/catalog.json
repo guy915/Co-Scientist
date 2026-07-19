@@ -100,7 +100,8 @@
       "paper_id": "reconstructing-static-and-dynamic-models-of-signaling-pathways-using-modular-res",
       "title": "Reconstructing static and dynamic models of signaling pathways using Modular Response Analysis",
       "abstract": "In this review we discuss the origination and evolution of Modular Response Analysis (MRA), which is a physics-based method for reconstructing quantitative topological models of biochemical pathways. We first focus on the core theory of MRA, demonstrating how both the direction and the strength of local, causal connections between network modules can be precisely inferred from the global responses of the entire network to a sufficient number of perturbations, under certain conditions. Subsequently, we analyze statistical reformulations of MRA and show how MRA is used to build and calibrate mechanistic models of biological networks. We further discuss what sets MRA apart from other network reconstruction methods and outline future directions for MRA-based methods of network reconstruction.",
-      "source": "grounded-extract"
+      "source": "paper-abstract",
+      "doi": "10.1016/j.coisb.2018.02.003"
     },
     {
       "paper_id": "testing-and-overcoming-the-limitations-of-modular-response-analysis",

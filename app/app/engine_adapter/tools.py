@@ -55,6 +55,9 @@ def connectors_report(
         enabled_tools: Enabled tool ids from a readable tools config, or None.
         web_search_available: Whether the MCP server advertises the web
             search tool, which it does only when a provider key is set.
+        paper_corpus_available: Whether a paper catalog is installed. The
+            connector is listed for every audience that asks, but only the
+            corpus audience is served it (see paper_corpus.catalog_context).
 
     Returns:
         Ordered connectors, each ``{"id": ..., "display": ...}``.

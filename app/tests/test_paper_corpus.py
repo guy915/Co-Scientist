@@ -219,6 +219,4 @@ def test_fetch_tool_is_withheld_from_other_audiences() -> None:
         "paper_corpus_fetch"
     ]
     for other in ("google", "general", "", None):
-        assert paper_corpus.disabled_tools_for(other) == [
-            "paper_corpus_fetch"
-        ]
+        assert paper_corpus.disabled_tools_for(other) == ["paper_corpus_fetch"]

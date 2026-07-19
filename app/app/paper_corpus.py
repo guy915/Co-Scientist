@@ -35,9 +35,11 @@ CORPUS_ENV_VAR = "SBI_CORPUS_DIR"
 _DEFAULT_CORPUS_DIR = Path(__file__).resolve().parents[2] / "corpus" / "sbi_ucd"
 
 # The committed catalog: one entry per paper with its title, abstract, and the
-# `paper_id` that `fetch_paper` takes. Built offline by `build_catalog` from
-# verified metadata and reviewed before it ships, so runtime never derives an
-# abstract from the messy sanitized text.
+# `paper_id` that `fetch_paper` takes. Built offline by
+# `app/dev/build_catalog.py` from hand-verified metadata and reviewed before it
+# ships, so runtime never derives an abstract from the messy sanitized text.
+# That script is also where a new paper gets added; it records each abstract's
+# provenance and refuses to write if catalog and corpus directory disagree.
 CATALOG_FILENAME = "catalog.json"
 
 # Everything from these headings to the end of the paper is back matter: the
