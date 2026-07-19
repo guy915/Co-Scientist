@@ -26,6 +26,7 @@ export interface ChatSessionDeps {
   focusComposer: () => void;
   setToast: (value: string | ToastState | null) => void;
   pubmedEnabled: boolean;
+  webSearchEnabled: boolean;
 }
 
 /**
@@ -36,6 +37,7 @@ export interface ChatSessionDeps {
 export type ExecuteStartDeps = Pick<
   HandlerDeps,
   | 'pubmedEnabled'
+  | 'webSearchEnabled'
   | 'reloadHistory'
   | 'setConfirmed'
   | 'setDraft'
@@ -79,4 +81,5 @@ export interface HandlerDeps {
   focusComposer: () => void;
   reloadHistory: () => Promise<void>;
   pubmedEnabled: boolean;
+  webSearchEnabled: boolean;
 }

@@ -20,7 +20,9 @@ export interface SystemStatus {
   mcp_available: boolean;
   pubmed_available: boolean;
   literature_review_available: boolean;
-  probes: {mcp: ProbeStatus; pubmed: ProbeStatus};
+  /** Present once the backend advertises the web-search tool. */
+  web_search_available?: boolean;
+  probes: {mcp: ProbeStatus; pubmed: ProbeStatus; web_search?: ProbeStatus};
   mcp_server_url: string;
   // The engine is the only workflow provider now; 'mock' only ever appears
   // on a response mirroring a pre-unification deployment.

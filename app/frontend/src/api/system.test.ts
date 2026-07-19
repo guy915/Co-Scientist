@@ -6,6 +6,7 @@ const STATUS: SystemStatus = {
   mcp_available: false,
   pubmed_available: false,
   literature_review_available: false,
+  web_search_available: false,
   probes: {
     mcp: {state: 'down', error: null},
     pubmed: {state: 'error', error: 'probe timed out after 3s'},
@@ -18,7 +19,10 @@ const STATUS: SystemStatus = {
   engine_importable: true,
   model_name: 'gemini/gemini-2.5-flash',
   supervisor_model_name: 'gemini/gemini-2.5-flash',
-  connectors: [{id: 'pubmed', display: 'PubMed'}],
+  connectors: [
+    {id: 'pubmed', display: 'PubMed'},
+    {id: 'web_search', display: 'Web search'},
+  ],
 };
 
 function jsonResponse(body: unknown): Response {

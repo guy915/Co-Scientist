@@ -4,10 +4,17 @@ MCP (Model Context Protocol) server providing PubMed literature search tools for
 
 ## Features
 
-Provides 2 core tools for biomedical literature search:
+Core tools for biomedical literature search:
 
 - **check_pubmed_available**: Test if PubMed service is accessible
 - **pubmed_search_with_fulltext**: Search PubMed, download fulltext from PMC, and extract clean text for LLM analysis
+
+Open-web research and browsing:
+
+- **search_web**: Search the open web for news, grey literature, and recent developments. Registered only when a provider API key is configured
+- **read_url**: Fetch a web page or PDF and return readable text. Always available
+
+See [Web Search](../docs/WEB_SEARCH.md) for provider setup and the URL safety screen.
 
 ## Quick Start (Docker)
 
@@ -80,6 +87,12 @@ ENTREZ_API_KEY=your_ncbi_api_key  # get at https://www.ncbi.nlm.nih.gov/account/
 # server port (default: 8888)
 COSCIENTIST_MCP_PORT=8888
 
+# web search provider key. without one, search_web is not registered and
+# only read_url is available. brave or tavily; brave is preferred by default.
+BRAVE_API_KEY=
+TAVILY_API_KEY=
+WEB_SEARCH_PROVIDER=
+
 # paper cache directory (default: ./paper_cache)
 COSCIENTIST_LIT_REVIEW_DIR=./paper_cache
 ```
@@ -108,9 +121,15 @@ mcp_server/
 ├── config.py                    # Configuration
 ├── text_extraction.py           # PMC HTML to markdown
 └── tools/
-    └── lit_review/
-        ├── search_pubmed.py              # check availability
-        └── pubmed_search_with_fulltext.py  # search + fulltext
+    ├── lit_review/
+    │   ├── search_pubmed.py              # check availability
+    │   └── pubmed_search_with_fulltext.py  # search + fulltext
+    └── web/
+        ├── web_search.py        # search_web tool
+        ├── providers.py         # Brave / Tavily dispatch
+        ├── fetch.py             # read_url tool
+        ├── extract.py           # HTML and PDF to text
+        └── url_guard.py         # SSRF screen for fetched URLs
 ```
 
 ## Docker Details

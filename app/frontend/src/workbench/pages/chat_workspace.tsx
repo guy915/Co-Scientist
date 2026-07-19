@@ -43,6 +43,8 @@ export function ChatWorkspace() {
   const [showAllRecents, setShowAllRecents] = useState(false);
   // PubMed connector toggle, shared between the home and in-chat composer.
   const [pubmedEnabled, setPubmedEnabled] = useState(true);
+  // Web search connector toggle, likewise shared between both composers.
+  const [webSearchEnabled, setWebSearchEnabled] = useState(true);
 
   const {toast, setToast} = useToast();
   const {history, homeScores, reloadHistory} = useRunHistory();
@@ -59,6 +61,7 @@ export function ChatWorkspace() {
     focusComposer,
     setToast,
     pubmedEnabled,
+    webSearchEnabled,
   });
   const {draft, startedSession, hasConversation} = session;
 
@@ -101,6 +104,8 @@ export function ChatWorkspace() {
             setInput={session.setInput}
             pubmedEnabled={pubmedEnabled}
             onPubmedEnabledChange={setPubmedEnabled}
+            webSearchEnabled={webSearchEnabled}
+            onWebSearchEnabledChange={setWebSearchEnabled}
             onSubmit={session.handleSubmit}
             runs={history}
             scoresByRunId={homeScores}
@@ -116,6 +121,8 @@ export function ChatWorkspace() {
             setupDraftMode={Boolean(draft || startedSession)}
             pubmedEnabled={pubmedEnabled}
             onPubmedEnabledChange={setPubmedEnabled}
+            webSearchEnabled={webSearchEnabled}
+            onWebSearchEnabledChange={setWebSearchEnabled}
           />
         )}
         <ToastPortal toast={toast} />

@@ -60,6 +60,7 @@ function makeDeps(overrides: Partial<HandlerDeps> = {}): HandlerDeps {
     focusComposer: vi.fn(),
     reloadHistory: vi.fn().mockResolvedValue(undefined),
     pubmedEnabled: true,
+    webSearchEnabled: true,
     ...overrides,
   };
 }

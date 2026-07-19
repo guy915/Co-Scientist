@@ -93,7 +93,9 @@ Co-Scientist supports any MCP-compatible server via the YAML configuration syste
 - Mapping tool parameters to canonical names used by the workflow
 - Injecting domain-specific prompt instructions per tool
 
-Supported literature source types: `pubmed`, `academic`, `preprint`, `knowledge_graph`, `vulnerability_database`.
+Supported literature source types: `pubmed`, `academic`, `preprint`, `web`, `knowledge_graph`, `vulnerability_database`.
+
+The bundled server also provides `search_web` and `read_url` for open-web research and browsing. See [Web Search](WEB_SEARCH.md).
 
 See [Literature Review Tools Configuration](LITERATURE_REVIEW_TOOLS_CONFIGURATION.md) for the full YAML schema reference, and [Domain Customization](DOMAIN_CUSTOMIZATION.md) for complete worked examples.
 

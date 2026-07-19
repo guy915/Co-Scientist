@@ -25,6 +25,7 @@ async function executeStart({
   specToStart,
   specCreatedAt,
   pubmedEnabled,
+  webSearchEnabled,
   reloadHistory,
   setConfirmed,
   setDraft,
@@ -52,6 +53,7 @@ async function executeStart({
       : undefined,
     enable_literature_review: pubmedEnabled,
     audience: storedAudience(),
+    enable_web_search: webSearchEnabled,
   });
   const session: StartedSession = {
     id: created.id,
@@ -116,6 +118,7 @@ async function startDraftRun(
 export async function promoteDraftToRun({
   draft,
   pubmedEnabled,
+  webSearchEnabled,
   reloadHistory,
   setIsStarting,
   setError,
@@ -140,6 +143,7 @@ export async function promoteDraftToRun({
       specToStart,
       specCreatedAt,
       pubmedEnabled,
+      webSearchEnabled,
       reloadHistory,
       setConfirmed,
       setDraft,

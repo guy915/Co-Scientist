@@ -122,6 +122,9 @@ const SESSION_STEPS: readonly {
  * @param setInput Updates the controlled composer value.
  * @param pubmedEnabled Whether the PubMed connector toggle is on.
  * @param onPubmedEnabledChange Callback fired when the PubMed toggle changes.
+ * @param webSearchEnabled Whether the Web search connector toggle is on.
+ * @param onWebSearchEnabledChange Callback fired when the Web search toggle
+ *   changes.
  * @param onSubmit Form submit handler for the composer.
  * @param runs Recent runs to list in the recents panel.
  * @param scoresByRunId Top Elo score per run id, keyed for the recents panel.
@@ -133,6 +136,8 @@ export function HomeStage({
   setInput,
   pubmedEnabled,
   onPubmedEnabledChange,
+  webSearchEnabled,
+  onWebSearchEnabledChange,
   onSubmit,
   runs,
   scoresByRunId,
@@ -143,6 +148,8 @@ export function HomeStage({
   setInput: (value: string) => void;
   pubmedEnabled: boolean;
   onPubmedEnabledChange: (enabled: boolean) => void;
+  webSearchEnabled: boolean;
+  onWebSearchEnabledChange: (enabled: boolean) => void;
   onSubmit: (e: FormEvent<HTMLFormElement>, files: File[]) => void;
   runs: Run[];
   scoresByRunId: Record<string, number | null>;
@@ -189,6 +196,8 @@ export function HomeStage({
           large
           pubmedEnabled={pubmedEnabled}
           onPubmedEnabledChange={onPubmedEnabledChange}
+          webSearchEnabled={webSearchEnabled}
+          onWebSearchEnabledChange={onWebSearchEnabledChange}
           onSubmit={onSubmit}
         />
       </div>

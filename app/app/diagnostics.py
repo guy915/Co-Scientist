@@ -33,6 +33,11 @@ PROBE_UP = "up"
 PROBE_DOWN = "down"
 PROBE_ERROR = "error"
 
+# MCP tool name backing the "Web search" connector. The server registers it
+# only when a search-provider API key is configured, so its presence is the
+# availability signal for that connector.
+WEB_SEARCH_TOOL_NAME = "search_web"
+
 
 @dataclass
 class HealthCheck:
@@ -140,36 +145,47 @@ async def _run_probe(coro: Any, timeout: float) -> ProbeResult:
         return _probe_error(f"{type(exc).__name__}: {exc}")
 
 
-async def _probe_literature_stack() -> tuple[ProbeResult, ProbeResult]:
-    """Probe MCP server and PubMed availability concurrently.
+async def _probe_literature_stack() -> tuple[
+    ProbeResult, ProbeResult, ProbeResult
+]:
+    """Probe MCP server, PubMed, and web-search availability concurrently.
 
     The engine is an optional runtime dependency; when its probe helpers
-    cannot be imported both probes report the ``error`` state instead of
+    cannot be imported all probes report the ``error`` state instead of
     a misleading definitive ``down``.
 
+    Web search is probed by asking the MCP server whether it advertises
+    ``search_web``. The server registers that tool only when a provider API
+    key is configured, so this is what distinguishes "web search is usable"
+    from "the server is up but has no key".
+
     Returns:
-        The ``(mcp, pubmed)`` probe outcomes.
+        The ``(mcp, pubmed, web_search)`` probe outcomes.
     """
     try:
         from co_scientist.mcp_client import (  # type: ignore[import-not-found, unused-ignore]
             check_mcp_available,
             check_pubmed_available_via_mcp,
+            check_tool_available,
         )
     except Exception as exc:
         unavailable = _probe_error(f"engine unavailable: {exc}")
-        return unavailable, unavailable
+        return unavailable, unavailable, unavailable
 
     timeout = settings.status_probe_timeout_seconds
-    # The two probes are independent network round-trips; overlap them.
+    # The probes are independent network round-trips; overlap them.
     return await asyncio.gather(
         _run_probe(check_mcp_available(), timeout),
         _run_probe(check_pubmed_available_via_mcp(), timeout),
+        _run_probe(check_tool_available(WEB_SEARCH_TOOL_NAME), timeout),
     )
 
 
 # TTL cache for the probe pair: (monotonic deadline, results). One entry
-# suffices because both probes always run (and expire) together.
-_probe_cache: tuple[float, tuple[ProbeResult, ProbeResult]] | None = None
+# suffices because the probes always run (and expire) together.
+_probe_cache: (
+    tuple[float, tuple[ProbeResult, ProbeResult, ProbeResult]] | None
+) = None
 
 
 def clear_probe_cache() -> None:
@@ -178,11 +194,13 @@ def clear_probe_cache() -> None:
     _probe_cache = None
 
 
-async def probe_literature_stack_cached() -> tuple[ProbeResult, ProbeResult]:
-    """Return the MCP/PubMed probe pair, reusing a short-lived cache.
+async def probe_literature_stack_cached() -> tuple[
+    ProbeResult, ProbeResult, ProbeResult
+]:
+    """Return the MCP/PubMed/web-search probe triple, reusing a short cache.
 
     Returns:
-        The ``(mcp, pubmed)`` probe outcomes, at most
+        The ``(mcp, pubmed, web_search)`` probe outcomes, at most
         ``settings.status_probe_cache_ttl_seconds`` old.
     """
     global _probe_cache

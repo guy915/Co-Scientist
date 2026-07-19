@@ -114,7 +114,12 @@ def test_lazy_state_is_unset_before_first_run() -> None:
     # an empty result when no corpus is installed, so it costs nothing here.
     assert [
         source.tool for source in workflow.get_enabled_search_sources()
-    ] == ["paper_corpus_search", "pubmed_fulltext", "openalex_search"]
+    ] == [
+        "paper_corpus_search",
+        "pubmed_fulltext",
+        "openalex_search",
+        "web_search",
+    ]
 
 
 def test_enable_cache_is_stored_on_the_instance() -> None:

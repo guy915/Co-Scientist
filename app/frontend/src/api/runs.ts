@@ -217,6 +217,7 @@ export async function createRun(input: {
   evolution_max_count?: number;
   k_factor?: number;
   enable_literature_review?: boolean;
+  enable_web_search?: boolean;
   notify_on_completion?: boolean;
   completion_email?: string;
   audience?: 'general' | 'google' | 'sbi_ucd';

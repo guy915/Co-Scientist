@@ -153,6 +153,28 @@ def _build_engine_opts(
     return initial_opts
 
 
+def _resolve_disabled_tools(cfg: dict[str, Any]) -> list[str]:
+    """Map the run's connector toggles onto engine tool ids to disable.
+
+    Only ``web_search`` is disabled when the web-search connector is off.
+    ``read_url`` is deliberately left enabled: it is the generic
+    content-fetch tool, used as the ``content_tool`` for PDF and full-text
+    retrieval in the arXiv, Google Scholar, and web configs, so disabling it
+    here would break literature retrieval for unrelated sources.
+
+    Args:
+        cfg: Resolved run config; ``resolved_run_config`` guarantees the
+            toggle keys are present.
+
+    Returns:
+        Engine tool ids to disable for this run, empty when nothing is off.
+    """
+    disabled: list[str] = []
+    if not cfg.get("enable_web_search", True):
+        disabled.append("web_search")
+    return disabled
+
+
 def _build_generator(
     generator_cls: Any, cfg: dict[str, Any], *, offline: bool = False
 ) -> Any:
@@ -212,11 +234,15 @@ def _build_generator(
         # OpenAlex) -- not PubMed-only. Startup already validated this path is
         # readable (see app.main lifespan).
         tools_config=settings.tools_config,
-        # The group's paper corpus is one lab's library. The tools YAML
-        # enables it unconditionally, so withhold it here for every other
-        # audience: otherwise any run could search another lab's papers
-        # directly, which no audience gate on injected context would catch.
-        disable_tools=paper_corpus.disabled_tools_for(
-            str(cfg.get("audience") or "")
-        ),
+        # Two sources of per-run tool withholding, combined. (1) The
+        # group's paper corpus is one lab's library; the tools YAML
+        # enables it unconditionally, so withhold it here for every
+        # other audience -- otherwise any run could search another
+        # lab's papers directly, which no audience gate on injected
+        # context would catch. (2) The run's connector toggles, applied
+        # by the engine's ToolRegistry as `tool.enabled = False`.
+        disable_tools=[
+            *paper_corpus.disabled_tools_for(str(cfg.get("audience") or "")),
+            *_resolve_disabled_tools(cfg),
+        ],
     )

@@ -457,3 +457,46 @@ def test_the_shipped_corpus_source_reserves_slots() -> None:
     # Public databases compete on score alone.
     assert reserved["pubmed_fulltext"] == 0
     assert reserved["openalex_search"] == 0
+
+
+def test_sources_with_enabled_tools_drops_disabled_tool() -> None:
+    """A per-run disabled tool stops being searched.
+
+    The app's connector toggles map to disable_tools, and a source carries
+    its own YAML enabled flag, so without this filter turning a connector
+    off would not actually stop its searches.
+    """
+    from co_scientist.agents.generation.literature_review.search import (
+        _sources_with_enabled_tools,
+    )
+    from co_scientist.config.registry import ToolRegistry
+
+    registry = ToolRegistry(disabled_tools=["web_search"])
+    workflow = registry.get_workflow("literature_review")
+    assert workflow is not None
+
+    kept = _sources_with_enabled_tools(
+        workflow.get_enabled_search_sources(), registry
+    )
+
+    tools = [source.tool for source in kept]
+    assert "web_search" not in tools
+    assert "pubmed_fulltext" in tools
+
+
+def test_sources_with_enabled_tools_keeps_enabled_tools() -> None:
+    """Nothing disabled means every configured source is searched."""
+    from co_scientist.agents.generation.literature_review.search import (
+        _sources_with_enabled_tools,
+    )
+    from co_scientist.config.registry import ToolRegistry
+
+    registry = ToolRegistry()
+    workflow = registry.get_workflow("literature_review")
+    assert workflow is not None
+
+    kept = _sources_with_enabled_tools(
+        workflow.get_enabled_search_sources(), registry
+    )
+
+    assert "web_search" in [source.tool for source in kept]

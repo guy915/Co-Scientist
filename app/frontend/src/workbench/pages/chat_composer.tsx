@@ -55,6 +55,9 @@ const COMPOSER_MAX_HEIGHT_LARGE = 146;
  *   the body, forcing a click to carry on typing.
  * @param pubmedEnabled Whether the PubMed connector is currently toggled on.
  * @param onPubmedEnabledChange Callback fired when the PubMed toggle changes.
+ * @param webSearchEnabled Whether the Web search connector is toggled on.
+ * @param onWebSearchEnabledChange Callback fired when the Web search toggle
+ *   changes.
  * @param onSubmit Form submit handler (Enter or the send button).
  */
 export function Composer({
@@ -66,6 +69,8 @@ export function Composer({
   autoFocus = false,
   pubmedEnabled = true,
   onPubmedEnabledChange,
+  webSearchEnabled = true,
+  onWebSearchEnabledChange,
   onSubmit,
 }: {
   input: string;
@@ -76,6 +81,8 @@ export function Composer({
   autoFocus?: boolean;
   pubmedEnabled?: boolean;
   onPubmedEnabledChange?: (value: boolean) => void;
+  webSearchEnabled?: boolean;
+  onWebSearchEnabledChange?: (value: boolean) => void;
   onSubmit: (e: FormEvent<HTMLFormElement>, files: File[]) => void;
 }) {
   const {
@@ -125,6 +132,8 @@ export function Composer({
         onFilesChanged={onFilesChanged}
         pubmedEnabled={pubmedEnabled}
         onPubmedEnabledChange={onPubmedEnabledChange}
+        webSearchEnabled={webSearchEnabled}
+        onWebSearchEnabledChange={onWebSearchEnabledChange}
         submitDisabled={submitDisabled}
       />
     </form>
@@ -265,6 +274,8 @@ function ComposerFooter({
   onFilesChanged,
   pubmedEnabled,
   onPubmedEnabledChange,
+  webSearchEnabled,
+  onWebSearchEnabledChange,
   submitDisabled,
 }: {
   connectorsOpen: boolean;
@@ -274,6 +285,8 @@ function ComposerFooter({
   onFilesChanged: (e: ChangeEvent<HTMLInputElement>) => void;
   pubmedEnabled: boolean;
   onPubmedEnabledChange?: (value: boolean) => void;
+  webSearchEnabled: boolean;
+  onWebSearchEnabledChange?: (value: boolean) => void;
   submitDisabled: boolean;
 }) {
   return (
@@ -286,6 +299,8 @@ function ComposerFooter({
         onFilesChanged={onFilesChanged}
         pubmedEnabled={pubmedEnabled}
         onPubmedEnabledChange={onPubmedEnabledChange}
+        webSearchEnabled={webSearchEnabled}
+        onWebSearchEnabledChange={onWebSearchEnabledChange}
       />
       <button
         type="submit"

@@ -300,6 +300,13 @@ def _apply_llm_backend_override(
     )
 
 
+def _apply_web_search_override(
+    base: dict[str, Any], unused_key: str, raw_value: Any
+) -> None:
+    """Coerce and merge the web-search toggle into `base`, in place."""
+    base["enable_web_search"] = bool(raw_value)
+
+
 # Per-key override handlers; any key without a dedicated handler is a
 # numeric knob and falls back to `_apply_numeric_override`. Every handler
 # shares `_apply_numeric_override`'s (base, key, raw_value) signature so the
@@ -311,6 +318,7 @@ _OVERRIDE_HANDLERS: dict[str, Callable[[dict[str, Any], str, Any], None]] = {
     "audience": _apply_audience_override,
     "enable_literature_review": _apply_literature_review_override,
     "llm_backend": _apply_llm_backend_override,
+    "enable_web_search": _apply_web_search_override,
 }
 
 
@@ -379,4 +387,7 @@ def resolved_run_config(
     # time" (see run_workflow), so a plain dict without this key still reads
     # correctly.
     base.setdefault("llm_backend", None)
+    # Web search is on by default, matching the literature stack. It is a
+    # no-op unless the MCP server actually offers the tool.
+    base.setdefault("enable_web_search", True)
     return base
