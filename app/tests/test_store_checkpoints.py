@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import pytest
+
 from app import store
 
 
@@ -163,3 +165,49 @@ def test_prune_superseded_is_idempotent(isolated_db: str) -> None:
     assert store.prune_superseded_checkpoints(db_path=isolated_db) == 0
     assert store.prune_superseded_checkpoints(db_path=isolated_db) == 0
     assert store.has_checkpoint(run_id, db_path=isolated_db)
+
+
+def test_prune_batches_and_folds_the_wal_between_batches(
+    isolated_db: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The sweep must survive the full disk it exists to relieve.
+
+    Regression: the first version issued one DELETE for the whole history and
+    ran at startup. On the full production volume the write failed with
+    SQLITE_FULL, the statement rolled back whole -- reclaiming nothing -- and
+    the exception took the server down with it. Now the WAL is folded back
+    first, for headroom, and each small batch commits before the next is
+    attempted, so partial progress survives a volume that is still full.
+    """
+    from app.store import checkpoints as checkpoints_module
+
+    run_id = _run(isolated_db)
+    with store.connect(isolated_db) as conn:
+        for i in range(1, 12):
+            conn.execute(
+                "INSERT INTO checkpoints (run_id, seq, stage, schema_version, "
+                "last_event_seq, state_json, created_at) "
+                "VALUES (?, ?, ?, 1, ?, ?, 0.0)",
+                (run_id, i, f"stage_{i}", i, f'{{"round": {i}}}'),
+            )
+
+    checkpoints: list[int] = []
+    real_checkpoint_wal = store.checkpoint_wal
+
+    def _record(db_path: str | None = None) -> None:
+        checkpoints.append(_count(isolated_db))
+        real_checkpoint_wal(db_path)
+
+    monkeypatch.setattr(checkpoints_module, "checkpoint_wal", _record)
+
+    deleted = store.prune_superseded_checkpoints(db_path=isolated_db)
+
+    assert deleted == 10
+    assert _count(isolated_db) == 1
+    # Several bounded batches rather than one all-or-nothing statement, each
+    # one committed before the next is journalled.
+    assert len(checkpoints) >= 2
+    assert checkpoints == sorted(checkpoints, reverse=True)
+    latest = store.get_latest_checkpoint(run_id, db_path=isolated_db)
+    assert latest is not None
+    assert latest["seq"] == 11

@@ -14,7 +14,7 @@ import json
 import sqlite3
 from typing import Any
 
-from app.store.db import _now, _use_conn
+from app.store.db import _now, _use_conn, checkpoint_wal
 
 
 def save_checkpoint(
@@ -122,6 +122,27 @@ def has_checkpoint(
     return row is not None
 
 
+# The sweep exists to relieve a full volume, so it has to run *on* a full
+# volume -- where every write, however small, can fail with SQLITE_FULL. Two
+# things follow, and neither is about the size of the DELETE itself: dropping
+# rows costs little journal space, since freed overflow pages go onto the
+# freelist rather than being rewritten.
+#
+# First, the sweep needs headroom before it can write at all, so it folds the
+# write-ahead log into the database and truncates it up front. A checkpoint
+# rewrites pages at offsets the file already owns, so it does not need free
+# space to succeed, and it hands back however many megabytes the WAL was
+# holding.
+#
+# Second, progress has to be durable in pieces. A single statement across the
+# whole history is all-or-nothing: one SQLITE_FULL and the work is rolled back,
+# which is exactly how the first version of this sweep achieved nothing on the
+# database it was written for. Committing a few rows at a time means whatever
+# succeeded stays done and each fold returns more space to the next batch, so
+# even a volume with almost nothing free converges over a few restarts.
+_PRUNE_BATCH_ROWS = 4
+
+
 def prune_superseded_checkpoints(
     db_path: str | None = None,
     conn: sqlite3.Connection | None = None,
@@ -133,22 +154,45 @@ def prune_superseded_checkpoints(
     Each run keeps its newest checkpoint and loses the rest, which is exactly
     the set ``get_latest_checkpoint`` could never return. Runs stay resumable.
 
-    Safe to call on every startup -- it is idempotent and a no-op once the
-    history is gone.
+    Reclaims the write-ahead log first and then deletes in small committed
+    batches, so it still makes progress on a volume with almost no free space
+    -- see ``_PRUNE_BATCH_ROWS``. Safe to call on every startup: it is
+    idempotent and a no-op once the history is gone.
 
     Args:
         db_path: Optional override for the SQLite database path.
-        conn: Optional open connection to reuse.
+        conn: Optional open connection to reuse. When given, the caller owns
+            the transaction and the whole sweep runs as one statement batch
+            without WAL checkpoints, since it cannot commit on the caller's
+            behalf.
 
     Returns:
         The number of superseded checkpoint rows deleted.
     """
-    with _use_conn(conn, db_path) as conn:
-        cur = conn.execute(
-            "DELETE FROM checkpoints WHERE seq < (SELECT MAX(newer.seq) "
-            "FROM checkpoints AS newer WHERE newer.run_id = checkpoints.run_id)"
-        )
+    superseded = (
+        "SELECT stale.rowid FROM checkpoints AS stale WHERE stale.seq < ("
+        "SELECT MAX(newer.seq) FROM checkpoints AS newer "
+        "WHERE newer.run_id = stale.run_id) LIMIT ?"
+    )
+    delete = f"DELETE FROM checkpoints WHERE rowid IN ({superseded})"
+
+    if conn is not None:
+        cur = conn.execute(delete, (-1,))
         return int(cur.rowcount or 0)
+
+    # Buy headroom before attempting the first write.
+    checkpoint_wal(db_path)
+
+    total = 0
+    while True:
+        with _use_conn(None, db_path) as owned:
+            deleted = int(
+                (owned.execute(delete, (_PRUNE_BATCH_ROWS,)).rowcount) or 0
+            )
+        if deleted == 0:
+            return total
+        total += deleted
+        checkpoint_wal(db_path)
 
 
 def clear_checkpoints(
