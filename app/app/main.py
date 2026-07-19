@@ -19,7 +19,7 @@ from pydantic import BaseModel, Field
 # import below), so .env must be loaded into os.environ before that import.
 load_dotenv()
 
-from app import diagnostics, engine_adapter, store
+from app import diagnostics, engine_adapter, paper_corpus, store
 from app.auth import (
     auth_required,
     principal_for_request,
@@ -485,6 +485,7 @@ async def get_system_status() -> dict[str, Any]:
             literature_available=literature_available,
             enabled_tools=adapter_status.get("enabled_tools"),
             web_search_available=web_search.available,
+            paper_corpus_available=bool(paper_corpus.load_catalog()),
         ),
         # provider/mock_mode/model_name/etc. from engine_adapter.system_status
         **adapter_status,

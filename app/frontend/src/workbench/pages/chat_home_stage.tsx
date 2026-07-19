@@ -125,6 +125,9 @@ const SESSION_STEPS: readonly {
  * @param webSearchEnabled Whether the Web search connector toggle is on.
  * @param onWebSearchEnabledChange Callback fired when the Web search toggle
  *   changes.
+ * @param paperCorpusEnabled Whether the Lab papers connector toggle is on.
+ * @param onPaperCorpusEnabledChange Callback fired when the Lab papers toggle
+ *   changes.
  * @param onSubmit Form submit handler for the composer.
  * @param runs Recent runs to list in the recents panel.
  * @param scoresByRunId Top Elo score per run id, keyed for the recents panel.
@@ -138,6 +141,8 @@ export function HomeStage({
   onPubmedEnabledChange,
   webSearchEnabled,
   onWebSearchEnabledChange,
+  paperCorpusEnabled,
+  onPaperCorpusEnabledChange,
   onSubmit,
   runs,
   scoresByRunId,
@@ -150,6 +155,8 @@ export function HomeStage({
   onPubmedEnabledChange: (enabled: boolean) => void;
   webSearchEnabled: boolean;
   onWebSearchEnabledChange: (enabled: boolean) => void;
+  paperCorpusEnabled: boolean;
+  onPaperCorpusEnabledChange: (enabled: boolean) => void;
   onSubmit: (e: FormEvent<HTMLFormElement>, files: File[]) => void;
   runs: Run[];
   scoresByRunId: Record<string, number | null>;
@@ -198,6 +205,8 @@ export function HomeStage({
           onPubmedEnabledChange={onPubmedEnabledChange}
           webSearchEnabled={webSearchEnabled}
           onWebSearchEnabledChange={onWebSearchEnabledChange}
+          paperCorpusEnabled={paperCorpusEnabled}
+          onPaperCorpusEnabledChange={onPaperCorpusEnabledChange}
           onSubmit={onSubmit}
         />
       </div>

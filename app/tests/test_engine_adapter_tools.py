@@ -284,6 +284,45 @@ def test_connectors_report_still_falls_back_to_pubmed() -> None:
     assert connectors == [{"id": "pubmed", "display": "PubMed"}]
 
 
+def test_connectors_report_lists_paper_corpus_when_installed() -> None:
+    """The lab-papers connector appears whenever the corpus is installed.
+
+    The composer shows it only to the SBI/UCD audience; the report lists it on
+    availability alone.
+    """
+    connectors = connectors_report(
+        literature_available=True,
+        enabled_tools=None,
+        paper_corpus_available=True,
+    )
+    assert {"id": "paper_corpus", "display": "Lab papers"} in connectors
+
+
+def test_connectors_report_omits_paper_corpus_when_absent() -> None:
+    """No installed corpus means no lab-papers row."""
+    connectors = connectors_report(
+        literature_available=True,
+        enabled_tools=None,
+        paper_corpus_available=False,
+    )
+    assert all(item["id"] != "paper_corpus" for item in connectors)
+
+
+def test_connectors_report_orders_web_then_pubmed_then_corpus() -> None:
+    """The menu order is web search, then PubMed, then the lab corpus."""
+    connectors = connectors_report(
+        literature_available=True,
+        enabled_tools=None,
+        web_search_available=True,
+        paper_corpus_available=True,
+    )
+    assert [item["id"] for item in connectors] == [
+        "web_search",
+        "pubmed",
+        "paper_corpus",
+    ]
+
+
 def test_resolved_run_config_enables_web_search_by_default() -> None:
     """The toggle is on by default, matching the literature stack."""
     from app.run_modes import resolved_run_config

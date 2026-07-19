@@ -23,9 +23,12 @@ logger = logging.getLogger(__name__)
 # enabled tool ids so a configured tools YAML surfaces its sources in the
 # composer's connectors menu. Add an entry here when a new connector's tools are
 # wired up so it appears in the menu automatically.
+# Order is the composer menu's top-to-bottom order: web search, then the
+# PubMed literature base, then the lab's own paper corpus, then INDRA.
 _KNOWN_CONNECTORS: tuple[tuple[str, str], ...] = (
-    ("pubmed", "PubMed"),
     ("web_search", "Web search"),
+    ("pubmed", "PubMed"),
+    ("paper_corpus", "Lab papers"),
     ("indra", "INDRA"),
 )
 
@@ -35,6 +38,7 @@ def connectors_report(
     literature_available: bool,
     enabled_tools: list[str] | None,
     web_search_available: bool = False,
+    paper_corpus_available: bool = False,
 ) -> list[dict[str, str]]:
     """Derive the user-facing data-source connectors for the composer menu.
 
@@ -59,6 +63,9 @@ def connectors_report(
     available_by_probe = {
         "pubmed": literature_available,
         "web_search": web_search_available,
+        # Listed whenever the corpus is installed; the composer shows it only
+        # to the SBI/UCD audience, since it is one lab's library.
+        "paper_corpus": paper_corpus_available,
     }
     connectors: list[dict[str, str]] = []
     for key, display in _KNOWN_CONNECTORS:

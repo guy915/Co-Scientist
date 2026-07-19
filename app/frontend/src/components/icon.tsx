@@ -9,13 +9,14 @@ import type {ReactNode, SVGProps} from 'react';
 // free of font FOUT. Glyphs use the Material Symbols 0 -960 960 960 grid and
 // are filled paths (never stroked).
 
-/** The closed set of icon glyphs bundled with the app. */
 export type IconName =
   | 'add'
   | 'arrow_back'
+  | 'arrow_forward'
   | 'article'
   | 'assignment'
   | 'check'
+  | 'check_circle'
   | 'chess'
   | 'close'
   | 'computer'
@@ -42,6 +43,7 @@ export type IconName =
   | 'rate_review'
   | 'refresh'
   | 'reviews'
+  | 'science'
   | 'search'
   | 'send'
   | 'settings'
@@ -49,8 +51,6 @@ export type IconName =
   | 'summarize'
   | 'warning';
 
-// Standard SVG props minus `children`/`name` (glyph content is fixed and
-// `name` selects it), so callers can still pass className, aria-*, etc.
 type IconProps = Omit<SVGProps<SVGSVGElement>, 'children' | 'name'> & {
   name: IconName;
 };
@@ -66,6 +66,11 @@ const ICON_PATHS: Record<IconName, ReactNode> = {
       <path d="m274-450 227 227q9 9 9 21t-9 21q-9 9-21 9t-21-9L181-459q-5-5-7-10t-2-11q0-6 2-11t7-10l278-278q9-9 21-9t21 9q9 9 9 21t-9 21L274-510h496q13 0 21.5 8.5T800-480q0 13-8.5 21.5T770-450H274Z" />
     </>
   ),
+  arrow_forward: (
+    <>
+      <path d="M686-450H190q-13 0-21.5-8.5T160-480q0-13 8.5-21.5T190-510h496L459-737q-9-9-9-21t9-21q9-9 21-9t21 9l278 278q5 5 7 10t2 11q0 6-2 11t-7 10L501-181q-9 9-21 9t-21-9q-9-9-9-21t9-21l227-227Z" />
+    </>
+  ),
   article: (
     <>
       <path d="M180-120q-24 0-42-18t-18-42v-600q0-24 18-42t42-18h600q24 0 42 18t18 42v600q0 24-18 42t-42 18H180Zm0-60h600v-600H180v600Zm0-600v600-600Zm127 501h215q12.75 0 21.38-8.68 8.62-8.67 8.62-21.5 0-12.82-8.62-21.32-8.63-8.5-21.38-8.5H307q-12.75 0-21.37 8.68-8.63 8.67-8.63 21.5 0 12.82 8.63 21.32 8.62 8.5 21.37 8.5Zm0-171h346q12.75 0 21.38-8.68 8.62-8.67 8.62-21.5 0-12.82-8.62-21.32-8.63-8.5-21.38-8.5H307q-12.75 0-21.37 8.68-8.63 8.67-8.63 21.5 0 12.82 8.63 21.32 8.62 8.5 21.37 8.5Zm0-171h346q12.75 0 21.38-8.68 8.62-8.67 8.62-21.5 0-12.82-8.62-21.32-8.63-8.5-21.38-8.5H307q-12.75 0-21.37 8.68-8.63 8.67-8.63 21.5 0 12.82 8.63 21.32 8.62 8.5 21.37 8.5Z" />
@@ -79,6 +84,11 @@ const ICON_PATHS: Record<IconName, ReactNode> = {
   check: (
     <>
       <path d="m378-332 363-363q9-9 21.5-9t21.5 9q9 9 9 21.5t-9 21.5L399-267q-9 9-21 9t-21-9L175-449q-9-9-8.5-21.5T176-492q9-9 21.5-9t21.5 9l159 160Z" />
+    </>
+  ),
+  check_circle: (
+    <>
+      <path d="m421-389-98-98q-9-9-22-9t-23 10q-9 9-9 22t9 22l122 123q9 9 21 9t21-9l239-239q10-10 10-23t-10-23q-10-9-23.5-8.5T635-603L421-389Zm59 309q-82 0-155-31.5t-127.5-86Q143-252 111.5-325T80-480q0-83 31.5-156t86-127Q252-817 325-848.5T480-880q83 0 156 31.5T763-763q54 54 85.5 127T880-480q0 82-31.5 155T763-197.5q-54 54.5-127 86T480-80Zm0-60q142 0 241-99.5T820-480q0-142-99-241t-241-99q-141 0-240.5 99T140-480q0 141 99.5 240.5T480-140Zm0-340Z" />
     </>
   ),
   chess: (
@@ -211,6 +221,11 @@ const ICON_PATHS: Record<IconName, ReactNode> = {
       <path d="m480-461 87 53q8 5 16-1t6-16l-23-98 77-67q8-7 4.5-16T634-616l-101-8-39-93q-3.87-9-13.94-9-10.06 0-14.06 9l-39 93-101 8q-10 1-13.5 10t4.5 16l77 67-23 98q-2 10 6 16t16 1l87-53ZM240-240 131-131q-14 14-32.5 6.34Q80-132.31 80-152v-668q0-24 18-42t42-18h680q24 0 42 18t18 42v520q0 24-18 42t-42 18H240Zm-26-60h606v-520H140v600l74-80Zm-74 0v-520 520Z" />
     </>
   ),
+  science: (
+    <>
+      <path d="M172-120q-41.78 0-59.39-39T124-230l248-280v-270h-52q-12.75 0-21.37-8.68-8.63-8.67-8.63-21.5 0-12.82 8.63-21.32 8.62-8.5 21.37-8.5h320q12.75 0 21.38 8.68 8.62 8.67 8.62 21.5 0 12.82-8.62 21.32-8.63 8.5-21.38 8.5h-52v270l248 280q29 32 11.39 71T788-120H172Zm-12-60h640L528-488v-292h-96v292L160-180Zm318-300Z" />
+    </>
+  ),
   search: (
     <>
       <path d="M378-329q-108.16 0-183.08-75Q120-479 120-585t75-181q75-75 181.5-75t181 75Q632-691 632-584.85 632-542 618-502q-14 40-42 75l242 240q9 8.56 9 21.78T818-143q-9 9-22.22 9-13.22 0-21.78-9L533-384q-30 26-69.96 40.5Q423.08-329 378-329Zm-1-60q81.25 0 138.13-57.5Q572-504 572-585t-56.87-138.5Q458.25-781 377-781q-82.08 0-139.54 57.5Q180-666 180-585t57.46 138.5Q294.92-389 377-389Z" />
@@ -243,16 +258,6 @@ const ICON_PATHS: Record<IconName, ReactNode> = {
   ),
 };
 
-/**
- * Renders a Material Symbols glyph as an inline SVG.
- *
- * Sized 1em square and filled with `currentColor`, so it inherits the
- * surrounding text's font-size and color by default. Decorative by default
- * (`aria-hidden` true); pass `aria-hidden={false}` plus a label when the icon
- * is meaningful on its own. Any other SVG prop spreads onto the root element.
- *
- * @param props The glyph `name` plus standard SVG element props.
- */
 export function Icon({name, className, ...props}: IconProps) {
   return (
     <svg

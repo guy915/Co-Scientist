@@ -45,6 +45,8 @@ export function ChatWorkspace() {
   const [pubmedEnabled, setPubmedEnabled] = useState(true);
   // Web search connector toggle, likewise shared between both composers.
   const [webSearchEnabled, setWebSearchEnabled] = useState(true);
+  // Lab papers (SBI/UCD corpus) connector toggle, shared between both composers.
+  const [paperCorpusEnabled, setPaperCorpusEnabled] = useState(true);
 
   const {toast, setToast} = useToast();
   const {history, homeScores, reloadHistory} = useRunHistory();
@@ -62,6 +64,7 @@ export function ChatWorkspace() {
     setToast,
     pubmedEnabled,
     webSearchEnabled,
+    paperCorpusEnabled,
   });
   const {draft, startedSession, hasConversation} = session;
 
@@ -106,6 +109,8 @@ export function ChatWorkspace() {
             onPubmedEnabledChange={setPubmedEnabled}
             webSearchEnabled={webSearchEnabled}
             onWebSearchEnabledChange={setWebSearchEnabled}
+            paperCorpusEnabled={paperCorpusEnabled}
+            onPaperCorpusEnabledChange={setPaperCorpusEnabled}
             onSubmit={session.handleSubmit}
             runs={history}
             scoresByRunId={homeScores}
@@ -123,6 +128,8 @@ export function ChatWorkspace() {
             onPubmedEnabledChange={setPubmedEnabled}
             webSearchEnabled={webSearchEnabled}
             onWebSearchEnabledChange={setWebSearchEnabled}
+            paperCorpusEnabled={paperCorpusEnabled}
+            onPaperCorpusEnabledChange={setPaperCorpusEnabled}
           />
         )}
         <ToastPortal toast={toast} />

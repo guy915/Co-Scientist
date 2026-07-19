@@ -26,6 +26,7 @@ async function executeStart({
   specCreatedAt,
   pubmedEnabled,
   webSearchEnabled,
+  paperCorpusEnabled,
   reloadHistory,
   setConfirmed,
   setDraft,
@@ -54,6 +55,7 @@ async function executeStart({
     enable_literature_review: pubmedEnabled,
     audience: storedAudience(),
     enable_web_search: webSearchEnabled,
+    enable_paper_corpus: paperCorpusEnabled,
   });
   const session: StartedSession = {
     id: created.id,
@@ -119,6 +121,7 @@ export async function promoteDraftToRun({
   draft,
   pubmedEnabled,
   webSearchEnabled,
+  paperCorpusEnabled,
   reloadHistory,
   setIsStarting,
   setError,
@@ -144,6 +147,7 @@ export async function promoteDraftToRun({
       specCreatedAt,
       pubmedEnabled,
       webSearchEnabled,
+      paperCorpusEnabled,
       reloadHistory,
       setConfirmed,
       setDraft,

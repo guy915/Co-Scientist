@@ -61,6 +61,7 @@ function makeDeps(overrides: Partial<HandlerDeps> = {}): HandlerDeps {
     reloadHistory: vi.fn().mockResolvedValue(undefined),
     pubmedEnabled: true,
     webSearchEnabled: true,
+    paperCorpusEnabled: true,
     ...overrides,
   };
 }

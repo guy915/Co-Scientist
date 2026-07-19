@@ -58,6 +58,9 @@ const COMPOSER_MAX_HEIGHT_LARGE = 146;
  * @param webSearchEnabled Whether the Web search connector is toggled on.
  * @param onWebSearchEnabledChange Callback fired when the Web search toggle
  *   changes.
+ * @param paperCorpusEnabled Whether the Lab papers connector is toggled on.
+ * @param onPaperCorpusEnabledChange Callback fired when the Lab papers toggle
+ *   changes.
  * @param onSubmit Form submit handler (Enter or the send button).
  */
 export function Composer({
@@ -71,6 +74,8 @@ export function Composer({
   onPubmedEnabledChange,
   webSearchEnabled = true,
   onWebSearchEnabledChange,
+  paperCorpusEnabled = true,
+  onPaperCorpusEnabledChange,
   onSubmit,
 }: {
   input: string;
@@ -83,6 +88,8 @@ export function Composer({
   onPubmedEnabledChange?: (value: boolean) => void;
   webSearchEnabled?: boolean;
   onWebSearchEnabledChange?: (value: boolean) => void;
+  paperCorpusEnabled?: boolean;
+  onPaperCorpusEnabledChange?: (value: boolean) => void;
   onSubmit: (e: FormEvent<HTMLFormElement>, files: File[]) => void;
 }) {
   const {
@@ -134,6 +141,8 @@ export function Composer({
         onPubmedEnabledChange={onPubmedEnabledChange}
         webSearchEnabled={webSearchEnabled}
         onWebSearchEnabledChange={onWebSearchEnabledChange}
+        paperCorpusEnabled={paperCorpusEnabled}
+        onPaperCorpusEnabledChange={onPaperCorpusEnabledChange}
         submitDisabled={submitDisabled}
       />
     </form>
@@ -276,6 +285,8 @@ function ComposerFooter({
   onPubmedEnabledChange,
   webSearchEnabled,
   onWebSearchEnabledChange,
+  paperCorpusEnabled,
+  onPaperCorpusEnabledChange,
   submitDisabled,
 }: {
   connectorsOpen: boolean;
@@ -287,6 +298,8 @@ function ComposerFooter({
   onPubmedEnabledChange?: (value: boolean) => void;
   webSearchEnabled: boolean;
   onWebSearchEnabledChange?: (value: boolean) => void;
+  paperCorpusEnabled: boolean;
+  onPaperCorpusEnabledChange?: (value: boolean) => void;
   submitDisabled: boolean;
 }) {
   return (
@@ -301,6 +314,8 @@ function ComposerFooter({
         onPubmedEnabledChange={onPubmedEnabledChange}
         webSearchEnabled={webSearchEnabled}
         onWebSearchEnabledChange={onWebSearchEnabledChange}
+        paperCorpusEnabled={paperCorpusEnabled}
+        onPaperCorpusEnabledChange={onPaperCorpusEnabledChange}
       />
       <button
         type="submit"

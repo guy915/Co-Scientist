@@ -73,6 +73,8 @@ const ICONS = {
   // "Generating ideas" progress step — a speech bubble with a pencil.
   rate_review: 'rate_review',
   refresh: 'refresh',
+  // Erlenmeyer flask — the "Lab papers" (SBI/UCD corpus) connector row.
+  science: 'science',
   // "Reviewing ideas" progress step — a starred review badge.
   reviews: 'reviews',
   search: 'search',

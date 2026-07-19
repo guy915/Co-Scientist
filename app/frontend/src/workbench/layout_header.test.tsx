@@ -31,24 +31,32 @@ function renderHeader(
 describe('ShellHeader audience control', () => {
   beforeEach(() => window.localStorage.clear());
 
-  it('shows Logs for the general audience', () => {
+  it('shows Logs for the general audience only', () => {
     renderHeader('general');
     expect(screen.getByRole('button', {name: /Logs/i})).toBeInTheDocument();
+    // No audience-specific control for the general audience.
+    expect(
+      screen.queryByRole('button', {name: /Feedback/i}),
+    ).not.toBeInTheDocument();
   });
 
-  it('shows the pilot control for sbi_ucd, alongside Logs', () => {
+  it('shows the pilot Feedback control for sbi_ucd instead of Logs', () => {
     renderHeader('sbi_ucd');
     expect(screen.getByRole('button', {name: /Feedback/i})).toBeInTheDocument();
-    // The Logs popover stays reachable in every audience.
-    expect(screen.getByRole('button', {name: /Logs/i})).toBeInTheDocument();
+    // The audience control replaces Logs, rather than sitting beside it.
+    expect(
+      screen.queryByRole('button', {name: /Logs/i}),
+    ).not.toBeInTheDocument();
   });
 
-  it('shows the team control for google, alongside Logs', () => {
+  it('shows the team control for google instead of Logs', () => {
     renderHeader('google');
     expect(
       screen.getByRole('button', {name: GOOGLE_NOTE.label}),
     ).toBeInTheDocument();
-    expect(screen.getByRole('button', {name: /Logs/i})).toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', {name: /Logs/i}),
+    ).not.toBeInTheDocument();
   });
 
   it('offers the note, the site, and a way to reply', () => {

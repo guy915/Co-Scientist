@@ -7,6 +7,7 @@ import {
 } from 'react';
 import {type Connector} from '@/api/system';
 import {Icon, type IconName} from '@/components/icon';
+import {useAudience} from '../audience_context';
 import {joinClasses} from '../classes';
 import {useSystemStatus} from '../hooks/use_system_status';
 import {tooltipClassNames} from '../tooltip';
@@ -34,6 +35,11 @@ const DEFAULT_CONNECTORS: Connector[] = [{id: 'pubmed', display: 'PubMed'}];
 // The connector id whose row drives the standalone web-search toggle; every
 // other id shares the literature toggle (see ConnectorsMenu).
 const WEB_SEARCH_CONNECTOR_ID = 'web_search';
+
+// The connector id for the SBI/UCD paper corpus ("Lab papers"). Its row drives
+// its own standalone toggle and is only shown to the sbi_ucd audience (see
+// ConnectorsMenu).
+const PAPER_CORPUS_CONNECTOR_ID = 'paper_corpus';
 
 /**
  * Owns the connectors-menu open flag and the outside-mousedown listener that
@@ -79,6 +85,8 @@ export function SourceControls({
   onPubmedEnabledChange,
   webSearchEnabled,
   onWebSearchEnabledChange,
+  paperCorpusEnabled,
+  onPaperCorpusEnabledChange,
 }: {
   connectorsOpen: boolean;
   onToggleConnectors: () => void;
@@ -89,6 +97,8 @@ export function SourceControls({
   onPubmedEnabledChange?: (value: boolean) => void;
   webSearchEnabled: boolean;
   onWebSearchEnabledChange?: (value: boolean) => void;
+  paperCorpusEnabled: boolean;
+  onPaperCorpusEnabledChange?: (value: boolean) => void;
 }) {
   return (
     <div className={COMPOSER_SOURCE_CONTROLS_CLASSES} ref={sourceControlsRef}>
@@ -118,6 +128,8 @@ export function SourceControls({
           onPubmedEnabledChange={onPubmedEnabledChange}
           webSearchEnabled={webSearchEnabled}
           onWebSearchEnabledChange={onWebSearchEnabledChange}
+          paperCorpusEnabled={paperCorpusEnabled}
+          onPaperCorpusEnabledChange={onPaperCorpusEnabledChange}
         />
       ) : null}
     </div>
@@ -163,26 +175,39 @@ function SourceToolbarButton({
 // Connectors menu: the available data sources come from the backend (/status),
 // derived from literature and web-search availability plus the configured tools
 // YAML, so newly configured connectors appear here automatically. Each row keys
-// its checked state and handler off `connector.id`: the web-search row drives
-// its own independent toggle, while every literature source (PubMed, INDRA, ...)
-// shares the single literature-retrieval toggle, since the engine enables that
-// stack as one unit. Closed by the outside-mousedown effect in the parent
-// composer.
+// its checked state and handler off `connector.id`: the web-search and Lab
+// papers rows each drive their own independent toggle, while every literature
+// source (PubMed, INDRA, ...) shares the single literature-retrieval toggle,
+// since the engine enables that stack as one unit. The Lab papers corpus is
+// SBI/UCD-specific, so its row is dropped for every other audience even when
+// the backend advertises it. Closed by the outside-mousedown effect in the
+// parent composer.
 function ConnectorsMenu({
   pubmedEnabled,
   onPubmedEnabledChange,
   webSearchEnabled,
   onWebSearchEnabledChange,
+  paperCorpusEnabled,
+  onPaperCorpusEnabledChange,
 }: {
   pubmedEnabled: boolean;
   onPubmedEnabledChange?: (value: boolean) => void;
   webSearchEnabled: boolean;
   onWebSearchEnabledChange?: (value: boolean) => void;
+  paperCorpusEnabled: boolean;
+  onPaperCorpusEnabledChange?: (value: boolean) => void;
 }) {
   const {status} = useSystemStatus();
-  const connectors = status?.connectors?.length
+  const {audience} = useAudience();
+  const advertised = status?.connectors?.length
     ? status.connectors
     : DEFAULT_CONNECTORS;
+  // Backend already orders the connectors (web, pubmed, corpus); only drop the
+  // Lab papers row for non-SBI audiences, preserving that order otherwise.
+  const connectors = advertised.filter(
+    connector =>
+      connector.id !== PAPER_CORPUS_CONNECTOR_ID || audience === 'sbi_ucd',
+  );
   return (
     <div
       className={CONNECTORS_MENU_CLASSES}
@@ -194,11 +219,23 @@ function ConnectorsMenu({
       </div>
       {connectors.map(connector => {
         const isWebSearch = connector.id === WEB_SEARCH_CONNECTOR_ID;
-        const checked = isWebSearch ? webSearchEnabled : pubmedEnabled;
+        const isPaperCorpus = connector.id === PAPER_CORPUS_CONNECTOR_ID;
+        const checked = isWebSearch
+          ? webSearchEnabled
+          : isPaperCorpus
+            ? paperCorpusEnabled
+            : pubmedEnabled;
         const toggle = () =>
           isWebSearch
             ? onWebSearchEnabledChange?.(!webSearchEnabled)
-            : onPubmedEnabledChange?.(!pubmedEnabled);
+            : isPaperCorpus
+              ? onPaperCorpusEnabledChange?.(!paperCorpusEnabled)
+              : onPubmedEnabledChange?.(!pubmedEnabled);
+        const iconName: IconName = isWebSearch
+          ? 'search'
+          : isPaperCorpus
+            ? 'science'
+            : 'article';
         return (
           <button
             type="button"
@@ -211,7 +248,7 @@ function ConnectorsMenu({
             <Icon
               className={CONNECTOR_ICON_CLASSES}
               aria-hidden="true"
-              name={isWebSearch ? 'search' : 'article'}
+              name={iconName}
             />
             <span>{connector.display}</span>
             <span

@@ -294,5 +294,6 @@ export function toHandlerDeps(
     reloadHistory: view.reloadHistory,
     pubmedEnabled: view.pubmedEnabled,
     webSearchEnabled: view.webSearchEnabled,
+    paperCorpusEnabled: view.paperCorpusEnabled,
   };
 }

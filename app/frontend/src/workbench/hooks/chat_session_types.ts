@@ -27,6 +27,7 @@ export interface ChatSessionDeps {
   setToast: (value: string | ToastState | null) => void;
   pubmedEnabled: boolean;
   webSearchEnabled: boolean;
+  paperCorpusEnabled: boolean;
 }
 
 /**
@@ -38,6 +39,7 @@ export type ExecuteStartDeps = Pick<
   HandlerDeps,
   | 'pubmedEnabled'
   | 'webSearchEnabled'
+  | 'paperCorpusEnabled'
   | 'reloadHistory'
   | 'setConfirmed'
   | 'setDraft'
@@ -82,4 +84,5 @@ export interface HandlerDeps {
   reloadHistory: () => Promise<void>;
   pubmedEnabled: boolean;
   webSearchEnabled: boolean;
+  paperCorpusEnabled: boolean;
 }

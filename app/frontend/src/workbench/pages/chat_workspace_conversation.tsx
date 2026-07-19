@@ -103,6 +103,8 @@ export function ConversationView({
   onPubmedEnabledChange,
   webSearchEnabled,
   onWebSearchEnabledChange,
+  paperCorpusEnabled,
+  onPaperCorpusEnabledChange,
 }: {
   scrollRef: RefObject<HTMLDivElement | null>;
   timelineItems: TimelineItem[];
@@ -116,6 +118,8 @@ export function ConversationView({
   onPubmedEnabledChange: (value: boolean) => void;
   webSearchEnabled: boolean;
   onWebSearchEnabledChange: (value: boolean) => void;
+  paperCorpusEnabled: boolean;
+  onPaperCorpusEnabledChange: (value: boolean) => void;
 }) {
   return (
     <>
@@ -132,6 +136,8 @@ export function ConversationView({
         onPubmedEnabledChange={onPubmedEnabledChange}
         webSearchEnabled={webSearchEnabled}
         onWebSearchEnabledChange={onWebSearchEnabledChange}
+        paperCorpusEnabled={paperCorpusEnabled}
+        onPaperCorpusEnabledChange={onPaperCorpusEnabledChange}
       />
     </>
   );
@@ -182,6 +188,8 @@ function ComposerSection({
   onPubmedEnabledChange,
   webSearchEnabled,
   onWebSearchEnabledChange,
+  paperCorpusEnabled,
+  onPaperCorpusEnabledChange,
 }: {
   composerRef: RefObject<HTMLDivElement | null>;
   session: Pick<
@@ -193,6 +201,8 @@ function ComposerSection({
   onPubmedEnabledChange: (value: boolean) => void;
   webSearchEnabled: boolean;
   onWebSearchEnabledChange: (value: boolean) => void;
+  paperCorpusEnabled: boolean;
+  onPaperCorpusEnabledChange: (value: boolean) => void;
 }) {
   const {input, setInput, isStarting, handleSubmit} = session;
   return (
@@ -208,6 +218,8 @@ function ComposerSection({
           onPubmedEnabledChange={onPubmedEnabledChange}
           webSearchEnabled={webSearchEnabled}
           onWebSearchEnabledChange={onWebSearchEnabledChange}
+          paperCorpusEnabled={paperCorpusEnabled}
+          onPaperCorpusEnabledChange={onPaperCorpusEnabledChange}
           onSubmit={handleSubmit}
         />
       </div>

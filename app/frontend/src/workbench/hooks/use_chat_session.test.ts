@@ -46,6 +46,7 @@ function makeDeps() {
     setToast: vi.fn(),
     pubmedEnabled: true,
     webSearchEnabled: true,
+    paperCorpusEnabled: true,
   };
 }
 

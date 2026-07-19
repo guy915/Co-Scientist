@@ -81,6 +81,7 @@ export interface RunConfig {
   evidence_count?: number;
   enable_literature_review?: boolean;
   enable_web_search?: boolean;
+  enable_paper_corpus?: boolean;
   k_factor?: number;
   tier?: RunTier;
   focus?: RunFocus;

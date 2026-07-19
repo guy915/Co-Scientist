@@ -11,12 +11,14 @@ import {NAV_ICON_CLASSES, ShellPopover} from './layout_primitives';
 import {SystemStatusIndicator} from './layout_status';
 import {tooltipClassNames} from './tooltip';
 
-// The audience-specific header control: the Google team gets a personal note
-// and SBI/UCD pilots an early-access guide, each on the shell's 'audience'
-// popover slot; the general audience has no extra control. The diagnostics
-// Logs popover is rendered separately for every audience (its own 'logs'
-// slot), so switching audience never hides the log view. The shell's
-// single-open-panel rule keeps all header popovers mutually exclusive.
+// The single audience-specific header control, which REPLACES the Logs
+// button rather than sitting beside it: the Google team gets a personal note,
+// SBI/UCD pilots a feedback form, and the general audience the diagnostics
+// Logs popover. Only one is shown at a time, chosen by audience -- so a pilot
+// sees Feedback where a general user sees Logs, never both. The team/pilot
+// controls sit on the shell's 'audience' popover slot and Logs on its own
+// 'logs' slot; the shell's single-open-panel rule keeps them mutually
+// exclusive with every other header popover.
 function AudienceHeaderControl({
   activePanel,
   onTogglePanel,
@@ -25,16 +27,14 @@ function AudienceHeaderControl({
   onTogglePanel: (panel: ShellPanel) => void;
 }) {
   const {audience} = useAudience();
-  const open = activePanel === 'audience';
-  const onToggle = () => onTogglePanel('audience');
   const renderPopover = (children: ReactNode, className: string) => (
     <ShellPopover className={className}>{children}</ShellPopover>
   );
   if (audience === 'google') {
     return (
       <GoogleTeamControl
-        open={open}
-        onToggle={onToggle}
+        open={activePanel === 'audience'}
+        onToggle={() => onTogglePanel('audience')}
         renderPopover={renderPopover}
       />
     );
@@ -42,13 +42,19 @@ function AudienceHeaderControl({
   if (audience === 'sbi_ucd') {
     return (
       <PilotControl
-        open={open}
-        onToggle={onToggle}
+        open={activePanel === 'audience'}
+        onToggle={() => onTogglePanel('audience')}
         renderPopover={renderPopover}
       />
     );
   }
-  return null;
+  return (
+    <DiagnosticsControl
+      open={activePanel === 'logs'}
+      onToggle={() => onTogglePanel('logs')}
+      renderPopover={renderPopover}
+    />
+  );
 }
 
 const HEADER_CLASSES = 'ucs-header-action-bar';
@@ -148,13 +154,6 @@ export function ShellHeader({
         <AudienceHeaderControl
           activePanel={activePanel}
           onTogglePanel={onTogglePanel}
-        />
-        <DiagnosticsControl
-          open={activePanel === 'logs'}
-          onToggle={() => onTogglePanel('logs')}
-          renderPopover={(children, className) => (
-            <ShellPopover className={className}>{children}</ShellPopover>
-          )}
         />
       </div>
     </header>

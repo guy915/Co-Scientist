@@ -1,10 +1,30 @@
-import {fireEvent, screen} from '@testing-library/react';
+import {fireEvent, render, screen} from '@testing-library/react';
+import {MemoryRouter} from 'react-router-dom';
 import {beforeEach, describe, expect, it, vi} from 'vitest';
 import {
   installChatWorkspaceMocks,
   renderWorkspace,
 } from './chat_workspace_test_helpers';
 import {SUGGESTIONS} from './chat_home_stage';
+import {AudienceProvider, type Audience} from '../audience_context';
+import {RunHistoryProvider} from '../hooks/run_history_context';
+import {ChatWorkspace} from './chat_workspace';
+
+// Local render that pins the audience: the Lab papers connector row is gated to
+// the sbi_ucd audience, and the shared renderWorkspace helper always resolves
+// to 'general'. Mirrors that helper's provider stack so the `@/api/runs` mock
+// it registers still applies.
+function renderWorkspaceAs(audience: Audience) {
+  return render(
+    <MemoryRouter>
+      <AudienceProvider initialAudience={audience}>
+        <RunHistoryProvider>
+          <ChatWorkspace />
+        </RunHistoryProvider>
+      </AudienceProvider>
+    </MemoryRouter>,
+  );
+}
 
 // The exact suggestion copy lives in one place (SUGGESTIONS); reference it by
 // index here so re-wording a prompt never breaks these interaction tests.
@@ -118,6 +138,61 @@ describe('ChatWorkspace composer', () => {
     expect(
       screen.getByRole('menuitemcheckbox', {name: 'Web search'}),
     ).toHaveAttribute('aria-checked', 'false');
+  });
+
+  // Backend-ordered connectors (web, pubmed, corpus) including the SBI/UCD
+  // paper corpus, used by the audience-gated Lab papers tests below.
+  const CORPUS_CONNECTORS = [
+    {id: 'web_search', display: 'Web search'},
+    {id: 'pubmed', display: 'PubMed'},
+    {id: 'paper_corpus', display: 'Lab papers'},
+  ];
+
+  it('shows the Lab papers connector for the sbi_ucd audience, on by default', async () => {
+    stubStatusConnectors(CORPUS_CONNECTORS);
+    renderWorkspaceAs('sbi_ucd');
+
+    fireEvent.click(screen.getByRole('button', {name: 'Connectors'}));
+
+    const labPapers = await screen.findByRole('menuitemcheckbox', {
+      name: 'Lab papers',
+    });
+    expect(labPapers).toHaveAttribute('aria-checked', 'true');
+  });
+
+  it('hides the Lab papers connector for a non-sbi audience even when advertised', async () => {
+    stubStatusConnectors(CORPUS_CONNECTORS);
+    renderWorkspace();
+
+    fireEvent.click(screen.getByRole('button', {name: 'Connectors'}));
+
+    // The other advertised rows still render; only the corpus row is gated.
+    await screen.findByRole('menuitemcheckbox', {name: 'Web search'});
+    expect(
+      screen.queryByRole('menuitemcheckbox', {name: 'Lab papers'}),
+    ).not.toBeInTheDocument();
+  });
+
+  it('toggles Lab papers independently of PubMed and web search', async () => {
+    stubStatusConnectors(CORPUS_CONNECTORS);
+    renderWorkspaceAs('sbi_ucd');
+
+    fireEvent.click(screen.getByRole('button', {name: 'Connectors'}));
+    const labPapers = await screen.findByRole('menuitemcheckbox', {
+      name: 'Lab papers',
+    });
+
+    fireEvent.click(labPapers);
+
+    expect(
+      screen.getByRole('menuitemcheckbox', {name: 'Lab papers'}),
+    ).toHaveAttribute('aria-checked', 'false');
+    expect(
+      screen.getByRole('menuitemcheckbox', {name: 'PubMed'}),
+    ).toHaveAttribute('aria-checked', 'true');
+    expect(
+      screen.getByRole('menuitemcheckbox', {name: 'Web search'}),
+    ).toHaveAttribute('aria-checked', 'true');
   });
 
   it('shows uploaded file previews in the composer', async () => {
