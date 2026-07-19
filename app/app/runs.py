@@ -447,6 +447,23 @@ async def resume_run(run_id: str) -> dict[str, Any]:
     return {"id": run_id, "status": "queued"}
 
 
+def _log_resume_task_result(task: asyncio.Task[None]) -> None:
+    """Drop the finished resume worker, reporting a crash rather than hiding it.
+
+    The detached task's reference used to be discarded without touching its
+    result, so an exception inside the worker was never retrieved and never
+    logged: the run just stopped.
+
+    Args:
+        task: The completed detached worker task.
+    """
+    _resume_tasks.discard(task)
+    if not task.cancelled() and task.exception() is not None:
+        logger.error(
+            "Resume worker crashed", exc_info=task.exception()
+        )
+
+
 async def _launch_resume(run_id: str) -> None:
     """Relaunch a run through the durable worker, on a detached task.
 
@@ -495,7 +512,20 @@ async def _launch_resume(run_id: str) -> None:
             ),
         },
     )
-    task_worker.enqueue_run_workflow(run_id, resume=true_resume)
+    queued = task_worker.enqueue_run_workflow(run_id, resume=true_resume)
+    # Say what the resume actually landed on, not just that it happened. The
+    # "resuming" event above is emitted before any work is queued, so on its
+    # own it cannot distinguish a resume that started work from one that
+    # enqueued nothing -- which is how a wedged run could announce a resume
+    # every restart and sit silent for hours with no way to tell why. A task
+    # here that is not 'queued' is the tell: nothing is claimable.
+    logger.info(
+        "Resume for run %s landed on %s task %s (status=%s)",
+        run_id,
+        queued.task_type,
+        queued.id[:8],
+        queued.status,
+    )
     if os.getenv("COSCIENTIST_EMBEDDED_WORKER", "1") == "1":
         task = asyncio.create_task(
             task_worker.run_run_until_idle(
@@ -503,7 +533,10 @@ async def _launch_resume(run_id: str) -> None:
             )
         )
         _resume_tasks.add(task)
-        task.add_done_callback(_resume_tasks.discard)
+        # Surface a crash in the detached worker instead of discarding it with
+        # the reference: without this the task's exception is never retrieved
+        # and the run simply stops, silently.
+        task.add_done_callback(_log_resume_task_result)
 
 
 async def resume_interrupted_runs(run_ids: list[str]) -> None:
