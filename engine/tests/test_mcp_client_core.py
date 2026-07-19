@@ -20,6 +20,7 @@ from typing import Any
 import pytest
 
 import co_scientist.mcp_client as mcp_client_module
+from co_scientist.exceptions import MCPToolTimeoutError
 from co_scientist.mcp_client import MCPToolClient
 from tests._mcp import FakeMultiServerMCPClient, make_tool_call, string_tool
 
@@ -258,3 +259,128 @@ async def test_execute_tool_call_unwraps_list_of_text_dicts(
     result = await client.execute_tool_call(call)
 
     assert result["content"] == "inner-text"
+
+
+# --- MCP tool-call timeout -------------------------------------------------
+#
+# Regression: MCP tool invocations were bare awaits. When a server's SSE
+# stream broke mid-call the awaiting run parked forever -- in production one
+# sat silent for 18 minutes after "Error parsing SSE message", with no error
+# and nothing in the log after the request went out. The LLM timeout added
+# earlier wraps litellm.acompletion only and never covered this path.
+
+
+def test_mcp_tool_timeout_defaults(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Unset, blank, and garbage all fall back to the default ceiling."""
+    for raw in (None, "", "   ", "not-a-number"):
+        if raw is None:
+            monkeypatch.delenv(
+                mcp_client_module.MCP_TOOL_TIMEOUT_ENV, raising=False
+            )
+        else:
+            monkeypatch.setenv(mcp_client_module.MCP_TOOL_TIMEOUT_ENV, raw)
+        assert (
+            mcp_client_module.mcp_tool_timeout_seconds()
+            == mcp_client_module.DEFAULT_MCP_TOOL_TIMEOUT_SECONDS
+        )
+
+
+def test_mcp_tool_timeout_configurable_and_disablable(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Operators can retune the ceiling, or remove it with a non-positive."""
+    monkeypatch.setenv(mcp_client_module.MCP_TOOL_TIMEOUT_ENV, "12.5")
+    assert mcp_client_module.mcp_tool_timeout_seconds() == 12.5
+    for disabled in ("0", "-1"):
+        monkeypatch.setenv(mcp_client_module.MCP_TOOL_TIMEOUT_ENV, disabled)
+        assert mcp_client_module.mcp_tool_timeout_seconds() is None
+
+
+@pytest.mark.asyncio
+async def test_call_tool_cancels_a_hung_tool_and_raises(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A tool that never answers is cancelled, not awaited forever.
+
+    The assertion that matters is ``cancelled``: without the ceiling this test
+    would hang for the lifetime of the suite, which is exactly what the run
+    did in production.
+    """
+    monkeypatch.setenv(mcp_client_module.MCP_TOOL_TIMEOUT_ENV, "0.05")
+    cancelled = asyncio.Event()
+
+    class HungTool:
+        async def ainvoke(self, _args: Any) -> str:
+            try:
+                await asyncio.sleep(3600)
+            except asyncio.CancelledError:
+                cancelled.set()
+                raise
+            return "never"
+
+    client = MCPToolClient()
+    client._tools_dict = {"search_pubmed": HungTool()}
+
+    with pytest.raises(MCPToolTimeoutError) as excinfo:
+        await client.call_tool("search_pubmed", query="anything")
+
+    assert "search_pubmed" in str(excinfo.value)
+    await asyncio.wait_for(cancelled.wait(), timeout=1.0)
+
+
+@pytest.mark.asyncio
+async def test_execute_tool_call_reports_timeout_to_the_model(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The tool loop survives a dead tool instead of failing the run.
+
+    This path runs under asyncio.gather without return_exceptions, so raising
+    here would take down every sibling tool call in the same turn. The model
+    is told this one tool did not answer and proceeds on what it has.
+    """
+    monkeypatch.setenv(mcp_client_module.MCP_TOOL_TIMEOUT_ENV, "0.05")
+
+    class HungTool:
+        async def ainvoke(self, _args: Any) -> str:
+            await asyncio.sleep(3600)
+            return "never"
+
+    client = MCPToolClient()
+    client._tools_dict = {"search_web": HungTool()}
+
+    message = await client.execute_tool_call(
+        make_tool_call("search_web", json.dumps({"query": "anything"}))
+    )
+
+    assert message["role"] == "tool"
+    assert message["name"] == "search_web"
+    assert "search_web" in message["content"]
+    assert "did not respond" in message["content"]
+
+
+@pytest.mark.asyncio
+async def test_a_responsive_tool_is_untouched(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The ceiling costs a healthy call nothing."""
+    monkeypatch.setenv(mcp_client_module.MCP_TOOL_TIMEOUT_ENV, "30")
+    client = MCPToolClient()
+    client._tools_dict = {
+        "search_pubmed": string_tool("search_pubmed", "papers")
+    }
+
+    assert await client.call_tool("search_pubmed", query="x") == "papers"
+
+
+@pytest.mark.asyncio
+async def test_timeout_can_be_disabled_entirely(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """With the ceiling off the call is awaited directly, as before."""
+    monkeypatch.setenv(mcp_client_module.MCP_TOOL_TIMEOUT_ENV, "0")
+    client = MCPToolClient()
+    client._tools_dict = {
+        "search_pubmed": string_tool("search_pubmed", "papers")
+    }
+
+    assert await client.call_tool("search_pubmed", query="x") == "papers"

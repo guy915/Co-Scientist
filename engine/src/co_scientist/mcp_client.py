@@ -13,12 +13,14 @@ re-exported here so callers keep importing from ``co_scientist.mcp_client``.
 import asyncio
 import json
 import logging
+import os
 from typing import TYPE_CHECKING, Any, Optional, cast
 
 from langchain_core.utils.function_calling import convert_to_openai_tool
 from langchain_mcp_adapters.client import MultiServerMCPClient
 from langchain_mcp_adapters.sessions import Connection
 
+from co_scientist.exceptions import MCPToolTimeoutError
 from co_scientist.mcp_client_availability import (
     _has_any_tools,
     _log_mcp_test_start,
@@ -51,6 +53,68 @@ if TYPE_CHECKING:
     from co_scientist.config import ToolRegistry
 
 logger = logging.getLogger(__name__)
+
+MCP_TOOL_TIMEOUT_ENV = "COSCIENTIST_MCP_TOOL_TIMEOUT_SECONDS"
+# Generous next to a search or a full-text fetch, tiny next to forever. The
+# failure this bounds is not a slow tool but a dead one: an MCP stream that
+# broke mid-call leaves the await pending with nothing to complete it.
+DEFAULT_MCP_TOOL_TIMEOUT_SECONDS = 300.0
+
+
+def mcp_tool_timeout_seconds() -> float | None:
+    """Return the per-tool-call wall-clock ceiling, or None when disabled.
+
+    Read from the environment on every call rather than cached, so tests and
+    operators can change the ceiling without restarting the process. Mirrors
+    ``llm_request.llm_timeout_seconds``.
+
+    Returns:
+        The timeout in seconds, or None when it is disabled (a value of zero
+        or less) or the configured value is not a number.
+    """
+    raw = os.environ.get(MCP_TOOL_TIMEOUT_ENV)
+    if raw is None or not raw.strip():
+        return DEFAULT_MCP_TOOL_TIMEOUT_SECONDS
+    try:
+        seconds = float(raw)
+    except ValueError:
+        logger.warning(
+            "ignoring non-numeric %s=%r; using default %ss",
+            MCP_TOOL_TIMEOUT_ENV,
+            raw,
+            DEFAULT_MCP_TOOL_TIMEOUT_SECONDS,
+        )
+        return DEFAULT_MCP_TOOL_TIMEOUT_SECONDS
+    return seconds if seconds > 0 else None
+
+
+async def _ainvoke_within_timeout(
+    tool: Any, tool_args: Any, tool_name: str
+) -> Any:
+    """Invoke one MCP tool under a wall-clock ceiling.
+
+    Args:
+        tool: The MCP tool object to invoke.
+        tool_args: Arguments to pass to the tool.
+        tool_name: Name of the tool, for the error message.
+
+    Returns:
+        Whatever the tool returned.
+
+    Raises:
+        MCPToolTimeoutError: If the call outlives the configured ceiling.
+    """
+    timeout = mcp_tool_timeout_seconds()
+    if timeout is None:
+        return await tool.ainvoke(tool_args)
+    try:
+        return await asyncio.wait_for(tool.ainvoke(tool_args), timeout=timeout)
+    except asyncio.TimeoutError as exc:
+        # wait_for has already cancelled the underlying call, so the broken
+        # stream is not left holding the task.
+        raise MCPToolTimeoutError(
+            f"MCP tool '{tool_name}' did not respond within {timeout}s"
+        ) from exc
 
 
 class MCPToolClient:
@@ -201,8 +265,14 @@ class MCPToolClient:
 
         logger.debug("calling mcp tool: %s with args: %s", tool_name, kwargs)
 
+        # Raises MCPToolTimeoutError on a dead call rather than returning a
+        # sentinel: every caller on this path (the availability probe, each
+        # literature source) already catches broadly and degrades, so a stuck
+        # tool costs that one source instead of the whole run.
         result = _unwrap_tool_result(
-            await tools_dict[tool_name].ainvoke(kwargs)
+            await _ainvoke_within_timeout(
+                tools_dict[tool_name], kwargs, tool_name
+            )
         )
 
         logger.debug(
@@ -243,9 +313,21 @@ class MCPToolClient:
         # Execute using the original MCP tool. Unwrap the content-block
         # list shape exactly like call_tool, so the tool message carries
         # the inner string the provider expects, not a list of dicts.
-        result = _unwrap_tool_result(
-            await self._tools_dict[tool_name].ainvoke(tool_args)
-        )
+        #
+        # A timeout is reported back to the model as the tool's result rather
+        # than raised. This path runs under _execute_tool_calls' asyncio.gather
+        # without return_exceptions, so raising would take down every sibling
+        # tool call in the same turn and fail the run; telling the model this
+        # one tool did not answer lets it proceed on what it does have.
+        try:
+            result = _unwrap_tool_result(
+                await _ainvoke_within_timeout(
+                    self._tools_dict[tool_name], tool_args, tool_name
+                )
+            )
+        except MCPToolTimeoutError as exc:
+            logger.warning("%s; reporting the timeout to the model", exc)
+            result = f"Error: {exc}. No result was returned."
 
         logger.debug(
             "mcp tool result for %s: %s%s",

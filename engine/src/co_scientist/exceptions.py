@@ -40,3 +40,13 @@ class ResponseParseError(CoScientistError):
 # retrying multiplies one stalled call by the attempt count.
 class LLMTimeoutError(CoScientistError):
     """An LLM call exceeded its wall-clock budget without responding."""
+
+
+# Raised when an MCP tool accepts a call and never returns. The LLM timeout
+# covers litellm.acompletion only, which left tool invocations unbounded: a
+# server whose stream broke mid-call parked the awaiting run forever, with no
+# error, no retry and nothing in the log after the request went out. Callers
+# that can degrade (per-source literature search, the availability probe)
+# catch this and carry on without that source.
+class MCPToolTimeoutError(CoScientistError):
+    """An MCP tool call exceeded its wall-clock budget without responding."""
