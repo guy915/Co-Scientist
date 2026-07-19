@@ -154,6 +154,21 @@ async def lifespan(
                 superseded,
             )
 
+    # Give back what the pruning freed. Deleting rows returns pages to
+    # SQLite's freelist but never shrinks the file, so without this the
+    # database keeps the size its dead checkpoints grew it to. Declines
+    # unless most of the file is free pages and the disk has room for
+    # VACUUM's temporary copy, and never fatal for the same reason as above.
+    try:
+        compacted = store.compact_database()
+    except (sqlite3.Error, OSError):
+        logger.warning("Could not compact the database; continuing startup")
+    else:
+        if compacted:
+            logger.info(
+                "Compacted the database: %.0f MB -> %.0f MB", *compacted
+            )
+
     # Reconcile runs left non-terminal by a previous process: a fresh process
     # has no workflow tasks running, so anything still queued/running was
     # interrupted by a crash or restart and would otherwise be stuck forever.

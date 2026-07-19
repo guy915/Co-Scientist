@@ -32,6 +32,7 @@ from app.store.checkpoints import (
 )
 from app.store.db import (
     checkpoint_wal,
+    compact_database,
     connect,
     transaction,
 )
@@ -166,6 +167,7 @@ __all__ = [
     "clear_logs",
     "clear_publication_artifacts",
     "clear_run_derived_data",
+    "compact_database",
     "complete_task",
     "connect",
     "count_logs",
