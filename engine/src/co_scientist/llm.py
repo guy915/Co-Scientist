@@ -7,12 +7,15 @@ pieces live in the ``llm_request``, ``llm_json``, ``llm_json_retry``,
 re-exported here so historical import paths keep working.
 """
 
+import asyncio
 import logging
 from collections.abc import Awaitable, Callable
 from typing import Any, cast
 
 import litellm
 from jsonschema.exceptions import ValidationError as ValidationError
+
+from co_scientist.exceptions import LLMTimeoutError
 
 from co_scientist import llm_request
 from co_scientist import prompts as prompts
@@ -178,6 +181,50 @@ async def _prepare_llm_call(
     return temperature, cache, cached_response
 
 
+# Extra head-room over the value handed to litellm, so that when the
+# provider client honours its own deadline it is the one to fail -- with a
+# provider-specific error naming the endpoint -- and this ceiling only fires
+# for a hang that never reached the transport at all.
+_TIMEOUT_GRACE_SECONDS = 30.0
+
+
+async def _acompletion_within_timeout(
+    completion_args: dict[str, Any], model_name: str
+) -> Any:
+    """Await one completion under a hard wall-clock ceiling.
+
+    ``_build_completion_args`` already asks the provider client to time out,
+    but that only binds if litellm passes the argument through to the
+    transport for the provider in use. Wrapping the await guarantees the
+    coroutine is cancelled either way, which is what keeps a wedged provider
+    from parking a durable task indefinitely.
+
+    Args:
+        completion_args: Keyword arguments for ``litellm.acompletion``.
+        model_name: Model name, for the error message.
+
+    Returns:
+        The completion response.
+
+    Raises:
+        LLMTimeoutError: If the call exceeds the configured ceiling.
+    """
+    timeout = llm_request.llm_timeout_seconds()
+    if timeout is None:
+        return await litellm.acompletion(**completion_args)
+    try:
+        return await asyncio.wait_for(
+            litellm.acompletion(**completion_args),
+            timeout=timeout + _TIMEOUT_GRACE_SECONDS,
+        )
+    except asyncio.TimeoutError as exc:
+        raise LLMTimeoutError(
+            f"LLM call to {model_name} exceeded {timeout}s without a "
+            f"response; set {llm_request.LLM_TIMEOUT_ENV} to change or "
+            "disable this ceiling"
+        ) from exc
+
+
 async def call_llm(
     prompt: str,
     model_name: str,
@@ -246,7 +293,9 @@ async def call_llm(
             enable_thinking=enable_thinking,
         )
 
-        response = await litellm.acompletion(**completion_args)
+        response = await _acompletion_within_timeout(
+            completion_args, model_name
+        )
 
         content = _extract_completion_content(response, model_name)
 

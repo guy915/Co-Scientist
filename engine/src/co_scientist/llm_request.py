@@ -11,6 +11,7 @@ import asyncio
 import functools
 import json
 import logging
+import os
 import warnings
 from typing import Any, cast
 
@@ -19,6 +20,44 @@ import litellm
 from co_scientist import prompts
 
 logger = logging.getLogger(__name__)
+
+# Wall-clock ceiling for a single completion call. Without one, a provider
+# that accepts a request and then stops responding parks the caller forever:
+# a durable run holds its task, and with a single worker nothing else
+# progresses. The default is deliberately generous rather than tight --
+# reasoning models legitimately spend minutes on a large meta-review or
+# ranking synthesis, and a ceiling that cuts those off would turn healthy
+# long calls into failures. It exists to bound the pathological case, not to
+# police normal latency. Set the env var to 0 (or a negative value) to
+# disable the ceiling entirely.
+LLM_TIMEOUT_ENV = "COSCIENTIST_LLM_TIMEOUT_SECONDS"
+DEFAULT_LLM_TIMEOUT_SECONDS = 600.0
+
+
+def llm_timeout_seconds() -> float | None:
+    """Return the per-call wall-clock ceiling, or None when disabled.
+
+    Read from the environment on every call rather than cached, so tests and
+    operators can change the ceiling without restarting the process.
+
+    Returns:
+        The timeout in seconds, or None when it is disabled (a value of zero
+        or less) or the configured value is not a number.
+    """
+    raw = os.environ.get(LLM_TIMEOUT_ENV)
+    if raw is None or not raw.strip():
+        return DEFAULT_LLM_TIMEOUT_SECONDS
+    try:
+        seconds = float(raw)
+    except ValueError:
+        logger.warning(
+            "ignoring non-numeric %s=%r; using default %ss",
+            LLM_TIMEOUT_ENV,
+            raw,
+            DEFAULT_LLM_TIMEOUT_SECONDS,
+        )
+        return DEFAULT_LLM_TIMEOUT_SECONDS
+    return seconds if seconds > 0 else None
 
 
 async def _save_prompt_if_named(
@@ -280,6 +319,15 @@ def _build_completion_args(
         # raising, since not every model/provider supports every arg.
         "drop_params": True,
     }
+
+    # Ask the provider client to give up on its own. call_llm additionally
+    # wraps the await in a hard asyncio ceiling, because this argument only
+    # binds if litellm plumbs it through to the transport for the provider in
+    # use, and a hang that never reaches the transport would otherwise be
+    # unbounded.
+    timeout = llm_timeout_seconds()
+    if timeout is not None:
+        completion_args["timeout"] = timeout
 
     _apply_response_format(
         completion_args, prompt, model_name, force_json, json_schema

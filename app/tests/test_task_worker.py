@@ -20,6 +20,75 @@ def test_enqueue_workflow_is_idempotent(isolated_db: str) -> None:
     assert duplicate.task_type == "engine.bootstrap"
 
 
+def test_resume_uses_recorded_successor_not_orchestrator_default(
+    isolated_db: str,
+) -> None:
+    """A crash-resume re-enters at the checkpoint's recorded successor.
+
+    Regression: a run interrupted right after bootstrap held only the
+    bootstrap checkpoint, whose state has no supervisor_guidance. Resume
+    defaulted to the orchestrator, which routed straight into generation and
+    raised GenerationError('No supervisor_guidance in state'). Bootstrap's
+    checkpoint now records resume_successor=engine.supervisor, and resume must
+    honour it. The idempotency key matches the successor bootstrap already
+    enqueued, so no duplicate task is created.
+    """
+    supervisor_type = f"{engine_tasks.NODE_TASK_PREFIX}supervisor"
+    run = store.create_run("worker goal", "standard", "engine", {})
+    # The successor bootstrap enqueues in the same commit as its checkpoint.
+    enqueued = store.enqueue_task(
+        run.id,
+        supervisor_type,
+        {"checkpoint_seq": 1},
+        idempotency_key=f"{supervisor_type}:1",
+        db_path=isolated_db,
+    )
+    store.save_checkpoint(
+        run.id,
+        stage="engine_task:bootstrap",
+        schema_version=1,
+        last_event_seq=0,
+        state={
+            "provider": "engine",
+            "resume_successor": supervisor_type,
+        },
+        db_path=isolated_db,
+    )
+
+    resumed = task_worker.enqueue_run_workflow(
+        run.id, resume=True, db_path=isolated_db
+    )
+
+    assert resumed.task_type == supervisor_type
+    assert resumed.id == enqueued.id, "must resolve to the already-queued task"
+
+
+def test_resume_defaults_to_orchestrator_when_successor_unrecorded(
+    isolated_db: str,
+) -> None:
+    """A checkpoint without a recorded successor keeps the legacy default.
+
+    Older checkpoints (pre-fix) and the fan-out planning checkpoints do not
+    record a successor; by then supervisor_guidance is in state, so the
+    orchestrator re-entry is valid and must be preserved.
+    """
+    run = store.create_run("worker goal", "standard", "engine", {})
+    store.save_checkpoint(
+        run.id,
+        stage="engine_task:orchestrator",
+        schema_version=1,
+        last_event_seq=0,
+        state={"provider": "engine"},
+        db_path=isolated_db,
+    )
+
+    resumed = task_worker.enqueue_run_workflow(
+        run.id, resume=True, db_path=isolated_db
+    )
+
+    assert resumed.task_type == f"{engine_tasks.NODE_TASK_PREFIX}orchestrator"
+
+
 def test_engine_start_queues_durable_work(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:

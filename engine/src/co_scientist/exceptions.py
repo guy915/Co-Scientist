@@ -30,3 +30,13 @@ class GenerationError(CoScientistError):
 # cannot be coerced into the expected structured JSON after repair attempts.
 class ResponseParseError(CoScientistError):
     """An LLM response could not be parsed or repaired into expected JSON."""
+
+
+# Raised by call_llm when a provider accepts a request and then never
+# answers. Distinct from a generic call failure because it is deliberately
+# not retried: the JSON retry loop re-raises it immediately (see
+# llm_json_retry._run_json_attempt), since a provider that has stopped
+# responding will not answer a second identical request any sooner, and
+# retrying multiplies one stalled call by the attempt count.
+class LLMTimeoutError(CoScientistError):
+    """An LLM call exceeded its wall-clock budget without responding."""

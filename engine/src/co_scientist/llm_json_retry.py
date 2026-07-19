@@ -18,6 +18,7 @@ from typing import Any
 from jsonschema.exceptions import ValidationError
 
 from co_scientist.cache import LLMCache, NullCache
+from co_scientist.exceptions import LLMTimeoutError
 from co_scientist.llm_json import (
     _backfill_required_fields,
     _validation_feedback,
@@ -354,6 +355,16 @@ async def _run_json_attempt(
             cache,
             call_for_json,
         )
+    except LLMTimeoutError:
+        # Deliberately not retried. A provider that accepted the request and
+        # then stopped answering will not answer the same request faster on
+        # the next attempt, so retrying multiplies one stalled call by the
+        # attempt count -- exactly the unbounded stall the ceiling exists to
+        # prevent. Fail now and let the run surface the error.
+        logger.error(
+            "LLM call timed out on attempt %s; not retrying", attempt
+        )
+        raise
     except Exception as e:
         logger.error("LLM call failed on attempt %s: %s", attempt, e)
         if is_final_attempt:

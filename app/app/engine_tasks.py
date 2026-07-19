@@ -405,7 +405,22 @@ def _save_state_and_enqueue(
             stage=f"engine_task:{task.id}",
             schema_version=CHECKPOINT_VERSION,
             last_event_seq=envelope["last_event_seq"],
-            state={"provider": _CHECKPOINT_PROVIDER, **envelope},
+            # resume_successor names the task that this checkpoint's committed
+            # state feeds into next, so a crash-resume re-enqueues the right
+            # node rather than the orchestrator default in
+            # task_worker.enqueue_run_workflow. It matches the successor
+            # enqueued just below (same type, same checkpoint_seq), so its
+            # idempotency key is identical and resume resolves to that exact
+            # already-queued task instead of creating a second one. Without
+            # it, a run interrupted right after bootstrap resumed at the
+            # orchestrator with no supervisor_guidance in state and failed in
+            # generation. The cooperative-pause path (_save_paused_state)
+            # already records this; this closes the crash path to match.
+            state={
+                "provider": _CHECKPOINT_PROVIDER,
+                "resume_successor": successor_type,
+                **envelope,
+            },
             conn=conn,
         )
         is_orchestrator = task.task_type == f"{NODE_TASK_PREFIX}orchestrator"
