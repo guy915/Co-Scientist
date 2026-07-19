@@ -459,9 +459,7 @@ def _log_resume_task_result(task: asyncio.Task[None]) -> None:
     """
     _resume_tasks.discard(task)
     if not task.cancelled() and task.exception() is not None:
-        logger.error(
-            "Resume worker crashed", exc_info=task.exception()
-        )
+        logger.error("Resume worker crashed", exc_info=task.exception())
 
 
 async def _launch_resume(run_id: str) -> None:
