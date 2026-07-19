@@ -13,9 +13,11 @@ from typing import Any
 from app import paper_corpus, run_corpus, store
 from app.config import settings
 from app.run_modes import (
+    RUN_TIER_DEFAULTS,
     clean_string_list,
     focus_guidance,
     normalize_run_focus,
+    normalize_run_tier,
     setup_guidance,
 )
 
@@ -212,6 +214,19 @@ def _build_generator(
         supervisor_model_name=supervisor_model_name,
         enable_cache=enable_cache,
         max_iterations=int(cfg["max_iterations"]),
+        # Hard termination ceiling on top of max_iterations. Runs created
+        # before this knob existed have no key here, so fall back to the
+        # tier table rather than leaving them unbounded on resume.
+        budget={
+            "max_llm_calls": int(
+                cfg.get(
+                    "max_llm_calls",
+                    RUN_TIER_DEFAULTS[normalize_run_tier(cfg.get("tier"))][
+                        "max_llm_calls"
+                    ],
+                )
+            )
+        },
         initial_hypotheses_count=int(cfg["initial_hypotheses_count"]),
         evolution_max_count=int(cfg["evolution_max_count"]),
         tournament_pairs=int(cfg["tournament_pairs"]),

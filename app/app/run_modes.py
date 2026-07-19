@@ -47,6 +47,15 @@ DEFAULT_CRITERIA: tuple[str, ...] = (
 # numbers; provenance records them as reconstructed. resolved_run_config starts
 # from the selected tier and lets explicit user overrides raise (never lower)
 # these values.
+# ``max_llm_calls`` is a runaway backstop, not a work allowance: it is sized
+# well above what a healthy run of each tier spends, so it never truncates
+# real science, and only fires when a run stops converging. It exists because
+# ``max_iterations`` was otherwise the sole termination bound, and iterations
+# only advance on work tasks -- a run looping on maintenance work had no
+# ceiling at all. Calls (rather than the Budget's wall-clock ceiling) are the
+# right meter here: they measure work actually done, so an interrupted run is
+# not penalized for the hours it sat wedged, whereas ``elapsed_s`` counts from
+# the original ``start_time`` and would terminate a resumed run instantly.
 RUN_TIER_DEFAULTS: dict[str, dict[str, int]] = {
     "express": {
         "initial_hypotheses_count": 4,
@@ -54,6 +63,7 @@ RUN_TIER_DEFAULTS: dict[str, dict[str, int]] = {
         "evolution_max_count": 4,
         "tournament_pairs": 6,
         "evidence_count": 4,
+        "max_llm_calls": 1200,
     },
     DEFAULT_RUN_TIER: {
         "initial_hypotheses_count": 8,
@@ -61,6 +71,7 @@ RUN_TIER_DEFAULTS: dict[str, dict[str, int]] = {
         "evolution_max_count": 8,
         "tournament_pairs": 12,
         "evidence_count": 8,
+        "max_llm_calls": 2500,
     },
     "extended": {
         "initial_hypotheses_count": 12,
@@ -68,6 +79,7 @@ RUN_TIER_DEFAULTS: dict[str, dict[str, int]] = {
         "evolution_max_count": 12,
         "tournament_pairs": 20,
         "evidence_count": 12,
+        "max_llm_calls": 7000,
     },
     "ultra": {
         "initial_hypotheses_count": 16,
@@ -75,6 +87,7 @@ RUN_TIER_DEFAULTS: dict[str, dict[str, int]] = {
         "evolution_max_count": 16,
         "tournament_pairs": 32,
         "evidence_count": 16,
+        "max_llm_calls": 14000,
     },
 }
 
