@@ -67,11 +67,24 @@ def enqueue_run_workflow(
         task_type = str(recorded_successor or "") or (
             f"{engine_tasks.NODE_TASK_PREFIX}orchestrator"
         )
+        idempotency_key = f"{task_type}:{checkpoint_seq}"
+        # Revive first, then enqueue. The key names the boundary the run
+        # stopped at, and it cannot change while the run makes no progress --
+        # so if that task already died, the enqueue below is a no-op against
+        # the existing row and the run would be wedged forever, announcing a
+        # resume it never performs. Reviving is a no-op unless there is a dead
+        # task under this key.
+        if store.revive_task_for_retry(
+            run_id, idempotency_key, db_path=db_path
+        ):
+            logger.info(
+                "Resume revived a dead %s task for run %s", task_type, run_id
+            )
         return store.enqueue_task(
             run_id,
             task_type,
             {"checkpoint_seq": checkpoint_seq},
-            idempotency_key=f"{task_type}:{checkpoint_seq}",
+            idempotency_key=idempotency_key,
             priority=100,
             provenance={"scheduled_by": "resume"},
             db_path=db_path,

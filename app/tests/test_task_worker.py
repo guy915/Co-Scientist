@@ -393,3 +393,95 @@ async def test_worker_delivers_opted_in_completion_email(
         "recipient": "scientist@example.org",
         "status": "sent",
     }
+
+
+def _wedge_task_at(
+    run_id: str, task_type: str, checkpoint_seq: int, status: str, db: str
+) -> str:
+    """Leave the boundary's task in a terminal, unclaimable state.
+
+    Reproduces what the disk-full outage did in production: the boundary's
+    task burned its retry budget and settled as ``failed``.
+    """
+    task = store.enqueue_task(
+        run_id,
+        task_type,
+        {"checkpoint_seq": checkpoint_seq},
+        idempotency_key=f"{task_type}:{checkpoint_seq}",
+        db_path=db,
+    )
+    with store.connect(db) as conn:
+        conn.execute(
+            "UPDATE scientific_tasks SET status=?, attempt=max_attempts "
+            "WHERE id=?",
+            (status, task.id),
+        )
+    return task.id
+
+
+def _queued(run_id: str, db: str) -> list[Any]:
+    return [
+        t for t in store.list_tasks(run_id, db_path=db) if t.status == "queued"
+    ]
+
+
+@pytest.mark.parametrize("dead_status", ["failed", "cancelled"])
+def test_resume_revives_a_boundary_whose_task_died(
+    isolated_db: str, dead_status: str
+) -> None:
+    """A resume must give a dead boundary a fresh attempt, not silently no-op.
+
+    Regression: the resume enqueue is idempotent on
+    ``{task_type}:{checkpoint_seq}``, and that key cannot change while the run
+    makes no progress -- the checkpoint it names is exactly the one it failed
+    at. Once that task reached a terminal state, every later resume hit
+    ON CONFLICT DO NOTHING and enqueued nothing, so the worker had nothing to
+    claim. In production the run announced "resuming from specialist
+    checkpoint" on every restart and then sat silent forever: no LLM call, no
+    tool call, no task ever leased. Neither escape hatch reached it either --
+    resume_run_tasks only requeues 'paused', and claim_task's expired-lease
+    rescue skips tasks whose attempts are spent.
+    """
+    run = store.create_run("wedged goal", "standard", "engine", {})
+    task_type = f"{engine_tasks.NODE_TASK_PREFIX}orchestrator"
+    store.save_checkpoint(
+        run.id,
+        stage="post_generation",
+        schema_version=1,
+        last_event_seq=1,
+        state={"resume_successor": task_type},
+        db_path=isolated_db,
+    )
+    task_id = _wedge_task_at(run.id, task_type, 1, dead_status, isolated_db)
+    assert not _queued(run.id, isolated_db)
+
+    task_worker.enqueue_run_workflow(run.id, resume=True, db_path=isolated_db)
+
+    # The boundary is runnable again, with a budget to run on.
+    queued = _queued(run.id, isolated_db)
+    assert len(queued) == 1
+    assert queued[0].id == task_id
+    assert queued[0].task_type == task_type
+    assert queued[0].attempt < queued[0].max_attempts
+
+
+def test_resume_does_not_rerun_completed_work(isolated_db: str) -> None:
+    """A boundary that already succeeded is left alone.
+
+    Reviving it would redo work the run has already paid for and committed.
+    """
+    run = store.create_run("done goal", "standard", "engine", {})
+    task_type = f"{engine_tasks.NODE_TASK_PREFIX}orchestrator"
+    store.save_checkpoint(
+        run.id,
+        stage="post_generation",
+        schema_version=1,
+        last_event_seq=1,
+        state={"resume_successor": task_type},
+        db_path=isolated_db,
+    )
+    _wedge_task_at(run.id, task_type, 1, "succeeded", isolated_db)
+
+    task_worker.enqueue_run_workflow(run.id, resume=True, db_path=isolated_db)
+
+    assert not _queued(run.id, isolated_db)

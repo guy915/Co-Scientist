@@ -433,6 +433,55 @@ def resume_run_tasks(run_id: str, *, db_path: str | None = None) -> int:
     return int(changed)
 
 
+# Only these. A succeeded task must never be revived -- rerunning it would
+# redo work the run already committed -- and queued/leased/paused tasks are
+# either runnable already or owned by the paths above.
+_REVIVABLE_TASK_STATUSES = ("failed", "cancelled")
+
+
+def revive_task_for_retry(
+    run_id: str,
+    idempotency_key: str,
+    *,
+    db_path: str | None = None,
+) -> bool:
+    """Return one terminally-dead task to the queue with a fresh budget.
+
+    Enqueueing is idempotent on ``(run_id, idempotency_key)``, which is what a
+    resume needs when a boundary is merely already queued -- but it also meant
+    a boundary whose task had *died* could never be retried: the insert hit
+    ON CONFLICT DO NOTHING, so the resume enqueued nothing and the worker had
+    nothing to claim. The run then announced that it was resuming and sat
+    silent forever. Neither existing recovery path reaches such a task:
+    ``resume_run_tasks`` only requeues ``paused``, and ``claim_task``'s
+    expired-lease rescue skips tasks whose attempts are spent.
+
+    The attempt counter is reset because a resume is a fresh intent rather
+    than a continuation of the old retry sequence -- the earlier attempts may
+    have been spent on a condition since repaired (a full disk, a dead
+    provider). Resumes are operator- or startup-initiated, so this is bounded
+    by how often they happen rather than by the worker's own retry loop.
+
+    Args:
+        run_id: The run whose task should be revived.
+        idempotency_key: Key identifying the task within the run.
+        db_path: Optional override for the SQLite database path.
+
+    Returns:
+        True if a dead task was revived, False if there was nothing to revive.
+    """
+    placeholders = ",".join("?" * len(_REVIVABLE_TASK_STATUSES))
+    with transaction(db_path) as conn:
+        changed = conn.execute(
+            "UPDATE scientific_tasks SET status='queued', attempt=0, "
+            "error=NULL, completed_at=NULL, lease_owner=NULL, "
+            "lease_expires_at=NULL, updated_at=? WHERE run_id=? AND "
+            f"idempotency_key=? AND status IN ({placeholders})",
+            (_now(), run_id, idempotency_key, *_REVIVABLE_TASK_STATUSES),
+        ).rowcount
+    return int(changed) > 0
+
+
 def fail_task(
     task_id: str,
     worker_id: str,

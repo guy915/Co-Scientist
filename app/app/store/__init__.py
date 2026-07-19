@@ -136,6 +136,7 @@ from app.store.tasks import (
     reprioritize_task,
     resume_run_tasks,
     retry_task,
+    revive_task_for_retry,
     task_progress,
 )
 
@@ -217,6 +218,7 @@ __all__ = [
     "resolve_safety_decision",
     "resume_run_tasks",
     "retry_task",
+    "revive_task_for_retry",
     "revoke_report_share",
     "run_exists",
     "run_used_offline",
