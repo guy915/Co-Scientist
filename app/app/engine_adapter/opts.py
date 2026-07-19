@@ -194,4 +194,11 @@ def _build_generator(generator_cls: Any, cfg: dict[str, Any]) -> Any:
         # OpenAlex) -- not PubMed-only. Startup already validated this path is
         # readable (see app.main lifespan).
         tools_config=settings.tools_config,
+        # The group's paper corpus is one lab's library. The tools YAML
+        # enables it unconditionally, so withhold it here for every other
+        # audience: otherwise any run could search another lab's papers
+        # directly, which no audience gate on injected context would catch.
+        disable_tools=paper_corpus.disabled_tools_for(
+            str(cfg.get("audience") or "")
+        ),
     )

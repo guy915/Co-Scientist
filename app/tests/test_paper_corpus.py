@@ -181,6 +181,23 @@ def test_retrieve_for_handles_an_empty_query(installed: None) -> None:
     assert paper_corpus.retrieve_for("sbi_ucd", "   ", k=3) == []
 
 
+def test_corpus_tools_are_withheld_from_other_audiences() -> None:
+    """The agent's own route to the corpus is gated like the injected one.
+
+    `retrieve_for` only covers passages the app injects. An agent can also
+    call the corpus MCP tools itself while drafting, validating, and
+    reflecting, so those are withheld per-run for every audience but the
+    corpus owner -- otherwise a non-SBI run could search the lab's library
+    directly and no gate on injected context would notice.
+    """
+    assert paper_corpus.disabled_tools_for("sbi_ucd") == []
+    for other in ("google", "general", "", None):
+        assert paper_corpus.disabled_tools_for(other) == [
+            "paper_corpus_search",
+            "paper_corpus_fetch",
+        ]
+
+
 def test_the_whole_result_is_judged_by_its_best_passage(
     installed: None, monkeypatch: pytest.MonkeyPatch
 ) -> None:

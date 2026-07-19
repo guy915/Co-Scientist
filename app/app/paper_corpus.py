@@ -349,6 +349,34 @@ def build_retriever(
 # reading of the field.
 CORPUS_AUDIENCE = "sbi_ucd"
 
+# The engine reaches the corpus through these MCP tools rather than through
+# `retrieve_for`, so the audience gate has to be applied to them separately:
+# `retrieve_for` covers what the app injects, while these cover what an agent
+# can go and fetch for itself.
+CORPUS_TOOL_IDS = ("paper_corpus_search", "paper_corpus_fetch")
+
+
+def disabled_tools_for(audience: str | None) -> list[str]:
+    """Return the corpus tool ids to withhold from a run's tool registry.
+
+    The corpus reaches a run by two independent routes: passages this module
+    injects (gated in `retrieve_for`) and the MCP tools an agent may call on
+    its own initiative during drafting, validation, and reflection. Gating
+    only the first would leave a non-corpus audience able to search another
+    lab's library directly, so both derive from `CORPUS_AUDIENCE` here.
+
+    Args:
+        audience: The run's self-declared audience.
+
+    Returns:
+        An empty list for the corpus audience, and the corpus tool ids for
+        every other audience, to be passed as the engine's `disable_tools`.
+    """
+    if audience == CORPUS_AUDIENCE:
+        return []
+    return list(CORPUS_TOOL_IDS)
+
+
 # How many passages each surface takes. The configured models have 1M-token
 # windows and a passage is ~450 tokens, so these are set by usefulness rather
 # than by budget: the retriever already drops anything scoring zero, but a
