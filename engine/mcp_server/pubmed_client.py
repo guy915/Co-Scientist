@@ -116,7 +116,7 @@ class _EntrezClient:
             related = self.entrez_read(
                 Entrez.elink(dbfrom="pubmed", db="pmc", id=paper_id)
             )
-            return related[0]["LinkSetDb"][0]["Link"][0]["Id"]
+            return str(related[0]["LinkSetDb"][0]["Link"][0]["Id"])
         except Exception:
             logger.debug("%s -- fulltext not available in pmc", doi)
             return None
