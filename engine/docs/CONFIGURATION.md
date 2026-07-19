@@ -70,6 +70,36 @@ generator = HypothesisGenerator(model_name="gemini/gemini-2.5-flash")
 
 See [LiteLLM provider documentation](https://docs.litellm.ai/docs/providers) for configuration details.
 
+### Offline / deterministic backend
+
+Any model name prefixed `offline/` (default: `offline/deterministic`) is
+answered locally instead of calling a real provider. Call
+`co_scientist.offline_llm.install_offline_router()` once at process startup
+to install the router: it wraps `litellm.acompletion` so calls to
+`offline/`-prefixed models are intercepted, while every other model passes
+through untouched — real and offline models can coexist in the same process.
+
+```python
+from co_scientist.offline_llm import install_offline_router
+
+install_offline_router()
+
+generator = HypothesisGenerator(model_name="offline/deterministic")
+```
+
+**Determinism contract:** identical calls (same model, prompt, and response
+schema) always produce byte-identical output; different prompts produce
+different output. Each call seeds a `random.Random` from a SHA-256 digest of
+`(model, prompt, schema name)` and fills the response schema from that seed,
+drawing free-text leaves from a small pseudo-scientific phrase bank so the
+output reads as presentable prose rather than placeholder hashes.
+
+This is not a test-only fixture — it's a real runtime backend. The
+`co-scientist-viewer` app installs the router unconditionally at startup and
+routes every keyless, `COSCIENTIST_FORCE_OFFLINE=1`, demo-seeding, and test
+run through it, so the full engine graph runs with no LLM provider key and
+no API spend.
+
 ## Runtime Options
 
 The `generate_hypotheses()` method accepts an `opts` dictionary for runtime configuration:

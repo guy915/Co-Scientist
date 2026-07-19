@@ -66,7 +66,6 @@ from app import (
 )
 from app.auth import client_id
 from app.hypothesis_screening import screen_hypotheses
-from app.logging_setup import run_log_context
 from app.runs_events import _event_stream
 from app.runs_models import (
     AskRequest,
@@ -79,7 +78,7 @@ from app.runs_models import (
     StartRunRequest,
     _build_create_run_config,
 )
-from app.runs_registry import _active, _active_lock, _RunHandle
+from app.runs_registry import _active, _active_lock
 from app.store import TERMINAL_STATUSES, RunRow, RunStatus
 from app.title_gen import generate_run_title
 
@@ -184,9 +183,12 @@ async def create_run(
             }
         )
 
-    # Provider (engine vs mock) is decided at creation from availability;
-    # /start can still override it per run via force_provider.
+    # The engine is the only provider; select_provider() raises if it is not
+    # importable rather than falling back to anything else. The LLM backend
+    # is recorded separately: the process offline predicate decides whether
+    # this run's science runs against the deterministic offline router.
     provider = engine_adapter.select_provider()
+    llm_backend = "offline" if engine_adapter.offline_mode() else "real"
     config, focus, tier = _build_create_run_config(req)
     if req.notify_on_completion and req.completion_email:
         config["completion_notification"] = {
@@ -204,6 +206,7 @@ async def create_run(
         config=config,
         client_id=client_id(request),
         title=(interview["fields"].get("title") if interview else None),
+        llm_backend=llm_backend,
     )
     # First entry in the run's event log, so replays show creation metadata.
     store.append_event(
@@ -217,9 +220,10 @@ async def create_run(
             "tier": tier,
         },
     )
-    # Title generation needs a real model, so only when a provider is
-    # configured (mock/offline and tests keep the goal-clause fallback).
-    if provider == "engine":
+    # Title generation needs a real model, so only when a provider credential
+    # is configured. Every run is now the engine provider, so gate on the LLM
+    # backend instead: offline/keyless runs keep the goal-clause fallback.
+    if provider == "engine" and not engine_adapter.offline_mode():
         background_tasks.add_task(
             _populate_run_title, run.id, req.research_goal
         )
@@ -291,88 +295,6 @@ async def get_run(run_id: str) -> dict[str, Any]:
     }
 
 
-def _mark_workflow_failed(
-    run_id: str, handle: _RunHandle, error: Exception
-) -> None:
-    """Log an unhandled workflow crash and land the run in FAILED status.
-
-    Catch-all so an unexpected workflow crash still lands the run in a
-    terminal FAILED state with a status event for the UI.
-    """
-    logger.exception("workflow failed: %s", error)
-    store.update_run_status(run_id, RunStatus.FAILED, error=str(error))
-    store.append_event(
-        run_id, "status", {"status": "failed", "error": str(error)}
-    )
-    handle.new_event.set()
-
-
-async def _run_workflow_task(
-    run_id: str,
-    research_goal: str,
-    config: dict[str, Any],
-    force_provider: str | None,
-    handle: _RunHandle,
-    resume: bool = False,
-) -> None:
-    """Drive a run's workflow to completion as a background task.
-
-    Args:
-        run_id: Identifier of the run to drive.
-        research_goal: The run's research goal, passed through to the engine.
-        config: The run's resolved configuration.
-        force_provider: Optional provider override ('mock' or 'engine').
-        handle: The run's registry handle for cancellation/new-event signals.
-        resume: When True, the engine restores its persisted WorkflowState and
-            continues from the last checkpoint instead of running from the goal.
-    """
-    with run_log_context(run_id):
-        await _drive_workflow(
-            run_id, research_goal, config, force_provider, handle, resume
-        )
-
-
-async def _drive_workflow(
-    run_id: str,
-    research_goal: str,
-    config: dict[str, Any],
-    force_provider: str | None,
-    handle: _RunHandle,
-    resume: bool = False,
-) -> None:
-    """Body of ``_run_workflow_task``, run inside the run's log context."""
-    try:
-        # The adapter persists each event itself; this loop only pulses
-        # new_event so any in-process SSE stream wakes immediately.
-        async for _ in engine_adapter.run_workflow(
-            run_id=run_id,
-            research_goal=research_goal,
-            config=config,
-            cancelled=handle.cancelled,
-            force_provider=force_provider,
-            resume=resume,
-        ):
-            handle.new_event.set()
-        # A cooperative pause stopped the workflow at a checkpoint boundary.
-        # The workflow normally persists/emits `paused` itself (it consults
-        # the registry's pause flag); this fallback covers a provider that
-        # stopped on the shared cancel signal without emitting a status, so
-        # the run still reads as resumable rather than cancelled.
-        if handle.paused and store.has_checkpoint(run_id):
-            run = store.get_run(run_id)
-            if run and run.status != RunStatus.PAUSED.value:
-                store.update_run_status(run_id, RunStatus.PAUSED)
-                store.append_event(
-                    run_id, "status", {"status": "paused", "detail": "paused"}
-                )
-    except Exception as e:
-        _mark_workflow_failed(run_id, handle, e)
-    finally:
-        # Always release the active-run slot so the run can be restarted.
-        async with _active_lock:
-            _active.pop(run_id, None)
-
-
 def _check_startable(run: RunRow) -> None:
     """Raise 409 if `run` cannot be (re)started in its current status.
 
@@ -389,41 +311,28 @@ def _check_startable(run: RunRow) -> None:
         raise HTTPException(status_code=409, detail="run already completed")
 
 
-async def _reserve_active_slot(run_id: str) -> _RunHandle:
-    """Atomically reserve the run's active-run slot, or 409 if already active.
-
-    Guards two concurrent /start requests from both passing the DB status
-    check and launching twice.
-    """
-    async with _active_lock:
-        if run_id in _active:
-            raise HTTPException(status_code=409, detail="run already active")
-        handle = _RunHandle()
-        _active[run_id] = handle
-    return handle
-
-
 @router.post("/{run_id}/start")
 async def start_run(
     run_id: str, req: StartRunRequest, background: BackgroundTasks
 ) -> dict[str, Any]:
-    """Queue a run and launch its workflow as a background task.
+    """Queue a run and launch its workflow through the durable worker.
 
     Args:
         run_id: Path identifier of the run to start.
-        req: Request body with optional provider override settings.
-        background: FastAPI background task registry for the workflow runner.
+        req: Request body (empty; kept to preserve the endpoint's body
+            contract for existing clients).
+        background: FastAPI background task registry for the embedded-worker
+            compatibility mode.
 
     Returns:
-        A dict with the run 'id' and its new 'status'.
+        A dict with the run 'id', its new 'status', and the enqueued task id.
 
     Raises:
         HTTPException: If the run is missing, already in progress, already
-            completed, or already active.
+            completed, or the client's concurrent-run limit is reached.
     """
     run = _run_or_404(run_id)
     _check_startable(run)
-    effective_provider = req.force_provider or run.provider
     mode = str(run.profile)
     limit = _MODE_CONCURRENCY_LIMITS.get(mode, 3)
     if not store.reserve_run_capacity(
@@ -437,39 +346,20 @@ async def start_run(
             detail=f"concurrent {mode} run limit reached ({limit})",
         )
 
-    # Real scientific runs are delivered through the durable worker queue.
-    # Mock fixtures retain the historical background path and are explicitly
-    # excluded from fidelity claims.
-    if effective_provider == "engine":
-        store.append_event(run_id, "lifecycle", {"event": "queued"})
-        task = task_worker.enqueue_run_workflow(run_id, force_provider="engine")
-        if os.getenv("COSCIENTIST_EMBEDDED_WORKER", "1") == "1":
-            # Local compatibility mode consumes the same durable lease. A
-            # production worker service runs ``python -m app.task_worker`` and
-            # sets COSCIENTIST_EMBEDDED_WORKER=0 on the API service.
-            background.add_task(
-                task_worker.run_run_worker_pool_sync,
-                run_id,
-                f"embedded-api:{os.getpid()}",
-            )
-        return {"id": run_id, "status": "queued", "task_id": task.id}
-
-    handle = await _reserve_active_slot(run_id)
-
-    # Transition draft -> queued before returning; the runner moves the run
-    # to running/synthesizing/terminal states as the workflow progresses.
+    # Every run is delivered through the durable worker queue -- the engine is
+    # the only provider now, so there is no in-process alternative to select.
     store.append_event(run_id, "lifecycle", {"event": "queued"})
-
-    # Returns immediately; FastAPI runs the task after the response is sent.
-    background.add_task(
-        _run_workflow_task,
-        run_id,
-        run.research_goal,
-        run.config,
-        req.force_provider,
-        handle,
-    )
-    return {"id": run_id, "status": "queued"}
+    task = task_worker.enqueue_run_workflow(run_id, force_provider="engine")
+    if os.getenv("COSCIENTIST_EMBEDDED_WORKER", "1") == "1":
+        # Local compatibility mode consumes the same durable lease. A
+        # production worker service runs ``python -m app.task_worker`` and
+        # sets COSCIENTIST_EMBEDDED_WORKER=0 on the API service.
+        background.add_task(
+            task_worker.run_run_worker_pool_sync,
+            run_id,
+            f"embedded-api:{os.getpid()}",
+        )
+    return {"id": run_id, "status": "queued", "task_id": task.id}
 
 
 @router.post("/{run_id}/cancel")
@@ -503,55 +393,26 @@ async def cancel_run(run_id: str) -> dict[str, Any]:
 
 @router.post("/{run_id}/pause")
 async def pause_run(run_id: str) -> dict[str, Any]:
-    """Cooperatively pause an active run at its next checkpoint (Milestone 4).
+    """Cooperatively pause a durably-queued/running engine run.
 
-    Like cancel, this only signals the in-flight workflow; it stops at the next
-    iteration boundary. A resumable checkpoint is ensured here so the run lands
-    in the PAUSED state rather than CANCELLED for every provider — the mock
-    also checkpoints per iteration, but the engine provider does not, so
-    without this a paused engine run would be an unrecoverable cancel.
+    Marks the run's queued/leased engine tasks paused and the run PAUSED; the
+    durable worker's own per-task checkpoint (``engine_tasks.py``) is what
+    makes the run resumable, so no extra checkpoint needs to be created here.
     """
     run = _run_or_404(run_id)
-    async with _active_lock:
-        handle = _active.get(run_id)
-    if not handle:
-        has_engine_task = any(
-            task.task_type.startswith("engine.")
-            for task in store.list_tasks(run_id)
-        )
-        if has_engine_task and run.status in {
-            RunStatus.QUEUED.value,
-            RunStatus.RUNNING.value,
-        }:
-            store.pause_run_tasks(run_id)
-            store.update_run_status(run_id, RunStatus.PAUSED)
-            store.append_event(
-                run_id, "lifecycle", {"event": "pause_requested"}
-            )
-            return {"id": run_id, "status": "paused"}
-        raise HTTPException(status_code=404, detail="run is not active")
-    _ensure_resumable_checkpoint(run_id, run.provider)
-    handle.paused = True
-    handle.cancelled.set()
-    store.append_event(run_id, "lifecycle", {"event": "pause_requested"})
-    return {"id": run_id, "status": "pausing"}
-
-
-def _ensure_resumable_checkpoint(run_id: str, provider: str) -> None:
-    """Persist a minimal envelope checkpoint if the run has none yet.
-
-    Relaunch reads the goal/config from the run row, not the checkpoint, so the
-    checkpoint's only job is to mark the run resumable (``has_checkpoint``).
-    """
-    if store.has_checkpoint(run_id):
-        return
-    store.save_checkpoint(
-        run_id,
-        stage="pause",
-        schema_version=1,
-        last_event_seq=store.latest_event_seq(run_id),
-        state={"provider": provider, "reason": "pause"},
+    has_engine_task = any(
+        task.task_type.startswith("engine.")
+        for task in store.list_tasks(run_id)
     )
+    if has_engine_task and run.status in {
+        RunStatus.QUEUED.value,
+        RunStatus.RUNNING.value,
+    }:
+        store.pause_run_tasks(run_id)
+        store.update_run_status(run_id, RunStatus.PAUSED)
+        store.append_event(run_id, "lifecycle", {"event": "pause_requested"})
+        return {"id": run_id, "status": "paused"}
+    raise HTTPException(status_code=404, detail="run is not active")
 
 
 def _has_paused_engine_task(run_id: str) -> bool:
@@ -566,10 +427,11 @@ def _has_paused_engine_task(run_id: str) -> bool:
 async def resume_run(run_id: str) -> dict[str, Any]:
     """Resume a paused or interrupted run from its last checkpoint.
 
-    Requires a durable checkpoint (else there is nothing to resume from). The
-    run's derived artifacts are cleared and the workflow is relaunched, which
-    for the deterministic mock reconstructs identical artifacts from the same
-    seed. A completed or actively-running run cannot be resumed.
+    Requires a durable checkpoint (else there is nothing to resume from). A
+    true engine resume restores the persisted WorkflowState; a legacy
+    (pre-flip) envelope checkpoint instead clears derived artifacts and
+    re-bootstraps the run from its goal/config (see ``_launch_resume``). A
+    completed or actively-running run cannot be resumed.
     """
     run = _run_or_404(run_id)
     if run.status == RunStatus.COMPLETED.value:
@@ -583,66 +445,62 @@ async def resume_run(run_id: str) -> dict[str, Any]:
 
 
 async def _launch_resume(run_id: str) -> None:
-    """Relaunch a run's workflow from its last checkpoint on a detached task.
+    """Relaunch a run through the durable worker, on a detached task.
 
-    Shared by the resume endpoint and the startup auto-resume launcher. Two
-    resume modes, chosen by the kind of checkpoint on disk:
+    Shared by the resume endpoint and the startup auto-resume launcher.
+    Resume runs outside a request scope (also used at startup), so this
+    drives the worker on a detached asyncio task rather than FastAPI
+    BackgroundTasks; a strong reference is kept until it finishes so it is
+    not garbage-collected. Two resume modes, chosen by the kind of
+    checkpoint on disk:
 
-    - Engine checkpoint (a serialized WorkflowState): a *true* resume. The
-      engine restores that state and re-enters at the orchestrator, so
-      completed LLM/tool work is not repeated. Derived data is NOT cleared —
-      the engine persists artifacts only at the final drain, so a mid-run
-      interruption left only events + the checkpoint, and clearing would
-      discard the pre-orchestrator events that resume never re-emits.
-    - Mock (or envelope) checkpoint: a deterministic re-derive from the run's
-      seed. Derived data IS cleared so the replay rebuilds identical artifacts
-      without duplicating rows or events.
+    - Engine checkpoint (a serialized WorkflowState) or an already-queued
+      paused engine task: a *true* resume. The engine restores that state
+      and re-enters at the orchestrator, so completed LLM/tool work is not
+      repeated. Derived data is NOT cleared — the engine persists artifacts
+      only at the final drain, so a mid-run interruption left only events +
+      the checkpoint, and clearing would discard the pre-orchestrator events
+      that resume never re-emits.
+    - Legacy (pre-flip) envelope checkpoint: there is no persisted engine
+      state to restore, so the durable worker re-bootstraps the run from its
+      goal/config instead of a true resume. Derived data AND the stale
+      envelope checkpoint are cleared so the fresh run neither duplicates rows
+      or events nor trips the durable bootstrap's empty-checkpoint guard
+      (``engine_tasks.execute_bootstrap`` asserts an empty checkpoint
+      history).
 
     A completed run is never relaunched by callers.
     """
-    run = _run_or_404(run_id)
+    _run_or_404(run_id)
     checkpoint = store.get_latest_checkpoint(run_id)
-    engine_resume = engine_adapter.is_engine_checkpoint(checkpoint)
-    if engine_resume or _has_paused_engine_task(run_id):
-        store.update_run_status(run_id, RunStatus.QUEUED)
-        store.append_event(
-            run_id,
-            "status",
-            {"status": "resuming", "detail": "from specialist checkpoint"},
-        )
-        task_worker.enqueue_run_workflow(run_id, resume=True)
-        if os.getenv("COSCIENTIST_EMBEDDED_WORKER", "1") == "1":
-            task = asyncio.create_task(
-                task_worker.run_run_until_idle(
-                    run_id, f"embedded-resume:{os.getpid()}"
-                )
-            )
-            _resume_tasks.add(task)
-            task.add_done_callback(_resume_tasks.discard)
-        return
-
-    handle = await _reserve_active_slot(run_id)
-    if not engine_resume:
+    true_resume = engine_adapter.is_engine_checkpoint(
+        checkpoint
+    ) or _has_paused_engine_task(run_id)
+    if not true_resume:
         store.clear_run_derived_data(run_id)
+        store.clear_checkpoints(run_id)
     store.update_run_status(run_id, RunStatus.QUEUED)
     store.append_event(
-        run_id, "status", {"status": "resuming", "detail": "from checkpoint"}
+        run_id,
+        "status",
+        {
+            "status": "resuming",
+            "detail": (
+                "from specialist checkpoint"
+                if true_resume
+                else "from checkpoint"
+            ),
+        },
     )
-    # Resume runs outside a request scope (also used at startup), so drive it
-    # on a detached asyncio task rather than FastAPI BackgroundTasks. Keep a
-    # strong reference until it finishes so it is not garbage-collected.
-    task = asyncio.create_task(
-        _run_workflow_task(
-            run_id,
-            run.research_goal,
-            run.config,
-            None,
-            handle,
-            resume=engine_resume,
+    task_worker.enqueue_run_workflow(run_id, resume=true_resume)
+    if os.getenv("COSCIENTIST_EMBEDDED_WORKER", "1") == "1":
+        task = asyncio.create_task(
+            task_worker.run_run_until_idle(
+                run_id, f"embedded-resume:{os.getpid()}"
+            )
         )
-    )
-    _resume_tasks.add(task)
-    task.add_done_callback(_resume_tasks.discard)
+        _resume_tasks.add(task)
+        task.add_done_callback(_resume_tasks.discard)
 
 
 async def resume_interrupted_runs(run_ids: list[str]) -> None:
@@ -726,10 +584,12 @@ async def get_hypotheses(run_id: str) -> dict[str, Any]:
     # Flag ideas without an evidence-supported claim so the UI can badge them
     # "Unverified" (they are ranked and published under the rank-and-publish
     # policy; only contradicted/unsafe ideas are withheld from the report).
-    # Mock demo runs are illustrative fixtures, not assessed science, so they
-    # are never badged (they carry simulated "insufficient" claim rows that
-    # would otherwise flag every idea).
-    if run.provider == "mock":
+    # Offline-backed runs (mock demos, deterministic offline engine runs) are
+    # illustrative fixtures, not assessed science, so they are never badged
+    # (they carry simulated "insufficient" claim rows that would otherwise
+    # flag every idea). Keyed on the run's persisted backend, not the process
+    # offline_mode(), so a real engine run created while offline is badged.
+    if store.run_used_offline(run):
         for hyp in hyps:
             hyp["unverified"] = False
     else:
@@ -1168,11 +1028,11 @@ async def ask_question(run_id: str, req: AskRequest) -> StreamingResponse:
     # only gathers state and wires the SSE response.
     manifest = qa.build_evidence_manifest(evidence, citations)
 
-    # Keyless demo posture: with the mock provider selected there is no
-    # language model to call, so synthesize a deterministic answer grounded in
-    # the run's own artifacts rather than streaming an API-key error. The real
-    # LLM path is unchanged for a configured provider.
-    if engine_adapter.select_provider() == "mock":
+    # Keyless/offline posture: with no configured provider there is no language
+    # model to call, so synthesize a deterministic answer grounded in the run's
+    # own artifacts rather than streaming an API-key error. The real LLM path is
+    # unchanged for a configured provider.
+    if engine_adapter.offline_mode():
         answer = qa.build_offline_answer(
             run.research_goal, hypotheses, reviews, manifest
         )

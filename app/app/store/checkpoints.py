@@ -103,3 +103,26 @@ def has_checkpoint(
             (run_id,),
         ).fetchone()
     return row is not None
+
+
+def clear_checkpoints(
+    run_id: str,
+    db_path: str | None = None,
+    conn: sqlite3.Connection | None = None,
+) -> None:
+    """Delete all of a run's saved checkpoints.
+
+    Used when a run is re-bootstrapped from scratch rather than resumed from
+    a saved boundary (see ``runs._launch_resume``'s legacy-checkpoint
+    fallback): the durable bootstrap task asserts it starts from an empty
+    checkpoint history (``expected_checkpoint_seq=0``), so a stale envelope
+    checkpoint left behind by ``clear_run_derived_data`` (which deliberately
+    keeps checkpoints for the true-resume path) must be removed first.
+
+    Args:
+        run_id: Identifier of the run whose checkpoints to delete.
+        db_path: Optional override for the SQLite database path.
+        conn: Optional open connection to reuse.
+    """
+    with _use_conn(conn, db_path) as conn:
+        conn.execute("DELETE FROM checkpoints WHERE run_id=?", (run_id,))

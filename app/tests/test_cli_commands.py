@@ -1,12 +1,12 @@
-"""End-to-end tests for the cosci CLI against a spawned mock-mode server.
+"""End-to-end tests for the cosci CLI against a spawned offline-engine server.
 
 Every command is driven through ``app.cli.main.main`` (the same entry point the
-``cosci`` console script calls) against a real uvicorn process running the
-deterministic mock provider with no API keys, so the whole suite is offline.
-The streaming commands (``watch``, ``ask``) need the workflow's background task
-to run concurrently with the SSE poll loop, which a real server provides and an
-in-process ASGI transport does not; the non-streaming commands run against the
-same server for fidelity and simplicity.
+``cosci`` console script calls) against a real uvicorn process running the real
+engine on the deterministic offline backend with no API keys, so the whole
+suite is offline. The streaming commands (``watch``, ``ask``) need the
+workflow's background task to run concurrently with the SSE poll loop, which a
+real server provides and an in-process ASGI transport does not; the
+non-streaming commands run against the same server for fidelity and simplicity.
 """
 
 from __future__ import annotations
@@ -19,6 +19,7 @@ import subprocess
 import sys
 import time
 from collections.abc import Iterator
+from typing import Any
 
 import httpx
 import pytest
@@ -29,12 +30,22 @@ from tests._client import wait_for
 # app/ directory (parent of tests/), used as PYTHONPATH for the subprocess.
 APP_DIR = pathlib.Path(__file__).resolve().parents[1]
 
+# Ceiling for every poll loop in this file (server boot, run progress, status
+# transitions). Offline runs finish in seconds standalone, but under the full
+# app suite CPU contention stretches the same envelope past 30s, which is how
+# these fixtures used to flake. Polling returns as soon as the predicate holds,
+# so a generous ceiling costs green runs nothing while a genuine hang still
+# fails deterministically.
+_WAIT_BUDGET = 90.0
+
 # Provider keys the parent env might carry; stripped from the server's env so
-# `ask` degrades to its offline fallback rather than making a paid call.
+# the run and `ask` take the deterministic offline path rather than a paid call.
 _KEY_VARS = (
     "GEMINI_API_KEY",
+    "GOOGLE_API_KEY",
     "OPENAI_API_KEY",
     "ANTHROPIC_API_KEY",
+    "AZURE_API_KEY",
     "DEEPSEEK_API_KEY",
     "CHAT_MODEL_NAME",
 )
@@ -50,7 +61,7 @@ def _free_port() -> int:
 
 @pytest.fixture(scope="session")
 def cli_server(tmp_path_factory: pytest.TempPathFactory) -> Iterator[str]:
-    """Spawn a mock-mode uvicorn server on a free port and yield its base URL.
+    """Spawn an offline-backend uvicorn server on a free port, yield its URL.
 
     The server runs from an isolated cwd so neither ``load_dotenv`` nor
     pydantic-settings find the repo ``.env`` (no provider keys leak in), with a
@@ -64,7 +75,16 @@ def cli_server(tmp_path_factory: pytest.TempPathFactory) -> Iterator[str]:
     env.update(
         {
             "PYTHONPATH": str(APP_DIR),
-            "COSCIENTIST_FORCE_MOCK": "1",
+            # Force the deterministic offline backend and disable the
+            # literature-review node so the spawned server never makes a paid
+            # call or probes a (possibly live) local MCP server.
+            "COSCIENTIST_FORCE_OFFLINE": "1",
+            "FORCE_LITERATURE_REVIEW": "0",
+            # Offline runs already skip contextual screening, but assert that
+            # here rather than inheriting it: the screen calls a real (never
+            # offline-routed) model, so leaving it on would make the suite's
+            # offline guarantee depend on no provider key being reachable.
+            "SEMANTIC_SAFETY_ENABLED": "false",
             "COSCIENTIST_DB_PATH": str(home / "coscientist.db"),
             "COSCIENTIST_REPORTS_DIR": str(reports),
         }
@@ -101,7 +121,7 @@ def cli_server(tmp_path_factory: pytest.TempPathFactory) -> Iterator[str]:
 
 def _await_health(proc: subprocess.Popen[bytes], base: str) -> None:
     """Block until the server answers /health, or fail the fixture."""
-    deadline = time.time() + 30
+    deadline = time.time() + _WAIT_BUDGET
     while time.time() < deadline:
         if proc.poll() is not None:
             raise RuntimeError(f"server exited early (code {proc.returncode})")
@@ -176,7 +196,7 @@ def _wait_status(
     target: str,
     client_id: str,
     *,
-    timeout: float = 30.0,
+    timeout: float = _WAIT_BUDGET,
 ) -> None:
     """Poll until ``run_id`` reaches ``target`` status, or raise on timeout."""
     if not wait_for(
@@ -189,7 +209,7 @@ def _wait_status(
 def completed_run(cli_server: str) -> tuple[str, str, str]:
     """Return (base, run_id, client_id) for one completed express run."""
     client_id = "reads"
-    run_id = _create(cli_server, client_id, tier="standard")
+    run_id = _create(cli_server, client_id, tier="express")
     _start(cli_server, run_id, client_id)
     _wait_status(cli_server, run_id, "completed", client_id)
     return cli_server, run_id, client_id
@@ -200,13 +220,13 @@ def completed_run(cli_server: str) -> tuple[str, str, str]:
 # ---------------------------------------------------------------------------
 
 
-def test_status_reports_mock_mode(
+def test_status_reports_provider(
     cli_server: str, capsys: pytest.CaptureFixture[str]
 ) -> None:
     assert _invoke(cli_server, "status") == 0
     out = capsys.readouterr().out
     assert "provider" in out
-    assert "mock" in out
+    assert "engine" in out
 
 
 def test_status_json(
@@ -215,7 +235,8 @@ def test_status_json(
     assert _invoke(cli_server, "status", "--json") == 0
     data = json.loads(capsys.readouterr().out)
     assert data["health"]["status"] == "healthy"
-    assert data["status"]["provider"] == "mock"
+    assert data["status"]["provider"] == "engine"
+    assert data["status"]["llm_backend"] == "offline"
 
 
 # ---------------------------------------------------------------------------
@@ -297,7 +318,7 @@ def test_show_summary_and_json(
 def test_start_and_watch_to_terminal(
     cli_server: str, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    run_id = _create(cli_server, "watch-client", tier="standard")
+    run_id = _create(cli_server, "watch-client", tier="express")
     assert (
         _invoke(cli_server, "runs", "start", run_id, client_id="watch-client")
         == 0
@@ -364,13 +385,15 @@ def test_watch_json_emits_jsonl(
 # ---------------------------------------------------------------------------
 
 
+# evidence/citations are omitted: a keyless offline run runs no literature
+# review, so both collections are legitimately empty (see test_runs.py's
+# ``test_default_run_completes_and_persists``). These three are always
+# populated by a completed engine run.
 @pytest.mark.parametrize(
     ("command", "key"),
     [
         ("hypotheses", "hypotheses"),
-        ("evidence", "evidence"),
         ("reviews", "reviews"),
-        ("citations", "citations"),
         ("safety", "safety"),
     ],
 )
@@ -432,7 +455,7 @@ def test_report_json(
     )
     data = json.loads(capsys.readouterr().out)
     assert "payload" in data
-    assert data["payload"]["provider"] == "mock"
+    assert data["payload"]["provider"] == "engine"
 
 
 # ---------------------------------------------------------------------------
@@ -441,12 +464,16 @@ def test_report_json(
 
 
 def test_steer_queues_message(
-    completed_run: tuple[str, str, str], capsys: pytest.CaptureFixture[str]
+    cli_server: str, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    base, run_id, client_id = completed_run
+    # Uses a dedicated draft run, not the shared ``completed_run``: steering a
+    # completed engine run enqueues a durable scientist continuation that
+    # reopens it, which would mutate the fixture other tests depend on.
+    client_id = "steer-client"
+    run_id = _create(cli_server, client_id)
     assert (
         _invoke(
-            base,
+            cli_server,
             "runs",
             "steer",
             run_id,
@@ -457,7 +484,7 @@ def test_steer_queues_message(
     )
     assert "queued" in capsys.readouterr().out
     msgs = _api(
-        base, "GET", f"/api/runs/{run_id}/messages", client_id=client_id
+        cli_server, "GET", f"/api/runs/{run_id}/messages", client_id=client_id
     ).json()["messages"]
     assert any(m["content"] == "Prioritize testability" for m in msgs)
 
@@ -469,7 +496,7 @@ def test_ask_offline_returns_grounded_answer(
     code = _invoke(
         base, "runs", "ask", run_id, "Which idea won?", client_id=client_id
     )
-    # Offline (mock provider) the endpoint streams a grounded answer built
+    # Offline (no provider key) the endpoint streams a grounded answer built
     # from the run's own artifacts, not an API-key error frame, so the CLI
     # writes the answer to stdout and exits zero.
     assert code == 0
@@ -510,18 +537,39 @@ def test_ask_json_streams_answer_frames(
 # ---------------------------------------------------------------------------
 
 
+def _run_summary(base: str, run_id: str, client_id: str) -> dict[str, Any]:
+    """Return a run's summary block over HTTP."""
+    resp = _api(base, "GET", f"/api/runs/{run_id}", client_id=client_id)
+    resp.raise_for_status()
+    return dict(resp.json().get("summary") or {})
+
+
 def test_pause_then_resume_cycle(
     cli_server: str, capsys: pytest.CaptureFixture[str]
 ) -> None:
     # A multi-iteration run stays active for seconds, so the pause request
     # lands well inside its run window.
-    run_id = _create(cli_server, "pause-client", tier="ultra")
+    run_id = _create(cli_server, "pause-client", tier="standard")
     _start(cli_server, run_id, "pause-client")
+    # Pause only once the run has committed a checkpoint with hypotheses: the
+    # durable executor checkpoints per node, so pausing before the first node
+    # lands would leave nothing to resume from (a 409 on resume).
+    assert wait_for(
+        lambda: (
+            _run_summary(cli_server, run_id, "pause-client").get(
+                "hypotheses", 0
+            )
+            >= 1
+        ),
+        timeout=_WAIT_BUDGET,
+    ), "run did not commit hypotheses before pause"
     assert (
         _invoke(cli_server, "runs", "pause", run_id, client_id="pause-client")
         == 0
     )
-    assert "pausing" in capsys.readouterr().out
+    # A durable engine run pauses at the DB (no in-process handle to signal a
+    # transitional "pausing"), so the endpoint reports the settled "paused".
+    assert "paused" in capsys.readouterr().out
     _wait_status(cli_server, run_id, "paused", "pause-client")
 
     assert (
@@ -529,19 +577,33 @@ def test_pause_then_resume_cycle(
         == 0
     )
     assert "queued" in capsys.readouterr().out
-    _wait_status(cli_server, run_id, "completed", "pause-client", timeout=60)
+    _wait_status(cli_server, run_id, "completed", "pause-client")
 
 
 def test_cancel_active_run(
     cli_server: str, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    run_id = _create(cli_server, "cancel-client", tier="ultra")
+    run_id = _create(cli_server, "cancel-client", tier="standard")
     _start(cli_server, run_id, "cancel-client")
+    # Cancel once the run is genuinely mid-flight (a checkpoint with hypotheses
+    # committed), so this exercises a real active-run cancel rather than a
+    # pre-start abort.
+    assert wait_for(
+        lambda: (
+            _run_summary(cli_server, run_id, "cancel-client").get(
+                "hypotheses", 0
+            )
+            >= 1
+        ),
+        timeout=_WAIT_BUDGET,
+    ), "run did not commit hypotheses before cancel"
     assert (
         _invoke(cli_server, "runs", "cancel", run_id, client_id="cancel-client")
         == 0
     )
-    assert "cancelling" in capsys.readouterr().out
+    # A durable engine run cancels at the DB (no in-process handle to signal a
+    # transitional "cancelling"), so the endpoint reports the settled state.
+    assert "cancelled" in capsys.readouterr().out
     _wait_status(cli_server, run_id, "cancelled", "cancel-client")
 
 

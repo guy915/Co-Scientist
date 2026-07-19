@@ -12,7 +12,7 @@ from co_scientist.models import (
     HypothesisReview,
 )
 
-from app import engine_tasks, store, task_worker
+from app import engine_tasks, safety, store, task_worker
 from app.safety import screen_intake
 
 
@@ -67,7 +67,15 @@ class _Generator:
         return self.state
 
 
-async def _deterministic_screen(text: str, *_: Any, **__: Any) -> Any:
+async def _deterministic_screen(
+    _run_id: str, _stage: str, text: str, *_: Any, **__: Any
+) -> Any:
+    """Stand in for the intake escalation with its deterministic verdict.
+
+    Matches ``screen_with_escalation``'s signature (run id, stage, then the
+    screened text) and returns what that wrapper returns for any run these
+    tests create: the deterministic decision, with no contextual model call.
+    """
     return screen_intake(text)
 
 
@@ -386,7 +394,7 @@ async def test_bootstrap_commits_state_and_enqueues_supervisor(
         engine_tasks, "_generator_and_opts", lambda *_: (generator, {})
     )
     monkeypatch.setattr(
-        engine_tasks, "screen_contextual", _deterministic_screen
+        engine_tasks, "screen_with_escalation", _deterministic_screen
     )
 
     result = await engine_tasks.execute_bootstrap(leased, db_path=isolated_db)
@@ -402,6 +410,61 @@ async def test_bootstrap_commits_state_and_enqueues_supervisor(
 
 
 @pytest.mark.asyncio
+async def test_bootstrap_never_escalates_an_offline_backed_run(
+    isolated_db: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An offline-backed run's intake gate makes no contextual model call.
+
+    The durable bootstrap screens through ``screen_with_escalation``, whose
+    offline guard must hold here exactly as it does on the streaming path.
+    Without it the contextual model is called for keyless/offline runs, and a
+    nondeterministic "uncertain" verdict silently pauses a run that should
+    have completed. Patched at ``app.safety.screen_contextual`` -- the seam the
+    escalation wrapper itself calls -- so the guard is exercised, not bypassed.
+    """
+    run = store.create_run(
+        "Task-level science",
+        "standard",
+        "engine",
+        {},
+        llm_backend="offline",
+        db_path=isolated_db,
+    )
+    engine_tasks.enqueue_bootstrap(run.id, db_path=isolated_db)
+    leased = store.claim_task("worker", run_id=run.id, db_path=isolated_db)
+    assert leased is not None
+    monkeypatch.setattr(
+        engine_tasks,
+        "_generator_and_opts",
+        lambda *_: (_Generator(_task_state(run.id)), {}),
+    )
+
+    async def _fail_if_called(*_: Any, **__: Any) -> Any:
+        raise AssertionError(
+            "offline-backed run escalated to the contextual safety model"
+        )
+
+    # Patched in both namespaces: ``app.safety`` is the seam the escalation
+    # wrapper calls, and ``engine_tasks`` is where a direct
+    # ``screen_contextual`` import rebinds it -- so reintroducing the call fails
+    # rather than silently escalating again (raising=False: the name is absent
+    # while the code routes through the wrapper, which is the point).
+    monkeypatch.setattr(safety, "screen_contextual", _fail_if_called)
+    monkeypatch.setattr(
+        engine_tasks, "screen_contextual", _fail_if_called, raising=False
+    )
+
+    result = await engine_tasks.execute_bootstrap(leased, db_path=isolated_db)
+
+    # The success path returns the committed checkpoint, not a status verdict;
+    # a withheld/paused run would carry one instead of enqueuing a successor.
+    assert result.get("status") != "withheld"
+    assert "checkpoint_seq" in result
+    refreshed = store.get_run(run.id, db_path=isolated_db)
+    assert refreshed is not None and refreshed.status != "paused"
+
+
+@pytest.mark.asyncio
 async def test_node_task_commits_once_and_schedules_successor(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -414,7 +477,7 @@ async def test_node_task_commits_once_and_schedules_successor(
         engine_tasks, "_generator_and_opts", lambda *_: (generator, {})
     )
     monkeypatch.setattr(
-        engine_tasks, "screen_contextual", _deterministic_screen
+        engine_tasks, "screen_with_escalation", _deterministic_screen
     )
     result = await engine_tasks.execute_bootstrap(leased, db_path=isolated_db)
     assert store.complete_task(
@@ -522,7 +585,7 @@ async def test_review_fanout_uses_independent_leases_and_one_aggregate_commit(
         engine_tasks, "_generator_for_restore", lambda *_: generator
     )
     monkeypatch.setattr(
-        engine_tasks, "screen_contextual", _deterministic_screen
+        engine_tasks, "screen_with_escalation", _deterministic_screen
     )
     engine_tasks.enqueue_bootstrap(run.id, db_path=isolated_db)
     await task_worker.run_once("bootstrap", run_id=run.id, db_path=isolated_db)
@@ -597,6 +660,15 @@ async def test_review_fanout_uses_independent_leases_and_one_aggregate_commit(
     assert checkpoint is not None and checkpoint["seq"] == 3
     persisted = checkpoint["state"]["state"]["hypotheses"]
     assert [hypothesis["score"] for hypothesis in persisted] == [8.0, 8.0]
+    # The review fan-out aggregate -- one of the five node types the fan-out
+    # architecture previously left silent on the event stream -- now emits
+    # its own scientific_task completion, same as the generic node path.
+    events = store.list_events(run.id, db_path=isolated_db)
+    review_events = [e for e in events if e["payload"].get("task") == "review"]
+    assert len(review_events) == 1
+    assert (
+        review_events[0]["payload"]["successor"] == "comprehensive_reflection"
+    )
 
 
 @pytest.mark.asyncio
@@ -765,6 +837,20 @@ async def test_verification_children_commit_through_single_aggregator(
     assert restored[0]["enrichments"]["deep_verification"][
         "retrieval_queries"
     ] == ["probe query"]
+    milestones = [
+        message
+        for message in store.list_messages(run.id, db_path=isolated_db)
+        if message.kind == "milestone"
+    ]
+    assert [message.content for message in milestones] == [
+        "3 hypotheses verified"
+    ]
+    events = store.list_events(run.id, db_path=isolated_db)
+    verification_events = [
+        e for e in events if e["payload"].get("task") == "deep_verification"
+    ]
+    assert len(verification_events) == 1
+    assert verification_events[0]["payload"]["successor"] == "ranking"
 
 
 @pytest.mark.asyncio
@@ -885,6 +971,20 @@ async def test_ranking_matches_are_separate_sequential_checkpointed_tasks(
         sum(task.task_type == engine_tasks.RANKING_MATCH_TASK for task in tasks)
         == 3
     )
+    milestones = [
+        message
+        for message in store.list_messages(run.id, db_path=isolated_db)
+        if message.kind == "milestone"
+    ]
+    assert [message.content for message in milestones] == [
+        "Tournament complete (iteration 0, 3 matches)"
+    ]
+    events = store.list_events(run.id, db_path=isolated_db)
+    ranking_events = [
+        e for e in events if e["payload"].get("task") == "ranking"
+    ]
+    assert len(ranking_events) == 1
+    assert ranking_events[0]["payload"]["successor"] == "orchestrator"
 
 
 @pytest.mark.asyncio
@@ -902,7 +1002,7 @@ async def test_worker_consumes_independent_specialist_task_chain(
         engine_tasks, "_generator_for_restore", lambda *_: generator
     )
     monkeypatch.setattr(
-        engine_tasks, "screen_contextual", _deterministic_screen
+        engine_tasks, "screen_with_escalation", _deterministic_screen
     )
 
     successors = {
@@ -933,6 +1033,18 @@ async def test_worker_consumes_independent_specialist_task_chain(
         "engine.finalize",
     ]
     assert all(task.status == "completed" for task in tasks)
+    # Each milestone-bearing node completion appends its chat message once,
+    # in commit order -- the same milestones the streaming path emits for
+    # `supervisor.plan` and `research_overview` (see events.py).
+    milestones = [
+        message
+        for message in store.list_messages(run.id, db_path=isolated_db)
+        if message.kind == "milestone"
+    ]
+    assert [message.content for message in milestones] == [
+        "Research plan ready — supervisor complete",
+        "Research overview ready",
+    ]
 
 
 @pytest.mark.asyncio
@@ -949,7 +1061,7 @@ async def test_inflight_pause_checkpoints_exact_successor(
         engine_tasks, "_generator_and_opts", lambda *_: (generator, {})
     )
     monkeypatch.setattr(
-        engine_tasks, "screen_contextual", _deterministic_screen
+        engine_tasks, "screen_with_escalation", _deterministic_screen
     )
     result = await engine_tasks.execute_bootstrap(leased, db_path=isolated_db)
     assert store.complete_task(
@@ -1097,6 +1209,20 @@ async def test_generation_strategies_are_independently_leased_and_aggregated(
         hypothesis.generation_method for hypothesis in restored["hypotheses"]
     }
     assert methods == {GenerationMethod.DEBATE, GenerationMethod.ASSUMPTIONS}
+    milestones = [
+        message
+        for message in store.list_messages(run.id, db_path=isolated_db)
+        if message.kind == "milestone"
+    ]
+    assert [message.content for message in milestones] == [
+        "3 hypotheses generated (initial)"
+    ]
+    events = store.list_events(run.id, db_path=isolated_db)
+    generate_events = [
+        e for e in events if e["payload"].get("task") == "generate"
+    ]
+    assert len(generate_events) == 1
+    assert generate_events[0]["payload"]["successor"] == "review"
     successor = store.claim_task("review", run_id=run.id, db_path=isolated_db)
     assert successor is not None
     assert successor.task_type == f"{engine_tasks.NODE_TASK_PREFIX}review"
@@ -1221,3 +1347,206 @@ async def test_mature_reflection_modes_are_independent_durable_tasks(
     assert (
         successor.task_type == f"{engine_tasks.NODE_TASK_PREFIX}safety_screen"
     )
+    # The mature-reflection fan-out aggregate now emits its own
+    # scientific_task completion, matching the other four aggregates.
+    events = store.list_events(run.id, db_path=isolated_db)
+    reflection_events = [
+        e
+        for e in events
+        if e["payload"].get("task") == "comprehensive_reflection"
+    ]
+    assert len(reflection_events) == 1
+    assert reflection_events[0]["payload"]["successor"] == "safety_screen"
+
+
+@pytest.mark.asyncio
+async def test_execute_finalize_emits_post_drain_stage_events(
+    isolated_db: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The durable finalize task emits the three post-drain stage events.
+
+    Pins the production ``execute_finalize`` path end to end: it must pop the
+    drain's ``safety_counts``/``grounding_counts`` (which are not
+    ``finalize_report`` kwargs), emit ``safety.hypothesis``,
+    ``citation.grounding``, and ``citation_audit`` from them, and still run
+    ``finalize_report`` to completion. Without the pop this path would raise
+    ``TypeError: finalize_report() got an unexpected keyword argument``.
+    """
+    run = store.create_run("Task-level science", "standard", "engine", {})
+    hypothesis = Hypothesis(
+        text="Astrocyte lactate accelerates synaptic ATP recovery.",
+        literature_grounding=(
+            "Astrocyte lactate accelerates synaptic ATP recovery."
+        ),
+    )
+    state = _task_state(run.id)
+    state["hypotheses"] = [hypothesis]
+    # An article whose abstract carries the hypothesis's claim so grounding
+    # finds support (blocked=0) rather than quarantining it as unsupported.
+    state["articles"] = [
+        Article(
+            title="Synaptic energetics",
+            url="https://example.org/synaptic",
+            abstract="Astrocyte lactate accelerates synaptic ATP recovery.",
+        )
+    ]
+    _seed_checkpoint(run.id, state, db_path=isolated_db)
+    task = store.enqueue_task(
+        run.id,
+        engine_tasks.FINALIZE_TASK,
+        {},
+        idempotency_key="finalize",
+        db_path=isolated_db,
+    )
+    # Restore builds a real generator otherwise; the fixture generator carries a
+    # null tool_registry, which restore_workflow_state accepts.
+    monkeypatch.setattr(
+        engine_tasks,
+        "_generator_for_restore",
+        lambda *_: _Generator(state),
+    )
+
+    result = await engine_tasks.execute_finalize(task, db_path=isolated_db)
+
+    # finalize_report ran to completion (no leaked kwargs, no TypeError).
+    assert result["status"] == store.RunStatus.COMPLETED.value
+    assert store.get_latest_report(run.id, db_path=isolated_db) is not None
+
+    events = store.list_events(run.id, db_path=isolated_db)
+    by_type = {e["type"]: e["payload"] for e in events}
+
+    assert set(by_type["safety.hypothesis"]) == {
+        "screened",
+        "blocked",
+        "eligible",
+    }
+    assert by_type["safety.hypothesis"] == {
+        "screened": 1,
+        "blocked": 0,
+        "eligible": 1,
+    }
+    assert set(by_type["citation.grounding"]) == {
+        "grounded",
+        "blocked",
+        "eligible",
+    }
+    assert by_type["citation.grounding"] == {
+        "grounded": 1,
+        "blocked": 0,
+        "eligible": 1,
+    }
+    # No citation_map on the hypothesis, so every state count is zero, but the
+    # full citation-state vocabulary is present in the audit payload.
+    citation_audit = by_type["citation_audit"]
+    assert citation_audit
+    assert all(isinstance(v, int) for v in citation_audit.values())
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("node_name", "extra_state", "expected_milestone"),
+    [
+        pytest.param(
+            "reflection",
+            {
+                "hypotheses": [
+                    Hypothesis(
+                        text="Reviewed idea",
+                        reviews=[
+                            HypothesisReview(
+                                review_summary="ok",
+                                scores={},
+                                safety_ethical_concerns="",
+                                detailed_feedback={},
+                                constructive_feedback="",
+                                overall_score=70.0,
+                            )
+                        ],
+                    )
+                ]
+            },
+            "1 hypotheses reviewed",
+            id="reflection",
+        ),
+        pytest.param(
+            "evolve",
+            {
+                "hypotheses": [
+                    Hypothesis(
+                        text="Evolved idea", evolution_history=["refined"]
+                    )
+                ]
+            },
+            "1 hypotheses evolved (iteration 0)",
+            id="evolve",
+        ),
+        pytest.param(
+            "proximity",
+            {
+                "proximity_graph": {
+                    "edges": [
+                        {"source": "h1", "target": "h2", "cluster_id": "c1"}
+                    ]
+                }
+            },
+            "1 clusters identified",
+            id="proximity",
+        ),
+        pytest.param(
+            "meta_review",
+            {"meta_review": {"summary": "Synthesis complete."}},
+            "Meta-review complete",
+            id="meta_review",
+        ),
+    ],
+)
+async def test_generic_node_completion_emits_matching_milestone(
+    isolated_db: str,
+    monkeypatch: pytest.MonkeyPatch,
+    node_name: str,
+    extra_state: dict[str, Any],
+    expected_milestone: str,
+) -> None:
+    """The remaining milestone-bearing nodes append their canonical chat text.
+
+    Covers the four node types (reflection, evolve, proximity, meta_review)
+    the streaming path milestones (see events.py's ``_MILESTONE_BUILDERS``)
+    that no other durable-executor test happens to exercise through
+    ``execute_node_task``'s generic completion path -- supervisor.plan and
+    research_overview are covered by
+    ``test_worker_consumes_independent_specialist_task_chain``, generate by
+    ``test_generation_strategies_are_independently_leased_and_aggregated``,
+    ranking by
+    ``test_ranking_matches_are_separate_sequential_checkpointed_tasks``, and
+    deep_verification by
+    ``test_verification_children_commit_through_single_aggregator``.
+    """
+    run = store.create_run("Task-level science", "standard", "engine", {})
+    checkpoint_seq = _seed_checkpoint(run.id, _task_state(run.id))
+    node = store.enqueue_task(
+        run.id,
+        f"{engine_tasks.NODE_TASK_PREFIX}{node_name}",
+        {"checkpoint_seq": checkpoint_seq},
+        idempotency_key=f"milestone-{node_name}",
+        db_path=isolated_db,
+    )
+    leased = store.claim_task("worker", run_id=run.id, db_path=isolated_db)
+    assert leased is not None and leased.id == node.id
+
+    async def execute(
+        _name: str, state: dict[str, Any]
+    ) -> tuple[dict[str, Any], str | None]:
+        return {**state, **extra_state}, None
+
+    import co_scientist.task_runtime as runtime
+
+    monkeypatch.setattr(runtime, "execute_task_node", execute)
+    result = await engine_tasks.execute_node_task(leased, db_path=isolated_db)
+    assert store.complete_task(leased.id, "worker", result, db_path=isolated_db)
+
+    milestones = [
+        message
+        for message in store.list_messages(run.id, db_path=isolated_db)
+        if message.kind == "milestone"
+    ]
+    assert [message.content for message in milestones] == [expected_milestone]

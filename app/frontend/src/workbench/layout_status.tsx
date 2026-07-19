@@ -24,9 +24,10 @@ export interface SystemStatusChip {
 /**
  * Derives the header chip from the latest system status.
  *
- * Shows nothing while loading or in healthy engine mode; the chip only
- * appears when there is something worth flagging: the API being
- * unreachable, or runs executing in deterministic mock mode.
+ * Shows nothing while loading or when a live model backend is configured;
+ * the chip only appears when there is something worth flagging: the API
+ * being unreachable, or runs executing against the deterministic offline
+ * LLM backend (no live model calls, e.g. keyless/demo deployments).
  *
  * @param status The last /status payload, or null before the first.
  * @param unreachable Whether the most recent /status fetch failed.
@@ -44,12 +45,13 @@ export function buildSystemStatusChip(
       danger: true,
     };
   }
-  if (status?.mock_mode) {
+  if (status?.llm_backend === 'offline') {
     return {
-      label: 'Mock mode',
+      label: 'Offline mode',
       detail:
-        'Runs use the deterministic mock workflow — no live LLM calls. ' +
-        `Worker model when enabled: ${status.model_name}.`,
+        'Runs use the deterministic offline LLM backend — the full agent ' +
+        'pipeline runs, but no live model calls are made. Worker model ' +
+        `when enabled: ${status.model_name}.`,
       icon: 'computer',
       danger: false,
     };
@@ -58,10 +60,10 @@ export function buildSystemStatusChip(
 }
 
 /**
- * Header mock-mode / API-health indicator, fed by the `/status` endpoint.
+ * Header offline-mode / API-health indicator, fed by the `/status` endpoint.
  *
  * Renders as a compact chip next to the Logs control; hidden entirely when
- * the backend is reachable and running the real engine.
+ * the backend is reachable and running against a live model backend.
  */
 export function SystemStatusIndicator() {
   const {status, unreachable} = useSystemStatus();

@@ -115,26 +115,65 @@ def test_lazy_state_is_unset_before_first_run() -> None:
     ] == ["pubmed_fulltext", "openalex_search"]
 
 
-def test_enable_cache_true_sets_env(monkeypatch: pytest.MonkeyPatch) -> None:
-    """``enable_cache=True`` exports the cache-enabled env var as 'true'."""
+def test_enable_cache_is_stored_on_the_instance() -> None:
+    """``enable_cache`` is held verbatim for this generator's own runs."""
+    assert HypothesisGenerator(enable_cache=True).enable_cache is True
+    assert HypothesisGenerator(enable_cache=False).enable_cache is False
+    assert HypothesisGenerator().enable_cache is None
+
+
+def test_enable_cache_never_touches_process_env(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Neither ``enable_cache`` value mutates ``COSCIENTIST_CACHE_ENABLED``.
+
+    Regression test: the constructor used to export
+    ``COSCIENTIST_CACHE_ENABLED`` from ``enable_cache`` directly, and
+    ``cache.get_cache()`` memoizes that env var once per process --
+    whichever generator's constructor ran first "won" the setting for
+    every other generator's calls for the rest of the process lifetime
+    (see a production incident where the offline demo seeder's
+    ``enable_cache=False`` disabled caching for every later real run in
+    the same embedded worker). ``enable_cache`` is now applied per-run via
+    ``cache.scoped_cache_override`` instead (see ``generator/core.py``),
+    so construction alone must never touch the env var either way.
+    """
     monkeypatch.delenv("COSCIENTIST_CACHE_ENABLED", raising=False)
     HypothesisGenerator(enable_cache=True)
+    HypothesisGenerator(enable_cache=False)
+    HypothesisGenerator()
     import os
 
-    assert os.environ["COSCIENTIST_CACHE_ENABLED"] == "true"
+    assert "COSCIENTIST_CACHE_ENABLED" not in os.environ
 
 
-def test_enable_cache_false_sets_env(monkeypatch: pytest.MonkeyPatch) -> None:
-    """``enable_cache=False`` exports the cache-enabled env var as 'false'."""
+def test_offline_generator_construction_does_not_disable_process_cache(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Building a cache-disabled generator must not poison a later one.
+
+    The exact production scenario: an ``enable_cache=False`` generator
+    (the app's offline/demo backend) is constructed first, then a plain
+    generator (a real run) is constructed afterward in the same process.
+    The env var a real run relies on as its process default must be
+    unaffected by the disabled generator having existed.
+    """
     monkeypatch.setenv("COSCIENTIST_CACHE_ENABLED", "true")
     HypothesisGenerator(enable_cache=False)
     import os
 
-    assert os.environ["COSCIENTIST_CACHE_ENABLED"] == "false"
+    assert os.environ["COSCIENTIST_CACHE_ENABLED"] == "true"
+    real_gen = HypothesisGenerator()
+    assert real_gen.enable_cache is None
 
 
 def test_cache_dir_sets_env(monkeypatch: pytest.MonkeyPatch) -> None:
-    """``cache_dir`` exports the cache-directory env var."""
+    """``cache_dir`` exports the cache-directory env var.
+
+    Unlike ``enable_cache``, nothing passes ``cache_dir`` in production
+    today, so it is left mutating the process-wide default as it always
+    has (see ``generator/run_setup.py::_configure_cache_dir_env``).
+    """
     monkeypatch.delenv("COSCIENTIST_CACHE_DIR", raising=False)
     HypothesisGenerator(cache_dir="/tmp/coscientist-test-cache")
     import os
@@ -142,16 +181,14 @@ def test_cache_dir_sets_env(monkeypatch: pytest.MonkeyPatch) -> None:
     assert os.environ["COSCIENTIST_CACHE_DIR"] == "/tmp/coscientist-test-cache"
 
 
-def test_cache_unset_leaves_env_untouched(
+def test_cache_dir_unset_leaves_env_untouched(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """With cache args left as None the constructor sets no cache env vars."""
-    monkeypatch.delenv("COSCIENTIST_CACHE_ENABLED", raising=False)
+    """With ``cache_dir`` left as None the constructor sets no env var."""
     monkeypatch.delenv("COSCIENTIST_CACHE_DIR", raising=False)
     HypothesisGenerator()
     import os
 
-    assert "COSCIENTIST_CACHE_ENABLED" not in os.environ
     assert "COSCIENTIST_CACHE_DIR" not in os.environ
 
 

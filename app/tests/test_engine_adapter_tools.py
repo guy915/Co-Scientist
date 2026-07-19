@@ -78,6 +78,58 @@ def test_build_generator_forwards_run_elo_k_factor() -> None:
     assert _FakeGenerator.last_kwargs["elo_k_factor"] == 36
 
 
+# --- offline cache scoping ---------------------------------------------
+
+
+def test_build_generator_offline_disables_cache_without_env_mutation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """``offline=True`` disables caching for that run without touching env.
+
+    Regression test for a production incident: the offline/demo generator
+    used to be constructed through a ``HypothesisGenerator`` whose
+    constructor mutated ``COSCIENTIST_CACHE_ENABLED`` as a side effect of
+    ``enable_cache=False``; since ``co_scientist.cache.get_cache()``
+    memoizes that env var once per process, the embedded worker's first
+    generator built (often this offline one, at startup demo-seeding) could
+    silently disable caching for every later real run. ``_build_generator``
+    forwards ``enable_cache=False`` as a plain constructor kwarg; this pins
+    that no env mutation reappears at this boundary.
+    """
+    monkeypatch.delenv("COSCIENTIST_CACHE_ENABLED", raising=False)
+    _build_generator(_FakeGenerator, _cfg(), offline=True)
+    assert _FakeGenerator.last_kwargs["enable_cache"] is False
+    import os
+
+    assert "COSCIENTIST_CACHE_ENABLED" not in os.environ
+
+
+def test_offline_generator_does_not_poison_cache_for_a_real_generator(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An offline build, then a real build, in the same process.
+
+    Uses the real engine ``HypothesisGenerator`` (rather than the
+    kwarg-capturing fake above) to reproduce the exact production sequence:
+    the embedded worker's first generator is the offline/demo one, and a
+    real run's generator is constructed afterward in the same process. The
+    real run must see the process's genuine ``COSCIENTIST_CACHE_ENABLED``
+    default, never whatever the offline generator's own
+    ``enable_cache=False`` happened to be.
+    """
+    from co_scientist import cache as engine_cache
+    from co_scientist.generator import HypothesisGenerator
+
+    monkeypatch.setenv("COSCIENTIST_CACHE_ENABLED", "true")
+    monkeypatch.setattr(engine_cache, "_global_cache", None)
+
+    _build_generator(HypothesisGenerator, _cfg(), offline=True)
+    import os
+
+    assert os.environ["COSCIENTIST_CACHE_ENABLED"] == "true"
+    assert engine_cache.get_cache().enabled is True
+
+
 def test_validate_tools_config_accepts_none() -> None:
     """No configured tools_config is valid (defaults apply)."""
     validate_tools_config(None)  # must not raise

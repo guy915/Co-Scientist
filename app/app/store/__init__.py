@@ -24,6 +24,7 @@ store`` / ``from app.store import ...`` unchanged.
 from __future__ import annotations
 
 from app.store.checkpoints import (
+    clear_checkpoints,
     get_latest_checkpoint,
     has_checkpoint,
     save_checkpoint,
@@ -96,6 +97,8 @@ from app.store.runs import (
     reconcile_interrupted_runs,
     reserve_run_capacity,
     run_exists,
+    run_used_offline,
+    set_run_llm_backend,
     set_run_title,
     summary_counts,
     update_run_status,
@@ -147,6 +150,7 @@ __all__ = [
     "cancel_task",
     "checkpoint_wal",
     "claim_task",
+    "clear_checkpoints",
     "clear_publication_artifacts",
     "clear_run_derived_data",
     "complete_task",
@@ -194,10 +198,12 @@ __all__ = [
     "retry_task",
     "revoke_report_share",
     "run_exists",
+    "run_used_offline",
     "safety_stage_is_approved",
     "save_checkpoint",
     "save_report",
     "save_run_metrics",
+    "set_run_llm_backend",
     "set_run_title",
     "summary_counts",
     "task_progress",

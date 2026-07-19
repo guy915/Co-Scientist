@@ -82,25 +82,30 @@ async def lifespan(
     """Manages FastAPI application startup and shutdown."""
     # Startup
     logger.info("Starting Co-Scientist server...")
+    # Install the deterministic offline LLM router unconditionally. It is a
+    # harmless passthrough for real models -- only ``offline/``-prefixed calls
+    # are answered locally -- so no offline traffic flows until a run requests
+    # the offline backend.
+    from co_scientist.offline_llm import install_offline_router
+
+    install_offline_router()
     logger.info("Model: %s", settings.model_name)
     if settings.tools_config:
         logger.info("Tools config: %s", settings.tools_config)
     else:
         logger.info("Tools config: not set (generator defaults)")
 
-    # Logged once at startup so ops can tell at a glance whether this process
-    # will run the real engine or fall back to the deterministic mock.
+    # Logged once at startup. select_provider() always returns "engine" now
+    # (or raises if the engine is not importable) -- there is no mock fallback.
     provider = engine_adapter.select_provider()
     logger.info("Workflow provider: %s", provider)
 
     # Fail loudly if a configured tools_config path is unreadable rather than
     # silently running the engine's default tools (the historical bug: the
     # setting was logged but never forwarded to the generator, so a bad path
-    # went unnoticed). Gated to the real engine: the mock never uses tools, so
-    # a stale env var must not break mock/dev boot. The generator is built per
-    # run, so this is validated here at startup, once.
-    if provider == "engine":
-        engine_adapter.validate_tools_config(settings.tools_config)
+    # went unnoticed). The generator is built per run, so this is validated
+    # here at startup, once.
+    engine_adapter.validate_tools_config(settings.tools_config)
 
     # Reconcile runs left non-terminal by a previous process: a fresh process
     # has no workflow tasks running, so anything still queued/running was
@@ -245,7 +250,7 @@ class HealthResponse(BaseModel):
     version: str
     model_name: str
     provider: str = Field(
-        ..., description="active workflow provider: 'mock' | 'engine'"
+        ..., description="active workflow provider (always 'engine')"
     )
     checks: dict[str, HealthCheckResult] = Field(
         ..., description="individual check outcomes: store, engine"
@@ -307,10 +312,18 @@ class SystemStatusResponse(BaseModel):
     )
     mcp_server_url: str = Field(..., description="configured mcp server url")
     provider: str = Field(
-        "mock", description="active workflow provider: 'mock' | 'engine'"
+        "engine", description="active workflow provider (always 'engine')"
     )
     mock_mode: bool = Field(
-        False, description="true when running deterministic mock workflow"
+        False,
+        description=(
+            "deprecated mirror of the offline backend, kept for older "
+            "clients; true when running the deterministic offline backend"
+        ),
+    )
+    llm_backend: str = Field(
+        "real",
+        description="active LLM backend: 'offline' (deterministic) | 'real'",
     )
     has_provider_key: bool = Field(
         False, description="any LLM provider key is set"
@@ -404,8 +417,8 @@ async def get_system_status() -> dict[str, Any]:
     """Checks system availability for literature review features.
 
     Returns availability status for mcp server and pubmed api, plus
-    provider/mock-mode info from the engine adapter so the UI can render
-    a "Mock Mode" banner. Probes run under a bounded timeout and are
+    provider/llm-backend info from the engine adapter so the UI can render
+    an "Offline mode" chip. Probes run under a bounded timeout and are
     cached for a short TTL (see app/diagnostics.py); the ``probes`` field
     distinguishes a server that answered "down" from a probe that errored.
     """

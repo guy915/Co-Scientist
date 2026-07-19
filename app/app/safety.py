@@ -120,6 +120,7 @@ def _semantic_credential_available(model: str) -> bool:
     env_names = {
         "gemini": ("GEMINI_API_KEY", "GOOGLE_API_KEY"),
         "deepseek": ("DEEPSEEK_API_KEY",),
+        "dashscope": ("DASHSCOPE_API_KEY",),
         "openai": ("OPENAI_API_KEY",),
         "anthropic": ("ANTHROPIC_API_KEY",),
     }.get(provider, ())
@@ -239,7 +240,7 @@ async def screen_with_escalation(
     """Escalate a deterministic screen to contextual assessment when warranted.
 
     Both the intake and final gates first run their deterministic screen, then
-    escalate to the contextual model unless the provider is the mock or this
+    escalate to the contextual model unless the run is offline-backed or this
     stage was already human-approved on the run. Returns ``deterministic``
     unchanged when no escalation applies, so callers can gate on the result
     either way.
@@ -249,7 +250,8 @@ async def screen_with_escalation(
         stage: Safety stage being screened (``"intake"`` or ``"final"``).
         text: The content the contextual screen would re-assess.
         deterministic: The already-computed deterministic decision.
-        provider: The active workflow provider; the mock never escalates.
+        provider: The active workflow provider; only a fallback signal used
+            when the run row is gone (the run's persisted backend wins).
         db_path: Optional override for the SQLite database path.
 
     Returns:
@@ -258,7 +260,17 @@ async def screen_with_escalation(
     approved = store.safety_stage_is_approved(
         run_id, stage, POLICY_VERSION, db_path=db_path
     )
-    if provider != "mock" and not approved:
+    # Deliberate (Task 2): offline-backed runs skip app-side escalation. The
+    # contextual screen calls a real configured safety model that is NOT
+    # offline-routed, so wiring app-side LLM calls through the offline router
+    # is out of scope for this campaign. Keyed on the run's persisted backend
+    # (falling back to the provider when the row is gone), not the process
+    # offline_mode() -- a real engine run created while offline still escalates.
+    run = store.get_run(run_id, db_path=db_path)
+    offline = (
+        store.run_used_offline(run) if run is not None else provider == "mock"
+    )
+    if not offline and not approved:
         return await screen_contextual(text, stage, deterministic=deterministic)
     return deterministic
 

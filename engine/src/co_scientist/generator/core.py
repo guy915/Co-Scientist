@@ -14,6 +14,7 @@ from typing import Any, Literal, cast, overload
 
 from langgraph.graph import StateGraph
 
+from co_scientist.cache import scoped_cache_override
 from co_scientist.constants import (
     DEFAULT_EVOLUTION_MAX_COUNT,
     DEFAULT_INITIAL_HYPOTHESES_COUNT,
@@ -29,7 +30,7 @@ from co_scientist.generator.graph import (
 from co_scientist.generator.initial_state import _build_initial_state
 from co_scientist.generator.run_setup import (
     _build_tool_registry,
-    _configure_cache_env,
+    _configure_cache_dir_env,
     _resolve_dev_isolation_flag,
     _resolve_run_identity,
     _resolve_tool_calling_generation,
@@ -95,8 +96,12 @@ class HypothesisGenerator(McpAvailabilityMixin):
             tournament_pairs: Number of Elo tournament comparisons per ranking
             elo_k_factor: Rating sensitivity applied to every committed match
             literature_review_papers_count: Number of papers to read/analyze
-            enable_cache: Enable/disable LLM response caching
-                (None = use env var)
+            enable_cache: Enable/disable LLM response caching for this
+                generator's own calls (None = use the process default from
+                ``COSCIENTIST_CACHE_ENABLED``). Scoped to this generator's
+                own execution via ``cache.scoped_cache_override`` rather
+                than mutating that env var, so it never disables caching
+                for another generator running in the same process.
             cache_dir: Directory for cache files (None = use default)
             tools_config: Path to custom tools YAML config file
                 (None = use defaults)
@@ -124,8 +129,13 @@ class HypothesisGenerator(McpAvailabilityMixin):
         # budget so a run configured with only max_iterations still terminates.
         self.budget = {"max_iterations": max_iterations, **(budget or {})}
 
-        # Configure cache if specified
-        _configure_cache_env(enable_cache, cache_dir)
+        # enable_cache is applied per-run (see _generate_hypotheses_* and
+        # resume_hypotheses below) via cache.scoped_cache_override rather
+        # than here, so it never mutates process-global state. cache_dir has
+        # no such per-run mechanism (nothing passes it today); it still
+        # configures the process-wide default the way it always has.
+        self.enable_cache = enable_cache
+        _configure_cache_dir_env(cache_dir)
 
         # Always load the bundled provider-neutral registry unless a custom
         # configuration replaces it; faithful runs must not silently collapse
@@ -406,32 +416,35 @@ class HypothesisGenerator(McpAvailabilityMixin):
 
         Returns final result dictionary.
         """
-        # Prepare generation (shared setup logic)
-        initial_state = await self._prepare_generation(
-            research_goal=research_goal,
-            progress_callback=progress_callback,
-            opts=opts,
-            run_id=run_id,
-        )
-        start_time = initial_state["start_time"]
-
-        assert self._graph is not None  # built by _prepare_generation
-        try:
-            final_state = await self._graph.ainvoke(
-                initial_state,
-                config={"recursion_limit": _GRAPH_RECURSION_LIMIT},
+        with scoped_cache_override(self.enable_cache):
+            # Prepare generation (shared setup logic)
+            initial_state = await self._prepare_generation(
+                research_goal=research_goal,
+                progress_callback=progress_callback,
+                opts=opts,
+                run_id=run_id,
             )
+            start_time = initial_state["start_time"]
 
-            # Format result to match expected interface
-            execution_time = time.time() - start_time
+            assert self._graph is not None  # built by _prepare_generation
+            try:
+                final_state = await self._graph.ainvoke(
+                    initial_state,
+                    config={"recursion_limit": _GRAPH_RECURSION_LIMIT},
+                )
 
-            return _build_generation_result(
-                cast(WorkflowState, final_state), execution_time
-            )
+                # Format result to match expected interface
+                execution_time = time.time() - start_time
 
-        except Exception as e:
-            logger.error("Hypothesis generation failed: %s", e, exc_info=True)
-            raise
+                return _build_generation_result(
+                    cast(WorkflowState, final_state), execution_time
+                )
+
+            except Exception as e:
+                logger.error(
+                    "Hypothesis generation failed: %s", e, exc_info=True
+                )
+                raise
 
     async def _generate_hypotheses_with_streaming(
         self,
@@ -447,19 +460,20 @@ class HypothesisGenerator(McpAvailabilityMixin):
 
         Yields (node_name, state_dict) tuples after each node completes.
         """
-        # Prepare generation (shared setup logic)
-        initial_state = await self._prepare_generation(
-            research_goal=research_goal,
-            progress_callback=progress_callback,
-            opts=opts,
-            run_id=run_id,
-        )
+        with scoped_cache_override(self.enable_cache):
+            # Prepare generation (shared setup logic)
+            initial_state = await self._prepare_generation(
+                research_goal=research_goal,
+                progress_callback=progress_callback,
+                opts=opts,
+                run_id=run_id,
+            )
 
-        # Delegate to streaming implementation
-        async for node_name, state_dict in self._handle_streaming(
-            initial_state, checkpoint_callback=checkpoint_callback
-        ):
-            yield node_name, state_dict
+            # Delegate to streaming implementation
+            async for node_name, state_dict in self._handle_streaming(
+                initial_state, checkpoint_callback=checkpoint_callback
+            ):
+                yield node_name, state_dict
 
     async def _handle_streaming(
         self,
@@ -616,21 +630,22 @@ class HypothesisGenerator(McpAvailabilityMixin):
             Tuple of (node_name, state_dict) after each remaining node.
         """
         opts = opts or {}
-        (
-            _mcp_available,
-            _pubmed_available,
-            enable_literature_review_node,
-        ) = await self._resolve_literature_review_settings(opts)
-        self._ensure_graph_built(enable_literature_review_node)
+        with scoped_cache_override(self.enable_cache):
+            (
+                _mcp_available,
+                _pubmed_available,
+                enable_literature_review_node,
+            ) = await self._resolve_literature_review_settings(opts)
+            self._ensure_graph_built(enable_literature_review_node)
 
-        restored_state["progress_callback"] = progress_callback
-        restored_state["tool_registry"] = self._tool_registry
-        restored_state["resume"] = True
+            restored_state["progress_callback"] = progress_callback
+            restored_state["tool_registry"] = self._tool_registry
+            restored_state["resume"] = True
 
-        cumulative_seed = cumulative_stream_state_from(restored_state)
-        async for node_name, state_dict in self._handle_streaming(
-            cast(WorkflowState, restored_state),
-            cumulative_seed,
-            checkpoint_callback=checkpoint_callback,
-        ):
-            yield node_name, state_dict
+            cumulative_seed = cumulative_stream_state_from(restored_state)
+            async for node_name, state_dict in self._handle_streaming(
+                cast(WorkflowState, restored_state),
+                cumulative_seed,
+                checkpoint_callback=checkpoint_callback,
+            ):
+                yield node_name, state_dict

@@ -51,6 +51,7 @@ def create_run(
     config: dict[str, Any],
     client_id: str = "",
     title: str | None = None,
+    llm_backend: str | None = None,
     db_path: str | None = None,
 ) -> RunRow:
     """Insert a new run row in the DRAFT state and return it.
@@ -65,6 +66,9 @@ def create_run(
         title: Optional short session heading. Usually NULL at creation and
             filled in shortly after by a background title generator; may be
             supplied directly (e.g. curated demo runs).
+        llm_backend: The LLM backend the run will execute against, "offline"
+            or "real". When omitted it is derived from the provider (the mock
+            was always offline-backed), matching the legacy-row default.
         db_path: Optional override for the SQLite database path.
 
     Returns:
@@ -72,11 +76,16 @@ def create_run(
     """
     run_id = str(uuid.uuid4())
     now = _now()
+    backend = (
+        llm_backend
+        if llm_backend is not None
+        else ("offline" if provider == "mock" else "real")
+    )
     with connect(db_path) as conn:
         conn.execute(
             "INSERT INTO runs (id, research_goal, title, profile, status, "
-            "provider, config_json, client_id, created_at, updated_at) "
-            "VALUES (?,?,?,?,?,?,?,?,?,?)",
+            "provider, config_json, client_id, created_at, updated_at, "
+            "llm_backend) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
             (
                 run_id,
                 research_goal,
@@ -88,13 +97,15 @@ def create_run(
                 client_id,
                 now,
                 now,
+                backend,
             ),
         )
     logger.info(
-        "created run %s run_mode=%s provider=%s client_id=%s",
+        "created run %s run_mode=%s provider=%s llm_backend=%s client_id=%s",
         run_id,
         profile,
         provider,
+        backend,
         client_id,
     )
     return RunRow(
@@ -110,7 +121,52 @@ def create_run(
         updated_at=now,
         completed_at=None,
         error=None,
+        llm_backend=backend,
     )
+
+
+def run_used_offline(run: RunRow) -> bool:
+    """Return whether a run executed against the offline LLM backend.
+
+    Reads the persisted ``llm_backend`` column. This is the per-run signal to
+    key any decision about a *past* run's nature on, distinct from the
+    process-level ``engine_adapter.offline_mode()`` request-time predicate.
+    Rows created before the column existed fall back to the provider: the
+    mock provider was always offline-backed, the real engine always real.
+
+    Args:
+        run: The run row to inspect.
+
+    Returns:
+        True when the run's backend is offline.
+    """
+    if run.llm_backend is None:
+        return run.provider == "mock"
+    return run.llm_backend == "offline"
+
+
+def set_run_llm_backend(
+    run_id: str, llm_backend: str, db_path: str | None = None
+) -> None:
+    """Set a run's persisted LLM backend (idempotent; no-op if the run is gone).
+
+    Written when a run's resolved config carries an explicit ``llm_backend``
+    override (e.g. a demo run pinned to the offline engine backend), so
+    ``run_used_offline`` reports the override rather than the value derived
+    at creation time. The override must land here before/when the workflow
+    starts, since every later reader (report finalization, hypothesis
+    badging) re-fetches the row rather than reusing the resolved config.
+
+    Args:
+        run_id: Identifier of the run to update.
+        llm_backend: The backend to persist, "offline" or "real".
+        db_path: Optional override for the SQLite database path.
+    """
+    with connect(db_path) as conn:
+        conn.execute(
+            "UPDATE runs SET llm_backend = ? WHERE id = ?",
+            (llm_backend, run_id),
+        )
 
 
 def set_run_title(run_id: str, title: str, db_path: str | None = None) -> None:

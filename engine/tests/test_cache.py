@@ -189,6 +189,44 @@ def test_get_cache_disabled_via_env(monkeypatch: pytest.MonkeyPatch) -> None:
     assert cache.get_cache().enabled is False
 
 
+# --- scoped_cache_override / cache_enabled_override --------------------
+
+
+def test_cache_enabled_override_defaults_to_none() -> None:
+    """With no active scope, there is no per-task override."""
+    assert cache.cache_enabled_override() is None
+
+
+def test_scoped_cache_override_none_is_a_noop() -> None:
+    """Passing None (a generator's unset enable_cache) sets no override."""
+    with cache.scoped_cache_override(None):
+        assert cache.cache_enabled_override() is None
+    assert cache.cache_enabled_override() is None
+
+
+def test_scoped_cache_override_sets_and_resets() -> None:
+    """The override is visible inside the scope and cleared on exit."""
+    with cache.scoped_cache_override(False):
+        assert cache.cache_enabled_override() is False
+    assert cache.cache_enabled_override() is None
+
+
+def test_scoped_cache_override_restores_prior_value_when_nested() -> None:
+    """Exiting an inner scope restores the outer scope's override."""
+    with cache.scoped_cache_override(True):
+        with cache.scoped_cache_override(False):
+            assert cache.cache_enabled_override() is False
+        assert cache.cache_enabled_override() is True
+    assert cache.cache_enabled_override() is None
+
+
+def test_scoped_cache_override_resets_even_on_exception() -> None:
+    """A raised exception inside the scope still clears the override."""
+    with pytest.raises(ValueError), cache.scoped_cache_override(False):
+        raise ValueError("boom")
+    assert cache.cache_enabled_override() is None
+
+
 def test_module_level_stats_and_clear(tmp_path: Path) -> None:
     """``get_cache_stats``/``clear_cache`` operate on the global LLM cache."""
     cache_obj = cache.get_cache()

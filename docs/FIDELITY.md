@@ -12,9 +12,9 @@ The Co-Scientist research artefacts (the "Towards an AI co-scientist" paper, the
 
 | Invariant | Where | Source |
 | --- | --- | --- |
-| Multi-agent, supervised co-scientist (not a single prompt chain) | `engine_adapter`, `mock_workflow` | "Towards an AI co-scientist" §3 |
+| Multi-agent, supervised co-scientist (not a single prompt chain) | `app/app/engine_adapter` drives the engine's compiled LangGraph `StateGraph`, whose nodes are the agent packages under `engine/src/co_scientist/agents/` (Supervisor, Generation, Reflection, Ranking, Evolution, Proximity, Meta-review, Safety) | "Towards an AI co-scientist" §3 |
 | Hypotheses are persistent, versioned, auditable | `store.hypotheses` is append-only; `hypothesis_state` separates mutable fields | published behavioural invariant |
-| Tournament uses **pairwise** comparison (not absolute scalar scoring) | `mock_workflow_seeds._judge_pair`, `engine.nodes.ranking` | published |
+| Tournament uses **pairwise** comparison (not absolute scalar scoring) | `co_scientist.agents.ranking.ranking::judge_matchup` (re-exported at the historical `co_scientist.nodes.ranking` import path) | published |
 | Initial Elo is **1200** | `app/elo.py` `INITIAL_ELO`; mirrors engine `INITIAL_ELO_RATING` | published |
 | Standard Elo formula | `app/elo.py` `update_pair` mirrors `engine.nodes.ranking.calculate_elo_update` | textbook Elo |
 | Evolution generates **new** offspring hypotheses with lineage (never mutates the parent) | Engine builds an immutable child (`nodes/evolve_results.py::_build_evolution_child`: new id, Elo 1200, zero matches, `parent_id`/`generation`); real-engine drain persists the explicit lineage (`engine_adapter/drain.py`); `store.hypotheses` is append-only. Tests: engine `test_evolve.py`, `test_integration_pipeline.py::test_evolve_path_appends_immutable_children`; app `test_engine_drain.py::test_drain_persists_explicit_lineage`, `test_evolution.py` | published — explicit invariant in product docs (SSR §4, §12) |
@@ -54,10 +54,17 @@ Because the source materials do not publish these numbers, this implementation f
 
 These features are described in the published material but are not implemented here:
 
--   **Real-time literature retrieval against PubMed/Europe PMC.** Mock evidence
-    is generated deterministically; the real engine path retains the MCP-based
-    retrieval the upstream `co_scientist` engine provides, but no live retrieval
-    is wired into the FastAPI runs adapter beyond what the engine already does.
+-   **Real-time literature retrieval against PubMed/Europe PMC.** The
+    literature-review node is MCP-gated (`agents/generation/literature_review/`):
+    the graph auto-detects MCP availability, and without a reachable server the
+    generation/reflection nodes fall back to LLM-only mode with no retrieved
+    evidence, on every run (keyless/offline included). The deterministic offline
+    LLM backend (`engine/src/co_scientist/offline_llm.py`) only fakes LLM
+    completions at the `litellm.acompletion` seam; it does not simulate a
+    literature-retrieval tool call, so an offline run's evidence gap is the same
+    MCP-unavailable fallback a real-provider run hits without a reachable MCP
+    server -- no separate mock-evidence generator exists. No live retrieval is
+    wired into the FastAPI runs adapter beyond what the engine already does.
 -   **Distributed worker queue.** Runs execute in a FastAPI background task;
     no Celery/Redis worker pool. Per PLAN.md the local FastAPI path is kept
     viable deliberately rather than adopting an undisclosed Google stack.
@@ -67,13 +74,36 @@ These features are described in the published material but are not implemented h
     Google Labs product family.** Only Hypothesis Generation is built.
 -   **PDF / LaTeX export.** Markdown + JSON only.
 -   **Vector / hybrid retrieval.** The store has no vector column; proximity
-    clustering in mock mode is a constant-id strategy.
+    clustering is instead driven by an LLM-graded similarity call
+    (`agents/proximity/proximity.py`, `agents/proximity/proximity_graph.py`) that
+    re-matches hypotheses to the model's clusters by text prefix, not an
+    embedding search. On a deterministic offline run that call is answered by
+    the offline LLM backend's schema-filling response (seeded per call, not a
+    fixed constant id) rather than by the retired mock's dedicated clustering
+    strategy.
 
-## Mock Mode disclosure
+## Offline Mode disclosure
 
-When no LLM key is set, the `/status` endpoint reports `mock_mode: true`. The persisted `runs.provider` column records which provider produced each run so historical runs from one mode are clearly distinguishable from the other.
+Every run executes on the real engine. When no LLM key is set (or
+`COSCIENTIST_FORCE_OFFLINE=1`, deprecated alias `COSCIENTIST_FORCE_MOCK=1`,
+is set), the `/status` endpoint reports `llm_backend: "offline"`
+(`mock_mode: true` remains as a deprecated mirror). The persisted
+`runs.llm_backend` column records which backend produced each run so
+historical runs from one mode are clearly distinguishable from the other.
 
-The mock workflow is **deterministic**: same goal + same run mode + same `run_id` produces byte-identical hypotheses, citations, and matchups. This is intentional — it lets the implementation behave like a published academic artefact rather than a demo that drifts run-to-run.
+The offline backend is **deterministic at the call level**: an identical
+completion call (same model + prompt + response schema) always produces
+byte-identical output. This keeps a single LLM call reproducible and lets the
+suite assert on offline responses without a live provider.
+
+Full-run byte-reproducibility does **not** hold on the engine. Unlike the
+retired mock (which re-derived an entire run from `run_id` and so was
+byte-identical run-to-run), the engine embeds fresh per-run identifiers
+(e.g. UUIDs) into its prompts, so the same goal + run mode + `run_id`
+generally yields *different* prompts across runs and therefore different
+hypotheses, citations, and matchups. This run-level reproducibility was
+deliberately given up in the offline-LLM migration; only per-call
+determinism is guaranteed.
 
 ## Calibration against the published research
 
@@ -96,9 +126,13 @@ The "Towards an AI co-scientist" paper is the primary fidelity reference. The im
     [PARITY.md](PARITY.md).
 -   Safety as a fail-closed gate on hazardous biomedical / chemical content
     **at the run level** (intake + final), **plus** a structured
-    per-hypothesis safety review (`SAFE-PERHYP-001`). For the real engine that
-    review runs *after* its internal tournament (report exclusion, not
-    pre-ranking removal); only the mock path screens before ranking. That
-    pre-tournament gap is `partial` in [PARITY.md](PARITY.md).
+    per-hypothesis safety review (`SAFE-PERHYP-001`). The engine-native
+    `safety_screen` node (`nodes/safety_screen.py`) now runs pre-ranking on
+    every path — including the orchestrator's direct `rank` route — removing
+    blocked hypotheses from `WorkflowState` before they reach the tournament,
+    evolution, or meta-review; the app's `engine_adapter/drain.py` retains a
+    post-tournament screen at the report boundary as defense-in-depth, not as
+    the only pre-ranking gate. `SAFE-PERHYP-001`/`SAFE-REMOVE-001` are
+    `verified` in [PARITY.md](PARITY.md).
 
 Where the paper is silent (specific Elo K, exact pool sizes, prompt templates, regex patterns), this implementation makes pragmatic choices and documents them here.

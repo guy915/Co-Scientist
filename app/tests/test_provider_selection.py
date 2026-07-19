@@ -1,9 +1,9 @@
 """Tests for provider selection in ``app.engine_adapter.provider``.
 
-Covers the ``select_provider`` branches beyond the ``COSCIENTIST_FORCE_MOCK``
-short-circuit (already exercised everywhere via the autouse ``isolated_db``
-fixture), the ``_engine_importable`` exception fallback, and the module-level
-sibling-engine sys.path bridging that runs at import time.
+Covers ``select_provider`` (now always ``"engine"``, with the engine a hard
+dependency), the ``offline_mode`` truth table, the ``_engine_importable``
+exception fallback, and the module-level sibling-engine sys.path bridging that
+runs at import time.
 """
 
 from __future__ import annotations
@@ -48,32 +48,56 @@ def test_engine_importable_returns_false_on_exception(
     assert provider._engine_importable() is False
 
 
+@pytest.mark.parametrize("has_key", [False, True])
+def test_select_provider_is_always_engine(
+    monkeypatch: pytest.MonkeyPatch, has_key: bool
+) -> None:
+    """The mock is retired: selection is engine regardless of key presence."""
+    monkeypatch.setattr(provider, "_has_provider_key", lambda: has_key)
+    monkeypatch.setattr(provider, "_engine_importable", lambda: True)
+    assert provider.select_provider() == "engine"
+
+
+def test_select_provider_raises_when_engine_missing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The engine is a hard dependency; an absent package fails loudly."""
+    monkeypatch.setattr(provider, "_engine_importable", lambda: False)
+    with pytest.raises(RuntimeError, match="hard dependency"):
+        provider.select_provider()
+
+
 @pytest.mark.parametrize(
-    ("has_key", "engine_importable", "expected"),
+    ("force_offline", "force_mock", "has_key", "expected"),
     [
-        (False, None, "mock"),
-        (True, False, "mock"),
-        (True, True, "engine"),
+        (None, None, True, False),
+        (None, None, False, True),
+        ("1", None, True, True),
+        (None, "1", True, True),
     ],
     ids=[
-        "mock_when_no_provider_key",
-        "mock_when_engine_not_importable",
-        "engine_when_available",
+        "real_when_key_present",
+        "offline_when_no_provider_key",
+        "offline_when_force_offline",
+        "offline_when_force_mock_deprecated_alias",
     ],
 )
-def test_select_provider(
+def test_offline_mode(
     monkeypatch: pytest.MonkeyPatch,
+    force_offline: str | None,
+    force_mock: str | None,
     has_key: bool,
-    engine_importable: bool | None,
-    expected: str,
+    expected: bool,
 ) -> None:
+    """``offline_mode`` is forced by either env flag or a missing key."""
+    monkeypatch.delenv("COSCIENTIST_FORCE_OFFLINE", raising=False)
     monkeypatch.delenv("COSCIENTIST_FORCE_MOCK", raising=False)
+    if force_offline is not None:
+        monkeypatch.setenv("COSCIENTIST_FORCE_OFFLINE", force_offline)
+    if force_mock is not None:
+        monkeypatch.setenv("COSCIENTIST_FORCE_MOCK", force_mock)
     monkeypatch.setattr(provider, "_has_provider_key", lambda: has_key)
-    if engine_importable is not None:
-        monkeypatch.setattr(
-            provider, "_engine_importable", lambda: engine_importable
-        )
-    assert provider.select_provider() == expected
+    assert provider.offline_mode() is expected
 
 
 def test_missing_engine_never_substitutes_mock_science(

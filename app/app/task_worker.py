@@ -98,6 +98,13 @@ async def _execute_workflow_task(
             force_provider=force_provider,
             resume=resume,
             cancelled=stop_signal,  # type: ignore[arg-type]
+            # This legacy "run.workflow" task type predates the node-level
+            # durable executor (engine_tasks.py) that now drives real engine
+            # runs; historically it ran unpaced because the boundary emitter
+            # ignored sleep_seconds for the engine path. Pin it explicitly so
+            # unifying that pacing (see workflow.py) does not newly slow this
+            # path down.
+            sleep_seconds=0.0,
         ):
             pass
     final = store.get_run(run.id, db_path=db_path)
@@ -188,9 +195,13 @@ async def run_once(
         )
     )
     try:
-        result = await _execute_until_lease_lost(
-            task, lease_lost, db_path=db_path
-        )
+        # Tag every record emitted while this task runs with its run id. The
+        # execution coroutine is created inside this context, so the copied
+        # contextvar propagates to it (and to any node task it spawns).
+        with run_log_context(task.run_id):
+            result = await _execute_until_lease_lost(
+                task, lease_lost, db_path=db_path
+            )
     except _LeaseLostError:
         # The durable row already records cancellation, pause, or competing
         # ownership; the revoked worker must not overwrite that outcome.
@@ -330,6 +341,12 @@ async def run_forever(
     poll_seconds: float = 0.5,
 ) -> None:
     """Continuously execute leased tasks until the process is cancelled."""
+    # The standalone worker runs in its own process without the app lifespan,
+    # so install the offline LLM router here too. Idempotent and a harmless
+    # passthrough for real models (see main.lifespan).
+    from co_scientist.offline_llm import install_offline_router
+
+    install_offline_router()
     while True:
         worked = await run_once(worker_id, db_path=db_path)
         if not worked:

@@ -1,52 +1,25 @@
-"""Pure-Python Elo helpers used by the mock workflow and tests.
+"""Elo leaderboard helpers shared by the engine adapter and the frontend.
 
-Mirrors the ranking agent's `calculate_elo_update` formula
-so the clone's tournament behaviour is consistent across mock and real paths.
+The engine is the only workflow provider; it owns the actual Elo update math
+(``co_scientist.agents.ranking.ranking.calculate_elo_update``). What remains
+here is the app-side leaderboard projection both the live event payloads and
+the final report render from.
 """
 
 from __future__ import annotations
 
 from typing import Any
 
+from co_scientist.constants import INITIAL_ELO_RATING
+
 from app.config import settings
 from app.text_utils import coalesce, hypothesis_id, hypothesis_title
 
-# All three constants are sourced from Settings (not hardcoded here) so the
-# mock and the real engine can be tuned from the same env-driven config.
-INITIAL_ELO: int = settings.elo_initial
+# Re-exports the engine's constant so the initial rating has a single home;
+# DEFAULT_K_FACTOR stays app-owned (sourced from Settings) so per-deployment
+# tuning does not require an engine change.
+INITIAL_ELO: int = INITIAL_ELO_RATING
 DEFAULT_K_FACTOR: int = settings.elo_k_factor
-# Pre-match Elo gap at which a lower-rated winner counts as an upset. Mirrors
-# the engine's ELO_UPSET_MARGIN (constants.py).
-UPSET_MARGIN: int = settings.elo_upset_margin
-
-# Canonical per-match decisiveness labels, mirroring the engine's
-# ``ranking.match_tier`` outputs. The app owns this vocabulary; the mock
-# workflow unpacks it for its tier labels and test_elo_engine_parity guards it
-# against engine drift.
-MATCH_TIERS: tuple[str, ...] = ("upset", "decisive", "clear", "narrow")
-
-
-def expected_score(player_elo: float, opponent_elo: float) -> float:
-    """Standard Elo expected score for `player` against `opponent`."""
-    # Logistic curve; 400 is the standard Elo scaling constant (a 400-point
-    # rating gap implies a 10:1 expected-score ratio between the players).
-    result: float = 1.0 / (1.0 + 10.0 ** ((opponent_elo - player_elo) / 400.0))
-    return result
-
-
-def update_pair(
-    winner_elo: int,
-    loser_elo: int,
-    k_factor: int = DEFAULT_K_FACTOR,
-) -> tuple[int, int]:
-    """Return integer-rounded post-match Elo for (winner, loser)."""
-    e_win = expected_score(winner_elo, loser_elo)
-    e_lose = expected_score(loser_elo, winner_elo)
-    # Actual score is 1 for the winner and 0 for the loser; k_factor scales
-    # how far the rating moves toward that actual outcome from expectation.
-    new_winner = winner_elo + k_factor * (1.0 - e_win)
-    new_loser = loser_elo + k_factor * (0.0 - e_lose)
-    return round(new_winner), round(new_loser)
 
 
 def _leaderboard_row(rank: int, h: dict[str, Any]) -> dict[str, Any]:

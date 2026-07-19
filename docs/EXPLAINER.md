@@ -16,7 +16,7 @@ The public entry point is `HypothesisGenerator` (`engine/src/co_scientist/genera
 
 ## 2. Product at a glance
 
-The layered stack: React workbench talks to FastAPI over HTTP + SSE; FastAPI persists everything to SQLite and delegates to either a deterministic mock workflow or the real LangGraph engine; the engine optionally calls an MCP server for literature tools.
+The layered stack: React workbench talks to FastAPI over HTTP + SSE; FastAPI persists everything to SQLite and delegates to the real LangGraph engine, running either its deterministic offline LLM backend or a real provider; the engine optionally calls an MCP server for literature tools.
 
 <p align="center">
   <img src="assets/architecture.svg" alt="System architecture layers" width="640">
@@ -29,7 +29,7 @@ The layered stack: React workbench talks to FastAPI over HTTP + SSE; FastAPI per
 | Engine | `engine/src/co_scientist/` | LangGraph `StateGraph` of 9–11 nodes. Selected by `engine_adapter.select_provider()`. |
 | MCP server | `mcp_server/` | FastMCP + Biopython. PubMed search/fulltext + INDRA CoGex. Python 3.12 only. |
 
-Provider selection (`app/app/engine_adapter/provider.py`): returns `"engine"` iff `COSCIENTIST_FORCE_MOCK` is unset, a provider key is present, and `co_scientist` imports. Otherwise `"mock"`. The mock emits the identical event sequence so the UI and tests work with zero external dependencies.
+Provider selection (`app/app/engine_adapter/provider.py`): `select_provider()` always returns `"engine"` — the engine is a hard runtime dependency now. What varies is the LLM backend: `offline_mode()` returns `True` when `COSCIENTIST_FORCE_OFFLINE=1` (or the deprecated `COSCIENTIST_FORCE_MOCK=1`) is set, or no provider key is present, in which case `co_scientist.offline_llm.install_offline_router()` answers `offline/`-prefixed model calls deterministically instead of calling a real provider — the same graph emits the identical event sequence either way, so the UI and tests work with zero external dependencies.
 
 ---
 
@@ -233,7 +233,7 @@ The reference MCP server (`mcp_server/`) is a separately installable FastMCP pac
 
 ## 9. From request to report
 
-How a click in the workbench becomes a streamed set of hypotheses. The mock workflow and the engine adapter emit events into the **same** append-only `run_events` table; the mock guarantees the full sequence.
+How a click in the workbench becomes a streamed set of hypotheses. Every run executes on the engine, which emits events into the **same** append-only `run_events` table regardless of which LLM backend (offline or real) is behind it; a standard run guarantees the full sequence below.
 
 ```mermaid
 sequenceDiagram
@@ -282,7 +282,7 @@ Persistence is SQLite in WAL mode. The critical decoupling is `hypothesis_state`
 
 | Table | Append-only? | Notes |
 | --- | --- | --- |
-| `runs` | mutable status/error/timestamps | one row per run; `provider` column remembers mock vs engine |
+| `runs` | mutable status/error/timestamps | one row per run; `llm_backend` column remembers offline vs real (`provider` is always `engine`) |
 | `run_events` | append-only | canonical event log; `(run_id, seq)` |
 | `hypotheses` | append-only | original rows never mutated; `parent_id` for lineage |
 | `hypothesis_state` | mutable | Elo, win/loss, scores, status, cluster_id — separated to preserve the append-only invariant |

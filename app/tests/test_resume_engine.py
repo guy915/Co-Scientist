@@ -382,3 +382,79 @@ async def test_launch_resume_drives_engine_resume_end_to_end(
     final = store.get_run(run.id)
     assert final is not None
     assert final.status == store.RunStatus.COMPLETED.value
+
+
+async def test_launch_resume_rebootstraps_legacy_mock_checkpoint(
+    isolated_db: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A legacy mock-envelope resume re-runs fresh through the durable path.
+
+    Covers ``runs._launch_resume``'s non-engine-checkpoint fallback -- the
+    exact path a production resume of an old ``provider="mock"`` run takes
+    after the mock's retirement. There is no persisted engine WorkflowState to
+    restore, so the launcher clears the run's stale derived data and
+    re-bootstraps it through the durable worker as a fresh offline engine run,
+    rather than the old in-process re-derive. Proves (1) the stale mock-era
+    artifacts are cleared, (2) the durable bootstrap task drives the run, and
+    (3) it completes with a ranked, published report.
+    """
+    import app.runs as runs_mod
+
+    _install_fake_engine_llm(monkeypatch)
+    run = store.create_run(
+        "Legacy mock resume", "express", "mock", {"tier": "express"}
+    )
+
+    # Stale agent-authored artifacts the original mock run persisted; a
+    # re-bootstrap must clear these rather than resume on top of them.
+    stale_id = store.add_hypothesis(
+        run.id,
+        title="Stale agent idea",
+        statement="A hypothesis from the retired mock run.",
+        created_by_agent="generation",
+    )
+    store.add_evidence(run.id, "Old mock paper", source="pubmed", abstract="x")
+
+    # A legacy pre-flip mock envelope checkpoint: an app-level envelope, NOT a
+    # serialized engine WorkflowState, so ``is_engine_checkpoint`` is False and
+    # no paused engine task exists -- exactly the fallback branch's trigger.
+    store.save_checkpoint(
+        run.id,
+        stage="iteration_1",
+        schema_version=1,
+        last_event_seq=store.latest_event_seq(run.id),
+        state={
+            "provider": "mock",
+            "run_mode": "express",
+            "iteration": 1,
+            "config": {"tier": "express"},
+        },
+    )
+    assert not engine_adapter.is_engine_checkpoint(
+        store.get_latest_checkpoint(run.id)
+    )
+    # An interrupted run is left non-terminal; the launcher requires that.
+    store.update_run_status(run.id, store.RunStatus.PAUSED)
+
+    await runs_mod._launch_resume(run.id)
+    await asyncio.gather(*list(runs_mod._resume_tasks))
+
+    # (1) Legacy (non-engine) checkpoint => derived data cleared: the stale
+    # mock-era hypothesis did not survive into the re-bootstrapped run.
+    final_hyps = store.list_hypotheses(run.id)
+    assert stale_id not in {h["id"] for h in final_hyps}
+    # (2) The durable bootstrap task drove the run (not the retired in-process
+    # path).
+    assert any(
+        task.task_type.startswith("engine.")
+        for task in store.list_tasks(run.id)
+    )
+    # (3) It resumed as a sensible fresh offline engine run: fresh hypotheses
+    # were generated, ranked, and published in a completed report.
+    assert final_hyps
+    report = store.get_latest_report(run.id)
+    assert report is not None
+    assert report["payload"]["leaderboard"]  # ranked ideas were published
+    final = store.get_run(run.id)
+    assert final is not None
+    assert final.status == store.RunStatus.COMPLETED.value

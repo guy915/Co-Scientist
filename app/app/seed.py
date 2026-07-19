@@ -2,7 +2,8 @@
 
 Creates three completed demo runs that newcomers can browse. Demo runs use
 client_id=DEMO_CLIENT_ID and are seeded once; subsequent restarts are no-ops
-if all three already exist. Uses the mock workflow (no LLM provider required).
+if all three already exist. Runs through the real engine pinned to the
+offline deterministic backend (no LLM provider required, no API spend).
 """
 
 from __future__ import annotations
@@ -10,14 +11,16 @@ from __future__ import annotations
 import logging
 
 from app import engine_adapter, store
-from app.run_modes import (
-    CANONICAL_RUN_MODE,
-    resolved_run_config,
-    setup_config,
-)
+from app.run_modes import resolved_run_config, setup_config
 from app.store import DEMO_CLIENT_ID, RunRow
 
 logger = logging.getLogger(__name__)
+
+# Demo runs are seeded at the smallest tier: they drive the full real engine
+# graph (offline-backed) inside the startup lifespan, so keeping the compute
+# envelope small keeps startup responsive while still producing a complete,
+# presentable report per goal.
+_DEMO_TIER = "express"
 
 _DEMO_GOALS: list[str] = [
     "What mechanisms drive antibiotic resistance in Staphylococcus aureus "
@@ -30,7 +33,8 @@ _DEMO_GOALS: list[str] = [
 ]
 
 # Curated session titles for the demo runs, so they showcase the distinct-
-# heading behavior without a model call at seed time (seeding is offline/mock).
+# heading behavior without a model call at seed time (seeding runs the real
+# engine pinned to the deterministic offline backend).
 _DEMO_TITLES: dict[str, str] = {
     _DEMO_GOALS[0]: "Antibiotic Resistance in S. aureus Biofilms",
     _DEMO_GOALS[1]: "Synaptic Pruning and Cognitive Flexibility",
@@ -43,36 +47,49 @@ async def _seed_demo_run(
     run: RunRow | None,
     db_path: str | None,
 ) -> None:
-    """Create (if needed) and drive the mock workflow for one demo goal.
+    """Create (if needed) and drive the offline-backed engine for one demo goal.
 
     Args:
         goal: The demo research goal to seed.
         run: The existing run row for this goal, or None to create one.
         db_path: Optional override for the SQLite database path.
     """
-    config = resolved_run_config({"setup": setup_config(research_goal=goal)})
+    # Express tier keeps the startup cost of driving the full engine graph
+    # bounded (a standard-tier offline run costs tens of seconds per goal);
+    # literature review is off because seeding runs MCP-less by design, so
+    # probing for a server would only add latency, never evidence.
+    config = resolved_run_config(
+        {
+            "setup": setup_config(research_goal=goal, tier=_DEMO_TIER),
+            "enable_literature_review": False,
+            "llm_backend": "offline",
+        }
+    )
     if run is None:
         run = store.create_run(
             research_goal=goal,
-            profile=CANONICAL_RUN_MODE,
-            provider="mock",
+            profile=_DEMO_TIER,
+            provider="engine",
             config=config,
             client_id=DEMO_CLIENT_ID,
             title=_DEMO_TITLES.get(goal),
+            llm_backend="offline",
             db_path=db_path,
         )
-    # force_provider="mock" pins demo seeding to the deterministic
-    # workflow even when a real LLM key is configured, so startup
-    # never spends API budget and demo content is reproducible.
-    # sleep_seconds=0.0 skips the mock's synthetic event pacing so
-    # seeding finishes immediately rather than over several seconds.
+    # force_provider="engine" runs demo seeding through the real engine
+    # graph; the "llm_backend": "offline" override above pins it to the
+    # deterministic offline router regardless of whether a real LLM key is
+    # configured, so startup never spends API budget and demo content stays
+    # reproducible while still exercising the actual agent pipeline.
+    # sleep_seconds=0.0 skips the boundary emitter's pacing so seeding
+    # finishes immediately rather than over several seconds.
     async for _ in engine_adapter.run_workflow(
         run_id=run.id,
         research_goal=goal,
         config=config,
         db_path=db_path,
         sleep_seconds=0.0,
-        force_provider="mock",
+        force_provider="engine",
     ):
         pass  # events are persisted as a side effect; drain and drop.
     logger.info("Seeded demo run %s (%.60s…)", run.id[:8], goal)
@@ -121,6 +138,15 @@ async def seed_demo_runs(db_path: str | None = None) -> None:
     unreadable (e.g. after a container restart that cleared the on-disk
     .md files before the markdown_text column was added).
     """
+    # main.py's lifespan already installs the offline router unconditionally
+    # before calling this, but this function is also exercised directly (by
+    # tests) without that lifespan running first. Installing it here too is
+    # idempotent and guarantees the demo runs' offline/ model calls resolve
+    # regardless of caller.
+    from co_scientist.offline_llm import install_offline_router
+
+    install_offline_router()
+
     existing = store.list_runs(client_id=DEMO_CLIENT_ID, db_path=db_path)
     existing_by_goal = _runs_by_goal(existing)
 

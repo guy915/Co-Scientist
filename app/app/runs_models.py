@@ -50,9 +50,13 @@ class CreateRunRequest(BaseModel):
 
 
 class StartRunRequest(BaseModel):
-    """Body for POST /api/runs/{id}/start; optional provider override."""
+    """Body for POST /api/runs/{id}/start.
 
-    force_provider: str | None = Field(None, pattern="^(mock|engine)$")
+    Empty by design (the mock provider option was removed): the engine is
+    the only provider now. Kept as a distinct model, rather than dropping
+    the request body entirely, so the endpoint keeps accepting the ``{}``
+    body existing clients already send.
+    """
 
 
 class SendMessageRequest(BaseModel):

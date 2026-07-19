@@ -542,9 +542,13 @@ def _persist_final_state(
         db_path: Optional override for the SQLite database path.
 
     Returns:
-        The report inputs only this provider knows: ``citation_summary``,
-        ``meta_review``, and ``research_overview``. Row counts are not
-        returned; ``finalize_report`` reads them from the store.
+        The report inputs only this provider knows -- ``citation_summary``,
+        ``meta_review``, and ``research_overview`` -- plus ``safety_counts``
+        and ``grounding_counts``, the screen/grounding tallies a caller emits
+        as post-drain stage events. The latter two are not ``finalize_report``
+        kwargs and must be popped before spreading the rest of this dict into
+        it. Row counts otherwise are not returned; ``finalize_report`` reads
+        them from the store.
     """
     hyps = _hypotheses_with_proximity_archive(
         _final_state_list(final_state, "hypotheses"),
@@ -590,7 +594,7 @@ def _persist_final_state(
         # boundary — blocked hypotheses are marked and the report path
         # (finalize_report) excludes them from ranking/synthesis exposure.
         persisted = store.list_hypotheses(run_id, conn=conn)
-        screen_hypotheses(run_id, persisted, conn=conn)
+        screening_result = screen_hypotheses(run_id, persisted, conn=conn)
 
         # 4. Claim-level grounding: extract atomic claims, retrieve and assess
         # each against the retrieved evidence (deterministic by default, or the
@@ -607,7 +611,7 @@ def _persist_final_state(
             for hypothesis in persisted
             if hypothesis.get("status") != "rejected"
         ]
-        ground_hypotheses(
+        grounding_result = ground_hypotheses(
             run_id,
             grounding_candidates,
             passages,
@@ -631,4 +635,22 @@ def _persist_final_state(
         "research_overview": _final_state_dict(
             final_state, "research_overview"
         ),
+        # Counts for the post-drain ``safety.hypothesis``/``citation.grounding``
+        # stage events (see ``engine_stream._persist_and_report``); popped by
+        # every caller before the rest of this dict is spread into
+        # ``finalize_report``, which does not accept them as kwargs.
+        "safety_counts": {
+            "screened": screening_result.screened_count,
+            "blocked": screening_result.blocked_count,
+            "eligible": (
+                screening_result.screened_count - screening_result.blocked_count
+            ),
+        },
+        "grounding_counts": {
+            "grounded": len(grounding_result.reason_by_id),
+            "blocked": grounding_result.blocked_count,
+            "eligible": (
+                len(grounding_candidates) - grounding_result.blocked_count
+            ),
+        },
     }

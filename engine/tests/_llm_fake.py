@@ -32,28 +32,47 @@ One schema needs an array filled to a specific length rather than the
 generic filler's default of one item: the comparative batch-review
 response's "reviews" array must have exactly one entry per hypothesis in
 the batch, since ``review_node`` maps entries back to hypotheses by array
-position and rejects a short response as invalid. ``_batch_review_length``
-recovers that count from the prompt text (each hypothesis is rendered as
-"**Hypothesis N:**" by ``_prepare_batch_review_call``), and
-``_ARRAY_LENGTH_HINTS`` wires it to the "hypothesis_batch_review" schema
-by name.
+position and rejects a short response as invalid. ``_ARRAY_LENGTH_HINTS``
+(imported from ``co_scientist.offline_llm``) wires a prompt-derived count
+to the "hypothesis_batch_review" schema by name.
+
+The schema-filling traversal (``_fill_schema``) and the
+``supervisor_allocation`` prompt-flag branch
+(``_supervisor_allocation_response``) live in ``co_scientist.offline_llm``,
+shared with the production offline-model router; this module supplies its
+own leaf-value strategy (``_next_leaf``, backed by a process-global
+counter reset only per test process) rather than the router's per-call
+seeded RNG, since existing tests rely on every fake call in a run drawing
+from one shared sequence, not just leaves within a single response.
 """
 
 import itertools
 import json
-import re
 import types
-from collections.abc import Callable
 from typing import Any
 
 import pytest
 
 from co_scientist import cache, llm
 from co_scientist.cache import LLMCache
+from co_scientist.offline_llm import (
+    _ARRAY_LENGTH_HINTS,
+    _fill_schema,
+    _supervisor_allocation_response,
+)
 
 # Shared across every fake call in a test run so no two generated leaves
 # (hypothesis text, free-form turns, etc.) ever collide.
 _counter = itertools.count(1)
+
+
+def _next_leaf() -> str:
+    """Returns the next process-wide-unique fake string leaf.
+
+    Returns:
+        ``"stub-<n>"`` for the next value of the shared ``_counter``.
+    """
+    return f"stub-{next(_counter)}"
 
 
 def disable_llm_cache(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -67,121 +86,6 @@ def disable_llm_cache(monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch: The pytest monkeypatch fixture.
     """
     monkeypatch.setattr(llm, "get_cache", lambda: LLMCache(enabled=False))
-
-
-_HYPOTHESIS_MARKER_RE = re.compile(r"\*\*Hypothesis \d+:\*\*")
-
-
-def _batch_review_length(prompt: str) -> dict[str, int]:
-    """Counts the "**Hypothesis N:**" markers in a batch-review prompt.
-
-    Args:
-        prompt: The rendered batch-review prompt text.
-
-    Returns:
-        ``{"reviews": count}`` sized to the number of hypotheses in the
-        batch (at least one), matching the property name in
-        ``REVIEW_BATCH_SCHEMA``.
-    """
-    count = len(_HYPOTHESIS_MARKER_RE.findall(prompt))
-    return {"reviews": max(count, 1)}
-
-
-# Per-schema-name hooks that compute a {property_name: item_count} map from
-# the prompt text, for the few schemas whose array length must match a
-# count baked into the prompt rather than the generic filler's default of
-# one item per array.
-_ARRAY_LENGTH_HINTS: dict[str, Callable[[str], dict[str, int]]] = {
-    "hypothesis_batch_review": _batch_review_length,
-}
-
-
-def _fill_schema(
-    schema: dict[str, Any], array_lengths: dict[str, int] | None = None
-) -> Any:
-    """Builds a minimal value satisfying one JSON-schema node.
-
-    Args:
-        schema: A JSON Schema fragment (object, array, or scalar).
-        array_lengths: Optional property-name -> item-count map (see
-            ``_ARRAY_LENGTH_HINTS``); an array property whose name is a key
-            here is filled to that length instead of the default one item.
-
-    Returns:
-        A value satisfying ``schema``: for objects, every required (or, if
-        unspecified, every declared) property filled recursively; for
-        arrays, a list with one filled item (or ``array_lengths`` many);
-        for enums, the first allowed value; for scalars, a type-
-        appropriate placeholder.
-    """
-    array_lengths = array_lengths or {}
-
-    if "enum" in schema:
-        return schema["enum"][0]
-
-    schema_type = schema.get("type", "object")
-
-    if schema_type == "object":
-        properties = schema.get("properties", {})
-        required = schema.get("required") or list(properties.keys())
-        return {
-            name: _fill_property(name, properties[name], array_lengths)
-            for name in required
-            if name in properties
-        }
-
-    if schema_type == "array":
-        return _fill_array(schema, 1, array_lengths)
-
-    if schema_type == "integer":
-        return 4
-
-    if schema_type == "number":
-        return 4.0
-
-    if schema_type == "boolean":
-        return True
-
-    # string, or any type this filler does not special-case.
-    return f"stub-{next(_counter)}"
-
-
-def _fill_property(
-    name: str, schema: dict[str, Any], array_lengths: dict[str, int]
-) -> Any:
-    """Fills one object property, honoring an array-length hint by name.
-
-    Args:
-        name: The property name, checked against ``array_lengths``.
-        schema: The property's own JSON Schema fragment.
-        array_lengths: Property-name -> item-count map.
-
-    Returns:
-        The filled property value.
-    """
-    if schema.get("type") == "array" and name in array_lengths:
-        return _fill_array(schema, array_lengths[name], array_lengths)
-    return _fill_schema(schema, array_lengths)
-
-
-def _fill_array(
-    schema: dict[str, Any], count: int, array_lengths: dict[str, int]
-) -> list[Any]:
-    """Fills an array schema with ``count`` (at least one) filled items.
-
-    Args:
-        schema: The array's JSON Schema fragment (reads "items").
-        count: Desired item count; clamped up to one.
-        array_lengths: Property-name -> item-count map, threaded into each
-            item's fill so length hints apply at any nesting depth.
-
-    Returns:
-        A list of ``max(count, 1)`` filled items.
-    """
-    item_schema = schema.get("items", {"type": "string"})
-    return [
-        _fill_schema(item_schema, array_lengths) for _ in range(max(count, 1))
-    ]
 
 
 def _fake_response(content: str) -> Any:
@@ -236,34 +140,13 @@ async def _fake_acompletion(**kwargs: Any) -> Any:
         if json_schema.get("name") == "supervisor_allocation":
             # Exercise model-directed scheduling with a stable adaptive
             # portfolio: improve leaders first, then explore new regions.
-            prompt = _prompt_text(kwargs)
-            needs_proximity = '"pool_grew_since_proximity": true' in prompt
-            first_cycle = '"iteration": 0' in prompt
-            next_task = (
-                "proximity"
-                if needs_proximity
-                else ("evolve" if first_cycle else "generate")
-            )
-            content = json.dumps(
-                {
-                    "next_task": next_task,
-                    "reason": (
-                        "Refresh the scientific similarity landscape."
-                        if needs_proximity
-                        else (
-                            "Improve reviewed leaders."
-                            if first_cycle
-                            else "Explore an underdeveloped direction."
-                        )
-                    ),
-                }
-            )
+            content = _supervisor_allocation_response(_prompt_text(kwargs))
             return _fake_response(content)
         length_hint = _ARRAY_LENGTH_HINTS.get(json_schema.get("name", ""))
         array_lengths = (
             length_hint(_prompt_text(kwargs)) if length_hint else None
         )
-        content = json.dumps(_fill_schema(schema, array_lengths))
+        content = json.dumps(_fill_schema(schema, _next_leaf, array_lengths))
     elif response_format and response_format.get("type") == "json_object":
         # No production call site reaches this branch (every call site
         # that requests JSON also supplies a schema), but it is kept as a

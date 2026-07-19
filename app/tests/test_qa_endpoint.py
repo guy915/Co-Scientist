@@ -18,14 +18,17 @@ from tests._client import wait_for_status as _wait_status
 
 
 def _completed_run_id() -> str:
-    """Create and run a mock workflow to completion, returning its run id."""
+    """Create + run an offline engine workflow to done; return its run id."""
     c = _client()
     rid = c.post(
         "/api/runs",
-        json={"research_goal": "Investigate ferroptosis in cancer"},
+        json={
+            "research_goal": "Investigate ferroptosis in cancer",
+            "tier": "express",
+        },
     ).json()["id"]
     c.post(f"/api/runs/{rid}/start", json={})
-    assert _wait_status(c, rid, "completed", timeout=20.0)
+    assert _wait_status(c, rid, "completed", timeout=30.0)
     return str(rid)
 
 
@@ -58,7 +61,9 @@ def test_ask_uses_real_llm_when_provider_key_present(
 ) -> None:
     """A configured provider still streams through the litellm path."""
     rid = _completed_run_id()
-    monkeypatch.setattr(engine_adapter, "select_provider", lambda: "engine")
+    # The Q&A endpoint routes on the LLM backend now, not the retired mock
+    # provider: a real (non-offline) backend takes the streaming litellm path.
+    monkeypatch.setattr(engine_adapter, "offline_mode", lambda: False)
     monkeypatch.setitem(
         sys.modules, "litellm", _fake_litellm(["Model ", "text"])
     )

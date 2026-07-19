@@ -195,13 +195,8 @@ def _add_runs(
     )
     _add_create(runs_sub, common)
 
-    start_parser = _add_run_id_command(
+    _add_run_id_command(
         runs_sub, common, "start", runs_cmd.handle_start, "start a run"
-    )
-    start_parser.add_argument(
-        "--provider",
-        choices=("mock", "engine"),
-        help="force the workflow provider for this run",
     )
 
     _add_run_id_command(

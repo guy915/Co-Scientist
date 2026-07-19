@@ -112,16 +112,7 @@ def handle_create(args: argparse.Namespace, client: ApiClient) -> int:
 
 def handle_start(args: argparse.Namespace, client: ApiClient) -> int:
     """Start a run's workflow as a background task (POST /start)."""
-    run_id: str = args.run_id
-    provider: str | None = args.provider
-    as_json: bool = args.json
-    request_body: dict[str, Any] = {}
-    if provider is not None:
-        request_body["force_provider"] = provider
-    body = client.request_json(
-        "POST", f"/api/runs/{run_id}/start", json_body=request_body
-    )
-    return _emit_action(body, as_json)
+    return _lifecycle_action(args, client, "start")
 
 
 def handle_pause(args: argparse.Namespace, client: ApiClient) -> int:

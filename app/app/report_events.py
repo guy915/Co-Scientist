@@ -1,10 +1,8 @@
-"""Event-payload helpers shared by both workflow providers.
+"""Event-payload helpers for the workflow provider.
 
-Homed here (rather than inside a single provider) so the real-engine drain
-(``engine_adapter``) and the deterministic mock (``mock_workflow``) build the
-per-run event emitter and the minimal JSON-safe event stubs through one
-implementation -- keeping the streamed SSE payload shapes identical across
-providers.
+Homed separately from ``engine_adapter`` so the per-run event emitter and the
+minimal JSON-safe event stubs stay independently nameable/testable, and so
+the streamed SSE payload shapes have one implementation.
 """
 
 from __future__ import annotations

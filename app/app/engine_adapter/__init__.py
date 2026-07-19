@@ -1,14 +1,12 @@
-"""Engine adapter — chooses real engine or mock workflow at runtime.
+"""Engine adapter — drives the real engine workflow at runtime.
 
-Logic:
-- Provider = `mock` if `COSCIENTIST_FORCE_MOCK=1`, OR no LLM key is set, OR the
-  `co_scientist` package can't be imported. Otherwise `engine`.
-- Real-engine path imports lazily so the app boots even when the engine isn't
-  installed yet (e.g. during initial setup).
+The engine is the only provider (``select_provider`` always returns
+`"engine"`, raising if the `co_scientist` package can't be imported); a
+keyless or forced deployment instead pins the run to the deterministic
+offline LLM backend (see ``offline_mode``), rather than falling back to a
+mock provider (retired).
 
-The `mock` provider is the only one we exercise in CI / tests.
-
-The package is split by concern: ``provider`` (mock/engine selection,
+The package is split by concern: ``provider`` (provider selection,
 diagnostics, and the lazy engine import), ``events`` (engine-node to
 canonical event/milestone translation), ``opts`` (run-config and steering
 translation into engine opts), ``drain`` (final-state persistence into the
@@ -28,6 +26,7 @@ from app.engine_adapter.engine_stream import (
     is_engine_checkpoint as is_engine_checkpoint,
 )
 from app.engine_adapter.opts import _build_engine_opts as _build_engine_opts
+from app.engine_adapter.provider import offline_mode as offline_mode
 from app.engine_adapter.provider import select_provider as select_provider
 from app.engine_adapter.provider import system_status as system_status
 from app.engine_adapter.tools import (

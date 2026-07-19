@@ -1,11 +1,9 @@
 """Report content builders: payload assembly and markdown rendering.
 
-Homed here (rather than inside a single provider) so the real-engine drain
-(``engine_adapter``) and the deterministic mock (``mock_workflow``) build the
-report payload and render its markdown through one implementation -- keeping the
-persisted report and the frontend ``ReportPayload`` type it reads identical
-across providers. Every function here is pure: it depends only on the data
-passed in, never on the store or the safety gate.
+Homed separately from ``engine_adapter`` so the report payload and its
+rendered markdown have one implementation, matching the persisted report and
+the frontend ``ReportPayload`` type it reads. Every function here is pure: it
+depends only on the data passed in, never on the store or the safety gate.
 """
 
 from __future__ import annotations

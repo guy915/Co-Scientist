@@ -1,0 +1,339 @@
+"""Tests for the deterministic offline LLM router.
+
+Covers the router's passthrough behavior for non-``offline/`` models, the
+schema-valid shape of ``offline_acompletion``'s responses for a
+representative set of fail-loud schemas, its determinism contract (byte-
+identical output for identical calls, differing output for differing
+prompts), the idempotency of ``install_offline_router``, and an
+end-to-end run of the real compiled graph that answers every call through
+the runtime router rather than ``tests._llm_fake``'s monkeypatch-based
+fake (that test still monkeypatches ``litellm.acompletion``, but only to
+record and prove nothing escapes the router -- not to generate content).
+"""
+
+import json
+from typing import Any
+
+import jsonschema
+import litellm
+import pytest
+
+from co_scientist import llm_request, offline_llm
+from co_scientist.agents.supervisor.supervisor_decision import (
+    _DECISION_SCHEMA,
+)
+from co_scientist.generator import HypothesisGenerator
+from co_scientist.schemas.generation import GENERATION_SCHEMA
+from co_scientist.schemas.ranking import RANKING_SCHEMA
+from co_scientist.schemas.review import REVIEW_BATCH_SCHEMA
+
+
+@pytest.fixture(autouse=True)
+def _isolate_offline_router(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Isolates ``install_offline_router``'s state to one test at a time.
+
+    ``install_offline_router`` mutates real module attributes directly
+    (not through ``monkeypatch``), so a permanent install in one test
+    would otherwise leak into every later test in the process. Recording
+    the current value of each patched attribute with ``monkeypatch``
+    (even when re-set to itself) registers it for automatic restoration
+    at teardown, and resetting the module's own idempotency bookkeeping
+    guarantees a fresh install every test.
+
+    Args:
+        monkeypatch: The pytest monkeypatch fixture.
+    """
+    monkeypatch.setattr(litellm, "acompletion", litellm.acompletion)
+    monkeypatch.setattr(
+        llm_request,
+        "_supports_json_schema_response_format",
+        llm_request._supports_json_schema_response_format,
+    )
+    monkeypatch.setattr(offline_llm, "_installed", False)
+    monkeypatch.setattr(offline_llm, "_original_acompletion", None)
+    monkeypatch.setattr(offline_llm, "_original_supports_json_schema", None)
+
+
+def test_is_offline_model_checks_the_prefix() -> None:
+    """Only ``offline/``-prefixed model names are routed."""
+    assert offline_llm.is_offline_model(offline_llm.DEFAULT_OFFLINE_MODEL)
+    assert offline_llm.is_offline_model("offline/anything")
+    assert not offline_llm.is_offline_model("gemini/gemini-2.5-flash")
+    assert not offline_llm.is_offline_model("deepseek/deepseek-chat")
+
+
+async def test_router_passthrough_calls_original_for_non_offline_model(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A non-``offline/`` model reaches the original acompletion callable."""
+    calls: list[dict[str, Any]] = []
+
+    async def _stub(**kwargs: Any) -> str:
+        calls.append(kwargs)
+        return "stub-result"
+
+    monkeypatch.setattr(litellm, "acompletion", _stub)
+    offline_llm.install_offline_router()
+
+    result = await litellm.acompletion(
+        model="gemini/gemini-2.5-flash",
+        messages=[{"role": "user", "content": "hi"}],
+    )
+
+    assert result == "stub-result"
+    assert len(calls) == 1
+    assert calls[0]["model"] == "gemini/gemini-2.5-flash"
+
+
+async def test_router_answers_offline_model_without_reaching_original(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An ``offline/`` model never reaches the original acompletion."""
+    calls: list[dict[str, Any]] = []
+
+    async def _stub(**kwargs: Any) -> str:
+        calls.append(kwargs)
+        return "stub-result"
+
+    monkeypatch.setattr(litellm, "acompletion", _stub)
+    offline_llm.install_offline_router()
+
+    response = await litellm.acompletion(
+        model=offline_llm.DEFAULT_OFFLINE_MODEL,
+        messages=[{"role": "user", "content": "hi"}],
+    )
+
+    assert not calls
+    assert response.choices[0].message.content
+
+
+@pytest.mark.parametrize(
+    ("schema_name", "schema", "prompt"),
+    [
+        (
+            "hypothesis_generation",
+            GENERATION_SCHEMA["schema"],
+            "Generate hypotheses for how protein X folds.",
+        ),
+        (
+            "ranking_judgment",
+            RANKING_SCHEMA["schema"],
+            "Judge hypothesis A against hypothesis B.",
+        ),
+        (
+            "supervisor_allocation",
+            _DECISION_SCHEMA["schema"],
+            (
+                "Live shared memory:\n"
+                '{"iteration": 0, "pool_grew_since_proximity": false}'
+            ),
+        ),
+    ],
+)
+async def test_offline_acompletion_returns_schema_valid_json(
+    schema_name: str, schema: dict[str, Any], prompt: str
+) -> None:
+    """``offline_acompletion`` fills every fail-loud schema validly."""
+    response = await offline_llm.offline_acompletion(
+        model=offline_llm.DEFAULT_OFFLINE_MODEL,
+        messages=[{"role": "user", "content": prompt}],
+        response_format={
+            "type": "json_schema",
+            "json_schema": {"name": schema_name, "schema": schema},
+        },
+    )
+
+    content = response.choices[0].message.content
+    parsed = json.loads(content)
+    jsonschema.validate(instance=parsed, schema=schema)
+
+
+async def test_offline_acompletion_sizes_batch_review_to_hypothesis_count() -> (
+    None
+):
+    """The batch-review "reviews" array is sized from the prompt's markers.
+
+    ``review_node`` maps array entries back to hypotheses by position, so a
+    short response is invalid; this proves the ``_ARRAY_LENGTH_HINTS`` wiring
+    ported from the test fake still recovers the count from
+    "**Hypothesis N:**" markers in the prompt.
+    """
+    schema = REVIEW_BATCH_SCHEMA["schema"]
+    prompt = (
+        "**Hypothesis 1:** first.\n"
+        "**Hypothesis 2:** second.\n"
+        "**Hypothesis 3:** third.\n"
+    )
+
+    response = await offline_llm.offline_acompletion(
+        model=offline_llm.DEFAULT_OFFLINE_MODEL,
+        messages=[{"role": "user", "content": prompt}],
+        response_format={
+            "type": "json_schema",
+            "json_schema": {
+                "name": "hypothesis_batch_review",
+                "schema": schema,
+            },
+        },
+    )
+
+    parsed = json.loads(response.choices[0].message.content)
+    jsonschema.validate(instance=parsed, schema=schema)
+    assert len(parsed["reviews"]) == 3
+    # Every review's string leaves are unique within this one response, even
+    # though the whole response is a deterministic function of its inputs:
+    # the dedup reducer collapses hypotheses with equal normalized text, so
+    # colliding leaves across array entries would be a real defect.
+    texts = [review["hypothesis_text"] for review in parsed["reviews"]]
+    assert len(set(texts)) == len(texts)
+
+
+async def test_offline_acompletion_is_deterministic_for_identical_calls() -> (
+    None
+):
+    """Identical (model, prompt, schema) calls produce identical content."""
+    kwargs = {
+        "model": offline_llm.DEFAULT_OFFLINE_MODEL,
+        "messages": [{"role": "user", "content": "Explain the mechanism."}],
+        "response_format": {
+            "type": "json_schema",
+            "json_schema": {
+                "name": "hypothesis_generation",
+                "schema": GENERATION_SCHEMA["schema"],
+            },
+        },
+    }
+
+    first = await offline_llm.offline_acompletion(**kwargs)
+    second = await offline_llm.offline_acompletion(**kwargs)
+
+    assert first.choices[0].message.content == second.choices[0].message.content
+
+
+async def test_offline_acompletion_differs_for_different_prompts() -> None:
+    """Different prompts (same model and schema) produce different content."""
+    base_kwargs = {
+        "model": offline_llm.DEFAULT_OFFLINE_MODEL,
+        "response_format": {
+            "type": "json_schema",
+            "json_schema": {
+                "name": "hypothesis_generation",
+                "schema": GENERATION_SCHEMA["schema"],
+            },
+        },
+    }
+
+    first = await offline_llm.offline_acompletion(
+        messages=[{"role": "user", "content": "Prompt A"}], **base_kwargs
+    )
+    second = await offline_llm.offline_acompletion(
+        messages=[{"role": "user", "content": "Prompt B"}], **base_kwargs
+    )
+
+    assert first.choices[0].message.content != second.choices[0].message.content
+
+
+def test_install_offline_router_is_idempotent() -> None:
+    """A second ``install_offline_router`` call does not double-wrap."""
+    offline_llm.install_offline_router()
+    routed_once = litellm.acompletion
+    supports_once = llm_request._supports_json_schema_response_format
+
+    offline_llm.install_offline_router()
+
+    assert litellm.acompletion is routed_once
+    assert llm_request._supports_json_schema_response_format is supports_once
+
+
+async def test_install_offline_router_idempotency_does_not_lose_passthrough(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Calling install twice still passes non-offline calls through once.
+
+    Guards against a subtler double-wrap than object identity alone would
+    catch: even if a second install produced a new (but equally-shaped)
+    wrapper, a real double-wrap would invoke the underlying stub twice per
+    call. This asserts exactly one invocation.
+    """
+    calls: list[dict[str, Any]] = []
+
+    async def _stub(**kwargs: Any) -> str:
+        calls.append(kwargs)
+        return "stub-result"
+
+    monkeypatch.setattr(litellm, "acompletion", _stub)
+    offline_llm.install_offline_router()
+    offline_llm.install_offline_router()
+
+    await litellm.acompletion(
+        model="gemini/gemini-2.5-flash",
+        messages=[{"role": "user", "content": "hi"}],
+    )
+
+    assert len(calls) == 1
+
+
+async def test_end_to_end_offline_generator_run_yields_hypotheses(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A real graph run through the runtime router, no fake content path.
+
+    Mirrors the shape of ``tests/test_integration_pipeline.py`` but installs
+    only the runtime router (``install_offline_router``); every response is
+    produced by the production ``offline_acompletion``, never by
+    ``tests._llm_fake``'s monkeypatch-based fake. MCP is genuinely
+    unavailable in this test environment (no server listening), and
+    literature review is explicitly disabled, so only
+    ``call_llm``/``call_llm_json`` are exercised -- ``supervisor_model_name``
+    is left unset so it defaults to ``model_name``
+    (``HypothesisGenerator.__init__``), meaning every model name the graph
+    reads from state is the same offline one.
+
+    Before installing the router, ``litellm.acompletion`` is replaced with a
+    recording stub; the router captures it as its passthrough target for
+    any non-offline model. The stub still answers through
+    ``offline_acompletion`` so the run is unaffected if something did leak,
+    but recording every call it receives turns "the run completed" into an
+    actual proof that zero calls escaped the offline router, rather than an
+    assumption resting on ``supervisor_model_name``'s default.
+    """
+    escaped_calls: list[dict[str, Any]] = []
+
+    async def _recording_original(**kwargs: Any) -> Any:
+        escaped_calls.append(kwargs)
+        return await offline_llm.offline_acompletion(**kwargs)
+
+    monkeypatch.setattr(litellm, "acompletion", _recording_original)
+    offline_llm.install_offline_router()
+
+    gen = HypothesisGenerator(
+        model_name=offline_llm.DEFAULT_OFFLINE_MODEL,
+        max_iterations=1,
+        initial_hypotheses_count=2,
+        evolution_max_count=2,
+        tournament_pairs=2,
+        enable_cache=False,
+    )
+
+    result = await gen.generate_hypotheses(
+        "Explain how protein X folds",
+        opts={"enable_literature_review_node": False},
+        stream=False,
+    )
+
+    assert not escaped_calls, (
+        "a call reached the original acompletion instead of being routed "
+        f"to offline_acompletion: {escaped_calls[0].get('model')!r}"
+    )
+
+    hypotheses = result["hypotheses"]
+    assert isinstance(hypotheses, list)
+    assert len(hypotheses) >= 2
+    for hyp in hypotheses:
+        assert isinstance(hyp, dict)
+        assert hyp["text"]
+        assert isinstance(hyp["reviews"], list) and hyp["reviews"]
+
+    assert result["meta_review"]["summary"]
+    assert result["research_overview"]["overview"]
+    assert result["metrics"]["llm_calls"] > 0

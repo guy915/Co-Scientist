@@ -77,47 +77,27 @@ def _resolve_tool_calling_generation(
     return False
 
 
-def _cache_enabled_env_value(enable_cache: bool | None) -> str | None:
-    """Renders the cache-enabled flag as the string env var cache.py expects.
+def _configure_cache_dir_env(cache_dir: str | None) -> None:
+    """Applies a constructor-supplied cache-directory override to the env.
+
+    ``cache.get_cache()`` reads ``COSCIENTIST_CACHE_DIR`` once and memoizes
+    the result process-wide, so this only takes effect if the generator is
+    constructed before any LLM call happens elsewhere in the process. No
+    caller passes ``cache_dir`` today (unlike ``enable_cache``, which is
+    scoped per-task instead -- see ``cache.scoped_cache_override`` and its
+    use in ``generator/core.py``), so this mutation is left as the
+    process-wide default it has always been.
 
     Args:
-        enable_cache: Enable/disable LLM response caching, or None.
-
-    Returns:
-        "true"/"false" for a non-None input, else None (passthrough).
-    """
-    if enable_cache is None:
-        return None
-    return "true" if enable_cache else "false"
-
-
-def _configure_cache_env(
-    enable_cache: bool | None, cache_dir: str | None
-) -> None:
-    """Applies constructor-supplied cache overrides to the environment.
-
-    ``cache.get_cache()`` reads these env vars once and memoizes the result
-    process-wide, so this only takes effect if the generator is constructed
-    before any LLM call happens elsewhere in the process.
-
-    Args:
-        enable_cache: Enable/disable LLM response caching (None = leave the
-            existing env var, if any, untouched).
         cache_dir: Directory for cache files (None = leave the existing env
             var, if any, untouched).
     """
-    if enable_cache is None and cache_dir is None:
+    if cache_dir is None:
         return
 
     import os
 
-    overrides: tuple[tuple[str | None, str], ...] = (
-        (_cache_enabled_env_value(enable_cache), "COSCIENTIST_CACHE_ENABLED"),
-        (cache_dir, "COSCIENTIST_CACHE_DIR"),
-    )
-    for value, env_key in overrides:
-        if value is not None:
-            os.environ[env_key] = value
+    os.environ["COSCIENTIST_CACHE_DIR"] = cache_dir
 
 
 def _resolve_run_identity(run_id: str | None) -> tuple[float, str]:

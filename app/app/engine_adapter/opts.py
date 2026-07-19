@@ -20,20 +20,6 @@ from app.run_modes import (
 )
 
 
-def _drain_pre_run_steering(run_id: str, db_path: str | None) -> None:
-    """Mark any steering queued before the run started as applied.
-
-    Drains steering queued before the run started (e.g. via the composer) so
-    it is not left "pending" and re-applied later inside run_mock_workflow's
-    own per-iteration steering check.
-    """
-    pre_run_steering = store.get_pending_steering(run_id, db_path=db_path)
-    if pre_run_steering:
-        store.mark_steering_applied(
-            [m.id for m in pre_run_steering], db_path=db_path
-        )
-
-
 def _clean_list_field(setup: dict[str, Any], key: str) -> list[str]:
     """Return a setup dict's list field, stringified and cleaned."""
     return clean_string_list([str(value) for value in setup.get(key) or []])
@@ -154,17 +140,49 @@ def _build_engine_opts(
     return initial_opts
 
 
-def _build_generator(generator_cls: Any, cfg: dict[str, Any]) -> Any:
+def _build_generator(
+    generator_cls: Any, cfg: dict[str, Any], *, offline: bool = False
+) -> Any:
     """Construct a fresh `HypothesisGenerator` from the run's resolved config.
 
     A fresh generator is constructed per run rather than reused, so each
     run's model/tier settings apply independently of any other run. `cfg`
     went through `resolved_run_config` upstream, so every numeric key is
     present -- index directly rather than re-inventing defaults here.
+
+    Args:
+        generator_cls: The engine's ``HypothesisGenerator`` class.
+        cfg: The run's resolved config.
+        offline: When True the run is backed by the deterministic offline
+            router, so both models are pinned to ``DEFAULT_OFFLINE_MODEL`` and
+            caching is disabled for this generator's own calls (scoped to its
+            own execution -- see ``co_scientist.cache.scoped_cache_override``
+            -- so it never disables caching for a concurrently-running real
+            run in the same embedded worker). This is a minor optimization,
+            not a correctness requirement: the router is already
+            deterministic, and a cached ``offline/``-prefixed entry could
+            never be served to (or collide with) a real-model call, since the
+            cache key includes the model name.
+
+    Returns:
+        A constructed generator instance.
     """
+    model_name = settings.model_name
+    supervisor_model_name = settings.supervisor_model_name
+    enable_cache: bool | None = None
+    if offline:
+        # Imported here rather than at module top so the app package does not
+        # hard-depend on the engine at import time (the mock path never needs
+        # it); the engine is on sys.path by the time a run is built.
+        from co_scientist.offline_llm import DEFAULT_OFFLINE_MODEL
+
+        model_name = DEFAULT_OFFLINE_MODEL
+        supervisor_model_name = DEFAULT_OFFLINE_MODEL
+        enable_cache = False
     return generator_cls(
-        model_name=settings.model_name,
-        supervisor_model_name=settings.supervisor_model_name,
+        model_name=model_name,
+        supervisor_model_name=supervisor_model_name,
+        enable_cache=enable_cache,
         max_iterations=int(cfg["max_iterations"]),
         initial_hypotheses_count=int(cfg["initial_hypotheses_count"]),
         evolution_max_count=int(cfg["evolution_max_count"]),

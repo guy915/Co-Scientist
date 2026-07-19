@@ -18,7 +18,11 @@ from app.engine_adapter.opts import _build_engine_opts, _build_generator
 from app.engine_adapter.provider import _import_hypothesis_generator
 from app.report_render import finalize_report, make_emitter
 from app.run_modes import normalize_run_tier, resolved_run_config
-from app.safety import apply_safety_gate, screen_contextual, screen_intake
+from app.safety import (
+    apply_safety_gate,
+    screen_intake,
+    screen_with_escalation,
+)
 from app.store import RunStatus, ScientificTask
 
 _CHECKPOINT_PROVIDER = "engine"
@@ -352,7 +356,11 @@ def _generator_and_opts(
 ) -> tuple[Any, dict[str, Any]]:
     run = _require_run(task, db_path)
     cfg = resolved_run_config(run.config)
-    generator = _build_generator(_import_hypothesis_generator(), cfg)
+    generator = _build_generator(
+        _import_hypothesis_generator(),
+        cfg,
+        offline=store.run_used_offline(run),
+    )
     return generator, _build_engine_opts(cfg, run.id, db_path)
 
 
@@ -360,7 +368,9 @@ def _generator_for_restore(task: ScientificTask, db_path: str | None) -> Any:
     """Build a registry-compatible generator without consuming steering."""
     run = _require_run(task, db_path)
     return _build_generator(
-        _import_hypothesis_generator(), resolved_run_config(run.config)
+        _import_hypothesis_generator(),
+        resolved_run_config(run.config),
+        offline=store.run_used_offline(run),
     )
 
 
@@ -560,10 +570,19 @@ async def execute_bootstrap(
     """Safety-gate a run, prepare state, and enqueue the Supervisor task."""
     run = _require_run(task, db_path)
     emit = make_emitter(run.id, db_path=db_path)
-    decision = await screen_contextual(
-        run.research_goal,
+    # Via screen_with_escalation, not screen_contextual directly: the
+    # escalation wrapper carries the two guards this durable path must honor
+    # as much as the streaming one does -- an offline-backed run never pays
+    # for a real contextual model call, and a stage a human already approved
+    # is not re-screened (which would otherwise let a fresh contextual verdict
+    # re-hold an approved run on every resume).
+    decision = await screen_with_escalation(
+        run.id,
         "intake",
-        deterministic=screen_intake(run.research_goal),
+        run.research_goal,
+        screen_intake(run.research_goal),
+        provider=run.provider,
+        db_path=db_path,
     )
     async for _ in apply_safety_gate(run.id, decision, emit, db_path=db_path):
         pass
@@ -1045,6 +1064,14 @@ async def execute_review_aggregate(
         expected_checkpoint_seq=current_seq,
         db_path=db_path,
     )
+    await _emit_node_completion(
+        task.run_id,
+        "review",
+        "comprehensive_reflection",
+        committed,
+        checkpoint_seq,
+        db_path,
+    )
     return {
         "checkpoint_seq": checkpoint_seq,
         "successor_task_id": successor_id,
@@ -1216,6 +1243,9 @@ async def execute_generation_aggregate(
         expected_checkpoint_seq=current_seq,
         db_path=db_path,
     )
+    await _emit_node_completion(
+        task.run_id, "generate", successor, committed, checkpoint_seq, db_path
+    )
     return {
         "checkpoint_seq": checkpoint_seq,
         "successor_task_id": successor_id,
@@ -1352,6 +1382,14 @@ async def execute_mature_reflection_aggregate(
         expected_checkpoint_seq=current_seq,
         db_path=db_path,
     )
+    await _emit_node_completion(
+        task.run_id,
+        "comprehensive_reflection",
+        "safety_screen",
+        committed,
+        checkpoint_seq,
+        db_path,
+    )
     return {
         "checkpoint_seq": checkpoint_seq,
         "successor_task_id": successor_id,
@@ -1426,6 +1464,14 @@ async def execute_verification_aggregate(
         "ranking",
         expected_checkpoint_seq=current_seq,
         db_path=db_path,
+    )
+    await _emit_node_completion(
+        task.run_id,
+        "deep_verification",
+        "ranking",
+        committed,
+        checkpoint_seq,
+        db_path,
     )
     return {
         "checkpoint_seq": checkpoint_seq,
@@ -1654,6 +1700,14 @@ async def execute_ranking_finalize(
         expected_checkpoint_seq=current_seq,
         db_path=db_path,
     )
+    await _emit_node_completion(
+        task.run_id,
+        "ranking",
+        "orchestrator",
+        committed,
+        checkpoint_seq,
+        db_path,
+    )
     return {
         "checkpoint_seq": checkpoint_seq,
         "successor_task_id": successor_id,
@@ -1760,15 +1814,8 @@ async def execute_node_task(
         expected_checkpoint_seq=current_seq,
         db_path=db_path,
     )
-    emit = make_emitter(task.run_id, db_path=db_path)
-    await emit(
-        "scientific_task",
-        {
-            "task": node_name,
-            "status": "completed",
-            "checkpoint_seq": checkpoint_seq,
-            "successor": successor,
-        },
+    await _emit_node_completion(
+        task.run_id, node_name, successor, committed, checkpoint_seq, db_path
     )
     return {
         "checkpoint_seq": checkpoint_seq,
@@ -1786,6 +1833,91 @@ def _plain_final_state(state: dict[str, Any]) -> dict[str, Any]:
         "articles": [item.to_dict() for item in state.get("articles") or []],
         "metrics": metrics.to_dict() if metrics else {},
     }
+
+
+def _emit_node_milestone(
+    run_id: str,
+    node_name: str,
+    state: dict[str, Any],
+    db_path: str | None,
+) -> None:
+    """Append the milestone chat message the streaming path emits for a node.
+
+    Reuses ``events.py``'s canonical vocabulary (``_canonical_event_type``,
+    ``_canonical_engine_payload``, ``_format_milestone``) so the durable and
+    streaming engine paths never carry two copies of the milestone strings.
+    A no-op for node types with no milestone builder (e.g. ``review``,
+    ``orchestrator``, ``safety_screen``, ``comprehensive_reflection``) --
+    checked before the state conversion below so those completions pay no
+    extra cost.
+
+    Callers place this immediately after the node's checkpoint commit (the
+    same call site as the durable path's ``scientific_task`` event, where one
+    exists), which is only reached once per real checkpoint advance -- a
+    redelivered/replayed task returns earlier, at the function's existing
+    idempotency guard, so a retried task never emits a duplicate milestone.
+    A crash between the checkpoint commit and this call loses that node's
+    milestone rather than duplicating it, the same failure mode the existing
+    ``scientific_task`` emit already has.
+    """
+    from app.engine_adapter.events import (
+        _MILESTONE_BUILDERS,
+        _canonical_engine_payload,
+        _canonical_event_type,
+        _format_milestone,
+    )
+
+    node_type = _canonical_event_type(node_name)
+    if node_type not in _MILESTONE_BUILDERS:
+        return
+    payload = _canonical_engine_payload(
+        node_name, node_type, _plain_final_state(state)
+    )
+    milestone = _format_milestone(node_type, payload)
+    if milestone:
+        store.append_message(
+            run_id, "system", milestone, "milestone", db_path=db_path
+        )
+
+
+async def _emit_node_completion(
+    run_id: str,
+    node_name: str,
+    successor: str | None,
+    committed: dict[str, Any],
+    checkpoint_seq: int,
+    db_path: str | None,
+) -> None:
+    """Emit the milestone and ``scientific_task`` event for one node.
+
+    Pairs the two side-effects the streaming path's ``_emit_engine_node_event``
+    couples for every node: a milestone chat message (a no-op for node types
+    without one) and the ``scientific_task`` completion event the frontend's
+    live-activity feed (``ACTIVITY_META``) and mid-run refetch logic key on.
+
+    Before this, the five fan-out aggregate completions (``generate``,
+    ``review``, ``comprehensive_reflection``, ``deep_verification``,
+    ``ranking`` -- the node types where the durable path's actual scientific
+    work happens) emitted no event of any kind, leaving the live-activity feed
+    blind to exactly the nodes doing the substantive work. Only the generic
+    ``execute_node_task`` completion path emitted ``scientific_task``.
+
+    Callers place this immediately after the node's checkpoint commit,
+    downstream of that function's existing checkpoint-replay/supersession
+    guard, so a redelivered or replayed task never double-emits either side
+    effect (same reasoning as ``_emit_node_milestone``).
+    """
+    _emit_node_milestone(run_id, node_name, committed, db_path)
+    emit = make_emitter(run_id, db_path=db_path)
+    await emit(
+        "scientific_task",
+        {
+            "task": node_name,
+            "status": "completed",
+            "checkpoint_seq": checkpoint_seq,
+            "successor": successor,
+        },
+    )
 
 
 async def execute_finalize(
@@ -1825,11 +1957,20 @@ async def execute_finalize(
     report_inputs = _persist_final_state(
         run_id=run.id, final_state=final_state, db_path=db_path
     )
+    # Popped before the rest of report_inputs is spread into finalize_report
+    # below (which does not accept them as kwargs); emitted as the same
+    # post-drain stage events the streaming engine path emits, so both engine
+    # execution modes carry identical per-stage fidelity.
+    safety_counts = report_inputs.pop("safety_counts")
+    grounding_counts = report_inputs.pop("grounding_counts")
     metrics = final_state.get("metrics") or {}
     execution_time = max(0.0, time.time() - float(state.get("start_time", 0)))
     store.save_run_metrics(run.id, metrics, db_path=db_path)
     store.update_run_status(run.id, RunStatus.SYNTHESIZING, db_path=db_path)
     emit = make_emitter(run.id, db_path=db_path)
+    await emit("safety.hypothesis", safety_counts)
+    await emit("citation.grounding", grounding_counts)
+    await emit("citation_audit", dict(report_inputs["citation_summary"]))
     async for _ in finalize_report(
         run_id=run.id,
         research_goal=run.research_goal,

@@ -22,8 +22,17 @@ export interface SystemStatus {
   literature_review_available: boolean;
   probes: {mcp: ProbeStatus; pubmed: ProbeStatus};
   mcp_server_url: string;
+  // The engine is the only workflow provider now; 'mock' only ever appears
+  // on a response mirroring a pre-unification deployment.
   provider: 'mock' | 'engine';
+  /**
+   * @deprecated Mirrors `llm_backend === 'offline'` for older clients. Read
+   * `llm_backend` instead -- it names what's actually running (the real
+   * engine against a deterministic offline router), not a mock workflow.
+   */
   mock_mode: boolean;
+  /** Active LLM backend: 'offline' (deterministic router) | 'real'. */
+  llm_backend: 'offline' | 'real';
   has_provider_key: boolean;
   engine_importable: boolean;
   model_name: string;

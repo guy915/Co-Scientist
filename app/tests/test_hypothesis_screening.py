@@ -2,8 +2,7 @@
 
 Covers ``app.hypothesis_screening.screen_hypotheses``: it must persist every
 hypothesis's ``safety_status``, flag the blocking ones, record an audit row for
-each block, and leave benign hypotheses eligible. Also covers the mock's
-``_drop_blocked_hypotheses`` pool filter.
+each block, and leave benign hypotheses eligible.
 """
 
 from __future__ import annotations
@@ -13,10 +12,6 @@ from app.hypothesis_screening import (
     ScreeningResult,
     hypothesis_text,
     screen_hypotheses,
-)
-from app.mock_workflow_stages import (
-    _drop_blocked_children,
-    _drop_blocked_hypotheses,
 )
 
 
@@ -181,41 +176,3 @@ def test_hypothesis_text_combines_fields() -> None:
         }
     )
     assert text == "s\nm\ne\nc"
-
-
-def test_drop_blocked_hypotheses_filters_pool() -> None:
-    hyp_ids = ["a", "b", "c"]
-    payloads = [{"id": "a"}, {"id": "b"}, {"id": "c"}]
-    _drop_blocked_hypotheses(hyp_ids, payloads, frozenset({"b"}))
-    assert hyp_ids == ["a", "c"]
-    assert [p["id"] for p in payloads] == ["a", "c"]
-
-
-def test_drop_blocked_hypotheses_noop_when_none_blocked() -> None:
-    hyp_ids = ["a", "b"]
-    payloads = [{"id": "a"}, {"id": "b"}]
-    _drop_blocked_hypotheses(hyp_ids, payloads, frozenset())
-    assert hyp_ids == ["a", "b"]
-    assert [p["id"] for p in payloads] == ["a", "b"]
-
-
-def test_drop_blocked_children_removes_from_pool_and_elo() -> None:
-    children = [{"id": "x"}, {"id": "y"}]
-    hyp_ids = ["p", "x", "y"]
-    elo_state = {"p": 1200, "x": 1200, "y": 1200}
-    eligible = _drop_blocked_children(
-        children, hyp_ids, elo_state, frozenset({"y"})
-    )
-    assert [c["id"] for c in eligible] == ["x"]
-    assert hyp_ids == ["p", "x"]
-    assert "y" not in elo_state
-
-
-def test_drop_blocked_children_noop_when_none_blocked() -> None:
-    children = [{"id": "x"}]
-    hyp_ids = ["p", "x"]
-    elo_state = {"p": 1200, "x": 1200}
-    eligible = _drop_blocked_children(children, hyp_ids, elo_state, frozenset())
-    assert eligible == children
-    assert hyp_ids == ["p", "x"]
-    assert elo_state == {"p": 1200, "x": 1200}

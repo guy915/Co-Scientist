@@ -30,8 +30,16 @@ def test_seed_demo_runs_creates_three_runs_with_reports(
     goals = {r.research_goal for r in runs}
     assert goals == set(seed._DEMO_GOALS)
     for run in runs:
+        # Each demo run is driven end-to-end through the real engine graph
+        # pinned to the offline backend, so it must reach a terminal completed
+        # state, persist llm_backend="offline" (so run_used_offline reports it,
+        # which suppresses "unverified" badging), and carry a readable report.
+        assert run.status == "completed"
+        assert run.llm_backend == "offline"
+        assert store.run_used_offline(run)
         md = store.read_report_markdown(run.id, db_path=isolated_db)
         assert md is not None and "Research Report" in md
+        assert store.list_hypotheses(run.id, db_path=isolated_db)
 
 
 def test_seed_demo_runs_is_idempotent_when_reports_exist(
@@ -102,12 +110,22 @@ def test_seed_demo_run_creates_new_run_when_none_given(
     isolated_db: str,
 ) -> None:
     """``_seed_demo_run`` creates a run itself when passed ``run=None``."""
+    # This exercises the seeding primitive directly, bypassing
+    # ``seed_demo_runs`` (which installs the router itself), so install the
+    # offline router first -- otherwise the engine run's offline/ model calls
+    # have no handler and the run fails. Idempotent; a passthrough for real
+    # models.
+    from co_scientist.offline_llm import install_offline_router
+
+    install_offline_router()
     goal = "A standalone seeding goal"
     asyncio.run(seed._seed_demo_run(goal, None, isolated_db))
 
     runs = store.list_runs(client_id=DEMO_CLIENT_ID, db_path=isolated_db)
     created = [r for r in runs if r.research_goal == goal]
     assert len(created) == 1
+    assert created[0].status == "completed"
+    assert created[0].llm_backend == "offline"
     assert store.read_report_markdown(created[0].id, db_path=isolated_db)
 
 

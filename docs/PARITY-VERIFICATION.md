@@ -12,6 +12,19 @@ decision).
 
 Report date: 2026-07-10. Branch: `goolge-ai-co-scientist-parity`.
 
+> **Architecture note (added after a3729a0b, 2026-07-18).** This report
+> predates the deletion of the app's mock workflow provider
+> (`app/app/mock_workflow*.py`, deleted in commit `a3729a0b`). Every mention
+> of "mock" below describes that now-retired code path as it existed on the
+> report date; it is not a live alternative to the engine today. Every run
+> now executes on the real LangGraph engine, and what this report calls the
+> "mock" path is superseded by the engine pinned to the deterministic offline
+> LLM backend (`engine/src/co_scientist/offline_llm.py`, fakes only
+> `offline/`-prefixed models at the `litellm.acompletion` seam). The
+> dated command results below are left as recorded, not re-run; current
+> equivalent test files are noted inline where the architecture changed
+> enough to matter.
+
 ---
 
 ## 1. Quality gates (exact commands and results)
@@ -41,10 +54,20 @@ work) falls below 80%.
 ### Parity ledger status snapshot
 
 `python -m evaluations.parity_check` reports, over 64 requirement rows:
-**verified=52, partial=6, missing=0, external=6, undisclosed=0.** Each
+**verified=51, partial=7, missing=0, external=6, undisclosed=0.** Each
 `verified` row cites test/eval evidence that exists on disk; each `partial`/
 `missing` row names a concrete residual gap and owner; each `external` row
 records a precise, non-safety-weakening blocker in [PARITY.md](PARITY.md).
+
+> **Update (post-a3729a0b, mock-workflow deletion).** `CKPT-FAILINJECT-001`
+> moved from `verified` to `partial`: its app-level "two consecutive resume
+> cycles" test (`test_double_resume_is_stable`) was dropped with the mock
+> workflow and no replacement exists yet at the app layer (the engine-level
+> double-restart test and an app-level single-restart test each still pass
+> independently). Every other row that cited now-deleted `mock_workflow*.py`
+> modules or `test_mock_workflow.py` was re-cited against its current
+> equivalent rather than downgraded — see [PARITY.md](PARITY.md) for the
+> updated evidence.
 
 > **Reclassification (2026-07-12).** An end-to-end parity re-audit found that
 > the earlier snapshot (54 verified, 0 partial) over-claimed: the checker
@@ -65,6 +88,12 @@ records a precise, non-safety-weakening blocker in [PARITY.md](PARITY.md).
 
 ## 2. Deterministic mock / recovery evidence
 
+> As of the note above, "mock" throughout this section names the retired
+> `app/app/mock_workflow*.py` provider exercised on 2026-07-10; the commands
+> and files below (`test_integration_run_flow.py`, `test_resume.py`) now run
+> against the engine pinned to the offline LLM backend instead, per
+> `033c5377`/`a3729a0b`.
+
 The deterministic offline path is exercised without any LLM or network:
 
 - **Engine (real compiled LangGraph, LLM faked at the litellm boundary):**
@@ -79,11 +108,19 @@ The deterministic offline path is exercised without any LLM or network:
   real graph run at a safe boundary, checkpoints, restores in a rebuilt
   generator (simulating a process restart), and resumes: the checkpointed pool
   is preserved byte-for-byte across single and double restarts.
-- **Checkpoint / restart-recovery (app, failure injection):**
-  `cd app && ../.venv/bin/python -m pytest tests/test_resume.py -q` — interrupts a mock run
-  mid-iteration, reconciles it as resumable, resumes (clear + deterministic
-  re-run), and asserts identical terminal artifacts, exactly one report, and
-  unique/monotonic event seqs (no duplicates); double-resume is stable.
+- **Checkpoint / restart-recovery (app, failure injection):** as recorded on
+  the report date, `test_resume.py` interrupted a mock run mid-iteration,
+  reconciled it as resumable, resumed (clear + deterministic re-run), and
+  asserted identical terminal artifacts, exactly one report, and
+  unique/monotonic event seqs (no duplicates); double-resume was stable. That
+  test content (`test_interrupted_run_is_resumable_and_completes_once`,
+  `test_double_resume_is_stable`) was dropped with the mock workflow and has
+  no direct app-level replacement (see `CKPT-FAILINJECT-001`, now `partial`,
+  in [PARITY.md](PARITY.md)). A single interruption + resume is still proven
+  end-to-end at the app layer (`test_resume_engine.py`), and two consecutive
+  restarts preserving the pool is still proven at the engine layer
+  (`test_resume_pipeline.py::test_double_restart_preserves_pool_and_completes`);
+  only the app-level *double-resume* composition currently lacks a test.
 
 Offline evaluations (machine-readable results under `evaluations/results/`):
 
@@ -152,9 +189,12 @@ cd app && MODEL_NAME=deepseek/deepseek-chat \
 # and evidence rows sourced from pubmed/indra (source != "mock").
 ```
 
-The `/status` and `/config` endpoints and the persisted `runs.provider` column
-disclose which path (mock vs engine) produced each run, so real and mock runs
-are never conflated (`PROVENANCE-PATH-001`, verified).
+The `/status` and `/config` endpoints disclose which path produced each run;
+since the mock provider's deletion, `runs.provider` is always `"engine"` and
+the meaningful distinction is the persisted `runs.llm_backend` column (real
+vs offline), so a real-provider run is never conflated with a deterministic
+offline one (`PROVENANCE-PATH-001`, verified — see the updated evidence in
+[PARITY.md](PARITY.md)).
 
 ---
 

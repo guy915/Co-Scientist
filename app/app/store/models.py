@@ -77,6 +77,10 @@ class RunRow:
     # ``ranking``), populated by ``list_runs`` to drive the live progress
     # indicator. None on single-run reads and runs with no stage events yet.
     latest_stage: str | None = None
+    # LLM backend the run executed against: "offline" (deterministic router)
+    # or "real". None on rows created before the column existed; the
+    # ``run_used_offline`` helper falls back to the provider for those.
+    llm_backend: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize the row to the JSON shape the API returns to clients."""
@@ -99,6 +103,7 @@ class RunRow:
             "top_elo": self.top_elo,
             "top_hypotheses": self.top_hypotheses,
             "latest_stage": self.latest_stage,
+            "llm_backend": self.llm_backend,
         }
 
 
@@ -137,6 +142,7 @@ def _row_to_run(row: sqlite3.Row) -> RunRow:
         error=row["error"],
         title=row["title"] if "title" in keys else None,
         top_elo=row["top_elo"] if "top_elo" in keys else None,
+        llm_backend=row["llm_backend"] if "llm_backend" in keys else None,
     )
 
 

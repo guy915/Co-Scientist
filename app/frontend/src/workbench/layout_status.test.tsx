@@ -17,8 +17,9 @@ function statusFixture(overrides: Partial<SystemStatus> = {}): SystemStatus {
       pubmed: {state: 'down', error: null},
     },
     mcp_server_url: '',
-    provider: 'mock',
+    provider: 'engine',
     mock_mode: true,
+    llm_backend: 'offline',
     has_provider_key: false,
     engine_importable: true,
     model_name: 'test/model',
@@ -35,18 +36,18 @@ describe('buildSystemStatusChip', () => {
     expect(chip?.danger).toBe(true);
   });
 
-  it('flags mock mode with a neutral chip', () => {
+  it('flags offline mode with a neutral chip', () => {
     const chip = buildSystemStatusChip(statusFixture(), false);
-    expect(chip?.label).toBe('Mock mode');
+    expect(chip?.label).toBe('Offline mode');
     expect(chip?.danger).toBe(false);
     expect(chip?.detail).toContain('test/model');
   });
 
-  it('renders nothing while loading or in engine mode', () => {
+  it('renders nothing while loading or on a live model backend', () => {
     expect(buildSystemStatusChip(null, false)).toBeNull();
     expect(
       buildSystemStatusChip(
-        statusFixture({mock_mode: false, provider: 'engine'}),
+        statusFixture({mock_mode: false, llm_backend: 'real'}),
         false,
       ),
     ).toBeNull();
@@ -58,13 +59,13 @@ describe('SystemStatusIndicator', () => {
     apiMock.getSystemStatus.mockReset();
   });
 
-  it('shows the Mock mode chip when /status reports mock mode', async () => {
+  it('shows the Offline mode chip when /status reports the offline backend', async () => {
     apiMock.getSystemStatus.mockResolvedValue(statusFixture());
 
     render(<SystemStatusIndicator />);
 
     await waitFor(() =>
-      expect(screen.getByRole('status')).toHaveTextContent('Mock mode'),
+      expect(screen.getByRole('status')).toHaveTextContent('Offline mode'),
     );
   });
 
@@ -78,9 +79,9 @@ describe('SystemStatusIndicator', () => {
     );
   });
 
-  it('renders nothing for a healthy engine backend', async () => {
+  it('renders nothing for a healthy live model backend', async () => {
     apiMock.getSystemStatus.mockResolvedValue(
-      statusFixture({mock_mode: false, provider: 'engine'}),
+      statusFixture({mock_mode: false, llm_backend: 'real'}),
     );
 
     render(<SystemStatusIndicator />);

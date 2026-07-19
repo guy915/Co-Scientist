@@ -196,6 +196,11 @@ def _persist_and_finalize(
         final_state=final_state,
         db_path=db_path,
     )
+    # Post-drain stage-event counts, not finalize_report kwargs; the real
+    # callers (engine_stream, engine_tasks) pop these before spreading the
+    # rest of the dict, so this helper mirrors that.
+    report_inputs.pop("safety_counts")
+    report_inputs.pop("grounding_counts")
 
     async def _emit(type_: str, payload: dict[str, Any]) -> dict[str, Any]:
         return {"type": type_, "payload": payload}
@@ -632,6 +637,9 @@ def test_resumed_finalize_does_not_double_publish(isolated_db: str) -> None:
         final_state=_final_state_with_features(),
         db_path=isolated_db,
     )
+    # Post-drain stage-event counts, not finalize_report kwargs.
+    inputs.pop("safety_counts")
+    inputs.pop("grounding_counts")
 
     async def _emit(type_: str, payload: dict[str, Any]) -> dict[str, Any]:
         return {"type": type_, "payload": payload}
