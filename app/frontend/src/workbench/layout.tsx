@@ -178,7 +178,6 @@ export function Layout({children}: {children: ReactNode}) {
           headerTitle={headerTitle}
           activePanel={activePanel}
           onTogglePanel={togglePanel}
-          activeRunId={activeRunId}
           logsControlRef={logsControlRef}
         />
         <main className={pageClasses}>{children}</main>

@@ -10,13 +10,15 @@ via ``set_defaults``; ``main`` parses arguments, constructs the shared
 from __future__ import annotations
 
 import argparse
+import contextlib
 import os
 import sys
 from collections.abc import Callable
 from typing import cast
 
-from app.cli import runs_cmd, status_cmd
+from app.cli import logs_cmd, runs_cmd, status_cmd
 from app.cli.http import DEFAULT_API_URL, ApiClient, CliError
+from app.version import API_VERSION
 
 # Mirror of the enums the API validates (RUN_FOCUS_PATTERN / RUN_TIER_PATTERN
 # in app.run_modes). Duplicated here so building the parser stays import-light;
@@ -30,6 +32,23 @@ RUN_FOCUS_VALUES = (
 RUN_TIER_VALUES = ("express", "standard", "extended", "ultra")
 
 Handler = Callable[[argparse.Namespace, ApiClient], int]
+
+DEFAULT_TIMEOUT = 30.0
+
+
+def _default_timeout() -> float:
+    """Resolve the default request timeout from ``COSCIENTIST_TIMEOUT``.
+
+    An unset or unparsable value falls back to :data:`DEFAULT_TIMEOUT` so a
+    stray environment variable cannot make every command crash at parse time.
+    """
+    raw = os.environ.get("COSCIENTIST_TIMEOUT")
+    if raw:
+        try:
+            return float(raw)
+        except ValueError:
+            pass
+    return DEFAULT_TIMEOUT
 
 
 def _json_flag(parser: argparse.ArgumentParser) -> None:
@@ -66,6 +85,30 @@ def _common_parser() -> argparse.ArgumentParser:
             "(env COSCIENTIST_CLIENT_ID)"
         ),
     )
+    common.add_argument(
+        "--logs-token",
+        default=os.environ.get("COSCIENTIST_LOGS_TOKEN"),
+        metavar="TOKEN",
+        help=(
+            "admin token for the app-wide log view when the API is not "
+            "local (env COSCIENTIST_LOGS_TOKEN)"
+        ),
+    )
+    common.add_argument(
+        "--timeout",
+        type=float,
+        default=_default_timeout(),
+        metavar="SECONDS",
+        help=(
+            "per-request timeout in seconds "
+            "(env COSCIENTIST_TIMEOUT, default %(default)s)"
+        ),
+    )
+    common.add_argument(
+        "--verbose",
+        action="store_true",
+        help="log every request's method, path, status, and time to stderr",
+    )
     return common
 
 
@@ -83,6 +126,81 @@ def _add_status(
     parser.set_defaults(handler=status_cmd.handle_status)
 
 
+def _add_config(
+    sub: argparse._SubParsersAction[argparse.ArgumentParser],
+    common: argparse.ArgumentParser,
+) -> None:
+    """Register the top-level ``config`` command."""
+    parser = sub.add_parser(
+        "config",
+        parents=[common],
+        help="show the server's run-configuration defaults",
+    )
+    _json_flag(parser)
+    parser.set_defaults(handler=status_cmd.handle_config)
+
+
+def _add_logs(
+    sub: argparse._SubParsersAction[argparse.ArgumentParser],
+    common: argparse.ArgumentParser,
+) -> None:
+    """Register the top-level ``logs`` command."""
+    parser = sub.add_parser(
+        "logs",
+        parents=[common],
+        help="query the app-wide persisted log records",
+    )
+    parser.add_argument(
+        "--run", metavar="RUN_ID", help="only records bound to this run"
+    )
+    parser.add_argument(
+        "--level",
+        metavar="LEVEL",
+        help="minimum level, e.g. warning (case-insensitive)",
+    )
+    parser.add_argument(
+        "--grep", metavar="TEXT", help="message substring filter"
+    )
+    parser.add_argument(
+        "--after-id",
+        dest="after_id",
+        type=int,
+        default=0,
+        metavar="N",
+        help="only records with id greater than N",
+    )
+    parser.add_argument(
+        "--limit", type=int, default=100, metavar="N", help="max records"
+    )
+    parser.add_argument(
+        "--follow",
+        action="store_true",
+        help="keep polling for new records until interrupted",
+    )
+    parser.add_argument(
+        "--interval",
+        type=float,
+        default=2.0,
+        metavar="SECONDS",
+        help="poll interval used with --follow (default %(default)s)",
+    )
+    parser.add_argument(
+        "--clear",
+        action="store_true",
+        help="delete every persisted log record instead of reading",
+    )
+    parser.add_argument(
+        "--all",
+        action="store_true",
+        help=(
+            "include high-volume records hidden by default (HTTP access, "
+            "UI clicks/navigation, dependency chatter below warning)"
+        ),
+    )
+    _json_flag(parser)
+    parser.set_defaults(handler=logs_cmd.handle_logs)
+
+
 def _add_create(
     sub: argparse._SubParsersAction[argparse.ArgumentParser],
     common: argparse.ArgumentParser,
@@ -91,7 +209,14 @@ def _add_create(
     parser = sub.add_parser(
         "create", parents=[common], help="create a draft run from a goal"
     )
-    parser.add_argument("goal", help="the research goal")
+    parser.add_argument(
+        "goal", help="the research goal ('-' reads it from stdin)"
+    )
+    parser.add_argument(
+        "--start",
+        action="store_true",
+        help="immediately start the created run",
+    )
     parser.add_argument(
         "--requirement",
         dest="requirements",
@@ -190,6 +315,12 @@ def _add_runs(
     _json_flag(list_parser)
     list_parser.set_defaults(handler=runs_cmd.handle_list)
 
+    demo_parser = runs_sub.add_parser(
+        "demo", parents=[common], help="list the seeded demo runs"
+    )
+    _json_flag(demo_parser)
+    demo_parser.set_defaults(handler=runs_cmd.handle_demo)
+
     _add_run_id_command(
         runs_sub, common, "show", runs_cmd.handle_show, "show run details"
     )
@@ -228,6 +359,31 @@ def _add_runs(
         help="only stream events after this sequence number",
     )
 
+    wait_parser = _add_run_id_command(
+        runs_sub,
+        common,
+        "wait",
+        runs_cmd.handle_wait,
+        "poll until the run settles; exit code encodes the final status "
+        "(0 completed, 3 failed, 4 blocked, 5 cancelled, 6 paused, "
+        "124 max-wait exceeded)",
+    )
+    wait_parser.add_argument(
+        "--interval",
+        type=float,
+        default=2.0,
+        metavar="SECONDS",
+        help="poll interval (default %(default)s)",
+    )
+    wait_parser.add_argument(
+        "--max-wait",
+        dest="max_wait",
+        type=float,
+        default=None,
+        metavar="SECONDS",
+        help="give up with exit code 124 after this long (default: no limit)",
+    )
+
     _add_run_id_command(
         runs_sub,
         common,
@@ -251,6 +407,34 @@ def _add_runs(
     _add_run_id_command(
         runs_sub, common, "safety", runs_cmd.handle_safety, "list safety rows"
     )
+    _add_run_id_command(
+        runs_sub,
+        common,
+        "matches",
+        runs_cmd.handle_matches,
+        "list tournament matches",
+    )
+    _add_run_id_command(
+        runs_sub,
+        common,
+        "proximity",
+        runs_cmd.handle_proximity,
+        "list idea-proximity edges",
+    )
+    _add_run_id_command(
+        runs_sub,
+        common,
+        "metrics",
+        runs_cmd.handle_metrics,
+        "show execution metrics",
+    )
+    _add_run_id_command(
+        runs_sub,
+        common,
+        "claim-evidence",
+        runs_cmd.handle_claim_evidence,
+        "list claim-level entailment edges",
+    )
 
     report_parser = _add_run_id_command(
         runs_sub, common, "report", runs_cmd.handle_report, "fetch the report"
@@ -268,7 +452,9 @@ def _add_runs(
         runs_cmd.handle_steer,
         "queue a steer message",
     )
-    steer_parser.add_argument("message", help="the steering message")
+    steer_parser.add_argument(
+        "message", help="the steering message ('-' reads it from stdin)"
+    )
 
     ask_parser = _add_run_id_command(
         runs_sub,
@@ -277,7 +463,9 @@ def _add_runs(
         runs_cmd.handle_ask,
         "ask a question about a run",
     )
-    ask_parser.add_argument("question", help="the question to ask")
+    ask_parser.add_argument(
+        "question", help="the question to ask ('-' reads it from stdin)"
+    )
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -286,9 +474,16 @@ def build_parser() -> argparse.ArgumentParser:
         prog="cosci",
         description="Operator CLI for driving Co-Scientist runs via its API.",
     )
+    parser.add_argument(
+        "--version",
+        action="version",
+        version=f"cosci {API_VERSION}",
+    )
     sub = parser.add_subparsers(dest="command", metavar="COMMAND")
     common = _common_parser()
     _add_status(sub, common)
+    _add_config(sub, common)
+    _add_logs(sub, common)
     _add_runs(sub, common)
     return parser
 
@@ -309,9 +504,25 @@ def main(argv: list[str] | None = None) -> int:
     if handler is None:
         parser.print_help(sys.stderr)
         return 2
-    client = ApiClient(args.api_url, args.client_id)
+    client = ApiClient(
+        args.api_url,
+        args.client_id,
+        logs_token=args.logs_token,
+        timeout=args.timeout,
+        verbose=args.verbose,
+    )
     try:
         return cast(Handler, handler)(args, client)
     except CliError as exc:
         print(f"error: {exc.message}", file=sys.stderr)
         return exc.exit_code
+    except KeyboardInterrupt:
+        return 130
+    except BrokenPipeError:
+        # stdout's reader is gone (e.g. `cosci ... | head`). Point the fd at
+        # devnull so interpreter shutdown does not raise while flushing;
+        # skip it where stdout has no usable fd (test capture, redirection).
+        with contextlib.suppress(OSError, ValueError):
+            devnull = os.open(os.devnull, os.O_WRONLY)
+            os.dup2(devnull, sys.stdout.fileno())
+        return 141

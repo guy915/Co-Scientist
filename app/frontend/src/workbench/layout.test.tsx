@@ -1,4 +1,4 @@
-import {fireEvent, render, screen, waitFor} from '@testing-library/react';
+import {act, fireEvent, render, screen, waitFor} from '@testing-library/react';
 import {MemoryRouter} from 'react-router-dom';
 import {beforeEach, describe, expect, it, vi} from 'vitest';
 import type {Run} from '@/api/runs';
@@ -31,6 +31,12 @@ const apiMock = vi.hoisted(() => {
 
 const systemApiMock = vi.hoisted(() => ({getSystemStatus: vi.fn()}));
 
+const logsApiMock = vi.hoisted(() => ({
+  getAppLogs: vi.fn(),
+  postAppLogs: vi.fn(),
+  deleteAppLogs: vi.fn(),
+}));
+
 // Spread the real module so pure helpers (isActiveStatus, ...) stay real and
 // only the network calls are faked, matching chat_workspace_test_helpers.
 vi.mock('@/api/runs', async importOriginal => ({
@@ -39,6 +45,13 @@ vi.mock('@/api/runs', async importOriginal => ({
 }));
 
 vi.mock('@/api/system', () => systemApiMock);
+
+// Spread the real module so constants (APP_LOGS_CHANGED_EVENT) stay real
+// while the network calls are faked.
+vi.mock('@/api/logs', async importOriginal => ({
+  ...(await importOriginal<typeof import('@/api/logs')>()),
+  ...logsApiMock,
+}));
 
 function renderLayout(path = '/') {
   return render(
@@ -83,6 +96,12 @@ describe('Layout', () => {
     ]);
     apiMock.getRunEvents.mockReset();
     apiMock.getRunEvents.mockResolvedValue([]);
+    logsApiMock.getAppLogs.mockReset();
+    logsApiMock.getAppLogs.mockResolvedValue({logs: [], last_id: 0, total: 0});
+    logsApiMock.postAppLogs.mockReset();
+    logsApiMock.postAppLogs.mockResolvedValue({added: 1, last_id: 1});
+    logsApiMock.deleteAppLogs.mockReset();
+    logsApiMock.deleteAppLogs.mockResolvedValue({deleted: 0});
     // Engine mode by default so the header status chip stays hidden and
     // pre-existing header assertions are unaffected.
     systemApiMock.getSystemStatus.mockReset();
@@ -249,10 +268,7 @@ describe('Layout', () => {
     expect(screen.queryByText('All runs')).toBeNull();
     expect(screen.getByText('Total 0')).toBeInTheDocument();
     expect(screen.getByText('Errors 0')).toBeInTheDocument();
-    expect(screen.getByText('Success 0')).toBeInTheDocument();
     expect(screen.getByText('Info 0')).toBeInTheDocument();
-    expect(screen.getByText('Runs 0')).toBeInTheDocument();
-    expect(screen.queryByText(/Export includes loaded run events/)).toBeNull();
     expect(
       screen.getByText('No diagnostic events loaded.'),
     ).toBeInTheDocument();
@@ -264,36 +280,137 @@ describe('Layout', () => {
       ),
     ).toEqual(['Clear', 'Copy']);
 
+    fireEvent.pointerDown(screen.getByText('Workspace content'));
+    expect(screen.queryByText('Diagnostic Logs')).toBeNull();
+  });
+
+  it('never persists goal text as a run id', async () => {
+    renderLayout();
+
+    // Callers used to pass a goal-derived title as `run`, which was
+    // stored in the run_id column and served over the API. Only a real
+    // run id may become run_id; a display title is ignored.
     fireEvent(
       window,
       new CustomEvent(DIAGNOSTIC_EVENT, {
         detail: {
           stage: 'LIFECYCLE',
-          run: 'Investigate glucose homeostasis',
-          level: 'success',
+          run: 'Novel oncology target X in pancreatic cancer',
+          level: 'info',
+          payload: {event: 'start_requested'},
+        },
+      }),
+    );
+
+    await waitFor(() => expect(logsApiMock.postAppLogs).toHaveBeenCalled());
+    const posted = logsApiMock.postAppLogs.mock.calls
+      .flatMap(call => call[0] as {message: string; run_id?: string}[])
+      .filter(record => record.message.startsWith('LIFECYCLE'));
+    expect(posted).toHaveLength(1);
+    expect(posted[0].run_id).toBeUndefined();
+    expect(JSON.stringify(posted[0])).not.toContain('oncology');
+  });
+
+  it('ships in-page diagnostic events to the persisted log', async () => {
+    renderLayout();
+
+    fireEvent(
+      window,
+      new CustomEvent(DIAGNOSTIC_EVENT, {
+        detail: {
+          stage: 'LIFECYCLE',
+          runId: 'run-abc',
+          level: 'info',
           payload: {event: 'draft_created'},
         },
       }),
     );
 
-    expect(
-      await screen.findByRole('button', {name: /Logs 1/i}),
-    ).toBeInTheDocument();
-    expect(screen.getByText('Total 1')).toBeInTheDocument();
-    expect(screen.getByText('Success 1')).toBeInTheDocument();
-    expect(screen.getByText('Info 0')).toBeInTheDocument();
-    expect(screen.getByText('Runs 1')).toBeInTheDocument();
-    expect(screen.getByText(/"event": "draft_created"/)).toBeInTheDocument();
+    // The event is POSTed to the app-wide log rather than kept in memory,
+    // so it survives reloads and is visible to the CLI and other tabs.
+    await waitFor(() =>
+      expect(logsApiMock.postAppLogs).toHaveBeenCalledWith([
+        {
+          message: 'LIFECYCLE {"event":"draft_created"}',
+          level: 'info',
+          logger: 'session',
+          run_id: 'run-abc',
+        },
+      ]),
+    );
+  });
 
+  it('persists route navigation into the log', async () => {
+    renderLayout('/');
+
+    await waitFor(() =>
+      expect(logsApiMock.postAppLogs).toHaveBeenCalledWith([
+        {message: 'page loaded at /', logger: 'navigation'},
+      ]),
+    );
+  });
+
+  it('clears the persisted log from the Clear action', async () => {
+    logsApiMock.getAppLogs.mockResolvedValue({
+      logs: [
+        {
+          id: 1,
+          created_at: 1_700_000_000,
+          level: 'INFO',
+          levelno: 20,
+          logger: 'app.main',
+          message: 'server started',
+          run_id: null,
+          exc_text: null,
+        },
+      ],
+      last_id: 1,
+      total: 1,
+    });
+    renderLayout();
+
+    fireEvent.click(await screen.findByRole('button', {name: /Logs 1/i}));
+    expect(await screen.findByText(/server started/)).toBeInTheDocument();
+
+    logsApiMock.getAppLogs.mockResolvedValue({logs: [], last_id: 1, total: 0});
     fireEvent.click(screen.getByRole('button', {name: 'Clear'}));
-    expect(screen.getByRole('button', {name: /Logs 0/i})).toBeInTheDocument();
-    expect(
-      screen.getByText('No diagnostic events loaded.'),
-    ).toBeInTheDocument();
-    expect(screen.queryByText(/"event": "draft_created"/)).toBeNull();
 
-    fireEvent.pointerDown(screen.getByText('Workspace content'));
-    expect(screen.queryByText('Diagnostic Logs')).toBeNull();
+    // Clear deletes server-side, not just in this tab's memory.
+    await waitFor(() => expect(logsApiMock.deleteAppLogs).toHaveBeenCalled());
+    expect(
+      await screen.findByText('No diagnostic events loaded.'),
+    ).toBeInTheDocument();
+  });
+
+  it('copies only the newest 50 entries', async () => {
+    const many = Array.from({length: 60}, (_, index) => ({
+      id: index + 1,
+      created_at: 1_700_000_000 + index,
+      level: 'INFO',
+      levelno: 20,
+      logger: 'app.main',
+      message: `record ${index + 1}`,
+      run_id: null,
+      exc_text: null,
+    }));
+    logsApiMock.getAppLogs.mockResolvedValue({
+      logs: many,
+      last_id: 60,
+      total: 60,
+    });
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.assign(navigator, {clipboard: {writeText}});
+    renderLayout();
+
+    fireEvent.click(await screen.findByRole('button', {name: /Logs 60/i}));
+    fireEvent.click(screen.getByRole('button', {name: 'Copy'}));
+
+    await waitFor(() => expect(writeText).toHaveBeenCalled());
+    const copied = JSON.parse(writeText.mock.calls[0][0] as string);
+    expect(copied).toHaveLength(50);
+    // The newest tail, not the oldest head.
+    expect(copied[0].payload.message).toBe('record 11');
+    expect(copied[49].payload.message).toBe('record 60');
   });
 
   it('opens the Settings dialog from the menu and switches sections', async () => {
@@ -359,52 +476,475 @@ describe('Layout', () => {
     expect(screen.queryByRole('button', {name: 'More options'})).toBeNull();
   });
 
-  it('loads the persisted run timeline into the diagnostics popover', async () => {
-    apiMock.getRunEvents.mockResolvedValue([
-      {
-        seq: 1,
-        type: 'lifecycle',
-        payload: {event: 'created'},
-        created_at: 1_700_000_000,
-      },
-      {
-        seq: 2,
-        type: 'status',
-        payload: {status: 'failed', error: 'boom'},
-        created_at: 1_700_000_100,
-      },
-    ]);
+  it('shows the same app-wide log on a run route as on home', async () => {
+    logsApiMock.getAppLogs.mockResolvedValue({
+      logs: [
+        {
+          id: 41,
+          created_at: 1_700_000_000,
+          level: 'INFO',
+          levelno: 20,
+          logger: 'app.main',
+          message: 'server started',
+          run_id: null,
+          exc_text: null,
+        },
+      ],
+      last_id: 41,
+      total: 1,
+    });
     renderLayout('/runs/demo-ferroptosis/ideas');
 
-    fireEvent.click(screen.getByRole('button', {name: /Logs 0/i}));
+    fireEvent.click(await screen.findByRole('button', {name: /Logs 1/i}));
 
-    // The popover fetches the active run's persisted event log on open.
-    await waitFor(() =>
-      expect(apiMock.getRunEvents).toHaveBeenCalledWith('demo-ferroptosis'),
-    );
-    expect(await screen.findByText('lifecycle:')).toBeInTheDocument();
-    expect(screen.getByText(/"event": "created"/)).toBeInTheDocument();
-    // Terminal failures read as errors in the summary chips.
-    expect(screen.getByText('Total 2')).toBeInTheDocument();
-    expect(screen.getByText('Errors 1')).toBeInTheDocument();
-    expect(
-      await screen.findByRole('button', {name: /Logs 2/i}),
-    ).toBeInTheDocument();
-
-    // Clear drops only session entries; the persisted timeline remains.
-    fireEvent.click(screen.getByRole('button', {name: 'Clear'}));
-    expect(screen.getByText(/"event": "created"/)).toBeInTheDocument();
+    // Entering a run subpage must not swap the log for a run-scoped view:
+    // the panel is the app-wide stream everywhere.
+    expect(await screen.findByText(/server started/)).toBeInTheDocument();
+    expect(screen.getByText('#1')).toBeInTheDocument();
+    expect(apiMock.getRunEvents).not.toHaveBeenCalled();
   });
 
-  it('keeps the persisted timeline out of the popover on home routes', () => {
+  it('loads persisted backend logs into the diagnostics popover', async () => {
+    logsApiMock.getAppLogs.mockResolvedValue({
+      logs: [
+        {
+          id: 3,
+          created_at: 1_700_000_000,
+          level: 'ERROR',
+          levelno: 40,
+          logger: 'app.engine_adapter',
+          message: 'workflow exploded',
+          run_id: null,
+          exc_text: null,
+        },
+        {
+          id: 4,
+          created_at: 1_700_000_050,
+          level: 'INFO',
+          levelno: 20,
+          logger: 'app.runs',
+          message: 'run started',
+          run_id: 'run-12345678',
+          exc_text: null,
+        },
+      ],
+      last_id: 4,
+      total: 2,
+    });
     renderLayout('/');
 
     fireEvent.click(screen.getByRole('button', {name: /Logs 0/i}));
 
-    expect(apiMock.getRunEvents).not.toHaveBeenCalled();
+    // The popover fetches the app-wide persisted log on open, even with no
+    // run in scope (that is the point: capture is app-wide).
+    await waitFor(() => expect(logsApiMock.getAppLogs).toHaveBeenCalled());
+    expect(await screen.findByText('app.engine_adapter:')).toBeInTheDocument();
+    expect(screen.getByText(/workflow exploded/)).toBeInTheDocument();
+    // Records with no run id are attributed to the server itself.
+    expect(screen.getByText('Server')).toBeInTheDocument();
+    expect(screen.getByText('Run run-1234')).toBeInTheDocument();
+    // ERROR-level records count into the Errors chip.
+    expect(screen.getByText('Errors 1')).toBeInTheDocument();
+
+    // Clear drops only session entries; persisted backend logs remain.
+    fireEvent.click(screen.getByRole('button', {name: 'Clear'}));
+    expect(screen.getByText(/workflow exploded/)).toBeInTheDocument();
+  });
+
+  it('renumbers shown records consecutively, ignoring store id gaps', async () => {
+    // Store ids are global and include filtered-out noise, so a
+    // filtered view has holes (#12, #13, #30, #31) that read as failed
+    // renders. The panel numbers what it shows instead.
+    logsApiMock.getAppLogs.mockResolvedValue({
+      logs: [12, 13, 30, 31].map(id => ({
+        id,
+        created_at: 1_700_000_000 + id,
+        level: 'INFO',
+        levelno: 20,
+        logger: 'app.main',
+        message: `record ${id}`,
+        run_id: null,
+        exc_text: null,
+      })),
+      last_id: 33,
+      total: 4,
+    });
+    renderLayout();
+
+    fireEvent.click(await screen.findByRole('button', {name: /Logs 4/i}));
+    await screen.findByText(/record 12/);
+
+    const numbers = Array.from(
+      document.querySelectorAll('.ucs-diagnostic-entry-meta'),
+    ).map(el => el.querySelector('span')?.textContent);
+    expect(numbers).toEqual(['#1', '#2', '#3', '#4']);
+    // The badge is the newest row's number, so header and list agree.
+    expect(await screen.findByText('Total 4')).toBeInTheDocument();
+    expect(logsApiMock.getAppLogs).toHaveBeenCalledWith(0, 100);
+  });
+
+  it('numbers a capped window by position in the whole filtered stream', async () => {
+    // 250 records match the filter but only the newest 100 are fetched:
+    // those are records 151..250, not 1..100.
+    const logs = Array.from({length: 100}, (_, index) => ({
+      id: 1000 + index * 3,
+      created_at: 1_700_000_000 + index,
+      level: 'INFO',
+      levelno: 20,
+      logger: 'app.main',
+      message: `record ${index}`,
+      run_id: null,
+      exc_text: null,
+    }));
+    logsApiMock.getAppLogs.mockResolvedValue({
+      logs,
+      last_id: 5000,
+      total: 250,
+    });
+    renderLayout();
+
+    fireEvent.click(await screen.findByRole('button', {name: /Logs 250/i}));
+    await screen.findByText(/record 99/);
+
+    const metas = document.querySelectorAll('.ucs-diagnostic-entry-meta');
+    expect(metas[0].querySelector('span')?.textContent).toBe('#151');
+    expect(metas[99].querySelector('span')?.textContent).toBe('#250');
+  });
+
+  it('copies the real store ids, not the display numbers', async () => {
+    logsApiMock.getAppLogs.mockResolvedValue({
+      logs: [12, 30].map(id => ({
+        id,
+        created_at: 1_700_000_000 + id,
+        level: 'INFO',
+        levelno: 20,
+        logger: 'app.main',
+        message: `record ${id}`,
+        run_id: null,
+        exc_text: null,
+      })),
+      last_id: 33,
+      total: 2,
+    });
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.assign(navigator, {clipboard: {writeText}});
+    renderLayout();
+
+    fireEvent.click(await screen.findByRole('button', {name: /Logs 2/i}));
+    fireEvent.click(screen.getByRole('button', {name: 'Copy'}));
+
+    await waitFor(() => expect(writeText).toHaveBeenCalled());
+    const copied = JSON.parse(writeText.mock.calls[0][0] as string);
+    // Copy stays cross-referenceable with `cosci logs` and after_id
+    // cursors, which speak store ids.
+    expect(copied.map((e: {id: number}) => e.id)).toEqual([12, 30]);
+    expect(copied.map((e: {number: number}) => e.number)).toEqual([1, 2]);
+  });
+
+  it('never shows more than the 100 newest records', async () => {
+    // The fetch already asks for 100, but the panel enforces the cap
+    // itself too: even an oversized payload renders as the newest 100.
+    const many = Array.from({length: 120}, (_, index) => ({
+      id: index + 1,
+      created_at: 1_700_000_000 + index,
+      level: 'INFO',
+      levelno: 20,
+      logger: 'app.main',
+      message: `record ${index + 1}`,
+      run_id: null,
+      exc_text: null,
+    }));
+    logsApiMock.getAppLogs.mockResolvedValue({
+      logs: many,
+      last_id: 120,
+      total: 120,
+    });
+    const {container} = renderLayout();
+
+    fireEvent.click(await screen.findByRole('button', {name: /Logs 120/i}));
+    await screen.findByText(/record 120/);
+
+    const entries = container.querySelectorAll('.ucs-diagnostic-entry');
+    expect(entries).toHaveLength(100);
+    // The newest 100 (21..120), not the oldest.
+    expect(screen.queryByText(/record 20$/)).toBeNull();
+    expect(entries[0].textContent).toContain('#21');
+  });
+
+  it('ignores stale out-of-order log responses', async () => {
+    const payload = (id: number) => ({
+      logs: [
+        {
+          id,
+          created_at: 1_700_000_000 + id,
+          level: 'INFO',
+          levelno: 20,
+          logger: 'app.main',
+          message: `record ${id}`,
+          run_id: null,
+          exc_text: null,
+        },
+      ],
+      last_id: id,
+      total: id,
+    });
+    // Let the mount-time loads settle first — including the remount
+    // caused by the navigation-log version bump — so both racing
+    // requests below belong to the same effect generation (the
+    // `disposed` guard must not be what saves us).
+    renderLayout();
+    await waitFor(() =>
+      expect(logsApiMock.getAppLogs.mock.calls.length).toBeGreaterThanOrEqual(
+        2,
+      ),
+    );
+    await act(async () => {
+      // let the remounted effect finish its initial load
+    });
+
+    // The next request hangs (stale); the one after answers fresh. The
+    // stale response then arrives LAST and must be dropped.
+    let resolveStale: (value: unknown) => void = () => {};
+    const hanging = new Promise(resolve => {
+      resolveStale = resolve;
+    });
+    logsApiMock.getAppLogs
+      .mockReturnValueOnce(hanging)
+      .mockResolvedValue(payload(2));
+
+    const {APP_LOGS_CHANGED_EVENT} = await import('@/api/logs');
+    fireEvent(window, new Event(APP_LOGS_CHANGED_EVENT));
+    fireEvent(window, new Event(APP_LOGS_CHANGED_EVENT));
+    await screen.findByRole('button', {name: /Logs 2/i});
+
+    resolveStale(payload(1));
+    await act(async () => {
+      // give the stale response a real window to (wrongly) land
+      await new Promise(resolve => setTimeout(resolve, 20));
+    });
+    // The late stale response did not overwrite the fresher one.
+    expect(screen.queryByRole('button', {name: /Logs 1$/})).toBeNull();
+    expect(screen.getByRole('button', {name: /Logs 2/i})).toBeInTheDocument();
+  });
+
+  it('renders the message as plain text with the level in the meta row', async () => {
+    logsApiMock.getAppLogs.mockResolvedValue({
+      logs: [
+        {
+          id: 1,
+          created_at: 1_700_000_000,
+          level: 'INFO',
+          levelno: 20,
+          logger: 'app.main',
+          message: 'a long message that must wrap freely',
+          run_id: null,
+          exc_text: null,
+        },
+        {
+          id: 2,
+          created_at: 1_700_000_001,
+          level: 'ERROR',
+          levelno: 40,
+          logger: 'app.engine_adapter',
+          message: 'workflow exploded',
+          run_id: null,
+          exc_text: 'Traceback: boom',
+        },
+      ],
+      last_id: 2,
+      total: 2,
+    });
+    const {container} = renderLayout();
+
+    fireEvent.click(await screen.findByRole('button', {name: /Logs 2/i}));
+    await screen.findByText(/wrap freely/);
+
+    const blocks = container.querySelectorAll('.ucs-diagnostic-entry pre');
+    expect(blocks).toHaveLength(2);
+    // No JSON scaffolding: the block is the message itself, and a
+    // traceback follows on its own lines.
+    expect(blocks[0].textContent).toBe('a long message that must wrap freely');
+    expect(blocks[1].textContent).toBe('workflow exploded\n\nTraceback: boom');
+    // The level moved to the meta row instead of a payload field.
+    expect(screen.getByText('INFO')).toBeInTheDocument();
+    expect(screen.getByText('ERROR')).toBeInTheDocument();
+    // The block grows with its content: text wraps, nothing scrolls.
+    expect(blocks[0].className).toContain('whitespace-pre-wrap');
+    expect(blocks[0].className).not.toContain('overflow-auto');
+    expect(blocks[0].className).not.toContain('max-h');
+  });
+
+  it('does not jump to the end while the user is scrolled up', async () => {
+    const record = (id: number) => ({
+      id,
+      created_at: 1_700_000_000 + id,
+      level: 'INFO',
+      levelno: 20,
+      logger: 'app.main',
+      message: `record ${id}`,
+      run_id: null,
+      exc_text: null,
+    });
+    logsApiMock.getAppLogs.mockResolvedValue({
+      logs: [record(1), record(2)],
+      last_id: 2,
+      total: 2,
+    });
+    renderLayout();
+
+    fireEvent.click(await screen.findByRole('button', {name: /Logs 2/i}));
+    const list = await screen.findByLabelText('Log events');
+
+    // Simulate a scrollable list with the user scrolled well above the
+    // bottom (jsdom does no layout, so the geometry is stubbed).
+    Object.defineProperty(list, 'scrollHeight', {
+      configurable: true,
+      value: 1000,
+    });
+    Object.defineProperty(list, 'clientHeight', {
+      configurable: true,
+      value: 100,
+    });
+    list.scrollTop = 100;
+    fireEvent.scroll(list);
+
+    // New records arrive (an in-page event bumps the fetch version).
+    logsApiMock.getAppLogs.mockResolvedValue({
+      logs: [record(1), record(2), record(3)],
+      last_id: 3,
+      total: 3,
+    });
+    fireEvent(
+      window,
+      new CustomEvent(DIAGNOSTIC_EVENT, {
+        detail: {stage: 'LIFECYCLE', level: 'info', payload: {}},
+      }),
+    );
+    await screen.findByText(/record 3/);
+
+    // Reading position is preserved; only opening the popover jumps down.
+    expect(list.scrollTop).toBe(100);
+  });
+
+  it('keeps following the newest record at the window cap when pinned', async () => {
+    const record = (id: number) => ({
+      id,
+      created_at: 1_700_000_000 + id,
+      level: 'INFO',
+      levelno: 20,
+      logger: 'app.main',
+      message: `record ${id}`,
+      run_id: null,
+      exc_text: null,
+    });
+    logsApiMock.getAppLogs.mockResolvedValue({
+      logs: [record(1), record(2)],
+      last_id: 2,
+      total: 2,
+    });
+    renderLayout();
+
+    fireEvent.click(await screen.findByRole('button', {name: /Logs 2/i}));
+    const list = await screen.findByLabelText('Log events');
+
+    Object.defineProperty(list, 'scrollHeight', {
+      configurable: true,
+      value: 1000,
+    });
+    Object.defineProperty(list, 'clientHeight', {
+      configurable: true,
+      value: 100,
+    });
+    list.scrollTop = 900; // at the bottom: pinned
+    fireEvent.scroll(list);
+
+    // The window is at its cap: a new record replaces the oldest, so the
+    // entry COUNT stays the same and only the ids advance. Auto-follow
+    // must still fire for the pinned reader.
+    logsApiMock.getAppLogs.mockResolvedValue({
+      logs: [record(2), record(3)],
+      last_id: 3,
+      total: 3,
+    });
+    fireEvent(
+      window,
+      new CustomEvent(DIAGNOSTIC_EVENT, {
+        detail: {stage: 'LIFECYCLE', level: 'info', payload: {}},
+      }),
+    );
+    await screen.findByText(/record 3/);
+
+    // waitFor: the scroll happens in a passive effect after the render
+    // that findByText observed.
+    await waitFor(() => expect(list.scrollTop).toBe(1000));
+  });
+
+  it('refreshes the badge when the api announces a log change', async () => {
+    renderLayout();
+    await screen.findByRole('button', {name: /Logs 0/i});
+
+    // A client record was persisted somewhere (e.g. a button click was
+    // logged): the api layer announces it and the badge updates without
+    // the popover ever being opened.
+    logsApiMock.getAppLogs.mockResolvedValue({
+      logs: [
+        {
+          id: 7,
+          created_at: 1_700_000_007,
+          level: 'INFO',
+          levelno: 20,
+          logger: 'ui.interaction',
+          message: 'click: "Start" (button)',
+          run_id: null,
+          exc_text: null,
+        },
+      ],
+      last_id: 7,
+      total: 7,
+    });
+    const {APP_LOGS_CHANGED_EVENT} = await import('@/api/logs');
+    fireEvent(window, new Event(APP_LOGS_CHANGED_EVENT));
+
     expect(
-      screen.getByText('No diagnostic events loaded.'),
+      await screen.findByRole('button', {name: /Logs 7/i}),
     ).toBeInTheDocument();
+  });
+
+  it('keeps the badge fresh in the background while the popover is closed', async () => {
+    vi.useFakeTimers();
+    try {
+      renderLayout();
+      // Flush the initial mount-time loads.
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0);
+      });
+      expect(screen.getByRole('button', {name: /Logs 0/i})).toBeInTheDocument();
+
+      logsApiMock.getAppLogs.mockResolvedValue({
+        logs: [
+          {
+            id: 9,
+            created_at: 1_700_000_009,
+            level: 'INFO',
+            levelno: 20,
+            logger: 'app.main',
+            message: 'run finished',
+            run_id: null,
+            exc_text: null,
+          },
+        ],
+        last_id: 9,
+        total: 9,
+      });
+      // No popover open, no events: only the periodic background poll
+      // can pick up the new record.
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(5_000);
+      });
+      expect(screen.getByRole('button', {name: /Logs 9/i})).toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('shows the offline-mode status chip when /status reports the offline backend', async () => {

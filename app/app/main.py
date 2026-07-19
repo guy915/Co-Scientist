@@ -29,7 +29,13 @@ from app.auth import (
 )
 from app.config import settings
 from app.interviews import router as interviews_router
-from app.logging_setup import configure_logging
+from app.logging_setup import (
+    configure_log_capture,
+    configure_logging,
+    level_to_number,
+    shutdown_log_capture,
+)
+from app.logs_api import router as logs_router
 from app.run_modes import (
     DEFAULT_RUN_TIER,
     RUN_TIER_DEFAULTS,
@@ -45,6 +51,20 @@ from app.version import API_VERSION
 # LOG_FORMAT=json) with run-id tagging; see app/logging_setup.py. Root
 # stays at INFO to suppress DEBUG logs from dependencies (httpx, etc.).
 configure_logging(settings.log_format, level=logging.INFO)
+
+
+def _install_log_capture() -> None:
+    """Start persistent log capture per settings; no-op when disabled."""
+    if not settings.log_capture_enabled:
+        return
+    level = level_to_number(settings.log_capture_level) or logging.INFO
+    configure_log_capture(level=level, max_rows=settings.log_capture_max_rows)
+
+
+# Installed at import time so records emitted before the lifespan hook
+# (provider selection, MCP configuration) are captured too; the lifespan
+# re-installs on startup and drains on shutdown.
+_install_log_capture()
 # Set application loggers (viewer and co_scientist) to DEBUG if debug mode is
 # enabled
 logger = logging.getLogger(__name__)
@@ -80,7 +100,9 @@ async def lifespan(
     app: FastAPI,
 ) -> AsyncGenerator[None, None]:
     """Manages FastAPI application startup and shutdown."""
-    # Startup
+    # Startup. Re-install capture: a prior lifespan cycle (tests, reloads)
+    # may have drained and stopped the import-time pipeline.
+    _install_log_capture()
     logger.info("Starting Co-Scientist server...")
     # Install the deterministic offline LLM router unconditionally. It is a
     # harmless passthrough for real models -- only ``offline/``-prefixed calls
@@ -159,6 +181,8 @@ async def lifespan(
             await asyncio.gather(*recovery_workers, return_exceptions=True)
         # Shutdown
         logger.info("Shutting down Co-Scientist server...")
+        # Drain queued log records into the store before the WAL merge below.
+        shutdown_log_capture()
         # Merge the WAL into the main DB so a clean stop leaves no -wal sidecar.
         store.checkpoint_wal()
 
@@ -230,6 +254,7 @@ app.include_router(runs_router)
 app.include_router(interviews_router)
 app.include_router(shares_router)
 app.include_router(auth_router)
+app.include_router(logs_router)
 
 
 class HealthCheckResult(BaseModel):

@@ -1,6 +1,7 @@
 import type React from 'react';
 import type {ReactNode} from 'react';
 import {Component} from 'react';
+import {logUiError} from '@/lib/ui_logging';
 import {Icon} from './icon';
 
 interface ErrorBoundaryProps {
@@ -168,6 +169,12 @@ export class ErrorBoundary extends Component<
   // component stack for the collapsible details section.
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
     console.error('ErrorBoundary caught an error:', error, errorInfo);
+    // Also persist it: a render crash is exactly what someone debugging
+    // later needs to see in the app-wide log, not only in this console.
+    logUiError(
+      `render error: ${String(error)}`,
+      errorInfo.componentStack ?? undefined,
+    );
     this.setState({errorInfo});
   }
 

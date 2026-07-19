@@ -1,0 +1,89 @@
+// Persisted application-logs API client. Mirrors GET /api/logs in
+// app/logs_api.py: backend log records captured from the Python root
+// logger into the app_logs table, app-wide (run_id is null for records
+// emitted outside any run context).
+import {fetchJson} from './runs';
+
+/** One persisted backend log record. */
+export interface AppLogRecord {
+  id: number;
+  /** Unix seconds. */
+  created_at: number;
+  /** Level name: DEBUG | INFO | WARNING | ERROR | CRITICAL. */
+  level: string;
+  levelno: number;
+  /** Dotted name of the emitting Python logger. */
+  logger: string;
+  message: string;
+  run_id: string | null;
+  /** Formatted traceback text, when an exception was attached. */
+  exc_text: string | null;
+}
+
+/** The `/api/logs` response envelope. */
+export interface AppLogsPayload {
+  /** Matching records, oldest-first (the newest `limit` matches). */
+  logs: AppLogRecord[];
+  /** Table high-water mark; poll again with `after_id` set to this. */
+  last_id: number;
+  /** Size of the whole matching set, ignoring `after_id` and `limit`. */
+  total: number;
+}
+
+/**
+ * Fetches persisted backend log records, oldest-first.
+ *
+ * @param afterId Only records with an id greater than this.
+ * @param limit Maximum records returned (the newest matches). Defaults to
+ *   the server-side maximum so the popover window covers as much of the
+ *   log as one request allows.
+ */
+export function getAppLogs(afterId = 0, limit = 1000): Promise<AppLogsPayload> {
+  return fetchJson(`/api/logs?after_id=${afterId}&limit=${limit}`);
+}
+
+/**
+ * Window event fired after this module successfully changes the
+ * persisted log (a POST or a clear), so any open Logs panel or badge can
+ * refetch immediately instead of waiting for its next poll.
+ */
+export const APP_LOGS_CHANGED_EVENT = 'cosci-app-logs-changed';
+
+function announceAppLogsChanged(): void {
+  window.dispatchEvent(new Event(APP_LOGS_CHANGED_EVENT));
+}
+
+/** One frontend record for the ingestion endpoint (POST /api/logs). */
+export interface ClientLogRecord {
+  message: string;
+  /** Level name; unknown values fall back to INFO server-side. */
+  level?: string;
+  /** Logger suffix; persisted under the `ui.` namespace. */
+  logger?: string;
+  run_id?: string;
+}
+
+/** Persists frontend log records into the app-wide log. */
+export async function postAppLogs(
+  records: ClientLogRecord[],
+): Promise<{added: number; last_id: number}> {
+  const result = await fetchJson<{added: number; last_id: number}>(
+    '/api/logs',
+    {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({records}),
+    },
+  );
+  announceAppLogsChanged();
+  return result;
+}
+
+/** Deletes every persisted log record; returns the deleted count. */
+export async function deleteAppLogs(): Promise<{deleted: number}> {
+  const result = await fetchJson<{deleted: number}>('/api/logs', {
+    method: 'DELETE',
+  });
+  announceAppLogsChanged();
+  return result;
+}

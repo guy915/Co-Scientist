@@ -13,18 +13,23 @@ export type DiagnosticStage = 'LIFECYCLE' | 'CHAT';
  */
 export function emitDiagnosticEvent({
   stage,
-  run,
+  runId,
   level = 'info',
   payload = {},
 }: {
   stage: DiagnosticStage;
-  run?: string;
+  /**
+   * Real run id, when one exists. Deliberately not a title: this is
+   * persisted as the record's run_id and served over the logs API, so
+   * anything goal-derived here would publish research content.
+   */
+  runId?: string;
   level?: 'info' | 'success' | 'error';
   payload?: Record<string, unknown>;
 }) {
   window.dispatchEvent(
     new CustomEvent(DIAGNOSTIC_EVENT, {
-      detail: {stage, run, level, payload},
+      detail: {stage, runId, level, payload},
     }),
   );
 }

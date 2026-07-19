@@ -109,6 +109,8 @@ Tasks are mirrored under `[tool.pixi.tasks]` — `pixi run dev` etc. work identi
 | `safety.py` | Intake/final-output screening; the intake gate runs at the shared `run_workflow` boundary and the final gate in the shared `report_render.finalize_report` path, so both are shared across providers |
 | `run_modes.py` | Run tier/focus normalization + durable setup/config resolution |
 | `seed.py` | Startup demo run seeder |
+| `logging_setup.py` | Stdout logging + run-id correlation + persistent capture (root logger -> `app_logs` table via a queue/listener thread) |
+| `logs_api.py` | `GET /api/logs` and the filter/payload logic shared with `GET /api/runs/{id}/logs` |
 
 **Key endpoints**:
 
@@ -125,7 +127,37 @@ Run lifecycle (in `runs.py`, mounted at `/api/runs`) — **primary API used by t
 - `POST /api/runs/{id}/messages` — queue user steering message; `GET` to list.
 - `POST /api/runs/{id}/messages/ask` — Q&A with streaming LLM response (uses `chat_model_name` config).
 
+**Persisted logs** (`logs_api.py` + `logging_setup.py` + `store/logs.py`) — one app-wide, durable log in the SQLite `app_logs` table:
+
+- **Run stages**: every `run_events` row is mirrored into the log as a compact `app.run_stage` record (`store/events.py`), so a run's stage narrative — `lifecycle`, `safety.intake`, `supervisor.plan`, `literature_review`, `generate`, `reflection`, `proximity`, `ranking`, `evolve`, `meta_review`, `deep_verification`, `citation_audit`, `research_overview`, `report`, `status` — is readable from the Logs panel and `cosci logs --run <id>` rather than only over SSE. Payloads are summarized to `key=value` scalars (collections become their size, long strings are clipped, the line is capped at 200 chars): ~21 stage records per run instead of the full event bodies. Mirroring happens in the inner `_append_event`, so every event writer — including transactional ones — is covered, and it is best-effort — it can never fail an event write.
+- **What is captured**: every record reaching the Python root logger (app modules, `co_scientist` engine, store/database, MCP client, dependencies), *plus* uvicorn's non-propagating `uvicorn`/`uvicorn.access` loggers (HTTP requests and server errors), *plus* frontend records POSTed by the UI (namespaced `ui.*`: session diagnostic events, route navigation, uncaught JS errors, unhandled rejections, React render errors, and user interactions — clicks on interactive elements and form submissions as `ui.interaction` — via `lib/ui_logging.ts`). Access records for `/api/logs` itself are filtered out so polling the log cannot grow it.
+- **How**: a `QueueHandler` (run-id stamped) feeds a background `QueueListener` that writes rows and prunes to a cap; writes never block or raise into the caller. Settings: `log_capture_enabled` / `log_capture_level` / `log_capture_max_rows`. DEBUG records are only captured when the root logger also emits them (set `DEBUG=true` plus `log_capture_level=DEBUG`).
+- **Endpoints**: `GET /api/logs` (filters `after_id`/`limit`/`min_level`/`run_id`/`q`/`verbose`, plus a `last_id` polling cursor and a `total` matching-row count that ignores the window), `GET /api/runs/{id}/logs` (run-scoped view), `POST /api/logs` (client ingestion; batch ≤50, messages truncated to 2000 chars), `DELETE /api/logs` (clear all; ids restart at 1, and followers detect the reset by `last_id` dropping below their cursor — `cosci logs --follow` handles this automatically).
+- **Default view vs. full capture**: everything is captured, but the default read path (UI popover, `cosci logs`, `GET /api/logs`) hides high-volume noise below WARNING — `uvicorn.access` requests, `ui.interaction` clicks, `ui.navigation`, dependency loggers (`httpx`/`httpcore`/`urllib3`/`litellm`), and `co_scientist.mcp_client` availability probes; the `NOISE_LOGGERS` list lives in `logs_api.py`. WARNING+ records always show regardless of source. Opt into the full stream with `verbose=1` or `cosci logs --all` — coding agents should stay on the default view and reach for `--all` only when debugging request-level or interaction-level behavior, since the verbose stream grows by thousands of records per session.
+- **Access control**: the log carries other tenants' research goals and server internals, so reads and clears are scoped. Operators -- loopback callers (the local CLI/agents) or holders of `LOGS_ADMIN_TOKEN` via the `X-Logs-Token` header (`cosci logs --logs-token`, env `COSCIENTIST_LOGS_TOKEN`) -- get the app-wide view and a full clear. Every other caller sees only records it submitted plus records for runs it owns, and `DELETE` removes only those (leaving the shared id sequence alone). Un-owned server records are operator-only. Ingestion stays open because browsers must report their own errors, but records are stamped with the caller's client id, control characters are collapsed (a newline would otherwise forge lines in the CLI's tab-delimited output), and it is rate-limited per client (`LOGS_INGEST_PER_MINUTE`, 429 over the ceiling).
+- **Consumers**: `cosci logs` (`--run`/`--level`/`--grep`/`--follow`/`--clear`/`--all`) and the workbench Logs popover, which renders this single stream identically on every route (the newest 100 records, messages as plain text with the level in each entry's meta row; rows are renumbered consecutively by position in the filtered stream (store ids are global, so hidden noise would otherwise leave visible gaps like `#12, #13, #30`); the badge and Total chip carry that stream size, which is also the newest row's number, and Copy still emits real store ids alongside the display number so it stays cross-referenceable with `cosci logs`), jumps to the newest record on open but never while the user is scrolled up reading, copies the newest 50 as structured JSON, and whose Clear deletes server-side. The badge refreshes on a background poll plus a `cosci-app-logs-changed` window event fired by the api layer after every successful client POST/clear, so it stays current without opening the panel.
+
 A single `HypothesisGenerator` instance is constructed in the `lifespan` startup hook and reused across requests. Per-run overrides (`max_iterations`, `initial_hypotheses_count`, `evolution_max_count`) come from the request body. Every run executes on the real engine (`engine_adapter.select_provider()` always returns `"engine"`; the engine is a hard runtime dependency). Keyless runs and runs with `COSCIENTIST_FORCE_OFFLINE=1` set are pinned instead to the engine's deterministic offline LLM backend (`co_scientist.offline_llm`), which intercepts `litellm.acompletion` for `offline/`-prefixed models rather than calling a real provider.
+
+### CLI (`cosci`)
+
+`app/app/cli/` ships an operator CLI — console script `cosci`, also runnable as `python -m app.cli` — that drives the running API over HTTP. It is the intended way for terminal-based agents to exercise the app without the UI.
+
+Core loop:
+
+```bash
+cosci runs create "goal" --tier express --start   # create (+ start in one step)
+cosci runs wait <id>                              # poll until settled; exit code = outcome
+cosci runs report <id> --md                       # final report as Markdown
+```
+
+- **Commands**: `status`, `config`, `logs` (persisted backend logs: `--run`, `--level`, `--grep`, `--follow`); `runs list|demo|show|create|start|pause|resume|cancel|watch|wait|steer|ask` plus reads `hypotheses|evidence|reviews|citations|safety|matches|proximity|metrics|claim-evidence`.
+- **Exit codes**: `runs wait` encodes the outcome — 0 completed, 3 failed, 4 blocked, 5 cancelled, 6 paused, 124 `--max-wait` exceeded; every command uses 130 for Ctrl-C and 141 for a broken pipe.
+- **Global flags** (per subcommand): `--api-url` (env `COSCIENTIST_API_URL`), `--client-id` (env `COSCIENTIST_CLIENT_ID` — run listings are scoped by this header, so use a consistent id), `--timeout` (env `COSCIENTIST_TIMEOUT`), `--json` (raw API payloads), `--verbose` (request log on stderr).
+- Text arguments (`create` goal, `steer` message, `ask` question) accept `-` to read from stdin.
+- GETs retry transient failures (connect errors, 502/503/504); POSTs never retry. `runs watch` auto-reconnects a dropped SSE stream from the last seen `seq`.
+
+Tests live in `tests/test_cli_*.py`; `test_cli_commands.py` spins up a real mock-mode uvicorn server, so the whole suite runs offline.
 
 ### Frontend (`frontend/`)
 

@@ -99,8 +99,10 @@ def cli_server(tmp_path_factory: pytest.TempPathFactory) -> Iterator[str]:
             "127.0.0.1",
             "--port",
             str(port),
+            # INFO so uvicorn emits HTTP access records, which the log
+            # capture pipeline persists (asserted below).
             "--log-level",
-            "warning",
+            "info",
         ],
         cwd=str(home),
         env=env,
@@ -181,6 +183,18 @@ def _start(base: str, run_id: str, client_id: str) -> None:
         json_body={},
     )
     resp.raise_for_status()
+
+
+def _grep_logs(base: str, needle: str) -> bool:
+    """Return whether any persisted log message contains ``needle``.
+
+    Queries verbosely: these helpers verify capture, and high-volume
+    records are hidden from the default view.
+    """
+    response = _api(base, "GET", f"/api/logs?q={needle}&limit=200&verbose=1")
+    if response.status_code != 200:
+        return False
+    return bool(response.json().get("logs"))
 
 
 def _status(base: str, run_id: str, client_id: str) -> str:
@@ -417,6 +431,126 @@ def test_read_collection_text_and_json(
     data = json.loads(capsys.readouterr().out)
     assert isinstance(data[key], list)
     assert len(data[key]) == len(text_lines)
+
+
+@pytest.mark.parametrize(
+    ("command", "key"),
+    [
+        ("matches", "matches"),
+        ("proximity", "proximity"),
+        ("claim-evidence", "claim_evidence"),
+    ],
+)
+def test_new_read_collections_json(
+    completed_run: tuple[str, str, str],
+    capsys: pytest.CaptureFixture[str],
+    command: str,
+    key: str,
+) -> None:
+    base, run_id, client_id = completed_run
+    assert (
+        _invoke(base, "runs", command, run_id, "--json", client_id=client_id)
+        == 0
+    )
+    data = json.loads(capsys.readouterr().out)
+    assert isinstance(data[key], list)
+
+
+def test_metrics_text_output(
+    completed_run: tuple[str, str, str], capsys: pytest.CaptureFixture[str]
+) -> None:
+    base, run_id, client_id = completed_run
+    assert _invoke(base, "runs", "metrics", run_id, client_id=client_id) == 0
+    assert capsys.readouterr().out.strip()
+
+
+def test_wait_follows_run_to_completed(
+    cli_server: str, capsys: pytest.CaptureFixture[str]
+) -> None:
+    run_id = _create(cli_server, "wait-client", tier="express")
+    _start(cli_server, run_id, "wait-client")
+    assert (
+        _invoke(
+            cli_server,
+            "runs",
+            "wait",
+            run_id,
+            "--interval",
+            "0.2",
+            client_id="wait-client",
+        )
+        == 0
+    )
+    lines = capsys.readouterr().out.splitlines()
+    assert lines[-1] == f"{run_id}\tcompleted"
+
+
+def test_config_shows_defaults(
+    cli_server: str, capsys: pytest.CaptureFixture[str]
+) -> None:
+    assert _invoke(cli_server, "config") == 0
+    assert "max_iterations" in capsys.readouterr().out
+
+
+def test_logs_shows_captured_server_records(
+    cli_server: str, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """The server persists its own startup logs; `cosci logs` reads them."""
+    assert _invoke(cli_server, "logs", "--grep", "Starting Co-Scientist") == 0
+    out = capsys.readouterr().out
+    assert "Starting Co-Scientist server" in out
+    assert "INFO" in out
+
+
+def test_logs_capture_http_requests(
+    cli_server: str, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Uvicorn access records are captured against a real server.
+
+    Access records are noise: hidden from the default view, visible
+    with --all.
+    """
+    _api(cli_server, "GET", "/health").raise_for_status()
+    assert wait_for(lambda: _grep_logs(cli_server, "/health"), timeout=15.0), (
+        "no access log for /health was captured"
+    )
+    assert _invoke(cli_server, "logs", "--grep", "/health") == 0
+    assert "GET /health" not in capsys.readouterr().out
+    assert _invoke(cli_server, "logs", "--all", "--grep", "/health") == 0
+    assert "GET /health" in capsys.readouterr().out
+
+
+def test_logs_ingests_client_records_and_clears(
+    cli_server: str, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Round-trip client ingestion through the CLI.
+
+    UI-submitted records land in the same log the CLI reads, and --clear
+    empties it.
+    """
+    _api(
+        cli_server,
+        "POST",
+        "/api/logs",
+        json_body={
+            "records": [
+                {
+                    "message": "ui clicked run",
+                    "level": "info",
+                    "logger": "session",
+                }
+            ]
+        },
+    ).raise_for_status()
+    assert _invoke(cli_server, "logs", "--grep", "ui clicked run") == 0
+    out = capsys.readouterr().out
+    assert "ui clicked run" in out
+    assert "ui.session" in out  # namespaced as a client record
+
+    assert _invoke(cli_server, "logs", "--clear") == 0
+    assert "deleted" in capsys.readouterr().out
+    assert _invoke(cli_server, "logs", "--grep", "ui clicked run") == 0
+    assert "ui clicked run" not in capsys.readouterr().out
 
 
 # ---------------------------------------------------------------------------
