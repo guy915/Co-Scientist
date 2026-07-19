@@ -27,6 +27,7 @@ from app.store.checkpoints import (
     clear_checkpoints,
     get_latest_checkpoint,
     has_checkpoint,
+    prune_superseded_checkpoints,
     save_checkpoint,
 )
 from app.store.db import (
@@ -203,6 +204,7 @@ __all__ = [
     "mark_steering_applied",
     "pause_run_tasks",
     "prune_logs",
+    "prune_superseded_checkpoints",
     "read_report_markdown",
     "reconcile_interrupted_runs",
     "redact_hypothesis_fields",

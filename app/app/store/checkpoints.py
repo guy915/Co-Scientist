@@ -60,7 +60,24 @@ def save_checkpoint(
                 _now(),
             ),
         ).fetchone()
-    return int(row["seq"])
+        seq = int(row["seq"])
+        # Drop the checkpoints this one supersedes. get_latest_checkpoint is
+        # the only reader in the codebase, so any row below the newest seq is
+        # already unreachable -- nothing can load it again. Each envelope is a
+        # whole WorkflowState snapshot (hypotheses, reviews, literature, the
+        # injected audience context), so keeping the history cost hundreds of
+        # kilobytes per boundary crossed: in production it grew this table to
+        # 380 MB, 97% of the database, and filled the volume until every
+        # write failed with "database or disk is full". Pruning here keeps the
+        # table proportional to the number of runs rather than to the number
+        # of boundaries they cross. The newest row is always retained, so seq
+        # stays monotonic (it is assigned as MAX(seq) + 1) and resume,
+        # has_checkpoint, and the bootstrap's expected-seq assertions are all
+        # unaffected.
+        conn.execute(
+            "DELETE FROM checkpoints WHERE run_id=? AND seq<?", (run_id, seq)
+        )
+    return seq
 
 
 def get_latest_checkpoint(
@@ -103,6 +120,35 @@ def has_checkpoint(
             (run_id,),
         ).fetchone()
     return row is not None
+
+
+def prune_superseded_checkpoints(
+    db_path: str | None = None,
+    conn: sqlite3.Connection | None = None,
+) -> int:
+    """Delete every checkpoint that a newer one for the same run supersedes.
+
+    ``save_checkpoint`` now prunes as it writes, so this only has work to do
+    on a database written before that: it applies the same rule retroactively.
+    Each run keeps its newest checkpoint and loses the rest, which is exactly
+    the set ``get_latest_checkpoint`` could never return. Runs stay resumable.
+
+    Safe to call on every startup -- it is idempotent and a no-op once the
+    history is gone.
+
+    Args:
+        db_path: Optional override for the SQLite database path.
+        conn: Optional open connection to reuse.
+
+    Returns:
+        The number of superseded checkpoint rows deleted.
+    """
+    with _use_conn(conn, db_path) as conn:
+        cur = conn.execute(
+            "DELETE FROM checkpoints WHERE seq < (SELECT MAX(newer.seq) "
+            "FROM checkpoints AS newer WHERE newer.run_id = checkpoints.run_id)"
+        )
+        return int(cur.rowcount or 0)
 
 
 def clear_checkpoints(

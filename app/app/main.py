@@ -130,6 +130,17 @@ async def lifespan(
     # here at startup, once.
     engine_adapter.validate_tools_config(settings.tools_config)
 
+    # Reclaim checkpoint history written before save_checkpoint learned to
+    # prune. Only the newest checkpoint per run is ever loaded, so the rest is
+    # unreadable state that nonetheless filled the production volume until
+    # every write failed. Runs remain resumable: each keeps its newest.
+    superseded = store.prune_superseded_checkpoints()
+    if superseded:
+        logger.info(
+            "Pruned %s superseded checkpoint(s) no run could resume from",
+            superseded,
+        )
+
     # Reconcile runs left non-terminal by a previous process: a fresh process
     # has no workflow tasks running, so anything still queued/running was
     # interrupted by a crash or restart and would otherwise be stuck forever.
