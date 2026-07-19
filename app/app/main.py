@@ -3,6 +3,7 @@
 import asyncio
 import logging
 import os
+import sqlite3
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from typing import Any, cast
@@ -134,12 +135,24 @@ async def lifespan(
     # prune. Only the newest checkpoint per run is ever loaded, so the rest is
     # unreadable state that nonetheless filled the production volume until
     # every write failed. Runs remain resumable: each keeps its newest.
-    superseded = store.prune_superseded_checkpoints()
-    if superseded:
-        logger.info(
-            "Pruned %s superseded checkpoint(s) no run could resume from",
-            superseded,
+    # Never fatal. This is opportunistic housekeeping, and the disk-full state
+    # it exists to relieve is exactly the state in which a DELETE cannot get
+    # its journal written -- so the first deploy carrying this sweep crashed on
+    # boot against the very database it was meant to reclaim. Serving with a
+    # bloated table beats not serving at all.
+    try:
+        superseded = store.prune_superseded_checkpoints()
+    except sqlite3.Error:
+        logger.warning(
+            "Could not prune superseded checkpoints; continuing startup",
+            exc_info=True,
         )
+    else:
+        if superseded:
+            logger.info(
+                "Pruned %s superseded checkpoint(s) no run could resume from",
+                superseded,
+            )
 
     # Reconcile runs left non-terminal by a previous process: a fresh process
     # has no workflow tasks running, so anything still queued/running was
