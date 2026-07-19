@@ -67,6 +67,7 @@ from app import (
 )
 from app.audience import audience_chat_context
 from app.auth import client_id
+from app.config import settings
 from app.hypothesis_screening import screen_hypotheses
 from app.logs_api import logs_payload
 from app.runs_events import _event_stream
@@ -92,16 +93,23 @@ logger = logging.getLogger(__name__)
 _resume_tasks: set[asyncio.Task[None]] = set()
 router = APIRouter(prefix="/api/runs", tags=["runs"])
 
-# Per-tier cap on concurrently running runs for one client; heavier tiers get
-# a lower ceiling. "advanced" is retained for runs persisted during the
-# two-tier period (its envelope matches "ultra").
-_MODE_CONCURRENCY_LIMITS = {
-    "express": 3,
-    "standard": 3,
-    "extended": 2,
-    "ultra": 1,
-    "advanced": 1,
-}
+
+def _concurrency_limit(unused_mode: str) -> int:
+    """Return how many runs of a tier one client may have in flight.
+
+    Uniform across tiers. Heavier tiers were previously capped harder (ultra
+    at 1), which stopped a researcher from investigating two questions at
+    once -- precisely what the deep tiers are for -- and read as a global
+    restriction even though the quota has always been scoped per client.
+    Bounding provider spend is now the tier budget's job (max_llm_calls), so
+    this ceiling only has to stop one client queueing unboundedly.
+
+    Args:
+        unused_mode: The run tier; kept so the per-tier shape stays available
+            if a future tier genuinely needs its own ceiling.
+    """
+    return settings.max_concurrent_runs
+
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -337,7 +345,7 @@ async def start_run(
     run = _run_or_404(run_id)
     _check_startable(run)
     mode = str(run.profile)
-    limit = _MODE_CONCURRENCY_LIMITS.get(mode, 3)
+    limit = _concurrency_limit(mode)
     if not store.reserve_run_capacity(
         run_id,
         profile=mode,

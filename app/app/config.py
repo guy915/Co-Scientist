@@ -75,6 +75,14 @@ class Settings(BaseSettings):
     # (browsers must be able to report their own errors).
     logs_ingest_per_minute: int = 120
 
+    # How many runs one researcher may have in flight at once. Scoped per
+    # client, so one researcher's runs never consume another's allowance --
+    # concurrent users do not contend for this. It is a runaway guard, not a
+    # fairness mechanism: per-run spend is already bounded by the tier's
+    # max_llm_calls budget, so this only needs to stop one client from
+    # queueing an unbounded number of runs at once.
+    max_concurrent_runs: int = 10
+
     # /status availability probes: per-probe network timeout and how long
     # a probe pair's result is reused before re-probing the MCP server.
     status_probe_timeout_seconds: float = 3.0

@@ -12,6 +12,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app import store
+from app.config import settings
 from tests._client import make_client as _client
 from tests._client import wait_for_status as _wait_status
 
@@ -59,45 +60,41 @@ def test_create_run_rejects_unknown_tier() -> None:
     assert response.status_code == 422
 
 
-def test_standard_and_advanced_concurrency_limits(
+def test_concurrency_ceiling_is_uniform_and_per_client(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Server atomically enforces three Standard and one Advanced run."""
-    # The fixture supplies pytest.MonkeyPatch at runtime; keeping the test
-    # client worker disabled leaves queued rows occupying their durable slots.
+    """The ceiling applies per client and does not single out deep tiers.
+
+    Deep tiers were once capped harder (ultra at 1), which blocked a
+    researcher from running two deep investigations at once and read as a
+    global restriction. It has always been scoped per client; this pins both
+    halves -- one client's runs never consume another's allowance, and a
+    second ultra run is allowed.
+    """
     monkeypatch.setenv("COSCIENTIST_EMBEDDED_WORKER", "0")
+    monkeypatch.setattr(settings, "max_concurrent_runs", 2)
     client = _client()
-    headers = {"X-Client-ID": "quota-scientist"}
-    client.headers.update(headers)
 
-    standard_ids = [
-        client.post(
-            "/api/runs",
-            headers=headers,
-            json={"research_goal": f"Standard {index}", "tier": "standard"},
-        ).json()["id"]
-        for index in range(4)
-    ]
-    for run_id in standard_ids[:3]:
-        response = client.post(f"/api/runs/{run_id}/start", json={})
-        assert response.status_code == 200
-    blocked_standard = client.post(
-        f"/api/runs/{standard_ids[3]}/start", json={}
-    )
-    assert blocked_standard.status_code == 409
+    def start_runs(scientist: str, tier: str, count: int) -> list[int]:
+        headers = {"X-Client-ID": scientist}
+        codes = []
+        for index in range(count):
+            run_id = client.post(
+                "/api/runs",
+                headers=headers,
+                json={"research_goal": f"{tier} {index}", "tier": tier},
+            ).json()["id"]
+            codes.append(
+                client.post(
+                    f"/api/runs/{run_id}/start", headers=headers, json={}
+                ).status_code
+            )
+        return codes
 
-    advanced_ids = [
-        client.post(
-            "/api/runs",
-            headers=headers,
-            json={"research_goal": f"Advanced {index}", "tier": "ultra"},
-        ).json()["id"]
-        for index in range(2)
-    ]
-    first_advanced = client.post(f"/api/runs/{advanced_ids[0]}/start", json={})
-    second_advanced = client.post(f"/api/runs/{advanced_ids[1]}/start", json={})
-    assert first_advanced.status_code == 200
-    assert second_advanced.status_code == 409
+    # Two ultra runs at once is the case that used to 409 on the second.
+    assert start_runs("scientist-a", "ultra", 3) == [200, 200, 409]
+    # A different scientist is unaffected by the first one's full quota.
+    assert start_runs("scientist-b", "ultra", 1) == [200]
 
 
 def test_get_run_returns_404_for_unknown_id() -> None:
