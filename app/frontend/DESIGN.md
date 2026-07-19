@@ -279,7 +279,7 @@ components:
 
 ## Overview
 
-Co-Scientist is a Gemini Enterprise-style workbench for multi-agent idea development. The live surface is a single-page workbench: a chat workspace at `/` (greeting, composer, recents), a tabbed run detail at `/runs/:id/:tab` (Goal Details, Learning, Research Overview, All Ideas), a shared read-only goal report at `/shared/:token`, and a researcher-access page at `/access`. The earlier public surface — landing page, `/runs` dashboard, demo pages — was deliberately removed; do not reintroduce or style for it.
+Co-Scientist is a Gemini Enterprise-style workbench for multi-agent idea development. The live surface is a single-page workbench: a chat workspace at `/` (greeting, composer, recents), a tabbed run detail at `/runs/:id/:tab` (Goal Details, Learning, Research Overview, All Ideas), the proposals relationship graph at `/proposals` (with `/recommendations` redirecting there), a shared read-only goal report at `/shared/:token`, and a researcher-access page at `/access`. First visits pass through the AudienceGate, which opens the Settings dialog on its Affiliation section. The earlier public surface — landing page, `/runs` dashboard, demo pages — was deliberately removed; do not reintroduce or style for it.
 
 The visual language is **precise, neutral, and data-forward** — more Google product workspace than consumer app. Whitespace is generous but purposeful. Color is used sparingly and always semantically: teal/blue accents for primary actions, tonal containers for states, semantic tones for run outcomes. The palette adapts fluidly between light and dark modes through Material Design 3 dynamic color, not manual dark-mode overrides.
 
@@ -441,7 +441,7 @@ The composer submit button is none of these systems — it uses the mode-depende
 
 ### Composer
 
-The research-goal composer (`.reference-composer`) is a growing textarea inside a `rounded-[2rem]` shell with inline attachment, connector, and submit controls, plus an overlay gradient fade where content scrolls beneath it. Attachments render as `--cosci-attach-*` cards (image previews stay square with the filename in a tooltip). The **connectors menu** (`.reference-connectors-menu`, MD3 elevation-2) lists literature sources with per-connector **toggle switches** themed by the `--cosci-toggle-on/off-*` token pairs. The composer stays usable while the agent is answering.
+The research-goal composer (`.reference-composer`) is a growing textarea inside a `rounded-[2rem]` shell with inline attachment, connector, and submit controls, plus an overlay gradient fade where content scrolls beneath it. Attachments render as `--cosci-attach-*` cards (image previews stay square with the filename in a tooltip). The **connectors menu** (`.reference-connectors-menu`, MD3 elevation-2) lists literature sources — plus the **web search connector**, shown only when the backend advertises the tool — with per-connector **toggle switches** themed by the `--cosci-toggle-on/off-*` token pairs. The composer stays usable while the agent is answering.
 
 ### Chat & setup surface
 
@@ -460,9 +460,13 @@ The home surface centers the flask mark and greeting (display type, weight 400) 
 
 The All Ideas view (`ideas_tab.tsx` + `ideas_detail_pane.tsx`) is a desktop **split pane** (rank list left, detail pane right) that collapses to a master-detail flow on mobile. Rows carry Elo and rank chips plus an "unverified" caution chip; every surface in the tab is themed by the `--cosci-idea-*` token family in `reference_surface.css`. Detail-pane section headings use the display face at `2rem`.
 
+### Proposals graph
+
+The `/proposals` page renders a full-page static relationship graph of the system's agent/feature proposals: a pixel-laid-out canvas of nodes and colored edges fitted to the stage without scrolling, with two stackable corner legends (fully rounded chips) that toggle highlight filters, and a click-to-focus detail panel. Node/edge emphasis follows the relationships a node leads with. The page uses the `proposals-*` class family as page-scoped structural classes.
+
 ### Settings
 
-The rail's settings entry opens a `ucs-*` **menu popover** (`.ucs-popover--menu`, MD3 elevation-2) containing the **three-way theme segmented control** (`.ucs-theme-segment` / `.ucs-theme-button`: System / Light / Dark), and a centered **settings dialog** (`.ucs-settings-dialog`) with a section nav, card-based panels, field inputs, an FAQ accordion (`.ucs-faq-*`), and a `.ucs-settings-toast` for confirmations. Dialog and card titles use the display face (title-lg / title-sm). New preference UI belongs here, not in ad-hoc popovers.
+The rail's settings entry opens a `ucs-*` **menu popover** (`.ucs-popover--menu`, MD3 elevation-2) containing the **three-way theme segmented control** (`.ucs-theme-segment` / `.ucs-theme-button`: System / Light / Dark), and a centered **settings dialog** (`.ucs-settings-dialog`) with a section nav, card-based panels, field inputs, an FAQ accordion (`.ucs-faq-*`), and a `.ucs-settings-toast` for confirmations. The **Affiliation section** holds the audience picker (General / Google / SBI-UCD lab, radio option cards persisted client-side); the AudienceGate opens the dialog here on first visit. Dialog and card titles use the display face (title-lg / title-sm). New preference UI belongs here, not in ad-hoc popovers.
 
 ### Tabs (Run Detail)
 
@@ -470,7 +474,7 @@ A first-party `<nav>` of `<button>` tabs (`.reference-report-tabs`, `grid-cols-4
 
 ### Logs / Diagnostics
 
-A header **Logs pill** (filled with the mode accent — teal in light, mint in dark — plus an entry-count badge) opens a floating **popover panel** (`ucs-popover--logs`, MD3 elevation) listing live SSE diagnostics from the backend. Every color in the panel is a `--cosci-logs-*` token that **aliases a baseline token** — the accent from the step-dot pair, surfaces/borders/text from the neutral scale — so the panel re-themes with no dark overrides of its own. Status chips are filled (accent for ok, danger pair for errors); Clear/Copy actions are outlined in the accent; event payloads render in monospace on a `--cosci-logs-panel-bg` code block.
+A header **Logs pill** (filled with the mode accent — teal in light, mint in dark — plus an entry-count badge) opens a floating **popover panel** (`ucs-popover--logs`, MD3 elevation) rendering the **persisted app-wide log** (the backend's `app_logs` store): the newest 100 records with consecutive `#N` numbering, identical on every route, with a Total chip carrying the filtered-stream size. Clear deletes server-side; Copy serializes the newest 50 as JSON. The pill stays present in **every audience mode**, next to any audience-specific control (Google team note / SBI-UCD pilot guide, each on its own popover slot). Every color in the panel is a `--cosci-logs-*` token that **aliases a baseline token** — the accent from the step-dot pair, surfaces/borders/text from the neutral scale — so the panel re-themes with no dark overrides of its own. Status chips are filled (accent for ok, danger pair for errors); Clear/Copy actions are outlined in the accent; log messages render as plain text in monospace on a `--cosci-logs-panel-bg` code block.
 
 ### Tooltips
 
@@ -514,5 +518,5 @@ Empty placeholders use the shared `EmptyState` component (`components/empty_stat
 - **Don't** fold the `--cosci-*` product palette into the MD3 tokens, and don't use raw `--cosci-teal` / `--cosci-green` directly — use the accent role tokens (`--cosci-step-dot-bg`, `--cosci-composer-submit`, `--cosci-logo-color`) so light/dark swap correctly.
 - **Don't** give any element a `prefers-reduced-motion`-exempt animation; every transition must have the reduce escape.
 - **Don't** use more than two font weights on a single card or panel, and don't bold display headings — Google Sans display roles are weight 400.
-- **Don't** reintroduce status pills, phase-colored progress segments, dashboards, or landing/marketing surfaces — run status is communicated through activity text tones and the recents step flow.
+- **Don't** reintroduce status pills, phase-colored progress segments, dashboards, or landing/marketing surfaces — run status is communicated through activity text tones and the recents step flow. (The proposals graph's legend chips and the Logs panel's count chips are category/tally chips, not run-status pills; they are fine.)
 - **Don't** introduce new semantic colors without adding both light and dark hardcoded overrides to `index.css`.
