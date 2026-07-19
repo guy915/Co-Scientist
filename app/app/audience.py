@@ -3,6 +3,17 @@
 Only the ``sbi_ucd`` audience carries injected context today; the loader is
 written generically so adding another audience's file is a one-line change.
 The file is read once and cached, since it never changes at runtime.
+
+The bundled file is the group's own reference document, shipped verbatim and
+in full to every surface -- run planning, generation, reflection, evolution,
+meta-review, every tournament comparison, chat Q&A, and the goal interview.
+An earlier version of this module summarised that document into a short
+profile plus a longer reference and served the two to different surfaces.
+That is deliberately gone: the summary was written from a model's
+understanding of the group rather than from the document, so what reached a
+run was a paraphrase that dropped the people, the mathematics, and the
+collaborators. One file, served everywhere, is the only arrangement in which
+what the scientist wrote is what the model reads.
 """
 
 from __future__ import annotations
@@ -20,14 +31,6 @@ AUDIENCE_PATTERN: str = "^(general|google|sbi_ucd)$"
 # Audiences with a bundled context file, mapped to their filename under
 # ``content/``. Absent audiences contribute no context.
 _CONTEXT_FILES: dict[str, str] = {"sbi_ucd": "sbi_ucd_context.md"}
-
-# The deeper reference, loaded only where a single call can afford it. The
-# run pipeline cannot: run_setup_guidance reaches generation, reflection,
-# evolution, meta-review and every tournament comparison, and ranking is
-# roughly quadratic in the hypothesis count, so anything injected there is
-# paid for tens to hundreds of times per run. Chat answers one question per
-# call, and the questions are often definitional, so they take the long form.
-_REFERENCE_FILES: dict[str, str] = {"sbi_ucd": "sbi_ucd_reference.md"}
 
 _CONTENT_DIR = Path(__file__).parent / "content"
 
@@ -74,39 +77,19 @@ def audience_context(audience: str | None) -> str:
     return _load_context_file(filename)
 
 
-def audience_reference(audience: str | None) -> str:
-    """Return the extended reference for an audience, or empty when none.
-
-    This is the long form, for callers that make one LLM call rather than
-    one per hypothesis or per tournament match. Use `audience_context` for
-    anything on the run path.
-
-    Args:
-        audience: The self-declared audience value, possibly None or unknown.
-
-    Returns:
-        The audience's reference text, or an empty string when the audience
-        has no bundled reference (all but ``sbi_ucd`` today).
-    """
-    filename = _REFERENCE_FILES.get(audience or "")
-    if filename is None:
-        return ""
-    return _load_context_file(filename)
-
-
 def audience_chat_context(audience: str | None) -> str:
-    """Return the full background for chat: the profile plus the reference.
+    """Return the background for chat and the interview.
 
-    Chat is the one surface that makes a single LLM call per user question,
-    so it can afford both. Everything on the run path takes
-    `audience_context` alone.
+    An alias of `audience_context`, kept as its own name because the two call
+    sites mean different things: the run path asks for "the context", chat and
+    the interview ask for "everything we know about this group". Those were
+    once different texts. They are the same document now, and this name is
+    what keeps that a one-line change if they ever diverge again.
 
     Args:
         audience: The self-declared audience value, possibly None or unknown.
 
     Returns:
-        The profile and reference joined, either alone if only one exists,
-        or an empty string when the audience has neither.
+        The audience's context document, or an empty string when it has none.
     """
-    parts = [audience_context(audience), audience_reference(audience)]
-    return "\n\n".join(part for part in parts if part)
+    return audience_context(audience)

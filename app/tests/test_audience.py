@@ -1,73 +1,92 @@
-"""Tests for the audience context loader."""
+"""Tests for the audience context loader.
+
+The contract these pin changed deliberately. The loader used to serve a short
+hand-written profile to the run path and a longer reference to chat, both
+summarised from the group's document rather than taken from it. What reached
+a run was therefore a paraphrase that had dropped the group's people, its
+mathematics, and its collaborators. The document is now shipped verbatim and
+in full to every surface, so these tests assert fidelity rather than brevity.
+"""
 
 from __future__ import annotations
+
+from pathlib import Path
 
 from app import audience
 
 
-def test_sbi_ucd_returns_nonempty_context() -> None:
-    text = audience.audience_context("sbi_ucd")
-    assert "SBI" in text
-    assert len(text) > 0
+def _document() -> str:
+    """Read the bundled document straight from disk, bypassing the loader."""
+    path = Path(audience.__file__).parent / "content" / "sbi_ucd_context.md"
+    return path.read_text(encoding="utf-8")
+
+
+def test_context_is_the_document_verbatim() -> None:
+    """The scientist's document reaches the model unaltered.
+
+    This is the whole point of the loader: not "some context about SBI" but
+    exactly the text the group wrote. Any transformation -- summarising,
+    truncating, reformatting -- is the regression.
+    """
+    assert audience.audience_context("sbi_ucd") == _document().strip()
+
+
+def test_every_surface_gets_the_same_document() -> None:
+    """Chat, the interview, and the run path all read one source.
+
+    They were once served different texts, which is how a run could carry a
+    thinner briefing than a chat answer about the same group.
+    """
+    assert audience.audience_chat_context(
+        "sbi_ucd"
+    ) == audience.audience_context("sbi_ucd")
 
 
 def test_other_audiences_return_empty() -> None:
-    assert audience.audience_context("general") == ""
-    assert audience.audience_context("google") == ""
-    assert audience.audience_context(None) == ""
-    assert audience.audience_context("bogus") == ""
-    assert audience.audience_reference("general") == ""
-    assert audience.audience_reference(None) == ""
-    assert audience.audience_chat_context("google") == ""
+    for value in ("general", "google", None, "bogus"):
+        assert audience.audience_context(value) == ""
+        assert audience.audience_chat_context(value) == ""
 
 
-def test_run_path_context_stays_within_budget() -> None:
-    """The everywhere-tier stays small, because it is paid for per call.
+def test_document_carries_the_substance_the_summary_dropped() -> None:
+    """Guards the specific content a hand-written summary loses first.
 
-    audience_context rides run_setup_guidance into generation, reflection,
-    evolution, meta-review and every tournament comparison, and ranking is
-    roughly quadratic in the hypothesis count. Depth belongs in the
-    reference, which only chat loads. The bound is deliberately loose --
-    it catches someone pasting the full lab overview in here, not ordinary
-    editing.
+    Each of these was verifiably absent while the summary was shipping: the
+    team beyond the two PIs, the formal definitions behind the group's own
+    methods, the collaborators, and the institutional facts.
     """
     text = audience.audience_context("sbi_ucd")
-    assert len(text) < 4000, "run-path context has grown into a document"
-
-
-def test_chat_context_carries_the_reference_too() -> None:
-    """Chat is one call per question, so it gets profile plus reference."""
-    profile = audience.audience_context("sbi_ucd")
-    reference = audience.audience_reference("sbi_ucd")
-    combined = audience.audience_chat_context("sbi_ucd")
-    assert profile in combined
-    assert reference in combined
-    # The reference is the deeper of the two, and is chat-only.
-    assert len(reference) > len(profile)
-
-
-def test_maintainer_comments_do_not_reach_the_model() -> None:
-    """Both files open with an HTML comment aimed at whoever edits them.
-
-    It explains injection sites and token budgets -- noise in a prompt, and
-    confusing noise at that, since it discusses the cost of the very call it
-    would be riding in.
-    """
-    for text in (
-        audience.audience_context("sbi_ucd"),
-        audience.audience_reference("sbi_ucd"),
+    for person in ("Kolch", "Imoto", "Kashdan", "Sevrin", "Carmody", "Borodin"):
+        assert person in text, f"team member {person} missing from context"
+    for concept in (
+        "State Transition Vector",
+        "Dynamic Phenotype Descriptor",
+        "Modular Response Analysis",
+        "Bayesian",
     ):
-        assert "<!--" not in text
-        assert "token" not in text.split("\n")[0].lower()
-    # The prose survives the strip.
-    assert audience.audience_context("sbi_ucd").startswith("# Research")
+        assert concept in text, f"method {concept} missing from context"
+    for collaborator in ("Kramnik", "Schwartz", "Westerhoff"):
+        assert collaborator in text, f"collaborator {collaborator} missing"
+    assert "Science Foundation Ireland" in text
 
 
-def test_reference_defines_the_group_s_own_methods() -> None:
-    """A chat question about cSTAR/MRA vocabulary is answerable from it."""
-    reference = audience.audience_reference("sbi_ucd").lower()
-    for term in ("dynamic phenotype descriptor", "state transition vector"):
-        assert term in reference
+def test_document_keeps_its_mathematics() -> None:
+    """The formulae survive: they are why the reference exists at all."""
+    text = audience.audience_context("sbi_ucd")
+    assert "r_{ij}" in text
+    assert "\\mathbf{n}_s" in text
+
+
+def test_encoding_is_repaired() -> None:
+    """No mojibake reaches the prompt.
+
+    The source document arrived double-encoded (em dashes as 'a-euro-"'). It
+    is repaired on the way in, so the model reads punctuation rather than
+    escape soup.
+    """
+    text = audience.audience_context("sbi_ucd")
+    assert "â€”" not in text
+    assert "—" in text
 
 
 def test_pattern_and_values_exposed() -> None:
