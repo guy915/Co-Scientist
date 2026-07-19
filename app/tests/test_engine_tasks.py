@@ -1550,3 +1550,100 @@ async def test_generic_node_completion_emits_matching_milestone(
         if message.kind == "milestone"
     ]
     assert [message.content for message in milestones] == [expected_milestone]
+
+
+@pytest.mark.asyncio
+async def test_long_tournament_reports_progress_between_its_matches(
+    isolated_db: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A multi-match tournament emits periodic progress, not silence.
+
+    Each Elo match is its own durable task, so a long tournament used to run
+    for tens of minutes committing real work while emitting no event at all --
+    the live-activity feed showed a healthy run as frozen. Progress is emitted
+    on a cadence rather than per match so the feed (which renders only the
+    newest handful of events) still shows the surrounding phases.
+    """
+    run = store.create_run("Task-level science", "standard", "engine", {})
+    state = _task_state(run.id)
+    hypotheses = [
+        Hypothesis(
+            text=f"Mechanism {index} accelerates ATP recovery.",
+            literature_grounding=(
+                f"Mechanism {index} accelerates ATP recovery."
+            ),
+        )
+        for index in range(4)
+    ]
+    for hypothesis in hypotheses:
+        hypothesis.review_disposition = "viable"
+    state.update({"hypotheses": hypotheses, "tournament_pairs": 12})
+    checkpoint_seq = _seed_checkpoint(run.id, state)
+    store.enqueue_task(
+        run.id,
+        f"{engine_tasks.NODE_TASK_PREFIX}ranking",
+        {"checkpoint_seq": checkpoint_seq},
+        idempotency_key="ranking-node",
+        db_path=isolated_db,
+    )
+    generator = _Generator(state)
+    monkeypatch.setattr(
+        engine_tasks, "_generator_and_opts", lambda *_: (generator, {})
+    )
+    monkeypatch.setattr(
+        engine_tasks, "_generator_for_restore", lambda *_: generator
+    )
+
+    import co_scientist.agents.ranking.ranking as ranking_module
+
+    async def fake_judge(*_: Any, **kwargs: Any) -> tuple[str, dict[str, Any]]:
+        return "a", {
+            "decision_summary": "A is stronger",
+            "confidence_level": "high",
+            "debate_turns": int(kwargs["debate_turns"]),
+            "debate_transcript": [],
+            "judge_model": "fixture",
+        }
+
+    monkeypatch.setattr(ranking_module, "judge_matchup", fake_judge)
+    leased = store.claim_task("ranking", run_id=run.id, db_path=isolated_db)
+    assert leased is not None
+    scheduled = await engine_tasks.execute_node_task(
+        leased, db_path=isolated_db
+    )
+    assert store.complete_task(
+        leased.id, "ranking", scheduled, db_path=isolated_db
+    )
+    rounds = int(scheduled["tournament_rounds"])
+    assert rounds > engine_tasks.RANKING_PROGRESS_EVERY
+
+    matches = 0
+    while True:
+        match = store.claim_task(
+            f"match-{matches}", run_id=run.id, db_path=isolated_db
+        )
+        assert match is not None
+        if match.task_type != engine_tasks.RANKING_MATCH_TASK:
+            break
+        result = await engine_tasks.execute_ranking_match(
+            match, db_path=isolated_db
+        )
+        assert store.complete_task(
+            match.id, f"match-{matches}", result, db_path=isolated_db
+        )
+        matches += 1
+
+    events = store.list_events(run.id, db_path=isolated_db)
+    progress = [
+        e
+        for e in events
+        if e["payload"].get("task") == "ranking"
+        and e["payload"].get("status") == "running"
+    ]
+    # The tournament is no longer silent...
+    assert progress, "a long tournament emitted no progress at all"
+    # ...but it does not drown the feed either.
+    assert len(progress) < matches
+    assert progress[0]["payload"]["message"] == (
+        f"Tournament match {engine_tasks.RANKING_PROGRESS_EVERY} of {rounds}"
+    )

@@ -35,6 +35,13 @@ VERIFICATION_ITEM_TASK = "engine.fanout.verification.item"
 VERIFICATION_AGGREGATE_TASK = "engine.fanout.verification.aggregate"
 RANKING_MATCH_TASK = "engine.ranking.match"
 RANKING_FINALIZE_TASK = "engine.ranking.finalize"
+# Emit tournament progress every Nth match rather than once per match. A match
+# is its own durable task taking roughly a minute, so a full tournament runs
+# for tens of minutes; without this it committed real work the whole time and
+# emitted nothing, leaving the live-activity feed showing a healthy run as
+# frozen. Per-match events would fix the silence but flood the feed, which
+# renders only the newest handful of events and would lose every other phase.
+RANKING_PROGRESS_EVERY = 5
 GENERATION_STRATEGY_TASK = "engine.fanout.generation.strategy"
 GENERATION_AGGREGATE_TASK = "engine.fanout.generation.aggregate"
 MATURE_REFLECTION_ITEM_TASK = "engine.fanout.reflection.item"
@@ -1670,6 +1677,26 @@ async def execute_ranking_match(
         expected_checkpoint_seq=current_seq,
         db_path=db_path,
     )
+    # Placed after the commit, downstream of this function's replay/supersession
+    # guard, so a redelivered match never re-announces progress. The final match
+    # is left to the finalizer's own "completed" event rather than reported
+    # twice.
+    if (
+        pairing is not None
+        and next_index < rounds
+        and next_index % RANKING_PROGRESS_EVERY == 0
+    ):
+        emit = make_emitter(task.run_id, db_path=db_path)
+        await emit(
+            "scientific_task",
+            {
+                "task": "ranking",
+                "status": "running",
+                "checkpoint_seq": committed_seq,
+                "successor": None,
+                "message": f"Tournament match {next_index} of {rounds}",
+            },
+        )
     return {
         "checkpoint_seq": committed_seq,
         "successor_task_id": successor_id,
