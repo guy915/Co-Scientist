@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import time
 from typing import Any
 
 import pytest
@@ -485,3 +486,90 @@ def test_resume_does_not_rerun_completed_work(isolated_db: str) -> None:
     task_worker.enqueue_run_workflow(run.id, resume=True, db_path=isolated_db)
 
     assert not _queued(run.id, isolated_db)
+
+
+def test_resume_revives_a_lease_stranded_by_a_dead_worker(
+    isolated_db: str,
+) -> None:
+    """A resume rescues a boundary whose worker died holding it.
+
+    Regression, and the state production actually reached: the run's
+    engine.node.ranking task sat 'leased' by a process that no longer existed.
+    Every recovery path declined it -- claim_task requeues expired leases only
+    "unless their retry budget is spent", resume_run_tasks handles just
+    'paused', and the resume enqueue collided with the existing row. The run
+    announced "resuming from specialist checkpoint" on every restart for
+    hours and never leased a task.
+    """
+    run = store.create_run("stranded goal", "standard", "engine", {})
+    task_type = f"{engine_tasks.NODE_TASK_PREFIX}ranking"
+    store.save_checkpoint(
+        run.id,
+        stage="post_generation",
+        schema_version=1,
+        last_event_seq=1,
+        state={"resume_successor": task_type},
+        db_path=isolated_db,
+    )
+    task = store.enqueue_task(
+        run.id,
+        task_type,
+        {"checkpoint_seq": 1},
+        idempotency_key=f"{task_type}:1",
+        db_path=isolated_db,
+    )
+    with store.connect(isolated_db) as conn:
+        conn.execute(
+            "UPDATE scientific_tasks SET status='leased', lease_owner='dead', "
+            "lease_expires_at=?, attempt=max_attempts WHERE id=?",
+            (time.time() - 3600, task.id),
+        )
+    assert not _queued(run.id, isolated_db)
+
+    task_worker.enqueue_run_workflow(run.id, resume=True, db_path=isolated_db)
+
+    queued = _queued(run.id, isolated_db)
+    assert len(queued) == 1
+    assert queued[0].id == task.id
+    assert queued[0].attempt < queued[0].max_attempts
+
+
+def test_resume_leaves_a_live_lease_alone(isolated_db: str) -> None:
+    """A boundary another worker is actively running is not stolen.
+
+    Only an *expired* lease means its owner is gone. Reviving a live one
+    would run the same boundary twice concurrently.
+    """
+    run = store.create_run("busy goal", "standard", "engine", {})
+    task_type = f"{engine_tasks.NODE_TASK_PREFIX}ranking"
+    store.save_checkpoint(
+        run.id,
+        stage="post_generation",
+        schema_version=1,
+        last_event_seq=1,
+        state={"resume_successor": task_type},
+        db_path=isolated_db,
+    )
+    task = store.enqueue_task(
+        run.id,
+        task_type,
+        {"checkpoint_seq": 1},
+        idempotency_key=f"{task_type}:1",
+        db_path=isolated_db,
+    )
+    with store.connect(isolated_db) as conn:
+        conn.execute(
+            "UPDATE scientific_tasks SET status='leased', lease_owner='alive', "
+            "lease_expires_at=? WHERE id=?",
+            (time.time() + 3600, task.id),
+        )
+
+    task_worker.enqueue_run_workflow(run.id, resume=True, db_path=isolated_db)
+
+    assert not _queued(run.id, isolated_db)
+    with store.connect(isolated_db) as conn:
+        row = conn.execute(
+            "SELECT status, lease_owner FROM scientific_tasks WHERE id=?",
+            (task.id,),
+        ).fetchone()
+    assert (row["status"], row["lease_owner"]) == ("leased", "alive")
