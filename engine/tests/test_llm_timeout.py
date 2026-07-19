@@ -12,7 +12,7 @@ from typing import Any
 import litellm
 import pytest
 
-from co_scientist import llm, llm_request
+from co_scientist import llm, llm_json_retry, llm_request
 from co_scientist.exceptions import LLMTimeoutError
 
 
@@ -137,3 +137,98 @@ async def test_generic_failure_is_still_retried(
             use_cache=False,
         )
     assert calls == 3, "generic failures must still exhaust retries"
+
+
+class _ProviderRateLimitError(Exception):
+    """Stands in for a provider SDK's throttling error.
+
+    Named to match what litellm raises, since detection is structural: the
+    engine must back off for any provider's throttling class, not just one
+    it imported.
+    """
+
+
+async def test_rate_limited_retry_waits_before_trying_again(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A throttled call backs off instead of immediately firing again.
+
+    DashScope rejects bursts with "Request rate increased too quickly ...
+    scale requests more smoothly over time" -- a ramp limiter, not a QPS
+    ceiling. The retry loop was built for schema failures, where an immediate
+    retry with corrective feedback is right; routing throttling through the
+    same path made the client answer "slow down" by retrying at once, feeding
+    the burst that caused the throttle.
+    """
+    slept: list[float] = []
+
+    async def fake_sleep(seconds: float) -> None:
+        slept.append(seconds)
+
+    monkeypatch.setattr("co_scientist.llm_json_retry.asyncio.sleep", fake_sleep)
+    calls = 0
+
+    async def throttled(**_kwargs: Any) -> Any:
+        nonlocal calls
+        calls += 1
+        raise _ProviderRateLimitError(
+            "RateLimitError: DashscopeException - Request rate increased "
+            "too quickly."
+        )
+
+    monkeypatch.setattr(litellm, "acompletion", throttled)
+
+    with pytest.raises(_ProviderRateLimitError):
+        await llm.call_llm_json(
+            "prompt",
+            "deepseek/deepseek-v4-flash",
+            max_attempts=3,
+            use_cache=False,
+        )
+    assert calls == 3, "throttling stays retryable"
+    assert len(slept) == 2, "every retry but the last waits first"
+    assert slept[0] > 0
+    assert slept[1] > slept[0], "the wait grows with each attempt"
+
+
+async def test_rate_limit_backoff_is_jittered(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Concurrent throttled callers must not retry in lockstep.
+
+    Without jitter, N callers throttled by the same burst all wait the same
+    interval and resume together, reproducing the burst exactly. The spread
+    is what actually smooths the ramp.
+    """
+    waits = {llm_json_retry._rate_limit_backoff_seconds(1) for _ in range(40)}
+    assert len(waits) > 1, "identical waits would re-synchronize the burst"
+
+
+async def test_schema_failure_still_retries_without_waiting(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Backoff is scoped to throttling; a bad payload retries immediately."""
+    slept: list[float] = []
+
+    async def fake_sleep(seconds: float) -> None:
+        slept.append(seconds)
+
+    monkeypatch.setattr("co_scientist.llm_json_retry.asyncio.sleep", fake_sleep)
+    calls = 0
+
+    async def failing(**_kwargs: Any) -> Any:
+        nonlocal calls
+        calls += 1
+        raise ValueError("provider rejected the request")
+
+    monkeypatch.setattr(litellm, "acompletion", failing)
+
+    with pytest.raises(ValueError):
+        await llm.call_llm_json(
+            "prompt",
+            "deepseek/deepseek-v4-flash",
+            max_attempts=3,
+            use_cache=False,
+        )
+    assert calls == 3
+    assert slept == [], "only throttling should slow the retry loop"

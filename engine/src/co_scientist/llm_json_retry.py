@@ -9,8 +9,10 @@ raw LLM call itself is injected by ``co_scientist.llm.call_llm_json`` as the
 the ``call_llm`` seam keeps resolving through ``co_scientist.llm``.
 """
 
+import asyncio
 import json
 import logging
+import random
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from typing import Any
@@ -28,6 +30,35 @@ from co_scientist.llm_json_repair import attempt_json_repair
 from co_scientist.llm_request import _supports_json_schema_response_format
 
 logger = logging.getLogger(__name__)
+
+# Base seconds for the throttled-retry wait; attempt N waits roughly
+# BASE * 2^(N-1), jittered.
+_RATE_LIMIT_BACKOFF_BASE_SECONDS = 2.0
+
+
+def _is_rate_limited(error: Exception) -> bool:
+    """Return whether a provider error is a throttling response.
+
+    Matched structurally (litellm raises ``RateLimitError`` for every
+    provider) with a message fallback, so a provider whose SDK surfaces the
+    condition as a generic error still backs off rather than hammering.
+    """
+    if type(error).__name__ == "RateLimitError":
+        return True
+    text = str(error).lower()
+    return "rate limit" in text or "ratelimit" in text
+
+
+def _rate_limit_backoff_seconds(attempt: int) -> float:
+    """Return the jittered wait before retrying a throttled attempt.
+
+    The jitter matters more than the growth: a burst throttles many callers
+    at once, and an unjittered wait would release all of them simultaneously,
+    reproducing the burst that caused the throttle. Spreading them is what
+    actually smooths the ramp the provider is asking for.
+    """
+    ceiling = _RATE_LIMIT_BACKOFF_BASE_SECONDS * (2 ** (attempt - 1))
+    return float(ceiling * (0.5 + random.random() / 2))
 
 
 @dataclass
@@ -367,6 +398,18 @@ async def _run_json_attempt(
         logger.error("LLM call failed on attempt %s: %s", attempt, e)
         if is_final_attempt:
             raise
+        if _is_rate_limited(e):
+            # Unlike a schema failure -- where the next attempt carries
+            # corrective feedback and should go out at once -- throttling is
+            # answered by waiting. Retrying a throttled call immediately feeds
+            # the burst that caused it.
+            delay = _rate_limit_backoff_seconds(attempt)
+            logger.warning(
+                "Rate limited on attempt %s; waiting %.1fs before retrying",
+                attempt,
+                delay,
+            )
+            await asyncio.sleep(delay)
         return _JsonAttemptOutcome(
             value=None, error=e, response_text=None, next_prompt=None
         )
