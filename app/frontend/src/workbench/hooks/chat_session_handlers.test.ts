@@ -62,6 +62,7 @@ function makeDeps(overrides: Partial<HandlerDeps> = {}): HandlerDeps {
     pubmedEnabled: true,
     webSearchEnabled: true,
     paperCorpusEnabled: true,
+    audience: null,
     ...overrides,
   };
 }
@@ -75,14 +76,35 @@ describe('buildChatHandlers', () => {
 
     await handlers.handleSubmit({preventDefault: vi.fn()} as never);
 
-    // The trailing sink is how the turn's live reasoning reaches the UI.
+    // The trailing sink is how the turn's live reasoning reaches the UI, and
+    // the audience rides along so the Agent is briefed on the scientist's
+    // group; undefined here because this fixture declares no audience.
     expect(createInterview).toHaveBeenCalledWith(
       'Study liver fibrosis',
       expect.any(Function),
+      undefined,
     );
     expect(deps.setInterview).toHaveBeenCalledWith(interview);
     expect(deps.stageDraftSpec).not.toHaveBeenCalled();
     expect(deps.setMessages).toHaveBeenCalledTimes(2);
+  });
+
+  it('conducts the interview under the declared audience', async () => {
+    // Regression: the interview was the one conversational surface that never
+    // received the audience, so in SBI mode the Agent denied knowing the lab
+    // it was supposedly briefed on.
+    vi.mocked(createInterview).mockResolvedValue(makeInterview());
+    const deps = makeDeps({input: 'Study liver fibrosis', audience: 'sbi_ucd'});
+
+    await buildChatHandlers(deps).handleSubmit({
+      preventDefault: vi.fn(),
+    } as never);
+
+    expect(createInterview).toHaveBeenCalledWith(
+      'Study liver fibrosis',
+      expect.any(Function),
+      'sbi_ucd',
+    );
   });
 
   it('stages only a completed persisted interview derivation', async () => {

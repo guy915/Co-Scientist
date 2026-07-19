@@ -1,6 +1,7 @@
 import {type Dispatch, type SetStateAction} from 'react';
 import {type InferredRunSpec} from '../run_spec';
 import {type Interview} from '@/api/runs';
+import {type Audience} from '../audience_context';
 import {
   type ChatEntry,
   type StartedSession,
@@ -28,6 +29,7 @@ export interface ChatSessionDeps {
   pubmedEnabled: boolean;
   webSearchEnabled: boolean;
   paperCorpusEnabled: boolean;
+  audience: Audience | null;
 }
 
 /**
@@ -85,4 +87,5 @@ export interface HandlerDeps {
   pubmedEnabled: boolean;
   webSearchEnabled: boolean;
   paperCorpusEnabled: boolean;
+  audience: Audience | null;
 }

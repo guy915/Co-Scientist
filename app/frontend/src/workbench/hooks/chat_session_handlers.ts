@@ -1,6 +1,7 @@
 import {type Dispatch, type FormEvent, type SetStateAction} from 'react';
 import {addInterviewTurn, createInterview, type Interview} from '@/api/runs';
 import {interviewToRunSpec, type InferredRunSpec} from '../run_spec';
+import {type Audience} from '../audience_context';
 import {copyText} from '@/lib/clipboard';
 import {type ChatEntry} from '../pages/chat_timeline_cards';
 import {type ToastState} from './use_toast';
@@ -21,6 +22,7 @@ async function submitComposerMessage({
   files,
   input,
   interview,
+  audience,
   setInput,
   setError,
   setToast,
@@ -36,6 +38,7 @@ async function submitComposerMessage({
   files: File[];
   input: string;
   interview: Interview | null;
+  audience: Audience | null;
   setInput: (value: string) => void;
   setError: (message: string | null) => void;
   setToast: (value: string | ToastState | null) => void;
@@ -71,7 +74,7 @@ async function submitComposerMessage({
   try {
     const updated = interview
       ? await addInterviewTurn(interview.id, text, onReasoning)
-      : await createInterview(text, onReasoning);
+      : await createInterview(text, onReasoning, audience ?? undefined);
     setInterview(updated);
     const agentTurn = [...updated.turns]
       .reverse()
@@ -295,5 +298,6 @@ export function toHandlerDeps(
     pubmedEnabled: view.pubmedEnabled,
     webSearchEnabled: view.webSearchEnabled,
     paperCorpusEnabled: view.paperCorpusEnabled,
+    audience: view.audience,
   };
 }

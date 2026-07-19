@@ -15,9 +15,21 @@ def create_interview(
     client_id: str,
     challenge: str,
     *,
+    audience: str | None = None,
     db_path: str | None = None,
 ) -> dict[str, Any]:
-    """Create an active interview seeded with the scientist's challenge."""
+    """Create an active interview seeded with the scientist's challenge.
+
+    Args:
+        client_id: The owning client.
+        challenge: The scientist's opening research challenge.
+        audience: The self-declared audience, stored so every turn of this
+            interview is conducted with the same injected lab context.
+        db_path: Optional database override.
+
+    Returns:
+        The created interview row.
+    """
     interview_id = str(uuid.uuid4())
     now = _now()
     fields: dict[str, Any] = {
@@ -29,12 +41,13 @@ def create_interview(
     with connect(db_path) as conn:
         conn.execute(
             "INSERT INTO interviews (id, client_id, status, fields_json, "
-            "created_at, updated_at) VALUES (?,?,?,?,?,?)",
+            "audience, created_at, updated_at) VALUES (?,?,?,?,?,?,?)",
             (
                 interview_id,
                 client_id,
                 "active",
                 json.dumps(fields),
+                audience,
                 now,
                 now,
             ),

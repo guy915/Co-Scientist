@@ -47,6 +47,7 @@ function makeDeps() {
     pubmedEnabled: true,
     webSearchEnabled: true,
     paperCorpusEnabled: true,
+    audience: null,
   };
 }
 

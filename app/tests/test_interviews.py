@@ -463,3 +463,71 @@ def test_interview_remains_usable_during_model_outage(
         "preferences": ["Use human organoids and exclude animal work."],
         "title": None,
     }
+
+
+async def test_interview_carries_audience_lab_context(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The SBI/UCD interview is briefed on the group it is interviewing.
+
+    Regression: the interview is the first surface a scientist talks to, but
+    it was the only conversational surface that never received the audience
+    context. Asking the Agent "what do you know about SBI?" in SBI mode had
+    it deny knowing the lab, while the in-run Q&A answered the same question
+    fine.
+    """
+    import json
+
+    import litellm
+
+    captured: dict[str, Any] = {}
+
+    async def _fake_acompletion(**kwargs: Any) -> Any:
+        captured.update(kwargs)
+        return _fake_stream(json.dumps(_response("Which mechanism?")))
+
+    monkeypatch.setattr(litellm, "acompletion", _fake_acompletion)
+
+    interview = {
+        "turns": [{"role": "user", "content": "resistance mechanisms"}],
+        "fields": {},
+        "audience": "sbi_ucd",
+    }
+    await interviews._call_interview_model(interview)
+
+    system = next(
+        m["content"] for m in captured["messages"] if m["role"] == "system"
+    )
+    assert "Systems Biology Ireland" in system
+    # The group's own papers ride along too, so the Agent can speak to them.
+    assert "paper_id" in system
+
+
+async def test_interview_without_audience_is_unchanged(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A general-audience interview gets no injected lab context."""
+    import json
+
+    import litellm
+
+    captured: dict[str, Any] = {}
+
+    async def _fake_acompletion(**kwargs: Any) -> Any:
+        captured.update(kwargs)
+        return _fake_stream(json.dumps(_response("Which mechanism?")))
+
+    monkeypatch.setattr(litellm, "acompletion", _fake_acompletion)
+
+    interview = {
+        "turns": [{"role": "user", "content": "resistance mechanisms"}],
+        "fields": {},
+        "audience": "general",
+    }
+    await interviews._call_interview_model(interview)
+
+    system = next(
+        m["content"] for m in captured["messages"] if m["role"] == "system"
+    )
+    assert "Systems Biology Ireland" not in system
+    assert "paper_id" not in system

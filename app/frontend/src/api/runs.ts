@@ -297,14 +297,21 @@ async function streamInterviewTurn(
   return interview;
 }
 
-/** Starts a durable model-driven research-goal interview. */
+/**
+ * Starts a durable model-driven research-goal interview.
+ *
+ * The audience is sent once, at creation: the server stores it on the
+ * interview so every later turn is conducted with the same lab context,
+ * which is also what lets the Agent answer questions about the group.
+ */
 export async function createInterview(
   researchChallenge: string,
   onReasoning?: (fragment: string) => void,
+  audience?: 'general' | 'google' | 'sbi_ucd',
 ): Promise<Interview> {
   return streamInterviewTurn(
     '/api/interviews',
-    {research_challenge: researchChallenge},
+    {research_challenge: researchChallenge, audience},
     onReasoning,
   );
 }

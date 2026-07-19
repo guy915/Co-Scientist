@@ -211,6 +211,11 @@ def _run_migrations(conn: sqlite3.Connection) -> None:
         )
     # DB-durable copy of the rendered report, independent of the on-disk file.
     _add_column_if_missing(conn, "reports", "markdown_text", "TEXT")
+    # The audience that opened the interview, so its every turn can carry the
+    # same injected lab context the in-run Q&A gets. Persisted rather than
+    # taken per turn: the interview is durable and resumable, and a resumed
+    # one must not silently change which context it was conducted under.
+    _add_column_if_missing(conn, "interviews", "audience", "TEXT")
     # Structured metadata (e.g. Q&A cited sources) alongside message text.
     _add_column_if_missing(conn, "messages", "meta_json", "TEXT")
     # Short classification label surfaced as a breadcrumb in the viewer.

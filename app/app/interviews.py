@@ -12,7 +12,8 @@ from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
-from app import store
+from app import paper_corpus, store
+from app.audience import AUDIENCE_PATTERN, audience_chat_context
 from app.auth import client_id
 from app.config import deepseek_thinking_kwargs, settings
 from app.qa import sse_frame
@@ -68,10 +69,49 @@ _SYSTEM_PROMPT = (
 )
 
 
+def _system_prompt(interview: dict[str, Any]) -> str:
+    """Return the system prompt, carrying the audience's lab context.
+
+    The interview is the first surface a scientist talks to, so it needs the
+    same background the in-run Q&A gets (see runs.ask_question); without it
+    the Agent cannot answer "what do you know about my group?" and denies
+    knowing the lab it is supposedly briefed on. The long-form reference is
+    used for the same reason chat uses it: one call per turn, so the cost is
+    paid once rather than per tournament comparison.
+
+    Args:
+        interview: The interview row, whose stored audience selects context.
+
+    Returns:
+        The system prompt, with lab context and paper catalog appended when
+        the audience has them, and unchanged otherwise.
+    """
+    audience = interview.get("audience")
+    blocks = [
+        block
+        for block in (
+            audience_chat_context(audience),
+            paper_corpus.catalog_context(audience),
+        )
+        if block.strip()
+    ]
+    if not blocks:
+        return _SYSTEM_PROMPT
+    joined = "\n\n".join(blocks)
+    return (
+        f"{_SYSTEM_PROMPT}\n\n"
+        "The following describes the scientist's own group and its published "
+        "work. Use it to ask better-targeted questions and to answer "
+        "questions about the group; do not treat it as the research goal.\n\n"
+        f"{joined}"
+    )
+
+
 class CreateInterviewRequest(BaseModel):
     """Initial scientist challenge for a new interview."""
 
     research_challenge: str = Field(..., min_length=1, max_length=20_000)
+    audience: str | None = Field(None, pattern=AUDIENCE_PATTERN)
 
 
 class InterviewTurnRequest(BaseModel):
@@ -175,7 +215,7 @@ def _interview_request(interview: dict[str, Any]) -> tuple[str, Any, Any]:
         return (
             model,
             [
-                {"role": "system", "content": _SYSTEM_PROMPT},
+                {"role": "system", "content": _system_prompt(interview)},
                 {"role": "user", "content": user_prompt},
             ],
             {"type": "json_schema", "json_schema": _RESPONSE_SCHEMA},
@@ -187,7 +227,7 @@ def _interview_request(interview: dict[str, Any]) -> tuple[str, Any, Any]:
     return (
         model,
         [
-            {"role": "system", "content": _SYSTEM_PROMPT},
+            {"role": "system", "content": _system_prompt(interview)},
             {
                 "role": "user",
                 "content": _inject_schema_into_prompt(
@@ -433,7 +473,9 @@ async def create_interview(
 ) -> StreamingResponse:
     """Start a durable Agent interview and stream its opening turn."""
     interview = store.create_interview(
-        client_id(request), body.research_challenge
+        client_id(request),
+        body.research_challenge,
+        audience=body.audience,
     )
     return _interview_stream(str(interview["id"]))
 

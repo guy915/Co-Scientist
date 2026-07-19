@@ -2,6 +2,7 @@ import {useCallback, useEffect, useState} from 'react';
 import {createPortal} from 'react-dom';
 import {useLocation, useNavigate} from 'react-router-dom';
 import {conciseTitle} from '@/lib/text';
+import {useAudience} from '../audience_context';
 import {HEADER_TITLE_EVENT, NEW_CHAT_EVENT} from '../dom_events';
 import {useToast, type ToastState} from '../hooks/use_toast';
 import {useRunHistory} from '../hooks/use_run_history';
@@ -48,6 +49,10 @@ export function ChatWorkspace() {
   // Lab papers (SBI/UCD corpus) connector toggle, shared between both composers.
   const [paperCorpusEnabled, setPaperCorpusEnabled] = useState(true);
 
+  // Sent once when an interview is created, so the Agent conducts it with the
+  // group's lab context and can answer questions about the group itself.
+  const {audience} = useAudience();
+
   const {toast, setToast} = useToast();
   const {history, homeScores, reloadHistory} = useRunHistory();
 
@@ -65,6 +70,7 @@ export function ChatWorkspace() {
     pubmedEnabled,
     webSearchEnabled,
     paperCorpusEnabled,
+    audience,
   });
   const {draft, startedSession, hasConversation} = session;
 
