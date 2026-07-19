@@ -269,7 +269,15 @@ class ToolRegistry:
         return existing
 
     def _apply_disabled_tools(self) -> None:
-        """Apply disabled_tools list to config."""
+        """Apply disabled_tools list to config.
+
+        Disabling a tool also disables any workflow search source backed by
+        it. The multi-source literature pipeline selects sources on
+        ``SearchSourceConfig.enabled`` alone and never consults the tool's
+        own flag, so without this a caller-disabled tool would keep being
+        searched -- the workflow whitelists would drop it while the
+        literature review went on calling it.
+        """
         if not self._disabled_tools or not self._config:
             return
 
@@ -278,6 +286,11 @@ class ToolRegistry:
             if tool:
                 tool.enabled = False
                 logger.debug("disabled tool: %s", tool_id)
+            for workflow in self._config.workflows.values():
+                for source in workflow.search_sources:
+                    if source.tool == tool_id:
+                        source.enabled = False
+                        logger.debug("disabled search source: %s", tool_id)
 
     @property
     def config(self) -> ToolsConfig:

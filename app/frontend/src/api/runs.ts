@@ -69,8 +69,12 @@ export function exchangeAccessCode(
   );
 }
 
-/** Header identifying the calling browser client to the backend. */
-function clientHeaders(): Record<string, string> {
+/**
+ * Header identifying the calling browser client to the backend. Exported for
+ * sibling API clients (e.g. `@/api/feedback`) so the auth-header policy stays
+ * defined once.
+ */
+export function clientHeaders(): Record<string, string> {
   const token = getAccessToken();
   return token
     ? {Authorization: `Bearer ${token}`}
@@ -215,6 +219,7 @@ export async function createRun(input: {
   enable_literature_review?: boolean;
   notify_on_completion?: boolean;
   completion_email?: string;
+  audience?: 'general' | 'google' | 'sbi_ucd';
 }): Promise<Run> {
   return fetchJson('/api/runs', jsonRequest(input, true));
 }
@@ -561,10 +566,11 @@ export function reportMarkdownUrl(id: string): string {
 export async function askRunQuestion(
   id: string,
   question: string,
+  audience?: 'general' | 'google' | 'sbi_ucd',
 ): Promise<string> {
   const res = await fetch(
     `${API_BASE_URL}/api/runs/${id}/messages/ask`,
-    jsonRequest({question}, true),
+    jsonRequest({question, audience}, true),
   );
   let answer = '';
   interface AnswerFrame {

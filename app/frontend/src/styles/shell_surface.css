@@ -637,6 +637,230 @@
   font-size: 0.95rem;
 }
 
+/* Affiliation picker: borderless rows on their own surface, lifting off the
+   surrounding .ucs-settings-card. Selection is a filled tint, the same
+   language as the dialog's section rail and the theme segment. The radio
+   inputs stay in the markup but are visually hidden, so the group keeps
+   native arrow-key navigation and screen-reader semantics without drawing a
+   control. */
+.ucs-affiliation-group {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.ucs-affiliation-option {
+  display: block;
+  border-radius: 0.75rem;
+  background: var(--cosci-menu-bg);
+  cursor: pointer;
+  padding: 0.7rem 0.9rem;
+}
+
+.ucs-affiliation-option:hover {
+  background: var(--cosci-menu-row-hover);
+}
+
+.ucs-affiliation-option:has(:checked),
+.ucs-affiliation-option:has(:checked):hover {
+  background: #d3e3fd;
+  color: #0b57d0;
+}
+
+:root[data-theme='dark'] .ucs-affiliation-option:has(:checked),
+:root[data-theme='dark'] .ucs-affiliation-option:has(:checked):hover {
+  background: #0842a0;
+  color: #d3e3fd;
+}
+
+/* Keyboard focus still needs to be visible with the input itself hidden, so
+   the row carries the ring. */
+.ucs-affiliation-option:has(:focus-visible) {
+  outline: 2px solid var(--cosci-blue);
+  outline-offset: 2px;
+}
+
+.ucs-affiliation-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.ucs-affiliation-title {
+  display: block;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+/* Muted only while unselected: on the filled row the blurb inherits the
+   selection's foreground and is softened instead, so it stays legible
+   against the tint in both themes. */
+.ucs-affiliation-blurb {
+  display: block;
+  margin-top: 0.15rem;
+  color: var(--cosci-muted);
+  font-size: 0.78rem;
+}
+
+.ucs-affiliation-option:has(:checked) .ucs-affiliation-blurb {
+  color: inherit;
+  opacity: 0.85;
+}
+
+/* Filled action button used inside header popovers (the feedback form's
+   submit, the team note's link to the recommendations page). Takes the app's
+   teal accent from the same baseline tokens as the header pill it drops out
+   of; --cosci-blue is the settings rail's selection color, not an action
+   color. */
+.ucs-panel-button {
+  display: inline-block;
+  border: 0;
+  border-radius: 9999px;
+  background: var(--cosci-step-dot-bg);
+  color: var(--cosci-step-dot-text);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 600;
+  padding: 0.45rem 1.1rem;
+  text-decoration: none;
+}
+
+.ucs-panel-button:hover:not(:disabled) {
+  background: color-mix(
+    in srgb,
+    var(--cosci-step-dot-bg) 88%,
+    var(--cosci-step-dot-text)
+  );
+}
+
+.ucs-panel-button:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+/* Secondary actions beside a filled one. A tonal fill rather than an outline:
+   the shell's cards carry no borders, and three filled pills in a row would
+   read as three equal choices. The fill is mixed toward the text rather than
+   taken from --cosci-hover directly, which in dark is the popover's own
+   background and would leave the pill invisible. */
+.ucs-panel-button.is-tonal {
+  background: color-mix(in srgb, var(--cosci-hover) 88%, var(--cosci-text));
+  color: var(--cosci-text);
+}
+
+.ucs-panel-button.is-tonal:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--cosci-hover) 76%, var(--cosci-text));
+}
+
+/* Row of actions under the note. Wraps rather than overflowing: the panel is
+   capped at 28rem and the labels are translated. */
+.ucs-team-note-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+/* Hebrew note to the Google team. `justify-items: start` resolves against
+   the inline direction, so under dir="rtl" the button hugs the right edge
+   without any RTL-specific rule. */
+.ucs-team-note {
+  display: grid;
+  gap: 0.85rem;
+  justify-items: start;
+  padding: 1rem;
+}
+
+/* The UA's default paragraph margin would pad the text top and bottom
+   inside the panel, reading as vertical centering. Zeroed here rather than
+   globally: a global reset collapses the rendered Goal Report markdown. */
+.ucs-team-note p {
+  margin: 0;
+  font-size: 0.9rem;
+  line-height: 1.6;
+}
+
+/* Pilot feedback form in the SBI/UCD header popover. Reuses the settings
+   dialog's field and selection vocabulary so the panel reads as part of the
+   same product surface. */
+.ucs-feedback-form {
+  display: grid;
+  gap: 0.7rem;
+  padding: 1rem;
+}
+
+.ucs-feedback-title {
+  margin: 0;
+  font-family: 'Google Sans', system-ui, sans-serif;
+  font-size: 1rem;
+  font-weight: 500;
+}
+
+.ucs-feedback-intro {
+  margin: -0.3rem 0 0;
+  color: var(--cosci-muted);
+  font-size: 0.8rem;
+}
+
+.ucs-feedback-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.ucs-feedback-chip {
+  border: 0;
+  border-radius: 9999px;
+  background: var(--cosci-menu-row-hover);
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 500;
+  padding: 0.35rem 0.7rem;
+}
+
+/* Selected chip fills with the app's teal accent. A translucent tint was
+   tried first and read as *less* prominent than the unselected chips, whose
+   background is a solid neutral; filling inverts that back. Both tokens
+   re-theme, so no dark-mode override is needed. */
+.ucs-feedback-chip--selected,
+.ucs-feedback-chip--selected:hover {
+  background: var(--cosci-step-dot-bg);
+  color: var(--cosci-step-dot-text);
+}
+
+.ucs-feedback-input {
+  box-sizing: border-box;
+  width: 100%;
+  border: 1px solid var(--cosci-border);
+  border-radius: 0.75rem;
+  background: var(--cosci-menu-bg);
+  color: var(--cosci-menu-text);
+  font: inherit;
+  font-size: 0.85rem;
+  padding: 0.6rem 0.75rem;
+  resize: vertical;
+}
+
+.ucs-feedback-input:focus-visible {
+  border-color: var(--cosci-blue);
+  outline: 1px solid var(--cosci-blue);
+}
+
+.ucs-feedback-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+}
+
+.ucs-feedback-status {
+  color: var(--cosci-muted);
+  font-size: 0.75rem;
+}
+
 /* Get-help FAQ: native <details> accordion, styled as stacked rows with a
    chevron that rotates when the row is open. */
 .ucs-faq {

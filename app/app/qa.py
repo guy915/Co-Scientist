@@ -191,6 +191,8 @@ def build_system_prompt(
     matches: list[dict[str, Any]],
     history: list[Any],
     manifest: list[dict[str, Any]],
+    audience_context: str = "",
+    corpus_passages: str = "",
 ) -> str:
     """Assemble the grounded-Q&A system prompt from a run's current state.
 
@@ -201,6 +203,10 @@ def build_system_prompt(
         matches: Tournament match rows.
         history: Prior messages (MessageRow) excluding the current question.
         manifest: The numbered evidence manifest for citation grounding.
+        audience_context: Optional background about the user's field, appended
+            when non-empty so answers are aware of the audience's research.
+        corpus_passages: Optional passages retrieved from the audience's own
+            papers for this question, appended when non-empty.
 
     Returns:
         The system prompt string.
@@ -230,7 +236,7 @@ def build_system_prompt(
         for m in history[-10:]
     )
 
-    return (
+    prompt = (
         f"You are a concise research assistant helping the user understand "
         f"an ongoing AI-driven hypothesis generation run.\n\n"
         f"Research goal: {research_goal}\n\n"
@@ -241,12 +247,34 @@ def build_system_prompt(
         f"numbered list; never invent a citation):\n"
         f"{evidence_lines or '(no evidence retrieved)'}\n\n"
         f"Conversation history:\n{conv_lines or '(none)'}\n\n"
-        f"Answer ONLY from this run's hypotheses, reviews, matches, and "
-        f"evidence above -- do not draw on outside knowledge. If the run's "
-        f"artifacts do not contain the answer, say so plainly rather than "
-        f"speculating. Do not repeat the question. When a statement is "
-        f"supported by a listed source, cite it inline as [n]."
+        f"Claims about this run -- what the hypotheses say, how they were "
+        f"reviewed or ranked, and what the evidence shows -- must come ONLY "
+        f"from the artifacts above. If the run's artifacts do not contain "
+        f"the answer, say so plainly rather than speculating. Background "
+        f"about the user's field and its methods may draw on the background "
+        f"section below when one is present, but never cite it as [n]: "
+        f"inline citations refer only to the numbered evidence list. Do not "
+        f"repeat the question. When a statement is supported by a listed "
+        f"source, cite it inline as [n]."
     )
+    # Appended last so the grounding rule above governs how it may be used.
+    if audience_context.strip():
+        prompt += (
+            f"\n\nBackground about the user's field:\n"
+            f"{audience_context.strip()}"
+        )
+    # Passages are real published text, unlike the background, so they may be
+    # quoted and must be attributed -- but by paper title, since they are not
+    # in the numbered manifest and [n] has to keep resolving to it.
+    if corpus_passages.strip():
+        prompt += (
+            f"\n\nPassages from the user's own group's published papers, "
+            f"retrieved for this question. Attribute anything you take from "
+            f"them by paper title, never as [n]. They are the group's prior "
+            f"work, not results from this run -- do not present them as "
+            f"findings this run produced:\n{corpus_passages.strip()}"
+        )
+    return prompt
 
 
 def _offline_hypothesis_lines(

@@ -5,6 +5,7 @@ import {
   type NavigateFunction,
 } from 'react-router-dom';
 import {joinClasses} from './classes';
+import {AudienceGate} from './components/audience_gate';
 import {SettingsDialog} from './components/settings_dialog';
 import {NEW_CHAT_EVENT} from './dom_events';
 import {closeDrawerIfMobile} from './hooks/use_is_mobile';
@@ -30,6 +31,10 @@ const HOME_PAGE_CLASSES = 'ucs-page ucs-page--home';
 
 const REPORT_PAGE_CLASSES = 'ucs-page ucs-page--report';
 
+// The proposals graph sizes itself to the viewport, so the page must not
+// scroll.
+const PROPOSALS_PAGE_CLASSES = 'ucs-page ucs-page--proposals';
+
 const SHELL_OPEN_GRID_CLASSES = 'nav-open';
 
 const SHELL_COLLAPSED_GRID_CLASSES = 'nav-collapsed';
@@ -38,6 +43,7 @@ const SHELL_COLLAPSED_GRID_CLASSES = 'nav-collapsed';
 // home variant on '/', and the plain page otherwise.
 function pageClassesFor(pathname: string, isRunRoute: boolean): string {
   if (isRunRoute) return REPORT_PAGE_CLASSES;
+  if (pathname === '/proposals') return PROPOSALS_PAGE_CLASSES;
   return pathname === '/' ? HOME_PAGE_CLASSES : PAGE_CLASSES;
 }
 
@@ -189,6 +195,10 @@ export function Layout({children}: {children: ReactNode}) {
           onClose={() => setSettingsSection(null)}
         />
       )}
+      <AudienceGate
+        onOpenAffiliation={() => openSettings('affiliation')}
+        chooserOpen={settingsSection === 'affiliation'}
+      />
     </div>
   );
 }

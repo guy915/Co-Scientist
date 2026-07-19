@@ -3,6 +3,7 @@ import {MemoryRouter, useLocation} from 'react-router-dom';
 import {vi} from 'vitest';
 import type {Run} from '@/api/runs';
 import {makeHypothesis, makeRun} from '@/test-fixtures';
+import {AudienceProvider} from '../audience_context';
 import {RunHistoryProvider} from '../hooks/run_history_context';
 import {ChatWorkspace} from './chat_workspace';
 
@@ -58,10 +59,14 @@ export {apiMock};
 export function renderWorkspace() {
   return render(
     <MemoryRouter>
-      <RunHistoryProvider>
-        <ChatWorkspace />
-        <LocationProbe />
-      </RunHistoryProvider>
+      {/* Declared up front so AudienceGate doesn't open the affiliation
+          chooser over the workspace these tests are asserting on. */}
+      <AudienceProvider initialAudience="general">
+        <RunHistoryProvider>
+          <ChatWorkspace />
+          <LocationProbe />
+        </RunHistoryProvider>
+      </AudienceProvider>
     </MemoryRouter>,
   );
 }

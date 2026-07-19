@@ -1,12 +1,55 @@
-import {type RefObject} from 'react';
+import {type ReactNode, type RefObject} from 'react';
 import {Icon} from '@/components/icon';
+import {useAudience} from './audience_context';
 import {GoogleLabsIcon} from './components/google_labs_icon';
 import {TruncatedLabel} from './components/truncated_label';
 import {DiagnosticsControl} from './layout_diagnostics';
+import {GoogleTeamControl} from './layout_google_control';
 import {type ShellPanel} from './layout_hooks';
+import {PilotControl} from './layout_pilot_control';
 import {NAV_ICON_CLASSES, ShellPopover} from './layout_primitives';
 import {SystemStatusIndicator} from './layout_status';
 import {tooltipClassNames} from './tooltip';
+
+// The audience-specific header control: the Google team gets a personal note
+// and SBI/UCD pilots an early-access guide, each on the shell's 'audience'
+// popover slot; the general audience has no extra control. The diagnostics
+// Logs popover is rendered separately for every audience (its own 'logs'
+// slot), so switching audience never hides the log view. The shell's
+// single-open-panel rule keeps all header popovers mutually exclusive.
+function AudienceHeaderControl({
+  activePanel,
+  onTogglePanel,
+}: {
+  activePanel: ShellPanel | null;
+  onTogglePanel: (panel: ShellPanel) => void;
+}) {
+  const {audience} = useAudience();
+  const open = activePanel === 'audience';
+  const onToggle = () => onTogglePanel('audience');
+  const renderPopover = (children: ReactNode, className: string) => (
+    <ShellPopover className={className}>{children}</ShellPopover>
+  );
+  if (audience === 'google') {
+    return (
+      <GoogleTeamControl
+        open={open}
+        onToggle={onToggle}
+        renderPopover={renderPopover}
+      />
+    );
+  }
+  if (audience === 'sbi_ucd') {
+    return (
+      <PilotControl
+        open={open}
+        onToggle={onToggle}
+        renderPopover={renderPopover}
+      />
+    );
+  }
+  return null;
+}
 
 const HEADER_CLASSES = 'ucs-header-action-bar';
 
@@ -102,6 +145,10 @@ export function ShellHeader({
       </div>
       <div ref={logsControlRef} className={HEADER_ACTIONS_CLASSES}>
         <SystemStatusIndicator />
+        <AudienceHeaderControl
+          activePanel={activePanel}
+          onTogglePanel={onTogglePanel}
+        />
         <DiagnosticsControl
           open={activePanel === 'logs'}
           onToggle={() => onTogglePanel('logs')}

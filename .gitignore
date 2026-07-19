@@ -59,3 +59,6 @@ cache/
 .agents/
 .claude/
 .remember/
+
+# The paper corpus is committed in full, so retrieval works from a clean
+# checkout with no setup. Rebuild it with: python -m app.corpus_ingest <dir>

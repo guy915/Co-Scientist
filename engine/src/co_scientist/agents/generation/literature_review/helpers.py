@@ -182,3 +182,6 @@ from co_scientist.agents.generation.literature_review.search_support import (
 from co_scientist.agents.generation.literature_review.search_support import (
     parse_mcp_query_result as parse_mcp_query_result,
 )
+from co_scientist.agents.generation.literature_review.search_support import (
+    select_within_budget as select_within_budget,
+)

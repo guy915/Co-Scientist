@@ -18,6 +18,7 @@ from typing import Any, cast
 from co_scientist.agents.generation.literature_review import search
 from co_scientist.agents.generation.literature_review.helpers import (
     SearchConfig,
+    select_within_budget,
 )
 from co_scientist.config import (
     SearchSourceConfig,
@@ -352,3 +353,107 @@ async def test_multi_source_collection_respects_unique_evidence_budget() -> (
 
     assert len(metadata) == 2
     assert set(metadata) == set(source_map)
+
+
+# =============================================================================
+# select_within_budget / reserved slots
+# =============================================================================
+
+
+def _ranked(*ids: str) -> dict[str, dict[str, Any]]:
+    """Papers in ranked (best-first) order, as merge_search_results returns."""
+    return {paper_id: {"title": paper_id} for paper_id in ids}
+
+
+def test_selection_is_pure_score_when_nothing_is_reserved() -> None:
+    """Sources that reserve nothing keep the previous truncation exactly."""
+    ranked = _ranked("A", "B", "C", "D")
+    source_map = {"A": "pubmed", "B": "pubmed", "C": "corpus", "D": "corpus"}
+    sources = [
+        SearchSourceConfig(tool="corpus"),
+        SearchSourceConfig(tool="pubmed"),
+    ]
+    assert select_within_budget(ranked, source_map, sources, 2) == ["A", "B"]
+
+
+def test_reserved_slots_rescue_a_source_that_score_would_truncate() -> None:
+    """The defect this fixes: a source ranked last never survived the cap.
+
+    Corpus papers have no citation count and no publication year, so they
+    sort below every indexed paper; with a budget of 2 they were always cut
+    despite matching the question. Reserving keeps them without reordering
+    the rest.
+    """
+    ranked = _ranked("pm1", "pm2", "oa1", "c1", "c2", "c3")
+    source_map = {
+        "pm1": "pubmed",
+        "pm2": "pubmed",
+        "oa1": "openalex",
+        "c1": "corpus",
+        "c2": "corpus",
+        "c3": "corpus",
+    }
+    sources = [
+        SearchSourceConfig(tool="corpus", reserved_slots=2),
+        SearchSourceConfig(tool="pubmed"),
+        SearchSourceConfig(tool="openalex"),
+    ]
+    selected = select_within_budget(ranked, source_map, sources, 4)
+    # Two corpus papers are guaranteed; the rest go to the best by score.
+    assert selected == ["c1", "c2", "pm1", "pm2"]
+
+
+def test_reserved_slots_are_not_padded_when_the_source_returns_fewer() -> None:
+    """A reservation is a ceiling, not a quota to fill with nothing."""
+    ranked = _ranked("pm1", "pm2", "pm3", "c1")
+    source_map = {
+        "pm1": "pubmed",
+        "pm2": "pubmed",
+        "pm3": "pubmed",
+        "c1": "corpus",
+    }
+    sources = [
+        SearchSourceConfig(tool="corpus", reserved_slots=2),
+        SearchSourceConfig(tool="pubmed"),
+    ]
+    selected = select_within_budget(ranked, source_map, sources, 3)
+    assert selected == ["c1", "pm1", "pm2"]
+
+
+def test_reserved_slots_never_exceed_the_evidence_budget() -> None:
+    """The budget is the hard ceiling; reserving cannot enlarge the review."""
+    ranked = _ranked("c1", "c2", "c3", "pm1")
+    source_map = {
+        "c1": "corpus",
+        "c2": "corpus",
+        "c3": "corpus",
+        "pm1": "pubmed",
+    }
+    sources = [
+        SearchSourceConfig(tool="corpus", reserved_slots=3),
+        SearchSourceConfig(tool="pubmed"),
+    ]
+    selected = select_within_budget(ranked, source_map, sources, 2)
+    assert selected == ["c1", "c2"]
+    assert select_within_budget(ranked, source_map, sources, 0) == []
+
+
+def test_the_shipped_corpus_source_reserves_slots() -> None:
+    """The bundled config must actually carry the reservation.
+
+    Without it the corpus is searched on every run and then discarded,
+    which is indistinguishable from the corpus not being installed.
+    """
+    from co_scientist.config import ToolRegistry
+
+    registry = ToolRegistry(skip_user_config=True)
+    workflow = registry.get_workflow("literature_review")
+    assert workflow is not None
+    reserved = {
+        source.tool: source.reserved_slots
+        for source in workflow.get_enabled_search_sources()
+    }
+    assert reserved["paper_corpus_search"] == 2
+    # Public databases compete on score alone.
+    assert reserved["pubmed_fulltext"] == 0
+    assert reserved["openalex_search"] == 0

@@ -9,6 +9,15 @@ RUN apt-get update && apt-get install -y build-essential && rm -rf /var/lib/apt/
 COPY engine/mcp_server/ ./mcp_server/
 RUN pip install --no-cache-dir -e ./mcp_server
 
+# The research group's own papers, as sanitized text. Copied after the install
+# so editing the corpus does not invalidate the dependency layer. The corpus
+# tools read SBI_CORPUS_DIR and have no default: without both this COPY and the
+# env var they return empty, which is indistinguishable from "no match", so the
+# two must stay together. Absent corpus is not an error -- deployments without
+# one simply serve no group papers.
+COPY corpus/ ./corpus/
+ENV SBI_CORPUS_DIR=/app/corpus/sbi_ucd
+
 ENV PYTHONUNBUFFERED=1
 
 EXPOSE 8888

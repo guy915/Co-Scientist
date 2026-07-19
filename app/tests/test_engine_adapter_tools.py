@@ -72,6 +72,40 @@ def test_build_generator_forwards_none_tools_config(
     assert _FakeGenerator.last_kwargs["tools_config"] is None
 
 
+def test_build_generator_withholds_corpus_tools_by_audience(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The corpus audience keeps its tools; every other audience loses them.
+
+    The tools YAML enables the corpus unconditionally, so this per-run
+    argument is the only thing standing between another audience's run and
+    the lab's library -- an agent calls those tools itself, well downstream
+    of any gate on injected context.
+    """
+    monkeypatch.setattr(settings, "tools_config", None)
+
+    cfg = _cfg()
+    cfg["audience"] = "sbi_ucd"
+    _build_generator(_FakeGenerator, cfg)
+    assert _FakeGenerator.last_kwargs["disable_tools"] == []
+
+    for other in ("google", "general", ""):
+        cfg = _cfg()
+        cfg["audience"] = other
+        _build_generator(_FakeGenerator, cfg)
+        assert _FakeGenerator.last_kwargs["disable_tools"] == [
+            "paper_corpus_search",
+            "paper_corpus_fetch",
+        ]
+
+    # A run config with no audience key at all must not open the corpus.
+    _build_generator(_FakeGenerator, _cfg())
+    assert _FakeGenerator.last_kwargs["disable_tools"] == [
+        "paper_corpus_search",
+        "paper_corpus_fetch",
+    ]
+
+
 def test_build_generator_forwards_run_elo_k_factor() -> None:
     """The persisted run K-factor governs real-engine Elo updates."""
     _build_generator(_FakeGenerator, _cfg())

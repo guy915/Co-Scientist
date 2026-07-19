@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING, Any, Optional, cast
 
 if TYPE_CHECKING:
     from co_scientist.config import (
+        SearchSourceConfig,
         ToolConfig,
         ToolRegistry,
         WorkflowConfig,
@@ -410,3 +411,69 @@ def merge_search_results(
         paper_id: paper_source_map[paper_id] for paper_id in ranked
     }
     return ranked, ranked_source_map
+
+
+def select_within_budget(
+    ranked: dict[str, dict[str, Any]],
+    source_map: dict[str, str],
+    sources: list["SearchSourceConfig"],
+    budget: int,
+) -> list[str]:
+    """Choose which ranked papers fit the evidence budget.
+
+    Score alone decides, except that a source configured with
+    ``reserved_slots`` is guaranteed that many places first. Retrieval score
+    rewards citation count and recency, which a source can lack entirely
+    rather than score poorly on: a local corpus of the group's own papers
+    carries neither, so it sorts below every indexed paper and is truncated
+    away no matter how well it answers the question. Reserving places is the
+    narrow fix -- raising such a source's base score enough to survive would
+    also let it displace everything else.
+
+    Reserved places are filled best-first from within the source, are never
+    padded when the source returned fewer papers, and cannot push the
+    selection past the budget.
+
+    Args:
+        ranked: Papers best-first, as returned by ``merge_search_results``.
+        source_map: Paper id to the source tool id that produced it.
+        sources: The workflow's enabled search sources, in config order.
+        budget: Total papers to select.
+
+    Returns:
+        The selected paper ids: reserved papers first, then the best of the
+        rest by score.
+    """
+    if budget <= 0:
+        return []
+
+    reserved: list[str] = []
+    for source in sources:
+        if source.reserved_slots <= 0:
+            continue
+        remaining = budget - len(reserved)
+        if remaining <= 0:
+            break
+        from_source = [
+            paper_id
+            for paper_id in ranked
+            if source_map.get(paper_id) == source.tool
+        ]
+        reserved.extend(from_source[: min(source.reserved_slots, remaining)])
+
+    selected = list(reserved)
+    reserved_ids = set(reserved)
+    for paper_id in ranked:
+        if len(selected) >= budget:
+            break
+        if paper_id not in reserved_ids:
+            selected.append(paper_id)
+
+    if reserved:
+        logger.info(
+            "Evidence budget %s: %s reserved, %s by score",
+            budget,
+            len(reserved),
+            len(selected) - len(reserved),
+        )
+    return selected

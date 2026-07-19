@@ -59,11 +59,13 @@ from app import (
     engine_adapter,
     engine_tasks,
     human_input,
+    paper_corpus,
     qa,
     run_corpus,
     store,
     task_worker,
 )
+from app.audience import audience_chat_context
 from app.auth import client_id
 from app.hypothesis_screening import screen_hypotheses
 from app.logs_api import logs_payload
@@ -1068,7 +1070,20 @@ async def ask_question(run_id: str, req: AskRequest) -> StreamingResponse:
         )
 
     system_prompt = qa.build_system_prompt(
-        run.research_goal, hypotheses, reviews, matches, history, manifest
+        run.research_goal,
+        hypotheses,
+        reviews,
+        matches,
+        history,
+        manifest,
+        audience_context=audience_chat_context(req.audience),
+        corpus_passages=paper_corpus.format_passages(
+            paper_corpus.retrieve_for(
+                req.audience,
+                req.question,
+                k=paper_corpus.CHAT_PASSAGES,
+            )
+        ),
     )
     return StreamingResponse(
         qa.stream_answer(

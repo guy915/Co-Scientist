@@ -42,7 +42,7 @@ where = ["."]
 include = ["app*"]
 
 [tool.setuptools.package-data]
-app = ["py.typed"]
+app = ["py.typed", "content/*.md"]
 
 # Pixi-specific configuration (https://pixi.sh)
 # Pixi reads [project.dependencies] and [project.optional-dependencies] above automatically.

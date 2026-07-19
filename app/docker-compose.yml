@@ -19,9 +19,14 @@ services:
       # Hardcoded to cancer tools using reference mcp server (pubmed + INDRA)
       # can be configured for other files, or removed if PubMed suffices
       - TOOLS_CONFIG=/workspace/co-scientist-engine/src/co_scientist/config/examples/indra_cancer.yaml
+      # The group's own papers, for chat/Q&A grounding. Mounted below rather
+      # than baked in: the corpus lives at the repo root, outside this
+      # service's build context.
+      - SBI_CORPUS_DIR=/app/corpus/sbi_ucd
     volumes:
       - ./cache:/app/cache
       - ./app:/app/app
+      - ../corpus:/app/corpus:ro
       # mount local engine checkout; entrypoint can clone if COSCIENTIST_ENGINE_REPO is set
       - ${COSCIENTIST_ENGINE_PATH:-../engine}:/workspace/co-scientist-engine
     depends_on:
@@ -63,9 +68,14 @@ services:
       - COSCIENTIST_MCP_PORT=8888
       # set ENTREZ_EMAIL here (or in .env) for PubMed access; server degrades gracefully without it
       # - ENTREZ_EMAIL=you@example.com
+      # The group's own papers, searched as a literature source alongside
+      # PubMed. Mounted below: the corpus lives at the repo root, outside this
+      # service's build context.
+      - SBI_CORPUS_DIR=/app/corpus/sbi_ucd
     volumes:
       - ${COSCIENTIST_ENGINE_PATH:-../engine}/mcp_server/paper_cache:/app/mcp_server/paper_cache
       - ${COSCIENTIST_ENGINE_PATH:-../engine}/mcp_server:/app/mcp_server
+      - ../corpus:/app/corpus:ro
     command: >
       uvicorn mcp_server.server:app
       --host 0.0.0.0

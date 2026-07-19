@@ -286,6 +286,65 @@ def test_disabled_tools_argument_flips_enabled(tmp_path: Path) -> None:
     ]
 
 
+def test_disabled_tools_also_disables_its_search_source(
+    tmp_path: Path,
+) -> None:
+    """A disabled tool must not survive as a live search source.
+
+    The multi-source literature pipeline picks sources on
+    ``SearchSourceConfig.enabled`` and never consults the tool's own flag,
+    so a caller-disabled tool would otherwise keep being searched while the
+    workflow whitelists correctly dropped it -- the gap that let a
+    per-audience tool restriction leak into the literature review.
+    """
+    config = textwrap.dedent("""
+        version: "2.0"
+        servers:
+          myserver:
+            url: "http://example.test/mcp"
+            enabled: true
+        tools:
+          search_tools:
+            alpha_search:
+              server: "myserver"
+              mcp_tool_name: "search_alpha"
+              enabled: true
+            beta_search:
+              server: "myserver"
+              mcp_tool_name: "search_beta"
+              enabled: true
+        workflows:
+          literature_review:
+            search_sources:
+              - tool: "alpha_search"
+                papers_per_query: 4
+                enabled: true
+              - tool: "beta_search"
+                papers_per_query: 4
+                enabled: true
+    """)
+    path = _write_config(tmp_path, config)
+
+    enabled = ToolRegistry(config_path=path, skip_user_config=True)
+    workflow = enabled.get_workflow("literature_review")
+    assert workflow is not None
+    assert [s.tool for s in workflow.get_enabled_search_sources()] == [
+        "alpha_search",
+        "beta_search",
+    ]
+
+    restricted = ToolRegistry(
+        config_path=path,
+        skip_user_config=True,
+        disabled_tools=["alpha_search"],
+    )
+    restricted_workflow = restricted.get_workflow("literature_review")
+    assert restricted_workflow is not None
+    assert [
+        s.tool for s in restricted_workflow.get_enabled_search_sources()
+    ] == ["beta_search"]
+
+
 # --- override merge strategy (default) ------------------------------------
 
 

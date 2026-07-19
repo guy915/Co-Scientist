@@ -10,7 +10,7 @@ from __future__ import annotations
 import os
 from typing import Any
 
-from app import run_corpus, store
+from app import paper_corpus, run_corpus, store
 from app.config import settings
 from app.run_modes import (
     clean_string_list,
@@ -128,15 +128,28 @@ def _build_engine_opts(
     initial_opts["enable_literature_review_node"] = (
         _resolve_literature_review_toggle(cfg)
     )
+    goal = str((cfg.get("setup") or {}).get("goal") or "")
     private_sources = run_corpus.engine_context_sources(
         store.list_evidence(run_id, db_path=db_path),
-        str((cfg.get("setup") or {}).get("goal") or ""),
+        goal,
     )
+    literature = [str(item["display"]) for item in private_sources]
     if private_sources:
         initial_opts["context_enrichment_sources"] = private_sources
-        initial_opts["user_inputs"] = {
-            "literature": [str(item["display"]) for item in private_sources]
-        }
+    # The audience's own papers, retrieved against this run's goal. They join
+    # the literature channel rather than run_setup_guidance deliberately:
+    # literature reaches planning and query generation, while setup guidance
+    # reaches every tournament comparison, and ranking is roughly quadratic.
+    literature.extend(
+        paper_corpus.format_passages([hit])
+        for hit in paper_corpus.retrieve_for(
+            str(cfg.get("audience") or ""),
+            goal,
+            k=paper_corpus.RUN_PASSAGES,
+        )
+    )
+    if literature:
+        initial_opts["user_inputs"] = {"literature": literature}
     return initial_opts
 
 
@@ -194,7 +207,16 @@ def _build_generator(
         literature_review_papers_count=int(cfg["evidence_count"]),
         # Forward the configured tools YAML so a real run actually enables the
         # domain tools (e.g. INDRA for the production indra_cancer.yaml). None
-        # leaves the engine on its default PubMed-only tools. Startup already
-        # validated this path is readable (see app.main lifespan).
+        # loads the engine's bundled default registry, whose literature_review
+        # workflow is multi-source (the group's paper corpus, PubMed, and
+        # OpenAlex) -- not PubMed-only. Startup already validated this path is
+        # readable (see app.main lifespan).
         tools_config=settings.tools_config,
+        # The group's paper corpus is one lab's library. The tools YAML
+        # enables it unconditionally, so withhold it here for every other
+        # audience: otherwise any run could search another lab's papers
+        # directly, which no audience gate on injected context would catch.
+        disable_tools=paper_corpus.disabled_tools_for(
+            str(cfg.get("audience") or "")
+        ),
     )

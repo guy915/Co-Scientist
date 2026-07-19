@@ -35,6 +35,7 @@ from app.store.db import (
     transaction,
 )
 from app.store.events import append_event, latest_event_seq, list_events
+from app.store.feedback import append_feedback, list_feedback
 from app.store.hypotheses import (
     add_hypothesis,
     get_hypothesis,
@@ -152,6 +153,7 @@ __all__ = [
     "add_review",
     "add_safety_decision",
     "append_event",
+    "append_feedback",
     "append_interview_turn",
     "append_log",
     "append_message",
@@ -187,6 +189,7 @@ __all__ = [
     "list_claim_evidence",
     "list_events",
     "list_evidence",
+    "list_feedback",
     "list_hypotheses",
     "list_logs",
     "list_matches",

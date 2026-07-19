@@ -1,9 +1,21 @@
 import {createRun, startRun, uploadRunDocument} from '@/api/runs';
 import {conciseTitle} from '@/lib/text';
+import {type Audience} from '../audience_context';
 import {RUNS_CHANGED_EVENT} from '../dom_events';
 import {type StartedSession} from '../pages/chat_timeline_cards';
 import {appendChatMessage, emitDiagnosticEvent} from './chat_session_helpers';
 import {type ExecuteStartDeps, type HandlerDeps} from './chat_session_types';
+
+// The audience context persists to localStorage, so the start-run path (which
+// runs outside React and takes its deps as args) reads it directly rather than
+// threading a hook value through every caller. Unknown/absent values send no
+// audience, leaving run creation unchanged.
+function storedAudience(): Audience | undefined {
+  const value = window.localStorage.getItem('cosci-audience');
+  return value === 'general' || value === 'google' || value === 'sbi_ucd'
+    ? value
+    : undefined;
+}
 
 // Runs the create+start API round trip for a confirmed draft spec and
 // applies the resulting state transitions, returning the session that was
@@ -39,6 +51,7 @@ async function executeStart({
       ? specToStart.completionEmail
       : undefined,
     enable_literature_review: pubmedEnabled,
+    audience: storedAudience(),
   });
   const session: StartedSession = {
     id: created.id,

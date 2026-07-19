@@ -2,6 +2,8 @@ import type {RefObject} from 'react';
 import {useEffect, useRef, useState} from 'react';
 import {Icon, type IconName} from '@/components/icon';
 import {getStoredApiKey, setStoredApiKey} from '@/lib/api_key';
+import {DEFAULT_AUDIENCE, useAudience} from '../audience_context';
+import {AUDIENCE_OPTIONS} from '../audience_content';
 import {useToast} from '../hooks/use_toast';
 import {type Mode, useTheme} from '../theme_context';
 
@@ -10,7 +12,7 @@ import {type Mode, useTheme} from '../theme_context';
  * section, controlled by the parent (see the `section`/`onSectionChange`
  * props below).
  */
-export type SettingsSection = 'appearance' | 'model' | 'help';
+export type SettingsSection = 'appearance' | 'model' | 'affiliation' | 'help';
 
 // Options rendered in the Appearance section's theme segmented control.
 // Selecting one calls useTheme()'s setMode, which persists the choice (see
@@ -31,6 +33,7 @@ export const SETTINGS_SECTIONS: {
 }[] = [
   {section: 'appearance', icon: 'palette', label: 'Appearance'},
   {section: 'model', icon: 'neurology', label: 'Model'},
+  {section: 'affiliation', icon: 'assignment', label: 'Affiliation'},
   {section: 'help', icon: 'help', label: 'Help'},
 ];
 
@@ -230,6 +233,44 @@ function HelpSection() {
   );
 }
 
+/**
+ * Settings section letting the user change their declared affiliation. Also
+ * serves as the first-visit chooser: AudienceGate opens Settings here when no
+ * audience has been picked yet.
+ */
+export function AffiliationSection() {
+  const {audience, setAudience} = useAudience();
+  // Show the default as selected while the answer is still unset, so the
+  // dialog reflects what dismissing it without choosing will commit (see
+  // AudienceGate).
+  const selected = audience ?? DEFAULT_AUDIENCE;
+  return (
+    <section className="ucs-settings-card">
+      <h3 className="ucs-settings-card-title">Affiliation</h3>
+      <p className="ucs-settings-card-copy">
+        This tailors the workspace to how you use Co-Scientist. You can change
+        it here at any time.
+      </p>
+      <div className="ucs-affiliation-group">
+        {AUDIENCE_OPTIONS.map(option => (
+          <label key={option.value} className="ucs-affiliation-option">
+            <input
+              className="ucs-affiliation-input"
+              type="radio"
+              name="cosci-affiliation"
+              value={option.value}
+              checked={selected === option.value}
+              onChange={() => setAudience(option.value)}
+            />
+            <span className="ucs-affiliation-title">{option.title}</span>
+            <span className="ucs-affiliation-blurb">{option.blurb}</span>
+          </label>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 // Moves focus to `ref`'s element once on mount, so keyboard/screen-reader
 // users land inside a newly opened dialog rather than on whatever was
 // focused behind it.
@@ -326,6 +367,7 @@ function SettingsPanel({
           onSave={apiKeyField.onSave}
         />
       )}
+      {section === 'affiliation' && <AffiliationSection />}
       {section === 'help' && <HelpSection />}
     </div>
   );

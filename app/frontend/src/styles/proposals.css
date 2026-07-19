@@ -1,0 +1,653 @@
+/* Proposals relationship graph (/proposals).
+
+   Cluster membership is carried by node hue; relationship kind is carried by
+   BOTH edge color and stroke style (solid / arrow / dashed / dotted). The
+   stroke styles are kept alongside the colors deliberately: the kind stays
+   readable when the hues are hard to separate, or in print. */
+
+:root {
+  /* Stroke scale. Overridden inside the graph, which is the only place that
+     shrinks; the legend's samples keep their own size. */
+  --s: 1;
+
+  /* Cluster hues. `scaling` takes the app's own teal; the rest are chosen
+     to stay distinguishable from it and from each other at node size. */
+  --proposal-scaling: #1f7a72;
+  --proposal-evaluation: #9a5b16;
+  --proposal-interaction: #2c5fb8;
+  --proposal-knowledge: #7c4a9c;
+  --proposal-capabilities: #a33b62;
+
+  /* Relationship colors, chosen to read as what they mean: growth, ordering,
+     repair, conflict. */
+  --proposal-synergy: #17855a;
+  --proposal-enables: #3f51b5;
+  --proposal-compensates: #b06a12;
+  --proposal-tension: #c0392b;
+  --proposal-edge: #8b8f8d;
+}
+
+:root[data-theme='dark'] {
+  --proposal-scaling: #68d0c0;
+  --proposal-evaluation: #e0a75c;
+  --proposal-interaction: #8fb4f2;
+  --proposal-knowledge: #c39ae0;
+  --proposal-capabilities: #ef92b2;
+  --proposal-synergy: #4ecf95;
+  --proposal-enables: #8f9ff0;
+  --proposal-compensates: #e8a95a;
+  --proposal-tension: #f08279;
+  --proposal-edge: #6b6f6e;
+}
+
+/* The page is the graph. It fills the shell's content area exactly — the
+   route sets `ucs-page--proposals`, which turns off that container's
+   scrolling — with the legends floating over the canvas and the detail
+   panel taking a column beside it when a proposal is open. */
+.proposals-page {
+  /* Anchors the detail panel when it overlays at narrow widths. */
+  position: relative;
+  box-sizing: border-box;
+  display: grid;
+  height: 100%;
+  gap: 1rem;
+  /* minmax(0, ...) rather than 1fr: without it the canvas refuses to shrink
+     below the SVG's intrinsic size and the page overflows. */
+  grid-template-rows: minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr);
+  padding: 0.85rem 1rem 1rem;
+  color: var(--cosci-text);
+}
+
+@media (min-width: 68rem) {
+  /* Opening a proposal gives the panel its own column; the graph rescales
+     to what is left rather than being covered. */
+  .proposals-page:has(.proposals-detail) {
+    grid-template-columns: minmax(0, 1fr) 22rem;
+  }
+}
+
+.ucs-page--proposals {
+  overflow: hidden;
+}
+
+/* Legends ------------------------------------------------------------- */
+
+/* Names only, in a card in each top corner: categories left, relationships
+   right. These are ordinary elements above the graph — the graph is laid out
+   in real pixels around whatever width they report, so nothing here needs to
+   agree with a drawing scale. */
+.proposals-legend {
+  position: absolute;
+  z-index: 2;
+  top: 0;
+  box-sizing: border-box;
+  /* Exactly the width the layout reserves for a card, so the gap to the
+     nearest cluster is exact. */
+  width: 12.5rem;
+  display: grid;
+  gap: 0.3rem;
+  border-radius: 0.85rem;
+  background: var(--cosci-panel);
+  padding: 0.6rem 0.8rem;
+}
+
+.proposals-legend.is-categories {
+  left: 0;
+}
+
+/* Sits in the right corner but reads left-to-right like its neighbour:
+   swatch first, then the name. */
+.proposals-legend.is-relationships {
+  right: 0;
+  justify-items: start;
+}
+
+.proposals-legend-title {
+  margin: 0 0 0.1rem;
+  color: var(--cosci-muted);
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.proposals-legend-list {
+  display: grid;
+  gap: 0.15rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.78rem;
+}
+
+.proposals-legend-swatch {
+  width: 0.7rem;
+  height: 0.7rem;
+  flex: none;
+  border-radius: 3px;
+  background: var(--chip-color);
+}
+
+.proposals-legend-sample {
+  width: 44px;
+  height: 12px;
+  flex: none;
+  overflow: visible;
+}
+
+/* Every legend entry is a toggle, so it is drawn as a chip rather than a
+   line of text: a resting surface, a grey hover, and a selected state
+   filled with the entry's own hue (`--chip-color`, set by the is-* classes
+   below) so a selected chip previews what it highlights. No borders in any
+   state. */
+.proposals-chip {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 0.45rem;
+  border: 0;
+  /* Fully rounded ends, matching the pills used elsewhere in the app. */
+  border-radius: 9999px;
+  background: var(--cosci-hover);
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  padding: 0.45rem 0.7rem 0.45rem 0.55rem;
+  text-align: left;
+  transition: background 120ms ease;
+}
+
+.proposals-chip:hover {
+  background: color-mix(in srgb, var(--cosci-text) 10%, var(--cosci-hover));
+}
+
+.proposals-chip.is-on {
+  background: color-mix(in srgb, var(--chip-color) 22%, transparent);
+  color: var(--chip-color);
+  font-weight: 600;
+}
+
+/* The label reserves the width of its own bold copy, so turning a chip on
+   does not resize it. The hidden twin sits in the same grid cell as the
+   visible text, making the cell as wide as the wider of the two. */
+.proposals-chip-label {
+  display: inline-grid;
+}
+
+.proposals-chip-label::after,
+.proposals-chip-label > span {
+  grid-area: 1 / 1;
+}
+
+.proposals-chip-label::after {
+  content: attr(data-text);
+  height: 0;
+  font-weight: 600;
+  overflow: hidden;
+  visibility: hidden;
+}
+
+.proposals-chip.is-scaling {
+  --chip-color: var(--proposal-scaling);
+}
+.proposals-chip.is-evaluation {
+  --chip-color: var(--proposal-evaluation);
+}
+.proposals-chip.is-interaction {
+  --chip-color: var(--proposal-interaction);
+}
+.proposals-chip.is-knowledge {
+  --chip-color: var(--proposal-knowledge);
+}
+.proposals-chip.is-capabilities {
+  --chip-color: var(--proposal-capabilities);
+}
+.proposals-chip.is-synergy {
+  --chip-color: var(--proposal-synergy);
+}
+.proposals-chip.is-enables {
+  --chip-color: var(--proposal-enables);
+}
+.proposals-chip.is-compensates {
+  --chip-color: var(--proposal-compensates);
+}
+.proposals-chip.is-tension {
+  --chip-color: var(--proposal-tension);
+}
+
+/* Graph --------------------------------------------------------------- */
+
+/* No border, background, or padding: the graph is the page, so the stage is
+   purely the positioning context for the corner legends. */
+.proposals-stage {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  grid-row: 1;
+  grid-column: 1;
+  /* `--proposals-scale` is set here by the layout and read by the graph.
+     The legends deliberately do not use it: they are ordinary UI and keep
+     their own size, and the layout reserves room for them. */
+}
+
+/* The SVG is sized to the stage in real pixels and its geometry is computed
+   to match, so there is no viewBox and nothing is scaled: text in the graph
+   is the same size as text in the legends, and zooming moves both together. */
+.proposals-graph {
+  display: block;
+  /* Stroke widths, dash patterns, and — through markerUnits="strokeWidth" —
+     the arrowheads are all sized from this, so they scale with the drawing
+     instead of staying at full size while it shrinks. It stays 1 outside
+     the graph, where the legend redraws the same classes at a fixed size. */
+  --s: var(--proposals-scale, 1);
+  /* Type inside the drawing scales with it, so a node label keeps its
+     proportion to the node box at every size. */
+  font-size: calc(1rem * var(--proposals-scale, 1));
+}
+
+/* Opening a proposal narrows the stage, which re-runs the layout. Position
+   and size are animated so the graph glides to its new arrangement instead
+   of jumping. Node and hull placement is a transform; hull size and edge
+   paths are geometry properties, which modern browsers also transition. */
+.proposals-hull,
+.proposals-node {
+  transition: transform 260ms cubic-bezier(0.2, 0, 0, 1);
+}
+
+.proposals-hull rect {
+  transition:
+    width 260ms cubic-bezier(0.2, 0, 0, 1),
+    height 260ms cubic-bezier(0.2, 0, 0, 1);
+}
+
+.proposals-edge {
+  transition:
+    d 260ms cubic-bezier(0.2, 0, 0, 1),
+    opacity 160ms ease,
+    stroke-width 160ms ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .proposals-hull,
+  .proposals-node,
+  .proposals-hull rect,
+  .proposals-edge {
+    transition-duration: 1ms;
+  }
+}
+
+.proposals-hull rect {
+  fill: var(--cosci-hover);
+  stroke: var(--cosci-border);
+  stroke-dasharray: calc(3px * var(--s)) calc(5px * var(--s));
+  stroke-width: calc(1px * var(--s));
+}
+
+.proposals-hull-label {
+  font-size: 0.72em;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.proposals-hull.is-scaling .proposals-hull-label {
+  fill: var(--proposal-scaling);
+}
+.proposals-hull.is-evaluation .proposals-hull-label {
+  fill: var(--proposal-evaluation);
+}
+.proposals-hull.is-interaction .proposals-hull-label {
+  fill: var(--proposal-interaction);
+}
+.proposals-hull.is-knowledge .proposals-hull-label {
+  fill: var(--proposal-knowledge);
+}
+.proposals-hull.is-capabilities .proposals-hull-label {
+  fill: var(--proposal-capabilities);
+}
+
+/* Edge kind is carried by color and stroke style together. */
+.proposals-edge {
+  fill: none;
+  stroke: var(--proposal-edge);
+  stroke-width: calc(1.75px * var(--s));
+  /* Slightly held back so a busy graph does not read as noise; the lit
+     state below brings the focused relationships to full strength. */
+  opacity: 0.85;
+  transition: opacity 120ms ease, stroke-width 120ms ease;
+}
+
+.proposals-edge.is-synergy {
+  stroke: var(--proposal-synergy);
+  stroke-width: calc(2px * var(--s));
+}
+
+.proposals-edge.is-enables {
+  stroke: var(--proposal-enables);
+  stroke-width: calc(2px * var(--s));
+}
+
+.proposals-edge.is-compensates {
+  stroke: var(--proposal-compensates);
+  stroke-dasharray: calc(7px * var(--s)) calc(4px * var(--s));
+}
+
+.proposals-edge.is-tension {
+  stroke: var(--proposal-tension);
+  stroke-dasharray: calc(1px * var(--s)) calc(4px * var(--s));
+  stroke-linecap: round;
+  stroke-width: calc(2.75px * var(--s));
+}
+
+.proposals-edge.is-lit {
+  opacity: 1;
+  stroke-width: calc(3px * var(--s));
+}
+
+.proposals-edge.is-dim {
+  opacity: 0.1;
+}
+
+.proposals-node {
+  cursor: pointer;
+}
+
+.proposals-node rect {
+  fill: var(--cosci-menu-bg);
+  stroke: var(--proposal-node-color, var(--cosci-border));
+  stroke-width: calc(1.5px * var(--s));
+  transition: opacity 120ms ease;
+}
+
+.proposals-node text {
+  fill: var(--cosci-text);
+  font-size: 0.8em;
+  font-weight: 500;
+  pointer-events: none;
+}
+
+.proposals-node.is-scaling {
+  --proposal-node-color: var(--proposal-scaling);
+}
+.proposals-node.is-evaluation {
+  --proposal-node-color: var(--proposal-evaluation);
+}
+.proposals-node.is-interaction {
+  --proposal-node-color: var(--proposal-interaction);
+}
+.proposals-node.is-knowledge {
+  --proposal-node-color: var(--proposal-knowledge);
+}
+.proposals-node.is-capabilities {
+  --proposal-node-color: var(--proposal-capabilities);
+}
+
+
+.proposals-node:hover rect,
+.proposals-node.is-focus rect {
+  fill: var(--proposal-node-color);
+  stroke-width: calc(2px * var(--s));
+}
+
+.proposals-node:hover text,
+.proposals-node.is-focus text {
+  fill: var(--cosci-menu-bg);
+}
+
+.proposals-node.is-selected rect {
+  stroke-width: calc(3px * var(--s));
+}
+
+.proposals-node.is-linked rect {
+  stroke-width: calc(2.5px * var(--s));
+}
+
+.proposals-node.is-dim {
+  opacity: 0.22;
+}
+
+/* A focusable <g> still takes the browser's default ring on a plain mouse
+   click, so the reset has to be on :focus — scoping it to :focus-visible
+   leaves the click case showing the UA outline. */
+.proposals-node:focus {
+  outline: none;
+}
+
+/* Keyboard focus keeps a ring, in the app's accent rather than the
+   Settings rail's selection blue. */
+.proposals-node:focus-visible rect {
+  stroke: var(--cosci-step-dot-bg);
+  stroke-width: calc(3px * var(--s));
+}
+
+/* Detail panel -------------------------------------------------------- */
+
+/* The panel arrives from the right edge and leaves the same way, so the
+   graph reflowing beside it reads as one movement rather than two. */
+@keyframes proposals-detail-in {
+  from {
+    opacity: 0;
+    transform: translateX(100%);
+  }
+}
+
+@keyframes proposals-detail-out {
+  to {
+    opacity: 0;
+    transform: translateX(100%);
+  }
+}
+
+.proposals-detail {
+  animation: proposals-detail-in 260ms cubic-bezier(0.2, 0, 0, 1);
+  display: grid;
+  min-height: 0;
+  gap: 0.85rem;
+  align-content: start;
+  grid-row: 1;
+  grid-column: 2;
+  border: 1px solid var(--cosci-border);
+  border-radius: 1rem;
+  background: var(--cosci-panel);
+  padding: 1.25rem;
+  /* The panel scrolls on its own rather than growing the page: brute-force
+     carries nine relationships. */
+  overflow-y: auto;
+}
+
+.proposals-detail.is-leaving {
+  animation: proposals-detail-out 220ms cubic-bezier(0.4, 0, 1, 1) forwards;
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .proposals-detail,
+  .proposals-detail.is-leaving {
+    animation-duration: 1ms;
+  }
+}
+
+/* Too narrow to give the panel its own column: it overlays the canvas
+   instead, since the page itself must not start scrolling. */
+@media (max-width: 67.99rem) {
+  .proposals-detail {
+    position: absolute;
+    z-index: 3;
+    top: 0.85rem;
+    right: 0.85rem;
+    bottom: 0.85rem;
+    grid-column: 1;
+    width: min(22rem, calc(100% - 1.7rem));
+  }
+}
+
+.proposals-detail-head {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.proposals-detail-cluster {
+  margin: 0 0 0.15rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.proposals-detail-cluster.is-scaling {
+  color: var(--proposal-scaling);
+}
+.proposals-detail-cluster.is-evaluation {
+  color: var(--proposal-evaluation);
+}
+.proposals-detail-cluster.is-interaction {
+  color: var(--proposal-interaction);
+}
+.proposals-detail-cluster.is-knowledge {
+  color: var(--proposal-knowledge);
+}
+.proposals-detail-cluster.is-capabilities {
+  color: var(--proposal-capabilities);
+}
+
+.proposals-detail-title {
+  margin: 0;
+  font-family: 'Google Sans', system-ui, sans-serif;
+  font-size: 1.25rem;
+  font-weight: 500;
+}
+
+.proposals-detail-close {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border: 0;
+  border-radius: 9999px;
+  background: transparent;
+  color: var(--cosci-muted);
+  cursor: pointer;
+}
+
+.proposals-detail-close:hover {
+  background: var(--cosci-hover);
+}
+
+.proposals-detail-summary {
+  margin: 0;
+  font-size: 0.95rem;
+  line-height: 1.55;
+}
+
+.proposals-detail-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.proposals-tag {
+  border-radius: 9999px;
+  background: var(--cosci-hover);
+  color: var(--cosci-muted);
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: 0.2rem 0.6rem;
+}
+
+.proposals-tag.is-quiet {
+  font-weight: 400;
+}
+
+.proposals-detail-section {
+  display: grid;
+  gap: 0.4rem;
+}
+
+.proposals-detail-section p {
+  margin: 0;
+  font-size: 0.85rem;
+  line-height: 1.55;
+  color: var(--cosci-muted);
+}
+
+.proposals-detail-subtitle {
+  margin: 0;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+/* Relationship list in the detail panel ------------------------------- */
+
+.proposals-relations {
+  display: grid;
+  gap: 0.6rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* The left rule repeats the edge's color and stroke style, tying a written
+   relationship back to the line drawn for it in the graph. */
+.proposals-relation {
+  border-left: 3px solid var(--proposal-edge);
+  padding-left: 0.7rem;
+}
+
+.proposals-relation.is-synergy {
+  border-left-color: var(--proposal-synergy);
+  border-left-style: solid;
+}
+
+.proposals-relation.is-enables {
+  border-left-color: var(--proposal-enables);
+  border-left-style: double;
+  border-left-width: 4px;
+}
+
+.proposals-relation.is-compensates {
+  border-left-color: var(--proposal-compensates);
+  border-left-style: dashed;
+}
+
+.proposals-relation.is-tension {
+  border-left-color: var(--proposal-tension);
+  border-left-style: dotted;
+}
+
+.proposals-relation p {
+  margin: 0;
+}
+
+.proposals-relation-head {
+  font-size: 0.82rem;
+  color: var(--cosci-muted);
+}
+
+.proposals-relation-link {
+  border: 0;
+  background: none;
+  color: var(--cosci-text);
+  cursor: pointer;
+  font: inherit;
+  font-weight: 600;
+  padding: 0;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.proposals-relation-link:hover {
+  color: var(--cosci-step-dot-bg);
+}
+
+.proposals-relation-note {
+  font-size: 0.82rem;
+  line-height: 1.5;
+}

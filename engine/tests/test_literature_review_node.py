@@ -9,7 +9,7 @@ External seams stubbed (each bound on the submodule that consumes it):
 
 * ``node.get_node_cache`` -> a no-op cache (always miss / no-op set), so the
   global on-disk node cache never interferes and tests stay deterministic.
-* ``node.check_literature_source_available`` -> bool, the MCP-gate the node
+* ``node.check_mcp_available`` -> bool, the server-reachability gate the node
   consults before doing any work; ``False`` drives the unavailable fallback,
   ``True`` the happy path (without it the node would dial ``localhost:8888``).
 * ``node.get_mcp_client`` -> a fake whose ``call_tool`` returns canned search
@@ -95,7 +95,7 @@ class _FakeMCPClient:
 def _stub_node(
     monkeypatch: pytest.MonkeyPatch,
     *,
-    source_available: bool,
+    server_available: bool,
     search_payload: dict[str, dict[str, Any]] | None = None,
     queries: list[str] | None = None,
     synthesis: str = "SYNTHESIZED REVIEW",
@@ -104,8 +104,9 @@ def _stub_node(
 
     Args:
         monkeypatch: The pytest monkeypatch fixture.
-        source_available: Value returned by ``check_literature_source_
-            available``.
+        server_available: Value returned by ``check_mcp_available`` -- the
+            node's precondition is a reachable MCP server, not any one
+            source's health.
         search_payload: ``{paper_id: metadata}`` the fake MCP client returns
             from ``call_tool``.
         queries: Queries returned by the stubbed query-generation LLM. Defaults
@@ -121,9 +122,9 @@ def _stub_node(
     monkeypatch.setattr(lr, "get_node_cache", lambda: _NoOpNodeCache())
 
     async def fake_available(**_: Any) -> bool:
-        return source_available
+        return server_available
 
-    monkeypatch.setattr(lr, "check_literature_source_available", fake_available)
+    monkeypatch.setattr(lr, "check_mcp_available", fake_available)
 
     async def fake_get_client(**_: Any) -> _FakeMCPClient:
         return fake_client
@@ -166,20 +167,20 @@ def _make_event_recorder() -> tuple[
 
 
 # =============================================================================
-# No-MCP / source-unavailable fallback
+# No-MCP / server-unavailable fallback
 # =============================================================================
 
 
-async def test_source_unavailable_returns_failure_without_search(
+async def test_server_unavailable_returns_failure_without_search(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """When the literature source is unavailable the node fails fast.
+    """When the MCP server is unreachable the node fails fast.
 
     It returns the documented failure result (``articles_with_reasoning`` set to
     the failure sentinel, empty queries/articles) and never touches the MCP
     search client.
     """
-    fake_client = _stub_node(monkeypatch, source_available=False)
+    fake_client = _stub_node(monkeypatch, server_available=False)
     state = make_state(research_goal="cancer immunotherapy resistance")
 
     result = await literature_review_node(state)
@@ -190,6 +191,49 @@ async def test_source_unavailable_returns_failure_without_search(
     assert result["messages"][0]["metadata"]["error"] is True
     # The search seam was never reached.
     assert fake_client.calls == []
+
+
+async def test_node_gate_is_server_reachability_not_source_health(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The node proceeds whenever the MCP server responds.
+
+    Regression guard: the node once gated on a single source's availability
+    (``check_pubmed``). A PubMed outage then aborted the whole node before any
+    source ran -- including the group's local corpus, which never depends on a
+    remote service. The gate is now server reachability, and each source's own
+    failure is swallowed downstream so the healthy sources still return. This
+    test pins the gate: with the server reachable the node runs its search
+    regardless of any one source's health, and it consults
+    ``check_mcp_available`` rather than a source-specific probe.
+    """
+    # The node must not reach for a source-specific availability probe; if it
+    # imported one, this would catch a regression to the old coupling.
+    assert not hasattr(lr, "check_literature_source_available")
+
+    papers = {"PMID1": {"title": "A paper", "fulltext": "Body text."}}
+    fake_client = _stub_node(
+        monkeypatch,
+        server_available=True,
+        search_payload=papers,
+        synthesis="REVIEW",
+    )
+    # Record that the gate consults server reachability, then let it pass.
+    called: dict[str, bool] = {}
+
+    async def fake_server_available(**_: Any) -> bool:
+        called["check_mcp_available"] = True
+        return True
+
+    monkeypatch.setattr(lr, "check_mcp_available", fake_server_available)
+    state = make_state(research_goal="cancer immunotherapy resistance")
+
+    result = await literature_review_node(state)
+
+    assert called.get("check_mcp_available") is True
+    # The search seam WAS reached: the server being up is sufficient.
+    assert fake_client.calls != []
+    assert result["articles_with_reasoning"] == "REVIEW"
 
 
 # =============================================================================
@@ -224,7 +268,7 @@ async def test_happy_path_populates_synthesis_and_articles(
     }
     _stub_node(
         monkeypatch,
-        source_available=True,
+        server_available=True,
         search_payload=papers,
         queries=["query alpha", "query beta"],
         synthesis="SYNTHESIZED REVIEW",
@@ -265,7 +309,7 @@ async def test_happy_path_falls_back_to_research_goal_query(
     }
     _stub_node(
         monkeypatch,
-        source_available=True,
+        server_available=True,
         search_payload=papers,
         queries=[],  # forces the research-goal fallback
         synthesis="REVIEW",
@@ -294,7 +338,7 @@ async def test_no_papers_found_returns_failure_with_queries(
     """
     _stub_node(
         monkeypatch,
-        source_available=True,
+        server_available=True,
         search_payload={},  # no papers
         queries=["only query"],
     )
@@ -320,7 +364,7 @@ async def test_abstract_only_papers_are_analyzed_with_bounded_evidence(
     }
     _stub_node(
         monkeypatch,
-        source_available=True,
+        server_available=True,
         search_payload=papers,
         queries=["q"],
     )
@@ -354,7 +398,7 @@ async def test_progress_callback_receives_events(
     papers = {"PMID7": {"title": "P", "fulltext": "body"}}
     _stub_node(
         monkeypatch,
-        source_available=True,
+        server_available=True,
         search_payload=papers,
         queries=["q"],
         synthesis="REVIEW",
@@ -384,7 +428,7 @@ async def test_no_papers_with_search_error_emits_error_event(
     # Reuse the standard stubs, then replace the client with one that raises on
     # every search call (query generation uses the stubbed LLM, not call_tool).
     _stub_node(
-        monkeypatch, source_available=True, search_payload={}, queries=["q"]
+        monkeypatch, server_available=True, search_payload={}, queries=["q"]
     )
 
     class _RaisingClient:
@@ -424,7 +468,7 @@ async def test_no_papers_without_error_emits_empty_event(
     events, callback = _make_event_recorder()
 
     _stub_node(
-        monkeypatch, source_available=True, search_payload={}, queries=["q"]
+        monkeypatch, server_available=True, search_payload={}, queries=["q"]
     )
     state = make_state(
         research_goal="genuinely empty goal", progress_callback=callback

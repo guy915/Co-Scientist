@@ -117,16 +117,19 @@ def setup_config(
     criteria: list[str] | None = None,
     focus: str | None = None,
     tier: str | None = None,
+    audience_context: str = "",
 ) -> dict[str, Any]:
     """Build the durable setup block persisted inside run config JSON.
 
     Callers that omit requirements/attributes/criteria (a direct API call, a
     seeded demo) fall back to the client-independent planning baseline so the
     engine always receives guidance regardless of which client created the run.
+    A non-empty audience_context is stored so setup_guidance can surface it to
+    the planning and generation agents.
     """
     # `or` also covers lists that become empty after cleaning, so a caller
     # sending only blank strings still gets the baseline defaults.
-    return {
+    setup: dict[str, Any] = {
         "goal": research_goal.strip(),
         "requirements": clean_string_list(requirements)
         or list(DEFAULT_REQUIREMENTS),
@@ -135,6 +138,9 @@ def setup_config(
         "focus": normalize_run_focus(focus),
         "tier": normalize_run_tier(tier),
     }
+    if audience_context.strip():
+        setup["audience_context"] = audience_context.strip()
+    return setup
 
 
 def focus_guidance(focus: str | None) -> str:
@@ -203,6 +209,10 @@ def setup_guidance(setup: dict[str, Any] | None) -> str:
         ("Criteria", "criteria"),
     ):
         lines.extend(_setup_field_lines(title, setup.get(key)))
+    context = setup.get("audience_context")
+    if isinstance(context, str) and context.strip():
+        lines.append("Audience context:")
+        lines.append(context.strip())
     return "\n".join(lines)
 
 
@@ -255,6 +265,13 @@ def _apply_focus_override(
     )
 
 
+def _apply_audience_override(
+    base: dict[str, Any], unused_key: str, raw_value: Any
+) -> None:
+    """Carry the audience through verbatim, in place."""
+    base["audience"] = raw_value
+
+
 def _apply_literature_review_override(
     base: dict[str, Any], unused_key: str, raw_value: Any
 ) -> None:
@@ -291,6 +308,7 @@ _OVERRIDE_HANDLERS: dict[str, Callable[[dict[str, Any], str, Any], None]] = {
     "setup": _apply_setup_override,
     "tier": _apply_tier_override,
     "focus": _apply_focus_override,
+    "audience": _apply_audience_override,
     "enable_literature_review": _apply_literature_review_override,
     "llm_backend": _apply_llm_backend_override,
 }

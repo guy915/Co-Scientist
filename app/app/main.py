@@ -28,6 +28,7 @@ from app.auth import (
     router as auth_router,
 )
 from app.config import settings
+from app.feedback import router as feedback_router
 from app.interviews import router as interviews_router
 from app.logging_setup import (
     configure_log_capture,
@@ -253,6 +254,7 @@ async def enforce_run_ownership(request: Request, call_next: Any) -> Response:
 app.include_router(runs_router)
 app.include_router(interviews_router)
 app.include_router(shares_router)
+app.include_router(feedback_router)
 app.include_router(auth_router)
 app.include_router(logs_router)
 

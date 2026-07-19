@@ -17,6 +17,14 @@ RUN pip install --no-cache-dir -e .
 # Copy app source
 COPY app/app/ ./app/
 
+# The research group's own papers, as sanitized text. The app retrieves from
+# these directly (chat and Q&A grounding) rather than through the MCP server,
+# so the api image needs its own copy. SBI_CORPUS_DIR is set explicitly rather
+# than relying on the module's repo-relative default, which does not survive
+# the move into the image.
+COPY corpus/ ./corpus/
+ENV SBI_CORPUS_DIR=/app/corpus/sbi_ucd
+
 RUN mkdir -p /app/data
 
 EXPOSE ${PORT:-8008}
