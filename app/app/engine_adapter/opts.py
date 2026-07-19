@@ -136,18 +136,11 @@ def _build_engine_opts(
     literature = [str(item["display"]) for item in private_sources]
     if private_sources:
         initial_opts["context_enrichment_sources"] = private_sources
-    # The audience's own papers, retrieved against this run's goal. They join
-    # the literature channel rather than run_setup_guidance deliberately:
-    # literature reaches planning and query generation, while setup guidance
-    # reaches every tournament comparison, and ranking is roughly quadratic.
-    literature.extend(
-        paper_corpus.format_passages([hit])
-        for hit in paper_corpus.retrieve_for(
-            str(cfg.get("audience") or ""),
-            goal,
-            k=paper_corpus.RUN_PASSAGES,
-        )
-    )
+    # The group's own papers no longer ride the literature channel as
+    # retrieved passages: the whole catalog (title + abstract of every paper)
+    # is injected into the run's setup context up front (see
+    # runs_models._build_create_run_config), and the agent fetches any paper
+    # in full with fetch_paper. So there is nothing to add here.
     if literature:
         initial_opts["user_inputs"] = {"literature": literature}
     return initial_opts
@@ -242,7 +235,10 @@ def _build_generator(
         # context would catch. (2) The run's connector toggles, applied
         # by the engine's ToolRegistry as `tool.enabled = False`.
         disable_tools=[
-            *paper_corpus.disabled_tools_for(str(cfg.get("audience") or "")),
+            *paper_corpus.disabled_tools_for(
+                str(cfg.get("audience") or ""),
+                enabled=cfg.get("enable_paper_corpus", True) is not False,
+            ),
             *_resolve_disabled_tools(cfg),
         ],
     )

@@ -307,6 +307,13 @@ def _apply_web_search_override(
     base["enable_web_search"] = bool(raw_value)
 
 
+def _apply_paper_corpus_override(
+    base: dict[str, Any], unused_key: str, raw_value: Any
+) -> None:
+    """Coerce and merge the paper-corpus toggle into `base`, in place."""
+    base["enable_paper_corpus"] = bool(raw_value)
+
+
 # Per-key override handlers; any key without a dedicated handler is a
 # numeric knob and falls back to `_apply_numeric_override`. Every handler
 # shares `_apply_numeric_override`'s (base, key, raw_value) signature so the
@@ -319,6 +326,7 @@ _OVERRIDE_HANDLERS: dict[str, Callable[[dict[str, Any], str, Any], None]] = {
     "enable_literature_review": _apply_literature_review_override,
     "llm_backend": _apply_llm_backend_override,
     "enable_web_search": _apply_web_search_override,
+    "enable_paper_corpus": _apply_paper_corpus_override,
 }
 
 
@@ -390,4 +398,8 @@ def resolved_run_config(
     # Web search is on by default, matching the literature stack. It is a
     # no-op unless the MCP server actually offers the tool.
     base.setdefault("enable_web_search", True)
+    # The paper corpus is on by default. It is a no-op for every audience but
+    # sbi_ucd (whose gate dominates the toggle), and for that audience only
+    # when the corpus catalog is actually installed.
+    base.setdefault("enable_paper_corpus", True)
     return base

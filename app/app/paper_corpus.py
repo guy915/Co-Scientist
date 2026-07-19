@@ -1,40 +1,30 @@
-"""The SBI/UCD paper corpus: sanitation, chunking, and retrieval.
+"""The SBI/UCD paper corpus: sanitation and the injected paper catalog.
 
 The lab's papers extract to roughly 330k tokens of raw `pdftotext` output,
 about 30% of which is references, page furniture, and figure/equation glyphs
-fragmented into single letters. Even sanitized the corpus is far too large to
-inject anywhere, so it is reached by retrieval rather than by injection.
+fragmented into single letters. `sanitize` cleans one paper for storage; the
+sanitized papers live on disk and the MCP `fetch_paper` tool reads any one of
+them in full on demand.
 
-Two design choices are worth stating, because both look like shortcuts and
-neither is:
-
-Chunks are documents. A whole paper is ~22k tokens, so retrieving one is no
-better than injecting it. Splitting each paper into passage-sized
-`CorpusDocument`s means the existing `KeywordCorpusRetriever` -- already
-BM25-style, deterministic, and offline -- retrieves passages with no new
-retrieval code and no new dependency.
-
-Keyword scoring, not embeddings. This corpus is jargon-dense (STV, DPD,
-BMRA, trametinib, SH-SY5Y, PLX8394) and queries share that vocabulary, which
-is the regime where term-frequency scoring is strongest and where the
-vocabulary mismatch embeddings solve is mildest. `CorpusRetriever` remains
-the seam: a vector backend can replace this without touching callers.
+The corpus reaches a run through a small, always-present catalog rather than
+through retrieval: the title and abstract of every paper are injected into
+the run's context (see `format_catalog`), so the model always knows the whole
+of the group's library and can decide, from each abstract, which papers to
+pull in full with `fetch_paper`. The catalog is a committed, reviewable file
+(`catalog.json`) built offline from verified metadata, so nothing about which
+papers exist or what they claim is decided at runtime.
 """
 
 from __future__ import annotations
 
 import dataclasses
+import functools
+import json
 import logging
 import os
 import re
 from collections import Counter
 from pathlib import Path
-
-from app.run_corpus import (
-    CorpusDocument,
-    KeywordCorpusRetriever,
-    RetrievedDocument,
-)
 
 logger = logging.getLogger(__name__)
 
@@ -44,10 +34,11 @@ logger = logging.getLogger(__name__)
 CORPUS_ENV_VAR = "SBI_CORPUS_DIR"
 _DEFAULT_CORPUS_DIR = Path(__file__).resolve().parents[2] / "corpus" / "sbi_ucd"
 
-# A passage large enough to carry an argument, small enough that several fit
-# in a prompt beside everything else a call already carries.
-TARGET_CHUNK_TOKENS = 450
-_CHARS_PER_TOKEN = 4
+# The committed catalog: one entry per paper with its title, abstract, and the
+# `paper_id` that `fetch_paper` takes. Built offline by `build_catalog` from
+# verified metadata and reviewed before it ships, so runtime never derives an
+# abstract from the messy sanitized text.
+CATALOG_FILENAME = "catalog.json"
 
 # Everything from these headings to the end of the paper is back matter: the
 # reference list alone is 21% of the corpus, and none of it states a finding.
@@ -187,283 +178,147 @@ def sanitize(raw: str) -> tuple[str, SanitationReport]:
     return body, SanitationReport(len(body), original - len(body))
 
 
-def _paragraphs(text: str) -> list[str]:
-    """Group sanitized lines into paragraphs.
-
-    Sanitation drops blank lines, so paragraphs are re-derived: a line that
-    does not end mid-sentence closes the one being built.
-    """
-    paragraphs: list[str] = []
-    current: list[str] = []
-    for line in text.split("\n"):
-        current.append(line)
-        if line.endswith((".", "?", "!")):
-            paragraphs.append(" ".join(current))
-            current = []
-    if current:
-        paragraphs.append(" ".join(current))
-    return paragraphs
-
-
-def _split_oversized(paragraphs: list[str], budget: int) -> list[str]:
-    """Break any paragraph larger than the budget into sentence-sized parts.
-
-    Without this a passage is only as small as the largest paragraph, and a
-    table flattened onto one line would produce a single enormous passage
-    that crowds out everything else in the prompt it lands in.
-    """
-    out: list[str] = []
-    for paragraph in paragraphs:
-        if len(paragraph) <= budget:
-            out.append(paragraph)
-            continue
-        part: list[str] = []
-        size = 0
-        for sentence in re.split(r"(?<=[.?!])\s+", paragraph):
-            if size and size + len(sentence) > budget:
-                out.append(" ".join(part))
-                part, size = [], 0
-            part.append(sentence)
-            size += len(sentence) + 1
-        if part:
-            out.append(" ".join(part))
-    return out
-
-
-def chunk_paper(
-    paper_id: str,
-    title: str,
-    text: str,
-    target_tokens: int = TARGET_CHUNK_TOKENS,
-) -> list[CorpusDocument]:
-    """Split one sanitized paper into passage-sized corpus documents.
-
-    Splits on paragraph boundaries rather than a fixed character count, so a
-    retrieved passage is a complete argument rather than a window that starts
-    and stops mid-sentence.
-
-    Args:
-        paper_id: Stable identifier for the paper, used to build chunk ids.
-        title: The paper's title, carried on every chunk so a hit is
-            attributable without a second lookup.
-        text: The paper's sanitized text.
-        target_tokens: Approximate size to grow each chunk toward.
-
-    Returns:
-        One `CorpusDocument` per passage, in document order.
-    """
-    budget = target_tokens * _CHARS_PER_TOKEN
-    chunks: list[CorpusDocument] = []
-    current: list[str] = []
-    size = 0
-
-    def flush() -> None:
-        if not current:
-            return
-        index = len(chunks)
-        chunks.append(
-            CorpusDocument(
-                doc_id=f"{paper_id}#{index:03d}",
-                title=title,
-                text=" ".join(current),
-                source="sbi_corpus",
-            )
-        )
-
-    for paragraph in _split_oversized(_paragraphs(text), budget):
-        if size and size + len(paragraph) > budget:
-            flush()
-            current, size = [], 0
-        current.append(paragraph)
-        size += len(paragraph)
-    flush()
-    return chunks
-
-
 def corpus_dir() -> Path:
     """Return the configured corpus directory."""
     override = os.environ.get(CORPUS_ENV_VAR)
     return Path(override) if override else _DEFAULT_CORPUS_DIR
 
 
-def _title_from(path: Path, text: str) -> str:
-    """Take the title from a leading markdown heading, else the filename."""
-    first = text.lstrip().split("\n", 1)[0].strip()
-    if first.startswith("# "):
-        return first[2:].strip()
-    return path.stem
-
-
-def load_corpus(directory: Path | None = None) -> list[CorpusDocument]:
-    """Load and chunk every sanitized paper in the corpus directory.
-
-    Args:
-        directory: Where sanitized `.md`/`.txt` papers live. Defaults to the
-            configured corpus directory.
-
-    Returns:
-        Every paper's chunks, or an empty list when the corpus is absent --
-        which is the normal state of a fresh checkout, not an error.
-    """
-    root = directory or corpus_dir()
-    if not root.is_dir():
-        logger.debug("no paper corpus at %s", root)
-        return []
-
-    documents: list[CorpusDocument] = []
-    for path in sorted(root.iterdir()):
-        if path.suffix not in (".md", ".txt"):
-            continue
-        try:
-            text = path.read_text(encoding="utf-8")
-        except OSError as exc:
-            logger.warning("Could not read corpus paper %s: %s", path, exc)
-            continue
-        title = _title_from(path, text)
-        documents.extend(chunk_paper(path.stem, title, text))
-    papers = {d.doc_id.split("#")[0] for d in documents}
-    logger.debug(
-        "loaded %d passages from %d papers", len(documents), len(papers)
-    )
-    return documents
-
-
-def build_retriever(
-    directory: Path | None = None,
-) -> KeywordCorpusRetriever | None:
-    """Build a retriever over the paper corpus, or None when it is absent.
-
-    Args:
-        directory: Optional corpus directory override.
-
-    Returns:
-        A retriever, or None when no papers are installed so callers can skip
-        retrieval entirely rather than querying an empty index.
-    """
-    documents = load_corpus(directory)
-    return KeywordCorpusRetriever(documents) if documents else None
-
-
 # The corpus is one lab's library, so it is offered to that lab only. Other
-# audiences retrieve nothing rather than seeing another group's unpublished
-# reading of the field.
+# audiences neither see the catalog nor may fetch a paper: a non-corpus
+# audience must not read another group's library at all.
 CORPUS_AUDIENCE = "sbi_ucd"
 
-# The engine reaches the corpus through these MCP tools rather than through
-# `retrieve_for`, so the audience gate has to be applied to them separately:
-# `retrieve_for` covers what the app injects, while these cover what an agent
-# can go and fetch for itself.
-CORPUS_TOOL_IDS = ("paper_corpus_search", "paper_corpus_fetch")
+# The engine reaches the corpus in full through this MCP tool. Withholding it
+# from other audiences is the second half of the gate; the first is simply not
+# injecting the catalog for them (see `catalog_context`).
+CORPUS_FETCH_TOOL_ID = "paper_corpus_fetch"
+CORPUS_TOOL_IDS = (CORPUS_FETCH_TOOL_ID,)
 
 
-def disabled_tools_for(audience: str | None) -> list[str]:
-    """Return the corpus tool ids to withhold from a run's tool registry.
+@dataclasses.dataclass(frozen=True)
+class CatalogPaper:
+    """One paper in the injected catalog: what the model sees at a glance."""
 
-    The corpus reaches a run by two independent routes: passages this module
-    injects (gated in `retrieve_for`) and the MCP tools an agent may call on
-    its own initiative during drafting, validation, and reflection. Gating
-    only the first would leave a non-corpus audience able to search another
-    lab's library directly, so both derive from `CORPUS_AUDIENCE` here.
+    paper_id: str
+    title: str
+    abstract: str
+
+
+@functools.cache
+def load_catalog(directory: Path | None = None) -> tuple[CatalogPaper, ...]:
+    """Load the committed paper catalog, or an empty tuple when absent.
+
+    The catalog is static, so it is read and cached once. An absent or
+    malformed file yields an empty catalog rather than raising: a deployment
+    without the corpus is the normal keyless/non-SBI state, not an error.
 
     Args:
-        audience: The run's self-declared audience.
+        directory: Where the corpus (and its `catalog.json`) live. Defaults to
+            the configured corpus directory. Passed only by tests installing a
+            different corpus; production always uses the default.
 
     Returns:
-        An empty list for the corpus audience, and the corpus tool ids for
-        every other audience, to be passed as the engine's `disable_tools`.
+        The catalog papers in file order, or an empty tuple.
     """
-    if audience == CORPUS_AUDIENCE:
-        return []
-    return list(CORPUS_TOOL_IDS)
+    root = directory or corpus_dir()
+    path = root / CATALOG_FILENAME
+    try:
+        raw = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        logger.debug("no readable paper catalog at %s: %s", path, exc)
+        return ()
+    papers: list[CatalogPaper] = []
+    for item in raw.get("papers", []):
+        paper_id = str(item.get("paper_id") or "").strip()
+        title = str(item.get("title") or "").strip()
+        abstract = str(item.get("abstract") or "").strip()
+        if paper_id and title and abstract:
+            papers.append(CatalogPaper(paper_id, title, abstract))
+    logger.debug("loaded %d catalog papers from %s", len(papers), path)
+    return tuple(papers)
 
 
-# How many passages each surface takes. The configured models have 1M-token
-# windows and a passage is ~450 tokens, so these are set by usefulness rather
-# than by budget: the retriever already drops anything scoring zero, but a
-# long tail of weak matches dilutes the strong ones. Chat takes more because
-# it makes one call and its query is a real question; the run path's passages
-# ride the literature channel into planning and query generation, where they
-# are bullet points competing with the goal itself.
-CHAT_PASSAGES = 20
-RUN_PASSAGES = 10
+def format_catalog(papers: tuple[CatalogPaper, ...]) -> str:
+    """Render the catalog as a prompt block, or empty when there are none.
 
-# Term-frequency scoring returns something for almost any query: ask about
-# the weather and common words still match a few paragraphs weakly. If even
-# the best passage scores below this, the corpus has nothing on the topic,
-# and handing back its weak tail invites the model to read unrelated
-# paragraphs as the group's prior work -- the same failure as a tool that
-# cannot distinguish "no results" from "request failed".
-#
-# Measured against the real corpus: genuine questions top out at 0.28-0.36,
-# a nonsense query at 0.035. A wholly out-of-domain query already scores
-# nothing at all.
-MIN_TOP_SCORE = 0.05
+    Each entry prints its `paper_id` so the model can pass it to `fetch_paper`;
+    the header names that follow-up explicitly, since the catalog is now the
+    only place those ids are advertised.
 
-_cached_retriever: KeywordCorpusRetriever | None = None
-_cache_loaded = False
+    Args:
+        papers: The catalog papers to render.
 
-
-def _retriever() -> KeywordCorpusRetriever | None:
-    """Return the process-wide retriever, indexing the corpus on first use.
-
-    The corpus is static, so it is indexed once. `_cache_loaded` distinguishes
-    "not yet built" from "built and there is no corpus", so an absent corpus
-    is not re-scanned on every request.
+    Returns:
+        A titled block listing every paper's title, id, and abstract, or an
+        empty string when the catalog is empty.
     """
-    global _cached_retriever, _cache_loaded
-    if not _cache_loaded:
-        _cached_retriever = build_retriever()
-        _cache_loaded = True
-    return _cached_retriever
+    if not papers:
+        return ""
+    lines = [
+        "## The research group's own papers",
+        "",
+        "These are the group's published papers. The title and abstract of "
+        "every paper are below. When an abstract shows a paper is relevant, "
+        "call `fetch_paper(paper_id=...)` to read its full text; the "
+        "`paper_id` for each is given in parentheses.",
+        "",
+    ]
+    for paper in papers:
+        lines.append(f"- **{paper.title}** (paper_id: `{paper.paper_id}`)")
+        lines.append(f"  {paper.abstract}")
+    return "\n".join(lines)
 
 
-def reset_cache() -> None:
-    """Drop the cached index. For tests that install a different corpus."""
-    global _cached_retriever, _cache_loaded
-    _cached_retriever, _cache_loaded = None, False
+def catalog_context(
+    audience: str | None,
+    *,
+    enabled: bool = True,
+    directory: Path | None = None,
+) -> str:
+    """Return the injected catalog block for a run, gated by audience+toggle.
 
-
-def retrieve_for(
-    audience: str | None, query: str, k: int
-) -> list[RetrievedDocument]:
-    """Retrieve corpus passages for an audience, if it has a corpus.
+    The audience gate dominates the toggle: only the corpus audience ever
+    receives the catalog, so a forged ``enable_paper_corpus`` on a non-SBI run
+    cannot pull another lab's library into context. Within that audience the
+    toggle lets a run opt out.
 
     Args:
         audience: The run or question's self-declared audience.
-        query: Free text to search with -- a user's question or a run's goal.
-        k: Maximum passages to return.
+        enabled: The run's corpus connector toggle. Ignored for non-corpus
+            audiences, which never receive the catalog regardless.
+        directory: Optional corpus directory override (tests).
 
     Returns:
-        The best passages, or an empty list when the audience has no corpus,
-        the corpus is not installed, or nothing matched it well enough to be
-        worth reading.
+        The formatted catalog block, or an empty string when the audience has
+        no corpus, the toggle is off, or no catalog is installed.
     """
-    if audience != CORPUS_AUDIENCE or not query.strip():
-        return []
-    retriever = _retriever()
-    if retriever is None:
-        return []
-    hits = retriever.retrieve(query, k=k)
-    # Judge the whole result by its best passage: a weak top score means the
-    # query found nothing, not that it found many mediocre things.
-    if not hits or hits[0].score < MIN_TOP_SCORE:
-        return []
-    return hits
+    if audience != CORPUS_AUDIENCE or not enabled:
+        return ""
+    return format_catalog(load_catalog(directory))
 
 
-def format_passages(hits: list[RetrievedDocument]) -> str:
-    """Render retrieved passages for a prompt, grouped under their paper.
+def disabled_tools_for(
+    audience: str | None, *, enabled: bool = True
+) -> list[str]:
+    """Return the corpus tool ids to withhold from a run's tool registry.
+
+    `fetch_paper` reaches the corpus on the agent's own initiative during
+    drafting, validation, and reflection, so the audience gate has to be
+    applied to it directly and not only to the injected catalog. As with the
+    catalog, the audience gate dominates: a non-corpus audience always has the
+    tool withheld; the corpus audience may additionally withhold it by turning
+    the connector off.
 
     Args:
-        hits: Retrieval results, already ordered by relevance.
+        audience: The run's self-declared audience.
+        enabled: The run's corpus connector toggle. Only consulted for the
+            corpus audience.
 
     Returns:
-        A block of text naming each source paper above its passage, or an
-        empty string when there were no hits.
+        An empty list when the corpus tool should stay available, the corpus
+        tool ids otherwise, to be passed as the engine's `disable_tools`.
     """
-    if not hits:
-        return ""
-    lines: list[str] = []
-    for hit in hits:
-        lines.append(f'From "{hit.document.title}":\n{hit.document.text}')
-    return "\n\n".join(lines)
+    if audience == CORPUS_AUDIENCE and enabled:
+        return []
+    return list(CORPUS_TOOL_IDS)

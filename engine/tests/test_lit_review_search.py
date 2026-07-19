@@ -438,11 +438,15 @@ def test_reserved_slots_never_exceed_the_evidence_budget() -> None:
     assert select_within_budget(ranked, source_map, sources, 0) == []
 
 
-def test_the_shipped_corpus_source_reserves_slots() -> None:
-    """The bundled config must actually carry the reservation.
+def test_the_shipped_sources_reserve_no_slots() -> None:
+    """The bundled literature-review sources all compete on score alone.
 
-    Without it the corpus is searched on every run and then discarded,
-    which is indistinguishable from the corpus not being installed.
+    The paper corpus was the only source that ever reserved slots (so its
+    passages were not truncated away); now that the corpus reaches a run as an
+    injected catalog rather than a search source, no bundled source reserves
+    anything. `reserved_slots` remains a general capability of
+    `SearchSourceConfig` (exercised by the tests above), just unused by the
+    shipped config.
     """
     from co_scientist.config import ToolRegistry
 
@@ -453,10 +457,8 @@ def test_the_shipped_corpus_source_reserves_slots() -> None:
         source.tool: source.reserved_slots
         for source in workflow.get_enabled_search_sources()
     }
-    assert reserved["paper_corpus_search"] == 2
-    # Public databases compete on score alone.
-    assert reserved["pubmed_fulltext"] == 0
-    assert reserved["openalex_search"] == 0
+    assert set(reserved) == {"pubmed_fulltext", "openalex_search", "web_search"}
+    assert all(slots == 0 for slots in reserved.values())
 
 
 def test_sources_with_enabled_tools_drops_disabled_tool() -> None:

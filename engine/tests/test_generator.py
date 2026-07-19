@@ -110,12 +110,11 @@ def test_lazy_state_is_unset_before_first_run() -> None:
     assert gen._tool_registry is not None
     workflow = gen._tool_registry.get_workflow("literature_review")
     assert workflow is not None and workflow.is_multi_source()
-    # The group's own paper corpus leads the shipped source list; it returns
-    # an empty result when no corpus is installed, so it costs nothing here.
+    # The literature review searches the public databases; the group's own
+    # papers reach a run as an injected catalog, not as a search source.
     assert [
         source.tool for source in workflow.get_enabled_search_sources()
     ] == [
-        "paper_corpus_search",
         "pubmed_fulltext",
         "openalex_search",
         "web_search",

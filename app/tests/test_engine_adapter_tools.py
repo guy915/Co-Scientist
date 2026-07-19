@@ -95,14 +95,12 @@ def test_build_generator_withholds_corpus_tools_by_audience(
         cfg["audience"] = other
         _build_generator(_FakeGenerator, cfg)
         assert _FakeGenerator.last_kwargs["disable_tools"] == [
-            "paper_corpus_search",
             "paper_corpus_fetch",
         ]
 
     # A run config with no audience key at all must not open the corpus.
     _build_generator(_FakeGenerator, _cfg())
     assert _FakeGenerator.last_kwargs["disable_tools"] == [
-        "paper_corpus_search",
         "paper_corpus_fetch",
     ]
 
@@ -218,7 +216,6 @@ def test_build_generator_enables_web_search_by_default() -> None:
     """
     _build_generator(_FakeGenerator, _cfg())
     assert _FakeGenerator.last_kwargs["disable_tools"] == [
-        "paper_corpus_search",
         "paper_corpus_fetch",
     ]
 
@@ -228,7 +225,6 @@ def test_build_generator_disables_web_search_when_toggled_off() -> None:
     cfg = _cfg() | {"enable_web_search": False}
     _build_generator(_FakeGenerator, cfg)
     assert _FakeGenerator.last_kwargs["disable_tools"] == [
-        "paper_corpus_search",
         "paper_corpus_fetch",
         "web_search",
     ]

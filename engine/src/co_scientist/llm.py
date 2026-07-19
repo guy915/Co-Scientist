@@ -15,8 +15,6 @@ from typing import Any, cast
 import litellm
 from jsonschema.exceptions import ValidationError as ValidationError
 
-from co_scientist.exceptions import LLMTimeoutError
-
 from co_scientist import llm_request
 from co_scientist import prompts as prompts
 from co_scientist.cache import (
@@ -30,6 +28,7 @@ from co_scientist.constants import (
     EXTENDED_MAX_TOKENS,
     HIGH_TEMPERATURE,
 )
+from co_scientist.exceptions import LLMTimeoutError
 from co_scientist.llm_json import (
     _backfill_required_fields as _backfill_required_fields,
 )

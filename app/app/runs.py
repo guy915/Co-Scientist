@@ -1077,13 +1077,7 @@ async def ask_question(run_id: str, req: AskRequest) -> StreamingResponse:
         history,
         manifest,
         audience_context=audience_chat_context(req.audience),
-        corpus_passages=paper_corpus.format_passages(
-            paper_corpus.retrieve_for(
-                req.audience,
-                req.question,
-                k=paper_corpus.CHAT_PASSAGES,
-            )
-        ),
+        corpus_catalog=paper_corpus.catalog_context(req.audience),
     )
     return StreamingResponse(
         qa.stream_answer(

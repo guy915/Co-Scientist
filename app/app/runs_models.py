@@ -12,6 +12,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
+from app import paper_corpus
 from app.audience import AUDIENCE_PATTERN, audience_context
 from app.run_modes import (
     RUN_FOCUS_PATTERN,
@@ -44,6 +45,9 @@ class CreateRunRequest(BaseModel):
     k_factor: int | None = None
     enable_literature_review: bool | None = None
     enable_web_search: bool | None = None
+    # The SBI/UCD paper-corpus connector. Only affects the ``sbi_ucd``
+    # audience (the corpus is one lab's library); on by default for it.
+    enable_paper_corpus: bool | None = None
     completion_email: str | None = Field(
         None,
         pattern=r"^[^@\s]+@[^@\s]+\.[^@\s]+$",
@@ -153,11 +157,17 @@ def _run_overrides_from_request(
         ("k_factor", req.k_factor),
         ("enable_literature_review", req.enable_literature_review),
         ("enable_web_search", req.enable_web_search),
+        ("enable_paper_corpus", req.enable_paper_corpus),
     )
     for key, value in numeric_overrides:
         if value is not None:
             overrides[key] = value
     return overrides
+
+
+def _combine_context(*blocks: str) -> str:
+    """Join non-empty context blocks with a blank line between them."""
+    return "\n\n".join(block.strip() for block in blocks if block.strip())
 
 
 def _build_create_run_config(
@@ -166,6 +176,17 @@ def _build_create_run_config(
     """Resolve a create-run request into its (config, focus, tier) triple."""
     focus = normalize_run_focus(req.focus)
     tier = normalize_run_tier(req.tier)
+    # The audience's static context document, plus -- for the SBI/UCD audience
+    # with the paper-corpus connector on -- the catalog of the group's own
+    # papers (title + abstract of each), so the whole library is always in
+    # context and the model can fetch any paper in full. The audience gate in
+    # `catalog_context` dominates the toggle, so a non-SBI run never receives
+    # the catalog even with the toggle forced on.
+    corpus_on = req.enable_paper_corpus is not False
+    context = _combine_context(
+        audience_context(req.audience),
+        paper_corpus.catalog_context(req.audience, enabled=corpus_on),
+    )
     # `setup` is the durable planning block persisted inside config_json.
     setup = setup_config(
         research_goal=req.research_goal,
@@ -174,7 +195,7 @@ def _build_create_run_config(
         criteria=req.criteria,
         focus=focus,
         tier=tier,
-        audience_context=audience_context(req.audience),
+        audience_context=context,
     )
     overrides = _run_overrides_from_request(
         req, focus=focus, tier=tier, setup=setup

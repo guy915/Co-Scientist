@@ -7,6 +7,7 @@ a paper is re-ingested.
 
 from __future__ import annotations
 
+import json
 from collections.abc import Iterator
 from pathlib import Path
 
@@ -93,53 +94,6 @@ def test_sanitize_keeps_numbered_prose_without_years() -> None:
     assert "Incubate the sample" in body
 
 
-def test_chunking_splits_a_paper_into_attributed_passages() -> None:
-    text = " ".join(f"Sentence number {i} about kinases." for i in range(400))
-    chunks = paper_corpus.chunk_paper("paper-1", "A Title", text)
-    assert len(chunks) > 1
-    # Every passage names its paper, so a hit is attributable on its own.
-    assert all(c.title == "A Title" for c in chunks)
-    assert all(c.doc_id.startswith("paper-1#") for c in chunks)
-    # Ids are unique and ordered.
-    assert len({c.doc_id for c in chunks}) == len(chunks)
-
-
-def test_chunking_bounds_a_single_huge_paragraph() -> None:
-    """A flattened table arrives as one enormous line, and must still split.
-
-    Otherwise one passage crowds out every other in the prompt it lands in.
-    """
-    text = " ".join(f"Value {i} was recorded." for i in range(2000))
-    chunks = paper_corpus.chunk_paper("wide", "Wide Table", text)
-    budget = paper_corpus.TARGET_CHUNK_TOKENS * 4
-    assert len(chunks) > 1
-    assert max(len(c.text) for c in chunks) <= budget * 2
-
-
-def _install(tmp_path: Path) -> Path:
-    corpus = tmp_path / "corpus"
-    corpus.mkdir()
-    (corpus / "mapk.md").write_text(
-        "# MAPK Feedback Paper\n\n"
-        + "Trametinib inhibits MEK and relieves ERK negative feedback. " * 40,
-        encoding="utf-8",
-    )
-    (corpus / "stat3.md").write_text(
-        "# STAT3 Paper\n\n"
-        + "STAT3 phosphorylation at Y705 drives survivin expression. " * 40,
-        encoding="utf-8",
-    )
-    return corpus
-
-
-def test_retrieval_finds_the_relevant_paper(tmp_path: Path) -> None:
-    retriever = paper_corpus.build_retriever(_install(tmp_path))
-    assert retriever is not None
-    hits = retriever.retrieve("trametinib MEK feedback", k=3)
-    assert hits
-    assert hits[0].document.title == "MAPK Feedback Paper"
-
-
 def test_default_corpus_directory_is_inside_the_repository() -> None:
     """The default path is load-bearing now that the corpus is committed.
 
@@ -154,10 +108,36 @@ def test_default_corpus_directory_is_inside_the_repository() -> None:
     assert (default.parent.parent / "app").is_dir()
 
 
-def test_absent_corpus_is_not_an_error(tmp_path: Path) -> None:
-    """A fresh checkout has no corpus; that is normal, not a failure."""
-    assert paper_corpus.load_corpus(tmp_path / "nothing") == []
-    assert paper_corpus.build_retriever(tmp_path / "nothing") is None
+def _install(tmp_path: Path) -> Path:
+    """Write a two-paper corpus with a catalog into a temp directory."""
+    corpus = tmp_path / "corpus"
+    corpus.mkdir()
+    (corpus / "mapk.md").write_text(
+        "# MAPK Feedback Paper\n\nTrametinib inhibits MEK.", encoding="utf-8"
+    )
+    (corpus / "stat3.md").write_text(
+        "# STAT3 Paper\n\nSTAT3 drives survivin.", encoding="utf-8"
+    )
+    (corpus / paper_corpus.CATALOG_FILENAME).write_text(
+        json.dumps(
+            {
+                "papers": [
+                    {
+                        "paper_id": "mapk",
+                        "title": "MAPK Feedback Paper",
+                        "abstract": "Trametinib relieves ERK feedback.",
+                    },
+                    {
+                        "paper_id": "stat3",
+                        "title": "STAT3 Paper",
+                        "abstract": "STAT3 at Y705 drives survivin.",
+                    },
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    return corpus
 
 
 @pytest.fixture()
@@ -165,82 +145,80 @@ def installed(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> Iterator[None]:
     monkeypatch.setenv(paper_corpus.CORPUS_ENV_VAR, str(_install(tmp_path)))
-    paper_corpus.reset_cache()
+    paper_corpus.load_catalog.cache_clear()
     yield
-    paper_corpus.reset_cache()
+    paper_corpus.load_catalog.cache_clear()
 
 
-def test_retrieve_for_is_gated_to_the_owning_audience(installed: None) -> None:
+def test_absent_catalog_is_not_an_error(tmp_path: Path) -> None:
+    """A fresh checkout has no corpus; that is normal, not a failure."""
+    assert paper_corpus.load_catalog(tmp_path / "nothing") == ()
+
+
+def test_catalog_loads_every_paper(installed: None) -> None:
+    papers = paper_corpus.load_catalog()
+    assert [p.paper_id for p in papers] == ["mapk", "stat3"]
+    assert papers[0].title == "MAPK Feedback Paper"
+    assert "Trametinib" in papers[0].abstract
+
+
+def test_committed_catalog_matches_the_committed_papers() -> None:
+    """Every catalog entry names a paper that is actually on disk to fetch.
+
+    A catalog entry whose paper_id has no file would advertise a fetch that
+    returns nothing, so this pins the two in step.
+    """
+    papers = paper_corpus.load_catalog()
+    assert len(papers) >= 15, "the committed corpus catalog should load"
+    corpus = paper_corpus.corpus_dir()
+    for paper in papers:
+        assert (corpus / f"{paper.paper_id}.md").is_file(), paper.paper_id
+        assert paper.title and paper.abstract
+
+
+def test_format_catalog_prints_ids_and_the_fetch_instruction(
+    installed: None,
+) -> None:
+    """The catalog is now the only place paper_ids are advertised."""
+    rendered = paper_corpus.format_catalog(paper_corpus.load_catalog())
+    assert "MAPK Feedback Paper" in rendered
+    assert "paper_id: `mapk`" in rendered
+    assert "fetch_paper" in rendered
+    assert paper_corpus.format_catalog(()) == ""
+
+
+def test_catalog_context_is_gated_to_the_owning_audience(
+    installed: None,
+) -> None:
     """The corpus is one lab's library, not a general resource."""
-    assert paper_corpus.retrieve_for("sbi_ucd", "trametinib MEK", k=3)
+    assert paper_corpus.catalog_context("sbi_ucd")
     for other in ("google", "general", None):
-        assert paper_corpus.retrieve_for(other, "trametinib MEK", k=3) == []
+        assert paper_corpus.catalog_context(other) == ""
 
 
-def test_retrieve_for_handles_an_empty_query(installed: None) -> None:
-    assert paper_corpus.retrieve_for("sbi_ucd", "   ", k=3) == []
+def test_catalog_context_honours_the_toggle_but_audience_dominates(
+    installed: None,
+) -> None:
+    """The toggle can opt an SBI run out; it cannot opt another audience in."""
+    assert paper_corpus.catalog_context("sbi_ucd", enabled=True)
+    assert paper_corpus.catalog_context("sbi_ucd", enabled=False) == ""
+    # A forged toggle on a non-corpus audience still yields nothing.
+    assert paper_corpus.catalog_context("general", enabled=True) == ""
 
 
-def test_corpus_tools_are_withheld_from_other_audiences() -> None:
-    """The agent's own route to the corpus is gated like the injected one.
+def test_fetch_tool_is_withheld_from_other_audiences() -> None:
+    """The agent's own route to the corpus is gated like the catalog.
 
-    `retrieve_for` only covers passages the app injects. An agent can also
-    call the corpus MCP tools itself while drafting, validating, and
-    reflecting, so those are withheld per-run for every audience but the
-    corpus owner -- otherwise a non-SBI run could search the lab's library
-    directly and no gate on injected context would notice.
+    An agent can call `fetch_paper` itself while drafting, validating, and
+    reflecting, so it is withheld per-run for every audience but the corpus
+    owner -- and for the owner too when the connector is off -- otherwise a
+    non-SBI run could read the lab's library directly.
     """
     assert paper_corpus.disabled_tools_for("sbi_ucd") == []
+    assert paper_corpus.disabled_tools_for("sbi_ucd", enabled=False) == [
+        "paper_corpus_fetch"
+    ]
     for other in ("google", "general", "", None):
         assert paper_corpus.disabled_tools_for(other) == [
-            "paper_corpus_search",
-            "paper_corpus_fetch",
+            "paper_corpus_fetch"
         ]
-
-
-def test_the_whole_result_is_judged_by_its_best_passage(
-    installed: None, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """Weak matches everywhere are worse than no matches at all.
-
-    Common words score above zero against almost any passage, so without a
-    floor "has this group studied X?" always comes back with paragraphs and
-    invites the model to answer yes. This pins the mechanism; the threshold's
-    calibration against the real corpus is pinned separately, because idf
-    depends on corpus size and cannot be judged from a two-paper fixture.
-    """
-    hits = paper_corpus.retrieve_for("sbi_ucd", "trametinib MEK", k=5)
-    assert hits
-    # Raising the floor above the best hit discards the entire result rather
-    # than returning its weaker members.
-    monkeypatch.setattr(paper_corpus, "MIN_TOP_SCORE", hits[0].score + 1)
-    assert paper_corpus.retrieve_for("sbi_ucd", "trametinib MEK", k=5) == []
-
-
-def test_the_floor_is_calibrated_to_the_committed_corpus() -> None:
-    """The threshold is a measured constant, so measure it.
-
-    Genuine questions score an order of magnitude above nonsense ones, but
-    only on a corpus of this size: idf shifts with the number of passages.
-    If the corpus is substantially re-ingested, re-check this.
-    """
-    retriever = paper_corpus.build_retriever()
-    assert retriever is not None, "the corpus is committed and should load"
-
-    def top(query: str) -> float:
-        hits = retriever.retrieve(query, k=20)
-        return hits[0].score if hits else 0.0
-
-    real = top("paradoxical ERK activation RAF dimerization")
-    nonsense = top("zzz nothing matches here")
-    assert real >= paper_corpus.MIN_TOP_SCORE < 1.0
-    assert nonsense < paper_corpus.MIN_TOP_SCORE
-    # The separation is what makes a single threshold viable at all.
-    assert real > nonsense * 5
-
-
-def test_format_passages_attributes_every_passage(installed: None) -> None:
-    hits = paper_corpus.retrieve_for("sbi_ucd", "STAT3 survivin", k=2)
-    rendered = paper_corpus.format_passages(hits)
-    assert "STAT3 Paper" in rendered
-    assert paper_corpus.format_passages([]) == ""

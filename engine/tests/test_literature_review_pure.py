@@ -90,12 +90,9 @@ def test_literature_cache_key_covers_tool_contract_and_budget() -> None:
     )
     assert multi_source["papers_to_read_count"] == 8
     workflow = multi_source["tool_contract"]["workflows"]["literature_review"]
-    # The group's own corpus leads the shipped source list: where a group has
-    # already published on the question, their own work should anchor the
-    # review. It is a no-op for anyone with no corpus installed, which is the
-    # default -- the tool returns an empty result rather than failing.
+    # The literature review searches the public databases; the group's own
+    # papers reach a run as an injected catalog, not as a search source.
     assert [source["tool"] for source in workflow["search_sources"]] == [
-        "paper_corpus_search",
         "pubmed_fulltext",
         "openalex_search",
         "web_search",

@@ -361,9 +361,7 @@ async def _run_json_attempt(
         # the next attempt, so retrying multiplies one stalled call by the
         # attempt count -- exactly the unbounded stall the ceiling exists to
         # prevent. Fail now and let the run surface the error.
-        logger.error(
-            "LLM call timed out on attempt %s; not retrying", attempt
-        )
+        logger.error("LLM call timed out on attempt %s; not retrying", attempt)
         raise
     except Exception as e:
         logger.error("LLM call failed on attempt %s: %s", attempt, e)

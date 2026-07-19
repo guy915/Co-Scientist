@@ -54,7 +54,6 @@ from mcp_server.tools.lit_review.pubmed_search_with_fulltext import (
 from mcp_server.tools.lit_review.search_paper_corpus import (
     CORPUS_ENV_VAR,
     fetch_paper,
-    search_paper_corpus,
 )
 from mcp_server.tools.lit_review.search_pubmed import (
     check_pubmed_available,
@@ -95,7 +94,6 @@ _MCP_TOOLS = (
     (search_pubmed, "search_pubmed"),
     (pubmed_search_with_fulltext, "pubmed_search_with_fulltext"),
     (search_openalex, "search_openalex"),
-    (search_paper_corpus, "search_paper_corpus"),
     (fetch_paper, "fetch_paper"),
     *(((search_web, "search_web"),) if web_search_provider else ()),
     (read_url, "read_url"),

@@ -102,12 +102,12 @@ def test_system_prompt_separates_background_from_run_claims() -> None:
     )
 
 
-def test_system_prompt_marks_corpus_passages_as_prior_work() -> None:
-    """Retrieved passages are the group's own papers, not this run's output.
+def test_system_prompt_marks_corpus_catalog_as_prior_work() -> None:
+    """The catalog is the group's own papers, not this run's output.
 
-    They are quotable and must be attributed by title, but they are not in
-    the numbered manifest, so [n] must not be used for them -- and they must
-    not be reported as findings this run produced.
+    Its abstracts are quotable and must be attributed by title, but they are
+    not in the numbered manifest, so [n] must not be used for them -- and they
+    must not be reported as findings this run produced.
     """
     prompt = build_system_prompt(
         research_goal="A goal",
@@ -116,7 +116,11 @@ def test_system_prompt_marks_corpus_passages_as_prior_work() -> None:
         matches=[],
         history=[],
         manifest=build_evidence_manifest([_evidence("e1")], []),
-        corpus_passages='From "Control of cell state transitions":\nThe STV.',
+        corpus_catalog=(
+            "- **Control of cell state transitions** "
+            "(paper_id: `control-of-cell-state-transitions`)\n  cSTAR maps "
+            "cell states."
+        ),
     )
     lowered = prompt.lower()
     assert "control of cell state transitions" in lowered
