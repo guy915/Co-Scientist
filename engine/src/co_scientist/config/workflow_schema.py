@@ -32,11 +32,19 @@ class SearchSourceConfig:
             page URL
         pdf_discovery_url_field: Field containing the URL to pass to
             pdf_discovery_tool
+        reserved_slots: How many of the evidence budget's slots this source is
+            guaranteed, before the rest are filled by retrieval score. Zero
+            (the default) leaves selection entirely to score, which is what
+            every source wants unless its papers are scored on axes they
+            cannot compete on -- a local corpus has no citation count and no
+            publication year, so it loses to any indexed paper regardless of
+            how well it matches the question.
     """
 
     tool: str
     papers_per_query: int = 3
     enabled: bool = True
+    reserved_slots: int = 0
     content_tool: str | None = None
     content_url_field: str | None = None
     content_params: dict[str, Any] = field(default_factory=dict)

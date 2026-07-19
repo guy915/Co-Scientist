@@ -15,6 +15,7 @@ from co_scientist.agents.generation.literature_review.helpers import (
     extract_source_name,
     merge_search_results,
     normalize_search_response,
+    select_within_budget,
 )
 from co_scientist.agents.generation.literature_review.outcomes import (
     _describe_exc,
@@ -323,7 +324,12 @@ async def _phase2_collect_papers_multi_source(
         source_results,
         deduplicate=config.workflow.deduplicate_across_sources,
     )
-    selected_ids = list(all_paper_metadata)[: config.papers_to_read_count]
+    selected_ids = select_within_budget(
+        all_paper_metadata,
+        paper_source_map,
+        enabled_sources,
+        config.papers_to_read_count,
+    )
     all_paper_metadata = {
         paper_id: all_paper_metadata[paper_id] for paper_id in selected_ids
     }

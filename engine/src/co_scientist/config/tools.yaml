@@ -295,12 +295,19 @@ workflows:
   literature_review:
     search_sources:
       # The group's own papers are searched alongside the public databases.
-      # Listed first so their passages lead the deduplicated corpus: on a
-      # question the group has already published on, their own result is the
-      # one that should anchor the review.
+      # Two of the evidence budget's slots are reserved for them: on a
+      # question the group has already published on, their own work should
+      # anchor the review. The reservation is what achieves that -- listing
+      # this source first does not, since results from every source are
+      # pooled and re-sorted by retrieval score. Corpus papers carry no
+      # citation count and no publication year, two of the three things that
+      # score rewards, so without a reservation they rank below every
+      # indexed paper and are truncated away however well they match.
+      # Only two, so the review still reads the outside literature.
       - tool: "paper_corpus_search"
         papers_per_query: 4
         enabled: true
+        reserved_slots: 2
       - tool: "pubmed_fulltext"
         papers_per_query: 4
         enabled: true
