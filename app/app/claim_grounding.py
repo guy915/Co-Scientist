@@ -44,7 +44,9 @@ logger = logging.getLogger(__name__)
 # and kept below that so several runs finalizing together still share it
 # comfortably. Unlike the durable cohort this costs no database writes --
 # assessment persists nothing -- so SQLite's single writer does not bound it.
-_ASSESSMENT_CONCURRENCY = 12
+# Shared with the pre-ranking evidence gate (``engine_tasks``), which assesses
+# the same kind of claim against the same provider.
+ASSESSMENT_CONCURRENCY = 12
 
 # Hypothesis fields whose text is decomposed into atomic claims. The statement
 # and expected effect are visibly proposed idea content; mechanism stores the
@@ -238,7 +240,7 @@ def assess_hypothesis_claims(
     # measured on the production model, twenty-four concurrent completions
     # return in the same wall clock as four. ``map`` preserves input order.
     with ThreadPoolExecutor(
-        max_workers=min(_ASSESSMENT_CONCURRENCY, len(flat))
+        max_workers=min(ASSESSMENT_CONCURRENCY, len(flat))
     ) as pool:
         results = list(pool.map(_assess_one, flat))
 

@@ -4,10 +4,13 @@ from __future__ import annotations
 
 import asyncio
 import dataclasses
+import functools
 import hashlib
 import json
 import sqlite3
 import time
+from collections.abc import Mapping, Sequence
+from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
 from app import store
@@ -163,13 +166,99 @@ def _merge_scientist_inputs(
     state["hypotheses"] = hypotheses
 
 
+@dataclasses.dataclass(frozen=True)
+class _GatePlan:
+    """One hypothesis's extracted claims awaiting assessment.
+
+    Built before any provider call so the whole run's claims can be assessed
+    in a single wave, then paired back up with its hypothesis to apply the
+    publication gate.
+    """
+
+    hypothesis: Any
+    claims: tuple[str, ...]
+    roles: Mapping[str, str]
+    fingerprint: str
+
+
+async def _assess_gate_claims(
+    plans: Sequence[_GatePlan],
+    passages: Sequence[Any],
+    assessor: Any,
+    assessor_id: str,
+) -> list[list[Any]]:
+    """Assess every pending hypothesis's claims in one bounded wave.
+
+    Claims are independent -- of each other and across hypotheses -- so
+    overlapping them changes no verdict, only how long the phase takes. In
+    production a hypothesis carries 7-25 atomic claims and a run reaches this
+    gate with dozens, and awaiting them one at a time made this node the
+    longest serial stretch of an express run (21-23% of wall clock). The
+    provider is not the constraint: twenty-four concurrent completions return
+    in the same wall clock as four.
+
+    Runs on a dedicated executor rather than ``asyncio.to_thread``: the
+    default executor is shared process-wide and the durable worker cohort
+    parks long-lived calls there for a whole run, so a wave of claims would
+    contend with the workers themselves.
+
+    Args:
+        plans: The hypotheses whose claims need assessing, in state order.
+        passages: Candidate evidence passages every claim is assessed against.
+        assessor: The entailment assessor.
+        assessor_id: Provenance id recorded on each assessment.
+
+    Returns:
+        Per plan, its claim assessments in the plan's own claim order.
+    """
+    from app.claim_grounding import ASSESSMENT_CONCURRENCY
+    from app.claims import assess_claim
+
+    flat = [
+        (index, claim)
+        for index, plan in enumerate(plans)
+        for claim in plan.claims
+    ]
+    if not flat:
+        return [[] for _ in plans]
+
+    call = functools.partial(
+        assess_claim,
+        passages=passages,
+        assessor=assessor,
+        assessor_id=assessor_id,
+    )
+    if settings.claim_assessor == "llm":
+        loop = asyncio.get_running_loop()
+        with ThreadPoolExecutor(
+            max_workers=min(ASSESSMENT_CONCURRENCY, len(flat))
+        ) as pool:
+            # gather preserves input order, so each hypothesis's recorded
+            # claim sequence is identical to the serial one.
+            results = list(
+                await asyncio.gather(
+                    *(
+                        loop.run_in_executor(pool, call, claim)
+                        for _index, claim in flat
+                    )
+                )
+            )
+    else:
+        # The deterministic assessor makes no call to overlap.
+        results = [call(claim) for _index, claim in flat]
+
+    grouped: list[list[Any]] = [[] for _ in plans]
+    for (index, _claim), assessment in zip(flat, results, strict=True):
+        grouped[index].append(assessment)
+    return grouped
+
+
 async def _apply_pre_ranking_evidence_gate(state: dict[str, Any]) -> None:
     """Quarantine ungrounded ideas before a decisive Elo tournament."""
     from app.claim_grounding import build_assessor
     from app.claims import (
         EvidencePassage,
         GateDecision,
-        assess_claim,
         extract_atomic_claims,
         publication_gate,
     )
@@ -211,6 +300,10 @@ async def _apply_pre_ranking_evidence_gate(state: dict[str, Any]) -> None:
         settings.claim_assessor,
         settings.claim_verifier_model or settings.model_name,
     )
+    # Pass one plans every hypothesis without making a single provider call,
+    # so the claims that actually need assessing can go out together below.
+    plans: list[_GatePlan] = []
+    prior_by_id: dict[str, str] = {}
     for hypothesis in state.get("hypotheses") or []:
         gate_history = hypothesis.enrichments.get("claim_gate") or {}
         prior_disposition = str(
@@ -218,6 +311,7 @@ async def _apply_pre_ranking_evidence_gate(state: dict[str, Any]) -> None:
             or hypothesis.review_disposition
             or "viable"
         )
+        prior_by_id[hypothesis.id] = prior_disposition
         claim_roles: dict[str, str] = {}
         ordered_claims: list[str] = []
         for source_text, role in (
@@ -262,25 +356,22 @@ async def _apply_pre_ranking_evidence_gate(state: dict[str, Any]) -> None:
             elif hypothesis.review_disposition == "evidence_blocked":
                 hypothesis.review_disposition = prior_disposition
             continue
-        assessments = []
-        for claim in ordered_claims:
-            assessment = (
-                await asyncio.to_thread(
-                    assess_claim,
-                    claim,
-                    passages,
-                    assessor=assessor,
-                    assessor_id=assessor_id,
-                )
-                if settings.claim_assessor == "llm"
-                else assess_claim(
-                    claim,
-                    passages,
-                    assessor=assessor,
-                    assessor_id=assessor_id,
-                )
+        plans.append(
+            _GatePlan(
+                hypothesis=hypothesis,
+                claims=tuple(ordered_claims),
+                roles=claim_roles,
+                fingerprint=input_fingerprint,
             )
-            assessments.append(assessment)
+        )
+
+    assessed = await _assess_gate_claims(plans, passages, assessor, assessor_id)
+
+    for plan, assessments in zip(plans, assessed, strict=True):
+        hypothesis = plan.hypothesis
+        claim_roles = dict(plan.roles)
+        input_fingerprint = plan.fingerprint
+        prior_disposition = prior_by_id[hypothesis.id]
         # Rank-and-publish policy: only contradicted (or unsafe) ideas are
         # withheld from the tournament here. Ungrounded/speculative ideas stay
         # rankable — allow_speculative treats insufficient claims as speculative

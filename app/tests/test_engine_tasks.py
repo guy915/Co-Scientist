@@ -13,6 +13,7 @@ from co_scientist.models import (
 )
 
 from app import engine_tasks, safety, store, task_worker
+from app.config import settings
 from app.safety import screen_intake
 
 
@@ -379,6 +380,142 @@ async def test_pre_ranking_gate_assesses_literature_rationale() -> None:
         "supports",
         "insufficient",
     ]
+
+
+@pytest.mark.asyncio
+async def test_pre_ranking_gate_assesses_claims_concurrently(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The gate must assess a run's claims in parallel, not one at a time.
+
+    Every claim is assessed independently, so overlapping them changes no
+    verdict -- only how long the phase takes. With the LLM assessor each is a
+    synchronous provider call, and run one at a time this node was the
+    longest serial stretch of a finished run: measured in production,
+    ``engine.node.ranking`` was 26% of an express run's wall clock, nearly
+    all of it this gate. The provider is not the constraint -- twenty-four
+    concurrent completions return in the same wall clock as four.
+    """
+    import threading
+    import time as _time
+
+    from app import claim_grounding
+    from app.claims import AssessorDraft, EntailmentLabel
+
+    active = 0
+    peak = 0
+    lock = threading.Lock()
+
+    def _slow_assessor(claim: str, passages: Any) -> AssessorDraft:
+        """Record how many assessments overlap, then stall like a call."""
+        nonlocal active, peak
+        with lock:
+            active += 1
+            peak = max(peak, active)
+        _time.sleep(0.05)
+        with lock:
+            active -= 1
+        return AssessorDraft(label=EntailmentLabel.INSUFFICIENT)
+
+    monkeypatch.setattr(
+        claim_grounding,
+        "build_assessor",
+        lambda *_: (_slow_assessor, "slow-v1"),
+    )
+    monkeypatch.setattr(settings, "claim_assessor", "llm")
+    hypothesis = Hypothesis(
+        text=(
+            "Astrocyte lactate accelerates synaptic ATP recovery. "
+            "Neuronal mitochondria buffer the resulting calcium influx."
+        ),
+        literature_grounding=(
+            "Astrocytes participate in neuronal energy support. "
+            "Lactate shuttling is documented in cortical slices."
+        ),
+        explanation="Glycolytic flux rises before the ATP rebound.",
+        experiment="Measure ATP recovery under lactate blockade.",
+    )
+    hypothesis.review_disposition = "viable"
+    state = {
+        "hypotheses": [hypothesis],
+        "articles": [
+            Article(
+                title="Astrocyte energetics",
+                abstract="Astrocytes participate in neuronal energy support.",
+            )
+        ],
+    }
+
+    await engine_tasks._apply_pre_ranking_evidence_gate(state)
+
+    assert len(hypothesis.enrichments["claim_gate"]["claims"]) > 1
+    assert peak > 1, f"claims were assessed serially (peak concurrency {peak})"
+
+
+@pytest.mark.asyncio
+async def test_pre_ranking_gate_overlaps_claims_across_hypotheses(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The whole run's claims are in flight together, not one idea at a time.
+
+    Measured in production a hypothesis carries 7-25 atomic claims and a run
+    reaches this gate with dozens, so assessing one hypothesis to completion
+    before starting the next leaves most of the wave idle. Claims are
+    independent across hypotheses as well as within one, so the gate flattens
+    them into a single bounded wave.
+    """
+    import threading
+    import time as _time
+
+    from app import claim_grounding
+    from app.claims import AssessorDraft, EntailmentLabel
+
+    in_flight: set[str] = set()
+    overlapped = False
+    lock = threading.Lock()
+
+    def _slow_assessor(claim: str, passages: Any) -> AssessorDraft:
+        """Flag whenever two different hypotheses' claims overlap."""
+        nonlocal overlapped
+        owner = "alpha" if "alpha" in claim else "beta"
+        with lock:
+            in_flight.add(owner)
+            if len(in_flight) > 1:
+                overlapped = True
+        _time.sleep(0.05)
+        with lock:
+            in_flight.discard(owner)
+        return AssessorDraft(label=EntailmentLabel.INSUFFICIENT)
+
+    monkeypatch.setattr(
+        claim_grounding,
+        "build_assessor",
+        lambda *_: (_slow_assessor, "slow-v1"),
+    )
+    monkeypatch.setattr(settings, "claim_assessor", "llm")
+    first = Hypothesis(
+        text=(
+            "Alpha lactate accelerates alpha ATP recovery. "
+            "Alpha mitochondria buffer the alpha calcium influx."
+        ),
+        literature_grounding="Alpha astrocytes support alpha metabolism.",
+    )
+    second = Hypothesis(
+        text=(
+            "Beta lactate accelerates beta ATP recovery. "
+            "Beta mitochondria buffer the beta calcium influx."
+        ),
+        literature_grounding="Beta astrocytes support beta metabolism.",
+    )
+    for hypothesis in (first, second):
+        hypothesis.review_disposition = "viable"
+    state = {"hypotheses": [first, second], "articles": []}
+
+    await engine_tasks._apply_pre_ranking_evidence_gate(state)
+
+    assert first.enrichments["claim_gate"]["claims"]
+    assert second.enrichments["claim_gate"]["claims"]
+    assert overlapped, "hypotheses were assessed one after another"
 
 
 @pytest.mark.asyncio
