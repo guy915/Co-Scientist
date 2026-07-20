@@ -94,10 +94,14 @@ def _check_ingest_rate(scope: str) -> None:
 
 # High-volume logger prefixes hidden from the default view (below
 # WARNING): per-request access records, per-click/-navigation UI
-# records, and dependency chatter. Everything is still captured; pass
-# ``verbose=1`` (CLI: ``cosci logs --all``) for the full stream. The
-# default keeps the log readable for humans and cheap in tokens for
-# coding agents.
+# records, and dependency chatter. Pass ``verbose=1`` (CLI: ``cosci logs
+# --all``) for the full stream. The default keeps the log readable for
+# humans and cheap in tokens for coding agents.
+#
+# Hidden is not the same as absent: these stay persisted so ``--all`` can
+# show them. The capture side separately refuses to persist a narrower set
+# of pure third-party per-call chatter, which nothing can ask for -- see
+# logging_setup.UNPERSISTED_LOGGERS.
 NOISE_LOGGERS: tuple[str, ...] = (
     "uvicorn.access",
     "ui.interaction",

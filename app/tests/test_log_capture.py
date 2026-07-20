@@ -206,3 +206,33 @@ def test_store_failure_does_not_break_logging(
     err = capsys.readouterr().err
     # One warning latch, not one line per failed record.
     assert err.count("log capture") == 1
+
+
+def test_high_volume_dependency_loggers_are_not_persisted(
+    isolated_db: str,
+) -> None:
+    """Chatty dependency records must not reach the database at all.
+
+    The read path already hides these below WARNING, so persisting them
+    only buys rows nobody reads -- and it is not free. In production they
+    were 84% of the table (LiteLLM alone 9,928 of 20,021 rows), each an
+    open-write-close against a database with a single writer and no fair
+    queuing. That stream starved ordinary API writes until creating a run
+    failed with "database is locked". Filtering at capture keeps the
+    default view identical while removing most of the write load.
+
+    Anything at WARNING or above still persists: those are the records
+    that say a dependency is in trouble.
+    """
+    configure_log_capture()
+    for name in ("LiteLLM", "httpx", "mcp.client.streamable_http"):
+        chatty = logging.getLogger(name)
+        chatty.setLevel(logging.INFO)
+        chatty.info("routine %s chatter", name)
+        chatty.warning("%s is in trouble", name)
+    _flush()
+
+    rows = store.list_logs(db_path=isolated_db)
+    messages = {row["message"] for row in rows}
+    assert not [m for m in messages if m.startswith("routine ")]
+    assert len([m for m in messages if "is in trouble" in m]) == 3

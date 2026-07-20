@@ -262,6 +262,48 @@ class _StoreWriteHandler(logging.Handler):
 _EXTRA_CAPTURE_LOGGERS = ("uvicorn", "uvicorn.access")
 
 
+# Third-party libraries whose INFO output is per-call chatter and is never
+# read: two lines per LLM call, one per MCP request, one per HTTP call.
+# Persisting them is not free -- in production they were 72% of the table
+# (LiteLLM alone 9,928 of 20,021 rows), each an open-write-close against a
+# database with a single writer and no fair queuing, and that stream
+# starved ordinary API writes until creating a run failed with "database
+# is locked".
+#
+# Deliberately narrower than the read path's NOISE_LOGGERS: uvicorn.access
+# and the ui.* loggers are merely *hidden* by default and stay persisted,
+# because `cosci logs --all` is documented as the way to debug request- and
+# interaction-level behaviour. This drops only records nothing can ask for.
+# WARNING and above always persists -- that is a dependency in trouble.
+UNPERSISTED_LOGGERS: tuple[str, ...] = (
+    "httpx",
+    "httpcore",
+    "urllib3",
+    "litellm",
+    "openai",
+    "mcp.client",
+    # Availability probes repeat on every /status poll; their WARNINGs
+    # (e.g. "MCP server unavailable") still surface.
+    "co_scientist.mcp_client",
+)
+
+
+def _drop_dependency_chatter(record: logging.LogRecord) -> bool:
+    """Keep per-call dependency records out of the database.
+
+    Matches a logger and its children, case-insensitively: the LiteLLM
+    logger names itself "LiteLLM", and MCP's client logs under
+    "mcp.client.streamable_http".
+    """
+    if record.levelno >= logging.WARNING:
+        return True
+    name = record.name.lower()
+    return not any(
+        name == noise or name.startswith(f"{noise}.")
+        for noise in UNPERSISTED_LOGGERS
+    )
+
+
 def _drop_self_noise(record: logging.LogRecord) -> bool:
     """Filter out access records for the log-polling endpoint itself.
 
@@ -338,6 +380,7 @@ def configure_log_capture(
     handler.setLevel(level)
     handler.addFilter(RunIdFilter())
     handler.addFilter(_drop_self_noise)
+    handler.addFilter(_drop_dependency_chatter)
     listener = logging.handlers.QueueListener(
         record_queue, _StoreWriteHandler(max_rows)
     )
