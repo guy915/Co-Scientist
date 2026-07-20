@@ -22,6 +22,7 @@ import dataclasses
 import logging
 import sqlite3
 from collections.abc import Mapping, Sequence
+from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
 from app import store
@@ -37,6 +38,13 @@ from app.claims import (
 )
 
 logger = logging.getLogger(__name__)
+
+# How many claims are assessed at once. Sized against the provider, which
+# returns twenty-four concurrent completions in the same wall clock as four,
+# and kept below that so several runs finalizing together still share it
+# comfortably. Unlike the durable cohort this costs no database writes --
+# assessment persists nothing -- so SQLite's single writer does not bound it.
+_ASSESSMENT_CONCURRENCY = 12
 
 # Hypothesis fields whose text is decomposed into atomic claims. The statement
 # and expected effect are visibly proposed idea content; mechanism stores the
@@ -202,29 +210,47 @@ def assess_hypothesis_claims(
         Per hypothesis id, its ``(assessment, role)`` pairs, in input order.
     """
     candidates = [p for p in passages if p.text]
-    assessed: list[tuple[str, list[tuple[ClaimAssessment, str]]]] = []
-    for hyp in hyps:
-        hyp_id = str(hyp.get("id") or "")
-        if not hyp_id:
-            continue
-        assessed.append(
-            (
-                hyp_id,
-                [
-                    (
-                        assess_claim(
-                            claim,
-                            candidates,
-                            assessor=assessor,
-                            assessor_id=assessor_id,
-                        ),
-                        role,
-                    )
-                    for claim, role in _claim_records(hyp)
-                ],
-            )
+    per_hypothesis = [
+        (hyp_id, _claim_records(hyp))
+        for hyp in hyps
+        if (hyp_id := str(hyp.get("id") or ""))
+    ]
+    # Flattened so every claim in the run is in flight together rather than
+    # one hypothesis at a time.
+    flat = [
+        (index, claim, role)
+        for index, (_hyp_id, records) in enumerate(per_hypothesis)
+        for claim, role in records
+    ]
+    if not flat:
+        return [(hyp_id, []) for hyp_id, _records in per_hypothesis]
+
+    def _assess_one(item: tuple[int, str, str]) -> ClaimAssessment:
+        _index, claim, _role = item
+        return assess_claim(
+            claim, candidates, assessor=assessor, assessor_id=assessor_id
         )
-    return assessed
+
+    # Each claim is assessed independently, so overlapping them changes no
+    # verdict -- only how long the phase takes. With the LLM assessor each
+    # is a synchronous provider call, and run one at a time this was the
+    # longest phase of a finished run. The provider is not the constraint:
+    # measured on the production model, twenty-four concurrent completions
+    # return in the same wall clock as four. ``map`` preserves input order.
+    with ThreadPoolExecutor(
+        max_workers=min(_ASSESSMENT_CONCURRENCY, len(flat))
+    ) as pool:
+        results = list(pool.map(_assess_one, flat))
+
+    grouped: list[list[tuple[ClaimAssessment, str]]] = [
+        [] for _ in per_hypothesis
+    ]
+    for (index, _claim, role), assessment in zip(flat, results, strict=True):
+        grouped[index].append((assessment, role))
+    return [
+        (hyp_id, grouped[index])
+        for index, (hyp_id, _records) in enumerate(per_hypothesis)
+    ]
 
 
 def persist_grounding(

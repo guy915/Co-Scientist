@@ -17,7 +17,7 @@ from app.claim_grounding import (
     evidence_passages,
     ground_hypotheses,
 )
-from app.claims import as_passages
+from app.claims import AssessorDraft, EntailmentLabel, as_passages
 
 # A claim whose evidence flatly contradicts it (negation marker + shared terms).
 _CONTRADICTED = (
@@ -400,3 +400,44 @@ def test_claim_assessment_holds_no_database_connection(
 
     assert [hyp_id for hyp_id, _ in assessed] == ["h1"]
     assert all(claims for _, claims in assessed)
+
+
+def test_claim_assessment_runs_concurrently(isolated_db: str) -> None:
+    """Claims must be assessed in parallel, not one provider call at a time.
+
+    Every claim of every hypothesis is assessed independently, and with the
+    LLM assessor each is a synchronous provider call. Run serially that is
+    the longest phase of a finished run -- a stack dump caught finalize
+    sitting in it for hours. The provider is not the constraint: measured on
+    the production model, twenty-four concurrent completions return in the
+    same wall clock as four. Assessments are independent, so overlapping
+    them changes nothing about the verdicts.
+    """
+    import threading
+    import time as _time
+
+    from app.claim_grounding import assess_hypothesis_claims
+
+    active = 0
+    peak = 0
+    lock = threading.Lock()
+
+    def _slow_assessor(claim: str, passages: Any) -> Any:
+        nonlocal active, peak
+        with lock:
+            active += 1
+            peak = max(peak, active)
+        _time.sleep(0.05)
+        with lock:
+            active -= 1
+        return AssessorDraft(label=EntailmentLabel.INSUFFICIENT)
+
+    hyps = [
+        {"id": f"h{i}", "title": f"H{i}", "statement": _SUPPORTED}
+        for i in range(8)
+    ]
+    assess_hypothesis_claims(
+        hyps, as_passages([_SUPPORTED]), assessor=_slow_assessor
+    )
+
+    assert peak > 1, f"claims were assessed serially (peak concurrency {peak})"
