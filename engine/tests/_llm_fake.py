@@ -36,19 +36,20 @@ position and rejects a short response as invalid. ``_ARRAY_LENGTH_HINTS``
 (imported from ``co_scientist.offline_llm``) wires a prompt-derived count
 to the "hypothesis_batch_review" schema by name.
 
-The schema-filling traversal (``_fill_schema``) and the
+The schema-filling traversal (``_fill_schema``), the
 ``supervisor_allocation`` prompt-flag branch
-(``_supervisor_allocation_response``) live in ``co_scientist.offline_llm``,
-shared with the production offline-model router; this module supplies its
-own leaf-value strategy (``_next_leaf``, backed by a process-global
-counter reset only per test process) rather than the router's per-call
-seeded RNG, since existing tests rely on every fake call in a run drawing
-from one shared sequence, not just leaves within a single response.
+(``_supervisor_allocation_response``), and the response/prompt shape
+helpers (``_build_response``, ``_prompt_text``) live in
+``co_scientist.offline_llm``, shared with the production offline-model
+router; this module supplies its own leaf-value strategy (``_next_leaf``,
+backed by a process-global counter reset only per test process) rather
+than the router's per-call seeded RNG, since existing tests rely on every
+fake call in a run drawing from one shared sequence, not just leaves
+within a single response.
 """
 
 import itertools
 import json
-import types
 from typing import Any
 
 import pytest
@@ -58,7 +59,11 @@ from co_scientist.cache import LLMCache
 from co_scientist.offline_llm import (
     _ARRAY_LENGTH_HINTS,
     _fill_schema,
+    _prompt_text,
     _supervisor_allocation_response,
+)
+from co_scientist.offline_llm import (
+    _build_response as _fake_response,
 )
 
 # Shared across every fake call in a test run so no two generated leaves
@@ -86,38 +91,6 @@ def disable_llm_cache(monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch: The pytest monkeypatch fixture.
     """
     monkeypatch.setattr(llm, "get_cache", lambda: LLMCache(enabled=False))
-
-
-def _fake_response(content: str) -> Any:
-    """Builds the nested object a litellm completion response exposes.
-
-    Args:
-        content: The text ``_extract_completion_content`` should return.
-
-    Returns:
-        An object shaped like ``litellm.acompletion``'s return value, as
-        far as ``co_scientist.llm`` reads it
-        (``response.choices[0].message.content``).
-    """
-    message = types.SimpleNamespace(content=content)
-    choice = types.SimpleNamespace(message=message)
-    return types.SimpleNamespace(choices=[choice])
-
-
-def _prompt_text(kwargs: dict[str, Any]) -> str:
-    """Extracts the outgoing prompt text from completion call kwargs.
-
-    Args:
-        kwargs: The completion arguments built by
-            ``co_scientist.llm._build_completion_args``.
-
-    Returns:
-        The last message's content, or "" if there are no messages.
-    """
-    messages = kwargs.get("messages") or []
-    if not messages:
-        return ""
-    return str(messages[-1].get("content", ""))
 
 
 async def _fake_acompletion(**kwargs: Any) -> Any:
