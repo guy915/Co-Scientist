@@ -345,6 +345,56 @@ def test_disabled_tools_also_disables_its_search_source(
     ] == ["beta_search"]
 
 
+def test_yaml_disabled_or_missing_tool_disables_its_search_source(
+    tmp_path: Path,
+) -> None:
+    """Source flags are reconciled with tool flags however a tool is off.
+
+    ``disabled_tools`` is not the only way a source's tool can be dead: the
+    YAML itself may disable the tool while leaving the source enabled, or a
+    source may name a tool that was never defined. The load-time
+    reconciliation must cover those too, since the search phase trusts
+    ``get_enabled_search_sources()`` alone.
+    """
+    config = textwrap.dedent("""
+        version: "2.0"
+        servers:
+          myserver:
+            url: "http://example.test/mcp"
+            enabled: true
+        tools:
+          search_tools:
+            alpha_search:
+              server: "myserver"
+              mcp_tool_name: "search_alpha"
+              enabled: true
+            beta_search:
+              server: "myserver"
+              mcp_tool_name: "search_beta"
+              enabled: false
+        workflows:
+          literature_review:
+            search_sources:
+              - tool: "alpha_search"
+                papers_per_query: 4
+                enabled: true
+              - tool: "beta_search"
+                papers_per_query: 4
+                enabled: true
+              - tool: "ghost_search"
+                papers_per_query: 4
+                enabled: true
+    """)
+    path = _write_config(tmp_path, config)
+
+    registry = ToolRegistry(config_path=path, skip_user_config=True)
+    workflow = registry.get_workflow("literature_review")
+    assert workflow is not None
+    assert [s.tool for s in workflow.get_enabled_search_sources()] == [
+        "alpha_search",
+    ]
+
+
 # --- override merge strategy (default) ------------------------------------
 
 
