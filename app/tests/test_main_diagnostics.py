@@ -190,41 +190,46 @@ def test_module_import_bridges_settings_and_logs_missing_mcp_url(
         importlib.reload(main_module)
 
 
-def test_disk_space_sweep_finishes_before_the_server_serves(
+def test_startup_prunes_checkpoints_but_never_vacuums(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Reclaiming disk space must complete before any request is accepted.
+    """Housekeeping reclaims rows; it must never take an exclusive lock.
 
-    VACUUM and a truncating WAL checkpoint need exclusive access to the
-    database, and SQLite makes a writer that is waiting for one block every
-    other writer behind it. Run concurrently with a serving process the
-    sweep never gets its turn -- long-lived readers (an SSE stream tailing a
-    run) keep it waiting indefinitely while every write fails with "database
-    is locked". Production wedged exactly that way: no writes for minutes,
-    an idle database, and every run creation returning 500.
+    VACUUM needs exclusive access, and SQLite makes a writer that is waiting
+    for one block every other writer behind it. This process can never grant
+    it: the log-capture thread writes a row for every record the app emits,
+    so a VACUUM waits for a quiet moment that never arrives -- and while it
+    waits, nothing else can write either. Production wedged exactly that way
+    from both sides of the lifespan, before and after serving: an idle
+    database, no writes for minutes, and every run creation returning 500
+    with "database is locked".
 
-    Startup is the one moment the process is guaranteed no readers, so the
-    sweep belongs there. It is cheap enough to afford: pruning and
-    vacuuming a 575 MB database measured under a second.
+    Pruning alone is enough. It reclaims the rows that actually grow without
+    bound, commits in small batches, and never blocks a reader. The file
+    keeps its high-water mark, which a 5 GB volume holding a 53 MB database
+    can well afford.
     """
     import app.main as main_module
 
-    swept = threading.Event()
+    vacuumed = threading.Event()
+    pruned = threading.Event()
 
     def _compact(*args: object, **kwargs: object) -> None:
-        # Takes long enough that a sweep handed to a thread demonstrably has
-        # not finished by the time startup returns.
-        time.sleep(1.0)
-        swept.set()
+        vacuumed.set()
         return None
 
+    def _prune(*args: object, **kwargs: object) -> int:
+        pruned.set()
+        return 0
+
     monkeypatch.setattr(store, "compact_database", _compact)
+    monkeypatch.setattr(store, "prune_superseded_checkpoints", _prune)
 
     with TestClient(main_module.app) as client:
-        # Already done by the time the first request can be served, so it
-        # never contends with a reader for the exclusive lock it needs.
-        assert swept.is_set()
         assert client.get("/health").status_code == 200
+
+    assert pruned.is_set(), "startup should still reclaim checkpoint rows"
+    assert not vacuumed.is_set(), "startup must never VACUUM"
 
 
 def test_startup_does_not_block_on_run_recovery(

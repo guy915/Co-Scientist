@@ -98,13 +98,23 @@ else:
 
 
 def _reclaim_disk_space() -> None:
-    """Prune superseded checkpoints and give the freed pages back.
+    """Prune the checkpoint history no run could resume from.
 
     Only the newest checkpoint per run is ever loaded, so the rest is
     unreadable state that nonetheless filled the production volume until
     every write failed. Runs remain resumable: each keeps its newest.
-    Deleting rows returns pages to SQLite's freelist but never shrinks the
-    file, so the compaction step is what the volume actually gets back.
+
+    Deliberately does not VACUUM. Reclaiming the freed pages would shrink
+    the file, but VACUUM needs exclusive access and SQLite makes a writer
+    waiting for it block every other writer behind it -- and this process
+    can never grant it, because the log-capture thread writes a row for
+    every record the app emits. The VACUUM waits for a quiet moment that
+    never arrives, and while it waits nothing else can write. Production
+    wedged that way from both sides of the lifespan: an idle database, no
+    writes for minutes, and every run creation failing with "database is
+    locked". Pruning reclaims what actually grows without bound, commits in
+    small batches, and never blocks a reader; the file keeps its high-water
+    mark, which a 5 GB volume holding a 53 MB database can afford.
 
     Never fatal. This is opportunistic housekeeping, and the disk-full state
     it exists to relieve is exactly the state in which a DELETE cannot get
@@ -121,16 +131,6 @@ def _reclaim_disk_space() -> None:
             logger.info(
                 "Pruned %s superseded checkpoint(s) no run could resume from",
                 superseded,
-            )
-
-    try:
-        compacted = store.compact_database()
-    except (sqlite3.Error, OSError):
-        logger.warning("Could not compact the database")
-    else:
-        if compacted:
-            logger.info(
-                "Compacted the database: %.0f MB -> %.0f MB", *compacted
             )
 
 
