@@ -11,10 +11,13 @@ import logging
 from collections.abc import Awaitable, Callable
 from typing import Any
 
-import litellm
-
 from co_scientist.cache import LLMCache, NullCache
-from co_scientist.llm_request import deepseek_thinking_extra_body
+from co_scientist.llm_request import (
+    _acompletion_within_timeout,
+    deepseek_thinking_extra_body,
+    llm_timeout_seconds,
+    reasoning_effort_args,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -130,18 +133,23 @@ async def _run_tool_call_iteration(
         dispatched and appended to `messages` and the caller should iterate
         again.
     """
-    thinking = deepseek_thinking_extra_body(model_name)
-    response = await litellm.acompletion(
-        model=model_name,
-        messages=messages,
-        tools=tools,
-        max_tokens=max_tokens,
-        temperature=temperature,
-        drop_params=True,
-        extra_body=thinking,
-        # Lightest reasoning tier that still thinks (see llm_request).
-        **({"reasoning_effort": "low"} if thinking else {}),
-    )
+    completion_args: dict[str, Any] = {
+        "model": model_name,
+        "messages": messages,
+        "tools": tools,
+        "max_tokens": max_tokens,
+        "temperature": temperature,
+        "drop_params": True,
+        "extra_body": deepseek_thinking_extra_body(model_name),
+        **reasoning_effort_args(model_name),
+    }
+    # Same two-layer ceiling as call_llm: ask the provider client to give
+    # up on its own, and hard-cancel the await when a hang never reaches
+    # the transport at all.
+    timeout = llm_timeout_seconds()
+    if timeout is not None:
+        completion_args["timeout"] = timeout
+    response = await _acompletion_within_timeout(completion_args, model_name)
 
     message = response.choices[0].message
     message_dict = _message_to_history_dict(message)

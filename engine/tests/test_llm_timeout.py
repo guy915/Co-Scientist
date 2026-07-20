@@ -77,7 +77,7 @@ async def test_hung_call_raises_timeout_error(
     This is the regression: previously the await simply never completed.
     """
     monkeypatch.setenv(llm_request.LLM_TIMEOUT_ENV, "0.01")
-    monkeypatch.setattr(llm, "_TIMEOUT_GRACE_SECONDS", 0.0)
+    monkeypatch.setattr(llm_request, "_TIMEOUT_GRACE_SECONDS", 0.0)
 
     async def never_answers(**_kwargs: Any) -> Any:
         await asyncio.sleep(3600)
@@ -85,8 +85,40 @@ async def test_hung_call_raises_timeout_error(
     monkeypatch.setattr(litellm, "acompletion", never_answers)
 
     with pytest.raises(LLMTimeoutError) as excinfo:
-        await llm._acompletion_within_timeout({}, "deepseek/deepseek-v4-pro")
+        await llm_request._acompletion_within_timeout(
+            {}, "deepseek/deepseek-v4-pro"
+        )
     assert "deepseek/deepseek-v4-pro" in str(excinfo.value)
+
+
+async def test_hung_tool_loop_call_raises_timeout_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The tool loop's LLM turn sits under the same ceiling as call_llm.
+
+    The agentic web-search path runs on call_llm_with_tools, whose
+    completion call used to await litellm bare -- a wedged provider there
+    parked a durable task exactly like the plain-call case.
+    """
+    monkeypatch.setenv(llm_request.LLM_TIMEOUT_ENV, "0.01")
+    monkeypatch.setattr(llm_request, "_TIMEOUT_GRACE_SECONDS", 0.0)
+
+    async def never_answers(**_kwargs: Any) -> Any:
+        await asyncio.sleep(3600)
+
+    monkeypatch.setattr(litellm, "acompletion", never_answers)
+
+    async def unused_executor(_tool_call: Any) -> dict[str, Any]:
+        raise AssertionError("no tool call should be executed")
+
+    with pytest.raises(LLMTimeoutError):
+        await llm.call_llm_with_tools(
+            "prompt",
+            "deepseek/deepseek-v4-pro",
+            tools=[],
+            tool_executor=unused_executor,
+            use_cache=False,
+        )
 
 
 async def test_timeout_is_not_retried(monkeypatch: pytest.MonkeyPatch) -> None:

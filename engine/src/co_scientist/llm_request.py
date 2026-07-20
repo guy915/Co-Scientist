@@ -11,13 +11,14 @@ import asyncio
 import functools
 import json
 import logging
-import os
 import warnings
 from typing import Any, cast
 
 import litellm
 
 from co_scientist import prompts
+from co_scientist.config.env_vars import parse_timeout_env
+from co_scientist.exceptions import LLMTimeoutError
 
 logger = logging.getLogger(__name__)
 
@@ -44,20 +45,52 @@ def llm_timeout_seconds() -> float | None:
         The timeout in seconds, or None when it is disabled (a value of zero
         or less) or the configured value is not a number.
     """
-    raw = os.environ.get(LLM_TIMEOUT_ENV)
-    if raw is None or not raw.strip():
-        return DEFAULT_LLM_TIMEOUT_SECONDS
+    return parse_timeout_env(LLM_TIMEOUT_ENV, DEFAULT_LLM_TIMEOUT_SECONDS)
+
+
+# Extra head-room over the value handed to litellm, so that when the
+# provider client honours its own deadline it is the one to fail -- with a
+# provider-specific error naming the endpoint -- and this ceiling only fires
+# for a hang that never reached the transport at all.
+_TIMEOUT_GRACE_SECONDS = 30.0
+
+
+async def _acompletion_within_timeout(
+    completion_args: dict[str, Any], model_name: str
+) -> Any:
+    """Await one completion under a hard wall-clock ceiling.
+
+    ``_build_completion_args`` already asks the provider client to time out,
+    but that only binds if litellm passes the argument through to the
+    transport for the provider in use. Wrapping the await guarantees the
+    coroutine is cancelled either way, which is what keeps a wedged provider
+    from parking a durable task indefinitely. Both ``litellm.acompletion``
+    call sites -- ``call_llm`` and the tool loop -- await through this.
+
+    Args:
+        completion_args: Keyword arguments for ``litellm.acompletion``.
+        model_name: Model name, for the error message.
+
+    Returns:
+        The completion response.
+
+    Raises:
+        LLMTimeoutError: If the call exceeds the configured ceiling.
+    """
+    timeout = llm_timeout_seconds()
+    if timeout is None:
+        return await litellm.acompletion(**completion_args)
     try:
-        seconds = float(raw)
-    except ValueError:
-        logger.warning(
-            "ignoring non-numeric %s=%r; using default %ss",
-            LLM_TIMEOUT_ENV,
-            raw,
-            DEFAULT_LLM_TIMEOUT_SECONDS,
+        return await asyncio.wait_for(
+            litellm.acompletion(**completion_args),
+            timeout=timeout + _TIMEOUT_GRACE_SECONDS,
         )
-        return DEFAULT_LLM_TIMEOUT_SECONDS
-    return seconds if seconds > 0 else None
+    except asyncio.TimeoutError as exc:
+        raise LLMTimeoutError(
+            f"LLM call to {model_name} exceeded {timeout}s without a "
+            f"response; set {LLM_TIMEOUT_ENV} to change or "
+            "disable this ceiling"
+        ) from exc
 
 
 async def _save_prompt_if_named(
@@ -184,6 +217,32 @@ def deepseek_thinking_extra_body(
         if _is_dashscope(model_name):
             return {"enable_thinking": enabled}
         return {"thinking": {"type": "enabled" if enabled else "disabled"}}
+    return {}
+
+
+def reasoning_effort_args(
+    model_name: str, *, enabled: bool = True
+) -> dict[str, Any]:
+    """Kwargs selecting the lightest reasoning tier, when supported.
+
+    The lightest tier that still thinks, to bound the latency and token
+    cost of reasoning on every call. Empty for models without a thinking
+    mode, when thinking is disabled for the call, and on DashScope, whose
+    compatible-mode endpoint does not support ``reasoning_effort``.
+
+    Args:
+        model_name: Model name in litellm format.
+        enabled: Whether thinking mode is requested for this call.
+
+    Returns:
+        ``{"reasoning_effort": "low"}`` when the tier applies, else ``{}``.
+    """
+    if (
+        enabled
+        and deepseek_thinking_extra_body(model_name)
+        and not _is_dashscope(model_name)
+    ):
+        return {"reasoning_effort": "low"}
     return {}
 
 
@@ -336,11 +395,9 @@ def _build_completion_args(
     thinking = deepseek_thinking_extra_body(model_name, enabled=enable_thinking)
     if thinking:
         completion_args["extra_body"] = thinking
-        if enable_thinking and not _is_dashscope(model_name):
-            # Lightest reasoning tier that still thinks, to bound the latency
-            # and token cost of reasoning on every call. DashScope's
-            # compatible-mode endpoint does not support reasoning_effort.
-            completion_args["reasoning_effort"] = "low"
+        completion_args.update(
+            reasoning_effort_args(model_name, enabled=enable_thinking)
+        )
 
     return completion_args
 
