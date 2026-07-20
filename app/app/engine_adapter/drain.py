@@ -19,9 +19,10 @@ from app.citations import (
     empty_citation_summary,
 )
 from app.claim_grounding import (
+    assess_hypothesis_claims,
     build_assessor,
     evidence_passages,
-    ground_hypotheses,
+    persist_grounding,
 )
 from app.config import settings
 from app.elo import INITIAL_ELO
@@ -596,29 +597,39 @@ def _persist_final_state(
         persisted = store.list_hypotheses(run_id, conn=conn)
         screening_result = screen_hypotheses(run_id, persisted, conn=conn)
 
-        # 4. Claim-level grounding: extract atomic claims, retrieve and assess
-        # each against the retrieved evidence (deterministic by default, or the
-        # semantic NLI assessor when settings.claim_assessor == "llm"), persist
-        # the provenance-stamped claim-evidence graph, and record any
-        # contradicted (publication-gate blocking) hypothesis.
+        # 4a. Claim-level grounding, first half: read the inputs the
+        # assessment needs. The assessment itself happens after this
+        # transaction commits -- see below.
         passages = evidence_passages(run_id, conn=conn)
-        assessor, assessor_id = build_assessor(
-            settings.claim_assessor,
-            settings.claim_verifier_model or settings.model_name,
-        )
         grounding_candidates = [
             hypothesis
             for hypothesis in persisted
             if hypothesis.get("status") != "rejected"
         ]
-        grounding_result = ground_hypotheses(
-            run_id,
-            grounding_candidates,
-            passages,
-            assessor=assessor,
-            assessor_id=assessor_id,
-            conn=conn,
-        )
+
+    # 4b. Assess each claim against the retrieved evidence, outside any
+    # transaction. With settings.claim_assessor == "llm" this is one
+    # synchronous provider call per claim, and it used to run inside the
+    # transaction above -- holding SQLite's single write lock across minutes
+    # of network I/O. Nothing else in the process could write: run creation
+    # returned 500 with "database is locked" while the database sat idle,
+    # and a stack dump found this exact frame parked in ssl.read with the
+    # lock in hand.
+    assessor, assessor_id = build_assessor(
+        settings.claim_assessor,
+        settings.claim_verifier_model or settings.model_name,
+    )
+    assessed = assess_hypothesis_claims(
+        grounding_candidates,
+        passages,
+        assessor=assessor,
+        assessor_id=assessor_id,
+    )
+
+    with store.transaction(db_path) as conn:
+        # 4c. Persist the claim-evidence graph and record any contradicted
+        # (publication-gate blocking) hypothesis. Pure database work.
+        grounding_result = persist_grounding(run_id, assessed, conn=conn)
 
         # 5. Tournament matches: resolve each side by the engine's stable
         # hypothesis id.

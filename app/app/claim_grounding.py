@@ -27,6 +27,7 @@ from typing import Any
 from app import store
 from app.claims import (
     Assessor,
+    ClaimAssessment,
     EvidencePassage,
     GateDecision,
     assess_claim,
@@ -163,26 +164,95 @@ def ground_hypotheses(
     Returns:
         A :class:`GroundingResult` with the blocked ids and per-id reasons.
     """
+    return persist_grounding(
+        run_id,
+        assess_hypothesis_claims(
+            hyps, passages, assessor=assessor, assessor_id=assessor_id
+        ),
+        allow_speculative=allow_speculative,
+        conn=conn,
+        db_path=db_path,
+    )
+
+
+def assess_hypothesis_claims(
+    hyps: Sequence[Mapping[str, Any]],
+    passages: Sequence[EvidencePassage],
+    *,
+    assessor: Assessor = deterministic_assessor,
+    assessor_id: str = "deterministic-v1",
+) -> list[tuple[str, list[tuple[ClaimAssessment, str]]]]:
+    """Assess every hypothesis's claims against the evidence pool.
+
+    Deliberately touches no database. The assessor may be an LLM, and one
+    synchronous call per claim used to run inside the drain's single write
+    transaction -- so the process held SQLite's one write lock across
+    minutes of provider I/O and every other writer starved. Callers do this
+    first, then open a transaction for ``persist_grounding``.
+
+    Args:
+        hyps: The run's hypotheses (rows/payloads with an ``id`` and claim
+            text fields).
+        passages: Retrieved evidence passages each claim is assessed
+            against.
+        assessor: The entailment assessor (deterministic by default).
+        assessor_id: Provenance id recorded on each persisted edge.
+
+    Returns:
+        Per hypothesis id, its ``(assessment, role)`` pairs, in input order.
+    """
     candidates = [p for p in passages if p.text]
-    blocked: set[str] = set()
-    reason_by_id: dict[str, str] = {}
+    assessed: list[tuple[str, list[tuple[ClaimAssessment, str]]]] = []
     for hyp in hyps:
         hyp_id = str(hyp.get("id") or "")
         if not hyp_id:
             continue
-        claim_records = _claim_records(hyp)
-        assessments = [
+        assessed.append(
             (
-                assess_claim(
-                    claim,
-                    candidates,
-                    assessor=assessor,
-                    assessor_id=assessor_id,
-                ),
-                role,
+                hyp_id,
+                [
+                    (
+                        assess_claim(
+                            claim,
+                            candidates,
+                            assessor=assessor,
+                            assessor_id=assessor_id,
+                        ),
+                        role,
+                    )
+                    for claim, role in _claim_records(hyp)
+                ],
             )
-            for claim, role in claim_records
-        ]
+        )
+    return assessed
+
+
+def persist_grounding(
+    run_id: str,
+    assessed: Sequence[tuple[str, list[tuple[ClaimAssessment, str]]]],
+    *,
+    allow_speculative: bool = False,
+    conn: sqlite3.Connection | None = None,
+    db_path: str | None = None,
+) -> GroundingResult:
+    """Persist assessed claims and run each hypothesis's publication gate.
+
+    Pure database work, so it is safe to hold a transaction across.
+
+    Args:
+        run_id: Identifier of the run being grounded.
+        assessed: Output of :func:`assess_hypothesis_claims`.
+        allow_speculative: Compatibility-only switch for explicitly marked
+            mock workflows. Faithful engine runs must leave this False.
+        conn: Optional open connection to reuse (e.g. from ``transaction``).
+        db_path: Optional override for the SQLite database path.
+
+    Returns:
+        A :class:`GroundingResult` with the blocked ids and per-id reasons.
+    """
+    blocked: set[str] = set()
+    reason_by_id: dict[str, str] = {}
+    for hyp_id, assessments in assessed:
         for assessment, role in assessments:
             store.add_claim_evidence(
                 run_id,

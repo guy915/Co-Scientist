@@ -366,3 +366,37 @@ def test_ground_records_provenance_spans_round_trip(isolated_db: str) -> None:
     edges = store.list_claim_evidence(run.id, db_path=isolated_db)
     assert edges[0]["supporting"] == [span]
     assert edges[0]["assessor"] == "llm:deepseek/deepseek-chat"
+
+
+def test_claim_assessment_holds_no_database_connection(
+    isolated_db: str,
+) -> None:
+    """Assessing claims must be possible without touching the database.
+
+    The assessor can be an LLM, and in production one synchronous call per
+    claim ran inside the drain's single write transaction -- so the process
+    held SQLite's one write lock across minutes of provider I/O. Everything
+    else starved: run creation returned 500 with "database is locked" while
+    the database itself sat idle, and a stack dump found the finalize task
+    parked in ssl.read with the lock in hand.
+
+    Separating assessment from persistence is what lets the drain do the
+    provider work before it opens a transaction.
+    """
+    import sqlite3
+
+    from app.claim_grounding import assess_hypothesis_claims
+
+    hyp = {"id": "h1", "title": "Kinase X inhibition", "statement": _SUPPORTED}
+
+    # Hold the write lock for the whole assessment; it must not care.
+    blocker = sqlite3.connect(isolated_db, timeout=0.5, isolation_level=None)
+    blocker.execute("BEGIN IMMEDIATE")
+    try:
+        assessed = assess_hypothesis_claims([hyp], as_passages([_SUPPORTED]))
+    finally:
+        blocker.execute("ROLLBACK")
+        blocker.close()
+
+    assert [hyp_id for hyp_id, _ in assessed] == ["h1"]
+    assert all(claims for _, claims in assessed)
