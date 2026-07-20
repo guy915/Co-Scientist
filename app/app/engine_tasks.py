@@ -1719,9 +1719,15 @@ async def execute_ranking_match(
     eligible = _ranking_eligible(state)
     index = int(task.inputs["round_index"])
     rounds = int(task.inputs["tournament_rounds"])
+    # Enough pairings to fill a wave, plus one for the rematch guard to skip.
+    # The streaming path asks for three because it then picks exactly one;
+    # the durable path inherited that number when it started judging waves,
+    # which silently capped every wave at three no matter how many rounds
+    # remained. A short wave is not lost work, it is another sequential
+    # durable task: the ultra run spent about two hours across 178 of them.
     candidates = _build_tournament_pairings(
         eligible,
-        min(3, rounds),
+        min(RANKING_WAVE_SIZE + 1, rounds),
         state["research_goal"],
         int(state.get("current_iteration", 0)) * 10_000 + index,
     )
@@ -1825,11 +1831,18 @@ async def execute_ranking_match(
     # guard, so a redelivered match never re-announces progress. The final match
     # is left to the finalizer's own "completed" event rather than reported
     # twice.
-    if (
-        wave
-        and next_index < rounds
-        and next_index % RANKING_PROGRESS_EVERY == 0
-    ):
+    #
+    # Reported per cadence boundary the wave *crossed*, not when the index
+    # happens to land on one. A wave advances the index by a variable stride,
+    # so an exact-multiple test silently skips boundaries it steps over -- it
+    # only ever worked because the stride and the cadence happened to line up.
+    # The message names the boundary rather than the index, so the feed reads
+    # as an even cadence whatever the stride.
+    milestone = (next_index // RANKING_PROGRESS_EVERY) * RANKING_PROGRESS_EVERY
+    crossed = index // RANKING_PROGRESS_EVERY != (
+        next_index // RANKING_PROGRESS_EVERY
+    )
+    if wave and next_index < rounds and crossed:
         emit = make_emitter(task.run_id, db_path=db_path)
         await emit(
             "scientific_task",
@@ -1838,7 +1851,7 @@ async def execute_ranking_match(
                 "status": "running",
                 "checkpoint_seq": committed_seq,
                 "successor": None,
-                "message": f"Tournament match {next_index} of {rounds}",
+                "message": f"Tournament match {milestone} of {rounds}",
             },
         )
     return {
