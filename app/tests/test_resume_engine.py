@@ -458,3 +458,70 @@ async def test_launch_resume_rebootstraps_legacy_mock_checkpoint(
     final = store.get_run(run.id)
     assert final is not None
     assert final.status == store.RunStatus.COMPLETED.value
+
+
+async def test_resume_does_not_execute_run_work_on_the_event_loop(
+    isolated_db: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Resuming a run must leave the API's event loop free to serve requests.
+
+    The durable worker does synchronous SQLite writes and serializes whole
+    WorkflowState blobs, so driving it with ``create_task`` runs that
+    blocking work on the API loop. Starting a run has always handed the
+    cohort to a thread; resume did not, so a boot carrying interrupted runs
+    stopped answering /health, Railway killed the container mid-run, and the
+    next boot inherited one more interrupted run -- a spiral in which runs
+    only advanced during the doomed startup window.
+    """
+    import time as _time
+
+    import app.runs as runs_mod
+    from app import engine_tasks
+    from app import store as store_mod
+
+    run = store_mod.create_run("loop freedom", "standard", "engine", {})
+    store_mod.enqueue_task(
+        run.id,
+        "engine.test.blocking",
+        {},
+        idempotency_key="blocking:0",
+        db_path=isolated_db,
+    )
+    store_mod.pause_run_tasks(run.id, db_path=isolated_db)
+    store_mod.update_run_status(run.id, store_mod.RunStatus.PAUSED)
+
+    def _blocking_execute(
+        _task: Any, *, db_path: str | None = None
+    ) -> dict[str, bool]:
+        # Stands in for the worker's real synchronous cost: a large
+        # json.dumps plus a committed SQLite write.
+        _time.sleep(1.0)
+        return {"completed": True}
+
+    async def _execute(
+        task: Any, *, db_path: str | None = None
+    ) -> dict[str, bool]:
+        return _blocking_execute(task, db_path=db_path)
+
+    monkeypatch.setattr(engine_tasks, "execute_engine_task", _execute)
+
+    stop = asyncio.Event()
+
+    async def _probe() -> float:
+        """Return the worst delay the loop imposed on a 10ms sleep."""
+        worst = 0.0
+        while not stop.is_set():
+            started = _time.monotonic()
+            await asyncio.sleep(0.01)
+            worst = max(worst, _time.monotonic() - started - 0.01)
+        return worst
+
+    probe = asyncio.create_task(_probe())
+    await runs_mod._launch_resume(run.id)
+    await asyncio.gather(*list(runs_mod._resume_tasks))
+    stop.set()
+    worst_stall = await probe
+
+    assert worst_stall < 0.5, (
+        f"event loop stalled {worst_stall:.2f}s while a resumed run executed"
+    )

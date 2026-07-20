@@ -83,6 +83,16 @@ class Settings(BaseSettings):
     # queueing an unbounded number of runs at once.
     max_concurrent_runs: int = 10
 
+    # How many durable tasks one run executes at once. A run's fan-out
+    # phases -- per-hypothesis reviews, verifications, generation strategies
+    # -- are independent tasks, so this is purely how much of that queue
+    # overlaps and never changes what any task produces. Sized against the
+    # provider rather than defensively: measured on the production model,
+    # twenty-four concurrent completions return in the same wall clock as
+    # four, with latency flat and throughput scaling linearly. Kept below
+    # that ceiling because several runs share it.
+    worker_pool_size: int = 12
+
     # /status availability probes: per-probe network timeout and how long
     # a probe pair's result is reused before re-probing the MCP server.
     status_probe_timeout_seconds: float = 3.0

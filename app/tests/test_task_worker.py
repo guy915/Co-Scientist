@@ -632,3 +632,53 @@ async def test_unsupported_task_type_is_still_permanent(
     after = store.get_task(task.id, db_path=isolated_db)
     assert after is not None
     assert after.status == "failed", "an unknown task type is not retryable"
+
+
+@pytest.mark.asyncio
+async def test_default_worker_cohort_overlaps_more_than_four_leases(
+    isolated_db: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The default cohort is sized for the provider, not for caution.
+
+    Measured against the production model, twenty-four concurrent
+    completions finish in the same wall clock as four -- latency is flat and
+    throughput scales linearly, so a cohort of four left most of a run's
+    fan-out sitting in the queue for no reason. Every item here is an
+    independent durable task, so widening the cohort changes only how many
+    run at once, never what any of them produces.
+    """
+    run = store.create_run("wide fanout", "standard", "engine", {})
+    for index in range(12):
+        store.enqueue_task(
+            run.id,
+            f"engine.test.{index}",
+            {},
+            idempotency_key=f"wide:{index}",
+            db_path=isolated_db,
+        )
+    active = 0
+    max_active = 0
+    lock = asyncio.Lock()
+
+    async def _execute(
+        _task: store.ScientificTask, *, db_path: str | None = None
+    ) -> dict[str, bool]:
+        nonlocal active, max_active
+        async with lock:
+            active += 1
+            max_active = max(max_active, active)
+        await asyncio.sleep(0.05)
+        async with lock:
+            active -= 1
+        return {"completed": True}
+
+    monkeypatch.setattr(engine_tasks, "execute_engine_task", _execute)
+
+    await task_worker.run_run_worker_pool(
+        run.id, "embedded-test", db_path=isolated_db, lease_seconds=5
+    )
+
+    assert max_active > 4
+    assert {
+        task.status for task in store.list_tasks(run.id, db_path=isolated_db)
+    } == {"completed"}

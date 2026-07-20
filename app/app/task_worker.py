@@ -13,6 +13,7 @@ from collections.abc import Sequence
 from typing import Any
 
 from app import engine_adapter, engine_tasks, store
+from app.config import settings
 from app.logging_setup import run_log_context
 from app.notifications import deliver_completion_notification
 from app.store import RunStatus, ScientificTask
@@ -293,12 +294,14 @@ async def run_run_worker_pool(
     run_id: str,
     worker_prefix: str,
     *,
-    worker_count: int = 4,
+    worker_count: int | None = None,
     db_path: str | None = None,
     poll_seconds: float = 0.05,
     lease_seconds: float = 300.0,
 ) -> None:
     """Consume one run with a bounded cohort that survives dynamic fan-out."""
+    if worker_count is None:
+        worker_count = settings.worker_pool_size
     if worker_count < 1:
         raise ValueError("worker_count must be positive")
 

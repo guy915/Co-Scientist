@@ -533,9 +533,20 @@ async def _launch_resume(run_id: str) -> None:
         queued.status,
     )
     if os.getenv("COSCIENTIST_EMBEDDED_WORKER", "1") == "1":
+        # Same cohort, and the same thread hand-off, that starting a run
+        # gets. Driving the worker with ``create_task`` ran its synchronous
+        # SQLite writes and WorkflowState serialization on the API's event
+        # loop, so a resumed run starved request handling -- a boot carrying
+        # interrupted runs stopped answering /health and was killed mid-run,
+        # leaving one more interrupted run for the next boot to inherit.
+        # Consuming the queue serially also gave a resumed run a quarter of
+        # the parallelism of a fresh one, which is backwards: an interrupted
+        # run is precisely the one with work already queued up to overlap.
         task = asyncio.create_task(
-            task_worker.run_run_until_idle(
-                run_id, f"embedded-resume:{os.getpid()}"
+            asyncio.to_thread(
+                task_worker.run_run_worker_pool_sync,
+                run_id,
+                f"embedded-resume:{os.getpid()}",
             )
         )
         _resume_tasks.add(task)

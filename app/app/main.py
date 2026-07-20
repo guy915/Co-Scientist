@@ -224,10 +224,15 @@ async def lifespan(
                 # A per-run recovery cohort waits out any unexpired lease
                 # and then resumes the same durable queue. Scientific
                 # effects remain exactly-once because every claim is lease-
-                # and checkpoint-gated.
+                # and checkpoint-gated. It runs on a thread because the
+                # cohort's SQLite writes and state serialization are
+                # synchronous: on the event loop they starve request
+                # handling, which is how a boot with runs to recover stopped
+                # answering its healthcheck.
                 recovery_workers.append(
                     asyncio.create_task(
-                        task_worker.run_run_worker_pool(
+                        asyncio.to_thread(
+                            task_worker.run_run_worker_pool_sync,
                             run_id,
                             f"embedded-recovery:{os.getpid()}",
                         )
