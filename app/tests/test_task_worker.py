@@ -682,3 +682,55 @@ async def test_default_worker_cohort_overlaps_more_than_four_leases(
     assert {
         task.status for task in store.list_tasks(run.id, db_path=isolated_db)
     } == {"completed"}
+
+
+@pytest.mark.asyncio
+async def test_heartbeat_writes_on_the_lease_schedule_not_the_poll_schedule(
+    isolated_db: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A long lease must not cost one database write per second.
+
+    The heartbeat wakes every second so cancellation is noticed promptly,
+    but that is an in-memory event: only the lease renewal touches the
+    database, and a 300-second lease does not need renewing every second.
+    Written per poll it becomes a steady write stream per in-flight task,
+    and SQLite's single writer has no fair queuing -- with a cohort of them
+    the stream starved ordinary API writes until creating a run failed
+    outright with "database is locked".
+    """
+    run = store.create_run("heartbeat cost", "standard", "engine", {})
+    task = store.enqueue_task(
+        run.id,
+        "engine.test.heartbeat",
+        {},
+        idempotency_key="heartbeat:0",
+        db_path=isolated_db,
+    )
+    renewals = 0
+
+    def _renew(*args: Any, **kwargs: Any) -> bool:
+        nonlocal renewals
+        renewals += 1
+        return True
+
+    monkeypatch.setattr(store, "renew_task_lease", _renew)
+
+    stop = asyncio.Event()
+    lease_lost = asyncio.Event()
+    beat = asyncio.create_task(
+        task_worker._heartbeat_lease(
+            task,
+            "worker-hb",
+            stop,
+            lease_lost,
+            db_path=isolated_db,
+            lease_seconds=300.0,
+        )
+    )
+    await asyncio.sleep(2.5)
+    stop.set()
+    await beat
+
+    # A 300s lease is renewed on its own schedule; 2.5 seconds of polling
+    # owes the database nothing.
+    assert renewals == 0, f"{renewals} lease writes in 2.5s of polling"

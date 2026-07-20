@@ -8,6 +8,7 @@ import contextlib
 import logging
 import os
 import socket
+import time
 import uuid
 from collections.abc import Sequence
 from typing import Any
@@ -344,14 +345,25 @@ async def _heartbeat_lease(
     lease_seconds: float,
 ) -> None:
     """Renew periodically until execution finishes or ownership is lost."""
-    # Poll at least once per second so explicit cancellation interrupts
-    # expensive provider calls promptly even when production leases are long.
-    interval = min(1.0, max(0.05, lease_seconds / 3))
+    # Two different cadences. Wake at least once a second so explicit
+    # cancellation interrupts expensive provider calls promptly even when
+    # production leases are long -- but that check is an in-memory event.
+    # Only the renewal touches the database, and it is due on the lease's
+    # own schedule: a 300-second lease does not need rewriting every second.
+    # Tying the two together cost one write per second per in-flight task,
+    # and SQLite's single writer has no fair queuing, so a cohort of them
+    # starved ordinary API writes until creating a run failed outright.
+    renew_every = max(0.05, lease_seconds / 3)
+    interval = min(1.0, renew_every)
+    due = time.monotonic() + renew_every
     while True:
         try:
             await asyncio.wait_for(stop.wait(), timeout=interval)
             return
         except TimeoutError:
+            if time.monotonic() < due:
+                continue
+            due = time.monotonic() + renew_every
             if not store.renew_task_lease(
                 task.id,
                 worker_id,
