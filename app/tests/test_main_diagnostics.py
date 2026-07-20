@@ -9,10 +9,13 @@ the module-level settings-to-environment bridging that runs once per import.
 
 from __future__ import annotations
 
+import asyncio
 import importlib
 import logging
 import os
 import pathlib
+import threading
+import time
 
 import pytest
 from fastapi.testclient import TestClient
@@ -185,3 +188,88 @@ def test_module_import_bridges_settings_and_logs_missing_mcp_url(
         settings.gemini_api_key = original_gemini_key
         settings.mcp_server_url = original_mcp_url
         importlib.reload(main_module)
+
+
+def test_startup_does_not_block_on_database_housekeeping(
+    isolated_db: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Reclaiming disk space must not delay the server accepting traffic.
+
+    Housekeeping cost scales with accumulated data, and it used to run inline
+    in the lifespan: a production deploy failed its five-minute healthcheck
+    because the container was still pruning and vacuuming a large database
+    and had not yet bound a port. Startup hands that work off instead, so a
+    slow sweep delays only itself.
+    """
+    import app.main as main_module
+
+    release = threading.Event()
+    entered = threading.Event()
+
+    def blocking_compact(*args: object, **kwargs: object) -> None:
+        entered.set()
+        release.wait(timeout=30)
+        return None
+
+    monkeypatch.setattr(store, "compact_database", blocking_compact)
+
+    try:
+        started = time.monotonic()
+        with TestClient(main_module.app) as client:
+            startup_seconds = time.monotonic() - started
+            assert client.get("/health").status_code == 200
+        # The sweep really did run -- it was backgrounded, not skipped.
+        assert entered.wait(timeout=30)
+        assert startup_seconds < 10
+    finally:
+        release.set()
+
+
+def test_startup_does_not_block_on_run_recovery(
+    isolated_db: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Resuming interrupted runs must not gate the server accepting traffic.
+
+    Recovery work scales with the run backlog, and it used to run before the
+    lifespan yielded -- so a container that booted with an interrupted run
+    started executing that run's provider calls while uvicorn had not yet
+    bound a port. Production deploys failed their healthcheck that way, and
+    each failure killed the container mid-run, leaving another interrupted
+    run for the next boot to choke on. Recovery belongs after startup.
+    """
+    import app.main as main_module
+    import app.runs as runs_module
+
+    resumed = threading.Event()
+
+    async def slow_resume(run_ids: list[str]) -> None:
+        # Awaits rather than blocking the loop: a real resume is provider
+        # I/O, so the loop stays free and only startup's own sequencing can
+        # keep the port shut.
+        resumed.set()
+        await asyncio.sleep(30)
+
+    monkeypatch.setattr(runs_module, "resume_interrupted_runs", slow_resume)
+
+    interrupted = store.create_run(
+        "interrupted goal", "default", "engine", {}, db_path=isolated_db
+    )
+    store.update_run_status(
+        interrupted.id, store.RunStatus.RUNNING, db_path=isolated_db
+    )
+    store.save_checkpoint(
+        interrupted.id,
+        stage="engine_task:test",
+        schema_version=1,
+        last_event_seq=0,
+        state={"provider": "engine", "state": {"hypotheses": []}},
+        db_path=isolated_db,
+    )
+
+    started = time.monotonic()
+    with TestClient(main_module.app) as client:
+        startup_seconds = time.monotonic() - started
+        assert client.get("/health").status_code == 200
+    # Recovery was scheduled, not skipped.
+    assert resumed.is_set()
+    assert startup_seconds < 10

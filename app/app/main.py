@@ -97,6 +97,43 @@ else:
     logger.info("mcp_server_url not set - literature review will be disabled")
 
 
+def _reclaim_disk_space() -> None:
+    """Prune superseded checkpoints and give the freed pages back.
+
+    Only the newest checkpoint per run is ever loaded, so the rest is
+    unreadable state that nonetheless filled the production volume until
+    every write failed. Runs remain resumable: each keeps its newest.
+    Deleting rows returns pages to SQLite's freelist but never shrinks the
+    file, so the compaction step is what the volume actually gets back.
+
+    Never fatal. This is opportunistic housekeeping, and the disk-full state
+    it exists to relieve is exactly the state in which a DELETE cannot get
+    its journal written -- so the first deploy carrying this sweep crashed on
+    boot against the very database it was meant to reclaim. Serving with a
+    bloated table beats not serving at all.
+    """
+    try:
+        superseded = store.prune_superseded_checkpoints()
+    except sqlite3.Error:
+        logger.warning("Could not prune superseded checkpoints", exc_info=True)
+    else:
+        if superseded:
+            logger.info(
+                "Pruned %s superseded checkpoint(s) no run could resume from",
+                superseded,
+            )
+
+    try:
+        compacted = store.compact_database()
+    except (sqlite3.Error, OSError):
+        logger.warning("Could not compact the database")
+    else:
+        if compacted:
+            logger.info(
+                "Compacted the database: %.0f MB -> %.0f MB", *compacted
+            )
+
+
 @asynccontextmanager
 async def lifespan(
     app: FastAPI,
@@ -131,43 +168,15 @@ async def lifespan(
     # here at startup, once.
     engine_adapter.validate_tools_config(settings.tools_config)
 
-    # Reclaim checkpoint history written before save_checkpoint learned to
-    # prune. Only the newest checkpoint per run is ever loaded, so the rest is
-    # unreadable state that nonetheless filled the production volume until
-    # every write failed. Runs remain resumable: each keeps its newest.
-    # Never fatal. This is opportunistic housekeeping, and the disk-full state
-    # it exists to relieve is exactly the state in which a DELETE cannot get
-    # its journal written -- so the first deploy carrying this sweep crashed on
-    # boot against the very database it was meant to reclaim. Serving with a
-    # bloated table beats not serving at all.
-    try:
-        superseded = store.prune_superseded_checkpoints()
-    except sqlite3.Error:
-        logger.warning(
-            "Could not prune superseded checkpoints; continuing startup",
-            exc_info=True,
-        )
-    else:
-        if superseded:
-            logger.info(
-                "Pruned %s superseded checkpoint(s) no run could resume from",
-                superseded,
-            )
-
-    # Give back what the pruning freed. Deleting rows returns pages to
-    # SQLite's freelist but never shrinks the file, so without this the
-    # database keeps the size its dead checkpoints grew it to. Declines
-    # unless most of the file is free pages and the disk has room for
-    # VACUUM's temporary copy, and never fatal for the same reason as above.
-    try:
-        compacted = store.compact_database()
-    except (sqlite3.Error, OSError):
-        logger.warning("Could not compact the database; continuing startup")
-    else:
-        if compacted:
-            logger.info(
-                "Compacted the database: %.0f MB -> %.0f MB", *compacted
-            )
+    # Hand the disk-space sweep to a worker thread rather than running it
+    # here. Its cost scales with accumulated data -- a large prune walks the
+    # checkpoint table in small committed batches and VACUUM rewrites the
+    # whole file -- and anything awaited before this hook yields happens
+    # before uvicorn binds a port. A production deploy failed its five-minute
+    # healthcheck exactly that way. Off the critical path the sweep delays
+    # only itself, and the thread keeps its blocking SQLite calls from
+    # stalling the event loop once traffic is being served.
+    housekeeping = asyncio.create_task(asyncio.to_thread(_reclaim_disk_space))
 
     # Reconcile runs left non-terminal by a previous process: a fresh process
     # has no workflow tasks running, so anything still queued/running was
@@ -185,28 +194,47 @@ async def lifespan(
             len(reconciled["resumable"]),
             ", ".join(r[:8] for r in reconciled["resumable"]),
         )
-        # Auto-resume launcher: relaunch each resumable run from its last
-        # checkpoint so an interrupted run finishes rather than staying stuck.
-        from app.runs import resume_interrupted_runs
-
-        await resume_interrupted_runs(reconciled["resumable"])
 
     recovery_workers: list[asyncio.Task[None]] = []
-    if os.getenv("COSCIENTIST_EMBEDDED_WORKER", "1") == "1":
-        from app import task_worker
 
-        for run_id in store.list_active_engine_task_run_ids():
-            # A per-run recovery cohort waits out any unexpired lease and
-            # then resumes the same durable queue. Scientific effects remain
-            # exactly-once because every claim is lease- and checkpoint-gated.
-            recovery_workers.append(
-                asyncio.create_task(
-                    task_worker.run_run_worker_pool(
-                        run_id,
-                        f"embedded-recovery:{os.getpid()}",
+    async def _recover_runs() -> None:
+        """Relaunch interrupted runs, off the startup critical path.
+
+        Restarting a run means executing it, so awaiting this before the
+        hook yields put provider calls ahead of binding a port. Production
+        deploys failed their five-minute healthcheck exactly that way, and
+        because a failed healthcheck kills the container mid-run, each
+        attempt left another interrupted run for the next boot to resume --
+        a spiral in which runs only ever advanced during the doomed startup
+        window. Recovery is not a precondition for serving, so it runs
+        alongside it.
+        """
+        if reconciled["resumable"]:
+            # Auto-resume launcher: relaunch each resumable run from its
+            # last checkpoint so an interrupted run finishes rather than
+            # staying stuck.
+            from app.runs import resume_interrupted_runs
+
+            await resume_interrupted_runs(reconciled["resumable"])
+
+        if os.getenv("COSCIENTIST_EMBEDDED_WORKER", "1") == "1":
+            from app import task_worker
+
+            for run_id in store.list_active_engine_task_run_ids():
+                # A per-run recovery cohort waits out any unexpired lease
+                # and then resumes the same durable queue. Scientific
+                # effects remain exactly-once because every claim is lease-
+                # and checkpoint-gated.
+                recovery_workers.append(
+                    asyncio.create_task(
+                        task_worker.run_run_worker_pool(
+                            run_id,
+                            f"embedded-recovery:{os.getpid()}",
+                        )
                     )
                 )
-            )
+
+    recovery = asyncio.create_task(_recover_runs())
 
     # No-op after the first successful startup; see seed.py for the
     # per-goal skip/re-seed logic.
@@ -215,6 +243,13 @@ async def lifespan(
     try:
         yield
     finally:
+        # The sweep holds no lease and leaves the database consistent at
+        # every batch boundary, so a shutdown mid-pass simply resumes the
+        # remaining work on the next boot.
+        housekeeping.cancel()
+        await asyncio.gather(housekeeping, return_exceptions=True)
+        recovery.cancel()
+        await asyncio.gather(recovery, return_exceptions=True)
         for worker in recovery_workers:
             worker.cancel()
         if recovery_workers:
