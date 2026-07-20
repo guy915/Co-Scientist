@@ -314,3 +314,23 @@ def test_compact_declines_without_disk_headroom(
 def test_compact_missing_database_is_a_noop(tmp_path: Path) -> None:
     """A path that does not exist yet is not an error."""
     assert store.compact_database(db_path=str(tmp_path / "absent.db")) is None
+
+
+def test_connections_pair_wal_with_normal_synchronous(db: str) -> None:
+    """Commits must not each pay their own fsync.
+
+    Left at the default, every commit fsyncs, and on network-attached
+    storage that fsync is what a writer holds the single SQLite write lock
+    for. Under a wide worker cohort the lock stayed saturated and ordinary
+    API writes exhausted their 30-second busy timeout, so creating a run
+    returned "database is locked". NORMAL is the setting WAL is designed to
+    be paired with: the log is still fsynced at checkpoints, so a crashed
+    process loses nothing, and only an OS-level failure can cost the most
+    recent transactions -- which a run reconstructs from its checkpoint
+    anyway.
+    """
+    with store.connect() as conn:
+        assert conn.execute("PRAGMA journal_mode").fetchone()[0] == "wal"
+        # 0=OFF, 1=NORMAL, 2=FULL. Per-connection, so it must be set by
+        # connect() rather than once at schema init.
+        assert conn.execute("PRAGMA synchronous").fetchone()[0] == 1

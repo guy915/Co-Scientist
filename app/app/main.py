@@ -168,15 +168,18 @@ async def lifespan(
     # here at startup, once.
     engine_adapter.validate_tools_config(settings.tools_config)
 
-    # Hand the disk-space sweep to a worker thread rather than running it
-    # here. Its cost scales with accumulated data -- a large prune walks the
-    # checkpoint table in small committed batches and VACUUM rewrites the
-    # whole file -- and anything awaited before this hook yields happens
-    # before uvicorn binds a port. A production deploy failed its five-minute
-    # healthcheck exactly that way. Off the critical path the sweep delays
-    # only itself, and the thread keeps its blocking SQLite calls from
-    # stalling the event loop once traffic is being served.
-    housekeeping = asyncio.create_task(asyncio.to_thread(_reclaim_disk_space))
+    # Deliberately inline, before a single request is served. VACUUM and a
+    # truncating WAL checkpoint need exclusive access, and SQLite makes a
+    # writer that is waiting for one block every other writer behind it. Run
+    # alongside a serving process the sweep never gets its turn: a
+    # long-lived reader (an SSE stream tailing a run) keeps it waiting
+    # indefinitely while every write fails with "database is locked", which
+    # is how this wedged production -- an idle database, no writes for
+    # minutes, and every run creation returning 500. Startup is the one
+    # moment the process is guaranteed no readers, and the sweep is cheap
+    # enough to afford there: pruning and vacuuming a 575 MB database
+    # measured under a second.
+    _reclaim_disk_space()
 
     # Reconcile runs left non-terminal by a previous process: a fresh process
     # has no workflow tasks running, so anything still queued/running was
@@ -248,11 +251,6 @@ async def lifespan(
     try:
         yield
     finally:
-        # The sweep holds no lease and leaves the database consistent at
-        # every batch boundary, so a shutdown mid-pass simply resumes the
-        # remaining work on the next boot.
-        housekeeping.cancel()
-        await asyncio.gather(housekeeping, return_exceptions=True)
         recovery.cancel()
         await asyncio.gather(recovery, return_exceptions=True)
         for worker in recovery_workers:

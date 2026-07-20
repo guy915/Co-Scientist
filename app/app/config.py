@@ -86,12 +86,18 @@ class Settings(BaseSettings):
     # How many durable tasks one run executes at once. A run's fan-out
     # phases -- per-hypothesis reviews, verifications, generation strategies
     # -- are independent tasks, so this is purely how much of that queue
-    # overlaps and never changes what any task produces. Sized against the
-    # provider rather than defensively: measured on the production model,
-    # twenty-four concurrent completions return in the same wall clock as
-    # four, with latency flat and throughput scaling linearly. Kept below
-    # that ceiling because several runs share it.
-    worker_pool_size: int = 12
+    # overlaps and never changes what any task produces.
+    #
+    # The provider is not what bounds this. Measured on the production
+    # model, twenty-four concurrent completions return in the same wall
+    # clock as four, with latency flat and throughput scaling linearly.
+    # SQLite is: every task boundary commits a checkpoint and there is only
+    # one writer, so past some width the workers queue on the write lock
+    # instead of the provider -- at twelve (times several concurrent runs)
+    # the lock stayed saturated and ordinary API writes failed outright.
+    # Eight buys most of the available overlap while leaving the writer
+    # headroom to serve requests. Tunable without a code change.
+    worker_pool_size: int = 8
 
     # /status availability probes: per-probe network timeout and how long
     # a probe pair's result is reused before re-probing the MCP server.

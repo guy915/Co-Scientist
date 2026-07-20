@@ -190,39 +190,41 @@ def test_module_import_bridges_settings_and_logs_missing_mcp_url(
         importlib.reload(main_module)
 
 
-def test_startup_does_not_block_on_database_housekeeping(
+def test_disk_space_sweep_finishes_before_the_server_serves(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Reclaiming disk space must not delay the server accepting traffic.
+    """Reclaiming disk space must complete before any request is accepted.
 
-    Housekeeping cost scales with accumulated data, and it used to run inline
-    in the lifespan: a production deploy failed its five-minute healthcheck
-    because the container was still pruning and vacuuming a large database
-    and had not yet bound a port. Startup hands that work off instead, so a
-    slow sweep delays only itself.
+    VACUUM and a truncating WAL checkpoint need exclusive access to the
+    database, and SQLite makes a writer that is waiting for one block every
+    other writer behind it. Run concurrently with a serving process the
+    sweep never gets its turn -- long-lived readers (an SSE stream tailing a
+    run) keep it waiting indefinitely while every write fails with "database
+    is locked". Production wedged exactly that way: no writes for minutes,
+    an idle database, and every run creation returning 500.
+
+    Startup is the one moment the process is guaranteed no readers, so the
+    sweep belongs there. It is cheap enough to afford: pruning and
+    vacuuming a 575 MB database measured under a second.
     """
     import app.main as main_module
 
-    release = threading.Event()
-    entered = threading.Event()
+    swept = threading.Event()
 
-    def blocking_compact(*args: object, **kwargs: object) -> None:
-        entered.set()
-        release.wait(timeout=30)
+    def _compact(*args: object, **kwargs: object) -> None:
+        # Takes long enough that a sweep handed to a thread demonstrably has
+        # not finished by the time startup returns.
+        time.sleep(1.0)
+        swept.set()
         return None
 
-    monkeypatch.setattr(store, "compact_database", blocking_compact)
+    monkeypatch.setattr(store, "compact_database", _compact)
 
-    try:
-        started = time.monotonic()
-        with TestClient(main_module.app) as client:
-            startup_seconds = time.monotonic() - started
-            assert client.get("/health").status_code == 200
-        # The sweep really did run -- it was backgrounded, not skipped.
-        assert entered.wait(timeout=30)
-        assert startup_seconds < 10
-    finally:
-        release.set()
+    with TestClient(main_module.app) as client:
+        # Already done by the time the first request can be served, so it
+        # never contends with a reader for the exclusive lock it needs.
+        assert swept.is_set()
+        assert client.get("/health").status_code == 200
 
 
 def test_startup_does_not_block_on_run_recovery(

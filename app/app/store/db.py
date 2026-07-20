@@ -80,6 +80,17 @@ def connect(
         db_path, timeout=30, isolation_level=None, check_same_thread=False
     )
     conn.row_factory = sqlite3.Row  # Rows behave like dicts: row["col"].
+    # The durability setting WAL is meant to be paired with, and per-
+    # connection (like foreign_keys) rather than sticky in the file, so it
+    # belongs here rather than in _init_schema. At the default every commit
+    # pays its own fsync, and on network-attached storage that fsync is what
+    # a writer holds the single write lock for: under a wide worker cohort
+    # the lock stayed saturated and ordinary API writes exhausted their
+    # 30-second busy timeout, failing with "database is locked". NORMAL
+    # still fsyncs the log at checkpoints, so a crashed process loses
+    # nothing; only an OS-level failure can cost the most recent
+    # transactions, which a run reconstructs from its checkpoint anyway.
+    conn.execute("PRAGMA synchronous=NORMAL")
     try:
         # Double-checked locking: skip the lock entirely once a db_path has
         # been initialized (the hot path), but still serialize the first
