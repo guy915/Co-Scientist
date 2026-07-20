@@ -927,15 +927,19 @@ async def test_ranking_matches_are_separate_sequential_checkpointed_tasks(
         leased.id, "ranking", scheduled, db_path=isolated_db
     )
 
+    # Matchups are judged concurrently inside a wave, but the waves themselves
+    # stay sequential: each observes the checkpoint its predecessor committed.
     observed_sequences: list[int] = []
-    for index in range(3):
+    committed = 0
+    index = 0
+    while True:
         match = store.claim_task(
             f"match-{index}", run_id=run.id, db_path=isolated_db
         )
-        assert (
-            match is not None
-            and match.task_type == engine_tasks.RANKING_MATCH_TASK
-        )
+        assert match is not None
+        if match.task_type != engine_tasks.RANKING_MATCH_TASK:
+            finalizer = match
+            break
         observed_sequences.append(int(match.inputs["checkpoint_seq"]))
         result = await engine_tasks.execute_ranking_match(
             match, db_path=isolated_db
@@ -945,21 +949,23 @@ async def test_ranking_matches_are_separate_sequential_checkpointed_tasks(
                 match, db_path=isolated_db
             )
             assert replay["replayed"] is True
+        committed = int(result["matches_committed"])
         assert store.complete_task(
             match.id, f"match-{index}", result, db_path=isolated_db
         )
+        index += 1
     assert observed_sequences == sorted(observed_sequences)
-    assert len(set(observed_sequences)) == 3
+    assert len(set(observed_sequences)) == len(observed_sequences)
+    assert committed == 3, "the whole round is judged exactly once"
 
-    finalizer = store.claim_task(
-        "finalizer", run_id=run.id, db_path=isolated_db
-    )
-    assert finalizer is not None
     result = await engine_tasks.execute_ranking_finalize(
         finalizer, db_path=isolated_db
     )
     assert store.complete_task(
-        finalizer.id, "finalizer", result, db_path=isolated_db
+        finalizer.id,
+        finalizer.lease_owner or "finalizer",
+        result,
+        db_path=isolated_db,
     )
     checkpoint = store.get_latest_checkpoint(run.id, db_path=isolated_db)
     assert checkpoint is not None
@@ -967,10 +973,9 @@ async def test_ranking_matches_are_separate_sequential_checkpointed_tasks(
     assert len(restored["tournament_matchups"]) == 3
     assert sum(item.total_matches for item in restored["hypotheses"]) == 6
     tasks = store.list_tasks(run.id, db_path=isolated_db)
-    assert (
-        sum(task.task_type == engine_tasks.RANKING_MATCH_TASK for task in tasks)
-        == 3
-    )
+    assert sum(
+        task.task_type == engine_tasks.RANKING_MATCH_TASK for task in tasks
+    ) == len(observed_sequences)
     milestones = [
         message
         for message in store.list_messages(run.id, db_path=isolated_db)
@@ -1647,3 +1652,87 @@ async def test_long_tournament_reports_progress_between_its_matches(
     assert progress[0]["payload"]["message"] == (
         f"Tournament match {engine_tasks.RANKING_PROGRESS_EVERY} of {rounds}"
     )
+
+
+@pytest.mark.asyncio
+async def test_tournament_judges_a_wave_of_matchups_concurrently(
+    isolated_db: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """One match task advances several matchups, judged in parallel.
+
+    A matchup is ~45s of real model work (three debate turns), and the
+    tournament ran them strictly one per durable task, so a 128-match round
+    took ~94 minutes of wall clock at a concurrency of one. The engine's
+    ranking semaphore already bounds parallel judging; the durable path just
+    never gave it more than one call to bound.
+    """
+    run = store.create_run("Wave science", "standard", "engine", {})
+    state = _task_state(run.id)
+    hypotheses = [
+        Hypothesis(
+            text=f"Mechanism {index} accelerates ATP recovery.",
+            literature_grounding=(
+                f"Mechanism {index} accelerates ATP recovery."
+            ),
+        )
+        for index in range(6)
+    ]
+    for hypothesis in hypotheses:
+        hypothesis.review_disposition = "viable"
+    state.update({"hypotheses": hypotheses, "tournament_pairs": 12})
+    checkpoint_seq = _seed_checkpoint(run.id, state)
+    store.enqueue_task(
+        run.id,
+        f"{engine_tasks.NODE_TASK_PREFIX}ranking",
+        {"checkpoint_seq": checkpoint_seq},
+        idempotency_key="wave-ranking-node",
+        db_path=isolated_db,
+    )
+    generator = _Generator(state)
+    monkeypatch.setattr(
+        engine_tasks, "_generator_and_opts", lambda *_: (generator, {})
+    )
+    monkeypatch.setattr(
+        engine_tasks, "_generator_for_restore", lambda *_: generator
+    )
+
+    import co_scientist.agents.ranking.ranking as ranking_module
+
+    in_flight = 0
+    peak = 0
+
+    async def fake_judge(*_: Any, **kwargs: Any) -> tuple[str, dict[str, Any]]:
+        nonlocal in_flight, peak
+        in_flight += 1
+        peak = max(peak, in_flight)
+        await asyncio.sleep(0)  # Yield so siblings can overlap.
+        in_flight -= 1
+        return "a", {
+            "decision_summary": "A is stronger",
+            "confidence_level": "high",
+            "debate_turns": int(kwargs["debate_turns"]),
+            "debate_transcript": [],
+            "judge_model": "fixture",
+        }
+
+    monkeypatch.setattr(ranking_module, "judge_matchup", fake_judge)
+    leased = store.claim_task("ranking", run_id=run.id, db_path=isolated_db)
+    assert leased is not None
+    scheduled = await engine_tasks.execute_node_task(
+        leased, db_path=isolated_db
+    )
+    assert store.complete_task(
+        leased.id, "ranking", scheduled, db_path=isolated_db
+    )
+    rounds = int(scheduled["tournament_rounds"])
+    assert rounds > 1
+
+    match = store.claim_task("w", run_id=run.id, db_path=isolated_db)
+    assert match is not None
+    assert match.task_type == engine_tasks.RANKING_MATCH_TASK
+    result = await engine_tasks.execute_ranking_match(
+        match, db_path=isolated_db
+    )
+
+    assert peak > 1, "matchups in a wave must be judged concurrently"
+    assert result["matches_committed"] > 1, "one task must advance a wave"

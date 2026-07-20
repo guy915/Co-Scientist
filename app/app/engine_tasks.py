@@ -1558,6 +1558,44 @@ async def _schedule_ranking_chain(
     }
 
 
+# How many matchups one durable task judges concurrently. Bounded so a wave
+# still commits a checkpoint often enough to be a useful resume point, and so
+# the pool's Elo ratings re-adapt between waves rather than drifting across a
+# whole round judged from one stale snapshot.
+RANKING_WAVE_SIZE = 5
+
+
+def _ranking_wave(
+    candidates: list[Any],
+    previous_pair: frozenset[str],
+    index: int,
+    rounds: int,
+) -> list[Any]:
+    """Return the distinct matchups this task should judge concurrently.
+
+    Skips the pair the previous wave ended on (the existing rematch guard) and
+    never repeats a pair inside one wave, since every pairing in a wave is
+    drawn from the same Elo snapshot and would otherwise be judged twice.
+    Never runs past the round budget.
+    """
+    remaining = max(0, rounds - index)
+    wave: list[Any] = []
+    seen: set[frozenset[str]] = {previous_pair} if previous_pair else set()
+    for pair in candidates:
+        if len(wave) >= min(RANKING_WAVE_SIZE, remaining):
+            break
+        key = frozenset({pair[0].id, pair[1].id})
+        if key in seen:
+            continue
+        seen.add(key)
+        wave.append(pair)
+    if not wave and candidates and remaining:
+        # Every candidate was a repeat; judging the best one again still makes
+        # progress and matches the previous one-per-task fallback.
+        wave.append(candidates[0])
+    return wave
+
+
 async def execute_ranking_match(
     task: ScientificTask, *, db_path: str | None = None
 ) -> dict[str, Any]:
@@ -1599,54 +1637,69 @@ async def execute_ranking_match(
     previous_pair = frozenset(
         str(item) for item in task.inputs["previous_pair"]
     )
-    pairing = next(
-        (
-            item
-            for item in candidates
-            if frozenset({item[0].id, item[1].id}) != previous_pair
-        ),
-        candidates[0] if candidates else None,
-    )
+    # Judge a wave of distinct matchups instead of one. A matchup is three
+    # debate turns of real model work (~45s), so one-per-task ran a 128-match
+    # round at a concurrency of one -- about 94 minutes of wall clock for
+    # ~20 minutes of work. Pairings within a wave are drawn from the same Elo
+    # snapshot, which is the cost of the parallelism: adaptation happens at
+    # wave boundaries rather than after every single match.
+    wave = _ranking_wave(candidates, previous_pair, index, rounds)
     details = list(state.get("pending_ranking_matchups") or [])
     total_calls = int(task.inputs["total_llm_calls"])
     next_index = rounds
     last_pair: list[str] = []
-    if pairing is not None:
-        hypothesis_a, hypothesis_b = pairing
-        depth = _matchup_debate_turns(
-            hypothesis_a, hypothesis_b, _median_elo(eligible)
-        )
+    if wave:
         guidance, registry, meta_review, setup, focus = (
             _gather_tournament_context(state)
         )
-        winner, response = await judge_matchup(
-            hypothesis_a,
-            hypothesis_b,
-            state["research_goal"],
-            state["model_name"],
-            guidance,
-            run_id=state.get("run_id"),
-            matchup_index=index,
-            tool_registry=registry,
-            meta_review=meta_review,
-            run_setup_guidance=setup,
-            run_focus_guidance=focus,
-            debate_turns=depth,
-        )
-        outcome = _apply_matchup_elo(
-            hypothesis_a,
-            hypothesis_b,
-            winner,
-            k_factor=int(state.get("elo_k_factor") or ELO_K_FACTOR),
-        )
-        details.append(
-            _build_matchup_detail(
-                hypothesis_a, hypothesis_b, winner, response, outcome
+        median = _median_elo(eligible)
+        depths = [
+            _matchup_debate_turns(pair[0], pair[1], median) for pair in wave
+        ]
+
+        async def _judge(
+            offset: int, pair: tuple[Any, Any]
+        ) -> tuple[str, dict[str, Any]]:
+            """Judge one matchup of the wave."""
+            judgement: tuple[str, dict[str, Any]] = await judge_matchup(
+                pair[0],
+                pair[1],
+                state["research_goal"],
+                state["model_name"],
+                guidance,
+                run_id=state.get("run_id"),
+                matchup_index=index + offset,
+                tool_registry=registry,
+                meta_review=meta_review,
+                run_setup_guidance=setup,
+                run_focus_guidance=focus,
+                debate_turns=depths[offset],
             )
+            return judgement
+
+        # The engine's ranking semaphore bounds the real fan-out; gather only
+        # offers it more than one call to bound.
+        judged = await asyncio.gather(
+            *(_judge(offset, pair) for offset, pair in enumerate(wave))
         )
-        total_calls += depth
-        next_index = index + 1
-        last_pair = [hypothesis_a.id, hypothesis_b.id]
+        # Elo is applied in wave order so the committed result is independent
+        # of the order the concurrent judgements happened to return in.
+        k_factor = int(state.get("elo_k_factor") or ELO_K_FACTOR)
+        for offset, (pair, (winner, response)) in enumerate(
+            zip(wave, judged, strict=True)
+        ):
+            hypothesis_a, hypothesis_b = pair
+            outcome = _apply_matchup_elo(
+                hypothesis_a, hypothesis_b, winner, k_factor=k_factor
+            )
+            details.append(
+                _build_matchup_detail(
+                    hypothesis_a, hypothesis_b, winner, response, outcome
+                )
+            )
+            total_calls += depths[offset]
+            last_pair = [hypothesis_a.id, hypothesis_b.id]
+        next_index = index + len(wave)
     state["pending_ranking_matchups"] = details
     successor_type = (
         RANKING_MATCH_TASK if next_index < rounds else RANKING_FINALIZE_TASK
@@ -1682,7 +1735,7 @@ async def execute_ranking_match(
     # is left to the finalizer's own "completed" event rather than reported
     # twice.
     if (
-        pairing is not None
+        wave
         and next_index < rounds
         and next_index % RANKING_PROGRESS_EVERY == 0
     ):
