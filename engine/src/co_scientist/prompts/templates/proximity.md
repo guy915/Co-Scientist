@@ -46,3 +46,6 @@ For each cluster, identify the degree of similarity/redundancy:
 ## Output Format
 
 Provide your similarity analysis in JSON format. Each hypothesis must be assigned a similarity_degree of "high", "medium", or "low".
+
+Identify each cluster member by its `index` from the input list above. Do not
+repeat the hypothesis text in your response — the index alone identifies it.

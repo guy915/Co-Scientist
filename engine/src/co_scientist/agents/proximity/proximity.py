@@ -29,15 +29,48 @@ from co_scientist.state import WorkflowState
 logger = logging.getLogger(__name__)
 
 
+def _match_cluster_member(
+    similar_hyp: dict[str, Any],
+    hypotheses: list[Hypothesis],
+    by_prefix: dict[str, Hypothesis],
+) -> Hypothesis | None:
+    """Resolve one cluster member to its hypothesis, index first.
+
+    Args:
+        similar_hyp: One entry of a cluster's ``similar_hypotheses``.
+        hypotheses: The pool, in the order the prompt numbered it.
+        by_prefix: First-occurrence map from 100-char text prefix.
+
+    Returns:
+        The matching hypothesis, or None when the entry resolves to none.
+    """
+    index = similar_hyp.get("index")
+    if isinstance(index, int) and 0 <= index < len(hypotheses):
+        return hypotheses[index]
+    text = similar_hyp.get("text")
+    if isinstance(text, str) and text:
+        return by_prefix.get(text[:100])
+    return None
+
+
 def _assign_cluster_ids(
     hypotheses: list[Hypothesis], similarity_clusters: list[dict[str, Any]]
 ) -> None:
     """Assigns similarity-cluster ids and degrees back onto hypotheses.
 
-    The LLM echoes back hypothesis text per cluster rather than an index,
-    so hypotheses are re-matched here by comparing the first 100 chars of
-    text -- cheap, and robust to minor whitespace or formatting drift the
-    LLM may introduce when quoting. Mutates the hypotheses in place.
+    A cluster member is resolved by the positional ``index`` the prompt
+    assigns each hypothesis, falling back to comparing the first 100 chars
+    of echoed text. Text matching came first and is kept as the fallback --
+    it is robust to the quoting drift a model introduces -- but it cannot be
+    the contract: echoing every member's full text made the response scale
+    with the pool, and a large pool's echo does not fit the token budget
+    (46 hypotheses averaging 1250 chars need roughly 14k output tokens
+    against 10k). The JSON then truncated, every retry truncated the same
+    way, and the node fell through to "no clusters" -- five spent attempts
+    and deduplication silently skipped. An index costs a couple of
+    characters and carries the identical clustering judgement.
+
+    Mutates the hypotheses in place.
 
     Args:
         hypotheses: All hypotheses being analyzed for proximity.
@@ -52,7 +85,7 @@ def _assign_cluster_ids(
     for cluster in similarity_clusters:
         cluster_id = cluster.get("cluster_id", "unknown")
         for similar_hyp in cluster.get("similar_hypotheses", []):
-            matched = by_prefix.get(similar_hyp.get("text", "")[:100])
+            matched = _match_cluster_member(similar_hyp, hypotheses, by_prefix)
             if matched is None:
                 continue
             matched.similarity_cluster_id = cluster_id

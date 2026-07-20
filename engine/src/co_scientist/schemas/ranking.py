@@ -89,18 +89,24 @@ PROXIMITY_SCHEMA: dict[str, Any] = {
                         "cluster_id": {"type": "string"},
                         "cluster_name": {"type": "string"},
                         "central_theme": {"type": "string"},
+                        # Members are identified by the index the prompt
+                        # assigns, not by echoing their text back: the echo
+                        # scaled the response with the pool and overran the
+                        # output budget on a large run, truncating the JSON
+                        # and costing five identical retries before
+                        # deduplication was skipped entirely.
                         "similar_hypotheses": {
                             "type": "array",
                             "items": {
                                 "type": "object",
                                 "properties": {
-                                    "text": {"type": "string"},
+                                    "index": {"type": "integer"},
                                     "similarity_degree": {
                                         "type": "string",
                                         "enum": ["high", "medium", "low"],
                                     },
                                 },
-                                "required": ["text", "similarity_degree"],
+                                "required": ["index", "similarity_degree"],
                                 "additionalProperties": False,
                             },
                         },

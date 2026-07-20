@@ -200,3 +200,90 @@ async def test_proximity_graph_excludes_deduped_high_similarity_member(
     # One survivor after high-similarity dedup -> no pair -> no edges.
     assert len(result["hypotheses"]) == 1
     assert result["proximity_graph"]["edges"] == []
+
+
+@pytest.mark.asyncio
+async def test_cluster_members_match_by_index(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A cluster member is resolved by the index the prompt already assigns.
+
+    The response schema used to require each member to echo its hypothesis's
+    full text, while matching only ever read the first 100 characters. On a
+    large pool that echo cannot fit: 46 hypotheses averaging 1250 characters
+    need roughly 14k output tokens against a 10k budget, so the JSON
+    truncated, every retry truncated identically, and the node fell through
+    to "no similarity clusters" -- burning five attempts and silently
+    skipping deduplication. Returning the index keeps the same clustering
+    judgement in an encoding that fits.
+    """
+    low = make_hypothesis(
+        text="alpha pathway drives tumor growth", elo_rating=1200
+    )
+    high = make_hypothesis(
+        text="beta pathway drives tumor growth", elo_rating=1400
+    )
+    state = make_state(hypotheses=[low, high])
+    _stub_clusters(
+        monkeypatch,
+        {
+            "similarity_clusters": [
+                {
+                    "cluster_id": "c1",
+                    "similar_hypotheses": [
+                        {"index": 0, "similarity_degree": "high"},
+                        {"index": 1, "similarity_degree": "high"},
+                    ],
+                }
+            ]
+        },
+    )
+
+    result = await proximity_node(state)
+
+    assert len(result["hypotheses"]) == 1
+    assert result["hypotheses"][0].elo_rating == 1400
+    assert len(result["removed_duplicates"]) == 1
+
+
+@pytest.mark.asyncio
+async def test_cluster_members_still_match_by_text_without_index(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Text matching stays as a fallback when a response omits the index.
+
+    Text-prefix matching was chosen for robustness against the quoting drift
+    a model introduces, so it remains the fallback rather than being replaced.
+    """
+    low = make_hypothesis(
+        text="alpha pathway drives tumor growth", elo_rating=1200
+    )
+    high = make_hypothesis(
+        text="beta pathway drives tumor growth", elo_rating=1400
+    )
+    state = make_state(hypotheses=[low, high])
+    _stub_clusters(
+        monkeypatch,
+        {
+            "similarity_clusters": [
+                {
+                    "cluster_id": "c1",
+                    "similar_hypotheses": [
+                        {
+                            "text": "alpha pathway drives tumor growth",
+                            "similarity_degree": "high",
+                        },
+                        {
+                            "text": "beta pathway drives tumor growth",
+                            "similarity_degree": "high",
+                        },
+                    ],
+                }
+            ]
+        },
+    )
+
+    result = await proximity_node(state)
+
+    assert len(result["hypotheses"]) == 1
+    assert result["hypotheses"][0].elo_rating == 1400
