@@ -301,6 +301,30 @@ def _dependencies_complete(
     )
 
 
+def has_active_lease(run_id: str, db_path: str | None = None) -> bool:
+    """Return whether any of a run's tasks is currently leased.
+
+    Answers the cohort's idle question -- "is anyone still working?" -- with
+    a single existence check. Listing and decoding every row of the run's
+    task table to compute the same boolean costs more the further a run
+    gets, and every idle worker asks twenty times a second.
+
+    Args:
+        run_id: Identifier of the run whose cohort is waiting.
+        db_path: Optional override for the SQLite database path.
+
+    Returns:
+        True when at least one task of the run is leased.
+    """
+    with connect(db_path) as conn:
+        row = conn.execute(
+            "SELECT 1 FROM scientific_tasks WHERE run_id=? AND status='leased'"
+            " LIMIT 1",
+            (run_id,),
+        ).fetchone()
+    return row is not None
+
+
 def _has_claimable_task(run_id: str | None, db_path: str | None) -> bool:
     """Return whether a claim attempt could plausibly find work.
 

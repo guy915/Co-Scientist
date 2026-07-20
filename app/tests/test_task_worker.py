@@ -766,3 +766,37 @@ def test_idle_claim_does_not_contend_for_the_write_lock(
     finally:
         blocker.execute("ROLLBACK")
         blocker.close()
+
+
+def test_idle_wait_does_not_decode_every_task(
+    isolated_db: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Waiting on the cohort must not scan the whole task table.
+
+    Every idle worker asks "is anyone still working?" twenty times a second.
+    Answering it by listing and decoding every row of the run's task table
+    costs more the further a run gets -- a late-stage run has hundreds of
+    rows, and the cohort was widened to eight, so it is thousands of row
+    decodes a second spent to compute a single boolean.
+    """
+    run = store.create_run("idle wait cost", "standard", "engine", {})
+    for index in range(30):
+        store.enqueue_task(
+            run.id,
+            f"engine.test.{index}",
+            {},
+            idempotency_key=f"idle:{index}",
+            db_path=isolated_db,
+        )
+    calls = 0
+    real_list = store.list_tasks
+
+    def _counting_list(*args: Any, **kwargs: Any) -> Any:
+        nonlocal calls
+        calls += 1
+        return real_list(*args, **kwargs)
+
+    monkeypatch.setattr(store, "list_tasks", _counting_list)
+
+    assert store.has_active_lease(run.id, db_path=isolated_db) is False
+    assert calls == 0

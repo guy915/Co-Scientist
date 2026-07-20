@@ -317,12 +317,15 @@ async def run_run_worker_pool(
             )
             if worked:
                 continue
-            tasks = store.list_tasks(run_id, db_path=db_path)
             # Other cohort members may still be executing parent tasks that
             # will materialize new fan-out work; remain available until every
             # lease is acknowledged. Queued-but-unclaimable work with no live
             # lease cannot make progress and is left for retry/reconciliation.
-            if any(task.status == "leased" for task in tasks):
+            # An existence check rather than a listing: this runs twenty times
+            # a second per idle worker, and decoding every row of a late-stage
+            # run's task table to compute one boolean is work that grows as
+            # the run does.
+            if store.has_active_lease(run_id, db_path=db_path):
                 await asyncio.sleep(poll_seconds)
                 continue
             return
