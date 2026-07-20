@@ -734,3 +734,35 @@ async def test_heartbeat_writes_on_the_lease_schedule_not_the_poll_schedule(
     # A 300s lease is renewed on its own schedule; 2.5 seconds of polling
     # owes the database nothing.
     assert renewals == 0, f"{renewals} lease writes in 2.5s of polling"
+
+
+def test_idle_claim_does_not_contend_for_the_write_lock(
+    isolated_db: str,
+) -> None:
+    """Finding no work must not require taking the single write lock.
+
+    Every worker in every run's cohort polls for work several times a
+    second. Opening a write transaction just to discover the queue is empty
+    turns an idle cohort into a write-lock storm -- hundreds of no-op
+    BEGIN IMMEDIATEs a second, changing no rows. The database looks idle
+    while ordinary API writes exhaust their 30-second busy timeout, which is
+    exactly how production started returning 500 from run creation with the
+    embedded worker on, and stopped the moment it was turned off.
+    """
+    import sqlite3
+    import time as _time
+
+    # Open the store once so schema init (itself a write) is already done
+    # and the lock below is contended only by the claim under test.
+    assert store.claim_task("warmup", db_path=isolated_db) is None
+
+    # Someone else holds the write lock; an idle claim must not want it.
+    blocker = sqlite3.connect(isolated_db, timeout=0.5, isolation_level=None)
+    blocker.execute("BEGIN IMMEDIATE")
+    try:
+        started = _time.monotonic()
+        assert store.claim_task("idle-worker", db_path=isolated_db) is None
+        assert _time.monotonic() - started < 1.0
+    finally:
+        blocker.execute("ROLLBACK")
+        blocker.close()

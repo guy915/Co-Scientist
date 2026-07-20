@@ -9,7 +9,7 @@ import uuid
 from collections.abc import Iterable, Mapping
 from typing import Any
 
-from app.store.db import _now, _use_conn, transaction
+from app.store.db import _now, _use_conn, connect, transaction
 
 
 @dataclasses.dataclass(frozen=True)
@@ -301,6 +301,37 @@ def _dependencies_complete(
     )
 
 
+def _has_claimable_task(run_id: str | None, db_path: str | None) -> bool:
+    """Return whether a claim attempt could plausibly find work.
+
+    Read-only and advisory. Every worker in every run's cohort polls for
+    work several times a second, and opening a write transaction just to
+    discover the queue is empty turned an idle cohort into a write-lock
+    storm: hundreds of no-op BEGIN IMMEDIATEs a second against a database
+    with a single writer, changing no rows. The database looked idle while
+    ordinary API writes exhausted their 30-second busy timeout and run
+    creation returned 500. In WAL a reader takes no write lock, so asking
+    first costs nothing and the common answer is "no".
+
+    The claim itself re-checks everything under the write lock, so a race
+    here only risks a wasted attempt, never a double lease.
+    """
+    query = (
+        "SELECT 1 FROM scientific_tasks WHERE status='queued'"
+        " AND (? IS NULL OR run_id=?)"
+        " UNION ALL "
+        "SELECT 1 FROM scientific_tasks WHERE status='leased'"
+        " AND (? IS NULL OR run_id=?)"
+        " AND lease_expires_at<=? AND attempt<max_attempts"
+        " LIMIT 1"
+    )
+    with connect(db_path) as conn:
+        row = conn.execute(
+            query, (run_id, run_id, run_id, run_id, _now())
+        ).fetchone()
+    return row is not None
+
+
 def claim_task(
     worker_id: str,
     *,
@@ -311,6 +342,8 @@ def claim_task(
     """Atomically lease the highest-priority ready task to one worker."""
     if lease_seconds <= 0:
         raise ValueError("lease_seconds must be positive")
+    if not _has_claimable_task(run_id, db_path):
+        return None
     with transaction(db_path) as conn:
         now = _now()
         # Expired leases become ready again unless their retry budget is spent.
