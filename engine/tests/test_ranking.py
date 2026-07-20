@@ -13,7 +13,10 @@ import pytest
 
 from co_scientist.agents.ranking import ranking
 from co_scientist.agents.ranking.ranking import ranking_node
-from co_scientist.constants import INITIAL_ELO_RATING
+from co_scientist.constants import (
+    INITIAL_ELO_RATING,
+    MAX_CONCURRENT_LLM_CALLS,
+)
 from tests._state import make_hypothesis, make_state
 
 
@@ -351,3 +354,41 @@ def test_match_tier_confidence_is_case_insensitive_with_narrow_fallback() -> (
     assert ranking.match_tier(1300, 1200, "high") == "decisive"
     assert ranking.match_tier(1300, 1200, "") == "narrow"
     assert ranking.match_tier(1300, 1200, "Unknown") == "narrow"
+
+
+def test_matchup_judging_survives_more_than_one_event_loop(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The judge's concurrency bound must not be shared across event loops.
+
+    The durable worker runs each scientific task on its own thread with its
+    own event loop, so an ``asyncio.Semaphore`` created once at import time
+    binds to whichever loop first waits on it and then raises
+    "is bound to a different event loop" from every other. It only stayed
+    hidden while the tournament judged fewer matchups than the semaphore had
+    permits and therefore never actually waited; once a wave filled, a real
+    ranking task died on it in production.
+    """
+    import asyncio
+
+    async def fake_call_llm_json(**_: Any) -> dict[str, Any]:
+        await asyncio.sleep(0)
+        return {"winner": "A", "reasoning": "because"}
+
+    monkeypatch.setattr(ranking, "call_llm_json", fake_call_llm_json)
+
+    async def judge_a_full_wave() -> None:
+        """Force real contention so the semaphore has to wait."""
+        await asyncio.gather(
+            *(
+                ranking._call_matchup_judge(
+                    "prompt", None, "model", None, index, None, None
+                )
+                # More waiters than permits, so acquisition must block.
+                for index in range(MAX_CONCURRENT_LLM_CALLS * 2)
+            )
+        )
+
+    asyncio.run(judge_a_full_wave())
+    # A second task, on a second loop, is the case that broke.
+    asyncio.run(judge_a_full_wave())

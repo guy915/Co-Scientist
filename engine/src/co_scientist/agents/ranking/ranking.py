@@ -4,6 +4,7 @@ import asyncio
 import hashlib
 import logging
 import statistics
+import weakref
 from typing import Any
 
 from co_scientist.agents.ranking.ranking_elo import (
@@ -70,8 +71,32 @@ from co_scientist.state import WorkflowState
 
 logger = logging.getLogger(__name__)
 
-# Semaphore to limit concurrent LLM calls (avoid rate limits)
-_ranking_semaphore = asyncio.Semaphore(MAX_CONCURRENT_LLM_CALLS)
+# Concurrent-judge bound, one per event loop (avoid rate limits).
+#
+# An asyncio primitive belongs to exactly one event loop: it binds to whichever
+# loop first waits on it and raises from every other. The durable worker runs
+# each scientific task on its own thread with its own loop, so a single
+# module-level semaphore is shared across loops that may never legally share
+# it. That stayed hidden only while a tournament judged fewer matchups than
+# the semaphore had permits and so never actually waited; once waves filled,
+# a production ranking task died on "bound to a different event loop".
+#
+# Keyed weakly so a finished task's loop does not keep its entry alive. The
+# bound is now per task rather than process-wide, which is the meaningful
+# unit here anyway -- how many tasks run at once is the worker cohort's job.
+_ranking_semaphores: weakref.WeakKeyDictionary[
+    asyncio.AbstractEventLoop, asyncio.Semaphore
+] = weakref.WeakKeyDictionary()
+
+
+def _get_ranking_semaphore() -> asyncio.Semaphore:
+    """Return the running loop's judge-concurrency bound, creating it once."""
+    loop = asyncio.get_running_loop()
+    semaphore = _ranking_semaphores.get(loop)
+    if semaphore is None:
+        semaphore = asyncio.Semaphore(MAX_CONCURRENT_LLM_CALLS)
+        _ranking_semaphores[loop] = semaphore
+    return semaphore
 
 
 def _build_tournament_pairings(
@@ -148,7 +173,7 @@ async def _call_matchup_judge(
     )
 
     # Use semaphore to limit concurrent calls (avoid rate limits)
-    async with _ranking_semaphore:
+    async with _get_ranking_semaphore():
         return await call_llm_json(
             prompt=prompt,
             model_name=model_name,

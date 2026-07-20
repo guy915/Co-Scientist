@@ -58,29 +58,6 @@ def _install_fake_engine_llm(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(settings, "semantic_safety_enabled", False)
 
 
-@pytest.fixture(autouse=True)
-def _fresh_ranking_semaphore(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Rebind the engine's module-global ranking semaphore per test.
-
-    The semaphore is created once at import and binds to the first event loop
-    that acquires it. These tests each run on their own loop (and drive both an
-    interrupted run and its resume on that one loop), so a fresh, still-unbound
-    semaphore per test avoids a cross-test 'bound to a different event loop'
-    error. Production runs every phase on the app's single persistent loop, so
-    this is purely a test-isolation concern.
-    """
-    import asyncio as _asyncio
-
-    from co_scientist.agents.ranking import ranking
-    from co_scientist.constants import MAX_CONCURRENT_LLM_CALLS
-
-    monkeypatch.setattr(
-        ranking,
-        "_ranking_semaphore",
-        _asyncio.Semaphore(MAX_CONCURRENT_LLM_CALLS),
-    )
-
-
 def _engine_cfg() -> dict[str, Any]:
     return resolved_run_config(
         {
