@@ -27,6 +27,18 @@ class _LeaseLostError(RuntimeError):
     """Signals that durable ownership ended while task code was running."""
 
 
+class UnsupportedTaskError(ValueError):
+    """A task type no worker knows how to execute.
+
+    The one genuinely permanent failure a worker can hit: retrying cannot
+    teach it a task type it has no branch for. Everything else reaching the
+    worker boundary -- above all a provider returning empty content, which
+    the engine signals with a bare ValueError -- is transient and must keep
+    its retry budget. Subclasses ValueError so existing callers that catch
+    ValueError still see it.
+    """
+
+
 class _DatabaseStopSignal:
     """Event-compatible stop signal backed by durable run status."""
 
@@ -138,7 +150,7 @@ async def _execute_task_payload(
         return await _execute_workflow_task(task, db_path=db_path)
     if task.task_type == _EMAIL_TASK:
         return await deliver_completion_notification(task.inputs)
-    raise ValueError(f"unsupported task type: {task.task_type}")
+    raise UnsupportedTaskError(f"unsupported task type: {task.task_type}")
 
 
 async def _execute_until_lease_lost(
@@ -228,7 +240,10 @@ async def run_once(
             logger.warning("Task %s lost its lease while superseded", task.id)
         else:
             logger.info("Task %s superseded by a newer checkpoint", task.id)
-    except ValueError as exc:
+    except UnsupportedTaskError as exc:
+        # The only failure retrying cannot fix. Everything else -- notably a
+        # provider returning empty content, which the engine raises as a bare
+        # ValueError -- falls through to the retryable branch below.
         store.fail_task(
             task.id,
             worker_id,

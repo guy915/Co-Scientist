@@ -573,3 +573,62 @@ def test_resume_leaves_a_live_lease_alone(isolated_db: str) -> None:
             (task.id,),
         ).fetchone()
     assert (row["status"], row["lease_owner"]) == ("leased", "alive")
+
+
+@pytest.mark.asyncio
+async def test_transient_provider_failure_keeps_its_retry_budget(
+    isolated_db: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An empty provider response must not burn the whole task.
+
+    The engine raises a bare ValueError when a provider returns empty
+    content -- a routine, transient DashScope hiccup. The worker classified
+    every ValueError as non-retryable, so one empty response marked the task
+    'failed' at attempt 1 of 3 with its budget untouched. Nothing requeues a
+    failed task, so the run stopped dead until an app restart revived it,
+    which is what produced hours of silence between bursts of progress.
+    """
+    run = store.create_run("Transient failure", "standard", "engine", {})
+    task = store.enqueue_task(
+        run.id,
+        "engine.node.ranking",
+        {},
+        idempotency_key="transient-1",
+        db_path=isolated_db,
+    )
+
+    async def empty_response(*_args: Any, **_kwargs: Any) -> dict[str, Any]:
+        raise ValueError("LLM returned None or empty content. Model: x")
+
+    monkeypatch.setattr(task_worker, "_execute_task_payload", empty_response)
+    assert await task_worker.run_once("w1", run_id=run.id, db_path=isolated_db)
+
+    after = store.get_task(task.id, db_path=isolated_db)
+    assert after is not None
+    assert after.status == "queued", "a transient failure must stay retryable"
+    assert after.attempt < after.max_attempts
+
+
+@pytest.mark.asyncio
+async def test_unsupported_task_type_is_still_permanent(
+    isolated_db: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A task no worker can execute must not be retried forever."""
+    run = store.create_run("Bad task type", "standard", "engine", {})
+    task = store.enqueue_task(
+        run.id,
+        "engine.node.ranking",
+        {},
+        idempotency_key="unsupported-1",
+        db_path=isolated_db,
+    )
+
+    async def unsupported(*_args: Any, **_kwargs: Any) -> dict[str, Any]:
+        raise task_worker.UnsupportedTaskError("unsupported task type: nope")
+
+    monkeypatch.setattr(task_worker, "_execute_task_payload", unsupported)
+    assert await task_worker.run_once("w1", run_id=run.id, db_path=isolated_db)
+
+    after = store.get_task(task.id, db_path=isolated_db)
+    assert after is not None
+    assert after.status == "failed", "an unknown task type is not retryable"
