@@ -167,13 +167,20 @@ def test_committed_catalog_matches_the_committed_papers() -> None:
 
     A catalog entry whose paper_id has no file would advertise a fetch that
     returns nothing, so this pins the two in step.
+
+    Only a core paper is required to carry an abstract: its abstract is what
+    gets injected, so an empty one would render a blank entry. The rest are
+    found by searching their stored text, and the oldest papers in the
+    bibliography have no abstract indexed in PubMed at all.
     """
     papers = paper_corpus.load_catalog()
     assert len(papers) >= 15, "the committed corpus catalog should load"
     corpus = paper_corpus.corpus_dir()
     for paper in papers:
         assert (corpus / f"{paper.paper_id}.md").is_file(), paper.paper_id
-        assert paper.title and paper.abstract
+        assert paper.title, paper.paper_id
+        if paper.core:
+            assert paper.abstract, paper.paper_id
 
 
 def test_format_catalog_prints_ids_and_the_fetch_instruction(
@@ -185,6 +192,117 @@ def test_format_catalog_prints_ids_and_the_fetch_instruction(
     assert "paper_id: `mapk`" in rendered
     assert "fetch_paper" in rendered
     assert paper_corpus.format_catalog(()) == ""
+
+
+def _paper(paper_id: str, **kwargs: object) -> paper_corpus.CatalogPaper:
+    fields: dict = {
+        "title": f"{paper_id} title",
+        "abstract": f"{paper_id} abstract",
+    }
+    fields.update(kwargs)
+    return paper_corpus.CatalogPaper(paper_id=paper_id, **fields)
+
+
+def test_core_papers_show_abstracts_and_the_rest_show_a_title_index() -> None:
+    """Core papers spend an abstract; the rest spend one title line.
+
+    Every paper is still reachable: `fetch_paper` is the only route in, and
+    the catalog is the only place a `paper_id` is advertised, so a paper the
+    block omits cannot be reached.
+    """
+    papers = (
+        _paper("core-one"),
+        _paper("core-two"),
+        _paper("rest-one", core=False, year="2020"),
+        _paper("rest-two", core=False, year="2021"),
+    )
+    rendered = paper_corpus.format_catalog(papers)
+
+    # Core: abstract present.
+    assert "paper_id: `core-one`" in rendered
+    assert "core-one abstract" in rendered
+    # Non-core: title and id present, abstract absent.
+    assert "paper_id: `rest-one`" in rendered
+    assert "paper_id: `rest-two`" in rendered
+    assert "rest-one abstract" not in rendered
+    assert "rest-two abstract" not in rendered
+    # Non-core listed newest first.
+    assert rendered.index("`rest-two`") < rendered.index("`rest-one`")
+    assert "(2021)" in rendered and "(2020)" in rendered
+
+
+def test_a_catalog_of_only_index_papers_still_lists_them() -> None:
+    """Non-core papers must render even with no core paper above them.
+
+    Otherwise they would sit on disk but be unreachable, since the catalog
+    is the only place their `paper_id` is advertised.
+    """
+    rendered = paper_corpus.format_catalog((_paper("a", core=False),))
+    assert "paper_id: `a`" in rendered
+    assert paper_corpus.format_catalog(()) == ""
+
+
+def test_papers_the_group_did_not_write_are_labelled() -> None:
+    """Papers not by the group are labelled so they are not miscredited.
+
+    Two committed papers are third-party critiques of the group's own
+    method, so presenting them as the group's findings inverts their stance.
+    """
+    papers = (
+        _paper("own"),
+        _paper("theirs", attribution="external"),
+        _paper("earlier", attribution="member prior work"),
+    )
+    rendered = paper_corpus.format_catalog(papers)
+
+    assert "(paper_id: `own`)\n" in rendered
+    assert "(paper_id: `theirs`) [external]" in rendered
+    assert "(paper_id: `earlier`) [member prior work]" in rendered
+    assert "not this group's findings" in rendered
+    # A wholly own-work catalog should not carry the caveat.
+    assert "not this group's findings" not in paper_corpus.format_catalog(
+        (_paper("own"),)
+    )
+
+
+def test_a_searchable_paper_may_have_no_abstract(tmp_path: Path) -> None:
+    """PubMed indexes no abstract for the oldest papers in the group's work.
+
+    They stay in the catalog so the count is right and their stored text is
+    searchable; only a core paper, whose abstract is injected, needs one.
+    """
+    corpus = tmp_path
+    (corpus / "old.md").write_text("# Old", encoding="utf-8")
+    (corpus / "new.md").write_text("# New", encoding="utf-8")
+    (corpus / paper_corpus.CATALOG_FILENAME).write_text(
+        json.dumps(
+            {
+                "papers": [
+                    {
+                        "paper_id": "new",
+                        "title": "New",
+                        "abstract": "Has one.",
+                        "core": True,
+                    },
+                    {"paper_id": "old", "title": "Old", "core": False},
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    loaded = paper_corpus.load_catalog(corpus)
+    assert [p.paper_id for p in loaded] == ["new", "old"]
+    assert loaded[1].abstract == ""
+
+
+def test_a_core_paper_without_an_abstract_is_dropped(tmp_path: Path) -> None:
+    """It would otherwise render as a title with a blank line beneath it."""
+    corpus = tmp_path
+    (corpus / paper_corpus.CATALOG_FILENAME).write_text(
+        json.dumps({"papers": [{"paper_id": "x", "title": "X", "core": True}]}),
+        encoding="utf-8",
+    )
+    assert paper_corpus.load_catalog(corpus) == ()
 
 
 def test_catalog_context_is_gated_to_the_owning_audience(

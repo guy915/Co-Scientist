@@ -1,0 +1,7 @@
+# DYVIPAC: an integrated analysis and visualisation framework to probe multi-dimensional biological networks
+
+*Sci Rep, 2015.* PMID: 26220783. DOI: 10.1038/srep12569.
+
+## Abstract
+
+Biochemical networks are dynamic and multi-dimensional systems, consisting of tens or hundreds of molecular components. Diseases such as cancer commonly arise due to changes in the dynamics of signalling and gene regulatory networks caused by genetic alternations. Elucidating the network dynamics in health and disease is crucial to better understand the disease mechanisms and derive effective therapeutic strategies. However, current approaches to analyse and visualise systems dynamics can often provide only low-dimensional projections of the network dynamics, which often does not present the multi-dimensional picture of the system behaviour. More efficient and reliable methods for multi-dimensional systems analysis and visualisation are thus required. To address this issue, we here present an integrated analysis and visualisation framework for high-dimensional network behaviour which exploits the advantages provided by parallel coordinates graphs. We demonstrate the applicability of the framework, named "Dynamics Visualisation based on Parallel Coordinates" (DYVIPAC), to a variety of signalling networks ranging in topological wirings and dynamic properties. The framework was proved useful in acquiring an integrated understanding of systems behaviour.

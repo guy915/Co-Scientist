@@ -1,0 +1,7 @@
+# Molecular dynamics simulations reveal that Tyr-317 phosphorylation reduces Shc binding affinity for phosphotyrosyl residues of epidermal growth factor receptor
+
+*Biophys J, 2009.* PMID: 19289054. DOI: 10.1016/j.bpj.2008.11.018.
+
+## Abstract
+
+The Src homology 2 (SH2) and collagen domain protein Shc plays a pivotal role in signaling via tyrosine kinase receptors, including epidermal growth factor receptor (EGFR). Shc binding to phospho-tyrosine residues on activated receptors is mediated by the SH2 and phospho-tyrosine binding (PTB) domains. Subsequent phosphorylation on Tyr-317 within the Shc linker region induces Shc interactions with Grb2-Son of Sevenless that initiate Ras-mitogen-activated protein kinase signaling. We use molecular dynamics simulations of full-length Shc to examine how Tyr-317 phosphorylation controls Shc conformation and interactions with EGFR. Our simulations reveal that Shc tyrosine phosphorylation results in a significant rearrangement of the relative position of its domains, suggesting a key conformational change. Importantly, computational estimations of binding affinities show that EGFR-derived phosphotyrosyl peptides bind with significantly more strength to unphosphorylated than to phosphorylated Shc. Our results unveil what we believe is a novel structural phenomenon, i.e., tyrosine phosphorylation of Shc within its linker region regulates the binding affinity of SH2 and PTB domains for phosphorylated Shc partners, with important implications for signaling dynamics.

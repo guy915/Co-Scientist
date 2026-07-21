@@ -1,0 +1,7 @@
+# G Protein-Coupled Receptor Signaling Networks from a Systems Perspective
+
+*Mol Pharmacol, 2015.* PMID: 26162865. DOI: 10.1124/mol.115.100057.
+
+## Abstract
+
+The signal-transduction network of a mammalian cell integrates internal and external cues to initiate adaptive responses. Among the cell-surface receptors are the G protein-coupled receptors (GPCRs), which have remarkable signal-integrating capabilities. Binding of extracellular signals stabilizes intracellular-domain conformations that selectively activate intracellular proteins. Hereby, multiple signaling routes are activated simultaneously to degrees that are signal-combination dependent. Systems-biology studies indicate that signaling networks have emergent processing capabilities that go far beyond those of single proteins. Such networks are spatiotemporally organized and capable of gradual, oscillatory, all-or-none, and subpopulation-generating responses. Protein-protein interactions, generating feedback and feedforward circuitry, are generally required for these spatiotemporal phenomena. Understanding of information processing by signaling networks therefore requires network theories in addition to biochemical and biophysical concepts. Here we review some of the key signaling systems behaviors that have been discovered recurrently across signaling networks. We emphasize the role of GPCRs, so far underappreciated receptors in systems-biology research.

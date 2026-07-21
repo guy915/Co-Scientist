@@ -1,0 +1,7 @@
+# Control analysis for autonomously oscillating biochemical networks
+
+*Biophys J, 2002.* PMID: 11751299. DOI: 10.1016/S0006-3495(02)75377-0.
+
+## Abstract
+
+It has hitherto not been possible to analyze the control of oscillatory dynamic cellular processes in other than qualitative ways. The control coefficients, used in metabolic control analyses of steady states, cannot be applied directly to dynamic systems. We here illustrate a way out of this limitation that uses Fourier transforms to convert the time domain into the stationary frequency domain, and then analyses the control of limit cycle oscillations. In addition to the already known summation theorems for frequency and amplitude, we reveal summation theorems that apply to the control of average value, waveform, and phase differences of the oscillations. The approach is made fully operational in an analysis of yeast glycolytic oscillations. It follows an experimental approach, sampling from the model output and using discrete Fourier transforms of this data set. It quantifies the control of various aspects of the oscillations by the external glucose concentration and by various internal molecular processes. We show that the control of various oscillatory properties is distributed over the system enzymes in ways that differ among those properties. The models that are described in this paper can be accessed on http://jjj.biochem.sun.ac.za.
