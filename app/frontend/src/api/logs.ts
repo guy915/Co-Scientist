@@ -1,8 +1,15 @@
 // Persisted application-logs API client. Mirrors GET /api/logs in
 // app/logs_api.py: backend log records captured from the Python root
-// logger into the app_logs table, app-wide (run_id is null for records
-// emitted outside any run context).
-import {fetchJson} from './runs';
+// logger into the app_logs table (run_id is null for records emitted
+// outside any run context).
+//
+// Every request carries the caller's identity headers. The endpoint
+// scopes a non-loopback caller to records it submitted plus records for
+// runs it owns, so an unidentified request matches nothing: without these
+// headers the panel reads as empty in any deployment the browser does not
+// reach over loopback, and submitted records are stored ownerless and can
+// never be read back.
+import {clientHeaders, fetchJson} from './runs';
 
 /** One persisted backend log record. */
 export interface AppLogRecord {
@@ -39,7 +46,9 @@ export interface AppLogsPayload {
  *   log as one request allows.
  */
 export function getAppLogs(afterId = 0, limit = 1000): Promise<AppLogsPayload> {
-  return fetchJson(`/api/logs?after_id=${afterId}&limit=${limit}`);
+  return fetchJson(`/api/logs?after_id=${afterId}&limit=${limit}`, {
+    headers: clientHeaders(),
+  });
 }
 
 /**
@@ -71,7 +80,7 @@ export async function postAppLogs(
     '/api/logs',
     {
       method: 'POST',
-      headers: {'Content-Type': 'application/json'},
+      headers: {'Content-Type': 'application/json', ...clientHeaders()},
       body: JSON.stringify({records}),
     },
   );
@@ -79,10 +88,15 @@ export async function postAppLogs(
   return result;
 }
 
-/** Deletes every persisted log record; returns the deleted count. */
+/**
+ * Deletes persisted log records and returns the deleted count. Operators
+ * (loopback callers) clear the whole log; every other caller clears only
+ * its own records.
+ */
 export async function deleteAppLogs(): Promise<{deleted: number}> {
   const result = await fetchJson<{deleted: number}>('/api/logs', {
     method: 'DELETE',
+    headers: clientHeaders(),
   });
   announceAppLogsChanged();
   return result;
