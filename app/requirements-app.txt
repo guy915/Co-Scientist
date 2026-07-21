@@ -1,0 +1,32 @@
+# Direct runtime dependencies of the app (co-scientist-viewer), mirroring
+# [project.dependencies] in app/pyproject.toml MINUS the co-scientist-engine
+# pin.
+#
+# Why this file exists: the app is installed with `pip install -e app --no-deps`
+# in the places that also install the engine editable from the sibling checkout
+# (make setup, the CI setup-backend action, and docker/Dockerfile.api). Using
+# --no-deps skips the engine, but it also skips every other runtime dependency,
+# so those have to be reinstalled explicitly. Single-sourcing them here keeps
+# the three consumers from drifting apart (they previously hand-copied the list
+# and fell behind pyproject, dropping python-multipart and pypdf).
+#
+# The co-scientist-engine dependency is intentionally omitted: it is installed
+# editable from the local ../engine checkout, not from PyPI.
+#
+# app/pyproject.toml is the source of truth. When its [project.dependencies]
+# change, update this file to match (same version specifiers, minus the engine
+# pin). One deliberate delta: uvicorn carries the [standard] extra here (as the
+# hand-copied lists always did) so `--reload` in local dev uses watchfiles;
+# pyproject and the production image stay on plain uvicorn.
+
+fastapi>=0.104.0
+uvicorn[standard]>=0.24.0
+python-dotenv>=1.0.0
+pydantic>=2.0.0
+pydantic-settings>=2.0.0
+# Runtime dep of the `cosci` CLI (app.cli), which drives the API over HTTP.
+httpx>=0.25.0
+# Required by FastAPI for the multipart UploadFile route in app/app/runs.py.
+python-multipart>=0.0.9
+# PDF text extraction for uploaded documents.
+pypdf>=5.0.0,<7.0.0

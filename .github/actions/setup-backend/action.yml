@@ -20,9 +20,10 @@ runs:
       shell: bash
       # Mirrors `make setup`: engine editable with dev extras (brings mypy +
       # type stubs), app editable without deps to skip the PyPI
-      # co-scientist-engine pin, then the app runtime deps explicitly.
+      # co-scientist-engine pin, then the app runtime deps from the
+      # single-sourced requirements-app.txt (mirrors pyproject minus the engine
+      # pin).
       run: |
         python -m pip install -e "engine[dev]"
         python -m pip install --no-deps -e app
-        python -m pip install fastapi "uvicorn[standard]" python-dotenv \
-          pydantic pydantic-settings httpx
+        python -m pip install -r app/requirements-app.txt

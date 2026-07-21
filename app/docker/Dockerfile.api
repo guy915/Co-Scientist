@@ -9,16 +9,12 @@ RUN apt-get update && apt-get install -y \
 
 # Copy and install viewer deps first (layer cache before source copy).
 # The engine is installed at container startup by entrypoint.sh from the
-# mounted checkout, so skip the local engine package dependency at build time.
-COPY pyproject.toml ./
+# mounted checkout, so skip the local engine package dependency at build time
+# (--no-deps) and install the runtime deps from the single-sourced
+# requirements-app.txt (mirrors pyproject minus the engine pin).
+COPY pyproject.toml requirements-app.txt ./
 RUN pip install --no-cache-dir -e . --no-deps \
-    && pip install --no-cache-dir \
-        "fastapi>=0.104.0" \
-        "uvicorn[standard]>=0.24.0" \
-        "python-dotenv>=1.0.0" \
-        "pydantic>=2.0.0" \
-        "pydantic-settings>=2.0.0" \
-        "httpx>=0.25.0"
+    && pip install --no-cache-dir -r requirements-app.txt
 
 # copy application source
 COPY app/ ./app/
