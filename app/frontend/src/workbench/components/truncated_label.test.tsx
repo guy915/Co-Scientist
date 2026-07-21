@@ -75,7 +75,7 @@ afterAll(() => {
 });
 
 // Captures the ResizeObserver instance created for a render so tests can
-// fire a resize notification manually (the app-wide test-setup stub is a
+// fire a resize notification manually (the app-wide test_setup stub is a
 // no-op that never calls back).
 class FakeResizeObserver {
   static instances: FakeResizeObserver[] = [];

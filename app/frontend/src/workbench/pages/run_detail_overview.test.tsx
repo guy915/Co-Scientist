@@ -1,7 +1,7 @@
 import {render, screen} from '@testing-library/react';
 import {describe, expect, it} from 'vitest';
 import type {Hypothesis, Report, RunWithSummary} from '@/api/runs';
-import {makeHypothesis, makeMatch} from '@/test-fixtures';
+import {makeHypothesis, makeMatch} from '@/test_fixtures';
 import {ResearchOverviewView} from './run_detail_overview';
 
 function makeRun(overrides: Partial<RunWithSummary> = {}): RunWithSummary {

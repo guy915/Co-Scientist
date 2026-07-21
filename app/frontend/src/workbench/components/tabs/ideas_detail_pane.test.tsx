@@ -1,7 +1,7 @@
 import {fireEvent, render, screen} from '@testing-library/react';
 import {describe, expect, it, vi} from 'vitest';
 import type {ClaimEvidenceRow, MatchRow, Review} from '@/api/runs';
-import {makeHypothesis} from '@/test-fixtures';
+import {makeHypothesis} from '@/test_fixtures';
 import {HypothesisDetail, SectionsRail} from './ideas_detail_pane';
 
 vi.mock('@/lib/smooth_scroll', () => ({

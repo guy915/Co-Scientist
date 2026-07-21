@@ -1,7 +1,7 @@
 import {render, screen, waitFor} from '@testing-library/react';
 import {MemoryRouter} from 'react-router-dom';
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
-import {makeRun} from '@/test-fixtures';
+import {makeRun} from '@/test_fixtures';
 import {RunHistoryProvider, useRunHistoryContext} from './run_history_context';
 
 vi.mock('@/api/runs', async () => {
