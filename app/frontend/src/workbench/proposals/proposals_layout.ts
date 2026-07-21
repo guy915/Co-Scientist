@@ -480,8 +480,3 @@ export function neighborsOf(id: string): Set<string> {
   }
   return found;
 }
-
-/** Every edge touching `id`. */
-export function edgesOf(id: string): Edge[] {
-  return edges.filter(edge => edge.from === id || edge.to === id);
-}
