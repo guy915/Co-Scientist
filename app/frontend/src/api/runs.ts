@@ -3,6 +3,7 @@
 import {getAccessToken, getClientId} from '@/lib/client_id';
 import {mergeByIdNewestFirst} from '@/lib/merge';
 import type {
+  Audience,
   ClaimEvidenceRow,
   Evidence,
   Hypothesis,
@@ -25,6 +26,7 @@ import type {
 // from './run_types'.
 export type {
   AgentInsights,
+  Audience,
   ClaimEvidenceRow,
   Evidence,
   Hypothesis,
@@ -221,7 +223,7 @@ export async function createRun(input: {
   enable_paper_corpus?: boolean;
   notify_on_completion?: boolean;
   completion_email?: string;
-  audience?: 'general' | 'google' | 'sbi_ucd';
+  audience?: Audience;
 }): Promise<Run> {
   return fetchJson('/api/runs', jsonRequest(input, true));
 }
@@ -307,7 +309,7 @@ async function streamInterviewTurn(
 export async function createInterview(
   researchChallenge: string,
   onReasoning?: (fragment: string) => void,
-  audience?: 'general' | 'google' | 'sbi_ucd',
+  audience?: Audience,
 ): Promise<Interview> {
   return streamInterviewTurn(
     '/api/interviews',
@@ -575,7 +577,7 @@ export function reportMarkdownUrl(id: string): string {
 export async function askRunQuestion(
   id: string,
   question: string,
-  audience?: 'general' | 'google' | 'sbi_ucd',
+  audience?: Audience,
 ): Promise<string> {
   const res = await fetch(
     `${API_BASE_URL}/api/runs/${id}/messages/ask`,

@@ -412,13 +412,15 @@
 }
 
 .ucs-theme-button.selected {
-  background: #d3e3fd;
-  color: #0b57d0;
+  background: var(--cosci-selected-row-bg);
+  color: var(--cosci-selected-row-fg);
 }
 
+/* The tokens already flip per mode; this rule survives because the dark
+   .ucs-theme-button color rule above would otherwise outrank .selected. */
 :root[data-theme='dark'] .ucs-theme-button.selected {
-  background: #0842a0;
-  color: #d3e3fd;
+  background: var(--cosci-selected-row-bg);
+  color: var(--cosci-selected-row-fg);
 }
 
 .ucs-theme-button-icon {
@@ -539,15 +541,8 @@
 .ucs-settings-nav-item--active,
 .ucs-settings-nav-item--active:hover,
 .ucs-settings-nav-item--active:focus-visible {
-  background: #d3e3fd;
-  color: #0b57d0;
-}
-
-:root[data-theme='dark'] .ucs-settings-nav-item--active,
-:root[data-theme='dark'] .ucs-settings-nav-item--active:hover,
-:root[data-theme='dark'] .ucs-settings-nav-item--active:focus-visible {
-  background: #0842a0;
-  color: #d3e3fd;
+  background: var(--cosci-selected-row-bg);
+  color: var(--cosci-selected-row-fg);
 }
 
 .ucs-settings-nav-icon {
@@ -662,14 +657,8 @@
 
 .ucs-affiliation-option:has(:checked),
 .ucs-affiliation-option:has(:checked):hover {
-  background: #d3e3fd;
-  color: #0b57d0;
-}
-
-:root[data-theme='dark'] .ucs-affiliation-option:has(:checked),
-:root[data-theme='dark'] .ucs-affiliation-option:has(:checked):hover {
-  background: #0842a0;
-  color: #d3e3fd;
+  background: var(--cosci-selected-row-bg);
+  color: var(--cosci-selected-row-fg);
 }
 
 /* Keyboard focus still needs to be visible with the input itself hidden, so

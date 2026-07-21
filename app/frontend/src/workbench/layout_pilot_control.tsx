@@ -3,19 +3,17 @@ import {submitFeedback, type FeedbackCategory} from '@/api/feedback';
 import {Icon} from '@/components/icon';
 import {useAudience} from './audience_context';
 import {FEEDBACK_CATEGORIES, PILOT_FEEDBACK} from './audience_content';
+import {
+  headerControlButtonClasses,
+  headerControlPopoverClasses,
+} from './layout_primitives';
 import {tooltipClassNames} from './tooltip';
 
-const BUTTON_CLASSES =
-  'ucs-logs-button relative inline-flex h-[2.35rem] min-w-max ' +
-  'cursor-pointer items-center gap-[0.45rem] rounded-full border-0 ' +
-  'bg-cosci-logs-accent-bg px-[0.72rem] font-[inherit] text-[0.88rem] ' +
-  'font-semibold whitespace-nowrap text-cosci-logs-accent-fg ' +
-  'hover:bg-cosci-logs-accent-hover ' +
-  '[&[aria-expanded=true]]:bg-cosci-logs-accent-hover';
+const BUTTON_CLASSES = headerControlButtonClasses();
 
-const POPOVER_CLASSES =
-  'ucs-popover--logs top-[calc(100%+0.45rem)] right-0 ' +
-  '!w-[min(24rem,calc(100vw-2rem))] !p-0';
+const POPOVER_CLASSES = headerControlPopoverClasses(
+  '!w-[min(24rem,calc(100vw-2rem))]',
+);
 
 // Submission lifecycle. 'sent' latches until the panel is reopened, so the
 // tester gets an explicit confirmation rather than a silently cleared box.

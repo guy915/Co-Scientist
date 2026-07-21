@@ -7,10 +7,13 @@ import {
   useMemo,
   useState,
 } from 'react';
+import type {Audience} from '@/api/run_types';
 
-// Self-declared audience. Persisted in localStorage; honor system, no server
-// verification. `null` means the user has not chosen yet (show the dialog).
-export type Audience = 'general' | 'google' | 'sbi_ucd';
+// The audience is self-declared and rides on API requests, so the type's
+// home is the api layer; re-exported here for the workbench consumers.
+// Persisted in localStorage; `null` means the user has not chosen yet
+// (show the dialog).
+export type {Audience} from '@/api/run_types';
 
 // What an unchosen audience resolves to. The general audience is the plain
 // workspace, so this is also the safe fallback for anyone who dismisses the
@@ -28,9 +31,14 @@ interface AudienceContextValue {
 
 const AudienceContext = createContext<AudienceContextValue | null>(null);
 
-// Reads the stored audience; unknown/absent values (and non-browser
-// environments) read as null so the first-visit dialog shows.
-function readStoredAudience(): Audience | null {
+/**
+ * Reads the stored audience; unknown/absent values (and non-browser
+ * environments) read as null so the first-visit dialog shows. A plain
+ * function, callable outside React (the start-run path reads it directly).
+ *
+ * @returns The persisted audience, or null when none is stored.
+ */
+export function readStoredAudience(): Audience | null {
   if (typeof window === 'undefined') return null;
   const stored = window.localStorage.getItem(STORAGE_KEY);
   return VALID.includes(stored as Audience) ? (stored as Audience) : null;

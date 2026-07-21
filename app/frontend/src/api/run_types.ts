@@ -25,6 +25,12 @@ export type RunFocus =
 /** Depth preset selected in the Co-Scientist setup flow. */
 export type RunTier = 'express' | 'standard' | 'extended' | 'ultra';
 
+/**
+ * Self-declared audience riding on run, interview, and Q&A requests.
+ * Honor system, no server verification.
+ */
+export type Audience = 'general' | 'google' | 'sbi_ucd';
+
 /** The four verified fields derived by the research-goal interview. */
 export interface InterviewFields {
   research_challenge: string;

@@ -1,7 +1,7 @@
 // Pilot feedback API client. Mirrors the /api/feedback endpoint in
 // app/feedback.py.
 
-import type {Audience} from '@/workbench/audience_context';
+import type {Audience} from './run_types';
 import {clientHeaders, fetchJson} from './runs';
 
 /** Note categories the form offers; mirrors FEEDBACK_CATEGORIES server-side. */
