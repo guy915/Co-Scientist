@@ -207,29 +207,25 @@ def test_startup_prunes_checkpoints_but_never_vacuums(
     Pruning alone is enough. It reclaims the rows that actually grow without
     bound, commits in small batches, and never blocks a reader. The file
     keeps its high-water mark, which a 5 GB volume holding a 53 MB database
-    can well afford.
+    can well afford. The never-VACUUM half of the invariant now holds
+    structurally: the store ships no VACUUM helper at all (the gated
+    ``compact_database`` was removed precisely so nothing could reintroduce
+    the livelock), so this pins the pruning half.
     """
     import app.main as main_module
 
-    vacuumed = threading.Event()
     pruned = threading.Event()
-
-    def _compact(*args: object, **kwargs: object) -> None:
-        vacuumed.set()
-        return None
 
     def _prune(*args: object, **kwargs: object) -> int:
         pruned.set()
         return 0
 
-    monkeypatch.setattr(store, "compact_database", _compact)
     monkeypatch.setattr(store, "prune_superseded_checkpoints", _prune)
 
     with TestClient(main_module.app) as client:
         assert client.get("/health").status_code == 200
 
     assert pruned.is_set(), "startup should still reclaim checkpoint rows"
-    assert not vacuumed.is_set(), "startup must never VACUUM"
 
 
 def test_startup_does_not_block_on_run_recovery(

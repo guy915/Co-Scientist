@@ -143,10 +143,7 @@ def has_checkpoint(
 _PRUNE_BATCH_ROWS = 4
 
 
-def prune_superseded_checkpoints(
-    db_path: str | None = None,
-    conn: sqlite3.Connection | None = None,
-) -> int:
+def prune_superseded_checkpoints(db_path: str | None = None) -> int:
     """Delete every checkpoint that a newer one for the same run supersedes.
 
     ``save_checkpoint`` now prunes as it writes, so this only has work to do
@@ -161,10 +158,6 @@ def prune_superseded_checkpoints(
 
     Args:
         db_path: Optional override for the SQLite database path.
-        conn: Optional open connection to reuse. When given, the caller owns
-            the transaction and the whole sweep runs as one statement batch
-            without WAL checkpoints, since it cannot commit on the caller's
-            behalf.
 
     Returns:
         The number of superseded checkpoint rows deleted.
@@ -175,10 +168,6 @@ def prune_superseded_checkpoints(
         "WHERE newer.run_id = stale.run_id) LIMIT ?"
     )
     delete = f"DELETE FROM checkpoints WHERE rowid IN ({superseded})"
-
-    if conn is not None:
-        cur = conn.execute(delete, (-1,))
-        return int(cur.rowcount or 0)
 
     # Buy headroom before attempting the first write.
     checkpoint_wal(db_path)

@@ -309,23 +309,26 @@ async def run_run_worker_pool(
     async def _worker(index: int) -> None:
         worker_id = f"{worker_prefix}:{index}"
         while True:
-            worked = await run_once(
+            # One read-only snapshot answers both idle-tick questions --
+            # claim only when work is visible, and exit only when neither
+            # claimable work nor a sibling's live lease remains. Other
+            # cohort members may still be executing parent tasks that will
+            # materialize new fan-out work; remain available until every
+            # lease is acknowledged. Queued-but-unclaimable work with no
+            # live lease cannot make progress and is left for
+            # retry/reconciliation. Existence checks rather than listings:
+            # this runs twenty times a second per idle worker, and decoding
+            # every row of a late-stage run's task table to compute one
+            # boolean is work that grows as the run does.
+            claimable, active_lease = store.cohort_poll(run_id, db_path=db_path)
+            if claimable and await run_once(
                 worker_id,
                 run_id=run_id,
                 db_path=db_path,
                 lease_seconds=lease_seconds,
-            )
-            if worked:
+            ):
                 continue
-            # Other cohort members may still be executing parent tasks that
-            # will materialize new fan-out work; remain available until every
-            # lease is acknowledged. Queued-but-unclaimable work with no live
-            # lease cannot make progress and is left for retry/reconciliation.
-            # An existence check rather than a listing: this runs twenty times
-            # a second per idle worker, and decoding every row of a late-stage
-            # run's task table to compute one boolean is work that grows as
-            # the run does.
-            if store.has_active_lease(run_id, db_path=db_path):
+            if claimable or active_lease:
                 await asyncio.sleep(poll_seconds)
                 continue
             return

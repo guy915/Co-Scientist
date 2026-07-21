@@ -7,7 +7,6 @@ survival.
 from __future__ import annotations
 
 import os
-from pathlib import Path
 
 import pytest
 
@@ -225,95 +224,6 @@ def test_match_log_records_debate_turns(db: str) -> None:
     rows = store.list_matches(run.id)
     assert rows[0]["debate_turns"] == 1
     assert rows[1]["debate_turns"] == 3
-
-
-# --- compact_database ------------------------------------------------------
-
-
-def _free_ratio(db: str) -> float:
-    """Return the share of the database file that is free pages."""
-    with store.connect(db) as conn:
-        pages = int(conn.execute("PRAGMA page_count").fetchone()[0])
-        free = int(conn.execute("PRAGMA freelist_count").fetchone()[0])
-    return free / pages if pages else 0.0
-
-
-def _bloat(db: str, rows: int = 400) -> None:
-    """Insert then delete rows, leaving the file full of free pages."""
-    blob = "x" * 20_000
-    with store.connect(db) as conn:
-        for i in range(rows):
-            conn.execute(
-                "INSERT INTO app_logs (created_at, level, levelno, logger, "
-                "message) VALUES (0.0, 'INFO', 20, 'bloat', ?)",
-                (f"{i}{blob}",),
-            )
-        conn.execute("DELETE FROM app_logs WHERE logger = 'bloat'")
-
-
-def test_compact_reclaims_a_mostly_free_database(isolated_db: str) -> None:
-    """VACUUM gives back the size that deleted rows left behind.
-
-    Deleting rows returns pages to SQLite's freelist but never shrinks the
-    file. In production the pruned checkpoints left a 390 MB file holding
-    ~25 MB of live data; this is the step that hands that back.
-    """
-    _bloat(isolated_db)
-    assert _free_ratio(isolated_db) > 0.5
-    before_size = os.path.getsize(isolated_db)
-
-    result = store.compact_database(db_path=isolated_db)
-
-    assert result is not None
-    before_mb, after_mb = result
-    assert after_mb < before_mb
-    assert os.path.getsize(isolated_db) < before_size
-    assert _free_ratio(isolated_db) < 0.5
-
-
-def test_compact_declines_a_healthy_database(isolated_db: str) -> None:
-    """A database that is mostly live data is left alone.
-
-    VACUUM rewrites the whole file, so it must not run on every startup of a
-    healthy deployment.
-    """
-    with store.connect(isolated_db) as conn:
-        conn.execute(
-            "INSERT INTO app_logs (created_at, level, levelno, logger, "
-            "message) VALUES (0.0, 'INFO', 20, 'live', 'kept')"
-        )
-
-    assert store.compact_database(db_path=isolated_db) is None
-
-
-def test_compact_declines_without_disk_headroom(
-    isolated_db: str, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """It refuses when VACUUM's temporary copy would not fit.
-
-    Regression in spirit: the first version of the checkpoint sweep assumed it
-    could always write, and crashed the server against the full disk it was
-    meant to relieve. Compaction needs room for a second copy of the file, so
-    it checks before it starts rather than failing part-way.
-    """
-    _bloat(isolated_db)
-    assert _free_ratio(isolated_db) > 0.5
-    before_size = os.path.getsize(isolated_db)
-
-    class _FullDisk:
-        f_bavail = 1
-        f_frsize = 4096
-
-    monkeypatch.setattr(os, "statvfs", lambda _p: _FullDisk())
-
-    assert store.compact_database(db_path=isolated_db) is None
-    # Untouched: it declined before doing any work.
-    assert os.path.getsize(isolated_db) == before_size
-
-
-def test_compact_missing_database_is_a_noop(tmp_path: Path) -> None:
-    """A path that does not exist yet is not an error."""
-    assert store.compact_database(db_path=str(tmp_path / "absent.db")) is None
 
 
 def test_connections_pair_wal_with_normal_synchronous(db: str) -> None:
