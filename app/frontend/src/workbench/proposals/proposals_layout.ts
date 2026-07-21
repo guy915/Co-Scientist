@@ -440,7 +440,23 @@ function edgeGeometry(
   scale: number,
 ): EdgeGeometry[] {
   const placed: Route[] = [];
-  return edges.map(edge => {
+  const routed: string[] = [];
+  // Hardest first: the longest edges are the ones that have to cross a
+  // cluster, and they need the widest choice of bends. Placing in array
+  // order would hand that choice to the short edges and leave the long
+  // ones picking between a node hit and running alongside a neighbour.
+  // Ties break on index, so the order is still fully determined.
+  const order = edges
+    .map((edge, index) => ({
+      index,
+      span: Math.hypot(
+        positions[edge.to].x - positions[edge.from].x,
+        positions[edge.to].y - positions[edge.from].y,
+      ),
+    }))
+    .sort((a, b) => b.span - a.span || a.index - b.index);
+  for (const {index} of order) {
+    const edge = edges[index];
     const from = positions[edge.from];
     const to = positions[edge.to];
     // The straight line is always a valid answer, so it seeds the search
@@ -463,8 +479,11 @@ function edgeGeometry(
       if (cost < 1) break;
     }
     placed.push(best);
-    return {edge, path: best.path};
-  });
+    routed[index] = best.path;
+  }
+  // Drawing order stays authoring order, so the SVG is unchanged in
+  // structure and only the paths differ.
+  return edges.map((edge, index) => ({edge, path: routed[index]}));
 }
 
 /**

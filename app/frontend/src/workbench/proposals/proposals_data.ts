@@ -276,6 +276,21 @@ export const nodes: ProposalNode[] = [
     origin: 'extension',
   },
   {
+    id: 'lab-integration',
+    label: 'Lab system integration',
+    cluster: 'interaction',
+    summary:
+      'Connect the system to the tools a lab already runs on — electronic ' +
+      'notebooks, sample and instrument records, internal databases — so it ' +
+      'reads and writes where the work happens.',
+    problem:
+      'The system sits outside the working environment it is meant to join. ' +
+      'Every input is retyped and every output copied back out by hand, and ' +
+      "a collaborator who cannot see the lab's own results is reasoning " +
+      'about a different project than the one being run.',
+    origin: 'extension',
+  },
+  {
     id: 'persistent-kb',
     label: 'Persistent knowledge base',
     cluster: 'knowledge',
@@ -298,6 +313,20 @@ export const nodes: ProposalNode[] = [
       'Undiscovered public knowledge is exactly what a comprehensive ' +
       'review surfaces incidentally and then drops, because no agent is ' +
       'looking for it.',
+    origin: 'extension',
+  },
+  {
+    id: 'full-text-access',
+    label: 'Credentialed retrieval',
+    cluster: 'knowledge',
+    summary:
+      "Retrieve through the institution's own subscriptions so the system " +
+      'reads the full text its user is already entitled to read.',
+    problem:
+      'Retrieval reaches only what is openly published, so the system ' +
+      'reasons over abstracts while the scientist beside it reads the ' +
+      'paper. What it cites is then the evidence that happened to be free, ' +
+      'not the evidence that settles the question.',
     origin: 'extension',
   },
   {
@@ -458,6 +487,46 @@ export const edges: Edge[] = [
       'throws away the result.',
   },
   {
+    from: 'lab-integration',
+    to: 'experiment-stage',
+    kind: 'synergy',
+    note:
+      'A protocol is worth more when it lands in the notebook the bench ' +
+      'already follows, and the notebook is where the result comes back.',
+  },
+  {
+    from: 'lab-integration',
+    to: 'persistent-kb',
+    kind: 'synergy',
+    note:
+      "The lab's own unpublished results are the entries no public corpus " +
+      'holds, and the ones it most wants to keep.',
+  },
+  {
+    from: 'lab-integration',
+    to: 'full-text-access',
+    kind: 'synergy',
+    note:
+      'Both are the same boundary from opposite sides: one reaches the ' +
+      "lab's private data, the other the literature's gated half.",
+  },
+  {
+    from: 'full-text-access',
+    to: 'persistent-kb',
+    kind: 'synergy',
+    note:
+      'A knowledge base built from abstracts stores summaries of evidence ' +
+      'rather than evidence.',
+  },
+  {
+    from: 'full-text-access',
+    to: 'multimodal',
+    kind: 'synergy',
+    note:
+      'Figures, tables and methods sit in the full text; without it there ' +
+      'is little left to parse.',
+  },
+  {
     from: 'live-session',
     to: 'hypothesis-injection',
     kind: 'enables',
@@ -536,6 +605,22 @@ export const edges: Edge[] = [
       'nobody reads.',
   },
   {
+    from: 'lab-integration',
+    to: 'data-requests',
+    kind: 'compensates',
+    note:
+      'Asking the scientist to fetch a number by hand is the fallback for ' +
+      'a system that cannot read the instrument itself.',
+  },
+  {
+    from: 'full-text-access',
+    to: 'transitivity',
+    kind: 'compensates',
+    note:
+      'A link stated in a results section but absent from the abstract is ' +
+      'exactly the link a transitive search exists to find.',
+  },
+  {
     from: 'adversary',
     to: 'review-consolidation',
     kind: 'tension',
@@ -574,6 +659,14 @@ export const edges: Edge[] = [
     note:
       'Protocol generation is expensive and only makes sense for the top ' +
       'of the ranking.',
+  },
+  {
+    from: 'brute-force',
+    to: 'full-text-access',
+    kind: 'tension',
+    note:
+      'Publisher access is metered per request, so a large population ' +
+      'cannot each pull the papers behind it.',
   },
   {
     from: 'temperature',
