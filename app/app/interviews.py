@@ -17,6 +17,7 @@ from app.audience import AUDIENCE_PATTERN, audience_chat_context
 from app.auth import client_id
 from app.config import deepseek_thinking_kwargs, settings
 from app.qa import sse_frame
+from app.text_utils import combine_blocks
 
 # Receives each chain-of-thought fragment as the model emits it.
 ReasoningSink = Callable[[str], Awaitable[None]]
@@ -87,17 +88,12 @@ def _system_prompt(interview: dict[str, Any]) -> str:
         the audience has them, and unchanged otherwise.
     """
     audience = interview.get("audience")
-    blocks = [
-        block
-        for block in (
-            audience_chat_context(audience),
-            paper_corpus.catalog_context(audience),
-        )
-        if block.strip()
-    ]
-    if not blocks:
+    joined = combine_blocks(
+        audience_chat_context(audience),
+        paper_corpus.catalog_context(audience),
+    )
+    if not joined:
         return _SYSTEM_PROMPT
-    joined = "\n\n".join(blocks)
     return (
         f"{_SYSTEM_PROMPT}\n\n"
         "The following describes the scientist's own group and its published "

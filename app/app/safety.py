@@ -266,9 +266,8 @@ async def screen_with_escalation(
     # is out of scope for this campaign. Keyed on the run's persisted backend
     # (falling back to the provider when the row is gone), not the process
     # offline_mode() -- a real engine run created while offline still escalates.
-    run = store.get_run(run_id, db_path=db_path)
-    offline = (
-        store.run_used_offline(run) if run is not None else provider == "mock"
+    offline = store.run_offline_backed(
+        run_id, missing_run_fallback=provider == "mock", db_path=db_path
     )
     if not offline and not approved:
         return await screen_contextual(text, stage, deterministic=deterministic)

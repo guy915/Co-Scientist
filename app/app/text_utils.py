@@ -11,6 +11,16 @@ from typing import Any
 _SENTENCE_END = re.compile(r"[.?!](\s|$)")
 
 
+def combine_blocks(*blocks: str) -> str:
+    """Join non-empty text blocks with a blank line between them.
+
+    The one assembly rule for prompt-context blocks (audience context, the
+    paper catalog), shared by run creation and the interview so the two
+    surfaces cannot drift.
+    """
+    return "\n\n".join(block.strip() for block in blocks if block.strip())
+
+
 def coalesce(*values: Any, default: Any = "") -> Any:
     """Return the first truthy value, or *default* when all are falsy."""
     for value in values:

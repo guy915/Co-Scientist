@@ -166,8 +166,8 @@ def ground_hypotheses(
         assessor: The entailment assessor (deterministic by default; the LLM
             assessor is plugged in for a real grounded run).
         assessor_id: Provenance id recorded on each persisted edge.
-        allow_speculative: Compatibility-only switch for explicitly marked mock
-            workflows. Faithful engine runs must leave this False.
+        allow_speculative: Gate leniency switch; the drain leaves this False
+            so faithful engine runs keep the strict publication gate.
         conn: Optional open connection to reuse (e.g. from ``transaction``).
         db_path: Optional override for the SQLite database path.
 
