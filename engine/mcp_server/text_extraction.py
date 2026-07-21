@@ -172,8 +172,11 @@ def _extract_body_sections(soup: BeautifulSoup) -> list[str]:
     return sections
 
 
-def _truncate_markdown(markdown: str, max_chars: int) -> str:
+def truncate_markdown(markdown: str, max_chars: int) -> str:
     """Truncates markdown text to max_chars, logging if truncation occurs.
+
+    Public because the web extractors reuse it, keeping one truncation
+    marker across the server.
 
     Args:
         markdown: Markdown text to (possibly) truncate.
@@ -272,7 +275,7 @@ def extract_text_from_pmc_html(
 
         markdown = "\n\n".join(parts)
 
-        return _truncate_markdown(markdown, max_chars)
+        return truncate_markdown(markdown, max_chars)
 
     except Exception as e:
         # Structured extraction above assumes well-formed JATS XML; if the

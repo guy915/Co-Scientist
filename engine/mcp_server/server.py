@@ -53,6 +53,7 @@ from mcp_server.tools.lit_review.pubmed_search_with_fulltext import (
 )
 from mcp_server.tools.lit_review.search_paper_corpus import (
     CORPUS_ENV_VAR,
+    count_corpus_papers,
     fetch_paper,
 )
 from mcp_server.tools.lit_review.search_pubmed import (
@@ -124,7 +125,7 @@ logger.info(
 _corpus_dir = os.environ.get(CORPUS_ENV_VAR)
 logger.info(
     "Paper corpus: %s",
-    f"{_corpus_dir} ({len(list(Path(_corpus_dir).glob('*.md')))} papers)"
+    f"{_corpus_dir} ({count_corpus_papers(Path(_corpus_dir))} papers)"
     if _corpus_dir and Path(_corpus_dir).is_dir()
     else f"not configured ({CORPUS_ENV_VAR} unset or missing)",
 )

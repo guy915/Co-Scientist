@@ -93,6 +93,49 @@ def _brave_freshness(recency_days: int) -> str | None:
     return None
 
 
+def _normalize_results(
+    results: Any,
+    max_results: int,
+    prefix: str,
+    provider_fields: Callable[[dict[str, Any]], dict[str, Any]],
+) -> dict[str, Any]:
+    """Builds the shared ``{result_id: metadata}`` envelope.
+
+    Owns everything the providers have in common -- the list guard, the
+    result cap, the per-item dict and url checks, the id scheme, and the
+    common fields -- so a provider defines only its own field mapping and
+    the two cannot drift apart.
+
+    Args:
+        results: The provider's raw result list (any type; non-lists yield
+            an empty dict).
+        max_results: Maximum number of results to keep.
+        prefix: Provider short name for ``_result_id``.
+        provider_fields: Maps one raw result item to the provider-specific
+            metadata fields.
+
+    Returns:
+        A dict of normalized results, empty if the payload is malformed.
+    """
+    if not isinstance(results, list):
+        return {}
+
+    out: dict[str, Any] = {}
+    for index, item in enumerate(results[: max(max_results, 0)]):
+        if not isinstance(item, dict):
+            continue
+        url = str(item.get("url") or "")
+        if not url:
+            continue
+        out[_result_id(prefix, index, url)] = {
+            "title": clean_snippet(item.get("title")),
+            "url": url,
+            "source": "web",
+            **provider_fields(item),
+        }
+    return out
+
+
 def normalize_brave(data: Any, max_results: int) -> dict[str, Any]:
     """Normalizes a Brave web-search response.
 
@@ -105,33 +148,23 @@ def normalize_brave(data: Any, max_results: int) -> dict[str, Any]:
     Returns:
         A dict of normalized results, empty if the payload is malformed.
     """
-    web = data.get("web") if isinstance(data, dict) else None
-    results = web.get("results") if isinstance(web, dict) else None
-    if not isinstance(results, list):
-        return {}
 
-    out: dict[str, Any] = {}
-    for index, item in enumerate(results[: max(max_results, 0)]):
-        if not isinstance(item, dict):
-            continue
-        url = str(item.get("url") or "")
-        if not url:
-            continue
-        out[_result_id("brave", index, url)] = {
-            "title": clean_snippet(item.get("title")),
-            "url": url,
-            # Brave's "description" is the result snippet, with query terms
-            # wrapped in <strong>. It maps onto abstract because that is the
-            # field the engine's article pipeline already reads for summary
-            # text.
+    def fields(item: dict[str, Any]) -> dict[str, Any]:
+        # Brave's "description" is the result snippet, with query terms
+        # wrapped in <strong>. It maps onto abstract because that is the
+        # field the engine's article pipeline already reads for summary
+        # text.
+        return {
             "abstract": clean_snippet(item.get("description")),
-            "source": "web",
             "published_date": item.get("page_age") or item.get("age") or "",
             "site": (item.get("profile") or {}).get("name")
             if isinstance(item.get("profile"), dict)
             else "",
         }
-    return out
+
+    web = data.get("web") if isinstance(data, dict) else None
+    results = web.get("results") if isinstance(web, dict) else None
+    return _normalize_results(results, max_results, "brave", fields)
 
 
 def normalize_tavily(data: Any, max_results: int) -> dict[str, Any]:
@@ -146,28 +179,18 @@ def normalize_tavily(data: Any, max_results: int) -> dict[str, Any]:
     Returns:
         A dict of normalized results, empty if the payload is malformed.
     """
-    results = data.get("results") if isinstance(data, dict) else None
-    if not isinstance(results, list):
-        return {}
 
-    out: dict[str, Any] = {}
-    for index, item in enumerate(results[: max(max_results, 0)]):
-        if not isinstance(item, dict):
-            continue
-        url = str(item.get("url") or "")
-        if not url:
-            continue
-        out[_result_id("tavily", index, url)] = {
-            "title": clean_snippet(item.get("title")),
-            "url": url,
-            # Tavily returns extracted page text, not just a snippet, so a
-            # hit is often usable without a follow-up read_url call.
+    def fields(item: dict[str, Any]) -> dict[str, Any]:
+        # Tavily returns extracted page text, not just a snippet, so a
+        # hit is often usable without a follow-up read_url call.
+        return {
             "abstract": clean_snippet(item.get("content")),
-            "source": "web",
             "published_date": item.get("published_date") or "",
             "score": item.get("score"),
         }
-    return out
+
+    results = data.get("results") if isinstance(data, dict) else None
+    return _normalize_results(results, max_results, "tavily", fields)
 
 
 async def search_brave(
@@ -177,7 +200,8 @@ async def search_brave(
 
     Args:
         query: Natural-language search query.
-        max_results: Maximum number of results to return.
+        max_results: Maximum number of results to return. ``search_web``,
+            the only caller, has already clamped this to a sane range.
         recency_days: Restrict to results this recent; 0 means no limit.
 
     Returns:
@@ -186,7 +210,7 @@ async def search_brave(
     """
     params: dict[str, str] = {
         "q": query,
-        "count": str(min(max(max_results, 1), 20)),
+        "count": str(max_results),
     }
     freshness = _brave_freshness(recency_days)
     if freshness:
@@ -212,7 +236,8 @@ async def search_tavily(
 
     Args:
         query: Natural-language search query.
-        max_results: Maximum number of results to return.
+        max_results: Maximum number of results to return. ``search_web``,
+            the only caller, has already clamped this to a sane range.
         recency_days: Restrict to results this recent; 0 means no limit.
 
     Returns:
@@ -220,7 +245,7 @@ async def search_tavily(
     """
     payload: dict[str, Any] = {
         "query": query,
-        "max_results": min(max(max_results, 1), 20),
+        "max_results": max_results,
         "search_depth": "basic",
     }
     if recency_days > 0:

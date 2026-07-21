@@ -20,6 +20,23 @@ logger = logging.getLogger(__name__)
 
 CORPUS_ENV_VAR = "SBI_CORPUS_DIR"
 
+# The file types fetch_paper can serve. Anything counting or listing the
+# corpus must use the same set, or its numbers drift from what the reader
+# actually serves.
+_CORPUS_SUFFIXES = (".md", ".txt")
+
+
+def count_corpus_papers(root: Path) -> int:
+    """Counts the papers ``fetch_paper`` could serve from ``root``.
+
+    Args:
+        root: The corpus directory.
+
+    Returns:
+        The number of corpus files with a servable suffix.
+    """
+    return sum(1 for path in root.iterdir() if path.suffix in _CORPUS_SUFFIXES)
+
 
 def fetch_paper(paper_id: str) -> str:
     """Fetches one paper from the group's corpus in full.
@@ -36,11 +53,11 @@ def fetch_paper(paper_id: str) -> str:
         an empty object when the id is unknown or no corpus is installed.
     """
     root = Path(os.environ.get(CORPUS_ENV_VAR, ""))
-    if not root or not root.is_dir():
+    if not root.is_dir():
         return json.dumps({})
     # Resolve inside the corpus directory and confirm the result is still
     # within it, so a crafted id cannot walk out into the filesystem.
-    for suffix in (".md", ".txt"):
+    for suffix in _CORPUS_SUFFIXES:
         path = (root / f"{paper_id}{suffix}").resolve()
         if not path.is_file() or root.resolve() not in path.parents:
             continue
