@@ -191,16 +191,11 @@ def _persist_and_finalize(
     returns the report inputs, and ``finalize_report`` builds/screens/saves the
     report. Uses a plain-dict emitter, so no event log is needed.
     """
-    report_inputs = engine_adapter._persist_final_state(
+    drained = engine_adapter._persist_final_state(
         run_id=run.id,
         final_state=final_state,
         db_path=db_path,
     )
-    # Post-drain stage-event counts, not finalize_report kwargs; the real
-    # callers (engine_stream, engine_tasks) pop these before spreading the
-    # rest of the dict, so this helper mirrors that.
-    report_inputs.pop("safety_counts")
-    report_inputs.pop("grounding_counts")
 
     async def _emit(type_: str, payload: dict[str, Any]) -> dict[str, Any]:
         return {"type": type_, "payload": payload}
@@ -214,7 +209,7 @@ def _persist_and_finalize(
             emit=_emit,
             execution_time=1.0,
             db_path=db_path,
-            **report_inputs,
+            **drained.report_inputs,
         )
     )
 
@@ -632,14 +627,11 @@ def test_resumed_finalize_does_not_double_publish(isolated_db: str) -> None:
     makes a second finalize a no-op once a report exists.
     """
     run = store.create_run("CSC goal", "standard", "engine", {})
-    inputs = engine_adapter._persist_final_state(
+    drained = engine_adapter._persist_final_state(
         run_id=run.id,
         final_state=_final_state_with_features(),
         db_path=isolated_db,
     )
-    # Post-drain stage-event counts, not finalize_report kwargs.
-    inputs.pop("safety_counts")
-    inputs.pop("grounding_counts")
 
     async def _emit(type_: str, payload: dict[str, Any]) -> dict[str, Any]:
         return {"type": type_, "payload": payload}
@@ -655,7 +647,7 @@ def test_resumed_finalize_does_not_double_publish(isolated_db: str) -> None:
                 execution_time=1.0,
                 resumed=resumed,
                 db_path=isolated_db,
-                **inputs,
+                **drained.report_inputs,
             )
         )
 

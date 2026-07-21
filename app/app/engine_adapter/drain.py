@@ -33,6 +33,19 @@ from app.text_utils import first_sentence
 logger = logging.getLogger(__name__)
 
 
+class DrainResult(NamedTuple):
+    """What one drained final state hands the report path and stage events.
+
+    ``report_inputs`` is spread verbatim into ``finalize_report``; the two
+    count dicts are emitted by the caller as the post-drain
+    ``safety.hypothesis`` and ``citation.grounding`` stage events.
+    """
+
+    report_inputs: dict[str, Any]
+    safety_counts: dict[str, int]
+    grounding_counts: dict[str, int]
+
+
 class _HypIdentity(NamedTuple):
     """An engine hypothesis's persistence identity and lineage.
 
@@ -528,7 +541,7 @@ def _persist_final_state(
     run_id: str,
     final_state: dict[str, Any],
     db_path: str | None = None,
-) -> dict[str, Any]:
+) -> DrainResult:
     """Drain an engine final state into the store.
 
     Writes evidence, hypotheses (with reviews, deep-verification reviews, and
@@ -543,13 +556,10 @@ def _persist_final_state(
         db_path: Optional override for the SQLite database path.
 
     Returns:
-        The report inputs only this provider knows -- ``citation_summary``,
-        ``meta_review``, and ``research_overview`` -- plus ``safety_counts``
-        and ``grounding_counts``, the screen/grounding tallies a caller emits
-        as post-drain stage events. The latter two are not ``finalize_report``
-        kwargs and must be popped before spreading the rest of this dict into
-        it. Row counts otherwise are not returned; ``finalize_report`` reads
-        them from the store.
+        A :class:`DrainResult`: the ``finalize_report`` kwargs only this
+        provider knows, plus the screen/grounding tallies a caller emits as
+        post-drain stage events. Row counts otherwise are not returned;
+        ``finalize_report`` reads them from the store.
     """
     hyps = _hypotheses_with_proximity_archive(
         _final_state_list(final_state, "hypotheses"),
@@ -640,28 +650,26 @@ def _persist_final_state(
             run_id, proximity_graph, store_id_by_engine_id, conn
         )
 
-    return {
-        "citation_summary": citation_summary,
-        "meta_review": _final_state_dict(final_state, "meta_review"),
-        "research_overview": _final_state_dict(
-            final_state, "research_overview"
-        ),
-        # Counts for the post-drain ``safety.hypothesis``/``citation.grounding``
-        # stage events (see ``engine_stream._persist_and_report``); popped by
-        # every caller before the rest of this dict is spread into
-        # ``finalize_report``, which does not accept them as kwargs.
-        "safety_counts": {
+    return DrainResult(
+        report_inputs={
+            "citation_summary": citation_summary,
+            "meta_review": _final_state_dict(final_state, "meta_review"),
+            "research_overview": _final_state_dict(
+                final_state, "research_overview"
+            ),
+        },
+        safety_counts={
             "screened": screening_result.screened_count,
             "blocked": screening_result.blocked_count,
             "eligible": (
                 screening_result.screened_count - screening_result.blocked_count
             ),
         },
-        "grounding_counts": {
+        grounding_counts={
             "grounded": len(grounding_result.reason_by_id),
             "blocked": grounding_result.blocked_count,
             "eligible": (
                 len(grounding_candidates) - grounding_result.blocked_count
             ),
         },
-    }
+    )

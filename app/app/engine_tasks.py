@@ -18,7 +18,10 @@ from app.config import settings
 from app.elo import INITIAL_ELO
 from app.engine_adapter.drain import _persist_final_state
 from app.engine_adapter.opts import _build_engine_opts, _build_generator
-from app.engine_adapter.provider import _import_hypothesis_generator
+from app.engine_adapter.provider import (
+    _import_hypothesis_generator,
+    sync_engine_llm_backend,
+)
 from app.report_render import finalize_report, make_emitter
 from app.run_modes import normalize_run_tier, resolved_run_config
 from app.safety import (
@@ -179,6 +182,7 @@ class _GatePlan:
     claims: tuple[str, ...]
     roles: Mapping[str, str]
     fingerprint: str
+    prior_disposition: str
 
 
 async def _assess_gate_claims(
@@ -189,16 +193,15 @@ async def _assess_gate_claims(
 ) -> list[list[Any]]:
     """Assess every pending hypothesis's claims in one bounded wave.
 
-    Claims are independent -- of each other and across hypotheses -- so
-    overlapping them changes no verdict, only how long the phase takes. In
-    production a hypothesis carries 7-25 atomic claims and a run reaches this
-    gate with dozens, and awaiting them one at a time made this node the
-    longest serial stretch of an express run (21-23% of wall clock). The
-    provider is not the constraint: twenty-four concurrent completions return
-    in the same wall clock as four.
+    In production a hypothesis carries 7-25 atomic claims and a run reaches
+    this gate with dozens, and awaiting them one at a time made this node the
+    longest serial stretch of an express run (21-23% of wall clock). The wave
+    policy itself (flatten, bounded pool, regroup in order) is
+    ``claim_grounding.assess_claim_groups``, shared with the drain's grounding
+    pass so the two claim-assessment paths cannot drift.
 
-    Runs on a dedicated executor rather than ``asyncio.to_thread``: the
-    default executor is shared process-wide and the durable worker cohort
+    The wave runs on one dedicated thread rather than ``asyncio.to_thread``:
+    the default executor is shared process-wide and the durable worker cohort
     parks long-lived calls there for a whole run, so a wave of claims would
     contend with the workers themselves.
 
@@ -211,46 +214,21 @@ async def _assess_gate_claims(
     Returns:
         Per plan, its claim assessments in the plan's own claim order.
     """
-    from app.claim_grounding import ASSESSMENT_CONCURRENCY
-    from app.claims import assess_claim
-
-    flat = [
-        (index, claim)
-        for index, plan in enumerate(plans)
-        for claim in plan.claims
-    ]
-    if not flat:
-        return [[] for _ in plans]
+    from app.claim_grounding import assess_claim_groups
 
     call = functools.partial(
-        assess_claim,
-        passages=passages,
+        assess_claim_groups,
+        [list(plan.claims) for plan in plans],
+        passages,
         assessor=assessor,
         assessor_id=assessor_id,
     )
-    if settings.claim_assessor == "llm":
-        loop = asyncio.get_running_loop()
-        with ThreadPoolExecutor(
-            max_workers=min(ASSESSMENT_CONCURRENCY, len(flat))
-        ) as pool:
-            # gather preserves input order, so each hypothesis's recorded
-            # claim sequence is identical to the serial one.
-            results = list(
-                await asyncio.gather(
-                    *(
-                        loop.run_in_executor(pool, call, claim)
-                        for _index, claim in flat
-                    )
-                )
-            )
-    else:
+    if settings.claim_assessor != "llm":
         # The deterministic assessor makes no call to overlap.
-        results = [call(claim) for _index, claim in flat]
-
-    grouped: list[list[Any]] = [[] for _ in plans]
-    for (index, _claim), assessment in zip(flat, results, strict=True):
-        grouped[index].append(assessment)
-    return grouped
+        return call(parallel=False)
+    loop = asyncio.get_running_loop()
+    with ThreadPoolExecutor(max_workers=1) as host:
+        return await loop.run_in_executor(host, call)
 
 
 async def _apply_pre_ranking_evidence_gate(state: dict[str, Any]) -> None:
@@ -303,7 +281,6 @@ async def _apply_pre_ranking_evidence_gate(state: dict[str, Any]) -> None:
     # Pass one plans every hypothesis without making a single provider call,
     # so the claims that actually need assessing can go out together below.
     plans: list[_GatePlan] = []
-    prior_by_id: dict[str, str] = {}
     for hypothesis in state.get("hypotheses") or []:
         gate_history = hypothesis.enrichments.get("claim_gate") or {}
         prior_disposition = str(
@@ -311,7 +288,6 @@ async def _apply_pre_ranking_evidence_gate(state: dict[str, Any]) -> None:
             or hypothesis.review_disposition
             or "viable"
         )
-        prior_by_id[hypothesis.id] = prior_disposition
         claim_roles: dict[str, str] = {}
         ordered_claims: list[str] = []
         for source_text, role in (
@@ -362,6 +338,7 @@ async def _apply_pre_ranking_evidence_gate(state: dict[str, Any]) -> None:
                 claims=tuple(ordered_claims),
                 roles=claim_roles,
                 fingerprint=input_fingerprint,
+                prior_disposition=prior_disposition,
             )
         )
 
@@ -369,9 +346,9 @@ async def _apply_pre_ranking_evidence_gate(state: dict[str, Any]) -> None:
 
     for plan, assessments in zip(plans, assessed, strict=True):
         hypothesis = plan.hypothesis
-        claim_roles = dict(plan.roles)
+        plan_roles = plan.roles
         input_fingerprint = plan.fingerprint
-        prior_disposition = prior_by_id[hypothesis.id]
+        prior_disposition = plan.prior_disposition
         # Rank-and-publish policy: only contradicted (or unsafe) ideas are
         # withheld from the tournament here. Ungrounded/speculative ideas stay
         # rankable — allow_speculative treats insufficient claims as speculative
@@ -383,7 +360,7 @@ async def _apply_pre_ranking_evidence_gate(state: dict[str, Any]) -> None:
             allow_speculative=True,
             explicitly_speculative_claims={
                 claim
-                for claim, role in claim_roles.items()
+                for claim, role in plan_roles.items()
                 if role == "speculative"
             },
             require_supported_claim=False,
@@ -397,7 +374,7 @@ async def _apply_pre_ranking_evidence_gate(state: dict[str, Any]) -> None:
             "claims": [
                 {
                     "claim": assessment.claim,
-                    "role": claim_roles[assessment.claim],
+                    "role": plan_roles[assessment.claim],
                     "label": assessment.label.value,
                     "supporting_passages": [
                         span.to_dict()
@@ -703,6 +680,11 @@ async def execute_bootstrap(
         return {"run_id": run.id, "status": "withheld", "terminal": True}
 
     store.update_run_status(run.id, RunStatus.RUNNING, db_path=db_path)
+    # Sync the run row before the generator is built (_generator_and_opts
+    # reads it back via run_used_offline), so a config-pinned llm_backend
+    # takes effect on the durable boundary exactly as it does on the
+    # streaming one.
+    sync_engine_llm_backend(run.id, resolved_run_config(run.config), db_path)
     generator, opts = _generator_and_opts(task, db_path)
     state = await generator.prepare_task_state(
         run.research_goal,
@@ -2042,13 +2024,13 @@ def _emit_node_milestone(
 ) -> None:
     """Append the milestone chat message the streaming path emits for a node.
 
-    Reuses ``events.py``'s canonical vocabulary (``_canonical_event_type``,
-    ``_canonical_engine_payload``, ``_format_milestone``) so the durable and
-    streaming engine paths never carry two copies of the milestone strings.
-    A no-op for node types with no milestone builder (e.g. ``review``,
-    ``orchestrator``, ``safety_screen``, ``comprehensive_reflection``) --
-    checked before the state conversion below so those completions pay no
-    extra cost.
+    Reuses ``events.py``'s canonical vocabulary and its
+    ``append_node_milestone`` helper (the single home for the milestone
+    message's shape) so the durable and streaming engine paths never carry
+    two copies of the milestone strings. A no-op for node types with no
+    milestone builder (e.g. ``review``, ``orchestrator``, ``safety_screen``,
+    ``comprehensive_reflection``) -- checked before the state conversion
+    below so those completions pay no extra cost.
 
     Callers place this immediately after the node's checkpoint commit (the
     same call site as the durable path's ``scientific_task`` event, where one
@@ -2063,7 +2045,7 @@ def _emit_node_milestone(
         _MILESTONE_BUILDERS,
         _canonical_engine_payload,
         _canonical_event_type,
-        _format_milestone,
+        append_node_milestone,
     )
 
     node_type = _canonical_event_type(node_name)
@@ -2072,11 +2054,7 @@ def _emit_node_milestone(
     payload = _canonical_engine_payload(
         node_name, node_type, _plain_final_state(state)
     )
-    milestone = _format_milestone(node_type, payload)
-    if milestone:
-        store.append_message(
-            run_id, "system", milestone, "milestone", db_path=db_path
-        )
+    append_node_milestone(run_id, node_type, payload, db_path=db_path)
 
 
 async def _emit_node_completion(
@@ -2153,23 +2131,21 @@ async def execute_finalize(
     # so a crash after persistence but before task acknowledgement cannot
     # duplicate hypotheses, evidence, matches, or verification edges.
     store.clear_publication_artifacts(run.id, db_path=db_path)
-    report_inputs = _persist_final_state(
+    drained = _persist_final_state(
         run_id=run.id, final_state=final_state, db_path=db_path
     )
-    # Popped before the rest of report_inputs is spread into finalize_report
-    # below (which does not accept them as kwargs); emitted as the same
-    # post-drain stage events the streaming engine path emits, so both engine
-    # execution modes carry identical per-stage fidelity.
-    safety_counts = report_inputs.pop("safety_counts")
-    grounding_counts = report_inputs.pop("grounding_counts")
     metrics = final_state.get("metrics") or {}
     execution_time = max(0.0, time.time() - float(state.get("start_time", 0)))
     store.save_run_metrics(run.id, metrics, db_path=db_path)
     store.update_run_status(run.id, RunStatus.SYNTHESIZING, db_path=db_path)
     emit = make_emitter(run.id, db_path=db_path)
-    await emit("safety.hypothesis", safety_counts)
-    await emit("citation.grounding", grounding_counts)
-    await emit("citation_audit", dict(report_inputs["citation_summary"]))
+    # The same post-drain stage events the streaming engine path emits, so
+    # both engine execution modes carry identical per-stage fidelity.
+    await emit("safety.hypothesis", drained.safety_counts)
+    await emit("citation.grounding", drained.grounding_counts)
+    await emit(
+        "citation_audit", dict(drained.report_inputs["citation_summary"])
+    )
     async for _ in finalize_report(
         run_id=run.id,
         research_goal=run.research_goal,
@@ -2178,7 +2154,7 @@ async def execute_finalize(
         emit=emit,
         execution_time=execution_time,
         db_path=db_path,
-        **report_inputs,
+        **drained.report_inputs,
     ):
         pass
     final = store.get_run(run.id, db_path=db_path)

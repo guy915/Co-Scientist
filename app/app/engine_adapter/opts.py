@@ -13,11 +13,9 @@ from typing import Any
 from app import paper_corpus, run_corpus, store
 from app.config import settings
 from app.run_modes import (
-    RUN_TIER_DEFAULTS,
     clean_string_list,
     focus_guidance,
     normalize_run_focus,
-    normalize_run_tier,
     setup_guidance,
 )
 
@@ -135,16 +133,16 @@ def _build_engine_opts(
         store.list_evidence(run_id, db_path=db_path),
         goal,
     )
-    literature = [str(item["display"]) for item in private_sources]
-    if private_sources:
-        initial_opts["context_enrichment_sources"] = private_sources
     # The group's own papers no longer ride the literature channel as
     # retrieved passages: the whole catalog (title + abstract of every paper)
     # is injected into the run's setup context up front (see
     # runs_models._build_create_run_config), and the agent fetches any paper
-    # in full with fetch_paper. So there is nothing to add here.
-    if literature:
-        initial_opts["user_inputs"] = {"literature": literature}
+    # in full with fetch_paper. Only scientist-uploaded documents land here.
+    if private_sources:
+        initial_opts["context_enrichment_sources"] = private_sources
+        initial_opts["user_inputs"] = {
+            "literature": [str(item["display"]) for item in private_sources]
+        }
     return initial_opts
 
 
@@ -214,19 +212,10 @@ def _build_generator(
         supervisor_model_name=supervisor_model_name,
         enable_cache=enable_cache,
         max_iterations=int(cfg["max_iterations"]),
-        # Hard termination ceiling on top of max_iterations. Runs created
-        # before this knob existed have no key here, so fall back to the
-        # tier table rather than leaving them unbounded on resume.
-        budget={
-            "max_llm_calls": int(
-                cfg.get(
-                    "max_llm_calls",
-                    RUN_TIER_DEFAULTS[normalize_run_tier(cfg.get("tier"))][
-                        "max_llm_calls"
-                    ],
-                )
-            )
-        },
+        # Hard termination ceiling on top of max_iterations. Present even
+        # for runs created before the knob existed: resolved_run_config
+        # seeds every load from the tier table.
+        budget={"max_llm_calls": int(cfg["max_llm_calls"])},
         initial_hypotheses_count=int(cfg["initial_hypotheses_count"]),
         evolution_max_count=int(cfg["evolution_max_count"]),
         tournament_pairs=int(cfg["tournament_pairs"]),
