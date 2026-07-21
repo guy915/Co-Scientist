@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 from collections.abc import Iterator
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -195,7 +196,7 @@ def test_format_catalog_prints_ids_and_the_fetch_instruction(
 
 
 def _paper(paper_id: str, **kwargs: object) -> paper_corpus.CatalogPaper:
-    fields: dict = {
+    fields: dict[str, Any] = {
         "title": f"{paper_id} title",
         "abstract": f"{paper_id} abstract",
     }

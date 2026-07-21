@@ -119,6 +119,9 @@ convention = "google"
 python_version = "3.10"
 strict = true
 plugins = ["pydantic.mypy"]
+# Developer utility scripts are not type-checked, matching the ruff `exclude`
+# above and the engine's own mypy config.
+exclude = ["^dev/"]
 
 [[tool.mypy.overrides]]
 module = ["co_scientist", "co_scientist.*"]
