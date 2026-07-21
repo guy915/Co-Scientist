@@ -508,6 +508,21 @@
   margin-top: 1.25rem;
 }
 
+/* Locked variant: the required first-visit affiliation chooser. With no
+   header and no section rail there is only one column of content, so the
+   window sizes to it instead of holding open the full settings frame. */
+.ucs-settings-dialog--locked {
+  width: min(30rem, calc(100vw - 2rem));
+  height: auto;
+  max-height: min(34rem, calc(100dvh - 3rem));
+}
+
+.ucs-settings-dialog-body--locked {
+  grid-template-columns: minmax(0, 1fr);
+  margin-top: 0;
+  overflow-y: auto;
+}
+
 .ucs-settings-dialog-nav {
   display: grid;
   align-content: start;
@@ -1432,6 +1447,18 @@
     grid-template-rows: auto minmax(0, 1fr);
     gap: 1rem;
     margin-top: 0.9rem;
+  }
+
+  /* The locked chooser has no rail row to stack, so it keeps a single track
+     and stays snug to its content rather than filling the phone viewport. */
+  .ucs-settings-dialog--locked {
+    height: auto;
+    max-height: calc(100dvh - 1.5rem);
+  }
+
+  .ucs-settings-dialog-body--locked {
+    grid-template-rows: minmax(0, 1fr);
+    margin-top: 0;
   }
 
   /* Vertical phone layout: the section options stack above the panel

@@ -1,54 +1,51 @@
 import {useEffect, useRef} from 'react';
-import {useLocation} from 'react-router-dom';
-import {DEFAULT_AUDIENCE, useAudience} from '../audience_context';
-
-// Routes reachable by people outside the workspace: a shared report link and
-// the researcher access page. Asking a visitor there to declare an
-// affiliation before they can read what was shared with them makes no sense,
-// so the gate stays shut on these.
-const PUBLIC_PREFIXES: readonly string[] = ['/shared/', '/access'];
-
-function isPublicRoute(pathname: string): boolean {
-  return PUBLIC_PREFIXES.some(prefix => pathname.startsWith(prefix));
-}
+import {useAudience} from '../audience_context';
 
 /**
- * First-visit gate. Renders nothing itself: when no audience has been chosen
- * it opens the Settings dialog on its Affiliation section, so the chooser is
- * the same surface used to change the answer later.
+ * First-visit gate. Renders nothing itself: while no audience has been chosen
+ * it holds the Settings dialog open on its Affiliation section, so the chooser
+ * is the same surface used to change the answer later.
  *
- * Fires once per mount. The chooser can be dismissed without picking
- * anything, so closing it commits the general audience — the default is
- * recorded explicitly rather than left as an unset value that merely happens
- * to behave like general.
+ * The question is asked on every route, and the chooser cannot be dismissed
+ * unanswered — Layout marks it non-dismissible while the audience is unset
+ * (see SettingsDialog's `dismissible` prop), and this effect re-opens it if it
+ * closes anyway. Deep-linking to an inner route is therefore not a way around
+ * the question.
+ *
+ * Answering dismisses it: the gate closes the chooser it opened, so picking
+ * an option returns the user to the page they asked for rather than leaving
+ * Settings sitting over it.
  *
  * @param props.onOpenAffiliation Opens Settings on the Affiliation section.
+ * @param props.onCloseChooser Closes the Settings dialog again.
  * @param props.chooserOpen Whether the Affiliation chooser is currently
- *   showing; its close is what commits the default.
+ *   showing.
  */
 export function AudienceGate({
   onOpenAffiliation,
+  onCloseChooser,
   chooserOpen,
 }: {
   onOpenAffiliation: () => void;
+  onCloseChooser: () => void;
   chooserOpen: boolean;
 }) {
-  const {audience, setAudience} = useAudience();
-  const {pathname} = useLocation();
-  const opened = useRef(false);
-  const wasOpen = useRef(false);
+  const {audience} = useAudience();
+  // Only a chooser this gate forced open is auto-closed on an answer; a
+  // Settings dialog the user opened themselves is theirs to close.
+  const openedByGate = useRef(false);
 
   useEffect(() => {
-    if (opened.current || audience || isPublicRoute(pathname)) return;
-    opened.current = true;
+    if (audience || chooserOpen) return;
+    openedByGate.current = true;
     onOpenAffiliation();
-  }, [audience, pathname, onOpenAffiliation]);
+  }, [audience, chooserOpen, onOpenAffiliation]);
 
   useEffect(() => {
-    const dismissed = wasOpen.current && !chooserOpen;
-    wasOpen.current = chooserOpen;
-    if (dismissed && !audience) setAudience(DEFAULT_AUDIENCE);
-  }, [chooserOpen, audience, setAudience]);
+    if (!audience || !openedByGate.current) return;
+    openedByGate.current = false;
+    onCloseChooser();
+  }, [audience, onCloseChooser]);
 
   return null;
 }
