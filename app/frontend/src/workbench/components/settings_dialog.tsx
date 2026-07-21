@@ -2,7 +2,7 @@ import type {RefObject} from 'react';
 import {useEffect, useRef, useState} from 'react';
 import {Icon, type IconName} from '@/components/icon';
 import {getStoredApiKey, setStoredApiKey} from '@/lib/api_key';
-import {DEFAULT_AUDIENCE, useAudience} from '../audience_context';
+import {useAudience} from '../audience_context';
 import {AUDIENCE_OPTIONS} from '../audience_content';
 import {useToast} from '../hooks/use_toast';
 import {type Mode, useTheme} from '../theme_context';
@@ -240,16 +240,20 @@ function HelpSection() {
  */
 export function AffiliationSection() {
   const {audience, setAudience} = useAudience();
-  // Show the default as selected while the answer is still unset, so the
-  // dialog reflects what dismissing it without choosing will commit (see
-  // AudienceGate).
-  const selected = audience ?? DEFAULT_AUDIENCE;
+  // Nothing is preselected while the answer is unset: the chooser is a
+  // required first-visit question (see AudienceGate), so showing a default
+  // already ticked would read as "answered" and invite closing past it.
+  const selected = audience;
+  const required = audience === null;
   return (
     <section className="ucs-settings-card">
       <h3 className="ucs-settings-card-title">Affiliation</h3>
       <p className="ucs-settings-card-copy">
-        This tailors the workspace to how you use Co-Scientist. You can change
-        it here at any time.
+        {required
+          ? 'Tell us how you use Co-Scientist so the workspace can be ' +
+            'tailored to you. You can change this later in Settings.'
+          : 'This tailors the workspace to how you use Co-Scientist. You can ' +
+            'change it here at any time.'}
       </p>
       <div className="ucs-affiliation-group">
         {AUDIENCE_OPTIONS.map(option => (
@@ -274,15 +278,17 @@ export function AffiliationSection() {
 // Moves focus to `ref`'s element once on mount, so keyboard/screen-reader
 // users land inside a newly opened dialog rather than on whatever was
 // focused behind it.
-function useFocusOnMount(ref: RefObject<HTMLButtonElement | null>) {
+function useFocusOnMount(ref: RefObject<HTMLElement | null>) {
   useEffect(() => {
     ref.current?.focus();
   }, [ref]);
 }
 
 // Global Escape-to-close, active for as long as the caller stays mounted.
-function useEscapeKey(onClose: () => void) {
+// `enabled` is false for a locked dialog, which has no close path at all.
+function useEscapeKey(onClose: () => void, enabled: boolean) {
   useEffect(() => {
+    if (!enabled) return;
     function onKeyDown(event: KeyboardEvent) {
       if (event.key === 'Escape') onClose();
     }
@@ -290,7 +296,7 @@ function useEscapeKey(onClose: () => void) {
     return () => {
       window.removeEventListener('keydown', onKeyDown);
     };
-  }, [onClose]);
+  }, [onClose, enabled]);
 }
 
 // Model section's API key field: a local editable copy of the persisted key
@@ -377,40 +383,69 @@ function SettingsPanel({
  * Centered Settings dialog with a section rail (Appearance, Model, Help),
  * matching the reference product's settings window.
  *
- * @param props The active section plus change/close callbacks.
+ * Doubles as the required first-visit affiliation chooser: passing
+ * `dismissible={false}` strips every way out (close button, scrim click,
+ * Escape, section rail) so the question has to be answered, and reduces the
+ * dialog to the single open section.
+ *
+ * @param props The active section, change/close callbacks, and whether the
+ *   dialog can be dismissed at all.
  */
 export function SettingsDialog({
   section,
   onSectionChange,
   onClose,
+  dismissible = true,
 }: {
   section: SettingsSection;
   onSectionChange: (section: SettingsSection) => void;
   onClose: () => void;
+  dismissible?: boolean;
 }) {
   const theme = useTheme();
   const closeRef = useRef<HTMLButtonElement>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
   const apiKeyField = useApiKeyField();
 
-  useFocusOnMount(closeRef);
-  useEscapeKey(onClose);
+  // Locked, there is no close button to land on, so focus the dialog itself.
+  useFocusOnMount(dismissible ? closeRef : dialogRef);
+  // A locked dialog has no close affordance at all: no Escape, no scrim
+  // click, no close button, and no section rail to navigate away from the
+  // question. Leaving any one of them wired is a way past the gate.
+  useEscapeKey(onClose, dismissible);
 
   return (
     <div className="ucs-settings-dialog-root">
       <div
         className="ucs-settings-dialog-scrim"
         aria-hidden="true"
-        onClick={onClose}
+        onClick={dismissible ? onClose : undefined}
       />
       <div
-        className="ucs-settings-dialog"
+        ref={dialogRef}
+        tabIndex={dismissible ? undefined : -1}
+        className={
+          dismissible
+            ? 'ucs-settings-dialog'
+            : 'ucs-settings-dialog ucs-settings-dialog--locked'
+        }
         role="dialog"
         aria-modal="true"
-        aria-label="Settings"
+        aria-label={dismissible ? 'Settings' : 'Choose your affiliation'}
       >
-        <SettingsDialogHeader onClose={onClose} closeRef={closeRef} />
-        <div className="ucs-settings-dialog-body">
-          <SettingsNav section={section} onSectionChange={onSectionChange} />
+        {dismissible && (
+          <SettingsDialogHeader onClose={onClose} closeRef={closeRef} />
+        )}
+        <div
+          className={
+            dismissible
+              ? 'ucs-settings-dialog-body'
+              : 'ucs-settings-dialog-body ucs-settings-dialog-body--locked'
+          }
+        >
+          {dismissible && (
+            <SettingsNav section={section} onSectionChange={onSectionChange} />
+          )}
           <SettingsPanel
             section={section}
             theme={theme}

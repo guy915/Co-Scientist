@@ -4,6 +4,7 @@ import {
   useNavigate,
   type NavigateFunction,
 } from 'react-router-dom';
+import {useAudience} from './audience_context';
 import {joinClasses} from './classes';
 import {AudienceGate} from './components/audience_gate';
 import {SettingsDialog} from './components/settings_dialog';
@@ -158,6 +159,10 @@ export function Layout({children}: {children: ReactNode}) {
     openSettings,
   } = useLayoutChrome(location.pathname);
   const shellClass = shellClassFor(isRunRoute, navOpen);
+  // Until the first-visit question is answered the Settings dialog is the
+  // affiliation chooser and nothing else: locked open on that section, with
+  // no way to close it or navigate to another one.
+  const affiliationRequired = useAudience().audience === null;
   const startNewChat = createStartNewChatHandler(navigate, setNavOpen);
 
   return (
@@ -190,13 +195,15 @@ export function Layout({children}: {children: ReactNode}) {
       </section>
       {settingsSection && (
         <SettingsDialog
-          section={settingsSection}
+          section={affiliationRequired ? 'affiliation' : settingsSection}
           onSectionChange={setSettingsSection}
           onClose={() => setSettingsSection(null)}
+          dismissible={!affiliationRequired}
         />
       )}
       <AudienceGate
         onOpenAffiliation={() => openSettings('affiliation')}
+        onCloseChooser={() => setSettingsSection(null)}
         chooserOpen={settingsSection === 'affiliation'}
       />
     </div>

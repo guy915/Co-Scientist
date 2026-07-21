@@ -12,7 +12,13 @@ function renderGate(
     route = '/',
     audience,
     chooserOpen = false,
-  }: {route?: string; audience?: Audience; chooserOpen?: boolean} = {},
+    onCloseChooser = vi.fn(),
+  }: {
+    route?: string;
+    audience?: Audience;
+    chooserOpen?: boolean;
+    onCloseChooser?: () => void;
+  } = {},
 ) {
   function Tree({open}: {open: boolean}) {
     return (
@@ -20,6 +26,7 @@ function renderGate(
         <AudienceProvider initialAudience={audience}>
           <AudienceGate
             onOpenAffiliation={onOpenAffiliation}
+            onCloseChooser={onCloseChooser}
             chooserOpen={open}
           />
         </AudienceProvider>
@@ -49,36 +56,62 @@ describe('AudienceGate', () => {
     expect(onOpen).not.toHaveBeenCalled();
   });
 
-  it('stays shut on the public shared-report route', () => {
-    const onOpen = vi.fn();
-    renderGate(onOpen, {route: '/shared/abc123'});
-    expect(onOpen).not.toHaveBeenCalled();
-  });
-
-  it('stays shut on the researcher access route', () => {
-    const onOpen = vi.fn();
-    renderGate(onOpen, {route: '/access'});
-    expect(onOpen).not.toHaveBeenCalled();
-  });
+  it.each(['/shared/abc123', '/access', '/proposals', '/runs/abc/details'])(
+    'still asks on %s, so deep links are not a way around it',
+    route => {
+      const onOpen = vi.fn();
+      renderGate(onOpen, {route});
+      expect(onOpen).toHaveBeenCalledTimes(1);
+    },
+  );
 
   it('renders no markup of its own', () => {
     const {container} = renderGate(vi.fn());
     expect(container).toBeEmptyDOMElement();
   });
 
-  it('commits the general default when the chooser is dismissed unanswered', () => {
+  it('commits nothing when the chooser closes unanswered', () => {
     const {setChooserOpen} = renderGate(vi.fn(), {chooserOpen: true});
     setChooserOpen(false);
-    expect(window.localStorage.getItem('cosci-audience')).toBe('general');
+    expect(window.localStorage.getItem('cosci-audience')).toBeNull();
+  });
+
+  it('re-opens the chooser if it closes unanswered', () => {
+    const onOpen = vi.fn();
+    const {setChooserOpen} = renderGate(onOpen, {chooserOpen: true});
+    expect(onOpen).not.toHaveBeenCalled();
+    setChooserOpen(false);
+    expect(onOpen).toHaveBeenCalledTimes(1);
+  });
+
+  it('closes the chooser it opened once the question is answered', async () => {
+    const onCloseChooser = vi.fn();
+    render(
+      <MemoryRouter>
+        <AudienceProvider>
+          <AudienceGate
+            onOpenAffiliation={vi.fn()}
+            onCloseChooser={onCloseChooser}
+            chooserOpen={false}
+          />
+          <AffiliationSection />
+        </AudienceProvider>
+      </MemoryRouter>,
+    );
+    expect(onCloseChooser).not.toHaveBeenCalled();
+    await userEvent.click(screen.getByRole('radio', {name: /General/i}));
+    expect(onCloseChooser).toHaveBeenCalledTimes(1);
   });
 
   it('leaves an answered chooser alone when it closes', () => {
-    const {setChooserOpen} = renderGate(vi.fn(), {
+    const onOpen = vi.fn();
+    const {setChooserOpen} = renderGate(onOpen, {
       chooserOpen: true,
       audience: 'sbi_ucd',
     });
     setChooserOpen(false);
     expect(window.localStorage.getItem('cosci-audience')).toBe('sbi_ucd');
+    expect(onOpen).not.toHaveBeenCalled();
   });
 });
 
@@ -98,12 +131,14 @@ describe('AffiliationSection', () => {
     expect(window.localStorage.getItem('cosci-audience')).toBe('google');
   });
 
-  it('preselects the general default while the answer is unset', () => {
+  it('preselects nothing while the answer is unset', () => {
     render(
       <AudienceProvider>
         <AffiliationSection />
       </AudienceProvider>,
     );
-    expect(screen.getByRole('radio', {name: /General/i})).toBeChecked();
+    for (const radio of screen.getAllByRole('radio')) {
+      expect(radio).not.toBeChecked();
+    }
   });
 });
