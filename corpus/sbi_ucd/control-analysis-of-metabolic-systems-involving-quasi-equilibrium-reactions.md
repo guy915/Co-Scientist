@@ -1,0 +1,7 @@
+# Control analysis of metabolic systems involving quasi-equilibrium reactions
+
+*Biochim Biophys Acta, 1998.* PMID: 9545597. DOI: 10.1016/s0304-4165(97)00114-1.
+
+## Abstract
+
+Reactions for which the rates are extremely sensitive to changes in the concentrations of variable metabolite concentrations contribute little to the control of biochemical reaction networks. Yet they do interfere with the calculation of the system's behaviour, both in terms of numerical integration of the rate equations and in terms of the analysis of metabolic control. We here present a way to solve this problem systematically for systems with time hierarchies. We identify the fast reactions and fast metabolites, group them apart from the other ("slow") reactions and metabolites, and then apply the appropriate quasi-equilibrium condition for the fast subsystem. This then makes it possible to eliminate the fast reactions and their elasticity coefficients from the calculations, allowing the calculation of the control coefficients of the slow reactions in terms of the elasticity coefficients of the slow reactions. As expected, the elasticity coefficients of the fast reactions drop out of the calculations, and they are irrelevant for control at the time resolution of the steady state of the slow reactions. The analysis, when applied iteratively, is expected to be particularly valuable for the control analysis of living cells, where a time hierarchy exists, the fastest being at the level of enzyme kinetics and the slowest at gene expression.

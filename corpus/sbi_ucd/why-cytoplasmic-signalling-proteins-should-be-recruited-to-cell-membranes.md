@@ -1,0 +1,7 @@
+# Why cytoplasmic signalling proteins should be recruited to cell membranes
+
+*Trends Cell Biol, 2000.* PMID: 10754559. DOI: 10.1016/s0962-8924(00)01741-4.
+
+## Abstract
+
+It has been suggested that localization of signal-transduction proteins close to the cell membrane causes an increase in their rate of encounter after activation. We maintain that such an increase in the first-encounter rate is too small to be responsible for truly enhanced signal transduction. Instead, the function of membrane localization is to increase the number (or average lifetime) of complexes between cognate signal transduction proteins and hence increase the extent of activation of downstream processes. This is achieved by concentrating the proteins in the small volume of the area just below the plasma membrane. The signal-transduction chain is viewed simply as operating at low default intensity because one of its components is present at a low concentration. The steady signalling level of the chain is enhanced 1000-fold by increasing the concentration of that component. This occurs upon 'piggyback' binding to a membrane protein, such as the activated receptor, initiating the signal-transduction chain. For the effect to occur, the protein translocated to the membrane cannot be free but has to remain organized by being piggyback bound to a receptor, membrane lipid(s) or scaffold. We discuss an important structural constraint imposed by this mechanism on signal transduction proteins that might also account for the presence of adaptor proteins.

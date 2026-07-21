@@ -1,18 +1,28 @@
 """The SBI/UCD paper corpus: sanitation and the injected paper catalog.
 
-The lab's papers extract to roughly 330k tokens of raw `pdftotext` output,
-about 30% of which is references, page furniture, and figure/equation glyphs
-fragmented into single letters. `sanitize` cleans one paper for storage; the
-sanitized papers live on disk and the MCP `fetch_paper` tool reads any one of
-them in full on demand.
+The corpus is the Kholodenko/Rukhlenko group's bibliography: every PubMed
+paper with either as an author, about 610k tokens on disk. Roughly a quarter
+are held as full text -- fifteen extracted from PDFs with `pdftotext` and the
+rest from PubMed Central, whose JATS markup needs no sanitation. The others
+are title and abstract only, because their publishers do not release a
+machine-readable body. `sanitize` cleans one `pdftotext` extraction for
+storage; the MCP `fetch_paper` tool reads any stored paper in full on demand.
 
-The corpus reaches a run through a small, always-present catalog rather than
-through retrieval: the title and abstract of every paper are injected into
-the run's context (see `format_catalog`), so the model always knows the whole
-of the group's library and can decide, from each abstract, which papers to
-pull in full with `fetch_paper`. The catalog is a committed, reviewable file
-(`catalog.json`) built offline from verified metadata, so nothing about which
-papers exist or what they claim is decided at runtime.
+The catalog reaches a run in two tiers, because the injected block rides
+`run_setup_guidance` into every tournament comparison and ranking is roughly
+quadratic in the hypothesis count. Papers marked `core` have their title and
+abstract injected, so the model can judge relevance at a glance. Every other
+paper is injected as a single title-and-year line naming its `paper_id`.
+Both tiers exist to be fetched: `fetch_paper` is the only route into the
+corpus -- there is no search -- so a paper the catalog does not name cannot
+be reached. A full title index keeps all of them reachable for about 14k
+tokens per call, against roughly 66k to inject every abstract.
+
+The catalog is a committed, reviewable file (`catalog.json`) built offline
+from verified metadata, so nothing about which papers exist or what they
+claim is decided at runtime. Its `attribution` field carries whether a paper
+is the group's own work, since a few are not and must not be presented as
+the group's findings.
 """
 
 from __future__ import annotations
@@ -200,11 +210,14 @@ CORPUS_TOOL_IDS = (CORPUS_FETCH_TOOL_ID,)
 
 @dataclasses.dataclass(frozen=True)
 class CatalogPaper:
-    """One paper in the injected catalog: what the model sees at a glance."""
+    """One paper in the catalog: what the model sees at a glance."""
 
     paper_id: str
     title: str
     abstract: str
+    core: bool = True
+    attribution: str = "group"
+    year: str = ""
 
 
 @functools.cache
@@ -235,8 +248,25 @@ def load_catalog(directory: Path | None = None) -> tuple[CatalogPaper, ...]:
         paper_id = str(item.get("paper_id") or "").strip()
         title = str(item.get("title") or "").strip()
         abstract = str(item.get("abstract") or "").strip()
-        if paper_id and title and abstract:
-            papers.append(CatalogPaper(paper_id, title, abstract))
+        # `core` defaults true so a catalog written before this field existed
+        # keeps injecting every abstract, as it did then. A core paper still
+        # needs an abstract, since its abstract is what gets injected; a
+        # non-core paper is listed by title alone and so needs none.
+        core = bool(item.get("core", True))
+        if not (paper_id and title):
+            continue
+        if core and not abstract:
+            continue
+        papers.append(
+            CatalogPaper(
+                paper_id=paper_id,
+                title=title,
+                abstract=abstract,
+                core=core,
+                attribution=str(item.get("attribution") or "group").strip(),
+                year=str(item.get("year") or "").strip(),
+            )
+        )
     logger.debug("loaded %d catalog papers from %s", len(papers), path)
     return tuple(papers)
 
@@ -244,31 +274,78 @@ def load_catalog(directory: Path | None = None) -> tuple[CatalogPaper, ...]:
 def format_catalog(papers: tuple[CatalogPaper, ...]) -> str:
     """Render the catalog as a prompt block, or empty when there are none.
 
-    Each entry prints its `paper_id` so the model can pass it to `fetch_paper`;
-    the header names that follow-up explicitly, since the catalog is now the
-    only place those ids are advertised.
+    Two tiers, because the block rides `run_setup_guidance` into every
+    tournament comparison and ranking is roughly quadratic in the hypothesis
+    count, so every token here is paid thousands of times over a run. Core
+    papers -- the group's flagship methods and findings -- are shown with
+    their abstract, since that substance bears on almost any hypothesis in
+    the group's field. Every other paper is shown as one line of title,
+    year, and `paper_id`: enough for the model to recognise a relevant paper
+    and fetch it, without spending an abstract on each. Both tiers name the
+    `paper_id`, because the catalog is the only place those ids are
+    advertised and `fetch_paper` is the only way to read a paper in full --
+    there is no search over the corpus, so a paper the catalog omits cannot
+    be reached at all.
+
+    Injecting every abstract instead costs about 66k tokens per call against
+    roughly 14k for this arrangement over a 210-paper bibliography.
 
     Args:
         papers: The catalog papers to render.
 
     Returns:
-        A titled block listing every paper's title, id, and abstract, or an
-        empty string when the catalog is empty.
+        A block listing the core papers with abstracts and the rest as a
+        title index, or an empty string when the catalog is empty.
     """
     if not papers:
         return ""
+    core = [paper for paper in papers if paper.core]
+    rest = [paper for paper in papers if not paper.core]
+
     lines = [
-        "## The research group's own papers",
+        "## The research group's paper library",
         "",
-        "These are the group's published papers. The title and abstract of "
-        "every paper are below. When an abstract shows a paper is relevant, "
-        "call `fetch_paper(paper_id=...)` to read its full text; the "
-        "`paper_id` for each is given in parentheses.",
+        f"The group's bibliography is the {len(papers)} papers below, all "
+        "held on disk. Call `fetch_paper(paper_id=...)` to read any one in "
+        "full; the `paper_id` is given for every paper. The first papers "
+        "carry their abstract because they are the group's core methods and "
+        "findings; the rest are listed by title and year, newest first.",
         "",
     ]
-    for paper in papers:
-        lines.append(f"- **{paper.title}** (paper_id: `{paper.paper_id}`)")
-        lines.append(f"  {paper.abstract}")
+
+    if core:
+        lines.append("### Core papers")
+        lines.append("")
+        for paper in core:
+            label = (
+                ""
+                if paper.attribution == "group"
+                else f" [{paper.attribution}]"
+            )
+            lines.append(
+                f"- **{paper.title}** (paper_id: `{paper.paper_id}`){label}"
+            )
+            lines.append(f"  {paper.abstract}")
+        if any(paper.attribution != "group" for paper in core):
+            lines += [
+                "",
+                "Papers marked [external] are by other researchers and are "
+                "not this group's findings; [member prior work] is a "
+                "member's work from before joining the group. Attribute both "
+                "to their own authors, not to the group.",
+            ]
+        lines.append("")
+
+    if rest:
+        lines.append(f"### Full bibliography ({len(rest)} more papers)")
+        lines.append("")
+        ordered = sorted(rest, key=lambda p: (p.year or "0000", p.title))
+        for paper in reversed(ordered):
+            year = f" ({paper.year})" if paper.year else ""
+            lines.append(
+                f"- {paper.title}{year} (paper_id: `{paper.paper_id}`)"
+            )
+
     return "\n".join(lines)
 
 
