@@ -2,7 +2,8 @@
 
 Unlike the other tools here, this reads sanitized full text sitting on disk
 rather than querying a remote API. The corpus is built offline by the viewer's
-`app.corpus_ingest` and mounted into this service; when it is absent the tool
+`app/dev/corpus_ingest.py` and mounted into this service; when it is absent the
+tool
 reports so rather than failing, and the agent falls back to PubMed.
 
 The group's papers are not searched here: the whole catalog (title + abstract

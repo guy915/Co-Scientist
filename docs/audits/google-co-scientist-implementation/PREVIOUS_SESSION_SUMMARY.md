@@ -220,7 +220,7 @@ Preserve all existing user changes. Follow `AGENTS.md`, commit at natural checkp
 Maintain evidence traceability throughout:
 - Link each closed finding to exact files, symbols, tests, runtime evidence, or browser artifacts.
 - Update `fidelity_closure_overrides.json` only when direct evidence supports the new status.
-- Regenerate the closure matrix with `python3 scripts/build_fidelity_closure.py`.
+- Regenerate the closure matrix with `python3 docs/audits/google-co-scientist-implementation/build_fidelity_closure.py`.
 - Keep `docs/PARITY.md` consistent with actual behavior.
 - Clearly mark proprietary or insufficiently evidenced Google behavior as inferred or unverifiable.
 - Do not assign a numerical fidelity score or claim literal parity where Google’s implementation is undisclosed.

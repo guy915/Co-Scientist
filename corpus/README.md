@@ -15,7 +15,7 @@ previous behaviour.
 
 ```bash
 cd app
-python -m app.corpus_ingest /path/to/Papers --out ../corpus/sbi_ucd
+python dev/corpus_ingest.py /path/to/Papers --out ../corpus/sbi_ucd
 ```
 
 Requires `pdftotext` (`brew install poppler`). Subdirectories of the source
