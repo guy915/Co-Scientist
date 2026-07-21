@@ -28,6 +28,7 @@ import logging
 import logging.handlers
 import queue
 import sys
+import threading
 from collections.abc import Generator
 from contextvars import ContextVar
 
@@ -304,6 +305,78 @@ def _drop_dependency_chatter(record: logging.LogRecord) -> bool:
     )
 
 
+# How long a verbatim repeat stays suppressed. Long enough that a
+# steady-state condition is a footnote rather than the whole log, short
+# enough that "this is still true" resurfaces within a working session.
+REPEAT_SUPPRESS_SECONDS = 600.0
+
+# Cap on remembered (logger, level, run, message) keys, so a process
+# emitting endlessly varied messages cannot grow this without bound.
+_REPEAT_KEYS_MAX = 2_000
+
+
+class _RepeatSuppressor:
+    """Persists the first of a repeating record and drops its echoes.
+
+    A condition that is both expected and unchanging -- an availability
+    probe reporting the same unreachable server on every poll -- would
+    otherwise write a row per probe forever. Because the level filters
+    deliberately exempt WARNING and above, that stream is never dropped,
+    and on an idle app it is the only thing that grows: the Logs panel
+    shows a fixed newest-N window, so the repeated message eventually
+    crowds out every real record and the log reads as empty.
+
+    Suppression is by exact ``(logger, level, run id, message)``: the
+    first occurrence always persists, a *different* message from the same
+    logger is its own condition, and two runs emitting the same line stay
+    separately visible. This is the standard "last message repeated"
+    behaviour, applied at capture so the database never takes the write.
+    """
+
+    def __init__(self, window: float = REPEAT_SUPPRESS_SECONDS) -> None:
+        """Start with an empty history over a ``window``-second memory."""
+        self._window = window
+        self._seen: dict[tuple[str, int, str | None, str], float] = {}
+        self._lock = threading.Lock()
+
+    def __call__(self, record: logging.LogRecord) -> bool:
+        """Keep the record unless an identical one is still in the window."""
+        try:
+            message = record.getMessage()
+        except Exception:
+            message = str(record.msg)
+        key = (
+            record.name,
+            record.levelno,
+            getattr(record, "run_id", None),
+            message,
+        )
+        now = record.created
+        with self._lock:
+            last = self._seen.get(key)
+            if last is not None and now - last < self._window:
+                return False
+            if len(self._seen) >= _REPEAT_KEYS_MAX:
+                self._prune(now)
+            self._seen[key] = now
+        return True
+
+    def _prune(self, now: float) -> None:
+        """Forget keys past the window; clear outright if none have aged.
+
+        Called with the lock held. The fallback matters: a burst of
+        unique messages inside one window would leave nothing to expire,
+        and an unbounded dict is worse than a forgotten history.
+        """
+        self._seen = {
+            key: seen
+            for key, seen in self._seen.items()
+            if now - seen < self._window
+        }
+        if len(self._seen) >= _REPEAT_KEYS_MAX:
+            self._seen.clear()
+
+
 def _drop_self_noise(record: logging.LogRecord) -> bool:
     """Filter out access records for the log-polling endpoint itself.
 
@@ -381,6 +454,9 @@ def configure_log_capture(
     handler.addFilter(RunIdFilter())
     handler.addFilter(_drop_self_noise)
     handler.addFilter(_drop_dependency_chatter)
+    # Last in the chain, and after RunIdFilter: the key it builds includes
+    # the run id that filter stamps on.
+    handler.addFilter(_RepeatSuppressor())
     listener = logging.handlers.QueueListener(
         record_queue, _StoreWriteHandler(max_rows)
     )

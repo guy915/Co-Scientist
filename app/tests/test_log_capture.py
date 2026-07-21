@@ -236,3 +236,37 @@ def test_high_volume_dependency_loggers_are_not_persisted(
     messages = {row["message"] for row in rows}
     assert not [m for m in messages if m.startswith("routine ")]
     assert len([m for m in messages if "is in trouble" in m]) == 3
+
+
+def test_repeated_identical_records_are_persisted_once(
+    isolated_db: str,
+) -> None:
+    """A steady-state condition must not refill the log on every probe.
+
+    The MCP availability probe warns once per /status refresh, and both
+    noise filters exempt WARNING and above, so an unconfigured or
+    unreachable server wrote two rows every 30-60 seconds forever. On an
+    idle app that was the only thing growing: the Logs panel shows a
+    fixed newest-100 window, so after about half an hour the whole window
+    was one message repeated and the log read as though nothing was being
+    collected.
+
+    The first occurrence still persists in full -- a real problem must
+    stay visible -- and only verbatim repeats inside the window are
+    dropped.
+    """
+    configure_log_capture()
+    probe = logging.getLogger("co_scientist.mcp_client_availability")
+    probe.setLevel(logging.INFO)
+    for _ in range(20):
+        probe.warning("MCP server unavailable at %s", "http://127.0.0.1:9/mcp")
+    probe.warning("MCP server responded but provided no tools")
+    _flush()
+
+    rows = store.list_logs(db_path=isolated_db)
+    messages = [row["message"] for row in rows]
+    assert (
+        messages.count("MCP server unavailable at http://127.0.0.1:9/mcp") == 1
+    )
+    # A different message from the same logger is its own condition.
+    assert "MCP server responded but provided no tools" in messages
