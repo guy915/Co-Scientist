@@ -23,10 +23,11 @@ Endpoints:
 - GET    /api/runs/{id}/report            structured report payload (latest)
 - GET    /api/runs/{id}/report.md         rendered Markdown report
 
-The router maintains a per-run cancellation event in `_active` (defined in
-``runs_registry``). Streams are backed by the persisted event log so they
-survive client reconnects and full backend restarts. Request models live in
-``runs_models`` and SSE streaming helpers in ``runs_events``.
+Cancellation and pause are durable: they revoke the run's queued/leased
+tasks and update the run row, which the workers observe. Streams are backed
+by the persisted event log so they survive client reconnects and full
+backend restarts. Request models live in ``runs_models`` and SSE streaming
+helpers in ``runs_events``.
 """
 
 from __future__ import annotations
@@ -82,7 +83,6 @@ from app.runs_models import (
     StartRunRequest,
     _build_create_run_config,
 )
-from app.runs_registry import _active, _active_lock
 from app.store import TERMINAL_STATUSES, RunRow, RunStatus
 from app.title_gen import generate_run_title
 
@@ -92,23 +92,6 @@ logger = logging.getLogger(__name__)
 # mid-run; each removes itself on completion (see _launch_resume).
 _resume_tasks: set[asyncio.Task[None]] = set()
 router = APIRouter(prefix="/api/runs", tags=["runs"])
-
-
-def _concurrency_limit(unused_mode: str) -> int:
-    """Return how many runs of a tier one client may have in flight.
-
-    Uniform across tiers. Heavier tiers were previously capped harder (ultra
-    at 1), which stopped a researcher from investigating two questions at
-    once -- precisely what the deep tiers are for -- and read as a global
-    restriction even though the quota has always been scoped per client.
-    Bounding provider spend is now the tier budget's job (max_llm_calls), so
-    this ceiling only has to stop one client queueing unboundedly.
-
-    Args:
-        unused_mode: The run tier; kept so the per-tier shape stays available
-            if a future tier genuinely needs its own ceiling.
-    """
-    return settings.max_concurrent_runs
 
 
 # ---------------------------------------------------------------------------
@@ -232,9 +215,8 @@ async def create_run(
         },
     )
     # Title generation needs a real model, so only when a provider credential
-    # is configured. Every run is now the engine provider, so gate on the LLM
-    # backend instead: offline/keyless runs keep the goal-clause fallback.
-    if provider == "engine" and not engine_adapter.offline_mode():
+    # is configured: offline/keyless runs keep the goal-clause fallback.
+    if not engine_adapter.offline_mode():
         background_tasks.add_task(
             _populate_run_title, run.id, req.research_goal
         )
@@ -345,7 +327,12 @@ async def start_run(
     run = _run_or_404(run_id)
     _check_startable(run)
     mode = str(run.profile)
-    limit = _concurrency_limit(mode)
+    # One ceiling for every tier: heavier tiers were previously capped
+    # harder (ultra at 1), which stopped a researcher from investigating two
+    # questions at once -- precisely what the deep tiers are for. Bounding
+    # provider spend is the tier budget's job (max_llm_calls); this only has
+    # to stop one client queueing unboundedly.
+    limit = settings.max_concurrent_runs
     if not store.reserve_run_capacity(
         run_id,
         profile=mode,
@@ -375,25 +362,16 @@ async def start_run(
 
 @router.post("/{run_id}/cancel")
 async def cancel_run(run_id: str) -> dict[str, Any]:
-    """Cancel a run, whether or not it has an in-process workflow handle.
+    """Cancel a run by revoking its durable tasks and marking it CANCELLED.
 
-    With an active handle, cancellation is cooperative: this only sets the
-    handle's event, and the workflow transitions the run to CANCELLED at its
-    next checkpoint, so the response says 'cancelling'.
-
-    Without a handle -- a draft that never started, or a run left non-terminal
-    by a server restart -- there is no workflow to signal, so any non-terminal
-    run is transitioned to CANCELLED here directly and a terminal ``cancelled``
-    status event is emitted (mirroring the failed-run path) so open SSE streams
-    close. An already-terminal run cannot be cancelled and returns 409.
+    Cancellation is durable, not in-process: revoking the run's queued and
+    leased tasks is what stops the workers (their lease heartbeat observes
+    the revocation and cancels in-flight work), so any non-terminal run is
+    transitioned to CANCELLED here directly and a terminal ``cancelled``
+    status event is emitted (mirroring the failed-run path) so open SSE
+    streams close. An already-terminal run cannot be cancelled, returns 409.
     """
     run = _run_or_404(run_id)
-    async with _active_lock:
-        handle = _active.get(run_id)
-    if handle:
-        handle.cancelled.set()
-        store.append_event(run_id, "lifecycle", {"event": "cancel_requested"})
-        return {"id": run_id, "status": "cancelling"}
     if run.status in TERMINAL_STATUSES:
         raise HTTPException(status_code=409, detail="run already finished")
     store.cancel_run_tasks(run_id)
@@ -560,16 +538,13 @@ async def resume_interrupted_runs(run_ids: list[str]) -> None:
     """Relaunch each resumable interrupted run at startup (Milestone 4).
 
     Called from the app lifespan after ``reconcile_interrupted_runs`` finds
-    runs left non-terminal by a restart that still hold a checkpoint. Skips any
-    run that has since completed or is already active.
+    runs left non-terminal by a restart that still hold a checkpoint. Skips
+    any run that has since completed.
     """
     for run_id in run_ids:
         run = store.get_run(run_id)
         if run is None or run.status == RunStatus.COMPLETED.value:
             continue
-        async with _active_lock:
-            if run_id in _active:
-                continue
         try:
             await _launch_resume(run_id)
         except HTTPException:

@@ -1,10 +1,9 @@
 """Tests for the SSE streaming helpers in ``app.runs_events``.
 
-Covers the pure per-tick helpers directly (terminal-status detection, tick
-skipping, frame draining) plus the two async generators (``_stream_live_tail``
-and ``_event_stream``) via a minimal fake ``Request`` stand-in, since a full
-HTTP round-trip through ``TestClient`` cannot easily control tick timing or
-in-process producer handles.
+Covers the pure per-tick helpers directly (terminal-status detection, frame
+draining) plus the two async generators (``_stream_live_tail`` and
+``_event_stream``) via a minimal fake ``Request`` stand-in, since a full
+HTTP round-trip through ``TestClient`` cannot easily control tick timing.
 """
 
 from __future__ import annotations
@@ -14,7 +13,6 @@ import asyncio
 import pytest
 
 from app import runs_events, store
-from app.runs_registry import _RunHandle
 from app.store import RunStatus
 from tests._client import drain as _drain
 
@@ -55,47 +53,6 @@ def test_terminal_frame_formats_sse_payload() -> None:
     assert '"type": "_terminal"' in frame
     assert '"status": "completed"' in frame
     assert '"seq": 5' in frame
-
-
-# ---------------------------------------------------------------------------
-# _should_skip_tick
-# ---------------------------------------------------------------------------
-
-
-def test_should_skip_tick_without_handle_sleeps_and_returns_false() -> None:
-    async def _run() -> bool:
-        return await runs_events._should_skip_tick(None, 0)
-
-    assert asyncio.run(_run()) is False
-
-
-def test_should_skip_tick_returns_false_and_clears_event_when_set() -> None:
-    handle = _RunHandle()
-    handle.new_event.set()
-
-    async def _run() -> bool:
-        return await runs_events._should_skip_tick(handle, 0)
-
-    assert asyncio.run(_run()) is False
-    assert not handle.new_event.is_set()
-
-
-def test_should_skip_tick_times_out_and_skips_non_safety_tick() -> None:
-    handle = _RunHandle()  # new_event never set -> waits out the timeout
-
-    async def _run() -> bool:
-        return await runs_events._should_skip_tick(handle, 3)
-
-    assert asyncio.run(_run()) is True
-
-
-def test_should_skip_tick_times_out_but_tenth_tick_does_not_skip() -> None:
-    handle = _RunHandle()
-
-    async def _run() -> bool:
-        return await runs_events._should_skip_tick(handle, 9)
-
-    assert asyncio.run(_run()) is False
 
 
 # ---------------------------------------------------------------------------
@@ -231,30 +188,24 @@ def test_stream_live_tail_returns_immediately_on_disconnect(
         runs_events._stream_live_tail(
             run.id,
             request,  # type: ignore[arg-type]
-            None,
             0,
         )
     )
     assert frames == []
 
 
-def test_stream_live_tail_ends_on_terminal_event_via_handle(
-    isolated_db: str,
-) -> None:
-    """A pre-set handle event skips the poll wait; the new event ends it."""
+def test_stream_live_tail_ends_on_terminal_event(isolated_db: str) -> None:
+    """The poll drains the terminal status event and closes the stream."""
     run = store.create_run("g", "default", "mock", {}, db_path=isolated_db)
     seq = store.append_event(
         run.id, "status", {"status": "completed"}, db_path=isolated_db
     )
-    handle = _RunHandle()
-    handle.new_event.set()
     request = _FakeRequest()
 
     frames = _drain(
         runs_events._stream_live_tail(
             run.id,
             request,  # type: ignore[arg-type]
-            handle,
             0,
         )
     )
@@ -264,32 +215,8 @@ def test_stream_live_tail_ends_on_terminal_event_via_handle(
     assert f'"seq": {seq}' in frames[1]
 
 
-def test_stream_live_tail_continues_past_skipped_tick(
-    isolated_db: str,
-) -> None:
-    """A tick where ``_should_skip_tick`` returns True is simply skipped.
-
-    A handle whose ``new_event`` is never set times out on every tick,
-    returning True (skip) on every tick but the every-10th safety net; the
-    loop must ``continue`` rather than draining events on that tick.
-    """
-    run = store.create_run("g", "default", "mock", {}, db_path=isolated_db)
-    handle = _RunHandle()  # new_event never set -> tick 0 times out and skips
-    request = _FakeRequest(disconnect_after=2)  # disconnect on the 2nd check
-
-    frames = _drain(
-        runs_events._stream_live_tail(
-            run.id,
-            request,  # type: ignore[arg-type]
-            handle,
-            0,
-        )
-    )
-    assert frames == []
-
-
-def test_stream_live_tail_polls_without_handle(isolated_db: str) -> None:
-    """With no in-process handle, the loop falls back to fixed polling."""
+def test_stream_live_tail_polls_to_a_cancelled_close(isolated_db: str) -> None:
+    """A cancelled run's status event ends the polled stream."""
     run = store.create_run("g", "default", "mock", {}, db_path=isolated_db)
     store.append_event(
         run.id, "status", {"status": "cancelled"}, db_path=isolated_db
@@ -300,7 +227,6 @@ def test_stream_live_tail_polls_without_handle(isolated_db: str) -> None:
         runs_events._stream_live_tail(
             run.id,
             request,  # type: ignore[arg-type]
-            None,
             0,
         )
     )

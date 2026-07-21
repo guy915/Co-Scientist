@@ -1,11 +1,11 @@
 """SSE streaming helpers for the run events endpoint.
 
 Backs ``runs.stream_events``: replays the persisted event log from a client's
-last-seen sequence, then tails live events. Streams are driven by the store so
-they survive client reconnects and full backend restarts; the in-process
-``runs_registry`` handle only cuts latency when this process is the producer.
-Every name is re-exported from ``app.runs`` so the ``app.runs.<name>`` import
-paths stay stable.
+last-seen sequence, then tails live events. Streams are driven by the store
+so they survive client reconnects and full backend restarts -- runs execute
+on the durable worker, so the store is the only channel between producer and
+stream. Every name is re-exported from ``app.runs`` so the
+``app.runs.<name>`` import paths stay stable.
 """
 
 from __future__ import annotations
@@ -17,7 +17,6 @@ from typing import Any
 from fastapi import Request
 
 from app import qa, store
-from app.runs_registry import _active, _active_lock, _RunHandle
 from app.store import TERMINAL_STATUSES, RunRow, RunStatus
 
 # Statuses that end an SSE stream. PAUSED is not a terminal *run* status (a
@@ -38,35 +37,6 @@ def _terminal_frame(status: str, seq: int) -> str:
     return qa.sse_frame(
         {"type": "_terminal", "payload": {"status": status}, "seq": seq}
     )
-
-
-async def _should_skip_tick(handle: _RunHandle | None, tick: int) -> bool:
-    """Wait out one poll tick and report whether to skip the store query.
-
-    Wakes early on the producer's pulse; the event is cleared before
-    returning so a set that races this wait is caught next iteration. With
-    an in-process producer, every appended event sets `new_event`, so a
-    timed-out wait means nothing was written -- skip the query, except on
-    the every-10th-tick terminal-status safety net.
-
-    Args:
-        handle: In-process run handle, or None when this process is not the
-            producer (falls back to plain fixed-interval polling and never
-            skips).
-        tick: The current tick index within the streaming loop.
-
-    Returns:
-        True if this tick's event query should be skipped.
-    """
-    if handle is None:
-        await asyncio.sleep(0.5)
-        return False
-    try:
-        await asyncio.wait_for(handle.new_event.wait(), timeout=0.5)
-        handle.new_event.clear()
-        return False
-    except asyncio.TimeoutError:
-        return tick % 10 != 9
 
 
 def _terminal_status_from_event(ev: dict[str, Any]) -> str | None:
@@ -145,20 +115,18 @@ def _drain_tick_frames(
 async def _stream_live_tail(
     run_id: str,
     request: Request,
-    handle: _RunHandle | None,
     last_seq: int,
 ) -> AsyncGenerator[str, None]:
     """Poll and yield live SSE frames after replay, until terminal or gone.
 
-    Polls the store; the in-process handle's `new_event` cuts latency when
-    this process is the producer. Caps with a wall-clock so a stale
-    connection doesn't hang forever.
+    Polls the store at a fixed cadence -- the durable worker producing the
+    events may be another process entirely, so the persisted log is the only
+    signal. Caps with a wall-clock so a stale connection doesn't hang
+    forever.
 
     Args:
         run_id: Identifier of the run being streamed.
         request: Incoming HTTP request, used to detect client disconnects.
-        handle: In-process run handle, or None when this process is not the
-            producer (falls back to plain fixed-interval polling).
         last_seq: Highest sequence number already yielded by replay.
 
     Yields:
@@ -168,9 +136,7 @@ async def _stream_live_tail(
     for tick in range(10_000):  # 10k * 0.5s = ~83 minutes max stream
         if await request.is_disconnected():
             return
-
-        if await _should_skip_tick(handle, tick):
-            continue
+        await asyncio.sleep(0.5)
 
         last_seq, terminal_status, frames = _drain_tick_frames(run_id, last_seq)
         for frame in frames:
@@ -198,8 +164,6 @@ async def _event_stream(
     # Replay historical events first. This reads the whole persisted log from
     # the client's last-seen seq, which can be large, so offload the blocking
     # read to a worker thread rather than stalling the event loop on connect.
-    # (The live poll loop below stays inline: _should_skip_tick gates it on a
-    # real new-event signal, so its per-tick reads don't fire on idle ticks.)
     history = await asyncio.to_thread(
         store.list_events, run_id, after_seq=last_seq
     )
@@ -212,10 +176,5 @@ async def _event_stream(
         yield _terminal_frame(run.status, last_seq)
         return
 
-    # Handle is present only when this process runs the workflow; other
-    # processes (or post-restart streams) fall back to pure polling.
-    async with _active_lock:
-        handle = _active.get(run_id)
-
-    async for frame in _stream_live_tail(run_id, request, handle, last_seq):
+    async for frame in _stream_live_tail(run_id, request, last_seq):
         yield frame
