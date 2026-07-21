@@ -1,8 +1,8 @@
-"""Reproducible hypothesis-quality metrics (PLAN.md Milestone 8).
+"""Reproducible hypothesis-quality metrics.
 
 Pure, deterministic metric functions over a hypothesis pool: hypothesis
 *diversity* and the *generation-vs-evolution yield/diversity* split. These do
-not use the engine's own Elo as ground truth (PLAN.md forbids that); they
+not use the engine's own Elo as ground truth, which would be circular; they
 measure the pool's textual spread and where hypotheses came from, which the
 Supervisor's summary statistics and the scaling/ablation harnesses consume.
 

@@ -2,7 +2,7 @@
 
 Scientists can contribute their own hypotheses and reviews, which the paper
 ranks alongside (and combines with) system-generated ones (SSR §5). The
-invariant PLAN.md requires: a human-added hypothesis uses the *same* safety,
+invariant is that a human-added hypothesis uses the *same* safety,
 review, proximity, and tournament-entry path as a generated one, and retains
 authorship provenance.
 

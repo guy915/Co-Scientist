@@ -1,4 +1,4 @@
-"""Offline evaluation smoke suite (PLAN.md Milestone 8.4).
+"""Offline evaluation smoke suite.
 
 A single documented command that runs every *offline* (no-LLM, no-network)
 evaluation and fails on a regression beyond a documented tolerance. This is the

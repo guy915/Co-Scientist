@@ -3,7 +3,7 @@
 These are plain, serializable dataclasses so a scheduling decision — and the
 observable statistics behind it — travel through ``WorkflowState``, the
 streaming snapshots, and (eventually) the durable checkpoint as data, not as
-log lines (PLAN.md M2.1).
+log lines.
 """
 
 from __future__ import annotations
@@ -65,8 +65,8 @@ class Budget:
 
     ``max_iterations`` is the satisfied-completion cap (existing behavior).
     The others are optional hard ceilings; ``None`` means "no limit". The
-    scheduler enforces all of them as real termination predicates (PLAN.md
-    M2.6), not just ``max_iterations``.
+    scheduler enforces all of them as real termination predicates, not just
+    ``max_iterations``.
     """
 
     max_iterations: int
@@ -150,8 +150,8 @@ class SupervisorDecision:
 
     ``terminate`` and ``termination_reason`` are set together with
     ``next_task == TaskType.TERMINATE``. ``reason`` is always a human-readable
-    justification persisted to the task history (PLAN.md M2.6 requires a
-    recorded reason for every scheduled task and the final stop).
+    justification persisted to the task history: every scheduled task and
+    the final stop record a reason.
     """
 
     next_task: TaskType

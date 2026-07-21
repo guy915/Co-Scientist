@@ -114,8 +114,8 @@ def _derive_hypothesis_identity(h: dict[str, Any]) -> _HypIdentity:
     """Derive an engine hypothesis's statement, title, and explicit lineage.
 
     Reads the engine's explicit lineage fields (``parent_id``/``generation``/
-    ``origin``) rather than reconstructing lineage from ``evolution_history``
-    (PLAN.md M1.4). Pre-lineage cached payloads (which lack these keys) fall
+    ``origin``) rather than reconstructing lineage from ``evolution_history``.
+    Pre-lineage cached payloads (which lack these keys) fall
     back to the old ``evolution_history`` inference so old runs still drain.
     The title is the first sentence of the statement (see ``first_sentence``).
 

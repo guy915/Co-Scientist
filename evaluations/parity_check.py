@@ -9,8 +9,8 @@ green test suite cannot silently drift from the parity claims:
    column count, so a stray ``|`` inside a cell fails loudly instead of
    silently shifting columns.
 4. Every ``verified`` row names at least one test/eval in its Test/Eval cell
-   (a non-empty value that is not just an em dash). This is the rule PLAN.md
-   requires: "CI must fail if a row is marked ``verified`` without evidence."
+   (a non-empty value that is not just an em dash). The rule: CI must fail if
+   a row is marked ``verified`` without evidence.
 5. The evidence is real: each backtick-quoted file reference in a
    ``verified`` row's Test/Eval cell (a path, glob, or pytest nodeid such as
    ``tests/test_foo.py::test_bar``) must resolve to an existing file under
@@ -337,7 +337,7 @@ def check_parity(
 
         # A 'partial'/'missing' row must record what remains and who owns it.
         # Downgrading a claim without naming the residual gap is the exact
-        # truth-drift the ledger exists to prevent (PLAN.md M0).
+        # truth-drift the ledger exists to prevent.
         if status in ("partial", "missing") and _cell_is_empty(residual):
             errors.append(
                 f"{path.name}:{lineno}: {req_id!r} is {status!r} but records "

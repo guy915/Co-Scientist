@@ -1,7 +1,7 @@
 # Parity Verification Report
 
 This report records the exact commands, results, coverage, and honest
-limitations of the published-behavior parity work described in `PLAN.md`. It is
+limitations of the published-behavior parity work. It is
 the companion to the requirement-level ledger in [PARITY.md](PARITY.md).
 
 **It does not claim a 1:1 replica of Google's proprietary AI Co-Scientist.**
@@ -46,7 +46,7 @@ shared Python 3.12.12 environment.
 | Parity checker | `python -m evaluations.parity_check` | OK — every `verified` row cites test/eval evidence; every `partial`/`missing` row names a residual gap/owner (64 rows) |
 | Parity checker tests | `python -m pytest evaluations/tests -q` | passed (parity + docs-truth + citation-eval + safety-eval) |
 
-Coverage floors required by PLAN.md (≥80% each of engine, app backend,
+Coverage floors (≥80% each of engine, app backend,
 frontend) are met with margin: engine 96%, app 95%, frontend 95.4% statements /
 96.9% lines. No individual source file (including every module added in this
 work) falls below 80%.
@@ -133,7 +133,7 @@ Offline evaluations (machine-readable results under `evaluations/results/`):
 
 ## 3. Real-provider (engine) evidence and the recorded external blocker
 
-Per PLAN.md, mock success never substitutes for real-provider verification.
+Mock success never substitutes for real-provider verification.
 
 ### 3a. Real-provider run — performed
 

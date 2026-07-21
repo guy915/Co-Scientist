@@ -160,8 +160,7 @@ def _apply_evolution_result(
     Rejects the refinement (creating NO child) if the LLM echoed the input
     back verbatim, or if the refined text converged too closely onto one of
     the peer hypotheses shown as diversity context. A rejected evolution is a
-    genuine no-op: the parent stays unchanged and no fake child is minted
-    (PLAN.md M1.2).
+    genuine no-op: the parent stays unchanged and no fake child is minted.
 
     Args:
         hypothesis: Parent hypothesis being evolved; never mutated.

@@ -2,8 +2,11 @@ import {fileURLToPath} from 'node:url';
 
 import {expect, test} from '../support/fixtures';
 
+// Screenshots are build artifacts, not tracked docs assets: write them under
+// e2e/test-results/, which e2e/.gitignore already covers, so a local run never
+// leaves untracked PNGs in docs/assets/ for a later `git add -A` to pick up.
 function assetPath(name: string): string {
-  return fileURLToPath(new URL(`../../docs/assets/${name}`, import.meta.url));
+  return fileURLToPath(new URL(`../test-results/${name}`, import.meta.url));
 }
 
 test('faithful home renders at the required desktop viewport', async ({page}) => {

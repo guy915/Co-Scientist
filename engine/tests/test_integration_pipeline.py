@@ -237,7 +237,7 @@ async def test_budget_exhaustion_terminates_the_run(
     """A hard LLM-call budget stops the run with a budget termination reason.
 
     Proves the budget is a real termination predicate, not just
-    max_iterations (PLAN.md M2.6).
+    max_iterations.
     """
     install_fake_llm(monkeypatch)
     gen = HypothesisGenerator(

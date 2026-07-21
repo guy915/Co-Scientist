@@ -1,6 +1,6 @@
 // Run lifecycle API client. Mirrors the FastAPI router in app/runs.py.
 
-import {getAccessToken, getClientId} from '@/lib/client_id';
+import {clearAccessToken, getAccessToken, getClientId} from '@/lib/client_id';
 import {mergeByIdNewestFirst} from '@/lib/merge';
 import type {
   Audience,
@@ -141,8 +141,20 @@ function responseErrorMessage(
  * Parses a fetch `Response` as JSON, or throws a descriptive `Error` when the
  * response was not ok.
  */
+/**
+ * Drop the stored researcher session on a 401. The token is expired or invalid,
+ * so keeping it makes `clientHeaders` re-send a dead Bearer on every request —
+ * each one 401s and the tab is bricked until sessionStorage is cleared by hand.
+ * Dropping it lets the next request fall back to X-Client-ID. Called from every
+ * response path that inspects status (plain JSON, SSE streams, raw requests).
+ */
+function forgetSessionIfUnauthorized(res: Response): void {
+  if (res.status === 401) clearAccessToken();
+}
+
 async function parseJson<T>(res: Response, errorPrefix?: string): Promise<T> {
   if (!res.ok) {
+    forgetSessionIfUnauthorized(res);
     const text = await res.text().catch(() => res.statusText);
     throw new Error(
       responseErrorMessage(res.status, res.statusText, text, errorPrefix),
@@ -239,6 +251,7 @@ async function* readSseFrames<T>(
   errorPrefix?: string,
 ): AsyncGenerator<T> {
   if (!res.ok || !res.body) {
+    forgetSessionIfUnauthorized(res);
     const text = await res.text().catch(() => res.statusText);
     throw new Error(
       responseErrorMessage(res.status, res.statusText, text, errorPrefix),
@@ -621,7 +634,10 @@ export async function revokeReportShare(
     `${API_BASE_URL}/api/runs/${runId}/shares/${shareId}`,
     {method: 'DELETE', headers: clientHeaders()},
   );
-  if (!response.ok) throw new Error(await response.text());
+  if (!response.ok) {
+    forgetSessionIfUnauthorized(response);
+    throw new Error(await response.text());
+  }
 }
 
 /** Loads a public read-only Goal Report without a client ownership header. */

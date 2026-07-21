@@ -1,4 +1,4 @@
-.PHONY: help setup start dev-api dev-ui dev-all dev-mcp preflight ensure-deps open-when-ready test test-app test-engine test-all e2e parity eval-smoke lint typecheck build clean stop reset-db
+.PHONY: help setup start dev-api dev-ui dev-all dev-mcp preflight ensure-deps open-when-ready test test-app test-engine test-all parity eval-smoke e2e lint typecheck build clean stop reset-db
 
 ROOT := $(shell pwd)
 ENGINE := $(ROOT)/engine
@@ -29,11 +29,11 @@ help:
 	@echo "  make test-engine  Run engine pytest suite"
 	@echo "  make test-all     Run backend pytest suites (engine + app) + parity gate"
 	@echo "  make e2e          Run the browser end-to-end suite (headless, isolated stack)"
-	@echo "  make parity       Run the parity-ledger gate (docs/PARITY.md evidence check)"
-	@echo "  make eval-smoke   Run the offline evaluation smoke suite (safety + citations)"
-	@echo "  make lint         Lint backend (ruff)"
-	@echo "  make typecheck    Typecheck backend (mypy)"
-	@echo "  make build        Build frontend (tsc + vite build)"
+	@echo "  make parity       Check the docs/PARITY.md evidence gate + its tests"
+	@echo "  make eval-smoke   Run the offline evaluation smoke suite (no LLM, no network)"
+	@echo "  make lint         Lint backend (ruff format --check + ruff check)"
+	@echo "  make typecheck    Typecheck backend (mypy: app, engine, evaluations)"
+	@echo "  make build        Build frontend (tsc + vite build + prerender)"
 	@echo "  make clean        Remove .venv, caches, frontend dist"
 	@echo "  make reset-db     Drop the local SQLite store (coscientist.db)"
 
@@ -51,10 +51,13 @@ setup: $(VENV)/bin/activate
 	@$(PIP) install pytest pytest-asyncio ruff mypy
 	@# Reference MCP server is optional and pins Python 3.12, so we don't install it here.
 	@echo ">> Installing frontend (bun preferred, npm fallback)"
-	@cd "$(FRONTEND)" && (command -v bun >/dev/null 2>&1 && bun install) || (echo "bun not found; using npm" && npm install --no-audit --no-fund --silent)
+	@cd "$(FRONTEND)" && if command -v bun >/dev/null 2>&1; then bun install; else echo "bun not found; using npm"; npm install --no-audit --no-fund --silent; fi
 	@test -f "$(ROOT)/.env" || cp "$(ROOT)/.env.example" "$(ROOT)/.env"
 	@echo ""
 	@echo "Setup complete. Next:"
+	@echo "  make start      # MCP + API + UI in one command, then opens the browser"
+	@echo ""
+	@echo "Or run the pieces in separate terminals:"
 	@echo "  make dev-api    # in one terminal"
 	@echo "  make dev-ui     # in another terminal"
 
@@ -91,7 +94,7 @@ ensure-deps:
 		$(MAKE) setup; \
 	elif [ ! -d "$(FRONTEND)/node_modules" ]; then \
 		echo ">> Frontend deps missing — installing"; \
-		cd "$(FRONTEND)" && { command -v bun >/dev/null 2>&1 && bun install; } || npm install --no-audit --no-fund; \
+		cd "$(FRONTEND)" && if command -v bun >/dev/null 2>&1; then bun install; else npm install --no-audit --no-fund; fi; \
 	fi
 
 dev-all:
@@ -146,7 +149,7 @@ dev-api:
 
 dev-ui:
 	@echo ">> Starting Vite UI on $(UI_URL)"
-	@cd "$(FRONTEND)" && (command -v bun >/dev/null 2>&1 && bun run dev) || npm run dev
+	@cd "$(FRONTEND)" && if command -v bun >/dev/null 2>&1; then bun run dev; else npm run dev; fi
 
 dev-mcp:
 	@# Single shell block on purpose: each make recipe line runs in its own
@@ -221,17 +224,26 @@ parity:
 eval-smoke:
 	@cd "$(ROOT)" && "$(PY)" -m evaluations.smoke
 
+# Mirrors the CI format-lint job: CI runs `ruff format --check` alongside
+# `ruff check` for all three trees, so run both here or a formatting-only
+# failure stays invisible until CI.
 lint:
+	@cd "$(ENGINE)" && "$(PY)" -m ruff format --check .
+	@cd "$(APP)" && "$(PY)" -m ruff format --check .
+	@cd "$(ROOT)" && "$(PY)" -m ruff format --check evaluations
 	@cd "$(APP)" && "$(PY)" -m ruff check app tests
 	@cd "$(ENGINE)" && "$(PY)" -m ruff check .
 	@cd "$(ROOT)" && "$(PY)" -m ruff check evaluations
 
+# Mirrors the CI typecheck job, which covers engine/ as well as app/ and
+# evaluations/.
 typecheck:
 	@cd "$(APP)" && "$(PY)" -m mypy app/
+	@cd "$(ENGINE)" && "$(PY)" -m mypy .
 	@cd "$(ROOT)/evaluations" && "$(PY)" -m mypy .
 
 build:
-	@cd "$(FRONTEND)" && (command -v bun >/dev/null 2>&1 && bun run build) || npm run build
+	@cd "$(FRONTEND)" && if command -v bun >/dev/null 2>&1; then bun run build; else npm run build; fi
 
 clean:
 	rm -rf "$(VENV)" "$(MCP_VENV)" "$(FRONTEND)/dist" "$(FRONTEND)/node_modules" "$(APP)"/.coscientist_cache "$(APP)"/cache

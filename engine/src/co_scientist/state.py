@@ -132,7 +132,7 @@ def deduplicate_hypotheses(
     """State reducer combining a node's hypotheses update with the pool.
 
     Explicit, deterministic operations replace the former identity/text
-    heuristic (PLAN.md M1.3):
+    heuristic:
 
     - ``AppendHypotheses(items)`` — append items, dropping id/exact-text
       collisions. Used by Generation and Evolution so an evolved child cannot

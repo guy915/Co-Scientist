@@ -1,6 +1,6 @@
 """Tests for the parity-ledger checker.
 
-Covers the invariants PLAN.md requires the checker to enforce (a ``verified``
+Covers the invariants the checker enforces (a ``verified``
 row must cite evidence that exists on disk; statuses are constrained; IDs
 unique; rows keep their header's column count) and confirms the committed
 ``docs/PARITY.md`` passes its own checker.

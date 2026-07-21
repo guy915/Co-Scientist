@@ -1,4 +1,4 @@
-"""Deterministic scheduling-policy tests (PLAN.md Milestone 2 acceptance).
+"""Deterministic scheduling-policy acceptance tests.
 
 Covers the required scheduling states — generation-heavy, evolution-heavy,
 verification-backlogged, converged, budget-exhausted, steered, and retry —

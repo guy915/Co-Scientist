@@ -17,7 +17,7 @@ INDRA CoGex knowledge-graph tools. A new grounding source = an MCP server tool
 + a YAML config entry + workflow wiring.
 
 The Antigravity skills are **not portable** to this layer. They are
-Claude-skill format — prose `SKILL.md` + `uv`-run Python CLIs with file-based
+agent-skill format — prose `SKILL.md` + `uv`-run Python CLIs with file-based
 JSON I/O — with no typed tool manifest. Each would need bespoke
 reverse-engineering into an MCP tool (the bundle's own estimate: 2–12 h each).
 Porting all 36 is out of scope, and **Co-Scientist is the main character**: we

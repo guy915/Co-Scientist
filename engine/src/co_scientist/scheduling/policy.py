@@ -4,7 +4,7 @@
 :class:`Budget`. Given the observable state at a loop point, it returns the
 next :class:`SupervisorDecision` — which task to run (or to terminate, and
 why). The policy is deterministic and order-independent so the required
-scheduling states can be tested in isolation (PLAN.md M2.3).
+scheduling states can be tested in isolation.
 
 An LLM Supervisor may *recommend* a next task; :func:`validate_decision` is the
 gate that enforces the allowed transitions and budget on any recommendation

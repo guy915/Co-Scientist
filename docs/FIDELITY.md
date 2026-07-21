@@ -66,7 +66,7 @@ These features are described in the published material but are not implemented h
     server -- no separate mock-evidence generator exists. No live retrieval is
     wired into the FastAPI runs adapter beyond what the engine already does.
 -   **Distributed worker queue.** Runs execute in a FastAPI background task;
-    no Celery/Redis worker pool. Per PLAN.md the local FastAPI path is kept
+    no Celery/Redis worker pool. The local FastAPI path is kept
     viable deliberately rather than adopting an undisclosed Google stack.
 -   **Multi-user collaboration, authentication, and project ownership.**
     Local-first only.

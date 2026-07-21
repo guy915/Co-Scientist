@@ -57,8 +57,6 @@ concurrently through the same durable queue without cross-run interference.
 
 ## Result
 
-All scenarios above are covered by passing automated tests (see the
-verification log in `fidelity_closure_overrides.json` for the aggregate suite
-count on 2026-07-14). The residual gap is scale: these guarantees hold for a
+All scenarios above are covered by passing automated tests. The residual gap is scale: these guarantees hold for a
 single-host multi-worker SQLite deployment; distributed-executor behavior is an
 evidence-bounded reconstruction, not a verified property.

@@ -1,7 +1,7 @@
 """Adaptive orchestration: task types, scheduler stats, and the policy.
 
-This package holds the *deterministic* Supervisor scheduling policy (PLAN.md
-Milestone 2). The compiled LangGraph consults it at the loop point to choose
+This package holds the *deterministic* Supervisor scheduling policy. The
+compiled LangGraph consults it at the loop point to choose
 the next task from observable state, rather than following a fixed sequence.
 An LLM Supervisor may still recommend weights/actions, but this code validates
 the decision, the allowed transitions, the budget, and termination.

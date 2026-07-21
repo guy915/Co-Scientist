@@ -1,4 +1,4 @@
-"""Local MCP-backed golden run (PLAN.md P0.6).
+"""Local MCP-backed golden run.
 
 Drives one small biomedical run through the real production path
 (app ``run_workflow`` -> engine -> MCP/INDRA -> drain -> report) against the
