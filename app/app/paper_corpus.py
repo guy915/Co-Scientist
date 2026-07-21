@@ -241,12 +241,15 @@ def load_catalog(directory: Path | None = None) -> tuple[CatalogPaper, ...]:
     return tuple(papers)
 
 
+@functools.cache
 def format_catalog(papers: tuple[CatalogPaper, ...]) -> str:
     """Render the catalog as a prompt block, or empty when there are none.
 
     Each entry prints its `paper_id` so the model can pass it to `fetch_paper`;
     the header names that follow-up explicitly, since the catalog is now the
-    only place those ids are advertised.
+    only place those ids are advertised. Cached: the render is deterministic
+    for a given catalog tuple, and chat and the interview request it once
+    per message/turn.
 
     Args:
         papers: The catalog papers to render.
