@@ -1,7 +1,7 @@
 """Tests for the ``deduplicate_hypotheses`` state reducer (explicit ops).
 
 The reducer combines a node's ``hypotheses`` update with the running pool using
-explicit, deterministic operations (PLAN.md M1.3), replacing the former
+explicit, deterministic operations, replacing the former
 text-overlap heuristic:
 
 - a bare ``list[Hypothesis]`` REPLACES the pool (dedup by id);

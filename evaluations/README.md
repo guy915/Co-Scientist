@@ -1,7 +1,6 @@
 # Evaluations
 
-Reproducible evaluation harness for the parity work (PLAN.md Milestones 0, 5,
-6, 8). Everything here runs **offline** (no LLM, no network) unless a runner
+Reproducible evaluation harness for the parity work. Everything here runs **offline** (no LLM, no network) unless a runner
 explicitly says otherwise; machine-readable results are written under
 `results/`.
 
@@ -92,7 +91,7 @@ calibrated thresholds remain an external gap.
 
 ## External gaps (not reproducible here)
 
-Per PLAN.md, these need unavailable data / credentials / expert panels / wet
+These need unavailable data / credentials / expert panels / wet
 labs and are recorded honestly rather than fabricated:
 
 - **Elo-vs-known-answer calibration** and **test-time-compute scaling curves**

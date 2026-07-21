@@ -1,7 +1,7 @@
 """Deterministic weighted tournament matchmaking.
 
 Replaces bounded random sampling with proximity-, recency-, and rank-aware
-pairing (PLAN.md Milestone 3; paper invariant SSR §4 Ranking). The pairing
+pairing (paper invariant SSR §4 Ranking). The pairing
 policy favors:
 
 - scientifically similar hypotheses (same proximity cluster);

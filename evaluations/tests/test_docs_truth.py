@@ -1,4 +1,4 @@
-"""Docs-truth regression guards (PLAN.md Milestone 0).
+"""Docs-truth regression guards.
 
 These pin the specific documentation-drift corrections made in Milestone 0 so
 they cannot silently regress: no doc may describe intended or mock-only

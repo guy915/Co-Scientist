@@ -1,7 +1,7 @@
 """Orchestrator node - the adaptive scheduling loop point.
 
-This is the decision node the compiled graph re-enters after each work phase
-(PLAN.md Milestone 2). It computes observable statistics from the workflow
+This is the decision node the compiled graph re-enters after each work phase.
+It computes observable statistics from the workflow
 state, consults the deterministic scheduling policy, records the decision (with
 its reason) into the task-history ledger as data, emits a progress event, and
 sets ``next_task`` for the graph's conditional edge to route on.

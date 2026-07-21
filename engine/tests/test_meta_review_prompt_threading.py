@@ -2,9 +2,9 @@
 
 Paper invariant (SSR §4, §12): the Meta-review critique is appended to every
 other agent's prompt in the next iteration — the mechanism by which the system
-learns without back-propagation. PLAN.md M2.5 requires prompt-rendering
-regression tests proving the critique text actually appears in each rendered
-prompt, so these render the Generation, Reflection, and Review prompts with a
+learns without back-propagation. These prompt-rendering regression tests
+prove the critique text actually appears in each rendered prompt: they render
+the Generation, Reflection, and Review prompts with a
 distinctive critique and assert it is present.
 """
 

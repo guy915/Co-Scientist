@@ -1,4 +1,4 @@
-"""Per-hypothesis safety evaluation (PLAN.md Milestone 6).
+"""Per-hypothesis safety evaluation.
 
 Runs the per-hypothesis safety reviewer (``app.hypothesis_safety``) over a
 versioned adversarial regression set and reports the false-positive rate (benign

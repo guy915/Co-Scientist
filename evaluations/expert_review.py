@@ -1,4 +1,4 @@
-"""Blinded expert-review export/import schema (PLAN.md Milestone 8).
+"""Blinded expert-review export/import schema.
 
 Google's evaluation had biomedical experts rate outputs on scientific quality
 and preference. Reproducing those *ratings* needs a recruited expert panel and

@@ -2,7 +2,7 @@
 
 The Proximity agent computes a graph over hypotheses (accounting for the
 research goal) so similar ideas can be clustered, deduplicated, and — via the
-tournament matchmaker — compared preferentially (SSR §4). PLAN.md M3.1 asks for
+tournament matchmaker — compared preferentially (SSR §4). The agent builds
 a *persisted weighted graph* rather than cluster labels alone: edges carry a
 similarity score, the method/model/version that produced them, the goal
 context, and an update time.

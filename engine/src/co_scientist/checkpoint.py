@@ -1,7 +1,7 @@
 """Versioned workflow checkpoint: serialize and restore ``WorkflowState``.
 
-PLAN.md Milestone 4 requires a *versioned checkpoint with named contents* so a
-run can resume from its last safe boundary rather than restarting or failing.
+A *versioned checkpoint with named contents* lets a run resume from its last
+safe boundary rather than restarting or failing.
 The M2 orchestrator is the resume boundary: because every completed node's
 output is already folded into the pool and the task ledger, restoring the
 curated state and re-entering the graph at the orchestrator continues the run

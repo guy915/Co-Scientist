@@ -1,4 +1,4 @@
-"""Citation/claim-entailment evaluation (PLAN.md Milestone 5).
+"""Citation/claim-entailment evaluation.
 
 Runs the claim-level entailment assessor (``app.claims.assess_claim``) over a
 labeled dataset and reports precision/recall per label, contradiction recall,

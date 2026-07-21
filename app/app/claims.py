@@ -2,7 +2,7 @@
 
 The four-state citation label (``app/citations.py``) is a document-level audit
 signal; it is *not* claim-level verification and must not be the meaning of
-"verified" (PLAN.md M5). This module adds the claim-level layer the paper
+"verified". This module adds the claim-level layer the paper
 requires (SSR §6, §7):
 
 1. **Atomic claim extraction** — split a hypothesis / mechanism / experiment /
