@@ -2,7 +2,7 @@
 
 This audits the **visual/UX fidelity** of `app/frontend` (the workbench) against
 the real Google product it replicates. It is separate from
-[`fidelity.md`](fidelity.md), which covers *behavioural/engine* fidelity.
+[`FIDELITY.md`](FIDELITY.md), which covers *behavioural/engine* fidelity.
 
 **Scope of this pass:** reconnaissance + audit only. No `app/frontend` source was
 modified. Every claim below is grounded in a cited file, video frame, or CSS

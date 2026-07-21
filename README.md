@@ -98,19 +98,37 @@ configuration.
 
 | Path | Purpose |
 | --- | --- |
-| `app/` | FastAPI API, SQLite run store, and React workbench |
-| `app/frontend/` | Vite + React + TypeScript UI |
+| `app/` | FastAPI API, SQLite run store, and React workbench (UI in `app/frontend/`) |
 | `engine/` | LangGraph hypothesis-generation engine and reference MCP server |
+| `evaluations/` | Parity ledger checker, safety/citation evals, and release gate |
+| `e2e/` | Playwright browser end-to-end suite |
+| `corpus/` | Domain paper corpus baked into the API and MCP images |
 | `docs/` | Live architecture, fidelity notes, screenshots, and diagrams |
-| `references/` | Source research, product captures, and comparison material |
+| `.github/` | CI and nightly workflows |
+| `references/` | Source research, product captures, and comparison material (large: ~370 MB) |
+
+## Documentation
+
+| Doc | Covers |
+| --- | --- |
+| [`ARCHITECTURE.md`](docs/ARCHITECTURE.md) | Runtime layers and module map |
+| [`EXPLAINER.md`](docs/EXPLAINER.md) | Visual walkthrough of the product and the multi-agent engine |
+| [`FIDELITY.md`](docs/FIDELITY.md) | How this implementation compares to the published system |
+| [`PARITY.md`](docs/PARITY.md) | Machine-checked requirement ledger (gated in CI) |
+| [`running-locally.md`](docs/running-locally.md) | Local setup, ports, and common gotchas |
+| [`CI.md`](docs/CI.md) | Presubmit/postsubmit pipeline and how to reproduce it locally |
+| [`decisions/`](docs/decisions/) | Architecture decision records |
 
 ## Development checks
 
 ```bash
 make test          # viewer backend pytest suite
 make test-engine   # engine pytest suite
-make test-all      # backend pytest suites for engine + app
+make test-all      # engine + app pytest suites, plus the docs/PARITY.md evidence gate and its tests
+make lint          # ruff format --check + ruff check (app, engine, evaluations)
+make typecheck     # mypy (app, engine, evaluations)
 make build         # frontend typecheck + production build
+make e2e           # Playwright browser suite (headless, isolated stack)
 
 cd app/frontend
 bun run test       # frontend unit tests
@@ -124,15 +142,15 @@ setup, and hit **Start**. The chat timeline keeps progress, steering messages,
 leading hypotheses, and report status in chronological order. The structured
 dashboard remains available for deeper inspection:
 
-| Tab | Shows |
-| --- | --- |
-| **Ideas** | Ranked hypotheses by Elo. Click any row for the detail modal: statement, mechanism, experimental design, lineage |
-| **Knowledge Base** | Retrieved sources with abstracts, links, and 4-state citation classification |
-| **Summary** | Server-generated Markdown report with download buttons (MD / JSON) and safety verdict |
-| **Run Specifications** | Provider, configuration, artifact counts, and recorded safety gates |
-| **Progress** | Live pipeline timeline with progress bar and event counters |
-| **Tournament** | Leaderboard + per-iteration matchup log with Elo deltas and judge rationale |
-| **Chat** | Scientist-in-the-loop steering: auto, manual, and QA conversation modes |
+| Tab | Route | Shows |
+| --- | --- | --- |
+| **Details** | `details` | Provider, configuration, artifact counts, and recorded safety gates |
+| **Learning** | `learning` | Retrieved sources with abstracts, links, and 4-state citation classification |
+| **Overview** | `overview` | Server-generated Markdown report with download buttons (MD / JSON) and safety verdict |
+| **Ideas** | `ideas` | Ranked hypotheses by Elo. Click any row for the detail pane: statement, mechanism, experimental design, lineage |
+
+Steering (auto, manual, and QA conversation modes) and live pipeline progress
+live in the chat workspace at `/`, not in a run-detail tab.
 
 ### Offline mode vs real engine
 
@@ -181,5 +199,4 @@ Full diagrams and module map in
 - [Science Skills for Antigravity](https://github.com/google-deepmind/science-skills)
 - [Jataware Open Co-Scientist](https://github.com/jataware/open-coscientist)
 - [Sakana AI Scientist](https://github.com/SakanaAI/AI-Scientist)
-- [Claude Code (leaked source)](https://github.com/codeaashu/claude-code)
 - [Pi Agent](https://github.com/Dicklesworthstone/pi_agent_rust)

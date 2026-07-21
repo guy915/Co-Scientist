@@ -41,7 +41,7 @@ This is the core of the system. A linear **first pass** feeds a conditional **it
   <img src="assets/pipeline.svg" alt="Multi-agent hypothesis pipeline (linear overview)" width="780">
 </p>
 
-> The active diagram above is the linear pipeline overview. A loop-aware variant (showing the iteration cycle, the MCP-gated branch, and the loop-point routing) is drafted at [`assets/pipeline_loop_tofix.svg`](assets/pipeline_loop_tofix.svg) but is **pending a visual fix** and not referenced yet. The prose below describes the true loop-aware flow.
+> The diagram above is the linear pipeline overview. The prose below describes the full loop-aware flow: the iteration cycle, the MCP-gated branch, and the loop-point routing.
 
 ### First pass (always runs)
 
@@ -110,13 +110,7 @@ Key facts:
 
 ## 5. WorkflowState & data flow
 
-State is a `TypedDict` (`state.py:118`) flowing through every node. Each node returns a *delta* dict; LangGraph applies it. Two fields carry custom reducers that run on **every** write — the rest overwrite.
-
-<p align="center">
-  <em>State-flow diagram pending a visual fix — see
-  <code>assets/state_flow_tofix.svg</code>. The table below is authoritative
-  in the meantime.</em>
-</p>
+State is a `TypedDict` (`state.py:118`) flowing through every node. Each node returns a *delta* dict; LangGraph applies it. Two fields carry custom reducers that run on **every** write — the rest overwrite. The table below is authoritative.
 
 | Field(s) | Reducer | Why |
 | --- | --- | --- |
@@ -335,4 +329,4 @@ Temperatures: `LOW=0.3`, `MEDIUM=0.5`, `HIGH=0.7` (`constants.py:41-50`). Token 
 | Fidelity tradeoffs | [`docs/FIDELITY.md`](FIDELITY.md) |
 | Original DeepMind system analysis | `references/core/google-co-scientist/` |
 
-Diagrams in this explainer: [`assets/pipeline.svg`](assets/pipeline.svg) (linear overview, active) and [`assets/architecture.svg`](assets/architecture.svg). Pending visual fixes: [`assets/pipeline_loop_tofix.svg`](assets/pipeline_loop_tofix.svg) (loop-aware engine graph) and [`assets/state_flow_tofix.svg`](assets/state_flow_tofix.svg) (WorkflowState data flow).
+Diagrams in this explainer: [`assets/pipeline.svg`](assets/pipeline.svg) (linear overview) and [`assets/architecture.svg`](assets/architecture.svg).
