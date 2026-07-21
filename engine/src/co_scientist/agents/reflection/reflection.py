@@ -13,7 +13,7 @@ from co_scientist.constants import (
 )
 from co_scientist.llm import call_llm_json
 from co_scientist.models import Hypothesis, phase_message
-from co_scientist.nodes.progress import emit_progress
+from co_scientist.progress import emit_progress
 from co_scientist.prompts import get_reflection_prompt
 from co_scientist.state import WorkflowState
 

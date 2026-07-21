@@ -23,7 +23,7 @@ from co_scientist.constants import (
     PROGRESS_SAFETY_SCREEN_START,
 )
 from co_scientist.models import Hypothesis, create_metrics_update, phase_message
-from co_scientist.nodes.progress import emit_progress
+from co_scientist.progress import emit_progress
 from co_scientist.safety import (
     SafetyOutcome,
     redact_hypothesis_fields,

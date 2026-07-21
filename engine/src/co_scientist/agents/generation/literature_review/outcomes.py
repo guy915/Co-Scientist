@@ -15,7 +15,7 @@ from co_scientist.agents.generation.literature_review.helpers import (
     build_articles_from_metadata,
     make_failure_result,
 )
-from co_scientist.nodes.progress import emit_progress
+from co_scientist.progress import emit_progress
 from co_scientist.state import WorkflowState
 
 logger = logging.getLogger(__name__)

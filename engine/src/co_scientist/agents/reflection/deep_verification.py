@@ -21,7 +21,7 @@ from co_scientist.models import (
     phase_message,
     rank_by_elo,
 )
-from co_scientist.nodes.progress import emit_progress
+from co_scientist.progress import emit_progress
 from co_scientist.prompts import get_deep_verification_prompt
 from co_scientist.prompts._common import _format_meta_review_context
 from co_scientist.state import WorkflowState
@@ -69,16 +69,16 @@ async def _retrieve_probe_evidence(
     if not queries or not state.get("mcp_available"):
         return [], []
 
-    from co_scientist.mcp_client import get_mcp_client
-    from co_scientist.nodes.literature_review.helpers import (
+    from co_scientist.agents.generation.literature_review.helpers import (
         build_articles_from_metadata,
     )
-    from co_scientist.nodes.literature_review.orchestration import (
+    from co_scientist.agents.generation.literature_review.orchestration import (
         _phase2_collect_papers,
     )
-    from co_scientist.nodes.literature_review.run_config import (
+    from co_scientist.agents.generation.literature_review.run_config import (
         _get_search_config,
     )
+    from co_scientist.mcp_client import get_mcp_client
 
     config = dataclasses.replace(
         _get_search_config(state), papers_to_read_count=_MAX_PROBE_SOURCES

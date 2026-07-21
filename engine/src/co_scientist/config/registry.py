@@ -436,9 +436,10 @@ class ToolRegistry:
 
 
 # Global registry instance
-# Process-wide singleton: nodes and prompts.py call get_tool_registry() with
-# no arguments to fetch this instance, so config_path/disabled_tools below
-# only take effect on the very first call (or an explicit force_reload).
+# Process-wide singleton: node modules and prompts/loading.py call
+# get_tool_registry() with no arguments to fetch this instance, so the
+# config_path/disabled_tools below only take effect on the very first call
+# (or an explicit force_reload).
 _global_registry: ToolRegistry | None = None
 
 

@@ -15,7 +15,7 @@ from co_scientist.agents.generation.coordinator_strategy import (
 )
 from co_scientist.constants import PROGRESS_GENERATE_COMPLETE
 from co_scientist.models import Hypothesis
-from co_scientist.nodes.progress import emit_progress
+from co_scientist.progress import emit_progress
 from co_scientist.state import WorkflowState
 
 logger = logging.getLogger(__name__)
