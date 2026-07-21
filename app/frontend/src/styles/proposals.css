@@ -3,48 +3,27 @@
    Cluster membership is carried by node hue; relationship kind is carried by
    BOTH edge color and stroke style (solid / arrow / dashed / dotted). The
    stroke styles are kept alongside the colors deliberately: the kind stays
-   readable when the hues are hard to separate, or in print. */
+   readable when the hues are hard to separate, or in print.
 
-:root {
-  /* Stroke scale. Overridden inside the graph, which is the only place that
-     shrinks; the legend's samples keep their own size. */
-  --s: 1;
-
-  /* Cluster hues. `scaling` takes the app's own teal; the rest are chosen
-     to stay distinguishable from it and from each other at node size. */
-  --proposal-scaling: #1f7a72;
-  --proposal-evaluation: #9a5b16;
-  --proposal-interaction: #2c5fb8;
-  --proposal-knowledge: #7c4a9c;
-  --proposal-capabilities: #a33b62;
-
-  /* Relationship colors, chosen to read as what they mean: growth, ordering,
-     repair, conflict. */
-  --proposal-synergy: #17855a;
-  --proposal-enables: #3f51b5;
-  --proposal-compensates: #b06a12;
-  --proposal-tension: #c0392b;
-  --proposal-edge: #8b8f8d;
-}
-
-:root[data-theme='dark'] {
-  --proposal-scaling: #68d0c0;
-  --proposal-evaluation: #e0a75c;
-  --proposal-interaction: #8fb4f2;
-  --proposal-knowledge: #c39ae0;
-  --proposal-capabilities: #ef92b2;
-  --proposal-synergy: #4ecf95;
-  --proposal-enables: #8f9ff0;
-  --proposal-compensates: #e8a95a;
-  --proposal-tension: #f08279;
-  --proposal-edge: #6b6f6e;
-}
+   The --proposal-* light/dark hue pairs live in component_tokens.css with
+   the rest of the theme pairs. */
 
 /* The page is the graph. It fills the shell's content area exactly — the
    route sets `ucs-page--proposals`, which turns off that container's
    scrolling — with the legends floating over the canvas and the detail
    panel taking a column beside it when a proposal is open. */
 .proposals-page {
+  /* Stroke scale for the edge classes. Overridden inside the graph, which
+     is the only place that shrinks; the legend's samples keep their own
+     size. */
+  --proposals-stroke-scale: 1;
+
+  /* The detail panel's width, in a column or overlaid. The 68rem/67.99rem
+     breakpoints below are this value's pair: media queries cannot read
+     custom properties, so the cutover between column and overlay stays in
+     raw rem beside it. */
+  --proposals-detail-width: 22rem;
+
   /* Anchors the detail panel when it overlays at narrow widths. */
   position: relative;
   box-sizing: border-box;
@@ -61,14 +40,49 @@
 
 @media (min-width: 68rem) {
   /* Opening a proposal gives the panel its own column; the graph rescales
-     to what is left rather than being covered. */
+     to what is left rather than being covered. (68rem pairs with the
+     67.99rem overlay cutoff below.) */
   .proposals-page:has(.proposals-detail) {
-    grid-template-columns: minmax(0, 1fr) 22rem;
+    grid-template-columns: minmax(0, 1fr) var(--proposals-detail-width);
   }
 }
 
 .ucs-page--proposals {
   overflow: hidden;
+}
+
+/* Category and relationship hues -------------------------------------- */
+
+/* Each is-* modifier resolves to the one custom property every consumer
+   reads: the chip fill and swatch, the hull label, the node stroke, and the
+   detail panel's category line. Edge strokes and relation rules keep their
+   own explicit colors, since kind is carried by stroke style as well. */
+.proposals-page .is-scaling {
+  --proposal-color: var(--proposal-scaling);
+}
+.proposals-page .is-evaluation {
+  --proposal-color: var(--proposal-evaluation);
+}
+.proposals-page .is-interaction {
+  --proposal-color: var(--proposal-interaction);
+}
+.proposals-page .is-knowledge {
+  --proposal-color: var(--proposal-knowledge);
+}
+.proposals-page .is-capabilities {
+  --proposal-color: var(--proposal-capabilities);
+}
+.proposals-page .is-synergy {
+  --proposal-color: var(--proposal-synergy);
+}
+.proposals-page .is-enables {
+  --proposal-color: var(--proposal-enables);
+}
+.proposals-page .is-compensates {
+  --proposal-color: var(--proposal-compensates);
+}
+.proposals-page .is-tension {
+  --proposal-color: var(--proposal-tension);
 }
 
 /* Legends ------------------------------------------------------------- */
@@ -83,8 +97,9 @@
   top: 0;
   box-sizing: border-box;
   /* Exactly the width the layout reserves for a card, so the gap to the
-     nearest cluster is exact. */
-  width: 12.5rem;
+     nearest cluster is exact: the page sets --proposals-legend-width from
+     the layout's own LEGEND_WIDTH constant. */
+  width: var(--proposals-legend-width);
   display: grid;
   gap: 0.3rem;
   border-radius: 0.85rem;
@@ -126,7 +141,7 @@
   height: 0.7rem;
   flex: none;
   border-radius: 3px;
-  background: var(--chip-color);
+  background: var(--proposal-color);
 }
 
 .proposals-legend-sample {
@@ -138,9 +153,9 @@
 
 /* Every legend entry is a toggle, so it is drawn as a chip rather than a
    line of text: a resting surface, a grey hover, and a selected state
-   filled with the entry's own hue (`--chip-color`, set by the is-* classes
-   below) so a selected chip previews what it highlights. No borders in any
-   state. */
+   filled with the entry's own hue (`--proposal-color`, set by the shared
+   is-* block above) so a selected chip previews what it highlights. No
+   borders in any state. */
 .proposals-chip {
   display: flex;
   width: 100%;
@@ -163,8 +178,8 @@
 }
 
 .proposals-chip.is-on {
-  background: color-mix(in srgb, var(--chip-color) 22%, transparent);
-  color: var(--chip-color);
+  background: color-mix(in srgb, var(--proposal-color) 22%, transparent);
+  color: var(--proposal-color);
   font-weight: 600;
 }
 
@@ -188,34 +203,6 @@
   visibility: hidden;
 }
 
-.proposals-chip.is-scaling {
-  --chip-color: var(--proposal-scaling);
-}
-.proposals-chip.is-evaluation {
-  --chip-color: var(--proposal-evaluation);
-}
-.proposals-chip.is-interaction {
-  --chip-color: var(--proposal-interaction);
-}
-.proposals-chip.is-knowledge {
-  --chip-color: var(--proposal-knowledge);
-}
-.proposals-chip.is-capabilities {
-  --chip-color: var(--proposal-capabilities);
-}
-.proposals-chip.is-synergy {
-  --chip-color: var(--proposal-synergy);
-}
-.proposals-chip.is-enables {
-  --chip-color: var(--proposal-enables);
-}
-.proposals-chip.is-compensates {
-  --chip-color: var(--proposal-compensates);
-}
-.proposals-chip.is-tension {
-  --chip-color: var(--proposal-tension);
-}
-
 /* Graph --------------------------------------------------------------- */
 
 /* No border, background, or padding: the graph is the page, so the stage is
@@ -237,11 +224,13 @@
    is the same size as text in the legends, and zooming moves both together. */
 .proposals-graph {
   display: block;
-  /* Stroke widths, dash patterns, and — through markerUnits="strokeWidth" —
-     the arrowheads are all sized from this, so they scale with the drawing
-     instead of staying at full size while it shrinks. It stays 1 outside
-     the graph, where the legend redraws the same classes at a fixed size. */
-  --s: var(--proposals-scale, 1);
+  /* Stroke widths and dash patterns are sized from this, so they scale with
+     the drawing instead of staying at full size while it shrinks. It stays
+     1 outside the graph, where the legend redraws the same classes at a
+     fixed size. (The arrowheads scale separately: the graph's marker uses
+     markerUnits="userSpaceOnUse" and takes its size from the layout's
+     scale directly.) */
+  --proposals-stroke-scale: var(--proposals-scale, 1);
   /* Type inside the drawing scales with it, so a node label keeps its
      proportion to the node box at every size. */
   font-size: calc(1rem * var(--proposals-scale, 1));
@@ -249,8 +238,8 @@
 
 /* Opening a proposal narrows the stage, which re-runs the layout. Position
    and size are animated so the graph glides to its new arrangement instead
-   of jumping. Node and hull placement is a transform; hull size and edge
-   paths are geometry properties, which modern browsers also transition. */
+   of jumping. Node and hull placement is a transform; hull size is a
+   geometry property, which modern browsers also transition. */
 .proposals-hull,
 .proposals-node {
   transition: transform 260ms cubic-bezier(0.2, 0, 0, 1);
@@ -262,18 +251,10 @@
     height 260ms cubic-bezier(0.2, 0, 0, 1);
 }
 
-.proposals-edge {
-  transition:
-    d 260ms cubic-bezier(0.2, 0, 0, 1),
-    opacity 160ms ease,
-    stroke-width 160ms ease;
-}
-
 @media (prefers-reduced-motion: reduce) {
   .proposals-hull,
   .proposals-node,
-  .proposals-hull rect,
-  .proposals-edge {
+  .proposals-hull rect {
     transition-duration: 1ms;
   }
 }
@@ -281,38 +262,23 @@
 .proposals-hull rect {
   fill: var(--cosci-hover);
   stroke: var(--cosci-border);
-  stroke-dasharray: calc(3px * var(--s)) calc(5px * var(--s));
-  stroke-width: calc(1px * var(--s));
+  stroke-dasharray: calc(3px * var(--proposals-stroke-scale)) calc(5px * var(--proposals-stroke-scale));
+  stroke-width: calc(1px * var(--proposals-stroke-scale));
 }
 
 .proposals-hull-label {
+  fill: var(--proposal-color);
   font-size: 0.72em;
   font-weight: 600;
   letter-spacing: 0.05em;
   text-transform: uppercase;
 }
 
-.proposals-hull.is-scaling .proposals-hull-label {
-  fill: var(--proposal-scaling);
-}
-.proposals-hull.is-evaluation .proposals-hull-label {
-  fill: var(--proposal-evaluation);
-}
-.proposals-hull.is-interaction .proposals-hull-label {
-  fill: var(--proposal-interaction);
-}
-.proposals-hull.is-knowledge .proposals-hull-label {
-  fill: var(--proposal-knowledge);
-}
-.proposals-hull.is-capabilities .proposals-hull-label {
-  fill: var(--proposal-capabilities);
-}
-
 /* Edge kind is carried by color and stroke style together. */
 .proposals-edge {
   fill: none;
   stroke: var(--proposal-edge);
-  stroke-width: calc(1.75px * var(--s));
+  stroke-width: calc(1.75px * var(--proposals-stroke-scale));
   /* Slightly held back so a busy graph does not read as noise; the lit
      state below brings the focused relationships to full strength. */
   opacity: 0.85;
@@ -321,29 +287,29 @@
 
 .proposals-edge.is-synergy {
   stroke: var(--proposal-synergy);
-  stroke-width: calc(2px * var(--s));
+  stroke-width: calc(2px * var(--proposals-stroke-scale));
 }
 
 .proposals-edge.is-enables {
   stroke: var(--proposal-enables);
-  stroke-width: calc(2px * var(--s));
+  stroke-width: calc(2px * var(--proposals-stroke-scale));
 }
 
 .proposals-edge.is-compensates {
   stroke: var(--proposal-compensates);
-  stroke-dasharray: calc(7px * var(--s)) calc(4px * var(--s));
+  stroke-dasharray: calc(7px * var(--proposals-stroke-scale)) calc(4px * var(--proposals-stroke-scale));
 }
 
 .proposals-edge.is-tension {
   stroke: var(--proposal-tension);
-  stroke-dasharray: calc(1px * var(--s)) calc(4px * var(--s));
+  stroke-dasharray: calc(1px * var(--proposals-stroke-scale)) calc(4px * var(--proposals-stroke-scale));
   stroke-linecap: round;
-  stroke-width: calc(2.75px * var(--s));
+  stroke-width: calc(2.75px * var(--proposals-stroke-scale));
 }
 
 .proposals-edge.is-lit {
   opacity: 1;
-  stroke-width: calc(3px * var(--s));
+  stroke-width: calc(3px * var(--proposals-stroke-scale));
 }
 
 .proposals-edge.is-dim {
@@ -356,8 +322,8 @@
 
 .proposals-node rect {
   fill: var(--cosci-menu-bg);
-  stroke: var(--proposal-node-color, var(--cosci-border));
-  stroke-width: calc(1.5px * var(--s));
+  stroke: var(--proposal-color, var(--cosci-border));
+  stroke-width: calc(1.5px * var(--proposals-stroke-scale));
   transition: opacity 120ms ease;
 }
 
@@ -368,27 +334,10 @@
   pointer-events: none;
 }
 
-.proposals-node.is-scaling {
-  --proposal-node-color: var(--proposal-scaling);
-}
-.proposals-node.is-evaluation {
-  --proposal-node-color: var(--proposal-evaluation);
-}
-.proposals-node.is-interaction {
-  --proposal-node-color: var(--proposal-interaction);
-}
-.proposals-node.is-knowledge {
-  --proposal-node-color: var(--proposal-knowledge);
-}
-.proposals-node.is-capabilities {
-  --proposal-node-color: var(--proposal-capabilities);
-}
-
-
 .proposals-node:hover rect,
 .proposals-node.is-focus rect {
-  fill: var(--proposal-node-color);
-  stroke-width: calc(2px * var(--s));
+  fill: var(--proposal-color);
+  stroke-width: calc(2px * var(--proposals-stroke-scale));
 }
 
 .proposals-node:hover text,
@@ -397,11 +346,11 @@
 }
 
 .proposals-node.is-selected rect {
-  stroke-width: calc(3px * var(--s));
+  stroke-width: calc(3px * var(--proposals-stroke-scale));
 }
 
 .proposals-node.is-linked rect {
-  stroke-width: calc(2.5px * var(--s));
+  stroke-width: calc(2.5px * var(--proposals-stroke-scale));
 }
 
 .proposals-node.is-dim {
@@ -419,7 +368,7 @@
    Settings rail's selection blue. */
 .proposals-node:focus-visible rect {
   stroke: var(--cosci-step-dot-bg);
-  stroke-width: calc(3px * var(--s));
+  stroke-width: calc(3px * var(--proposals-stroke-scale));
 }
 
 /* Detail panel -------------------------------------------------------- */
@@ -479,7 +428,7 @@
     right: 0.85rem;
     bottom: 0.85rem;
     grid-column: 1;
-    width: min(22rem, calc(100% - 1.7rem));
+    width: min(var(--proposals-detail-width), calc(100% - 1.7rem));
   }
 }
 
@@ -492,31 +441,16 @@
 
 .proposals-detail-cluster {
   margin: 0 0 0.15rem;
+  color: var(--proposal-color);
   font-size: 0.7rem;
   font-weight: 600;
   letter-spacing: 0.06em;
   text-transform: uppercase;
 }
 
-.proposals-detail-cluster.is-scaling {
-  color: var(--proposal-scaling);
-}
-.proposals-detail-cluster.is-evaluation {
-  color: var(--proposal-evaluation);
-}
-.proposals-detail-cluster.is-interaction {
-  color: var(--proposal-interaction);
-}
-.proposals-detail-cluster.is-knowledge {
-  color: var(--proposal-knowledge);
-}
-.proposals-detail-cluster.is-capabilities {
-  color: var(--proposal-capabilities);
-}
-
 .proposals-detail-title {
   margin: 0;
-  font-family: 'Google Sans', system-ui, sans-serif;
+  font-family: var(--font-gsans);
   font-size: 1.25rem;
   font-weight: 500;
 }
@@ -603,7 +537,6 @@
 
 .proposals-relation.is-synergy {
   border-left-color: var(--proposal-synergy);
-  border-left-style: solid;
 }
 
 .proposals-relation.is-enables {

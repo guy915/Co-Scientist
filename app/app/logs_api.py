@@ -82,6 +82,14 @@ def _check_ingest_rate(scope: str) -> None:
     if limit <= 0:
         return
     now = time.monotonic()
+    # Evict scopes whose window has gone quiet, so one-off client ids do
+    # not accumulate in this process-lifetime map.
+    for stale in [
+        key
+        for key, times in _ingest_hits.items()
+        if key != scope and (not times or now - times[-1] >= 60.0)
+    ]:
+        del _ingest_hits[stale]
     hits = [t for t in _ingest_hits.get(scope, []) if now - t < 60.0]
     if len(hits) >= limit:
         _ingest_hits[scope] = hits
@@ -156,25 +164,31 @@ def logs_payload(
     """
     min_levelno = _min_levelno(min_level)
     noise_loggers = None if verbose else NOISE_LOGGERS
-    rows = store.list_logs(
-        after_id=after_id,
-        min_levelno=min_levelno,
-        run_id=run_id,
-        contains=q,
-        noise_loggers=noise_loggers,
-        scope_client_id=scope_client_id,
-        limit=limit,
-    )
-    # `total` counts the whole matching set (no cursor, no limit) so the
-    # UI badge shows the true size even when the window is capped.
-    total = store.count_logs(
-        min_levelno=min_levelno,
-        run_id=run_id,
-        contains=q,
-        noise_loggers=noise_loggers,
-        scope_client_id=scope_client_id,
-    )
-    return {"logs": rows, "last_id": store.latest_log_id(), "total": total}
+    # One connection for the three reads: this payload backs the UI's
+    # continuous poll, so per-call connections would triple the churn.
+    with store.connect() as conn:
+        rows = store.list_logs(
+            after_id=after_id,
+            min_levelno=min_levelno,
+            run_id=run_id,
+            contains=q,
+            noise_loggers=noise_loggers,
+            scope_client_id=scope_client_id,
+            limit=limit,
+            conn=conn,
+        )
+        # `total` counts the whole matching set (no cursor, no limit) so the
+        # UI badge shows the true size even when the window is capped.
+        total = store.count_logs(
+            min_levelno=min_levelno,
+            run_id=run_id,
+            contains=q,
+            noise_loggers=noise_loggers,
+            scope_client_id=scope_client_id,
+            conn=conn,
+        )
+        last_id = store.latest_log_id(conn=conn)
+    return {"logs": rows, "last_id": last_id, "total": total}
 
 
 class ClientLogRecord(BaseModel):
@@ -204,22 +218,27 @@ async def post_logs(batch: ClientLogBatch, request: Request) -> dict[str, Any]:
     """
     owner = client_id(request)
     _check_ingest_rate(owner or "anonymous")
-    for record in batch.records:
-        levelno = level_to_number(record.level) or logging.INFO
-        logger_name = _sanitize(
-            record.logger
-            if record.logger.startswith("ui")
-            else f"ui.{record.logger}"
-        )
-        store.append_log(
-            level=logging.getLevelName(levelno),
-            levelno=levelno,
-            logger_name=logger_name,
-            message=_sanitize(record.message)[:MAX_CLIENT_MESSAGE_CHARS],
-            run_id=record.run_id,
-            client_id=owner or None,
-        )
-    return {"added": len(batch.records), "last_id": store.latest_log_id()}
+    # One transaction for the whole batch: up to 50 rows per POST, and the
+    # single writer should pay one lock acquisition for them, not fifty.
+    with store.transaction() as conn:
+        for record in batch.records:
+            levelno = level_to_number(record.level) or logging.INFO
+            logger_name = _sanitize(
+                record.logger
+                if record.logger.startswith("ui")
+                else f"ui.{record.logger}"
+            )
+            store.append_log(
+                level=logging.getLevelName(levelno),
+                levelno=levelno,
+                logger_name=logger_name,
+                message=_sanitize(record.message)[:MAX_CLIENT_MESSAGE_CHARS],
+                run_id=record.run_id,
+                client_id=owner or None,
+                conn=conn,
+            )
+        last_id = store.latest_log_id(conn=conn)
+    return {"added": len(batch.records), "last_id": last_id}
 
 
 @router.delete("/api/logs")

@@ -35,7 +35,12 @@ _INDRA_CONFIG = str(
 
 
 def _cfg() -> dict[str, Any]:
-    """A resolved run-config dict with the numeric keys the adapter reads."""
+    """A resolved run-config dict with the numeric keys the adapter reads.
+
+    Mirrors the ``resolved_run_config`` contract: every numeric key is
+    present, so the adapter indexes directly instead of re-inventing
+    defaults.
+    """
     return {
         "max_iterations": 1,
         "initial_hypotheses_count": 4,
@@ -43,6 +48,7 @@ def _cfg() -> dict[str, Any]:
         "tournament_pairs": 6,
         "evidence_count": 4,
         "k_factor": 36,
+        "max_llm_calls": 100,
     }
 
 

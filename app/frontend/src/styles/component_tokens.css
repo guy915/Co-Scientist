@@ -99,6 +99,11 @@
   --cosci-toggle-off-track: #e1e3e1;
   --cosci-toggle-off-knob: #747775;
 
+  /* Selected tinted row (settings section rail, theme segment, affiliation
+     option): the shell's shared blue selection tint, inverted in dark. */
+  --cosci-selected-row-bg: #d3e3fd;
+  --cosci-selected-row-fg: #0b57d0;
+
   /* Chat bubbles + setup document (reference: user bubble =
      surface-container-high; setup .plan-details = surface-container light,
      surface-container-highest dark) */
@@ -115,6 +120,21 @@
   --cosci-reference-open-fg: var(--cosci-text);
   --cosci-reference-open-hover-bg: var(--cosci-hover);
   --cosci-reference-open-hover-border: var(--cosci-muted);
+
+  /* Proposals relationship graph (/proposals). Cluster hues: `scaling`
+     takes the app's own teal; the rest are chosen to stay distinguishable
+     from it and from each other at node size. Relationship colors are
+     chosen to read as what they mean: growth, ordering, repair, conflict. */
+  --proposal-scaling: #1f7a72;
+  --proposal-evaluation: #9a5b16;
+  --proposal-interaction: #2c5fb8;
+  --proposal-knowledge: #7c4a9c;
+  --proposal-capabilities: #a33b62;
+  --proposal-synergy: #17855a;
+  --proposal-enables: #3f51b5;
+  --proposal-compensates: #b06a12;
+  --proposal-tension: #c0392b;
+  --proposal-edge: #8b8f8d;
 }
 
 :root[data-theme='dark'] {
@@ -159,7 +179,21 @@
   --cosci-toggle-off-track: #444746;
   --cosci-toggle-off-knob: #8e918f;
 
+  --cosci-selected-row-bg: #0842a0;
+  --cosci-selected-row-fg: #d3e3fd;
+
   --cosci-user-bubble-bg: #282a2c;
   --cosci-user-bubble-hover: #34363a;
   --cosci-setup-doc-bg: #333537;
+
+  --proposal-scaling: #68d0c0;
+  --proposal-evaluation: #e0a75c;
+  --proposal-interaction: #8fb4f2;
+  --proposal-knowledge: #c39ae0;
+  --proposal-capabilities: #ef92b2;
+  --proposal-synergy: #4ecf95;
+  --proposal-enables: #8f9ff0;
+  --proposal-compensates: #e8a95a;
+  --proposal-tension: #f08279;
+  --proposal-edge: #6b6f6e;
 }

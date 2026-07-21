@@ -140,15 +140,33 @@ class ApiClient:
         self._retry_wait = retry_wait
         self._verbose = verbose
         self._transport = transport
+        self._http_client: httpx.Client | None = None
 
     def _log(self, message: str) -> None:
         """Write one diagnostic line to stderr when verbose mode is on."""
         if self._verbose:
             print(f"cosci: {message}", file=sys.stderr)
 
-    def _client(self, timeout: httpx.Timeout | float) -> httpx.Client:
-        """Build an httpx client honoring the injected transport, if any."""
-        return httpx.Client(timeout=timeout, transport=self._transport)
+    @property
+    def _http(self) -> httpx.Client:
+        """The shared httpx client, created on first use.
+
+        One client for the ApiClient's lifetime, so polling loops (``runs
+        wait``, ``logs --follow``) reuse a kept-alive connection instead of
+        paying a TCP/TLS handshake per poll. Per-call timeout variations
+        (the SSE stream's unbounded read) ride the request, not the client.
+        """
+        if self._http_client is None:
+            self._http_client = httpx.Client(
+                timeout=self._timeout, transport=self._transport
+            )
+        return self._http_client
+
+    def close(self) -> None:
+        """Close the shared httpx client, if one was ever created."""
+        if self._http_client is not None:
+            self._http_client.close()
+            self._http_client = None
 
     def _url(self, path: str) -> str:
         """Join the base URL with an API path beginning with ``/``."""
@@ -176,13 +194,12 @@ class ApiClient:
             last = attempt == retries
             started = time.monotonic()
             try:
-                with self._client(self._timeout) as client:
-                    response = client.request(
-                        method,
-                        self._url(path),
-                        json=json_body,
-                        headers=self._headers,
-                    )
+                response = self._http.request(
+                    method,
+                    self._url(path),
+                    json=json_body,
+                    headers=self._headers,
+                )
             except httpx.HTTPError as exc:
                 if last:
                     raise ApiUnreachableError(
@@ -273,15 +290,13 @@ class ApiClient:
         """
         timeout = httpx.Timeout(self._timeout, read=None)
         try:
-            with (
-                self._client(timeout) as client,
-                client.stream(
-                    method,
-                    self._url(path),
-                    json=json_body,
-                    headers=self._headers,
-                ) as response,
-            ):
+            with self._http.stream(
+                method,
+                self._url(path),
+                json=json_body,
+                headers=self._headers,
+                timeout=timeout,
+            ) as response:
                 if not response.is_success:
                     response.read()
                     _raise_for_status(response)

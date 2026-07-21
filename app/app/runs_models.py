@@ -22,6 +22,7 @@ from app.run_modes import (
     resolved_run_config,
     setup_config,
 )
+from app.text_utils import combine_blocks
 
 
 class CreateRunRequest(BaseModel):
@@ -165,11 +166,6 @@ def _run_overrides_from_request(
     return overrides
 
 
-def _combine_context(*blocks: str) -> str:
-    """Join non-empty context blocks with a blank line between them."""
-    return "\n\n".join(block.strip() for block in blocks if block.strip())
-
-
 def _build_create_run_config(
     req: CreateRunRequest,
 ) -> tuple[dict[str, Any], str, str]:
@@ -183,7 +179,7 @@ def _build_create_run_config(
     # `catalog_context` dominates the toggle, so a non-SBI run never receives
     # the catalog even with the toggle forced on.
     corpus_on = req.enable_paper_corpus is not False
-    context = _combine_context(
+    context = combine_blocks(
         audience_context(req.audience),
         paper_corpus.catalog_context(req.audience, enabled=corpus_on),
     )

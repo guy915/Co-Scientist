@@ -18,7 +18,7 @@ from app.engine_adapter.drain import _persist_final_state
 from app.engine_adapter.events import (
     _canonical_engine_payload,
     _canonical_event_type,
-    _format_milestone,
+    append_node_milestone,
 )
 from app.engine_adapter.opts import _build_engine_opts, _build_generator
 from app.engine_adapter.provider import _import_hypothesis_generator
@@ -121,11 +121,7 @@ async def _emit_engine_node_event(
     """
     node_type = _canonical_event_type(node_name)
     payload = _canonical_engine_payload(node_name, node_type, state)
-    milestone = _format_milestone(node_type, payload)
-    if milestone:
-        store.append_message(
-            run_id, "system", milestone, "milestone", db_path=db_path
-        )
+    append_node_milestone(run_id, node_type, payload, db_path=db_path)
     return await emit(node_type, payload)
 
 
@@ -276,16 +272,16 @@ async def _persist_and_report(
     so the engine path carries the same per-stage fidelity the mock's
     scripted stages do.
     """
-    report_inputs = _persist_final_state(
+    drained = _persist_final_state(
         run_id=run_id,
         final_state=final_state,
         db_path=db_path,
     )
-    safety_counts = report_inputs.pop("safety_counts")
-    grounding_counts = report_inputs.pop("grounding_counts")
-    yield await emit("safety.hypothesis", safety_counts)
-    yield await emit("citation.grounding", grounding_counts)
-    yield await emit("citation_audit", dict(report_inputs["citation_summary"]))
+    yield await emit("safety.hypothesis", drained.safety_counts)
+    yield await emit("citation.grounding", drained.grounding_counts)
+    yield await emit(
+        "citation_audit", dict(drained.report_inputs["citation_summary"])
+    )
     _persist_run_metrics(
         run_id,
         final_state.get("metrics"),
@@ -300,7 +296,7 @@ async def _persist_and_report(
         emit=emit,
         execution_time=time.time() - start,
         db_path=db_path,
-        **report_inputs,
+        **drained.report_inputs,
     ):
         yield event
 

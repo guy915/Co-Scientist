@@ -271,6 +271,7 @@ def load_catalog(directory: Path | None = None) -> tuple[CatalogPaper, ...]:
     return tuple(papers)
 
 
+@functools.cache
 def format_catalog(papers: tuple[CatalogPaper, ...]) -> str:
     """Render the catalog as a prompt block, or empty when there are none.
 
@@ -289,6 +290,9 @@ def format_catalog(papers: tuple[CatalogPaper, ...]) -> str:
 
     Injecting every abstract instead costs about 66k tokens per call against
     roughly 14k for this arrangement over a 210-paper bibliography.
+
+    Cached: the render is deterministic for a given catalog tuple, and chat
+    and the interview request it once per message/turn.
 
     Args:
         papers: The catalog papers to render.

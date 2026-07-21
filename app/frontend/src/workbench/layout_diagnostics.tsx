@@ -1,4 +1,4 @@
-import {useEffect, useRef, useState, type ReactNode} from 'react';
+import {useEffect, useMemo, useRef, useState, type ReactNode} from 'react';
 import {useLocation} from 'react-router-dom';
 import {
   APP_LOGS_CHANGED_EVENT,
@@ -22,6 +22,7 @@ import {
   type DiagnosticLogEventDetail,
   type PersistedAppLogs,
 } from './layout_diagnostics_data';
+import {headerControlButtonClasses} from './layout_primitives';
 import {tooltipClassNames} from './tooltip';
 
 // Sizing/positioning for the logs popover: capped to the viewport (dvh) with
@@ -36,13 +37,10 @@ const LOGS_POPOVER_CLASSES = joinClasses(
   'max-[720px]:right-[-0.5rem] max-[720px]:!w-[min(18.5rem,calc(100vw-1.5rem))]',
 );
 
-const LOGS_BUTTON_CLASSES =
-  'ucs-logs-button relative inline-flex h-[2.35rem] min-w-max cursor-pointer ' +
-  'items-center gap-[0.45rem] rounded-full border-0 ' +
-  'bg-cosci-logs-accent-bg px-[0.62rem] py-0 pl-[0.72rem] ' +
-  'font-[inherit] text-[0.88rem] font-semibold whitespace-nowrap ' +
-  'text-cosci-logs-accent-fg hover:bg-cosci-logs-accent-hover ' +
-  '[&[aria-expanded=true]]:bg-cosci-logs-accent-hover';
+// The shared pill chrome, with the right side tightened around the badge.
+const LOGS_BUTTON_CLASSES = headerControlButtonClasses(
+  'px-[0.62rem] py-0 pl-[0.72rem]',
+);
 
 const LOGS_BUTTON_ICON_CLASSES = 'text-[1.05rem]';
 
@@ -119,13 +117,25 @@ const DIAGNOSTIC_EMPTY_CLASSES =
 // real), whenever `version` bumps (Clear changed the store), whenever
 // the api layer announces a change (a click or error was just
 // persisted), and on a steady background poll — popover open or not, so
-// the badge never depends on opening the panel. The same fetch runs on
-// every route, so navigating never changes what the panel shows.
-function usePersistedAppLogs(version: number): PersistedAppLogs {
+// the badge never depends on opening the panel. While the popover is
+// closed only the badge is needed, so those loads fetch a single record
+// (the response still carries `total` and `last_id`); opening re-runs
+// the effect with a full-window load. The same fetch runs on every
+// route, so navigating never changes what the panel shows.
+function usePersistedAppLogs(version: number, open: boolean): PersistedAppLogs {
   const [logs, setLogs] = useState<PersistedAppLogs>({
     entries: [],
     total: 0,
   });
+  // The last applied stream state; `withEntries` records whether display
+  // entries were built for it. A load whose payload matches — and whose
+  // entries the current open state is not missing — applies nothing, so
+  // background polls of an unchanged log never re-render.
+  const appliedRef = useRef<{
+    lastId: number;
+    total: number;
+    withEntries: boolean;
+  } | null>(null);
 
   useEffect(() => {
     let disposed = false;
@@ -134,17 +144,31 @@ function usePersistedAppLogs(version: number): PersistedAppLogs {
     let latestRequest = 0;
     const load = () => {
       const request = ++latestRequest;
-      getAppLogs(0, PANEL_LIMIT)
+      getAppLogs(0, open ? PANEL_LIMIT : 1)
         .then(payload => {
           if (disposed || request !== latestRequest) return;
-          // The request already asks for PANEL_LIMIT records, but the
-          // cap is enforced here too: whatever the payload size, the
-          // panel shows at most the newest PANEL_LIMIT.
-          const shown = payload.logs.slice(-PANEL_LIMIT);
+          const applied = appliedRef.current;
+          if (
+            applied &&
+            applied.lastId === payload.last_id &&
+            applied.total === payload.total &&
+            (applied.withEntries || !open)
+          ) {
+            return;
+          }
+          // The open-state request already asks for PANEL_LIMIT records,
+          // but the cap is enforced here too: whatever the payload size,
+          // the panel shows at most the newest PANEL_LIMIT.
+          const shown = open ? payload.logs.slice(-PANEL_LIMIT) : [];
           // Number backwards from the stream total so the newest row is
           // always `total`: a capped window shows 151..250, not 1..100.
           const total = Math.max(payload.total, shown.length);
           const first = total - shown.length + 1;
+          appliedRef.current = {
+            lastId: payload.last_id,
+            total: payload.total,
+            withEntries: open,
+          };
           setLogs({
             entries: shown.map((record, index) =>
               buildAppLogEntry(record, first + index),
@@ -153,19 +177,27 @@ function usePersistedAppLogs(version: number): PersistedAppLogs {
           });
         })
         .catch(() => {
-          if (!disposed && request === latestRequest)
-            setLogs({entries: [], total: 0});
+          if (disposed || request !== latestRequest) return;
+          appliedRef.current = null;
+          setLogs({entries: [], total: 0});
         });
     };
     load();
-    const timer = window.setInterval(load, APP_LOGS_POLL_MS);
+    // A hidden tab loads nothing; returning to it runs one immediate
+    // load to catch up rather than waiting out the poll interval.
+    const loadIfVisible = () => {
+      if (!document.hidden) load();
+    };
+    const timer = window.setInterval(loadIfVisible, APP_LOGS_POLL_MS);
+    document.addEventListener('visibilitychange', loadIfVisible);
     window.addEventListener(APP_LOGS_CHANGED_EVENT, load);
     return () => {
       disposed = true;
       window.clearInterval(timer);
+      document.removeEventListener('visibilitychange', loadIfVisible);
       window.removeEventListener(APP_LOGS_CHANGED_EVENT, load);
     };
-  }, [version]);
+  }, [version, open]);
 
   return logs;
 }
@@ -284,8 +316,10 @@ export function DiagnosticsControl({
   const [copied, setCopied] = useState(false); // Copy button shows "Copied"
   useDiagnosticIngest(bumpVersion);
   useNavigationLog(bumpVersion);
-  const {entries, total} = usePersistedAppLogs(version);
-  const counts = summarizeDiagnosticEntries(entries);
+  const {entries, total} = usePersistedAppLogs(version, open);
+  // Memoized on the entries array, which only changes when a load applies
+  // — closed-state badge polls never pay for the tallies.
+  const counts = useMemo(() => summarizeDiagnosticEntries(entries), [entries]);
 
   async function onCopy() {
     await copyText(JSON.stringify(entries.slice(-COPY_LIMIT), null, 2));
@@ -357,10 +391,7 @@ function DiagnosticLogList({entries}: {entries: DiagnosticLogEntry[]}) {
       aria-label="Log events"
     >
       {entries.map(entry => (
-        <article
-          key={`${entry.source}-${entry.id}`}
-          className={DIAGNOSTIC_ENTRY_CLASSES}
-        >
+        <article key={entry.id} className={DIAGNOSTIC_ENTRY_CLASSES}>
           <div className={DIAGNOSTIC_ENTRY_META_CLASSES}>
             <span>#{entry.number}</span>
             <span>[{entry.time}]</span>

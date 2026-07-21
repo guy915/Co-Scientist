@@ -408,6 +408,8 @@ describe('Layout', () => {
     renderLayout();
 
     fireEvent.click(await screen.findByRole('button', {name: /Logs 60/i}));
+    // The full window loads when the popover opens; Copy reads it.
+    await screen.findByText(/record 60/);
     fireEvent.click(screen.getByRole('button', {name: 'Copy'}));
 
     await waitFor(() => expect(writeText).toHaveBeenCalled());
@@ -636,6 +638,8 @@ describe('Layout', () => {
     renderLayout();
 
     fireEvent.click(await screen.findByRole('button', {name: /Logs 2/i}));
+    // The full window loads when the popover opens; Copy reads it.
+    await screen.findByText(/record 30/);
     fireEvent.click(screen.getByRole('button', {name: 'Copy'}));
 
     await waitFor(() => expect(writeText).toHaveBeenCalled());

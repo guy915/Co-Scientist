@@ -141,6 +141,9 @@ class _RecordingClient:
     def request_json(self, method: str, path: str, **kwargs: Any) -> Any:
         return {}
 
+    def close(self) -> None:
+        """Match ApiClient's interface; main() closes the client on exit."""
+
 
 def test_timeout_flag_reaches_client(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]

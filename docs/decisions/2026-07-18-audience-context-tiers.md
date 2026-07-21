@@ -1,7 +1,25 @@
 # ADR: Two-tier audience context, and no retrieval over the lab corpus yet
 
-**Status:** Accepted · 2026-07-18
-**Code:** `app/app/audience.py`, `app/app/content/sbi_ucd_*.md`
+**Status:** Accepted · 2026-07-18 · partially superseded (see below)
+**Code:** `app/app/audience.py`, `app/app/content/sbi_ucd_context.md`
+
+> **Superseded in part by later corpus work.** Two decisions below were
+> reversed; the record is kept as history of why they were tried.
+>
+> - **The two-tier split is gone.** The ~775-token profile was a paraphrase
+>   written from a model's understanding of the group, and it dropped the
+>   people, the mathematics, and the collaborators. The group's full
+>   reference document now ships verbatim as the single
+>   `sbi_ucd_context.md`, served to every surface;
+>   `audience_chat_context()` is a plain alias of `audience_context()`,
+>   there is no `sbi_ucd_reference.md`, and no size-bounding test exists.
+>   `audience.py`'s module docstring carries the rationale.
+> - **Passage search over the corpus was replaced by catalog injection.**
+>   No `search_paper_corpus` MCP tool is registered: the whole catalog
+>   (title + abstract of every paper) is injected into the run's context up
+>   front, and the agent reads any paper in full with `fetch_paper`. The
+>   sanitation pipeline, the committed corpus, the audience gate, and
+>   `fetch_paper`'s untrusted-id handling below still stand.
 
 The SBI/UCD audience needed real lab context instead of the placeholder
 written from the institute's name. This record explains why that context is

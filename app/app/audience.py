@@ -26,7 +26,7 @@ from pathlib import Path
 logger = logging.getLogger(__name__)
 
 VALID_AUDIENCES: tuple[str, ...] = ("general", "google", "sbi_ucd")
-AUDIENCE_PATTERN: str = "^(general|google|sbi_ucd)$"
+AUDIENCE_PATTERN: str = f"^({'|'.join(VALID_AUDIENCES)})$"
 
 # Audiences with a bundled context file, mapped to their filename under
 # ``content/``. Absent audiences contribute no context.
@@ -77,19 +77,8 @@ def audience_context(audience: str | None) -> str:
     return _load_context_file(filename)
 
 
-def audience_chat_context(audience: str | None) -> str:
-    """Return the background for chat and the interview.
-
-    An alias of `audience_context`, kept as its own name because the two call
-    sites mean different things: the run path asks for "the context", chat and
-    the interview ask for "everything we know about this group". Those were
-    once different texts. They are the same document now, and this name is
-    what keeps that a one-line change if they ever diverge again.
-
-    Args:
-        audience: The self-declared audience value, possibly None or unknown.
-
-    Returns:
-        The audience's context document, or an empty string when it has none.
-    """
-    return audience_context(audience)
+# Chat and the interview ask for "everything we know about this group",
+# the run path asks for "the context". Those were once different texts;
+# they are the same document now, and this alias is what keeps a future
+# divergence a one-line change.
+audience_chat_context = audience_context

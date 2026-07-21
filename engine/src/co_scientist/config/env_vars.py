@@ -90,3 +90,35 @@ def parse_bool_env(value: str) -> bool:
     # COSCIENTIST_* env flags. Anything not in this allowlist, including an
     # empty string, parses as False.
     return value.lower() in ("true", "1", "yes", "on")
+
+
+def parse_timeout_env(env_var: str, default: float) -> float | None:
+    """Parse a wall-clock-ceiling env var into seconds.
+
+    Shared by the LLM and MCP per-call ceilings so the disable and
+    fallback semantics cannot drift between them. Read from the
+    environment on every call rather than cached, so tests and operators
+    can change a ceiling without restarting the process.
+
+    Args:
+        env_var: Name of the environment variable to read.
+        default: Ceiling to use when the variable is unset or invalid.
+
+    Returns:
+        The timeout in seconds, or None when it is disabled (a value of
+        zero or less).
+    """
+    raw = os.environ.get(env_var)
+    if raw is None or not raw.strip():
+        return default
+    try:
+        seconds = float(raw)
+    except ValueError:
+        logger.warning(
+            "ignoring non-numeric %s=%r; using default %ss",
+            env_var,
+            raw,
+            default,
+        )
+        return default
+    return seconds if seconds > 0 else None

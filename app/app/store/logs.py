@@ -213,11 +213,17 @@ def prune_logs(
 ) -> int:
     """Delete the oldest rows beyond ``max_rows`` and return the count."""
     with _use_conn(conn, db_path) as c:
-        cur = c.execute(
-            "DELETE FROM app_logs WHERE id NOT IN "
-            "(SELECT id FROM app_logs ORDER BY id DESC LIMIT ?)",
+        # Find the cutoff with a pure primary-key walk, then delete the
+        # doomed range directly. The NOT IN anti-join this replaces
+        # materialized the whole keep-set and scanned every surviving row
+        # while holding the write lock, even when nothing needed deleting.
+        row = c.execute(
+            "SELECT id FROM app_logs ORDER BY id DESC LIMIT 1 OFFSET ?",
             (max_rows,),
-        )
+        ).fetchone()
+        if row is None:
+            return 0
+        cur = c.execute("DELETE FROM app_logs WHERE id <= ?", (row["id"],))
         return int(cur.rowcount or 0)
 
 

@@ -15,10 +15,14 @@ export function useStage(): [(node: HTMLElement | null) => void, Stage] {
 
   const measure = useCallback((node: HTMLElement) => {
     const box = node.getBoundingClientRect();
+    // Rounded, so sub-pixel jitter cannot count as a size change: every
+    // change that passes the bailout below re-runs the full layout.
+    const width = Math.round(box.width);
+    const height = Math.round(box.height);
     setStage(current =>
-      current.width === box.width && current.height === box.height
+      current.width === width && current.height === height
         ? current
-        : {width: box.width, height: box.height},
+        : {width, height},
     );
   }, []);
 
@@ -26,9 +30,18 @@ export function useStage(): [(node: HTMLElement | null) => void, Stage] {
     if (!element) return;
     measure(element);
     // Catches the window resizing and the detail panel opening beside it.
-    const observer = new ResizeObserver(() => measure(element));
+    // A drag fires the observer faster than the layout is worth recomputing,
+    // so observations coalesce to one measurement per frame.
+    let frame = 0;
+    const observer = new ResizeObserver(() => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => measure(element));
+    });
     observer.observe(element);
-    return () => observer.disconnect();
+    return () => {
+      cancelAnimationFrame(frame);
+      observer.disconnect();
+    };
   }, [element, measure]);
 
   return [setElement, stage];

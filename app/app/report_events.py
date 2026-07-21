@@ -78,15 +78,14 @@ async def emit_cancel_or_pause(
 ) -> dict[str, Any]:
     """Persist and emit the terminal status for a stopped run.
 
-    The pause endpoint reuses the cancel signal, so a pause-flagged run is
-    persisted/emitted as ``paused`` (resumable) rather than ``cancelled``.
-    Both workflow providers call this to ensure identical event/persistence
-    behaviour on stop.
+    The stop signal covers both cancel and pause (the pause endpoint marks
+    the run PAUSED durably before the workflow observes the signal), so the
+    run's persisted status decides which terminal event a stopped stream
+    emits: a paused run stays ``paused`` (resumable) rather than being
+    overwritten as ``cancelled``.
     """
-    from app.runs_registry import is_pause_requested
-
-    if is_pause_requested(run_id):
-        store.update_run_status(run_id, RunStatus.PAUSED, db_path=db_path)
+    run = store.get_run(run_id, db_path=db_path)
+    if run is not None and run.status == RunStatus.PAUSED.value:
         return await emit("status", {"status": "paused"})
     store.update_run_status(run_id, RunStatus.CANCELLED, db_path=db_path)
     return await emit("status", {"status": "cancelled"})

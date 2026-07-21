@@ -145,6 +145,33 @@ def run_used_offline(run: RunRow) -> bool:
     return run.llm_backend == "offline"
 
 
+def run_offline_backed(
+    run_id: str,
+    *,
+    missing_run_fallback: bool = False,
+    db_path: str | None = None,
+) -> bool:
+    """Resolve a run's offline/real backend by id, with a gone-row fallback.
+
+    The by-id form of :func:`run_used_offline` for callers that do not hold
+    the row. One home for the "load the run, then fall back when it has
+    been deleted" policy the finalization and escalation gates share, so
+    their gating cannot drift.
+
+    Args:
+        run_id: Identifier of the run to inspect.
+        missing_run_fallback: What to report when the run row is gone.
+        db_path: Optional override for the SQLite database path.
+
+    Returns:
+        True when the run's backend is offline.
+    """
+    run = get_run(run_id, db_path=db_path)
+    if run is None:
+        return missing_run_fallback
+    return run_used_offline(run)
+
+
 def set_run_llm_backend(
     run_id: str, llm_backend: str, db_path: str | None = None
 ) -> None:

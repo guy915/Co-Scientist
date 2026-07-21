@@ -1,7 +1,7 @@
 import {useCallback, useMemo, useState, type CSSProperties} from 'react';
 import {useSearchParams} from 'react-router-dom';
 import {
-  nodes,
+  nodeById,
   type ClusterId,
   type EdgeKind,
   type ProposalNode,
@@ -9,7 +9,7 @@ import {
 import {ProposalsDetail} from '../proposals/proposals_detail';
 import {ProposalsGraph} from '../proposals/proposals_graph';
 import {ProposalsLegend} from '../proposals/proposals_legend';
-import {computeLayout} from '../proposals/proposals_layout';
+import {LEGEND_WIDTH, computeLayout} from '../proposals/proposals_layout';
 import {useStage} from '../proposals/use_stage';
 
 // Adds or removes one member, which is all either legend needs: an empty
@@ -42,7 +42,7 @@ export function ProposalsPage() {
 
   const selectedId = params.get('node');
   const selected = useMemo(
-    () => nodes.find(node => node.id === selectedId) ?? null,
+    () => (selectedId ? (nodeById.get(selectedId) ?? null) : null),
     [selectedId],
   );
 
@@ -51,8 +51,9 @@ export function ProposalsPage() {
       // `replace` keeps the back button meaningful: walking the argument
       // node to node should not fill history with every hop. Choosing the
       // open node again closes it, so the same gesture opens and dismisses.
+      // Every caller passes a real node id, so only the toggle is checked.
       if (id === selectedId) setLeaving(selected);
-      setParams(id && id !== selectedId ? {node: id} : {}, {replace: true});
+      setParams(id !== selectedId ? {node: id} : {}, {replace: true});
     },
     [setParams, selectedId, selected],
   );
@@ -76,7 +77,14 @@ export function ProposalsPage() {
       <div
         className="proposals-stage"
         ref={stageRef}
-        style={{'--proposals-scale': layout.scale} as CSSProperties}
+        style={
+          {
+            '--proposals-scale': layout.scale,
+            // The legend cards take their width from the same constant the
+            // layout reserves for them, so the two cannot drift apart.
+            '--proposals-legend-width': `${LEGEND_WIDTH}px`,
+          } as CSSProperties
+        }
       >
         <ProposalsGraph
           activeId={activeId}

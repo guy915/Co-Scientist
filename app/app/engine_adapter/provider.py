@@ -1,8 +1,10 @@
 """Provider selection and engine-availability probes.
 
-Decides between the real engine and the mock workflow (`select_provider`),
-reports provider diagnostics for the /status route (`system_status`), and
-performs the lazy engine import used by the real-engine path.
+Owns the offline/real LLM-backend split (`offline_mode`,
+`resolve_offline_backend`, `sync_engine_llm_backend`), reports provider
+diagnostics for the /status route (`system_status`), and performs the lazy
+engine import used by the engine path (`select_provider` always resolves to
+the engine; the mock workflow is retired).
 """
 
 from __future__ import annotations
@@ -12,6 +14,7 @@ import os
 import sys
 from typing import Any
 
+from app import store
 from app.config import settings
 
 # Editable-install .pth files aren't always processed in Python 3.12 venvs.
@@ -94,6 +97,37 @@ def select_provider() -> str:
             "of the app now that the mock provider has been retired"
         )
     return "engine"
+
+
+def resolve_offline_backend(cfg: dict[str, Any]) -> bool:
+    """Return whether this run's engine execution should be offline-backed.
+
+    The resolved config's ``llm_backend`` key wins when a caller pinned it
+    explicitly ("offline" or "real"); otherwise falls back to the
+    process-level ``offline_mode()`` predicate, matching prior behavior for
+    any run that does not set the override.
+    """
+    backend = cfg.get("llm_backend")
+    if backend == "offline":
+        return True
+    if backend == "real":
+        return False
+    return offline_mode()
+
+
+def sync_engine_llm_backend(
+    run_id: str, cfg: dict[str, Any], db_path: str | None
+) -> None:
+    """Persist the resolved offline/real backend for an engine run.
+
+    Written before the engine is dispatched -- by both run boundaries, the
+    streaming ``run_workflow`` and the durable bootstrap -- so every later
+    reader (``run_used_offline``, used by generator construction, report
+    finalization, and hypothesis badging) reflects the resolved config's
+    override rather than whatever was derived when the run row was created.
+    """
+    backend = "offline" if resolve_offline_backend(cfg) else "real"
+    store.set_run_llm_backend(run_id, backend, db_path=db_path)
 
 
 def system_status() -> dict[str, Any]:

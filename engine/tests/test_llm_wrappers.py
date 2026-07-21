@@ -393,6 +393,50 @@ async def test_call_llm_with_tools_no_tool_calls_returns_immediately(
     assert history[-1]["content"] == "direct answer"
 
 
+async def test_tool_loop_applies_provider_quirks(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The tool loop's turn carries the same provider handling as call_llm.
+
+    DashScope's compatible-mode endpoint does not support
+    ``reasoning_effort`` (the guard lives in
+    ``llm_request.reasoning_effort_args``), and every turn asks the
+    provider client to give up on its own via the ``timeout`` argument.
+    """
+    _disable_cache(monkeypatch)
+    captured: dict[str, Any] = {}
+
+    async def capturing_acompletion(**kwargs: Any) -> SimpleNamespace:
+        captured.clear()
+        captured.update(kwargs)
+        return _completion(_message("direct answer"))
+
+    monkeypatch.setattr(
+        "co_scientist.llm.litellm.acompletion", capturing_acompletion
+    )
+
+    async def tool_executor(_tc: Any) -> dict[str, Any]:
+        raise AssertionError("no tool call should run")
+
+    await call_llm_with_tools(
+        "a prompt",
+        "dashscope/deepseek-v4-pro",
+        tools=_SEARCH_TOOL,
+        tool_executor=tool_executor,
+    )
+    assert captured["extra_body"] == {"enable_thinking": True}
+    assert "reasoning_effort" not in captured
+    assert captured["timeout"] > 0
+
+    await call_llm_with_tools(
+        "a prompt",
+        "deepseek/deepseek-v4-pro",
+        tools=_SEARCH_TOOL,
+        tool_executor=tool_executor,
+    )
+    assert captured["reasoning_effort"] == "low"
+
+
 def test_message_to_history_preserves_reasoning_content() -> None:
     """Thinking's reasoning_content is echoed back on a tool-call turn.
 

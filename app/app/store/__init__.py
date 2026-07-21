@@ -32,7 +32,6 @@ from app.store.checkpoints import (
 )
 from app.store.db import (
     checkpoint_wal,
-    compact_database,
     connect,
     transaction,
 )
@@ -108,6 +107,7 @@ from app.store.runs import (
     reconcile_interrupted_runs,
     reserve_run_capacity,
     run_exists,
+    run_offline_backed,
     run_used_offline,
     set_run_llm_backend,
     set_run_title,
@@ -125,6 +125,7 @@ from app.store.tasks import (
     cancel_run_tasks,
     cancel_task,
     claim_task,
+    cohort_poll,
     complete_task,
     enqueue_task,
     fail_task,
@@ -169,7 +170,7 @@ __all__ = [
     "clear_logs",
     "clear_publication_artifacts",
     "clear_run_derived_data",
-    "compact_database",
+    "cohort_poll",
     "complete_task",
     "connect",
     "count_logs",
@@ -223,6 +224,7 @@ __all__ = [
     "revive_task_for_retry",
     "revoke_report_share",
     "run_exists",
+    "run_offline_backed",
     "run_used_offline",
     "safety_stage_is_approved",
     "save_checkpoint",

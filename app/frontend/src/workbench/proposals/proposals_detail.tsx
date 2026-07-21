@@ -1,3 +1,4 @@
+import {useMemo} from 'react';
 import {Icon} from '@/components/icon';
 import {clusters, type ProposalNode} from './proposals_data';
 import {relationsOf} from './proposals_relations';
@@ -30,8 +31,13 @@ export function ProposalsDetail({
   onClose: () => void;
   onLeft?: () => void;
 }) {
-  const cluster = clusters.find(entry => entry.id === node.cluster);
-  const relations = relationsOf(node.id);
+  // Both are static per node, and the page re-renders this panel on every
+  // hover elsewhere on the graph, so neither derivation may run per render.
+  const cluster = useMemo(
+    () => clusters.find(entry => entry.id === node.cluster),
+    [node.cluster],
+  );
+  const relations = useMemo(() => relationsOf(node.id), [node.id]);
   return (
     <aside
       className={leaving ? 'proposals-detail is-leaving' : 'proposals-detail'}

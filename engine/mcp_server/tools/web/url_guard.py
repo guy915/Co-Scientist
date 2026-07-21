@@ -113,19 +113,3 @@ def check_fetchable(url: str) -> None:
             raise UrlNotFetchableError(
                 f"host resolves to a non-public address: {hostname}"
             )
-
-
-def is_fetchable(url: str) -> bool:
-    """Boolean form of check_fetchable, for callers that don't want the reason.
-
-    Args:
-        url: Absolute URL to screen.
-
-    Returns:
-        True if the URL passes every check.
-    """
-    try:
-        check_fetchable(url)
-    except UrlNotFetchableError:
-        return False
-    return True

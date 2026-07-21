@@ -166,8 +166,8 @@ def ground_hypotheses(
         assessor: The entailment assessor (deterministic by default; the LLM
             assessor is plugged in for a real grounded run).
         assessor_id: Provenance id recorded on each persisted edge.
-        allow_speculative: Compatibility-only switch for explicitly marked mock
-            workflows. Faithful engine runs must leave this False.
+        allow_speculative: Gate leniency switch; the drain leaves this False
+            so faithful engine runs keep the strict publication gate.
         conn: Optional open connection to reuse (e.g. from ``transaction``).
         db_path: Optional override for the SQLite database path.
 
@@ -183,6 +183,67 @@ def ground_hypotheses(
         conn=conn,
         db_path=db_path,
     )
+
+
+def assess_claim_groups(
+    groups: Sequence[Sequence[str]],
+    passages: Sequence[EvidencePassage],
+    *,
+    assessor: Assessor,
+    assessor_id: str,
+    parallel: bool = True,
+) -> list[list[ClaimAssessment]]:
+    """Assess independent groups of claims in one bounded wave.
+
+    The one wave policy shared by both claim-assessment paths (the drain's
+    grounding pass and the pre-ranking evidence gate), so pool sizing and
+    ordering guarantees cannot drift between them. Claims are independent
+    -- of each other and across groups -- so overlapping them changes no
+    verdict, only how long the phase takes. With the LLM assessor each is
+    a synchronous provider call, and run one at a time this was the
+    longest phase of a finished run. The provider is not the constraint:
+    measured on the production model, twenty-four concurrent completions
+    return in the same wall clock as four. Ordering is preserved
+    throughout, so each group's recorded claim sequence is identical to
+    the serial one.
+
+    Args:
+        groups: Per group (typically one hypothesis), its claims in
+            recording order.
+        passages: Candidate evidence passages each claim is assessed
+            against.
+        assessor: The entailment assessor.
+        assessor_id: Provenance id recorded on each assessment.
+        parallel: When False, assess serially -- for assessors that make
+            no provider call and gain nothing from a pool.
+
+    Returns:
+        Per group, its claim assessments in the group's own claim order.
+    """
+    flat = [
+        (index, claim) for index, group in enumerate(groups) for claim in group
+    ]
+    if not flat:
+        return [[] for _ in groups]
+
+    def _assess_one(item: tuple[int, str]) -> ClaimAssessment:
+        return assess_claim(
+            item[1], passages, assessor=assessor, assessor_id=assessor_id
+        )
+
+    if parallel:
+        # ``map`` preserves input order.
+        with ThreadPoolExecutor(
+            max_workers=min(ASSESSMENT_CONCURRENCY, len(flat))
+        ) as pool:
+            results = list(pool.map(_assess_one, flat))
+    else:
+        results = [_assess_one(item) for item in flat]
+
+    grouped: list[list[ClaimAssessment]] = [[] for _ in groups]
+    for (index, _claim), assessment in zip(flat, results, strict=True):
+        grouped[index].append(assessment)
+    return grouped
 
 
 def assess_hypothesis_claims(
@@ -217,41 +278,28 @@ def assess_hypothesis_claims(
         for hyp in hyps
         if (hyp_id := str(hyp.get("id") or ""))
     ]
-    # Flattened so every claim in the run is in flight together rather than
-    # one hypothesis at a time.
-    flat = [
-        (index, claim, role)
-        for index, (_hyp_id, records) in enumerate(per_hypothesis)
-        for claim, role in records
-    ]
-    if not flat:
-        return [(hyp_id, []) for hyp_id, _records in per_hypothesis]
-
-    def _assess_one(item: tuple[int, str, str]) -> ClaimAssessment:
-        _index, claim, _role = item
-        return assess_claim(
-            claim, candidates, assessor=assessor, assessor_id=assessor_id
-        )
-
-    # Each claim is assessed independently, so overlapping them changes no
-    # verdict -- only how long the phase takes. With the LLM assessor each
-    # is a synchronous provider call, and run one at a time this was the
-    # longest phase of a finished run. The provider is not the constraint:
-    # measured on the production model, twenty-four concurrent completions
-    # return in the same wall clock as four. ``map`` preserves input order.
-    with ThreadPoolExecutor(
-        max_workers=min(ASSESSMENT_CONCURRENCY, len(flat))
-    ) as pool:
-        results = list(pool.map(_assess_one, flat))
-
-    grouped: list[list[tuple[ClaimAssessment, str]]] = [
-        [] for _ in per_hypothesis
-    ]
-    for (index, _claim, role), assessment in zip(flat, results, strict=True):
-        grouped[index].append((assessment, role))
+    grouped = assess_claim_groups(
+        [
+            [claim for claim, _role in records]
+            for _id, records in per_hypothesis
+        ],
+        candidates,
+        assessor=assessor,
+        assessor_id=assessor_id,
+    )
     return [
-        (hyp_id, grouped[index])
-        for index, (hyp_id, _records) in enumerate(per_hypothesis)
+        (
+            hyp_id,
+            [
+                (assessment, role)
+                for assessment, (_claim, role) in zip(
+                    assessments, records, strict=True
+                )
+            ],
+        )
+        for (hyp_id, records), assessments in zip(
+            per_hypothesis, grouped, strict=True
+        )
     ]
 
 

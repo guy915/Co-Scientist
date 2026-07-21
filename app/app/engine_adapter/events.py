@@ -10,6 +10,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any
 
+from app import store
 from app.report_render import article_stub, hypothesis_stub, match_stub
 
 
@@ -281,3 +282,30 @@ def _format_milestone(node_type: str, payload: dict[str, Any]) -> str | None:
     """
     builder = _MILESTONE_BUILDERS.get(node_type)
     return builder(payload) if builder is not None else None
+
+
+def append_node_milestone(
+    run_id: str,
+    node_type: str,
+    payload: dict[str, Any],
+    *,
+    db_path: str | None = None,
+) -> None:
+    """Persist the milestone side-message for one canonical node event.
+
+    The single home for the milestone message's shape (a ``"system"`` role,
+    ``"milestone"`` kind chat message), shared by the streaming and durable
+    engine paths so the two can never carry different shapes. A no-op for
+    node types without a milestone builder.
+
+    Args:
+        run_id: The run the milestone belongs to.
+        node_type: Canonical event type (see ``_canonical_event_type``).
+        payload: The node's canonical event payload.
+        db_path: Optional override for the SQLite database path.
+    """
+    milestone = _format_milestone(node_type, payload)
+    if milestone:
+        store.append_message(
+            run_id, "system", milestone, "milestone", db_path=db_path
+        )

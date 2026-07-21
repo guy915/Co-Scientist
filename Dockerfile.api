@@ -4,15 +4,23 @@ FROM python:3.12-slim
 
 WORKDIR /app
 
-RUN apt-get update && apt-get install -y git && rm -rf /var/lib/apt/lists/*
-
-# Install engine first (layer cache)
-COPY engine/ /workspace/co-scientist-engine/
-RUN pip install --no-cache-dir -e /workspace/co-scientist-engine
+# Engine dependencies first, from metadata alone, so editing engine source
+# does not re-install langgraph/litellm/langchain. The editable install of a
+# src-layout project needs src/ to exist (setuptools' egg_base check), but
+# not its contents: the compat .pth records the path, and the real tree
+# arrives in the source COPY below. README.md is required because the
+# engine's pyproject declares it as the readme.
+COPY engine/pyproject.toml engine/README.md /workspace/co-scientist-engine/
+RUN mkdir -p /workspace/co-scientist-engine/src \
+    && pip install --no-cache-dir -e /workspace/co-scientist-engine
 
 # Install app deps
 COPY app/pyproject.toml ./
 RUN pip install --no-cache-dir -e .
+
+# Copy the engine source (src/ only: the api imports the package and talks
+# to the MCP server over HTTP, so tests/dev/docs/mcp_server never ship).
+COPY engine/src/ /workspace/co-scientist-engine/src/
 
 # Copy app source
 COPY app/app/ ./app/

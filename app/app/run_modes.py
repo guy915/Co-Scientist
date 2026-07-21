@@ -252,11 +252,18 @@ def _apply_numeric_override(
     base[key] = max(base[key], value) if key in base else value
 
 
-def _apply_setup_override(
-    base: dict[str, Any], unused_key: str, raw_value: Any
+def _apply_verbatim_override(
+    base: dict[str, Any], key: str, raw_value: Any
 ) -> None:
-    """Carry the setup block through verbatim, in place."""
-    base["setup"] = raw_value
+    """Carry an override through verbatim, in place."""
+    base[key] = raw_value
+
+
+def _apply_bool_override(
+    base: dict[str, Any], key: str, raw_value: Any
+) -> None:
+    """Coerce a connector/feature toggle to bool and merge it, in place."""
+    base[key] = bool(raw_value)
 
 
 def _apply_tier_override(
@@ -276,20 +283,6 @@ def _apply_focus_override(
     base["focus"] = normalize_run_focus(
         raw_value if isinstance(raw_value, str) else None
     )
-
-
-def _apply_audience_override(
-    base: dict[str, Any], unused_key: str, raw_value: Any
-) -> None:
-    """Carry the audience through verbatim, in place."""
-    base["audience"] = raw_value
-
-
-def _apply_literature_review_override(
-    base: dict[str, Any], unused_key: str, raw_value: Any
-) -> None:
-    """Coerce and merge the literature-review toggle into `base`, in place."""
-    base["enable_literature_review"] = bool(raw_value)
 
 
 # Valid explicit values for the "llm_backend" override; any other raw value
@@ -313,33 +306,19 @@ def _apply_llm_backend_override(
     )
 
 
-def _apply_web_search_override(
-    base: dict[str, Any], unused_key: str, raw_value: Any
-) -> None:
-    """Coerce and merge the web-search toggle into `base`, in place."""
-    base["enable_web_search"] = bool(raw_value)
-
-
-def _apply_paper_corpus_override(
-    base: dict[str, Any], unused_key: str, raw_value: Any
-) -> None:
-    """Coerce and merge the paper-corpus toggle into `base`, in place."""
-    base["enable_paper_corpus"] = bool(raw_value)
-
-
 # Per-key override handlers; any key without a dedicated handler is a
 # numeric knob and falls back to `_apply_numeric_override`. Every handler
 # shares `_apply_numeric_override`'s (base, key, raw_value) signature so the
 # dispatcher below can call whichever one it finds uniformly.
 _OVERRIDE_HANDLERS: dict[str, Callable[[dict[str, Any], str, Any], None]] = {
-    "setup": _apply_setup_override,
+    "setup": _apply_verbatim_override,
     "tier": _apply_tier_override,
     "focus": _apply_focus_override,
-    "audience": _apply_audience_override,
-    "enable_literature_review": _apply_literature_review_override,
+    "audience": _apply_verbatim_override,
+    "enable_literature_review": _apply_bool_override,
     "llm_backend": _apply_llm_backend_override,
-    "enable_web_search": _apply_web_search_override,
-    "enable_paper_corpus": _apply_paper_corpus_override,
+    "enable_web_search": _apply_bool_override,
+    "enable_paper_corpus": _apply_bool_override,
 }
 
 

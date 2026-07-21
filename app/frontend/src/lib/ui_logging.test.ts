@@ -88,6 +88,9 @@ describe('ui interaction logging', () => {
   let uninstall: () => void;
 
   beforeEach(() => {
+    // Interactions buffer onto a short timer before POSTing; tests drive
+    // the flush explicitly.
+    vi.useFakeTimers();
     logsApiMock.postAppLogs.mockReset();
     logsApiMock.postAppLogs.mockResolvedValue({added: 1, last_id: 1});
     uninstall = installUiInteractionLogging();
@@ -95,6 +98,7 @@ describe('ui interaction logging', () => {
 
   afterEach(() => {
     uninstall();
+    vi.useRealTimers();
     document.body.innerHTML = '';
   });
 
@@ -107,6 +111,7 @@ describe('ui interaction logging', () => {
     const button = mount(document.createElement('button'));
     button.textContent = 'Start run';
     button.click();
+    vi.runAllTimers();
 
     expect(logsApiMock.postAppLogs).toHaveBeenCalledWith([
       {message: 'click: "Start run" (button)', logger: 'interaction'},
@@ -117,6 +122,7 @@ describe('ui interaction logging', () => {
     const button = mount(document.createElement('button'));
     button.setAttribute('aria-label', 'Menu');
     button.click();
+    vi.runAllTimers();
 
     expect(logsApiMock.postAppLogs).toHaveBeenCalledWith([
       {message: 'click: "Menu" (button)', logger: 'interaction'},
@@ -130,6 +136,7 @@ describe('ui interaction logging', () => {
     span.textContent = 'Docs';
     link.appendChild(span);
     span.click();
+    vi.runAllTimers();
 
     expect(logsApiMock.postAppLogs).toHaveBeenCalledWith([
       {message: 'click: "Docs" (a)', logger: 'interaction'},
@@ -141,16 +148,59 @@ describe('ui interaction logging', () => {
     chip.setAttribute('role', 'button');
     chip.textContent = 'Express tier';
     chip.click();
+    vi.runAllTimers();
 
     expect(logsApiMock.postAppLogs).toHaveBeenCalledWith([
       {message: 'click: "Express tier" (div)', logger: 'interaction'},
     ]);
   });
 
+  it('batches rapid interactions into one POST', () => {
+    const button = mount(document.createElement('button'));
+    button.textContent = 'Start run';
+    button.click();
+    button.click();
+    // Nothing ships until the flush timer fires.
+    expect(logsApiMock.postAppLogs).not.toHaveBeenCalled();
+    vi.runAllTimers();
+
+    expect(logsApiMock.postAppLogs).toHaveBeenCalledTimes(1);
+    expect(logsApiMock.postAppLogs).toHaveBeenCalledWith([
+      {message: 'click: "Start run" (button)', logger: 'interaction'},
+      {message: 'click: "Start run" (button)', logger: 'interaction'},
+    ]);
+  });
+
+  it('flushes immediately once the buffer fills', () => {
+    const button = mount(document.createElement('button'));
+    button.textContent = 'Go';
+    for (let i = 0; i < 20; i++) button.click();
+
+    // The 20th record fills the buffer and ships without the timer.
+    expect(logsApiMock.postAppLogs).toHaveBeenCalledTimes(1);
+    const records = logsApiMock.postAppLogs.mock.calls[0][0] as unknown[];
+    expect(records).toHaveLength(20);
+  });
+
+  it('flushes the buffer when the page hides', () => {
+    const button = mount(document.createElement('button'));
+    button.textContent = 'Start run';
+    button.click();
+    window.dispatchEvent(new Event('pagehide'));
+
+    expect(logsApiMock.postAppLogs).toHaveBeenCalledWith([
+      {message: 'click: "Start run" (button)', logger: 'interaction'},
+    ]);
+    // Already shipped: the timer firing later must not repost it.
+    vi.runAllTimers();
+    expect(logsApiMock.postAppLogs).toHaveBeenCalledTimes(1);
+  });
+
   it('ignores clicks on non-interactive elements', () => {
     const paragraph = mount(document.createElement('p'));
     paragraph.textContent = 'just text';
     paragraph.click();
+    vi.runAllTimers();
 
     expect(logsApiMock.postAppLogs).not.toHaveBeenCalled();
   });
@@ -159,6 +209,7 @@ describe('ui interaction logging', () => {
     const button = mount(document.createElement('button'));
     button.textContent = 'x'.repeat(200);
     button.click();
+    vi.runAllTimers();
 
     const records = logsApiMock.postAppLogs.mock.calls[0][0] as {
       message: string;
@@ -171,6 +222,7 @@ describe('ui interaction logging', () => {
     form.setAttribute('aria-label', 'Research goal');
     // jsdom aborts real submissions; dispatch the event directly.
     form.dispatchEvent(new Event('submit', {bubbles: true}));
+    vi.runAllTimers();
 
     expect(logsApiMock.postAppLogs).toHaveBeenCalledWith([
       {message: 'submit: "Research goal" (form)', logger: 'interaction'},
@@ -182,6 +234,7 @@ describe('ui interaction logging', () => {
     const button = mount(document.createElement('button'));
     button.textContent = 'Gone';
     button.click();
+    vi.runAllTimers();
 
     expect(logsApiMock.postAppLogs).not.toHaveBeenCalled();
     uninstall = () => {

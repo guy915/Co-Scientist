@@ -13,13 +13,13 @@ re-exported here so callers keep importing from ``co_scientist.mcp_client``.
 import asyncio
 import json
 import logging
-import os
 from typing import TYPE_CHECKING, Any, Optional, cast
 
 from langchain_core.utils.function_calling import convert_to_openai_tool
 from langchain_mcp_adapters.client import MultiServerMCPClient
 from langchain_mcp_adapters.sessions import Connection
 
+from co_scientist.config.env_vars import parse_timeout_env
 from co_scientist.exceptions import MCPToolTimeoutError
 from co_scientist.mcp_client_availability import (
     _has_any_tools,
@@ -72,20 +72,9 @@ def mcp_tool_timeout_seconds() -> float | None:
         The timeout in seconds, or None when it is disabled (a value of zero
         or less) or the configured value is not a number.
     """
-    raw = os.environ.get(MCP_TOOL_TIMEOUT_ENV)
-    if raw is None or not raw.strip():
-        return DEFAULT_MCP_TOOL_TIMEOUT_SECONDS
-    try:
-        seconds = float(raw)
-    except ValueError:
-        logger.warning(
-            "ignoring non-numeric %s=%r; using default %ss",
-            MCP_TOOL_TIMEOUT_ENV,
-            raw,
-            DEFAULT_MCP_TOOL_TIMEOUT_SECONDS,
-        )
-        return DEFAULT_MCP_TOOL_TIMEOUT_SECONDS
-    return seconds if seconds > 0 else None
+    return parse_timeout_env(
+        MCP_TOOL_TIMEOUT_ENV, DEFAULT_MCP_TOOL_TIMEOUT_SECONDS
+    )
 
 
 async def _ainvoke_within_timeout(

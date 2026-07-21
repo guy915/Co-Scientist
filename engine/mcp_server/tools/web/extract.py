@@ -16,7 +16,7 @@ from typing import Any
 
 from bs4 import BeautifulSoup
 
-from mcp_server.text_extraction import _truncate_markdown
+from mcp_server.text_extraction import truncate_markdown
 
 logger = logging.getLogger(__name__)
 
@@ -80,9 +80,9 @@ def extract_text_from_html(html: str, max_chars: int = 50_000) -> str:
         logger.warning("HTML parse failed: %s", exc)
         return "[error: could not parse HTML]"
 
-    for tag_name in _CHROME_TAGS:
-        for tag in soup.find_all(tag_name):
-            tag.decompose()
+    # One traversal for every chrome tag; find_all accepts a name list.
+    for tag in soup.find_all(list(_CHROME_TAGS)):
+        tag.decompose()
 
     root = soup.find("article") or soup.find("main") or soup.body or soup
     lines = []
@@ -100,7 +100,7 @@ def extract_text_from_html(html: str, max_chars: int = 50_000) -> str:
     title = soup.title.get_text(strip=True) if soup.title else ""
     if title:
         text = f"# {title}\n\n{text}"
-    return _truncate_markdown(text, max_chars)
+    return truncate_markdown(text, max_chars)
 
 
 def extract_text_from_pdf(data: bytes, max_chars: int = 50_000) -> str:
@@ -132,4 +132,4 @@ def extract_text_from_pdf(data: bytes, max_chars: int = 50_000) -> str:
 
     if not text.strip():
         return "[note: PDF has no extractable text layer, likely a scan]"
-    return _truncate_markdown(text, max_chars)
+    return truncate_markdown(text, max_chars)

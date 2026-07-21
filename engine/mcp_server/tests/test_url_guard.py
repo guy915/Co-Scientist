@@ -13,7 +13,6 @@ import pytest
 from mcp_server.tools.web.url_guard import (
     UrlNotFetchableError,
     check_fetchable,
-    is_fetchable,
 )
 
 
@@ -108,9 +107,3 @@ def test_rejects_unresolvable_host(resolve_to: Any) -> None:
     resolve_to({})
     with pytest.raises(UrlNotFetchableError, match="does not resolve"):
         check_fetchable("https://no-such-host.invalid/")
-
-
-def test_is_fetchable_returns_bool(resolve_to: Any) -> None:
-    resolve_to({"example.com": "93.184.216.34", "localhost": "127.0.0.1"})
-    assert is_fetchable("https://example.com/") is True
-    assert is_fetchable("http://localhost/") is False
