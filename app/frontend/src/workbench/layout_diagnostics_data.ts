@@ -16,7 +16,6 @@ export interface DiagnosticLogEntry {
    * raw makes a filtered list look like rows failed to render.
    */
   number: number;
-  source: 'app';
   time: string;
   run: string;
   stage: string;
@@ -51,8 +50,6 @@ export interface DiagnosticLogEventDetail {
    * API, so goal-derived text here would publish research content.
    */
   runId?: string;
-  /** Human label for display only; never persisted. */
-  run?: string;
   stage: string;
   level?: DiagnosticLogLevel;
   payload?: Record<string, unknown>;
@@ -109,7 +106,6 @@ export function buildAppLogEntry(
   return {
     id: record.id,
     number,
-    source: 'app',
     time: formatDiagnosticTime(new Date(record.created_at * 1000)),
     run: record.run_id ? `Run ${record.run_id.slice(0, 8)}` : 'Server',
     stage: record.logger,

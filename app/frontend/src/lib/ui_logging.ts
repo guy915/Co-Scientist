@@ -2,7 +2,7 @@
 // app-wide log so a UI crash or a button press is visible from the Logs
 // panel, `cosci logs`, and /api/logs — the same places backend records
 // land — instead of only in a browser console nobody is watching.
-import {postAppLogs} from '@/api/logs';
+import {postAppLogs, type ClientLogRecord} from '@/api/logs';
 
 /**
  * Persists one UI error line. Best-effort: a failed POST is swallowed so
@@ -45,11 +45,47 @@ function interactionLabel(control: Element): string {
     : label;
 }
 
-// Best-effort persistence shared by the interaction listeners.
-function logUiInteraction(message: string): void {
-  void postAppLogs([{message, logger: 'interaction'}]).catch(() => {
+// Interaction records are orientation chatter, not emergencies: they
+// buffer briefly and ship as one batched POST instead of one request per
+// click. Errors and navigation keep their immediacy.
+const INTERACTION_FLUSH_MS = 2_000;
+
+// Buffer size that flushes immediately, keeping every batch comfortably
+// under the ingestion endpoint's 50-record cap.
+const INTERACTION_FLUSH_COUNT = 20;
+
+let pendingInteractions: ClientLogRecord[] = [];
+let interactionFlushTimer: number | null = null;
+
+// Posts the buffered interaction records as one batch. Best-effort like
+// every other UI log write.
+function flushInteractions(): void {
+  if (interactionFlushTimer !== null) {
+    window.clearTimeout(interactionFlushTimer);
+    interactionFlushTimer = null;
+  }
+  if (!pendingInteractions.length) return;
+  const batch = pendingInteractions;
+  pendingInteractions = [];
+  void postAppLogs(batch).catch(() => {
     // Offline or API down: interaction logging is best-effort.
   });
+}
+
+// Buffers one interaction record; the buffer ships on a short timer,
+// when it fills, and when the page hides or the listeners uninstall.
+function logUiInteraction(message: string): void {
+  pendingInteractions.push({message, logger: 'interaction'});
+  if (pendingInteractions.length >= INTERACTION_FLUSH_COUNT) {
+    flushInteractions();
+    return;
+  }
+  if (interactionFlushTimer === null) {
+    interactionFlushTimer = window.setTimeout(
+      flushInteractions,
+      INTERACTION_FLUSH_MS,
+    );
+  }
 }
 
 /**
@@ -82,9 +118,13 @@ export function installUiInteractionLogging(): () => void {
 
   document.addEventListener('click', onClick, true);
   document.addEventListener('submit', onSubmit, true);
+  // The page going away is the last chance to ship whatever is buffered.
+  window.addEventListener('pagehide', flushInteractions);
   return () => {
     document.removeEventListener('click', onClick, true);
     document.removeEventListener('submit', onSubmit, true);
+    window.removeEventListener('pagehide', flushInteractions);
+    flushInteractions();
   };
 }
 
