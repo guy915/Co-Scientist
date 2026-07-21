@@ -1,18 +1,30 @@
 # Co-Scientist MCP Server
 
-MCP (Model Context Protocol) server providing PubMed literature search tools for Co-Scientist hypothesis generation.
+MCP (Model Context Protocol) server providing literature, knowledge-graph, and web-research tools for Co-Scientist hypothesis generation.
 
 ## Features
 
-Core tools for biomedical literature search:
+`server.py` registers the tools below (the `/` handler derives its manifest from the same list, so registration and manifest cannot drift).
+
+Literature search:
 
 - **check_pubmed_available**: Test if PubMed service is accessible
+- **search_pubmed**: PubMed search (metadata)
 - **pubmed_search_with_fulltext**: Search PubMed, download fulltext from PMC, and extract clean text for LLM analysis
+- **search_openalex**: OpenAlex scholarly search
+- **fetch_paper**: Retrieve a specific paper's content
+
+Biomedical databases and knowledge graph:
+
+- **search_chembl**, **search_uniprot**: ChEMBL compound / UniProt protein lookups
+- **query_gene_disease_network**, **query_gene_codependents**, **query_drug_info**, **query_clinical_trials**, **query_pathways**, **query_causal_subnetwork**, **query_mechanistic_statements**, **run_enrichment_analysis**: INDRA CoGex knowledge-graph queries
 
 Open-web research and browsing:
 
 - **search_web**: Search the open web for news, grey literature, and recent developments. Registered only when a provider API key is configured
 - **read_url**: Fetch a web page or PDF and return readable text. Always available
+
+The SBI paper-corpus search tool is registered when a corpus is configured.
 
 See [Web Search](../docs/WEB_SEARCH.md) for provider setup and the URL safety screen.
 
@@ -117,13 +129,26 @@ The library will:
 
 ```
 mcp_server/
-├── server.py                    # FastMCP server
+├── server.py                    # FastMCP server + tool registration
 ├── config.py                    # Configuration
+├── pubmed_client.py             # PubMed/Entrez client
+├── fulltext_download.py         # PMC fulltext retrieval
 ├── text_extraction.py           # PMC HTML to markdown
+├── literature_review.py         # Shared literature-review helpers
 └── tools/
+    ├── biomedical_databases.py  # search_chembl, search_uniprot
     ├── lit_review/
-    │   ├── search_pubmed.py              # check availability
-    │   └── pubmed_search_with_fulltext.py  # search + fulltext
+    │   ├── search_pubmed.py                 # check availability + metadata search
+    │   ├── pubmed_search_with_fulltext.py   # search + fulltext
+    │   ├── openalex_search.py               # search_openalex tool
+    │   └── search_paper_corpus.py           # SBI corpus search (when configured)
+    ├── indra_cogex/             # INDRA CoGex knowledge-graph query tools
+    │   ├── associations.py
+    │   ├── drug_clinical.py
+    │   ├── pathways.py
+    │   ├── statements.py
+    │   ├── enrichment.py
+    │   └── client.py
     └── web/
         ├── web_search.py        # search_web tool
         ├── providers.py         # Brave / Tavily dispatch

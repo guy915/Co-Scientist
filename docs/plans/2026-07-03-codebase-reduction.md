@@ -688,7 +688,7 @@ Run:
 ```bash
 cd /Users/guy/Code/Co-Scientist && grep -rnE "POST /generate|generate/start|generate/stream|cancel_hypothesis_generation|ConsoleReporter|console\.py|arxiv_and_google_scholar|arxiv_only|arxiv_research_focused|cybersecurity_hydra|google_scholar\.yaml|indra_alzheimers|indra_hfpef|indra_ibd|multiple_sources|multi_source|openalex_grounding|pubmed_arxiv_same_server" AGENTS.md app/README.md docs engine/README.md engine/docs engine/src/co_scientist/config/examples/README.md
 ```
-Expected: no matches (exit 1). (The design spec under `docs/superpowers/specs/` legitimately mentions these — it is out of scope; if it appears, ignore it. `references/` and `.remember/` are out of scope and not searched here.)
+Expected: no matches (exit 1). (The design spec under `docs/specs/` legitimately mentions these — it is out of scope; if it appears, ignore it. `references/` and `.remember/` are out of scope and not searched here.)
 
 - [ ] **Step 10: Commit**
 
@@ -709,7 +709,7 @@ git commit -m "docs: reconcile docs with trimmed code"
 
 ## Notes on what is intentionally NOT changed (guardrails)
 
-- `app/frontend/src/styles/home_surface.css` and `shell_surface.css` are **live** (imported via `src/styles/index.css`, classes consumed through `chat_home_classes.ts`). Do not delete.
+- `app/frontend/src/styles/home_surface.css` and `shell_surface.css` are **live** (imported via `src/styles/surfaces.css`, classes consumed through `chat_home_classes.ts`). Do not delete.
 - `save_prompt_to_disk` / `get_prompt_save_path` in `prompts.py` are **live** (called by six node modules). Do not delete.
 - `mock_workflow.py`, `run_modes.py`, `seed.py`, `engine_adapter.py`, frontend `src/public/` pages, all graph nodes, `mcp_server/`, and `engine/dev/` scripts stay.
 - `schemas.py` is not rewritten. `test_config_registry.py` is not edited.

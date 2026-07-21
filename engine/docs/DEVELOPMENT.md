@@ -22,22 +22,19 @@ engine/
 │       │   ├── schema.py       # Config schema validation
 │       │   ├── tools.yaml      # Default PubMed config
 │       │   └── examples/       # Domain-specific example configs
-│       ├── nodes/              # Individual node implementations
-│       │   ├── supervisor.py
-│       │   ├── orchestrator.py
-│       │   ├── literature_review/  # Literature review node + helpers
-│       │   ├── reflection.py
-│       │   ├── reflection_helpers.py
-│       │   ├── review.py
-│       │   ├── ranking.py
-│       │   ├── meta_review.py
-│       │   ├── evolve.py
-│       │   ├── proximity.py
-│       │   └── generation/     # Generate node submodule
-│       │       ├── coordinator.py      # Orchestrates generation strategies
-│       │       ├── debate.py           # Multi-perspective debate generation
-│       │       ├── citations.py        # [C*] citation index and resolution
-│       │       └── literature_tools/   # Tool-calling generation (Mode 3)
+│       ├── agents/             # Node implementations, one package per agent
+│       │   ├── supervisor/     # supervisor.py (planning), orchestrator.py (routing)
+│       │   ├── generation/     # generate.py, coordinator*.py, debate.py,
+│       │   │                   # citations.py, literature_review/, literature_tools/
+│       │   ├── reflection/     # reflection.py, review.py, deep_verification.py, ...
+│       │   ├── ranking/        # Elo tournament (ranking.py, ranking_elo.py, ...)
+│       │   ├── evolution/      # evolve.py + evolve_* helpers
+│       │   ├── meta_review/    # meta_review.py, research_overview.py
+│       │   ├── proximity/      # proximity.py (dedup)
+│       │   └── safety/         # safety_screen.py (cross-cutting screen)
+│       ├── nodes/              # Thin re-export shims at the pre-reorg paths
+│       ├── scheduling/         # Deterministic orchestrator scheduling policy
+│       ├── progress.py         # Shared progress-event emission for agent nodes
 │       └── prompts/            # Prompt builders grouped by consumer node
 │           └── templates/      # Markdown prompt templates
 │               ├── supervisor.md
@@ -102,7 +99,10 @@ async def node_name(state: WorkflowState) -> Dict[str, Any]:
 
 ### 1. Create Node File
 
-Create `src/co_scientist/nodes/my_node.py`:
+Create the node inside the agent package that owns it, e.g.
+`src/co_scientist/agents/my_agent/my_node.py` (the `nodes/` package holds
+only back-compat re-export shims — new nodes do not go there; add a shim
+only if an old import path must keep working):
 
 ```python
 from typing import Dict, Any
@@ -133,10 +133,11 @@ Your prompt instructions here.
 
 ### 3. Add to Workflow Graph
 
-Update `src/co_scientist/generator/graph.py` (node registration and edges):
+Update `src/co_scientist/generator/graph.py` (node registration and edges),
+and add the node to the `co_scientist.agents.NODE_TO_AGENT` mapping:
 
 ```python
-from co_scientist.nodes.my_node import my_node
+from co_scientist.agents.my_agent.my_node import my_node
 
 # In _add_workflow_nodes:
 workflow.add_node("my_node", my_node)

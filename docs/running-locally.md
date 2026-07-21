@@ -69,6 +69,4 @@ there. Options, cheapest first:
 ## Don't repeat these mistakes
 
 - Reach for **`make start`** before hand-rolling `uvicorn`/`vite` commands.
-- The empty top-level `mcp_server/` is a stray dir — the real package is
-  `engine/mcp_server/`.
 - A worktree's missing `.env`/`.venv` is expected, not a broken setup.

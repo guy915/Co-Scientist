@@ -7,22 +7,28 @@ A web workbench for running and monitoring the multi-agent hypothesis-generation
 ```
 app/
 ├── app/            FastAPI backend (Python)
-│   ├── main.py     App setup and diagnostics endpoints (/health, /config, /status)
-│   ├── runs.py     Durable run-lifecycle router (create / start / stream / cancel)
+│   ├── main.py     App setup, diagnostics endpoints (/health, /config, /status), router mounting
+│   ├── runs.py     Durable run-lifecycle router (create / start / stream / cancel); runs_events/models/registry back it
+│   ├── engine_tasks.py    Durable run execution — the production path — plus task_worker.py
 │   ├── store/      SQLite persistence layer (WAL, append-only event log)
 │   ├── engine_adapter/    Provider selection + offline/real LLM backend switch
+│   ├── report_render.py   Report payload/markdown builders + finalize path
+│   ├── claims.py, claim_grounding.py, claim_verifier.py, citations.py   Citation-grounding pipeline
+│   ├── safety.py, hypothesis_safety.py, hypothesis_screening.py   Intake/final gates + per-hypothesis policy
+│   ├── qa.py, human_input.py    Q&A and scientist-in-the-loop steering
 │   ├── elo.py      Elo rating utilities
-│   ├── citations.py       Citation extraction helpers
-│   ├── safety.py   Safety decision storage
+│   ├── cli/        `cosci` operator CLI (see below)
+│   ├── dev/        Offline maintenance scripts (corpus_ingest.py, build_catalog.py) — not shipped code
 │   └── config.py   Pydantic-settings config (loads .env)
 └── frontend/       React 19 + Vite 7 + TypeScript + Tailwind v4
     └── src/
         ├── workbench/
-        │   ├── pages/      dashboard, new_run, run_detail
-        │   └── components/ run_status_pill, idea_modal, log_console, elo_trajectory_chart
-        │       └── tabs/   Ideas, Knowledge Base, Summary, Run Specifications, Progress, Tournament, Chat
+        │   ├── pages/      chat workspace, run detail, proposals, researcher access, shared report
+        │   ├── proposals/  proposals graph data/layout/rendering
+        │   ├── hooks/      chat-session, run-history, and utility hooks
+        │   └── components/  run views incl. tabs/ (ideas_tab is the only live tab component)
         ├── api/runs.ts     HTTP + SSE client
-        └── hooks/          Live run stream + message hooks
+        └── hooks/          Shared app-level hooks (use_run_stream, ...)
 ```
 
 The backend stores every run and its event log in a local SQLite database (`coscientist.db`). Streams survive client reconnects and full server restarts because they replay from the persisted event log.
@@ -109,9 +115,9 @@ All backend settings are read from `.env` (or environment variables). See `.env.
 |---|---|---|
 | `GEMINI_API_KEY` / `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` / `DEEPSEEK_API_KEY` | — | Optional provider keys. If none are set, the app uses the offline LLM backend. |
 | `COSCIENTIST_FORCE_OFFLINE` | `0` | Force the offline LLM backend even when a provider key is set (deprecated alias: `COSCIENTIST_FORCE_MOCK`) |
-| `MODEL_NAME` | `gemini/gemini-2.5-flash` | LiteLLM model ID |
-| `SUPERVISOR_MODEL_NAME` | — | Optional stronger model for supervisor and meta-review |
-| `CHAT_MODEL_NAME` | — | Optional model for Chat tab Q&A; defaults to `MODEL_NAME` |
+| `MODEL_NAME` | `deepseek/deepseek-v4-flash` | LiteLLM worker model ID |
+| `SUPERVISOR_MODEL_NAME` | `deepseek/deepseek-v4-pro` | Stronger model for supervisor and meta-review |
+| `CHAT_MODEL_NAME` | `deepseek/deepseek-v4-pro` | Model for chat-workspace Q&A; falls back to `MODEL_NAME` |
 | `MCP_SERVER_URL` | `http://localhost:8888/mcp` | MCP server for literature review tools (optional) |
 | `COSCIENTIST_CACHE_ENABLED` | `true` | Enable LLM response caching |
 | `COSCIENTIST_CACHE_DIR` | `./cache` | Cache directory path |
@@ -127,22 +133,23 @@ The frontend reads a single variable:
 
 ## Using the workbench
 
-1. **Dashboard** — lists all past runs with status, model, and hypothesis counts.
-2. **New run** — describe a research goal in chat, review the inferred setup, and start the canonical workflow. Three example goals are shown as inspiration.
-3. **Run detail** — reference report tabs plus supporting live views update via SSE:
+1. **Chat workspace** (`/`) — the session home. Describe a research goal in chat,
+   review the inferred run setup, and hit Start. The timeline keeps progress,
+   steering messages, leading hypotheses, and report status in chronological order.
+2. **Run detail** (`/runs/:id`) — four views, updating live via SSE:
+   - **Goal Details** — the run's goal, configuration, provider, artifact counts, and safety gates.
+   - **Learning** — retrieved literature and citations.
+   - **Research Overview** — synthesized Markdown report, downloadable.
    - **Ideas** — ranked hypothesis list with Elo scores and lineage.
-   - **Knowledge Base** — retrieved literature and citations.
-   - **Summary** — synthesized Markdown report, downloadable.
-   - **Run Specifications** — provider, configuration, artifacts, and safety gates.
-   - **Progress** — live log, agent activity timeline, and key metrics.
-   - **Tournament** — Elo pairwise matchup history and trajectory chart.
-   - **Chat** — scientist-in-the-loop steering and Q&A for the run.
 
-Runs can be cancelled mid-flight. The backend stores the full event log so completed runs can be re-explored after the fact.
+Runs can be paused, resumed, or cancelled mid-flight. The backend stores the full event log so completed runs can be re-explored after the fact.
 
 ## API reference
 
-The backend exposes two groups of endpoints.
+The backend mounts several routers (`runs`, `interviews`, `shares`, `feedback`,
+`auth`, `logs`) plus top-level diagnostics. The core run-lifecycle group is
+below; for the complete, always-current surface use the interactive docs at
+`/docs`.
 
 ### Run lifecycle (`/api/runs`)
 
@@ -153,6 +160,8 @@ The backend exposes two groups of endpoints.
 | `GET` | `/api/runs/demo` | Get the seeded public demo run |
 | `GET` | `/api/runs/{id}` | Get run + summary counts |
 | `POST` | `/api/runs/{id}/start` | Start the workflow in the background |
+| `POST` | `/api/runs/{id}/pause` | Pause a running workflow |
+| `POST` | `/api/runs/{id}/resume` | Resume a paused workflow |
 | `POST` | `/api/runs/{id}/cancel` | Cancel a running workflow |
 | `GET` | `/api/runs/{id}/events` | SSE stream (live + replay via `?after=`) |
 | `GET` | `/api/runs/{id}/events/log` | Persisted event log as JSON |

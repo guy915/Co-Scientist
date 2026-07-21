@@ -15,7 +15,7 @@
 
 All deletions below were verified by direct reference checks (grep across `engine/`, `app/`, Dockerfiles, compose files, Makefiles), not just audit-agent claims. Two audit claims were **rejected** after verification and are recorded here so they are not re-attempted:
 
-- `app/frontend/src/styles/home_surface.css` + `shell_surface.css` (1,434 lines) are **live**, imported via `src/styles/index.css` (from `main.tsx`) with class names consumed through `chat_home_classes.ts` in four page components. Do not delete.
+- `app/frontend/src/styles/home_surface.css` + `shell_surface.css` (1,434 lines) are **live**, imported via `src/styles/surfaces.css` (from `main.tsx`) with class names consumed through `chat_home_classes.ts` in four page components. Do not delete.
 - `save_prompt_to_disk` in `engine/src/co_scientist/prompts.py` is **live**, called by six node modules as a debug-logging feature. Do not delete.
 
 Also verified as keep-as-is: `mock_workflow.py` (tests + demo seeding), `run_modes.py` (active config normalization), `seed.py`, `engine_adapter.py`, frontend `src/public/` pages, all graph nodes (all wired in `generator.py`), `mcp_server/` (production Railway service), `dev/` scripts, `examples/run.py` (simplified, not deleted).

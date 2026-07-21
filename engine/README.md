@@ -346,18 +346,20 @@ src/co_scientist/
 ├── mcp_client.py       # MCP server connection (langchain-mcp-adapters)
 ├── cache.py            # Disk-based LLM response cache
 ├── constants.py        # Elo params, token limits, workflow defaults
+├── progress.py         # Shared progress-event emission used by agent nodes
+├── schemas/            # JSON schemas for structured LLM output
 ├── prompts/            # Prompt builders; templates/ has the markdown files (bundled as package data)
 ├── config/             # ToolRegistry, YAML tool configs, domain examples
-└── nodes/
-    ├── supervisor.py
-    ├── literature_review/
-    ├── generate.py / generation/
-    ├── reflection.py
-    ├── review.py
-    ├── ranking.py          # Elo tournament lives here
-    ├── meta_review.py
-    ├── evolve.py
-    └── proximity.py
+├── agents/             # Node implementations, one package per agent
+│   ├── supervisor/     # supervisor.py (planning), orchestrator.py (per-cycle routing)
+│   ├── generation/     # generate.py, coordinator*.py, debate.py, citations.py, literature_review/, literature_tools/
+│   ├── reflection/     # reflection.py, review.py, comprehensive_reflection.py, deep_verification.py
+│   ├── ranking/        # Elo tournament (ranking.py, ranking_elo.py, ranking_matchmaking.py, ...)
+│   ├── evolution/      # evolve.py + evolve_* helpers
+│   ├── meta_review/    # meta_review.py, research_overview.py
+│   ├── proximity/      # proximity.py (dedup)
+│   └── safety/         # safety_screen.py (cross-cutting safety screen)
+└── nodes/              # Thin re-export shims at the pre-reorg import paths
 ```
 
 ## Documentation

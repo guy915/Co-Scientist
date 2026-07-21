@@ -77,7 +77,7 @@ tracing to gen-0.</sub>
 <td valign="top">
 
 **Scientist-in-the-loop**<br/>
-<sub>Chat tab with auto-steering, manual steering, and QA modes.</sub>
+<sub>Chat workspace timeline with steering messages and Q&amp;A during a run.</sub>
 
 </td>
 </tr>
@@ -101,7 +101,10 @@ configuration.
 | `app/` | FastAPI API, SQLite run store, and React workbench |
 | `app/frontend/` | Vite + React + TypeScript UI |
 | `engine/` | LangGraph hypothesis-generation engine and reference MCP server |
-| `docs/` | Live architecture, fidelity notes, screenshots, and diagrams |
+| `evaluations/` | Eval harness — parity gate plus citation/safety/scaling evals |
+| `e2e/` | Playwright end-to-end suite |
+| `corpus/` | SBI paper corpus (extracted text + catalog) |
+| `docs/` | Project docs (see [`docs/README.md`](docs/README.md) for the index), screenshots, and diagrams |
 | `references/` | Source research, product captures, and comparison material |
 
 ## Development checks
@@ -109,7 +112,9 @@ configuration.
 ```bash
 make test          # viewer backend pytest suite
 make test-engine   # engine pytest suite
-make test-all      # backend pytest suites for engine + app
+make test-all      # engine + app pytest suites plus the parity ledger gate
+make e2e           # Playwright end-to-end suite
+make eval-smoke    # fast evaluation smoke check
 make build         # frontend typecheck + production build
 
 cd app/frontend
@@ -121,18 +126,15 @@ bun run lint       # gts lint
 
 Open the workspace, describe a research goal in chat, review the inferred run
 setup, and hit **Start**. The chat timeline keeps progress, steering messages,
-leading hypotheses, and report status in chronological order. The structured
-dashboard remains available for deeper inspection:
+leading hypotheses, and report status in chronological order. Each run's detail
+surface has four views:
 
-| Tab | Shows |
+| View | Shows |
 | --- | --- |
+| **Goal Details** | The run's goal, configuration, provider, artifact counts, and recorded safety gates |
+| **Learning** | Retrieved sources with abstracts, links, and 4-state citation classification |
+| **Research Overview** | Server-generated Markdown report with download buttons (MD / JSON) and safety verdict |
 | **Ideas** | Ranked hypotheses by Elo. Click any row for the detail modal: statement, mechanism, experimental design, lineage |
-| **Knowledge Base** | Retrieved sources with abstracts, links, and 4-state citation classification |
-| **Summary** | Server-generated Markdown report with download buttons (MD / JSON) and safety verdict |
-| **Run Specifications** | Provider, configuration, artifact counts, and recorded safety gates |
-| **Progress** | Live pipeline timeline with progress bar and event counters |
-| **Tournament** | Leaderboard + per-iteration matchup log with Elo deltas and judge rationale |
-| **Chat** | Scientist-in-the-loop steering: auto, manual, and QA conversation modes |
 
 ### Offline mode vs real engine
 
@@ -156,7 +158,7 @@ Copy `.env.example` to `.env`. Empty keys keep you in offline mode.
 
 ```
 DEEPSEEK_API_KEY=                    # empty = offline mode; any provider key triggers the real LLM backend
-MODEL_NAME=deepseek/deepseek-chat    # LiteLLM format
+MODEL_NAME=deepseek/deepseek-v4-flash    # LiteLLM format
 COSCIENTIST_DB_PATH=./coscientist.db
 SAFETY_MODE=standard                 # 'strict' for dual-use filtering
 ```
