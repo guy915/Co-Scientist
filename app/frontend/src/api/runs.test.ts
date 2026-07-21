@@ -16,9 +16,15 @@ import {
   isActiveStatus,
   runGoal,
   eventsStreamUrl,
+  createInterview,
   type RunStatus,
 } from './runs';
 import type {Run} from './run_types';
+import {
+  setAccessToken,
+  getAccessToken,
+  clearAccessToken,
+} from '@/lib/client_id';
 
 // The api client reads VITE_API_BASE_URL at module load; in the test env it is
 // unset, so all request URLs are relative (no host prefix).
@@ -453,5 +459,42 @@ describe('url builders', () => {
     await getRunEvents('run-42', 7);
 
     expect(firstCall()[0]).toBe('/api/runs/run-42/events?stream=false&after=7');
+  });
+});
+
+describe('expired researcher session', () => {
+  afterEach(() => clearAccessToken());
+
+  it('clears a stored access token when a request returns 401', async () => {
+    // A researcher session token expires server-side after 12h. Without this,
+    // clientHeaders keeps sending the dead Bearer token, every request 401s,
+    // and the tab is bricked until sessionStorage is cleared by hand.
+    setAccessToken('expired-token');
+    fetchMock().mockResolvedValue(errorResponse(401, 'token expired'));
+
+    await expect(getRun('r1')).rejects.toThrow('401');
+
+    expect(getAccessToken()).toBeNull();
+  });
+
+  it('keeps the access token on a non-401 error', async () => {
+    setAccessToken('good-token');
+    fetchMock().mockResolvedValue(errorResponse(500, 'server error'));
+
+    await expect(getRun('r1')).rejects.toThrow('500');
+
+    expect(getAccessToken()).toBe('good-token');
+  });
+
+  it('clears a stored access token when a streaming request returns 401', async () => {
+    // createInterview runs on the home page before any run exists, so its
+    // streaming path is the one a stale session hits first; a 401 there must
+    // clear the token too, not just the plain-JSON calls.
+    setAccessToken('expired-token');
+    fetchMock().mockResolvedValue(errorResponse(401, 'token expired'));
+
+    await expect(createInterview('a goal')).rejects.toThrow('401');
+
+    expect(getAccessToken()).toBeNull();
   });
 });
