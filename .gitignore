@@ -55,7 +55,7 @@ cache/
 .vercel
 .superpowers/
 
-# Agents, Claude, and Remember
+# Local tooling and session scratch
 .agents/
 .claude/
 .remember/

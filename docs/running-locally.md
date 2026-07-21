@@ -41,7 +41,7 @@ Individual pieces: `make dev-api`, `make dev-ui`, `make dev-mcp`.
 
 ## Running from a git worktree (the gotcha)
 
-Worktrees under `.claude/worktrees/*` **do not carry gitignored files** — no
+Git worktrees **do not carry gitignored files** — no
 `.env`, no `.venv`, no `node_modules`. That is why `make start` won't "just work"
 there. Options, cheapest first:
 

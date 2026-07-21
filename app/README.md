@@ -180,10 +180,10 @@ Interactive docs are available when the server is running:
 - Swagger UI: http://localhost:8008/docs
 - ReDoc: http://localhost:8008/redoc
 
-## `cosci` operator CLI (for coding agents)
+## `cosci` operator CLI
 
 `cosci` is a terminal front end for the API above, installed with the app
-(`pip install -e app`). It lets an agent drive a run end to end without the web
+(`pip install -e app`). It lets an operator drive a run end to end without the web
 UI. Every command is a thin wrapper over one endpoint — it adds no behavior of
 its own. Output is line-oriented (tab-separated) by default so it is easy to
 grep; every read command also accepts `--json` for the raw payload.
