@@ -16,7 +16,6 @@ export type EdgeKind = 'synergy' | 'enables' | 'compensates' | 'tension';
 export interface Cluster {
   id: ClusterId;
   label: string;
-  blurb: string;
 }
 
 export interface ProposalNode {
@@ -56,41 +55,41 @@ export const EDGE_KINDS: {
   directed: boolean;
   /** Reads as "<from> <phrase> <to>" in the detail panel. */
   phrase: string;
-  blurb: string;
 }[] = [
   {
     kind: 'synergy',
     label: 'Synergy',
     directed: false,
     phrase: 'amplifies and is amplified by',
-    blurb: 'Mutually amplifying. Each is worth more with the other.',
   },
   {
     kind: 'enables',
     label: 'Enables',
     directed: true,
     phrase: 'is a prerequisite for',
-    blurb: 'A hard prerequisite. The target does not function without it.',
   },
   {
     kind: 'compensates',
     label: 'Compensates',
     directed: true,
     phrase: 'mitigates a weakness of',
-    blurb: 'Mitigates a known weakness of the target.',
   },
   {
     kind: 'tension',
     label: 'Tension',
     directed: false,
     phrase: 'competes with',
-    blurb: 'They compete for the same budget, or one makes the other harder.',
   },
 ];
 
 const DIRECTED = new Set<EdgeKind>(
   EDGE_KINDS.filter(entry => entry.directed).map(entry => entry.kind),
 );
+
+/** Whether `kind` draws an arrowhead: its from/to order carries meaning. */
+export function isDirected(kind: EdgeKind): boolean {
+  return DIRECTED.has(kind);
+}
 
 /**
  * Whether an edge leads away from `id`. A directed edge does so only from
@@ -103,33 +102,11 @@ export function leadsFrom(edge: Edge, id: string): boolean {
 }
 
 export const clusters: Cluster[] = [
-  {
-    id: 'scaling',
-    label: 'Scaling generation',
-    blurb: 'Widening the hypothesis space explored before filtering starts.',
-  },
-  {
-    id: 'evaluation',
-    label: 'Evaluation rigor',
-    blurb: 'Making survival mean something worth surviving.',
-  },
-  {
-    id: 'interaction',
-    label: 'Scientist interaction',
-    blurb: 'Turning a fire-and-forget batch job into a working session.',
-  },
-  {
-    id: 'knowledge',
-    label: 'Knowledge discovery',
-    blurb:
-      'Keeping what a run learns, and mining it for connections nobody ' +
-      'asked about.',
-  },
-  {
-    id: 'capabilities',
-    label: 'Capabilities',
-    blurb: 'Extending what the system can reason over and produce.',
-  },
+  {id: 'scaling', label: 'Scaling generation'},
+  {id: 'evaluation', label: 'Evaluation rigor'},
+  {id: 'interaction', label: 'Scientist interaction'},
+  {id: 'knowledge', label: 'Knowledge discovery'},
+  {id: 'capabilities', label: 'Capabilities'},
 ];
 
 export const nodes: ProposalNode[] = [
@@ -366,6 +343,11 @@ export const nodes: ProposalNode[] = [
     origin: 'extension',
   },
 ];
+
+/** Nodes by id. Lookups happen per render, so the index is built once. */
+export const nodeById: ReadonlyMap<string, ProposalNode> = new Map(
+  nodes.map(node => [node.id, node]),
+);
 
 // A pair may carry two edges of different kinds — persistent-kb/transitivity
 // has both an `enables` and a `compensates`, in opposite directions, and both

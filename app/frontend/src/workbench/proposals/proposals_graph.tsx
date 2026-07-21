@@ -1,12 +1,16 @@
 import {useMemo} from 'react';
+import {ArrowMarker} from './arrow_marker';
 import {
+  isDirected,
   leadsFrom,
+  nodeById,
   nodes,
   type ClusterId,
   type EdgeKind,
   type ProposalNode,
 } from './proposals_data';
-import {neighborsOf, type Layout} from './proposals_layout';
+import {LABEL_WRAP_CHARS, type Layout} from './proposals_layout';
+import {neighborsOf} from './proposals_relations';
 
 /**
  * Splits a label across at most two lines, breaking at the space nearest the
@@ -14,7 +18,7 @@ import {neighborsOf, type Layout} from './proposals_layout';
  * to the renderer.
  */
 function labelLines(label: string): string[] {
-  if (label.length <= 18) return [label];
+  if (label.length <= LABEL_WRAP_CHARS) return [label];
   const middle = Math.floor(label.length / 2);
   let breakAt = -1;
   for (let i = 0; i < label.length; i++) {
@@ -26,6 +30,12 @@ function labelLines(label: string): string[] {
   if (breakAt === -1) return [label];
   return [label.slice(0, breakAt), label.slice(breakAt + 1)];
 }
+
+// Labels never change, so every node's wrapping is computed once here
+// rather than on each render.
+const LABEL_LINES: Record<string, string[]> = Object.fromEntries(
+  nodes.map(node => [node.id, labelLines(node.label)]),
+);
 
 /**
  * The relationship graph.
@@ -68,7 +78,7 @@ export function ProposalsGraph({
   const kindFilter = selectedKinds.size > 0;
 
   function inSelectedCluster(id: string): boolean {
-    const node = nodes.find(entry => entry.id === id);
+    const node = nodeById.get(id);
     return node ? selectedClusters.has(node.cluster) : false;
   }
 
@@ -90,29 +100,20 @@ export function ProposalsGraph({
       height={layout.height}
       role="img"
       aria-label={
-        'Relationship graph of the proposals. The same content is written ' +
-        'out in full below.'
+        'Relationship graph of the proposals. Each proposal is a focusable ' +
+        'button that opens its detail panel.'
       }
     >
       <defs>
-        {/* context-stroke keeps the arrowhead the same color as the edge it
-            terminates, including while dimmed. */}
         {/* userSpaceOnUse rather than the default strokeWidth units: the
             arrowhead should track the drawing's scale, not the line's
             weight, so highlighting an edge thickens it without inflating
             its head. */}
-        <marker
+        <ArrowMarker
           id="proposal-arrow"
-          viewBox="0 0 10 10"
-          refX="9"
-          refY="5"
-          markerUnits="userSpaceOnUse"
-          markerWidth={13 * layout.scale}
-          markerHeight={13 * layout.scale}
-          orient="auto-start-reverse"
-        >
-          <path d="M 0 0 L 10 5 L 0 10 z" fill="context-stroke" />
-        </marker>
+          size={13 * layout.scale}
+          units="userSpaceOnUse"
+        />
       </defs>
 
       <g className="proposals-hulls">
@@ -145,19 +146,18 @@ export function ProposalsGraph({
           // as the relationship not existing.
           if (kindFilter && !selectedKinds.has(edge.kind)) return null;
           // Only what the focused node leads to: an incoming arrow is a
-          // statement about its source, not about the node being read.
-          const touchesFocus = focusId !== null && leadsFrom(edge, focusId);
-          const touchesCluster =
-            inSelectedCluster(edge.from) || inSelectedCluster(edge.to);
+          // statement about its source, not about the node being read. The
+          // cluster test only matters with no focus and a filter on.
           const state = focusId
-            ? touchesFocus
+            ? leadsFrom(edge, focusId)
               ? ' is-lit'
               : ' is-dim'
-            : clusterFilter && !touchesCluster
+            : clusterFilter &&
+                !inSelectedCluster(edge.from) &&
+                !inSelectedCluster(edge.to)
               ? ' is-dim'
               : '';
-          const directed =
-            edge.kind === 'enables' || edge.kind === 'compensates';
+          const directed = isDirected(edge.kind);
           return (
             <path
               // Node pairs can carry more than one edge, so the index is
@@ -174,7 +174,7 @@ export function ProposalsGraph({
       <g className="proposals-nodes">
         {nodes.map(node => {
           const position = layout.positions[node.id];
-          const lines = labelLines(node.label);
+          const lines = LABEL_LINES[node.id];
           const selected = node.id === selectedId;
           return (
             <g

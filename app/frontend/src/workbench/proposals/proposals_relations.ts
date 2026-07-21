@@ -1,11 +1,12 @@
 // Shared reading of the edge list: how one node's relationships are phrased
-// for a human, as shown in the detail panel.
+// for a human, as shown in the detail panel, and which nodes an edge leads
+// to, as lit up in the graph.
 
 import {
   EDGE_KINDS,
   edges,
-  nodes,
-  type Edge,
+  leadsFrom,
+  nodeById,
   type EdgeKind,
   type ProposalNode,
 } from './proposals_data';
@@ -23,8 +24,6 @@ export interface Relation {
   phrase: string;
 }
 
-const byId = new Map(nodes.map(node => [node.id, node]));
-
 // Directed kinds read differently depending on which end you are standing
 // at. Undirected kinds read the same from both sides.
 const INBOUND_PHRASE: Partial<Record<EdgeKind, string>> = {
@@ -32,9 +31,14 @@ const INBOUND_PHRASE: Partial<Record<EdgeKind, string>> = {
   compensates: 'has a weakness mitigated by',
 };
 
+// EDGE_KINDS covers every EdgeKind, so this index is total and the lookup
+// below cannot miss.
+const DEFINITIONS = Object.fromEntries(
+  EDGE_KINDS.map(entry => [entry.kind, entry]),
+) as Record<EdgeKind, (typeof EDGE_KINDS)[number]>;
+
 function phraseFor(kind: EdgeKind, subjectIsSource: boolean): string {
-  const definition = EDGE_KINDS.find(entry => entry.kind === kind);
-  if (!definition) return 'relates to';
+  const definition = DEFINITIONS[kind];
   if (subjectIsSource || !definition.directed) return definition.phrase;
   return INBOUND_PHRASE[kind] ?? definition.phrase;
 }
@@ -53,7 +57,7 @@ export function relationsOf(id: string): Relation[] {
     const subjectIsSource = edge.from === id;
     if (!subjectIsSource && edge.to !== id) continue;
     const otherId = subjectIsSource ? edge.to : edge.from;
-    const other = byId.get(otherId);
+    const other = nodeById.get(otherId);
     if (!other) continue;
     relations.push({
       other,
@@ -67,8 +71,16 @@ export function relationsOf(id: string): Relation[] {
   );
 }
 
-/** Count of edges touching `id`, counting both edges of a doubled pair. */
-export function degreeOf(id: string): number {
-  return edges.filter((edge: Edge) => edge.from === id || edge.to === id)
-    .length;
+/**
+ * Node ids `id` leads to, in no particular order. Incoming arrows are left
+ * out: hovering a proposal answers "what does this one carry", not "what
+ * points at it".
+ */
+export function neighborsOf(id: string): Set<string> {
+  const found = new Set<string>();
+  for (const edge of edges) {
+    if (!leadsFrom(edge, id)) continue;
+    found.add(edge.from === id ? edge.to : edge.from);
+  }
+  return found;
 }

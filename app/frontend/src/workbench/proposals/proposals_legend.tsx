@@ -1,6 +1,8 @@
+import {ArrowMarker} from './arrow_marker';
 import {
   EDGE_KINDS,
   clusters,
+  isDirected,
   type ClusterId,
   type EdgeKind,
 } from './proposals_data';
@@ -8,7 +10,7 @@ import {
 // A short sample of each edge's stroke, drawn with the same classes the
 // graph uses so the legend cannot drift from what it explains.
 function EdgeSample({kind}: {kind: EdgeKind}) {
-  const directed = kind === 'enables' || kind === 'compensates';
+  const directed = isDirected(kind);
   return (
     <svg
       className="proposals-legend-sample"
@@ -16,17 +18,7 @@ function EdgeSample({kind}: {kind: EdgeKind}) {
       aria-hidden="true"
     >
       <defs>
-        <marker
-          id={`legend-arrow-${kind}`}
-          viewBox="0 0 10 10"
-          refX="9"
-          refY="5"
-          markerWidth="7"
-          markerHeight="7"
-          orient="auto-start-reverse"
-        >
-          <path d="M 0 0 L 10 5 L 0 10 z" fill="context-stroke" />
-        </marker>
+        <ArrowMarker id={`legend-arrow-${kind}`} size={7} />
       </defs>
       <path
         className={`proposals-edge is-${kind}`}

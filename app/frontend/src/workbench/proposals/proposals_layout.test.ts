@@ -1,5 +1,5 @@
 import {describe, expect, it} from 'vitest';
-import {computeLayout} from './proposals_layout';
+import {LEGEND_WIDTH, computeLayout} from './proposals_layout';
 
 // A spread of shapes: wide desktop, laptop, short-and-wide, narrow, and the
 // sizes a zoomed-in page reports (zooming shrinks the viewport in CSS px).
@@ -39,18 +39,17 @@ describe('proposals layout', () => {
   });
 
   it('leaves the same gap to each legend, at every size', () => {
-    // The legend card is a fixed 12.5rem, which is exactly what the layout
-    // reserves for it — so the two gaps are equal by construction rather
-    // than by tuning, and stay equal as the drawing scales.
-    const LEGEND = 200;
+    // The legend card is drawn at exactly the width the layout reserves for
+    // it — so the two gaps are equal by construction rather than by tuning,
+    // and stay equal as the drawing scales.
     for (const stage of STAGES) {
       const layout = computeLayout(stage);
       const row = layout.hulls
         .filter(hull => hull.id === 'evaluation' || hull.id === 'interaction')
         .sort((a, b) => a.bounds.x - b.bounds.x);
-      const left = row[0].bounds.x - LEGEND;
+      const left = row[0].bounds.x - LEGEND_WIDTH;
       const right =
-        stage.width - LEGEND - (row[1].bounds.x + row[1].bounds.width);
+        stage.width - LEGEND_WIDTH - (row[1].bounds.x + row[1].bounds.width);
       expect(left).toBeCloseTo(right, 1);
     }
   });
@@ -63,9 +62,9 @@ describe('proposals layout', () => {
       const row = layout.hulls
         .filter(hull => hull.id === 'evaluation' || hull.id === 'interaction')
         .sort((a, b) => a.bounds.x - b.bounds.x);
-      expect(row[0].bounds.x).toBeGreaterThanOrEqual(200);
+      expect(row[0].bounds.x).toBeGreaterThanOrEqual(LEGEND_WIDTH);
       expect(row[1].bounds.x + row[1].bounds.width).toBeLessThanOrEqual(
-        stage.width - 200,
+        stage.width - LEGEND_WIDTH,
       );
     }
   });

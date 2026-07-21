@@ -14,7 +14,7 @@ const {positions: nodePositions, edges: edgeGeometry} = computeLayout({
   width: 1440,
   height: 760,
 });
-import {degreeOf, relationsOf} from './proposals_relations';
+import {relationsOf} from './proposals_relations';
 
 describe('proposals data', () => {
   it('references only nodes that exist', () => {
@@ -123,16 +123,11 @@ describe('proposals layout', () => {
 });
 
 describe('relations', () => {
-  it('counts every edge touching a node, including doubled pairs', () => {
-    expect(degreeOf('brute-force')).toBe(
-      edges.filter(
-        edge => edge.from === 'brute-force' || edge.to === 'brute-force',
-      ).length,
-    );
-  });
-
   it('makes brute-force the most connected proposal', () => {
     // The page's central claim: most of the tension routes through it.
+    // Degree counts every touching edge, including both of a doubled pair.
+    const degreeOf = (id: string) =>
+      edges.filter(edge => edge.from === id || edge.to === id).length;
     const degrees = nodes.map(node => degreeOf(node.id));
     expect(degreeOf('brute-force')).toBe(Math.max(...degrees));
   });

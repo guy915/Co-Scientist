@@ -15,7 +15,6 @@
 import {
   clusters,
   edges,
-  leadsFrom,
   nodes,
   type ClusterId,
   type Edge,
@@ -23,6 +22,12 @@ import {
 
 /** Base node box. Labels wrap to at most two lines inside it. */
 const NODE_BASE = {width: 186, height: 54};
+
+/**
+ * Longest label drawn on a single line, in characters: the wrap length is
+ * sized to NODE_BASE.width, so the two must move together.
+ */
+export const LABEL_WRAP_CHARS = 18;
 
 /** One spacing value, used between clusters and around the rows. */
 const GAP_BASE = 40;
@@ -40,11 +45,12 @@ const CLEAR_BASE = 26;
 const RY_BASE = 96;
 
 /**
- * Legend card width, in real pixels at every scale: the card is `12.5rem`
- * and does not shrink with the drawing. Fixed rather than measured, so the
- * scale never depends on a length that depends on the scale.
+ * Legend card width, in real pixels at every scale: the cards do not shrink
+ * with the drawing. Fixed rather than measured, so the scale never depends
+ * on a length that depends on the scale. The page hands this to CSS as
+ * `--proposals-legend-width`, so the cards are exactly this wide.
  */
-const LEGEND_WIDTH = 200;
+export const LEGEND_WIDTH = 200;
 
 /** Used when the container has not been measured yet (tests, first paint). */
 const FALLBACK = {width: 1440, height: 760};
@@ -465,23 +471,4 @@ function edgeGeometry(
     placed.push(best);
     return {edge, path: best.path};
   });
-}
-
-/**
- * Node ids `id` leads to, in no particular order. Incoming arrows are left
- * out: hovering a proposal answers "what does this one carry", not "what
- * points at it".
- */
-export function neighborsOf(id: string): Set<string> {
-  const found = new Set<string>();
-  for (const edge of edges) {
-    if (!leadsFrom(edge, id)) continue;
-    found.add(edge.from === id ? edge.to : edge.from);
-  }
-  return found;
-}
-
-/** Every edge touching `id`. */
-export function edgesOf(id: string): Edge[] {
-  return edges.filter(edge => edge.from === id || edge.to === id);
 }
