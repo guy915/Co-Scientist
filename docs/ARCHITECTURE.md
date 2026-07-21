@@ -114,7 +114,7 @@ The workbench holds no durable state in the browser. On mount it:
 1. Calls `getRun(id)` for status + summary counts.
 2. Calls `getHypotheses / getEvidence / getMatches / getReviews / getSafety / getCitations / getReport` in parallel.
 3. Opens an `EventSource` on `/api/runs/{id}/events?after=0` which replays every event since the run started, then tails live.
-4. The Chat tab polls `/api/runs/{id}/messages` while a run is active and uses the streaming `/messages/ask` endpoint for Q&A responses.
+4. The chat workspace polls `/api/runs/{id}/messages` while a run is active and uses the streaming `/messages/ask` endpoint for Q&A responses.
 
 This means a hard refresh, a backend restart, or a new browser session all produce the same view.
 

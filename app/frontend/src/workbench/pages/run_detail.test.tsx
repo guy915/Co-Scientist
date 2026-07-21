@@ -4,7 +4,7 @@ import {beforeEach, describe, expect, it, vi} from 'vitest';
 import * as runsApi from '@/api/runs';
 import type {RunWithSummary} from '@/api/runs';
 import {RunDetail} from './run_detail';
-import {makeHypothesis, makeMatch} from '@/test-fixtures';
+import {makeHypothesis, makeMatch} from '@/test_fixtures';
 
 // Controllable stream mock: tests mutate `streamState` then rerender to drive
 // the event-driven refetch effect. `setStream` replaces the events array so its
@@ -20,7 +20,7 @@ vi.mock('@/hooks/use_run_stream', () => ({
 // identity, so a triggered refetch is observable in the same act() without
 // timers. The wrapper is a module singleton (stable across renders); it always
 // invokes the latest render's callback.
-vi.mock('@/hooks/use_debounced_callback', () => {
+vi.mock('@/workbench/hooks/use_debounced_callback', () => {
   const latest: {fn: (...args: never[]) => void} = {fn: () => {}};
   const wrapper = Object.assign((...args: never[]) => latest.fn(...args), {
     cancel: () => {},

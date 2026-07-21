@@ -1,4 +1,4 @@
-.PHONY: help setup start dev-api dev-ui dev-all dev-mcp preflight ensure-deps open-when-ready test test-app test-engine test-all e2e lint typecheck build clean stop reset-db
+.PHONY: help setup start dev-api dev-ui dev-all dev-mcp preflight ensure-deps open-when-ready test test-app test-engine test-all e2e parity eval-smoke lint typecheck build clean stop reset-db
 
 ROOT := $(shell pwd)
 ENGINE := $(ROOT)/engine
@@ -29,6 +29,8 @@ help:
 	@echo "  make test-engine  Run engine pytest suite"
 	@echo "  make test-all     Run backend pytest suites (engine + app) + parity gate"
 	@echo "  make e2e          Run the browser end-to-end suite (headless, isolated stack)"
+	@echo "  make parity       Run the parity-ledger gate (docs/PARITY.md evidence check)"
+	@echo "  make eval-smoke   Run the offline evaluation smoke suite (safety + citations)"
 	@echo "  make lint         Lint backend (ruff)"
 	@echo "  make typecheck    Typecheck backend (mypy)"
 	@echo "  make build        Build frontend (tsc + vite build)"
@@ -44,7 +46,8 @@ setup: $(VENV)/bin/activate
 	@echo ">> Installing app (editable, dev extras)"
 	@# Skip the PyPI co-scientist-engine pin (we have it editable already from $(ENGINE))
 	@$(PIP) install -e "$(APP)" --no-deps
-	@$(PIP) install fastapi "uvicorn[standard]" python-dotenv pydantic pydantic-settings httpx
+	@# App runtime deps are single-sourced from pyproject via requirements-app.txt.
+	@$(PIP) install -r "$(APP)/requirements-app.txt"
 	@$(PIP) install pytest pytest-asyncio ruff mypy
 	@# Reference MCP server is optional and pins Python 3.12, so we don't install it here.
 	@echo ">> Installing frontend (bun preferred, npm fallback)"

@@ -39,9 +39,9 @@ yarn-error.log*
 .qodo
 
 # Project
-# Screen recordings of the original Co-Scientist product — kept locally as a
+# Video recordings of the original Co-Scientist product — kept locally as a
 # reference only, never committed (large binaries, not ours to redistribute).
-references/core/google-co-scientist/media/live-footage/
+references/core/google-co-scientist/media/**/*.mp4
 coscientist.db
 coscientist.db-*
 reports/

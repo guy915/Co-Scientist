@@ -14,8 +14,10 @@ from typing import TYPE_CHECKING, Any
 from co_scientist.agents.generation.literature_review.helpers import (
     SearchConfig,
 )
+from co_scientist.agents.reflection.reflection_helpers import (
+    extract_entity_names,
+)
 from co_scientist.mcp_client import MCPToolClient
-from co_scientist.nodes.reflection_helpers import extract_entity_names
 from co_scientist.state import WorkflowState
 
 if TYPE_CHECKING:

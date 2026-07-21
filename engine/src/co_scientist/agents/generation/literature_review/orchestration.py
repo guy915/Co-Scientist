@@ -49,7 +49,7 @@ from co_scientist.constants import (
 )
 from co_scientist.mcp_client import MCPToolClient
 from co_scientist.models import Article
-from co_scientist.nodes.progress import emit_progress
+from co_scientist.progress import emit_progress
 from co_scientist.state import WorkflowState
 
 logger = logging.getLogger(__name__)

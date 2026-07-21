@@ -2,7 +2,7 @@ import {describe, it, expect} from 'vitest';
 import {render, screen} from '@testing-library/react';
 import {IdeasTab} from './ideas_tab';
 import type {Hypothesis, Review} from '@/api/runs';
-import {makeHypothesis} from '@/test-fixtures';
+import {makeHypothesis} from '@/test_fixtures';
 
 describe('IdeasTab', () => {
   it('shows the empty state when there are no hypotheses', () => {

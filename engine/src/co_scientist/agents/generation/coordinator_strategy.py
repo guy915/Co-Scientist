@@ -13,7 +13,7 @@ from co_scientist.constants import (
     LITERATURE_REVIEW_FAILED,
     PROGRESS_GENERATE_START,
 )
-from co_scientist.nodes.progress import emit_progress
+from co_scientist.progress import emit_progress
 from co_scientist.state import WorkflowState
 
 logger = logging.getLogger(__name__)

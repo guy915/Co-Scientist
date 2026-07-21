@@ -22,7 +22,7 @@ from co_scientist.models import (
     phase_message,
     rank_by_elo,
 )
-from co_scientist.nodes.progress import emit_progress
+from co_scientist.progress import emit_progress
 from co_scientist.prompts import get_proximity_prompt
 from co_scientist.state import WorkflowState
 

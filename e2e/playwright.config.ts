@@ -28,9 +28,10 @@ const backendServer = {
   stderr: 'pipe' as const,
   env: {
     PATH: process.env.PATH ?? '',
-    // Force the deterministic mock even if a provider key leaks in from the
-    // environment: no network, reproducible content, no API budget spent.
-    COSCIENTIST_FORCE_MOCK: '1',
+    // Force the deterministic offline backend even if a provider key leaks in
+    // from the environment: no network, reproducible content, no API budget
+    // spent.
+    COSCIENTIST_FORCE_OFFLINE: '1',
     // Isolated, per-invocation store so runs never touch a developer's DB and
     // the "passes twice from clean state" check starts fresh each time.
     COSCIENTIST_DB_PATH: `${STATE_DIR}/coscientist.db`,

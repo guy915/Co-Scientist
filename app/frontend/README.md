@@ -42,12 +42,14 @@ VITE_API_BASE_URL=http://localhost:8008
 | --- | --- |
 | `src/main.tsx` | Mounts `BrowserRouter` and `WorkbenchApp` |
 | `src/workbench/workbench_app.tsx` | Route table for the chat workspace and run views |
-| `src/workbench/pages/` | Chat workspace (session home) and run detail pages |
+| `src/workbench/pages/` | Chat workspace (session home), run detail, proposals, researcher access, shared report |
+| `src/workbench/proposals/` | Proposals-graph data, layout, and rendering |
 | `src/workbench/components/tabs/` | Ideas tab (other run views render inline in `run_detail.tsx`) |
-| `src/workbench/hooks/` | Chat session, shortcuts, toast, and run-history hooks |
+| `src/workbench/hooks/` | Workbench-specific hooks: chat-session cluster, run history, and utilities (shortcuts, toast, system status) |
 | `src/api/runs.ts` | Typed REST, SSE URL, and streaming message helpers |
-| `src/hooks/use_run_stream.ts` | Live run event stream hook |
+| `src/hooks/` | Shared app-level hooks (e.g. `use_run_stream.ts`) |
 | `src/components/` | Shared primitives (error boundary, icon) |
+| `src/index.css`, `src/styles/` | Token bridge + Tailwind layers (`index.css`); surface sheets aggregated by `styles/surfaces.css` |
 | `src/public/` | Residual helpers: 404 page, no-index/SEO, link button |
 
 ## Routing
@@ -58,12 +60,16 @@ VITE_API_BASE_URL=http://localhost:8008
 | `/runs`, `/runs/new` | Redirect to `/` |
 | `/runs/:id` | Redirect to the details tab |
 | `/runs/:id/:tab` | Run detail tab |
+| `/access` | Researcher access |
+| `/proposals` | Proposals graph (`/recommendations` redirects here) |
+| `/shared/:token` | Shared goal report |
+| `*` | 404 |
 
 ## API Integration
 
 The frontend talks to the FastAPI backend through `src/api/runs.ts`. Run detail data is loaded through REST endpoints, and live progress is streamed from `/api/runs/{id}/events` with browser `EventSource`.
 
-The Chat tab uses:
+The chat workspace uses:
 
 - `GET /api/runs/{id}/messages`
 - `POST /api/runs/{id}/messages`
@@ -71,4 +77,4 @@ The Chat tab uses:
 
 ## Testing
 
-Tests are colocated with the files they cover as `*.test.ts` and `*.test.tsx`. The Vitest setup file is `src/test-setup.ts`.
+Tests are colocated with the files they cover as `*.test.ts` and `*.test.tsx`. The Vitest setup file is `src/test_setup.ts`.

@@ -23,7 +23,7 @@ from co_scientist.agents.supervisor.supervisor_decision import (
 )
 from co_scientist.constants import INITIAL_ELO_RATING
 from co_scientist.models import Hypothesis, phase_message
-from co_scientist.nodes.progress import emit_progress
+from co_scientist.progress import emit_progress
 from co_scientist.scheduling import (
     Budget,
     SchedulerStats,

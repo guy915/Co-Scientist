@@ -202,8 +202,8 @@ jobs:
       - name: Run viewer backend test suite
         working-directory: app
         # Runs offline: CI has no model API keys, and the suite's autouse
-        # isolated_db fixture forces the deterministic mock provider
-        # (COSCIENTIST_FORCE_MOCK=1) for every test.
+        # isolated_db fixture forces the deterministic offline LLM backend
+        # (COSCIENTIST_FORCE_OFFLINE=1) for every test.
         run: python -m pytest -q
 
   evaluations:

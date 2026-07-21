@@ -18,7 +18,7 @@ import {
   type RunWithSummary,
   type SafetyDecision,
 } from '@/api/runs';
-import {useDebouncedCallback} from '@/hooks/use_debounced_callback';
+import {useDebouncedCallback} from '@/workbench/hooks/use_debounced_callback';
 import {type StreamEvent, useRunStream} from '@/hooks/use_run_stream';
 import {HEADER_TITLE_EVENT} from '../dom_events';
 

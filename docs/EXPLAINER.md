@@ -49,9 +49,9 @@ This is the core of the system. A linear **first pass** feeds a conditional **it
 supervisor → literature_review → generate → reflection → review → ranking → deep_verification
 ```
 
-- **Supervisor** builds a research plan and strategy (`nodes/supervisor.py:21`).
+- **Supervisor** builds a research plan and strategy (`agents/supervisor/supervisor.py`).
 - **Literature Review** + **Reflection** are MCP-gated (dashed in the diagram). When MCP is unavailable the graph is built *without* those two nodes and the first pass collapses to `supervisor → generate → review` (the dashed bypass arrow in the SVG).
-- **Deep Verification** runs *after* Ranking, probing the top-3 by Elo (`nodes/deep_verification.py:60`). It is not a separate tournament round.
+- **Deep Verification** runs *after* Ranking, probing the top-3 by Elo (`agents/reflection/deep_verification.py`). It is not a separate tournament round.
 
 ### Iteration cycle (runs up to `max_iterations` times)
 
@@ -59,25 +59,25 @@ supervisor → literature_review → generate → reflection → review → rank
 meta_review → evolve → review → ranking → deep_verification → orchestrator → (next task | research_overview)
 ```
 
-- **Meta-Review** synthesizes all reviews into strategic insights; uses `supervisor_model_name` (`nodes/meta_review.py:22`).
-- **Evolve** refines the top-`evolution_max_count` hypotheses in parallel, then **discards the lower-ranked pool** — the hypothesis set shrinks to the evolved subset (`nodes/evolve.py:371`). Flow then loops back up to **Review** (the teal `re-review → re-rank` arrow) so evolved hypotheses are re-reviewed and re-ranked.
-- **Proximity** is the dedup gate for the cycle (`nodes/proximity.py`). `current_iteration` is incremented by the orchestrator when it schedules a work task (generate/evolve) — see §4.
-- **Research Overview** is the single terminal node, synthesizing the top-10 by Elo into an overview + NIH Specific Aims (`nodes/research_overview.py:19`).
+- **Meta-Review** synthesizes all reviews into strategic insights; uses `supervisor_model_name` (`agents/meta_review/meta_review.py`).
+- **Evolve** refines the top-`evolution_max_count` hypotheses in parallel, then **discards the lower-ranked pool** — the hypothesis set shrinks to the evolved subset (`agents/evolution/evolve.py`). Flow then loops back up to **Review** (the teal `re-review → re-rank` arrow) so evolved hypotheses are re-reviewed and re-ranked.
+- **Proximity** is the dedup gate for the cycle (`agents/proximity/proximity.py`). `current_iteration` is incremented by the orchestrator when it schedules a work task (generate/evolve) — see §4.
+- **Research Overview** is the single terminal node, synthesizing the top-10 by Elo into an overview + NIH Specific Aims (`agents/meta_review/research_overview.py`).
 
-Note the AGENTS.md ordering lists "Ranking → Tournament → Meta-Review", but **Tournament is inside the Ranking node** (Elo pairwise, `nodes/ranking.py`), not a separate node, and **Deep Verification runs after Ranking**, before the routing decision.
+Note the AGENTS.md ordering lists "Ranking → Tournament → Meta-Review", but **Tournament is inside the Ranking node** (Elo pairwise, `agents/ranking/ranking.py`), not a separate node, and **Deep Verification runs after Ranking**, before the routing decision.
 
 ---
 
 ## 4. Control flow & routing
 
-Loop continuation is decided by a dedicated **orchestrator node** (`nodes/orchestrator.py`) — the single adaptive loop point the graph re-enters after each work phase. It computes observable statistics from state (pool growth, Elo stability, match coverage, proximity backlog), consults the deterministic scheduling policy (`scheduling/policy.py::decide_next_task`, gated by `validate_decision`), records the decision and its reason in the task-history ledger, and sets `next_task` for the conditional edge (`generator/graph.py::_route_next_task`) to route on.
+Loop continuation is decided by a dedicated **orchestrator node** (`agents/supervisor/orchestrator.py`) — the single adaptive loop point the graph re-enters after each work phase. It computes observable statistics from state (pool growth, Elo stability, match coverage, proximity backlog), consults the deterministic scheduling policy (`scheduling/policy.py::decide_next_task`, gated by `validate_decision`), records the decision and its reason in the task-history ledger, and sets `next_task` for the conditional edge (`generator/graph.py::_route_next_task`) to route on.
 
 ```mermaid
 flowchart TD
   SUP["supervisor"] --> LR["literature_review"] --> GEN["generate"] --> REF["reflection"] --> REV["review"]
   REV --> RK["ranking"]
   RK --> DV["deep_verification"]
-  DV --> ORCH{"orchestrator<br/><i>nodes/orchestrator.py</i>"}
+  DV --> ORCH{"orchestrator<br/><i>agents/supervisor/orchestrator.py</i>"}
   PROX["proximity"] --> ORCH
 
   ORCH -->|generate| GEN
@@ -101,7 +101,7 @@ Key facts:
 
 - Wiring lives in `generator/graph.py`: every work phase converges on `ranking → deep_verification → orchestrator`, and `proximity` returns to the orchestrator too. The orchestrator's decision routes to `generate`, `review`, `ranking`, `meta_review` (the head of the `meta_review → evolve → review` re-review branch), `proximity`, or the terminal `research_overview`.
 - The policy is a pure function of `SchedulerStats` and a `Budget` (`scheduling/policy.py`). An LLM supervisor may only *recommend* a next task; `validate_decision` enforces the allowed transitions and budget — the code decides, the model only advises.
-- `current_iteration` is incremented by the orchestrator when it schedules a work task (generate/evolve); maintenance tasks (proximity/rank/reflect) and termination do not advance it (`nodes/orchestrator.py`).
+- `current_iteration` is incremented by the orchestrator when it schedules a work task (generate/evolve); maintenance tasks (proximity/rank/reflect) and termination do not advance it (`agents/supervisor/orchestrator.py`).
 - `max_iterations` defaults to `1` (`constants.py::DEFAULT_MAX_ITERATIONS`) and acts as the budget's satisfied-completion cap; runs can also terminate early on convergence (top Elo stable across cycles) or an exhausted budget (`scheduling/policy.py`).
 - A checkpoint-restored run re-enters at the orchestrator loop point via the START router (`generator/graph.py::_resume_router`); a fresh run starts at the supervisor.
 - The graph is built once per `HypothesisGenerator` instance (`generator/core.py::_build_graph`, edges in `generator/graph.py`) and invoked with `recursion_limit=100` (`generator/core.py:376`).
@@ -130,7 +130,7 @@ Streaming caveat: `astream` yields only per-node deltas, so the streaming wrappe
 
 ## 6. Node reference
 
-All nodes are `async (state) -> dict[str, Any]` in `engine/src/co_scientist/nodes/`.
+All nodes are `async (state) -> dict[str, Any]`, implemented in the agent packages under `engine/src/co_scientist/agents/` (`engine/src/co_scientist/nodes/` keeps thin re-export shims at the old paths).
 
 | Node | File:line | Consumes | Produces | Flows to |
 | --- | --- | --- | --- | --- |
@@ -326,9 +326,9 @@ Temperatures: `LOW=0.3`, `MEDIUM=0.5`, `HIGH=0.7` (`constants.py:41-50`). Token 
 | State definition + both reducers | `engine/src/co_scientist/state.py:18-274` |
 | Data models (`Hypothesis`, `ExecutionMetrics`, `Article`) | `engine/src/co_scientist/models.py` |
 | LLM dispatch, JSON repair, tool-calling loop | `engine/src/co_scientist/llm.py` |
-| Generation coordinator (3-condition strategy) | `engine/src/co_scientist/nodes/generation/coordinator.py:68-109` |
-| Tool-based draft → validate | `engine/src/co_scientist/nodes/generation/literature_tools/` |
-| Citation index + key resolution | `engine/src/co_scientist/nodes/generation/citations.py` |
+| Generation coordinator (3-condition strategy) | `engine/src/co_scientist/agents/generation/coordinator_strategy.py` |
+| Tool-based draft → validate | `engine/src/co_scientist/agents/generation/literature_tools/` |
+| Citation index + key resolution | `engine/src/co_scientist/agents/generation/citations.py` |
 | YAML tool/domain config | `engine/src/co_scientist/config/` + `config/examples/` |
 | Engine docs (ASCII graph, modes, MCP) | `engine/docs/ARCHITECTURE.md`, `GENERATION_MODES.md`, `MCP_INTEGRATION.md` |
 | Runtime architecture (events, persistence) | [`docs/ARCHITECTURE.md`](ARCHITECTURE.md) |

@@ -1,6 +1,6 @@
 import {describe, expect, it} from 'vitest';
 import type {Run, RunStatus} from '@/api/runs';
-import {makeRun} from '@/test-fixtures';
+import {makeRun} from '@/test_fixtures';
 import {
   formatHomeRunDate,
   formatHomeRunTimeChip,

@@ -48,7 +48,7 @@ from co_scientist.models import (
     create_metrics_update,
     phase_message,
 )
-from co_scientist.nodes.progress import emit_progress
+from co_scientist.progress import emit_progress
 from co_scientist.prompts import get_review_prompt
 from co_scientist.state import WorkflowState
 

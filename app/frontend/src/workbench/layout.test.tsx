@@ -2,7 +2,7 @@ import {act, fireEvent, render, screen, waitFor} from '@testing-library/react';
 import {MemoryRouter} from 'react-router-dom';
 import {beforeEach, describe, expect, it, vi} from 'vitest';
 import type {Run} from '@/api/runs';
-import {makeRun} from '@/test-fixtures';
+import {makeRun} from '@/test_fixtures';
 import {AudienceProvider} from './audience_context';
 import {DIAGNOSTIC_EVENT} from './dom_events';
 import {RunHistoryProvider} from './hooks/run_history_context';

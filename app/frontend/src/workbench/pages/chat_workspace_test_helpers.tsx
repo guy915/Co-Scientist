@@ -2,7 +2,7 @@ import {render} from '@testing-library/react';
 import {MemoryRouter, useLocation} from 'react-router-dom';
 import {vi} from 'vitest';
 import type {Run} from '@/api/runs';
-import {makeHypothesis, makeRun} from '@/test-fixtures';
+import {makeHypothesis, makeRun} from '@/test_fixtures';
 import {AudienceProvider} from '../audience_context';
 import {RunHistoryProvider} from '../hooks/run_history_context';
 import {ChatWorkspace} from './chat_workspace';

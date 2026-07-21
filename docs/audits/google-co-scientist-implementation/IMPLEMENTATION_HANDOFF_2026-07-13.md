@@ -103,7 +103,7 @@ The detailed machine-readable version is
 Regenerate the matrix with:
 
 ```bash
-python scripts/build_fidelity_closure.py
+python docs/audits/google-co-scientist-implementation/build_fidelity_closure.py
 ```
 
 Do not change a row to implemented merely because a similarly named component
@@ -415,7 +415,7 @@ cd /Users/guy/Code/Co-Scientist
 python -m pytest evaluations/tests -q
 python -m evaluations.smoke
 python evaluations/parity_check.py
-python scripts/build_fidelity_closure.py
+python docs/audits/google-co-scientist-implementation/build_fidelity_closure.py
 ```
 
 Confirm what each Make target actually covers before using it as broad evidence.

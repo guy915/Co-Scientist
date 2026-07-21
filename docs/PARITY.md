@@ -66,7 +66,7 @@ itself.
 |---|---|---|---|---|---|---|
 | M0-LEDGER-001 | PLAN.md | A requirement-level parity ledger with stable IDs and a CI checker that fails on unproven `verified` rows | `docs/PARITY.md` (this file); `evaluations/parity_check.py` | `evaluations/tests/test_parity_check.py` | verified | — |
 | M0-BASELINE-001 | PLAN.md | A dated clean baseline (tests, coverage, mock run, real-smoke status) recorded before behavior change | `evaluations/results/baseline-2026-07-10.json` | `evaluations/results/baseline-2026-07-10.json` (self-describing artifact) | verified | — |
-| M0-DOCS-TRUTH-001 | PLAN.md | No doc describes intended or mock-only behavior as production-engine behavior | `docs/FIDELITY.md` corrected: citation-"gate" claim removed (now "audit label"), retired-tab surface fixed, supervisor marked not-yet-dynamic, evolution evidence updated; FIDELITY defers to PARITY.md; ARCHITECTURE/README verified honest | `evaluations/tests/test_docs_truth.py` | verified | ui-fidelity.md already self-documents retired tabs |
+| M0-DOCS-TRUTH-001 | PLAN.md | No doc describes intended or mock-only behavior as production-engine behavior | `docs/FIDELITY.md` corrected: citation-"gate" claim removed (now "audit label"), retired-tab surface fixed, supervisor marked not-yet-dynamic, evolution evidence updated; FIDELITY defers to PARITY.md; ARCHITECTURE/README verified honest | `evaluations/tests/test_docs_truth.py` | verified | UI-FIDELITY.md already self-documents retired tabs |
 
 ---
 

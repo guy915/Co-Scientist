@@ -44,7 +44,7 @@ module.exports = defineConfig([
   // debounce wrappers). Relaxed here at config level instead of inline
   // disables at each call site.
   {
-    files: ['src/**/*.test.ts', 'src/**/*.test.tsx', 'src/test-setup.ts'],
+    files: ['src/**/*.test.ts', 'src/**/*.test.tsx', 'src/test_setup.ts'],
     rules: {
       '@typescript-eslint/no-non-null-assertion': 'off',
       '@typescript-eslint/no-empty-function': 'off',

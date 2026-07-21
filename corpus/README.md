@@ -57,7 +57,8 @@ never overwrites the hand-curated core files.
 **From PDFs (the hand-curated core).**
 
 ```bash
-python -m app.corpus_ingest /path/to/Papers --out corpus/sbi_ucd
+cd app
+python dev/corpus_ingest.py /path/to/Papers --out ../corpus/sbi_ucd
 ```
 
 Requires `pdftotext` (`brew install poppler`). Subdirectories of the source

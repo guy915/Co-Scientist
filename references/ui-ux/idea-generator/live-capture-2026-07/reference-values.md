@@ -5,7 +5,7 @@ Measured from the running product at
 styles (shadow-DOM-piercing probe). Viewport 1600x869 @ dpr 1.8, light theme.
 This is the pixel truth for the visual-fidelity pass; deliberate divergences
 (green accent instead of purple, branding, composer options) are documented in
-`docs/ui-fidelity.md` and stay as-is.
+`docs/UI-FIDELITY.md` and stay as-is.
 
 ## Global
 

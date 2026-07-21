@@ -98,7 +98,7 @@ from co_scientist.mcp_client import (
     check_mcp_available,
     get_mcp_client,
 )
-from co_scientist.nodes.progress import emit_progress
+from co_scientist.progress import emit_progress
 from co_scientist.state import WorkflowState
 
 logger = logging.getLogger(__name__)

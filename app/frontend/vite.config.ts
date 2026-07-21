@@ -16,7 +16,7 @@ export default defineConfig({
   },
   test: {
     environment: 'jsdom',
-    setupFiles: ['./src/test-setup.ts'],
+    setupFiles: ['./src/test_setup.ts'],
     include: ['src/**/*.test.{ts,tsx}'],
     server: {
       // material-color-utilities ships extensionless ESM imports that Vitest's

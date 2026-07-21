@@ -8,7 +8,7 @@ import {
 } from './chat_workspace_timeline';
 import type {StartedSession} from './chat_timeline_cards';
 import type {SpecStage} from '../hooks/chat_session_types';
-import {makeMessage, makeSpec} from '@/test-fixtures';
+import {makeMessage, makeSpec} from '@/test_fixtures';
 
 function baseArgs(
   overrides: Partial<BuildTimelineItemsArgs> = {},

@@ -1,7 +1,7 @@
 import {render, screen} from '@testing-library/react';
 import {describe, expect, it} from 'vitest';
 import type {Run} from '@/api/runs';
-import {makeRun} from '@/test-fixtures';
+import {makeRun} from '@/test_fixtures';
 import {RunStepFlow} from './home_recents_run_steps';
 
 // A running engine run leased on `active_task`: the only live progress signal

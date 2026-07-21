@@ -8,13 +8,17 @@ This is a research/reference workspace organized around replicating Google's AI 
 
 - `app/` — FastAPI + React workbench viewer
 - `engine/` — LangGraph-based multi-agent hypothesis-generation engine
+- `evaluations/` — eval harness (parity gate, citation/safety/scaling evals); wired to `make parity` / `make eval-smoke` and CI
+- `e2e/` — Playwright end-to-end suite (bun-managed); wired to `make e2e` and CI
+- `corpus/` — SBI paper corpus (extracted text + catalog; see `corpus/README.md`); baked into the prod images and pointed at via `SBI_CORPUS_DIR`
 - `references/` — folder containing research, product screenshots, and design specs
   - `core/google-co-scientist/` — long-form architecture/spec markdown analyzing the original system (incl. `media/` UX captures and `research/` papers)
-  - `peripheral/` — secondary reference projects (`antigravity-science-skills/`, `notebooklm/`, `coding-agent-harness/`, `ai-chatbot-interface/`)
-  - `ui-ux/` — UX captures and product references (`gemini/`, `gemini-enterprise/`, `idea-generator/`)
-- `docs/` — live project docs (`ARCHITECTURE.md`, `FIDELITY.md`, `decisions/`, `assets/` (screenshots + SVG diagrams))
+  - `peripheral/` — secondary reference projects (`antigravity-science-skills/`, `coding-agent-harness/`, `ai-chatbot-interface/`, `deep-research-agent/`)
+  - `ui-ux/` — UX captures and product references (`gemini/`, `gemini-enterprise/`, `idea-generator/`, `notebooklm/`, `legacy-workbench-ui/`)
+- `docs/` — project docs; `docs/README.md` indexes them (live: `ARCHITECTURE.md`, `CI.md`, `EXPLAINER.md`, `FIDELITY.md`, `PARITY.md`, `PARITY-VERIFICATION.md`, `RUNNING-LOCALLY.md`, `UI-FIDELITY.md`, `assets/`; historical dated records: `audits/`, `decisions/`, `plans/`, `specs/`, `reports/`)
+- `.github/` — CI workflows plus the `setup-backend` composite action
 - `.remember/` — session handoff notes (`remember.md` is the live handoff file; also `now.md`, `recent.md`, daily logs, `logs/`, `tmp/`)
-- `Makefile` — root-level build orchestration (`setup`, `dev`, `dev-api`, `dev-ui`, `dev-mcp`, `test`, `test-app`, `test-engine`, `test-all`, `lint`, `typecheck`, `build`, `clean`, `stop`, `reset-db`)
+- `Makefile` — root-level build orchestration (`setup`, `start`, `dev-api`, `dev-ui`, `dev-mcp`, `test`, `test-app`, `test-engine`, `test-all`, `e2e`, `parity`, `eval-smoke`, `lint`, `typecheck`, `build`, `clean`, `stop`, `reset-db`)
 - `CLAUDE.md` — symlink to this file
 - `README.md` — project overview, features, installation, and usage
 
@@ -59,7 +63,7 @@ Individual nodes can be exercised in isolation via the scripts in `dev/` (`run_s
 
 Shared state flows through `WorkflowState` in `state.py`; note the custom `deduplicate_hypotheses` reducer that auto-dedupes on every state update. Prompts are markdown files in `src/co_scientist/prompts/templates/` (also bundled via `package-data`), loaded by the `prompts/` package. YAML tool/domain configs live in `src/co_scientist/config/` with examples per domain (biomed/cyber/etc.).
 
-Key supporting modules: `models.py` (dataclasses: `Hypothesis`, `HypothesisReview`, `ExecutionMetrics`, `Article`), `schemas.py` (JSON schemas for structured LLM output), `constants.py` (Elo params, token limits, temperatures), `exceptions.py` (domain exception hierarchy), `tools/` (tool registry subpackage for YAML-based tool configuration).
+Key supporting modules: `models.py` (dataclasses: `Hypothesis`, `HypothesisReview`, `ExecutionMetrics`, `Article`), `schemas/` (JSON-schema package for structured LLM output — one module per prompt family plus `registry.py`), `constants.py` (Elo params, token limits, temperatures), `exceptions.py` (domain exception hierarchy), `progress.py` (shared progress-event emission used by all agent nodes; `nodes/progress.py` is a shim like the rest of `nodes/`), `tools/` (tool registry subpackage for YAML-based tool configuration).
 
 LLM calls go through LiteLLM (`llm.py`); literature-review tools are pulled from an external MCP server via `mcp_client.py` using `langchain-mcp-adapters`. The graph auto-detects MCP availability — without a server, the literature/reflection nodes fall back to LLM-only mode.
 
@@ -67,7 +71,7 @@ Caching (`cache.py`) is on by default and controlled by `COSCIENTIST_CACHE_ENABL
 
 Engine-specific docs live in `engine/docs/` (`ARCHITECTURE.md`, `CONFIGURATION.md`, `DEVELOPMENT.md`, `DOMAIN_CUSTOMIZATION.md`, `GENERATION_MODES.md`, `LITERATURE_REVIEW_TOOLS_CONFIGURATION.md`, `LOGGING.md`, `MCP_INTEGRATION.md`).
 
-**Reference MCP server** lives in `mcp_server/` as a separately installable package. Install with `pip install -e mcp_server/` and run with `uvicorn mcp_server.server:app --host 0.0.0.0 --port 8888`. **Requires Python 3.12** (engine itself is 3.10+) — install into a 3.12 venv or you'll hit cryptic solver errors. Uses FastMCP + Biopython for PubMed + INDRA CoGex.
+**Reference MCP server** lives in `mcp_server/` as a separately installable package. Install with `pip install -e mcp_server/` and run with `uvicorn mcp_server.server:app --host 0.0.0.0 --port 8888`. **Requires Python 3.12** (engine itself is 3.10+) — install into a 3.12 venv or you'll hit cryptic solver errors. Registered tool families (see `mcp_server/server.py`): PubMed search + full-text retrieval, OpenAlex search, ChEMBL/UniProt lookups, SBI paper-corpus search, INDRA CoGex queries, and web search/fetch.
 
 **Style conventions** (from `CONTRIBUTING.md`, enforced informally):
 - Code follows the Google Python Style Guide: ruff (formatter + linter, 80 columns, config in `pyproject.toml`), Google-format docstrings (`Args:`/`Returns:`/`Raises:`).
@@ -100,13 +104,20 @@ Tasks are mirrored under `[tool.pixi.tasks]` — `pixi run dev` etc. work identi
 |---|---|
 | `main.py` | App setup, lifespan, diagnostics endpoints (`/health`, `/config`, `/status`) |
 | `config.py` | Pydantic settings (model names, API keys, DB path, Elo tuning, safety mode) |
-| `runs.py` | Durable run-lifecycle router (`/api/runs` endpoint group) |
+| `runs.py` | Durable run-lifecycle router (`/api/runs` endpoint group); backed by `runs_events.py` (SSE), `runs_models.py` (request models), `runs_registry.py` (active-run map) |
+| `engine_tasks.py` | Durable run execution — **the production path**: claims queued runs, drives the engine, persists events (audit both this and the streaming `run_workflow` path when changing run behavior) |
+| `task_worker.py` | Background worker loop that leases and executes `engine_tasks` work |
 | `store/` | SQLite persistence layer (WAL mode, append-only event log) |
 | `engine_adapter/` | Provider selection (always `"engine"`) and the offline/real LLM-backend switch; runs the intake safety gate at the shared `run_workflow` boundary and streams events |
 | `report_render.py` | Shared report payload/markdown builders, the `finalize_report` path (final safety gate + report/completed emission), and event-payload stubs shared across the offline and real LLM backends |
 | `elo.py` | Elo rating utilities |
 | `citations.py` | Citation classification (verified, partial, unsupported, unavailable) |
+| `claims.py`, `claim_grounding.py`, `claim_verifier.py` | Citation-grounding pipeline: claim extraction, assessor construction, NLI verification |
 | `safety.py` | Intake/final-output screening; the intake gate runs at the shared `run_workflow` boundary and the final gate in the shared `report_render.finalize_report` path, so both are shared across providers |
+| `hypothesis_safety.py`, `hypothesis_screening.py` | Per-hypothesis safety policy (adapter over `co_scientist.safety`) and its store-aware wiring |
+| `qa.py` | Q&A answering over run data (chat workspace ask flow) |
+| `human_input.py` | Scientist-in-the-loop steering/adjudication handling |
+| `document_ingest.py`, `paper_corpus.py` | Uploaded-document extraction and SBI corpus access (offline corpus tooling lives in `app/dev/`) |
 | `run_modes.py` | Run tier/focus normalization + durable setup/config resolution |
 | `seed.py` | Startup demo run seeder |
 | `logging_setup.py` | Stdout logging + run-id correlation + persistent capture (root logger -> `app_logs` table via a queue/listener thread) |
@@ -120,12 +131,14 @@ Diagnostics (in `main.py`):
 Run lifecycle (in `runs.py`, mounted at `/api/runs`) — **primary API used by the frontend**:
 - `POST /api/runs` — create a draft run; `GET /api/runs` — list runs.
 - `GET /api/runs/{id}` — get run details; `POST /api/runs/{id}/start` — start workflow.
-- `POST /api/runs/{id}/cancel` — cancel; `GET /api/runs/{id}/events` — SSE stream (live + replay).
+- `POST /api/runs/{id}/pause`, `/resume`, `/cancel` — lifecycle control; `GET /api/runs/{id}/events` — SSE stream (live + replay).
 - `GET /api/runs/{id}/hypotheses` — hypotheses with Elo + lineage.
 - `GET /api/runs/{id}/evidence`, `/reviews`, `/matches`, `/citations`, `/safety` — run data.
 - `GET /api/runs/{id}/report` (JSON) and `/report.md` (Markdown) — structured reports.
 - `POST /api/runs/{id}/messages` — queue user steering message; `GET` to list.
 - `POST /api/runs/{id}/messages/ask` — Q&A with streaming LLM response (uses `chat_model_name` config).
+
+Additional routers mounted in `main.py`: `interviews`, `shares`, `feedback`, `auth`, and `logs` (see each module for its endpoint group).
 
 **Persisted logs** (`logs_api.py` + `logging_setup.py` + `store/logs.py`) — one app-wide, durable log in the SQLite `app_logs` table:
 
@@ -180,15 +193,15 @@ bun run fix          # gts fix (format + autofix)
 bun run test         # vitest run (jsdom + React Testing Library)
 ```
 
-Frontend tests are colocated `*.test.ts`/`*.test.tsx` files run by Vitest (config in `vite.config.ts`, setup in `src/test-setup.ts`); they are typechecked by `tsc` and linted by gts like any other source.
+Frontend tests are colocated `*.test.ts`/`*.test.tsx` files run by Vitest (config in `vite.config.ts`, setup in `src/test_setup.ts`); they are typechecked by `tsc` and linted by gts like any other source.
 
-Vite reads `VITE_API_BASE_URL` (defaults to `http://localhost:8008`). The live UI is the **workbench**: `src/main.tsx` mounts `BrowserRouter` + `src/workbench/workbench_app.tsx`, with pages under `src/workbench/pages/` (chat workspace, run detail) and run views under `src/workbench/components/` (incl. `tabs/`). HTTP + SSE/streaming entry points live in `src/api/runs.ts` and `src/hooks/use_run_stream.ts`. Theme state is in `src/workbench/theme_context.tsx` — no Redux/Zustand. Shared primitives: `src/components/error_boundary.tsx`, `src/components/icon.tsx`, and helpers under `src/lib/` (theme, text, clipboard, sanitize_html, ...).
+Vite reads `VITE_API_BASE_URL` (defaults to `http://localhost:8008`). The live UI is the **workbench**: `src/main.tsx` mounts `BrowserRouter` + `src/workbench/workbench_app.tsx`, with pages under `src/workbench/pages/` (chat workspace, run detail, proposals, researcher access, shared report) and run views under `src/workbench/components/` (incl. `tabs/`); `src/workbench/proposals/` backs the proposals graph page. HTTP + SSE/streaming entry points live in `src/api/runs.ts` and `src/hooks/use_run_stream.ts` (`src/hooks/` holds shared app-level hooks; workbench-specific hooks live in `src/workbench/hooks/`). Theme state is in `src/workbench/theme_context.tsx` — no Redux/Zustand. Shared primitives: `src/components/error_boundary.tsx`, `src/components/icon.tsx`, and helpers under `src/lib/` (theme, text, clipboard, sanitize_html, ...). Styling: `src/index.css` (Tailwind layers, fonts, `--color-th-*` token bridge) plus the surface sheets under `src/styles/`, aggregated by `src/styles/surfaces.css`.
 
-**Routing** (`workbench_app.tsx`): `/` (chat workspace — session home), `/runs/:id`, `/runs/:id/:tab` (run detail), `*` (404). `/runs` and `/runs/new` redirect to `/`. The old public surface (`/about` landing page, `/demos/:slug` public demos, `/runs` dashboard) was deliberately removed. `src/public/` now holds only the residual helpers still in use (plus their colocated tests): `not_found_page.tsx`, `no_index.tsx`, `public_link_button.tsx`, `seo.tsx`.
+**Routing** (`workbench_app.tsx`): `/` (chat workspace — session home), `/runs/:id`, `/runs/:id/:tab` (run detail), `/access` (researcher access), `/proposals` (proposals graph; `/recommendations` redirects to it), `/shared/:token` (shared goal report), `*` (404). `/runs` and `/runs/new` redirect to `/`. The old public surface (`/about` landing page, `/demos/:slug` public demos, `/runs` dashboard) was deliberately removed. `src/public/` now holds only the residual helpers still in use (plus their colocated tests): `not_found_page.tsx`, `no_index.tsx`, `public_link_button.tsx`, `seo.tsx`.
 
 **Tabs** (`src/workbench/components/tabs/`): `ideas_tab.tsx` is the only live tab component; `run_detail.tsx` renders its other views (details, learning, research overview) inline. The earlier `overview_tab.tsx`, `evidence_tab.tsx`, `tournament_tab.tsx`, `run_specifications_tab.tsx`, and `chat_tab.tsx` were retired and preserved under `references/ui-ux/legacy-workbench-ui/retired-orphan-tabs/`.
 
-**Workbench hooks** (`src/workbench/hooks/`): `use_global_shortcuts.ts` (keyboard shortcut handler).
+**Workbench hooks** (`src/workbench/hooks/`): ~15 modules — the chat-session cluster (`use_chat_session.ts` + `chat_session_*` state/handlers/helpers), run history (`use_run_history.ts`, `run_history_context.tsx`), and utilities (`use_global_shortcuts.ts`, `use_toast.ts`, `use_system_status.ts`, `use_is_mobile.ts`, `use_overflowing.ts`, `use_debounced_callback.ts`).
 
 ### Docker workflow
 
@@ -208,11 +221,11 @@ The app is deployed as three services:
 
 Both Railway services build from `guy915/Co-Scientist` using repo-root Dockerfiles (`Dockerfile.api`, `Dockerfile.mcp`). The api service has a persistent volume mounted at `/app/data` (SQLite DB + cache live there).
 
-Key env vars on the Railway **api** service:
+Key env vars on the Railway **api** service (production switched to DashScope on 2026-07-19; check the Railway dashboard for the exact current model ids):
 
 ```
-MODEL_NAME=deepseek/deepseek-chat
-DEEPSEEK_API_KEY=<secret>
+MODEL_NAME=<DashScope model>
+DASHSCOPE_API_KEY=<secret>
 MCP_SERVER_URL=http://mcp.railway.internal:8888/mcp
 COSCIENTIST_DB_PATH=/app/data/coscientist.db
 COSCIENTIST_CACHE_DIR=/app/data/cache
@@ -222,13 +235,13 @@ Vercel reads `VITE_API_BASE_URL=https://api-production-97eb.up.railway.app` (set
 
 ## Working in this repo
 
-- The `engine/` and `app/` directories are vendored as plain directories (not submodules). `co-scientist-engine` is not published to PyPI; it's installed editable from the local checkout (`pip install -e ../engine`, which `make setup` and the Dockerfiles do).
+- The `engine/` and `app/` directories are vendored as plain directories (not submodules). `co-scientist-engine` is not published to PyPI; it's installed editable from the local checkout (`pip install -e ../engine`, which `make setup` and the Dockerfiles do). Where the app is installed with `--no-deps` (make setup, CI, the compose dev image), its runtime deps come from the single-source list `app/requirements-app.txt` — keep it in sync with `app/pyproject.toml`.
 - Both the app (`app/`) and the engine (`engine/`) have committed pytest suites under `tests/`. `mypy .` is strict-clean for each (the engine excludes the separate `mcp_server` package and the `dev/` scripts; run `mypy .` from `mcp_server/` for that package).
 - When invoked from this workspace, `.remember/remember.md` is the session-handoff file — read/update it per the `remember` skill instructions.
 
 ## Required environment
 
-Both projects use **LiteLLM** for model dispatch. Set the relevant provider key (`DEEPSEEK_API_KEY`, `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, …) and `MODEL_NAME` (e.g. `deepseek/deepseek-chat`) before running. The app defaults to `gemini/gemini-2.5-flash` locally; production uses DeepSeek. The viewer also reads `MCP_SERVER_URL` (default `http://localhost:8888/mcp`), `TOOLS_CONFIG` (path or http URL to a YAML tools config), `SUPERVISOR_MODEL_NAME` (separate strategic model for supervisor/meta-review), and `CHAT_MODEL_NAME` (model for Chat tab Q&A). Full list of viewer env vars in `app/.env.example`. With no provider key set, or with `COSCIENTIST_FORCE_OFFLINE=1` (deprecated alias `COSCIENTIST_FORCE_MOCK=1`), the viewer runs every hypothesis-generation call through the engine's deterministic offline LLM backend instead of a real provider — no key required.
+Both projects use **LiteLLM** for model dispatch. Set the relevant provider key (`DEEPSEEK_API_KEY`, `DASHSCOPE_API_KEY`, `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, …) and `MODEL_NAME` before running. The app's local defaults are `deepseek/deepseek-v4-flash` (worker) and `deepseek/deepseek-v4-pro` (supervisor/chat) — see `app/app/config.py`; production runs on DashScope. The viewer also reads `MCP_SERVER_URL` (default `http://localhost:8888/mcp`), `TOOLS_CONFIG` (path or http URL to a YAML tools config), `SUPERVISOR_MODEL_NAME` (separate strategic model for supervisor/meta-review), and `CHAT_MODEL_NAME` (model for chat-workspace Q&A). Full list of viewer env vars in `app/.env.example`. With no provider key set, or with `COSCIENTIST_FORCE_OFFLINE=1` (deprecated alias `COSCIENTIST_FORCE_MOCK=1`), the viewer runs every hypothesis-generation call through the engine's deterministic offline LLM backend instead of a real provider — no key required.
 
 ## Git hygiene
 

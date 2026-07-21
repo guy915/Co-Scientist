@@ -219,7 +219,7 @@ class EnrichmentConfig:
         )
 
 
-# Read by prompts.py's _get_domain_variables() via
+# Read by prompts/loading.py's _get_domain_variables() via
 # ToolRegistry.get_prompts_config() and merged into most node prompt
 # variables as the domain_* placeholders referenced below.
 @dataclass

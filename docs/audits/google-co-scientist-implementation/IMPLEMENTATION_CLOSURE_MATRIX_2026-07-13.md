@@ -1,6 +1,6 @@
 # Google Co-Scientist implementation closure matrix
 
-Generated from the audited difference register. `unproven` is the fail-closed default: code presence or a passing broad suite does not close a finding. Edit `fidelity_closure_overrides.json` only after recording direct implementation and verification evidence, then rerun `python scripts/build_fidelity_closure.py`.
+Generated from the audited difference register. `unproven` is the fail-closed default: code presence or a passing broad suite does not close a finding. Edit `fidelity_closure_overrides.json` only after recording direct implementation and verification evidence, then rerun `python docs/audits/google-co-scientist-implementation/build_fidelity_closure.py`.
 
 ## Finding closure ledger
 

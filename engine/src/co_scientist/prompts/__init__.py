@@ -11,8 +11,9 @@ importing from ``co_scientist.prompts``.
 # One getter per prompt template; each names the template file stem it
 # renders (templates/<name>.md) and is called by exactly one node module.
 # Private helpers re-exported (the ``as`` alias marks an explicit re-export
-# for mypy) for co_scientist.nodes.evolve, which assembles its evolution
-# prompt without a dedicated getter here and imports these from the package.
+# for mypy) for co_scientist.agents.evolution.evolve_prompt, which assembles
+# its evolution prompt without a dedicated getter here and imports these from
+# the package.
 # Not part of the public API.
 from co_scientist.prompts._common import (
     _format_run_guidance as _format_run_guidance,

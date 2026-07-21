@@ -51,7 +51,7 @@ where = ["src"]
 include = ["co_scientist*"]
 
 [tool.setuptools.package-data]
-co_scientist = ["prompts/templates/*.md", "config/*.yaml", "py.typed"]
+co_scientist = ["prompts/templates/*.md", "config/*.yaml", "config/examples/*.yaml", "py.typed"]
 
 [tool.ruff]
 line-length = 80
