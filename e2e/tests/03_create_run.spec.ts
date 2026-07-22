@@ -29,25 +29,36 @@ test('creates a run from chat, starts it, and watches it complete', async ({
   await expect(page.getByText('private-lactate-result.txt')).toBeVisible();
   await composer.press('Enter');
 
-  // Complete the Agent interview's Focus Area and Preferences fields.
-  await expect(
-    page.getByText(/which scientific mechanisms or focus areas/i),
-  ).toBeVisible();
-  await page
-    .getByRole('textbox')
-    .last()
-    .fill('Prioritize GPX4-independent lipid repair mechanisms.');
-  await page.getByRole('button', {name: 'Send'}).click();
-  await expect(page.getByText(/what constraints, available models/i)).toBeVisible();
-  await page
-    .getByRole('textbox')
-    .last()
-    .fill('Use patient-derived organoids and isogenic controls.');
-  await page.getByRole('button', {name: 'Send'}).click();
-
-  // The completed interview produces the editable four-field research plan.
+  // The Agent runs a short, model-driven interview whose questions are
+  // generated from the goal (their exact wording is not fixed) and which
+  // completes into an editable research plan. Answer each question that
+  // appears until the plan's "Start research" action is offered, rather than
+  // asserting on specific question copy.
   const startButton = page.getByRole('button', {name: 'Start research'});
-  await expect(startButton).toBeVisible();
+  const assistantTurns = page.getByRole('button', {name: 'Copy response'});
+  await expect(assistantTurns.first()).toBeVisible({timeout: 30_000});
+  const answers = [
+    'Prioritize GPX4-independent lipid repair mechanisms.',
+    'Use patient-derived organoids and isogenic controls.',
+    'Optimize for translational relevance to recurrent glioblastoma.',
+    'No further constraints; proceed with the strongest directions.',
+  ];
+  for (const answer of answers) {
+    if (await startButton.isVisible().catch(() => false)) break;
+    const priorTurns = await assistantTurns.count();
+    await page.getByRole('textbox').last().fill(answer);
+    await page.getByRole('button', {name: 'Send'}).click();
+    // The answer is consumed once the plan is ready or the model posts its
+    // next question (a new assistant response bubble appears).
+    await expect(async () => {
+      const ready = await startButton.isVisible().catch(() => false);
+      const advanced = (await assistantTurns.count()) > priorTurns;
+      expect(ready || advanced).toBeTruthy();
+    }).toPass({timeout: 30_000});
+  }
+
+  // The completed interview produces the editable research plan.
+  await expect(startButton).toBeVisible({timeout: 30_000});
   await expect(page.getByText(goal).first()).toBeVisible();
 
   // Capture both lifecycle mutations as direct evidence that the browser owns
@@ -88,13 +99,13 @@ test('creates a run from chat, starts it, and watches it complete', async ({
   await expect(
     page.getByRole('list', {name: /ranked hypothesis list/i}),
   ).toBeVisible();
-  await page.getByRole('button', {name: 'Summary'}).click();
+  await page.getByRole('button', {name: 'Research Overview'}).click();
   await expect(
     page.getByRole('heading', {name: /specific aims/i}),
   ).toBeVisible();
   await expect(
     page.getByRole('heading', {name: /agent insights/i}),
   ).toBeVisible();
-  await page.getByRole('button', {name: 'Knowledge Base'}).click();
+  await page.getByRole('button', {name: 'Learning'}).click();
   await expect(page.getByText('private-lactate-result.txt')).toBeVisible();
 });

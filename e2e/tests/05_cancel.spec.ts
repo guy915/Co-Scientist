@@ -21,7 +21,7 @@ test('cancels a running fixture without contaminating faithful history', async (
 
   const {id} = await api.createRun({
     research_goal: goal,
-    tier: 'advanced',
+    tier: 'extended',
     max_iterations: 8,
     initial_hypotheses_count: 30,
   });

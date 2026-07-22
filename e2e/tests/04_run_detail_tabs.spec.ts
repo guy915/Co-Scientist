@@ -28,14 +28,14 @@ test('run detail tabs render hypotheses, Elo scores, and report content', async 
   await expect(page.getByText(/elo rating:/i).first()).toBeVisible();
 
   // Learning tab: the synthesized learning sections and searchable references.
-  await page.getByRole('button', {name: 'Knowledge Base'}).click();
+  await page.getByRole('button', {name: 'Learning'}).click();
   await expect(page.getByRole('heading', {name: /references/i})).toBeVisible();
   await expect(
     page.getByRole('textbox', {name: /search references/i}),
   ).toBeVisible();
 
   // Overview tab: the synthesized report (winning ideas + tournament summary).
-  await page.getByRole('button', {name: 'Summary'}).click();
+  await page.getByRole('button', {name: 'Research Overview'}).click();
   await expect(
     page.getByRole('heading', {name: /agent insights/i}),
   ).toBeVisible();
