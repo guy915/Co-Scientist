@@ -4,7 +4,6 @@ import {
   afterEach,
   beforeAll,
   beforeEach,
-  describe,
   expect,
   it,
   vi,
@@ -121,156 +120,152 @@ afterEach(() => {
   Reflect.deleteProperty(document, 'fonts');
 });
 
-describe('TruncatedLabel', () => {
-  it('renders text unchanged when it fits within the container', async () => {
-    const {container} = render(<TruncatedLabel text="short label" />);
-    await flushNextFrame();
-    expect(container.querySelector('span')!.textContent).toBe('short label');
+it('renders text unchanged when it fits within the container', async () => {
+  const {container} = render(<TruncatedLabel text="short label" />);
+  await flushNextFrame();
+  expect(container.querySelector('span')!.textContent).toBe('short label');
+});
+
+it('truncates on a word boundary and appends an ellipsis when text overflows', async () => {
+  const text = 'abc def ghi jkl mno pqr stu vwx yz1 234';
+  const {container} = render(<TruncatedLabel text={text} />);
+  await flushNextFrame();
+  expect(container.querySelector('span')!.textContent).toBe(
+    'abc def ghi jkl mno…',
+  );
+});
+
+it('clips the first word when even it alone does not fit', async () => {
+  const text = 'x'.repeat(30);
+  const {container} = render(<TruncatedLabel text={text} />);
+  await flushNextFrame();
+  expect(container.querySelector('span')!.textContent).toBe(`${text}…`);
+});
+
+it('applies the className prop to the rendered span', () => {
+  const {container} = render(<TruncatedLabel text="hi" className="my-label" />);
+  expect(container.querySelector('span')).toHaveClass('my-label');
+});
+
+it('measures against height (not width) when lines > 1', async () => {
+  // Wide enough that width-based measurement alone would never overflow,
+  // but taller than containerHeight (10) in this character-count model.
+  containerWidth = 1000;
+  const text = 'one two three four five six seven eight nine ten';
+  const {container} = render(<TruncatedLabel text={text} lines={2} />);
+  await flushNextFrame();
+  const result = container.querySelector('span')!.textContent!;
+  expect(result.endsWith('…')).toBe(true);
+  expect(result).not.toBe(text);
+});
+
+it('re-fits when the ResizeObserver reports a container size change', async () => {
+  const text = 'alpha beta gamma delta';
+  const {container} = render(<TruncatedLabel text={text} />);
+  const span = container.querySelector('span')!;
+  await flushNextFrame();
+  expect(span.textContent).not.toBe(text); // narrow container truncates it
+
+  containerWidth = 200; // widen: everything now fits
+  const instance = FakeResizeObserver.instances.at(-1)!;
+  act(() => instance.trigger());
+
+  expect(span.textContent).toBe(text);
+});
+
+it('re-fits after web fonts finish loading', async () => {
+  let resolveFonts: () => void = () => {};
+  const fontsReady = new Promise<void>(resolve => {
+    resolveFonts = resolve;
+  });
+  Object.defineProperty(document, 'fonts', {
+    value: {ready: fontsReady},
+    configurable: true,
   });
 
-  it('truncates on a word boundary and appends an ellipsis when text overflows', async () => {
-    const text = 'abc def ghi jkl mno pqr stu vwx yz1 234';
-    const {container} = render(<TruncatedLabel text={text} />);
-    await flushNextFrame();
-    expect(container.querySelector('span')!.textContent).toBe(
-      'abc def ghi jkl mno…',
-    );
+  const text = 'alpha beta gamma delta';
+  const {container} = render(<TruncatedLabel text={text} />);
+  const span = container.querySelector('span')!;
+  await flushNextFrame();
+  expect(span.textContent).not.toBe(text); // narrow container truncates it
+
+  // Widen only after the initial sync + rAF fits already ran, so the
+  // eventual match to the full text can only come from the fonts.ready
+  // continuation.
+  containerWidth = 200;
+  await act(async () => {
+    resolveFonts();
+    await fontsReady;
   });
 
-  it('clips the first word when even it alone does not fit', async () => {
-    const text = 'x'.repeat(30);
-    const {container} = render(<TruncatedLabel text={text} />);
-    await flushNextFrame();
-    expect(container.querySelector('span')!.textContent).toBe(`${text}…`);
+  expect(span.textContent).toBe(text);
+});
+
+it('re-fits when the tab becomes visible again', async () => {
+  const text = 'alpha beta gamma delta';
+  const {container} = render(<TruncatedLabel text={text} />);
+  const span = container.querySelector('span')!;
+  await flushNextFrame();
+  expect(span.textContent).not.toBe(text);
+
+  containerWidth = 200;
+  act(() => {
+    document.dispatchEvent(new Event('visibilitychange'));
   });
 
-  it('applies the className prop to the rendered span', () => {
-    const {container} = render(
-      <TruncatedLabel text="hi" className="my-label" />,
-    );
-    expect(container.querySelector('span')).toHaveClass('my-label');
+  expect(span.textContent).toBe(text);
+});
+
+it('does not re-fit on visibilitychange while the tab is hidden', async () => {
+  const text = 'alpha beta gamma delta';
+  const {container} = render(<TruncatedLabel text={text} />);
+  const span = container.querySelector('span')!;
+  await flushNextFrame();
+  const truncated = span.textContent;
+
+  containerWidth = 200;
+  Object.defineProperty(document, 'hidden', {
+    value: true,
+    configurable: true,
   });
-
-  it('measures against height (not width) when lines > 1', async () => {
-    // Wide enough that width-based measurement alone would never overflow,
-    // but taller than containerHeight (10) in this character-count model.
-    containerWidth = 1000;
-    const text = 'one two three four five six seven eight nine ten';
-    const {container} = render(<TruncatedLabel text={text} lines={2} />);
-    await flushNextFrame();
-    const result = container.querySelector('span')!.textContent!;
-    expect(result.endsWith('…')).toBe(true);
-    expect(result).not.toBe(text);
+  act(() => {
+    document.dispatchEvent(new Event('visibilitychange'));
   });
+  expect(span.textContent).toBe(truncated); // unchanged: tab still hidden
 
-  it('re-fits when the ResizeObserver reports a container size change', async () => {
-    const text = 'alpha beta gamma delta';
-    const {container} = render(<TruncatedLabel text={text} />);
-    const span = container.querySelector('span')!;
-    await flushNextFrame();
-    expect(span.textContent).not.toBe(text); // narrow container truncates it
-
-    containerWidth = 200; // widen: everything now fits
-    const instance = FakeResizeObserver.instances.at(-1)!;
-    act(() => instance.trigger());
-
-    expect(span.textContent).toBe(text);
+  Object.defineProperty(document, 'hidden', {
+    value: false,
+    configurable: true,
   });
+});
 
-  it('re-fits after web fonts finish loading', async () => {
-    let resolveFonts: () => void = () => {};
-    const fontsReady = new Promise<void>(resolve => {
-      resolveFonts = resolve;
-    });
-    Object.defineProperty(document, 'fonts', {
-      value: {ready: fontsReady},
-      configurable: true,
-    });
+it('re-fits when the text prop changes', async () => {
+  const {container, rerender} = render(<TruncatedLabel text="short" />);
+  const span = container.querySelector('span')!;
+  await flushNextFrame();
+  expect(span.textContent).toBe('short');
 
-    const text = 'alpha beta gamma delta';
-    const {container} = render(<TruncatedLabel text={text} />);
-    const span = container.querySelector('span')!;
-    await flushNextFrame();
-    expect(span.textContent).not.toBe(text); // narrow container truncates it
+  const longText = 'abc def ghi jkl mno pqr stu vwx yz1 234';
+  rerender(<TruncatedLabel text={longText} />);
+  await flushNextFrame();
+  expect(span.textContent).toBe('abc def ghi jkl mno…');
+});
 
-    // Widen only after the initial sync + rAF fits already ran, so the
-    // eventual match to the full text can only come from the fonts.ready
-    // continuation.
-    containerWidth = 200;
-    await act(async () => {
-      resolveFonts();
-      await fontsReady;
-    });
+it('registers a ResizeObserver and visibilitychange listener on mount, and cleans up on unmount', async () => {
+  const removeEventListenerSpy = vi.spyOn(document, 'removeEventListener');
+  const cancelSpy = vi.spyOn(window, 'cancelAnimationFrame');
+  const {unmount} = render(<TruncatedLabel text="hello" />);
+  const instance = FakeResizeObserver.instances.at(-1)!;
+  expect(instance.observe).toHaveBeenCalledTimes(1);
 
-    expect(span.textContent).toBe(text);
-  });
+  unmount();
 
-  it('re-fits when the tab becomes visible again', async () => {
-    const text = 'alpha beta gamma delta';
-    const {container} = render(<TruncatedLabel text={text} />);
-    const span = container.querySelector('span')!;
-    await flushNextFrame();
-    expect(span.textContent).not.toBe(text);
-
-    containerWidth = 200;
-    act(() => {
-      document.dispatchEvent(new Event('visibilitychange'));
-    });
-
-    expect(span.textContent).toBe(text);
-  });
-
-  it('does not re-fit on visibilitychange while the tab is hidden', async () => {
-    const text = 'alpha beta gamma delta';
-    const {container} = render(<TruncatedLabel text={text} />);
-    const span = container.querySelector('span')!;
-    await flushNextFrame();
-    const truncated = span.textContent;
-
-    containerWidth = 200;
-    Object.defineProperty(document, 'hidden', {
-      value: true,
-      configurable: true,
-    });
-    act(() => {
-      document.dispatchEvent(new Event('visibilitychange'));
-    });
-    expect(span.textContent).toBe(truncated); // unchanged: tab still hidden
-
-    Object.defineProperty(document, 'hidden', {
-      value: false,
-      configurable: true,
-    });
-  });
-
-  it('re-fits when the text prop changes', async () => {
-    const {container, rerender} = render(<TruncatedLabel text="short" />);
-    const span = container.querySelector('span')!;
-    await flushNextFrame();
-    expect(span.textContent).toBe('short');
-
-    const longText = 'abc def ghi jkl mno pqr stu vwx yz1 234';
-    rerender(<TruncatedLabel text={longText} />);
-    await flushNextFrame();
-    expect(span.textContent).toBe('abc def ghi jkl mno…');
-  });
-
-  it('registers a ResizeObserver and visibilitychange listener on mount, and cleans up on unmount', async () => {
-    const removeEventListenerSpy = vi.spyOn(document, 'removeEventListener');
-    const cancelSpy = vi.spyOn(window, 'cancelAnimationFrame');
-    const {unmount} = render(<TruncatedLabel text="hello" />);
-    const instance = FakeResizeObserver.instances.at(-1)!;
-    expect(instance.observe).toHaveBeenCalledTimes(1);
-
-    unmount();
-
-    expect(instance.disconnect).toHaveBeenCalledTimes(1);
-    expect(cancelSpy).toHaveBeenCalled();
-    expect(removeEventListenerSpy).toHaveBeenCalledWith(
-      'visibilitychange',
-      expect.any(Function),
-    );
-    removeEventListenerSpy.mockRestore();
-    cancelSpy.mockRestore();
-  });
+  expect(instance.disconnect).toHaveBeenCalledTimes(1);
+  expect(cancelSpy).toHaveBeenCalled();
+  expect(removeEventListenerSpy).toHaveBeenCalledWith(
+    'visibilitychange',
+    expect.any(Function),
+  );
+  removeEventListenerSpy.mockRestore();
+  cancelSpy.mockRestore();
 });

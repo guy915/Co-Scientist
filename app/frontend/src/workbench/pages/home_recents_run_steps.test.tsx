@@ -1,5 +1,5 @@
 import {render, screen} from '@testing-library/react';
-import {describe, expect, it} from 'vitest';
+import {expect, it} from 'vitest';
 import type {Run} from '@/api/runs';
 import {makeRun} from '@/test_fixtures';
 import {RunStepFlow} from './home_recents_run_steps';
@@ -35,70 +35,68 @@ function shownPhases(): (string | null | undefined)[] {
   );
 }
 
-describe('RunStepFlow', () => {
-  it('reveals only the phases the run has actually reached', () => {
-    render(<RunStepFlow run={runOn('engine.node.supervisor')} />);
-    expect(shownPhases()).toEqual(['Exploring focus areas']);
-    expect(screen.getByText('In Progress')).toBeInTheDocument();
-  });
+it('reveals only the phases the run has actually reached', () => {
+  render(<RunStepFlow run={runOn('engine.node.supervisor')} />);
+  expect(shownPhases()).toEqual(['Exploring focus areas']);
+  expect(screen.getByText('In Progress')).toBeInTheDocument();
+});
 
-  it('reveals each further phase as the run reaches it', () => {
-    const {rerender} = render(
-      <RunStepFlow run={runOn('engine.node.generate')} />,
-    );
-    expect(shownPhases()).toEqual([
-      'Exploring focus areas',
-      'Generating hypotheses',
-    ]);
+it('reveals each further phase as the run reaches it', () => {
+  const {rerender} = render(
+    <RunStepFlow run={runOn('engine.node.generate')} />,
+  );
+  expect(shownPhases()).toEqual([
+    'Exploring focus areas',
+    'Generating hypotheses',
+  ]);
 
-    rerender(<RunStepFlow run={runOn('engine.ranking.match')} />);
-    expect(shownPhases()).toEqual([
-      'Exploring focus areas',
-      'Generating hypotheses',
-      'Reviewing hypotheses',
-      'Playing tournament',
-    ]);
-  });
+  rerender(<RunStepFlow run={runOn('engine.ranking.match')} />);
+  expect(shownPhases()).toEqual([
+    'Exploring focus areas',
+    'Generating hypotheses',
+    'Reviewing hypotheses',
+    'Playing tournament',
+  ]);
+});
 
-  it('marks no phase done or current: the list itself is the signal', () => {
-    render(<RunStepFlow run={runOn('engine.fanout.reflection.item')} />);
-    expect(labels('.reference-run-step-done')).toEqual([]);
-  });
+it('marks no phase done or current: the list itself is the signal', () => {
+  render(<RunStepFlow run={runOn('engine.fanout.reflection.item')} />);
+  expect(labels('.reference-run-step-done')).toEqual([]);
+});
 
-  it('carries one spinner, on the In Progress row', () => {
-    render(<RunStepFlow run={runOn('engine.fanout.reflection.item')} />);
-    expect(
-      document.querySelectorAll('.reference-run-step-spinner'),
-    ).toHaveLength(1);
-    // It stands in for a glyph rather than sitting beside one.
-    const row = document
-      .querySelector('.reference-run-step-spinner')
-      ?.closest('.reference-run-step');
-    expect(row?.querySelector('.reference-run-step-icon')).toBeNull();
-    expect(row?.textContent).toContain('In Progress');
-  });
+it('carries one spinner, on the In Progress row', () => {
+  render(<RunStepFlow run={runOn('engine.fanout.reflection.item')} />);
+  expect(document.querySelectorAll('.reference-run-step-spinner')).toHaveLength(
+    1,
+  );
+  // It stands in for a glyph rather than sitting beside one.
+  const row = document
+    .querySelector('.reference-run-step-spinner')
+    ?.closest('.reference-run-step');
+  expect(row?.querySelector('.reference-run-step-icon')).toBeNull();
+  expect(row?.textContent).toContain('In Progress');
+});
 
-  it('keeps revealed phases when the run cycles back to an earlier one', () => {
-    const {rerender} = render(
-      <RunStepFlow run={runOn('engine.ranking.match')} />,
-    );
-    expect(shownPhases()).toHaveLength(4);
+it('keeps revealed phases when the run cycles back to an earlier one', () => {
+  const {rerender} = render(
+    <RunStepFlow run={runOn('engine.ranking.match')} />,
+  );
+  expect(shownPhases()).toHaveLength(4);
 
-    // The engine loops, so it genuinely re-enters reviewing. The tournament
-    // row it already showed must not vanish.
-    rerender(<RunStepFlow run={runOn('engine.fanout.review.item')} />);
-    expect(shownPhases()).toHaveLength(4);
-  });
+  // The engine loops, so it genuinely re-enters reviewing. The tournament
+  // row it already showed must not vanish.
+  rerender(<RunStepFlow run={runOn('engine.fanout.review.item')} />);
+  expect(shownPhases()).toHaveLength(4);
+});
 
-  it('holds the revealed phases while the run reports none', () => {
-    const {rerender} = render(
-      <RunStepFlow run={runOn('engine.node.generate')} />,
-    );
-    // Routing between agents reports no phase of its own.
-    rerender(<RunStepFlow run={runOn('engine.node.orchestrator')} />);
-    expect(shownPhases()).toEqual([
-      'Exploring focus areas',
-      'Generating hypotheses',
-    ]);
-  });
+it('holds the revealed phases while the run reports none', () => {
+  const {rerender} = render(
+    <RunStepFlow run={runOn('engine.node.generate')} />,
+  );
+  // Routing between agents reports no phase of its own.
+  rerender(<RunStepFlow run={runOn('engine.node.orchestrator')} />);
+  expect(shownPhases()).toEqual([
+    'Exploring focus areas',
+    'Generating hypotheses',
+  ]);
 });

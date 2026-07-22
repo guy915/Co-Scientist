@@ -76,139 +76,137 @@ afterEach(() => {
   localStorage.removeItem(STORAGE_KEY);
 });
 
-describe('ThemeProvider / useTheme', () => {
-  it('defaults to system mode resolving to dark when matchMedia is unavailable', async () => {
-    vi.stubGlobal('matchMedia', undefined);
-    const {result} = renderHook(() => useTheme(), {wrapper});
-    await flushThemeTransition();
+it('defaults to system mode resolving to dark when matchMedia is unavailable', async () => {
+  vi.stubGlobal('matchMedia', undefined);
+  const {result} = renderHook(() => useTheme(), {wrapper});
+  await flushThemeTransition();
 
-    expect(result.current.mode).toBe('system');
-    expect(result.current.resolvedMode).toBe('dark');
-    expect(document.documentElement.dataset.theme).toBe('dark');
-    expect(document.documentElement.classList.contains('dark')).toBe(true);
-  });
+  expect(result.current.mode).toBe('system');
+  expect(result.current.resolvedMode).toBe('dark');
+  expect(document.documentElement.dataset.theme).toBe('dark');
+  expect(document.documentElement.classList.contains('dark')).toBe(true);
+});
 
-  it('honors a stored explicit light preference over the system scheme', async () => {
-    localStorage.setItem(STORAGE_KEY, 'light');
-    installFakeMatchMedia(true); // system says dark; explicit pref should win
-    const {result} = renderHook(() => useTheme(), {wrapper});
-    await flushThemeTransition();
+it('honors a stored explicit light preference over the system scheme', async () => {
+  localStorage.setItem(STORAGE_KEY, 'light');
+  installFakeMatchMedia(true); // system says dark; explicit pref should win
+  const {result} = renderHook(() => useTheme(), {wrapper});
+  await flushThemeTransition();
 
-    expect(result.current.mode).toBe('light');
-    expect(result.current.resolvedMode).toBe('light');
-    expect(document.documentElement.dataset.theme).toBe('light');
-    expect(document.documentElement.classList.contains('dark')).toBe(false);
-  });
+  expect(result.current.mode).toBe('light');
+  expect(result.current.resolvedMode).toBe('light');
+  expect(document.documentElement.dataset.theme).toBe('light');
+  expect(document.documentElement.classList.contains('dark')).toBe(false);
+});
 
-  it('falls back to system for an unrecognized stored value', async () => {
-    localStorage.setItem(STORAGE_KEY, 'sepia');
-    installFakeMatchMedia(false);
-    const {result} = renderHook(() => useTheme(), {wrapper});
-    await flushThemeTransition();
+it('falls back to system for an unrecognized stored value', async () => {
+  localStorage.setItem(STORAGE_KEY, 'sepia');
+  installFakeMatchMedia(false);
+  const {result} = renderHook(() => useTheme(), {wrapper});
+  await flushThemeTransition();
 
-    expect(result.current.mode).toBe('system');
-    expect(result.current.resolvedMode).toBe('light');
-  });
+  expect(result.current.mode).toBe('system');
+  expect(result.current.resolvedMode).toBe('light');
+});
 
-  it('resolves system mode live against OS scheme changes', async () => {
-    const mql = installFakeMatchMedia(false);
-    const {result} = renderHook(() => useTheme(), {wrapper});
-    await flushThemeTransition();
-    expect(result.current.resolvedMode).toBe('light');
+it('resolves system mode live against OS scheme changes', async () => {
+  const mql = installFakeMatchMedia(false);
+  const {result} = renderHook(() => useTheme(), {wrapper});
+  await flushThemeTransition();
+  expect(result.current.resolvedMode).toBe('light');
 
-    act(() => mql.fireChange(true));
-    await flushThemeTransition();
-    expect(result.current.resolvedMode).toBe('dark');
-    expect(document.documentElement.dataset.theme).toBe('dark');
+  act(() => mql.fireChange(true));
+  await flushThemeTransition();
+  expect(result.current.resolvedMode).toBe('dark');
+  expect(document.documentElement.dataset.theme).toBe('dark');
 
-    act(() => mql.fireChange(false));
-    await flushThemeTransition();
-    expect(result.current.resolvedMode).toBe('light');
-    expect(document.documentElement.dataset.theme).toBe('light');
-  });
+  act(() => mql.fireChange(false));
+  await flushThemeTransition();
+  expect(result.current.resolvedMode).toBe('light');
+  expect(document.documentElement.dataset.theme).toBe('light');
+});
 
-  it('subscribes via the legacy addListener/removeListener API when addEventListener is absent', async () => {
-    const mql = installFakeMatchMedia(false, 'legacy');
-    const {result, unmount} = renderHook(() => useTheme(), {wrapper});
-    await flushThemeTransition();
-    expect(mql.addListener).toHaveBeenCalledWith(expect.any(Function));
+it('subscribes via the legacy addListener/removeListener API when addEventListener is absent', async () => {
+  const mql = installFakeMatchMedia(false, 'legacy');
+  const {result, unmount} = renderHook(() => useTheme(), {wrapper});
+  await flushThemeTransition();
+  expect(mql.addListener).toHaveBeenCalledWith(expect.any(Function));
 
-    act(() => mql.fireChange(true));
-    await flushThemeTransition();
-    expect(result.current.resolvedMode).toBe('dark');
+  act(() => mql.fireChange(true));
+  await flushThemeTransition();
+  expect(result.current.resolvedMode).toBe('dark');
 
-    unmount();
-    expect(mql.removeListener).toHaveBeenCalledWith(expect.any(Function));
-  });
+  unmount();
+  expect(mql.removeListener).toHaveBeenCalledWith(expect.any(Function));
+});
 
-  it('setMode persists an explicit choice and updates resolvedMode', async () => {
-    installFakeMatchMedia(false);
-    const {result} = renderHook(() => useTheme(), {wrapper});
-    await flushThemeTransition();
+it('setMode persists an explicit choice and updates resolvedMode', async () => {
+  installFakeMatchMedia(false);
+  const {result} = renderHook(() => useTheme(), {wrapper});
+  await flushThemeTransition();
 
-    act(() => result.current.setMode('dark'));
-    await flushThemeTransition();
+  act(() => result.current.setMode('dark'));
+  await flushThemeTransition();
 
-    expect(result.current.mode).toBe('dark');
-    expect(result.current.resolvedMode).toBe('dark');
-    expect(localStorage.getItem(STORAGE_KEY)).toBe('dark');
-    expect(document.documentElement.dataset.themePreference).toBe('dark');
-  });
+  expect(result.current.mode).toBe('dark');
+  expect(result.current.resolvedMode).toBe('dark');
+  expect(localStorage.getItem(STORAGE_KEY)).toBe('dark');
+  expect(document.documentElement.dataset.themePreference).toBe('dark');
+});
 
-  it('toggle flips between light and dark', async () => {
-    installFakeMatchMedia(false);
-    const {result} = renderHook(() => useTheme(), {wrapper});
-    await flushThemeTransition();
-    act(() => result.current.setMode('light'));
-    await flushThemeTransition();
+it('toggle flips between light and dark', async () => {
+  installFakeMatchMedia(false);
+  const {result} = renderHook(() => useTheme(), {wrapper});
+  await flushThemeTransition();
+  act(() => result.current.setMode('light'));
+  await flushThemeTransition();
 
-    act(() => result.current.toggle());
-    await flushThemeTransition();
-    expect(result.current.mode).toBe('dark');
+  act(() => result.current.toggle());
+  await flushThemeTransition();
+  expect(result.current.mode).toBe('dark');
 
-    act(() => result.current.toggle());
-    await flushThemeTransition();
-    expect(result.current.mode).toBe('light');
-  });
+  act(() => result.current.toggle());
+  await flushThemeTransition();
+  expect(result.current.mode).toBe('light');
+});
 
-  it('toggle from system mode resolves to dark, leaving system behind', async () => {
-    installFakeMatchMedia(false); // system currently resolves to light
-    const {result} = renderHook(() => useTheme(), {wrapper});
-    await flushThemeTransition();
-    expect(result.current.mode).toBe('system');
+it('toggle from system mode resolves to dark, leaving system behind', async () => {
+  installFakeMatchMedia(false); // system currently resolves to light
+  const {result} = renderHook(() => useTheme(), {wrapper});
+  await flushThemeTransition();
+  expect(result.current.mode).toBe('system');
 
-    act(() => result.current.toggle());
-    await flushThemeTransition();
+  act(() => result.current.toggle());
+  await flushThemeTransition();
 
-    expect(result.current.mode).toBe('dark');
-    expect(result.current.resolvedMode).toBe('dark');
-  });
+  expect(result.current.mode).toBe('dark');
+  expect(result.current.resolvedMode).toBe('dark');
+});
 
-  it('lifts the theme-switching transition freeze after the theme is applied', async () => {
-    installFakeMatchMedia(false);
-    renderHook(() => useTheme(), {wrapper});
-    await flushThemeTransition();
+it('lifts the theme-switching transition freeze after the theme is applied', async () => {
+  installFakeMatchMedia(false);
+  renderHook(() => useTheme(), {wrapper});
+  await flushThemeTransition();
 
-    expect(document.documentElement.classList.contains('theme-switching')).toBe(
-      false,
-    );
-  });
+  expect(document.documentElement.classList.contains('theme-switching')).toBe(
+    false,
+  );
+});
 
-  it('unsubscribes the modern change listener on unmount', async () => {
-    const mql = installFakeMatchMedia(false);
-    const {unmount} = renderHook(() => useTheme(), {wrapper});
-    await flushThemeTransition();
-    expect(mql.addEventListener).toHaveBeenCalledWith(
-      'change',
-      expect.any(Function),
-    );
+it('unsubscribes the modern change listener on unmount', async () => {
+  const mql = installFakeMatchMedia(false);
+  const {unmount} = renderHook(() => useTheme(), {wrapper});
+  await flushThemeTransition();
+  expect(mql.addEventListener).toHaveBeenCalledWith(
+    'change',
+    expect.any(Function),
+  );
 
-    unmount();
-    expect(mql.removeEventListener).toHaveBeenCalledWith(
-      'change',
-      expect.any(Function),
-    );
-  });
+  unmount();
+  expect(mql.removeEventListener).toHaveBeenCalledWith(
+    'change',
+    expect.any(Function),
+  );
 });
 
 describe('useTheme', () => {

@@ -181,164 +181,158 @@ function renderClaimDetail(claimEvidence: ClaimEvidenceRow[]) {
   );
 }
 
-describe('HypothesisDetail', () => {
-  it('renders the empty-state placeholder when nothing is selected', () => {
-    render(<HypothesisDetail hypothesis={null} reviews={[]} matches={[]} />);
-    expect(
-      screen.getByText(
-        'Select a hypothesis to inspect the review and tournament details.',
-      ),
-    ).toBeInTheDocument();
-  });
-
-  it('renders the description sections from the selected hypothesis', () => {
-    renderFullDetail();
-
-    expect(screen.getByText('A testable statement.')).toBeInTheDocument();
-    expect(screen.getByText('A promising idea')).toBeInTheDocument();
-    expect(
-      screen.getByText(/Proposed mechanism of action:/),
-    ).toBeInTheDocument();
-    expect(screen.getByText('A described mechanism.')).toBeInTheDocument();
-    expect(screen.getByText(/Expected effect:/)).toBeInTheDocument();
-    expect(screen.getByText('A measurable effect.')).toBeInTheDocument();
-  });
-
-  it('surfaces provenance and lineage details', () => {
-    renderFullDetail();
-
-    // Provenance & lineage section surfaces origin, generation, cluster, safety.
-    expect(
-      screen.getByText(/Evolution agent \(refined from a parent\)/),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText(/Generation 1 — evolved from an earlier hypothesis/),
-    ).toBeInTheDocument();
-    expect(screen.getByText('cluster-7')).toBeInTheDocument();
-    expect(screen.getByText('allow')).toBeInTheDocument();
-  });
-
-  it("summarizes claim evidence for only this hypothesis's claims", () => {
-    renderFullDetail();
-
-    // Claim-evidence summary counts only this hypothesis's claims (2 of 3),
-    // labelled by verdict.
-    expect(
-      screen.getByText(/2 claim\(s\) assessed, 1 supported, 1 speculative/),
-    ).toBeInTheDocument();
-  });
-
-  it('renders the matching review and filters out unrelated reviews', () => {
-    renderFullDetail();
-
-    expect(screen.getByText('Reasonable and testable.')).toBeInTheDocument();
-    expect(screen.getByText('Needs a control arm.')).toBeInTheDocument();
-    expect(screen.queryByText('Unrelated.')).not.toBeInTheDocument();
-  });
-
-  it('renders tournament stats and the most recent matching match', () => {
-    renderFullDetail();
-
-    expect(
-      screen.getByText(
-        '3 wins and 1 losses across 4 pairwise matches (75% win rate).',
-      ),
-    ).toBeInTheDocument();
-
-    // The most recent of the two matching matches (by created_at) wins.
-    expect(screen.getByText('close')).toBeInTheDocument();
-    expect(
-      screen.getByText('Multi-turn scientific debate (3 turns)'),
-    ).toBeInTheDocument();
-    expect(screen.getByText('The latest match rationale.')).toBeInTheDocument();
-    expect(
-      screen.queryByText('An earlier match rationale.'),
-    ).not.toBeInTheDocument();
-  });
-
-  it('falls back to placeholder copy when there is no review, match, mechanism, or effect data', () => {
-    const hypothesis = makeHypothesis({
-      id: 'h1',
-      mechanism: null,
-      expected_effect: null,
-      win_count: 0,
-      loss_count: 0,
-    });
-    render(
-      <HypothesisDetail hypothesis={hypothesis} reviews={[]} matches={[]} />,
-    );
-
-    expect(
-      screen.getByText(
-        'Reviewer notes will appear after the review node completes.',
-      ),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText('No full review has been recorded yet.'),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText('No tournament matches have been recorded yet.'),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText('No match rationale is available yet.'),
-    ).toBeInTheDocument();
-    expect(
-      screen.queryByText(/Proposed mechanism of action:/),
-    ).not.toBeInTheDocument();
-    expect(screen.queryByText(/Expected effect:/)).not.toBeInTheDocument();
-    expect(screen.queryByText('Outcome:')).not.toBeInTheDocument();
-  });
+it('renders the empty-state placeholder when nothing is selected', () => {
+  render(<HypothesisDetail hypothesis={null} reviews={[]} matches={[]} />);
+  expect(
+    screen.getByText(
+      'Select a hypothesis to inspect the review and tournament details.',
+    ),
+  ).toBeInTheDocument();
 });
 
-describe('SectionsRail', () => {
-  it('renders a link for every rail section', () => {
-    render(<SectionsRail />);
-    for (const label of [
-      'Hypothesis overview',
-      'Description',
-      'Provenance & lineage',
-      'Review summary',
-      'Full review',
-      'Tournament performance',
-    ]) {
-      expect(
-        screen.getByRole('link', {name: new RegExp(label)}),
-      ).toBeInTheDocument();
-    }
-    // "Match summary" is inline-only, not linked from the rail.
+it('renders the description sections from the selected hypothesis', () => {
+  renderFullDetail();
+
+  expect(screen.getByText('A testable statement.')).toBeInTheDocument();
+  expect(screen.getByText('A promising idea')).toBeInTheDocument();
+  expect(screen.getByText(/Proposed mechanism of action:/)).toBeInTheDocument();
+  expect(screen.getByText('A described mechanism.')).toBeInTheDocument();
+  expect(screen.getByText(/Expected effect:/)).toBeInTheDocument();
+  expect(screen.getByText('A measurable effect.')).toBeInTheDocument();
+});
+
+it('surfaces provenance and lineage details', () => {
+  renderFullDetail();
+
+  // Provenance & lineage section surfaces origin, generation, cluster, safety.
+  expect(
+    screen.getByText(/Evolution agent \(refined from a parent\)/),
+  ).toBeInTheDocument();
+  expect(
+    screen.getByText(/Generation 1 — evolved from an earlier hypothesis/),
+  ).toBeInTheDocument();
+  expect(screen.getByText('cluster-7')).toBeInTheDocument();
+  expect(screen.getByText('allow')).toBeInTheDocument();
+});
+
+it("summarizes claim evidence for only this hypothesis's claims", () => {
+  renderFullDetail();
+
+  // Claim-evidence summary counts only this hypothesis's claims (2 of 3),
+  // labelled by verdict.
+  expect(
+    screen.getByText(/2 claim\(s\) assessed, 1 supported, 1 speculative/),
+  ).toBeInTheDocument();
+});
+
+it('renders the matching review and filters out unrelated reviews', () => {
+  renderFullDetail();
+
+  expect(screen.getByText('Reasonable and testable.')).toBeInTheDocument();
+  expect(screen.getByText('Needs a control arm.')).toBeInTheDocument();
+  expect(screen.queryByText('Unrelated.')).not.toBeInTheDocument();
+});
+
+it('renders tournament stats and the most recent matching match', () => {
+  renderFullDetail();
+
+  expect(
+    screen.getByText(
+      '3 wins and 1 losses across 4 pairwise matches (75% win rate).',
+    ),
+  ).toBeInTheDocument();
+
+  // The most recent of the two matching matches (by created_at) wins.
+  expect(screen.getByText('close')).toBeInTheDocument();
+  expect(
+    screen.getByText('Multi-turn scientific debate (3 turns)'),
+  ).toBeInTheDocument();
+  expect(screen.getByText('The latest match rationale.')).toBeInTheDocument();
+  expect(
+    screen.queryByText('An earlier match rationale.'),
+  ).not.toBeInTheDocument();
+});
+
+it('falls back to placeholder copy when there is no review, match, mechanism, or effect data', () => {
+  const hypothesis = makeHypothesis({
+    id: 'h1',
+    mechanism: null,
+    expected_effect: null,
+    win_count: 0,
+    loss_count: 0,
+  });
+  render(
+    <HypothesisDetail hypothesis={hypothesis} reviews={[]} matches={[]} />,
+  );
+
+  expect(
+    screen.getByText(
+      'Reviewer notes will appear after the review node completes.',
+    ),
+  ).toBeInTheDocument();
+  expect(
+    screen.getByText('No full review has been recorded yet.'),
+  ).toBeInTheDocument();
+  expect(
+    screen.getByText('No tournament matches have been recorded yet.'),
+  ).toBeInTheDocument();
+  expect(
+    screen.getByText('No match rationale is available yet.'),
+  ).toBeInTheDocument();
+  expect(
+    screen.queryByText(/Proposed mechanism of action:/),
+  ).not.toBeInTheDocument();
+  expect(screen.queryByText(/Expected effect:/)).not.toBeInTheDocument();
+  expect(screen.queryByText('Outcome:')).not.toBeInTheDocument();
+});
+
+it('renders a link for every rail section', () => {
+  render(<SectionsRail />);
+  for (const label of [
+    'Hypothesis overview',
+    'Description',
+    'Provenance & lineage',
+    'Review summary',
+    'Full review',
+    'Tournament performance',
+  ]) {
     expect(
-      screen.queryByRole('link', {name: /Match summary/}),
-    ).not.toBeInTheDocument();
-  });
+      screen.getByRole('link', {name: new RegExp(label)}),
+    ).toBeInTheDocument();
+  }
+  // "Match summary" is inline-only, not linked from the rail.
+  expect(
+    screen.queryByRole('link', {name: /Match summary/}),
+  ).not.toBeInTheDocument();
+});
 
-  it('prevents default and delegates to smoothScrollToSection when the target exists', async () => {
-    const {smoothScrollToSection} = await import('@/lib/smooth_scroll');
-    vi.mocked(smoothScrollToSection).mockReturnValue(true);
-    render(<SectionsRail />);
+it('prevents default and delegates to smoothScrollToSection when the target exists', async () => {
+  const {smoothScrollToSection} = await import('@/lib/smooth_scroll');
+  vi.mocked(smoothScrollToSection).mockReturnValue(true);
+  render(<SectionsRail />);
 
-    const link = screen.getByRole('link', {name: /Hypothesis overview/});
-    const notPrevented = fireEvent.click(link);
+  const link = screen.getByRole('link', {name: /Hypothesis overview/});
+  const notPrevented = fireEvent.click(link);
 
-    expect(smoothScrollToSection).toHaveBeenCalledWith(
-      'hypothesis-overview',
-      16,
-      '.idea-detail-pane, .cosci-report-scroll',
-    );
-    // dispatchEvent returns false when a cancelable event's default was
-    // prevented.
-    expect(notPrevented).toBe(false);
-  });
+  expect(smoothScrollToSection).toHaveBeenCalledWith(
+    'hypothesis-overview',
+    16,
+    '.idea-detail-pane, .cosci-report-scroll',
+  );
+  // dispatchEvent returns false when a cancelable event's default was
+  // prevented.
+  expect(notPrevented).toBe(false);
+});
 
-  it('falls through to default navigation when no scroll target is found', async () => {
-    const {smoothScrollToSection} = await import('@/lib/smooth_scroll');
-    vi.mocked(smoothScrollToSection).mockReturnValue(false);
-    render(<SectionsRail />);
+it('falls through to default navigation when no scroll target is found', async () => {
+  const {smoothScrollToSection} = await import('@/lib/smooth_scroll');
+  vi.mocked(smoothScrollToSection).mockReturnValue(false);
+  render(<SectionsRail />);
 
-    const link = screen.getByRole('link', {name: /Description/});
-    const notPrevented = fireEvent.click(link);
+  const link = screen.getByRole('link', {name: /Description/});
+  const notPrevented = fireEvent.click(link);
 
-    expect(notPrevented).toBe(true);
-  });
+  expect(notPrevented).toBe(true);
 });
 
 describe('HypothesisDetail claim-evidence provenance', () => {

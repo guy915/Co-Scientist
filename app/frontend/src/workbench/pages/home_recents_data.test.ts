@@ -15,57 +15,55 @@ describe('formatHomeRunDate', () => {
   });
 });
 
-describe('formatHomeRunTimeChip', () => {
-  it('shows total time for a completed run with valid timestamps', () => {
-    const run = makeRun({
-      status: 'completed',
-      created_at: 1000,
-      completed_at: 1000 + 3600,
-    });
-    expect(formatHomeRunTimeChip(run)).toBe('Total time: 1 hour');
+it('shows total time for a completed run with valid timestamps', () => {
+  const run = makeRun({
+    status: 'completed',
+    created_at: 1000,
+    completed_at: 1000 + 3600,
   });
+  expect(formatHomeRunTimeChip(run)).toBe('Total time: 1 hour');
+});
 
-  it('reports a sub-minute real span as "< 1 minute" for a completed run', () => {
-    const run = makeRun({
-      status: 'completed',
-      created_at: 1000,
-      updated_at: 1000,
-      completed_at: null,
-    });
-    // Real span is zero (updated_at == created_at), not a fabricated 60s.
-    expect(formatHomeRunTimeChip(run)).toBe('Total time: < 1 minute');
+it('reports a sub-minute real span as "< 1 minute" for a completed run', () => {
+  const run = makeRun({
+    status: 'completed',
+    created_at: 1000,
+    updated_at: 1000,
+    completed_at: null,
   });
+  // Real span is zero (updated_at == created_at), not a fabricated 60s.
+  expect(formatHomeRunTimeChip(run)).toBe('Total time: < 1 minute');
+});
 
-  it('shows elapsed time under a minute for a freshly started active run', () => {
-    const now = Date.now() / 1000;
-    const run = makeRun({
-      status: 'running',
-      created_at: now,
-      updated_at: now,
-      completed_at: null,
-    });
-    expect(formatHomeRunTimeChip(run)).toBe('Time elapsed: < 1 minute');
+it('shows elapsed time under a minute for a freshly started active run', () => {
+  const now = Date.now() / 1000;
+  const run = makeRun({
+    status: 'running',
+    created_at: now,
+    updated_at: now,
+    completed_at: null,
   });
+  expect(formatHomeRunTimeChip(run)).toBe('Time elapsed: < 1 minute');
+});
 
-  it('shows a formatted elapsed duration for a longer-running active run', () => {
-    const run = makeRun({
-      status: 'synthesizing',
-      created_at: 1000,
-      updated_at: 1000 + 300,
-      completed_at: null,
-    });
-    expect(formatHomeRunTimeChip(run)).toBe('Time elapsed: 5 minutes');
+it('shows a formatted elapsed duration for a longer-running active run', () => {
+  const run = makeRun({
+    status: 'synthesizing',
+    created_at: 1000,
+    updated_at: 1000 + 300,
+    completed_at: null,
   });
+  expect(formatHomeRunTimeChip(run)).toBe('Time elapsed: 5 minutes');
+});
 
-  it('shows the raw capitalized status for a non-active, non-completed run', () => {
-    const statuses: RunStatus[] = ['draft', 'failed', 'cancelled', 'blocked'];
-    for (const status of statuses) {
-      const run = makeRun({status});
-      expect(formatHomeRunTimeChip(run)).toBe(
-        `Status: ${status.charAt(0).toUpperCase()}${status.slice(1)}`,
-      );
-    }
-  });
+it('shows the raw capitalized status for a non-active, non-completed run', () => {
+  const statuses: RunStatus[] = ['draft', 'failed', 'cancelled', 'blocked'];
+  for (const status of statuses) {
+    const run = makeRun({status});
+    expect(formatHomeRunTimeChip(run)).toBe(
+      `Status: ${status.charAt(0).toUpperCase()}${status.slice(1)}`,
+    );
+  }
 });
 
 describe('homeRunScore', () => {
@@ -129,63 +127,57 @@ function activeTask(active_task: string | null): Partial<Run> {
   };
 }
 
-describe('homeRunStepIndex', () => {
-  it('maps queued to step 1 and synthesizing to step 4 directly', () => {
-    expect(homeRunStepIndex(makeRun({status: 'queued'}))).toBe(1);
-    expect(homeRunStepIndex(makeRun({status: 'synthesizing'}))).toBe(4);
-  });
+it('maps queued to step 1 and synthesizing to step 4 directly', () => {
+  expect(homeRunStepIndex(makeRun({status: 'queued'}))).toBe(1);
+  expect(homeRunStepIndex(makeRun({status: 'synthesizing'}))).toBe(4);
+});
 
-  it('derives the phase from the engine provider’s active durable task', () => {
-    for (const [task, phase] of ENGINE_TASK_PHASES) {
-      expect(homeRunStepIndex(makeRun(activeTask(task))), task).toBe(phase);
-    }
-  });
+it('derives the phase from the engine provider’s active durable task', () => {
+  for (const [task, phase] of ENGINE_TASK_PHASES) {
+    expect(homeRunStepIndex(makeRun(activeTask(task))), task).toBe(phase);
+  }
+});
 
-  it('derives the phase from the mock provider’s latest pipeline stage', () => {
-    // The mock provider leases no durable tasks, so the stage event is its
-    // only progress signal.
-    const cases: [string, number][] = [
-      ['supervisor.plan', 1],
-      ['literature_review', 2],
-      ['generate', 2],
-      ['reflection', 3],
-      ['proximity', 3],
-      ['ranking', 4],
-      ['evolve', 4],
-      ['meta_review', 4],
-      ['deep_verification', 4],
-      ['research_overview', 4],
-    ];
-    for (const [latest_stage, phase] of cases) {
-      expect(
-        homeRunStepIndex(makeRun({status: 'running', latest_stage})),
-        latest_stage,
-      ).toBe(phase);
-    }
-  });
-
-  it('reports no phase for a running run that reports no progress yet', () => {
-    // Neither provider's signal is present: the caller holds the last phase
-    // rather than the flow claiming to be back at the first step.
+it('derives the phase from the mock provider’s latest pipeline stage', () => {
+  // The mock provider leases no durable tasks, so the stage event is its
+  // only progress signal.
+  const cases: [string, number][] = [
+    ['supervisor.plan', 1],
+    ['literature_review', 2],
+    ['generate', 2],
+    ['reflection', 3],
+    ['proximity', 3],
+    ['ranking', 4],
+    ['evolve', 4],
+    ['meta_review', 4],
+    ['deep_verification', 4],
+    ['research_overview', 4],
+  ];
+  for (const [latest_stage, phase] of cases) {
     expect(
-      homeRunStepIndex(makeRun({status: 'running', latest_stage: null})),
-    ).toBeNull();
-    expect(homeRunStepIndex(makeRun(activeTask(null)))).toBeNull();
-    expect(homeRunStepIndex(makeRun(activeTask('engine.node.unknown')))).toBe(
-      null,
-    );
-  });
+      homeRunStepIndex(makeRun({status: 'running', latest_stage})),
+      latest_stage,
+    ).toBe(phase);
+  }
+});
 
-  it('re-enters an earlier phase when the run cycles back to it', () => {
-    // The engine loops, so a later cycle genuinely returns to generation;
-    // the flow reports where the run actually is, not its furthest point.
-    expect(homeRunStepIndex(makeRun(activeTask('engine.ranking.match')))).toBe(
-      4,
-    );
-    expect(
-      homeRunStepIndex(
-        makeRun(activeTask('engine.fanout.generation.strategy')),
-      ),
-    ).toBe(2);
-  });
+it('reports no phase for a running run that reports no progress yet', () => {
+  // Neither provider's signal is present: the caller holds the last phase
+  // rather than the flow claiming to be back at the first step.
+  expect(
+    homeRunStepIndex(makeRun({status: 'running', latest_stage: null})),
+  ).toBeNull();
+  expect(homeRunStepIndex(makeRun(activeTask(null)))).toBeNull();
+  expect(homeRunStepIndex(makeRun(activeTask('engine.node.unknown')))).toBe(
+    null,
+  );
+});
+
+it('re-enters an earlier phase when the run cycles back to it', () => {
+  // The engine loops, so a later cycle genuinely returns to generation;
+  // the flow reports where the run actually is, not its furthest point.
+  expect(homeRunStepIndex(makeRun(activeTask('engine.ranking.match')))).toBe(4);
+  expect(
+    homeRunStepIndex(makeRun(activeTask('engine.fanout.generation.strategy'))),
+  ).toBe(2);
 });

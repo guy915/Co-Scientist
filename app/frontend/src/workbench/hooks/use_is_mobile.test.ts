@@ -66,79 +66,77 @@ describe('isMobileViewport', () => {
   });
 });
 
-describe('useIsMobile', () => {
-  it('initializes from the current match state', () => {
-    installFakeMatchMedia({[MOBILE_MEDIA_QUERY]: true});
-    const {result} = renderHook(() => useIsMobile());
-    expect(result.current).toBe(true);
+it('initializes from the current match state', () => {
+  installFakeMatchMedia({[MOBILE_MEDIA_QUERY]: true});
+  const {result} = renderHook(() => useIsMobile());
+  expect(result.current).toBe(true);
+});
+
+it('initializes to false when the query does not match', () => {
+  installFakeMatchMedia({[MOBILE_MEDIA_QUERY]: false});
+  const {result} = renderHook(() => useIsMobile());
+  expect(result.current).toBe(false);
+});
+
+it('updates when the media query change event fires', () => {
+  const {lists} = installFakeMatchMedia({[MOBILE_MEDIA_QUERY]: false});
+  const {result} = renderHook(() => useIsMobile());
+  expect(result.current).toBe(false);
+
+  act(() => {
+    lists.get(MOBILE_MEDIA_QUERY)!.fireChange(true);
   });
+  expect(result.current).toBe(true);
 
-  it('initializes to false when the query does not match', () => {
-    installFakeMatchMedia({[MOBILE_MEDIA_QUERY]: false});
-    const {result} = renderHook(() => useIsMobile());
-    expect(result.current).toBe(false);
+  act(() => {
+    lists.get(MOBILE_MEDIA_QUERY)!.fireChange(false);
   });
+  expect(result.current).toBe(false);
+});
 
-  it('updates when the media query change event fires', () => {
-    const {lists} = installFakeMatchMedia({[MOBILE_MEDIA_QUERY]: false});
-    const {result} = renderHook(() => useIsMobile());
-    expect(result.current).toBe(false);
+it('subscribes to change events on mount and unsubscribes on unmount', () => {
+  const {lists} = installFakeMatchMedia({[MOBILE_MEDIA_QUERY]: false});
+  const {unmount} = renderHook(() => useIsMobile());
+  const mql = lists.get(MOBILE_MEDIA_QUERY)!;
+  expect(mql.addEventListener).toHaveBeenCalledWith(
+    'change',
+    expect.any(Function),
+  );
 
-    act(() => {
-      lists.get(MOBILE_MEDIA_QUERY)!.fireChange(true);
-    });
-    expect(result.current).toBe(true);
+  unmount();
+  expect(mql.removeEventListener).toHaveBeenCalledWith(
+    'change',
+    expect.any(Function),
+  );
+});
 
-    act(() => {
-      lists.get(MOBILE_MEDIA_QUERY)!.fireChange(false);
-    });
-    expect(result.current).toBe(false);
+it('resubscribes when the query argument changes', () => {
+  const {lists} = installFakeMatchMedia({
+    '(max-width: 700px)': false,
+    '(max-width: 400px)': true,
   });
-
-  it('subscribes to change events on mount and unsubscribes on unmount', () => {
-    const {lists} = installFakeMatchMedia({[MOBILE_MEDIA_QUERY]: false});
-    const {unmount} = renderHook(() => useIsMobile());
-    const mql = lists.get(MOBILE_MEDIA_QUERY)!;
-    expect(mql.addEventListener).toHaveBeenCalledWith(
-      'change',
-      expect.any(Function),
-    );
-
-    unmount();
-    expect(mql.removeEventListener).toHaveBeenCalledWith(
-      'change',
-      expect.any(Function),
-    );
+  const {result, rerender} = renderHook(({query}) => useIsMobile(query), {
+    initialProps: {query: '(max-width: 700px)'},
   });
+  expect(result.current).toBe(false);
 
-  it('resubscribes when the query argument changes', () => {
-    const {lists} = installFakeMatchMedia({
-      '(max-width: 700px)': false,
-      '(max-width: 400px)': true,
-    });
-    const {result, rerender} = renderHook(({query}) => useIsMobile(query), {
-      initialProps: {query: '(max-width: 700px)'},
-    });
-    expect(result.current).toBe(false);
+  rerender({query: '(max-width: 400px)'});
+  expect(result.current).toBe(true);
 
-    rerender({query: '(max-width: 400px)'});
-    expect(result.current).toBe(true);
+  const wideList = lists.get('(max-width: 700px)')!;
+  const narrowList = lists.get('(max-width: 400px)')!;
+  expect(wideList.removeEventListener).toHaveBeenCalled();
+  expect(narrowList.addEventListener).toHaveBeenCalled();
+});
 
-    const wideList = lists.get('(max-width: 700px)')!;
-    const narrowList = lists.get('(max-width: 400px)')!;
-    expect(wideList.removeEventListener).toHaveBeenCalled();
-    expect(narrowList.addEventListener).toHaveBeenCalled();
-  });
+it('does not crash and reads false when matchMedia is unavailable', () => {
+  vi.stubGlobal('matchMedia', undefined);
+  const {result} = renderHook(() => useIsMobile());
+  expect(result.current).toBe(false);
+});
 
-  it('does not crash and reads false when matchMedia is unavailable', () => {
-    vi.stubGlobal('matchMedia', undefined);
-    const {result} = renderHook(() => useIsMobile());
-    expect(result.current).toBe(false);
-  });
-
-  it('defaults to MOBILE_MEDIA_QUERY when no query is given', () => {
-    const {matchMedia} = installFakeMatchMedia({[MOBILE_MEDIA_QUERY]: false});
-    renderHook(() => useIsMobile());
-    expect(matchMedia).toHaveBeenCalledWith(MOBILE_MEDIA_QUERY);
-  });
+it('defaults to MOBILE_MEDIA_QUERY when no query is given', () => {
+  const {matchMedia} = installFakeMatchMedia({[MOBILE_MEDIA_QUERY]: false});
+  renderHook(() => useIsMobile());
+  expect(matchMedia).toHaveBeenCalledWith(MOBILE_MEDIA_QUERY);
 });
