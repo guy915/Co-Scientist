@@ -227,6 +227,24 @@ def _display_literature_results(
     _print_review_stats(queries, articles, summary)
 
 
+def _build_lit_review_state(mcp_ok: bool, pubmed_ok: bool):
+    """Build the minimal literature-review state and print the run banner."""
+    if os.getenv("COSCIENTIST_DEV_MODE", "").lower() == "true":
+        console.print(
+            "\n[yellow]Dev mode enabled - using reduced paper counts[/yellow]"
+        )
+    state = make_base_state(
+        research_goal=DEFAULT_RESEARCH_GOAL,
+        model_name=DEFAULT_MODEL_NAME,
+    )
+    state["mcp_available"] = mcp_ok
+    state["pubmed_available"] = pubmed_ok
+    console.print(
+        f"\n[yellow]Research goal:[/yellow] {state['research_goal']}\n"
+    )
+    return state
+
+
 async def test_literature_review() -> None:
     """Run literature review node with minimal state."""
     console.print("\n[bold cyan]Testing literature review node[/bold cyan]\n")
@@ -234,39 +252,15 @@ async def test_literature_review() -> None:
     prerequisites = await _check_prerequisites()
     if prerequisites is None:
         return
-    mcp_ok, pubmed_ok = prerequisites
+    state = _build_lit_review_state(*prerequisites)
 
-    dev_mode = os.getenv("COSCIENTIST_DEV_MODE", "").lower() == "true"
-    if dev_mode:
-        console.print(
-            "\n[yellow]Dev mode enabled - using reduced paper counts[/yellow]"
-        )
-
-    # Create minimal state
-    state = make_base_state(
-        research_goal=DEFAULT_RESEARCH_GOAL,
-        model_name=DEFAULT_MODEL_NAME,
-    )
-    state["mcp_available"] = mcp_ok
-    state["pubmed_available"] = pubmed_ok
-
-    console.print(
-        f"\n[yellow]Research goal:[/yellow] {state['research_goal']}\n"
-    )
-
-    # Run node
     console.print(
         "[yellow]Calling literature review node"
         " (this may take a couple of minutes)...[/yellow]\n"
     )
     result = await literature_review_node(state)
 
-    # Display results
-    articles = result.get("articles", [])
-    queries = result.get("literature_review_queries", [])
     summary = result.get("articles_with_reasoning", "")
-
-    # Check if literature review failed
     if summary == LITERATURE_REVIEW_FAILED:
         console.print("\n[bold red]Literature review failed![/bold red]")
         console.print(
@@ -275,7 +269,11 @@ async def test_literature_review() -> None:
         )
         return
 
-    _display_literature_results(articles, queries, summary)
+    _display_literature_results(
+        result.get("articles", []),
+        result.get("literature_review_queries", []),
+        summary,
+    )
 
 
 def main(argv: Sequence[str]) -> None:

@@ -47,6 +47,18 @@ async def run_generation():
     return elapsed
 
 
+async def _timed_generation_run(label: str) -> tuple[float, dict]:
+    """Run one generation, print its cache use, return timing and stats."""
+    print(label)
+    print("-" * 70)
+    elapsed = await run_generation()
+    stats = get_cache_stats()
+    n = stats["cache_files"]
+    mb = stats["total_size_mb"]
+    print(f"Cache now: {n} files ({mb:.2f} MB)\n")
+    return elapsed, stats
+
+
 async def _run() -> None:
     """Run the cold/warm cache benchmark and print timing results."""
     print("=" * 70)
@@ -54,31 +66,14 @@ async def _run() -> None:
     print("=" * 70)
     print()
 
-    # Clear cache to start fresh
     cleared = clear_cache()
     print(f"Cleared {cleared} cached responses\n")
 
-    # First run (cold cache)
-    print("RUN 1: Cold cache (all LLM calls)")
-    print("-" * 70)
-    time1 = await run_generation()
-    stats1 = get_cache_stats()
-    n1 = stats1["cache_files"]
-    mb1 = stats1["total_size_mb"]
-    print(f"Cache after run 1: {n1} files ({mb1:.2f} MB)")
-    print()
+    time1, _ = await _timed_generation_run("RUN 1: Cold cache (all LLM calls)")
+    time2, stats2 = await _timed_generation_run(
+        "RUN 2: Warm cache (should be much faster)"
+    )
 
-    # Second run (warm cache)
-    print("RUN 2: Warm cache (should be much faster)")
-    print("-" * 70)
-    time2 = await run_generation()
-    stats2 = get_cache_stats()
-    n2 = stats2["cache_files"]
-    mb2 = stats2["total_size_mb"]
-    print(f"Cache after run 2: {n2} files ({mb2:.2f} MB)")
-    print()
-
-    # Results
     print("=" * 70)
     print("RESULTS")
     print("=" * 70)
@@ -88,7 +83,10 @@ async def _run() -> None:
     print(f"Speedup:    {speedup:.1f}x faster")
     print()
     print(f"Cache directory: {stats2['cache_dir']}")
-    print(f"Cache size:      {mb2:.2f} MB ({n2} files)")
+    print(
+        f"Cache size:      {stats2['total_size_mb']:.2f} MB "
+        f"({stats2['cache_files']} files)"
+    )
 
 
 def main(argv: Sequence[str]) -> None:

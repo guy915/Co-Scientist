@@ -158,8 +158,14 @@ def make_literature_state(
         result = asyncio.run(literature_review_node(base))
         base.update(result)
     else:
-        # Minimal mock data - just enough to not error
-        base["articles_with_reasoning"] = """
+        _seed_mock_literature(base, Article)
+
+    return base
+
+
+def _seed_mock_literature(base: WorkflowState, article_cls: type) -> None:
+    """Populate ``base`` with minimal mock literature data (not error-free)."""
+    base["articles_with_reasoning"] = """
 ## literature review summary
 
 ### key finding 1
@@ -168,22 +174,20 @@ retinal imaging shows promise for early alzheimer's detection
 ### key finding 2
 microvasculature changes appear years before cognitive symptoms
 """
-        base["literature_review_queries"] = [
-            "alzheimer's disease retinal imaging biomarkers",
-            "early detection cognitive decline optical coherence tomography",
-        ]
-        base["articles"] = [
-            Article(
-                title="retinal biomarkers for alzheimer's disease",
-                authors=["smith j", "doe a"],
-                year=2023,
-                abstract="study on retinal changes in ad patients",
-                citations=42,
-                url="https://example.com/paper1",
-            )
-        ]
-
-    return base
+    base["literature_review_queries"] = [
+        "alzheimer's disease retinal imaging biomarkers",
+        "early detection cognitive decline optical coherence tomography",
+    ]
+    base["articles"] = [
+        article_cls(
+            title="retinal biomarkers for alzheimer's disease",
+            authors=["smith j", "doe a"],
+            year=2023,
+            abstract="study on retinal changes in ad patients",
+            citations=42,
+            url="https://example.com/paper1",
+        )
+    ]
 
 
 def make_generate_state(

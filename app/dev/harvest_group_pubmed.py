@@ -88,9 +88,22 @@ _SLUG_KEEP = set("abcdefghijklmnopqrstuvwxyz0123456789")
 # JATS blocks that are not prose: tables and figures flatten unreadably and
 # the reference list states no finding.
 _DROP_TAGS = {
-    "ref-list", "table-wrap", "fig", "graphic", "media", "table",
-    "disp-formula", "inline-formula", "tex-math", "supplementary-material",
-    "author-notes", "fn-group", "ack", "back", "front", "journal-meta",
+    "ref-list",
+    "table-wrap",
+    "fig",
+    "graphic",
+    "media",
+    "table",
+    "disp-formula",
+    "inline-formula",
+    "tex-math",
+    "supplementary-material",
+    "author-notes",
+    "fn-group",
+    "ack",
+    "back",
+    "front",
+    "journal-meta",
 }
 
 
@@ -129,8 +142,13 @@ def esearch(query: str) -> list[str]:
     retstart = 0
     while True:
         params = urllib.parse.urlencode(
-            {"db": "pubmed", "term": query, "retmode": "json",
-             "retmax": 500, "retstart": retstart}
+            {
+                "db": "pubmed",
+                "term": query,
+                "retmode": "json",
+                "retmax": 500,
+                "retstart": retstart,
+            }
         )
         result = json.loads(_get(f"{EUTILS}/esearch.fcgi?{params}"))[
             "esearchresult"
@@ -147,6 +165,37 @@ def _text(node) -> str:
     return "".join(node.itertext()).strip() if node is not None else ""
 
 
+def _article_year(article) -> str:
+    """Return the publication year from the first path that carries one."""
+    for path in ("Journal/JournalIssue/PubDate/Year", "ArticleDate/Year"):
+        year = _text(article.find(path))
+        if year:
+            return year
+    medline = article.find("Journal/JournalIssue/PubDate/MedlineDate")
+    return _text(medline)[:4]
+
+
+def _article_doi(art) -> str:
+    """Return the DOI from the article's ArticleId list, or empty."""
+    for eid in art.findall(".//ArticleId"):
+        if eid.get("IdType") == "doi":
+            return _text(eid)
+    return ""
+
+
+def _article_author_keys(article) -> list[str]:
+    """Return lowercased 'last initials' author keys."""
+    authors = []
+    for author in article.findall(".//AuthorList/Author"):
+        last, initials = (
+            _text(author.find("LastName")),
+            _text(author.find("Initials")),
+        )
+        if last:
+            authors.append(f"{last} {initials}".lower().strip())
+    return authors
+
+
 def parse_article(art) -> dict | None:
     medline = art.find("MedlineCitation")
     article = medline.find("Article") if medline is not None else None
@@ -154,43 +203,20 @@ def parse_article(art) -> dict | None:
     if article is None or not pmid:
         return None
 
-    year = ""
-    for path in ("Journal/JournalIssue/PubDate/Year", "ArticleDate/Year"):
-        year = _text(article.find(path))
-        if year:
-            break
-    if not year:
-        medline = article.find("Journal/JournalIssue/PubDate/MedlineDate")
-        year = _text(medline)[:4]
-
-    doi = ""
-    for eid in art.findall(".//ArticleId"):
-        if eid.get("IdType") == "doi":
-            doi = _text(eid)
-            break
-
-    authors = []
-    for author in article.findall(".//AuthorList/Author"):
-        last, initials = _text(author.find("LastName")), _text(
-            author.find("Initials")
-        )
-        if last:
-            authors.append(f"{last} {initials}".lower().strip())
-
     return {
         "pmid": pmid,
-        "doi": doi,
+        "doi": _article_doi(art),
         "title": _text(article.find("ArticleTitle")),
         "abstract": " ".join(
             _text(p) for p in article.findall(".//Abstract/AbstractText")
         ).strip(),
         "journal": _text(article.find("Journal/ISOAbbreviation")),
-        "year": year,
+        "year": _article_year(article),
         "pub_types": [
             _text(t)
             for t in article.findall(".//PublicationTypeList/PublicationType")
         ],
-        "author_keys": authors,
+        "author_keys": _article_author_keys(article),
         "pmc": _pmc_id(art),
     }
 
@@ -323,14 +349,17 @@ def write_paper(paper: dict, body: str) -> None:
     )
 
 
-def main() -> int:
-    CORPUS.mkdir(parents=True, exist_ok=True)
-    existing_titles = {
+def _existing_titles() -> set[str]:
+    """Return normalized titles of corpus files already on disk."""
+    return {
         norm_title(path.read_text(encoding="utf-8").splitlines()[0][2:])
         for path in CORPUS.glob("*.md")
         if path.read_text(encoding="utf-8").startswith("# ")
     }
 
+
+def _harvest_all_members() -> dict[str, dict]:
+    """Search every configured member and return deduped papers by pmid."""
     papers: dict[str, dict] = {}
     for display, term, constrain in MEMBERS:
         query = f"{term} AND {GROUP_CLAUSE}" if constrain else term
@@ -339,15 +368,11 @@ def main() -> int:
         print(f"  {len(pmids)} hits")
         for pmid, rec in efetch(pmids).items():
             papers.setdefault(pmid, rec)
+    return papers
 
-    group = [
-        p for p in papers.values()
-        if set(p["author_keys"]) & ANCHORS
-    ]
-    selected = select(group)
-    print(f"\n{len(papers)} unique across all members, "
-          f"{len(group)} by a PI, {len(selected)} after dedup")
 
+def _write_selected(selected: list[dict], existing_titles: set[str]) -> None:
+    """Write not-yet-present selected papers and print a summary."""
     written = skipped = 0
     for paper in sorted(selected, key=lambda p: (p["year"], p["pmid"])):
         title = clean_title(paper["title"])
@@ -361,9 +386,23 @@ def main() -> int:
         body = fetch_pmc_text(paper["pmc"]) if paper["pmc"] else ""
         write_paper(paper, body)
         written += 1
-
     print(f"wrote {written} papers, skipped {skipped} already present")
     print("run dev/build_catalog.py to rebuild the catalog")
+
+
+def main() -> int:
+    CORPUS.mkdir(parents=True, exist_ok=True)
+    existing_titles = _existing_titles()
+
+    papers = _harvest_all_members()
+    group = [p for p in papers.values() if set(p["author_keys"]) & ANCHORS]
+    selected = select(group)
+    print(
+        f"\n{len(papers)} unique across all members, "
+        f"{len(group)} by a PI, {len(selected)} after dedup"
+    )
+
+    _write_selected(selected, existing_titles)
     return 0
 
 

@@ -207,12 +207,22 @@ async def test_lit_tools_isolation(
     if not await _run_lit_review_phase(state):
         return
 
+    _print_isolation_run_header(state)
+
+    result = await generate_node(state)
+    hypotheses = result.get("hypotheses", [])
+
+    render_hypotheses_table(hypotheses, default_method="unknown")
+    _show_first_hypothesis(hypotheses)
+    _print_lit_tools_summary(hypotheses)
+
+
+def _print_isolation_run_header(state) -> None:
+    """Print the research goal, hypothesis count, model, and phase banner."""
     console.print(f"\n[yellow]research goal:[/yellow] {state['research_goal']}")
     n_hyps = state["initial_hypotheses_count"]
     console.print(f"[yellow]hypotheses to generate:[/yellow] {n_hyps}")
     console.print(f"[yellow]model:[/yellow] {state['model_name']}\n")
-
-    # run generate node with lit tools
     console.print(
         "[yellow]calling generate node with lit tools"
         " (this may take 2-3 minutes)...[/yellow]"
@@ -221,13 +231,6 @@ async def test_lit_tools_isolation(
     console.print(
         "[dim]phase 2: validate novelty by searching literature[/dim]\n"
     )
-
-    result = await generate_node(state)
-    hypotheses = result.get("hypotheses", [])
-
-    render_hypotheses_table(hypotheses, default_method="unknown")
-    _show_first_hypothesis(hypotheses)
-    _print_lit_tools_summary(hypotheses)
 
 
 def main(argv: Sequence[str]) -> None:
