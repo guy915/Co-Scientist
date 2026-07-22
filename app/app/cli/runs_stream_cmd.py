@@ -16,6 +16,7 @@ import sys
 import time
 import urllib.parse
 from collections.abc import Iterator
+from dataclasses import dataclass
 from typing import Any
 
 from app.cli.http import (
@@ -131,6 +132,48 @@ def _watch_events(
                 yield event
 
 
+@dataclass
+class _WatchProgress:
+    """Mutable per-connection watch state shared across reconnect attempts.
+
+    Kept as a mutable object (rather than local variables) so that when a
+    connection is interrupted mid-stream, the events already consumed are
+    still reflected in ``after``/``progressed`` after the exception is
+    caught by the caller.
+    """
+
+    after: int
+    progressed: bool = False
+
+
+def _consume_watch_connection(
+    client: ApiClient,
+    run_id: str,
+    as_json: bool,
+    progress: _WatchProgress,
+) -> bool:
+    """Stream one connection's events, updating ``progress`` as they arrive.
+
+    Returns:
+        True once the synthetic ``_terminal`` frame has been printed and the
+        caller should stop watching; False once the connection closes
+        without one (a reconnect is warranted).
+    """
+    for event in _watch_events(client, run_id, progress.after):
+        seq = event.get("seq")
+        if isinstance(seq, int) and seq > progress.after:
+            progress.after = seq
+        progress.progressed = True
+        if event.get("type") == "_terminal":
+            _print_terminal(event, as_json)
+            return True
+        if as_json:
+            print(json.dumps(event, ensure_ascii=False))
+        else:
+            print(format_event_line(event))
+    return False
+
+
 def handle_watch(args: argparse.Namespace, client: ApiClient) -> int:
     """Tail a run's event stream, one line per event, exit on terminal.
 
@@ -142,30 +185,20 @@ def handle_watch(args: argparse.Namespace, client: ApiClient) -> int:
     HTTP error status (e.g. an unknown run) is not retried.
     """
     run_id: str = args.run_id
-    after: int = args.after
     as_json: bool = args.json
+    progress = _WatchProgress(after=args.after)
     failures = 0
     last_error: ApiUnreachableError | None = None
     try:
         while True:
-            progressed = False
+            progress.progressed = False
             try:
-                for event in _watch_events(client, run_id, after):
-                    seq = event.get("seq")
-                    if isinstance(seq, int) and seq > after:
-                        after = seq
-                    progressed = True
-                    if event.get("type") == "_terminal":
-                        _print_terminal(event, as_json)
-                        return 0
-                    if as_json:
-                        print(json.dumps(event, ensure_ascii=False))
-                    else:
-                        print(format_event_line(event))
+                if _consume_watch_connection(client, run_id, as_json, progress):
+                    return 0
                 last_error = None
             except ApiUnreachableError as exc:
                 last_error = exc
-            if progressed:
+            if progress.progressed:
                 failures = 0
             failures += 1
             if failures > WATCH_RECONNECT_ATTEMPTS:
@@ -190,6 +223,37 @@ def _print_terminal(event: dict[str, Any], as_json: bool) -> None:
     print(f"{event.get('seq', '')}\t_terminal\t{status}".rstrip())
 
 
+@dataclass
+class _AskState:
+    """Mutable per-answer state: whether a chunk was written, and errors."""
+
+    wrote_chunk: bool = False
+    saw_error: bool = False
+
+
+def _handle_ask_event(
+    event: dict[str, Any], as_json: bool, state: _AskState
+) -> None:
+    """Apply one SSE frame from the ask stream to stdout/stderr and state."""
+    if as_json:
+        print(json.dumps(event, ensure_ascii=False))
+        state.saw_error = state.saw_error or event.get("type") == "error"
+        return
+    etype = event.get("type")
+    if etype == "chunk":
+        sys.stdout.write(str(event.get("content", "")))
+        sys.stdout.flush()
+        state.wrote_chunk = True
+    elif etype in ("done", "error"):
+        # Terminate the streamed answer line only if we wrote one.
+        if state.wrote_chunk:
+            sys.stdout.write("\n")
+            sys.stdout.flush()
+        if etype == "error":
+            print(str(event.get("message", "")), file=sys.stderr)
+            state.saw_error = True
+
+
 def handle_ask(args: argparse.Namespace, client: ApiClient) -> int:
     """Ask a question about a run and stream the answer (POST /messages/ask).
 
@@ -202,8 +266,7 @@ def handle_ask(args: argparse.Namespace, client: ApiClient) -> int:
     question = _text_arg(args.question, "the question")
     as_json: bool = args.json
     path = _run_path(run_id, "/messages/ask")
-    wrote_chunk = False
-    saw_error = False
+    state = _AskState()
     try:
         with client.stream_lines(
             "POST", path, json_body={"question": question}
@@ -212,23 +275,7 @@ def handle_ask(args: argparse.Namespace, client: ApiClient) -> int:
                 event = sse_data(line)
                 if event is None:
                     continue
-                if as_json:
-                    print(json.dumps(event, ensure_ascii=False))
-                    saw_error = saw_error or event.get("type") == "error"
-                    continue
-                etype = event.get("type")
-                if etype == "chunk":
-                    sys.stdout.write(str(event.get("content", "")))
-                    sys.stdout.flush()
-                    wrote_chunk = True
-                elif etype in ("done", "error"):
-                    # Terminate the streamed answer line only if we wrote one.
-                    if wrote_chunk:
-                        sys.stdout.write("\n")
-                        sys.stdout.flush()
-                    if etype == "error":
-                        print(str(event.get("message", "")), file=sys.stderr)
-                        saw_error = True
+                _handle_ask_event(event, as_json, state)
     except KeyboardInterrupt:
         return 130
-    return 1 if saw_error else 0
+    return 1 if state.saw_error else 0

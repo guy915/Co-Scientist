@@ -139,6 +139,30 @@ def resume_run_tasks(run_id: str, *, db_path: str | None = None) -> int:
 _REVIVABLE_TASK_STATUSES = ("failed", "cancelled")
 
 
+def _revive_task_row(
+    conn: sqlite3.Connection, run_id: str, idempotency_key: str, now: float
+) -> int:
+    """Revive one terminally-dead or lease-expired task; return rows changed.
+
+    A lease outlives the worker that took it. Once it has expired that
+    worker is gone, and with its attempts spent claim_task will not take the
+    task back either ("unless their retry budget is spent"), so it is
+    stranded until something resets it. An unexpired lease is left strictly
+    alone: its owner may still be working, and reviving it would run the
+    boundary twice at once.
+    """
+    placeholders = ",".join("?" * len(_REVIVABLE_TASK_STATUSES))
+    return conn.execute(
+        "UPDATE scientific_tasks SET status='queued', attempt=0, "
+        "error=NULL, completed_at=NULL, lease_owner=NULL, "
+        "lease_expires_at=NULL, updated_at=? WHERE run_id=? AND "
+        f"idempotency_key=? AND (status IN ({placeholders}) OR "
+        "(status='leased' AND lease_expires_at IS NOT NULL AND "
+        "lease_expires_at<=?))",
+        (now, run_id, idempotency_key, *_REVIVABLE_TASK_STATUSES, now),
+    ).rowcount
+
+
 def revive_task_for_retry(
     run_id: str,
     idempotency_key: str,
@@ -170,22 +194,7 @@ def revive_task_for_retry(
     Returns:
         True if a dead task was revived, False if there was nothing to revive.
     """
-    placeholders = ",".join("?" * len(_REVIVABLE_TASK_STATUSES))
     now = _now()
     with transaction(db_path) as conn:
-        changed = conn.execute(
-            "UPDATE scientific_tasks SET status='queued', attempt=0, "
-            "error=NULL, completed_at=NULL, lease_owner=NULL, "
-            "lease_expires_at=NULL, updated_at=? WHERE run_id=? AND "
-            f"idempotency_key=? AND (status IN ({placeholders}) OR "
-            # A lease outlives the worker that took it. Once it has expired
-            # that worker is gone, and with its attempts spent claim_task will
-            # not take the task back either ("unless their retry budget is
-            # spent"), so it is stranded until something resets it. An
-            # unexpired lease is left strictly alone: its owner may still be
-            # working, and reviving it would run the boundary twice at once.
-            "(status='leased' AND lease_expires_at IS NOT NULL AND "
-            "lease_expires_at<=?))",
-            (now, run_id, idempotency_key, *_REVIVABLE_TASK_STATUSES, now),
-        ).rowcount
-    return int(changed) > 0
+        changed = _revive_task_row(conn, run_id, idempotency_key, now)
+    return changed > 0

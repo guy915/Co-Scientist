@@ -77,13 +77,11 @@ def _apply_redaction(
 ) -> None:
     """Redact a REDACT/DUAL_USE hypothesis's detail fields, with an audit row.
 
-    Persists the redacted columns, mutates the caller's row in place when it is
-    a plain dict (so downstream event stubs and pool bookkeeping see the
-    redacted text, not the original), and records a ``redact`` audit decision.
+    Persists the redacted columns, mutates the caller's row in place when a
+    plain dict (so downstream event stubs and pool bookkeeping see the
+    redacted text), and records a ``redact`` audit decision.
     """
-    fields = {f: str(hyp.get(f) or "") for f in _REDACTED_FIELDS}
-    redacted = redact_fields(fields)
-    changed = {k: v for k, v in redacted.items() if v != fields[k]}
+    changed = _changed_redacted_fields(hyp)
     if not changed:
         return
     store.redact_hypothesis_fields(
@@ -108,6 +106,13 @@ def _apply_redaction(
         hyp["id"],
         review.outcome.value,
     )
+
+
+def _changed_redacted_fields(hyp: Mapping[str, Any]) -> dict[str, str]:
+    """Return the redacted detail fields that actually changed from source."""
+    fields = {f: str(hyp.get(f) or "") for f in _REDACTED_FIELDS}
+    redacted = redact_fields(fields)
+    return {k: v for k, v in redacted.items() if v != fields[k]}
 
 
 def record_hypothesis_block(
@@ -191,35 +196,53 @@ def screen_hypotheses(
     blocked: set[str] = set()
     status_by_id: dict[str, str] = {}
     for hyp in hyps:
-        hyp_id = str(hyp.get("id") or "")
-        if not hyp_id:
-            continue
-        # A hypothesis already redacted keeps its recorded status: its trigger
-        # text is gone, so re-reviewing it would falsely relax it to ALLOW.
-        prior = str(hyp.get("safety_status") or "")
-        if prior in _STICKY_STATUSES:
-            status_by_id[hyp_id] = prior
-            continue
-        review = review_hypothesis_safety(hypothesis_text(hyp))
-        status_by_id[hyp_id] = review.outcome.value
-        store.update_hypothesis_state(
-            hyp_id,
-            safety_status=review.outcome.value,
-            conn=conn,
-            db_path=db_path,
+        screened = _screen_one_hypothesis(
+            run_id, hyp, conn=conn, db_path=db_path
         )
-        if review.outcome in _REDACTING_OUTCOMES:
-            _apply_redaction(run_id, hyp, review, conn=conn, db_path=db_path)
-        if review.blocks_tournament:
+        if screened is None:
+            continue
+        hyp_id, status, is_blocked = screened
+        status_by_id[hyp_id] = status
+        if is_blocked:
             blocked.add(hyp_id)
-            record_hypothesis_block(
-                run_id, hyp_id, review, conn=conn, db_path=db_path
-            )
-            logger.warning(
-                "Excluding hypothesis %s from the tournament: %s",
-                hyp_id,
-                review.outcome.value,
-            )
     return ScreeningResult(
         blocked_ids=frozenset(blocked), status_by_id=status_by_id
     )
+
+
+def _screen_one_hypothesis(
+    run_id: str,
+    hyp: Mapping[str, Any],
+    *,
+    conn: sqlite3.Connection | None,
+    db_path: str | None,
+) -> tuple[str, str, bool] | None:
+    """Screen one hypothesis, persist its status, and report block/redact.
+
+    Returns ``(hyp_id, status, blocked)``, or None when the hypothesis
+    carries no id.
+    """
+    hyp_id = str(hyp.get("id") or "")
+    if not hyp_id:
+        return None
+    # A hypothesis already redacted keeps its recorded status: its trigger
+    # text is gone, so re-reviewing it would falsely relax it to ALLOW.
+    prior = str(hyp.get("safety_status") or "")
+    if prior in _STICKY_STATUSES:
+        return hyp_id, prior, False
+    review = review_hypothesis_safety(hypothesis_text(hyp))
+    store.update_hypothesis_state(
+        hyp_id, safety_status=review.outcome.value, conn=conn, db_path=db_path
+    )
+    if review.outcome in _REDACTING_OUTCOMES:
+        _apply_redaction(run_id, hyp, review, conn=conn, db_path=db_path)
+    if review.blocks_tournament:
+        record_hypothesis_block(
+            run_id, hyp_id, review, conn=conn, db_path=db_path
+        )
+        logger.warning(
+            "Excluding hypothesis %s from the tournament: %s",
+            hyp_id,
+            review.outcome.value,
+        )
+    return hyp_id, review.outcome.value, review.blocks_tournament

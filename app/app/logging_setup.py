@@ -425,6 +425,36 @@ class LogCapture:
 _capture: LogCapture | None = None
 
 
+def _build_capture_pipeline(
+    level: int, max_rows: int
+) -> tuple[_CaptureQueueHandler, logging.handlers.QueueListener]:
+    """Build the capture queue handler and its background writer listener."""
+    record_queue: queue.SimpleQueue[logging.LogRecord] = queue.SimpleQueue()
+    handler = _CaptureQueueHandler(record_queue)
+    handler.setLevel(level)
+    handler.addFilter(RunIdFilter())
+    handler.addFilter(_drop_self_noise)
+    handler.addFilter(_drop_dependency_chatter)
+    # Last in the chain, and after RunIdFilter: the key it builds includes
+    # the run id that filter stamps on.
+    handler.addFilter(_RepeatSuppressor())
+    listener = logging.handlers.QueueListener(
+        record_queue, _StoreWriteHandler(max_rows)
+    )
+    return handler, listener
+
+
+def _attach_capture_handler(handler: _CaptureQueueHandler) -> None:
+    """Attach the capture handler to the root logger and extra loggers."""
+    logging.getLogger().addHandler(handler)
+    # Also attach to uvicorn's non-propagating loggers so HTTP access and
+    # server-error records persist. Where those loggers DO propagate
+    # (dev/test without uvicorn's logging config), the handler's per-record
+    # dedupe mark keeps each record captured exactly once.
+    for name in _EXTRA_CAPTURE_LOGGERS:
+        logging.getLogger(name).addHandler(handler)
+
+
 def configure_log_capture(
     level: int = logging.INFO, max_rows: int = DEFAULT_LOG_MAX_ROWS
 ) -> LogCapture:
@@ -448,26 +478,9 @@ def configure_log_capture(
         # Trim any backlog from previous processes up front; routine
         # retention afterwards happens on the writer thread.
         store.prune_logs(max_rows=max_rows)
-    record_queue: queue.SimpleQueue[logging.LogRecord] = queue.SimpleQueue()
-    handler = _CaptureQueueHandler(record_queue)
-    handler.setLevel(level)
-    handler.addFilter(RunIdFilter())
-    handler.addFilter(_drop_self_noise)
-    handler.addFilter(_drop_dependency_chatter)
-    # Last in the chain, and after RunIdFilter: the key it builds includes
-    # the run id that filter stamps on.
-    handler.addFilter(_RepeatSuppressor())
-    listener = logging.handlers.QueueListener(
-        record_queue, _StoreWriteHandler(max_rows)
-    )
+    handler, listener = _build_capture_pipeline(level, max_rows)
     listener.start()
-    logging.getLogger().addHandler(handler)
-    # Also attach to uvicorn's non-propagating loggers so HTTP access and
-    # server-error records persist. Where those loggers DO propagate
-    # (dev/test without uvicorn's logging config), the handler's per-record
-    # dedupe mark keeps each record captured exactly once.
-    for name in _EXTRA_CAPTURE_LOGGERS:
-        logging.getLogger(name).addHandler(handler)
+    _attach_capture_handler(handler)
     _capture = LogCapture(handler, listener)
     return _capture
 

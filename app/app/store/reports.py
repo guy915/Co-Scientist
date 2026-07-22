@@ -20,6 +20,39 @@ from app.store.db import _now, _reports_dir, _use_conn, connect
 logger = logging.getLogger(__name__)
 
 
+def _write_report_markdown(md_path: Path, markdown: str) -> None:
+    """Best-effort write of the rendered markdown to disk."""
+    try:
+        md_path.write_text(markdown, encoding="utf-8")
+    except OSError:
+        logger.warning("Could not write report markdown to disk at %s", md_path)
+
+
+def _insert_report_row(
+    conn: sqlite3.Connection,
+    report_id: str,
+    run_id: str,
+    payload: dict[str, Any],
+    md_path: Path,
+    markdown: str,
+) -> None:
+    """Insert the report row on an open connection."""
+    conn.execute(
+        "INSERT INTO reports "
+        "(id, run_id, payload_json, markdown_path, "
+        "markdown_text, created_at) "
+        "VALUES (?,?,?,?,?,?)",
+        (
+            report_id,
+            run_id,
+            json.dumps(payload),
+            str(md_path),
+            markdown,
+            _now(),
+        ),
+    )
+
+
 def save_report(
     run_id: str,
     payload: dict[str, Any],
@@ -45,25 +78,9 @@ def save_report(
     """
     report_id = str(uuid.uuid4())
     md_path = _reports_dir() / f"{run_id}.md"
-    try:
-        md_path.write_text(markdown, encoding="utf-8")
-    except OSError:
-        logger.warning("Could not write report markdown to disk at %s", md_path)
+    _write_report_markdown(md_path, markdown)
     with _use_conn(conn, db_path) as conn:
-        conn.execute(
-            "INSERT INTO reports "
-            "(id, run_id, payload_json, markdown_path, "
-            "markdown_text, created_at) "
-            "VALUES (?,?,?,?,?,?)",
-            (
-                report_id,
-                run_id,
-                json.dumps(payload),
-                str(md_path),
-                markdown,
-                _now(),
-            ),
-        )
+        _insert_report_row(conn, report_id, run_id, payload, md_path, markdown)
     return {"id": report_id, "markdown_path": str(md_path)}
 
 

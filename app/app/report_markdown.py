@@ -183,25 +183,37 @@ def render_research_overview_markdown(overview: dict[str, Any]) -> list[str]:
         return []
     lines = _render_overview_section(overview.get("overview") or {})
     lines += _render_nih_aims_section(overview.get("nih_specific_aims") or {})
-    contacts = overview.get("research_contacts") or []
-    if isinstance(contacts, list) and contacts:
-        lines += ["\n## Research Contacts\n"]
-        for contact in contacts:
-            if not isinstance(contact, dict) or not contact.get("name"):
-                continue
-            lines.append(f"### {contact['name']}\n")
-            if contact.get("expertise"):
-                lines.append(
-                    f"**Relevant expertise:** {contact['expertise']}\n"
-                )
-            if contact.get("justification"):
-                lines.append(f"{contact['justification']}\n")
-            source_title = contact.get("source_title")
-            source_url = contact.get("source_url")
-            if source_title and source_url:
-                lines.append(f"Evidence: [{source_title}]({source_url})\n")
-            elif source_title:
-                lines.append(f"Evidence: {source_title}\n")
+    lines += _render_research_contacts_section(
+        overview.get("research_contacts") or []
+    )
+    return lines
+
+
+def _render_contact_entry(contact: dict[str, Any]) -> list[str]:
+    """Render one research-contact entry, or nothing when unnamed."""
+    if not isinstance(contact, dict) or not contact.get("name"):
+        return []
+    lines = [f"### {contact['name']}\n"]
+    if contact.get("expertise"):
+        lines.append(f"**Relevant expertise:** {contact['expertise']}\n")
+    if contact.get("justification"):
+        lines.append(f"{contact['justification']}\n")
+    source_title = contact.get("source_title")
+    source_url = contact.get("source_url")
+    if source_title and source_url:
+        lines.append(f"Evidence: [{source_title}]({source_url})\n")
+    elif source_title:
+        lines.append(f"Evidence: {source_title}\n")
+    return lines
+
+
+def _render_research_contacts_section(contacts: Any) -> list[str]:
+    """Render the 'Research Contacts' section, or nothing when empty."""
+    if not isinstance(contacts, list) or not contacts:
+        return []
+    lines = ["\n## Research Contacts\n"]
+    for contact in contacts:
+        lines += _render_contact_entry(contact)
     return lines
 
 
@@ -223,33 +235,44 @@ def build_report_payload(
     claim_evidence: list[dict[str, Any]] | None = None,
     execution_time: float | None = None,
 ) -> dict[str, Any]:
-    """Assemble the canonical report payload shared by every provider.
+    """Assemble the canonical report payload; see ``_report_payload_fields``."""
+    return _report_payload_fields(
+        research_goal,
+        run_mode,
+        provider,
+        leaderboard,
+        hypothesis_count,
+        evidence_count,
+        match_count,
+        citation_summary,
+        meta_review,
+        research_overview,
+        knowledge_base,
+        agent_insights,
+        idea_buckets,
+        claim_evidence,
+        execution_time,
+    )
 
-    Both providers emit the same field set so the persisted report -- and the
-    frontend ``ReportPayload`` type reading it -- has one shape regardless of
-    which provider ran.
 
-    Args:
-        research_goal: The natural-language research goal.
-        run_mode: Canonical run mode.
-        provider: ``"engine"`` or ``"mock"``.
-        leaderboard: Elo standings snapshot from ``live_leaderboard``.
-        hypothesis_count: Number of hypotheses persisted for the run.
-        evidence_count: Number of evidence rows persisted.
-        match_count: Number of tournament matches persisted.
-        citation_summary: Citation state -> count, or None when unavailable.
-        meta_review: Meta-review synthesis dict, or None.
-        research_overview: Research-overview payload, or None.
-        knowledge_base: Evidence-linked technical topics synthesized at release.
-        agent_insights: Run-wide findings, uncertainty, and next experiments.
-        idea_buckets: High-potential and non-viable ideas with reasons.
-        claim_evidence: Claim-level verdicts and exact evidence spans for every
-            released hypothesis.
-        execution_time: Wall-clock seconds, when the provider tracks it.
-
-    Returns:
-        The canonical report payload dict.
-    """
+def _report_payload_fields(
+    research_goal: str,
+    run_mode: str,
+    provider: str,
+    leaderboard: list[dict[str, Any]],
+    hypothesis_count: int,
+    evidence_count: int,
+    match_count: int,
+    citation_summary: dict[str, int] | None,
+    meta_review: dict[str, Any] | None,
+    research_overview: dict[str, Any] | None,
+    knowledge_base: list[dict[str, Any]] | None,
+    agent_insights: dict[str, Any] | None,
+    idea_buckets: dict[str, list[dict[str, Any]]] | None,
+    claim_evidence: list[dict[str, Any]] | None,
+    execution_time: float | None,
+) -> dict[str, Any]:
+    """Build every report payload field, including the identity/counts."""
     payload: dict[str, Any] = {
         "research_goal": research_goal,
         "run_mode": run_mode,
@@ -257,17 +280,14 @@ def build_report_payload(
         "hypothesis_count": hypothesis_count,
         "evidence_count": evidence_count,
         "match_count": match_count,
-        "citation_summary": citation_summary or {},
         "leaderboard": leaderboard,
+        "citation_summary": citation_summary or {},
         "meta_review": meta_review or {},
         "research_overview": research_overview or {},
         "knowledge_base": knowledge_base or [],
         "agent_insights": agent_insights or {},
         "idea_buckets": idea_buckets
-        or {
-            "high_potential": [],
-            "non_viable": [],
-        },
+        or {"high_potential": [], "non_viable": []},
         "claim_evidence": claim_evidence or [],
     }
     if execution_time is not None:
@@ -446,35 +466,14 @@ def render_report_markdown(
 ) -> str:
     """Render a run's report markdown from one skeleton for every provider.
 
-    Sections populate only when their data is present, so a provider that omits
-    meta-review, citations, or a research overview simply skips those headings
-    rather than emitting empty ones.
-
-    Args:
-        research_goal: The natural-language research goal.
-        provider: ``"engine"`` or ``"mock"``.
-        top_hypotheses: Elo-ordered store hypothesis rows (title, statement,
-            mechanism, expected_effect, elo_rating).
-        meta_review: Meta-review synthesis dict, or None.
-        citation_summary: Citation state -> count, or None.
-        research_overview: Research-overview payload, or None.
-        summary: Optional lead paragraph rendered under a ``## Summary``
-            heading (e.g. the mock's deterministic-mode disclaimer).
-        claim_evidence: Claim-level verdicts and exact source spans to render
-            alongside their released hypotheses.
+    Sections populate only when their data is present, so a provider that
+    omits meta-review, citations, or a research overview simply skips those
+    headings rather than emitting empty ones.
 
     Returns:
         The rendered markdown document.
     """
-    lines: list[str] = [
-        f"# Research Report — {research_goal}",
-        "",
-        f"_Provider: **{provider}**_",
-        "",
-    ]
-    if summary:
-        lines += ["## Summary", summary, ""]
-
+    lines = _render_report_header(research_goal, provider, summary)
     lines += _render_top_hypotheses_markdown(
         top_hypotheses, claim_evidence or []
     )
@@ -482,3 +481,18 @@ def render_report_markdown(
     lines += _render_citation_audit(citation_summary)
     lines.extend(render_research_overview_markdown(research_overview or {}))
     return "\n".join(lines)
+
+
+def _render_report_header(
+    research_goal: str, provider: str, summary: str | None
+) -> list[str]:
+    """Render the title, provider line, and optional summary paragraph."""
+    lines = [
+        f"# Research Report — {research_goal}",
+        "",
+        f"_Provider: **{provider}**_",
+        "",
+    ]
+    if summary:
+        lines += ["## Summary", summary, ""]
+    return lines

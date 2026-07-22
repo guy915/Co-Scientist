@@ -35,6 +35,7 @@ import os
 import re
 from collections import Counter
 from pathlib import Path
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -243,32 +244,39 @@ def load_catalog(directory: Path | None = None) -> tuple[CatalogPaper, ...]:
     except (OSError, ValueError) as exc:
         logger.debug("no readable paper catalog at %s: %s", path, exc)
         return ()
-    papers: list[CatalogPaper] = []
-    for item in raw.get("papers", []):
-        paper_id = str(item.get("paper_id") or "").strip()
-        title = str(item.get("title") or "").strip()
-        abstract = str(item.get("abstract") or "").strip()
-        # `core` defaults true so a catalog written before this field existed
-        # keeps injecting every abstract, as it did then. A core paper still
-        # needs an abstract, since its abstract is what gets injected; a
-        # non-core paper is listed by title alone and so needs none.
-        core = bool(item.get("core", True))
-        if not (paper_id and title):
-            continue
-        if core and not abstract:
-            continue
-        papers.append(
-            CatalogPaper(
-                paper_id=paper_id,
-                title=title,
-                abstract=abstract,
-                core=core,
-                attribution=str(item.get("attribution") or "group").strip(),
-                year=str(item.get("year") or "").strip(),
-            )
-        )
+    papers = [
+        paper
+        for item in raw.get("papers", [])
+        if (paper := _parse_catalog_paper(item)) is not None
+    ]
     logger.debug("loaded %d catalog papers from %s", len(papers), path)
     return tuple(papers)
+
+
+def _parse_catalog_paper(item: dict[str, Any]) -> CatalogPaper | None:
+    """Parse one catalog entry, or None when it is malformed or incomplete.
+
+    `core` defaults true so a catalog written before this field existed keeps
+    injecting every abstract, as it did then. A core paper still needs an
+    abstract, since its abstract is what gets injected; a non-core paper is
+    listed by title alone and so needs none.
+    """
+    paper_id = str(item.get("paper_id") or "").strip()
+    title = str(item.get("title") or "").strip()
+    abstract = str(item.get("abstract") or "").strip()
+    core = bool(item.get("core", True))
+    if not (paper_id and title):
+        return None
+    if core and not abstract:
+        return None
+    return CatalogPaper(
+        paper_id=paper_id,
+        title=title,
+        abstract=abstract,
+        core=core,
+        attribution=str(item.get("attribution") or "group").strip(),
+        year=str(item.get("year") or "").strip(),
+    )
 
 
 @functools.cache
@@ -279,23 +287,17 @@ def format_catalog(papers: tuple[CatalogPaper, ...]) -> str:
     tournament comparison and ranking is roughly quadratic in the hypothesis
     count, so every token here is paid thousands of times over a run. Core
     papers -- the group's flagship methods and findings -- are shown with
-    their abstract, since that substance bears on almost any hypothesis in
-    the group's field. Every other paper is shown as one line of title,
-    year, and `paper_id`: enough for the model to recognise a relevant paper
-    and fetch it, without spending an abstract on each. Both tiers name the
-    `paper_id`, because the catalog is the only place those ids are
-    advertised and `fetch_paper` is the only way to read a paper in full --
-    there is no search over the corpus, so a paper the catalog omits cannot
-    be reached at all.
-
+    their abstract (see ``_render_core_papers_section``); every other paper
+    is shown as one title/year/`paper_id` line (see
+    ``_render_bibliography_section``), enough to recognise and fetch it
+    without spending an abstract on each. Both tiers name the `paper_id`,
+    the only way `fetch_paper` can read a paper in full -- there is no search
+    over the corpus, so a paper the catalog omits cannot be reached at all.
     Injecting every abstract instead costs about 66k tokens per call against
     roughly 14k for this arrangement over a 210-paper bibliography.
 
     Cached: the render is deterministic for a given catalog tuple, and chat
     and the interview request it once per message/turn.
-
-    Args:
-        papers: The catalog papers to render.
 
     Returns:
         A block listing the core papers with abstracts and the rest as a
@@ -303,13 +305,22 @@ def format_catalog(papers: tuple[CatalogPaper, ...]) -> str:
     """
     if not papers:
         return ""
-    core = [paper for paper in papers if paper.core]
-    rest = [paper for paper in papers if not paper.core]
+    lines = _render_catalog_header(len(papers))
+    lines += _render_core_papers_section(
+        [paper for paper in papers if paper.core]
+    )
+    lines += _render_bibliography_section(
+        [paper for paper in papers if not paper.core]
+    )
+    return "\n".join(lines)
 
-    lines = [
+
+def _render_catalog_header(paper_count: int) -> list[str]:
+    """Render the catalog block's title and lead paragraph."""
+    return [
         "## The research group's paper library",
         "",
-        f"The group's bibliography is the {len(papers)} papers below, all "
+        f"The group's bibliography is the {paper_count} papers below, all "
         "held on disk. Call `fetch_paper(paper_id=...)` to read any one in "
         "full; the `paper_id` is given for every paper. The first papers "
         "carry their abstract because they are the group's core methods and "
@@ -317,40 +328,42 @@ def format_catalog(papers: tuple[CatalogPaper, ...]) -> str:
         "",
     ]
 
-    if core:
-        lines.append("### Core papers")
-        lines.append("")
-        for paper in core:
-            label = (
-                ""
-                if paper.attribution == "group"
-                else f" [{paper.attribution}]"
-            )
-            lines.append(
-                f"- **{paper.title}** (paper_id: `{paper.paper_id}`){label}"
-            )
-            lines.append(f"  {paper.abstract}")
-        if any(paper.attribution != "group" for paper in core):
-            lines += [
-                "",
-                "Papers marked [external] are by other researchers and are "
-                "not this group's findings; [member prior work] is a "
-                "member's work from before joining the group. Attribute both "
-                "to their own authors, not to the group.",
-            ]
-        lines.append("")
 
-    if rest:
-        lines.append(f"### Full bibliography ({len(rest)} more papers)")
-        lines.append("")
-        ordered = sorted(rest, key=lambda p: (p.year or "0000", p.title))
-        for paper in reversed(ordered):
-            year = f" ({paper.year})" if paper.year else ""
-            lines.append(
-                f"- {paper.title}{year} (paper_id: `{paper.paper_id}`)"
-            )
+def _render_core_papers_section(core: list[CatalogPaper]) -> list[str]:
+    """Render the '### Core papers' section, or nothing when empty."""
+    if not core:
+        return []
+    lines = ["### Core papers", ""]
+    for paper in core:
+        label = (
+            "" if paper.attribution == "group" else f" [{paper.attribution}]"
+        )
+        lines.append(
+            f"- **{paper.title}** (paper_id: `{paper.paper_id}`){label}"
+        )
+        lines.append(f"  {paper.abstract}")
+    if any(paper.attribution != "group" for paper in core):
+        lines += [
+            "",
+            "Papers marked [external] are by other researchers and are "
+            "not this group's findings; [member prior work] is a "
+            "member's work from before joining the group. Attribute both "
+            "to their own authors, not to the group.",
+        ]
+    lines.append("")
+    return lines
 
-    return "\n".join(lines)
+
+def _render_bibliography_section(rest: list[CatalogPaper]) -> list[str]:
+    """Render the '### Full bibliography' title index, or nothing when empty."""
+    if not rest:
+        return []
+    lines = [f"### Full bibliography ({len(rest)} more papers)", ""]
+    ordered = sorted(rest, key=lambda p: (p.year or "0000", p.title))
+    for paper in reversed(ordered):
+        year = f" ({paper.year})" if paper.year else ""
+        lines.append(f"- {paper.title}{year} (paper_id: `{paper.paper_id}`)")
+    return lines
 
 
 def catalog_context(

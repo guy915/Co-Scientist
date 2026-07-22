@@ -91,14 +91,10 @@ async def _stream_interview_content(
 
     The call always streams so there is a single transport to reason about.
     DeepSeek emits the whole chain of thought as ``reasoning_content`` deltas
-    before the first ``content`` delta, so reasoning can be surfaced live while
-    the answer is still being written. Content deltas are accumulated silently:
-    they are fragments of the response JSON, never prose to show a scientist.
-
-    Args:
-        interview: The durable interview row being advanced.
-        on_reasoning: Optional sink for chain-of-thought fragments. When None
-            the reasoning is simply discarded.
+    before the first ``content`` delta, so reasoning can be surfaced live
+    while the answer is still being written. Content deltas are accumulated
+    silently: they are fragments of the response JSON, never prose to show a
+    scientist.
 
     Returns:
         The concatenated answer content (still unparsed JSON).
@@ -118,6 +114,13 @@ async def _stream_interview_content(
         stream=True,
         **deepseek_thinking_kwargs(model),
     )
+    return await _collect_stream_content(response, on_reasoning)
+
+
+async def _collect_stream_content(
+    response: Any, on_reasoning: ReasoningSink | None
+) -> str:
+    """Drain a streaming completion, relaying reasoning, into answer text."""
     content: list[str] = []
     async for chunk in response:
         if not chunk.choices:
@@ -222,32 +225,14 @@ async def _advance(
     """
     interview = store.get_interview(interview_id)
     assert interview is not None
-    used_fallback = False
-    try:
-        response = await _call_interview_model(interview, on_reasoning)
-    except HTTPException as exc:
-        if exc.status_code != 503:
-            raise
-        response = _fallback_interview_response(interview)
-        used_fallback = True
+    response, used_fallback = await _run_interview_turn(interview, on_reasoning)
     fields = _normalized_fields(response)
     message = str(response.get("assistant_message") or "").strip()
     if not message:
         raise HTTPException(
             status_code=502, detail="Interview Agent returned no message."
         )
-    if used_fallback:
-        # The deterministic recovery path sequences its questions via _ready,
-        # so let it collect a preferences answer before completing.
-        completed = _ready(fields)
-    else:
-        # Trust the model's own completion signal once the essentials are
-        # captured. Empty preferences is a valid "no constraints" terminal
-        # state per the interview contract, so requiring it here would deadlock
-        # the interview whenever the scientist has no additional constraints.
-        completed = bool(response.get("completed")) and _essentials_ready(
-            fields
-        )
+    completed = _interview_turn_completed(response, fields, used_fallback)
     store.append_interview_turn(interview_id, "agent", message)
     store.update_interview(
         interview_id,
@@ -260,17 +245,45 @@ async def _advance(
     return updated
 
 
+async def _run_interview_turn(
+    interview: dict[str, Any], on_reasoning: ReasoningSink | None
+) -> tuple[dict[str, Any], bool]:
+    """Call the interview model, falling back on a 503.
+
+    Returns:
+        A ``(response, used_fallback)`` pair.
+    """
+    try:
+        return await _call_interview_model(interview, on_reasoning), False
+    except HTTPException as exc:
+        if exc.status_code != 503:
+            raise
+        return _fallback_interview_response(interview), True
+
+
+def _interview_turn_completed(
+    response: dict[str, Any], fields: dict[str, Any], used_fallback: bool
+) -> bool:
+    """Return whether this turn completes the interview."""
+    if used_fallback:
+        # The deterministic recovery path sequences its questions via _ready,
+        # so let it collect a preferences answer before completing.
+        return _ready(fields)
+    # Trust the model's own completion signal once the essentials are
+    # captured. Empty preferences is a valid "no constraints" terminal state
+    # per the interview contract, so requiring it here would deadlock the
+    # interview whenever the scientist has no additional constraints.
+    return bool(response.get("completed")) and _essentials_ready(fields)
+
+
 async def _advance_stream(interview_id: str) -> AsyncIterator[str]:
     """Advance one turn as SSE: live reasoning frames, then the interview.
 
-    The Agent's turn runs as a task that pushes chain-of-thought fragments onto
-    a queue while this generator drains it, so reasoning reaches the scientist
-    as the model produces it rather than after the answer lands. The closing
-    ``interview`` frame carries exactly what the turn resolved to, including
-    the deterministic fallback when the provider fails.
-
-    Args:
-        interview_id: The interview to advance.
+    The Agent's turn runs as a task that pushes chain-of-thought fragments
+    onto a queue while this generator drains it, so reasoning reaches the
+    scientist as the model produces it rather than after the answer lands.
+    The closing ``interview`` frame carries exactly what the turn resolved
+    to, including the deterministic fallback when the provider fails.
 
     Yields:
         ``reasoning`` frames, then one terminal ``interview`` or ``error``
@@ -289,18 +302,34 @@ async def _advance_stream(interview_id: str) -> AsyncIterator[str]:
     while (fragment := await queue.get()) is not None:
         yield sse_frame({"type": "reasoning", "content": fragment})
 
-    try:
-        updated = await task
-    except HTTPException as exc:
-        yield sse_frame({"type": "error", "detail": str(exc.detail)})
-        return
-    except Exception:
-        logger.exception("Interview turn failed for %s", interview_id)
-        yield sse_frame(
-            {"type": "error", "detail": "The interview Agent failed."}
-        )
+    error_frame, updated = await _resolve_advance_task(task, interview_id)
+    if error_frame is not None:
+        yield error_frame
         return
     yield sse_frame({"type": "interview", "interview": updated})
+
+
+async def _resolve_advance_task(
+    task: asyncio.Task[dict[str, Any]], interview_id: str
+) -> tuple[str | None, dict[str, Any] | None]:
+    """Await the advance task, turning any failure into an error SSE frame.
+
+    Returns:
+        An ``(error_frame, updated_interview)`` pair, exactly one of which
+        is not None.
+    """
+    try:
+        return None, await task
+    except HTTPException as exc:
+        return sse_frame({"type": "error", "detail": str(exc.detail)}), None
+    except Exception:
+        logger.exception("Interview turn failed for %s", interview_id)
+        return (
+            sse_frame(
+                {"type": "error", "detail": "The interview Agent failed."}
+            ),
+            None,
+        )
 
 
 def _interview_stream(interview_id: str) -> StreamingResponse:

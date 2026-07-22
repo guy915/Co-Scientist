@@ -79,6 +79,60 @@ def _decode(row: sqlite3.Row) -> ScientificTask:
     )
 
 
+def _insert_task_row(conn: sqlite3.Connection, values: tuple[Any, ...]) -> None:
+    """Insert a task row, ignoring duplicate idempotency-key delivery."""
+    conn.execute(
+        "INSERT INTO scientific_tasks (id, run_id, task_type, status, "
+        "priority, inputs_json, dependencies_json, provenance_json, "
+        "idempotency_key, budget_json, max_attempts, created_at, "
+        "updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?) "
+        "ON CONFLICT(run_id, idempotency_key) DO NOTHING",
+        values,
+    )
+
+
+def _fetch_task_by_idempotency_key(
+    conn: sqlite3.Connection, run_id: str, idempotency_key: str
+) -> sqlite3.Row | None:
+    """Return the (possibly pre-existing) task row for this idempotency key."""
+    row: sqlite3.Row | None = conn.execute(
+        "SELECT * FROM scientific_tasks WHERE run_id=? AND idempotency_key=?",
+        (run_id, idempotency_key),
+    ).fetchone()
+    return row
+
+
+def _task_row_values(
+    task_id: str,
+    run_id: str,
+    task_type: str,
+    priority: int,
+    inputs: Mapping[str, Any],
+    dependencies: Iterable[str],
+    provenance: Mapping[str, Any] | None,
+    idempotency_key: str,
+    budget: Mapping[str, Any] | None,
+    max_attempts: int,
+    now: float,
+) -> tuple[Any, ...]:
+    """Build the bound values tuple for a new task row."""
+    return (
+        task_id,
+        run_id,
+        task_type,
+        "queued",
+        priority,
+        json.dumps(dict(inputs), sort_keys=True),
+        json.dumps(list(dependencies)),
+        json.dumps(dict(provenance or {}), sort_keys=True),
+        idempotency_key,
+        json.dumps(dict(budget or {}), sort_keys=True),
+        max_attempts,
+        now,
+        now,
+    )
+
+
 def enqueue_task(
     run_id: str,
     task_type: str,
@@ -100,35 +154,22 @@ def enqueue_task(
         raise ValueError("max_attempts must be positive")
     task_id = str(uuid.uuid4())
     now = _now()
-    values = (
+    values = _task_row_values(
         task_id,
         run_id,
         task_type,
-        "queued",
         priority,
-        json.dumps(dict(inputs), sort_keys=True),
-        json.dumps(list(dependencies)),
-        json.dumps(dict(provenance or {}), sort_keys=True),
+        inputs,
+        dependencies,
+        provenance,
         idempotency_key,
-        json.dumps(dict(budget or {}), sort_keys=True),
+        budget,
         max_attempts,
-        now,
         now,
     )
     with _use_conn(conn, db_path) as active:
-        active.execute(
-            "INSERT INTO scientific_tasks (id, run_id, task_type, status, "
-            "priority, inputs_json, dependencies_json, provenance_json, "
-            "idempotency_key, budget_json, max_attempts, created_at, "
-            "updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?) "
-            "ON CONFLICT(run_id, idempotency_key) DO NOTHING",
-            values,
-        )
-        row = active.execute(
-            "SELECT * FROM scientific_tasks WHERE run_id=? AND "
-            "idempotency_key=?",
-            (run_id, idempotency_key),
-        ).fetchone()
+        _insert_task_row(active, values)
+        row = _fetch_task_by_idempotency_key(active, run_id, idempotency_key)
     if row is None:
         raise RuntimeError("task enqueue did not persist a row")
     return _decode(row)
@@ -328,6 +369,53 @@ def cohort_poll(run_id: str, db_path: str | None = None) -> tuple[bool, bool]:
     return bool(row["claimable"]), bool(row["active"])
 
 
+def _rescue_expired_leases(conn: sqlite3.Connection, now: float) -> None:
+    """Requeue leased tasks whose lease expired with retry budget left."""
+    conn.execute(
+        "UPDATE scientific_tasks SET status='queued', lease_owner=NULL, "
+        "lease_expires_at=NULL, updated_at=? "
+        f"WHERE {_EXPIRED_LEASE_RESCUABLE}",
+        (now, now),
+    )
+
+
+def _queued_tasks_query(run_id: str | None) -> tuple[str, list[Any]]:
+    """Build the ready-task query ordered by priority then age."""
+    query = "SELECT * FROM scientific_tasks WHERE status='queued'"
+    params: list[Any] = []
+    if run_id is not None:
+        query += " AND run_id=?"
+        params.append(run_id)
+    query += " ORDER BY priority DESC, created_at ASC"
+    return query, params
+
+
+def _try_lease_task(
+    conn: sqlite3.Connection,
+    task: ScientificTask,
+    worker_id: str,
+    now: float,
+    lease_seconds: float,
+) -> ScientificTask | None:
+    """Attempt to lease one ready task to worker_id; return it on success."""
+    if not _dependencies_complete(conn, task):
+        return None
+    expires = now + lease_seconds
+    changed = conn.execute(
+        "UPDATE scientific_tasks SET status='leased', "
+        "attempt=attempt+1, lease_owner=?, lease_expires_at=?, "
+        "started_at=COALESCE("
+        "started_at, ?), updated_at=? WHERE id=? AND status='queued'",
+        (worker_id, expires, now, now, task.id),
+    ).rowcount
+    if not changed:
+        return None
+    leased = conn.execute(
+        "SELECT * FROM scientific_tasks WHERE id=?", (task.id,)
+    ).fetchone()
+    return _decode(leased)
+
+
 def claim_task(
     worker_id: str,
     *,
@@ -343,35 +431,14 @@ def claim_task(
     with transaction(db_path) as conn:
         now = _now()
         # Expired leases become ready again unless their retry budget is spent.
-        conn.execute(
-            "UPDATE scientific_tasks SET status='queued', lease_owner=NULL, "
-            "lease_expires_at=NULL, updated_at=? "
-            f"WHERE {_EXPIRED_LEASE_RESCUABLE}",
-            (now, now),
-        )
-        query = "SELECT * FROM scientific_tasks WHERE status='queued'"
-        params: list[Any] = []
-        if run_id is not None:
-            query += " AND run_id=?"
-            params.append(run_id)
-        query += " ORDER BY priority DESC, created_at ASC"
+        _rescue_expired_leases(conn, now)
+        query, params = _queued_tasks_query(run_id)
         for row in conn.execute(query, params).fetchall():
-            task = _decode(row)
-            if not _dependencies_complete(conn, task):
-                continue
-            expires = now + lease_seconds
-            changed = conn.execute(
-                "UPDATE scientific_tasks SET status='leased', "
-                "attempt=attempt+1, lease_owner=?, lease_expires_at=?, "
-                "started_at=COALESCE("
-                "started_at, ?), updated_at=? WHERE id=? AND status='queued'",
-                (worker_id, expires, now, now, task.id),
-            ).rowcount
-            if changed:
-                leased = conn.execute(
-                    "SELECT * FROM scientific_tasks WHERE id=?", (task.id,)
-                ).fetchone()
-                return _decode(leased)
+            leased = _try_lease_task(
+                conn, _decode(row), worker_id, now, lease_seconds
+            )
+            if leased is not None:
+                return leased
     return None
 
 

@@ -9,6 +9,7 @@ import io
 import json
 import shutil
 import subprocess
+from typing import Any
 
 _TEXT_TYPES = {
     "text/plain",
@@ -50,19 +51,7 @@ def extract_document(data: bytes, mime_type: str) -> ExtractedDocument:
     if len(data) > MAX_UPLOAD_BYTES:
         raise ValueError("uploaded document exceeds the 25 MB limit")
     normalized_type = mime_type.split(";", 1)[0].strip().lower()
-    if normalized_type in _TEXT_TYPES:
-        text, tool = _extract_text_document(data, normalized_type)
-    elif normalized_type == "application/pdf":
-        text = _extract_pdf(data)
-        tool = "pypdf-layout+tesseract-fallback-v2"
-    elif normalized_type in _IMAGE_TYPES:
-        text = _extract_image_ocr(data)
-        tool = "tesseract-cli-v1"
-    else:
-        raise ValueError(
-            "unsupported document type; upload PDF, PNG, JPEG, TIFF, WebP, "
-            "TXT, Markdown, CSV, or JSON"
-        )
+    text, tool = _extract_by_type(data, normalized_type)
     if not text.strip():
         raise ValueError("document contains no extractable text")
     return ExtractedDocument(
@@ -71,6 +60,24 @@ def extract_document(data: bytes, mime_type: str) -> ExtractedDocument:
         sha256=hashlib.sha256(data).hexdigest(),
         byte_size=len(data),
         extraction_tool=tool,
+    )
+
+
+def _extract_by_type(data: bytes, normalized_type: str) -> tuple[str, str]:
+    """Dispatch extraction by normalized MIME type.
+
+    Raises:
+        ValueError: If the MIME type is not one of the supported types.
+    """
+    if normalized_type in _TEXT_TYPES:
+        return _extract_text_document(data, normalized_type)
+    if normalized_type == "application/pdf":
+        return _extract_pdf(data), "pypdf-layout+tesseract-fallback-v2"
+    if normalized_type in _IMAGE_TYPES:
+        return _extract_image_ocr(data), "tesseract-cli-v1"
+    raise ValueError(
+        "unsupported document type; upload PDF, PNG, JPEG, TIFF, WebP, "
+        "TXT, Markdown, CSV, or JSON"
     )
 
 
@@ -121,38 +128,52 @@ def _extract_pdf(data: bytes) -> str:
         reader = PdfReader(io.BytesIO(data))
         if reader.is_encrypted:
             raise ValueError("encrypted PDFs are not supported")
-        pages = []
-        for index, page in enumerate(reader.pages, start=1):
-            try:
-                text = page.extract_text(extraction_mode="layout") or ""
-            except TypeError:
-                text = page.extract_text() or ""
-            figure_sections = []
-            # Embedded figures may carry experimental results even on pages
-            # that also contain prose, so each substantial image is inspected.
-            for figure_index, image in enumerate(page.images, start=1):
-                image_data = image.data
-                if len(image_data) < 1024:
-                    continue
-                digest = hashlib.sha256(image_data).hexdigest()
-                try:
-                    ocr = _extract_image_ocr(image_data)
-                except ValueError:
-                    figure_sections.append(
-                        f"[Figure {index}.{figure_index} "
-                        f"sha256={digest} OCR unavailable]"
-                    )
-                    continue
-                figure_sections.append(
-                    f"[Figure {index}.{figure_index} sha256={digest}]\n{ocr}"
-                )
-            page_parts = [f"[Page {index}]", text, *figure_sections]
-            pages.append("\n".join(part for part in page_parts if part))
+        pages = [
+            _extract_pdf_page(index, page)
+            for index, page in enumerate(reader.pages, start=1)
+        ]
     except ValueError:
         raise
     except Exception as exc:
         raise ValueError("PDF could not be parsed") from exc
     return "\n\n".join(pages)
+
+
+def _extract_pdf_page(index: int, page: Any) -> str:
+    """Extract one PDF page's text plus OCR for its embedded figures."""
+    try:
+        text = page.extract_text(extraction_mode="layout") or ""
+    except TypeError:
+        text = page.extract_text() or ""
+    figure_sections = _extract_pdf_page_figures(index, page)
+    page_parts = [f"[Page {index}]", text, *figure_sections]
+    return "\n".join(part for part in page_parts if part)
+
+
+def _extract_pdf_page_figures(index: int, page: Any) -> list[str]:
+    """OCR each substantial embedded image on one PDF page.
+
+    Embedded figures may carry experimental results even on pages that also
+    contain prose, so each substantial image is inspected.
+    """
+    figure_sections = []
+    for figure_index, image in enumerate(page.images, start=1):
+        image_data = image.data
+        if len(image_data) < 1024:
+            continue
+        digest = hashlib.sha256(image_data).hexdigest()
+        try:
+            ocr = _extract_image_ocr(image_data)
+        except ValueError:
+            figure_sections.append(
+                f"[Figure {index}.{figure_index} "
+                f"sha256={digest} OCR unavailable]"
+            )
+            continue
+        figure_sections.append(
+            f"[Figure {index}.{figure_index} sha256={digest}]\n{ocr}"
+        )
+    return figure_sections
 
 
 def _extract_image_ocr(data: bytes) -> str:

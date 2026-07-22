@@ -11,6 +11,7 @@ import json
 import sqlite3
 import uuid
 from collections.abc import Iterable
+from dataclasses import dataclass
 from typing import Any
 
 from app.citations import CitationState
@@ -19,6 +20,55 @@ from app.store.db import _now, _use_conn
 # ---------------------------------------------------------------------------
 # Evidence / citations
 # ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class _NewEvidenceFields:
+    """Fields needed to insert an evidence row."""
+
+    ev_id: str
+    run_id: str
+    title: str
+    source: str
+    url: str
+    authors: Iterable[str] | None
+    year: int | None
+    abstract: str
+    available: bool
+    mime_type: str | None
+    sha256: str | None
+    byte_size: int | None
+    document_version: str | None
+    extraction_tool: str | None
+
+
+def _insert_evidence_row(
+    conn: sqlite3.Connection, f: _NewEvidenceFields
+) -> None:
+    """Insert an evidence row for a run on an open connection."""
+    conn.execute(
+        "INSERT INTO evidence (id, run_id, title, source, url, "
+        "authors_json, year, abstract, available, mime_type, sha256, "
+        "byte_size, document_version, extraction_tool, created_at) "
+        "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        (
+            f.ev_id,
+            f.run_id,
+            f.title,
+            f.source,
+            f.url,
+            json.dumps(list(f.authors or [])),
+            f.year,
+            f.abstract,
+            1 if f.available else 0,
+            f.mime_type,
+            f.sha256,
+            f.byte_size,
+            f.document_version,
+            f.extraction_tool,
+            _now(),
+        ),
+    )
 
 
 def add_evidence(
@@ -62,30 +112,24 @@ def add_evidence(
         The identifier of the newly inserted evidence row.
     """
     ev_id = str(uuid.uuid4())
+    fields = _NewEvidenceFields(
+        ev_id=ev_id,
+        run_id=run_id,
+        title=title,
+        source=source,
+        url=url,
+        authors=authors,
+        year=year,
+        abstract=abstract,
+        available=available,
+        mime_type=mime_type,
+        sha256=sha256,
+        byte_size=byte_size,
+        document_version=document_version,
+        extraction_tool=extraction_tool,
+    )
     with _use_conn(conn, db_path) as conn:
-        conn.execute(
-            "INSERT INTO evidence (id, run_id, title, source, url, "
-            "authors_json, year, abstract, available, mime_type, sha256, "
-            "byte_size, document_version, extraction_tool, created_at) "
-            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-            (
-                ev_id,
-                run_id,
-                title,
-                source,
-                url,
-                json.dumps(list(authors or [])),
-                year,
-                abstract,
-                1 if available else 0,
-                mime_type,
-                sha256,
-                byte_size,
-                document_version,
-                extraction_tool,
-                _now(),
-            ),
-        )
+        _insert_evidence_row(conn, fields)
     return ev_id
 
 
@@ -155,6 +199,37 @@ def list_citations(
     return _list_by_run("citations", run_id, db_path, conn)
 
 
+def _insert_claim_evidence_row(
+    conn: sqlite3.Connection,
+    *,
+    run_id: str,
+    hypothesis_id: str,
+    claim: str,
+    label: str,
+    claim_role: str,
+    supporting: Iterable[Any],
+    contradicting: Iterable[Any],
+    assessor: str,
+) -> None:
+    """Insert one claim-level entailment edge on an open connection."""
+    conn.execute(
+        "INSERT INTO claim_evidence (run_id, hypothesis_id, claim, label, "
+        "claim_role, supporting_json, contradicting_json, assessor, "
+        "created_at) VALUES (?,?,?,?,?,?,?,?,?)",
+        (
+            run_id,
+            hypothesis_id,
+            claim,
+            label,
+            claim_role,
+            json.dumps(list(supporting)),
+            json.dumps(list(contradicting)),
+            assessor,
+            _now(),
+        ),
+    )
+
+
 def add_claim_evidence(
     run_id: str,
     hypothesis_id: str,
@@ -185,21 +260,16 @@ def add_claim_evidence(
         conn: Optional open connection to reuse (e.g. from ``transaction``).
     """
     with _use_conn(conn, db_path) as conn:
-        conn.execute(
-            "INSERT INTO claim_evidence (run_id, hypothesis_id, claim, label, "
-            "claim_role, supporting_json, contradicting_json, assessor, "
-            "created_at) VALUES (?,?,?,?,?,?,?,?,?)",
-            (
-                run_id,
-                hypothesis_id,
-                claim,
-                label,
-                claim_role,
-                json.dumps(list(supporting)),
-                json.dumps(list(contradicting)),
-                assessor,
-                _now(),
-            ),
+        _insert_claim_evidence_row(
+            conn,
+            run_id=run_id,
+            hypothesis_id=hypothesis_id,
+            claim=claim,
+            label=label,
+            claim_role=claim_role,
+            supporting=supporting,
+            contradicting=contradicting,
+            assessor=assessor,
         )
 
 
@@ -220,6 +290,40 @@ def list_claim_evidence(
 # ---------------------------------------------------------------------------
 # Reviews
 # ---------------------------------------------------------------------------
+
+
+def _insert_review_row(
+    conn: sqlite3.Connection,
+    *,
+    run_id: str,
+    hypothesis_id: str,
+    reviewer_agent: str,
+    summary: str,
+    critique: str,
+    novelty: float | None,
+    plausibility: float | None,
+    testability: float | None,
+    overall: float | None,
+) -> None:
+    """Insert a reviewer's assessment of a hypothesis on an open connection."""
+    conn.execute(
+        "INSERT INTO reviews (run_id, hypothesis_id, "
+        "reviewer_agent, summary, critique, "
+        "novelty, plausibility, testability, overall, created_at) "
+        "VALUES (?,?,?,?,?,?,?,?,?,?)",
+        (
+            run_id,
+            hypothesis_id,
+            reviewer_agent,
+            summary,
+            critique,
+            novelty,
+            plausibility,
+            testability,
+            overall,
+            _now(),
+        ),
+    )
 
 
 def add_review(
@@ -252,23 +356,17 @@ def add_review(
         conn: Optional open connection to reuse (e.g. from ``transaction``).
     """
     with _use_conn(conn, db_path) as conn:
-        conn.execute(
-            "INSERT INTO reviews (run_id, hypothesis_id, "
-            "reviewer_agent, summary, critique, "
-            "novelty, plausibility, testability, overall, created_at) "
-            "VALUES (?,?,?,?,?,?,?,?,?,?)",
-            (
-                run_id,
-                hypothesis_id,
-                reviewer_agent,
-                summary,
-                critique,
-                novelty,
-                plausibility,
-                testability,
-                overall,
-                _now(),
-            ),
+        _insert_review_row(
+            conn,
+            run_id=run_id,
+            hypothesis_id=hypothesis_id,
+            reviewer_agent=reviewer_agent,
+            summary=summary,
+            critique=critique,
+            novelty=novelty,
+            plausibility=plausibility,
+            testability=testability,
+            overall=overall,
         )
 
 
@@ -284,6 +382,47 @@ def list_reviews(
 # ---------------------------------------------------------------------------
 # Matches
 # ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class _MatchFields:
+    """Fields needed to insert one pairwise tournament match row."""
+
+    run_id: str
+    iteration: int
+    winner_id: str
+    loser_id: str
+    winner_before: int
+    winner_after: int
+    loser_before: int
+    loser_after: int
+    rationale: str
+    tier: str | None
+    debate_turns: int
+
+
+def _insert_match_row(conn: sqlite3.Connection, f: _MatchFields) -> None:
+    """Insert the outcome row for a pairwise tournament match."""
+    conn.execute(
+        "INSERT INTO matches (run_id, iteration, winner_id, loser_id, "
+        "winner_elo_before, winner_elo_after, loser_elo_before, "
+        "loser_elo_after, rationale, tier, debate_turns, created_at) "
+        "VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+        (
+            f.run_id,
+            f.iteration,
+            f.winner_id,
+            f.loser_id,
+            f.winner_before,
+            f.winner_after,
+            f.loser_before,
+            f.loser_after,
+            f.rationale,
+            f.tier,
+            f.debate_turns,
+            _now(),
+        ),
+    )
 
 
 def add_match(
@@ -319,27 +458,21 @@ def add_match(
         db_path: Optional override for the SQLite database path.
         conn: Optional open connection to reuse (e.g. from ``transaction``).
     """
+    fields = _MatchFields(
+        run_id=run_id,
+        iteration=iteration,
+        winner_id=winner_id,
+        loser_id=loser_id,
+        winner_before=winner_before,
+        winner_after=winner_after,
+        loser_before=loser_before,
+        loser_after=loser_after,
+        rationale=rationale,
+        tier=tier,
+        debate_turns=debate_turns,
+    )
     with _use_conn(conn, db_path) as conn:
-        conn.execute(
-            "INSERT INTO matches (run_id, iteration, winner_id, loser_id, "
-            "winner_elo_before, winner_elo_after, loser_elo_before, "
-            "loser_elo_after, rationale, tier, debate_turns, created_at) "
-            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
-            (
-                run_id,
-                iteration,
-                winner_id,
-                loser_id,
-                winner_before,
-                winner_after,
-                loser_before,
-                loser_after,
-                rationale,
-                tier,
-                debate_turns,
-                _now(),
-            ),
-        )
+        _insert_match_row(conn, fields)
 
 
 def list_matches(

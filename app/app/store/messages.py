@@ -15,6 +15,24 @@ from app.store.db import _now, _use_conn, connect
 from app.store.models import MessageRow, _row_to_message
 
 
+def _insert_message_row(
+    conn: sqlite3.Connection,
+    run_id: str,
+    sender: str,
+    content: str,
+    kind: str,
+    now: float,
+    meta_json: str | None,
+) -> int:
+    """Insert a message row on an open connection and return its id."""
+    cur = conn.execute(
+        "INSERT INTO messages (run_id, sender, content, kind, "
+        "created_at, applied, meta_json) VALUES (?,?,?,?,?,0,?)",
+        (run_id, sender, content, kind, now, meta_json),
+    )
+    return cur.lastrowid or 0
+
+
 def append_message(
     run_id: str,
     sender: str,
@@ -40,12 +58,9 @@ def append_message(
     now = _now()
     meta_json = json.dumps(meta) if meta is not None else None
     with connect(db_path) as conn:
-        cur = conn.execute(
-            "INSERT INTO messages (run_id, sender, content, kind, "
-            "created_at, applied, meta_json) VALUES (?,?,?,?,?,0,?)",
-            (run_id, sender, content, kind, now, meta_json),
+        msg_id = _insert_message_row(
+            conn, run_id, sender, content, kind, now, meta_json
         )
-        msg_id = cur.lastrowid or 0
     return MessageRow(
         id=msg_id,
         run_id=run_id,

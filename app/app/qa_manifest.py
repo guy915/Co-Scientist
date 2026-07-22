@@ -186,31 +186,50 @@ def build_system_prompt(
 ) -> str:
     """Assemble the grounded-Q&A system prompt from a run's current state.
 
-    Args:
-        research_goal: The run's research goal.
-        hypotheses: Hypothesis rows, already ordered by Elo descending.
-        reviews: Reviewer/meta-review rows.
-        matches: Tournament match rows.
-        history: Prior messages (MessageRow) excluding the current question.
-        manifest: The numbered evidence manifest for citation grounding.
-        audience_context: Optional background about the user's field, appended
-            when non-empty so answers are aware of the audience's research.
-        corpus_catalog: Optional catalog of the audience's own papers (title
-            and abstract of each, with the paper_id for fetch_paper), appended
-            when non-empty.
+    ``hypotheses`` is assumed already ordered by Elo descending, and
+    ``history`` excludes the current question. ``audience_context`` and
+    ``corpus_catalog`` are appended only when non-empty; see
+    ``_append_audience_context`` and ``_append_corpus_catalog``.
 
     Returns:
         The system prompt string.
     """
     evidence_lines = _format_manifest_for_prompt(manifest)
-    # Each section is truncated (top 5 hypotheses, last 5 reviews, last 3
-    # matches, last 10 messages) to keep the prompt bounded on long runs.
-    # list_hypotheses already orders by Elo descending.
-    top_hyps = hypotheses[:5]
+    hyp_lines, review_lines, match_lines, conv_lines = _summarize_run_context(
+        hypotheses, reviews, matches, history
+    )
+    prompt = _base_system_prompt(
+        research_goal,
+        hyp_lines,
+        review_lines,
+        match_lines,
+        evidence_lines,
+        conv_lines,
+    )
+    prompt = _append_audience_context(prompt, audience_context)
+    prompt = _append_corpus_catalog(prompt, corpus_catalog)
+    return prompt
+
+
+def _summarize_run_context(
+    hypotheses: list[dict[str, Any]],
+    reviews: list[dict[str, Any]],
+    matches: list[dict[str, Any]],
+    history: list[Any],
+) -> tuple[str, str, str, str]:
+    """Summarize hypotheses, reviews, matches, and history for the prompt.
+
+    Each section is truncated (top 5 hypotheses, last 5 reviews, last 3
+    matches, last 10 messages) to keep the prompt bounded on long runs.
+    ``hypotheses`` is assumed already ordered by Elo descending.
+
+    Returns:
+        A ``(hyp_lines, review_lines, match_lines, conv_lines)`` tuple.
+    """
     hyp_lines = "\n".join(
         f"- [{h['title']}] Elo {h['elo_rating']}, "
         f"{h['win_count']}W/{h['loss_count']}L"
-        for h in top_hyps
+        for h in hypotheses[:5]
     )
     review_lines = "\n".join(
         f"- {r['reviewer_agent']} on {r['hypothesis_id'][:8]}: "
@@ -226,8 +245,19 @@ def build_system_prompt(
         f"{'User' if m.sender == 'user' else 'Assistant'}: {m.content}"
         for m in history[-10:]
     )
+    return hyp_lines, review_lines, match_lines, conv_lines
 
-    prompt = (
+
+def _base_system_prompt(
+    research_goal: str,
+    hyp_lines: str,
+    review_lines: str,
+    match_lines: str,
+    evidence_lines: str,
+    conv_lines: str,
+) -> str:
+    """Render the grounded-Q&A system prompt before audience/corpus appends."""
+    return (
         f"You are a concise research assistant helping the user understand "
         f"an ongoing AI-driven hypothesis generation run.\n\n"
         f"Research goal: {research_goal}\n\n"
@@ -248,22 +278,30 @@ def build_system_prompt(
         f"repeat the question. When a statement is supported by a listed "
         f"source, cite it inline as [n]."
     )
+
+
+def _append_audience_context(prompt: str, audience_context: str) -> str:
+    """Append the user's field background, when present, last."""
     # Appended last so the grounding rule above governs how it may be used.
-    if audience_context.strip():
-        prompt += (
-            f"\n\nBackground about the user's field:\n"
-            f"{audience_context.strip()}"
-        )
+    if not audience_context.strip():
+        return prompt
+    return prompt + (
+        f"\n\nBackground about the user's field:\n{audience_context.strip()}"
+    )
+
+
+def _append_corpus_catalog(prompt: str, corpus_catalog: str) -> str:
+    """Append the audience's paper catalog, when present."""
     # The catalog is real published work, unlike the background, so anything
     # taken from it must be attributed -- but by paper title, since these are
     # not in the numbered manifest and [n] has to keep resolving to it.
-    if corpus_catalog.strip():
-        prompt += (
-            f"\n\nThe user's own group's published papers (title and abstract "
-            f"of each). Attribute anything you take from them by paper title, "
-            f"never as [n]. They are the group's prior work, not results from "
-            f"this run -- do not present them as findings this run produced. "
-            f"If an abstract is not enough to answer, note that the full text "
-            f"can be read:\n{corpus_catalog.strip()}"
-        )
-    return prompt
+    if not corpus_catalog.strip():
+        return prompt
+    return prompt + (
+        f"\n\nThe user's own group's published papers (title and abstract "
+        f"of each). Attribute anything you take from them by paper title, "
+        f"never as [n]. They are the group's prior work, not results from "
+        f"this run -- do not present them as findings this run produced. "
+        f"If an abstract is not enough to answer, note that the full text "
+        f"can be read:\n{corpus_catalog.strip()}"
+    )

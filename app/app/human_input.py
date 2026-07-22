@@ -48,6 +48,22 @@ class HumanHypothesisAdmission:
         }
 
 
+def _build_admitted_hypothesis(
+    text: str, author: str, title: str, review: HypothesisSafetyReview
+) -> dict[str, object]:
+    """Build the admitted hypothesis payload stamped with human provenance."""
+    return {
+        "title": title or first_sentence(text),
+        "statement": text,
+        "origin": SCIENTIST_MANUAL_ORIGIN,
+        "created_by_agent": SCIENTIST_MANUAL_ORIGIN,
+        "author": author,
+        "generation": 0,
+        "parent_id": None,
+        "safety_outcome": review.outcome.value,
+    }
+
+
 def admit_human_hypothesis(
     *,
     text: str,
@@ -78,18 +94,7 @@ def admit_human_hypothesis(
             author=author,
             hypothesis=None,
         )
-
-    derived_title = title or first_sentence(text)
-    hypothesis = {
-        "title": derived_title,
-        "statement": text,
-        "origin": SCIENTIST_MANUAL_ORIGIN,
-        "created_by_agent": SCIENTIST_MANUAL_ORIGIN,
-        "author": author,
-        "generation": 0,
-        "parent_id": None,
-        "safety_outcome": review.outcome.value,
-    }
+    hypothesis = _build_admitted_hypothesis(text, author, title, review)
     return HumanHypothesisAdmission(
         admitted=True,
         safety_review=review,

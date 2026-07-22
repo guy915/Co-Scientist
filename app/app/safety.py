@@ -143,6 +143,85 @@ def _semantic_prompt(text: str, stage: str) -> str:
     )
 
 
+_SEMANTIC_CATEGORY_TO_DECISION = {
+    "prohibited": "block",
+    "ethical_concern": "block",
+    "uncertain": "hold",
+    "redacted": "redact",
+    "allowed": "allow",
+}
+
+
+async def _call_semantic_safety_model(
+    text: str, stage: str, model: str
+) -> dict[str, Any]:
+    """Call the semantic safety model and return its parsed JSON response."""
+    import litellm
+
+    response = await litellm.acompletion(
+        model=model,
+        messages=[{"role": "user", "content": _semantic_prompt(text, stage)}],
+        response_format={"type": "json_object"},
+        temperature=0,
+        timeout=20,
+        **deepseek_thinking_kwargs(model),
+    )
+    content = response.choices[0].message.content or "{}"
+    parsed: dict[str, Any] = json.loads(content)
+    return parsed
+
+
+def _build_semantic_decision(
+    stage: str, model: str, parsed: dict[str, Any]
+) -> SafetyDecision:
+    """Turn a parsed semantic-model response into a :class:`SafetyDecision`."""
+    category = str(parsed.get("category") or "uncertain")
+    if category not in _SEMANTIC_CATEGORY_TO_DECISION:
+        category = "uncertain"
+    decision = _SEMANTIC_CATEGORY_TO_DECISION[category]
+    domains = parsed.get("risk_domains")
+    return SafetyDecision(
+        stage=stage,
+        decision=decision,
+        reason=str(parsed.get("reason") or "Contextual safety assessment."),
+        category=category,
+        risk_domains=(
+            [str(item) for item in domains] if isinstance(domains, list) else []
+        ),
+        requires_review=decision in {"hold", "redact"},
+        assessor=f"semantic:{model}",
+    )
+
+
+async def _run_semantic_safety_model(
+    text: str, stage: str, model: str
+) -> SafetyDecision:
+    """Call the semantic safety model and turn its category into a decision."""
+    parsed = await _call_semantic_safety_model(text, stage, model)
+    return _build_semantic_decision(stage, model, parsed)
+
+
+def _semantic_safety_error_decision(
+    stage: str, model: str, baseline: SafetyDecision, exc: Exception
+) -> SafetyDecision:
+    """Build the fallback decision when the semantic safety call fails."""
+    logger.warning("Contextual safety assessment failed: %s", exc)
+    if baseline.decision == "redact":
+        return baseline
+    return SafetyDecision(
+        stage=stage,
+        decision="hold",
+        reason=(
+            "Contextual safety assessment was unavailable; human review "
+            "required."
+        ),
+        category="uncertain",
+        risk_domains=["assessment_unavailable"],
+        requires_review=True,
+        assessor=f"semantic:{model}:error",
+    )
+
+
 async def screen_contextual(
     text: str,
     stage: str,
@@ -166,66 +245,30 @@ async def screen_contextual(
     ):
         return baseline
     try:
-        import litellm
-
-        response = await litellm.acompletion(
-            model=model,
-            messages=[
-                {"role": "user", "content": _semantic_prompt(text, stage)}
-            ],
-            response_format={"type": "json_object"},
-            temperature=0,
-            timeout=20,
-            **deepseek_thinking_kwargs(model),
-        )
-        content = response.choices[0].message.content or "{}"
-        parsed = json.loads(content)
-        category = str(parsed.get("category") or "uncertain")
-        if category not in {
-            "prohibited",
-            "ethical_concern",
-            "uncertain",
-            "redacted",
-            "allowed",
-        }:
-            category = "uncertain"
-        decision = {
-            "prohibited": "block",
-            "ethical_concern": "block",
-            "uncertain": "hold",
-            "redacted": "redact",
-            "allowed": "allow",
-        }[category]
-        domains = parsed.get("risk_domains")
-        return SafetyDecision(
-            stage=stage,
-            decision=decision,
-            reason=str(parsed.get("reason") or "Contextual safety assessment."),
-            category=category,
-            risk_domains=(
-                [str(item) for item in domains]
-                if isinstance(domains, list)
-                else []
-            ),
-            requires_review=decision in {"hold", "redact"},
-            assessor=f"semantic:{model}",
-        )
+        return await _run_semantic_safety_model(text, stage, model)
     except Exception as exc:  # Provider failure must not silently clear risk.
-        logger.warning("Contextual safety assessment failed: %s", exc)
-        if baseline.decision == "redact":
-            return baseline
-        return SafetyDecision(
-            stage=stage,
-            decision="hold",
-            reason=(
-                "Contextual safety assessment was unavailable; human review "
-                "required."
-            ),
-            category="uncertain",
-            risk_domains=["assessment_unavailable"],
-            requires_review=True,
-            assessor=f"semantic:{model}:error",
-        )
+        return _semantic_safety_error_decision(stage, model, baseline, exc)
+
+
+def _should_escalate_to_semantic(
+    run_id: str, stage: str, provider: str, *, db_path: str | None
+) -> bool:
+    """Return whether the stage should escalate to the contextual model.
+
+    Deliberate (Task 2): offline-backed runs skip app-side escalation. The
+    contextual screen calls a real configured safety model that is NOT
+    offline-routed, so wiring app-side LLM calls through the offline router
+    is out of scope for this campaign. Keyed on the run's persisted backend
+    (falling back to the provider when the row is gone), not the process
+    offline_mode() -- a real engine run created while offline still escalates.
+    """
+    approved = store.safety_stage_is_approved(
+        run_id, stage, POLICY_VERSION, db_path=db_path
+    )
+    offline = store.run_offline_backed(
+        run_id, missing_run_fallback=provider == "mock", db_path=db_path
+    )
+    return not offline and not approved
 
 
 async def screen_with_escalation(
@@ -257,47 +300,15 @@ async def screen_with_escalation(
     Returns:
         The decision to gate on: escalated when applicable, else deterministic.
     """
-    approved = store.safety_stage_is_approved(
-        run_id, stage, POLICY_VERSION, db_path=db_path
-    )
-    # Deliberate (Task 2): offline-backed runs skip app-side escalation. The
-    # contextual screen calls a real configured safety model that is NOT
-    # offline-routed, so wiring app-side LLM calls through the offline router
-    # is out of scope for this campaign. Keyed on the run's persisted backend
-    # (falling back to the provider when the row is gone), not the process
-    # offline_mode() -- a real engine run created while offline still escalates.
-    offline = store.run_offline_backed(
-        run_id, missing_run_fallback=provider == "mock", db_path=db_path
-    )
-    if not offline and not approved:
+    if _should_escalate_to_semantic(run_id, stage, provider, db_path=db_path):
         return await screen_contextual(text, stage, deterministic=deterministic)
     return deterministic
 
 
-async def apply_safety_gate(
-    run_id: str,
-    result: SafetyDecision,
-    emit: Callable[[str, dict[str, Any]], Awaitable[dict[str, Any]]],
-    *,
-    db_path: str | None = None,
-) -> AsyncIterator[dict[str, Any]]:
-    """Record a safety decision, emit it, and gate the run on a hard block.
-
-    Shared by both workflow providers so the record -> emit -> block-and-stop
-    sequence lives in one place. Yields the events to forward on the workflow's
-    stream: the ``safety.{stage}`` decision, plus a blocked ``status`` event
-    when the decision blocks. The caller must return from its workflow when
-    ``result.decision == "block"``.
-
-    Args:
-        run_id: Identifier of the run being gated.
-        result: The safety screening outcome to record and act on.
-        emit: The provider's event emitter, called as ``emit(type, payload)``.
-        db_path: Optional override for the SQLite database path.
-
-    Yields:
-        Event dicts to forward on the workflow's event stream.
-    """
+def _record_safety_decision(
+    run_id: str, result: SafetyDecision, *, db_path: str | None
+) -> None:
+    """Persist the decision and log it at a level matching its severity."""
     store.add_safety_decision(
         run_id,
         result.stage,
@@ -325,7 +336,16 @@ async def apply_safety_gate(
             run_id,
             result.stage,
         )
-    yield await emit(f"safety.{result.stage}", result.to_dict())
+
+
+async def _yield_terminal_status_event(
+    run_id: str,
+    result: SafetyDecision,
+    emit: Callable[[str, dict[str, Any]], Awaitable[dict[str, Any]]],
+    *,
+    db_path: str | None,
+) -> AsyncIterator[dict[str, Any]]:
+    """Update the run's status and yield its event when the result is final."""
     if result.decision == "block":
         store.update_run_status(
             run_id, RunStatus.BLOCKED, error=result.reason, db_path=db_path
@@ -345,3 +365,35 @@ async def apply_safety_gate(
                 "error": result.reason,
             },
         )
+
+
+async def apply_safety_gate(
+    run_id: str,
+    result: SafetyDecision,
+    emit: Callable[[str, dict[str, Any]], Awaitable[dict[str, Any]]],
+    *,
+    db_path: str | None = None,
+) -> AsyncIterator[dict[str, Any]]:
+    """Record a safety decision, emit it, and gate the run on a hard block.
+
+    Shared by both workflow providers so the record -> emit -> block-and-stop
+    sequence lives in one place. Yields the events to forward on the workflow's
+    stream: the ``safety.{stage}`` decision, plus a blocked ``status`` event
+    when the decision blocks. The caller must return from its workflow when
+    ``result.decision == "block"``.
+
+    Args:
+        run_id: Identifier of the run being gated.
+        result: The safety screening outcome to record and act on.
+        emit: The provider's event emitter, called as ``emit(type, payload)``.
+        db_path: Optional override for the SQLite database path.
+
+    Yields:
+        Event dicts to forward on the workflow's event stream.
+    """
+    _record_safety_decision(run_id, result, db_path=db_path)
+    yield await emit(f"safety.{result.stage}", result.to_dict())
+    async for event in _yield_terminal_status_event(
+        run_id, result, emit, db_path=db_path
+    ):
+        yield event

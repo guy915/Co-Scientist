@@ -11,6 +11,36 @@ from typing import Any
 from app.store.db import _now, _use_conn, connect
 
 
+def _insert_interview_rows(
+    conn: sqlite3.Connection,
+    interview_id: str,
+    client_id: str,
+    challenge: str,
+    audience: str | None,
+    fields: dict[str, Any],
+    now: float,
+) -> None:
+    """Insert the interview row and its opening transcript turn."""
+    conn.execute(
+        "INSERT INTO interviews (id, client_id, status, fields_json, "
+        "audience, created_at, updated_at) VALUES (?,?,?,?,?,?,?)",
+        (
+            interview_id,
+            client_id,
+            "active",
+            json.dumps(fields),
+            audience,
+            now,
+            now,
+        ),
+    )
+    conn.execute(
+        "INSERT INTO interview_turns (interview_id, role, content, "
+        "created_at) VALUES (?,?,?,?)",
+        (interview_id, "user", challenge.strip(), now),
+    )
+
+
 def create_interview(
     client_id: str,
     challenge: str,
@@ -39,23 +69,8 @@ def create_interview(
         "title": None,
     }
     with connect(db_path) as conn:
-        conn.execute(
-            "INSERT INTO interviews (id, client_id, status, fields_json, "
-            "audience, created_at, updated_at) VALUES (?,?,?,?,?,?,?)",
-            (
-                interview_id,
-                client_id,
-                "active",
-                json.dumps(fields),
-                audience,
-                now,
-                now,
-            ),
-        )
-        conn.execute(
-            "INSERT INTO interview_turns (interview_id, role, content, "
-            "created_at) VALUES (?,?,?,?)",
-            (interview_id, "user", challenge.strip(), now),
+        _insert_interview_rows(
+            conn, interview_id, client_id, challenge, audience, fields, now
         )
     result = get_interview(interview_id, db_path=db_path)
     assert result is not None

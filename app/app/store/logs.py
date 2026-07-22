@@ -29,6 +29,36 @@ def _escape_like(text: str) -> str:
     return text.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
 
 
+def _insert_log_row(
+    conn: sqlite3.Connection,
+    *,
+    level: str,
+    levelno: int,
+    logger_name: str,
+    message: str,
+    run_id: str | None,
+    exc_text: str | None,
+    client_id: str | None,
+    created_at: float,
+) -> int:
+    """Insert one log row on an open connection and return its row id."""
+    cur = conn.execute(
+        "INSERT INTO app_logs (created_at, level, levelno, logger, "
+        "message, run_id, exc_text, client_id) VALUES (?,?,?,?,?,?,?,?)",
+        (
+            created_at,
+            level,
+            levelno,
+            logger_name,
+            message,
+            run_id,
+            exc_text,
+            client_id,
+        ),
+    )
+    return int(cur.lastrowid or 0)
+
+
 def append_log(
     *,
     level: str,
@@ -61,21 +91,17 @@ def append_log(
         The inserted row's id.
     """
     with _use_conn(conn, db_path) as c:
-        cur = c.execute(
-            "INSERT INTO app_logs (created_at, level, levelno, logger, "
-            "message, run_id, exc_text, client_id) VALUES (?,?,?,?,?,?,?,?)",
-            (
-                created_at if created_at is not None else time.time(),
-                level,
-                levelno,
-                logger_name,
-                message,
-                run_id,
-                exc_text,
-                client_id,
-            ),
+        return _insert_log_row(
+            c,
+            level=level,
+            levelno=levelno,
+            logger_name=logger_name,
+            message=message,
+            run_id=run_id,
+            exc_text=exc_text,
+            client_id=client_id,
+            created_at=created_at if created_at is not None else time.time(),
         )
-        return int(cur.lastrowid or 0)
 
 
 def _log_filters(
@@ -114,6 +140,36 @@ def _log_filters(
     return " AND ".join(where), params
 
 
+def _fetch_log_page(
+    conn: sqlite3.Connection,
+    *,
+    after_id: int,
+    min_levelno: int,
+    run_id: str | None,
+    contains: str | None,
+    noise_loggers: Sequence[str] | None,
+    scope_client_id: str | None,
+    limit: int,
+) -> list[dict[str, Any]]:
+    """Run the filtered, newest-first-capped log query and return rows."""
+    where, params = _log_filters(
+        after_id=after_id,
+        min_levelno=min_levelno,
+        run_id=run_id,
+        contains=contains,
+        noise_loggers=noise_loggers,
+        scope_client_id=scope_client_id,
+    )
+    params.append(limit)
+    query = (
+        "SELECT * FROM (SELECT * FROM app_logs WHERE "
+        + where
+        + " ORDER BY id DESC LIMIT ?) ORDER BY id ASC"
+    )
+    rows = conn.execute(query, params).fetchall()
+    return [dict(row) for row in rows]
+
+
 def list_logs(
     *,
     after_id: int = 0,
@@ -145,23 +201,17 @@ def list_logs(
         db_path: Optional override for the SQLite database path.
         conn: Optional open connection to reuse.
     """
-    where, params = _log_filters(
-        after_id=after_id,
-        min_levelno=min_levelno,
-        run_id=run_id,
-        contains=contains,
-        noise_loggers=noise_loggers,
-        scope_client_id=scope_client_id,
-    )
-    params.append(limit)
-    query = (
-        "SELECT * FROM (SELECT * FROM app_logs WHERE "
-        + where
-        + " ORDER BY id DESC LIMIT ?) ORDER BY id ASC"
-    )
     with _use_conn(conn, db_path) as c:
-        rows = c.execute(query, params).fetchall()
-    return [dict(row) for row in rows]
+        return _fetch_log_page(
+            c,
+            after_id=after_id,
+            min_levelno=min_levelno,
+            run_id=run_id,
+            contains=contains,
+            noise_loggers=noise_loggers,
+            scope_client_id=scope_client_id,
+            limit=limit,
+        )
 
 
 def count_logs(

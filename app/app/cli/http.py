@@ -100,6 +100,17 @@ class ApiClient:
     shares the header-less pool, matching the API's own default.
     """
 
+    def _build_headers(
+        self, client_id: str | None, logs_token: str | None
+    ) -> dict[str, str]:
+        """Build the header dict carrying the optional client/logs identity."""
+        headers: dict[str, str] = {}
+        if client_id:
+            headers["X-Client-ID"] = client_id
+        if logs_token:
+            headers["X-Logs-Token"] = logs_token
+        return headers
+
     def __init__(
         self,
         base_url: str,
@@ -131,11 +142,7 @@ class ApiClient:
         if "://" not in base_url:
             base_url = f"http://{base_url}"
         self.base_url = base_url.rstrip("/")
-        self._headers: dict[str, str] = {}
-        if client_id:
-            self._headers["X-Client-ID"] = client_id
-        if logs_token:
-            self._headers["X-Logs-Token"] = logs_token
+        self._headers = self._build_headers(client_id, logs_token)
         self._timeout = timeout
         self._retry_wait = retry_wait
         self._verbose = verbose
@@ -172,6 +179,61 @@ class ApiClient:
         """Join the base URL with an API path beginning with ``/``."""
         return f"{self.base_url}{path}"
 
+    def _do_request(
+        self,
+        method: str,
+        path: str,
+        json_body: dict[str, Any] | None,
+    ) -> httpx.Response:
+        """Send one HTTP request and log its status and elapsed time."""
+        started = time.monotonic()
+        response = self._http.request(
+            method,
+            self._url(path),
+            json=json_body,
+            headers=self._headers,
+        )
+        elapsed_ms = (time.monotonic() - started) * 1000
+        self._log(
+            f"{method} {path} -> {response.status_code} ({elapsed_ms:.0f} ms)"
+        )
+        return response
+
+    def _send_attempt(
+        self,
+        method: str,
+        path: str,
+        json_body: dict[str, Any] | None,
+        attempt: int,
+        retries: int,
+    ) -> httpx.Response | None:
+        """Try one request attempt; return the response, or None to retry.
+
+        Raises:
+            ApiUnreachableError: On a transport error during the final
+                attempt.
+        """
+        last = attempt == retries
+        try:
+            response = self._do_request(method, path, json_body)
+        except httpx.HTTPError as exc:
+            if last:
+                raise ApiUnreachableError(
+                    f"could not reach API at {self.base_url}: {exc}"
+                ) from exc
+            self._log(
+                f"{method} {path} failed ({type(exc).__name__}); "
+                f"retrying ({attempt + 2}/{retries + 1})"
+            )
+            return None
+        if last or response.status_code not in RETRYABLE_STATUSES:
+            return response
+        self._log(
+            f"{method} {path} got {response.status_code}; "
+            f"retrying ({attempt + 2}/{retries + 1})"
+        )
+        return None
+
     def _send(
         self,
         method: str,
@@ -191,36 +253,11 @@ class ApiClient:
         """
         retries = GET_RETRIES if method.upper() == "GET" else 0
         for attempt in range(retries + 1):
-            last = attempt == retries
-            started = time.monotonic()
-            try:
-                response = self._http.request(
-                    method,
-                    self._url(path),
-                    json=json_body,
-                    headers=self._headers,
-                )
-            except httpx.HTTPError as exc:
-                if last:
-                    raise ApiUnreachableError(
-                        f"could not reach API at {self.base_url}: {exc}"
-                    ) from exc
-                self._log(
-                    f"{method} {path} failed ({type(exc).__name__}); "
-                    f"retrying ({attempt + 2}/{retries + 1})"
-                )
-            else:
-                elapsed_ms = (time.monotonic() - started) * 1000
-                self._log(
-                    f"{method} {path} -> {response.status_code} "
-                    f"({elapsed_ms:.0f} ms)"
-                )
-                if last or response.status_code not in RETRYABLE_STATUSES:
-                    return response
-                self._log(
-                    f"{method} {path} got {response.status_code}; "
-                    f"retrying ({attempt + 2}/{retries + 1})"
-                )
+            response = self._send_attempt(
+                method, path, json_body, attempt, retries
+            )
+            if response is not None:
+                return response
             time.sleep(self._retry_wait)
         raise AssertionError("unreachable: retry loop always returns/raises")
 
@@ -262,6 +299,15 @@ class ApiClient:
         _raise_for_status(response)
         return response.text
 
+    def _validate_stream_response(
+        self, response: httpx.Response, method: str, path: str
+    ) -> None:
+        """Raise for a non-2xx streaming response, else log its status."""
+        if not response.is_success:
+            response.read()
+            _raise_for_status(response)
+        self._log(f"{method} {path} -> {response.status_code} (streaming)")
+
     @contextlib.contextmanager
     def stream_lines(
         self,
@@ -297,12 +343,7 @@ class ApiClient:
                 headers=self._headers,
                 timeout=timeout,
             ) as response:
-                if not response.is_success:
-                    response.read()
-                    _raise_for_status(response)
-                self._log(
-                    f"{method} {path} -> {response.status_code} (streaming)"
-                )
+                self._validate_stream_response(response, method, path)
                 yield response.iter_lines()
         except httpx.HTTPError as exc:
             raise ApiUnreachableError(

@@ -31,6 +31,7 @@ from app.claims import (
     ClaimAssessment,
     EvidencePassage,
     GateDecision,
+    GateResult,
     assess_claim,
     deterministic_assessor,
     extract_atomic_claims,
@@ -150,29 +151,23 @@ def ground_hypotheses(
 ) -> GroundingResult:
     """Ground each hypothesis's claims, persist the graph, and gate publishing.
 
-    For every hypothesis this extracts atomic claims, retrieves and assesses
-    the most relevant evidence passages per claim (via the swappable
-    ``assessor``), persists the claim-evidence edges with provenance-stamped
-    support spans, and runs the publication gate. A hypothesis whose gate
-    blocks *because a claim is contradicted* is returned in ``blocked_ids`` so
-    the caller keeps it out of the tournament and synthesis.
+    Extracts atomic claims, assesses each against evidence passages (via the
+    swappable ``assessor``), persists the claim-evidence edges, and runs the
+    publication gate. A hypothesis whose gate blocks because a claim is
+    contradicted is returned in ``blocked_ids``, out of ranking/synthesis.
 
     Args:
         run_id: Identifier of the run being grounded.
-        hyps: The run's hypotheses (store rows/payloads with an ``id`` and the
-            claim text fields).
-        passages: The run's retrieved evidence passages (with provenance) every
-            claim is assessed against.
-        assessor: The entailment assessor (deterministic by default; the LLM
-            assessor is plugged in for a real grounded run).
+        hyps: The run's hypotheses (store rows/payloads with claim text).
+        passages: The run's retrieved evidence passages (with provenance).
+        assessor: The entailment assessor (deterministic by default).
         assessor_id: Provenance id recorded on each persisted edge.
-        allow_speculative: Gate leniency switch; the drain leaves this False
-            so faithful engine runs keep the strict publication gate.
-        conn: Optional open connection to reuse (e.g. from ``transaction``).
+        allow_speculative: Gate leniency switch; the drain leaves this False.
+        conn: Optional open connection to reuse (from ``transaction``).
         db_path: Optional override for the SQLite database path.
 
     Returns:
-        A :class:`GroundingResult` with the blocked ids and per-id reasons.
+        The :class:`GroundingResult` with blocked ids and per-id reasons.
     """
     return persist_grounding(
         run_id,
@@ -197,34 +192,57 @@ def assess_claim_groups(
 
     The one wave policy shared by both claim-assessment paths (the drain's
     grounding pass and the pre-ranking evidence gate), so pool sizing and
-    ordering guarantees cannot drift between them. Claims are independent
-    -- of each other and across groups -- so overlapping them changes no
-    verdict, only how long the phase takes. With the LLM assessor each is
-    a synchronous provider call, and run one at a time this was the
-    longest phase of a finished run. The provider is not the constraint:
-    measured on the production model, twenty-four concurrent completions
-    return in the same wall clock as four. Ordering is preserved
-    throughout, so each group's recorded claim sequence is identical to
-    the serial one.
+    ordering guarantees cannot drift between them. Claims are independent, so
+    overlapping them changes no verdict, only how long the phase takes; the
+    provider is not the constraint (twenty-four concurrent completions
+    return in the same wall clock as four).
 
     Args:
-        groups: Per group (typically one hypothesis), its claims in
-            recording order.
-        passages: Candidate evidence passages each claim is assessed
-            against.
+        groups: Per group (typically one hypothesis), its claims in order.
+        passages: Candidate evidence passages each claim is assessed against.
         assessor: The entailment assessor.
         assessor_id: Provenance id recorded on each assessment.
-        parallel: When False, assess serially -- for assessors that make
-            no provider call and gain nothing from a pool.
+        parallel: When False, assess serially (no provider call to gain).
 
     Returns:
-        Per group, its claim assessments in the group's own claim order.
+        Per group, its claim assessments, preserving the group's own order.
     """
     flat = [
         (index, claim) for index, group in enumerate(groups) for claim in group
     ]
     if not flat:
         return [[] for _ in groups]
+    results = _assess_flat_claims(
+        flat,
+        passages,
+        assessor=assessor,
+        assessor_id=assessor_id,
+        parallel=parallel,
+    )
+    return _regroup_assessments(groups, flat, results)
+
+
+def _regroup_assessments(
+    groups: Sequence[Sequence[str]],
+    flat: list[tuple[int, str]],
+    results: list[ClaimAssessment],
+) -> list[list[ClaimAssessment]]:
+    """Scatter flat assessment results back into their group's own list."""
+    grouped: list[list[ClaimAssessment]] = [[] for _ in groups]
+    for (index, _claim), assessment in zip(flat, results, strict=True):
+        grouped[index].append(assessment)
+    return grouped
+
+
+def _assess_flat_claims(
+    flat: list[tuple[int, str]],
+    passages: Sequence[EvidencePassage],
+    *,
+    assessor: Assessor,
+    assessor_id: str,
+    parallel: bool,
+) -> list[ClaimAssessment]:
+    """Assess a flattened (group_index, claim) list, preserving input order."""
 
     def _assess_one(item: tuple[int, str]) -> ClaimAssessment:
         return assess_claim(
@@ -236,14 +254,8 @@ def assess_claim_groups(
         with ThreadPoolExecutor(
             max_workers=min(ASSESSMENT_CONCURRENCY, len(flat))
         ) as pool:
-            results = list(pool.map(_assess_one, flat))
-    else:
-        results = [_assess_one(item) for item in flat]
-
-    grouped: list[list[ClaimAssessment]] = [[] for _ in groups]
-    for (index, _claim), assessment in zip(flat, results, strict=True):
-        grouped[index].append(assessment)
-    return grouped
+            return list(pool.map(_assess_one, flat))
+    return [_assess_one(item) for item in flat]
 
 
 def assess_hypothesis_claims(
@@ -273,11 +285,7 @@ def assess_hypothesis_claims(
         Per hypothesis id, its ``(assessment, role)`` pairs, in input order.
     """
     candidates = [p for p in passages if p.text]
-    per_hypothesis = [
-        (hyp_id, _claim_records(hyp))
-        for hyp in hyps
-        if (hyp_id := str(hyp.get("id") or ""))
-    ]
+    per_hypothesis = _per_hypothesis_claim_records(hyps)
     grouped = assess_claim_groups(
         [
             [claim for claim, _role in records]
@@ -287,6 +295,25 @@ def assess_hypothesis_claims(
         assessor=assessor,
         assessor_id=assessor_id,
     )
+    return _zip_hypothesis_assessments(per_hypothesis, grouped)
+
+
+def _per_hypothesis_claim_records(
+    hyps: Sequence[Mapping[str, Any]],
+) -> list[tuple[str, list[tuple[str, str]]]]:
+    """Return each hypothesis id paired with its (claim, role) records."""
+    return [
+        (hyp_id, _claim_records(hyp))
+        for hyp in hyps
+        if (hyp_id := str(hyp.get("id") or ""))
+    ]
+
+
+def _zip_hypothesis_assessments(
+    per_hypothesis: list[tuple[str, list[tuple[str, str]]]],
+    grouped: list[list[ClaimAssessment]],
+) -> list[tuple[str, list[tuple[ClaimAssessment, str]]]]:
+    """Pair each hypothesis's grouped assessments back with their claim role."""
     return [
         (
             hyp_id,
@@ -329,57 +356,109 @@ def persist_grounding(
     blocked: set[str] = set()
     reason_by_id: dict[str, str] = {}
     for hyp_id, assessments in assessed:
-        for assessment, role in assessments:
-            store.add_claim_evidence(
-                run_id,
-                hyp_id,
-                assessment.claim,
-                assessment.label.value,
-                [s.to_dict() for s in assessment.supporting_passages],
-                [s.to_dict() for s in assessment.contradicting_passages],
-                assessment.assessor,
-                claim_role=role,
-                conn=conn,
-                db_path=db_path,
-            )
-        # Faithful publication policy is conservative: unsupported scientific
-        # claims are quarantined alongside contradictions until revised or
-        # grounded. Speculative prose may be retained in working memory, but it
-        # cannot enter decisive ranking or the final report categorically.
-        gate = publication_gate(
-            [assessment for assessment, _role in assessments],
+        gate = _ground_one_hypothesis(
+            run_id,
+            hyp_id,
+            assessments,
             allow_speculative=allow_speculative,
-            explicitly_speculative_claims={
-                assessment.claim
-                for assessment, role in assessments
-                if role == "speculative"
-            },
-            require_supported_claim=not allow_speculative,
+            conn=conn,
+            db_path=db_path,
         )
         reason_by_id[hyp_id] = gate.reason
         if gate.decision is GateDecision.BLOCK:
             blocked.add(hyp_id)
-            failed_claims = gate.contradicted_claims or tuple(
-                claim
-                for claim in gate.unsupported_claims
-                if claim not in set(gate.speculative_claims)
-            )
-            if not failed_claims:
-                failed_claims = gate.unsupported_claims
-            store.add_safety_decision(
-                run_id,
-                stage="claim_gate",
-                decision="block",
-                reason=f"hypothesis {hyp_id}: {gate.reason}",
-                matches=list(failed_claims),
-                conn=conn,
-                db_path=db_path,
-            )
-            logger.warning(
-                "Quarantining hypothesis %s from ranking and publication: %s",
-                hyp_id,
-                gate.reason,
-            )
     return GroundingResult(
         blocked_ids=frozenset(blocked), reason_by_id=reason_by_id
+    )
+
+
+def _ground_one_hypothesis(
+    run_id: str,
+    hyp_id: str,
+    assessments: list[tuple[ClaimAssessment, str]],
+    *,
+    allow_speculative: bool,
+    conn: sqlite3.Connection | None,
+    db_path: str | None,
+) -> GateResult:
+    """Persist one hypothesis's claim edges, gate it, and record if blocked.
+
+    Faithful publication policy is conservative: unsupported scientific
+    claims are quarantined alongside contradictions until revised or
+    grounded. Speculative prose may be retained in working memory, but it
+    cannot enter decisive ranking or the final report categorically.
+    """
+    _persist_claim_edges(
+        run_id, hyp_id, assessments, conn=conn, db_path=db_path
+    )
+    gate = publication_gate(
+        [assessment for assessment, _role in assessments],
+        allow_speculative=allow_speculative,
+        explicitly_speculative_claims={
+            assessment.claim
+            for assessment, role in assessments
+            if role == "speculative"
+        },
+        require_supported_claim=not allow_speculative,
+    )
+    if gate.decision is GateDecision.BLOCK:
+        _record_blocked_hypothesis(
+            run_id, hyp_id, gate, conn=conn, db_path=db_path
+        )
+    return gate
+
+
+def _persist_claim_edges(
+    run_id: str,
+    hyp_id: str,
+    assessments: list[tuple[ClaimAssessment, str]],
+    *,
+    conn: sqlite3.Connection | None,
+    db_path: str | None,
+) -> None:
+    """Persist a hypothesis's assessed claims as claim_evidence edges."""
+    for assessment, role in assessments:
+        store.add_claim_evidence(
+            run_id,
+            hyp_id,
+            assessment.claim,
+            assessment.label.value,
+            [s.to_dict() for s in assessment.supporting_passages],
+            [s.to_dict() for s in assessment.contradicting_passages],
+            assessment.assessor,
+            claim_role=role,
+            conn=conn,
+            db_path=db_path,
+        )
+
+
+def _record_blocked_hypothesis(
+    run_id: str,
+    hyp_id: str,
+    gate: GateResult,
+    *,
+    conn: sqlite3.Connection | None,
+    db_path: str | None,
+) -> None:
+    """Persist the block decision and log the quarantine of a hypothesis."""
+    failed_claims = gate.contradicted_claims or tuple(
+        claim
+        for claim in gate.unsupported_claims
+        if claim not in set(gate.speculative_claims)
+    )
+    if not failed_claims:
+        failed_claims = gate.unsupported_claims
+    store.add_safety_decision(
+        run_id,
+        stage="claim_gate",
+        decision="block",
+        reason=f"hypothesis {hyp_id}: {gate.reason}",
+        matches=list(failed_claims),
+        conn=conn,
+        db_path=db_path,
+    )
+    logger.warning(
+        "Quarantining hypothesis %s from ranking and publication: %s",
+        hyp_id,
+        gate.reason,
     )

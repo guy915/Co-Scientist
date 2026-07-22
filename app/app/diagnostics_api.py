@@ -209,24 +209,14 @@ async def get_config() -> ConfigResponse:
     )
 
 
-@router.get("/status", response_model=SystemStatusResponse, tags=["system"])
-async def get_system_status() -> dict[str, Any]:
-    """Checks system availability for literature review features.
-
-    Returns availability status for mcp server and pubmed api, plus
-    provider/llm-backend info from the engine adapter so the UI can render
-    an "Offline mode" chip. Probes run under a bounded timeout and are
-    cached for a short TTL (see app/diagnostics.py); the ``probes`` field
-    distinguishes a server that answered "down" from a probe that errored.
-    """
-    mcp, pubmed, web_search = await diagnostics.probe_literature_stack_cached()
-
-    adapter_status = engine_adapter.system_status()
-
-    # Both legs are required: the literature_review node needs the MCP server
-    # up AND its PubMed-backed tools answering.
-    literature_available = mcp.available and pubmed.available
-
+def _build_status_payload(
+    mcp: diagnostics.ProbeResult,
+    pubmed: diagnostics.ProbeResult,
+    web_search: diagnostics.ProbeResult,
+    literature_available: bool,
+    adapter_status: dict[str, Any],
+) -> dict[str, Any]:
+    """Assemble the ``/status`` response from probe and adapter results."""
     return {
         "mcp_available": mcp.available,
         "pubmed_available": pubmed.available,
@@ -253,3 +243,26 @@ async def get_system_status() -> dict[str, Any]:
         # provider/mock_mode/model_name/etc. from engine_adapter.system_status
         **adapter_status,
     }
+
+
+@router.get("/status", response_model=SystemStatusResponse, tags=["system"])
+async def get_system_status() -> dict[str, Any]:
+    """Checks system availability for literature review features.
+
+    Returns availability status for mcp server and pubmed api, plus
+    provider/llm-backend info from the engine adapter so the UI can render
+    an "Offline mode" chip. Probes run under a bounded timeout and are
+    cached for a short TTL (see app/diagnostics.py); the ``probes`` field
+    distinguishes a server that answered "down" from a probe that errored.
+    """
+    mcp, pubmed, web_search = await diagnostics.probe_literature_stack_cached()
+
+    adapter_status = engine_adapter.system_status()
+
+    # Both legs are required: the literature_review node needs the MCP server
+    # up AND its PubMed-backed tools answering.
+    literature_available = mcp.available and pubmed.available
+
+    return _build_status_payload(
+        mcp, pubmed, web_search, literature_available, adapter_status
+    )

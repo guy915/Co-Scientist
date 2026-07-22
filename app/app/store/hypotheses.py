@@ -10,10 +10,62 @@ from __future__ import annotations
 
 import sqlite3
 import uuid
+from dataclasses import dataclass
 from typing import Any
 
 from app.elo import INITIAL_ELO
 from app.store.db import _now, _use_conn
+
+
+@dataclass(frozen=True)
+class _NewHypothesisFields:
+    """Fields needed to insert a hypothesis row and its state row."""
+
+    hyp_id: str
+    run_id: str
+    parent_id: str | None
+    generation: int
+    category: str | None
+    title: str
+    statement: str
+    mechanism: str
+    expected_effect: str
+    experimental_context: str
+    created_by_agent: str
+    author: str
+    now: float
+
+
+def _insert_hypothesis_rows(
+    conn: sqlite3.Connection, f: _NewHypothesisFields
+) -> None:
+    """Insert the hypothesis row and its initial mutable-state row."""
+    conn.execute(
+        "INSERT INTO hypotheses (id, run_id, parent_id, generation, "
+        "category, title, statement, mechanism, expected_effect, "
+        "experimental_context, created_by_agent, author, created_at) "
+        "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        (
+            f.hyp_id,
+            f.run_id,
+            f.parent_id,
+            f.generation,
+            f.category,
+            f.title,
+            f.statement,
+            f.mechanism,
+            f.expected_effect,
+            f.experimental_context,
+            f.created_by_agent,
+            f.author,
+            f.now,
+        ),
+    )
+    conn.execute(
+        "INSERT INTO hypothesis_state (hypothesis_id, elo_rating, "
+        "updated_at) VALUES (?,?,?)",
+        (f.hyp_id, INITIAL_ELO, f.now),
+    )
 
 
 def add_hypothesis(
@@ -59,34 +111,23 @@ def add_hypothesis(
         The identifier of the newly inserted hypothesis.
     """
     hyp_id = hypothesis_id or str(uuid.uuid4())
-    now = _now()
+    fields = _NewHypothesisFields(
+        hyp_id=hyp_id,
+        run_id=run_id,
+        parent_id=parent_id,
+        generation=generation,
+        category=category,
+        title=title,
+        statement=statement,
+        mechanism=mechanism,
+        expected_effect=expected_effect,
+        experimental_context=experimental_context,
+        created_by_agent=created_by_agent,
+        author=author,
+        now=_now(),
+    )
     with _use_conn(conn, db_path) as conn:
-        conn.execute(
-            "INSERT INTO hypotheses (id, run_id, parent_id, generation, "
-            "category, title, statement, mechanism, expected_effect, "
-            "experimental_context, created_by_agent, author, created_at) "
-            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
-            (
-                hyp_id,
-                run_id,
-                parent_id,
-                generation,
-                category,
-                title,
-                statement,
-                mechanism,
-                expected_effect,
-                experimental_context,
-                created_by_agent,
-                author,
-                now,
-            ),
-        )
-        conn.execute(
-            "INSERT INTO hypothesis_state (hypothesis_id, elo_rating, "
-            "updated_at) VALUES (?,?,?)",
-            (hyp_id, INITIAL_ELO, now),
-        )
+        _insert_hypothesis_rows(conn, fields)
     return hyp_id
 
 
@@ -121,6 +162,28 @@ def _hypothesis_state_updates(
     ]
 
 
+def _persist_hypothesis_state_update(
+    conn: sqlite3.Connection,
+    hypothesis_id: str,
+    updates: list[tuple[str, Any]],
+) -> None:
+    """Apply a dynamic SET-clause update to hypothesis_state.
+
+    Builds the SET clause from trusted literal fragments only; user data
+    flows exclusively through the bound `params`.
+    """
+    sets = [fragment for fragment, _ in updates] + ["updated_at=?"]
+    params: list[Any] = [value for _, value in updates] + [
+        _now(),
+        hypothesis_id,
+    ]
+    set_clause = ", ".join(sets)
+    conn.execute(
+        f"UPDATE hypothesis_state SET {set_clause} WHERE hypothesis_id=?",
+        params,
+    )
+
+
 def update_hypothesis_state(
     hypothesis_id: str,
     *,
@@ -152,8 +215,6 @@ def update_hypothesis_state(
         db_path: Optional override for the SQLite database path.
         conn: Optional open connection to reuse (e.g. from ``transaction``).
     """
-    # Build the SET clause dynamically from trusted literal fragments; user
-    # data only ever flows through the bound `params`.
     updates = _hypothesis_state_updates(
         elo_rating=elo_rating,
         win_delta=win_delta,
@@ -163,17 +224,8 @@ def update_hypothesis_state(
         safety_status=safety_status,
         status=status,
     )
-    sets = [fragment for fragment, _ in updates] + ["updated_at=?"]
-    params: list[Any] = [value for _, value in updates] + [
-        _now(),
-        hypothesis_id,
-    ]
-    set_clause = ", ".join(sets)
     with _use_conn(conn, db_path) as conn:
-        conn.execute(
-            f"UPDATE hypothesis_state SET {set_clause} WHERE hypothesis_id=?",
-            params,
-        )
+        _persist_hypothesis_state_update(conn, hypothesis_id, updates)
 
 
 # Text columns the safety review may redact in place. The hypotheses table is

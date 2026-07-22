@@ -407,18 +407,15 @@ def assess_claim(
 
     Retrieves the most relevant passages for the claim, runs the (swappable)
     ``assessor``, then locates each cited quote in its passage to produce
-    offset-bearing spans. A verdict whose cited quotes cannot be located in the
-    named passage is **downgraded to INSUFFICIENT** — an assessor that cites
-    text not present in the evidence has not grounded the claim (an
-    anti-hallucination provenance guard). Every verdict records the exact
-    spans that drove it and the assessor id, so the claim-evidence graph is
-    independently auditable.
+    offset-bearing spans. A verdict whose cited quotes cannot be located is
+    downgraded to INSUFFICIENT (an anti-hallucination provenance guard).
+    Every verdict records the exact spans that drove it and the assessor id.
 
     Args:
         claim: The atomic claim being assessed.
         passages: The run's candidate evidence passages.
-        assessor: The entailment assessor (deterministic by default; an LLM/NLI
-            assessor is a swappable drop-in).
+        assessor: The entailment assessor (deterministic by default; an
+            LLM/NLI assessor is a swappable drop-in).
         assessor_id: Provenance id recorded on the assessment.
         top_k: Claim-specific retrieval budget.
 
@@ -428,18 +425,9 @@ def assess_claim(
     candidates = retrieve_passages(claim, passages, top_k=top_k)
     by_id = {p.evidence_id: p for p in candidates}
     draft = assessor(claim, candidates)
-
     supporting = _locate_all(draft.supporting, by_id)
     contradicting = _locate_all(draft.contradicting, by_id)
-
-    label = draft.label
-    # Anti-hallucination provenance guard: a SUPPORTS/CONTRADICTS verdict must
-    # be backed by at least one locatable span, else it is unproven.
-    if (label is EntailmentLabel.SUPPORTS and not supporting) or (
-        label is EntailmentLabel.CONTRADICTS and not contradicting
-    ):
-        label = EntailmentLabel.INSUFFICIENT
-
+    label = _downgrade_unproven_label(draft.label, supporting, contradicting)
     return ClaimAssessment(
         claim=claim,
         label=label,
@@ -447,6 +435,23 @@ def assess_claim(
         contradicting_passages=tuple(contradicting),
         assessor=assessor_id,
     )
+
+
+def _downgrade_unproven_label(
+    label: EntailmentLabel,
+    supporting: list[SupportSpan],
+    contradicting: list[SupportSpan],
+) -> EntailmentLabel:
+    """Downgrade a verdict lacking a locatable span to INSUFFICIENT.
+
+    Anti-hallucination provenance guard: a SUPPORTS/CONTRADICTS verdict must
+    be backed by at least one locatable span, else it is unproven.
+    """
+    if (label is EntailmentLabel.SUPPORTS and not supporting) or (
+        label is EntailmentLabel.CONTRADICTS and not contradicting
+    ):
+        return EntailmentLabel.INSUFFICIENT
+    return label
 
 
 def _locate_all(

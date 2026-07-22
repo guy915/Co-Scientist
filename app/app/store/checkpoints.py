@@ -17,6 +17,58 @@ from typing import Any
 from app.store.db import _now, _use_conn, checkpoint_wal
 
 
+def _insert_checkpoint_row(
+    conn: sqlite3.Connection,
+    run_id: str,
+    stage: str,
+    schema_version: int,
+    last_event_seq: int,
+    state: dict[str, Any],
+) -> int:
+    """Insert one checkpoint row and return its assigned per-run sequence."""
+    # Assign the next per-run seq and insert in a single statement (the
+    # same idiom as run_events' _append_event).
+    row = conn.execute(
+        "INSERT INTO checkpoints (run_id, seq, stage, schema_version, "
+        "last_event_seq, state_json, created_at) VALUES (?, "
+        "(SELECT COALESCE(MAX(seq), 0) + 1 FROM checkpoints "
+        "WHERE run_id=?), ?, ?, ?, ?, ?) RETURNING seq",
+        (
+            run_id,
+            run_id,
+            stage,
+            schema_version,
+            last_event_seq,
+            json.dumps(state),
+            _now(),
+        ),
+    ).fetchone()
+    return int(row["seq"])
+
+
+def _prune_older_checkpoints(
+    conn: sqlite3.Connection, run_id: str, seq: int
+) -> None:
+    """Delete a run's checkpoints older than the given sequence.
+
+    get_latest_checkpoint is the only reader in the codebase, so any row
+    below the newest seq is already unreachable -- nothing can load it
+    again. Each envelope is a whole WorkflowState snapshot (hypotheses,
+    reviews, literature, the injected audience context), so keeping the
+    history cost hundreds of kilobytes per boundary crossed: in production
+    it grew this table to 380 MB, 97% of the database, and filled the
+    volume until every write failed with "database or disk is full".
+    Pruning here keeps the table proportional to the number of runs rather
+    than to the number of boundaries they cross. The newest row is always
+    retained, so seq stays monotonic (it is assigned as MAX(seq) + 1) and
+    resume, has_checkpoint, and the bootstrap's expected-seq assertions are
+    all unaffected.
+    """
+    conn.execute(
+        "DELETE FROM checkpoints WHERE run_id=? AND seq<?", (run_id, seq)
+    )
+
+
 def save_checkpoint(
     run_id: str,
     *,
@@ -43,40 +95,10 @@ def save_checkpoint(
         The newly assigned per-run checkpoint sequence number.
     """
     with _use_conn(conn, db_path) as conn:
-        # Assign the next per-run seq and insert in a single statement (the
-        # same idiom as run_events' _append_event).
-        row = conn.execute(
-            "INSERT INTO checkpoints (run_id, seq, stage, schema_version, "
-            "last_event_seq, state_json, created_at) VALUES (?, "
-            "(SELECT COALESCE(MAX(seq), 0) + 1 FROM checkpoints "
-            "WHERE run_id=?), ?, ?, ?, ?, ?) RETURNING seq",
-            (
-                run_id,
-                run_id,
-                stage,
-                schema_version,
-                last_event_seq,
-                json.dumps(state),
-                _now(),
-            ),
-        ).fetchone()
-        seq = int(row["seq"])
-        # Drop the checkpoints this one supersedes. get_latest_checkpoint is
-        # the only reader in the codebase, so any row below the newest seq is
-        # already unreachable -- nothing can load it again. Each envelope is a
-        # whole WorkflowState snapshot (hypotheses, reviews, literature, the
-        # injected audience context), so keeping the history cost hundreds of
-        # kilobytes per boundary crossed: in production it grew this table to
-        # 380 MB, 97% of the database, and filled the volume until every
-        # write failed with "database or disk is full". Pruning here keeps the
-        # table proportional to the number of runs rather than to the number
-        # of boundaries they cross. The newest row is always retained, so seq
-        # stays monotonic (it is assigned as MAX(seq) + 1) and resume,
-        # has_checkpoint, and the bootstrap's expected-seq assertions are all
-        # unaffected.
-        conn.execute(
-            "DELETE FROM checkpoints WHERE run_id=? AND seq<?", (run_id, seq)
+        seq = _insert_checkpoint_row(
+            conn, run_id, stage, schema_version, last_event_seq, state
         )
+        _prune_older_checkpoints(conn, run_id, seq)
     return seq
 
 

@@ -205,50 +205,41 @@ async def _populate_run_title(run_id: str, goal: str) -> None:
         store.set_run_title(run_id, title)
 
 
-@router.post("")
-async def create_run(
-    req: CreateRunRequest,
-    request: Request,
-    background_tasks: BackgroundTasks,
-) -> dict[str, Any]:
-    """Create a new run for the requesting client and return it.
+def _resolve_run_interview(
+    req: CreateRunRequest, request: Request
+) -> tuple[dict[str, Any] | None, CreateRunRequest]:
+    """Validate req.interview_id and merge its fields into the request.
 
-    Args:
-        req: Request body with the research goal, run mode, and run config.
-        request: Incoming HTTP request, used to read the client identifier.
-        background_tasks: FastAPI background queue used to generate the run's
-            session title off the request's critical path.
-
-    Returns:
-        The created run serialized as a dict.
+    Returns the interview record (or None if unset) and the possibly
+    updated request.
     """
-    interview = None
-    if req.interview_id:
-        interview = store.get_interview(req.interview_id)
-        if (
-            interview is None
-            or interview["client_id"] != client_id(request)
-            or interview["status"] != "completed"
-        ):
-            raise HTTPException(
-                status_code=409,
-                detail="a completed owned interview is required",
-            )
-        fields = interview["fields"]
-        req = req.model_copy(
-            update={
-                "research_goal": fields["research_challenge"],
-                "requirements": fields["preferences"],
-                "attributes": fields["focus_area"],
-            }
+    if not req.interview_id:
+        return None, req
+    interview = store.get_interview(req.interview_id)
+    if (
+        interview is None
+        or interview["client_id"] != client_id(request)
+        or interview["status"] != "completed"
+    ):
+        raise HTTPException(
+            status_code=409,
+            detail="a completed owned interview is required",
         )
+    fields = interview["fields"]
+    req = req.model_copy(
+        update={
+            "research_goal": fields["research_challenge"],
+            "requirements": fields["preferences"],
+            "attributes": fields["focus_area"],
+        }
+    )
+    return interview, req
 
-    # The engine is the only provider; select_provider() raises if it is not
-    # importable rather than falling back to anything else. The LLM backend
-    # is recorded separately: the process offline predicate decides whether
-    # this run's science runs against the deterministic offline router.
-    provider = engine_adapter.select_provider()
-    llm_backend = "offline" if engine_adapter.offline_mode() else "real"
+
+def _build_run_config(
+    req: CreateRunRequest, interview: dict[str, Any] | None
+) -> tuple[dict[str, Any], str, str]:
+    """Build the run config, folding in notification and interview settings."""
     config, focus, tier = _build_create_run_config(req)
     if req.notify_on_completion and req.completion_email:
         config["completion_notification"] = {
@@ -257,8 +248,23 @@ async def create_run(
         }
     if interview is not None:
         config["interview_id"] = interview["id"]
-    run_mode = tier
-    # The run is persisted in DRAFT; nothing executes until /start is called.
+    return config, focus, tier
+
+
+def _persist_new_run(
+    req: CreateRunRequest,
+    request: Request,
+    interview: dict[str, Any] | None,
+    config: dict[str, Any],
+    run_mode: str,
+    provider: str,
+    focus: str,
+    llm_backend: str,
+) -> store.RunRow:
+    """Create the DRAFT run row and log its creation event.
+
+    The run is persisted in DRAFT; nothing executes until /start is called.
+    """
     run = store.create_run(
         research_goal=req.research_goal,
         profile=run_mode,
@@ -277,8 +283,40 @@ async def create_run(
             "run_mode": run_mode,
             "provider": provider,
             "focus": focus,
-            "tier": tier,
+            "tier": run_mode,
         },
+    )
+    return run
+
+
+@router.post("")
+async def create_run(
+    req: CreateRunRequest,
+    request: Request,
+    background_tasks: BackgroundTasks,
+) -> dict[str, Any]:
+    """Create a new run for the requesting client and return it.
+
+    Args:
+        req: Request body with the research goal, run mode, and run config.
+        request: Incoming HTTP request, used to read the client identifier.
+        background_tasks: FastAPI background queue used to generate the run's
+            session title off the request's critical path.
+
+    Returns:
+        The created run serialized as a dict.
+    """
+    interview, req = _resolve_run_interview(req, request)
+
+    # The engine is the only provider; select_provider() raises if it is not
+    # importable rather than falling back to anything else. The LLM backend
+    # is recorded separately: the process offline predicate decides whether
+    # this run's science runs against the deterministic offline router.
+    provider = engine_adapter.select_provider()
+    llm_backend = "offline" if engine_adapter.offline_mode() else "real"
+    config, focus, tier = _build_run_config(req, interview)
+    run = _persist_new_run(
+        req, request, interview, config, tier, provider, focus, llm_backend
     )
     # Title generation needs a real model, so only when a provider credential
     # is configured: offline/keyless runs keep the goal-clause fallback.
@@ -439,6 +477,53 @@ async def list_messages(run_id: str) -> dict[str, Any]:
     return {"messages": [m.to_dict() for m in msgs]}
 
 
+def _gather_qa_context(
+    run_id: str,
+) -> tuple[
+    list[dict[str, Any]],
+    list[dict[str, Any]],
+    list[dict[str, Any]],
+    list[Any],
+    list[dict[str, Any]],
+]:
+    """Load a run's state and build its numbered evidence manifest for Q&A."""
+    # All six reads target the same run; share one connection.
+    with store.connect() as conn:
+        hypotheses = store.list_hypotheses(run_id, conn=conn)
+        reviews = store.list_reviews(run_id, conn=conn)
+        matches = store.list_matches(run_id, conn=conn)
+        # [:-1] drops the question just appended above from the history.
+        history = store.list_messages(run_id, conn=conn)[:-1]
+        evidence = store.list_evidence(run_id, conn=conn)
+        citations = store.list_citations(run_id, conn=conn)
+    manifest = qa.build_evidence_manifest(evidence, citations)
+    return hypotheses, reviews, matches, history, manifest
+
+
+def _offline_qa_response(
+    run: store.RunRow,
+    run_id: str,
+    question_msg: store.MessageRow,
+    hypotheses: list[dict[str, Any]],
+    reviews: list[dict[str, Any]],
+    manifest: list[dict[str, Any]],
+) -> StreamingResponse:
+    """Synthesize and stream a deterministic offline-mode Q&A answer.
+
+    Keyless/offline posture: with no configured provider there is no
+    language model to call, so synthesize a deterministic answer grounded in
+    the run's own artifacts rather than streaming an API-key error. The real
+    LLM path is unchanged for a configured provider.
+    """
+    answer = qa.build_offline_answer(
+        run.research_goal, hypotheses, reviews, manifest
+    )
+    return StreamingResponse(
+        qa.stream_offline_answer(run_id, question_msg.id, answer, manifest),
+        media_type="text/event-stream",
+    )
+
+
 @router.post("/{run_id}/messages/ask")
 async def ask_question(run_id: str, req: AskRequest) -> StreamingResponse:
     """Answer a question about the run using a fast LLM.
@@ -450,31 +535,13 @@ async def ask_question(run_id: str, req: AskRequest) -> StreamingResponse:
     # Persist the question first so history survives even if streaming fails.
     question_msg = store.append_message(run_id, "user", req.question, "qa")
 
-    # All six reads target the same run; share one connection.
-    with store.connect() as conn:
-        hypotheses = store.list_hypotheses(run_id, conn=conn)
-        reviews = store.list_reviews(run_id, conn=conn)
-        matches = store.list_matches(run_id, conn=conn)
-        # [:-1] drops the question just appended above from the history.
-        history = store.list_messages(run_id, conn=conn)[:-1]
-        evidence = store.list_evidence(run_id, conn=conn)
-        citations = store.list_citations(run_id, conn=conn)
-
     # Prompt assembly and streaming are delegated to qa.py; the endpoint
     # only gathers state and wires the SSE response.
-    manifest = qa.build_evidence_manifest(evidence, citations)
+    hypotheses, reviews, matches, history, manifest = _gather_qa_context(run_id)
 
-    # Keyless/offline posture: with no configured provider there is no language
-    # model to call, so synthesize a deterministic answer grounded in the run's
-    # own artifacts rather than streaming an API-key error. The real LLM path is
-    # unchanged for a configured provider.
     if engine_adapter.offline_mode():
-        answer = qa.build_offline_answer(
-            run.research_goal, hypotheses, reviews, manifest
-        )
-        return StreamingResponse(
-            qa.stream_offline_answer(run_id, question_msg.id, answer, manifest),
-            media_type="text/event-stream",
+        return _offline_qa_response(
+            run, run_id, question_msg, hypotheses, reviews, manifest
         )
 
     system_prompt = qa.build_system_prompt(

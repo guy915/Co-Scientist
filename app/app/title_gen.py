@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from typing import Any
 
 from app.config import deepseek_non_thinking_extra_body, settings
 
@@ -49,6 +50,31 @@ def _clean_title(raw: str) -> str | None:
     return title
 
 
+async def _request_title_completion(goal: str) -> Any:
+    """Call the chat model for a title completion.
+
+    Bounded by :data:`_TITLE_TIMEOUT_SECONDS` so a slow/hung model never
+    blocks a run's title indefinitely; the caller catches any failure.
+    """
+    import litellm
+
+    return await asyncio.wait_for(
+        litellm.acompletion(
+            model=settings.effective_chat_model,
+            messages=[
+                {"role": "system", "content": _SYSTEM_PROMPT},
+                {"role": "user", "content": goal},
+            ],
+            temperature=0.3,
+            max_tokens=24,
+            extra_body=deepseek_non_thinking_extra_body(
+                settings.effective_chat_model
+            ),
+        ),
+        timeout=_TITLE_TIMEOUT_SECONDS,
+    )
+
+
 async def generate_run_title(goal: str) -> str | None:
     """Return a short session title for ``goal``, or None on any failure.
 
@@ -66,23 +92,7 @@ async def generate_run_title(goal: str) -> str | None:
     if not goal:
         return None
     try:
-        import litellm
-
-        response = await asyncio.wait_for(
-            litellm.acompletion(
-                model=settings.effective_chat_model,
-                messages=[
-                    {"role": "system", "content": _SYSTEM_PROMPT},
-                    {"role": "user", "content": goal},
-                ],
-                temperature=0.3,
-                max_tokens=24,
-                extra_body=deepseek_non_thinking_extra_body(
-                    settings.effective_chat_model
-                ),
-            ),
-            timeout=_TITLE_TIMEOUT_SECONDS,
-        )
+        response = await _request_title_completion(goal)
     except Exception as exc:
         # Titling is optional (covers timeout, missing/broken litellm, bad
         # model, API errors); log and fall back rather than failing the run.

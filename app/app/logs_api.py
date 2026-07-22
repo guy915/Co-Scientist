@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import hmac
 import logging
+import sqlite3
 import time
 from typing import Any
 
@@ -136,6 +137,42 @@ def _min_levelno(min_level: str | None) -> int:
     return levelno
 
 
+def _query_logs_payload(
+    conn: sqlite3.Connection,
+    *,
+    after_id: int,
+    limit: int,
+    min_levelno: int,
+    run_id: str | None,
+    q: str | None,
+    noise_loggers: tuple[str, ...] | None,
+    scope_client_id: str | None,
+) -> dict[str, Any]:
+    """Run the three reads backing one logs response on an open connection."""
+    rows = store.list_logs(
+        after_id=after_id,
+        min_levelno=min_levelno,
+        run_id=run_id,
+        contains=q,
+        noise_loggers=noise_loggers,
+        scope_client_id=scope_client_id,
+        limit=limit,
+        conn=conn,
+    )
+    # `total` counts the whole matching set (no cursor, no limit) so the
+    # UI badge shows the true size even when the window is capped.
+    total = store.count_logs(
+        min_levelno=min_levelno,
+        run_id=run_id,
+        contains=q,
+        noise_loggers=noise_loggers,
+        scope_client_id=scope_client_id,
+        conn=conn,
+    )
+    last_id = store.latest_log_id(conn=conn)
+    return {"logs": rows, "last_id": last_id, "total": total}
+
+
 def logs_payload(
     *,
     after_id: int,
@@ -156,39 +193,26 @@ def logs_payload(
         q: Case-insensitive message substring filter.
         verbose: Include high-volume noise records (HTTP access, UI
             clicks/navigation, dependency chatter) below WARNING.
-        scope_client_id: Restrict to one client's own records; None is
-            the app-wide view and is operator-only at the endpoints.
+        scope_client_id: One client's records only; None is the
+            app-wide, operator-only view.
 
     Raises:
         HTTPException: 422 when ``min_level`` is not a known level name.
     """
     min_levelno = _min_levelno(min_level)
     noise_loggers = None if verbose else NOISE_LOGGERS
-    # One connection for the three reads: this payload backs the UI's
-    # continuous poll, so per-call connections would triple the churn.
+    # One connection for the three reads: the UI polls this continuously.
     with store.connect() as conn:
-        rows = store.list_logs(
+        return _query_logs_payload(
+            conn,
             after_id=after_id,
-            min_levelno=min_levelno,
-            run_id=run_id,
-            contains=q,
-            noise_loggers=noise_loggers,
-            scope_client_id=scope_client_id,
             limit=limit,
-            conn=conn,
-        )
-        # `total` counts the whole matching set (no cursor, no limit) so the
-        # UI badge shows the true size even when the window is capped.
-        total = store.count_logs(
             min_levelno=min_levelno,
             run_id=run_id,
-            contains=q,
+            q=q,
             noise_loggers=noise_loggers,
             scope_client_id=scope_client_id,
-            conn=conn,
         )
-        last_id = store.latest_log_id(conn=conn)
-    return {"logs": rows, "last_id": last_id, "total": total}
 
 
 class ClientLogRecord(BaseModel):

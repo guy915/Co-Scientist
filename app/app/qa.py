@@ -70,12 +70,6 @@ def build_offline_answer(
     it deliberately does not interpret or key off the question text, so it
     never fabricates a question-specific claim.
 
-    Args:
-        research_goal: The run's research goal.
-        hypotheses: Hypothesis rows, already ordered by Elo descending.
-        reviews: Reviewer/meta-review rows for the run.
-        manifest: The numbered evidence manifest for citation grounding.
-
     Returns:
         The grounded answer text.
     """
@@ -84,29 +78,46 @@ def build_offline_answer(
         "language model configured).",
         f"Research goal: {research_goal}",
     ]
-    if hypotheses:
-        parts.append(
-            f"The run produced {len(hypotheses)} hypotheses; the "
-            f"top-ranked by Elo are:"
-        )
-        parts.extend(_offline_hypothesis_lines(hypotheses, bool(manifest)))
-    else:
-        parts.append(
+    parts.extend(_offline_hypothesis_summary(hypotheses, manifest))
+    parts.extend(_offline_review_note(reviews))
+    parts.extend(_offline_manifest_note(manifest))
+    return "\n".join(parts)
+
+
+def _offline_hypothesis_summary(
+    hypotheses: list[dict[str, Any]], manifest: list[dict[str, Any]]
+) -> list[str]:
+    """Render the hypothesis-summary lines of the offline answer."""
+    if not hypotheses:
+        return [
             "No hypotheses have been generated for this run yet, so there "
             "is nothing to summarize."
-        )
-    if reviews:
-        latest = reviews[-1]
-        summary = (latest.get("summary") or "").strip()
-        if summary:
-            parts.append(f"Latest reviewer note: {summary}")
-    if manifest:
-        top = manifest[0]
-        parts.append(
-            f"Grounded in {len(manifest)} source(s), including "
-            f"[1] {top.get('title') or 'Untitled source'}."
-        )
-    return "\n".join(parts)
+        ]
+    lines = [
+        f"The run produced {len(hypotheses)} hypotheses; the "
+        f"top-ranked by Elo are:"
+    ]
+    lines.extend(_offline_hypothesis_lines(hypotheses, bool(manifest)))
+    return lines
+
+
+def _offline_review_note(reviews: list[dict[str, Any]]) -> list[str]:
+    """Render the latest-reviewer-note line, or nothing when absent."""
+    if not reviews:
+        return []
+    summary = (reviews[-1].get("summary") or "").strip()
+    return [f"Latest reviewer note: {summary}"] if summary else []
+
+
+def _offline_manifest_note(manifest: list[dict[str, Any]]) -> list[str]:
+    """Render the grounding-source-count line, or nothing when empty."""
+    if not manifest:
+        return []
+    top = manifest[0]
+    return [
+        f"Grounded in {len(manifest)} source(s), including "
+        f"[1] {top.get('title') or 'Untitled source'}."
+    ]
 
 
 async def stream_offline_answer(
@@ -248,33 +259,40 @@ async def stream_answer(
     references as the answer streams), then answer chunks, then a ``done``
     frame. On any error, persists and emits a fallback message.
 
-    Args:
-        run_id: The run being asked about.
-        question: The user's question.
-        question_id: Message id of the persisted question, echoed on ``done``.
-        system_prompt: The assembled grounding prompt.
-        manifest: The evidence manifest, stored with the answer.
-
     Yields:
         SSE ``data:`` frames.
     """
-    model = settings.effective_chat_model
     try:
-        # Sources frame goes out before any text so the UI can resolve [n]
-        # citation markers while the answer is still streaming.
-        if manifest:
-            yield sse_frame({"type": "sources", "sources": manifest})
-
-        # Relay each token delta as its own SSE frame, accumulating the
-        # full text so the complete answer can be persisted at the end.
-        full: list[str] = []
-        async for frame in _relay_answer_chunks(
-            model, system_prompt, question, full
+        async for frame in _stream_answer_frames(
+            run_id, question, question_id, system_prompt, manifest
         ):
             yield frame
-
-        _persist_qa_answer(run_id, full, manifest)
-        yield sse_frame({"type": "done", "question_id": question_id})
     except Exception as exc:
         fallback = _handle_qa_stream_error(run_id, exc)
         yield sse_frame({"type": "error", "message": fallback})
+
+
+async def _stream_answer_frames(
+    run_id: str,
+    question: str,
+    question_id: int,
+    system_prompt: str,
+    manifest: list[dict[str, Any]],
+) -> AsyncGenerator[str, None]:
+    """Yield the sources/chunk/done frames of a successful answer stream."""
+    model = settings.effective_chat_model
+    # Sources frame goes out before any text so the UI can resolve [n]
+    # citation markers while the answer is still streaming.
+    if manifest:
+        yield sse_frame({"type": "sources", "sources": manifest})
+
+    # Relay each token delta as its own SSE frame, accumulating the full
+    # text so the complete answer can be persisted at the end.
+    full: list[str] = []
+    async for frame in _relay_answer_chunks(
+        model, system_prompt, question, full
+    ):
+        yield frame
+
+    _persist_qa_answer(run_id, full, manifest)
+    yield sse_frame({"type": "done", "question_id": question_id})

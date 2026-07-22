@@ -165,19 +165,20 @@ def _reclaim_disk_space() -> None:
             )
 
 
-@asynccontextmanager
-async def lifespan(
-    app: FastAPI,
-) -> AsyncGenerator[None, None]:
-    """Manages FastAPI application startup and shutdown."""
-    # Startup. Re-install capture: a prior lifespan cycle (tests, reloads)
-    # may have drained and stopped the import-time pipeline.
-    _install_log_capture()
-    logger.info("Starting Co-Scientist server...")
-    # Install the deterministic offline LLM router unconditionally. It is a
-    # harmless passthrough for real models -- only ``offline/``-prefixed calls
-    # are answered locally -- so no offline traffic flows until a run requests
-    # the offline backend.
+def _startup_engine_setup() -> None:
+    """Install the offline router, log engine config, validate tools_config.
+
+    The offline LLM router is installed unconditionally: it is a harmless
+    passthrough for real models -- only ``offline/``-prefixed calls are
+    answered locally -- so no offline traffic flows until a run requests
+    the offline backend. ``select_provider()`` always returns "engine" now
+    (or raises if the engine is not importable) -- there is no mock
+    fallback, logged once here. Validation fails loudly if a configured
+    tools_config path is unreadable rather than silently running the
+    engine's default tools (the historical bug: the setting was logged but
+    never forwarded to the generator, so a bad path went unnoticed); the
+    generator is built per run, so this is checked here at startup, once.
+    """
     from co_scientist.offline_llm import install_offline_router
 
     install_offline_router()
@@ -186,35 +187,18 @@ async def lifespan(
         logger.info("Tools config: %s", settings.tools_config)
     else:
         logger.info("Tools config: not set (generator defaults)")
-
-    # Logged once at startup. select_provider() always returns "engine" now
-    # (or raises if the engine is not importable) -- there is no mock fallback.
     provider = engine_adapter.select_provider()
     logger.info("Workflow provider: %s", provider)
-
-    # Fail loudly if a configured tools_config path is unreadable rather than
-    # silently running the engine's default tools (the historical bug: the
-    # setting was logged but never forwarded to the generator, so a bad path
-    # went unnoticed). The generator is built per run, so this is validated
-    # here at startup, once.
     engine_adapter.validate_tools_config(settings.tools_config)
 
-    # Deliberately inline, before a single request is served. VACUUM and a
-    # truncating WAL checkpoint need exclusive access, and SQLite makes a
-    # writer that is waiting for one block every other writer behind it. Run
-    # alongside a serving process the sweep never gets its turn: a
-    # long-lived reader (an SSE stream tailing a run) keeps it waiting
-    # indefinitely while every write fails with "database is locked", which
-    # is how this wedged production -- an idle database, no writes for
-    # minutes, and every run creation returning 500. Startup is the one
-    # moment the process is guaranteed no readers, and the sweep is cheap
-    # enough to afford there: pruning and vacuuming a 575 MB database
-    # measured under a second.
-    _reclaim_disk_space()
 
-    # Reconcile runs left non-terminal by a previous process: a fresh process
-    # has no workflow tasks running, so anything still queued/running was
-    # interrupted by a crash or restart and would otherwise be stuck forever.
+def _reconcile_and_log_interrupted_runs() -> dict[str, list[str]]:
+    """Reconcile runs left non-terminal by a previous process, and log it.
+
+    A fresh process has no workflow tasks running, so anything still
+    queued/running was interrupted by a crash or restart and would
+    otherwise be stuck forever.
+    """
     reconciled = store.reconcile_interrupted_runs()
     if reconciled["failed"]:
         logger.info(
@@ -228,7 +212,72 @@ async def lifespan(
             len(reconciled["resumable"]),
             ", ".join(r[:8] for r in reconciled["resumable"]),
         )
+    return reconciled
 
+
+async def _resume_checkpointed_runs(resumable: list[str]) -> None:
+    """Relaunch every run left with a resumable checkpoint.
+
+    Auto-resume launcher: relaunches each resumable run from its last
+    checkpoint so an interrupted run finishes rather than staying stuck.
+    """
+    if not resumable:
+        return
+    from app.runs import resume_interrupted_runs
+
+    await resume_interrupted_runs(resumable)
+
+
+def _launch_embedded_recovery_workers(
+    recovery_workers: list[asyncio.Task[None]],
+) -> None:
+    """Start one recovery worker-pool task per run with an active engine task.
+
+    A per-run recovery cohort waits out any unexpired lease and then
+    resumes the same durable queue. Scientific effects remain exactly-once
+    because every claim is lease- and checkpoint-gated. It runs on a
+    thread because the cohort's SQLite writes and state serialization are
+    synchronous: on the event loop they starve request handling, which is
+    how a boot with runs to recover stopped answering its healthcheck.
+    """
+    if os.getenv("COSCIENTIST_EMBEDDED_WORKER", "1") != "1":
+        return
+    from app import task_worker
+
+    for run_id in store.list_active_engine_task_run_ids():
+        recovery_workers.append(
+            asyncio.create_task(
+                asyncio.to_thread(
+                    task_worker.run_run_worker_pool_sync,
+                    run_id,
+                    f"embedded-recovery:{os.getpid()}",
+                )
+            )
+        )
+
+
+async def _shutdown_recovery(
+    recovery: asyncio.Task[None],
+    recovery_workers: list[asyncio.Task[None]],
+) -> None:
+    """Cancel and await the recovery task and its embedded worker tasks."""
+    recovery.cancel()
+    await asyncio.gather(recovery, return_exceptions=True)
+    for worker in recovery_workers:
+        worker.cancel()
+    if recovery_workers:
+        await asyncio.gather(*recovery_workers, return_exceptions=True)
+
+
+def _start_recovery_task(
+    reconciled: dict[str, list[str]],
+) -> tuple[asyncio.Task[None], list[asyncio.Task[None]]]:
+    """Fire off the recovery task, off the startup critical path.
+
+    Returns the task itself alongside the (initially empty, later
+    populated) list of embedded recovery-worker tasks it launches, so the
+    caller can cancel and await both at shutdown.
+    """
     recovery_workers: list[asyncio.Task[None]] = []
 
     async def _recover_runs() -> None:
@@ -243,37 +292,39 @@ async def lifespan(
         window. Recovery is not a precondition for serving, so it runs
         alongside it.
         """
-        if reconciled["resumable"]:
-            # Auto-resume launcher: relaunch each resumable run from its
-            # last checkpoint so an interrupted run finishes rather than
-            # staying stuck.
-            from app.runs import resume_interrupted_runs
-
-            await resume_interrupted_runs(reconciled["resumable"])
-
-        if os.getenv("COSCIENTIST_EMBEDDED_WORKER", "1") == "1":
-            from app import task_worker
-
-            for run_id in store.list_active_engine_task_run_ids():
-                # A per-run recovery cohort waits out any unexpired lease
-                # and then resumes the same durable queue. Scientific
-                # effects remain exactly-once because every claim is lease-
-                # and checkpoint-gated. It runs on a thread because the
-                # cohort's SQLite writes and state serialization are
-                # synchronous: on the event loop they starve request
-                # handling, which is how a boot with runs to recover stopped
-                # answering its healthcheck.
-                recovery_workers.append(
-                    asyncio.create_task(
-                        asyncio.to_thread(
-                            task_worker.run_run_worker_pool_sync,
-                            run_id,
-                            f"embedded-recovery:{os.getpid()}",
-                        )
-                    )
-                )
+        await _resume_checkpointed_runs(reconciled["resumable"])
+        _launch_embedded_recovery_workers(recovery_workers)
 
     recovery = asyncio.create_task(_recover_runs())
+    return recovery, recovery_workers
+
+
+@asynccontextmanager
+async def lifespan(
+    app: FastAPI,
+) -> AsyncGenerator[None, None]:
+    """Manages FastAPI application startup and shutdown."""
+    # Startup. Re-install capture: a prior lifespan cycle (tests, reloads)
+    # may have drained and stopped the import-time pipeline.
+    _install_log_capture()
+    logger.info("Starting Co-Scientist server...")
+    _startup_engine_setup()
+
+    # Deliberately inline, before a single request is served. VACUUM and a
+    # truncating WAL checkpoint need exclusive access, and SQLite makes a
+    # writer that is waiting for one block every other writer behind it. Run
+    # alongside a serving process the sweep never gets its turn: a
+    # long-lived reader (an SSE stream tailing a run) keeps it waiting
+    # indefinitely while every write fails with "database is locked", which
+    # is how this wedged production -- an idle database, no writes for
+    # minutes, and every run creation returning 500. Startup is the one
+    # moment the process is guaranteed no readers, and the sweep is cheap
+    # enough to afford there: pruning and vacuuming a 575 MB database
+    # measured under a second.
+    _reclaim_disk_space()
+
+    reconciled = _reconcile_and_log_interrupted_runs()
+    recovery, recovery_workers = _start_recovery_task(reconciled)
 
     # No-op after the first successful startup; see seed.py for the
     # per-goal skip/re-seed logic.
@@ -282,12 +333,7 @@ async def lifespan(
     try:
         yield
     finally:
-        recovery.cancel()
-        await asyncio.gather(recovery, return_exceptions=True)
-        for worker in recovery_workers:
-            worker.cancel()
-        if recovery_workers:
-            await asyncio.gather(*recovery_workers, return_exceptions=True)
+        await _shutdown_recovery(recovery, recovery_workers)
         # Shutdown
         logger.info("Shutting down Co-Scientist server...")
         # Drain queued log records into the store before the WAL merge below.

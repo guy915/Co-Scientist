@@ -137,13 +137,10 @@ def _agent_insights(
     }
 
 
-def _idea_buckets(
-    safe_hypotheses: list[dict[str, Any]],
-    all_hypotheses: list[dict[str, Any]],
+def _claim_edge_reasons(
     claim_edges: list[dict[str, Any]],
-) -> dict[str, list[dict[str, Any]]]:
-    """Classify released leaders and excluded ideas with explicit reasons."""
-    safe_ids = {str(hypothesis.get("id")) for hypothesis in safe_hypotheses}
+) -> dict[str, set[str]]:
+    """Map hypothesis id -> reasons its claims were not fully supported."""
     edge_reasons: dict[str, set[str]] = {}
     for edge in claim_edges:
         if edge.get("label") == "supports" or (
@@ -154,7 +151,14 @@ def _idea_buckets(
         edge_reasons.setdefault(str(edge.get("hypothesis_id")), set()).add(
             "Evidence verification did not support every material claim."
         )
-    high_potential = [
+    return edge_reasons
+
+
+def _high_potential_bucket(
+    safe_hypotheses: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Build the 'high_potential' idea bucket from the top safe hypotheses."""
+    return [
         {
             "id": str(hypothesis.get("id")),
             "title": str(hypothesis.get("title") or "Untitled idea"),
@@ -164,23 +168,40 @@ def _idea_buckets(
         }
         for hypothesis in safe_hypotheses[:5]
     ]
+
+
+def _non_viable_reasons(
+    hypothesis: dict[str, Any], edge_reasons: dict[str, set[str]]
+) -> list[str]:
+    """Return the excluded-idea reasons for one non-viable hypothesis."""
+    hypothesis_id = str(hypothesis.get("id"))
+    reasons = sorted(edge_reasons.get(hypothesis_id, set()))
+    if is_blocking_status(str(hypothesis.get("safety_status") or "")):
+        reasons.append("The scientific safety review blocked this idea.")
+    # Under rank-and-publish an idea only leaves the ranked report when it
+    # is contradicted (an edge reason above), blocked by safety, or set
+    # aside during review/deduplication -- never for being merely
+    # unsupported (those are published and badged "Unverified").
+    if not reasons and hypothesis.get("status") == "rejected":
+        reasons.append(
+            "Set aside during review as inaccurate, non-novel, or a "
+            "near-duplicate of a higher-ranked idea."
+        )
+    return reasons
+
+
+def _non_viable_bucket(
+    all_hypotheses: list[dict[str, Any]],
+    safe_ids: set[str],
+    edge_reasons: dict[str, set[str]],
+) -> list[dict[str, Any]]:
+    """Build the 'non_viable' idea bucket for every excluded hypothesis."""
     non_viable = []
     for hypothesis in all_hypotheses:
         hypothesis_id = str(hypothesis.get("id"))
         if hypothesis_id in safe_ids:
             continue
-        reasons = sorted(edge_reasons.get(hypothesis_id, set()))
-        if is_blocking_status(str(hypothesis.get("safety_status") or "")):
-            reasons.append("The scientific safety review blocked this idea.")
-        # Under rank-and-publish an idea only leaves the ranked report when it
-        # is contradicted (an edge reason above), blocked by safety, or set
-        # aside during review/deduplication -- never for being merely
-        # unsupported (those are published and badged "Unverified").
-        if not reasons and hypothesis.get("status") == "rejected":
-            reasons.append(
-                "Set aside during review as inaccurate, non-novel, or a "
-                "near-duplicate of a higher-ranked idea."
-            )
+        reasons = _non_viable_reasons(hypothesis, edge_reasons)
         non_viable.append(
             {
                 "id": hypothesis_id,
@@ -189,7 +210,23 @@ def _idea_buckets(
                 or "Withheld from the ranked report.",
             }
         )
-    return {"high_potential": high_potential, "non_viable": non_viable}
+    return non_viable
+
+
+def _idea_buckets(
+    safe_hypotheses: list[dict[str, Any]],
+    all_hypotheses: list[dict[str, Any]],
+    claim_edges: list[dict[str, Any]],
+) -> dict[str, list[dict[str, Any]]]:
+    """Classify released leaders and excluded ideas with explicit reasons."""
+    safe_ids = {str(hypothesis.get("id")) for hypothesis in safe_hypotheses}
+    edge_reasons = _claim_edge_reasons(claim_edges)
+    return {
+        "high_potential": _high_potential_bucket(safe_hypotheses),
+        "non_viable": _non_viable_bucket(
+            all_hypotheses, safe_ids, edge_reasons
+        ),
+    }
 
 
 def _released_claim_evidence(
@@ -323,43 +360,57 @@ def _exclude_unsafe_hypotheses(
         The hypotheses safe to synthesize, in the original order.
     """
     contradicted = _contradicted_hypothesis_ids(run_id, db_path, claim_edges)
-    safe: list[dict[str, Any]] = []
-    for hyp in hyps:
-        if hyp.get("status") == "rejected":
-            continue
-        # Contradicted ideas have evidence against them and are withheld
-        # entirely; merely-unsupported ideas are published with an "Unverified"
-        # badge (see _unverified_hypothesis_ids), not excluded here.
-        if str(hyp.get("id")) in contradicted:
-            logger.warning(
-                "Excluding hypothesis %s from synthesis: contradicted claim",
-                hyp.get("id"),
-            )
-            continue
-        status = hyp.get("safety_status")
-        # Common path: the screen already decided; honor the persisted status
-        # without re-reviewing or double-recording the audit row.
-        if status and status != "pending":
-            if is_blocking_status(str(status)):
-                logger.warning(
-                    "Excluding hypothesis %s from synthesis: %s",
-                    hyp.get("id"),
-                    status,
-                )
-                continue
-            safe.append(hyp)
-            continue
-        # Fallback for a row the screen never touched (legacy run).
-        review = review_hypothesis_safety(str(hyp.get("statement") or ""))
-        if review.blocks_tournament:
-            record_hypothesis_block(
-                run_id, hyp.get("id"), review, db_path=db_path
-            )
+    return [
+        hyp
+        for hyp in hyps
+        if _hypothesis_passes_safety_gate(run_id, hyp, contradicted, db_path)
+    ]
+
+
+def _hypothesis_passes_safety_gate(
+    run_id: str,
+    hyp: dict[str, Any],
+    contradicted: set[str],
+    db_path: str | None,
+) -> bool:
+    """Return whether one hypothesis clears the contradiction/safety gate."""
+    if hyp.get("status") == "rejected":
+        return False
+    # Contradicted ideas have evidence against them and are withheld
+    # entirely; merely-unsupported ideas are published with an "Unverified"
+    # badge (see _unverified_hypothesis_ids), not excluded here.
+    if str(hyp.get("id")) in contradicted:
+        logger.warning(
+            "Excluding hypothesis %s from synthesis: contradicted claim",
+            hyp.get("id"),
+        )
+        return False
+    status = hyp.get("safety_status")
+    # Common path: the screen already decided; honor the persisted status
+    # without re-reviewing or double-recording the audit row.
+    if status and status != "pending":
+        if is_blocking_status(str(status)):
             logger.warning(
                 "Excluding hypothesis %s from synthesis: %s",
                 hyp.get("id"),
-                review.outcome.value,
+                status,
             )
-            continue
-        safe.append(hyp)
-    return safe
+            return False
+        return True
+    return _legacy_hypothesis_passes_safety_gate(run_id, hyp, db_path)
+
+
+def _legacy_hypothesis_passes_safety_gate(
+    run_id: str, hyp: dict[str, Any], db_path: str | None
+) -> bool:
+    """Re-review and audit a row the pre-tournament screen never touched."""
+    review = review_hypothesis_safety(str(hyp.get("statement") or ""))
+    if not review.blocks_tournament:
+        return True
+    record_hypothesis_block(run_id, hyp.get("id"), review, db_path=db_path)
+    logger.warning(
+        "Excluding hypothesis %s from synthesis: %s",
+        hyp.get("id"),
+        review.outcome.value,
+    )
+    return False

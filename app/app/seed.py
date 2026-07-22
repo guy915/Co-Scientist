@@ -9,6 +9,7 @@ offline deterministic backend (no LLM provider required, no API spend).
 from __future__ import annotations
 
 import logging
+from typing import Any
 
 from app import engine_adapter, store
 from app.run_modes import resolved_run_config, setup_config
@@ -42,6 +43,44 @@ _DEMO_TITLES: dict[str, str] = {
 }
 
 
+def _build_demo_run_config(goal: str) -> dict[str, Any]:
+    """Build the resolved run config for one demo goal.
+
+    Express tier keeps the startup cost of driving the full engine graph
+    bounded (a standard-tier offline run costs tens of seconds per goal);
+    literature review is off because seeding runs MCP-less by design, so
+    probing for a server would only add latency, never evidence.
+    """
+    return resolved_run_config(
+        {
+            "setup": setup_config(research_goal=goal, tier=_DEMO_TIER),
+            "enable_literature_review": False,
+            "llm_backend": "offline",
+        }
+    )
+
+
+def _ensure_demo_run_row(
+    goal: str,
+    run: RunRow | None,
+    config: dict[str, Any],
+    db_path: str | None,
+) -> RunRow:
+    """Return `run`, creating the demo run row first if one doesn't exist."""
+    if run is not None:
+        return run
+    return store.create_run(
+        research_goal=goal,
+        profile=_DEMO_TIER,
+        provider="engine",
+        config=config,
+        client_id=DEMO_CLIENT_ID,
+        title=_DEMO_TITLES.get(goal),
+        llm_backend="offline",
+        db_path=db_path,
+    )
+
+
 async def _seed_demo_run(
     goal: str,
     run: RunRow | None,
@@ -54,28 +93,8 @@ async def _seed_demo_run(
         run: The existing run row for this goal, or None to create one.
         db_path: Optional override for the SQLite database path.
     """
-    # Express tier keeps the startup cost of driving the full engine graph
-    # bounded (a standard-tier offline run costs tens of seconds per goal);
-    # literature review is off because seeding runs MCP-less by design, so
-    # probing for a server would only add latency, never evidence.
-    config = resolved_run_config(
-        {
-            "setup": setup_config(research_goal=goal, tier=_DEMO_TIER),
-            "enable_literature_review": False,
-            "llm_backend": "offline",
-        }
-    )
-    if run is None:
-        run = store.create_run(
-            research_goal=goal,
-            profile=_DEMO_TIER,
-            provider="engine",
-            config=config,
-            client_id=DEMO_CLIENT_ID,
-            title=_DEMO_TITLES.get(goal),
-            llm_backend="offline",
-            db_path=db_path,
-        )
+    config = _build_demo_run_config(goal)
+    run = _ensure_demo_run_row(goal, run, config, db_path)
     # force_provider="engine" runs demo seeding through the real engine
     # graph; the "llm_backend": "offline" override above pins it to the
     # deterministic offline router regardless of whether a real LLM key is

@@ -162,36 +162,40 @@ def _interview_request(interview: dict[str, Any]) -> tuple[str, Any, Any]:
     Returns:
         A ``(model, messages, response_format)`` triple ready for litellm.
     """
-    from co_scientist.llm_request import (
-        _inject_schema_into_prompt,
-        _supports_json_schema_response_format,
-    )
+    from co_scientist.llm_request import _supports_json_schema_response_format
 
     model = settings.effective_chat_model
+    system_prompt = _system_prompt(interview)
     user_prompt = _prompt(interview)
     if _supports_json_schema_response_format(model):
-        return (
-            model,
-            [
-                {"role": "system", "content": _system_prompt(interview)},
-                {"role": "user", "content": user_prompt},
-            ],
-            {"type": "json_schema", "json_schema": _RESPONSE_SCHEMA},
-        )
+        return model, *_json_schema_turn(system_prompt, user_prompt)
     # DeepSeek and other json_object-only providers reject the json_schema
     # response format; downgrade to json_object and restate the schema in the
     # prompt, mirroring the engine's provider-capability shim so the interview
     # survives providers the science path already handles.
-    return (
-        model,
-        [
-            {"role": "system", "content": _system_prompt(interview)},
-            {
-                "role": "user",
-                "content": _inject_schema_into_prompt(
-                    user_prompt, _RESPONSE_SCHEMA
-                ),
-            },
-        ],
-        {"type": "json_object"},
-    )
+    return model, *_json_object_turn(system_prompt, user_prompt)
+
+
+def _json_schema_turn(system_prompt: str, user_prompt: str) -> tuple[Any, Any]:
+    """Build the messages/response_format pair for a schema-capable model."""
+    messages = [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": user_prompt},
+    ]
+    return messages, {"type": "json_schema", "json_schema": _RESPONSE_SCHEMA}
+
+
+def _json_object_turn(system_prompt: str, user_prompt: str) -> tuple[Any, Any]:
+    """Build the messages/response_format pair for a json_object-only model."""
+    from co_scientist.llm_request import _inject_schema_into_prompt
+
+    messages = [
+        {"role": "system", "content": system_prompt},
+        {
+            "role": "user",
+            "content": _inject_schema_into_prompt(
+                user_prompt, _RESPONSE_SCHEMA
+            ),
+        },
+    ]
+    return messages, {"type": "json_object"}

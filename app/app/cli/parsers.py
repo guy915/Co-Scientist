@@ -57,13 +57,8 @@ def _json_flag(parser: argparse.ArgumentParser) -> None:
     )
 
 
-def _common_parser() -> argparse.ArgumentParser:
-    """Return the parent parser carrying the global connection options.
-
-    Attached to every leaf subcommand (not the top level) so the options may
-    follow the command, e.g. ``cosci runs list --api-url ...``.
-    """
-    common = argparse.ArgumentParser(add_help=False)
+def _add_connection_options(common: argparse.ArgumentParser) -> None:
+    """Add the API URL/client-id/logs-token options to the common parser."""
     common.add_argument(
         "--api-url",
         default=os.environ.get("COSCIENTIST_API_URL") or DEFAULT_API_URL,
@@ -91,6 +86,10 @@ def _common_parser() -> argparse.ArgumentParser:
             "local (env COSCIENTIST_LOGS_TOKEN)"
         ),
     )
+
+
+def _add_request_behavior_options(common: argparse.ArgumentParser) -> None:
+    """Add the timeout/verbose options to the common parser."""
     common.add_argument(
         "--timeout",
         type=float,
@@ -106,6 +105,17 @@ def _common_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="log every request's method, path, status, and time to stderr",
     )
+
+
+def _common_parser() -> argparse.ArgumentParser:
+    """Return the parent parser carrying the global connection options.
+
+    Attached to every leaf subcommand (not the top level) so the options may
+    follow the command, e.g. ``cosci runs list --api-url ...``.
+    """
+    common = argparse.ArgumentParser(add_help=False)
+    _add_connection_options(common)
+    _add_request_behavior_options(common)
     return common
 
 
@@ -137,16 +147,8 @@ def _add_config(
     parser.set_defaults(handler=status_cmd.handle_config)
 
 
-def _add_logs(
-    sub: argparse._SubParsersAction[argparse.ArgumentParser],
-    common: argparse.ArgumentParser,
-) -> None:
-    """Register the top-level ``logs`` command."""
-    parser = sub.add_parser(
-        "logs",
-        parents=[common],
-        help="query the app-wide persisted log records",
-    )
+def _add_logs_filter_options(parser: argparse.ArgumentParser) -> None:
+    """Add the record-filtering options shared by the ``logs`` command."""
     parser.add_argument(
         "--run", metavar="RUN_ID", help="only records bound to this run"
     )
@@ -170,6 +172,18 @@ def _add_logs(
         "--limit", type=int, default=100, metavar="N", help="max records"
     )
     parser.add_argument(
+        "--all",
+        action="store_true",
+        help=(
+            "include high-volume records hidden by default (HTTP access, "
+            "UI clicks/navigation, dependency chatter below warning)"
+        ),
+    )
+
+
+def _add_logs_action_options(parser: argparse.ArgumentParser) -> None:
+    """Add the follow/clear behavior options for the ``logs`` command."""
+    parser.add_argument(
         "--follow",
         action="store_true",
         help="keep polling for new records until interrupted",
@@ -186,34 +200,26 @@ def _add_logs(
         action="store_true",
         help="delete every persisted log record instead of reading",
     )
-    parser.add_argument(
-        "--all",
-        action="store_true",
-        help=(
-            "include high-volume records hidden by default (HTTP access, "
-            "UI clicks/navigation, dependency chatter below warning)"
-        ),
+
+
+def _add_logs(
+    sub: argparse._SubParsersAction[argparse.ArgumentParser],
+    common: argparse.ArgumentParser,
+) -> None:
+    """Register the top-level ``logs`` command."""
+    parser = sub.add_parser(
+        "logs",
+        parents=[common],
+        help="query the app-wide persisted log records",
     )
+    _add_logs_filter_options(parser)
+    _add_logs_action_options(parser)
     _json_flag(parser)
     parser.set_defaults(handler=logs_cmd.handle_logs)
 
 
-def _add_create(
-    sub: argparse._SubParsersAction[argparse.ArgumentParser],
-    common: argparse.ArgumentParser,
-) -> None:
-    """Register ``runs create`` with its config knobs."""
-    parser = sub.add_parser(
-        "create", parents=[common], help="create a draft run from a goal"
-    )
-    parser.add_argument(
-        "goal", help="the research goal ('-' reads it from stdin)"
-    )
-    parser.add_argument(
-        "--start",
-        action="store_true",
-        help="immediately start the created run",
-    )
+def _add_create_planning_options(parser: argparse.ArgumentParser) -> None:
+    """Add the repeatable planning-input options for ``runs create``."""
     parser.add_argument(
         "--requirement",
         dest="requirements",
@@ -241,6 +247,10 @@ def _add_create(
     parser.add_argument(
         "--tier", choices=RUN_TIER_VALUES, help="run tier / depth"
     )
+
+
+def _add_create_size_overrides(parser: argparse.ArgumentParser) -> None:
+    """Add the numeric run-size override options for ``runs create``."""
     parser.add_argument(
         "--initial-hypotheses",
         dest="initial_hypotheses_count",
@@ -276,6 +286,26 @@ def _add_create(
         default=None,
         help="enable/disable literature review (--literature/--no-literature)",
     )
+
+
+def _add_create(
+    sub: argparse._SubParsersAction[argparse.ArgumentParser],
+    common: argparse.ArgumentParser,
+) -> None:
+    """Register ``runs create`` with its config knobs."""
+    parser = sub.add_parser(
+        "create", parents=[common], help="create a draft run from a goal"
+    )
+    parser.add_argument(
+        "goal", help="the research goal ('-' reads it from stdin)"
+    )
+    parser.add_argument(
+        "--start",
+        action="store_true",
+        help="immediately start the created run",
+    )
+    _add_create_planning_options(parser)
+    _add_create_size_overrides(parser)
     _json_flag(parser)
     parser.set_defaults(handler=runs_cmd.handle_create)
 
@@ -295,14 +325,11 @@ def _add_run_id_command(
     return parser
 
 
-def _add_runs(
-    sub: argparse._SubParsersAction[argparse.ArgumentParser],
+def _add_run_list_commands(
+    runs_sub: argparse._SubParsersAction[argparse.ArgumentParser],
     common: argparse.ArgumentParser,
 ) -> None:
-    """Register the ``runs`` command group and its subcommands."""
-    runs = sub.add_parser("runs", help="create, drive, and inspect runs")
-    runs_sub = runs.add_subparsers(dest="runs_command", metavar="SUBCOMMAND")
-
+    """Register ``runs list`` and ``runs demo``."""
     list_parser = runs_sub.add_parser(
         "list", parents=[common], help="list the caller's runs"
     )
@@ -318,6 +345,12 @@ def _add_runs(
     _json_flag(demo_parser)
     demo_parser.set_defaults(handler=runs_cmd.handle_demo)
 
+
+def _add_run_lifecycle_commands(
+    runs_sub: argparse._SubParsersAction[argparse.ArgumentParser],
+    common: argparse.ArgumentParser,
+) -> None:
+    """Register ``runs show/create/start/pause/resume/cancel``."""
     _add_run_id_command(
         runs_sub, common, "show", runs_cmd.handle_show, "show run details"
     )
@@ -341,6 +374,12 @@ def _add_runs(
         runs_sub, common, "cancel", runs_cmd.handle_cancel, "cancel a run"
     )
 
+
+def _add_run_watch_command(
+    runs_sub: argparse._SubParsersAction[argparse.ArgumentParser],
+    common: argparse.ArgumentParser,
+) -> None:
+    """Register ``runs watch``."""
     watch_parser = _add_run_id_command(
         runs_sub,
         common,
@@ -356,6 +395,12 @@ def _add_runs(
         help="only stream events after this sequence number",
     )
 
+
+def _add_run_wait_command(
+    runs_sub: argparse._SubParsersAction[argparse.ArgumentParser],
+    common: argparse.ArgumentParser,
+) -> None:
+    """Register ``runs wait``."""
     wait_parser = _add_run_id_command(
         runs_sub,
         common,
@@ -381,6 +426,21 @@ def _add_runs(
         help="give up with exit code 124 after this long (default: no limit)",
     )
 
+
+def _add_run_streaming_commands(
+    runs_sub: argparse._SubParsersAction[argparse.ArgumentParser],
+    common: argparse.ArgumentParser,
+) -> None:
+    """Register ``runs watch`` and ``runs wait``."""
+    _add_run_watch_command(runs_sub, common)
+    _add_run_wait_command(runs_sub, common)
+
+
+def _add_run_content_read_commands(
+    runs_sub: argparse._SubParsersAction[argparse.ArgumentParser],
+    common: argparse.ArgumentParser,
+) -> None:
+    """Register ``runs hypotheses/evidence/reviews/citations``."""
     _add_run_id_command(
         runs_sub,
         common,
@@ -401,6 +461,13 @@ def _add_runs(
         runs_cmd.handle_citations,
         "list citations",
     )
+
+
+def _add_run_process_read_commands(
+    runs_sub: argparse._SubParsersAction[argparse.ArgumentParser],
+    common: argparse.ArgumentParser,
+) -> None:
+    """Register ``runs safety/matches/proximity/metrics/claim-evidence``."""
     _add_run_id_command(
         runs_sub, common, "safety", runs_cmd.handle_safety, "list safety rows"
     )
@@ -433,6 +500,21 @@ def _add_runs(
         "list claim-level entailment edges",
     )
 
+
+def _add_run_read_commands(
+    runs_sub: argparse._SubParsersAction[argparse.ArgumentParser],
+    common: argparse.ArgumentParser,
+) -> None:
+    """Register the read-only per-run listing subcommands."""
+    _add_run_content_read_commands(runs_sub, common)
+    _add_run_process_read_commands(runs_sub, common)
+
+
+def _add_run_interaction_commands(
+    runs_sub: argparse._SubParsersAction[argparse.ArgumentParser],
+    common: argparse.ArgumentParser,
+) -> None:
+    """Register ``runs report/steer/ask``."""
     report_parser = _add_run_id_command(
         runs_sub, common, "report", runs_cmd.handle_report, "fetch the report"
     )
@@ -463,3 +545,18 @@ def _add_runs(
     ask_parser.add_argument(
         "question", help="the question to ask ('-' reads it from stdin)"
     )
+
+
+def _add_runs(
+    sub: argparse._SubParsersAction[argparse.ArgumentParser],
+    common: argparse.ArgumentParser,
+) -> None:
+    """Register the ``runs`` command group and its subcommands."""
+    runs = sub.add_parser("runs", help="create, drive, and inspect runs")
+    runs_sub = runs.add_subparsers(dest="runs_command", metavar="SUBCOMMAND")
+
+    _add_run_list_commands(runs_sub, common)
+    _add_run_lifecycle_commands(runs_sub, common)
+    _add_run_streaming_commands(runs_sub, common)
+    _add_run_read_commands(runs_sub, common)
+    _add_run_interaction_commands(runs_sub, common)

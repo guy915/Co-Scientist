@@ -35,8 +35,51 @@ from app.runs_models import (
     HumanReviewRequest,
 )
 from app.runs_support import _require_run
+from app.store import ScientificTask
 
 router = APIRouter()
+
+
+def _persist_manual_hypothesis(
+    run_id: str, hyp: dict[str, Any], author: str
+) -> str:
+    """Persist an admitted manual hypothesis and run the shared safety screen.
+
+    Same safety screen as the pipeline, so the manual hypothesis carries a
+    persisted safety_status and any blocking outcome is audited identically.
+    """
+    hyp_id = store.add_hypothesis(
+        run_id,
+        title=str(hyp["title"]),
+        statement=str(hyp["statement"]),
+        created_by_agent=human_input.SCIENTIST_MANUAL_ORIGIN,
+        author=author,
+    )
+    screen_hypotheses(run_id, store.list_hypotheses(run_id))
+    return hyp_id
+
+
+def _notify_manual_hypothesis(
+    run_id: str, author: str, statement: str, hyp_id: str
+) -> ScientificTask | None:
+    """Steer the run with the new hypothesis and audit the contribution."""
+    message = store.append_message(
+        run_id,
+        author,
+        "Scientist-contributed hypothesis to evaluate in subsequent work: "
+        f"{statement}",
+        "steering",
+        meta={"kind": "manual_hypothesis", "hypothesis_id": hyp_id},
+    )
+    continuation = engine_tasks.enqueue_scientist_continuation(
+        run_id, message.id
+    )
+    store.append_event(
+        run_id,
+        "scientist.hypothesis",
+        {"hypothesis_id": hyp_id, "author": author},
+    )
+    return continuation
 
 
 @router.post("/{run_id}/hypotheses")
@@ -60,32 +103,9 @@ async def add_human_hypothesis(
     if not admission.admitted or admission.hypothesis is None:
         return {"admitted": False, "safety": admission.safety_review.to_dict()}
 
-    hyp = admission.hypothesis
-    hyp_id = store.add_hypothesis(
-        run_id,
-        title=str(hyp["title"]),
-        statement=str(hyp["statement"]),
-        created_by_agent=human_input.SCIENTIST_MANUAL_ORIGIN,
-        author=author,
-    )
-    # Same safety screen as the pipeline, so the manual hypothesis carries a
-    # persisted safety_status and any blocking outcome is audited identically.
-    screen_hypotheses(run_id, store.list_hypotheses(run_id))
-    message = store.append_message(
-        run_id,
-        author,
-        "Scientist-contributed hypothesis to evaluate in subsequent work: "
-        f"{req.statement}",
-        "steering",
-        meta={"kind": "manual_hypothesis", "hypothesis_id": hyp_id},
-    )
-    continuation = engine_tasks.enqueue_scientist_continuation(
-        run_id, message.id
-    )
-    store.append_event(
-        run_id,
-        "scientist.hypothesis",
-        {"hypothesis_id": hyp_id, "author": author},
+    hyp_id = _persist_manual_hypothesis(run_id, admission.hypothesis, author)
+    continuation = _notify_manual_hypothesis(
+        run_id, author, req.statement, hyp_id
     )
     return {
         "admitted": True,
@@ -94,6 +114,64 @@ async def add_human_hypothesis(
         "continuation_task_id": continuation.id if continuation else None,
         "safety": admission.safety_review.to_dict(),
     }
+
+
+def _require_run_hypothesis(run_id: str, hypothesis_id: str) -> None:
+    """Raise 404 unless hypothesis_id names a hypothesis belonging to run_id."""
+    hyp = store.get_hypothesis(hypothesis_id)
+    if hyp is None or hyp.get("run_id") != run_id:
+        raise HTTPException(
+            status_code=404, detail="hypothesis not found in this run"
+        )
+
+
+def _build_human_review_or_422(
+    req: HumanReviewRequest, author: str
+) -> human_input.HumanReview:
+    """Validate and build the scientist review, raising 422 on a bad verdict."""
+    try:
+        return human_input.build_human_review(
+            hypothesis_id=req.hypothesis_id,
+            author=author,
+            verdict=req.verdict,
+            critique=req.critique,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+def _persist_and_notify_human_review(
+    run_id: str, review: human_input.HumanReview, author: str
+) -> ScientificTask | None:
+    """Persist the review, steer the run, and audit the contribution."""
+    store.add_review(
+        run_id,
+        hypothesis_id=review.hypothesis_id,
+        reviewer_agent="scientist",
+        summary=f"Scientist verdict: {review.verdict} (by {review.author})",
+        critique=review.critique,
+    )
+    message = store.append_message(
+        run_id,
+        author,
+        "Scientist review of hypothesis "
+        f"{review.hypothesis_id}: verdict={review.verdict}; {review.critique}",
+        "steering",
+        meta={"kind": "human_review", "hypothesis_id": review.hypothesis_id},
+    )
+    continuation = engine_tasks.enqueue_scientist_continuation(
+        run_id, message.id
+    )
+    store.append_event(
+        run_id,
+        "scientist.review",
+        {
+            "hypothesis_id": review.hypothesis_id,
+            "author": author,
+            "verdict": review.verdict,
+        },
+    )
+    return continuation
 
 
 @router.post("/{run_id}/reviews")
@@ -108,48 +186,10 @@ async def add_human_review(
     in the URL (no cross-run or dangling review rows).
     """
     _require_run(run_id)
-    hyp = store.get_hypothesis(req.hypothesis_id)
-    if hyp is None or hyp.get("run_id") != run_id:
-        raise HTTPException(
-            status_code=404, detail="hypothesis not found in this run"
-        )
+    _require_run_hypothesis(run_id, req.hypothesis_id)
     author = client_id(request) or req.author
-    try:
-        review = human_input.build_human_review(
-            hypothesis_id=req.hypothesis_id,
-            author=author,
-            verdict=req.verdict,
-            critique=req.critique,
-        )
-    except ValueError as exc:
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
-    store.add_review(
-        run_id,
-        hypothesis_id=review.hypothesis_id,
-        reviewer_agent="scientist",
-        summary=f"Scientist verdict: {review.verdict} (by {review.author})",
-        critique=review.critique,
-    )
-    message = store.append_message(
-        run_id,
-        author,
-        "Scientist review of hypothesis "
-        f"{req.hypothesis_id}: verdict={review.verdict}; {review.critique}",
-        "steering",
-        meta={"kind": "human_review", "hypothesis_id": req.hypothesis_id},
-    )
-    continuation = engine_tasks.enqueue_scientist_continuation(
-        run_id, message.id
-    )
-    store.append_event(
-        run_id,
-        "scientist.review",
-        {
-            "hypothesis_id": req.hypothesis_id,
-            "author": author,
-            "verdict": review.verdict,
-        },
-    )
+    review = _build_human_review_or_422(req, author)
+    continuation = _persist_and_notify_human_review(run_id, review, author)
     return {
         "recorded": True,
         "continuation_task_id": continuation.id if continuation else None,
@@ -197,28 +237,26 @@ async def add_attachment(
     }
 
 
-@router.post("/{run_id}/attachments/upload")
-async def upload_attachment(
-    run_id: str,
-    request: Request,
-    file: Annotated[UploadFile, File()],
-    consent: Annotated[bool, Form()],
-) -> dict[str, Any]:
-    """Extract and index a real scientist-uploaded document with provenance."""
-    _require_run(run_id)
-    client_id(request)  # Require the run's authenticated researcher context.
-    if not consent:
-        raise HTTPException(
-            status_code=422, detail="consent is required to index a document"
-        )
+async def _extract_uploaded_document(
+    file: UploadFile,
+) -> document_ingest.ExtractedDocument:
+    """Read and extract the upload, raising 422 on an invalid document."""
     data = await file.read(document_ingest.MAX_UPLOAD_BYTES + 1)
     try:
-        extracted = document_ingest.extract_document(
+        return document_ingest.extract_document(
             data, file.content_type or "application/octet-stream"
         )
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
-    title = (file.filename or "Uploaded document").strip()
+
+
+def _persist_and_notify_upload(
+    run_id: str,
+    title: str,
+    extracted: document_ingest.ExtractedDocument,
+    uploader: str,
+) -> tuple[str, ScientificTask | None]:
+    """Persist the extracted document as evidence and steer the run with it."""
     evidence_id = store.add_evidence(
         run_id,
         title,
@@ -232,7 +270,7 @@ async def upload_attachment(
     )
     message = store.append_message(
         run_id,
-        client_id(request),
+        uploader,
         "Use the uploaded private research document "
         f"'{title}' in subsequent work.",
         "steering",
@@ -245,6 +283,28 @@ async def upload_attachment(
         run_id,
         "scientist.attachment",
         {"evidence_id": evidence_id, "title": title},
+    )
+    return evidence_id, continuation
+
+
+@router.post("/{run_id}/attachments/upload")
+async def upload_attachment(
+    run_id: str,
+    request: Request,
+    file: Annotated[UploadFile, File()],
+    consent: Annotated[bool, Form()],
+) -> dict[str, Any]:
+    """Extract and index a real scientist-uploaded document with provenance."""
+    _require_run(run_id)
+    uploader = client_id(request)  # Requires the authenticated researcher.
+    if not consent:
+        raise HTTPException(
+            status_code=422, detail="consent is required to index a document"
+        )
+    extracted = await _extract_uploaded_document(file)
+    title = (file.filename or "Uploaded document").strip()
+    evidence_id, continuation = _persist_and_notify_upload(
+        run_id, title, extracted, uploader
     )
     return {
         "id": evidence_id,

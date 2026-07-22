@@ -13,6 +13,7 @@ import json
 import logging
 import sqlite3
 import uuid
+from dataclasses import dataclass
 from typing import Any
 
 from app.store.checkpoints import has_checkpoint
@@ -40,6 +41,109 @@ _ACTIVE_RUN_STATUSES: tuple[str, str, str] = (
     RunStatus.RUNNING.value,
     RunStatus.SYNTHESIZING.value,
 )
+
+
+def _resolve_llm_backend(provider: str, llm_backend: str | None) -> str:
+    """Resolve the backend to persist, defaulting it from the provider."""
+    if llm_backend is not None:
+        return llm_backend
+    return "offline" if provider == "mock" else "real"
+
+
+@dataclass(frozen=True)
+class _NewRunFields:
+    """Fields needed to insert a run row and build its RunRow."""
+
+    run_id: str
+    research_goal: str
+    title: str | None
+    profile: str
+    provider: str
+    config: dict[str, Any]
+    client_id: str
+    now: float
+    backend: str
+
+
+def _insert_run_row(conn: sqlite3.Connection, f: _NewRunFields) -> None:
+    """Insert a new run row in the DRAFT state on an open connection."""
+    conn.execute(
+        "INSERT INTO runs (id, research_goal, title, profile, status, "
+        "provider, config_json, client_id, created_at, updated_at, "
+        "llm_backend) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+        (
+            f.run_id,
+            f.research_goal,
+            f.title,
+            f.profile,
+            RunStatus.DRAFT.value,
+            f.provider,
+            json.dumps(f.config),
+            f.client_id,
+            f.now,
+            f.now,
+            f.backend,
+        ),
+    )
+
+
+def _run_row_from_insert(f: _NewRunFields) -> RunRow:
+    """Build the RunRow for a just-inserted run."""
+    return RunRow(
+        id=f.run_id,
+        research_goal=f.research_goal,
+        title=f.title,
+        profile=f.profile,
+        status=RunStatus.DRAFT.value,
+        provider=f.provider,
+        config=f.config,
+        client_id=f.client_id,
+        created_at=f.now,
+        updated_at=f.now,
+        completed_at=None,
+        error=None,
+        llm_backend=f.backend,
+    )
+
+
+def _log_run_created(f: _NewRunFields) -> None:
+    """Log creation of a new run at info level."""
+    logger.info(
+        "created run %s run_mode=%s provider=%s llm_backend=%s client_id=%s",
+        f.run_id,
+        f.profile,
+        f.provider,
+        f.backend,
+        f.client_id,
+    )
+
+
+def _create_run_impl(
+    research_goal: str,
+    profile: str,
+    provider: str,
+    config: dict[str, Any],
+    client_id: str,
+    title: str | None,
+    llm_backend: str | None,
+    db_path: str | None,
+) -> RunRow:
+    """Persist a new DRAFT run row and return it as a RunRow."""
+    fields = _NewRunFields(
+        run_id=str(uuid.uuid4()),
+        research_goal=research_goal,
+        title=title,
+        profile=profile,
+        provider=provider,
+        config=config,
+        client_id=client_id,
+        now=_now(),
+        backend=_resolve_llm_backend(provider, llm_backend),
+    )
+    with connect(db_path) as conn:
+        _insert_run_row(conn, fields)
+    _log_run_created(fields)
+    return _run_row_from_insert(fields)
 
 
 def create_run(
@@ -72,54 +176,15 @@ def create_run(
     Returns:
         The newly created run as a RunRow.
     """
-    run_id = str(uuid.uuid4())
-    now = _now()
-    backend = (
-        llm_backend
-        if llm_backend is not None
-        else ("offline" if provider == "mock" else "real")
-    )
-    with connect(db_path) as conn:
-        conn.execute(
-            "INSERT INTO runs (id, research_goal, title, profile, status, "
-            "provider, config_json, client_id, created_at, updated_at, "
-            "llm_backend) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
-            (
-                run_id,
-                research_goal,
-                title,
-                profile,
-                RunStatus.DRAFT.value,
-                provider,
-                json.dumps(config),
-                client_id,
-                now,
-                now,
-                backend,
-            ),
-        )
-    logger.info(
-        "created run %s run_mode=%s provider=%s llm_backend=%s client_id=%s",
-        run_id,
+    return _create_run_impl(
+        research_goal,
         profile,
         provider,
-        backend,
+        config,
         client_id,
-    )
-    return RunRow(
-        id=run_id,
-        research_goal=research_goal,
-        title=title,
-        profile=profile,
-        status=RunStatus.DRAFT.value,
-        provider=provider,
-        config=config,
-        client_id=client_id,
-        created_at=now,
-        updated_at=now,
-        completed_at=None,
-        error=None,
-        llm_backend=backend,
+        title,
+        llm_backend,
+        db_path,
     )
 
 
@@ -219,6 +284,38 @@ def get_run(
         return _row_to_run(row) if row else None
 
 
+def _count_other_active_runs(
+    conn: sqlite3.Connection, run_id: str, profile: str, client_id: str
+) -> int:
+    """Count the client's other in-flight runs of this profile."""
+    return int(
+        conn.execute(
+            "SELECT COUNT(*) FROM runs WHERE client_id=? AND profile=? "
+            "AND status IN (?,?,?) AND id!=?",
+            (client_id, profile, *_ACTIVE_RUN_STATUSES, run_id),
+        ).fetchone()[0]
+    )
+
+
+def _queue_run_if_startable(
+    conn: sqlite3.Connection, run_id: str, now: float
+) -> int:
+    """Move a run to QUEUED if it is still in a startable status."""
+    return conn.execute(
+        "UPDATE runs SET status=?, updated_at=?, completed_at=NULL, "
+        "error=NULL WHERE id=? AND status IN (?,?,?,?)",
+        (
+            RunStatus.QUEUED.value,
+            now,
+            run_id,
+            RunStatus.DRAFT.value,
+            RunStatus.FAILED.value,
+            RunStatus.BLOCKED.value,
+            RunStatus.CANCELLED.value,
+        ),
+    ).rowcount
+
+
 def reserve_run_capacity(
     run_id: str,
     *,
@@ -241,27 +338,10 @@ def reserve_run_capacity(
         quota was already full or the run was no longer startable.
     """
     with transaction(db_path) as conn:
-        count = conn.execute(
-            "SELECT COUNT(*) FROM runs WHERE client_id=? AND profile=? "
-            "AND status IN (?,?,?) AND id!=?",
-            (client_id, profile, *_ACTIVE_RUN_STATUSES, run_id),
-        ).fetchone()[0]
-        if int(count) >= limit:
+        count = _count_other_active_runs(conn, run_id, profile, client_id)
+        if count >= limit:
             return False
-        now = _now()
-        changed = conn.execute(
-            "UPDATE runs SET status=?, updated_at=?, completed_at=NULL, "
-            "error=NULL WHERE id=? AND status IN (?,?,?,?)",
-            (
-                RunStatus.QUEUED.value,
-                now,
-                run_id,
-                RunStatus.DRAFT.value,
-                RunStatus.FAILED.value,
-                RunStatus.BLOCKED.value,
-                RunStatus.CANCELLED.value,
-            ),
-        ).rowcount
+        changed = _queue_run_if_startable(conn, run_id, _now())
     return bool(changed)
 
 
@@ -333,6 +413,33 @@ def _fail_interrupted_run(
     )
 
 
+def _reconcile_one_run(
+    conn: sqlite3.Connection, run_id: str, now: float, reason: str
+) -> str:
+    """Reconcile one interrupted run and return its outcome.
+
+    Args:
+        conn: Open connection to run the checkpoint check and update on.
+        run_id: Identifier of the interrupted run.
+        now: Timestamp to record for any status change.
+        reason: Human-readable interruption reason for a failed outcome.
+
+    Returns:
+        ``"resumable"`` when a checkpoint exists, else ``"failed"``.
+    """
+    if has_checkpoint(run_id, conn=conn):
+        _append_event(
+            conn,
+            run_id,
+            "status",
+            {"status": "resumable", "detail": "checkpoint available"},
+            now,
+        )
+        return "resumable"
+    _fail_interrupted_run(conn, run_id, now, reason)
+    return "failed"
+
+
 def reconcile_interrupted_runs(
     db_path: str | None = None,
 ) -> dict[str, list[str]]:
@@ -362,18 +469,8 @@ def reconcile_interrupted_runs(
         ).fetchall()
         for row in rows:
             rid = row["id"]
-            if has_checkpoint(rid, conn=conn):
-                _append_event(
-                    conn,
-                    rid,
-                    "status",
-                    {"status": "resumable", "detail": "checkpoint available"},
-                    now,
-                )
-                resumable.append(rid)
-            else:
-                _fail_interrupted_run(conn, rid, now, reason)
-                failed.append(rid)
+            outcome = _reconcile_one_run(conn, rid, now, reason)
+            (resumable if outcome == "resumable" else failed).append(rid)
     return {"failed": failed, "resumable": resumable}
 
 

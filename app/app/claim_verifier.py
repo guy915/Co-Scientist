@@ -108,6 +108,61 @@ def _parse_draft(content: str) -> AssessorDraft | None:
     )
 
 
+def _entailment_messages(
+    claim: str, passages: Sequence[EvidencePassage]
+) -> list[dict[str, str]]:
+    """Build the system/user chat messages for the entailment judge."""
+    return [
+        {"role": "system", "content": _SYSTEM_PROMPT},
+        {
+            "role": "user",
+            "content": (
+                f"CLAIM:\n{claim}\n\nEVIDENCE:\n{_render_passages(passages)}"
+            ),
+        },
+    ]
+
+
+def _call_llm_entailment(
+    model: str,
+    claim: str,
+    passages: Sequence[EvidencePassage],
+    timeout: float,
+) -> str | None:
+    """Call the LLM entailment judge and return its raw reply, or None.
+
+    Returns None (and logs a warning) on any provider failure, so the caller
+    can fall back to the deterministic assessor.
+    """
+    try:
+        import litellm
+
+        response = litellm.completion(
+            model=model,
+            messages=_entailment_messages(claim, passages),
+            temperature=0,
+            max_tokens=_MAX_TOKENS,
+            timeout=timeout,
+            response_format={"type": "json_object"},
+            # One of the two high-frequency call sites that opt out of
+            # thinking: grounding runs this judge once per extracted claim
+            # per hypothesis, so it is the app-side counterpart to the
+            # engine's ranking tournament. The NLI verdict is a lookup
+            # against supplied passages -- the prompt already forbids
+            # outside knowledge and demands a verbatim quote -- so there is
+            # little for reasoning to add.
+            extra_body=deepseek_non_thinking_extra_body(model),
+        )
+        return response.choices[0].message.content or ""
+    except Exception as exc:
+        logger.warning(
+            "LLM claim assessor failed (%s); falling back to "
+            "deterministic assessor",
+            exc,
+        )
+        return None
+
+
 def make_llm_assessor(
     model: str,
     *,
@@ -131,43 +186,9 @@ def make_llm_assessor(
     ) -> AssessorDraft:
         if not passages:
             return AssessorDraft(label=EntailmentLabel.INSUFFICIENT)
-        try:
-            import litellm
-
-            response = litellm.completion(
-                model=model,
-                messages=[
-                    {"role": "system", "content": _SYSTEM_PROMPT},
-                    {
-                        "role": "user",
-                        "content": (
-                            f"CLAIM:\n{claim}\n\nEVIDENCE:\n"
-                            f"{_render_passages(passages)}"
-                        ),
-                    },
-                ],
-                temperature=0,
-                max_tokens=_MAX_TOKENS,
-                timeout=timeout,
-                response_format={"type": "json_object"},
-                # One of the two high-frequency call sites that opt out of
-                # thinking: grounding runs this judge once per extracted claim
-                # per hypothesis, so it is the app-side counterpart to the
-                # engine's ranking tournament. The NLI verdict is a lookup
-                # against supplied passages -- the prompt already forbids
-                # outside knowledge and demands a verbatim quote -- so there is
-                # little for reasoning to add.
-                extra_body=deepseek_non_thinking_extra_body(model),
-            )
-            content = response.choices[0].message.content or ""
-        except Exception as exc:
-            logger.warning(
-                "LLM claim assessor failed (%s); falling back to "
-                "deterministic assessor",
-                exc,
-            )
+        content = _call_llm_entailment(model, claim, passages, timeout)
+        if content is None:
             return deterministic_assessor(claim, passages)
-
         draft = _parse_draft(content)
         if draft is None:
             logger.warning(

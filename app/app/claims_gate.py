@@ -144,35 +144,17 @@ class GateResult:
     speculative_claims: tuple[str, ...] = ()
 
 
-def publication_gate(
+def _classify_gate_claims(
     assessments: list[ClaimAssessment],
     *,
-    allow_speculative: bool = False,
-    explicitly_speculative_claims: Collection[str] = (),
-    require_supported_claim: bool = False,
-) -> GateResult:
-    """Decide whether a hypothesis may be published from its claim assessments.
+    allow_speculative: bool,
+    explicitly_speculative_claims: Collection[str],
+) -> tuple[tuple[str, ...], tuple[str, ...], tuple[str, ...], tuple[str, ...]]:
+    """Split claims into contradicted, unsupported, speculative, and blocking.
 
-    A hypothesis whose fundamental claims are contradicted must not rank or
-    publish (BLOCK). Merely insufficient (unsupported-but-not-contradicted)
-    claims block only when speculation is not explicitly permitted; with
-    ``allow_speculative`` they pass so clearly labeled speculative claims are
-    allowed under policy (SSR §7). A hypothesis with no claims is treated as
-    unsupported.
-
-    Args:
-        assessments: The per-claim assessments for the hypothesis.
-        allow_speculative: Compatibility switch treating every insufficient
-            claim as speculative. Contradictions always block.
-        explicitly_speculative_claims: Insufficient claims whose source text
-            explicitly presents them as hypotheses, predictions, or proposed
-            experiments. They remain visible but do not masquerade as
-            categorical findings.
-        require_supported_claim: Whether at least one claim must have an
-            evidence-supporting span before the proposal can pass.
-
-    Returns:
-        The :class:`GateResult`.
+    Returns a ``(contradicted, unsupported, speculative, blocking_unsupported)``
+    tuple, where ``blocking_unsupported`` is the subset of ``unsupported`` not
+    covered by ``speculative``.
     """
     contradicted = tuple(
         a.claim for a in assessments if a.label is EntailmentLabel.CONTRADICTS
@@ -190,6 +172,19 @@ def publication_gate(
     blocking_unsupported = tuple(
         claim for claim in unsupported if claim not in speculative_lookup
     )
+    return contradicted, unsupported, speculative, blocking_unsupported
+
+
+def _decide_gate(
+    assessments: list[ClaimAssessment],
+    contradicted: tuple[str, ...],
+    unsupported: tuple[str, ...],
+    speculative: tuple[str, ...],
+    blocking_unsupported: tuple[str, ...],
+    *,
+    require_supported_claim: bool,
+) -> GateResult:
+    """Apply the gate's blocking rules, in priority order, to the claims."""
 
     def _result(decision: GateDecision, reason: str) -> GateResult:
         return GateResult(
@@ -204,8 +199,7 @@ def publication_gate(
     if not assessments:
         return _result(GateDecision.BLOCK, "no atomic claims could be assessed")
     if require_supported_claim and not any(
-        assessment.label is EntailmentLabel.SUPPORTS
-        for assessment in assessments
+        a.label is EntailmentLabel.SUPPORTS for a in assessments
     ):
         return _result(
             GateDecision.BLOCK, "no evidence-supported contextual claim"
@@ -220,4 +214,44 @@ def publication_gate(
         "all fundamental claims supported"
         if not unsupported
         else "categorical claims supported; novel claims labeled speculative",
+    )
+
+
+def publication_gate(
+    assessments: list[ClaimAssessment],
+    *,
+    allow_speculative: bool = False,
+    explicitly_speculative_claims: Collection[str] = (),
+    require_supported_claim: bool = False,
+) -> GateResult:
+    """Decide whether a hypothesis may be published from its claim assessments.
+
+    A hypothesis whose fundamental claims are contradicted must not rank or
+    publish (BLOCK). Merely insufficient claims block only when speculation
+    is not explicitly permitted; with ``allow_speculative`` they pass so
+    clearly labeled speculative claims are allowed under policy (SSR §7). A
+    hypothesis with no claims is treated as unsupported.
+
+    Args:
+        assessments: The per-claim assessments for the hypothesis.
+        allow_speculative: Compatibility switch treating every insufficient
+            claim as speculative. Contradictions always block.
+        explicitly_speculative_claims: Insufficient claims whose source text
+            explicitly presents them as hypotheses/predictions/proposed
+            experiments, so they don't masquerade as categorical findings.
+        require_supported_claim: Whether at least one claim must have an
+            evidence-supporting span before the proposal can pass.
+
+    Returns:
+        The :class:`GateResult`.
+    """
+    classified = _classify_gate_claims(
+        assessments,
+        allow_speculative=allow_speculative,
+        explicitly_speculative_claims=explicitly_speculative_claims,
+    )
+    return _decide_gate(
+        assessments,
+        *classified,
+        require_supported_claim=require_supported_claim,
     )

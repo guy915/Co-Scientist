@@ -62,12 +62,8 @@ def _reports_dir() -> Path:
     return p
 
 
-@contextlib.contextmanager
-def connect(
-    path: str | None = None,
-) -> Generator[sqlite3.Connection, None, None]:
-    """Yield a sqlite3 connection with WAL + row factory enabled."""
-    db_path = _resolved_db_path(path)
+def _open_raw_connection(db_path: str) -> sqlite3.Connection:
+    """Open a sqlite3 connection with the pragmas this store relies on."""
     # The parent dir only needs creating before the first connect for a path.
     # A db_path already in `_initialized` was connected before, so its dir
     # exists; skipping the syscall keeps hot read paths (SSE poll, endpoints)
@@ -94,15 +90,30 @@ def connect(
     # nothing; only an OS-level failure can cost the most recent
     # transactions, which a run reconstructs from its checkpoint anyway.
     conn.execute("PRAGMA synchronous=NORMAL")
+    return conn
+
+
+def _ensure_schema_initialized(db_path: str, conn: sqlite3.Connection) -> None:
+    """Run one-time schema init for db_path, serialized across threads."""
+    # Double-checked locking: skip the lock entirely once a db_path has
+    # been initialized (the hot path), but still serialize the first
+    # schema-creation race across concurrently-starting threads.
+    if db_path not in _initialized:
+        with _lock:
+            if db_path not in _initialized:
+                _init_schema(conn)
+                _initialized.add(db_path)
+
+
+@contextlib.contextmanager
+def connect(
+    path: str | None = None,
+) -> Generator[sqlite3.Connection, None, None]:
+    """Yield a sqlite3 connection with WAL + row factory enabled."""
+    db_path = _resolved_db_path(path)
+    conn = _open_raw_connection(db_path)
     try:
-        # Double-checked locking: skip the lock entirely once a db_path has
-        # been initialized (the hot path), but still serialize the first
-        # schema-creation race across concurrently-starting threads.
-        if db_path not in _initialized:
-            with _lock:
-                if db_path not in _initialized:
-                    _init_schema(conn)
-                    _initialized.add(db_path)
+        _ensure_schema_initialized(db_path, conn)
         yield conn
     finally:
         conn.close()
@@ -193,8 +204,8 @@ def _add_column_if_missing(
     return True
 
 
-def _run_migrations(conn: sqlite3.Connection) -> None:
-    """Apply idempotent in-place schema migrations to an open connection."""
+def _migrate_client_isolation(conn: sqlite3.Connection) -> None:
+    """Add client-id ownership columns and purge pre-isolation rows."""
     # Records ingested before client isolation stay un-owned, so they are
     # visible only to operators -- failing closed for existing rows.
     _add_column_if_missing(conn, "app_logs", "client_id", "TEXT")
@@ -214,6 +225,9 @@ def _run_migrations(conn: sqlite3.Connection) -> None:
         conn.execute("DELETE FROM runs WHERE client_id = ''")
         logger.info("migration: purged pre-client-isolation runs")
 
+
+def _migrate_run_and_report_columns(conn: sqlite3.Connection) -> None:
+    """Add run title/backend columns and the durable report-text column."""
     # Short model-generated session title, distinct from research_goal.
     _add_column_if_missing(conn, "runs", "title", "TEXT")
     # Per-run LLM backend: 'offline' (deterministic router) or 'real'. Legacy
@@ -225,6 +239,12 @@ def _run_migrations(conn: sqlite3.Connection) -> None:
         )
     # DB-durable copy of the rendered report, independent of the on-disk file.
     _add_column_if_missing(conn, "reports", "markdown_text", "TEXT")
+
+
+def _migrate_interview_message_hypothesis_columns(
+    conn: sqlite3.Connection,
+) -> None:
+    """Add interview/message/hypothesis metadata columns."""
     # The audience that opened the interview, so its every turn can carry the
     # same injected lab context the in-run Q&A gets. Persisted rather than
     # taken per turn: the interview is durable and resumable, and a resumed
@@ -237,6 +257,10 @@ def _run_migrations(conn: sqlite3.Connection) -> None:
     # Authorship provenance for scientist-contributed hypotheses (Milestone 7);
     # empty for agent-generated ones.
     _add_column_if_missing(conn, "hypotheses", "author", "TEXT")
+
+
+def _migrate_match_and_safety_columns(conn: sqlite3.Connection) -> None:
+    """Add claim-role, match-tier, and safety-decision columns."""
     # Source-role metadata keeps insufficient novel proposals distinct from
     # unsupported categorical background without changing entailment labels.
     _add_column_if_missing(
@@ -268,6 +292,12 @@ def _run_migrations(conn: sqlite3.Connection) -> None:
     _add_column_if_missing(conn, "safety_decisions", "resolution", "TEXT")
     _add_column_if_missing(conn, "safety_decisions", "resolved_by", "TEXT")
     _add_column_if_missing(conn, "safety_decisions", "resolved_at", "REAL")
+
+
+def _migrate_proximity_and_evidence_columns(
+    conn: sqlite3.Connection,
+) -> None:
+    """Add proximity-edge timestamps and evidence-attachment metadata."""
     _add_column_if_missing(
         conn, "proximity_edges", "created_at", "REAL NOT NULL DEFAULT 0"
     )
@@ -276,6 +306,15 @@ def _run_migrations(conn: sqlite3.Connection) -> None:
     _add_column_if_missing(conn, "evidence", "byte_size", "INTEGER")
     _add_column_if_missing(conn, "evidence", "document_version", "TEXT")
     _add_column_if_missing(conn, "evidence", "extraction_tool", "TEXT")
+
+
+def _run_migrations(conn: sqlite3.Connection) -> None:
+    """Apply idempotent in-place schema migrations to an open connection."""
+    _migrate_client_isolation(conn)
+    _migrate_run_and_report_columns(conn)
+    _migrate_interview_message_hypothesis_columns(conn)
+    _migrate_match_and_safety_columns(conn)
+    _migrate_proximity_and_evidence_columns(conn)
 
 
 def checkpoint_wal(db_path: str | None = None) -> None:
