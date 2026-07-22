@@ -452,6 +452,13 @@ def _fill_remaining_by_score(
     return selected
 
 
+# Why reserved_slots exists: retrieval score rewards citation count and
+# recency, which a source can lack entirely rather than score poorly on. A
+# local corpus of the group's own papers carries neither, so it sorts below
+# every indexed paper and is truncated away no matter how well it answers
+# the question. Reserving places is the narrow fix -- raising such a
+# source's base score enough to survive would also let it displace
+# everything else.
 def select_within_budget(
     ranked: dict[str, dict[str, Any]],
     source_map: dict[str, str],
@@ -461,17 +468,10 @@ def select_within_budget(
     """Choose which ranked papers fit the evidence budget.
 
     Score alone decides, except that a source configured with
-    ``reserved_slots`` is guaranteed that many places first. Retrieval score
-    rewards citation count and recency, which a source can lack entirely
-    rather than score poorly on: a local corpus of the group's own papers
-    carries neither, so it sorts below every indexed paper and is truncated
-    away no matter how well it answers the question. Reserving places is the
-    narrow fix -- raising such a source's base score enough to survive would
-    also let it displace everything else.
-
-    Reserved places are filled best-first from within the source, are never
-    padded when the source returned fewer papers, and cannot push the
-    selection past the budget.
+    ``reserved_slots`` is guaranteed that many places first. Reserved
+    places are filled best-first from within the source, are never padded
+    when the source returned fewer papers, and cannot push the selection
+    past the budget.
 
     Args:
         ranked: Papers best-first, as returned by ``merge_search_results``.

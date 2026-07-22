@@ -49,6 +49,53 @@ logger = logging.getLogger(__name__)
 class HypothesisGenerator(McpAvailabilityMixin, StreamExecutionMixin):
     """Async wrapper for hypothesis generation using LangGraph.
 
+    Args:
+        model_name: LLM model to use (litellm format).
+        supervisor_model_name: Model for the supervisor and meta-review
+            steps (None = use ``model_name``).
+        max_iterations: Number of refinement iterations.
+        initial_hypotheses_count: Number of initial hypotheses.
+        evolution_max_count: Number of top hypotheses to evolve.
+        tournament_pairs: Number of Elo tournament comparisons per ranking.
+        elo_k_factor: Rating sensitivity applied to every committed match.
+        literature_review_papers_count: Number of papers to read/analyze.
+        enable_cache: Enable/disable LLM response caching for this
+            generator's own calls (None = the process default from
+            ``COSCIENTIST_CACHE_ENABLED``). Scoped to this generator's own
+            execution via ``cache.scoped_cache_override`` rather than
+            mutating that env var, so it never disables caching for
+            another generator running in the same process.
+        cache_dir: Directory for cache files (None = use default).
+        tools_config: Path to custom tools YAML config file
+            (None = use defaults).
+        disable_tools: List of tool IDs to disable
+            (None = use all enabled tools).
+        budget: Optional serialized ``scheduling.Budget`` (keys
+            ``max_iterations``/``max_llm_calls``/``max_tasks``/
+            ``max_wall_clock_s``) giving the adaptive scheduler hard
+            termination ceilings beyond ``max_iterations``. None derives a
+            budget from ``max_iterations`` alone.
+
+    ``generate_hypotheses`` and ``resume_hypotheses`` accept an ``opts``
+    dict with user preferences and inputs:
+        - preferences: Desired approach or focus.
+        - attributes: Key qualities to prioritize.
+        - constraints: Requirements or boundaries.
+        - enable_literature_review_node: Whether to include the literature
+          review node (default: auto-detect MCP availability).
+        - enable_tool_calling_generation: Enable tool-calling generation
+          where the generate node queries literature tools directly
+          (requires enable_literature_review_node=True + MCP server,
+          default: False).
+        - dev_test_lit_tools_isolation: Dev mode - force lit review cache,
+          all hypotheses to lit tools (default: False).
+        - user_inputs: Dictionary with ``starting_hypotheses``
+          (user-provided starting hypotheses) and ``literature``
+          (user-provided literature references).
+
+    Non-streaming runs resolve to a result dict with ``hypotheses``,
+    ``meta_review``, ``execution_time``, and ``metrics`` keys.
+
     Example:
         >>> generator = HypothesisGenerator(
         ...     model_name="deepseek/deepseek-v4-flash",
@@ -78,35 +125,7 @@ class HypothesisGenerator(McpAvailabilityMixin, StreamExecutionMixin):
         disable_tools: list[str] | None = None,
         budget: dict[str, Any] | None = None,
     ):
-        """Initialize the hypothesis generator.
-
-        Args:
-            model_name: LLM model to use (litellm format)
-            supervisor_model_name: Model for the supervisor and meta-review
-                steps (None = use model_name)
-            max_iterations: Number of refinement iterations
-            initial_hypotheses_count: Number of initial hypotheses
-            evolution_max_count: Number of top hypotheses to evolve
-            tournament_pairs: Number of Elo tournament comparisons per ranking
-            elo_k_factor: Rating sensitivity applied to every committed match
-            literature_review_papers_count: Number of papers to read/analyze
-            enable_cache: Enable/disable LLM response caching for this
-                generator's own calls (None = use the process default from
-                ``COSCIENTIST_CACHE_ENABLED``). Scoped to this generator's
-                own execution via ``cache.scoped_cache_override`` rather
-                than mutating that env var, so it never disables caching
-                for another generator running in the same process.
-            cache_dir: Directory for cache files (None = use default)
-            tools_config: Path to custom tools YAML config file
-                (None = use defaults)
-            disable_tools: List of tool IDs to disable
-                (None = use all enabled tools)
-            budget: Optional serialized ``scheduling.Budget`` (keys
-                ``max_iterations``/``max_llm_calls``/``max_tasks``/
-                ``max_wall_clock_s``) giving the adaptive scheduler hard
-                termination ceilings beyond ``max_iterations``. None derives a
-                budget from ``max_iterations`` alone.
-        """
+        """Initialize the generator; parameters are documented on the class."""
         # Constructor arguments become per-instance defaults that seed the
         # initial workflow state on every generate_hypotheses() call below.
         self._init_tuning_params(
@@ -374,58 +393,18 @@ class HypothesisGenerator(McpAvailabilityMixin, StreamExecutionMixin):
         """Generate hypotheses, with optional streaming.
 
         Args:
-            research_goal: The research question or goal
-            progress_callback: Async callback for progress updates
-                             Called with (phase_name, data)
-            opts: Optional dictionary with user preferences and inputs:
-                - preferences: Desired approach or focus
-                - attributes: Key qualities to prioritize
-                - constraints: Requirements or boundaries
-                - enable_literature_review_node: Whether to include literature
-                review node (default: auto-detect MCP availability)
-                - enable_tool_calling_generation: Enable tool-calling
-                  generation where generate node queries literature tools
-                  directly (requires enable_literature_review_node=True
-                  + MCP server, default: False)
-                - dev_test_lit_tools_isolation: Dev mode - force lit
-                  review cache, all hypotheses to lit tools (default: False)
-                - user_inputs: Dictionary with:
-                  - starting_hypotheses: User-provided starting hypotheses
-                  - literature: User-provided literature references
-            run_id: Optional unique identifier for this run
-                (generated if not provided)
-            stream: If True, yields (node_name, state_dict) tuples.
-                If False, returns final result dict.
-            checkpoint_callback: Optional async hook invoked with
-                ``(node_name, full_state)`` after each node in streaming mode,
-                for persisting a resumable checkpoint. Ignored when
-                ``stream`` is False.
-
-        Returns:
-            If stream=False: Coroutine that when awaited returns a
-            dictionary with results:
-            {
-                "hypotheses": [...],
-                "meta_review": {...},
-                "execution_time": 0.0,
-                "metrics": {...}
-            }
-
-            If stream=True: AsyncIterator yielding (node_name, state_dict)
-            tuples
-
-        Example:
-            >>> # Non-streaming
-            >>> result = await generator.generate_hypotheses(
-            ...     research_goal="...", stream=False)
-            >>>
-            >>> # Streaming
-            >>> async for node_name, state in generator.generate_hypotheses(
-            ...         research_goal="...", stream=True):
-            >>>     print(f"Completed {node_name}")
+            research_goal: The research question or goal.
+            progress_callback: Async ``(phase_name, data)`` progress hook.
+            opts: User preferences and inputs; keys in the class docstring.
+            run_id: Unique identifier for this run (generated if omitted).
+            stream: If True, return an async iterator yielding
+                ``(node_name, state_dict)`` tuples; if False, return a
+                coroutine resolving to the result dict (class docstring).
+            checkpoint_callback: Async ``(node_name, full_state)`` hook run
+                after each node in streaming mode, for persisting a
+                resumable checkpoint. Ignored when ``stream`` is False.
         """
         if stream:
-            # Streaming path: return async generator directly
             return self._generate_hypotheses_with_streaming(
                 research_goal=research_goal,
                 progress_callback=progress_callback,
@@ -433,14 +412,12 @@ class HypothesisGenerator(McpAvailabilityMixin, StreamExecutionMixin):
                 run_id=run_id,
                 checkpoint_callback=checkpoint_callback,
             )
-        else:
-            # Non-streaming path: return coroutine to be awaited
-            return self._generate_hypotheses_without_streaming(
-                research_goal=research_goal,
-                progress_callback=progress_callback,
-                opts=opts,
-                run_id=run_id,
-            )
+        return self._generate_hypotheses_without_streaming(
+            research_goal=research_goal,
+            progress_callback=progress_callback,
+            opts=opts,
+            run_id=run_id,
+        )
 
     async def _generate_hypotheses_without_streaming(
         self,

@@ -275,30 +275,18 @@ def _build_prompt(
 ) -> tuple[str, dict[str, Any] | None]:
     """Assemble a prompt's variables and load it with its schema.
 
-    Reproduces the shared getter skeleton: a caller-provided base of
-    template-specific variables, plus the optional guidance/context blocks
-    and the domain-variable injection that most node prompts share. Each
-    optional block is added to the variables dict only when the caller
-    passes a non-``None`` value, so a template placeholder the caller
+    Reproduces the shared getter skeleton: ``base_variables`` (copied, not
+    mutated) plus the optional pre-formatted guidance/context blocks and
+    the domain-variable injection most node prompts share. Each optional
+    block is added only when the caller passes a non-``None`` value (an
+    empty string still adds the key), so a template placeholder the caller
     intentionally omits still renders as the ``{{MISSING:...}}`` sentinel
     (matching pre-consolidation behavior) rather than an empty string.
-
-    Args:
-        prompt_name: Prompt file stem passed to ``load_prompt_with_schema``.
-        base_variables: Always-present, template-specific variables. Copied,
-            not mutated.
-        supervisor_guidance: Pre-formatted supervisor-guidance block (the
-            caller selects the correct ``_format_supervisor_guidance_for_*``
-            helper). Added under ``"supervisor_guidance"`` only when not
-            ``None``; an empty string still adds the key.
-        meta_review_context: Pre-formatted meta-review block. Added under
-            ``"meta_review_context"`` only when not ``None``.
-        run_guidance: Pre-formatted run setup/focus block. Added under
-            ``"run_guidance"`` only when not ``None``.
-        tool_registry: Tool registry forwarded to ``_get_domain_variables``
-            when ``include_domain`` is true.
-        include_domain: Whether to merge the five ``domain_*`` variables.
-            Set false for prompts that never inject them (e.g. proximity).
+    For supervisor guidance the caller selects the correct
+    ``_format_supervisor_guidance_for_*`` helper. ``include_domain=False``
+    skips the five ``domain_*`` variables (and the ``tool_registry``
+    forward to ``_get_domain_variables``) for prompts that never inject
+    them (e.g. proximity).
 
     Returns:
         Tuple of (rendered prompt string, JSON schema dict or ``None``).

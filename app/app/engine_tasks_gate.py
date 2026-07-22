@@ -37,6 +37,13 @@ class _GatePlan:
     prior_disposition: str
 
 
+# In production a hypothesis carries 7-25 atomic claims and a run reaches
+# this gate with dozens, and awaiting them one at a time made this node the
+# longest serial stretch of an express run (21-23% of wall clock). The wave
+# below runs on one dedicated thread rather than ``asyncio.to_thread``: the
+# default executor is shared process-wide and the durable worker cohort
+# parks long-lived calls there for a whole run, so a wave of claims would
+# contend with the workers themselves.
 async def _assess_gate_claims(
     plans: Sequence[_GatePlan],
     passages: Sequence[Any],
@@ -45,21 +52,14 @@ async def _assess_gate_claims(
 ) -> list[list[Any]]:
     """Assess every pending hypothesis's claims in one bounded wave.
 
-    In production a hypothesis carries 7-25 atomic claims and a run reaches
-    this gate with dozens, and awaiting them one at a time made this node the
-    longest serial stretch of an express run (21-23% of wall clock). The wave
-    policy itself (flatten, bounded pool, regroup in order) is
-    ``claim_grounding.assess_claim_groups``, shared with the drain's grounding
-    pass so the two claim-assessment paths cannot drift.
-
-    The wave runs on one dedicated thread rather than ``asyncio.to_thread``:
-    the default executor is shared process-wide and the durable worker cohort
-    parks long-lived calls there for a whole run, so a wave of claims would
-    contend with the workers themselves.
+    The wave policy itself (flatten, bounded pool, regroup in order) is
+    ``claim_grounding.assess_claim_groups``, shared with the drain's
+    grounding pass so the two claim-assessment paths cannot drift.
 
     Args:
         plans: The hypotheses whose claims need assessing, in state order.
-        passages: Candidate evidence passages every claim is assessed against.
+        passages: Candidate evidence passages every claim is assessed
+            against.
         assessor: The entailment assessor.
         assessor_id: Provenance id recorded on each assessment.
 

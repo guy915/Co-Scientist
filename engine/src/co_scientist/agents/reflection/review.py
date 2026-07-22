@@ -87,22 +87,11 @@ async def review_single_hypothesis(
     run_setup_guidance: str | None = None,
     run_focus_guidance: str | None = None,
 ) -> HypothesisReview:
-    """Reviews a single hypothesis.
+    """Reviews a single hypothesis and returns its ``HypothesisReview``.
 
-    Args:
-        hypothesis_text: The hypothesis to review
-        research_goal: The research goal for context
-        model_name: LLM model to use
-        supervisor_guidance: Optional planning guidance from the supervisor
-        meta_review: Optional meta-review feedback for context
-        run_id: Optional run ID for saving prompts
-        hypothesis_index: Optional index for naming saved prompts
-        tool_registry: Optional ToolRegistry for dynamic tool instructions
-        run_setup_guidance: Optional run-setup guidance for the prompt
-        run_focus_guidance: Optional run-focus guidance for the prompt
-
-    Returns:
-        HypothesisReview object
+    The optional guidance parameters (supervisor, meta-review, run
+    setup/focus) and the tool registry feed the prompt as context;
+    ``run_id`` and ``hypothesis_index`` only name saved prompts.
     """
     prompt, schema = get_review_prompt(
         research_goal=research_goal,
@@ -242,21 +231,10 @@ async def review_comparative_batch(
     """Reviews hypotheses in a single comparative batch (one LLM call).
 
     All hypotheses are shown together for relative comparison, producing
-    more differentiated scores but limited by token constraints.
-
-    Args:
-        hypotheses: List of hypotheses to review
-        research_goal: Research goal for context
-        model_name: LLM model to use
-        supervisor_guidance: Optional planning guidance from the supervisor
-        meta_review: Optional meta-review feedback for context
-        run_id: Optional run ID for saving prompts
-        tool_registry: Optional ToolRegistry for dynamic tool instructions
-        run_setup_guidance: Optional run-setup guidance for the prompt
-        run_focus_guidance: Optional run-focus guidance for the prompt
-
-    Returns:
-        List of reviews (one per hypothesis)
+    more differentiated scores but limited by token constraints. Returns
+    one review per hypothesis. The optional guidance parameters and the
+    tool registry feed the prompt as context; ``run_id`` only names saved
+    prompts.
     """
     response = await _run_batch_review_call(
         hypotheses,

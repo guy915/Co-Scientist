@@ -7,6 +7,9 @@ context, and there is deliberately no foreign key to ``runs`` so log
 history survives run deletion. Retention is enforced by
 :func:`prune_logs` rather than by trigger, keeping the write path a
 single INSERT.
+
+Every helper accepts ``db_path`` (override for the SQLite database path)
+and ``conn`` (an open connection to reuse).
 """
 
 from __future__ import annotations
@@ -74,21 +77,11 @@ def append_log(
 ) -> int:
     """Persist one log record and return its row id.
 
-    Args:
-        level: Level name (e.g. ``"INFO"``).
-        levelno: Numeric level, kept for range filtering.
-        logger_name: Dotted name of the emitting logger.
-        message: The fully formatted log message.
-        run_id: Run the record belongs to, if it was run-scoped.
-        exc_text: Pre-formatted traceback text, when one was attached.
-        client_id: Owning client for records ingested from a UI; None for
-            server-side records, which only operators may read.
-        created_at: Record timestamp; defaults to now.
-        db_path: Optional override for the SQLite database path.
-        conn: Optional open connection to reuse.
-
-    Returns:
-        The inserted row's id.
+    ``levelno`` is kept alongside the level name for range filtering;
+    ``exc_text`` carries pre-formatted traceback text when one was
+    attached; ``client_id`` is the owning client for records ingested
+    from a UI (None for server-side records, which only operators may
+    read); ``created_at`` defaults to now.
     """
     with _use_conn(conn, db_path) as c:
         return _insert_log_row(
@@ -186,20 +179,12 @@ def list_logs(
 
     The ``limit`` keeps the NEWEST matching rows (the useful tail), still
     returned oldest-first so callers can print them in order and resume
-    with ``after_id`` set to the last row's id.
-
-    Args:
-        after_id: Only rows with an id strictly greater than this.
-        min_levelno: Minimum numeric level (e.g. ``logging.WARNING``).
-        run_id: Only rows bound to this run.
-        contains: Case-insensitive message substring filter.
-        noise_loggers: Logger-name prefixes whose sub-WARNING records are
-            hidden; None disables the filter.
-        scope_client_id: Restrict to one client's own records; None reads
-            app-wide (operators only).
-        limit: Maximum rows returned.
-        db_path: Optional override for the SQLite database path.
-        conn: Optional open connection to reuse.
+    with ``after_id`` set to the last row's id. Filters: id strictly
+    above ``after_id``, minimum numeric level, run id, case-insensitive
+    message substring, ``noise_loggers`` (logger-name prefixes whose
+    sub-WARNING records are hidden; None disables), and
+    ``scope_client_id`` (restrict to one client's own records; None reads
+    app-wide, operators only).
     """
     with _use_conn(conn, db_path) as c:
         return _fetch_log_page(

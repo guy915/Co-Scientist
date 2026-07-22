@@ -3,6 +3,9 @@
 Groups the simple insert/list helpers for the tables that hang off a run:
 literature evidence and the claim-to-evidence citation links, reviewer
 critiques, pairwise tournament matches, and safety-gate decisions.
+
+Every helper accepts ``db_path`` (override for the SQLite database path)
+and ``conn`` (an open connection to reuse, e.g. from ``transaction``).
 """
 
 from __future__ import annotations
@@ -24,7 +27,16 @@ from app.store.db import _now, _use_conn
 
 @dataclass(frozen=True)
 class _NewEvidenceFields:
-    """Fields needed to insert an evidence row."""
+    """Fields needed to insert an evidence row.
+
+    ``source`` names where the evidence came from (e.g. 'pubmed', 'arxiv',
+    or 'mock') and ``available`` records whether its full text is
+    available. The last five fields are upload/extraction provenance for
+    attached documents: the original media type, content digest (immutable
+    document identity), upload size in bytes, version label for
+    extraction/cache provenance, and the extractor (with version) that
+    produced the text.
+    """
 
     ev_id: str
     run_id: str
@@ -89,31 +101,9 @@ def add_evidence(
     db_path: str | None = None,
     conn: sqlite3.Connection | None = None,
 ) -> str:
-    """Insert an evidence row for a run and return its identifier.
-
-    Args:
-        run_id: Identifier of the run the evidence belongs to.
-        title: Title of the evidence item.
-        source: Evidence source, e.g. 'pubmed', 'arxiv', or 'mock'.
-        url: Optional URL pointing to the evidence.
-        authors: Optional iterable of author names.
-        year: Optional publication year.
-        abstract: Optional abstract text for the evidence.
-        available: Whether the evidence full text is available.
-        mime_type: Original document media type when uploaded.
-        sha256: Content digest for immutable document identity.
-        byte_size: Original upload size in bytes.
-        document_version: Version label for extraction/cache provenance.
-        extraction_tool: Extractor and version used to produce text.
-        db_path: Optional override for the SQLite database path.
-        conn: Optional open connection to reuse (e.g. from ``transaction``).
-
-    Returns:
-        The identifier of the newly inserted evidence row.
-    """
-    ev_id = str(uuid.uuid4())
+    """Insert an evidence row; returns its id (see _NewEvidenceFields)."""
     fields = _NewEvidenceFields(
-        ev_id=ev_id,
+        ev_id=str(uuid.uuid4()),
         run_id=run_id,
         title=title,
         source=source,
@@ -130,7 +120,7 @@ def add_evidence(
     )
     with _use_conn(conn, db_path) as conn:
         _insert_evidence_row(conn, fields)
-    return ev_id
+    return fields.ev_id
 
 
 def _list_by_run(
@@ -244,20 +234,13 @@ def add_claim_evidence(
 ) -> None:
     """Insert one claim-level entailment edge for the claim-evidence graph.
 
-    Args:
-        run_id: Identifier of the run the claim belongs to.
-        hypothesis_id: Identifier of the hypothesis the claim was extracted
-            from.
-        claim: The atomic claim text.
-        label: Entailment verdict ('supports' | 'contradicts' | 'insufficient').
-        supporting: Support spans that support the claim — JSON-serializable
-            provenance objects (``{evidence_id, quote, start, end, source,
-            url}``); legacy rows stored bare passage strings.
-        contradicting: Support spans that contradict the claim (same shape).
-        assessor: Provenance id of the entailment assessor.
-        claim_role: Categorical finding or visibly speculative proposal.
-        db_path: Optional override for the SQLite database path.
-        conn: Optional open connection to reuse (e.g. from ``transaction``).
+    ``label`` is the entailment verdict ('supports' | 'contradicts' |
+    'insufficient') and ``claim_role`` marks a categorical finding versus
+    a visibly speculative proposal. ``supporting``/``contradicting`` are
+    the spans for/against the claim -- JSON-serializable provenance
+    objects (``{evidence_id, quote, start, end, source, url}``; legacy
+    rows stored bare passage strings). ``assessor`` is the provenance id
+    of the entailment assessor.
     """
     with _use_conn(conn, db_path) as conn:
         _insert_claim_evidence_row(
@@ -342,18 +325,8 @@ def add_review(
 ) -> None:
     """Insert a reviewer's assessment of a hypothesis.
 
-    Args:
-        run_id: Identifier of the run the review belongs to.
-        hypothesis_id: Identifier of the reviewed hypothesis.
-        reviewer_agent: Agent that produced the review, e.g. 'reflection'.
-        summary: Short summary of the review.
-        critique: Full critique text.
-        novelty: Optional novelty score assigned by the reviewer.
-        plausibility: Optional plausibility score assigned by the reviewer.
-        testability: Optional testability score assigned by the reviewer.
-        overall: Optional overall score assigned by the reviewer.
-        db_path: Optional override for the SQLite database path.
-        conn: Optional open connection to reuse (e.g. from ``transaction``).
+    ``reviewer_agent`` names the agent that produced the review (e.g.
+    'reflection'); the four reviewer-assigned scores are optional.
     """
     with _use_conn(conn, db_path) as conn:
         _insert_review_row(
@@ -386,7 +359,13 @@ def list_reviews(
 
 @dataclass(frozen=True)
 class _MatchFields:
-    """Fields needed to insert one pairwise tournament match row."""
+    """Fields needed to insert one pairwise tournament match row.
+
+    Carries the winner's and loser's Elo before/after the match, the
+    judge's rationale for why the winner prevailed, the decisiveness
+    ``tier`` (upset|decisive|clear|narrow), and the debate depth in turns
+    (1 = single-turn comparison, >1 = multi-turn scientific debate).
+    """
 
     run_id: str
     iteration: int
@@ -442,21 +421,7 @@ def add_match(
 ) -> None:
     """Record the outcome of a pairwise tournament match.
 
-    Args:
-        run_id: Identifier of the run the match belongs to.
-        iteration: Tournament iteration in which the match occurred.
-        winner_id: Identifier of the winning hypothesis.
-        loser_id: Identifier of the losing hypothesis.
-        winner_before: Winner's Elo rating before the match.
-        winner_after: Winner's Elo rating after the match.
-        loser_before: Loser's Elo rating before the match.
-        loser_after: Loser's Elo rating after the match.
-        rationale: Explanation of why the winner prevailed.
-        tier: Decisiveness class of the match (upset|decisive|clear|narrow).
-        debate_turns: Debate depth (1 = single-turn comparison, >1 = multi-
-            turn scientific debate).
-        db_path: Optional override for the SQLite database path.
-        conn: Optional open connection to reuse (e.g. from ``transaction``).
+    Field semantics are documented on ``_MatchFields``.
     """
     fields = _MatchFields(
         run_id=run_id,

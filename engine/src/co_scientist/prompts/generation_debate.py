@@ -269,8 +269,10 @@ def _build_debate_prompt_variables(
 ) -> dict[str, Any]:
     """Build the dict of template variables for the debate generation prompt.
 
-    Mirrors the parameters of get_debate_generation_prompt (which forwards
-    them here unchanged); see that function's docstring for descriptions.
+    Mirrors the parameters of get_debate_generation_prompt, which forwards
+    them here unchanged: ``reference_list`` is the ``[C*]`` citation
+    reference list, and the guidance/meta-review/tool-registry inputs are
+    formatted into prompt context blocks.
     """
     variables = _build_debate_base_variables(
         research_goal, hypotheses_count, transcript, preferences, attributes
@@ -292,34 +294,27 @@ def _build_debate_prompt_variables(
     return variables
 
 
-def _select_debate_template(articles_with_reasoning: str | None) -> str:
-    """Select the debate template based on literature availability."""
-    return (
-        "generation_debate_and_literature"
-        if articles_with_reasoning
-        else "generation_after_debate"
-    )
-
-
 def _render_debate_prompt(
-    prompt_name: str,
     variables: dict[str, Any],
+    articles_with_reasoning: str | None,
     is_final_turn: bool,
 ) -> tuple[str, dict[str, Any] | None]:
     """Render the debate prompt for one turn, given its resolved variables.
 
-    Non-final turns are conversational and schema-less. The final turn is
-    schema-constrained, with the JSON output instructions concatenated
-    verbatim after the rendered template.
-
-    Args:
-        prompt_name: Prompt file stem to render.
-        variables: Resolved template variables for this turn.
-        is_final_turn: Whether this is the final turn of the debate.
+    The template follows literature availability
+    (generation_debate_and_literature when a lit review synthesis exists,
+    generation_after_debate otherwise). Non-final turns are conversational
+    and schema-less. The final turn is schema-constrained, with the JSON
+    output instructions concatenated verbatim after the rendered template.
 
     Returns:
         Tuple of (formatted prompt string, JSON schema dict or None).
     """
+    prompt_name = (
+        "generation_debate_and_literature"
+        if articles_with_reasoning
+        else "generation_after_debate"
+    )
     if not is_final_turn:
         return load_prompt(prompt_name, variables), None
 
@@ -354,30 +349,9 @@ def get_debate_generation_prompt(
 ) -> tuple[str, dict[str, Any] | None]:
     """Get the debate-based hypothesis generation prompt.
 
-    This uses a multi-turn debate strategy where experts discuss and refine
-    hypotheses.
-    The transcript accumulates over multiple turns until final hypotheses are
-    generated.
-
-    Args:
-        research_goal: The research goal
-        hypotheses_count: Number of hypotheses to generate
-        transcript: Accumulated conversation transcript from previous turns
-        supervisor_guidance: Optional guidance from supervisor
-        preferences: Criteria for strong hypotheses
-        attributes: Key attributes to prioritize
-        is_final_turn: Whether this is the final turn (outputs JSON schema)
-        articles_with_reasoning: Optional literature review synthesis for
-            context
-        articles: Optional list of Article objects for citation metadata
-        tool_registry: Optional ToolRegistry for dynamic tool instructions
-        reference_list: Optional citation reference list of `[C*]` keys
-        meta_review: Optional cross-iteration meta-review feedback
-        run_setup_guidance: Optional durable run setup guidance text
-        run_focus_guidance: Optional durable run focus guidance text
-
-    Returns:
-        Tuple of (formatted prompt string, JSON schema dict or None)
+    Multi-turn: experts discuss and refine hypotheses while ``transcript``
+    accumulates; the final turn switches to schema-constrained JSON output.
+    Returns a (formatted prompt string, JSON schema dict or None) tuple.
     """
     variables = _build_debate_prompt_variables(
         research_goal=research_goal,
@@ -394,6 +368,6 @@ def get_debate_generation_prompt(
         run_focus_guidance=run_focus_guidance,
         tool_registry=tool_registry,
     )
-
-    prompt_name = _select_debate_template(articles_with_reasoning)
-    return _render_debate_prompt(prompt_name, variables, is_final_turn)
+    return _render_debate_prompt(
+        variables, articles_with_reasoning, is_final_turn
+    )

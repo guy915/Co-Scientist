@@ -4,6 +4,9 @@ The hypotheses table is append-only (`evolve` inserts children with
 ``parent_id`` set); the mutable fields (Elo, win/loss counts, novelty,
 cluster) live in the separate hypothesis_state table and are the only
 values updated in place.
+
+Every helper accepts ``db_path`` (override for the SQLite database path)
+and ``conn`` (an open connection to reuse, e.g. from ``transaction``).
 """
 
 from __future__ import annotations
@@ -19,7 +22,17 @@ from app.store.db import _now, _use_conn
 
 @dataclass(frozen=True)
 class _NewHypothesisFields:
-    """Fields needed to insert a hypothesis row and its state row."""
+    """Fields needed to insert a hypothesis row and its state row.
+
+    ``hyp_id`` is the engine's stable hypothesis id when the engine
+    adapter inserts (so ids stay consistent engine -> DB -> API -> UI) and
+    a fresh uuid4 otherwise. ``generation`` is 0 for originally generated
+    hypotheses; ``category`` is a short classification label that drives
+    the viewer breadcrumb; ``created_by_agent`` names the creating agent
+    (e.g. 'generation'); ``author`` records authorship provenance for a
+    scientist-contributed hypothesis and stays empty for agent-generated
+    ones.
+    """
 
     hyp_id: str
     run_id: str
@@ -85,34 +98,9 @@ def add_hypothesis(
     db_path: str | None = None,
     conn: sqlite3.Connection | None = None,
 ) -> str:
-    """Insert a hypothesis row and its initial mutable state row.
-
-    Args:
-        run_id: Identifier of the run the hypothesis belongs to.
-        title: Short title of the hypothesis.
-        statement: Full hypothesis statement.
-        hypothesis_id: Explicit row id to use. When omitted a fresh uuid4 is
-            generated. The engine adapter passes the engine's stable hypothesis
-            id here so ids stay consistent end-to-end (engine -> DB -> API ->
-            UI); the mock path leaves it unset and gets a generated id.
-        parent_id: Identifier of the parent hypothesis, set when evolving.
-        generation: Generation number, 0 for originally generated hypotheses.
-        category: Short classification label; drives the viewer breadcrumb.
-        mechanism: Proposed mechanism underlying the hypothesis.
-        expected_effect: Expected effect or outcome of the hypothesis.
-        experimental_context: Context describing how to test the hypothesis.
-        created_by_agent: Agent that created the row, e.g. 'generation'.
-        author: Authorship provenance for a scientist-contributed hypothesis;
-            empty for agent-generated ones.
-        db_path: Optional override for the SQLite database path.
-        conn: Optional open connection to reuse (e.g. from ``transaction``).
-
-    Returns:
-        The identifier of the newly inserted hypothesis.
-    """
-    hyp_id = hypothesis_id or str(uuid.uuid4())
+    """Insert a hypothesis row; returns its id (see _NewHypothesisFields)."""
     fields = _NewHypothesisFields(
-        hyp_id=hyp_id,
+        hyp_id=hypothesis_id or str(uuid.uuid4()),
         run_id=run_id,
         parent_id=parent_id,
         generation=generation,
@@ -128,7 +116,7 @@ def add_hypothesis(
     )
     with _use_conn(conn, db_path) as conn:
         _insert_hypothesis_rows(conn, fields)
-    return hyp_id
+    return fields.hyp_id
 
 
 def _hypothesis_state_updates(
@@ -199,21 +187,11 @@ def update_hypothesis_state(
 ) -> None:
     """Update selected mutable-state fields for a hypothesis.
 
-    Only the fields whose arguments are provided are updated; the rest are
-    left untouched.
-
-    Args:
-        hypothesis_id: Identifier of the hypothesis to update.
-        elo_rating: New absolute Elo rating to set.
-        win_delta: Amount to add to the win count.
-        loss_delta: Amount to add to the loss count.
-        novelty: New novelty score to set.
-        cluster_id: New proximity cluster identifier to set.
-        safety_status: New per-hypothesis safety status (e.g. 'allow',
-            'redact', 'blocked') from the pre-tournament safety review.
-        status: New lifecycle status, such as active or review-rejected.
-        db_path: Optional override for the SQLite database path.
-        conn: Optional open connection to reuse (e.g. from ``transaction``).
+    Only the fields whose arguments are provided are updated (the deltas
+    add to the win/loss counts; the rest set absolute values); everything
+    else is left untouched. ``safety_status`` is the pre-tournament safety
+    review's per-hypothesis status (e.g. 'allow', 'redact', 'blocked');
+    ``status`` is the lifecycle status, such as active or review-rejected.
     """
     updates = _hypothesis_state_updates(
         elo_rating=elo_rating,
