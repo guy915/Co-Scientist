@@ -160,7 +160,8 @@ def parse_article(art) -> dict | None:
         if year:
             break
     if not year:
-        year = _text(article.find("Journal/JournalIssue/PubDate/MedlineDate"))[:4]
+        medline = article.find("Journal/JournalIssue/PubDate/MedlineDate")
+        year = _text(medline)[:4]
 
     doi = ""
     for eid in art.findall(".//ArticleId"):
@@ -186,7 +187,8 @@ def parse_article(art) -> dict | None:
         "journal": _text(article.find("Journal/ISOAbbreviation")),
         "year": year,
         "pub_types": [
-            _text(t) for t in article.findall(".//PublicationTypeList/PublicationType")
+            _text(t)
+            for t in article.findall(".//PublicationTypeList/PublicationType")
         ],
         "author_keys": authors,
         "pmc": _pmc_id(art),
@@ -276,7 +278,8 @@ def extract_pmc_body(root) -> str:
                     _prose(title_el, parts)
                     heading = " ".join("".join(parts).split())
                     if heading:
-                        chunks.append(f"\n{'#' * min(depth + 2, 6)} {heading}\n")
+                        hashes = "#" * min(depth + 2, 6)
+                        chunks.append(f"\n{hashes} {heading}\n")
                 walk(child, depth + 1)
             elif name == "p":
                 parts = []
@@ -296,7 +299,8 @@ def fetch_pmc_text(pmcid: str) -> str:
         {"db": "pmc", "id": pmcid.replace("PMC", ""), "retmode": "xml"}
     )
     try:
-        body = extract_pmc_body(DET.fromstring(_get(f"{EUTILS}/efetch.fcgi?{params}")))
+        xml = _get(f"{EUTILS}/efetch.fcgi?{params}")
+        body = extract_pmc_body(DET.fromstring(xml))
     except Exception as exc:  # noqa: BLE001
         print(f"  {pmcid}: {exc}", file=sys.stderr)
         return ""
@@ -350,7 +354,8 @@ def main() -> int:
         slug = slugify(title)
         if not title:
             continue
-        if (CORPUS / f"{slug}.md").exists() or norm_title(title) in existing_titles:
+        already_have = (CORPUS / f"{slug}.md").exists()
+        if already_have or norm_title(title) in existing_titles:
             skipped += 1
             continue
         body = fetch_pmc_text(paper["pmc"]) if paper["pmc"] else ""

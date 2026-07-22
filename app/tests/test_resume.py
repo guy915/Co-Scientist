@@ -2,8 +2,9 @@
 
 Engine resume itself (restore a persisted ``WorkflowState`` and continue from
 the last checkpoint without redoing completed work) is covered end-to-end in
-``test_resume_engine.py``, including the durable pause/resume path
-(``test_runs_edge.py::test_engine_queue_can_pause_and_resume_without_process_handle``).
+``test_resume_engine.py``, including the durable pause/resume path in
+``test_runs_edge.py`` (test
+``test_engine_queue_can_pause_and_resume_without_process_handle``).
 This file covers the surrounding store + endpoint seams that resume relies on:
 ``clear_run_derived_data`` preserving scientist contributions while dropping
 agent artifacts, event-seq continuity across a resume boundary, and the
