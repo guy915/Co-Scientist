@@ -85,6 +85,30 @@ function RunStepItem({icon, label}: {icon: IconName; label: string}) {
  * only when the Supervisor has committed a durable task budget; otherwise the
  * bar remains explicitly indeterminate.
  */
+// The progress bar itself: determinate width when a fraction is known,
+// otherwise an indeterminate pulse.
+function ProgressBar({percentage}: {percentage: number | null}) {
+  return (
+    <div
+      className="mt-2 h-1.5 overflow-hidden rounded-full bg-cosci-hover"
+      role="progressbar"
+      aria-label="Scientific task completion"
+      aria-valuemin={percentage === null ? undefined : 0}
+      aria-valuemax={percentage === null ? undefined : 100}
+      aria-valuenow={percentage ?? undefined}
+    >
+      <div
+        className={
+          percentage === null
+            ? 'h-full w-1/3 animate-pulse rounded-full bg-cosci-blue-strong'
+            : 'h-full rounded-full bg-cosci-blue-strong transition-[width]'
+        }
+        style={percentage === null ? undefined : {width: `${percentage}%`}}
+      />
+    </div>
+  );
+}
+
 export function RunExecutionProgress({run}: {run: Run}) {
   const progress = run.execution_progress;
   const activeTask = progress?.active_task
@@ -105,23 +129,7 @@ export function RunExecutionProgress({run}: {run: Run}) {
           {percentage === null ? 'Progress pending' : `${percentage}%`}
         </span>
       </div>
-      <div
-        className="mt-2 h-1.5 overflow-hidden rounded-full bg-cosci-hover"
-        role="progressbar"
-        aria-label="Scientific task completion"
-        aria-valuemin={percentage === null ? undefined : 0}
-        aria-valuemax={percentage === null ? undefined : 100}
-        aria-valuenow={percentage ?? undefined}
-      >
-        <div
-          className={
-            percentage === null
-              ? 'h-full w-1/3 animate-pulse rounded-full bg-cosci-blue-strong'
-              : 'h-full rounded-full bg-cosci-blue-strong transition-[width]'
-          }
-          style={percentage === null ? undefined : {width: `${percentage}%`}}
-        />
-      </div>
+      <ProgressBar percentage={percentage} />
       {progress?.determinate ? (
         <p className="mt-2 text-xs text-cosci-muted">
           {progress.completed_tasks} of {progress.total_tasks} committed tasks

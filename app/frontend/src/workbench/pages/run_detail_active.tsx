@@ -9,26 +9,60 @@ import {RunExecutionProgress} from './home_recents_run_steps';
  * Live view of an in-flight run: the execution-progress flow, the headline
  * metrics, and the streaming activity timeline.
  */
+interface ActiveRunViewProps {
+  run: RunWithSummary;
+  events: StreamEvent[];
+  evidenceCount: number;
+  ideaCount: number;
+}
+
+// Estimated seconds left, from the determinate progress fraction; null while
+// the estimate is not yet meaningful.
+function estimateRemainingSeconds(
+  run: RunWithSummary,
+  nowSeconds: number,
+): number | null {
+  const elapsedSeconds = Math.max(0, Math.round(nowSeconds - run.created_at));
+  const fraction = run.execution_progress?.fraction;
+  return run.execution_progress?.determinate && fraction && fraction > 0
+    ? Math.max(0, Math.round((elapsedSeconds * (1 - fraction)) / fraction))
+    : null;
+}
+
+// The headline metrics row: time remaining, sources, and idea count.
+function RunMetrics({
+  remainingSeconds,
+  evidenceCount,
+  ideaCount,
+}: {
+  remainingSeconds: number | null;
+  evidenceCount: number;
+  ideaCount: number;
+}) {
+  return (
+    <dl className="grid grid-cols-3 gap-3 max-[720px]:grid-cols-1">
+      <RunMetric
+        label="Time remaining"
+        value={
+          remainingSeconds === null ? 'Estimating…' : `${remainingSeconds}s`
+        }
+      />
+      <RunMetric label="Sources Analyzed" value={String(evidenceCount)} />
+      <RunMetric label="Ideas explored" value={String(ideaCount)} />
+    </dl>
+  );
+}
+
 export function ActiveRunView({
   run,
   events,
   evidenceCount,
   ideaCount,
-}: {
-  run: RunWithSummary;
-  events: StreamEvent[];
-  evidenceCount: number;
-  ideaCount: number;
-}) {
+}: ActiveRunViewProps) {
   // Ticks so relative timestamps and the elapsed clock stay honest even while
   // a slow node holds the run without emitting a new event.
   const nowSeconds = useNowTick(30_000);
-  const elapsedSeconds = Math.max(0, Math.round(nowSeconds - run.created_at));
-  const fraction = run.execution_progress?.fraction;
-  const remainingSeconds =
-    run.execution_progress?.determinate && fraction && fraction > 0
-      ? Math.max(0, Math.round((elapsedSeconds * (1 - fraction)) / fraction))
-      : null;
+  const remainingSeconds = estimateRemainingSeconds(run, nowSeconds);
   // Memoized on the events so the 30s clock ticks above don't re-scan the
   // whole event list just to advance timestamps.
   const activity = useMemo(
@@ -47,44 +81,53 @@ export function ActiveRunView({
           <h2 className="mt-1 text-2xl font-medium">Research in progress</h2>
           <RunExecutionProgress run={run} />
         </div>
-        <dl className="grid grid-cols-3 gap-3 max-[720px]:grid-cols-1">
-          <RunMetric
-            label="Time remaining"
-            value={
-              remainingSeconds === null ? 'Estimating…' : `${remainingSeconds}s`
-            }
-          />
-          <RunMetric label="Sources Analyzed" value={String(evidenceCount)} />
-          <RunMetric label="Ideas explored" value={String(ideaCount)} />
-        </dl>
-        <section aria-label="Activity log">
-          <div className="flex items-center gap-2.5">
-            <LivePulse />
-            <h3 className="text-base font-medium">Live activity</h3>
-          </div>
-          {activity.length ? (
-            <ol className="mt-5">
-              {activity.map((event, index) => (
-                <ActivityItem
-                  key={event.seq}
-                  event={event}
-                  isLatest={index === 0}
-                  isLast={index === activity.length - 1}
-                  now={nowSeconds}
-                />
-              ))}
-            </ol>
-          ) : (
-            <div className="mt-4 flex items-center gap-3 rounded-md bg-cosci-hover px-4 py-3.5">
-              <span className="size-2 shrink-0 animate-pulse rounded-full bg-cosci-muted" />
-              <p className="text-sm text-cosci-muted">
-                Warming up — the first steps will appear here in a moment.
-              </p>
-            </div>
-          )}
-        </section>
+        <RunMetrics
+          remainingSeconds={remainingSeconds}
+          evidenceCount={evidenceCount}
+          ideaCount={ideaCount}
+        />
+        <ActivityLog activity={activity} nowSeconds={nowSeconds} />
       </section>
     </main>
+  );
+}
+
+// The streaming activity timeline, newest first, with an empty-state note
+// until the first event lands.
+function ActivityLog({
+  activity,
+  nowSeconds,
+}: {
+  activity: StreamEvent[];
+  nowSeconds: number;
+}) {
+  return (
+    <section aria-label="Activity log">
+      <div className="flex items-center gap-2.5">
+        <LivePulse />
+        <h3 className="text-base font-medium">Live activity</h3>
+      </div>
+      {activity.length ? (
+        <ol className="mt-5">
+          {activity.map((event, index) => (
+            <ActivityItem
+              key={event.seq}
+              event={event}
+              isLatest={index === 0}
+              isLast={index === activity.length - 1}
+              now={nowSeconds}
+            />
+          ))}
+        </ol>
+      ) : (
+        <div className="mt-4 flex items-center gap-3 rounded-md bg-cosci-hover px-4 py-3.5">
+          <span className="size-2 shrink-0 animate-pulse rounded-full bg-cosci-muted" />
+          <p className="text-sm text-cosci-muted">
+            Warming up — the first steps will appear here in a moment.
+          </p>
+        </div>
+      )}
+    </section>
   );
 }
 
@@ -252,9 +295,38 @@ function LivePulse() {
   );
 }
 
+// The phase icon disc on the connector rail; the latest step's disc is
+// filled and gently pulses so it reads as "happening now".
+function ActivityDisc({
+  icon,
+  tone,
+  isLatest,
+}: {
+  icon: IconName;
+  tone: string;
+  isLatest: boolean;
+}) {
+  return (
+    <span
+      className={joinClasses(
+        'relative z-[1] grid size-[2.125rem] shrink-0 place-items-center',
+        'rounded-full',
+        isLatest ? 'animate-pulse bg-th-primary' : 'bg-cosci-hover',
+      )}
+    >
+      <Icon
+        name={icon}
+        className={joinClasses(
+          'text-[1.15rem]',
+          isLatest ? 'text-th-primary-fg' : tone,
+        )}
+      />
+    </span>
+  );
+}
+
 // One node in the vertical activity timeline: a phase icon on the connector
-// rail, then the phase title, its detail, and how long ago it landed. The most
-// recent step is filled and gently pulses so it reads as "happening now".
+// rail, then the phase title, its detail, and how long ago it landed.
 function ActivityItem({
   event,
   isLatest,
@@ -276,27 +348,10 @@ function ActivityItem({
           className="absolute left-[1.0625rem] top-[2.375rem] bottom-1 w-px bg-cosci-border"
         />
       )}
-      <span
-        className={joinClasses(
-          'relative z-[1] grid size-[2.125rem] shrink-0 place-items-center',
-          'rounded-full',
-          isLatest ? 'animate-pulse bg-th-primary' : 'bg-cosci-hover',
-        )}
-      >
-        <Icon
-          name={icon}
-          className={joinClasses(
-            'text-[1.15rem]',
-            isLatest ? 'text-th-primary-fg' : tone,
-          )}
-        />
-      </span>
+      <ActivityDisc icon={icon} tone={tone} isLatest={isLatest} />
       <div className="min-w-0 flex-1">
-        {/* Sized to the disc and centred against it, so the title sits on the
-            disc's axis rather than being nudged by a fixed amount. Both
-            paragraphs zero their margins: <p> keeps its user-agent margins
-            here (only div is reset), and 16px of it above the title is what
-            pushed the row past the disc and off-centre. */}
+        {/* Sized to the disc and centred on its axis; both paragraphs zero
+            their own user-agent margins or the row drifts off-centre. */}
         <div className="flex min-h-[2.125rem] items-center justify-between gap-3">
           <p className="my-0 truncate font-medium text-cosci-fg">{title}</p>
           <span className="shrink-0 text-xs text-cosci-muted">

@@ -1,6 +1,18 @@
-import {useCallback, useEffect, useState} from 'react';
+import {
+  type Dispatch,
+  type RefObject,
+  type SetStateAction,
+  useCallback,
+  useEffect,
+  useState,
+} from 'react';
 import {createPortal} from 'react-dom';
-import {useLocation, useNavigate} from 'react-router-dom';
+import {
+  type NavigateFunction,
+  useLocation,
+  useNavigate,
+} from 'react-router-dom';
+import {type Run} from '@/api/runs';
 import {conciseTitle} from '@/lib/text';
 import {useAudience} from '../audience_context';
 import {HEADER_TITLE_EVENT, NEW_CHAT_EVENT} from '../dom_events';
@@ -16,6 +28,7 @@ import {
 } from './chat_home_classes';
 import {HomeStage} from './chat_home_stage';
 import {type StartedSession} from './chat_timeline_cards';
+import {type TimelineItem} from './chat_workspace_timeline';
 import {
   ConversationView,
   useConversationLayout,
@@ -28,71 +41,122 @@ interface ChatWorkspaceLocationState {
   cosciAction?: 'new-chat' | 'focus-composer';
 }
 
-/**
- * Renders the chat-first Co-Scientist workspace.
- *
- * Orchestrates the page: owns view-only UI state (recents expansion, PubMed
- * toggle, scroll/composer refs), delegates the actual session state machine
- * (messages, draft/confirmed run spec, started session) to useChatSession,
- * merges everything into a single sorted timeline, and renders either the
- * session-home stage (HomeStage) or the in-conversation timeline + composer
- * (ConversationView).
- */
-export function ChatWorkspace() {
-  const navigate = useNavigate();
-  // Recents list on the home stage is capped by default; this expands it.
-  const [showAllRecents, setShowAllRecents] = useState(false);
-  // PubMed connector toggle, shared between the home and in-chat composer.
+// useToast's setter type, matching its actual (non-Dispatch) signature.
+type SetToast = (value: string | ToastState | null) => void;
+
+// The three connector-toggle states shared by the home and in-chat
+// composers, plus their setters, bundled so both ChatWorkspace and
+// WorkspaceMain can pass them around as one value.
+interface ConnectorToggles {
+  pubmedEnabled: boolean;
+  setPubmedEnabled: Dispatch<SetStateAction<boolean>>;
+  webSearchEnabled: boolean;
+  setWebSearchEnabled: Dispatch<SetStateAction<boolean>>;
+  paperCorpusEnabled: boolean;
+  setPaperCorpusEnabled: Dispatch<SetStateAction<boolean>>;
+}
+
+// Owns the PubMed/web-search/lab-papers connector toggles, each defaulting
+// on and shared between the home and in-chat composers.
+function useConnectorToggles(): ConnectorToggles {
   const [pubmedEnabled, setPubmedEnabled] = useState(true);
-  // Web search connector toggle, likewise shared between both composers.
   const [webSearchEnabled, setWebSearchEnabled] = useState(true);
-  // Lab papers (SBI/UCD corpus) connector toggle, shared between both composers.
   const [paperCorpusEnabled, setPaperCorpusEnabled] = useState(true);
+  return {
+    pubmedEnabled,
+    setPubmedEnabled,
+    webSearchEnabled,
+    setWebSearchEnabled,
+    paperCorpusEnabled,
+    setPaperCorpusEnabled,
+  };
+}
 
-  // Sent once when an interview is created, so the Agent conducts it with the
-  // group's lab context and can answer questions about the group itself.
+// Everything ChatWorkspace needs from the session state machine plus the
+// data feeding the toast and recents panel, bundled so the two workspace
+// hooks below can be composed with a single argument each.
+interface WorkspaceSessionBundle {
+  toast: ToastState | null;
+  setToast: SetToast;
+  history: Run[];
+  homeScores: Record<string, number | null>;
+  reloadHistory: () => Promise<void>;
+  focusComposer: () => void;
+  session: ReturnType<typeof useChatSession>;
+}
+
+// Owns the audience, toast, recents-history, and session state machine, and
+// the stable focusComposer callback they all share.
+function useWorkspaceSessionBundle(
+  connectors: ConnectorToggles,
+): WorkspaceSessionBundle {
   const {audience} = useAudience();
-
   const {toast, setToast} = useToast();
   const {history, homeScores, reloadHistory} = useRunHistory();
-
   // Focuses the composer textarea on the next frame; used both locally and
   // injected into useChatSession.
   const focusComposer = useCallback(focusComposerTextarea, []);
-
-  // The session state machine lives entirely in this hook; fields used once
-  // below are read straight off `session`, and the three read more than once
-  // (draft/startedSession/hasConversation) are destructured for brevity.
   const session = useChatSession({
     reloadHistory,
     focusComposer,
     setToast,
-    pubmedEnabled,
-    webSearchEnabled,
-    paperCorpusEnabled,
+    pubmedEnabled: connectors.pubmedEnabled,
+    webSearchEnabled: connectors.webSearchEnabled,
+    paperCorpusEnabled: connectors.paperCorpusEnabled,
     audience,
   });
-  const {draft, startedSession, hasConversation} = session;
+  return {
+    toast,
+    setToast,
+    history,
+    homeScores,
+    reloadHistory,
+    focusComposer,
+    session,
+  };
+}
 
-  // Clears the session back to the empty home stage and refreshes recents,
-  // so "New chat" also picks up any run that just finished elsewhere.
-  const resetWorkspace = useCallback(() => {
+// Clears the session back to the empty home stage and refreshes recents, so
+// "New chat" also picks up any run that just finished elsewhere.
+function useResetWorkspace(
+  session: ReturnType<typeof useChatSession>,
+  setToast: SetToast,
+  reloadHistory: () => Promise<void>,
+): () => void {
+  return useCallback(() => {
     session.resetSession();
     setToast(null);
     void reloadHistory();
   }, [reloadHistory, session.resetSession, setToast]);
+}
 
-  // Wires the nav rail's global "new chat" / "focus composer" actions into
-  // the handlers above.
-  useChatWorkspaceGlobalEvents({resetWorkspace, focusComposer});
-
-  // Publishes the current draft/started title as the app shell's header via
-  // a custom event, since the header lives outside this subtree.
+// Publishes the current draft/started title as the app shell's header via a
+// custom event, since the header lives outside this subtree.
+function useSyncHeaderTitle(
+  draft: SpecStage | null,
+  startedSession: StartedSession | null,
+) {
   useEffect(
     () => syncHeaderTitle(draft, startedSession),
     [draft, startedSession],
   );
+}
 
+// Wires up "New chat"/header-title sync and builds the timeline layout, once
+// the session bundle above exists. Split from useWorkspaceSessionBundle so
+// each hook stays focused and short; both are only ever called together, in
+// this order, from ChatWorkspace.
+function useWorkspaceLayoutBundle(
+  sessionBundle: WorkspaceSessionBundle,
+  navigate: NavigateFunction,
+) {
+  const {session, setToast, reloadHistory, focusComposer} = sessionBundle;
+  const {draft, startedSession} = session;
+  const resetWorkspace = useResetWorkspace(session, setToast, reloadHistory);
+  // Wires the nav rail's global "new chat" / "focus composer" actions into
+  // the handlers above.
+  useChatWorkspaceGlobalEvents({resetWorkspace, focusComposer});
+  useSyncHeaderTitle(draft, startedSession);
   // Timeline items, its auto-scroll ref, and the composer ref whose measured
   // height feeds the timeline's bottom padding all live together in one
   // layout hook (see useConversationLayout).
@@ -102,45 +166,159 @@ export function ChatWorkspace() {
     resetWorkspace,
     focusComposer,
   );
+  return {timelineItems, scrollRef, composerRef};
+}
+
+/**
+ * Renders the chat-first Co-Scientist workspace.
+ *
+ * Orchestrates the page: owns view-only UI state (recents expansion,
+ * connector toggles), delegates the actual session state machine (messages,
+ * draft/confirmed run spec, started session) to useChatSession, merges
+ * everything into a single sorted timeline, and renders either the
+ * session-home stage (HomeStage) or the in-conversation timeline + composer
+ * (ConversationView) via WorkspaceMain.
+ */
+export function ChatWorkspace() {
+  const navigate = useNavigate();
+  // Recents list on the home stage is capped by default; this expands it.
+  const [showAllRecents, setShowAllRecents] = useState(false);
+  const connectors = useConnectorToggles();
+
+  // The session state machine, audience, toast, and recents data all live in
+  // this bundle; the layout bundle below wires "New chat"/header-title sync
+  // and builds the timeline on top of it.
+  const sessionBundle = useWorkspaceSessionBundle(connectors);
+  const {session, toast, history, homeScores} = sessionBundle;
+  const {timelineItems, scrollRef, composerRef} = useWorkspaceLayoutBundle(
+    sessionBundle,
+    navigate,
+  );
 
   return (
     <div className={HOME_WORKSPACE_CLASSES}>
       <main className={HOME_WORKSPACE_MAIN_CLASSES}>
-        {/* No conversation yet: session-home stage. Otherwise: timeline. */}
-        {!hasConversation ? (
-          <HomeStage
-            input={session.input}
-            setInput={session.setInput}
-            pubmedEnabled={pubmedEnabled}
-            onPubmedEnabledChange={setPubmedEnabled}
-            webSearchEnabled={webSearchEnabled}
-            onWebSearchEnabledChange={setWebSearchEnabled}
-            paperCorpusEnabled={paperCorpusEnabled}
-            onPaperCorpusEnabledChange={setPaperCorpusEnabled}
-            onSubmit={session.handleSubmit}
-            runs={history}
-            scoresByRunId={homeScores}
-            showAllRecents={showAllRecents}
-            onToggleShowAll={() => setShowAllRecents(current => !current)}
-          />
-        ) : (
-          <ConversationView
-            scrollRef={scrollRef}
-            timelineItems={timelineItems}
-            composerRef={composerRef}
-            session={session}
-            setupDraftMode={Boolean(draft || startedSession)}
-            pubmedEnabled={pubmedEnabled}
-            onPubmedEnabledChange={setPubmedEnabled}
-            webSearchEnabled={webSearchEnabled}
-            onWebSearchEnabledChange={setWebSearchEnabled}
-            paperCorpusEnabled={paperCorpusEnabled}
-            onPaperCorpusEnabledChange={setPaperCorpusEnabled}
-          />
-        )}
+        <WorkspaceMain
+          hasConversation={session.hasConversation}
+          session={session}
+          connectors={connectors}
+          recents={{
+            history,
+            homeScores,
+            showAllRecents,
+            onToggleShowAll: () => setShowAllRecents(current => !current),
+          }}
+          layout={{scrollRef, timelineItems, composerRef}}
+        />
         <ToastPortal toast={toast} />
       </main>
     </div>
+  );
+}
+
+// Recents-panel data/handlers passed through to HomeStage.
+interface WorkspaceRecents {
+  history: Run[];
+  homeScores: Record<string, number | null>;
+  showAllRecents: boolean;
+  onToggleShowAll: () => void;
+}
+
+// Timeline layout refs/items passed through to ConversationView.
+interface WorkspaceLayout {
+  scrollRef: RefObject<HTMLDivElement | null>;
+  timelineItems: TimelineItem[];
+  composerRef: RefObject<HTMLDivElement | null>;
+}
+
+// The session-home stage, rendered while there's no conversation yet.
+function HomeStageSection({
+  session,
+  connectors,
+  recents,
+}: {
+  session: ReturnType<typeof useChatSession>;
+  connectors: ConnectorToggles;
+  recents: WorkspaceRecents;
+}) {
+  return (
+    <HomeStage
+      input={session.input}
+      setInput={session.setInput}
+      pubmedEnabled={connectors.pubmedEnabled}
+      onPubmedEnabledChange={connectors.setPubmedEnabled}
+      webSearchEnabled={connectors.webSearchEnabled}
+      onWebSearchEnabledChange={connectors.setWebSearchEnabled}
+      paperCorpusEnabled={connectors.paperCorpusEnabled}
+      onPaperCorpusEnabledChange={connectors.setPaperCorpusEnabled}
+      onSubmit={session.handleSubmit}
+      runs={recents.history}
+      scoresByRunId={recents.homeScores}
+      showAllRecents={recents.showAllRecents}
+      onToggleShowAll={recents.onToggleShowAll}
+    />
+  );
+}
+
+// The in-conversation timeline + composer, rendered once a conversation has
+// started.
+function ConversationSection({
+  session,
+  connectors,
+  layout,
+}: {
+  session: ReturnType<typeof useChatSession>;
+  connectors: ConnectorToggles;
+  layout: WorkspaceLayout;
+}) {
+  return (
+    <ConversationView
+      scrollRef={layout.scrollRef}
+      timelineItems={layout.timelineItems}
+      composerRef={layout.composerRef}
+      session={session}
+      setupDraftMode={Boolean(session.draft || session.startedSession)}
+      pubmedEnabled={connectors.pubmedEnabled}
+      onPubmedEnabledChange={connectors.setPubmedEnabled}
+      webSearchEnabled={connectors.webSearchEnabled}
+      onWebSearchEnabledChange={connectors.setWebSearchEnabled}
+      paperCorpusEnabled={connectors.paperCorpusEnabled}
+      onPaperCorpusEnabledChange={connectors.setPaperCorpusEnabled}
+    />
+  );
+}
+
+// No conversation yet: session-home stage. Otherwise: the in-conversation
+// timeline + composer. Split out of ChatWorkspace as a pure render
+// component so the parent's hook wiring stays readable on its own.
+function WorkspaceMain({
+  hasConversation,
+  session,
+  connectors,
+  recents,
+  layout,
+}: {
+  hasConversation: boolean;
+  session: ReturnType<typeof useChatSession>;
+  connectors: ConnectorToggles;
+  recents: WorkspaceRecents;
+  layout: WorkspaceLayout;
+}) {
+  if (!hasConversation) {
+    return (
+      <HomeStageSection
+        session={session}
+        connectors={connectors}
+        recents={recents}
+      />
+    );
+  }
+  return (
+    <ConversationSection
+      session={session}
+      connectors={connectors}
+      layout={layout}
+    />
   );
 }
 

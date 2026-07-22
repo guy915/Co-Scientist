@@ -28,26 +28,14 @@ function goalDetailsLists(setup: RunWithSummary['config']['setup']): {
   };
 }
 
-/** Run Specifications preserves the final interview contract and run mode. */
-export function RunSpecificationsView({
-  run,
-  safety,
-  onSafetyChanged,
-}: {
-  run: RunWithSummary | null;
-  safety: SafetyDecision[];
-  onSafetyChanged: () => void;
-}) {
+// The interview-contract fields: goal, lists, title, and run options.
+function SpecFields({run}: {run: RunWithSummary | null}) {
   const goal = runGoal(run) || 'Loading...';
   const {requirements, attributes, criteria} = goalDetailsLists(
     run?.config.setup,
   );
-
   return (
-    <ReportDocument
-      title="Run Specifications"
-      className="cosci-run-specifications"
-    >
+    <>
       <p>
         <strong>Research Challenge:</strong> {goal}
       </p>
@@ -71,6 +59,26 @@ export function RunSpecificationsView({
           interview contract.
         </p>
       )}
+    </>
+  );
+}
+
+/** Run Specifications preserves the final interview contract and run mode. */
+export function RunSpecificationsView({
+  run,
+  safety,
+  onSafetyChanged,
+}: {
+  run: RunWithSummary | null;
+  safety: SafetyDecision[];
+  onSafetyChanged: () => void;
+}) {
+  return (
+    <ReportDocument
+      title="Run Specifications"
+      className="cosci-run-specifications"
+    >
+      <SpecFields run={run} />
       <SafetyReviewSection
         runId={run?.id}
         decisions={safety}
@@ -79,6 +87,41 @@ export function RunSpecificationsView({
       <PrivateCorpusUpload runId={run?.id} onChanged={onSafetyChanged} />
     </ReportDocument>
   );
+}
+
+const UPLOAD_ACCEPT =
+  '.pdf,.txt,.md,.csv,.json,application/pdf,text/plain,text/markdown,' +
+  'text/csv,application/json';
+
+interface UploadCallbacks {
+  setBusy: (busy: boolean) => void;
+  setStatus: (status: string | null) => void;
+  onChanged: () => void;
+}
+
+// Uploads the chosen file into the run's private corpus, reporting progress
+// and outcome through the given callbacks.
+async function uploadCorpusFile(
+  event: ChangeEvent<HTMLInputElement>,
+  runId: string | undefined,
+  callbacks: UploadCallbacks,
+) {
+  const file = event.target.files?.[0];
+  event.target.value = '';
+  if (!file || !runId) return;
+  callbacks.setBusy(true);
+  callbacks.setStatus(null);
+  try {
+    const result = await uploadRunDocument(runId, file);
+    callbacks.setStatus(
+      `${file.name} indexed (${result.byte_size.toLocaleString()} bytes).`,
+    );
+    callbacks.onChanged();
+  } catch (error) {
+    callbacks.setStatus(error instanceof Error ? error.message : String(error));
+  } finally {
+    callbacks.setBusy(false);
+  }
 }
 
 function PrivateCorpusUpload({
@@ -91,24 +134,8 @@ function PrivateCorpusUpload({
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
 
-  async function upload(event: ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0];
-    event.target.value = '';
-    if (!file || !runId) return;
-    setBusy(true);
-    setStatus(null);
-    try {
-      const result = await uploadRunDocument(runId, file);
-      setStatus(
-        `${file.name} indexed (${result.byte_size.toLocaleString()} bytes).`,
-      );
-      onChanged();
-    } catch (error) {
-      setStatus(error instanceof Error ? error.message : String(error));
-    } finally {
-      setBusy(false);
-    }
-  }
+  const upload = (event: ChangeEvent<HTMLInputElement>) =>
+    uploadCorpusFile(event, runId, {setBusy, setStatus, onChanged});
 
   return (
     <section className="mt-8 border-t border-cosci-border pt-5">
@@ -122,7 +149,7 @@ function PrivateCorpusUpload({
         <input
           type="file"
           className="sr-only"
-          accept=".pdf,.txt,.md,.csv,.json,application/pdf,text/plain,text/markdown,text/csv,application/json"
+          accept={UPLOAD_ACCEPT}
           disabled={busy || !runId}
           onChange={event => void upload(event)}
         />
@@ -133,6 +160,60 @@ function PrivateCorpusUpload({
         </p>
       )}
     </section>
+  );
+}
+
+interface ResolveProps {
+  busy: boolean;
+  onResolve: (resolution: 'approved' | 'rejected') => void;
+}
+
+// The approve/reject controls for a decision still awaiting human review.
+function ResolveButtons({busy, onResolve}: ResolveProps) {
+  return (
+    <div className="flex gap-2">
+      <button
+        className="rounded-full border border-cosci-border px-4 py-2"
+        disabled={busy}
+        onClick={() => onResolve('approved')}
+        type="button"
+      >
+        Approve for research use
+      </button>
+      <button
+        className="rounded-full border border-cosci-border px-4 py-2"
+        disabled={busy}
+        onClick={() => onResolve('rejected')}
+        type="button"
+      >
+        Reject
+      </button>
+    </div>
+  );
+}
+
+// One safety decision: what was flagged, under which policy, and — when it
+// still needs human review — the approve/reject controls.
+function SafetyDecisionItem({
+  decision,
+  busy,
+  onResolve,
+}: ResolveProps & {decision: SafetyDecision}) {
+  return (
+    <div className="mb-5">
+      <p>
+        <strong>{decision.stage}:</strong>{' '}
+        {decision.category || decision.decision} — {decision.reason}
+      </p>
+      <p className="text-sm text-cosci-muted">
+        Policy {decision.policy_version || 'legacy'} ·{' '}
+        {decision.assessor || 'deterministic'}
+      </p>
+      {decision.resolution ? <p>Resolution: {decision.resolution}</p> : null}
+      {decision.requires_review && !decision.resolution ? (
+        <ResolveButtons busy={busy} onResolve={onResolve} />
+      ) : null}
+    </div>
   );
 }
 
@@ -166,39 +247,12 @@ function SafetyReviewSection({
     <section className="mt-8 border-t border-cosci-border pt-5">
       <h3 className={REPORT_H3_CLASSES}>Safety audit</h3>
       {decisions.map(decision => (
-        <div className="mb-5" key={decision.id}>
-          <p>
-            <strong>{decision.stage}:</strong>{' '}
-            {decision.category || decision.decision} — {decision.reason}
-          </p>
-          <p className="text-sm text-cosci-muted">
-            Policy {decision.policy_version || 'legacy'} ·{' '}
-            {decision.assessor || 'deterministic'}
-          </p>
-          {decision.resolution ? (
-            <p>Resolution: {decision.resolution}</p>
-          ) : null}
-          {decision.requires_review && !decision.resolution ? (
-            <div className="flex gap-2">
-              <button
-                className="rounded-full border border-cosci-border px-4 py-2"
-                disabled={busy === decision.id}
-                onClick={() => void resolve(decision, 'approved')}
-                type="button"
-              >
-                Approve for research use
-              </button>
-              <button
-                className="rounded-full border border-cosci-border px-4 py-2"
-                disabled={busy === decision.id}
-                onClick={() => void resolve(decision, 'rejected')}
-                type="button"
-              >
-                Reject
-              </button>
-            </div>
-          ) : null}
-        </div>
+        <SafetyDecisionItem
+          key={decision.id}
+          decision={decision}
+          busy={busy === decision.id}
+          onResolve={resolution => void resolve(decision, resolution)}
+        />
       ))}
     </section>
   );

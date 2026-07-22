@@ -14,26 +14,7 @@ import {
 } from './chat_session_types';
 import {type ComposerLog, type RunSpecLifecycle} from './chat_session_state';
 
-// Composer submit advances the durable Agent interview. The browser never
-// derives scientific setup fields from keywords; only the persisted model
-// response can complete the setup and produce a runnable specification.
-async function submitComposerMessage({
-  e,
-  files,
-  input,
-  interview,
-  audience,
-  setInput,
-  setError,
-  setToast,
-  setMessages,
-  setInterview,
-  setIsStarting,
-  setIsAwaitingAgent,
-  setAgentReasoning,
-  setPendingAttachments,
-  stageDraftSpec,
-}: {
+interface SubmitComposerDeps {
   e: FormEvent<HTMLFormElement>;
   files: File[];
   input: string;
@@ -53,67 +34,87 @@ async function submitComposerMessage({
     createdAt?: number,
     intro?: string,
   ) => void;
-}): Promise<void> {
-  e.preventDefault();
-  const text = input.trim();
-  if (!text) return;
-  if (files.length) {
-    setPendingAttachments(current => [...current, ...files]);
-  }
-  setInput('');
-  setError(null);
-  setToast(null);
+}
 
-  const sentAt = appendChatMessage(setMessages, 'user', text);
-  setIsStarting(true);
-  setIsAwaitingAgent(true);
+// Applies the Agent's reply for one interview turn to the chat log: a
+// completed interview folds the closing message into the plan card as its
+// intro (one response — the plan — not a bubble plus a card), while an
+// in-progress one shows the follow-up question as its own assistant bubble.
+function applyAgentTurn(
+  updated: Interview,
+  sentAt: number,
+  deps: Pick<SubmitComposerDeps, 'setMessages' | 'stageDraftSpec'>,
+): void {
+  const agentTurn = [...updated.turns]
+    .reverse()
+    .find(turn => turn.role === 'agent');
+  if (updated.status === 'completed') {
+    const spec = interviewToRunSpec(updated);
+    deps.stageDraftSpec(spec, sentAt + 0.002, agentTurn?.content);
+    emitDiagnosticEvent({
+      stage: 'LIFECYCLE',
+      payload: {event: 'interview_completed', interview_id: updated.id},
+    });
+    return;
+  }
+  if (agentTurn) {
+    appendChatMessage(
+      deps.setMessages,
+      'assistant',
+      agentTurn.content,
+      sentAt + 0.001,
+    );
+  }
+  emitDiagnosticEvent({
+    stage: 'CHAT',
+    payload: {event: 'interview_advanced', interview_id: updated.id},
+  });
+}
+
+// Clears the composer for a new turn; returns the trimmed text, or null
+// when there is nothing to submit.
+function beginComposerTurn(deps: SubmitComposerDeps): string | null {
+  const text = deps.input.trim();
+  if (!text) return null;
+  if (deps.files.length) {
+    deps.setPendingAttachments(current => [...current, ...deps.files]);
+  }
+  deps.setInput('');
+  deps.setError(null);
+  deps.setToast(null);
+  return text;
+}
+
+// Composer submit advances the durable Agent interview. The browser never
+// derives scientific setup fields from keywords; only the persisted model
+// response can complete the setup and produce a runnable specification.
+async function submitComposerMessage(deps: SubmitComposerDeps): Promise<void> {
+  deps.e.preventDefault();
+  const text = beginComposerTurn(deps);
+  if (text === null) return;
+
+  const sentAt = appendChatMessage(deps.setMessages, 'user', text);
+  deps.setIsStarting(true);
+  deps.setIsAwaitingAgent(true);
   // Each turn shows only its own thinking, so drop the previous turn's.
-  setAgentReasoning('');
+  deps.setAgentReasoning('');
   const onReasoning = (fragment: string) =>
-    setAgentReasoning(current => current + fragment);
+    deps.setAgentReasoning(current => current + fragment);
   try {
-    const updated = interview
-      ? await addInterviewTurn(interview.id, text, onReasoning)
-      : await createInterview(text, onReasoning, audience ?? undefined);
-    setInterview(updated);
-    const agentTurn = [...updated.turns]
-      .reverse()
-      .find(turn => turn.role === 'agent');
-    if (updated.status === 'completed') {
-      // The interview is done: fold the Agent's closing message into the plan
-      // card as its intro, so the completed turn reads as one response (the
-      // plan) rather than an assistant bubble followed by a separate card.
-      const spec = interviewToRunSpec(updated);
-      stageDraftSpec(spec, sentAt + 0.002, agentTurn?.content);
-      emitDiagnosticEvent({
-        stage: 'LIFECYCLE',
-        payload: {event: 'interview_completed', interview_id: updated.id},
-      });
-    } else {
-      // Still interviewing: the Agent's reply is a follow-up question, shown
-      // as its own assistant bubble.
-      if (agentTurn) {
-        appendChatMessage(
-          setMessages,
-          'assistant',
-          agentTurn.content,
-          sentAt + 0.001,
-        );
-      }
-      emitDiagnosticEvent({
-        stage: 'CHAT',
-        payload: {event: 'interview_advanced', interview_id: updated.id},
-      });
-    }
+    const updated = deps.interview
+      ? await addInterviewTurn(deps.interview.id, text, onReasoning)
+      : await createInterview(text, onReasoning, deps.audience ?? undefined);
+    deps.setInterview(updated);
+    applyAgentTurn(updated, sentAt, deps);
   } catch (error) {
-    setError(
+    deps.setError(
       error instanceof Error
         ? error.message
         : 'The Agent could not continue the interview.',
     );
   } finally {
-    setIsStarting(false);
-    setIsAwaitingAgent(false);
+    deps.setIsStarting(false);
+    deps.setIsAwaitingAgent(false);
   }
 }
 
@@ -167,6 +168,16 @@ function editPlan({
 // Copies a message's prompt text and offers a "Start new chat" toast action
 // that clears the session and prefills the composer with it. Takes its
 // dependencies as arguments instead of closing over hook state.
+interface CopyMessagePromptDeps {
+  message: ChatEntry;
+  clearSessionState: () => void;
+  setMessages: (value: ChatEntry[]) => void;
+  setError: (message: string | null) => void;
+  setToast: (value: string | ToastState | null) => void;
+  setInput: (value: string) => void;
+  focusComposer: () => void;
+}
+
 async function copyMessagePrompt({
   message,
   clearSessionState,
@@ -175,15 +186,7 @@ async function copyMessagePrompt({
   setToast,
   setInput,
   focusComposer,
-}: {
-  message: ChatEntry;
-  clearSessionState: () => void;
-  setMessages: (value: ChatEntry[]) => void;
-  setError: (message: string | null) => void;
-  setToast: (value: string | ToastState | null) => void;
-  setInput: (value: string) => void;
-  focusComposer: () => void;
-}): Promise<void> {
+}: CopyMessagePromptDeps): Promise<void> {
   await copyText(message.content);
   const promptText = message.content;
   // Copy is a pure utility (matching the reference): it does not stage a

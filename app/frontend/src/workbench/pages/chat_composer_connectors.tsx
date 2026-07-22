@@ -5,9 +5,9 @@ import {
   useRef,
   useState,
 } from 'react';
-import {type Connector} from '@/api/system';
+import {type Connector, type SystemStatus} from '@/api/system';
 import {Icon, type IconName} from '@/components/icon';
-import {useAudience} from '../audience_context';
+import {type Audience, useAudience} from '../audience_context';
 import {joinClasses} from '../classes';
 import {useSystemStatus} from '../hooks/use_system_status';
 import {tooltipClassNames} from '../tooltip';
@@ -42,6 +42,20 @@ const WEB_SEARCH_CONNECTOR_ID = 'web_search';
 const PAPER_CORPUS_CONNECTOR_ID = 'paper_corpus';
 
 /**
+ * The PubMed/web-search/lab-papers connector toggle values plus their
+ * change callbacks, bundled so SourceControls/ConnectorsMenu/ComposerFooter
+ * can each take a single argument instead of six.
+ */
+export interface ConnectorToggleProps {
+  pubmedEnabled: boolean;
+  onPubmedEnabledChange?: (value: boolean) => void;
+  webSearchEnabled: boolean;
+  onWebSearchEnabledChange?: (value: boolean) => void;
+  paperCorpusEnabled: boolean;
+  onPaperCorpusEnabledChange?: (value: boolean) => void;
+}
+
+/**
  * Owns the connectors-menu open flag and the outside-mousedown listener that
  * closes it; only subscribes to the document listener when the menu is
  * actually open.
@@ -70,36 +84,31 @@ export function useConnectorsMenu() {
   return {connectorsOpen, setConnectorsOpen, sourceControlsRef};
 }
 
-/**
- * Renders the composer's file/connector toolbar row: the hidden file input
- * and its trigger button, the Connectors button, and (while open) the
- * connectors menu with its connector toggle rows.
- */
-export function SourceControls({
-  connectorsOpen,
-  onToggleConnectors,
-  sourceControlsRef,
-  fileInputRef,
-  onFilesChanged,
-  pubmedEnabled,
-  onPubmedEnabledChange,
-  webSearchEnabled,
-  onWebSearchEnabledChange,
-  paperCorpusEnabled,
-  onPaperCorpusEnabledChange,
-}: {
+// Props for SourceControls, named at module level per the destructured
+// prop signature otherwise pushing the component past the line cap.
+interface SourceControlsProps {
   connectorsOpen: boolean;
   onToggleConnectors: () => void;
   sourceControlsRef: RefObject<HTMLDivElement | null>;
   fileInputRef: RefObject<HTMLInputElement | null>;
   onFilesChanged: (e: ChangeEvent<HTMLInputElement>) => void;
-  pubmedEnabled: boolean;
-  onPubmedEnabledChange?: (value: boolean) => void;
-  webSearchEnabled: boolean;
-  onWebSearchEnabledChange?: (value: boolean) => void;
-  paperCorpusEnabled: boolean;
-  onPaperCorpusEnabledChange?: (value: boolean) => void;
-}) {
+  connectors: ConnectorToggleProps;
+}
+
+/**
+ * Renders the composer's file/connector toolbar row: the hidden file input
+ * and its trigger button, the Connectors button, and (while open) the
+ * connectors menu with its connector toggle rows.
+ */
+export function SourceControls(props: SourceControlsProps) {
+  const {
+    connectorsOpen,
+    onToggleConnectors,
+    sourceControlsRef,
+    fileInputRef,
+    onFilesChanged,
+    connectors,
+  } = props;
   return (
     <div className={COMPOSER_SOURCE_CONTROLS_CLASSES} ref={sourceControlsRef}>
       <input
@@ -122,16 +131,7 @@ export function SourceControls({
         expanded={connectorsOpen}
         onClick={onToggleConnectors}
       />
-      {connectorsOpen ? (
-        <ConnectorsMenu
-          pubmedEnabled={pubmedEnabled}
-          onPubmedEnabledChange={onPubmedEnabledChange}
-          webSearchEnabled={webSearchEnabled}
-          onWebSearchEnabledChange={onWebSearchEnabledChange}
-          paperCorpusEnabled={paperCorpusEnabled}
-          onPaperCorpusEnabledChange={onPaperCorpusEnabledChange}
-        />
-      ) : null}
+      {connectorsOpen ? <ConnectorsMenu connectors={connectors} /> : null}
     </div>
   );
 }
@@ -172,42 +172,100 @@ function SourceToolbarButton({
   );
 }
 
-// Connectors menu: the available data sources come from the backend (/status),
-// derived from literature and web-search availability plus the configured tools
-// YAML, so newly configured connectors appear here automatically. Each row keys
-// its checked state and handler off `connector.id`: the web-search and Lab
-// papers rows each drive their own independent toggle, while every literature
-// source (PubMed, INDRA, ...) shares the single literature-retrieval toggle,
-// since the engine enables that stack as one unit. The Lab papers corpus is
-// SBI/UCD-specific, so its row is dropped for every other audience even when
-// the backend advertises it. Closed by the outside-mousedown effect in the
-// parent composer.
-function ConnectorsMenu({
-  pubmedEnabled,
-  onPubmedEnabledChange,
-  webSearchEnabled,
-  onWebSearchEnabledChange,
-  paperCorpusEnabled,
-  onPaperCorpusEnabledChange,
-}: {
-  pubmedEnabled: boolean;
-  onPubmedEnabledChange?: (value: boolean) => void;
-  webSearchEnabled: boolean;
-  onWebSearchEnabledChange?: (value: boolean) => void;
-  paperCorpusEnabled: boolean;
-  onPaperCorpusEnabledChange?: (value: boolean) => void;
-}) {
-  const {status} = useSystemStatus();
-  const {audience} = useAudience();
+// The available data sources come from the backend (/status), derived from
+// literature and web-search availability plus the configured tools YAML, so
+// newly configured connectors appear here automatically. Which are shown is
+// filtered for the current audience: the backend already orders them (web,
+// pubmed, corpus), so only the Lab papers row is ever dropped, for every
+// non-SBI audience, preserving that order otherwise.
+function visibleConnectors(
+  status: SystemStatus | null,
+  audience: Audience | null,
+): Connector[] {
   const advertised = status?.connectors?.length
     ? status.connectors
     : DEFAULT_CONNECTORS;
-  // Backend already orders the connectors (web, pubmed, corpus); only drop the
-  // Lab papers row for non-SBI audiences, preserving that order otherwise.
-  const connectors = advertised.filter(
+  return advertised.filter(
     connector =>
       connector.id !== PAPER_CORPUS_CONNECTOR_ID || audience === 'sbi_ucd',
   );
+}
+
+// One connector row's derived checked/toggle/icon state: the web-search and
+// Lab papers rows each drive their own independent toggle, while every other
+// (literature) connector shares the single pubmed/literature-retrieval
+// toggle, since the engine enables that stack as one unit.
+function connectorRowState(
+  connector: Connector,
+  toggles: ConnectorToggleProps,
+): {checked: boolean; toggle: () => void; iconName: IconName} {
+  const isWebSearch = connector.id === WEB_SEARCH_CONNECTOR_ID;
+  const isPaperCorpus = connector.id === PAPER_CORPUS_CONNECTOR_ID;
+  const checked = isWebSearch
+    ? toggles.webSearchEnabled
+    : isPaperCorpus
+      ? toggles.paperCorpusEnabled
+      : toggles.pubmedEnabled;
+  const toggle = () =>
+    isWebSearch
+      ? toggles.onWebSearchEnabledChange?.(!toggles.webSearchEnabled)
+      : isPaperCorpus
+        ? toggles.onPaperCorpusEnabledChange?.(!toggles.paperCorpusEnabled)
+        : toggles.onPubmedEnabledChange?.(!toggles.pubmedEnabled);
+  const iconName: IconName = isWebSearch
+    ? 'search'
+    : isPaperCorpus
+      ? 'science'
+      : 'article';
+  return {checked, toggle, iconName};
+}
+
+// One row in the connectors menu: an icon, the connector's display name, and
+// its on/off toggle pill.
+function ConnectorMenuRow({
+  connector,
+  toggles,
+}: {
+  connector: Connector;
+  toggles: ConnectorToggleProps;
+}) {
+  const {checked, toggle, iconName} = connectorRowState(connector, toggles);
+  return (
+    <button
+      type="button"
+      role="menuitemcheckbox"
+      aria-checked={checked}
+      className={CONNECTORS_MENU_ROW_CLASSES}
+      onClick={toggle}
+    >
+      <Icon
+        className={CONNECTOR_ICON_CLASSES}
+        aria-hidden="true"
+        name={iconName}
+      />
+      <span>{connector.display}</span>
+      <span
+        className={joinClasses(
+          CONNECTOR_TOGGLE_BASE_CLASSES,
+          checked ? CONNECTOR_TOGGLE_ON_CLASSES : CONNECTOR_TOGGLE_OFF_CLASSES,
+        )}
+        aria-hidden="true"
+      />
+    </button>
+  );
+}
+
+// The connectors menu itself: a header plus one ConnectorMenuRow per visible
+// connector. Closed by the outside-mousedown effect in the parent composer
+// (see useConnectorsMenu).
+function ConnectorsMenu({
+  connectors: toggles,
+}: {
+  connectors: ConnectorToggleProps;
+}) {
+  const {status} = useSystemStatus();
+  const {audience} = useAudience();
+  const connectors = visibleConnectors(status, audience);
   return (
     <div
       className={CONNECTORS_MENU_CLASSES}
@@ -217,52 +275,13 @@ function ConnectorsMenu({
       <div className={CONNECTORS_MENU_HEADER_CLASSES}>
         <span>Connectors</span>
       </div>
-      {connectors.map(connector => {
-        const isWebSearch = connector.id === WEB_SEARCH_CONNECTOR_ID;
-        const isPaperCorpus = connector.id === PAPER_CORPUS_CONNECTOR_ID;
-        const checked = isWebSearch
-          ? webSearchEnabled
-          : isPaperCorpus
-            ? paperCorpusEnabled
-            : pubmedEnabled;
-        const toggle = () =>
-          isWebSearch
-            ? onWebSearchEnabledChange?.(!webSearchEnabled)
-            : isPaperCorpus
-              ? onPaperCorpusEnabledChange?.(!paperCorpusEnabled)
-              : onPubmedEnabledChange?.(!pubmedEnabled);
-        const iconName: IconName = isWebSearch
-          ? 'search'
-          : isPaperCorpus
-            ? 'science'
-            : 'article';
-        return (
-          <button
-            type="button"
-            role="menuitemcheckbox"
-            aria-checked={checked}
-            className={CONNECTORS_MENU_ROW_CLASSES}
-            key={connector.id}
-            onClick={toggle}
-          >
-            <Icon
-              className={CONNECTOR_ICON_CLASSES}
-              aria-hidden="true"
-              name={iconName}
-            />
-            <span>{connector.display}</span>
-            <span
-              className={joinClasses(
-                CONNECTOR_TOGGLE_BASE_CLASSES,
-                checked
-                  ? CONNECTOR_TOGGLE_ON_CLASSES
-                  : CONNECTOR_TOGGLE_OFF_CLASSES,
-              )}
-              aria-hidden="true"
-            />
-          </button>
-        );
-      })}
+      {connectors.map(connector => (
+        <ConnectorMenuRow
+          key={connector.id}
+          connector={connector}
+          toggles={toggles}
+        />
+      ))}
     </div>
   );
 }

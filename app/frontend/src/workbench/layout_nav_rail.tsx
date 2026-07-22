@@ -102,6 +102,65 @@ const NAV_RAIL_VARIANTS = {
   },
 } as const;
 
+// One rail variant's class bundle (see NAV_RAIL_VARIANTS above).
+type NavRailVariant =
+  (typeof NAV_RAIL_VARIANTS)[keyof typeof NAV_RAIL_VARIANTS];
+
+// The rail's top group: Menu toggle, New chat, and the chat-history
+// sidebar. Split out of NavRail so the component itself stays a thin
+// wrapper around this and the bottom Settings control.
+interface NavRailTopProps {
+  navOpen: boolean;
+  toggleNav: () => void;
+  startNewChat: () => void;
+  history: Run[];
+  activeRunId: string | undefined;
+  showAllChats: boolean;
+  onToggleShowAllChats: () => void;
+  nav: NavRailVariant;
+}
+
+function NavRailTop({
+  navOpen,
+  toggleNav,
+  startNewChat,
+  history,
+  activeRunId,
+  showAllChats,
+  onToggleShowAllChats,
+  nav,
+}: NavRailTopProps) {
+  return (
+    <div className={nav.group}>
+      <NavActionButton
+        label="Menu"
+        icon="menu"
+        className={nav.item}
+        labelClassName={nav.label}
+        expanded={navOpen}
+        controls="primary-navigation"
+        onClick={toggleNav}
+      />
+      <nav id="primary-navigation" className={nav.items}>
+        <NavActionButton
+          label="New chat"
+          icon="edit_square"
+          className={nav.item}
+          labelClassName={nav.label}
+          onClick={startNewChat}
+        />
+      </nav>
+      <ChatHistorySidebar
+        navOpen={navOpen}
+        history={history}
+        activeRunId={activeRunId}
+        showAllChats={showAllChats}
+        onToggleShowAllChats={onToggleShowAllChats}
+      />
+    </div>
+  );
+}
+
 /**
  * Renders the icon rail: Menu toggle, New chat, the chat-history sidebar,
  * and the bottom Settings control. All open/collapsed presentation is
@@ -121,6 +180,20 @@ const NAV_RAIL_VARIANTS = {
  * @param settingsControlRef Anchor ref for outside-click dismissal of the
  *   Settings popover.
  */
+interface NavRailProps {
+  navOpen: boolean;
+  toggleNav: () => void;
+  startNewChat: () => void;
+  history: Run[];
+  activeRunId: string | undefined;
+  showAllChats: boolean;
+  onToggleShowAllChats: () => void;
+  activePanel: ShellPanel | null;
+  onTogglePanel: (panel: ShellPanel) => void;
+  onOpenSettings: (section: SettingsSection) => void;
+  settingsControlRef: RefObject<HTMLDivElement | null>;
+}
+
 export function NavRail({
   navOpen,
   toggleNav,
@@ -133,50 +206,21 @@ export function NavRail({
   onTogglePanel,
   onOpenSettings,
   settingsControlRef,
-}: {
-  navOpen: boolean;
-  toggleNav: () => void;
-  startNewChat: () => void;
-  history: Run[];
-  activeRunId: string | undefined;
-  showAllChats: boolean;
-  onToggleShowAllChats: () => void;
-  activePanel: ShellPanel | null;
-  onTogglePanel: (panel: ShellPanel) => void;
-  onOpenSettings: (section: SettingsSection) => void;
-  settingsControlRef: RefObject<HTMLDivElement | null>;
-}) {
+}: NavRailProps) {
   const nav = navOpen ? NAV_RAIL_VARIANTS.open : NAV_RAIL_VARIANTS.collapsed;
 
   return (
     <aside className={nav.panel} aria-label="Primary navigation">
-      <div className={nav.group}>
-        <NavActionButton
-          label="Menu"
-          icon="menu"
-          className={nav.item}
-          labelClassName={nav.label}
-          expanded={navOpen}
-          controls="primary-navigation"
-          onClick={toggleNav}
-        />
-        <nav id="primary-navigation" className={nav.items}>
-          <NavActionButton
-            label="New chat"
-            icon="edit_square"
-            className={nav.item}
-            labelClassName={nav.label}
-            onClick={startNewChat}
-          />
-        </nav>
-        <ChatHistorySidebar
-          navOpen={navOpen}
-          history={history}
-          activeRunId={activeRunId}
-          showAllChats={showAllChats}
-          onToggleShowAllChats={onToggleShowAllChats}
-        />
-      </div>
+      <NavRailTop
+        navOpen={navOpen}
+        toggleNav={toggleNav}
+        startNewChat={startNewChat}
+        history={history}
+        activeRunId={activeRunId}
+        showAllChats={showAllChats}
+        onToggleShowAllChats={onToggleShowAllChats}
+        nav={nav}
+      />
       <div className={nav.bottom}>
         <RailSettingsControl
           navOpen={navOpen}
@@ -215,63 +259,112 @@ function ChatHistoryLink({run, isActive}: {run: Run; isActive: boolean}) {
   );
 }
 
-// The "Chats" section of the rail: the recent-run list (capped to 10 until
-// expanded) with the active run highlighted.
-function ChatHistorySidebar({
-  navOpen,
-  history,
-  activeRunId,
-  showAllChats,
-  onToggleShowAllChats,
-}: {
-  navOpen: boolean;
-  history: Run[];
+// The scrollable run list itself, plus the "Show more"/"Show less" toggle
+// when the history exceeds the collapsed cap. Split out of
+// ChatHistorySidebar so the overflow-tracking ref/state (only ever read by
+// this list) stays local to the piece that uses it.
+interface ChatListProps {
+  visibleHistory: Run[];
   activeRunId: string | undefined;
+  hasExtraChats: boolean;
   showAllChats: boolean;
   onToggleShowAllChats: () => void;
+}
+
+// The "Show more"/"Show less" toggle at the bottom of the chat list.
+function ShowMoreChatsButton({
+  showAllChats,
+  onToggle,
+}: {
+  showAllChats: boolean;
+  onToggle: () => void;
 }) {
-  const sideContentClasses = (
-    navOpen ? NAV_RAIL_VARIANTS.open : NAV_RAIL_VARIANTS.collapsed
-  ).sideContent;
-  const visibleHistory = showAllChats ? history : history.slice(0, 10);
-  const hasExtraChats = history.length > 10;
+  return (
+    <button
+      type="button"
+      className={CHAT_HISTORY_MORE_CLASSES}
+      onClick={onToggle}
+    >
+      {showAllChats ? 'Show less' : 'Show more'}
+      <Icon
+        aria-hidden="true"
+        name={showAllChats ? 'expand_less' : 'expand_more'}
+      />
+    </button>
+  );
+}
+
+function ChatList({
+  visibleHistory,
+  activeRunId,
+  hasExtraChats,
+  showAllChats,
+  onToggleShowAllChats,
+}: ChatListProps) {
   // Only scroll the list when the rail cannot fit it. A scroll container clips
   // its content even with no scrollbar showing, which would cut off the
   // chat-link tooltips escaping to the right.
   const [chatListRef, chatListOverflows] = useOverflowing<HTMLDivElement>();
 
   return (
+    <div
+      ref={chatListRef}
+      className={
+        chatListOverflows
+          ? `${CHAT_LIST_CLASSES} ${CHAT_LIST_SCROLLABLE_CLASSES}`
+          : CHAT_LIST_CLASSES
+      }
+    >
+      {visibleHistory.map(run => (
+        <ChatHistoryLink
+          key={run.id}
+          run={run}
+          isActive={run.id === activeRunId}
+        />
+      ))}
+      {hasExtraChats && (
+        <ShowMoreChatsButton
+          showAllChats={showAllChats}
+          onToggle={onToggleShowAllChats}
+        />
+      )}
+    </div>
+  );
+}
+
+// The "Chats" section of the rail: the recent-run list (capped to 10 until
+// expanded) with the active run highlighted.
+interface ChatHistorySidebarProps {
+  navOpen: boolean;
+  history: Run[];
+  activeRunId: string | undefined;
+  showAllChats: boolean;
+  onToggleShowAllChats: () => void;
+}
+
+function ChatHistorySidebar({
+  navOpen,
+  history,
+  activeRunId,
+  showAllChats,
+  onToggleShowAllChats,
+}: ChatHistorySidebarProps) {
+  const sideContentClasses = (
+    navOpen ? NAV_RAIL_VARIANTS.open : NAV_RAIL_VARIANTS.collapsed
+  ).sideContent;
+  const visibleHistory = showAllChats ? history : history.slice(0, 10);
+  const hasExtraChats = history.length > 10;
+
+  return (
     <div className={sideContentClasses}>
       <p className={SIDE_HEADING_CLASSES}>Chats</p>
-      <div
-        ref={chatListRef}
-        className={
-          chatListOverflows
-            ? `${CHAT_LIST_CLASSES} ${CHAT_LIST_SCROLLABLE_CLASSES}`
-            : CHAT_LIST_CLASSES
-        }
-      >
-        {visibleHistory.map(run => (
-          <ChatHistoryLink
-            key={run.id}
-            run={run}
-            isActive={run.id === activeRunId}
-          />
-        ))}
-        {hasExtraChats && (
-          <button
-            type="button"
-            className={CHAT_HISTORY_MORE_CLASSES}
-            onClick={onToggleShowAllChats}
-          >
-            {showAllChats ? 'Show less' : 'Show more'}
-            <Icon
-              aria-hidden="true"
-              name={showAllChats ? 'expand_less' : 'expand_more'}
-            />
-          </button>
-        )}
-      </div>
+      <ChatList
+        visibleHistory={visibleHistory}
+        activeRunId={activeRunId}
+        hasExtraChats={hasExtraChats}
+        showAllChats={showAllChats}
+        onToggleShowAllChats={onToggleShowAllChats}
+      />
     </div>
   );
 }

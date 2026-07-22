@@ -1,4 +1,12 @@
-import {useEffect, useMemo, useRef, useState, type ReactNode} from 'react';
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type Dispatch,
+  type ReactNode,
+  type SetStateAction,
+} from 'react';
 import {deleteAppLogs} from '@/api/logs';
 import {Icon, type IconName} from '@/components/icon';
 import {copyText} from '@/lib/clipboard';
@@ -155,27 +163,20 @@ function LogsTriggerButton({
  * @param props.renderPopover Lets the parent wrap the panel content in its
  *   own positioned popover container (shared with the Settings menu).
  */
-export function DiagnosticsControl({
-  open,
-  onToggle,
-  renderPopover,
-}: {
+interface DiagnosticsControlProps {
   open: boolean;
   onToggle: () => void;
   renderPopover: (children: ReactNode, className: string) => ReactNode;
-}) {
-  // Bumped whenever the persisted log changed (ingest, navigation, clear)
-  // so the fetch effect re-runs immediately instead of waiting for a poll.
-  const [version, setVersion] = useState(0);
-  const bumpVersion = () => setVersion(current => current + 1);
-  const [copied, setCopied] = useState(false); // Copy button shows "Copied"
-  useDiagnosticIngest(bumpVersion);
-  useNavigationLog(bumpVersion);
-  const {entries, total} = usePersistedAppLogs(version, open);
-  // Memoized on the entries array, which only changes when a load applies
-  // — closed-state badge polls never pay for the tallies.
-  const counts = useMemo(() => summarizeDiagnosticEntries(entries), [entries]);
+}
 
+// Builds the Copy/Clear handlers for the popover: Copy serializes the
+// newest COPY_LIMIT entries to the clipboard, Clear deletes the persisted
+// log server-side. Both flip local UI state the caller owns.
+function makeDiagnosticActions(
+  entries: DiagnosticLogEntry[],
+  setCopied: Dispatch<SetStateAction<boolean>>,
+  bumpVersion: () => void,
+) {
   async function onCopy() {
     await copyText(JSON.stringify(entries.slice(-COPY_LIMIT), null, 2));
     setCopied(true);
@@ -190,6 +191,31 @@ export function DiagnosticsControl({
     setCopied(false);
     bumpVersion();
   }
+
+  return {onCopy, onClear};
+}
+
+export function DiagnosticsControl({
+  open,
+  onToggle,
+  renderPopover,
+}: DiagnosticsControlProps) {
+  // Bumped whenever the persisted log changed (ingest, navigation, clear)
+  // so the fetch effect re-runs immediately instead of waiting for a poll.
+  const [version, setVersion] = useState(0);
+  const bumpVersion = () => setVersion(current => current + 1);
+  const [copied, setCopied] = useState(false); // Copy button shows "Copied"
+  useDiagnosticIngest(bumpVersion);
+  useNavigationLog(bumpVersion);
+  const {entries, total} = usePersistedAppLogs(version, open);
+  // Memoized on the entries array, which only changes when a load applies
+  // — closed-state badge polls never pay for the tallies.
+  const counts = useMemo(() => summarizeDiagnosticEntries(entries), [entries]);
+  const {onCopy, onClear} = makeDiagnosticActions(
+    entries,
+    setCopied,
+    bumpVersion,
+  );
 
   return (
     <>
@@ -214,17 +240,15 @@ export function DiagnosticsControl({
 // entry" for auto-follow purposes.
 const PIN_THRESHOLD_PX = 24;
 
-// Scrolling list of log entries (each entry's id/time/run/stage meta row plus
-// its JSON payload), or an empty-state message when there are none.
-function DiagnosticLogList({entries}: {entries: DiagnosticLogEntry[]}) {
-  // Opening the panel lands on the newest entry (the list mounts pinned).
-  // After that, new records only auto-scroll while the user is still at
-  // the bottom — scrolling up to read must never be interrupted. Keyed by
-  // the newest id, not the count: at the window cap the count stops
-  // changing while the ids keep advancing.
+// Opening the panel lands on the newest entry (the list mounts pinned).
+// After that, new records only auto-scroll while the user is still at the
+// bottom — scrolling up to read must never be interrupted. `newestId` (not
+// the count) drives the effect: at the window cap the count stops changing
+// while the ids keep advancing.
+function useAutoFollowScroll(newestId: number) {
   const listRef = useRef<HTMLDivElement>(null);
   const pinnedRef = useRef(true);
-  const newestId = entries.length ? entries[entries.length - 1].id : 0;
+
   useEffect(() => {
     const list = listRef.current;
     if (list && pinnedRef.current) list.scrollTop = list.scrollHeight;
@@ -238,6 +262,35 @@ function DiagnosticLogList({entries}: {entries: DiagnosticLogEntry[]}) {
     pinnedRef.current = distanceFromBottom <= PIN_THRESHOLD_PX;
   }
 
+  return {listRef, onScroll};
+}
+
+// One entry's meta row (id/time/level/run/stage) plus its JSON payload.
+function DiagnosticLogEntryRow({entry}: {entry: DiagnosticLogEntry}) {
+  return (
+    <article className={DIAGNOSTIC_ENTRY_CLASSES}>
+      <div className={DIAGNOSTIC_ENTRY_META_CLASSES}>
+        <span>#{entry.number}</span>
+        <span>[{entry.time}]</span>
+        <span>{entry.levelName}</span>
+        <span className={DIAGNOSTIC_ENTRY_RUN_CLASSES}>{entry.run}</span>
+        <strong className={DIAGNOSTIC_ENTRY_STAGE_CLASSES}>
+          {entry.stage}:
+        </strong>
+      </div>
+      <pre className={DIAGNOSTIC_CODE_CLASSES}>
+        {entry.excText ? `${entry.message}\n\n${entry.excText}` : entry.message}
+      </pre>
+    </article>
+  );
+}
+
+// Scrolling list of log entries (each entry's id/time/run/stage meta row plus
+// its JSON payload), or an empty-state message when there are none.
+function DiagnosticLogList({entries}: {entries: DiagnosticLogEntry[]}) {
+  const newestId = entries.length ? entries[entries.length - 1].id : 0;
+  const {listRef, onScroll} = useAutoFollowScroll(newestId);
+
   return (
     <div
       ref={listRef}
@@ -246,22 +299,7 @@ function DiagnosticLogList({entries}: {entries: DiagnosticLogEntry[]}) {
       aria-label="Log events"
     >
       {entries.map(entry => (
-        <article key={entry.id} className={DIAGNOSTIC_ENTRY_CLASSES}>
-          <div className={DIAGNOSTIC_ENTRY_META_CLASSES}>
-            <span>#{entry.number}</span>
-            <span>[{entry.time}]</span>
-            <span>{entry.levelName}</span>
-            <span className={DIAGNOSTIC_ENTRY_RUN_CLASSES}>{entry.run}</span>
-            <strong className={DIAGNOSTIC_ENTRY_STAGE_CLASSES}>
-              {entry.stage}:
-            </strong>
-          </div>
-          <pre className={DIAGNOSTIC_CODE_CLASSES}>
-            {entry.excText
-              ? `${entry.message}\n\n${entry.excText}`
-              : entry.message}
-          </pre>
-        </article>
+        <DiagnosticLogEntryRow key={entry.id} entry={entry} />
       ))}
       {entries.length === 0 && (
         <p className={DIAGNOSTIC_EMPTY_CLASSES}>No diagnostic events loaded.</p>

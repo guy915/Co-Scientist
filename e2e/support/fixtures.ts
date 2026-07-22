@@ -39,20 +39,21 @@ export interface BackendApi {
   listDemoRuns(): Promise<{id: string; research_goal: string}[]>;
 }
 
-function makeBackendApi(ctx: APIRequestContext): BackendApi {
-  // Runs one backend call, throwing a labelled error on any non-2xx so a
-  // failed setup call surfaces the status + body here instead of as a cryptic
-  // downstream assertion.
-  async function send(
-    label: string,
-    call: () => Promise<APIResponse>,
-  ): Promise<APIResponse> {
-    const res = await call();
-    if (!res.ok()) {
-      throw new Error(`${label} failed: ${res.status()} ${await res.text()}`);
-    }
-    return res;
+// Runs one backend call, throwing a labelled error on any non-2xx so a
+// failed setup call surfaces the status + body here instead of as a cryptic
+// downstream assertion.
+async function send(
+  label: string,
+  call: () => Promise<APIResponse>,
+): Promise<APIResponse> {
+  const res = await call();
+  if (!res.ok()) {
+    throw new Error(`${label} failed: ${res.status()} ${await res.text()}`);
   }
+  return res;
+}
+
+function makeBackendApi(ctx: APIRequestContext): BackendApi {
   return {
     async createRun(body) {
       const res = await send('createRun', () =>
@@ -61,7 +62,9 @@ function makeBackendApi(ctx: APIRequestContext): BackendApi {
       return (await res.json()) as {id: string};
     },
     async startRun(id) {
-      await send('startRun', () => ctx.post(`/api/runs/${id}/start`, {data: {}}));
+      await send('startRun', () =>
+        ctx.post(`/api/runs/${id}/start`, {data: {}}),
+      );
     },
     async cancelRun(id) {
       await send('cancelRun', () =>

@@ -15,13 +15,28 @@ import {type SpecStage} from './chat_session_types';
  * the top of useChatSession, so its hook call order stays fixed across
  * renders.
  */
-export function useRunSpecLifecycle() {
+function useLifecycleStages() {
   const [interview, setInterview] = useState<Interview | null>(null);
   const [draft, setDraft] = useState<SpecStage | null>(null);
   const [confirmed, setConfirmed] = useState<SpecStage | null>(null);
   const [startedSession, setStartedSession] = useState<StartedSession | null>(
     null,
   );
+  return {
+    interview,
+    setInterview,
+    draft,
+    setDraft,
+    confirmed,
+    setConfirmed,
+    startedSession,
+    setStartedSession,
+  };
+}
+
+export function useRunSpecLifecycle() {
+  const stages = useLifecycleStages();
+  const {setInterview, setDraft, setConfirmed, setStartedSession} = stages;
 
   // Drops all spec/session stages but keeps the message log; useCallback so
   // resetSession (which depends on it) also stays referentially stable.
@@ -30,11 +45,10 @@ export function useRunSpecLifecycle() {
     setInterview(null);
     setConfirmed(null);
     setStartedSession(null);
-  }, []);
+  }, [setDraft, setInterview, setConfirmed, setStartedSession]);
 
-  // Installs `spec` as the active draft and rolls back any later stages
-  // (confirmed/started), since a new draft restarts the lifecycle. `intro` is
-  // the Agent's closing message, folded into the plan card as its lead-in.
+  // Installs `spec` as the active draft and rolls back any later stages;
+  // `intro` is the Agent's closing message, shown on the plan card.
   function stageDraftSpec(
     spec: InferredRunSpec,
     createdAt = Date.now() / 1000,
@@ -45,18 +59,7 @@ export function useRunSpecLifecycle() {
     setStartedSession(null);
   }
 
-  return {
-    draft,
-    interview,
-    setInterview,
-    setDraft,
-    confirmed,
-    setConfirmed,
-    startedSession,
-    setStartedSession,
-    clearSessionState,
-    stageDraftSpec,
-  };
+  return {...stages, clearSessionState, stageDraftSpec};
 }
 
 /**
@@ -65,9 +68,7 @@ export function useRunSpecLifecycle() {
  * `clearSessionState` (from {@link useRunSpecLifecycle}) as an argument since
  * resetSession has to wipe both slices together.
  */
-export function useComposerLog(clearSessionState: () => void) {
-  // Composer text; this stage feeds draftSpec on submit.
-  const [input, setInput] = useState('');
+function useComposerFlags() {
   // True while the create+start round trip is in flight; the view uses it to
   // disable the Start control against double submission.
   const [isStarting, setIsStarting] = useState(false);
@@ -79,6 +80,21 @@ export function useComposerLog(clearSessionState: () => void) {
   // model's reasoning as it streams. Display-only and never persisted, so it
   // is cleared at the start of each turn rather than kept with the messages.
   const [agentReasoning, setAgentReasoning] = useState('');
+  return {
+    isStarting,
+    setIsStarting,
+    isAwaitingAgent,
+    setIsAwaitingAgent,
+    agentReasoning,
+    setAgentReasoning,
+  };
+}
+
+export function useComposerLog(clearSessionState: () => void) {
+  // Composer text; this stage feeds draftSpec on submit.
+  const [input, setInput] = useState('');
+  const flags = useComposerFlags();
+  const {setIsStarting, setIsAwaitingAgent, setAgentReasoning} = flags;
   // Append-only log of user/assistant chat bubbles (spec cards are rendered
   // from the spec state, not stored here).
   const [messages, setMessages] = useState<ChatEntry[]>([]);
@@ -96,17 +112,12 @@ export function useComposerLog(clearSessionState: () => void) {
     setMessages([]);
     setError(null);
     setPendingAttachments([]);
-  }, [clearSessionState]);
+  }, [clearSessionState, setIsStarting, setIsAwaitingAgent, setAgentReasoning]);
 
   return {
     input,
     setInput,
-    isStarting,
-    setIsStarting,
-    isAwaitingAgent,
-    setIsAwaitingAgent,
-    agentReasoning,
-    setAgentReasoning,
+    ...flags,
     messages,
     setMessages,
     error,

@@ -159,9 +159,41 @@ function updateDraftSpec(
   );
 }
 
-// Editable draft run spec awaiting confirmation: focus/tier edits write
-// straight back into draftSpec, and cancel/edit/retry/start delegate to the
-// session hook's handlers.
+// Builds the draft RunSpecCard node: focus/tier edits write straight back
+// into draftSpec, and cancel/edit/retry/start delegate to the session hook's
+// handlers.
+function draftSpecCardNode(
+  draft: SpecStage,
+  isStarting: boolean,
+  setDraft: Dispatch<SetStateAction<SpecStage | null>>,
+  handleCancelDraftSpec: () => void,
+  handleEditPlan: (spec: InferredRunSpec) => void,
+  handleRetryDraftSpec: () => void,
+  handleStartRun: () => Promise<void>,
+): ReactNode {
+  return (
+    <RunSpecCard
+      spec={draft.spec}
+      isStarting={isStarting}
+      intro={draft.intro}
+      onFocusChange={(focus: RunFocus) => updateDraftSpec(setDraft, {focus})}
+      onTierChange={(tier: RunTier) => updateDraftSpec(setDraft, {tier})}
+      onNotificationChange={(enabled, email) =>
+        updateDraftSpec(setDraft, {
+          notifyOnCompletion: enabled,
+          completionEmail: email,
+        })
+      }
+      onCancel={handleCancelDraftSpec}
+      onEdit={() => handleEditPlan(draft.spec)}
+      onRetry={() => handleRetryDraftSpec()}
+      onStart={() => void handleStartRun()}
+    />
+  );
+}
+
+// Editable draft run spec awaiting confirmation timeline entry, wrapping
+// draftSpecCardNode above with its TimelineItem metadata.
 function draftTimelineItems({
   draft,
   isStarting,
@@ -186,26 +218,14 @@ function draftTimelineItems({
       id: DRAFT_SPEC_ITEM_ID,
       at: draft.createdAt,
       order: 50,
-      node: (
-        <RunSpecCard
-          spec={draft.spec}
-          isStarting={isStarting}
-          intro={draft.intro}
-          onFocusChange={(focus: RunFocus) =>
-            updateDraftSpec(setDraft, {focus})
-          }
-          onTierChange={(tier: RunTier) => updateDraftSpec(setDraft, {tier})}
-          onNotificationChange={(enabled, email) =>
-            updateDraftSpec(setDraft, {
-              notifyOnCompletion: enabled,
-              completionEmail: email,
-            })
-          }
-          onCancel={handleCancelDraftSpec}
-          onEdit={() => handleEditPlan(draft.spec)}
-          onRetry={() => handleRetryDraftSpec()}
-          onStart={() => void handleStartRun()}
-        />
+      node: draftSpecCardNode(
+        draft,
+        isStarting,
+        setDraft,
+        handleCancelDraftSpec,
+        handleEditPlan,
+        handleRetryDraftSpec,
+        handleStartRun,
       ),
     },
   ];

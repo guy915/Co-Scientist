@@ -252,6 +252,30 @@ function ideaRowClassName(selected: boolean): string {
 
 // A single row in the ranked hypothesis list: rank badge, Elo chip, title,
 // and a truncated statement preview.
+// The rank/Elo/unverified chip row heading one idea in the list.
+function IdeaRankHead({
+  rank,
+  hypothesis,
+}: {
+  rank: number;
+  hypothesis: Hypothesis;
+}) {
+  return (
+    <span className={IDEA_RANK_HEAD_CLASSES}>
+      <span className={`idea-rank-number ${IDEA_CHIP_CLASSES}`}>{rank}</span>
+      <span className={IDEA_ELO_CHIP_CLASSES}>
+        Elo rating: {hypothesis.elo_rating}
+      </span>
+      {hypothesis.unverified ? (
+        <span className={IDEA_UNVERIFIED_CHIP_CLASSES}>
+          <Icon aria-hidden="true" name="warning" />
+          Unverified
+        </span>
+      ) : null}
+    </span>
+  );
+}
+
 function IdeaListItem({
   rank,
   hypothesis,
@@ -270,20 +294,7 @@ function IdeaListItem({
         className={ideaRowClassName(selected)}
         onClick={onSelect}
       >
-        <span className={IDEA_RANK_HEAD_CLASSES}>
-          <span className={`idea-rank-number ${IDEA_CHIP_CLASSES}`}>
-            {rank}
-          </span>
-          <span className={IDEA_ELO_CHIP_CLASSES}>
-            Elo rating: {hypothesis.elo_rating}
-          </span>
-          {hypothesis.unverified ? (
-            <span className={IDEA_UNVERIFIED_CHIP_CLASSES}>
-              <Icon aria-hidden="true" name="warning" />
-              Unverified
-            </span>
-          ) : null}
-        </span>
+        <IdeaRankHead rank={rank} hypothesis={hypothesis} />
         <TruncatedLabel
           className={IDEA_RANK_TITLE_CLASSES}
           text={hypothesis.title}

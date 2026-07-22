@@ -84,17 +84,19 @@ function recentsPanelClassNames(hasVisibleRuns: boolean): {
  * @param showAll Whether the list is expanded past the 4-item cap.
  * @param onToggleShowAll Toggles the expanded state.
  */
+interface HomeRecentsPanelProps {
+  runs: Run[];
+  scoresByRunId: Record<string, number | null>;
+  showAll: boolean;
+  onToggleShowAll: () => void;
+}
+
 export function HomeRecentsPanel({
   runs,
   scoresByRunId,
   showAll,
   onToggleShowAll,
-}: {
-  runs: Run[];
-  scoresByRunId: Record<string, number | null>;
-  showAll: boolean;
-  onToggleShowAll: () => void;
-}) {
+}: HomeRecentsPanelProps) {
   // Cap the list to 4 items until the user expands it.
   const visibleRuns = showAll ? runs : runs.slice(0, 4);
   const hasVisibleRuns = visibleRuns.length > 0;
@@ -193,6 +195,20 @@ function LoadMoreRunsItem({
  * @param run The run to summarize.
  * @param topScore The run's top Elo score, or null if unknown/not completed.
  */
+// The date/time chip row at the top of a recents card.
+function RecentCardMeta({run}: {run: Run}) {
+  return (
+    <span className={RECENT_META_CLASSES}>
+      <span className={RECENT_META_CHIP_CLASSES}>
+        {formatHomeRunDate(run.updated_at)}
+      </span>
+      <span className={RECENT_META_CHIP_CLASSES}>
+        {formatHomeRunTimeChip(run)}
+      </span>
+    </span>
+  );
+}
+
 function RecentRunCard({run, topScore}: {run: Run; topScore: number | null}) {
   // The run's real top hypotheses by Elo, served on the run-list payload
   // (`top_hypotheses`). Empty for a run that produced none (e.g. failed).
@@ -208,14 +224,7 @@ function RecentRunCard({run, topScore}: {run: Run; topScore: number | null}) {
         }
         title={run.research_goal}
       >
-        <span className={RECENT_META_CLASSES}>
-          <span className={RECENT_META_CHIP_CLASSES}>
-            {formatHomeRunDate(run.updated_at)}
-          </span>
-          <span className={RECENT_META_CHIP_CLASSES}>
-            {formatHomeRunTimeChip(run)}
-          </span>
-        </span>
+        <RecentCardMeta run={run} />
         <TruncatedLabel
           className={RECENT_TITLE_CLASSES}
           text={
@@ -250,6 +259,32 @@ function RecentRunCard({run, topScore}: {run: Run; topScore: number | null}) {
  * @param topIdeas The run's top hypothesis titles, in rank order.
  * @param topScore The run's top Elo score, or null if unknown.
  */
+// The "Winning ideas" chip pair, with the optional top-score chip.
+function WinningIdeasChips({topScore}: {topScore: number | null}) {
+  return (
+    <span className={RECENT_CHIPS_CLASSES}>
+      <span className={RECENT_CHIP_CLASSES}>
+        <Icon
+          aria-hidden="true"
+          className={RECENT_CHIP_ICON_CLASSES}
+          name="emoji_events"
+        />
+        Winning ideas
+      </span>
+      {topScore !== null && (
+        <span className={RECENT_CHIP_CLASSES}>
+          <Icon
+            aria-hidden="true"
+            className={RECENT_CHIP_ICON_CLASSES}
+            name="stars"
+          />
+          Top score: {topScore}
+        </span>
+      )}
+    </span>
+  );
+}
+
 function RecentRunResults({
   topIdeas,
   topScore,
@@ -259,26 +294,7 @@ function RecentRunResults({
 }) {
   return (
     <>
-      <span className={RECENT_CHIPS_CLASSES}>
-        <span className={RECENT_CHIP_CLASSES}>
-          <Icon
-            aria-hidden="true"
-            className={RECENT_CHIP_ICON_CLASSES}
-            name="emoji_events"
-          />
-          Winning ideas
-        </span>
-        {topScore !== null && (
-          <span className={RECENT_CHIP_CLASSES}>
-            <Icon
-              aria-hidden="true"
-              className={RECENT_CHIP_ICON_CLASSES}
-              name="stars"
-            />
-            Top score: {topScore}
-          </span>
-        )}
-      </span>
+      <WinningIdeasChips topScore={topScore} />
       {topIdeas.length > 0 && (
         <ol className={WINNER_LIST_CLASSES}>
           {topIdeas.map((idea, index) => (

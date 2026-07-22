@@ -89,6 +89,121 @@ function CategoryChips({
   );
 }
 
+// The trigger button on its own: a "Feedback" pill with a stars icon.
+function PilotTriggerButton({
+  open,
+  onToggle,
+}: {
+  open: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      className={tooltipClassNames({
+        className: BUTTON_CLASSES,
+        placement: 'left',
+      })}
+      data-tooltip="Send feedback"
+      aria-expanded={open}
+      onClick={onToggle}
+    >
+      <Icon aria-hidden="true" className="text-[1.05rem]" name="stars" />
+      <span>Feedback</span>
+    </button>
+  );
+}
+
+// The return type of useFeedbackForm, forwarded as-is to the popover body.
+type FeedbackFormState = ReturnType<typeof useFeedbackForm>;
+
+// The message textarea, with its screen-reader label.
+function FeedbackMessageField({
+  message,
+  sending,
+  onChange,
+}: {
+  message: string;
+  sending: boolean;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <>
+      <label className="sr-only" htmlFor="cosci-feedback-message">
+        {PILOT_FEEDBACK.placeholder}
+      </label>
+      <textarea
+        id="cosci-feedback-message"
+        className="ucs-feedback-input"
+        rows={4}
+        placeholder={PILOT_FEEDBACK.placeholder}
+        value={message}
+        disabled={sending}
+        onChange={event => onChange(event.target.value)}
+      />
+    </>
+  );
+}
+
+// The submit button plus the inline sent/error outcome message.
+function FeedbackActions({
+  sending,
+  disabled,
+  state,
+}: {
+  sending: boolean;
+  disabled: boolean;
+  state: SendState;
+}) {
+  return (
+    <div className="ucs-feedback-actions">
+      <button type="submit" className="ucs-panel-button" disabled={disabled}>
+        {sending ? PILOT_FEEDBACK.sending : PILOT_FEEDBACK.submit}
+      </button>
+      {/* Outcome and the button share a row: the message sits inline
+          rather than shifting the form's height when it appears. */}
+      <span aria-live="polite" className="ucs-feedback-status">
+        {state === 'sent' && PILOT_FEEDBACK.thanks}
+        {state === 'error' && PILOT_FEEDBACK.error}
+      </span>
+    </div>
+  );
+}
+
+// The popover body: category chips, message field, and submit action. All
+// state lives in useFeedbackForm; this only renders what it is handed.
+function FeedbackForm({
+  form,
+  sending,
+}: {
+  form: FeedbackFormState;
+  sending: boolean;
+}) {
+  return (
+    <form
+      className="ucs-feedback-form"
+      onSubmit={event => {
+        event.preventDefault();
+        void form.send();
+      }}
+    >
+      <h2 className="ucs-feedback-title">{PILOT_FEEDBACK.title}</h2>
+      <p className="ucs-feedback-intro">{PILOT_FEEDBACK.intro}</p>
+      <CategoryChips category={form.category} onSelect={form.setCategory} />
+      <FeedbackMessageField
+        message={form.message}
+        sending={sending}
+        onChange={form.setMessage}
+      />
+      <FeedbackActions
+        sending={sending}
+        disabled={sending || !form.message.trim()}
+        state={form.state}
+      />
+    </form>
+  );
+}
+
 /**
  * Header control replacing Logs for SBI/UCD: a short feedback form posting to
  * the pilot feedback endpoint.
@@ -97,76 +212,26 @@ function CategoryChips({
  * @param props.onToggle Requests the parent flip `open`.
  * @param props.renderPopover Wraps the panel in the shell's positioned popover.
  */
+interface PilotControlProps {
+  open: boolean;
+  onToggle: () => void;
+  renderPopover: (children: ReactNode, className: string) => ReactNode;
+}
+
 export function PilotControl({
   open,
   onToggle,
   renderPopover,
-}: {
-  open: boolean;
-  onToggle: () => void;
-  renderPopover: (children: ReactNode, className: string) => ReactNode;
-}) {
+}: PilotControlProps) {
   const form = useFeedbackForm();
   const sending = form.state === 'sending';
 
   return (
     <>
-      <button
-        type="button"
-        className={tooltipClassNames({
-          className: BUTTON_CLASSES,
-          placement: 'left',
-        })}
-        data-tooltip="Send feedback"
-        aria-expanded={open}
-        onClick={onToggle}
-      >
-        <Icon aria-hidden="true" className="text-[1.05rem]" name="stars" />
-        <span>Feedback</span>
-      </button>
+      <PilotTriggerButton open={open} onToggle={onToggle} />
       {open &&
         renderPopover(
-          <form
-            className="ucs-feedback-form"
-            onSubmit={event => {
-              event.preventDefault();
-              void form.send();
-            }}
-          >
-            <h2 className="ucs-feedback-title">{PILOT_FEEDBACK.title}</h2>
-            <p className="ucs-feedback-intro">{PILOT_FEEDBACK.intro}</p>
-            <CategoryChips
-              category={form.category}
-              onSelect={form.setCategory}
-            />
-            <label className="sr-only" htmlFor="cosci-feedback-message">
-              {PILOT_FEEDBACK.placeholder}
-            </label>
-            <textarea
-              id="cosci-feedback-message"
-              className="ucs-feedback-input"
-              rows={4}
-              placeholder={PILOT_FEEDBACK.placeholder}
-              value={form.message}
-              disabled={sending}
-              onChange={event => form.setMessage(event.target.value)}
-            />
-            <div className="ucs-feedback-actions">
-              <button
-                type="submit"
-                className="ucs-panel-button"
-                disabled={sending || !form.message.trim()}
-              >
-                {sending ? PILOT_FEEDBACK.sending : PILOT_FEEDBACK.submit}
-              </button>
-              {/* Outcome and the button share a row: the message sits inline
-                  rather than shifting the form's height when it appears. */}
-              <span aria-live="polite" className="ucs-feedback-status">
-                {form.state === 'sent' && PILOT_FEEDBACK.thanks}
-                {form.state === 'error' && PILOT_FEEDBACK.error}
-              </span>
-            </div>
-          </form>,
+          <FeedbackForm form={form} sending={sending} />,
           POPOVER_CLASSES,
         )}
     </>

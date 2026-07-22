@@ -4,6 +4,7 @@ import {
   useNavigate,
   type NavigateFunction,
 } from 'react-router-dom';
+import {type Run} from '@/api/runs';
 import {useAudience} from './audience_context';
 import {joinClasses} from './classes';
 import {AudienceGate} from './components/audience_gate';
@@ -13,6 +14,10 @@ import {closeDrawerIfMobile} from './hooks/use_is_mobile';
 import {ShellHeader} from './layout_header';
 import {useChatHistory, useHeaderTitle, useLayoutChrome} from './layout_hooks';
 import {NavRail} from './layout_nav_rail';
+
+// The value returned by useLayoutChrome, threaded through the components
+// below so each only needs the single prop rather than the whole fan-out.
+type LayoutChrome = ReturnType<typeof useLayoutChrome>;
 
 // The constants below pair a CSS class for the "open" shell state with one
 // for the "collapsed"/default state; each pair is selected at render time by
@@ -129,70 +134,20 @@ function DrawerScrim({
   return <div className="ucs-scrim" aria-hidden="true" onClick={onDismiss} />;
 }
 
-/**
- * Renders the app shell with header navigation, main content, and footer.
- *
- * @param props The page content to render inside the layout.
- */
-export function Layout({children}: {children: ReactNode}) {
-  const navigate = useNavigate();
-  const location = useLocation();
-  const {
-    isRunRoute,
-    activeRunId,
-    titleContextKey,
-    workspaceClasses,
-    pageClasses,
-  } = deriveRoutePresentation(location.pathname);
-  const headerTitle = useHeaderTitle(titleContextKey);
-  const {history, showAllChats, toggleShowAllChats} = useChatHistory();
-  const {
-    navOpen,
-    setNavOpen,
-    activePanel,
-    settingsSection,
-    setSettingsSection,
-    settingsControlRef,
-    logsControlRef,
-    toggleNav,
-    togglePanel,
-    openSettings,
-  } = useLayoutChrome(location.pathname);
-  const shellClass = shellClassFor(isRunRoute, navOpen);
-  // Until the first-visit question is answered the Settings dialog is the
-  // affiliation chooser and nothing else: locked open on that section, with
-  // no way to close it or navigate to another one.
-  const affiliationRequired = useAudience().audience === null;
-  const startNewChat = createStartNewChatHandler(navigate, setNavOpen);
+// The overlays that sit above the shell's own content: the full-screen
+// Settings dialog (or, before the first-visit affiliation question is
+// answered, the locked affiliation chooser rendered in its place) and the
+// AudienceGate that opens it. Kept out of Layout so the component itself
+// stays the thin render/wiring function documented there.
+interface ShellOverlaysProps {
+  chrome: LayoutChrome;
+  affiliationRequired: boolean;
+}
 
+function ShellOverlays({chrome, affiliationRequired}: ShellOverlaysProps) {
+  const {settingsSection, setSettingsSection, openSettings} = chrome;
   return (
-    <div className={shellClass}>
-      <NavRail
-        navOpen={navOpen}
-        toggleNav={toggleNav}
-        startNewChat={startNewChat}
-        history={history}
-        activeRunId={activeRunId}
-        showAllChats={showAllChats}
-        onToggleShowAllChats={toggleShowAllChats}
-        activePanel={activePanel}
-        onTogglePanel={togglePanel}
-        onOpenSettings={openSettings}
-        settingsControlRef={settingsControlRef}
-      />
-      <DrawerScrim navOpen={navOpen} onDismiss={() => setNavOpen(false)} />
-      <section className={workspaceClasses}>
-        <ShellHeader
-          navOpen={navOpen}
-          toggleNav={toggleNav}
-          startNewChat={startNewChat}
-          headerTitle={headerTitle}
-          activePanel={activePanel}
-          onTogglePanel={togglePanel}
-          logsControlRef={logsControlRef}
-        />
-        <main className={pageClasses}>{children}</main>
-      </section>
+    <>
       {settingsSection && (
         <SettingsDialog
           section={affiliationRequired ? 'affiliation' : settingsSection}
@@ -205,6 +160,156 @@ export function Layout({children}: {children: ReactNode}) {
         onOpenAffiliation={() => openSettings('affiliation')}
         onCloseChooser={() => setSettingsSection(null)}
         chooserOpen={settingsSection === 'affiliation'}
+      />
+    </>
+  );
+}
+
+// The icon rail plus its mobile drawer scrim. Split out of Layout so each
+// piece only needs the chrome slice it actually renders.
+interface ShellNavProps {
+  chrome: LayoutChrome;
+  startNewChat: () => void;
+  history: Run[];
+  activeRunId: string | undefined;
+  showAllChats: boolean;
+  onToggleShowAllChats: () => void;
+}
+
+function ShellNav({
+  chrome,
+  startNewChat,
+  history,
+  activeRunId,
+  showAllChats,
+  onToggleShowAllChats,
+}: ShellNavProps) {
+  return (
+    <>
+      <NavRail
+        navOpen={chrome.navOpen}
+        toggleNav={chrome.toggleNav}
+        startNewChat={startNewChat}
+        history={history}
+        activeRunId={activeRunId}
+        showAllChats={showAllChats}
+        onToggleShowAllChats={onToggleShowAllChats}
+        activePanel={chrome.activePanel}
+        onTogglePanel={chrome.togglePanel}
+        onOpenSettings={chrome.openSettings}
+        settingsControlRef={chrome.settingsControlRef}
+      />
+      <DrawerScrim
+        navOpen={chrome.navOpen}
+        onDismiss={() => chrome.setNavOpen(false)}
+      />
+    </>
+  );
+}
+
+// The header plus routed page content.
+interface ShellWorkspaceProps {
+  chrome: LayoutChrome;
+  startNewChat: () => void;
+  headerTitle: string;
+  workspaceClasses: string;
+  pageClasses: string;
+  children: ReactNode;
+}
+
+function ShellWorkspace({
+  chrome,
+  startNewChat,
+  headerTitle,
+  workspaceClasses,
+  pageClasses,
+  children,
+}: ShellWorkspaceProps) {
+  return (
+    <section className={workspaceClasses}>
+      <ShellHeader
+        navOpen={chrome.navOpen}
+        toggleNav={chrome.toggleNav}
+        startNewChat={startNewChat}
+        headerTitle={headerTitle}
+        activePanel={chrome.activePanel}
+        onTogglePanel={chrome.togglePanel}
+        logsControlRef={chrome.logsControlRef}
+      />
+      <main className={pageClasses}>{children}</main>
+    </section>
+  );
+}
+
+// Everything Layout's render needs, derived from the current route: the
+// route-dependent presentation, the chat-history sidebar data, the shared
+// chrome state (rail/popovers/dialog), the shell root's class, and whether
+// the first-visit affiliation question still gates the Settings dialog.
+function useLayoutState() {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const {
+    isRunRoute,
+    activeRunId,
+    titleContextKey,
+    workspaceClasses,
+    pageClasses,
+  } = deriveRoutePresentation(location.pathname);
+  const headerTitle = useHeaderTitle(titleContextKey);
+  const {history, showAllChats, toggleShowAllChats} = useChatHistory();
+  const chrome = useLayoutChrome(location.pathname);
+  const shellClass = shellClassFor(isRunRoute, chrome.navOpen);
+  // Until the first-visit question is answered the Settings dialog is the
+  // affiliation chooser and nothing else: locked open on that section, with
+  // no way to close it or navigate to another one.
+  const affiliationRequired = useAudience().audience === null;
+  const startNewChat = createStartNewChatHandler(navigate, chrome.setNavOpen);
+
+  return {
+    shellClass,
+    chrome,
+    startNewChat,
+    history,
+    activeRunId,
+    showAllChats,
+    toggleShowAllChats,
+    headerTitle,
+    workspaceClasses,
+    pageClasses,
+    affiliationRequired,
+  };
+}
+
+/**
+ * Renders the app shell with header navigation, main content, and footer.
+ *
+ * @param props The page content to render inside the layout.
+ */
+export function Layout({children}: {children: ReactNode}) {
+  const state = useLayoutState();
+
+  return (
+    <div className={state.shellClass}>
+      <ShellNav
+        chrome={state.chrome}
+        startNewChat={state.startNewChat}
+        history={state.history}
+        activeRunId={state.activeRunId}
+        showAllChats={state.showAllChats}
+        onToggleShowAllChats={state.toggleShowAllChats}
+      />
+      <ShellWorkspace
+        chrome={state.chrome}
+        startNewChat={state.startNewChat}
+        headerTitle={state.headerTitle}
+        workspaceClasses={state.workspaceClasses}
+        pageClasses={state.pageClasses}
+      >
+        {children}
+      </ShellWorkspace>
+      <ShellOverlays
+        chrome={state.chrome}
+        affiliationRequired={state.affiliationRequired}
       />
     </div>
   );

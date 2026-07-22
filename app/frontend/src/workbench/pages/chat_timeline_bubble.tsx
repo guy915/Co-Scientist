@@ -1,5 +1,9 @@
 import {
   type CSSProperties,
+  type Dispatch,
+  type ReactNode,
+  type RefObject,
+  type SetStateAction,
   type TransitionEvent,
   useLayoutEffect,
   useRef,
@@ -131,6 +135,152 @@ function collapsibleTextStyle(
   };
 }
 
+// A bubble's collapsed (four-line) and full natural pixel heights, as
+// measured by measureBubbleHeights.
+interface BubbleHeights {
+  collapsed: number;
+  full: number;
+}
+
+// The bundled state useCollapsibleBubbleText builds once per render, so
+// remeasureBubbleOnChange/toggleBubbleExpanded/collapsibleBubbleTextResult
+// below can each take a single argument instead of repeating every field.
+interface CollapsibleBubbleTextState {
+  textRef: RefObject<HTMLSpanElement | null>;
+  isUser: boolean;
+  canCollapse: boolean;
+  expanded: boolean;
+  clamped: boolean;
+  settled: boolean;
+  heights: BubbleHeights;
+  setCanCollapse: Dispatch<SetStateAction<boolean>>;
+  setExpanded: Dispatch<SetStateAction<boolean>>;
+  setClamped: Dispatch<SetStateAction<boolean>>;
+  setSettled: Dispatch<SetStateAction<boolean>>;
+  setHeights: Dispatch<SetStateAction<BubbleHeights>>;
+}
+
+// Re-measures on content/role change and resets to collapsed, so a reused
+// node doesn't inherit a stale expanded/settled state. Body of the
+// useLayoutEffect in useCollapsibleBubbleText below.
+function remeasureBubbleOnChange(state: CollapsibleBubbleTextState): void {
+  const {isUser, textRef, setCanCollapse, setHeights, setExpanded} = state;
+  const {setSettled, setClamped} = state;
+  if (!isUser || !textRef.current) {
+    setCanCollapse(false);
+    return;
+  }
+  const measured = measureBubbleHeights(textRef.current);
+  const exceeds = exceedsCollapsedHeight(measured);
+  setHeights(measured);
+  setCanCollapse(exceeds);
+  setExpanded(false);
+  setSettled(false);
+  setClamped(exceeds);
+}
+
+// Flips collapsed/expanded, re-measuring first in case metrics (e.g. a font
+// load) shifted since the last measurement.
+function toggleBubbleExpanded(state: {
+  textRef: RefObject<HTMLSpanElement | null>;
+  expanded: boolean;
+  setHeights: Dispatch<SetStateAction<BubbleHeights>>;
+  setExpanded: Dispatch<SetStateAction<boolean>>;
+  setClamped: Dispatch<SetStateAction<boolean>>;
+  setSettled: Dispatch<SetStateAction<boolean>>;
+}): void {
+  const {textRef, expanded, setHeights, setExpanded, setClamped, setSettled} =
+    state;
+  const element = textRef.current;
+  if (element) setHeights(measureBubbleHeights(element));
+  if (expanded) {
+    // Collapse: drop the max-height cap to a concrete height, then animate
+    // down next frame; the clamp returns on transition end.
+    setSettled(false);
+    if (prefersReducedMotion()) {
+      setExpanded(false);
+      setClamped(true);
+    } else {
+      requestAnimationFrame(() => setExpanded(false));
+    }
+  } else {
+    // Expand: drop the clamp first so the max-height change animates.
+    setClamped(false);
+    if (prefersReducedMotion()) {
+      setExpanded(true);
+      setSettled(true);
+    } else {
+      requestAnimationFrame(() => setExpanded(true));
+    }
+  }
+}
+
+// Locks in the clamp (collapse) or drops the cap via `settled` (expand) once
+// the animated max-height transition finishes.
+function handleBubbleTransitionEndFor(
+  expanded: boolean,
+  setSettled: Dispatch<SetStateAction<boolean>>,
+  setClamped: Dispatch<SetStateAction<boolean>>,
+  event: TransitionEvent<HTMLSpanElement>,
+): void {
+  if (event.propertyName !== 'max-height') return;
+  if (expanded) {
+    setSettled(true);
+  } else {
+    setClamped(true);
+  }
+}
+
+// Pure: the collapsible text span's className/style pair for the current
+// collapse/expand state.
+function deriveBubbleTextPresentation(
+  collapsible: boolean,
+  clamped: boolean,
+  expanded: boolean,
+  settled: boolean,
+  heights: BubbleHeights,
+): {bubbleTextClassName: string; bubbleTextStyle: CSSProperties | undefined} {
+  return {
+    bubbleTextClassName: collapsibleTextClassName(
+      collapsible,
+      clamped,
+      expanded,
+    ),
+    bubbleTextStyle: collapsibleTextStyle(
+      collapsible,
+      expanded,
+      settled,
+      heights,
+    ),
+  };
+}
+
+// Derives useCollapsibleBubbleText's returned textRef/collapsible/expanded/
+// handler bundle from its raw state, once collapsible is known.
+function collapsibleBubbleTextResult(state: CollapsibleBubbleTextState) {
+  const collapsible = state.isUser && state.canCollapse;
+  return {
+    textRef: state.textRef,
+    collapsible,
+    expanded: state.expanded,
+    ...deriveBubbleTextPresentation(
+      collapsible,
+      state.clamped,
+      state.expanded,
+      state.settled,
+      state.heights,
+    ),
+    toggleExpanded: () => toggleBubbleExpanded(state),
+    handleBubbleTransitionEnd: (event: TransitionEvent<HTMLSpanElement>) =>
+      handleBubbleTransitionEndFor(
+        state.expanded,
+        state.setSettled,
+        state.setClamped,
+        event,
+      ),
+  };
+}
+
 /**
  * Owns a user bubble's collapse/expand-past-four-lines behavior: measures
  * the collapsed and full heights, tracks expanded/clamped/settled state, and
@@ -152,122 +302,65 @@ function useCollapsibleBubbleText(isUser: boolean, content: string) {
   const [clamped, setClamped] = useState(false);
   const [settled, setSettled] = useState(false);
   // Last-measured collapsed/full pixel heights, feeding collapsibleTextStyle.
-  const [heights, setHeights] = useState({collapsed: 0, full: 0});
+  const [heights, setHeights] = useState<BubbleHeights>({
+    collapsed: 0,
+    full: 0,
+  });
+
+  // Bundled once so remeasureBubbleOnChange and collapsibleBubbleTextResult
+  // below can each take a single argument.
+  const state: CollapsibleBubbleTextState = {
+    textRef,
+    isUser,
+    canCollapse,
+    expanded,
+    clamped,
+    settled,
+    heights,
+    setCanCollapse,
+    setExpanded,
+    setClamped,
+    setSettled,
+    setHeights,
+  };
 
   // Re-measures on content/role change and resets to collapsed, so a reused
   // node doesn't inherit a stale expanded/settled state.
-  useLayoutEffect(() => {
-    if (!isUser || !textRef.current) {
-      setCanCollapse(false);
-      return;
-    }
-    const measured = measureBubbleHeights(textRef.current);
-    const exceeds = exceedsCollapsedHeight(measured);
-    setHeights(measured);
-    setCanCollapse(exceeds);
-    setExpanded(false);
-    setSettled(false);
-    setClamped(exceeds);
-  }, [isUser, content]);
+  useLayoutEffect(() => remeasureBubbleOnChange(state), [isUser, content]);
 
-  // Flips collapsed/expanded, re-measuring first in case metrics (e.g. a
-  // font load) shifted since the last measurement.
-  function toggleExpanded() {
-    const element = textRef.current;
-    if (element) setHeights(measureBubbleHeights(element));
-    if (expanded) {
-      // Collapse: drop the max-height cap to a concrete height, then animate
-      // down next frame; the clamp returns on transition end.
-      setSettled(false);
-      if (prefersReducedMotion()) {
-        setExpanded(false);
-        setClamped(true);
-      } else {
-        requestAnimationFrame(() => setExpanded(false));
-      }
-    } else {
-      // Expand: drop the clamp first so the max-height change animates.
-      setClamped(false);
-      if (prefersReducedMotion()) {
-        setExpanded(true);
-        setSettled(true);
-      } else {
-        requestAnimationFrame(() => setExpanded(true));
-      }
-    }
-  }
-
-  // Locks in the clamp (collapse) or drops the cap via `settled` (expand)
-  // once the animated max-height transition finishes.
-  function handleBubbleTransitionEnd(event: TransitionEvent<HTMLSpanElement>) {
-    if (event.propertyName !== 'max-height') return;
-    if (expanded) {
-      setSettled(true);
-    } else {
-      setClamped(true);
-    }
-  }
-
-  const collapsible = isUser && canCollapse;
-
-  return {
-    textRef,
-    collapsible,
-    expanded,
-    bubbleTextClassName: collapsibleTextClassName(
-      collapsible,
-      clamped,
-      expanded,
-    ),
-    bubbleTextStyle: collapsibleTextStyle(
-      collapsible,
-      expanded,
-      settled,
-      heights,
-    ),
-    toggleExpanded,
-    handleBubbleTransitionEnd,
-  };
+  return collapsibleBubbleTextResult(state);
 }
 
-/**
- * Renders one chat-timeline message: a user request bubble (right-aligned,
- * filled, collapsible past four lines with an edit/copy action row) or an
- * assistant response (left-aligned, unstyled, with a retry/copy/download
- * action row). Used as the per-message node inside ChatWorkspace's timeline.
- *
- * @param message The message to render.
- * @param onEdit Handler to re-open a user message for editing.
- * @param onCopyRequest Handler to copy a user message's text.
- * @param onRetry Handler to regenerate an assistant response, or re-submit a
- *   user message.
- */
-export function ChatBubble({
-  message,
-  onEdit,
-  onCopyRequest,
-  onRetry,
-}: {
-  message: ChatEntry;
-  onEdit: () => void;
-  onCopyRequest: () => void;
-  onRetry: () => void;
-}) {
-  const isUser = message.role === 'user';
-  const {
-    textRef,
-    collapsible,
-    expanded,
-    bubbleTextClassName,
-    bubbleTextStyle,
-    toggleExpanded,
-    handleBubbleTransitionEnd,
-  } = useCollapsibleBubbleText(isUser, message.content);
+// Props for BubbleText below: the collapsible-text hook's full return bundle
+// plus the isUser/bubbleClassName/content fields it needs to render.
+interface BubbleTextProps {
+  isUser: boolean;
+  bubbleClassName: string;
+  content: string;
+  textRef: RefObject<HTMLSpanElement | null>;
+  collapsible: boolean;
+  expanded: boolean;
+  bubbleTextClassName: string;
+  bubbleTextStyle: CSSProperties | undefined;
+  toggleExpanded: () => void;
+  handleBubbleTransitionEnd: (event: TransitionEvent<HTMLSpanElement>) => void;
+}
 
-  const {row: rowClassName, bubble: bubbleClassName} =
-    chatBubbleClassNames(isUser);
-
-  const bubbleNode = (
+// The bubble's text span, with the collapse/expand toggle appended for
+// collapsible (user) bubbles.
+function BubbleText({
+  isUser,
+  bubbleClassName,
+  content,
+  textRef,
+  collapsible,
+  expanded,
+  bubbleTextClassName,
+  bubbleTextStyle,
+  toggleExpanded,
+  handleBubbleTransitionEnd,
+}: BubbleTextProps) {
+  return (
     <div className={bubbleClassName}>
       <span
         ref={isUser ? textRef : undefined}
@@ -275,28 +368,32 @@ export function ChatBubble({
         style={bubbleTextStyle}
         onTransitionEnd={collapsible ? handleBubbleTransitionEnd : undefined}
       >
-        {message.content}
+        {content}
       </span>
       {collapsible && (
         <CollapseToggleButton expanded={expanded} onToggle={toggleExpanded} />
       )}
     </div>
   );
-  const actionsNode = (
-    <ChatBubbleActions
-      isUser={isUser}
-      message={message}
-      onEdit={onEdit}
-      onCopyRequest={onCopyRequest}
-      onRetry={onRetry}
-    />
-  );
+}
 
-  // A user bubble's edit/copy row floats to the left of the bubble, so it must
-  // be positioned against the bubble's real (shrink-to-fit) width. Wrapping the
-  // bubble and its actions in a w-fit box gives the absolute row that context;
-  // without it the row anchors to the full-width column and strands itself far
-  // to the left of a short prompt. Assistant bubbles keep their inline row.
+// The bubble row wrapper: a user bubble's edit/copy row floats to the left of
+// the bubble, so it must be positioned against the bubble's real
+// (shrink-to-fit) width. Wrapping the bubble and its actions in a w-fit box
+// gives the absolute row that context; without it the row anchors to the
+// full-width column and strands itself far to the left of a short prompt.
+// Assistant bubbles keep their inline row.
+function BubbleRow({
+  isUser,
+  rowClassName,
+  bubbleNode,
+  actionsNode,
+}: {
+  isUser: boolean;
+  rowClassName: string;
+  bubbleNode: ReactNode;
+  actionsNode: ReactNode;
+}) {
   return (
     <div className={rowClassName}>
       {isUser ? (
@@ -311,6 +408,53 @@ export function ChatBubble({
         </>
       )}
     </div>
+  );
+}
+
+// Props for ChatBubble, named at module level per the destructured prop
+// signature otherwise pushing the component past the line cap.
+export interface ChatBubbleProps {
+  message: ChatEntry;
+  onEdit: () => void;
+  onCopyRequest: () => void;
+  onRetry: () => void;
+}
+
+/**
+ * Renders one chat-timeline message: a user request bubble (right-aligned,
+ * filled, collapsible past four lines with an edit/copy action row) or an
+ * assistant response (left-aligned, unstyled, with a retry/copy/download
+ * action row). Used as the per-message node inside ChatWorkspace's timeline.
+ */
+export function ChatBubble(props: ChatBubbleProps) {
+  const {message, onEdit, onCopyRequest, onRetry} = props;
+  const isUser = message.role === 'user';
+  const bubbleText = useCollapsibleBubbleText(isUser, message.content);
+  const {row: rowClassName, bubble: bubbleClassName} =
+    chatBubbleClassNames(isUser);
+
+  return (
+    <BubbleRow
+      isUser={isUser}
+      rowClassName={rowClassName}
+      bubbleNode={
+        <BubbleText
+          isUser={isUser}
+          bubbleClassName={bubbleClassName}
+          content={message.content}
+          {...bubbleText}
+        />
+      }
+      actionsNode={
+        <ChatBubbleActions
+          isUser={isUser}
+          message={message}
+          onEdit={onEdit}
+          onCopyRequest={onCopyRequest}
+          onRetry={onRetry}
+        />
+      }
+    />
   );
 }
 

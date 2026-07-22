@@ -42,12 +42,40 @@ function fitTruncatedText(
   node.textContent = `${words.slice(0, Math.max(best, 1)).join(' ')}…`;
 }
 
+// Schedules `fit` synchronously, again on the next animation frame (the
+// first paint can measure before the rail's flex/grid layout has settled),
+// once more after web fonts load (which changes text metrics), on any
+// resize of `el`, and again whenever a backgrounded tab foregrounds (rAF and
+// ResizeObserver are suspended while hidden, so the first fit can run
+// against an unsettled width). Returns a cleanup that cancels every one of
+// those.
+function scheduleFits(fit: () => void, el: HTMLSpanElement): () => void {
+  fit();
+  const raf = requestAnimationFrame(fit);
+  let cancelled = false;
+  void document.fonts?.ready.then(() => {
+    if (!cancelled) fit();
+  });
+  const observer = new ResizeObserver(fit);
+  observer.observe(el);
+  const onVisible = () => {
+    if (!document.hidden) fit();
+  };
+  document.addEventListener('visibilitychange', onVisible);
+  return () => {
+    cancelled = true;
+    cancelAnimationFrame(raf);
+    observer.disconnect();
+    document.removeEventListener('visibilitychange', onVisible);
+  };
+}
+
 // Keeps `ref`'s span fitted to `text` (see fitTruncatedText) across every
 // event that can change what fits: mount, next-frame layout settle, web-font
 // load, container resize, and tab foregrounding. Extracted verbatim from the
 // component so TruncatedLabel itself stays a thin render — the
-// scheduling/timing here is deliberate (see the inline comments) and must
-// not change.
+// scheduling/timing in scheduleFits is deliberate (see its comments) and
+// must not change.
 function useTruncatedFit(
   ref: RefObject<HTMLSpanElement | null>,
   text: string,
@@ -63,30 +91,7 @@ function useTruncatedFit(
       fitTruncatedText(node, text, lines);
     }
 
-    // Fit synchronously, again on the next frame (the first paint can measure
-    // before the rail's flex/grid layout has settled), and once more after web
-    // fonts load (which changes text metrics). A ResizeObserver keeps it
-    // correct on later width changes.
-    fit();
-    const raf = requestAnimationFrame(fit);
-    let cancelled = false;
-    void document.fonts?.ready.then(() => {
-      if (!cancelled) fit();
-    });
-    const observer = new ResizeObserver(fit);
-    observer.observe(el);
-    // A tab that loads in the background suspends rAF/ResizeObserver, so the
-    // first fit can run against an unsettled width; re-fit when it foregrounds.
-    const onVisible = () => {
-      if (!document.hidden) fit();
-    };
-    document.addEventListener('visibilitychange', onVisible);
-    return () => {
-      cancelled = true;
-      cancelAnimationFrame(raf);
-      observer.disconnect();
-      document.removeEventListener('visibilitychange', onVisible);
-    };
+    return scheduleFits(fit, el);
   }, [ref, text, lines]);
 }
 

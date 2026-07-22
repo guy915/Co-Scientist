@@ -1,6 +1,11 @@
 import {useEffect, useRef, useState} from 'react';
 import {useLocation} from 'react-router-dom';
-import {APP_LOGS_CHANGED_EVENT, getAppLogs, postAppLogs} from '@/api/logs';
+import {
+  APP_LOGS_CHANGED_EVENT,
+  getAppLogs,
+  postAppLogs,
+  type AppLogsPayload,
+} from '@/api/logs';
 import {DIAGNOSTIC_EVENT} from './dom_events';
 import {
   APP_LOGS_POLL_MS,
@@ -11,6 +16,60 @@ import {
   type PersistedAppLogs,
 } from './layout_diagnostics_data';
 
+// The last stream state applied to `logs`: whether display entries were
+// built for it (only true while the panel is open, since a closed-state
+// poll only needs the badge total). A load whose payload matches — and
+// whose entries the current open state is not missing — applies nothing,
+// so background polls of an unchanged log never re-render.
+interface AppliedLogState {
+  lastId: number;
+  total: number;
+  withEntries: boolean;
+}
+
+// True when `payload` is already reflected in `applied` for the current
+// open state.
+function isAlreadyApplied(
+  applied: AppliedLogState | null,
+  payload: AppLogsPayload,
+  open: boolean,
+): boolean {
+  return (
+    applied !== null &&
+    applied.lastId === payload.last_id &&
+    applied.total === payload.total &&
+    (applied.withEntries || !open)
+  );
+}
+
+// Builds the next applied-state marker and displayed logs from a fresh
+// payload. The open-state request already asks for PANEL_LIMIT records,
+// but the cap is enforced here too: whatever the payload size, the panel
+// shows at most the newest PANEL_LIMIT. Numbers backwards from the stream
+// total so the newest row is always `total`: a capped window shows
+// 151..250, not 1..100.
+function buildLoadedLogs(
+  payload: AppLogsPayload,
+  open: boolean,
+): {applied: AppliedLogState; logs: PersistedAppLogs} {
+  const shown = open ? payload.logs.slice(-PANEL_LIMIT) : [];
+  const total = Math.max(payload.total, shown.length);
+  const first = total - shown.length + 1;
+  return {
+    applied: {
+      lastId: payload.last_id,
+      total: payload.total,
+      withEntries: open,
+    },
+    logs: {
+      entries: shown.map((record, index) =>
+        buildAppLogEntry(record, first + index),
+      ),
+      total,
+    },
+  };
+}
+
 // Fetches the app-wide persisted log: on mount (so the badge count is
 // real), whenever `version` bumps (Clear changed the store), whenever
 // the api layer announces a change (a click or error was just
@@ -20,6 +79,25 @@ import {
 // (the response still carries `total` and `last_id`); opening re-runs
 // the effect with a full-window load. The same fetch runs on every
 // route, so navigating never changes what the panel shows.
+// Wires `load` to run once immediately, on a steady background poll (a
+// hidden tab loads nothing; foregrounding runs one immediate catch-up load
+// rather than waiting out the interval), and whenever the api layer
+// announces the persisted log changed. Returns the cleanup.
+function subscribeToLogPolling(load: () => void): () => void {
+  load();
+  const loadIfVisible = () => {
+    if (!document.hidden) load();
+  };
+  const timer = window.setInterval(loadIfVisible, APP_LOGS_POLL_MS);
+  document.addEventListener('visibilitychange', loadIfVisible);
+  window.addEventListener(APP_LOGS_CHANGED_EVENT, load);
+  return () => {
+    window.clearInterval(timer);
+    document.removeEventListener('visibilitychange', loadIfVisible);
+    window.removeEventListener(APP_LOGS_CHANGED_EVENT, load);
+  };
+}
+
 export function usePersistedAppLogs(
   version: number,
   open: boolean,
@@ -28,15 +106,7 @@ export function usePersistedAppLogs(
     entries: [],
     total: 0,
   });
-  // The last applied stream state; `withEntries` records whether display
-  // entries were built for it. A load whose payload matches — and whose
-  // entries the current open state is not missing — applies nothing, so
-  // background polls of an unchanged log never re-render.
-  const appliedRef = useRef<{
-    lastId: number;
-    total: number;
-    withEntries: boolean;
-  } | null>(null);
+  const appliedRef = useRef<AppliedLogState | null>(null);
 
   useEffect(() => {
     let disposed = false;
@@ -48,34 +118,10 @@ export function usePersistedAppLogs(
       getAppLogs(0, open ? PANEL_LIMIT : 1)
         .then(payload => {
           if (disposed || request !== latestRequest) return;
-          const applied = appliedRef.current;
-          if (
-            applied &&
-            applied.lastId === payload.last_id &&
-            applied.total === payload.total &&
-            (applied.withEntries || !open)
-          ) {
-            return;
-          }
-          // The open-state request already asks for PANEL_LIMIT records,
-          // but the cap is enforced here too: whatever the payload size,
-          // the panel shows at most the newest PANEL_LIMIT.
-          const shown = open ? payload.logs.slice(-PANEL_LIMIT) : [];
-          // Number backwards from the stream total so the newest row is
-          // always `total`: a capped window shows 151..250, not 1..100.
-          const total = Math.max(payload.total, shown.length);
-          const first = total - shown.length + 1;
-          appliedRef.current = {
-            lastId: payload.last_id,
-            total: payload.total,
-            withEntries: open,
-          };
-          setLogs({
-            entries: shown.map((record, index) =>
-              buildAppLogEntry(record, first + index),
-            ),
-            total,
-          });
+          if (isAlreadyApplied(appliedRef.current, payload, open)) return;
+          const {applied, logs: nextLogs} = buildLoadedLogs(payload, open);
+          appliedRef.current = applied;
+          setLogs(nextLogs);
         })
         .catch(() => {
           if (disposed || request !== latestRequest) return;
@@ -83,20 +129,10 @@ export function usePersistedAppLogs(
           setLogs({entries: [], total: 0});
         });
     };
-    load();
-    // A hidden tab loads nothing; returning to it runs one immediate
-    // load to catch up rather than waiting out the poll interval.
-    const loadIfVisible = () => {
-      if (!document.hidden) load();
-    };
-    const timer = window.setInterval(loadIfVisible, APP_LOGS_POLL_MS);
-    document.addEventListener('visibilitychange', loadIfVisible);
-    window.addEventListener(APP_LOGS_CHANGED_EVENT, load);
+    const unsubscribe = subscribeToLogPolling(load);
     return () => {
       disposed = true;
-      window.clearInterval(timer);
-      document.removeEventListener('visibilitychange', loadIfVisible);
-      window.removeEventListener(APP_LOGS_CHANGED_EVENT, load);
+      unsubscribe();
     };
   }, [version, open]);
 

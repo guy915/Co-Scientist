@@ -387,20 +387,31 @@ function learningSections(
   const fallbackGoal =
     goal ||
     'the biological mechanisms and experimental systems relevant to this research goal';
-  if (!evidence.length) {
-    return [
-      {
-        id: 'knowledge-unavailable',
-        title: 'Knowledge synthesis unavailable',
-        summary:
-          'No evidence-backed technical topics have been synthesized for this run.',
-        detail: `The run must retrieve and verify evidence before it can build a Knowledge Base for ${fallbackGoal}.`,
-        referenceIds: [],
-      },
-    ];
-  }
+  if (!evidence.length) return [placeholderSection(fallbackGoal)];
+  return evidence
+    .slice(0, 3)
+    .map((item, index) => evidenceSection(item, index, fallbackGoal));
+}
 
-  return evidence.slice(0, 3).map((item, index) => ({
+// The single placeholder item shown before any evidence has been gathered,
+// so the tab still shows meaningful copy rather than an empty page.
+function placeholderSection(fallbackGoal: string): LearningSectionItem {
+  return {
+    id: 'knowledge-unavailable',
+    title: 'Knowledge synthesis unavailable',
+    summary:
+      'No evidence-backed technical topics have been synthesized for this run.',
+    detail: `The run must retrieve and verify evidence before it can build a Knowledge Base for ${fallbackGoal}.`,
+    referenceIds: [],
+  };
+}
+
+function evidenceSection(
+  item: Evidence,
+  index: number,
+  fallbackGoal: string,
+): LearningSectionItem {
+  return {
     id: `learning-section-${index + 1}`,
     title: learningTitle(item.title, index),
     summary:
@@ -413,7 +424,7 @@ function learningSections(
         ? `Source context: ${item.source}, ${item.year}. Co-Scientist keeps this learning available for downstream hypothesis generation, ranking, and synthesis.`
         : `Co-Scientist keeps this learning available for downstream hypothesis generation, ranking, and synthesis for ${fallbackGoal}.`,
     referenceIds: [item.id],
-  }));
+  };
 }
 
 // Strips a leading "H1: " style hypothesis-id prefix and title-cases the

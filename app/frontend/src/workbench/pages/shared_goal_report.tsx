@@ -2,9 +2,8 @@ import {type ReactNode, useEffect, useState} from 'react';
 import {useParams} from 'react-router-dom';
 import {getSharedGoalReport, type SharedGoalReport} from '@/api/runs';
 
-/** Read-only public Goal Report rendered exclusively through a share token. */
-export function SharedGoalReportPage() {
-  const {token = ''} = useParams<{token: string}>();
+// Loads the shared report for a token, tracking load errors.
+function useSharedReport(token: string) {
   const [shared, setShared] = useState<SharedGoalReport | null>(null);
   const [error, setError] = useState('');
   useEffect(() => {
@@ -24,12 +23,18 @@ export function SharedGoalReportPage() {
       current = false;
     };
   }, [token]);
+  return {shared, error};
+}
+
+/** Read-only public Goal Report rendered exclusively through a share token. */
+export function SharedGoalReportPage() {
+  const {token = ''} = useParams<{token: string}>();
+  const {shared, error} = useSharedReport(token);
 
   if (error)
     return <main role="alert">This shared Goal Report is unavailable.</main>;
   if (!shared) return <main aria-busy="true">Loading shared Goal Report…</main>;
-  const {run, report, hypotheses, evidence} = shared;
-  const insights = report.payload.agent_insights;
+  const {run} = shared;
   return (
     <main className="mx-auto mb-24 grid w-[min(60rem,calc(100%-2rem))] gap-10 py-10 text-cosci-fg">
       <header>
@@ -37,6 +42,26 @@ export function SharedGoalReportPage() {
         <h1 className="mt-2 text-3xl">{run.title || run.research_goal}</h1>
         <p className="mt-3">{run.research_goal}</p>
       </header>
+      <SharedReportSections shared={shared} />
+      <ReportSection title="Run Specifications">
+        <p>
+          <strong>Research Challenge:</strong> {run.research_goal}
+        </p>
+        <p>
+          <strong>Run type:</strong>{' '}
+          {run.run_mode === 'advanced' ? 'Advanced Run' : 'Standard Run'}
+        </p>
+      </ReportSection>
+    </main>
+  );
+}
+
+// The report's content sections: ideas, knowledge base, and summary.
+function SharedReportSections({shared}: {shared: SharedGoalReport}) {
+  const {report, hypotheses, evidence} = shared;
+  const insights = report.payload.agent_insights;
+  return (
+    <>
       <ReportSection title="Ideas">
         <ol className="grid gap-3">
           {hypotheses.map(hypothesis => (
@@ -66,16 +91,7 @@ export function SharedGoalReportPage() {
           ))}
         </ul>
       </ReportSection>
-      <ReportSection title="Run Specifications">
-        <p>
-          <strong>Research Challenge:</strong> {run.research_goal}
-        </p>
-        <p>
-          <strong>Run type:</strong>{' '}
-          {run.run_mode === 'advanced' ? 'Advanced Run' : 'Standard Run'}
-        </p>
-      </ReportSection>
-    </main>
+    </>
   );
 }
 

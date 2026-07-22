@@ -85,27 +85,9 @@ export function useConversationLayout(
   return {timelineItems, scrollRef, composerRef};
 }
 
-/**
- * The in-conversation view: the scrolling timeline (rendered items plus any
- * session-level error) and the composer overlaid at the bottom.
- *
- * Split out of ChatWorkspace as a pure render component; every ref/handler it
- * needs is owned by ChatWorkspace and passed in as a prop. It takes the whole
- * `session` object rather than re-declaring each field it reads.
- */
-export function ConversationView({
-  scrollRef,
-  timelineItems,
-  composerRef,
-  session,
-  setupDraftMode,
-  pubmedEnabled,
-  onPubmedEnabledChange,
-  webSearchEnabled,
-  onWebSearchEnabledChange,
-  paperCorpusEnabled,
-  onPaperCorpusEnabledChange,
-}: {
+// Props for ConversationView, named at module level per the destructured
+// prop signature otherwise pushing the component past the line cap.
+export interface ConversationViewProps {
   scrollRef: RefObject<HTMLDivElement | null>;
   timelineItems: TimelineItem[];
   composerRef: RefObject<HTMLDivElement | null>;
@@ -120,24 +102,34 @@ export function ConversationView({
   onWebSearchEnabledChange: (value: boolean) => void;
   paperCorpusEnabled: boolean;
   onPaperCorpusEnabledChange: (value: boolean) => void;
-}) {
+}
+
+/**
+ * The in-conversation view: the scrolling timeline (rendered items plus any
+ * session-level error) and the composer overlaid at the bottom.
+ *
+ * Split out of ChatWorkspace as a pure render component; every ref/handler it
+ * needs is owned by ChatWorkspace and passed in as a prop. It takes the whole
+ * `session` object rather than re-declaring each field it reads.
+ */
+export function ConversationView(props: ConversationViewProps) {
   return (
     <>
       <TimelineSection
-        scrollRef={scrollRef}
-        timelineItems={timelineItems}
-        error={session.error}
+        scrollRef={props.scrollRef}
+        timelineItems={props.timelineItems}
+        error={props.session.error}
       />
       <ComposerSection
-        composerRef={composerRef}
-        session={session}
-        setupDraftMode={setupDraftMode}
-        pubmedEnabled={pubmedEnabled}
-        onPubmedEnabledChange={onPubmedEnabledChange}
-        webSearchEnabled={webSearchEnabled}
-        onWebSearchEnabledChange={onWebSearchEnabledChange}
-        paperCorpusEnabled={paperCorpusEnabled}
-        onPaperCorpusEnabledChange={onPaperCorpusEnabledChange}
+        composerRef={props.composerRef}
+        session={props.session}
+        setupDraftMode={props.setupDraftMode}
+        pubmedEnabled={props.pubmedEnabled}
+        onPubmedEnabledChange={props.onPubmedEnabledChange}
+        webSearchEnabled={props.webSearchEnabled}
+        onWebSearchEnabledChange={props.onWebSearchEnabledChange}
+        paperCorpusEnabled={props.paperCorpusEnabled}
+        onPaperCorpusEnabledChange={props.onPaperCorpusEnabledChange}
       />
     </>
   );
@@ -177,20 +169,9 @@ function TimelineSection({
   );
 }
 
-// Overlaid, non-scrolling composer; setupDraftMode swaps its placeholder
-// copy while a draft/confirmed spec or started session is in view, and
-// disabled locks input while starting.
-function ComposerSection({
-  composerRef,
-  session,
-  setupDraftMode,
-  pubmedEnabled,
-  onPubmedEnabledChange,
-  webSearchEnabled,
-  onWebSearchEnabledChange,
-  paperCorpusEnabled,
-  onPaperCorpusEnabledChange,
-}: {
+// Props for ComposerSection, named at module level per the destructured
+// prop signature otherwise pushing the component past the line cap.
+interface ComposerSectionProps {
   composerRef: RefObject<HTMLDivElement | null>;
   session: Pick<
     ReturnType<typeof useChatSession>,
@@ -203,23 +184,28 @@ function ComposerSection({
   onWebSearchEnabledChange: (value: boolean) => void;
   paperCorpusEnabled: boolean;
   onPaperCorpusEnabledChange: (value: boolean) => void;
-}) {
-  const {input, setInput, isStarting, handleSubmit} = session;
+}
+
+// Overlaid, non-scrolling composer; setupDraftMode swaps its placeholder
+// copy while a draft/confirmed spec or started session is in view, and
+// disabled locks input while starting.
+function ComposerSection(props: ComposerSectionProps) {
+  const {input, setInput, isStarting, handleSubmit} = props.session;
   return (
-    <div ref={composerRef} className={CHAT_COMPOSER_CLASSES}>
+    <div ref={props.composerRef} className={CHAT_COMPOSER_CLASSES}>
       <div className={CHAT_COLUMN_CLASSES}>
         <Composer
           input={input}
           setInput={setInput}
-          setupDraftMode={setupDraftMode}
+          setupDraftMode={props.setupDraftMode}
           busy={isStarting}
           autoFocus
-          pubmedEnabled={pubmedEnabled}
-          onPubmedEnabledChange={onPubmedEnabledChange}
-          webSearchEnabled={webSearchEnabled}
-          onWebSearchEnabledChange={onWebSearchEnabledChange}
-          paperCorpusEnabled={paperCorpusEnabled}
-          onPaperCorpusEnabledChange={onPaperCorpusEnabledChange}
+          pubmedEnabled={props.pubmedEnabled}
+          onPubmedEnabledChange={props.onPubmedEnabledChange}
+          webSearchEnabled={props.webSearchEnabled}
+          onWebSearchEnabledChange={props.onWebSearchEnabledChange}
+          paperCorpusEnabled={props.paperCorpusEnabled}
+          onPaperCorpusEnabledChange={props.onPaperCorpusEnabledChange}
           onSubmit={handleSubmit}
         />
       </div>

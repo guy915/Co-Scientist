@@ -1,4 +1,9 @@
-import {type FormEvent, useState} from 'react';
+import {
+  type Dispatch,
+  type FormEvent,
+  type SetStateAction,
+  useState,
+} from 'react';
 import {type Run} from '@/api/runs';
 import {Icon, type IconName} from '@/components/icon';
 import {joinClasses} from '../classes';
@@ -112,43 +117,16 @@ const SESSION_STEPS: readonly {
 ];
 
 /**
- * Renders the session-home surface shown before any conversation has
- * started: the greeting title, the desktop onboarding timeline, the
- * suggestion prompt row, the composer (in its roomy `large` mode), and the
- * desktop-only recents panel (HomeRecentsPanel). Rendered by ChatWorkspace
- * when `hasConversation` is false.
+ * Props for HomeStage, named at module level per the destructured prop
+ * signature otherwise pushing the component past the line cap.
  *
- * @param input Controlled composer value, owned by the parent session state.
- * @param setInput Updates the controlled composer value.
- * @param pubmedEnabled Whether the PubMed connector toggle is on.
- * @param onPubmedEnabledChange Callback fired when the PubMed toggle changes.
- * @param webSearchEnabled Whether the Web search connector toggle is on.
- * @param onWebSearchEnabledChange Callback fired when the Web search toggle
- *   changes.
- * @param paperCorpusEnabled Whether the Lab papers connector toggle is on.
- * @param onPaperCorpusEnabledChange Callback fired when the Lab papers toggle
- *   changes.
- * @param onSubmit Form submit handler for the composer.
- * @param runs Recent runs to list in the recents panel.
- * @param scoresByRunId Top Elo score per run id, keyed for the recents panel.
- * @param showAllRecents Whether the recents panel is expanded past the cap.
- * @param onToggleShowAll Toggles the recents panel's expanded state.
+ * `input`/`setInput` are the controlled composer value, owned by the parent
+ * session state. The pubmed/webSearch/paperCorpus fields mirror each
+ * connector toggle's state and change callback. `onSubmit` is the composer's
+ * form submit handler. `runs`/`scoresByRunId` feed the recents panel, and
+ * `showAllRecents`/`onToggleShowAll` control its expanded state.
  */
-export function HomeStage({
-  input,
-  setInput,
-  pubmedEnabled,
-  onPubmedEnabledChange,
-  webSearchEnabled,
-  onWebSearchEnabledChange,
-  paperCorpusEnabled,
-  onPaperCorpusEnabledChange,
-  onSubmit,
-  runs,
-  scoresByRunId,
-  showAllRecents,
-  onToggleShowAll,
-}: {
+export interface HomeStageProps {
   input: string;
   setInput: (value: string) => void;
   pubmedEnabled: boolean;
@@ -162,7 +140,106 @@ export function HomeStage({
   scoresByRunId: Record<string, number | null>;
   showAllRecents: boolean;
   onToggleShowAll: () => void;
-}) {
+}
+
+// Filling the composer from a suggestion drops in the full prompt (not the
+// preview) and dismisses that suggestion's preview bubble, since the row is
+// about to lose focus/hover anyway.
+function selectHomeSuggestion(
+  prompt: string,
+  setInput: (value: string) => void,
+  setHoveredSuggestion: Dispatch<SetStateAction<string | null>>,
+): void {
+  setInput(prompt);
+  setHoveredSuggestion(null);
+}
+
+// The composer, wired to its busy/large defaults for the home stage.
+function HomeComposer({
+  input,
+  setInput,
+  pubmedEnabled,
+  onPubmedEnabledChange,
+  webSearchEnabled,
+  onWebSearchEnabledChange,
+  paperCorpusEnabled,
+  onPaperCorpusEnabledChange,
+  onSubmit,
+}: Pick<
+  HomeStageProps,
+  | 'input'
+  | 'setInput'
+  | 'pubmedEnabled'
+  | 'onPubmedEnabledChange'
+  | 'webSearchEnabled'
+  | 'onWebSearchEnabledChange'
+  | 'paperCorpusEnabled'
+  | 'onPaperCorpusEnabledChange'
+  | 'onSubmit'
+>) {
+  return (
+    <Composer
+      input={input}
+      setInput={setInput}
+      busy={false}
+      large
+      pubmedEnabled={pubmedEnabled}
+      onPubmedEnabledChange={onPubmedEnabledChange}
+      webSearchEnabled={webSearchEnabled}
+      onWebSearchEnabledChange={onWebSearchEnabledChange}
+      paperCorpusEnabled={paperCorpusEnabled}
+      onPaperCorpusEnabledChange={onPaperCorpusEnabledChange}
+      onSubmit={onSubmit}
+    />
+  );
+}
+
+// The home stage's left column: the greeting, the suggestion prompt row, and
+// the composer. Split out of HomeStage so it only needs the suggestion-row
+// state as extra props on top of HomeStageProps' composer fields.
+function HomeMainColumn(
+  props: Pick<
+    HomeStageProps,
+    | 'input'
+    | 'setInput'
+    | 'pubmedEnabled'
+    | 'onPubmedEnabledChange'
+    | 'webSearchEnabled'
+    | 'onWebSearchEnabledChange'
+    | 'paperCorpusEnabled'
+    | 'onPaperCorpusEnabledChange'
+    | 'onSubmit'
+  > & {
+    isMobile: boolean;
+    suggestions: readonly Suggestion[];
+    hoveredSuggestion: string | null;
+    onPreview: (text: string | null) => void;
+    onSelect: (prompt: string) => void;
+  },
+) {
+  return (
+    <div className={HOME_MAIN_CLASSES}>
+      <HomeGreeting isMobile={props.isMobile} />
+      <HomeSuggestionRow
+        isMobile={props.isMobile}
+        suggestions={props.suggestions}
+        hoveredSuggestion={props.hoveredSuggestion}
+        onPreview={props.onPreview}
+        onSelect={props.onSelect}
+      />
+      <HomeComposer {...props} />
+    </div>
+  );
+}
+
+/**
+ * Renders the session-home surface shown before any conversation has
+ * started: the greeting title, the desktop onboarding timeline, the
+ * suggestion prompt row, the composer (in its roomy `large` mode), and the
+ * desktop-only recents panel (HomeRecentsPanel). Rendered by ChatWorkspace
+ * when `hasConversation` is false.
+ */
+export function HomeStage(props: HomeStageProps) {
   // Tracks which suggestion (by its preview text, used as the identity key) is
   // currently hovered/focused, to show that suggestion's preview bubble and its
   // "previewed" button styling.
@@ -177,45 +254,24 @@ export function HomeStage({
   // active layout.
   const isMobile = useIsMobile();
 
-  // Filling the composer from a suggestion drops in the full prompt (not the
-  // preview) and dismisses that suggestion's preview bubble, since the row is
-  // about to lose focus/hover anyway.
-  function selectSuggestion(prompt: string) {
-    setInput(prompt);
-    setHoveredSuggestion(null);
-  }
-
   return (
     <section className={HOME_STAGE_CLASSES}>
-      <div className={HOME_MAIN_CLASSES}>
-        <HomeGreeting isMobile={isMobile} />
-        <HomeSuggestionRow
-          isMobile={isMobile}
-          suggestions={suggestions}
-          hoveredSuggestion={hoveredSuggestion}
-          onPreview={setHoveredSuggestion}
-          onSelect={selectSuggestion}
-        />
-        <Composer
-          input={input}
-          setInput={setInput}
-          busy={false}
-          large
-          pubmedEnabled={pubmedEnabled}
-          onPubmedEnabledChange={onPubmedEnabledChange}
-          webSearchEnabled={webSearchEnabled}
-          onWebSearchEnabledChange={onWebSearchEnabledChange}
-          paperCorpusEnabled={paperCorpusEnabled}
-          onPaperCorpusEnabledChange={onPaperCorpusEnabledChange}
-          onSubmit={onSubmit}
-        />
-      </div>
+      <HomeMainColumn
+        {...props}
+        isMobile={isMobile}
+        suggestions={suggestions}
+        hoveredSuggestion={hoveredSuggestion}
+        onPreview={setHoveredSuggestion}
+        onSelect={prompt =>
+          selectHomeSuggestion(prompt, props.setInput, setHoveredSuggestion)
+        }
+      />
       <HomeRecentsRegion
         isMobile={isMobile}
-        runs={runs}
-        scoresByRunId={scoresByRunId}
-        showAllRecents={showAllRecents}
-        onToggleShowAll={onToggleShowAll}
+        runs={props.runs}
+        scoresByRunId={props.scoresByRunId}
+        showAllRecents={props.showAllRecents}
+        onToggleShowAll={props.onToggleShowAll}
       />
     </section>
   );
@@ -392,23 +448,23 @@ function SuggestionPreviewBubble({
   );
 }
 
-// The suggestion's clickable trigger: fills the composer with the
-// suggestion's full prompt when clicked, and drives the preview bubble's
-// visibility on hover/pointer/focus so touch/keyboard users get the same
-// one-sentence preview that mouse hover provides.
-function SuggestionTriggerButton({
-  suggestion,
-  isMobile,
-  isPreviewed,
-  onPreview,
-  onSelect,
-}: {
+// Props for SuggestionTriggerButton, named at module level per the
+// destructured prop signature otherwise pushing the component past the line
+// cap.
+interface SuggestionTriggerButtonProps {
   suggestion: Suggestion;
   isMobile: boolean;
   isPreviewed: boolean;
   onPreview: (preview: string | null) => void;
   onSelect: (prompt: string) => void;
-}) {
+}
+
+// The suggestion's clickable trigger: fills the composer with the
+// suggestion's full prompt when clicked, and drives the preview bubble's
+// visibility on hover/pointer/focus so touch/keyboard users get the same
+// one-sentence preview that mouse hover provides.
+function SuggestionTriggerButton(props: SuggestionTriggerButtonProps) {
+  const {suggestion, isMobile, isPreviewed, onPreview, onSelect} = props;
   return (
     <button
       type="button"

@@ -8,6 +8,7 @@ import {
   findHypothesisReview,
   findLatestMatch,
   normalizeSpans,
+  type NormalizedSpan,
   originLabel,
   reviewCritiqueText,
   reviewSummaryText,
@@ -86,23 +87,25 @@ const RAIL_SECTIONS: readonly string[] = [
  * outcome and rationale. Renders an empty-state placeholder when nothing is
  * selected (e.g. no hypotheses yet).
  */
-export function HypothesisDetail({
-  hypothesis,
-  reviews,
-  matches,
-  claimEvidence = [],
-}: {
+interface HypothesisDetailProps {
   hypothesis: Hypothesis | null;
   // The run's full review/match/claim sets; the detail filters them down to
   // the hypothesis itself, so call sites just forward what they have.
   reviews: Review[];
   matches: MatchRow[];
   claimEvidence?: ClaimEvidenceRow[];
-}) {
-  // Memoized on their inputs so unrelated re-renders (e.g. SSE updates to
-  // sibling collections) skip re-scanning the run's full review/match/claim
-  // sets. Computed before the empty-state return to satisfy the rules of
-  // hooks, hence the null guards.
+}
+
+// Memoized on their inputs so unrelated re-renders (e.g. SSE updates to
+// sibling collections) skip re-scanning the run's full review/match/claim
+// sets. Computed before the parent's empty-state return to satisfy the
+// rules of hooks, hence the null guards.
+function useHypothesisRecords(
+  hypothesis: Hypothesis | null,
+  reviews: Review[],
+  matches: MatchRow[],
+  claimEvidence: ClaimEvidenceRow[],
+) {
   const review = useMemo(
     () => (hypothesis ? findHypothesisReview(hypothesis, reviews) : undefined),
     [hypothesis, reviews],
@@ -118,6 +121,21 @@ export function HypothesisDetail({
         : [],
     [hypothesis, claimEvidence],
   );
+  return {review, latestMatch, claims};
+}
+
+export function HypothesisDetail({
+  hypothesis,
+  reviews,
+  matches,
+  claimEvidence = [],
+}: HypothesisDetailProps) {
+  const {review, latestMatch, claims} = useHypothesisRecords(
+    hypothesis,
+    reviews,
+    matches,
+    claimEvidence,
+  );
 
   if (!hypothesis) {
     return (
@@ -128,6 +146,31 @@ export function HypothesisDetail({
     );
   }
 
+  return (
+    <HypothesisDetailSections
+      hypothesis={hypothesis}
+      review={review}
+      latestMatch={latestMatch}
+      claims={claims}
+    />
+  );
+}
+
+interface DetailSectionsProps {
+  hypothesis: Hypothesis;
+  review: Review | undefined;
+  latestMatch: MatchRow | undefined;
+  claims: ClaimEvidenceRow[];
+}
+
+// The ordered detail sections for a selected hypothesis. Props-only (no
+// hooks), so the parent keeps every hook above its empty-state return.
+function HypothesisDetailSections({
+  hypothesis,
+  review,
+  latestMatch,
+  claims,
+}: DetailSectionsProps) {
   return (
     <section
       className={IDEA_DETAIL_PANE_CLASSES}
@@ -144,19 +187,15 @@ export function HypothesisDetail({
       <DetailSection title={SECTIONS.provenance}>
         <HypothesisProvenanceContent hypothesis={hypothesis} claims={claims} />
       </DetailSection>
-
       <DetailSection title={SECTIONS.reviewSummary}>
         <p>{reviewSummaryText(review)}</p>
       </DetailSection>
-
       <DetailSection title={SECTIONS.fullReview}>
         <p>{reviewCritiqueText(review)}</p>
       </DetailSection>
-
       <DetailSection title={SECTIONS.tournament}>
         <p>{tournamentSummaryText(hypothesis)}</p>
       </DetailSection>
-
       <DetailSection title={SECTIONS.matchSummary}>
         <MatchSummaryContent latestMatch={latestMatch} />
       </DetailSection>
@@ -189,6 +228,48 @@ function HypothesisDescriptionContent({hypothesis}: {hypothesis: Hypothesis}) {
 // so a reader can read the exact quote that grounds the verdict and open its
 // source (Milestone 5 / P0.5). Insufficient claims remain visible even though
 // they have no source span, with their categorical/speculative role explicit.
+function ClaimVerdictLabel({claim}: {claim: ClaimEvidenceRow}) {
+  return (
+    <span className="capitalize font-medium">
+      {claim.label === 'insufficient'
+        ? claim.claim_role === 'speculative'
+          ? 'Speculative — evidence insufficient'
+          : 'Unsupported categorical claim'
+        : claim.label}
+    </span>
+  );
+}
+
+// The located quotes behind one claim's verdict, each with its source link.
+function EvidenceSpanList({spans}: {spans: NormalizedSpan[]}) {
+  if (!spans.length) return null;
+  return (
+    <ul className="mt-1 flex flex-col gap-1">
+      {spans.map((span, i) => (
+        <li
+          key={i}
+          className="border-l-2 border-th-outline-variant pl-2 italic"
+        >
+          “{span.quote}”
+          {span.url && (
+            <>
+              {' '}
+              <a
+                href={span.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="not-italic underline"
+              >
+                open source
+              </a>
+            </>
+          )}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 function ClaimEvidenceDetail({claims}: {claims: ClaimEvidenceRow[]}) {
   const details = claims.map(c => ({
     claim: c,
@@ -203,40 +284,9 @@ function ClaimEvidenceDetail({claims}: {claims: ClaimEvidenceRow[]}) {
       {details.map(({claim, spans}) => (
         <div key={claim.id} className="text-xs">
           <p>
-            <span className="capitalize font-medium">
-              {claim.label === 'insufficient'
-                ? claim.claim_role === 'speculative'
-                  ? 'Speculative — evidence insufficient'
-                  : 'Unsupported categorical claim'
-                : claim.label}
-            </span>
-            : {claim.claim}
+            <ClaimVerdictLabel claim={claim} />: {claim.claim}
           </p>
-          {spans.length > 0 && (
-            <ul className="mt-1 flex flex-col gap-1">
-              {spans.map((span, i) => (
-                <li
-                  key={i}
-                  className="border-l-2 border-th-outline-variant pl-2 italic"
-                >
-                  “{span.quote}”
-                  {span.url && (
-                    <>
-                      {' '}
-                      <a
-                        href={span.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="not-italic underline"
-                      >
-                        open source
-                      </a>
-                    </>
-                  )}
-                </li>
-              ))}
-            </ul>
-          )}
+          <EvidenceSpanList spans={spans} />
         </div>
       ))}
     </div>
@@ -247,14 +297,7 @@ function ClaimEvidenceDetail({claims}: {claims: ClaimEvidenceRow[]}) {
 // (Milestone 1 immutable-evolution lineage), its proximity cluster
 // (Milestone 3), its safety status (Milestone 6), and a summary of its
 // claim-evidence grounding (Milestone 5).
-function HypothesisProvenanceContent({
-  hypothesis,
-  claims,
-}: {
-  hypothesis: Hypothesis;
-  claims: ClaimEvidenceRow[];
-}) {
-  const claimSummary = claimEvidenceSummary(claims);
+function ProvenanceOriginLines({hypothesis}: {hypothesis: Hypothesis}) {
   return (
     <>
       <p>
@@ -268,6 +311,21 @@ function HypothesisProvenanceContent({
           : `Generation ${hypothesis.generation}`}
         {hypothesis.parent_id && ' — evolved from an earlier hypothesis'}
       </p>
+    </>
+  );
+}
+
+function HypothesisProvenanceContent({
+  hypothesis,
+  claims,
+}: {
+  hypothesis: Hypothesis;
+  claims: ClaimEvidenceRow[];
+}) {
+  const claimSummary = claimEvidenceSummary(claims);
+  return (
+    <>
+      <ProvenanceOriginLines hypothesis={hypothesis} />
       {hypothesis.cluster_id && (
         <p>
           <strong>Proximity cluster:</strong> {hypothesis.cluster_id}

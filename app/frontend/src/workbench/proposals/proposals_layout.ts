@@ -180,14 +180,20 @@ const MINIMUM = {
   height: (RY_BASE + PAD_BASE.y) * 4 + ROW_GAP_BASE,
 };
 
+/** One cluster ring: its center point and horizontal radius. */
+interface Ring {
+  center: Point;
+  rx: number;
+}
+
 /** Ring centers for one row, laid left to right from `start`. */
 function placeRow(
   row: ClusterId[],
   rx: number,
   start: number,
   y: number,
-): Record<string, {center: Point; rx: number}> {
-  const placed: Record<string, {center: Point; rx: number}> = {};
+): Record<string, Ring> {
+  const placed: Record<string, Ring> = {};
   let x = start;
   for (const id of row) {
     const width = hullWidth(id, rx);
@@ -195,6 +201,91 @@ function placeRow(
     x += width + GAP_BASE;
   }
   return placed;
+}
+
+const HULL_HEIGHT_BASE = (RY_BASE + PAD_BASE.y) * 2;
+
+// One scale fits the drawing to the stage in both axes: never larger than
+// base size, and never so large that it overflows — this is what keeps the
+// page free of scrollbars in both directions. The top row competes only for
+// what the fixed-width legends leave behind.
+function layoutScale(width: number, height: number): number {
+  return Math.min(
+    1,
+    Math.max(0, width - LEGEND_WIDTH * 2) / MINIMUM.topRow,
+    width / MINIMUM.bottomRow,
+    height / MINIMUM.height,
+  );
+}
+
+// Places both cluster rows in base units. The top row shares its line with
+// the legends: one gap to the left card, one between the clusters, one to
+// the right card.
+function clusterRings(
+  room: {width: number; height: number},
+  legend: number,
+): Record<string, Ring> {
+  const top = Math.max(
+    0,
+    (room.height - (HULL_HEIGHT_BASE * 2 + ROW_GAP_BASE)) / 2,
+  );
+  const topRx = rowRadius(
+    TOP_ROW,
+    room.width - legend * 2 - GAP_BASE * (TOP_ROW.length + 1),
+  );
+  const bottomRx = rowRadius(
+    BOTTOM_ROW,
+    room.width - GAP_BASE * (BOTTOM_ROW.length + 1),
+  );
+  return {
+    ...placeRow(TOP_ROW, topRx, legend + GAP_BASE, top + HULL_HEIGHT_BASE / 2),
+    ...placeRow(
+      BOTTOM_ROW,
+      bottomRx,
+      GAP_BASE,
+      top + HULL_HEIGHT_BASE * 1.5 + ROW_GAP_BASE,
+    ),
+  };
+}
+
+// Spreads every cluster's members around its ring, in scaled pixels.
+function nodePositions(
+  rings: Record<string, Ring>,
+  scale: number,
+): Record<string, Point> {
+  const positions: Record<string, Point> = {};
+  for (const cluster of clusters) {
+    const ring = rings[cluster.id];
+    const members = memberIds(cluster.id);
+    ringAngles(members.length).forEach((angle, index) => {
+      positions[members[index]] = {
+        x: (ring.center.x + Math.cos(angle) * ring.rx) * scale,
+        y: (ring.center.y + Math.sin(angle) * RY_BASE) * scale,
+      };
+    });
+  }
+  return positions;
+}
+
+// Bounds each cluster's hull card around its members, in scaled pixels.
+function clusterHulls(
+  rings: Record<string, Ring>,
+  positions: Record<string, Point>,
+  scale: number,
+): Layout['hulls'] {
+  return clusters.map(cluster => {
+    const xs = memberIds(cluster.id).map(id => positions[id].x);
+    return {
+      id: cluster.id,
+      label: cluster.label,
+      bounds: {
+        x: Math.min(...xs) - PAD_BASE.x * scale,
+        y: (rings[cluster.id].center.y - HULL_HEIGHT_BASE / 2) * scale,
+        width: Math.max(...xs) - Math.min(...xs) + PAD_BASE.x * 2 * scale,
+        height: HULL_HEIGHT_BASE * scale,
+      },
+    };
+  });
 }
 
 /**
@@ -208,71 +299,16 @@ function placeRow(
 export function computeLayout(stage: Stage): Layout {
   const width = stage.width || FALLBACK.width;
   const height = stage.height || FALLBACK.height;
-
-  // Never larger than base size, and never so large that it overflows: this
-  // is what keeps the page free of scrollbars in both directions. The top
-  // row competes only for what the fixed-width legends leave behind.
-  const scale = Math.min(
-    1,
-    Math.max(0, width - LEGEND_WIDTH * 2) / MINIMUM.topRow,
-    width / MINIMUM.bottomRow,
-    height / MINIMUM.height,
-  );
+  const scale = layoutScale(width, height);
 
   // Work in base units, then scale once at the end. The legends are the one
   // length that does not scale, so they convert the other way.
   const room = {width: width / scale, height: height / scale};
   const legend = LEGEND_WIDTH / scale;
 
-  const hullHeight = (RY_BASE + PAD_BASE.y) * 2;
-  const top = Math.max(0, (room.height - (hullHeight * 2 + ROW_GAP_BASE)) / 2);
-
-  // The top row shares its line with the legends: one gap to the left card,
-  // one between the clusters, one to the right card.
-  const topRx = rowRadius(
-    TOP_ROW,
-    room.width - legend * 2 - GAP_BASE * (TOP_ROW.length + 1),
-  );
-  const bottomRx = rowRadius(
-    BOTTOM_ROW,
-    room.width - GAP_BASE * (BOTTOM_ROW.length + 1),
-  );
-
-  const rings = {
-    ...placeRow(TOP_ROW, topRx, legend + GAP_BASE, top + hullHeight / 2),
-    ...placeRow(
-      BOTTOM_ROW,
-      bottomRx,
-      GAP_BASE,
-      top + hullHeight * 1.5 + ROW_GAP_BASE,
-    ),
-  };
-
-  const positions: Record<string, Point> = {};
-  for (const cluster of clusters) {
-    const ring = rings[cluster.id];
-    const members = memberIds(cluster.id);
-    ringAngles(members.length).forEach((angle, index) => {
-      positions[members[index]] = {
-        x: (ring.center.x + Math.cos(angle) * ring.rx) * scale,
-        y: (ring.center.y + Math.sin(angle) * RY_BASE) * scale,
-      };
-    });
-  }
-
-  const hulls = clusters.map(cluster => {
-    const xs = memberIds(cluster.id).map(id => positions[id].x);
-    return {
-      id: cluster.id,
-      label: cluster.label,
-      bounds: {
-        x: Math.min(...xs) - PAD_BASE.x * scale,
-        y: (rings[cluster.id].center.y - hullHeight / 2) * scale,
-        width: Math.max(...xs) - Math.min(...xs) + PAD_BASE.x * 2 * scale,
-        height: hullHeight * scale,
-      },
-    };
-  });
+  const rings = clusterRings(room, legend);
+  const positions = nodePositions(rings, scale);
+  const hulls = clusterHulls(rings, positions, scale);
 
   return {
     width,
@@ -339,23 +375,13 @@ interface Route {
   points: Point[];
 }
 
-/** Builds one candidate route for an edge at the given perpendicular offset. */
-function route(from: Point, to: Point, offset: number, scale: number): Route {
-  // Control point sits perpendicular to the midpoint, bowing the curve away
-  // from whatever the straight line would have run into.
-  const dx = to.x - from.x;
-  const dy = to.y - from.y;
-  const length = Math.hypot(dx, dy) || 1;
-  const control: Point = {
-    x: (from.x + to.x) / 2 + (-dy / length) * offset,
-    y: (from.y + to.y) / 2 + (dx / length) * offset,
-  };
-
-  // Trim both ends to the node boundary, aiming at the control point so
-  // curved edges leave and arrive at sensible angles.
-  const start = boundaryPoint(from, offset === 0 ? to : control, 4, scale);
-  const end = boundaryPoint(to, offset === 0 ? from : control, 9, scale);
-
+/** Points along the straight (offset 0) or quadratic route, for tests. */
+function sampleRoute(
+  start: Point,
+  control: Point,
+  end: Point,
+  offset: number,
+): Point[] {
   const points: Point[] = [];
   for (let i = 0; i <= SAMPLES; i++) {
     const t = i / SAMPLES;
@@ -378,6 +404,27 @@ function route(from: Point, to: Point, offset: number, scale: number): Route {
         t * t * end.y,
     });
   }
+  return points;
+}
+
+/** Builds one candidate route for an edge at the given perpendicular offset. */
+function route(from: Point, to: Point, offset: number, scale: number): Route {
+  // Control point sits perpendicular to the midpoint, bowing the curve away
+  // from whatever the straight line would have run into.
+  const dx = to.x - from.x;
+  const dy = to.y - from.y;
+  const length = Math.hypot(dx, dy) || 1;
+  const control: Point = {
+    x: (from.x + to.x) / 2 + (-dy / length) * offset,
+    y: (from.y + to.y) / 2 + (dx / length) * offset,
+  };
+
+  // Trim both ends to the node boundary, aiming at the control point so
+  // curved edges leave and arrive at sensible angles.
+  const start = boundaryPoint(from, offset === 0 ? to : control, 4, scale);
+  const end = boundaryPoint(to, offset === 0 ? from : control, 9, scale);
+
+  const points = sampleRoute(start, control, end, offset);
 
   return {
     path:
@@ -441,6 +488,36 @@ function runsAlongside(a: Route, b: Route): boolean {
  * than falling back to a straight line through three nodes. The order is
  * fixed, so the result is deterministic.
  */
+function bestRoute(
+  edge: Edge,
+  positions: Record<string, Point>,
+  scale: number,
+  placed: Route[],
+): Route {
+  const from = positions[edge.from];
+  const to = positions[edge.to];
+  // The straight line is always a valid answer, so it seeds the search
+  // and there is never an empty result to guard against.
+  let best = route(from, to, 0, scale);
+  let bestCost = Infinity;
+  for (const offset of OFFSETS) {
+    const candidate = route(from, to, offset * scale, scale);
+    const alongside = placed.filter(other =>
+      runsAlongside(candidate, other),
+    ).length;
+    const cost =
+      nodeHits(candidate, edge, positions, scale) * 100 +
+      alongside * 60 +
+      Math.abs(offset) / 100;
+    if (cost < bestCost) {
+      best = candidate;
+      bestCost = cost;
+    }
+    if (cost < 1) break;
+  }
+  return best;
+}
+
 function edgeGeometry(
   positions: Record<string, Point>,
   scale: number,
@@ -462,28 +539,7 @@ function edgeGeometry(
     }))
     .sort((a, b) => b.span - a.span || a.index - b.index);
   for (const {index} of order) {
-    const edge = edges[index];
-    const from = positions[edge.from];
-    const to = positions[edge.to];
-    // The straight line is always a valid answer, so it seeds the search
-    // and there is never an empty result to guard against.
-    let best = route(from, to, 0, scale);
-    let bestCost = Infinity;
-    for (const offset of OFFSETS) {
-      const candidate = route(from, to, offset * scale, scale);
-      const alongside = placed.filter(other =>
-        runsAlongside(candidate, other),
-      ).length;
-      const cost =
-        nodeHits(candidate, edge, positions, scale) * 100 +
-        alongside * 60 +
-        Math.abs(offset) / 100;
-      if (cost < bestCost) {
-        best = candidate;
-        bestCost = cost;
-      }
-      if (cost < 1) break;
-    }
+    const best = bestRoute(edges[index], positions, scale, placed);
     placed.push(best);
     routed[index] = best.path;
   }

@@ -9,7 +9,11 @@ import {
 import {ProposalsDetail} from '../proposals/proposals_detail';
 import {ProposalsGraph} from '../proposals/proposals_graph';
 import {ProposalsLegend} from '../proposals/proposals_legend';
-import {LEGEND_WIDTH, computeLayout} from '../proposals/proposals_layout';
+import {
+  LEGEND_WIDTH,
+  computeLayout,
+  type Layout,
+} from '../proposals/proposals_layout';
 import {useStage} from '../proposals/use_stage';
 
 // Adds or removes one member, which is all either legend needs: an empty
@@ -22,22 +26,31 @@ function toggled<T>(current: Set<T>, value: T): Set<T> {
   return next;
 }
 
-/**
- * The proposals relationship graph, sized to fill the viewport. The graph is
- * the whole page: the two legends explain and filter it, and the detail
- * panel reads one proposal at a time. Selection lives in the query string so
- * a particular proposal can be linked to and shared.
- */
-export function ProposalsPage() {
-  const [params, setParams] = useSearchParams();
-  const [activeId, setActiveId] = useState<string | null>(null);
+// The two legend filters (relationship kinds and categories) plus their
+// toggle handlers.
+function useLegendFilters() {
   const [selectedKinds, setSelectedKinds] = useState<Set<EdgeKind>>(new Set());
   const [selectedClusters, setSelectedClusters] = useState<Set<ClusterId>>(
     new Set(),
   );
+  const toggleKind = useCallback(
+    (kind: EdgeKind) => setSelectedKinds(current => toggled(current, kind)),
+    [],
+  );
+  const toggleCluster = useCallback(
+    (cluster: ClusterId) =>
+      setSelectedClusters(current => toggled(current, cluster)),
+    [],
+  );
+  return {selectedKinds, selectedClusters, toggleKind, toggleCluster};
+}
 
-  // The panel slides out rather than vanishing, so the node stays rendered
-  // until the animation finishes. `leaving` holds it there in the meantime.
+// Selection lives in the query string so a particular proposal can be
+// linked to and shared. The panel slides out rather than vanishing, so the
+// node stays rendered until the animation finishes; `leaving` holds it
+// there in the meantime.
+function useProposalSelection() {
+  const [params, setParams] = useSearchParams();
   const [leaving, setLeaving] = useState<ProposalNode | null>(null);
 
   const selectedId = params.get('node');
@@ -63,61 +76,94 @@ export function ProposalsPage() {
     setParams({}, {replace: true});
   }, [setParams, selected]);
 
-  const shown = selected ?? leaving;
+  const clearLeaving = useCallback(() => setLeaving(null), []);
 
-  // The graph is laid out into the space it is actually given, in real
-  // pixels, so the measurement has to come first and the geometry second.
+  return {
+    selectedId,
+    selected,
+    shown: selected ?? leaving,
+    select,
+    clearSelection,
+    clearLeaving,
+  };
+}
+
+// The stage's CSS custom properties: the legend cards take their width from
+// the same constant the layout reserves for them, so the two cannot drift
+// apart.
+function stageStyle(layout: Layout): CSSProperties {
+  return {
+    '--proposals-scale': layout.scale,
+    '--proposals-legend-width': `${LEGEND_WIDTH}px`,
+  } as CSSProperties;
+}
+
+interface ProposalsStageProps {
+  activeId: string | null;
+  onActivate: (id: string | null) => void;
+  filters: ReturnType<typeof useLegendFilters>;
+  selection: ReturnType<typeof useProposalSelection>;
+}
+
+// The stage is what gets measured: the graph fills it exactly, and the
+// legends are positioned in its corners. The graph is laid out into the
+// space it is actually given, in real pixels, so the measurement has to
+// come first and the geometry second.
+function ProposalsStage(props: ProposalsStageProps) {
+  const {filters, selection} = props;
   const [stageRef, stage] = useStage();
   const layout = useMemo(() => computeLayout(stage), [stage]);
+  return (
+    <div className="proposals-stage" ref={stageRef} style={stageStyle(layout)}>
+      <ProposalsGraph
+        activeId={props.activeId}
+        selectedId={selection.selectedId}
+        selectedKinds={filters.selectedKinds}
+        selectedClusters={filters.selectedClusters}
+        onActivate={props.onActivate}
+        onSelect={selection.select}
+        layout={layout}
+      />
+      {/* The legends explain the whole graph; while one proposal is open
+          the detail panel is the thing being read, so they step aside. */}
+      {!selection.selected && (
+        <ProposalsLegend
+          selectedKinds={filters.selectedKinds}
+          onToggleKind={filters.toggleKind}
+          selectedClusters={filters.selectedClusters}
+          onToggleCluster={filters.toggleCluster}
+        />
+      )}
+    </div>
+  );
+}
+
+/**
+ * The proposals relationship graph, sized to fill the viewport. The graph is
+ * the whole page: the two legends explain and filter it, and the detail
+ * panel reads one proposal at a time.
+ */
+export function ProposalsPage() {
+  const [activeId, setActiveId] = useState<string | null>(null);
+  const filters = useLegendFilters();
+  const selection = useProposalSelection();
 
   return (
     <div className="proposals-page">
-      {/* The stage is what gets measured: the graph fills it exactly, and
-          the legends are positioned in its corners. */}
-      <div
-        className="proposals-stage"
-        ref={stageRef}
-        style={
-          {
-            '--proposals-scale': layout.scale,
-            // The legend cards take their width from the same constant the
-            // layout reserves for them, so the two cannot drift apart.
-            '--proposals-legend-width': `${LEGEND_WIDTH}px`,
-          } as CSSProperties
-        }
-      >
-        <ProposalsGraph
-          activeId={activeId}
-          selectedId={selectedId}
-          selectedKinds={selectedKinds}
-          selectedClusters={selectedClusters}
-          onActivate={setActiveId}
-          onSelect={select}
-          layout={layout}
-        />
-        {/* The legends explain the whole graph; while one proposal is open
-            the detail panel is the thing being read, so they step aside. */}
-        {!selected && (
-          <ProposalsLegend
-            selectedKinds={selectedKinds}
-            onToggleKind={kind =>
-              setSelectedKinds(current => toggled(current, kind))
-            }
-            selectedClusters={selectedClusters}
-            onToggleCluster={cluster =>
-              setSelectedClusters(current => toggled(current, cluster))
-            }
-          />
-        )}
-      </div>
-      {shown && (
+      <ProposalsStage
+        activeId={activeId}
+        onActivate={setActiveId}
+        filters={filters}
+        selection={selection}
+      />
+      {selection.shown && (
         <ProposalsDetail
-          key={shown.id}
-          node={shown}
-          leaving={selected === null}
-          onSelect={select}
-          onClose={clearSelection}
-          onLeft={() => setLeaving(null)}
+          key={selection.shown.id}
+          node={selection.shown}
+          leaving={selection.selected === null}
+          onSelect={selection.select}
+          onClose={selection.clearSelection}
+          onLeft={selection.clearLeaving}
         />
       )}
     </div>

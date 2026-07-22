@@ -4,7 +4,7 @@ import {Icon, type IconName} from '@/components/icon';
 import {getStoredApiKey, setStoredApiKey} from '@/lib/api_key';
 import {useAudience} from '../audience_context';
 import {AUDIENCE_OPTIONS} from '../audience_content';
-import {useToast} from '../hooks/use_toast';
+import {useToast, type ToastState} from '../hooks/use_toast';
 import {type Mode, useTheme} from '../theme_context';
 
 /**
@@ -379,6 +379,35 @@ function SettingsPanel({
   );
 }
 
+// The dialog's translucent backdrop. Dismissible dialogs close on a click;
+// the locked affiliation chooser has no click-through at all.
+function SettingsDialogScrim({
+  onClose,
+  dismissible,
+}: {
+  onClose: () => void;
+  dismissible: boolean;
+}) {
+  return (
+    <div
+      className="ucs-settings-dialog-scrim"
+      aria-hidden="true"
+      onClick={dismissible ? onClose : undefined}
+    />
+  );
+}
+
+// The brief "Settings saved" confirmation toast, shown only while one is
+// pending (see useApiKeyField).
+function SettingsDialogToast({toast}: {toast: ToastState | null}) {
+  if (!toast) return null;
+  return (
+    <div className="ucs-settings-toast" role="status">
+      {toast.message}
+    </div>
+  );
+}
+
 /**
  * Centered Settings dialog with a section rail (Appearance, Model, Help),
  * matching the reference product's settings window.
@@ -391,17 +420,107 @@ function SettingsPanel({
  * @param props The active section, change/close callbacks, and whether the
  *   dialog can be dismissed at all.
  */
+interface SettingsDialogProps {
+  section: SettingsSection;
+  onSectionChange: (section: SettingsSection) => void;
+  onClose: () => void;
+  dismissible?: boolean;
+}
+
+// The dialog window itself: header (dismissible only), section rail
+// (dismissible only), active section panel, and the save-confirmation
+// toast. Split out of SettingsDialog so the component itself stays the
+// thin open/close/focus wiring documented there.
+interface SettingsDialogWindowProps {
+  dismissible: boolean;
+  dialogRef: RefObject<HTMLDivElement | null>;
+  closeRef: RefObject<HTMLButtonElement | null>;
+  section: SettingsSection;
+  onSectionChange: (section: SettingsSection) => void;
+  onClose: () => void;
+  theme: {mode: Mode; setMode: (mode: Mode) => void};
+  apiKeyField: ReturnType<typeof useApiKeyField>;
+}
+
+// The dialog body: section rail (dismissible only) plus the active section
+// panel.
+function SettingsDialogBody({
+  dismissible,
+  section,
+  onSectionChange,
+  theme,
+  apiKeyField,
+}: {
+  dismissible: boolean;
+  section: SettingsSection;
+  onSectionChange: (section: SettingsSection) => void;
+  theme: {mode: Mode; setMode: (mode: Mode) => void};
+  apiKeyField: ReturnType<typeof useApiKeyField>;
+}) {
+  return (
+    <div
+      className={
+        dismissible
+          ? 'ucs-settings-dialog-body'
+          : 'ucs-settings-dialog-body ucs-settings-dialog-body--locked'
+      }
+    >
+      {dismissible && (
+        <SettingsNav section={section} onSectionChange={onSectionChange} />
+      )}
+      <SettingsPanel
+        section={section}
+        theme={theme}
+        apiKeyField={apiKeyField}
+      />
+    </div>
+  );
+}
+
+function SettingsDialogWindow({
+  dismissible,
+  dialogRef,
+  closeRef,
+  section,
+  onSectionChange,
+  onClose,
+  theme,
+  apiKeyField,
+}: SettingsDialogWindowProps) {
+  return (
+    <div
+      ref={dialogRef}
+      tabIndex={dismissible ? undefined : -1}
+      className={
+        dismissible
+          ? 'ucs-settings-dialog'
+          : 'ucs-settings-dialog ucs-settings-dialog--locked'
+      }
+      role="dialog"
+      aria-modal="true"
+      aria-label={dismissible ? 'Settings' : 'Choose your affiliation'}
+    >
+      {dismissible && (
+        <SettingsDialogHeader onClose={onClose} closeRef={closeRef} />
+      )}
+      <SettingsDialogBody
+        dismissible={dismissible}
+        section={section}
+        onSectionChange={onSectionChange}
+        theme={theme}
+        apiKeyField={apiKeyField}
+      />
+      <SettingsDialogToast toast={apiKeyField.savedToast} />
+    </div>
+  );
+}
+
 export function SettingsDialog({
   section,
   onSectionChange,
   onClose,
   dismissible = true,
-}: {
-  section: SettingsSection;
-  onSectionChange: (section: SettingsSection) => void;
-  onClose: () => void;
-  dismissible?: boolean;
-}) {
+}: SettingsDialogProps) {
   const theme = useTheme();
   const closeRef = useRef<HTMLButtonElement>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
@@ -416,48 +535,17 @@ export function SettingsDialog({
 
   return (
     <div className="ucs-settings-dialog-root">
-      <div
-        className="ucs-settings-dialog-scrim"
-        aria-hidden="true"
-        onClick={dismissible ? onClose : undefined}
+      <SettingsDialogScrim onClose={onClose} dismissible={dismissible} />
+      <SettingsDialogWindow
+        dismissible={dismissible}
+        dialogRef={dialogRef}
+        closeRef={closeRef}
+        section={section}
+        onSectionChange={onSectionChange}
+        onClose={onClose}
+        theme={theme}
+        apiKeyField={apiKeyField}
       />
-      <div
-        ref={dialogRef}
-        tabIndex={dismissible ? undefined : -1}
-        className={
-          dismissible
-            ? 'ucs-settings-dialog'
-            : 'ucs-settings-dialog ucs-settings-dialog--locked'
-        }
-        role="dialog"
-        aria-modal="true"
-        aria-label={dismissible ? 'Settings' : 'Choose your affiliation'}
-      >
-        {dismissible && (
-          <SettingsDialogHeader onClose={onClose} closeRef={closeRef} />
-        )}
-        <div
-          className={
-            dismissible
-              ? 'ucs-settings-dialog-body'
-              : 'ucs-settings-dialog-body ucs-settings-dialog-body--locked'
-          }
-        >
-          {dismissible && (
-            <SettingsNav section={section} onSectionChange={onSectionChange} />
-          )}
-          <SettingsPanel
-            section={section}
-            theme={theme}
-            apiKeyField={apiKeyField}
-          />
-        </div>
-        {apiKeyField.savedToast && (
-          <div className="ucs-settings-toast" role="status">
-            {apiKeyField.savedToast.message}
-          </div>
-        )}
-      </div>
     </div>
   );
 }

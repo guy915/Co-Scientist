@@ -6,64 +6,58 @@ import {type StartedSession} from '../pages/chat_timeline_cards';
 import {appendChatMessage, emitDiagnosticEvent} from './chat_session_helpers';
 import {type ExecuteStartDeps, type HandlerDeps} from './chat_session_types';
 
-// Runs the create+start API round trip for a confirmed draft spec and
-// applies the resulting state transitions, returning the session that was
-// started. Pulled out of startDraftRun so that function's try/catch shell
-// only carries diagnostics and error handling.
-async function executeStart({
-  specToStart,
-  specCreatedAt,
-  pubmedEnabled,
-  webSearchEnabled,
-  paperCorpusEnabled,
-  reloadHistory,
-  setConfirmed,
-  setDraft,
-  setMessages,
-  setStartedSession,
-  pendingAttachments,
-  setPendingAttachments,
-}: ExecuteStartDeps): Promise<StartedSession> {
-  // Starting the run reads as the scientist sending the plan into the chat:
-  // post the request as a user turn, then let the open-session card below be
-  // the single response. The card carries its own "session started" copy, so a
-  // separate assistant acknowledgment bubble would just double the reply.
-  appendChatMessage(setMessages, 'user', 'Start research');
-  const created = await createRun({
-    research_goal: specToStart.goal,
-    interview_id: specToStart.interviewId,
-    requirements: specToStart.requirements,
-    attributes: specToStart.attributes,
-    criteria: specToStart.criteria,
-    focus: specToStart.focus,
-    tier: specToStart.tier,
-    notify_on_completion: Boolean(specToStart.notifyOnCompletion),
-    completion_email: specToStart.notifyOnCompletion
-      ? specToStart.completionEmail
+// Builds the POST /api/runs payload from the confirmed spec plus the
+// connector toggles.
+function buildCreateRunPayload(deps: ExecuteStartDeps) {
+  const spec = deps.specToStart;
+  return {
+    research_goal: spec.goal,
+    interview_id: spec.interviewId,
+    requirements: spec.requirements,
+    attributes: spec.attributes,
+    criteria: spec.criteria,
+    focus: spec.focus,
+    tier: spec.tier,
+    notify_on_completion: Boolean(spec.notifyOnCompletion),
+    completion_email: spec.notifyOnCompletion
+      ? spec.completionEmail
       : undefined,
-    enable_literature_review: pubmedEnabled,
+    enable_literature_review: deps.pubmedEnabled,
     // The audience persists to localStorage, so this path (which runs outside
     // React and takes its deps as args) reads storage directly rather than
     // threading a hook value through every caller. An unchosen audience sends
     // none, leaving run creation unchanged.
     audience: readStoredAudience() ?? undefined,
-    enable_web_search: webSearchEnabled,
-    enable_paper_corpus: paperCorpusEnabled,
-  });
+    enable_web_search: deps.webSearchEnabled,
+    enable_paper_corpus: deps.paperCorpusEnabled,
+  };
+}
+
+// Runs the create+start API round trip for a confirmed draft spec and
+// applies the resulting state transitions, returning the session that was
+// started. Pulled out of startDraftRun so that function's try/catch shell
+// only carries diagnostics and error handling.
+async function executeStart(deps: ExecuteStartDeps): Promise<StartedSession> {
+  // Starting the run reads as the scientist sending the plan into the chat:
+  // post the request as a user turn, then let the open-session card below be
+  // the single response. The card carries its own "session started" copy, so a
+  // separate assistant acknowledgment bubble would just double the reply.
+  appendChatMessage(deps.setMessages, 'user', 'Start research');
+  const created = await createRun(buildCreateRunPayload(deps));
   const session: StartedSession = {
     id: created.id,
-    title: conciseTitle(specToStart.goal),
+    title: conciseTitle(deps.specToStart.goal),
     at: Date.now() / 1000,
   };
-  setConfirmed({spec: specToStart, createdAt: specCreatedAt});
-  setDraft(null);
-  for (const file of pendingAttachments) {
+  deps.setConfirmed({spec: deps.specToStart, createdAt: deps.specCreatedAt});
+  deps.setDraft(null);
+  for (const file of deps.pendingAttachments) {
     await uploadRunDocument(created.id, file);
   }
   await startRun(created.id);
-  setPendingAttachments([]);
-  setStartedSession(session);
-  await reloadHistory();
+  deps.setPendingAttachments([]);
+  deps.setStartedSession(session);
+  await deps.reloadHistory();
   // Tell the shell sidebar (which owns a separate history copy) that a new
   // run exists, so it appears immediately instead of only after a reload.
   window.dispatchEvent(new Event(RUNS_CHANGED_EVENT));
@@ -110,47 +104,18 @@ async function startDraftRun(
  * user can retry, and either failure surfaces via `error`. Takes its
  * dependencies as a single argument instead of closing over hook state.
  */
-export async function promoteDraftToRun({
-  draft,
-  pubmedEnabled,
-  webSearchEnabled,
-  paperCorpusEnabled,
-  reloadHistory,
-  setIsStarting,
-  setError,
-  setToast,
-  setConfirmed,
-  setDraft,
-  setMessages,
-  setStartedSession,
-  pendingAttachments,
-  setPendingAttachments,
-}: HandlerDeps): Promise<void> {
-  if (!draft) return;
+export async function promoteDraftToRun(deps: HandlerDeps): Promise<void> {
+  if (!deps.draft) return;
   // Snapshot the draft up front so state changes during the awaits below
   // can't swap the spec out from under this start attempt.
-  const specToStart = draft.spec;
-  const specCreatedAt = draft.createdAt;
-  setIsStarting(true);
-  setError(null);
-  setToast(null);
+  const specToStart = deps.draft.spec;
+  const specCreatedAt = deps.draft.createdAt;
+  deps.setIsStarting(true);
+  deps.setError(null);
+  deps.setToast(null);
   try {
-    await startDraftRun({
-      specToStart,
-      specCreatedAt,
-      pubmedEnabled,
-      webSearchEnabled,
-      paperCorpusEnabled,
-      reloadHistory,
-      setConfirmed,
-      setDraft,
-      setMessages,
-      setStartedSession,
-      pendingAttachments,
-      setPendingAttachments,
-      setError,
-    });
+    await startDraftRun({...deps, specToStart, specCreatedAt});
   } finally {
-    setIsStarting(false);
+    deps.setIsStarting(false);
   }
 }

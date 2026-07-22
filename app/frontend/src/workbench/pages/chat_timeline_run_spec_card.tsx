@@ -44,40 +44,19 @@ import {
   responseActions,
 } from './chat_timeline_message_actions';
 
-/**
- * Renders the inferred research-plan card shown in the timeline once a
- * request has been refined by the Agent: the four interview fields and Tier
- * groups, and the cancel/start actions. Also used, via `locked`, to show a
- * previously-confirmed spec read-only.
- *
- * @param spec The inferred (or confirmed) run specification to display.
- * @param isStarting Whether a start-run request is in flight, disabling
- *   the actions and swapping the start button's label.
- * @param locked When true, renders read-only: option groups are disabled,
- *   Cancel is hidden, and Start is disabled (used for a confirmed spec).
- * @param intro The Agent's closing interview message, shown as the card's
- *   lead-in so the completed interview reads as a single response; falls back
- *   to generic copy when absent (e.g. a re-shown confirmed spec).
- * @param onFocusChange Handler for changing the Focus option.
- * @param onTierChange Handler for changing the Tier option.
- * @param onCancel Handler to discard the draft spec.
- * @param onEdit Handler to reopen the originating message for editing.
- * @param onRetry Handler to regenerate/re-stage this spec.
- * @param onStart Handler to start the research run with this spec.
- */
-export function RunSpecCard({
-  spec,
-  isStarting,
-  locked = false,
-  intro,
-  onFocusChange,
-  onTierChange,
-  onNotificationChange,
-  onCancel,
-  onEdit,
-  onRetry,
-  onStart,
-}: {
+// Props for RunSpecCard, named at module level per the destructured prop
+// signature otherwise pushing the component past the line cap.
+//
+// `spec` is the inferred (or confirmed) run specification to display.
+// `isStarting` disables the actions and swaps the start button's label while
+// a start-run request is in flight. `locked` renders read-only: option
+// groups are disabled, Cancel is hidden, and Start is disabled (used for a
+// confirmed spec). `intro` is the Agent's closing interview message, shown
+// as the card's lead-in so the completed interview reads as a single
+// response; it falls back to generic copy when absent (e.g. a re-shown
+// confirmed spec). The remaining handlers wire the Focus/Tier options and
+// the cancel/edit/retry/start actions back to the session hook.
+interface RunSpecCardProps {
   spec: InferredRunSpec;
   isStarting: boolean;
   locked?: boolean;
@@ -89,11 +68,13 @@ export function RunSpecCard({
   onEdit: () => void;
   onRetry: () => void;
   onStart: () => void;
-}) {
-  const responseText = formatRunSpecResponse(spec);
+}
 
+// The card's lead-in copy: the Agent's closing interview message (or a
+// generic fallback) plus the fixed "review the four fields" paragraph.
+function RunSpecIntro({intro}: {intro?: string}) {
   return (
-    <section className={SETUP_MESSAGE_CLASSES} aria-label="Inferred run setup">
+    <>
       <p className={SETUP_PARAGRAPH_CLASSES}>
         {/* `||`, not `??`: an empty closing message must fall back too. */}
         {intro ||
@@ -104,23 +85,40 @@ export function RunSpecCard({
         Review the four fields and select a focus and run type. Once ready,
         click "Start research" to begin.
       </p>
-      <PlanHeading onEdit={onEdit} />
+    </>
+  );
+}
+
+/**
+ * Renders the inferred research-plan card shown in the timeline once a
+ * request has been refined by the Agent: the four interview fields and Tier
+ * groups, and the cancel/start actions. Also used, via `locked`, to show a
+ * previously-confirmed spec read-only.
+ */
+export function RunSpecCard(props: RunSpecCardProps) {
+  const responseText = formatRunSpecResponse(props.spec);
+  const locked = props.locked ?? false;
+
+  return (
+    <section className={SETUP_MESSAGE_CLASSES} aria-label="Inferred run setup">
+      <RunSpecIntro intro={props.intro} />
+      <PlanHeading onEdit={props.onEdit} />
       <p className={PLAN_SUBHEADING_CLASSES}>
         Here's my plan to tackle the topic:
       </p>
       <RunSpecDocument
-        spec={spec}
+        spec={props.spec}
         locked={locked}
-        isStarting={isStarting}
-        onFocusChange={onFocusChange}
-        onTierChange={onTierChange}
-        onNotificationChange={onNotificationChange}
-        onCancel={onCancel}
-        onStart={onStart}
+        isStarting={props.isStarting}
+        onFocusChange={props.onFocusChange}
+        onTierChange={props.onTierChange}
+        onNotificationChange={props.onNotificationChange}
+        onCancel={props.onCancel}
+        onStart={props.onStart}
       />
       <MessageActionRow
         actions={responseActions(
-          onRetry,
+          props.onRetry,
           responseText,
           'co-scientist-research-plan.md',
         )}
@@ -155,33 +153,21 @@ function PlanHeading({onEdit}: {onEdit: () => void}) {
   );
 }
 
-// Renders the four interview fields and the editable run tier
-// option groups, and the cancel/start actions.
-function RunSpecDocument({
+// The Focus and Run type option-card groups, factored out of
+// RunSpecDocument since both share the same value/disabled/onChange shape.
+function SpecOptionGroups({
   spec,
   locked,
-  isStarting,
   onFocusChange,
   onTierChange,
-  onNotificationChange,
-  onCancel,
-  onStart,
 }: {
   spec: InferredRunSpec;
   locked: boolean;
-  isStarting: boolean;
   onFocusChange: (focus: RunFocus) => void;
   onTierChange: (tier: RunTier) => void;
-  onNotificationChange: (enabled: boolean, email: string) => void;
-  onCancel: () => void;
-  onStart: () => void;
 }) {
   return (
-    <div className={SETUP_DOCUMENT_CLASSES}>
-      <h3 className={SETUP_DOCUMENT_TITLE_CLASSES}>
-        {spec.title || conciseTitle(spec.goal)}
-      </h3>
-      <SpecSummary spec={spec} />
+    <>
       <RunOptionGroup
         label="Focus"
         name="focus"
@@ -197,6 +183,48 @@ function RunSpecDocument({
         options={TIER_OPTIONS}
         disabled={locked}
         onChange={value => onTierChange(value as RunTier)}
+      />
+    </>
+  );
+}
+
+// Props for RunSpecDocument, named at module level per the destructured
+// prop signature otherwise pushing the component past the line cap.
+interface RunSpecDocumentProps {
+  spec: InferredRunSpec;
+  locked: boolean;
+  isStarting: boolean;
+  onFocusChange: (focus: RunFocus) => void;
+  onTierChange: (tier: RunTier) => void;
+  onNotificationChange: (enabled: boolean, email: string) => void;
+  onCancel: () => void;
+  onStart: () => void;
+}
+
+// Renders the four interview fields and the editable run tier
+// option groups, and the cancel/start actions.
+function RunSpecDocument(props: RunSpecDocumentProps) {
+  const {
+    spec,
+    locked,
+    isStarting,
+    onFocusChange,
+    onTierChange,
+    onNotificationChange,
+    onCancel,
+    onStart,
+  } = props;
+  return (
+    <div className={SETUP_DOCUMENT_CLASSES}>
+      <h3 className={SETUP_DOCUMENT_TITLE_CLASSES}>
+        {spec.title || conciseTitle(spec.goal)}
+      </h3>
+      <SpecSummary spec={spec} />
+      <SpecOptionGroups
+        spec={spec}
+        locked={locked}
+        onFocusChange={onFocusChange}
+        onTierChange={onTierChange}
       />
       <CompletionNotification
         spec={spec}
@@ -355,9 +383,59 @@ function SpecList({label, values}: {label: string; values: string[]}) {
   );
 }
 
-// Renders one radio-card group (Focus or Tier) inside RunSpecCard: a native
-// radio input per option (visually hidden; OPTION_INPUT_CLASSES) paired with
-// a styled marker/label/description card that reflects the checked state.
+// One option in a RunOptionGroup (Focus or Tier).
+interface RunOptionGroupOption {
+  id: string;
+  label: string;
+  description: string;
+}
+
+// Props for OptionCard, named at module level per the destructured prop
+// signature otherwise pushing the component past the line cap.
+interface OptionCardProps {
+  option: RunOptionGroupOption;
+  name: string;
+  selected: boolean;
+  disabled: boolean;
+  onChange: (value: string) => void;
+}
+
+// One radio-card in a RunOptionGroup: a native radio input (visually hidden;
+// OPTION_INPUT_CLASSES) paired with a styled marker/label/description card
+// that reflects the checked state.
+function OptionCard(props: OptionCardProps) {
+  const {option, name, selected, disabled, onChange} = props;
+  return (
+    <label
+      className={joinClasses(
+        OPTION_CARD_BASE_CLASSES,
+        disabled ? 'cursor-default' : 'cursor-pointer',
+      )}
+    >
+      <input
+        type="radio"
+        className={OPTION_INPUT_CLASSES}
+        name={name}
+        value={option.id}
+        checked={selected}
+        disabled={disabled}
+        onChange={() => onChange(option.id)}
+      />
+      <span
+        className={joinClasses(
+          OPTION_MARKER_CLASSES,
+          selected && OPTION_MARKER_SELECTED_CLASSES,
+        )}
+        aria-hidden="true"
+      />
+      <strong className={OPTION_LABEL_CLASSES}>{option.label}</strong>
+      <small className={OPTION_DESCRIPTION_CLASSES}>{option.description}</small>
+    </label>
+  );
+}
+
+// Renders one radio-card group (Focus or Tier) inside RunSpecCard: one
+// OptionCard per option, sharing the group's name/value/disabled/onChange.
 function RunOptionGroup({
   label,
   name,
@@ -369,7 +447,7 @@ function RunOptionGroup({
   label: string;
   name: string;
   value: string;
-  options: readonly {id: string; label: string; description: string}[];
+  options: readonly RunOptionGroupOption[];
   disabled?: boolean;
   onChange: (value: string) => void;
 }) {
@@ -378,34 +456,14 @@ function RunOptionGroup({
       <legend className={OPTION_GROUP_LEGEND_CLASSES}>{label}</legend>
       <div className={OPTION_GRID_CLASSES}>
         {options.map(option => (
-          <label
+          <OptionCard
             key={option.id}
-            className={joinClasses(
-              OPTION_CARD_BASE_CLASSES,
-              disabled ? 'cursor-default' : 'cursor-pointer',
-            )}
-          >
-            <input
-              type="radio"
-              className={OPTION_INPUT_CLASSES}
-              name={name}
-              value={option.id}
-              checked={option.id === value}
-              disabled={disabled}
-              onChange={() => onChange(option.id)}
-            />
-            <span
-              className={joinClasses(
-                OPTION_MARKER_CLASSES,
-                option.id === value && OPTION_MARKER_SELECTED_CLASSES,
-              )}
-              aria-hidden="true"
-            />
-            <strong className={OPTION_LABEL_CLASSES}>{option.label}</strong>
-            <small className={OPTION_DESCRIPTION_CLASSES}>
-              {option.description}
-            </small>
-          </label>
+            option={option}
+            name={name}
+            selected={option.id === value}
+            disabled={disabled}
+            onChange={onChange}
+          />
         ))}
       </div>
     </fieldset>

@@ -162,6 +162,32 @@ function useChromeActions(
   return {toggleNav, togglePanel, openSettings};
 }
 
+// The rail/popover/dialog state itself: collapsed icon rail by default,
+// matching the reference product (on mobile this same flag toggles an
+// off-canvas drawer instead, see shell_surface.css's <=700px breakpoint);
+// which header popover is currently shown, if any (Settings/Logs are
+// mutually exclusive via togglePanel); the full-screen Settings dialog's
+// section; and the anchors the outside-pointerdown handler below needs.
+function useChromeState() {
+  const [navOpen, setNavOpen] = useState(false);
+  const [activePanel, setActivePanel] = useState<ShellPanel | null>(null);
+  const [settingsSection, setSettingsSection] =
+    useState<SettingsSection | null>(null);
+  const settingsControlRef = useRef<HTMLDivElement>(null);
+  const logsControlRef = useRef<HTMLDivElement>(null);
+
+  return {
+    navOpen,
+    setNavOpen,
+    activePanel,
+    setActivePanel,
+    settingsSection,
+    setSettingsSection,
+    settingsControlRef,
+    logsControlRef,
+  };
+}
+
 /**
  * Bundles the rail's open/collapsed state, the mutually-exclusive
  * Settings/Logs popover, and the full-screen Settings dialog, plus (via the
@@ -172,25 +198,14 @@ function useChromeActions(
  *   popover and the mobile drawer.
  */
 export function useLayoutChrome(pathname: string) {
-  // Collapsed icon rail by default, matching the reference product; the
-  // hamburger expands it. On mobile this same flag toggles an off-canvas
-  // drawer instead (see shell_surface.css's <=700px breakpoint).
-  const [navOpen, setNavOpen] = useState(false);
-  // Which header popover (Settings menu or the Logs panel) is currently
-  // shown, if any; the two are mutually exclusive via togglePanel.
-  const [activePanel, setActivePanel] = useState<ShellPanel | null>(null);
-  // Non-null renders the full-screen SettingsDialog overlay for that section.
-  const [settingsSection, setSettingsSection] =
-    useState<SettingsSection | null>(null);
-  // Anchors for the outside-pointerdown handler below: a click landing
-  // outside both refs closes whichever popover is open.
-  const settingsControlRef = useRef<HTMLDivElement>(null);
-  const logsControlRef = useRef<HTMLDivElement>(null);
+  const state = useChromeState();
+  const {navOpen, activePanel, setActivePanel, setNavOpen} = state;
+  const {settingsControlRef, logsControlRef} = state;
 
   const {toggleNav, togglePanel, openSettings} = useChromeActions(
     setNavOpen,
     setActivePanel,
-    setSettingsSection,
+    state.setSettingsSection,
   );
 
   useDismissChromeOnNavigate(pathname, setActivePanel, setNavOpen);
@@ -206,8 +221,8 @@ export function useLayoutChrome(pathname: string) {
     navOpen,
     setNavOpen,
     activePanel,
-    settingsSection,
-    setSettingsSection,
+    settingsSection: state.settingsSection,
+    setSettingsSection: state.setSettingsSection,
     settingsControlRef,
     logsControlRef,
     toggleNav,

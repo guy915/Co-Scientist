@@ -156,8 +156,9 @@ function useDebouncedKeyedRefresh(
 // partial refetch keyed by collection (used by the SSE event stream below),
 // and `refreshNow` is an immediate cancel-and-refetch (used on stream
 // termination).
-function useRunFetch(id: string | undefined) {
-  // --- Fetched run data (populated by refresh(), see below) ---
+// The fetched run row and its collections, plus the applier refresh() uses
+// to update only the collections that were actually fetched.
+function useRunCollections() {
   const [run, setRun] = useState<RunWithSummary | null>(null);
   const [hypotheses, setHypotheses] = useState<Hypothesis[]>([]);
   const [evidence, setEvidence] = useState<Evidence[]>([]);
@@ -166,6 +167,36 @@ function useRunFetch(id: string | undefined) {
   const [claimEvidence, setClaimEvidence] = useState<ClaimEvidenceRow[]>([]);
   const [safety, setSafety] = useState<SafetyDecision[]>([]);
   const [report, setReport] = useState<Report | null>(null);
+
+  const applyFetched = useCallback(
+    (data: Awaited<ReturnType<typeof fetchRunData>>) => {
+      setRun(data.run);
+      applyIfFetched(data.hypotheses, setHypotheses);
+      applyIfFetched(data.evidence, setEvidence);
+      applyIfFetched(data.matches, setMatches);
+      applyIfFetched(data.reviews, setReviews);
+      applyIfFetched(data.claimEvidence, setClaimEvidence);
+      applyIfFetched(data.safety, setSafety);
+      applyIfFetched(data.report, setReport);
+    },
+    [],
+  );
+
+  return {
+    run,
+    hypotheses,
+    evidence,
+    matches,
+    reviews,
+    claimEvidence,
+    safety,
+    report,
+    applyFetched,
+  };
+}
+
+function useRunFetch(id: string | undefined) {
+  const {applyFetched, ...collections} = useRunCollections();
   const [error, setError] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
 
@@ -176,23 +207,15 @@ function useRunFetch(id: string | undefined) {
     async (keys?: ReadonlySet<RunDataKey>) => {
       if (!id) return;
       try {
-        const data = await fetchRunData(id, keys);
-        setRun(data.run);
-        applyIfFetched(data.hypotheses, setHypotheses);
-        applyIfFetched(data.evidence, setEvidence);
-        applyIfFetched(data.matches, setMatches);
-        applyIfFetched(data.reviews, setReviews);
-        applyIfFetched(data.claimEvidence, setClaimEvidence);
-        applyIfFetched(data.safety, setSafety);
-        applyIfFetched(data.report, setReport);
-        setLoaded(true);
+        applyFetched(await fetchRunData(id, keys));
         setError(null);
       } catch (err) {
         setError(err instanceof Error ? err.message : String(err));
+      } finally {
         setLoaded(true);
       }
     },
-    [id],
+    [id, applyFetched],
   );
 
   const {scheduleRefresh, cancelPending, resetPending} =
@@ -209,20 +232,7 @@ function useRunFetch(id: string | undefined) {
     void refresh();
   }, [refresh, resetPending]);
 
-  return {
-    run,
-    hypotheses,
-    evidence,
-    matches,
-    reviews,
-    claimEvidence,
-    safety,
-    report,
-    error,
-    loaded,
-    scheduleRefresh,
-    refreshNow,
-  };
+  return {...collections, error, loaded, scheduleRefresh, refreshNow};
 }
 
 // Wires the live SSE event stream for a run (replayed from seq=0 on mount):

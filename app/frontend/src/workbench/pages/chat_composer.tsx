@@ -1,8 +1,10 @@
 import {
   type ChangeEvent,
+  type Dispatch,
   type FormEvent,
   type KeyboardEvent,
   type RefObject,
+  type SetStateAction,
   useLayoutEffect,
   useRef,
 } from 'react';
@@ -24,10 +26,15 @@ import {
 } from './chat_home_classes';
 import {
   AttachmentStrip,
+  type ComposerAttachment,
   REFERENCE_COMPOSER_ATTACHED_CLASSES,
   useComposerAttachments,
 } from './chat_composer_attachments';
-import {SourceControls, useConnectorsMenu} from './chat_composer_connectors';
+import {
+  type ConnectorToggleProps,
+  SourceControls,
+  useConnectorsMenu,
+} from './chat_composer_connectors';
 
 // Auto-grow caps (px) before the textarea starts scrolling: the roomier home
 // composer grows taller than the compact in-run/setup composer.
@@ -35,49 +42,22 @@ const COMPOSER_MAX_HEIGHT = 120;
 const COMPOSER_MAX_HEIGHT_LARGE = 146;
 
 /**
- * Renders the message composer: the auto-growing textarea, the file/
- * connector controls beneath it, the submit button, and any staged
- * attachments. Used both as the roomy home-stage composer (`large`) and the
- * compact composer overlaid on the in-conversation timeline.
+ * Props for Composer, named at module level per the destructured prop
+ * signature otherwise pushing the component past the line cap.
  *
- * @param input Controlled textarea value, owned by the parent session state.
- * @param setInput Updates the controlled textarea value.
- * @param setupDraftMode Swaps the placeholder copy to "edit session details"
- *   wording while a draft/confirmed run spec or started session is showing.
- * @param busy Whether the session is already working on a response. This
- *   blocks submitting (the send button and Enter) and nothing else: the
- *   textarea stays typeable and focused so the next message can be written
- *   while the current one is still being answered.
- * @param large Selects the roomier home-stage sizing/layout.
- * @param autoFocus Takes focus on mount. Set on the in-conversation composer,
- *   which replaces the home-stage one when the first message is sent: that
- *   swap unmounts the focused textarea and would otherwise drop the caret to
- *   the body, forcing a click to carry on typing.
- * @param pubmedEnabled Whether the PubMed connector is currently toggled on.
- * @param onPubmedEnabledChange Callback fired when the PubMed toggle changes.
- * @param webSearchEnabled Whether the Web search connector is toggled on.
- * @param onWebSearchEnabledChange Callback fired when the Web search toggle
- *   changes.
- * @param paperCorpusEnabled Whether the Lab papers connector is toggled on.
- * @param onPaperCorpusEnabledChange Callback fired when the Lab papers toggle
- *   changes.
- * @param onSubmit Form submit handler (Enter or the send button).
+ * `setupDraftMode` swaps the placeholder copy to "edit session details"
+ * wording while a draft/confirmed run spec or started session is showing.
+ * `busy` blocks submitting (the send button and Enter) and nothing else: the
+ * textarea stays typeable and focused so the next message can be written
+ * while the current one is still being answered. `large` selects the roomier
+ * home-stage sizing/layout. `autoFocus` takes focus on mount; set on the
+ * in-conversation composer, which replaces the home-stage one when the first
+ * message is sent, since that swap unmounts the focused textarea and would
+ * otherwise drop the caret to the body, forcing a click to carry on typing.
+ * The pubmed/webSearch/paperCorpus fields mirror each connector's toggled
+ * state and change callback. `onSubmit` handles Enter or the send button.
  */
-export function Composer({
-  input,
-  setInput,
-  setupDraftMode = false,
-  busy,
-  large = false,
-  autoFocus = false,
-  pubmedEnabled = true,
-  onPubmedEnabledChange,
-  webSearchEnabled = true,
-  onWebSearchEnabledChange,
-  paperCorpusEnabled = true,
-  onPaperCorpusEnabledChange,
-  onSubmit,
-}: {
+export interface ComposerProps {
   input: string;
   setInput: (value: string) => void;
   setupDraftMode?: boolean;
@@ -91,59 +71,76 @@ export function Composer({
   paperCorpusEnabled?: boolean;
   onPaperCorpusEnabledChange?: (value: boolean) => void;
   onSubmit: (e: FormEvent<HTMLFormElement>, files: File[]) => void;
-}) {
-  const {
-    fileInputRef,
-    textareaRef,
-    sourceControlsRef,
-    attachments,
-    connectorsOpen,
-    setConnectorsOpen,
-    onFilesChanged,
-    removeAttachment,
-    clearAttachments,
-  } = useComposerState(input, large);
+}
 
+// The connector-toggle bundle Composer passes down to ComposerFooter, with
+// each toggle's default applied.
+function composerConnectorToggles(props: ComposerProps): ConnectorToggleProps {
+  return {
+    pubmedEnabled: props.pubmedEnabled ?? true,
+    onPubmedEnabledChange: props.onPubmedEnabledChange,
+    webSearchEnabled: props.webSearchEnabled ?? true,
+    onWebSearchEnabledChange: props.onWebSearchEnabledChange,
+    paperCorpusEnabled: props.paperCorpusEnabled ?? true,
+    onPaperCorpusEnabledChange: props.onPaperCorpusEnabledChange,
+  };
+}
+
+// Composer's <form onSubmit>: forwards the staged attachments' files to the
+// caller's onSubmit, then clears them once the message is actually sent
+// (`input.trim()`, since a blank submit is a no-op the caller ignores).
+function handleComposerFormSubmit(
+  event: FormEvent<HTMLFormElement>,
+  input: string,
+  state: ComposerState,
+  onSubmit: (e: FormEvent<HTMLFormElement>, files: File[]) => void,
+): void {
+  onSubmit(
+    event,
+    state.attachments.map(attachment => attachment.file),
+  );
+  if (input.trim()) state.clearAttachments();
+}
+
+/**
+ * Renders the message composer: the auto-growing textarea, the file/
+ * connector controls beneath it, the submit button, and any staged
+ * attachments. Used both as the roomy home-stage composer (`large`) and the
+ * compact composer overlaid on the in-conversation timeline.
+ */
+export function Composer(props: ComposerProps) {
+  const {input, setInput, busy, onSubmit} = props;
+  const large = props.large ?? false;
+  const setupDraftMode = props.setupDraftMode ?? false;
+  const autoFocus = props.autoFocus ?? false;
+  const state = useComposerState(input, large);
   const referenceLabel = composerReferenceLabel(setupDraftMode);
   // There is nothing to send while the input is blank, and nothing to send it
   // to while the session is still answering. Both gate submission only; the
   // textarea is never disabled, so typing and focus survive either state.
   const submitDisabled = !input.trim() || busy;
+  const connectors = composerConnectorToggles(props);
 
   return (
     <form
-      onSubmit={event => {
-        onSubmit(
-          event,
-          attachments.map(attachment => attachment.file),
-        );
-        if (input.trim()) clearAttachments();
-      }}
-      className={composerFormClassName(input, large, attachments.length > 0)}
+      onSubmit={event =>
+        handleComposerFormSubmit(event, input, state, onSubmit)
+      }
+      className={composerFormClassName(
+        input,
+        large,
+        state.attachments.length > 0,
+      )}
     >
-      <AttachmentStrip attachments={attachments} onRemove={removeAttachment} />
-      <ComposerTextareaField
+      <ComposerBody
         input={input}
         setInput={setInput}
         submitDisabled={submitDisabled}
         large={large}
         autoFocus={autoFocus}
         referenceLabel={referenceLabel}
-        textareaRef={textareaRef}
-      />
-      <ComposerFooter
-        connectorsOpen={connectorsOpen}
-        onToggleConnectors={() => setConnectorsOpen(open => !open)}
-        sourceControlsRef={sourceControlsRef}
-        fileInputRef={fileInputRef}
-        onFilesChanged={onFilesChanged}
-        pubmedEnabled={pubmedEnabled}
-        onPubmedEnabledChange={onPubmedEnabledChange}
-        webSearchEnabled={webSearchEnabled}
-        onWebSearchEnabledChange={onWebSearchEnabledChange}
-        paperCorpusEnabled={paperCorpusEnabled}
-        onPaperCorpusEnabledChange={onPaperCorpusEnabledChange}
-        submitDisabled={submitDisabled}
+        state={state}
+        connectors={connectors}
       />
     </form>
   );
@@ -196,7 +193,19 @@ function useAutoGrowTextarea(input: string, large: boolean) {
 // connectors-menu open flag, and the refs/effects wiring the auto-grow
 // textarea, blob-URL cleanup, and outside-click dismissal. `input`/`large`
 // are read (not owned) here, only to drive the auto-grow effect.
-function useComposerState(input: string, large: boolean) {
+interface ComposerState {
+  fileInputRef: RefObject<HTMLInputElement | null>;
+  textareaRef: RefObject<HTMLTextAreaElement | null>;
+  sourceControlsRef: RefObject<HTMLDivElement | null>;
+  attachments: ComposerAttachment[];
+  connectorsOpen: boolean;
+  setConnectorsOpen: Dispatch<SetStateAction<boolean>>;
+  onFilesChanged: (e: ChangeEvent<HTMLInputElement>) => void;
+  removeAttachment: (id: string) => void;
+  clearAttachments: () => void;
+}
+
+function useComposerState(input: string, large: boolean): ComposerState {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useAutoGrowTextarea(input, large);
   const {attachments, onFilesChanged, removeAttachment, clearAttachments} =
@@ -217,17 +226,36 @@ function useComposerState(input: string, large: boolean) {
   };
 }
 
-// The floating-label textarea region: the lock icon + placeholder label
-// (hidden once the user has typed anything) above the auto-growing textarea.
-function ComposerTextareaField({
+// The label span above the textarea: the lock icon plus placeholder text,
+// hidden once the user has typed anything.
+function ComposerLabelText({
   input,
-  setInput,
-  submitDisabled,
-  large,
-  autoFocus,
   referenceLabel,
-  textareaRef,
 }: {
+  input: string;
+  referenceLabel: string;
+}) {
+  return (
+    <span
+      className={joinClasses(
+        COMPOSER_LABEL_TEXT_CLASSES,
+        input.trim() && COMPOSER_LABEL_TEXT_HIDDEN_CLASSES,
+      )}
+    >
+      <Icon
+        aria-hidden="true"
+        className={COMPOSER_LABEL_ICON_CLASSES}
+        name="encrypted"
+      />
+      {referenceLabel}
+    </span>
+  );
+}
+
+// Props for ComposerTextareaField, named at module level per the
+// destructured prop signature otherwise pushing the component past the line
+// cap.
+interface ComposerTextareaFieldProps {
   input: string;
   setInput: (value: string) => void;
   submitDisabled: boolean;
@@ -235,22 +263,23 @@ function ComposerTextareaField({
   autoFocus: boolean;
   referenceLabel: string;
   textareaRef: RefObject<HTMLTextAreaElement | null>;
-}) {
+}
+
+// The floating-label textarea region: the lock icon + placeholder label
+// (hidden once the user has typed anything) above the auto-growing textarea.
+function ComposerTextareaField(props: ComposerTextareaFieldProps) {
+  const {
+    input,
+    setInput,
+    submitDisabled,
+    large,
+    autoFocus,
+    referenceLabel,
+    textareaRef,
+  } = props;
   return (
     <label className={COMPOSER_LABEL_CLASSES}>
-      <span
-        className={joinClasses(
-          COMPOSER_LABEL_TEXT_CLASSES,
-          input.trim() && COMPOSER_LABEL_TEXT_HIDDEN_CLASSES,
-        )}
-      >
-        <Icon
-          aria-hidden="true"
-          className={COMPOSER_LABEL_ICON_CLASSES}
-          name="encrypted"
-        />
-        {referenceLabel}
-      </span>
+      <ComposerLabelText input={input} referenceLabel={referenceLabel} />
       <textarea
         ref={textareaRef}
         // One row; the empty height comes from the textarea's min-height and
@@ -273,35 +302,30 @@ function ComposerTextareaField({
   );
 }
 
-// The footer controls row: the file/connector source controls plus the
-// submit button.
-function ComposerFooter({
-  connectorsOpen,
-  onToggleConnectors,
-  sourceControlsRef,
-  fileInputRef,
-  onFilesChanged,
-  pubmedEnabled,
-  onPubmedEnabledChange,
-  webSearchEnabled,
-  onWebSearchEnabledChange,
-  paperCorpusEnabled,
-  onPaperCorpusEnabledChange,
-  submitDisabled,
-}: {
+// Props for ComposerFooter, named at module level per the destructured prop
+// signature otherwise pushing the component past the line cap.
+interface ComposerFooterProps {
   connectorsOpen: boolean;
   onToggleConnectors: () => void;
   sourceControlsRef: RefObject<HTMLDivElement | null>;
   fileInputRef: RefObject<HTMLInputElement | null>;
   onFilesChanged: (e: ChangeEvent<HTMLInputElement>) => void;
-  pubmedEnabled: boolean;
-  onPubmedEnabledChange?: (value: boolean) => void;
-  webSearchEnabled: boolean;
-  onWebSearchEnabledChange?: (value: boolean) => void;
-  paperCorpusEnabled: boolean;
-  onPaperCorpusEnabledChange?: (value: boolean) => void;
+  connectors: ConnectorToggleProps;
   submitDisabled: boolean;
-}) {
+}
+
+// The footer controls row: the file/connector source controls plus the
+// submit button.
+function ComposerFooter(props: ComposerFooterProps) {
+  const {
+    connectorsOpen,
+    onToggleConnectors,
+    sourceControlsRef,
+    fileInputRef,
+    onFilesChanged,
+    connectors,
+    submitDisabled,
+  } = props;
   return (
     <div className={COMPOSER_ACTIONS_CLASSES}>
       <SourceControls
@@ -310,12 +334,7 @@ function ComposerFooter({
         sourceControlsRef={sourceControlsRef}
         fileInputRef={fileInputRef}
         onFilesChanged={onFilesChanged}
-        pubmedEnabled={pubmedEnabled}
-        onPubmedEnabledChange={onPubmedEnabledChange}
-        webSearchEnabled={webSearchEnabled}
-        onWebSearchEnabledChange={onWebSearchEnabledChange}
-        paperCorpusEnabled={paperCorpusEnabled}
-        onPaperCorpusEnabledChange={onPaperCorpusEnabledChange}
+        connectors={connectors}
       />
       <button
         type="submit"
@@ -334,6 +353,61 @@ function ComposerFooter({
         />
       </button>
     </div>
+  );
+}
+
+// Props for ComposerBody, named at module level per the destructured prop
+// signature otherwise pushing the component past the line cap.
+interface ComposerBodyProps {
+  input: string;
+  setInput: (value: string) => void;
+  submitDisabled: boolean;
+  large: boolean;
+  autoFocus: boolean;
+  referenceLabel: string;
+  state: ComposerState;
+  connectors: ConnectorToggleProps;
+}
+
+// Composer's <form> children: the staged-attachments strip, the textarea
+// field, and the footer controls row. Split out so Composer itself only
+// wires hooks and props together.
+function ComposerBody(props: ComposerBodyProps) {
+  const {
+    input,
+    setInput,
+    submitDisabled,
+    large,
+    autoFocus,
+    referenceLabel,
+    state,
+    connectors,
+  } = props;
+  return (
+    <>
+      <AttachmentStrip
+        attachments={state.attachments}
+        onRemove={state.removeAttachment}
+      />
+      <ComposerTextareaField
+        input={input}
+        setInput={setInput}
+        submitDisabled={submitDisabled}
+        large={large}
+        autoFocus={autoFocus}
+        referenceLabel={referenceLabel}
+        textareaRef={state.textareaRef}
+      />
+      <ComposerFooter
+        connectorsOpen={state.connectorsOpen}
+        onToggleConnectors={() => state.setConnectorsOpen(open => !open)}
+        sourceControlsRef={state.sourceControlsRef}
+        fileInputRef={state.fileInputRef}
+        onFilesChanged={state.onFilesChanged}
+        connectors={connectors}
+        submitDisabled={submitDisabled}
+      />
+    </>
   );
 }
 
