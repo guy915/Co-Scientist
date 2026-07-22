@@ -58,6 +58,39 @@ class _DatabaseStopSignal:
         )
 
 
+def _enqueue_resume_task(
+    run_id: str,
+    checkpoint: dict[str, Any],
+    db_path: str | None,
+) -> ScientificTask:
+    """Re-enqueue the task a checkpoint recorded as its own resume point."""
+    checkpoint_seq = int(checkpoint["seq"])
+    recorded_successor = checkpoint["state"].get("resume_successor")
+    task_type = str(recorded_successor or "") or (
+        f"{engine_tasks.NODE_TASK_PREFIX}orchestrator"
+    )
+    idempotency_key = f"{task_type}:{checkpoint_seq}"
+    # Revive first, then enqueue. The key names the boundary the run
+    # stopped at, and it cannot change while the run makes no progress --
+    # so if that task already died, the enqueue below is a no-op against
+    # the existing row and the run would be wedged forever, announcing a
+    # resume it never performs. Reviving is a no-op unless there is a dead
+    # task under this key.
+    if store.revive_task_for_retry(run_id, idempotency_key, db_path=db_path):
+        logger.info(
+            "Resume revived a dead %s task for run %s", task_type, run_id
+        )
+    return store.enqueue_task(
+        run_id,
+        task_type,
+        {"checkpoint_seq": checkpoint_seq},
+        idempotency_key=idempotency_key,
+        priority=100,
+        provenance={"scheduled_by": "resume"},
+        db_path=db_path,
+    )
+
+
 def enqueue_run_workflow(
     run_id: str,
     *,
@@ -76,33 +109,7 @@ def enqueue_run_workflow(
             return resumed[0]
     checkpoint = store.get_latest_checkpoint(run_id, db_path=db_path)
     if resume and checkpoint:
-        checkpoint_seq = int(checkpoint["seq"])
-        recorded_successor = checkpoint["state"].get("resume_successor")
-        task_type = str(recorded_successor or "") or (
-            f"{engine_tasks.NODE_TASK_PREFIX}orchestrator"
-        )
-        idempotency_key = f"{task_type}:{checkpoint_seq}"
-        # Revive first, then enqueue. The key names the boundary the run
-        # stopped at, and it cannot change while the run makes no progress --
-        # so if that task already died, the enqueue below is a no-op against
-        # the existing row and the run would be wedged forever, announcing a
-        # resume it never performs. Reviving is a no-op unless there is a dead
-        # task under this key.
-        if store.revive_task_for_retry(
-            run_id, idempotency_key, db_path=db_path
-        ):
-            logger.info(
-                "Resume revived a dead %s task for run %s", task_type, run_id
-            )
-        return store.enqueue_task(
-            run_id,
-            task_type,
-            {"checkpoint_seq": checkpoint_seq},
-            idempotency_key=idempotency_key,
-            priority=100,
-            provenance={"scheduled_by": "resume"},
-            db_path=db_path,
-        )
+        return _enqueue_resume_task(run_id, checkpoint, db_path)
     return engine_tasks.enqueue_bootstrap(run_id, db_path=db_path)
 
 
@@ -193,6 +200,108 @@ async def _execute_until_lease_lost(
             await ownership
 
 
+def _complete_superseded_task(
+    task: ScientificTask, worker_id: str, exc: Exception, db_path: str | None
+) -> None:
+    """Record a superseded task as a successful idempotent outcome.
+
+    Competing durable branches can finish after another branch advances the
+    checkpoint. Obsolescence is a successful idempotent outcome, not a
+    scientific failure, and must not consume the retry budget.
+    """
+    result = {"superseded": True, "reason": str(exc)}
+    if not store.complete_task(task.id, worker_id, result, db_path=db_path):
+        logger.warning("Task %s lost its lease while superseded", task.id)
+    else:
+        logger.info("Task %s superseded by a newer checkpoint", task.id)
+
+
+def _fail_unsupported_task(
+    task: ScientificTask, worker_id: str, exc: Exception, db_path: str | None
+) -> None:
+    """Permanently fail a task type no worker branch can execute.
+
+    The only failure retrying cannot fix. Everything else reaching the
+    worker boundary -- notably a provider returning empty content, which the
+    engine raises as a bare ValueError -- falls through to the retryable
+    branch instead.
+    """
+    store.fail_task(
+        task.id, worker_id, str(exc), retryable=False, db_path=db_path
+    )
+    logger.error("Task %s rejected: %s", task.id, exc)
+
+
+def _fail_retryable_task(
+    task: ScientificTask, worker_id: str, exc: Exception, db_path: str | None
+) -> None:
+    """Fail one task while preserving its retry budget.
+
+    Worker boundary isolates one task failure from the rest of the cohort.
+    """
+    store.fail_task(
+        task.id, worker_id, str(exc), retryable=True, db_path=db_path
+    )
+    logger.exception("Task %s failed", task.id)
+
+
+async def _execute_and_record(
+    task: ScientificTask,
+    worker_id: str,
+    lease_lost: asyncio.Event,
+    db_path: str | None,
+) -> None:
+    """Execute a claimed task and durably record its outcome."""
+    try:
+        # Tag every record emitted while this task runs with its run id. The
+        # execution coroutine is created inside this context, so the copied
+        # contextvar propagates to it (and to any node task it spawns).
+        with run_log_context(task.run_id):
+            result = await _execute_until_lease_lost(
+                task, lease_lost, db_path=db_path
+            )
+    except _LeaseLostError:
+        # The durable row already records cancellation, pause, or competing
+        # ownership; the revoked worker must not overwrite that outcome.
+        logger.info("Task %s stopped after lease revocation", task.id)
+    except engine_tasks.SupersededTaskError as exc:
+        _complete_superseded_task(task, worker_id, exc, db_path)
+    except UnsupportedTaskError as exc:
+        _fail_unsupported_task(task, worker_id, exc, db_path)
+    except Exception as exc:  # Worker boundary isolates one task failure.
+        _fail_retryable_task(task, worker_id, exc, db_path)
+    else:
+        if not store.complete_task(task.id, worker_id, result, db_path=db_path):
+            logger.warning("Task %s lost its lease before completion", task.id)
+
+
+async def _run_claimed_task(
+    task: ScientificTask,
+    worker_id: str,
+    *,
+    db_path: str | None,
+    lease_seconds: float,
+) -> None:
+    """Execute one claimed task, renewing its lease until it settles."""
+    stop_heartbeat = asyncio.Event()
+    lease_lost = asyncio.Event()
+    heartbeat = asyncio.create_task(
+        _heartbeat_lease(
+            task,
+            worker_id,
+            stop_heartbeat,
+            lease_lost,
+            db_path=db_path,
+            lease_seconds=lease_seconds,
+        )
+    )
+    try:
+        await _execute_and_record(task, worker_id, lease_lost, db_path)
+    finally:
+        stop_heartbeat.set()
+        await heartbeat
+
+
 async def run_once(
     worker_id: str,
     *,
@@ -209,66 +318,9 @@ async def run_once(
     )
     if task is None:
         return False
-    stop_heartbeat = asyncio.Event()
-    lease_lost = asyncio.Event()
-    heartbeat = asyncio.create_task(
-        _heartbeat_lease(
-            task,
-            worker_id,
-            stop_heartbeat,
-            lease_lost,
-            db_path=db_path,
-            lease_seconds=lease_seconds,
-        )
+    await _run_claimed_task(
+        task, worker_id, db_path=db_path, lease_seconds=lease_seconds
     )
-    try:
-        # Tag every record emitted while this task runs with its run id. The
-        # execution coroutine is created inside this context, so the copied
-        # contextvar propagates to it (and to any node task it spawns).
-        with run_log_context(task.run_id):
-            result = await _execute_until_lease_lost(
-                task, lease_lost, db_path=db_path
-            )
-    except _LeaseLostError:
-        # The durable row already records cancellation, pause, or competing
-        # ownership; the revoked worker must not overwrite that outcome.
-        logger.info("Task %s stopped after lease revocation", task.id)
-    except engine_tasks.SupersededTaskError as exc:
-        # Competing durable branches can finish after another branch advances
-        # the checkpoint. Obsolescence is a successful idempotent outcome, not
-        # a scientific failure and must not consume the retry budget.
-        result = {"superseded": True, "reason": str(exc)}
-        if not store.complete_task(task.id, worker_id, result, db_path=db_path):
-            logger.warning("Task %s lost its lease while superseded", task.id)
-        else:
-            logger.info("Task %s superseded by a newer checkpoint", task.id)
-    except UnsupportedTaskError as exc:
-        # The only failure retrying cannot fix. Everything else -- notably a
-        # provider returning empty content, which the engine raises as a bare
-        # ValueError -- falls through to the retryable branch below.
-        store.fail_task(
-            task.id,
-            worker_id,
-            str(exc),
-            retryable=False,
-            db_path=db_path,
-        )
-        logger.error("Task %s rejected: %s", task.id, exc)
-    except Exception as exc:  # Worker boundary isolates one task failure.
-        store.fail_task(
-            task.id,
-            worker_id,
-            str(exc),
-            retryable=True,
-            db_path=db_path,
-        )
-        logger.exception("Task %s failed", task.id)
-    else:
-        if not store.complete_task(task.id, worker_id, result, db_path=db_path):
-            logger.warning("Task %s lost its lease before completion", task.id)
-    finally:
-        stop_heartbeat.set()
-        await heartbeat
     return True
 
 
@@ -291,6 +343,40 @@ async def run_run_until_idle(
             return
 
 
+async def _cohort_worker_step(
+    run_id: str,
+    worker_id: str,
+    *,
+    db_path: str | None,
+    lease_seconds: float,
+    poll_seconds: float,
+) -> bool:
+    """Run one poll/claim/idle cycle for a cohort worker.
+
+    One read-only snapshot answers both idle-tick questions -- claim only
+    when work is visible, and exit only when neither claimable work nor a
+    sibling's live lease remains. Other cohort members may still be
+    executing parent tasks that will materialize new fan-out work; remain
+    available until every lease is acknowledged. Queued-but-unclaimable
+    work with no live lease cannot make progress and is left for
+    retry/reconciliation. Existence checks rather than listings: this runs
+    twenty times a second per idle worker, and decoding every row of a
+    late-stage run's task table to compute one boolean is work that grows
+    as the run does.
+
+    Returns whether the worker should keep polling.
+    """
+    claimable, active_lease = store.cohort_poll(run_id, db_path=db_path)
+    if claimable and await run_once(
+        worker_id, run_id=run_id, db_path=db_path, lease_seconds=lease_seconds
+    ):
+        return True
+    if claimable or active_lease:
+        await asyncio.sleep(poll_seconds)
+        return True
+    return False
+
+
 async def run_run_worker_pool(
     run_id: str,
     worker_prefix: str,
@@ -307,31 +393,16 @@ async def run_run_worker_pool(
         raise ValueError("worker_count must be positive")
 
     async def _worker(index: int) -> None:
+        """Poll and claim work for one cohort member until idle-exit."""
         worker_id = f"{worker_prefix}:{index}"
-        while True:
-            # One read-only snapshot answers both idle-tick questions --
-            # claim only when work is visible, and exit only when neither
-            # claimable work nor a sibling's live lease remains. Other
-            # cohort members may still be executing parent tasks that will
-            # materialize new fan-out work; remain available until every
-            # lease is acknowledged. Queued-but-unclaimable work with no
-            # live lease cannot make progress and is left for
-            # retry/reconciliation. Existence checks rather than listings:
-            # this runs twenty times a second per idle worker, and decoding
-            # every row of a late-stage run's task table to compute one
-            # boolean is work that grows as the run does.
-            claimable, active_lease = store.cohort_poll(run_id, db_path=db_path)
-            if claimable and await run_once(
-                worker_id,
-                run_id=run_id,
-                db_path=db_path,
-                lease_seconds=lease_seconds,
-            ):
-                continue
-            if claimable or active_lease:
-                await asyncio.sleep(poll_seconds)
-                continue
-            return
+        while await _cohort_worker_step(
+            run_id,
+            worker_id,
+            db_path=db_path,
+            lease_seconds=lease_seconds,
+            poll_seconds=poll_seconds,
+        ):
+            continue
 
     await asyncio.gather(*(_worker(index) for index in range(worker_count)))
 

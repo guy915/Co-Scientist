@@ -42,22 +42,19 @@ def connectors_report(
 ) -> list[dict[str, str]]:
     """Derive the user-facing data-source connectors for the composer menu.
 
-    Two connectors are listed on live availability rather than on the tools
-    YAML: PubMed (the literature base) and web search. Both need the
-    availability route because ``enabled_tools`` is None whenever no
-    ``TOOLS_CONFIG`` is set, which is the default -- without it neither would
-    ever appear on a default deployment. Every other known connector is
-    listed when the configured tools YAML enables a matching tool. Falls back
-    to PubMed so the menu is never empty.
+    PubMed and web search are listed on live availability rather than on the
+    tools YAML -- ``enabled_tools`` is None without a configured
+    ``TOOLS_CONFIG`` (the default), so this route is what makes either
+    appear on a default deployment. Every other known connector is listed
+    when the tools YAML enables a matching tool. Falls back to PubMed so the
+    menu is never empty.
 
     Args:
         literature_available: Whether the MCP + PubMed literature stack is up.
         enabled_tools: Enabled tool ids from a readable tools config, or None.
-        web_search_available: Whether the MCP server advertises the web
-            search tool, which it does only when a provider key is set.
-        paper_corpus_available: Whether a paper catalog is installed. The
-            connector is listed for every audience that asks, but only the
-            corpus audience is served it (see paper_corpus.catalog_context).
+        web_search_available: Advertised only when a provider key is set.
+        paper_corpus_available: Whether a paper catalog is installed (shown
+            only to the corpus audience; see paper_corpus.catalog_context).
 
     Returns:
         Ordered connectors, each ``{"id": ..., "display": ...}``.
@@ -66,8 +63,6 @@ def connectors_report(
     available_by_probe = {
         "pubmed": literature_available,
         "web_search": web_search_available,
-        # Listed whenever the corpus is installed; the composer shows it only
-        # to the SBI/UCD audience, since it is one lab's library.
         "paper_corpus": paper_corpus_available,
     }
     connectors: list[dict[str, str]] = []

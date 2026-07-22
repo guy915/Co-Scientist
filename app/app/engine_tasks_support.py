@@ -94,6 +94,80 @@ def _generator_for_restore(task: ScientificTask, db_path: str | None) -> Any:
     )
 
 
+def _enqueue_node_successor(
+    task: ScientificTask,
+    state: dict[str, Any],
+    successor_type: str,
+    checkpoint_seq: int,
+    conn: sqlite3.Connection,
+) -> ScientificTask:
+    """Enqueue a node's successor, applying any Supervisor queue actions.
+
+    Supervisor queue mutations are applied inside the same transaction as
+    the successor enqueue so both observe the same checkpoint commit.
+    """
+    is_orchestrator = task.task_type == f"{NODE_TASK_PREFIX}orchestrator"
+    if is_orchestrator:
+        _apply_supervisor_queue_actions(
+            task.run_id, state.get("supervisor_queue_actions") or [], conn
+        )
+    priority = (
+        int(state.get("next_task_priority", 90)) if is_orchestrator else 90
+    )
+    return store.enqueue_task(
+        task.run_id,
+        successor_type,
+        {"checkpoint_seq": checkpoint_seq},
+        idempotency_key=f"{successor_type}:{checkpoint_seq}",
+        priority=max(0, min(100, priority)),
+        dependencies=(task.id,),
+        provenance={"scheduled_by": task.task_type},
+        conn=conn,
+    )
+
+
+def _save_node_checkpoint(
+    task: ScientificTask,
+    envelope: dict[str, Any],
+    successor_type: str,
+    expected_checkpoint_seq: int,
+    conn: sqlite3.Connection,
+) -> int:
+    """Commit one node's checkpoint inside the caller's transaction.
+
+    ``resume_successor`` names the task that this checkpoint's committed
+    state feeds into next, so a crash-resume re-enqueues the right node
+    rather than the orchestrator default in
+    ``task_worker.enqueue_run_workflow``. It matches the successor enqueued
+    right after (same type, same checkpoint_seq), so its idempotency key is
+    identical and resume resolves to that exact already-queued task instead
+    of creating a second one. Without it, a run interrupted right after
+    bootstrap resumed at the orchestrator with no supervisor_guidance in
+    state and failed in generation. The cooperative-pause path
+    (``_save_paused_state``) already records this; this closes that gap.
+    """
+    from co_scientist.checkpoint import CHECKPOINT_VERSION
+
+    latest = store.get_latest_checkpoint(task.run_id, conn=conn)
+    latest_seq = int(latest["seq"]) if latest else 0
+    if latest_seq != expected_checkpoint_seq:
+        raise RuntimeError(
+            "checkpoint changed while scientific task was executing"
+        )
+    return store.save_checkpoint(
+        task.run_id,
+        stage=f"engine_task:{task.id}",
+        schema_version=CHECKPOINT_VERSION,
+        last_event_seq=envelope["last_event_seq"],
+        state={
+            "provider": _CHECKPOINT_PROVIDER,
+            "resume_successor": successor_type,
+            **envelope,
+        },
+        conn=conn,
+    )
+
+
 def _save_state_and_enqueue(
     task: ScientificTask,
     state: dict[str, Any],
@@ -103,10 +177,7 @@ def _save_state_and_enqueue(
     db_path: str | None,
 ) -> tuple[int, str | None]:
     """Atomically checkpoint one node effect and enqueue its successor."""
-    from co_scientist.checkpoint import (
-        CHECKPOINT_VERSION,
-        serialize_workflow_state,
-    )
+    from co_scientist.checkpoint import serialize_workflow_state
 
     envelope = serialize_workflow_state(
         state,
@@ -114,54 +185,11 @@ def _save_state_and_enqueue(
     )
     successor_type = _successor_task_type(successor)
     with store.transaction(db_path) as conn:
-        latest = store.get_latest_checkpoint(task.run_id, conn=conn)
-        latest_seq = int(latest["seq"]) if latest else 0
-        if latest_seq != expected_checkpoint_seq:
-            raise RuntimeError(
-                "checkpoint changed while scientific task was executing"
-            )
-        checkpoint_seq = store.save_checkpoint(
-            task.run_id,
-            stage=f"engine_task:{task.id}",
-            schema_version=CHECKPOINT_VERSION,
-            last_event_seq=envelope["last_event_seq"],
-            # resume_successor names the task that this checkpoint's committed
-            # state feeds into next, so a crash-resume re-enqueues the right
-            # node rather than the orchestrator default in
-            # task_worker.enqueue_run_workflow. It matches the successor
-            # enqueued just below (same type, same checkpoint_seq), so its
-            # idempotency key is identical and resume resolves to that exact
-            # already-queued task instead of creating a second one. Without
-            # it, a run interrupted right after bootstrap resumed at the
-            # orchestrator with no supervisor_guidance in state and failed in
-            # generation. The cooperative-pause path (_save_paused_state)
-            # already records this; this closes the crash path to match.
-            state={
-                "provider": _CHECKPOINT_PROVIDER,
-                "resume_successor": successor_type,
-                **envelope,
-            },
-            conn=conn,
+        checkpoint_seq = _save_node_checkpoint(
+            task, envelope, successor_type, expected_checkpoint_seq, conn
         )
-        is_orchestrator = task.task_type == f"{NODE_TASK_PREFIX}orchestrator"
-        if is_orchestrator:
-            _apply_supervisor_queue_actions(
-                task.run_id,
-                state.get("supervisor_queue_actions") or [],
-                conn,
-            )
-        priority = (
-            int(state.get("next_task_priority", 90)) if is_orchestrator else 90
-        )
-        successor_task = store.enqueue_task(
-            task.run_id,
-            successor_type,
-            {"checkpoint_seq": checkpoint_seq},
-            idempotency_key=f"{successor_type}:{checkpoint_seq}",
-            priority=max(0, min(100, priority)),
-            dependencies=(task.id,),
-            provenance={"scheduled_by": task.task_type},
-            conn=conn,
+        successor_task = _enqueue_node_successor(
+            task, state, successor_type, checkpoint_seq, conn
         )
     return checkpoint_seq, successor_task.id
 
@@ -213,6 +241,51 @@ def _durable_queue_snapshot(
     ]
 
 
+def _save_exact_checkpoint(
+    task: ScientificTask,
+    envelope: dict[str, Any],
+    expected_checkpoint_seq: int,
+    conn: sqlite3.Connection,
+) -> int:
+    """Commit one checkpoint for a non-node scientific task."""
+    from co_scientist.checkpoint import CHECKPOINT_VERSION
+
+    latest = store.get_latest_checkpoint(task.run_id, conn=conn)
+    latest_seq = int(latest["seq"]) if latest else 0
+    if latest_seq != expected_checkpoint_seq:
+        raise RuntimeError("checkpoint changed during scientific task")
+    return store.save_checkpoint(
+        task.run_id,
+        stage=f"engine_task:{task.id}",
+        schema_version=CHECKPOINT_VERSION,
+        last_event_seq=envelope["last_event_seq"],
+        state={"provider": _CHECKPOINT_PROVIDER, **envelope},
+        conn=conn,
+    )
+
+
+def _enqueue_exact_successor(
+    task: ScientificTask,
+    successor_type: str,
+    successor_inputs: dict[str, Any],
+    idempotency_key: str,
+    checkpoint_seq: int,
+    conn: sqlite3.Connection,
+) -> ScientificTask:
+    """Enqueue a non-node scientific task at an exact checkpoint sequence."""
+    inputs = {**successor_inputs, "checkpoint_seq": checkpoint_seq}
+    return store.enqueue_task(
+        task.run_id,
+        successor_type,
+        inputs,
+        idempotency_key=idempotency_key.format(checkpoint_seq=checkpoint_seq),
+        priority=86,
+        dependencies=(task.id,),
+        provenance={"scheduled_by": task.task_type},
+        conn=conn,
+    )
+
+
 def _save_state_and_enqueue_exact(
     task: ScientificTask,
     state: dict[str, Any],
@@ -224,40 +297,23 @@ def _save_state_and_enqueue_exact(
     db_path: str | None,
 ) -> tuple[int, str]:
     """Checkpoint one effect and enqueue a non-node scientific task."""
-    from co_scientist.checkpoint import (
-        CHECKPOINT_VERSION,
-        serialize_workflow_state,
-    )
+    from co_scientist.checkpoint import serialize_workflow_state
 
     envelope = serialize_workflow_state(
         state,
         last_event_seq=store.latest_event_seq(task.run_id, db_path=db_path),
     )
     with store.transaction(db_path) as conn:
-        latest = store.get_latest_checkpoint(task.run_id, conn=conn)
-        latest_seq = int(latest["seq"]) if latest else 0
-        if latest_seq != expected_checkpoint_seq:
-            raise RuntimeError("checkpoint changed during scientific task")
-        checkpoint_seq = store.save_checkpoint(
-            task.run_id,
-            stage=f"engine_task:{task.id}",
-            schema_version=CHECKPOINT_VERSION,
-            last_event_seq=envelope["last_event_seq"],
-            state={"provider": _CHECKPOINT_PROVIDER, **envelope},
-            conn=conn,
+        checkpoint_seq = _save_exact_checkpoint(
+            task, envelope, expected_checkpoint_seq, conn
         )
-        inputs = {**successor_inputs, "checkpoint_seq": checkpoint_seq}
-        successor = store.enqueue_task(
-            task.run_id,
+        successor = _enqueue_exact_successor(
+            task,
             successor_type,
-            inputs,
-            idempotency_key=idempotency_key.format(
-                checkpoint_seq=checkpoint_seq
-            ),
-            priority=86,
-            dependencies=(task.id,),
-            provenance={"scheduled_by": task.task_type},
-            conn=conn,
+            successor_inputs,
+            idempotency_key,
+            checkpoint_seq,
+            conn,
         )
     return checkpoint_seq, successor.id
 
@@ -306,6 +362,40 @@ def _latest_task_checkpoint(
     if checkpoint is None:
         raise RuntimeError("specialist task has no workflow checkpoint")
     return checkpoint, int(checkpoint["seq"])
+
+
+def _replay_or_supersede(
+    task: ScientificTask,
+    db_path: str | None,
+    *,
+    label: str,
+) -> tuple[dict[str, Any] | None, dict[str, Any], int]:
+    """Guard a leased task against replay or a superseding checkpoint.
+
+    Shared by every scientific-task executor that expects to run against an
+    exact checkpoint sequence (ranking match/finalize, and the review,
+    generation, mature-reflection, and verification aggregates). Returns a
+    ``(replay_result, checkpoint, current_seq)`` tuple: if ``replay_result``
+    is not ``None``, the caller must return it immediately -- this task
+    already committed the checkpoint now on record. Otherwise
+    ``checkpoint``/``current_seq`` are the task's own checkpoint to restore
+    state from. Raises ``SupersededTaskError`` when a different task
+    advanced the checkpoint first.
+    """
+    checkpoint, current_seq = _latest_task_checkpoint(task, db_path)
+    expected_seq = int(task.inputs["checkpoint_seq"])
+    if (
+        current_seq > expected_seq
+        and checkpoint["stage"] == f"engine_task:{task.id}"
+    ):
+        return (
+            {"checkpoint_seq": current_seq, "replayed": True},
+            checkpoint,
+            current_seq,
+        )
+    if current_seq != expected_seq:
+        raise SupersededTaskError(f"{label} checkpoint was superseded")
+    return None, checkpoint, current_seq
 
 
 def _restore_item_checkpoint(

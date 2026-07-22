@@ -83,15 +83,9 @@ async def _assess_gate_claims(
         return await loop.run_in_executor(host, call)
 
 
-async def _apply_pre_ranking_evidence_gate(state: dict[str, Any]) -> None:
-    """Quarantine ungrounded ideas before a decisive Elo tournament."""
-    from app.claim_grounding import build_assessor
-    from app.claims import (
-        EvidencePassage,
-        GateDecision,
-        extract_atomic_claims,
-        publication_gate,
-    )
+def _build_evidence_passages(state: dict[str, Any]) -> list[Any]:
+    """Build the run's evidence passages from retrieved and private sources."""
+    from app.claims import EvidencePassage
 
     passages = [
         EvidencePassage(
@@ -126,6 +120,175 @@ async def _apply_pre_ranking_evidence_gate(state: dict[str, Any]) -> None:
                 url="",
             )
         )
+    return passages
+
+
+def _harvest_hypothesis_claims(
+    hypothesis: Any,
+) -> tuple[list[str], dict[str, str]]:
+    """Extract one hypothesis's atomic claims in stable order, with roles."""
+    from app.claims import extract_atomic_claims
+
+    claim_roles: dict[str, str] = {}
+    ordered_claims: list[str] = []
+    for source_text, role in (
+        (hypothesis.text, "speculative"),
+        (hypothesis.literature_grounding, "categorical"),
+        (hypothesis.explanation, "speculative"),
+        (hypothesis.experiment, "speculative"),
+    ):
+        for claim in extract_atomic_claims(source_text or ""):
+            if claim not in claim_roles:
+                ordered_claims.append(claim)
+                claim_roles[claim] = role
+            elif role == "categorical":
+                claim_roles[claim] = role
+    return ordered_claims, claim_roles
+
+
+def _gate_input_fingerprint(
+    assessor_id: str,
+    ordered_claims: Sequence[str],
+    claim_roles: Mapping[str, str],
+    passages: Sequence[Any],
+) -> str:
+    """Hash one hypothesis's claims and the evidence pool assessed against."""
+    return hashlib.sha256(
+        json.dumps(
+            {
+                "assessor": assessor_id,
+                "claims": [
+                    [claim, claim_roles[claim]] for claim in ordered_claims
+                ],
+                "passages": [
+                    {
+                        "evidence_id": passage.evidence_id,
+                        "text": passage.text,
+                        "source": passage.source,
+                        "url": passage.url,
+                    }
+                    for passage in passages
+                ],
+            },
+            ensure_ascii=False,
+            separators=(",", ":"),
+            sort_keys=True,
+        ).encode()
+    ).hexdigest()
+
+
+def _plan_hypothesis_gate(
+    hypothesis: Any,
+    passages: Sequence[Any],
+    assessor_id: str,
+) -> _GatePlan | None:
+    """Extract one hypothesis's claims, or apply its cached verdict.
+
+    Returns ``None`` when an unchanged proposal/evidence snapshot lets the
+    hypothesis reuse its already-audited decision (applied here directly)
+    instead of spending compute reassessing claims nothing changed about.
+    """
+    from app.claims import GateDecision
+
+    gate_history = hypothesis.enrichments.get("claim_gate") or {}
+    prior_disposition = str(
+        gate_history.get("prior_review_disposition")
+        or hypothesis.review_disposition
+        or "viable"
+    )
+    ordered_claims, claim_roles = _harvest_hypothesis_claims(hypothesis)
+    input_fingerprint = _gate_input_fingerprint(
+        assessor_id, ordered_claims, claim_roles, passages
+    )
+    if gate_history.get("input_fingerprint") == input_fingerprint:
+        if gate_history.get("decision") == GateDecision.BLOCK.value:
+            hypothesis.review_disposition = "evidence_blocked"
+        elif hypothesis.review_disposition == "evidence_blocked":
+            hypothesis.review_disposition = prior_disposition
+        return None
+    return _GatePlan(
+        hypothesis=hypothesis,
+        claims=tuple(ordered_claims),
+        roles=claim_roles,
+        fingerprint=input_fingerprint,
+        prior_disposition=prior_disposition,
+    )
+
+
+def _record_gate_enrichment(
+    hypothesis: Any,
+    plan: _GatePlan,
+    assessments: list[Any],
+    gate: Any,
+    assessor_id: str,
+) -> None:
+    """Record one hypothesis's audited claim-gate verdict for reuse/audit."""
+    plan_roles = plan.roles
+    hypothesis.enrichments["claim_gate"] = {
+        "decision": gate.decision.value,
+        "reason": gate.reason,
+        "assessor": assessor_id,
+        "input_fingerprint": plan.fingerprint,
+        "prior_review_disposition": plan.prior_disposition,
+        "claims": [
+            {
+                "claim": assessment.claim,
+                "role": plan_roles[assessment.claim],
+                "label": assessment.label.value,
+                "supporting_passages": [
+                    span.to_dict() for span in assessment.supporting_passages
+                ],
+                "contradicting_passages": [
+                    span.to_dict() for span in assessment.contradicting_passages
+                ],
+            }
+            for assessment in assessments
+        ],
+    }
+
+
+def _apply_gate_verdict(
+    plan: _GatePlan,
+    assessments: list[Any],
+    assessor_id: str,
+) -> None:
+    """Apply one hypothesis's publication-gate verdict to its state.
+
+    Rank-and-publish policy: only contradicted (or unsafe) ideas are
+    withheld from the tournament here. Ungrounded/speculative ideas stay
+    rankable -- allow_speculative treats insufficient claims as speculative
+    and require_supported_claim=False drops the "needs a supported claim"
+    block -- so every non-contradicted idea earns an Elo score and can be
+    published (badged unverified) instead of blocking the whole run.
+    """
+    from app.claims import GateDecision, publication_gate
+
+    hypothesis = plan.hypothesis
+    gate = publication_gate(
+        assessments,
+        allow_speculative=True,
+        explicitly_speculative_claims={
+            claim for claim, role in plan.roles.items() if role == "speculative"
+        },
+        require_supported_claim=False,
+    )
+    _record_gate_enrichment(hypothesis, plan, assessments, gate, assessor_id)
+    if gate.decision is GateDecision.BLOCK:
+        hypothesis.review_disposition = "evidence_blocked"
+        feedback = f"Evidence gate: {gate.reason}"
+        if feedback not in (hypothesis.reflection_notes or ""):
+            hypothesis.reflection_notes = "\n".join(
+                part for part in (hypothesis.reflection_notes, feedback) if part
+            )
+    elif hypothesis.review_disposition == "evidence_blocked":
+        hypothesis.review_disposition = plan.prior_disposition
+
+
+async def _apply_pre_ranking_evidence_gate(state: dict[str, Any]) -> None:
+    """Quarantine ungrounded ideas before a decisive Elo tournament."""
+    from app.claim_grounding import build_assessor
+
+    passages = _build_evidence_passages(state)
     assessor, assessor_id = build_assessor(
         settings.claim_assessor,
         settings.claim_verifier_model or settings.model_name,
@@ -134,120 +297,10 @@ async def _apply_pre_ranking_evidence_gate(state: dict[str, Any]) -> None:
     # so the claims that actually need assessing can go out together below.
     plans: list[_GatePlan] = []
     for hypothesis in state.get("hypotheses") or []:
-        gate_history = hypothesis.enrichments.get("claim_gate") or {}
-        prior_disposition = str(
-            gate_history.get("prior_review_disposition")
-            or hypothesis.review_disposition
-            or "viable"
-        )
-        claim_roles: dict[str, str] = {}
-        ordered_claims: list[str] = []
-        for source_text, role in (
-            (hypothesis.text, "speculative"),
-            (hypothesis.literature_grounding, "categorical"),
-            (hypothesis.explanation, "speculative"),
-            (hypothesis.experiment, "speculative"),
-        ):
-            for claim in extract_atomic_claims(source_text or ""):
-                if claim not in claim_roles:
-                    ordered_claims.append(claim)
-                    claim_roles[claim] = role
-                elif role == "categorical":
-                    claim_roles[claim] = role
-        input_fingerprint = hashlib.sha256(
-            json.dumps(
-                {
-                    "assessor": assessor_id,
-                    "claims": [
-                        [claim, claim_roles[claim]] for claim in ordered_claims
-                    ],
-                    "passages": [
-                        {
-                            "evidence_id": passage.evidence_id,
-                            "text": passage.text,
-                            "source": passage.source,
-                            "url": passage.url,
-                        }
-                        for passage in passages
-                    ],
-                },
-                ensure_ascii=False,
-                separators=(",", ":"),
-                sort_keys=True,
-            ).encode()
-        ).hexdigest()
-        # An unchanged proposal/evidence snapshot reuses its audited verdict;
-        # repeated ranking cycles should spend compute on new science.
-        if gate_history.get("input_fingerprint") == input_fingerprint:
-            if gate_history.get("decision") == GateDecision.BLOCK.value:
-                hypothesis.review_disposition = "evidence_blocked"
-            elif hypothesis.review_disposition == "evidence_blocked":
-                hypothesis.review_disposition = prior_disposition
-            continue
-        plans.append(
-            _GatePlan(
-                hypothesis=hypothesis,
-                claims=tuple(ordered_claims),
-                roles=claim_roles,
-                fingerprint=input_fingerprint,
-                prior_disposition=prior_disposition,
-            )
-        )
+        plan = _plan_hypothesis_gate(hypothesis, passages, assessor_id)
+        if plan is not None:
+            plans.append(plan)
 
     assessed = await _assess_gate_claims(plans, passages, assessor, assessor_id)
-
     for plan, assessments in zip(plans, assessed, strict=True):
-        hypothesis = plan.hypothesis
-        plan_roles = plan.roles
-        input_fingerprint = plan.fingerprint
-        prior_disposition = plan.prior_disposition
-        # Rank-and-publish policy: only contradicted (or unsafe) ideas are
-        # withheld from the tournament here. Ungrounded/speculative ideas stay
-        # rankable — allow_speculative treats insufficient claims as speculative
-        # and require_supported_claim=False drops the "needs a supported claim"
-        # block — so every non-contradicted idea earns an Elo score and can be
-        # published (badged unverified) instead of blocking the whole run.
-        gate = publication_gate(
-            assessments,
-            allow_speculative=True,
-            explicitly_speculative_claims={
-                claim
-                for claim, role in plan_roles.items()
-                if role == "speculative"
-            },
-            require_supported_claim=False,
-        )
-        hypothesis.enrichments["claim_gate"] = {
-            "decision": gate.decision.value,
-            "reason": gate.reason,
-            "assessor": assessor_id,
-            "input_fingerprint": input_fingerprint,
-            "prior_review_disposition": prior_disposition,
-            "claims": [
-                {
-                    "claim": assessment.claim,
-                    "role": plan_roles[assessment.claim],
-                    "label": assessment.label.value,
-                    "supporting_passages": [
-                        span.to_dict()
-                        for span in assessment.supporting_passages
-                    ],
-                    "contradicting_passages": [
-                        span.to_dict()
-                        for span in assessment.contradicting_passages
-                    ],
-                }
-                for assessment in assessments
-            ],
-        }
-        if gate.decision is GateDecision.BLOCK:
-            hypothesis.review_disposition = "evidence_blocked"
-            feedback = f"Evidence gate: {gate.reason}"
-            if feedback not in (hypothesis.reflection_notes or ""):
-                hypothesis.reflection_notes = "\n".join(
-                    part
-                    for part in (hypothesis.reflection_notes, feedback)
-                    if part
-                )
-        elif hypothesis.review_disposition == "evidence_blocked":
-            hypothesis.review_disposition = prior_disposition
+        _apply_gate_verdict(plan, assessments, assessor_id)

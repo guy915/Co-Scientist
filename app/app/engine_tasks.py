@@ -195,18 +195,23 @@ from app.safety import (
 from app.store import RunStatus, ScientificTask
 
 
-async def execute_bootstrap(
-    task: ScientificTask, *, db_path: str | None = None
-) -> dict[str, Any]:
-    """Safety-gate a run, prepare state, and enqueue the Supervisor task."""
-    run = _require_run(task, db_path)
-    emit = make_emitter(run.id, db_path=db_path)
-    # Via screen_with_escalation, not screen_contextual directly: the
-    # escalation wrapper carries the two guards this durable path must honor
-    # as much as the streaming one does -- an offline-backed run never pays
-    # for a real contextual model call, and a stage a human already approved
-    # is not re-screened (which would otherwise let a fresh contextual verdict
-    # re-hold an approved run on every resume).
+async def _screen_bootstrap_intake(
+    run: store.RunRow,
+    emit: Any,
+    db_path: str | None,
+) -> dict[str, Any] | None:
+    """Screen a run's research goal at the durable bootstrap boundary.
+
+    Via screen_with_escalation, not screen_contextual directly: the
+    escalation wrapper carries the two guards this durable path must honor
+    as much as the streaming one does -- an offline-backed run never pays
+    for a real contextual model call, and a stage a human already approved
+    is not re-screened (which would otherwise let a fresh contextual verdict
+    re-hold an approved run on every resume).
+
+    Returns a withheld result if the goal was blocked or held, else
+    ``None`` to let the caller proceed.
+    """
     decision = await screen_with_escalation(
         run.id,
         "intake",
@@ -219,13 +224,17 @@ async def execute_bootstrap(
         pass
     if decision.decision in {"block", "hold"}:
         return {"run_id": run.id, "status": "withheld", "terminal": True}
+    return None
 
-    store.update_run_status(run.id, RunStatus.RUNNING, db_path=db_path)
-    # Sync the run row before the generator is built (_generator_and_opts
-    # reads it back via run_used_offline), so a config-pinned llm_backend
-    # takes effect on the durable boundary exactly as it does on the
-    # streaming one.
-    sync_engine_llm_backend(run.id, resolved_run_config(run.config), db_path)
+
+async def _prepare_bootstrap_state(
+    task: ScientificTask, run: store.RunRow, db_path: str | None
+) -> tuple[dict[str, Any], dict[str, Any] | None]:
+    """Build initial workflow state, honoring a cancel/pause during prep.
+
+    Returns the prepared state and, if the run was paused meanwhile, the
+    checkpointed-pause result the caller must return instead of continuing.
+    """
     generator, opts = _generator_and_opts(task, db_path)
     state = await generator.prepare_task_state(
         run.research_goal,
@@ -243,7 +252,29 @@ async def execute_bootstrap(
             expected_checkpoint_seq=0,
             db_path=db_path,
         )
-        return {"checkpoint_seq": checkpoint_seq, "status": "paused"}
+        return state, {"checkpoint_seq": checkpoint_seq, "status": "paused"}
+    return state, None
+
+
+async def execute_bootstrap(
+    task: ScientificTask, *, db_path: str | None = None
+) -> dict[str, Any]:
+    """Safety-gate a run, prepare state, and enqueue the Supervisor task."""
+    run = _require_run(task, db_path)
+    emit = make_emitter(run.id, db_path=db_path)
+    withheld = await _screen_bootstrap_intake(run, emit, db_path)
+    if withheld is not None:
+        return withheld
+
+    store.update_run_status(run.id, RunStatus.RUNNING, db_path=db_path)
+    # Sync the run row before the generator is built (_generator_and_opts
+    # reads it back via run_used_offline), so a config-pinned llm_backend
+    # takes effect on the durable boundary exactly as it does on the
+    # streaming one.
+    sync_engine_llm_backend(run.id, resolved_run_config(run.config), db_path)
+    state, paused = await _prepare_bootstrap_state(task, run, db_path)
+    if paused is not None:
+        return paused
     checkpoint_seq, successor_id = _save_state_and_enqueue(
         task,
         state,
@@ -265,17 +296,14 @@ async def execute_bootstrap(
     }
 
 
-async def execute_node_task(
-    task: ScientificTask, *, db_path: str | None = None
-) -> dict[str, Any]:
-    """Execute and commit exactly one engine specialist node."""
-    from co_scientist.checkpoint import restore_workflow_state
-    from co_scientist.task_runtime import execute_task_node
+def _check_node_task_checkpoint(
+    task: ScientificTask, checkpoint: dict[str, Any], current_seq: int
+) -> dict[str, Any] | None:
+    """Return a replay result if this task already advanced the checkpoint.
 
-    checkpoint, current_seq = _latest_task_checkpoint(task, db_path)
-    run = store.get_run(task.run_id, db_path=db_path)
-    if run is None or run.status == RunStatus.CANCELLED.value:
-        raise RuntimeError("run cancelled before specialist execution")
+    Raises when a different task advanced it, or when the leased checkpoint
+    does not match what this task was scheduled against.
+    """
     expected_seq = int(task.inputs.get("checkpoint_seq", -1))
     # Redelivery after the checkpoint commit but before task completion is an
     # acknowledgement replay, never a second scientific effect.
@@ -285,14 +313,28 @@ async def execute_node_task(
         raise SupersededTaskError("specialist task checkpoint was superseded")
     if current_seq != expected_seq:
         raise RuntimeError("specialist task checkpoint does not match input")
+    return None
 
-    generator, opts = _generator_and_opts(task, db_path)
-    state = restore_workflow_state(
+
+def _restore_node_task_state(
+    task: ScientificTask,
+    checkpoint: dict[str, Any],
+    generator: Any,
+    opts: dict[str, Any],
+    db_path: str | None,
+) -> dict[str, Any]:
+    """Restore workflow state and re-apply durable per-boundary overlays.
+
+    Re-delivers durable scientist steering/private sources at every safe
+    task boundary: ``_build_engine_opts`` marks the message queue consumed
+    only after materializing these values, so a worker restart cannot
+    silently lose it.
+    """
+    from co_scientist.checkpoint import restore_workflow_state
+
+    state: dict[str, Any] = restore_workflow_state(
         checkpoint["state"], tool_registry=generator.tool_registry
     )
-    # Re-deliver durable scientist steering/private sources at every safe task
-    # boundary. _build_engine_opts marks the message queue consumed only after
-    # materializing these values, so a worker restart cannot silently lose it.
     if opts.get("pending_steering"):
         state["pending_steering"] = True
     if opts.get("preferences"):
@@ -300,24 +342,49 @@ async def execute_node_task(
     if opts.get("context_enrichment_sources"):
         state["context_enrichment_sources"] = opts["context_enrichment_sources"]
     _merge_scientist_inputs(state, task.run_id, db_path)
-    node_name = task.task_type.removeprefix(NODE_TASK_PREFIX)
-    if node_name == "orchestrator":
-        state["durable_task_queue"] = _durable_queue_snapshot(
-            task.run_id, db_path
-        )
-    if run.status == RunStatus.PAUSED.value:
-        checkpoint_seq = _save_paused_state(
-            task,
-            state,
-            task.task_type,
-            expected_checkpoint_seq=current_seq,
-            db_path=db_path,
-        )
-        return {
-            "checkpoint_seq": checkpoint_seq,
-            "node": node_name,
-            "status": "paused",
-        }
+    return state
+
+
+def _pause_node_task_if_requested(
+    task: ScientificTask,
+    run: store.RunRow,
+    node_name: str,
+    state: dict[str, Any],
+    current_seq: int,
+    db_path: str | None,
+) -> dict[str, Any] | None:
+    """Checkpoint and pause a node task the operator paused mid-flight."""
+    if run.status != RunStatus.PAUSED.value:
+        return None
+    checkpoint_seq = _save_paused_state(
+        task,
+        state,
+        task.task_type,
+        expected_checkpoint_seq=current_seq,
+        db_path=db_path,
+    )
+    return {
+        "checkpoint_seq": checkpoint_seq,
+        "node": node_name,
+        "status": "paused",
+    }
+
+
+async def _dispatch_node_fanout(
+    task: ScientificTask,
+    state: dict[str, Any],
+    node_name: str,
+    current_seq: int,
+    db_path: str | None,
+) -> dict[str, Any] | None:
+    """Fan a specialist node out into durable per-item tasks, if it fans out.
+
+    Returns the fan-out scheduling result for node types that do, else
+    ``None`` so the caller executes the node inline as usual (also the
+    outcome for ``ranking`` when too few hypotheses remain to schedule a
+    tournament -- it still runs the gate, but falls through to inline
+    execution rather than fanning out).
+    """
     if node_name == "review":
         return _enqueue_review_fanout(task, state, current_seq, db_path=db_path)
     if node_name == "generate":
@@ -334,15 +401,22 @@ async def execute_node_task(
         )
     if node_name == "ranking":
         await _apply_pre_ranking_evidence_gate(state)
-        scheduled = await _schedule_ranking_chain(
+        return await _schedule_ranking_chain(
             task, state, current_seq, db_path=db_path
         )
-        if scheduled is not None:
-            return scheduled
-    committed, successor = await execute_task_node(node_name, state)
-    run = store.get_run(task.run_id, db_path=db_path)
-    if run is None or run.status == RunStatus.CANCELLED.value:
-        raise RuntimeError("run cancelled during specialist execution")
+    return None
+
+
+async def _commit_node_result(
+    task: ScientificTask,
+    run: store.RunRow,
+    node_name: str,
+    committed: dict[str, Any],
+    successor: str | None,
+    current_seq: int,
+    db_path: str | None,
+) -> dict[str, Any]:
+    """Commit a specialist node's result, honoring a pause requested mid-run."""
     successor_type = _successor_task_type(successor)
     if run.status == RunStatus.PAUSED.value:
         checkpoint_seq = _save_paused_state(
@@ -374,39 +448,95 @@ async def execute_node_task(
     }
 
 
-async def execute_finalize(
+async def execute_node_task(
     task: ScientificTask, *, db_path: str | None = None
 ) -> dict[str, Any]:
-    """Drain the final checkpoint and publish through the shared report gate."""
+    """Execute and commit exactly one engine specialist node."""
+    from co_scientist.task_runtime import execute_task_node
+
+    checkpoint, current_seq = _latest_task_checkpoint(task, db_path)
+    run = store.get_run(task.run_id, db_path=db_path)
+    if run is None or run.status == RunStatus.CANCELLED.value:
+        raise RuntimeError("run cancelled before specialist execution")
+    replay = _check_node_task_checkpoint(task, checkpoint, current_seq)
+    if replay is not None:
+        return replay
+
+    generator, opts = _generator_and_opts(task, db_path)
+    state = _restore_node_task_state(task, checkpoint, generator, opts, db_path)
+    node_name = task.task_type.removeprefix(NODE_TASK_PREFIX)
+    if node_name == "orchestrator":
+        state["durable_task_queue"] = _durable_queue_snapshot(
+            task.run_id, db_path
+        )
+    paused = _pause_node_task_if_requested(
+        task, run, node_name, state, current_seq, db_path
+    )
+    if paused is not None:
+        return paused
+    fanout = await _dispatch_node_fanout(
+        task, state, node_name, current_seq, db_path=db_path
+    )
+    if fanout is not None:
+        return fanout
+
+    committed, successor = await execute_task_node(node_name, state)
+    run = store.get_run(task.run_id, db_path=db_path)
+    if run is None or run.status == RunStatus.CANCELLED.value:
+        raise RuntimeError("run cancelled during specialist execution")
+    return await _commit_node_result(
+        task, run, node_name, committed, successor, current_seq, db_path
+    )
+
+
+def _restore_finalize_checkpoint(
+    task: ScientificTask, db_path: str | None
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Restore the workflow state the run's last committed checkpoint holds."""
     from co_scientist.checkpoint import restore_workflow_state
 
-    run = _require_run(task, db_path)
-    if run.status == RunStatus.CANCELLED.value:
-        raise RuntimeError("run cancelled before finalization")
-    if (
-        run.status == RunStatus.COMPLETED.value
-        and store.get_latest_report(run.id, db_path=db_path) is not None
-    ):
-        return {"run_id": run.id, "status": "completed", "replayed": True}
     checkpoint, _ = _latest_task_checkpoint(task, db_path)
     generator = _generator_for_restore(task, db_path)
     state = restore_workflow_state(
         checkpoint["state"], tool_registry=generator.tool_registry
     )
+    return checkpoint, state
+
+
+def _pause_finalize_if_requested(
+    task: ScientificTask,
+    run: store.RunRow,
+    checkpoint: dict[str, Any],
+    state: dict[str, Any],
+    db_path: str | None,
+) -> dict[str, Any] | None:
+    """Checkpoint and pause finalization if the operator paused mid-flight."""
     refreshed = store.get_run(run.id, db_path=db_path)
-    if refreshed is not None and refreshed.status == RunStatus.PAUSED.value:
-        checkpoint_seq = _save_paused_state(
-            task,
-            state,
-            FINALIZE_TASK,
-            expected_checkpoint_seq=int(checkpoint["seq"]),
-            db_path=db_path,
-        )
-        return {"checkpoint_seq": checkpoint_seq, "status": "paused"}
+    if refreshed is None or refreshed.status != RunStatus.PAUSED.value:
+        return None
+    checkpoint_seq = _save_paused_state(
+        task,
+        state,
+        FINALIZE_TASK,
+        expected_checkpoint_seq=int(checkpoint["seq"]),
+        db_path=db_path,
+    )
+    return {"checkpoint_seq": checkpoint_seq, "status": "paused"}
+
+
+def _drain_and_persist_final_state(
+    run: store.RunRow,
+    state: dict[str, Any],
+    db_path: str | None,
+) -> tuple[Any, float]:
+    """Persist the drained final state and mark the run synthesizing.
+
+    Final drain is deterministic and replayable. Clears only this run's
+    prior publication rows so a crash after persistence but before task
+    acknowledgement cannot duplicate hypotheses, evidence, matches, or
+    verification edges.
+    """
     final_state = _plain_final_state(state)
-    # Final drain is deterministic and replayable. Clear only its prior rows
-    # so a crash after persistence but before task acknowledgement cannot
-    # duplicate hypotheses, evidence, matches, or verification edges.
     store.clear_publication_artifacts(run.id, db_path=db_path)
     drained = _persist_final_state(
         run_id=run.id, final_state=final_state, db_path=db_path
@@ -415,14 +545,42 @@ async def execute_finalize(
     execution_time = max(0.0, time.time() - float(state.get("start_time", 0)))
     store.save_run_metrics(run.id, metrics, db_path=db_path)
     store.update_run_status(run.id, RunStatus.SYNTHESIZING, db_path=db_path)
-    emit = make_emitter(run.id, db_path=db_path)
-    # The same post-drain stage events the streaming engine path emits, so
-    # both engine execution modes carry identical per-stage fidelity.
+    return drained, execution_time
+
+
+async def _emit_finalize_stage_events(emit: Any, drained: Any) -> None:
+    """Emit the same post-drain stage events the streaming path emits.
+
+    Keeps both engine execution modes carrying identical per-stage fidelity.
+    """
     await emit("safety.hypothesis", drained.safety_counts)
     await emit("citation.grounding", drained.grounding_counts)
     await emit(
         "citation_audit", dict(drained.report_inputs["citation_summary"])
     )
+
+
+async def execute_finalize(
+    task: ScientificTask, *, db_path: str | None = None
+) -> dict[str, Any]:
+    """Drain the final checkpoint and publish through the shared report gate."""
+    run = _require_run(task, db_path)
+    if run.status == RunStatus.CANCELLED.value:
+        raise RuntimeError("run cancelled before finalization")
+    if (
+        run.status == RunStatus.COMPLETED.value
+        and store.get_latest_report(run.id, db_path=db_path) is not None
+    ):
+        return {"run_id": run.id, "status": "completed", "replayed": True}
+    checkpoint, state = _restore_finalize_checkpoint(task, db_path)
+    paused = _pause_finalize_if_requested(task, run, checkpoint, state, db_path)
+    if paused is not None:
+        return paused
+    drained, execution_time = _drain_and_persist_final_state(
+        run, state, db_path
+    )
+    emit = make_emitter(run.id, db_path=db_path)
+    await _emit_finalize_stage_events(emit, drained)
     async for _ in finalize_report(
         run_id=run.id,
         research_goal=run.research_goal,

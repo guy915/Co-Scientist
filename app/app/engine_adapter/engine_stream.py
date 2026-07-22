@@ -11,7 +11,7 @@ import asyncio
 import logging
 import time
 from collections.abc import AsyncIterator, Awaitable, Callable
-from typing import Any, cast
+from typing import Any, NamedTuple, cast
 
 from app import store
 from app.engine_adapter.drain import _persist_final_state
@@ -72,6 +72,23 @@ def _make_engine_checkpoint_callback(
     return _checkpoint
 
 
+class _EngineRunInputs(NamedTuple):
+    """One engine dispatch's fixed identity: what to generate and how.
+
+    Bundles the parameters that describe a single engine run (as opposed to
+    execution controls like cancellation/db_path/emit), so the streaming and
+    persist-and-report stages can each pull only the fields they need
+    without every intermediate function re-declaring the full parameter
+    list.
+    """
+
+    generator: Any
+    research_goal: str
+    run_id: str
+    run_mode: str
+    initial_opts: dict[str, Any] | None
+
+
 def is_engine_checkpoint(checkpoint: dict[str, Any] | None) -> bool:
     """Whether a stored checkpoint carries a serialized engine WorkflowState."""
     if not checkpoint:
@@ -125,58 +142,69 @@ async def _emit_engine_node_event(
     return await emit(node_type, payload)
 
 
-def _engine_node_stream(
-    generator: Any,
-    research_goal: str,
-    run_id: str,
-    initial_opts: dict[str, Any] | None,
+def _fresh_engine_node_stream(
+    run: _EngineRunInputs,
     checkpoint_callback: Callable[[str, dict[str, Any]], Awaitable[None]],
-    *,
-    resume: bool,
 ) -> AsyncIterator[tuple[str, dict[str, Any]]]:
-    """Return the engine's raw (node_name, snapshot) stream, fresh or resumed.
+    """Return a fresh engine run's raw (node_name, snapshot) stream.
 
-    A fresh run streams from the goal, checkpointing its full state after each
-    node. A resume restores the latest engine checkpoint and re-enters the
-    graph at the orchestrator via ``resume_hypotheses`` — completed nodes are
-    not re-run — while still checkpointing so a re-interruption is recoverable.
+    Streams from the goal, checkpointing the full state after each node.
     """
-    if not resume:
-        return cast(
-            "AsyncIterator[tuple[str, dict[str, Any]]]",
-            generator.generate_hypotheses(
-                research_goal=research_goal,
-                stream=True,
-                run_id=run_id,
-                opts=initial_opts,
-                checkpoint_callback=checkpoint_callback,
-            ),
-        )
-
-    from co_scientist.checkpoint import restore_workflow_state
-
-    checkpoint = store.get_latest_checkpoint(run_id)
-    if not is_engine_checkpoint(checkpoint):
-        raise RuntimeError(
-            f"run {run_id} has no engine checkpoint to resume from"
-        )
-    assert checkpoint is not None
-    restored_state = restore_workflow_state(checkpoint["state"])
     return cast(
         "AsyncIterator[tuple[str, dict[str, Any]]]",
-        generator.resume_hypotheses(
-            restored_state,
-            opts=initial_opts,
+        run.generator.generate_hypotheses(
+            research_goal=run.research_goal,
+            stream=True,
+            run_id=run.run_id,
+            opts=run.initial_opts,
             checkpoint_callback=checkpoint_callback,
         ),
     )
 
 
+def _resumed_engine_node_stream(
+    run: _EngineRunInputs,
+    checkpoint_callback: Callable[[str, dict[str, Any]], Awaitable[None]],
+) -> AsyncIterator[tuple[str, dict[str, Any]]]:
+    """Return a resumed engine run's raw (node_name, snapshot) stream.
+
+    Restores the latest engine checkpoint and re-enters the graph at the
+    orchestrator via ``resume_hypotheses`` -- completed nodes are not
+    re-run -- while still checkpointing so a re-interruption is recoverable.
+    """
+    from co_scientist.checkpoint import restore_workflow_state
+
+    checkpoint = store.get_latest_checkpoint(run.run_id)
+    if not is_engine_checkpoint(checkpoint):
+        raise RuntimeError(
+            f"run {run.run_id} has no engine checkpoint to resume from"
+        )
+    assert checkpoint is not None
+    restored_state = restore_workflow_state(checkpoint["state"])
+    return cast(
+        "AsyncIterator[tuple[str, dict[str, Any]]]",
+        run.generator.resume_hypotheses(
+            restored_state,
+            opts=run.initial_opts,
+            checkpoint_callback=checkpoint_callback,
+        ),
+    )
+
+
+def _engine_node_stream(
+    run: _EngineRunInputs,
+    checkpoint_callback: Callable[[str, dict[str, Any]], Awaitable[None]],
+    *,
+    resume: bool,
+) -> AsyncIterator[tuple[str, dict[str, Any]]]:
+    """Return the engine's raw (node, snapshot) stream, fresh or resumed."""
+    if not resume:
+        return _fresh_engine_node_stream(run, checkpoint_callback)
+    return _resumed_engine_node_stream(run, checkpoint_callback)
+
+
 async def _stream_engine_nodes(
-    generator: Any,
-    research_goal: str,
-    run_id: str,
-    initial_opts: dict[str, Any] | None,
+    run: _EngineRunInputs,
     final_state: dict[str, Any],
     *,
     cancelled: asyncio.Event | None,
@@ -194,23 +222,18 @@ async def _stream_engine_nodes(
     early; the caller checks `cancelled.is_set()` once this generator is
     exhausted to distinguish that from a natural finish.
     """
-    checkpoint_callback = _make_engine_checkpoint_callback(run_id, db_path)
+    checkpoint_callback = _make_engine_checkpoint_callback(run.run_id, db_path)
     async for node_name, state in _engine_node_stream(
-        generator,
-        research_goal,
-        run_id,
-        initial_opts,
-        checkpoint_callback,
-        resume=resume,
+        run, checkpoint_callback, resume=resume
     ):
         if cancelled and cancelled.is_set():
-            yield await emit_cancel_or_pause(run_id, db_path, emit)
+            yield await emit_cancel_or_pause(run.run_id, db_path, emit)
             return
 
         # Update final_state from each yielded cumulative snapshot.
         _merge_engine_state(final_state, state)
         yield await _emit_engine_node_event(
-            run_id, node_name, state, db_path, emit
+            run.run_id, node_name, state, db_path, emit
         )
 
 
@@ -252,10 +275,39 @@ def _persist_run_metrics(
     store.save_run_metrics(run_id, persisted, db_path=db_path)
 
 
-async def _persist_and_report(
+async def _drain_and_stage_events(
     run_id: str,
-    research_goal: str,
-    run_mode: str,
+    final_state: dict[str, Any],
+    db_path: str | None,
+    emit: EmitFn,
+) -> tuple[Any, list[dict[str, Any]]]:
+    """Drain `final_state` into the store, emitting the post-drain stage events.
+
+    Emits the ``safety.hypothesis``, ``citation.grounding``, and
+    ``citation_audit`` stage events from counts the drain already computed,
+    so the engine path carries the same per-stage fidelity the mock's
+    scripted stages do.
+
+    Returns:
+        A tuple of (drain result, the stage events emitted, in order).
+    """
+    drained = _persist_final_state(
+        run_id=run_id,
+        final_state=final_state,
+        db_path=db_path,
+    )
+    events = [
+        await emit("safety.hypothesis", drained.safety_counts),
+        await emit("citation.grounding", drained.grounding_counts),
+        await emit(
+            "citation_audit", dict(drained.report_inputs["citation_summary"])
+        ),
+    ]
+    return drained, events
+
+
+async def _persist_and_report(
+    run: _EngineRunInputs,
     final_state: dict[str, Any],
     *,
     start: float,
@@ -266,32 +318,23 @@ async def _persist_and_report(
 
     Builds, screens, persists, and emits the report through the shared
     finalize path (final safety gate included), so the engine is gated and
-    reported on exactly the same terms as the mock. Also emits the
-    post-drain ``safety.hypothesis``, ``citation.grounding``, and
-    ``citation_audit`` stage events from counts the drain already computed,
-    so the engine path carries the same per-stage fidelity the mock's
-    scripted stages do.
+    reported on exactly the same terms as the mock.
     """
-    drained = _persist_final_state(
-        run_id=run_id,
-        final_state=final_state,
-        db_path=db_path,
+    drained, stage_events = await _drain_and_stage_events(
+        run.run_id, final_state, db_path, emit
     )
-    yield await emit("safety.hypothesis", drained.safety_counts)
-    yield await emit("citation.grounding", drained.grounding_counts)
-    yield await emit(
-        "citation_audit", dict(drained.report_inputs["citation_summary"])
-    )
+    for event in stage_events:
+        yield event
     _persist_run_metrics(
-        run_id,
+        run.run_id,
         final_state.get("metrics"),
         execution_time=time.time() - start,
         db_path=db_path,
     )
     async for event in finalize_report(
-        run_id=run_id,
-        research_goal=research_goal,
-        run_mode=run_mode,
+        run_id=run.run_id,
+        research_goal=run.research_goal,
+        run_mode=run.run_mode,
         provider="engine",
         emit=emit,
         execution_time=time.time() - start,
@@ -302,11 +345,7 @@ async def _persist_and_report(
 
 
 async def _run_engine_and_report(
-    generator: Any,
-    research_goal: str,
-    run_id: str,
-    run_mode: str,
-    initial_opts: dict[str, Any] | None,
+    run: _EngineRunInputs,
     *,
     start: float,
     cancelled: asyncio.Event | None,
@@ -322,10 +361,7 @@ async def _run_engine_and_report(
     """
     final_state = _new_engine_final_state()
     async for event in _stream_engine_nodes(
-        generator,
-        research_goal,
-        run_id,
-        initial_opts,
+        run,
         final_state,
         cancelled=cancelled,
         db_path=db_path,
@@ -337,13 +373,7 @@ async def _run_engine_and_report(
         return
 
     async for event in _persist_and_report(
-        run_id,
-        research_goal,
-        run_mode,
-        final_state,
-        start=start,
-        db_path=db_path,
-        emit=emit,
+        run, final_state, start=start, db_path=db_path, emit=emit
     ):
         yield event
 
@@ -393,19 +423,17 @@ async def _run_engine_provider(
     yield await _emit_engine_running(run_id, db_path, emit)
 
     initial_opts = _build_engine_opts(cfg, run_id, db_path)
-    run = store.get_run(run_id, db_path=db_path)
-    offline = run is not None and store.run_used_offline(run)
+    run_row = store.get_run(run_id, db_path=db_path)
+    offline = run_row is not None and store.run_used_offline(run_row)
     generator = _build_generator(generator_cls, cfg, offline=offline)
-    start = time.time()
+    run = _EngineRunInputs(
+        generator, research_goal, run_id, run_mode, initial_opts
+    )
 
     try:
         async for event in _run_engine_and_report(
-            generator,
-            research_goal,
-            run_id,
-            run_mode,
-            initial_opts,
-            start=start,
+            run,
+            start=time.time(),
             cancelled=cancelled,
             db_path=db_path,
             emit=emit,

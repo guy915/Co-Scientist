@@ -67,18 +67,15 @@ def enqueue_scientist_continuation(
     )
 
 
-def _merge_scientist_inputs(
-    state: dict[str, Any], run_id: str, db_path: str | None
+def _merge_scientist_hypotheses(
+    hypotheses: list[Any],
+    by_id: dict[str, Any],
+    run_id: str,
+    db_path: str | None,
 ) -> None:
-    """Merge durable manual hypotheses and reviews at a safe task boundary."""
-    from co_scientist.models import (
-        Hypothesis,
-        HypothesisOrigin,
-        HypothesisReview,
-    )
+    """Append durable scientist-authored hypotheses not yet in state."""
+    from co_scientist.models import Hypothesis, HypothesisOrigin
 
-    hypotheses = list(state.get("hypotheses") or [])
-    by_id = {hypothesis.id: hypothesis for hypothesis in hypotheses}
     for row in store.list_hypotheses(run_id, db_path=db_path):
         if row.get("created_by_agent") != "scientist_manual":
             continue
@@ -94,6 +91,15 @@ def _merge_scientist_inputs(
         hypothesis.elo_rating = int(row.get("elo_rating") or INITIAL_ELO)
         hypotheses.append(hypothesis)
         by_id[hypothesis_id] = hypothesis
+
+
+def _merge_scientist_reviews(
+    by_id: dict[str, Any],
+    run_id: str,
+    db_path: str | None,
+) -> None:
+    """Append durable scientist reviews not yet reflected on the hypothesis."""
+    from co_scientist.models import HypothesisReview
 
     verdict_scores = {"support": 90, "revise": 60, "oppose": 20}
     for row in store.list_reviews(run_id, db_path=db_path):
@@ -125,4 +131,14 @@ def _merge_scientist_inputs(
                 overall_score=float(score),
             )
         )
+
+
+def _merge_scientist_inputs(
+    state: dict[str, Any], run_id: str, db_path: str | None
+) -> None:
+    """Merge durable manual hypotheses and reviews at a safe task boundary."""
+    hypotheses = list(state.get("hypotheses") or [])
+    by_id = {hypothesis.id: hypothesis for hypothesis in hypotheses}
+    _merge_scientist_hypotheses(hypotheses, by_id, run_id, db_path)
+    _merge_scientist_reviews(by_id, run_id, db_path)
     state["hypotheses"] = hypotheses

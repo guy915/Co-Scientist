@@ -100,6 +100,28 @@ def _resolve_literature_review_toggle(cfg: dict[str, Any]) -> bool:
     return enable_literature_review
 
 
+def _apply_private_sources(
+    initial_opts: dict[str, Any], run_id: str, goal: str, db_path: str | None
+) -> None:
+    """Fold scientist-uploaded document sources into opts, when any exist.
+
+    The group's own papers no longer ride the literature channel as
+    retrieved passages: the whole catalog (title + abstract of every paper)
+    is injected into the run's setup context up front (see
+    runs_models._build_create_run_config), and the agent fetches any paper
+    in full with fetch_paper. Only scientist-uploaded documents land here.
+    """
+    private_sources = run_corpus.engine_context_sources(
+        store.list_evidence(run_id, db_path=db_path),
+        goal,
+    )
+    if private_sources:
+        initial_opts["context_enrichment_sources"] = private_sources
+        initial_opts["user_inputs"] = {
+            "literature": [str(item["display"]) for item in private_sources]
+        }
+
+
 def _build_engine_opts(
     cfg: dict[str, Any], run_id: str, db_path: str | None
 ) -> dict[str, Any]:
@@ -129,20 +151,7 @@ def _build_engine_opts(
         _resolve_literature_review_toggle(cfg)
     )
     goal = str((cfg.get("setup") or {}).get("goal") or "")
-    private_sources = run_corpus.engine_context_sources(
-        store.list_evidence(run_id, db_path=db_path),
-        goal,
-    )
-    # The group's own papers no longer ride the literature channel as
-    # retrieved passages: the whole catalog (title + abstract of every paper)
-    # is injected into the run's setup context up front (see
-    # runs_models._build_create_run_config), and the agent fetches any paper
-    # in full with fetch_paper. Only scientist-uploaded documents land here.
-    if private_sources:
-        initial_opts["context_enrichment_sources"] = private_sources
-        initial_opts["user_inputs"] = {
-            "literature": [str(item["display"]) for item in private_sources]
-        }
+    _apply_private_sources(initial_opts, run_id, goal, db_path)
     return initial_opts
 
 
@@ -168,81 +177,111 @@ def _resolve_disabled_tools(cfg: dict[str, Any]) -> list[str]:
     return disabled
 
 
+def _resolve_generator_models(
+    offline: bool,
+) -> tuple[str, str | None, bool | None]:
+    """Return (model_name, supervisor_model_name, enable_cache) for a run.
+
+    When `offline`, both models are pinned to ``DEFAULT_OFFLINE_MODEL`` and
+    caching is disabled for this generator's own calls (scoped to its own
+    execution -- see ``co_scientist.cache.scoped_cache_override`` -- so it
+    never disables caching for a concurrently-running real run in the same
+    embedded worker). This is a minor optimization, not a correctness
+    requirement: the router is already deterministic, and a cached
+    ``offline/``-prefixed entry could never be served to (or collide with) a
+    real-model call, since the cache key includes the model name.
+    """
+    if not offline:
+        return settings.model_name, settings.supervisor_model_name, None
+    # Imported here rather than at module top so the app package does not
+    # hard-depend on the engine at import time (the mock path never needs
+    # it); the engine is on sys.path by the time a run is built.
+    from co_scientist.offline_llm import DEFAULT_OFFLINE_MODEL
+
+    return DEFAULT_OFFLINE_MODEL, DEFAULT_OFFLINE_MODEL, False
+
+
+def _resolve_generator_disable_tools(cfg: dict[str, Any]) -> list[str]:
+    """Return combined engine tool ids to disable for one run's generator.
+
+    Two sources of per-run tool withholding, combined. (1) The group's
+    paper corpus is one lab's library; the tools YAML enables it
+    unconditionally, so withhold it here for every other audience --
+    otherwise any run could search another lab's papers directly, which no
+    audience gate on injected context would catch. (2) The run's connector
+    toggles, applied by the engine's ToolRegistry as `tool.enabled = False`.
+    """
+    return [
+        *paper_corpus.disabled_tools_for(
+            str(cfg.get("audience") or ""),
+            enabled=cfg.get("enable_paper_corpus", True) is not False,
+        ),
+        *_resolve_disabled_tools(cfg),
+    ]
+
+
+def _generator_kwargs(
+    cfg: dict[str, Any],
+    model_name: str,
+    supervisor_model_name: str | None,
+    enable_cache: bool | None,
+) -> dict[str, Any]:
+    """Build the `HypothesisGenerator` constructor kwargs for one run.
+
+    `cfg` went through `resolved_run_config` upstream, so every numeric key
+    is present -- index directly rather than re-inventing defaults here.
+    """
+    return {
+        "model_name": model_name,
+        "supervisor_model_name": supervisor_model_name,
+        "enable_cache": enable_cache,
+        "max_iterations": int(cfg["max_iterations"]),
+        # Hard termination ceiling on top of max_iterations. Present even
+        # for runs created before the knob existed: resolved_run_config
+        # seeds every load from the tier table.
+        "budget": {"max_llm_calls": int(cfg["max_llm_calls"])},
+        "initial_hypotheses_count": int(cfg["initial_hypotheses_count"]),
+        "evolution_max_count": int(cfg["evolution_max_count"]),
+        "tournament_pairs": int(cfg["tournament_pairs"]),
+        "elo_k_factor": int(cfg["k_factor"]),
+        # ``evidence_count`` is the single literature-budget knob in the tier
+        # table; map it to the engine's parameter name at this translation
+        # boundary rather than persisting a second synced key.
+        "literature_review_papers_count": int(cfg["evidence_count"]),
+        # Forward the configured tools YAML so a real run actually enables
+        # the domain tools (e.g. INDRA for the production
+        # indra_cancer.yaml). None loads the engine's bundled default
+        # registry, whose literature_review workflow is multi-source (the
+        # group's paper corpus, PubMed, and OpenAlex) -- not PubMed-only.
+        # Startup already validated this path is readable (see app.main
+        # lifespan).
+        "tools_config": settings.tools_config,
+        "disable_tools": _resolve_generator_disable_tools(cfg),
+    }
+
+
 def _build_generator(
     generator_cls: Any, cfg: dict[str, Any], *, offline: bool = False
 ) -> Any:
     """Construct a fresh `HypothesisGenerator` from the run's resolved config.
 
     A fresh generator is constructed per run rather than reused, so each
-    run's model/tier settings apply independently of any other run. `cfg`
-    went through `resolved_run_config` upstream, so every numeric key is
-    present -- index directly rather than re-inventing defaults here.
+    run's model/tier settings apply independently of any other run.
 
     Args:
         generator_cls: The engine's ``HypothesisGenerator`` class.
         cfg: The run's resolved config.
         offline: When True the run is backed by the deterministic offline
-            router, so both models are pinned to ``DEFAULT_OFFLINE_MODEL`` and
-            caching is disabled for this generator's own calls (scoped to its
-            own execution -- see ``co_scientist.cache.scoped_cache_override``
-            -- so it never disables caching for a concurrently-running real
-            run in the same embedded worker). This is a minor optimization,
-            not a correctness requirement: the router is already
-            deterministic, and a cached ``offline/``-prefixed entry could
-            never be served to (or collide with) a real-model call, since the
-            cache key includes the model name.
+            router; see ``_resolve_generator_models`` for what that pins.
 
     Returns:
         A constructed generator instance.
     """
-    model_name = settings.model_name
-    supervisor_model_name = settings.supervisor_model_name
-    enable_cache: bool | None = None
-    if offline:
-        # Imported here rather than at module top so the app package does not
-        # hard-depend on the engine at import time (the mock path never needs
-        # it); the engine is on sys.path by the time a run is built.
-        from co_scientist.offline_llm import DEFAULT_OFFLINE_MODEL
-
-        model_name = DEFAULT_OFFLINE_MODEL
-        supervisor_model_name = DEFAULT_OFFLINE_MODEL
-        enable_cache = False
+    model_name, supervisor_model_name, enable_cache = _resolve_generator_models(
+        offline
+    )
     return generator_cls(
-        model_name=model_name,
-        supervisor_model_name=supervisor_model_name,
-        enable_cache=enable_cache,
-        max_iterations=int(cfg["max_iterations"]),
-        # Hard termination ceiling on top of max_iterations. Present even
-        # for runs created before the knob existed: resolved_run_config
-        # seeds every load from the tier table.
-        budget={"max_llm_calls": int(cfg["max_llm_calls"])},
-        initial_hypotheses_count=int(cfg["initial_hypotheses_count"]),
-        evolution_max_count=int(cfg["evolution_max_count"]),
-        tournament_pairs=int(cfg["tournament_pairs"]),
-        elo_k_factor=int(cfg["k_factor"]),
-        # ``evidence_count`` is the single literature-budget knob in the tier
-        # table; map it to the engine's parameter name at this translation
-        # boundary rather than persisting a second synced key.
-        literature_review_papers_count=int(cfg["evidence_count"]),
-        # Forward the configured tools YAML so a real run actually enables the
-        # domain tools (e.g. INDRA for the production indra_cancer.yaml). None
-        # loads the engine's bundled default registry, whose literature_review
-        # workflow is multi-source (the group's paper corpus, PubMed, and
-        # OpenAlex) -- not PubMed-only. Startup already validated this path is
-        # readable (see app.main lifespan).
-        tools_config=settings.tools_config,
-        # Two sources of per-run tool withholding, combined. (1) The
-        # group's paper corpus is one lab's library; the tools YAML
-        # enables it unconditionally, so withhold it here for every
-        # other audience -- otherwise any run could search another
-        # lab's papers directly, which no audience gate on injected
-        # context would catch. (2) The run's connector toggles, applied
-        # by the engine's ToolRegistry as `tool.enabled = False`.
-        disable_tools=[
-            *paper_corpus.disabled_tools_for(
-                str(cfg.get("audience") or ""),
-                enabled=cfg.get("enable_paper_corpus", True) is not False,
-            ),
-            *_resolve_disabled_tools(cfg),
-        ],
+        **_generator_kwargs(
+            cfg, model_name, supervisor_model_name, enable_cache
+        )
     )

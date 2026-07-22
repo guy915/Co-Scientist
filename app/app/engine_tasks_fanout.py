@@ -9,6 +9,8 @@ from __future__ import annotations
 
 import asyncio
 import dataclasses
+import sqlite3
+from collections.abc import Sequence
 from typing import Any
 
 from app import store
@@ -39,6 +41,77 @@ from app.engine_tasks_support import (
 from app.store import ScientificTask
 
 
+def _enqueue_review_item_tasks(
+    task: ScientificTask,
+    unreviewed: Sequence[Any],
+    checkpoint_seq: int,
+    conn: sqlite3.Connection,
+) -> list[ScientificTask]:
+    """Enqueue one review-item task per unreviewed hypothesis."""
+    return [
+        store.enqueue_task(
+            task.run_id,
+            REVIEW_ITEM_TASK,
+            {
+                "checkpoint_seq": checkpoint_seq,
+                "hypothesis_id": hypothesis.id,
+                "hypothesis_index": index,
+            },
+            idempotency_key=f"review:item:{checkpoint_seq}:{hypothesis.id}",
+            priority=85,
+            dependencies=(task.id,),
+            provenance={
+                "scheduled_by": task.task_type,
+                "specialist": "reflection.initial",
+            },
+            conn=conn,
+        )
+        for index, hypothesis in enumerate(unreviewed)
+    ]
+
+
+def _enqueue_review_aggregate_task(
+    task: ScientificTask,
+    items: Sequence[ScientificTask],
+    checkpoint_seq: int,
+    conn: sqlite3.Connection,
+) -> ScientificTask:
+    """Enqueue the review aggregate that depends on every review-item task."""
+    return store.enqueue_task(
+        task.run_id,
+        REVIEW_AGGREGATE_TASK,
+        {
+            "checkpoint_seq": checkpoint_seq,
+            "item_task_ids": [item.id for item in items],
+        },
+        idempotency_key=f"review:aggregate:{checkpoint_seq}",
+        priority=80,
+        dependencies=tuple(item.id for item in items),
+        provenance={
+            "scheduled_by": task.task_type,
+            "allow_failed_dependencies": True,
+        },
+        conn=conn,
+    )
+
+
+def _create_review_fanout_tasks(
+    task: ScientificTask,
+    unreviewed: Sequence[Any],
+    checkpoint_seq: int,
+    db_path: str | None,
+) -> tuple[list[ScientificTask], ScientificTask]:
+    """Enqueue one review-item task per hypothesis plus its aggregate."""
+    with store.transaction(db_path) as conn:
+        items = _enqueue_review_item_tasks(
+            task, unreviewed, checkpoint_seq, conn
+        )
+        aggregate = _enqueue_review_aggregate_task(
+            task, items, checkpoint_seq, conn
+        )
+    return items, aggregate
+
+
 def _enqueue_review_fanout(
     task: ScientificTask,
     state: dict[str, Any],
@@ -52,51 +125,87 @@ def _enqueue_review_fanout(
         for hypothesis in state["hypotheses"]
         if not hypothesis.reviews
     ]
-    with store.transaction(db_path) as conn:
-        items = [
-            store.enqueue_task(
-                task.run_id,
-                REVIEW_ITEM_TASK,
-                {
-                    "checkpoint_seq": checkpoint_seq,
-                    "hypothesis_id": hypothesis.id,
-                    "hypothesis_index": index,
-                },
-                idempotency_key=(
-                    f"review:item:{checkpoint_seq}:{hypothesis.id}"
-                ),
-                priority=85,
-                dependencies=(task.id,),
-                provenance={
-                    "scheduled_by": task.task_type,
-                    "specialist": "reflection.initial",
-                },
-                conn=conn,
-            )
-            for index, hypothesis in enumerate(unreviewed)
-        ]
-        aggregate = store.enqueue_task(
-            task.run_id,
-            REVIEW_AGGREGATE_TASK,
-            {
-                "checkpoint_seq": checkpoint_seq,
-                "item_task_ids": [item.id for item in items],
-            },
-            idempotency_key=f"review:aggregate:{checkpoint_seq}",
-            priority=80,
-            dependencies=tuple(item.id for item in items),
-            provenance={
-                "scheduled_by": task.task_type,
-                "allow_failed_dependencies": True,
-            },
-            conn=conn,
-        )
+    items, aggregate = _create_review_fanout_tasks(
+        task, unreviewed, checkpoint_seq, db_path
+    )
     return {
         "checkpoint_seq": checkpoint_seq,
         "fanout_task_ids": [item.id for item in items],
         "aggregate_task_id": aggregate.id,
         "node": "review",
     }
+
+
+def _enqueue_verification_item_tasks(
+    task: ScientificTask,
+    selected: Sequence[Any],
+    checkpoint_seq: int,
+    conn: sqlite3.Connection,
+) -> list[ScientificTask]:
+    """Enqueue one deep-verification task per selected hypothesis."""
+    return [
+        store.enqueue_task(
+            task.run_id,
+            VERIFICATION_ITEM_TASK,
+            {
+                "checkpoint_seq": checkpoint_seq,
+                "hypothesis_id": hypothesis.id,
+            },
+            idempotency_key=(
+                f"verification:item:{checkpoint_seq}:{hypothesis.id}"
+            ),
+            priority=88,
+            dependencies=(task.id,),
+            provenance={
+                "scheduled_by": task.task_type,
+                "specialist": "reflection.deep_verification",
+            },
+            conn=conn,
+        )
+        for hypothesis in selected
+    ]
+
+
+def _enqueue_verification_aggregate_task(
+    task: ScientificTask,
+    items: Sequence[ScientificTask],
+    checkpoint_seq: int,
+    conn: sqlite3.Connection,
+) -> ScientificTask:
+    """Enqueue the verification aggregate depending on every item task."""
+    return store.enqueue_task(
+        task.run_id,
+        VERIFICATION_AGGREGATE_TASK,
+        {
+            "checkpoint_seq": checkpoint_seq,
+            "item_task_ids": [item.id for item in items],
+        },
+        idempotency_key=f"verification:aggregate:{checkpoint_seq}",
+        priority=82,
+        dependencies=tuple(item.id for item in items),
+        provenance={
+            "scheduled_by": task.task_type,
+            "allow_failed_dependencies": True,
+        },
+        conn=conn,
+    )
+
+
+def _create_verification_fanout_tasks(
+    task: ScientificTask,
+    selected: Sequence[Any],
+    checkpoint_seq: int,
+    db_path: str | None,
+) -> tuple[list[ScientificTask], ScientificTask]:
+    """Enqueue one deep-verification task per hypothesis plus its aggregate."""
+    with store.transaction(db_path) as conn:
+        items = _enqueue_verification_item_tasks(
+            task, selected, checkpoint_seq, conn
+        )
+        aggregate = _enqueue_verification_aggregate_task(
+            task, items, checkpoint_seq, conn
+        )
+    return items, aggregate
 
 
 def _enqueue_verification_fanout(
@@ -112,50 +221,125 @@ def _enqueue_verification_fanout(
     )
 
     selected = _select_hypotheses_to_verify(state["hypotheses"])
-    with store.transaction(db_path) as conn:
-        items = [
-            store.enqueue_task(
-                task.run_id,
-                VERIFICATION_ITEM_TASK,
-                {
-                    "checkpoint_seq": checkpoint_seq,
-                    "hypothesis_id": hypothesis.id,
-                },
-                idempotency_key=(
-                    f"verification:item:{checkpoint_seq}:{hypothesis.id}"
-                ),
-                priority=88,
-                dependencies=(task.id,),
-                provenance={
-                    "scheduled_by": task.task_type,
-                    "specialist": "reflection.deep_verification",
-                },
-                conn=conn,
-            )
-            for hypothesis in selected
-        ]
-        aggregate = store.enqueue_task(
-            task.run_id,
-            VERIFICATION_AGGREGATE_TASK,
-            {
-                "checkpoint_seq": checkpoint_seq,
-                "item_task_ids": [item.id for item in items],
-            },
-            idempotency_key=f"verification:aggregate:{checkpoint_seq}",
-            priority=82,
-            dependencies=tuple(item.id for item in items),
-            provenance={
-                "scheduled_by": task.task_type,
-                "allow_failed_dependencies": True,
-            },
-            conn=conn,
-        )
+    items, aggregate = _create_verification_fanout_tasks(
+        task, selected, checkpoint_seq, db_path
+    )
     return {
         "checkpoint_seq": checkpoint_seq,
         "fanout_task_ids": [item.id for item in items],
         "aggregate_task_id": aggregate.id,
         "node": "deep_verification",
     }
+
+
+def _generation_task_specs(
+    strategy_counts: dict[str, int],
+) -> list[tuple[str, int, int]]:
+    """Return (strategy, count, index) specs for each strategy's durable tasks.
+
+    Debate strategies get one task per hypothesis so debates run
+    independently; every other strategy gets a single task producing its
+    whole count.
+    """
+    debate_strategies = {"debate_lit", "debate_only"}
+    return [
+        (strategy, 1, index)
+        for strategy, count in strategy_counts.items()
+        if strategy in debate_strategies
+        for index in range(count)
+    ] + [
+        (strategy, count, 0)
+        for strategy, count in strategy_counts.items()
+        if strategy not in debate_strategies and count > 0
+    ]
+
+
+def _save_generation_plan_checkpoint(
+    task: ScientificTask,
+    checkpoint_seq: int,
+    envelope: dict[str, Any],
+    conn: sqlite3.Connection,
+) -> int:
+    """Commit the generation plan checkpoint inside the caller's transaction."""
+    from co_scientist.checkpoint import CHECKPOINT_VERSION
+
+    latest = store.get_latest_checkpoint(task.run_id, conn=conn)
+    latest_seq = int(latest["seq"]) if latest else 0
+    if latest_seq != checkpoint_seq:
+        raise RuntimeError("checkpoint changed during generation planning")
+    return store.save_checkpoint(
+        task.run_id,
+        stage=f"engine_task:{task.id}",
+        schema_version=CHECKPOINT_VERSION,
+        last_event_seq=envelope["last_event_seq"],
+        state={"provider": _CHECKPOINT_PROVIDER, **envelope},
+        conn=conn,
+    )
+
+
+def _enqueue_generation_strategy_tasks(
+    task: ScientificTask,
+    planned_seq: int,
+    task_specs: Sequence[tuple[str, int, int]],
+    literature: Any,
+    reference_index: Any,
+    conn: sqlite3.Connection,
+) -> list[ScientificTask]:
+    """Enqueue one durable task per planned generation strategy."""
+    return [
+        store.enqueue_task(
+            task.run_id,
+            GENERATION_STRATEGY_TASK,
+            {
+                "checkpoint_seq": planned_seq,
+                "strategy": strategy,
+                "count": count,
+                "strategy_index": index,
+                "literature": literature,
+                "reference_text": reference_index.text,
+                "reference_sources": reference_index.sources,
+            },
+            idempotency_key=(
+                f"generation:{strategy}:{planned_seq}:{index}:{count}"
+            ),
+            priority=87,
+            dependencies=(task.id,),
+            provenance={
+                "scheduled_by": task.task_type,
+                "generation_strategy": strategy,
+                "strategy_index": index,
+            },
+            conn=conn,
+        )
+        for strategy, count, index in task_specs
+    ]
+
+
+def _enqueue_generation_aggregate_task(
+    task: ScientificTask,
+    planned_seq: int,
+    items: Sequence[ScientificTask],
+    counts: Any,
+    conn: sqlite3.Connection,
+) -> ScientificTask:
+    """Enqueue the generation aggregate that depends on every strategy task."""
+    return store.enqueue_task(
+        task.run_id,
+        GENERATION_AGGREGATE_TASK,
+        {
+            "checkpoint_seq": planned_seq,
+            "item_task_ids": [item.id for item in items],
+            "counts": dataclasses.asdict(counts),
+        },
+        idempotency_key=f"generation:aggregate:{planned_seq}",
+        priority=81,
+        dependencies=tuple(item.id for item in items),
+        provenance={
+            "scheduled_by": task.task_type,
+            "allow_failed_dependencies": True,
+        },
+        conn=conn,
+    )
 
 
 async def _enqueue_generation_fanout(
@@ -167,10 +351,7 @@ async def _enqueue_generation_fanout(
 ) -> dict[str, Any]:
     """Commit generation planning and enqueue each enabled strategy."""
     from co_scientist.agents.generation.coordinator import _prepare_generation
-    from co_scientist.checkpoint import (
-        CHECKPOINT_VERSION,
-        serialize_workflow_state,
-    )
+    from co_scientist.checkpoint import serialize_workflow_state
 
     counts, reference_index, literature = await _prepare_generation(state)
     strategy_counts = {
@@ -179,76 +360,20 @@ async def _enqueue_generation_fanout(
         "debate_only": counts.debate_only_count,
         "assumptions": counts.assumptions_count,
     }
-    task_specs = [
-        (strategy, 1, index)
-        for strategy, count in strategy_counts.items()
-        if strategy in {"debate_lit", "debate_only"}
-        for index in range(count)
-    ] + [
-        (strategy, count, 0)
-        for strategy, count in strategy_counts.items()
-        if strategy not in {"debate_lit", "debate_only"} and count > 0
-    ]
+    task_specs = _generation_task_specs(strategy_counts)
     envelope = serialize_workflow_state(
         state,
         last_event_seq=store.latest_event_seq(task.run_id, db_path=db_path),
     )
     with store.transaction(db_path) as conn:
-        latest = store.get_latest_checkpoint(task.run_id, conn=conn)
-        latest_seq = int(latest["seq"]) if latest else 0
-        if latest_seq != checkpoint_seq:
-            raise RuntimeError("checkpoint changed during generation planning")
-        planned_seq = store.save_checkpoint(
-            task.run_id,
-            stage=f"engine_task:{task.id}",
-            schema_version=CHECKPOINT_VERSION,
-            last_event_seq=envelope["last_event_seq"],
-            state={"provider": _CHECKPOINT_PROVIDER, **envelope},
-            conn=conn,
+        planned_seq = _save_generation_plan_checkpoint(
+            task, checkpoint_seq, envelope, conn
         )
-        items = [
-            store.enqueue_task(
-                task.run_id,
-                GENERATION_STRATEGY_TASK,
-                {
-                    "checkpoint_seq": planned_seq,
-                    "strategy": strategy,
-                    "count": count,
-                    "strategy_index": index,
-                    "literature": literature,
-                    "reference_text": reference_index.text,
-                    "reference_sources": reference_index.sources,
-                },
-                idempotency_key=(
-                    f"generation:{strategy}:{planned_seq}:{index}:{count}"
-                ),
-                priority=87,
-                dependencies=(task.id,),
-                provenance={
-                    "scheduled_by": task.task_type,
-                    "generation_strategy": strategy,
-                    "strategy_index": index,
-                },
-                conn=conn,
-            )
-            for strategy, count, index in task_specs
-        ]
-        aggregate = store.enqueue_task(
-            task.run_id,
-            GENERATION_AGGREGATE_TASK,
-            {
-                "checkpoint_seq": planned_seq,
-                "item_task_ids": [item.id for item in items],
-                "counts": dataclasses.asdict(counts),
-            },
-            idempotency_key=f"generation:aggregate:{planned_seq}",
-            priority=81,
-            dependencies=tuple(item.id for item in items),
-            provenance={
-                "scheduled_by": task.task_type,
-                "allow_failed_dependencies": True,
-            },
-            conn=conn,
+        items = _enqueue_generation_strategy_tasks(
+            task, planned_seq, task_specs, literature, reference_index, conn
+        )
+        aggregate = _enqueue_generation_aggregate_task(
+            task, planned_seq, items, counts, conn
         )
     return {
         "checkpoint_seq": planned_seq,
@@ -258,14 +383,8 @@ async def _enqueue_generation_fanout(
     }
 
 
-def _enqueue_mature_reflection_fanout(
-    task: ScientificTask,
-    state: dict[str, Any],
-    checkpoint_seq: int,
-    *,
-    db_path: str | None,
-) -> dict[str, Any]:
-    """Schedule maturity-appropriate Reflection modes as durable tasks."""
+def _mature_reflection_specs(state: dict[str, Any]) -> list[tuple[str, str]]:
+    """Return (hypothesis_id, review_mode) specs for reflection by maturity."""
     iteration = int(state.get("current_iteration", 0))
     literature = state.get("articles_with_reasoning")
     specs: list[tuple[str, str]] = []
@@ -282,45 +401,94 @@ def _enqueue_mature_reflection_fanout(
             hypothesis.enrichments.get("recurrent_review_iteration", -1)
         ):
             specs.append((hypothesis.id, "recurrent"))
-    with store.transaction(db_path) as conn:
-        items = [
-            store.enqueue_task(
-                task.run_id,
-                MATURE_REFLECTION_ITEM_TASK,
-                {
-                    "checkpoint_seq": checkpoint_seq,
-                    "hypothesis_id": hypothesis_id,
-                    "review_mode": review_mode,
-                },
-                idempotency_key=(
-                    f"reflection:{review_mode}:{checkpoint_seq}:{hypothesis_id}"
-                ),
-                priority=86,
-                dependencies=(task.id,),
-                provenance={
-                    "scheduled_by": task.task_type,
-                    "reflection_mode": review_mode,
-                },
-                conn=conn,
-            )
-            for hypothesis_id, review_mode in specs
-        ]
-        aggregate = store.enqueue_task(
+    return specs
+
+
+def _enqueue_mature_reflection_item_tasks(
+    task: ScientificTask,
+    specs: Sequence[tuple[str, str]],
+    checkpoint_seq: int,
+    conn: sqlite3.Connection,
+) -> list[ScientificTask]:
+    """Enqueue one durable task per maturity-appropriate reflection spec."""
+    return [
+        store.enqueue_task(
             task.run_id,
-            MATURE_REFLECTION_AGGREGATE_TASK,
+            MATURE_REFLECTION_ITEM_TASK,
             {
                 "checkpoint_seq": checkpoint_seq,
-                "item_task_ids": [item.id for item in items],
+                "hypothesis_id": hypothesis_id,
+                "review_mode": review_mode,
             },
-            idempotency_key=f"reflection:aggregate:{checkpoint_seq}",
-            priority=80,
-            dependencies=tuple(item.id for item in items),
+            idempotency_key=(
+                f"reflection:{review_mode}:{checkpoint_seq}:{hypothesis_id}"
+            ),
+            priority=86,
+            dependencies=(task.id,),
             provenance={
                 "scheduled_by": task.task_type,
-                "allow_failed_dependencies": True,
+                "reflection_mode": review_mode,
             },
             conn=conn,
         )
+        for hypothesis_id, review_mode in specs
+    ]
+
+
+def _enqueue_mature_reflection_aggregate_task(
+    task: ScientificTask,
+    items: Sequence[ScientificTask],
+    checkpoint_seq: int,
+    conn: sqlite3.Connection,
+) -> ScientificTask:
+    """Enqueue the reflection aggregate depending on every item task."""
+    return store.enqueue_task(
+        task.run_id,
+        MATURE_REFLECTION_AGGREGATE_TASK,
+        {
+            "checkpoint_seq": checkpoint_seq,
+            "item_task_ids": [item.id for item in items],
+        },
+        idempotency_key=f"reflection:aggregate:{checkpoint_seq}",
+        priority=80,
+        dependencies=tuple(item.id for item in items),
+        provenance={
+            "scheduled_by": task.task_type,
+            "allow_failed_dependencies": True,
+        },
+        conn=conn,
+    )
+
+
+def _create_mature_reflection_tasks(
+    task: ScientificTask,
+    specs: Sequence[tuple[str, str]],
+    checkpoint_seq: int,
+    db_path: str | None,
+) -> tuple[list[ScientificTask], ScientificTask]:
+    """Enqueue one durable task per reflection spec plus its aggregate."""
+    with store.transaction(db_path) as conn:
+        items = _enqueue_mature_reflection_item_tasks(
+            task, specs, checkpoint_seq, conn
+        )
+        aggregate = _enqueue_mature_reflection_aggregate_task(
+            task, items, checkpoint_seq, conn
+        )
+    return items, aggregate
+
+
+def _enqueue_mature_reflection_fanout(
+    task: ScientificTask,
+    state: dict[str, Any],
+    checkpoint_seq: int,
+    *,
+    db_path: str | None,
+) -> dict[str, Any]:
+    """Schedule maturity-appropriate Reflection modes as durable tasks."""
+    specs = _mature_reflection_specs(state)
+    items, aggregate = _create_mature_reflection_tasks(
+        task, specs, checkpoint_seq, db_path
+    )
     return {
         "checkpoint_seq": checkpoint_seq,
         "fanout_task_ids": [item.id for item in items],
@@ -405,10 +573,14 @@ async def execute_verification_item(
     }
 
 
-async def execute_generation_strategy(
-    task: ScientificTask, *, db_path: str | None = None
-) -> dict[str, Any]:
-    """Execute one generation strategy against a read-only plan checkpoint."""
+async def _run_generation_strategy(
+    state: dict[str, Any],
+    strategy: str,
+    count: int,
+    reference_index: Any,
+    literature_raw: Any,
+) -> tuple[list[Any], list[dict[str, Any]]]:
+    """Execute one generation strategy and return its hypotheses/transcripts."""
     from co_scientist.agents.generation.assumptions import (
         generate_with_assumptions,
     )
@@ -418,22 +590,10 @@ async def execute_generation_strategy(
         generate_with_tools,
     )
 
-    state, expected_seq = _restore_item_checkpoint(
-        task, db_path, superseded="generation strategy"
-    )
-    strategy = str(task.inputs["strategy"])
-    count = int(task.inputs["count"])
-    reference_index = ReferenceIndex(
-        text=str(task.inputs.get("reference_text") or ""),
-        sources=dict(task.inputs.get("reference_sources") or {}),
-    )
-    transcripts: list[dict[str, Any]] = []
     if strategy == "tools":
-        hypotheses = await generate_with_tools(state, count, reference_index)
-    elif strategy in {"debate_lit", "debate_only"}:
-        literature = (
-            task.inputs.get("literature") if strategy == "debate_lit" else None
-        )
+        return await generate_with_tools(state, count, reference_index), []
+    if strategy in {"debate_lit", "debate_only"}:
+        literature = literature_raw if strategy == "debate_lit" else None
         debate_reference = (
             reference_index
             if strategy == "debate_lit"
@@ -445,16 +605,59 @@ async def execute_generation_strategy(
             articles_with_reasoning=literature,
             reference_index=debate_reference,
         )
-    elif strategy == "assumptions":
-        hypotheses = await generate_with_assumptions(state, count)
-    else:
-        raise ValueError(f"unsupported generation strategy: {strategy}")
+        return hypotheses, transcripts
+    if strategy == "assumptions":
+        return await generate_with_assumptions(state, count), []
+    raise ValueError(f"unsupported generation strategy: {strategy}")
+
+
+async def execute_generation_strategy(
+    task: ScientificTask, *, db_path: str | None = None
+) -> dict[str, Any]:
+    """Execute one generation strategy against a read-only plan checkpoint."""
+    from co_scientist.agents.generation.citations import ReferenceIndex
+
+    state, expected_seq = _restore_item_checkpoint(
+        task, db_path, superseded="generation strategy"
+    )
+    strategy = str(task.inputs["strategy"])
+    count = int(task.inputs["count"])
+    reference_index = ReferenceIndex(
+        text=str(task.inputs.get("reference_text") or ""),
+        sources=dict(task.inputs.get("reference_sources") or {}),
+    )
+    hypotheses, transcripts = await _run_generation_strategy(
+        state, strategy, count, reference_index, task.inputs.get("literature")
+    )
     return {
         "strategy": strategy,
         "hypotheses": [hypothesis.to_dict() for hypothesis in hypotheses],
         "transcripts": transcripts,
         "checkpoint_seq": expected_seq,
     }
+
+
+async def _run_observation_reflection(
+    state: dict[str, Any], hypothesis: Any
+) -> Any:
+    """Run the observation-mode reflection against retrieved literature."""
+    from co_scientist.agents.reflection.reflection import (
+        analyze_single_hypothesis,
+    )
+
+    literature = state.get("articles_with_reasoning")
+    if not literature:
+        raise RuntimeError("observation review has no literature context")
+    return await analyze_single_hypothesis(
+        hypothesis=hypothesis,
+        articles_with_reasoning=literature,
+        model_name=state["model_name"],
+        hypothesis_index=1,
+        total_count=1,
+        run_id=state.get("run_id"),
+        tool_registry=state.get("tool_registry"),
+        meta_review=state.get("meta_review"),
+    )
 
 
 async def execute_mature_reflection_item(
@@ -464,9 +667,6 @@ async def execute_mature_reflection_item(
     from co_scientist.agents.reflection.comprehensive_reflection import (
         _run_review,
     )
-    from co_scientist.agents.reflection.reflection import (
-        analyze_single_hypothesis,
-    )
     from co_scientist.agents.reflection.review_types import ReviewType
 
     state, expected_seq = _restore_item_checkpoint(
@@ -475,19 +675,7 @@ async def execute_mature_reflection_item(
     hypothesis_id, hypothesis = _hypothesis_for_item(task, state)
     mode = ReviewType(str(task.inputs["review_mode"]))
     if mode is ReviewType.OBSERVATION:
-        literature = state.get("articles_with_reasoning")
-        if not literature:
-            raise RuntimeError("observation review has no literature context")
-        result = await analyze_single_hypothesis(
-            hypothesis=hypothesis,
-            articles_with_reasoning=literature,
-            model_name=state["model_name"],
-            hypothesis_index=1,
-            total_count=1,
-            run_id=state.get("run_id"),
-            tool_registry=state.get("tool_registry"),
-            meta_review=state.get("meta_review"),
-        )
+        result = await _run_observation_reflection(state, hypothesis)
     else:
         _, result = await _run_review(state, hypothesis, mode)
     if result is None:

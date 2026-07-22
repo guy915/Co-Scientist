@@ -123,6 +123,56 @@ def _citation_url(cite_info: dict[str, Any]) -> str:
     return cite_info.get("url") or ""
 
 
+def _citation_available(cite_info: dict[str, Any], cite_url: str) -> bool:
+    """Return whether a cited source counts as available (not retracted)."""
+    return (
+        bool(cite_url)
+        and not bool(cite_info.get("is_retracted"))
+        and str(cite_info.get("correction_status") or "").lower() != "retracted"
+    )
+
+
+def _persist_one_citation(
+    run_id: str,
+    hyp_id: str,
+    cite_key: str,
+    cite_info: dict[str, Any],
+    grounding: str,
+    ev_id_by_title: dict[str, str],
+    abstract_by_title: dict[str, str],
+    citation_summary: dict[str, int],
+    conn: sqlite3.Connection,
+) -> None:
+    """Persist one hypothesis citation row, classifying and tallying it.
+
+    Routes the citation through the shared classifier (the same path the
+    mock uses) rather than hardcoding a state, so the four-state citation UI
+    reflects real runs. `grounding` is the claim the citation supports; it is
+    matched against the cited paper's abstract (when the source was
+    retrieved), and a source with no resolvable URL (e.g. a knowledge-graph
+    statement) falls out as "unavailable".
+
+    Mutates `ev_id_by_title` (a citation may add evidence for its source on
+    the fly) and `citation_summary` (running citation-state counts) in place.
+    """
+    cite_title = cite_info.get("title", cite_key)
+    cite_url = _citation_url(cite_info)
+    cite_ev_id = _ensure_citation_evidence_id(
+        run_id, cite_title, cite_info, cite_url, ev_id_by_title, conn
+    )
+    claim = f"[{cite_key}] cited in hypothesis"
+    state = classify_citation(
+        CitationRecord(
+            url=cite_url,
+            abstract=abstract_by_title.get(cite_title, ""),
+            claim=grounding,
+            available=_citation_available(cite_info, cite_url),
+        )
+    )
+    citation_summary[state] += 1
+    store.add_citation(run_id, hyp_id, cite_ev_id, claim, state, conn=conn)
+
+
 def _persist_engine_citations(
     run_id: str,
     hyp_id: str,
@@ -134,36 +184,20 @@ def _persist_engine_citations(
 ) -> None:
     """Persist a hypothesis's citations, classifying each via the shared path.
 
-    Route each through the shared classifier (the same path the mock uses)
-    rather than hardcoding a state, so the four-state citation UI reflects
-    real runs. The hypothesis grounding is the claim the citation supports;
-    it is matched against the cited paper's abstract (when the source was
-    retrieved), and a source with no resolvable URL (e.g. a knowledge-graph
-    statement) falls out as "unavailable".
-
     Mutates `ev_id_by_title` (a citation may add evidence for its source on
-    the fly) and `citation_summary` (running citation-state counts) in place.
+    the fly) and `citation_summary` (running citation-state counts) in place;
+    see `_persist_one_citation` for the per-citation classification rules.
     """
     grounding = _hypothesis_grounding_text(h)
     for cite_key, cite_info in _citation_map(h).items():
-        cite_title = cite_info.get("title", cite_key)
-        cite_url = _citation_url(cite_info)
-        cite_ev_id = _ensure_citation_evidence_id(
-            run_id, cite_title, cite_info, cite_url, ev_id_by_title, conn
+        _persist_one_citation(
+            run_id,
+            hyp_id,
+            cite_key,
+            cite_info,
+            grounding,
+            ev_id_by_title,
+            abstract_by_title,
+            citation_summary,
+            conn,
         )
-        claim = f"[{cite_key}] cited in hypothesis"
-        state = classify_citation(
-            CitationRecord(
-                url=cite_url,
-                abstract=abstract_by_title.get(cite_title, ""),
-                claim=grounding,
-                available=(
-                    bool(cite_url)
-                    and not bool(cite_info.get("is_retracted"))
-                    and str(cite_info.get("correction_status") or "").lower()
-                    != "retracted"
-                ),
-            )
-        )
-        citation_summary[state] += 1
-        store.add_citation(run_id, hyp_id, cite_ev_id, claim, state, conn=conn)
