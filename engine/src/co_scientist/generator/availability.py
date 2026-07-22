@@ -7,9 +7,37 @@ whether the literature review node should be part of a generation call.
 
 import asyncio
 import logging
-from typing import Any
+from typing import Any, cast
 
 logger = logging.getLogger(__name__)
+
+
+def _decide_enable_literature_review(
+    opts: dict[str, Any], mcp_available: bool
+) -> bool:
+    """Decides whether the literature review node should run this call.
+
+    Honors an explicit caller override; otherwise defaults to MCP
+    availability, and force-disables (with a warning) if the node ended up
+    requested while MCP turned out to be unavailable.
+
+    Args:
+        opts: Caller-supplied generation options.
+        mcp_available: Whether the MCP server is available.
+
+    Returns:
+        Whether the literature review node should be included.
+    """
+    enable_literature_review_node = opts.get(
+        "enable_literature_review_node", mcp_available
+    )
+    if not mcp_available and enable_literature_review_node:
+        logger.warning(
+            "Literature review node requested but MCP server"
+            " unavailable - disabling"
+        )
+        return False
+    return cast(bool, enable_literature_review_node)
 
 
 class McpAvailabilityMixin:
@@ -84,18 +112,7 @@ class McpAvailabilityMixin:
             pubmed_available,
         ) = await self._check_cached_availability()
 
-        # Determine if literature review node should be included
-        # user can override via opts, otherwise auto-detect based on MCP
-        # availability
-        enable_literature_review_node = opts.get(
-            "enable_literature_review_node", mcp_available
+        enable_literature_review_node = _decide_enable_literature_review(
+            opts, mcp_available
         )
-
-        if not mcp_available and enable_literature_review_node:
-            logger.warning(
-                "Literature review node requested but MCP server"
-                " unavailable - disabling"
-            )
-            enable_literature_review_node = False
-
         return mcp_available, pubmed_available, enable_literature_review_node

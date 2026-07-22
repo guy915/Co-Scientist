@@ -55,6 +55,21 @@ def get_literature_review_query_generation_pubmed_prompt(
     )
 
 
+def _select_query_generation_template(source_type: str) -> str:
+    """Select the query-generation template name for a literature source type.
+
+    - knowledge_graph (INDRA): Extract gene/protein names
+    - academic (PubMed, arXiv, Scholar): Natural language queries
+    - pubmed: PubMed-specific (backwards compat)
+    """
+    if source_type == "knowledge_graph":
+        return "literature_review_query_generation_indra"
+    if source_type == "pubmed":
+        return "literature_review_query_generation_pubmed"
+    # Generic fallback for other academic sources
+    return "literature_review_query_generation_generic"
+
+
 # Query-generation entry point used by nodes/literature_review.py, paired
 # there with LITERATURE_QUERY_SCHEMA. Returns a bare string (no schema in
 # the tuple) because the schema is imported directly by the caller.
@@ -68,10 +83,8 @@ def get_literature_review_query_generation_prompt(
 ) -> str:
     """Get source-aware query generation prompt.
 
-    Selects the appropriate prompt template based on source type:
-    - knowledge_graph (INDRA): Extract gene/protein names
-    - academic (PubMed, arXiv, Scholar): Natural language queries
-    - pubmed: PubMed-specific (backwards compat)
+    Selects the appropriate prompt template based on source type; see
+    _select_query_generation_template for the mapping.
 
     Args:
         research_goal: The research goal
@@ -84,15 +97,7 @@ def get_literature_review_query_generation_prompt(
     Returns:
         Formatted prompt string
     """
-    # Select template based on source type
-    if source_type == "knowledge_graph":
-        template_name = "literature_review_query_generation_indra"
-    elif source_type == "pubmed":
-        template_name = "literature_review_query_generation_pubmed"
-    else:
-        # Generic fallback for other academic sources
-        template_name = "literature_review_query_generation_generic"
-
+    template_name = _select_query_generation_template(source_type)
     return load_prompt(
         template_name,
         _format_query_generation_variables(

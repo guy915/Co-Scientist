@@ -58,6 +58,20 @@ def get_prompt_save_path(run_id: str, prompt_name: str) -> Path:
     return prompts_dir / prompt_name
 
 
+def _write_prompt_content(
+    path: Path, content: str, metadata: dict[str, Any] | None
+) -> None:
+    """Write prompt content and an optional metadata footer to path."""
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(content)
+
+        # Append metadata if provided
+        if metadata:
+            f.write("\n\n=== METADATA (by save_prompt_to_disk) ===\n")
+            for key, value in metadata.items():
+                f.write(f"{key}: {value}\n")
+
+
 def save_prompt_to_disk(
     run_id: str,
     prompt_name: str,
@@ -83,16 +97,7 @@ def save_prompt_to_disk(
 
     try:
         path = get_prompt_save_path(run_id, prompt_name)
-
-        with open(path, "w", encoding="utf-8") as f:
-            f.write(content)
-
-            # Append metadata if provided
-            if metadata:
-                f.write("\n\n=== METADATA (by save_prompt_to_disk) ===\n")
-                for key, value in metadata.items():
-                    f.write(f"{key}: {value}\n")
-
+        _write_prompt_content(path, content, metadata)
         logger.debug("Saved prompt to: %s", path)
         return True
 
@@ -208,6 +213,18 @@ def substitute_variables(template: str, variables: dict[str, Any]) -> str:
 # further down this file.
 
 
+def _resolve_default_tool_registry() -> Any | None:
+    """Resolve the process-default tool registry, or None if unavailable."""
+    try:
+        from co_scientist.config import (
+            get_tool_registry,
+        )
+
+        return get_tool_registry()
+    except Exception:
+        return None
+
+
 def _get_domain_variables(tool_registry: Any | None = None) -> dict[str, str]:
     """Get domain-specific prompt variables from tool registry config.
 
@@ -227,14 +244,7 @@ def _get_domain_variables(tool_registry: Any | None = None) -> dict[str, str]:
     }
 
     if tool_registry is None:
-        try:
-            from co_scientist.config import (
-                get_tool_registry,
-            )
-
-            tool_registry = get_tool_registry()
-        except Exception:
-            return empty
+        tool_registry = _resolve_default_tool_registry()
 
     if tool_registry is None:
         return empty

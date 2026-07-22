@@ -82,6 +82,48 @@ logger = logging.getLogger(__name__)
 _global_client: MCPToolClient | None = None
 
 
+async def _probe_literature_source(
+    server_url: str | None,
+    tool_registry: Optional["ToolRegistry"],
+    check_tool_name: str | None,
+    skip_availability_check: bool,
+) -> bool:
+    """Probes literature source availability via a throwaway MCP client.
+
+    Args:
+        server_url: URL of the MCP server (legacy).
+        tool_registry: Optional ToolRegistry for config-driven tool lookup.
+        check_tool_name: Availability-check tool name, or None to skip.
+        skip_availability_check: Whether the server responding is enough,
+            without a tool-specific check.
+
+    Returns:
+        True if the literature source is available, else False.
+    """
+    try:
+        # One throwaway client serves both probes below. Deliberately not
+        # the cached global client: a down server must not poison state.
+        mcp_client = MCPToolClient(
+            server_url=server_url, tool_registry=tool_registry
+        )
+        await mcp_client.initialize()
+        return await _probe_literature_source_availability(
+            mcp_client, check_tool_name, skip_availability_check
+        )
+    except Exception as e:
+        # Deliberately broad: any MCP hiccup (connection refused, timeout,
+        # malformed tool schema) degrades to "unavailable" here rather than
+        # raising, so callers (e.g. HypothesisGenerator._prepare_generation)
+        # can fall back to LLM-only mode instead of aborting the run.
+        logger.warning(
+            "error checking literature source availability: %s: %s",
+            type(e).__name__,
+            e,
+        )
+        logger.debug("full traceback: %s", e, exc_info=True)
+        return False
+
+
 async def check_literature_source_available(
     server_url: str | None = None,
     tool_registry: Optional["ToolRegistry"] = None,
@@ -111,31 +153,9 @@ async def check_literature_source_available(
     if server_url is None and tool_registry is None:
         server_url = _resolve_server_url()
 
-    try:
-        # One throwaway client serves both the server-availability probe and
-        # the tool-name lookup. Deliberately not the cached global client: a
-        # down server must not poison global state.
-        mcp_client = MCPToolClient(
-            server_url=server_url, tool_registry=tool_registry
-        )
-        await mcp_client.initialize()
-
-        return await _probe_literature_source_availability(
-            mcp_client, check_tool_name, skip_availability_check
-        )
-
-    except Exception as e:
-        # Deliberately broad: any MCP hiccup (connection refused, timeout,
-        # malformed tool schema) degrades to "unavailable" here rather than
-        # raising, so callers (e.g. HypothesisGenerator._prepare_generation)
-        # can fall back to LLM-only mode instead of aborting the run.
-        logger.warning(
-            "error checking literature source availability: %s: %s",
-            type(e).__name__,
-            e,
-        )
-        logger.debug("full traceback: %s", e, exc_info=True)
-        return False
+    return await _probe_literature_source(
+        server_url, tool_registry, check_tool_name, skip_availability_check
+    )
 
 
 # Backwards compatibility alias

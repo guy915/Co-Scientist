@@ -158,7 +158,6 @@ def get_supervisor_prompt(
         mcp_available=mcp_available,
         pubmed_available=pubmed_available,
     )
-
     return _build_prompt(
         "supervisor",
         variables,

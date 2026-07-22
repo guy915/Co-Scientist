@@ -231,6 +231,42 @@ def _build_validation_synthesis_prompt_variables(
     }
 
 
+def _assemble_validation_synthesis_prompt_with_tools(
+    research_goal: str,
+    hypotheses_with_analyses: list[dict[str, Any]],
+    articles: list[Any] | None,
+    articles_with_reasoning: str | None,
+    max_iterations: int,
+    tool_registry: Any | None,
+    reference_list: str,
+    already_validated_texts: list[str] | None,
+) -> tuple[str, dict[str, Any] | None]:
+    """Resolve tool instructions, build variables, and render the prompt.
+
+    Mirrors the parameters of get_validation_synthesis_prompt_with_tools
+    (which forwards them here unchanged); see that function's docstring
+    for descriptions.
+    """
+    tool_instructions = _resolve_validation_tool_instructions(tool_registry)
+
+    variables = _build_validation_synthesis_prompt_variables(
+        research_goal=research_goal,
+        hypotheses_with_analyses=hypotheses_with_analyses,
+        articles=articles,
+        articles_with_reasoning=articles_with_reasoning,
+        reference_list=reference_list,
+        max_iterations=max_iterations,
+        tool_instructions=tool_instructions,
+        already_validated_texts=already_validated_texts,
+    )
+
+    return _build_prompt(
+        "hypothesis_validation_synthesis_with_tools",
+        variables,
+        tool_registry=tool_registry,
+    )
+
+
 # Renders prompts/hypothesis_validation_synthesis_with_tools.md for the
 # Phase 2 validation agent in nodes/generation/literature_tools/validate.py.
 # tool_instructions is built from the "validation" workflow's tool list so
@@ -262,21 +298,13 @@ def get_validation_synthesis_prompt_with_tools(
             (retry path only). Injected as a diversity constraint so the
             model avoids duplicate territory.
     """
-    tool_instructions = _resolve_validation_tool_instructions(tool_registry)
-
-    variables = _build_validation_synthesis_prompt_variables(
-        research_goal=research_goal,
-        hypotheses_with_analyses=hypotheses_with_analyses,
-        articles=articles,
-        articles_with_reasoning=articles_with_reasoning,
-        reference_list=reference_list,
-        max_iterations=max_iterations,
-        tool_instructions=tool_instructions,
-        already_validated_texts=already_validated_texts,
-    )
-
-    return _build_prompt(
-        "hypothesis_validation_synthesis_with_tools",
-        variables,
-        tool_registry=tool_registry,
+    return _assemble_validation_synthesis_prompt_with_tools(
+        research_goal,
+        hypotheses_with_analyses,
+        articles,
+        articles_with_reasoning,
+        max_iterations,
+        tool_registry,
+        reference_list,
+        already_validated_texts,
     )

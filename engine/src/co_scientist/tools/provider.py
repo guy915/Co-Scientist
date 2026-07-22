@@ -90,10 +90,9 @@ class MCPToolProvider:
         tool_name = tool_call.function.name
         tool_call_id = tool_call.id
 
-        # Reject names never advertised via get_tools(), rather than letting
-        # the LLM invoke arbitrary/hallucinated tool names against the MCP
-        # client. The model still gets a tool-response message back (with an
-        # error payload) so the conversation loop can continue normally.
+        # Reject names never advertised via get_tools() rather than letting
+        # the LLM invoke arbitrary/hallucinated names; the model still gets
+        # an error tool-response so the conversation loop can continue.
         if tool_name not in self._tool_names:
             error_msg = f"unknown tool: {tool_name}"
             logger.error(error_msg)

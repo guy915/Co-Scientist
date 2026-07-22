@@ -9,6 +9,8 @@ historical import paths keep working.
 """
 
 import logging
+from collections.abc import Awaitable, Callable
+from dataclasses import replace
 from typing import Any, cast
 
 # Kept as a module attribute: tests patch the completion boundary via
@@ -68,6 +70,7 @@ from co_scientist.llm_json_errors import (
 )
 from co_scientist.llm_json_retry import (
     _apply_json_attempt_outcome,
+    _JsonCallSpec,
     _run_json_attempt,
 )
 from co_scientist.llm_json_retry import (
@@ -122,6 +125,7 @@ from co_scientist.llm_tool_loop import (
 )
 from co_scientist.llm_tool_loop import (
     _prepare_llm_call,
+    _PromptCallOptions,
 )
 from co_scientist.llm_tool_loop import (
     _run_tool_call_iteration as _run_tool_call_iteration,
@@ -138,6 +142,44 @@ _supports_json_schema_response_format = (
 )
 
 
+async def _call_llm_and_cache(
+    prompt: str,
+    opts: _PromptCallOptions,
+    force_json: bool,
+    json_schema: dict[str, Any] | None,
+    enable_thinking: bool,
+    cache: "LLMCache | NullCache",
+) -> str:
+    """Runs the actual completion call for ``call_llm`` and caches it.
+
+    ``opts.temperature`` is assumed already clamped. Returns the non-empty
+    response content, having cached it (only reached once content is valid).
+    """
+    completion_args = _build_completion_args(
+        prompt,
+        opts.model_name,
+        opts.max_tokens,
+        opts.temperature,
+        force_json,
+        json_schema,
+        enable_thinking=enable_thinking,
+    )
+    response = await _acompletion_within_timeout(
+        completion_args, opts.model_name
+    )
+    content = _extract_completion_content(response, opts.model_name)
+    cache.set(
+        prompt,
+        opts.model_name,
+        opts.temperature,
+        opts.max_tokens,
+        {"text": content},
+        json_schema=json_schema,
+        force_json=force_json,
+    )
+    return content
+
+
 async def call_llm(
     prompt: str,
     model_name: str,
@@ -151,36 +193,8 @@ async def call_llm(
     prompt_metadata: dict[str, Any] | None = None,
     enable_thinking: bool = True,
 ) -> str:
-    """Call an LLM via litellm and return the response.
-
-    Args:
-        prompt: The prompt to send to the LLM
-        model_name: Model name in litellm format
-            (e.g., "gpt-4o-mini", "gemini/gemini-2.5-flash")
-        max_tokens: Maximum tokens in response
-        temperature: Sampling temperature
-        force_json: If True, try to force JSON mode (model support varies)
-        json_schema: Optional JSON schema to constrain the response format
-        use_cache: When False, bypass the LLM cache so the call is always fresh.
-        run_id: Optional run identifier for the saved prompt's directory;
-            ``None`` falls back to "unknown".
-        prompt_name: Optional debug-artifact name. When provided, the prompt
-            is saved to disk before the call — always, regardless of
-            ``run_id`` (globally gated by ``COSCIENTIST_SAVE_PROMPTS``).
-        prompt_metadata: Optional metadata appended to the saved prompt file.
-        enable_thinking: When False, explicitly disable DeepSeek thinking mode
-            for this call. Reserved for high-frequency call sites where the
-            per-call reasoning spend dominates run latency; see
-            ``deepseek_thinking_extra_body``.
-
-    Returns:
-        String response from the LLM
-
-    Raises:
-        Exception: If the LLM call fails
-    """
-    temperature, cache, cached_response = await _prepare_llm_call(
-        prompt,
+    """Call an LLM via litellm and return the response."""
+    opts = _PromptCallOptions(
         model_name,
         temperature,
         max_tokens,
@@ -188,61 +202,27 @@ async def call_llm(
         run_id,
         prompt_name,
         prompt_metadata,
-        json_schema=json_schema,
-        force_json=force_json,
+    )
+    temperature, cache, cached_response = await _prepare_llm_call(
+        prompt, opts, json_schema=json_schema, force_json=force_json
     )
     if cached_response is not None:
         logger.debug("using cached llm response")
         return cast(str, cached_response["text"])
-
+    opts = replace(opts, temperature=temperature)
+    # Never falls back/retries itself; nothing cached on failure.
     try:
-        completion_args = _build_completion_args(
-            prompt,
-            model_name,
-            max_tokens,
-            temperature,
-            force_json,
-            json_schema,
-            enable_thinking=enable_thinking,
+        return await _call_llm_and_cache(
+            prompt, opts, force_json, json_schema, enable_thinking, cache
         )
-
-        response = await _acompletion_within_timeout(
-            completion_args, model_name
-        )
-
-        content = _extract_completion_content(response, model_name)
-
-        # Cache the response (only reached if content is valid)
-        cache.set(
-            prompt,
-            model_name,
-            temperature,
-            max_tokens,
-            {"text": content},
-            json_schema=json_schema,
-            force_json=force_json,
-        )
-
-        return content
-
     except Exception as e:
-        # call_llm never falls back or retries itself; it fails loud and
-        # leaves that policy to its callers (call_llm_json's retry loop,
-        # get_fallback_response for non-critical nodes). Nothing is cached
-        # here, so a failed call is retried fresh next time, not replayed
-        # from a broken cache entry.
         logger.error("LLM call failed: %s", e)
         logger.error("Model: %s, max_tokens: %s", model_name, max_tokens)
         raise
 
 
 async def _call_llm_for_json(
-    prompt: str,
-    model_name: str,
-    max_tokens: int,
-    temperature: float,
-    json_schema: dict[str, Any] | None,
-    enable_thinking: bool = True,
+    prompt: str, spec: _JsonCallSpec, enable_thinking: bool = True
 ) -> str:
     """Makes the raw LLM call for one call_llm_json attempt.
 
@@ -259,15 +239,14 @@ async def _call_llm_for_json(
     """
     response_text = await call_llm(
         prompt,
-        model_name,
-        max_tokens,
-        temperature,
-        force_json=not json_schema,
-        json_schema=json_schema,
+        spec.model_name,
+        spec.max_tokens,
+        spec.temperature,
+        force_json=not spec.json_schema,
+        json_schema=spec.json_schema,
         use_cache=False,
         enable_thinking=enable_thinking,
     )
-
     if not response_text:
         logger.error("LLM returned None or empty response")
         raise ValueError(
@@ -277,6 +256,48 @@ async def _call_llm_for_json(
 
     # Extract JSON from markdown code blocks if present.
     return extract_response_json(response_text)
+
+
+async def _run_call_llm_json_loop(
+    prompt: str,
+    original_prompt: str,
+    spec: _JsonCallSpec,
+    max_attempts: int,
+    cache: "LLMCache | NullCache",
+    call_for_json: Callable[[str], Awaitable[str]],
+) -> dict[str, Any]:
+    """Runs the ``call_llm_json`` retry loop over successive attempts.
+
+    Returns the validated JSON dict from whichever attempt succeeds first, or
+    ``_handle_json_retries_exhausted``'s result once every attempt fails.
+    """
+    last_error: Exception | None = None
+    last_response_text: str | None = None
+    for attempt in range(1, max_attempts + 1):
+        is_final_attempt = attempt == max_attempts
+        if attempt > 1:
+            logger.debug(
+                "retrying llm call (attempt %s/%s)", attempt, max_attempts
+            )
+        outcome = await _run_json_attempt(
+            prompt,
+            original_prompt,
+            spec,
+            is_final_attempt,
+            attempt,
+            cache,
+            call_for_json,
+        )
+        if outcome.value is not None:
+            return outcome.value
+        last_error = outcome.error
+        prompt, last_response_text = _apply_json_attempt_outcome(
+            outcome, prompt, last_response_text
+        )
+
+    return _handle_json_retries_exhausted(
+        spec.json_schema, last_error, last_response_text, max_attempts
+    )
 
 
 async def call_llm_json(
@@ -292,41 +313,8 @@ async def call_llm_json(
     prompt_metadata: dict[str, Any] | None = None,
     enable_thinking: bool = True,
 ) -> dict[str, Any]:
-    """Call LLM and parse response as JSON with validation and retry logic.
-
-    Args:
-        prompt: The prompt to send to the LLM
-        model_name: Model name in litellm format
-        max_tokens: Maximum tokens in response
-        temperature: Sampling temperature
-        json_schema: Optional JSON schema to constrain the response format
-        max_attempts: Maximum number of retry attempts (default 5)
-        use_cache: When False, bypass the LLM cache so the call is always fresh
-            (used for stochastic, diversity-critical generation).
-        run_id: Optional run identifier for the saved prompt's directory;
-            ``None`` falls back to "unknown".
-        prompt_name: Optional debug-artifact name. When provided, the
-            original prompt is saved to disk once, before the first attempt —
-            always, regardless of ``run_id`` (globally gated by
-            ``COSCIENTIST_SAVE_PROMPTS``). Retry prompts carrying validation
-            feedback are not re-saved.
-        prompt_metadata: Optional metadata appended to the saved prompt file.
-        enable_thinking: When False, explicitly disable DeepSeek thinking mode
-            for every attempt of this call. Reserved for high-frequency call
-            sites; see ``deepseek_thinking_extra_body``.
-
-    Returns:
-        Parsed JSON response as a dictionary
-
-    Raises:
-        json.JSONDecodeError: If response is not valid JSON after all repair
-        attempts (for critical nodes)
-        ValidationError: If response doesn't match schema after all retries
-            (for critical nodes)
-        Exception: If the LLM call fails or returns empty response
-    """
-    temperature, cache, cached_response = await _prepare_llm_call(
-        prompt,
+    """Call LLM and parse JSON, with validation/retry logic."""
+    opts = _PromptCallOptions(
         model_name,
         temperature,
         max_tokens,
@@ -334,56 +322,21 @@ async def call_llm_json(
         run_id,
         prompt_name,
         prompt_metadata,
-        json_schema=json_schema,
+    )
+    temperature, cache, cached_response = await _prepare_llm_call(
+        prompt, opts, json_schema=json_schema
     )
     if cached_response is not None:
         logger.debug("using cached llm json response")
         return cached_response
+    spec = _JsonCallSpec(model_name, max_tokens, temperature, json_schema)
 
     async def _call_for_json(attempt_prompt: str) -> str:
-        """Makes the raw LLM call (via call_llm) for one attempt's prompt."""
+        """Raw LLM call (via call_llm) for one attempt's prompt."""
         return await _call_llm_for_json(
-            attempt_prompt,
-            model_name,
-            max_tokens,
-            temperature,
-            json_schema,
-            enable_thinking=enable_thinking,
+            attempt_prompt, spec, enable_thinking=enable_thinking
         )
 
-    last_error: Exception | None = None
-    last_response_text: str | None = None
-    original_prompt = prompt  # save original for retries with feedback
-
-    for attempt in range(1, max_attempts + 1):
-        is_final_attempt = attempt == max_attempts
-
-        if attempt > 1:
-            logger.debug(
-                "retrying llm call (attempt %s/%s)", attempt, max_attempts
-            )
-
-        outcome = await _run_json_attempt(
-            prompt,
-            original_prompt,
-            model_name,
-            max_tokens,
-            temperature,
-            json_schema,
-            is_final_attempt,
-            attempt,
-            cache,
-            _call_for_json,
-        )
-
-        if outcome.value is not None:
-            return outcome.value
-
-        last_error = outcome.error
-        prompt, last_response_text = _apply_json_attempt_outcome(
-            outcome, prompt, last_response_text
-        )
-
-    return _handle_json_retries_exhausted(
-        json_schema, last_error, last_response_text, max_attempts
+    return await _run_call_llm_json_loop(
+        prompt, prompt, spec, max_attempts, cache, _call_for_json
     )

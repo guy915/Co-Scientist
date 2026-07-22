@@ -118,6 +118,30 @@ class CheckpointSchemaError(Exception):
     """
 
 
+def _serialize_typed_collections(state: dict[str, Any]) -> dict[str, Any]:
+    """Serialize the typed WorkflowState collections into JSON-safe values.
+
+    Args:
+        state: The workflow state to checkpoint.
+
+    Returns:
+        A dict of the ``hypotheses``/``metrics``/``articles``/``messages``
+        payload entries, ready to fold into the checkpoint payload.
+    """
+    metrics = state.get("metrics")
+    articles = state.get("articles")
+    return {
+        "hypotheses": [h.to_dict() for h in state.get("hypotheses", [])],
+        "metrics": (
+            metrics.to_dict()
+            if isinstance(metrics, ExecutionMetrics)
+            else ExecutionMetrics().to_dict()
+        ),
+        "articles": ([a.to_dict() for a in articles] if articles else articles),
+        "messages": _serialize_messages(state.get("messages")),
+    }
+
+
 def serialize_workflow_state(
     state: dict[str, Any],
     *,
@@ -146,18 +170,7 @@ def serialize_workflow_state(
     payload["elapsed_active_s"] = (
         max(0.0, time.time() - float(start_time)) if start_time else 0.0
     )
-    payload["hypotheses"] = [h.to_dict() for h in state.get("hypotheses", [])]
-    metrics = state.get("metrics")
-    payload["metrics"] = (
-        metrics.to_dict()
-        if isinstance(metrics, ExecutionMetrics)
-        else ExecutionMetrics().to_dict()
-    )
-    articles = state.get("articles")
-    payload["articles"] = (
-        [a.to_dict() for a in articles] if articles else articles
-    )
-    payload["messages"] = _serialize_messages(state.get("messages"))
+    payload.update(_serialize_typed_collections(state))
 
     return {
         "version": CHECKPOINT_VERSION,
@@ -168,6 +181,44 @@ def serialize_workflow_state(
     }
 
 
+def _restore_typed_collections(payload: dict[str, Any]) -> None:
+    """Rebuild the typed WorkflowState collections from their JSON dicts.
+
+    Mutates payload in place.
+
+    Args:
+        payload: The checkpoint's ``state`` dict, still holding the
+            serialized (plain-dict) collection shapes.
+    """
+    payload["hypotheses"] = [
+        Hypothesis.from_dict(h) for h in payload.get("hypotheses", [])
+    ]
+    payload["metrics"] = ExecutionMetrics.from_dict(
+        payload.get("metrics") or {}
+    )
+    articles = payload.get("articles")
+    payload["articles"] = (
+        [Article.from_dict(a) for a in articles] if articles else articles
+    )
+    payload["messages"] = _deserialize_messages(payload.get("messages"))
+
+
+def _rebase_start_time(payload: dict[str, Any]) -> None:
+    """Rebase start_time to exclude the checkpoint-to-resume gap.
+
+    Mutates payload in place. The fallback (no ``elapsed_active_s`` key)
+    keeps CHECKPOINT_VERSION 1 backward compatible: an older version-1
+    checkpoint carries ``start_time`` verbatim and restores with its
+    original value.
+
+    Args:
+        payload: The checkpoint's ``state`` dict.
+    """
+    elapsed_active_s = payload.pop("elapsed_active_s", None)
+    if elapsed_active_s is not None:
+        payload["start_time"] = time.time() - float(elapsed_active_s)
+
+
 def restore_workflow_state(
     checkpoint: dict[str, Any],
     *,
@@ -176,10 +227,9 @@ def restore_workflow_state(
 ) -> dict[str, Any]:
     """Restore a ``WorkflowState`` from a checkpoint, ready to resume.
 
-    Reconstructs the typed collections (hypotheses, metrics, articles),
-    re-injects the excluded runtime handles from the live run, and sets the
-    ``resume`` flag so the graph's conditional entry routes to the
-    orchestrator rather than re-running from the supervisor.
+    Reconstructs the typed collections, re-injects the excluded runtime
+    handles, and sets ``resume`` so the graph's conditional entry routes to
+    the orchestrator rather than re-running from the supervisor.
 
     Args:
         checkpoint: A checkpoint produced by :func:`serialize_workflow_state`.
@@ -200,25 +250,8 @@ def restore_workflow_state(
         )
 
     payload = dict(checkpoint.get("state", {}))
-    payload["hypotheses"] = [
-        Hypothesis.from_dict(h) for h in payload.get("hypotheses", [])
-    ]
-    payload["metrics"] = ExecutionMetrics.from_dict(
-        payload.get("metrics") or {}
-    )
-    articles = payload.get("articles")
-    payload["articles"] = (
-        [Article.from_dict(a) for a in articles] if articles else articles
-    )
-    payload["messages"] = _deserialize_messages(payload.get("messages"))
-    # Rebase the start timestamp so elapsed time counts only active seconds,
-    # excluding the real-world gap between checkpoint and resume. The
-    # fallback keeps CHECKPOINT_VERSION 1 backward compatible (no bump
-    # needed): an older version-1 checkpoint carries ``start_time`` verbatim
-    # and no ``elapsed_active_s`` key, and restores with its original value.
-    elapsed_active_s = payload.pop("elapsed_active_s", None)
-    if elapsed_active_s is not None:
-        payload["start_time"] = time.time() - float(elapsed_active_s)
+    _restore_typed_collections(payload)
+    _rebase_start_time(payload)
     for key in _EXCLUDED_RUNTIME_KEYS:
         payload.pop(key, None)
     payload["progress_callback"] = progress_callback

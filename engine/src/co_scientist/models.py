@@ -80,6 +80,30 @@ def _rebuild_reviews(
     return [HypothesisReview(**review) for review in reviews_data]
 
 
+def _generation_method_value(
+    method: "GenerationMethod | None",
+) -> str | None:
+    """Return the enum's string value, or None."""
+    return method.value if method else None
+
+
+def _reviews_to_dicts(
+    reviews: list[HypothesisReview],
+) -> list[dict[str, Any]]:
+    """Serialize HypothesisReview instances into plain dicts."""
+    return [
+        {
+            "review_summary": r.review_summary,
+            "scores": r.scores,
+            "safety_ethical_concerns": r.safety_ethical_concerns,
+            "detailed_feedback": r.detailed_feedback,
+            "constructive_feedback": r.constructive_feedback,
+            "overall_score": r.overall_score,
+        }
+        for r in reviews
+    ]
+
+
 # Review dispositions that keep a hypothesis out of the Elo tournament: the
 # initial peer-review gate (inaccurate / non-novel) and the pre-ranking
 # evidence gate (evidence_blocked). Shared by ranking and the scheduler so
@@ -211,12 +235,8 @@ class Hypothesis:
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for serialization."""
         # Includes the derived total_matches/win_rate properties for API
-        # consumers; from_dict() below strips both back out on the way in,
-        # since they are recomputed from win_count/loss_count, not stored
-        # state.
-        generation_method = (
-            self.generation_method.value if self.generation_method else None
-        )
+        # consumers; from_dict() strips both back out since they are
+        # recomputed from win_count/loss_count, not stored state.
         return {
             "id": self.id,
             "parent_id": self.parent_id,
@@ -235,17 +255,7 @@ class Hypothesis:
             "citation_map": self.citation_map,
             "score": self.score,
             "elo_rating": self.elo_rating,
-            "reviews": [
-                {
-                    "review_summary": r.review_summary,
-                    "scores": r.scores,
-                    "safety_ethical_concerns": r.safety_ethical_concerns,
-                    "detailed_feedback": r.detailed_feedback,
-                    "constructive_feedback": r.constructive_feedback,
-                    "overall_score": r.overall_score,
-                }
-                for r in self.reviews
-            ],
+            "reviews": _reviews_to_dicts(self.reviews),
             "similarity_cluster_id": self.similarity_cluster_id,
             "evolution_history": self.evolution_history,
             "reflection_notes": self.reflection_notes,
@@ -253,7 +263,9 @@ class Hypothesis:
             "deep_verification_verdict": self.deep_verification_verdict,
             "review_disposition": self.review_disposition,
             "safety_status": self.safety_status,
-            "generation_method": generation_method,
+            "generation_method": _generation_method_value(
+                self.generation_method
+            ),
             "debate_id": self.debate_id,
             "win_count": self.win_count,
             "loss_count": self.loss_count,

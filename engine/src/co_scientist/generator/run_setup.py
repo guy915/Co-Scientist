@@ -38,12 +38,8 @@ def _resolve_tool_calling_generation(
         ValueError: If the user explicitly disabled the literature review
             node while requesting tool-calling generation.
     """
-    # Determine if generate node should use tool-calling generation
     # user can override via opts, default False
-    enable_tool_calling_generation = opts.get(
-        "enable_tool_calling_generation", False
-    )
-    if not enable_tool_calling_generation:
+    if not opts.get("enable_tool_calling_generation", False):
         return False
 
     # Check MCP availability first - if unavailable, disable tool calling
@@ -54,7 +50,28 @@ def _resolve_tool_calling_generation(
         )
         return False
 
-    # Then check if literature review node is enabled
+    return _resolve_tool_calling_given_mcp_available(
+        opts, enable_literature_review_node
+    )
+
+
+def _resolve_tool_calling_given_mcp_available(
+    opts: dict[str, Any],
+    enable_literature_review_node: bool,
+) -> bool:
+    """Resolves tool-calling generation once MCP is known to be available.
+
+    Still requires the literature review node; raises if the caller
+    explicitly disabled it while requesting tool-calling generation,
+    otherwise disables tool-calling with a warning.
+
+    Returns:
+        Whether tool-calling generation should be enabled.
+
+    Raises:
+        ValueError: If the user explicitly disabled the literature review
+            node while requesting tool-calling generation.
+    """
     if enable_literature_review_node:
         return True
 

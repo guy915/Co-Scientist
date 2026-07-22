@@ -16,6 +16,7 @@ would be a cycle. Note for tests: caching is therefore stubbed by patching
 import asyncio
 import logging
 from collections.abc import Awaitable, Callable
+from dataclasses import dataclass
 from typing import Any
 
 from co_scientist.cache import (
@@ -37,60 +38,81 @@ from co_scientist.llm_request import (
 logger = logging.getLogger(__name__)
 
 
-async def _prepare_llm_call(
-    prompt: str,
-    model_name: str,
-    temperature: float,
-    max_tokens: int,
-    use_cache: bool,
-    run_id: str | None,
-    prompt_name: str | None,
-    prompt_metadata: dict[str, Any] | None,
-    **cache_key_kwargs: Any,
-) -> tuple[float, "LLMCache | NullCache", dict[str, Any] | None]:
-    """Runs the shared pre-call sequence for the public LLM entry points.
+def _resolve_cache(use_cache: bool) -> "LLMCache | NullCache":
+    """Resolves the cache to use for a call, honoring the disable overrides.
 
-    Saves the prompt debug artifact (when named), clamps the temperature
-    before the cache key is built so requested temperatures that execute
-    identically share one cache entry, and performs the cache lookup. A
-    cache miss is logged here; the hit log line is left to the call site.
-
-    Args:
-        prompt: The prompt about to be sent to the LLM.
-        model_name: Model name in litellm format.
-        temperature: Requested sampling temperature (clamped here).
-        max_tokens: Maximum tokens in response.
-        use_cache: When False, a NullCache is used so the call is fresh.
-        run_id: Optional run identifier for the saved prompt's directory.
-        prompt_name: Optional debug-artifact name for saving the prompt.
-        prompt_metadata: Optional metadata appended to the saved prompt file.
-        **cache_key_kwargs: Extra cache-key fields specific to the caller
-            (e.g. ``json_schema=``, ``force_json=``, ``tools=``).
-
-    Returns:
-        A (clamped_temperature, cache, cached_response) tuple where
-        cached_response is None on a cache miss.
+    NullCache when this call opted out, or the current task's generator was
+    constructed with enable_cache=False (see cache.scoped_cache_override) --
+    scoped to this task rather than the process-wide get_cache() singleton,
+    so it never disables caching for any other concurrently-running
+    generator.
     """
-    await _save_prompt_if_named(prompt, run_id, prompt_name, prompt_metadata)
-
-    temperature = _clamp_temperature(model_name, temperature)
-
-    # NullCache when this call opted out, or the current task's generator
-    # was constructed with enable_cache=False (see
-    # cache.scoped_cache_override) -- scoped to this task rather than the
-    # process-wide get_cache() singleton, so it never disables caching for
-    # any other concurrently-running generator.
     cache_active = use_cache and cache_enabled_override() is not False
-    cache: LLMCache | NullCache = get_cache() if cache_active else NullCache()
-    cached_response = cache.get(
-        prompt, model_name, temperature, max_tokens, **cache_key_kwargs
-    )
+    return get_cache() if cache_active else NullCache()
+
+
+def _log_cache_lookup(
+    prompt: str, cached_response: dict[str, Any] | None
+) -> None:
+    """Logs a cache miss for a lookup; a hit is logged by the call site."""
     if cached_response is None:
         logger.debug(
             "cache miss for prompt: %s%s",
             prompt[:200],
             "..." if len(prompt) > 200 else "",
         )
+
+
+@dataclass(frozen=True)
+class _PromptCallOptions:
+    """Bundles the model/cache/debug-artifact options for one LLM call.
+
+    Shared verbatim across ``call_llm``, ``call_llm_json``, and
+    ``call_llm_with_tools`` -- each builds one of these to call
+    ``_prepare_llm_call``.
+    """
+
+    model_name: str
+    temperature: float
+    max_tokens: int
+    use_cache: bool
+    run_id: str | None
+    prompt_name: str | None
+    prompt_metadata: dict[str, Any] | None
+
+
+async def _prepare_llm_call(
+    prompt: str,
+    opts: _PromptCallOptions,
+    **cache_key_kwargs: Any,
+) -> tuple[float, "LLMCache | NullCache", dict[str, Any] | None]:
+    """Runs the shared pre-call sequence for the public LLM entry points.
+
+    Saves the prompt debug artifact (when named), clamps the temperature
+    before the cache key is built so requested temperatures that execute
+    identically share one cache entry, and performs the cache lookup.
+    ``**cache_key_kwargs`` carries extra cache-key fields specific to the
+    caller (e.g. ``json_schema=``, ``force_json=``, ``tools=``).
+
+    Returns:
+        A (clamped_temperature, cache, cached_response) tuple where
+        cached_response is None on a cache miss.
+    """
+    await _save_prompt_if_named(
+        prompt, opts.run_id, opts.prompt_name, opts.prompt_metadata
+    )
+
+    temperature = _clamp_temperature(opts.model_name, opts.temperature)
+
+    cache = _resolve_cache(opts.use_cache)
+    cached_response = cache.get(
+        prompt,
+        opts.model_name,
+        temperature,
+        opts.max_tokens,
+        **cache_key_kwargs,
+    )
+    _log_cache_lookup(prompt, cached_response)
     return temperature, cache, cached_response
 
 
@@ -98,13 +120,8 @@ def _message_to_history_dict(message: Any) -> dict[str, Any]:
     """Converts a litellm assistant message into a plain history dict.
 
     litellm's message object is a Pydantic model, not a plain dict; this
-    converts it so it can be cached and replayed as message history.
-
-    Args:
-        message: The assistant message from a litellm completion response.
-
-    Returns:
-        A plain dict representation, including tool_calls when present.
+    converts it so it can be cached and replayed as message history, with
+    tool_calls included when present.
     """
     message_dict: dict[str, Any] = {
         "role": message.role,
@@ -178,25 +195,47 @@ def _finalize_tool_call_response(message: Any, model_name: str) -> str:
     return final_content
 
 
+@dataclass(frozen=True)
+class _ToolLoopSpec:
+    """Bundles the model/tools/token fields shared by tool-loop helpers."""
+
+    model_name: str
+    tools: list[dict[str, Any]]
+    max_tokens: int
+    temperature: float
+
+
+def _build_tool_loop_completion_args(
+    messages: list[dict[str, Any]], spec: _ToolLoopSpec
+) -> dict[str, Any]:
+    """Builds the keyword arguments for one tool-loop completion call.
+
+    Same two-layer timeout ceiling as ``call_llm``: ask the provider client
+    to give up on its own, leaving the hard cancellation to the caller's
+    ``_acompletion_within_timeout`` await.
+    """
+    completion_args: dict[str, Any] = {
+        "model": spec.model_name,
+        "messages": messages,
+        "tools": spec.tools,
+        "max_tokens": spec.max_tokens,
+        "temperature": spec.temperature,
+        "drop_params": True,
+        "extra_body": deepseek_thinking_extra_body(spec.model_name),
+        **reasoning_effort_args(spec.model_name),
+    }
+    timeout = llm_timeout_seconds()
+    if timeout is not None:
+        completion_args["timeout"] = timeout
+    return completion_args
+
+
 async def _run_tool_call_iteration(
     messages: list[dict[str, Any]],
-    model_name: str,
-    tools: list[dict[str, Any]],
-    max_tokens: int,
-    temperature: float,
+    spec: _ToolLoopSpec,
     tool_executor: Callable[[Any], Awaitable[dict[str, Any]]],
 ) -> tuple[bool, str | None]:
     """Runs one LLM-with-tools iteration; mutates `messages` in place.
-
-    Args:
-        messages: The running conversation history; appended to (and
-            possibly extended with tool response messages) in place.
-        model_name: Model name in litellm format.
-        tools: List of tools in OpenAI format.
-        max_tokens: Maximum tokens for this call.
-        temperature: Sampling temperature.
-        tool_executor: Async callable that executes tool calls and returns
-            tool response messages.
 
     Returns:
         Tuple of (done, final_content). When done is True, final_content
@@ -205,78 +244,142 @@ async def _run_tool_call_iteration(
         dispatched and appended to `messages` and the caller should iterate
         again.
     """
-    completion_args: dict[str, Any] = {
-        "model": model_name,
-        "messages": messages,
-        "tools": tools,
-        "max_tokens": max_tokens,
-        "temperature": temperature,
-        "drop_params": True,
-        "extra_body": deepseek_thinking_extra_body(model_name),
-        **reasoning_effort_args(model_name),
-    }
-    # Same two-layer ceiling as call_llm: ask the provider client to give
-    # up on its own, and hard-cancel the await when a hang never reaches
-    # the transport at all.
-    timeout = llm_timeout_seconds()
-    if timeout is not None:
-        completion_args["timeout"] = timeout
-    response = await _acompletion_within_timeout(completion_args, model_name)
+    completion_args = _build_tool_loop_completion_args(messages, spec)
+    response = await _acompletion_within_timeout(
+        completion_args, spec.model_name
+    )
 
     message = response.choices[0].message
-    message_dict = _message_to_history_dict(message)
-    messages.append(message_dict)
+    messages.append(_message_to_history_dict(message))
 
-    # Check if LLM wants to call tools
     if hasattr(message, "tool_calls") and message.tool_calls:
+        # LLM wants to call tools: execute them in parallel, add the
+        # results to message history, and continue the loop.
         logger.debug("llm requested %s tool calls", len(message.tool_calls))
-
-        # Execute all tool calls in parallel and add the results to
-        # message history
         messages.extend(
             await _execute_tool_calls(message.tool_calls, tool_executor)
         )
-
-        # Continue loop - LLM will see tool results and respond
         return False, None
 
-    # No tool calls - this is the final response
-    final_content = _finalize_tool_call_response(message, model_name)
-    return True, final_content
+    # No tool calls - this is the final response.
+    return True, _finalize_tool_call_response(message, spec.model_name)
 
 
 def _cache_tool_call_result(
     cache: LLMCache | NullCache,
     prompt: str,
-    model_name: str,
-    temperature: float,
-    max_tokens: int,
+    spec: _ToolLoopSpec,
     final_content: str,
     messages: list[dict[str, Any]],
-    tools: list[dict[str, Any]],
 ) -> None:
     """Caches a successful tool-call loop result.
 
     Only called once the final content is validated, so a failed loop is
     retried fresh next time rather than replayed from a broken cache entry.
-
-    Args:
-        cache: The cache to store the result in.
-        prompt: The initial user prompt (part of the cache key).
-        model_name: Model name in litellm format.
-        temperature: Sampling temperature used for the loop.
-        max_tokens: Maximum tokens per LLM call.
-        final_content: The validated final response text.
-        messages: The complete message history for the loop.
-        tools: List of tools in OpenAI format (part of the cache key).
     """
     cache.set(
         prompt,
-        model_name,
-        temperature,
-        max_tokens,
+        spec.model_name,
+        spec.temperature,
+        spec.max_tokens,
         {"final_response": final_content, "message_history": messages},
-        tools=tools,
+        tools=spec.tools,
+    )
+
+
+async def _run_iteration_logged(
+    messages: list[dict[str, Any]],
+    spec: _ToolLoopSpec,
+    tool_executor: Callable[[Any], Awaitable[dict[str, Any]]],
+    iteration: int,
+) -> tuple[bool, str | None]:
+    """Runs one tool-call iteration, logging and re-raising any failure."""
+    try:
+        return await _run_tool_call_iteration(messages, spec, tool_executor)
+    except Exception as e:
+        logger.error(
+            "Error in LLM tool call loop (iteration %s): %s", iteration + 1, e
+        )
+        raise
+
+
+def _finalize_tool_loop_success(
+    cache: LLMCache | NullCache,
+    prompt: str,
+    spec: _ToolLoopSpec,
+    final_content: str,
+    messages: list[dict[str, Any]],
+    iteration: int,
+) -> tuple[str, list[dict[str, Any]]]:
+    """Logs and caches a finished tool-call loop, returning its result."""
+    logger.debug("llm finished after %s iterations", iteration + 1)
+    _cache_tool_call_result(cache, prompt, spec, final_content, messages)
+    return final_content, messages
+
+
+async def _run_tool_call_loop(
+    prompt: str,
+    messages: list[dict[str, Any]],
+    spec: _ToolLoopSpec,
+    tool_executor: Callable[[Any], Awaitable[dict[str, Any]]],
+    max_iterations: int,
+    cache: LLMCache | NullCache,
+) -> tuple[str, list[dict[str, Any]]]:
+    """Runs tool-call iterations until a final response, then caches it.
+
+    ``messages`` (seeded with the initial user turn) is mutated in place.
+
+    Raises:
+        RuntimeError: If max_iterations is exhausted without a response.
+    """
+    for iteration in range(max_iterations):
+        logger.debug(
+            "llm tool call iteration %s/%s", iteration + 1, max_iterations
+        )
+        done, final_content = await _run_iteration_logged(
+            messages, spec, tool_executor, iteration
+        )
+        if done:  # only True alongside a non-None final_content
+            assert final_content is not None
+            return _finalize_tool_loop_success(
+                cache, prompt, spec, final_content, messages, iteration
+            )
+
+    logger.warning(
+        "Max iterations (%s) reached in tool call loop", max_iterations
+    )
+    raise RuntimeError(
+        f"LLM tool call loop exceeded max iterations ({max_iterations})"
+    )
+
+
+async def _prepare_tool_call(
+    prompt: str,
+    opts: _PromptCallOptions,
+    tools: list[dict[str, Any]],
+) -> tuple[
+    float, "LLMCache | NullCache", tuple[str, list[dict[str, Any]]] | None
+]:
+    """Runs the shared pre-call sequence for ``call_llm_with_tools``.
+
+    Returns:
+        A (clamped_temperature, cache, cached_result) tuple where
+        cached_result is the already-cached (final_response,
+        message_history) pair on a cache hit, else None.
+    """
+    temperature, cache, cached_response = await _prepare_llm_call(
+        prompt, opts, tools=tools
+    )
+    if cached_response is None:
+        return temperature, cache, None
+    logger.debug("using cached llm tool call response")
+    return (
+        temperature,
+        cache,
+        (
+            cached_response["final_response"],
+            cached_response["message_history"],
+        ),
     )
 
 
@@ -295,35 +398,12 @@ async def call_llm_with_tools(
 ) -> tuple[str, list[dict[str, Any]]]:
     """Call an LLM with tool access and handle tool execution loop.
 
-    This function implements an agent loop where the LLM can call tools,
-    see the results, and continue iterating until it produces a final response.
-
-    Args:
-        prompt: The initial user prompt
-        model_name: Model name in litellm format
-        tools: List of tools in OpenAI format
-        tool_executor: Async callable that executes tool calls and returns
-            tool response messages
-        max_tokens: Maximum tokens per LLM call
-        temperature: Sampling temperature
-        max_iterations: Maximum number of LLM calls (prevents infinite loops)
-        use_cache: When False, bypass the LLM cache so the call is always fresh
-            (used for stochastic, diversity-critical generation).
-        run_id: Optional run identifier for the saved prompt's directory;
-            ``None`` falls back to "unknown".
-        prompt_name: Optional debug-artifact name. When provided, the prompt
-            is saved to disk before the call — always, regardless of
-            ``run_id`` (globally gated by ``COSCIENTIST_SAVE_PROMPTS``).
-        prompt_metadata: Optional metadata appended to the saved prompt file.
-
-    Returns:
-        Tuple of (final_response_text, complete_message_history)
-
-    Raises:
-        Exception: If the LLM call fails or max iterations reached
+    Implements an agent loop: the LLM can call tools, see the results, and
+    keep iterating until it produces a final response (or raises, on a call
+    failure or an exhausted ``max_iterations``). ``use_cache``/``run_id``/
+    ``prompt_name``/``prompt_metadata`` follow ``call_llm``'s policy.
     """
-    temperature, cache, cached_response = await _prepare_llm_call(
-        prompt,
+    opts = _PromptCallOptions(
         model_name,
         temperature,
         max_tokens,
@@ -331,61 +411,15 @@ async def call_llm_with_tools(
         run_id,
         prompt_name,
         prompt_metadata,
-        tools=tools,
     )
-    if cached_response is not None:
-        logger.debug("using cached llm tool call response")
-        return cached_response["final_response"], cached_response[
-            "message_history"
-        ]
-
-    # Running conversation history: grows with each assistant/tool turn and
-    # is resent in full to acompletion on every iteration below.
+    temperature, cache, cached_result = await _prepare_tool_call(
+        prompt, opts, tools
+    )
+    if cached_result is not None:
+        return cached_result
+    # Seed history with the initial user turn; resent in full each iteration.
     messages = [{"role": "user", "content": prompt}]
-
-    for iteration in range(max_iterations):
-        logger.debug(
-            "llm tool call iteration %s/%s", iteration + 1, max_iterations
-        )
-
-        try:
-            done, final_content = await _run_tool_call_iteration(
-                messages,
-                model_name,
-                tools,
-                max_tokens,
-                temperature,
-                tool_executor,
-            )
-        except Exception as e:
-            logger.error(
-                "Error in LLM tool call loop (iteration %s): %s",
-                iteration + 1,
-                e,
-            )
-            raise
-
-        if done:
-            # _run_tool_call_iteration only returns done=True alongside a
-            # non-None final_content (see _finalize_tool_call_response).
-            assert final_content is not None
-            logger.debug("llm finished after %s iterations", iteration + 1)
-            _cache_tool_call_result(
-                cache,
-                prompt,
-                model_name,
-                temperature,
-                max_tokens,
-                final_content,
-                messages,
-                tools,
-            )
-            return final_content, messages
-
-    # Max iterations reached
-    logger.warning(
-        "Max iterations (%s) reached in tool call loop", max_iterations
-    )
-    raise RuntimeError(
-        f"LLM tool call loop exceeded max iterations ({max_iterations})"
+    spec = _ToolLoopSpec(model_name, tools, max_tokens, temperature)
+    return await _run_tool_call_loop(
+        prompt, messages, spec, tool_executor, max_iterations, cache
     )

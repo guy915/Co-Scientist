@@ -109,6 +109,38 @@ class HypothesisGenerator(McpAvailabilityMixin, StreamExecutionMixin):
         """
         # Constructor arguments become per-instance defaults that seed the
         # initial workflow state on every generate_hypotheses() call below.
+        self._init_tuning_params(
+            model_name,
+            supervisor_model_name,
+            max_iterations,
+            initial_hypotheses_count,
+            evolution_max_count,
+            tournament_pairs,
+            elo_k_factor,
+            literature_review_papers_count,
+            budget,
+        )
+        self._init_cache_settings(enable_cache, cache_dir)
+        # Bundled provider-neutral registry unless a custom config replaces
+        # it (faithful runs must not silently collapse to a single source).
+        self._tool_registry = _build_tool_registry(tools_config, disable_tools)
+        self._graph: CompiledWorkflow | None = None  # built lazily
+        self._mcp_available: bool | None = None
+        self._pubmed_available: bool | None = None
+
+    def _init_tuning_params(
+        self,
+        model_name: str,
+        supervisor_model_name: str | None,
+        max_iterations: int,
+        initial_hypotheses_count: int,
+        evolution_max_count: int,
+        tournament_pairs: int,
+        elo_k_factor: int,
+        literature_review_papers_count: int,
+        budget: dict[str, Any] | None,
+    ) -> None:
+        """Sets the generation-tuning attributes from the constructor args."""
         self.model_name = model_name
         self.supervisor_model_name = supervisor_model_name or model_name
         self.max_iterations = max_iterations
@@ -123,26 +155,19 @@ class HypothesisGenerator(McpAvailabilityMixin, StreamExecutionMixin):
         # budget so a run configured with only max_iterations still terminates.
         self.budget = {"max_iterations": max_iterations, **(budget or {})}
 
-        # enable_cache is applied per-run (see _generate_hypotheses_* and
-        # resume_hypotheses below) via cache.scoped_cache_override rather
-        # than here, so it never mutates process-global state. cache_dir has
-        # no such per-run mechanism (nothing passes it today); it still
-        # configures the process-wide default the way it always has.
+    def _init_cache_settings(
+        self, enable_cache: bool | None, cache_dir: str | None
+    ) -> None:
+        """Sets the per-instance cache override and applies the cache-dir env.
+
+        enable_cache is applied per-run (see _generate_hypotheses_* and
+        resume_hypotheses) via cache.scoped_cache_override rather than here,
+        so it never mutates process-global state. cache_dir has no such
+        per-run mechanism (nothing passes it today); it still configures the
+        process-wide default the way it always has.
+        """
         self.enable_cache = enable_cache
         _configure_cache_dir_env(cache_dir)
-
-        # Always load the bundled provider-neutral registry unless a custom
-        # configuration replaces it; faithful runs must not silently collapse
-        # from PubMed + OpenAlex to the legacy single-source fallback.
-        self._tool_registry = _build_tool_registry(tools_config, disable_tools)
-
-        # Build the graph (lazy - only once)
-        self._graph: CompiledWorkflow | None = None
-
-        # Cache availability checks per instance (lazy init on first generate
-        # call)
-        self._mcp_available: bool | None = None
-        self._pubmed_available: bool | None = None
 
     def _build_graph(
         self, enable_literature_review_node: bool = True
@@ -203,30 +228,17 @@ class HypothesisGenerator(McpAvailabilityMixin, StreamExecutionMixin):
             "run_id" keys).
         """
         start_time, run_id = _resolve_run_identity(run_id)
-
-        # Extract optional fields from opts
         opts = opts or {}
         user_inputs = opts.get("user_inputs") or {}
-
-        # Determine literature review node / MCP availability, then whether
-        # tool-calling generation can run (it requires both).
         (
             mcp_available,
             pubmed_available,
             enable_literature_review_node,
-        ) = await self._resolve_literature_review_settings(opts)
-        enable_tool_calling_generation = _resolve_tool_calling_generation(
-            opts, mcp_available, enable_literature_review_node
-        )
-
-        # This flag is threaded through to the initial state below and the
-        # consuming nodes branch on it directly.
-        dev_test_lit_tools_isolation = _resolve_dev_isolation_flag(opts)
-
-        # Build graph if not already built, or rebuild if literature review
-        # setting changed
+            enable_tool_calling_generation,
+            dev_test_lit_tools_isolation,
+        ) = await self._resolve_generation_settings(opts)
+        # Build graph if not already built, or rebuild if the setting changed.
         self._ensure_graph_built(enable_literature_review_node)
-
         return _build_initial_state(
             config_fields=self._initial_config_fields(),
             research_goal=research_goal,
@@ -239,6 +251,38 @@ class HypothesisGenerator(McpAvailabilityMixin, StreamExecutionMixin):
             pubmed_available=pubmed_available,
             enable_tool_calling_generation=enable_tool_calling_generation,
             dev_test_lit_tools_isolation=dev_test_lit_tools_isolation,
+        )
+
+    async def _resolve_generation_settings(
+        self, opts: dict[str, Any]
+    ) -> tuple[bool, bool, bool, bool, bool]:
+        """Resolves literature-review/MCP/tool-calling/dev-isolation settings.
+
+        Args:
+            opts: Caller-supplied generation options.
+
+        Returns:
+            Tuple of (mcp_available, pubmed_available,
+            enable_literature_review_node, enable_tool_calling_generation,
+            dev_test_lit_tools_isolation).
+        """
+        (
+            mcp_available,
+            pubmed_available,
+            enable_literature_review_node,
+        ) = await self._resolve_literature_review_settings(opts)
+        enable_tool_calling_generation = _resolve_tool_calling_generation(
+            opts, mcp_available, enable_literature_review_node
+        )
+        # This flag is threaded through to the initial state and the
+        # consuming nodes branch on it directly.
+        dev_test_lit_tools_isolation = _resolve_dev_isolation_flag(opts)
+        return (
+            mcp_available,
+            pubmed_available,
+            enable_literature_review_node,
+            enable_tool_calling_generation,
+            dev_test_lit_tools_isolation,
         )
 
     def _initial_config_fields(self) -> dict[str, Any]:
@@ -418,24 +462,33 @@ class HypothesisGenerator(McpAvailabilityMixin, StreamExecutionMixin):
                 opts=opts,
                 run_id=run_id,
             )
-            start_time = initial_state["start_time"]
+            return await self._run_graph_to_completion(
+                initial_state, initial_state["start_time"]
+            )
 
-            assert self._graph is not None  # built by _prepare_generation
-            try:
-                final_state = await self._graph.ainvoke(
-                    initial_state,
-                    config={"recursion_limit": _GRAPH_RECURSION_LIMIT},
-                )
+    async def _run_graph_to_completion(
+        self, initial_state: WorkflowState, start_time: float
+    ) -> dict[str, Any]:
+        """Invokes the compiled graph to completion and shapes the result.
 
-                # Format result to match expected interface
-                execution_time = time.time() - start_time
+        Args:
+            initial_state: The prepared initial workflow state.
+            start_time: Wall-clock start time (``time.time()``) for the run.
 
-                return _build_generation_result(
-                    cast(WorkflowState, final_state), execution_time
-                )
-
-            except Exception as e:
-                logger.error(
-                    "Hypothesis generation failed: %s", e, exc_info=True
-                )
-                raise
+        Returns:
+            The dictionary returned to callers of ``generate_hypotheses``
+            when ``stream`` is False.
+        """
+        assert self._graph is not None  # built by _prepare_generation
+        try:
+            final_state = await self._graph.ainvoke(
+                initial_state,
+                config={"recursion_limit": _GRAPH_RECURSION_LIMIT},
+            )
+            execution_time = time.time() - start_time
+            return _build_generation_result(
+                cast(WorkflowState, final_state), execution_time
+            )
+        except Exception as e:
+            logger.error("Hypothesis generation failed: %s", e, exc_info=True)
+            raise

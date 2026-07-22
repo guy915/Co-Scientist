@@ -294,6 +294,43 @@ def _inject_schema_into_prompt(prompt: str, json_schema: dict[str, Any]) -> str:
     )
 
 
+def _apply_schema_response_format(
+    completion_args: dict[str, Any],
+    prompt: str,
+    model_name: str,
+    json_schema: dict[str, Any],
+) -> None:
+    """Sets the response_format for a call with a JSON schema, in place.
+
+    Prefers the model's native json_schema format; models that reject it
+    fall back to the json_object shim, restating the schema as prompt text.
+
+    Args:
+        completion_args: The in-progress completion kwargs dict; mutated.
+        prompt: The original prompt, rebuilt into "messages" for the shim.
+        model_name: Model name in litellm format.
+        json_schema: JSON schema to constrain the response format.
+    """
+    if _supports_json_schema_response_format(model_name):
+        completion_args["response_format"] = {
+            "type": "json_schema",
+            "json_schema": json_schema,
+        }
+        return
+
+    # Provider-capability shim: this model rejects json_schema, so downgrade
+    # to json_object and restate the schema in the prompt. The cache keys
+    # above stay on the original prompt.
+    logger.debug(
+        "model %s does not support json_schema response format;"
+        " downgrading to json_object with schema in prompt",
+        model_name,
+    )
+    shimmed_content = _inject_schema_into_prompt(prompt, json_schema)
+    completion_args["messages"] = [{"role": "user", "content": shimmed_content}]
+    completion_args["response_format"] = {"type": "json_object"}
+
+
 def _apply_response_format(
     completion_args: dict[str, Any],
     prompt: str,
@@ -319,30 +356,68 @@ def _apply_response_format(
         json_schema: Optional JSON schema to constrain the response format.
     """
     if json_schema:
-        if _supports_json_schema_response_format(model_name):
-            completion_args["response_format"] = {
-                "type": "json_schema",
-                "json_schema": json_schema,
-            }
-        else:
-            # Provider-capability shim: this model rejects the
-            # json_schema response format, so downgrade this call to
-            # json_object and restate the schema in the prompt. The
-            # cache keys above stay on the original prompt.
-            logger.debug(
-                "model %s does not support json_schema response format;"
-                " downgrading to json_object with schema in prompt",
-                model_name,
-            )
-            completion_args["messages"] = [
-                {
-                    "role": "user",
-                    "content": _inject_schema_into_prompt(prompt, json_schema),
-                }
-            ]
-            completion_args["response_format"] = {"type": "json_object"}
+        _apply_schema_response_format(
+            completion_args, prompt, model_name, json_schema
+        )
     elif force_json:
         completion_args["response_format"] = {"type": "json_object"}
+
+
+def _base_completion_args(
+    prompt: str, model_name: str, max_tokens: int, temperature: float
+) -> dict[str, Any]:
+    """Builds the model/messages/token/timeout base of a completion call.
+
+    Args:
+        prompt: The prompt to send to the LLM.
+        model_name: Model name in litellm format.
+        max_tokens: Maximum tokens in response.
+        temperature: Sampling temperature.
+
+    Returns:
+        The starting keyword arguments, before response-format and thinking
+        options are applied.
+    """
+    completion_args: dict[str, Any] = {
+        "model": model_name,
+        "messages": [{"role": "user", "content": prompt}],
+        "max_tokens": max_tokens,
+        "temperature": temperature,
+        # Silently drop params a provider doesn't accept instead of
+        # raising, since not every model/provider supports every arg.
+        "drop_params": True,
+    }
+
+    # Ask the provider client to give up on its own. call_llm additionally
+    # wraps the await in a hard asyncio ceiling, because this argument only
+    # binds if litellm plumbs it through to the transport for the provider in
+    # use, and a hang that never reaches the transport would otherwise be
+    # unbounded.
+    timeout = llm_timeout_seconds()
+    if timeout is not None:
+        completion_args["timeout"] = timeout
+
+    return completion_args
+
+
+def _apply_thinking_args(
+    completion_args: dict[str, Any], model_name: str, enable_thinking: bool
+) -> None:
+    """Sets the DeepSeek thinking-mode kwargs on a completion call, in place.
+
+    Args:
+        completion_args: The in-progress completion kwargs dict; mutated in
+            place with "extra_body" and reasoning-effort args when thinking
+            applies to this model.
+        model_name: Model name in litellm format.
+        enable_thinking: Whether DeepSeek thinking mode is requested.
+    """
+    thinking = deepseek_thinking_extra_body(model_name, enabled=enable_thinking)
+    if thinking:
+        completion_args["extra_body"] = thinking
+        completion_args.update(
+            reasoning_effort_args(model_name, enabled=enable_thinking)
+        )
 
 
 def _build_completion_args(
@@ -369,35 +444,15 @@ def _build_completion_args(
     Returns:
         Keyword arguments ready to pass to ``litellm.acompletion``.
     """
-    completion_args: dict[str, Any] = {
-        "model": model_name,
-        "messages": [{"role": "user", "content": prompt}],
-        "max_tokens": max_tokens,
-        "temperature": temperature,
-        # Silently drop params a provider doesn't accept instead of
-        # raising, since not every model/provider supports every arg.
-        "drop_params": True,
-    }
-
-    # Ask the provider client to give up on its own. call_llm additionally
-    # wraps the await in a hard asyncio ceiling, because this argument only
-    # binds if litellm plumbs it through to the transport for the provider in
-    # use, and a hang that never reaches the transport would otherwise be
-    # unbounded.
-    timeout = llm_timeout_seconds()
-    if timeout is not None:
-        completion_args["timeout"] = timeout
+    completion_args = _base_completion_args(
+        prompt, model_name, max_tokens, temperature
+    )
 
     _apply_response_format(
         completion_args, prompt, model_name, force_json, json_schema
     )
 
-    thinking = deepseek_thinking_extra_body(model_name, enabled=enable_thinking)
-    if thinking:
-        completion_args["extra_body"] = thinking
-        completion_args.update(
-            reasoning_effort_args(model_name, enabled=enable_thinking)
-        )
+    _apply_thinking_args(completion_args, model_name, enable_thinking)
 
     return completion_args
 

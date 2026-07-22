@@ -148,6 +148,13 @@ _ARRAY_LENGTH_HINTS: dict[str, Callable[[str], dict[str, int]]] = {
     "hypothesis_batch_review": _batch_review_length,
 }
 
+# Placeholder values for scalar schema types this filler special-cases.
+_SCALAR_DEFAULTS: dict[str, Any] = {
+    "integer": 4,
+    "number": 4.0,
+    "boolean": True,
+}
+
 
 def _fill_schema(
     schema: dict[str, Any],
@@ -167,11 +174,9 @@ def _fill_schema(
             here is filled to that length instead of the default one item.
 
     Returns:
-        A value satisfying ``schema``: for objects, every required (or, if
-        unspecified, every declared) property filled recursively; for
-        arrays, a list with one filled item (or ``array_lengths`` many);
-        for enums, the first allowed value; for scalars, a type-
-        appropriate placeholder.
+        A value satisfying ``schema``: object properties filled
+        recursively, array items filled per ``array_lengths`` (default
+        one), an enum's first allowed value, or a scalar placeholder.
     """
     array_lengths = array_lengths or {}
 
@@ -181,28 +186,42 @@ def _fill_schema(
     schema_type = schema.get("type", "object")
 
     if schema_type == "object":
-        properties = schema.get("properties", {})
-        required = schema.get("required") or list(properties.keys())
-        return {
-            name: _fill_property(name, properties[name], leaf_fn, array_lengths)
-            for name in required
-            if name in properties
-        }
+        return _fill_object(schema, leaf_fn, array_lengths)
 
     if schema_type == "array":
         return _fill_array(schema, 1, leaf_fn, array_lengths)
 
-    if schema_type == "integer":
-        return 4
-
-    if schema_type == "number":
-        return 4.0
-
-    if schema_type == "boolean":
-        return True
+    if schema_type in _SCALAR_DEFAULTS:
+        return _SCALAR_DEFAULTS[schema_type]
 
     # string, or any type this filler does not special-case.
     return leaf_fn()
+
+
+def _fill_object(
+    schema: dict[str, Any],
+    leaf_fn: Callable[[], Any],
+    array_lengths: dict[str, int],
+) -> dict[str, Any]:
+    """Fills every required (or, if unspecified, every declared) property.
+
+    Args:
+        schema: The object's JSON Schema fragment.
+        leaf_fn: Zero-argument callable returning the next string-leaf
+            value (see ``_fill_schema``).
+        array_lengths: Property-name -> item-count map, threaded into each
+            property's fill.
+
+    Returns:
+        A dict mapping each filled property name to its value.
+    """
+    properties = schema.get("properties", {})
+    required = schema.get("required") or list(properties.keys())
+    return {
+        name: _fill_property(name, properties[name], leaf_fn, array_lengths)
+        for name in required
+        if name in properties
+    }
 
 
 def _fill_property(
@@ -340,6 +359,39 @@ def _supervisor_allocation_response(prompt: str) -> str:
     return json.dumps({"next_task": next_task, "reason": reason})
 
 
+def _schema_response(
+    model: str, prompt: str, json_schema: dict[str, Any]
+) -> Any:
+    """Builds a fake completion response for a schema'd offline call.
+
+    Args:
+        model: The requested model name.
+        prompt: The outgoing prompt text.
+        json_schema: The ``response_format["json_schema"]`` payload (name
+            and schema).
+
+    Returns:
+        A fake completion response exposing
+        ``.choices[0].message.content``.
+    """
+    schema_name = json_schema.get("name", "")
+
+    if schema_name == "supervisor_allocation":
+        return _build_response(_supervisor_allocation_response(prompt))
+
+    rng = random.Random(_seed_for(model, prompt, schema_name))
+    ordinals = itertools.count(1)
+
+    def leaf_fn() -> str:
+        return _leaf_text(rng, next(ordinals))
+
+    schema = json_schema["schema"]
+    length_hint = _ARRAY_LENGTH_HINTS.get(schema_name)
+    array_lengths = length_hint(prompt) if length_hint else None
+    content = json.dumps(_fill_schema(schema, leaf_fn, array_lengths))
+    return _build_response(content)
+
+
 async def offline_acompletion(**completion_args: Any) -> Any:
     """Stands in for ``litellm.acompletion`` for ``offline/`` models.
 
@@ -361,36 +413,48 @@ async def offline_acompletion(**completion_args: Any) -> Any:
     response_format = completion_args.get("response_format")
 
     if response_format and response_format.get("type") == "json_schema":
-        json_schema = response_format["json_schema"]
-        schema_name = json_schema.get("name", "")
+        return _schema_response(model, prompt, response_format["json_schema"])
 
-        if schema_name == "supervisor_allocation":
-            return _build_response(_supervisor_allocation_response(prompt))
-
-        rng = random.Random(_seed_for(model, prompt, schema_name))
-        ordinals = itertools.count(1)
-
-        def leaf_fn() -> str:
-            return _leaf_text(rng, next(ordinals))
-
-        schema = json_schema["schema"]
-        length_hint = _ARRAY_LENGTH_HINTS.get(schema_name)
-        array_lengths = length_hint(prompt) if length_hint else None
-        content = json.dumps(_fill_schema(schema, leaf_fn, array_lengths))
-    elif response_format and response_format.get("type") == "json_object":
+    if response_format and response_format.get("type") == "json_object":
         # No production call site reaches this branch (every call site
         # that requests JSON also supplies a schema), but it is kept as a
         # safe, schema-less fallback.
-        content = "{}"
-    else:
-        rng = random.Random(_seed_for(model, prompt, ""))
-        content = _leaf_text(rng, 1)
-    return _build_response(content)
+        return _build_response("{}")
+
+    rng = random.Random(_seed_for(model, prompt, ""))
+    return _build_response(_leaf_text(rng, 1))
 
 
 _installed = False
 _original_acompletion: Callable[..., Any] | None = None
 _original_supports_json_schema: Callable[[str], bool] | None = None
+
+
+def _make_routed_acompletion(
+    original_acompletion: Callable[..., Any],
+) -> Callable[..., Any]:
+    """Builds an acompletion wrapper that answers offline models locally."""
+
+    async def _routed_acompletion(**kwargs: Any) -> Any:
+        model_name = str(kwargs.get("model") or "")
+        if is_offline_model(model_name):
+            return await offline_acompletion(**kwargs)
+        return await original_acompletion(**kwargs)
+
+    return _routed_acompletion
+
+
+def _make_routed_supports_json_schema(
+    original_supports_json_schema: Callable[[str], bool],
+) -> Callable[[str], bool]:
+    """Builds a supports-json-schema wrapper that treats offline as True."""
+
+    def _routed_supports_json_schema(model_name: str) -> bool:
+        if is_offline_model(model_name):
+            return True
+        return original_supports_json_schema(model_name)
+
+    return _routed_supports_json_schema
 
 
 def install_offline_router() -> None:
@@ -418,28 +482,15 @@ def install_offline_router() -> None:
         llm_request._supports_json_schema_response_format
     )
 
-    async def _routed_acompletion(**kwargs: Any) -> Any:
-        model_name = str(kwargs.get("model") or "")
-        if is_offline_model(model_name):
-            return await offline_acompletion(**kwargs)
-        return await original_acompletion(**kwargs)
-
-    def _routed_supports_json_schema(model_name: str) -> bool:
-        if is_offline_model(model_name):
-            return True
-        return original_supports_json_schema(model_name)
-
-    litellm.acompletion = _routed_acompletion
-    # The original is a functools.cache-wrapped function; the replacement is
-    # a plain function with the same call signature, so setattr (rather
-    # than a direct attribute assignment, which mypy would reject as an
-    # exact callable-type mismatch) installs it. noqa: intentional dynamic
-    # patch of a module-level seam, the same pattern the test fake uses via
-    # monkeypatch.setattr.
+    litellm.acompletion = _make_routed_acompletion(original_acompletion)
+    # The original is a functools.cache-wrapped function; setattr (rather
+    # than a direct assignment, which mypy would reject as a callable-type
+    # mismatch) installs the plain-function replacement. noqa: intentional
+    # dynamic patch, the same pattern the test fake uses via monkeypatch.
     setattr(  # noqa: B010
         llm_request,
         "_supports_json_schema_response_format",
-        _routed_supports_json_schema,
+        _make_routed_supports_json_schema(original_supports_json_schema),
     )
 
     _original_acompletion = original_acompletion

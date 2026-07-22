@@ -49,6 +49,27 @@ class LLMCache:
             self.cache_dir.mkdir(exist_ok=True, parents=True)
             logger.debug("LLM cache initialized at %s", self.cache_dir)
 
+    def _fold_optional_key_params(
+        self,
+        key_data: dict[str, Any],
+        tools: list[dict[str, Any]] | None,
+        json_schema: dict[str, Any] | None,
+        force_json: bool | None,
+    ) -> None:
+        """Fold optional response-shape params into key_data, in place.
+
+        Folding tools/json_schema/force_json into the key means a call that
+        differs only in response-format shape gets its own cache entry, so a
+        JSON-schema call can never be served a cached freeform response (or
+        vice versa) for the same prompt/model/temperature/max_tokens.
+        """
+        if tools is not None:
+            key_data["tools"] = json.dumps(tools, sort_keys=True)
+        if json_schema is not None:
+            key_data["json_schema"] = json.dumps(json_schema, sort_keys=True)
+        if force_json is not None:
+            key_data["force_json"] = force_json
+
     def _generate_cache_key(
         self,
         prompt: str,
@@ -80,20 +101,40 @@ class LLMCache:
             "temperature": temperature,
             "max_tokens": max_tokens,
         }
-
-        # Folding tools/json_schema/force_json into the key means a call that
-        # differs only in response-format shape gets its own cache entry, so
-        # a JSON-schema call can never be served a cached freeform response
-        # (or vice versa) for the same prompt/model/temperature/max_tokens.
-        # Add optional parameters if provided
-        if tools is not None:
-            key_data["tools"] = json.dumps(tools, sort_keys=True)
-        if json_schema is not None:
-            key_data["json_schema"] = json.dumps(json_schema, sort_keys=True)
-        if force_json is not None:
-            key_data["force_json"] = force_json
-
+        self._fold_optional_key_params(key_data, tools, json_schema, force_json)
         return _hash_key(key_data)
+
+    def _cache_location(
+        self,
+        prompt: str,
+        model_name: str,
+        temperature: float,
+        max_tokens: int,
+        tools: list[dict[str, Any]] | None,
+        json_schema: dict[str, Any] | None,
+        force_json: bool | None,
+    ) -> tuple[str, Path]:
+        """Compute the cache key and its backing file for this request."""
+        cache_key = self._generate_cache_key(
+            prompt,
+            model_name,
+            temperature,
+            max_tokens,
+            tools,
+            json_schema,
+            force_json,
+        )
+        return cache_key, self.cache_dir / f"{cache_key}.json"
+
+    def _read_or_miss(
+        self, cache_key: str, cache_file: Path
+    ) -> dict[str, Any] | None:
+        """Return the cached entry for cache_file, or log and return None."""
+        if cache_file.exists():
+            return _read_llm_cache_entry(cache_file, cache_key)
+
+        logger.debug("cache MISS for key %s...", cache_key[:8])
+        return None
 
     def get(
         self,
@@ -122,7 +163,7 @@ class LLMCache:
         if not self.enabled:
             return None
 
-        cache_key = self._generate_cache_key(
+        cache_key, cache_file = self._cache_location(
             prompt,
             model_name,
             temperature,
@@ -131,13 +172,7 @@ class LLMCache:
             json_schema,
             force_json,
         )
-        cache_file = self.cache_dir / f"{cache_key}.json"
-
-        if cache_file.exists():
-            return _read_llm_cache_entry(cache_file, cache_key)
-
-        logger.debug("cache MISS for key %s...", cache_key[:8])
-        return None
+        return self._read_or_miss(cache_key, cache_file)
 
     def set(
         self,
@@ -158,14 +193,37 @@ class LLMCache:
             temperature: Temperature parameter
             max_tokens: Max tokens parameter
             response: The LLM response to cache
-            tools: Optional list of tool definitions (for tool-calling LLMs)
+            tools: Optional tool definitions (for tool-calling LLMs)
             json_schema: Optional JSON schema for structured output
             force_json: Optional flag to force JSON output
         """
         if not self.enabled:
             return
 
-        cache_key = self._generate_cache_key(
+        self._write_entry(
+            prompt,
+            model_name,
+            temperature,
+            max_tokens,
+            response,
+            tools,
+            json_schema,
+            force_json,
+        )
+
+    def _write_entry(
+        self,
+        prompt: str,
+        model_name: str,
+        temperature: float,
+        max_tokens: int,
+        response: dict[str, Any],
+        tools: list[dict[str, Any]] | None,
+        json_schema: dict[str, Any] | None,
+        force_json: bool | None,
+    ) -> None:
+        """Compute the cache location and persist response there."""
+        cache_key, cache_file = self._cache_location(
             prompt,
             model_name,
             temperature,
@@ -174,18 +232,14 @@ class LLMCache:
             json_schema,
             force_json,
         )
-        cache_file = self.cache_dir / f"{cache_key}.json"
-
+        request_meta = {
+            "model": model_name,
+            "temperature": temperature,
+            "max_tokens": max_tokens,
+            "prompt_preview": truncate(prompt),
+        }
         try:
-            cache_data = {
-                "request": {
-                    "model": model_name,
-                    "temperature": temperature,
-                    "max_tokens": max_tokens,
-                    "prompt_preview": truncate(prompt),
-                },
-                "response": response,
-            }
+            cache_data = {"request": request_meta, "response": response}
             _write_cache_file_atomically(cache_file, cache_key, cache_data)
         except Exception as e:
             logger.warning("Failed to cache response: %s", e)

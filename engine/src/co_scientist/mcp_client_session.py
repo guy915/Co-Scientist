@@ -202,6 +202,16 @@ class MCPToolClient:
         # Convert to OpenAI format for LiteLLM
         self._openai_tools = [convert_to_openai_tool(tool) for tool in tools]
 
+    @staticmethod
+    def _require_tool(tools_dict: dict[str, Any], tool_name: str) -> Any:
+        """Return the tool object for tool_name, or raise if not found."""
+        if tool_name not in tools_dict:
+            raise ValueError(
+                f"tool '{tool_name}' not found. "
+                f"available tools: {list(tools_dict.keys())}"
+            )
+        return tools_dict[tool_name]
+
     # Direct-call convenience path used when the caller already knows the
     # tool name/args (e.g. availability checks, literature_review.py) --
     # contrast with execute_tool_call, which unpacks an LLM tool-call object.
@@ -223,12 +233,7 @@ class MCPToolClient:
             ValueError: If tool not found
         """
         tools_dict = _ensure_tools_initialized(self._tools_dict)
-
-        if tool_name not in tools_dict:
-            raise ValueError(
-                f"tool '{tool_name}' not found. "
-                f"available tools: {list(tools_dict.keys())}"
-            )
+        tool = self._require_tool(tools_dict, tool_name)
 
         logger.debug("calling mcp tool: %s with args: %s", tool_name, kwargs)
 
@@ -237,9 +242,7 @@ class MCPToolClient:
         # literature source) already catches broadly and degrades, so a stuck
         # tool costs that one source instead of the whole run.
         result = _unwrap_tool_result(
-            await _ainvoke_within_timeout(
-                tools_dict[tool_name], kwargs, tool_name
-            )
+            await _ainvoke_within_timeout(tool, kwargs, tool_name)
         )
 
         logger.debug(
@@ -250,8 +253,45 @@ class MCPToolClient:
 
         return cast(str, result)
 
+    @staticmethod
+    async def _invoke_or_timeout_result(
+        tool: Any, tool_args: dict[str, Any], tool_name: str
+    ) -> str:
+        """Invoke tool_name, reporting a timeout as its result string.
+
+        Unlike call_tool, this runs under _execute_tool_calls' asyncio.gather
+        without return_exceptions, so raising would take down every sibling
+        tool call in the same turn and fail the run; telling the model this
+        one tool did not answer lets it proceed on what it does have.
+        """
+        try:
+            return cast(
+                str,
+                _unwrap_tool_result(
+                    await _ainvoke_within_timeout(tool, tool_args, tool_name)
+                ),
+            )
+        except MCPToolTimeoutError as exc:
+            logger.warning("%s; reporting the timeout to the model", exc)
+            return f"Error: {exc}. No result was returned."
+
+    def _require_initialized_tools(self) -> dict[str, Any]:
+        """Return self._tools_dict, raising if not yet initialized."""
+        if self._tools_dict is None:
+            raise RuntimeError(
+                "mcp client not initialized. call initialize() first."
+            )
+        return self._tools_dict
+
     async def execute_tool_call(self, tool_call: Any) -> dict[str, Any]:
         """Execute an MCP tool call.
+
+        The returned dict's shape (role/name/tool_call_id/content) matches
+        what call_llm_with_tools (llm.py) appends to its message history
+        after invoking the tool_executor callback passed in by the caller
+        (see tools/provider.py's ToolProvider.execute_tool_call, which wraps
+        this method for tool-call-counting). Content is unwrapped from the
+        MCP content-block list shape exactly like call_tool.
 
         Args:
             tool_call: Tool call object from LiteLLM with function name
@@ -260,42 +300,16 @@ class MCPToolClient:
         Returns:
             Dictionary formatted as a tool response message
         """
-        # The returned dict's shape (role/name/tool_call_id/content) matches
-        # what call_llm_with_tools (llm.py) appends to its message history
-        # after invoking the tool_executor callback passed in by the caller
-        # (see tools/provider.py's ToolProvider.execute_tool_call, which
-        # wraps this method for tool-call-counting).
-        if self._tools_dict is None:
-            raise RuntimeError(
-                "mcp client not initialized. call initialize() first."
-            )
-
+        tools_dict = self._require_initialized_tools()
         tool_name = tool_call.function.name
         tool_args = json.loads(tool_call.function.arguments)
 
         logger.debug(
             "executing mcp tool: %s with args: %s", tool_name, tool_args
         )
-
-        # Execute using the original MCP tool. Unwrap the content-block
-        # list shape exactly like call_tool, so the tool message carries
-        # the inner string the provider expects, not a list of dicts.
-        #
-        # A timeout is reported back to the model as the tool's result rather
-        # than raised. This path runs under _execute_tool_calls' asyncio.gather
-        # without return_exceptions, so raising would take down every sibling
-        # tool call in the same turn and fail the run; telling the model this
-        # one tool did not answer lets it proceed on what it does have.
-        try:
-            result = _unwrap_tool_result(
-                await _ainvoke_within_timeout(
-                    self._tools_dict[tool_name], tool_args, tool_name
-                )
-            )
-        except MCPToolTimeoutError as exc:
-            logger.warning("%s; reporting the timeout to the model", exc)
-            result = f"Error: {exc}. No result was returned."
-
+        result = await self._invoke_or_timeout_result(
+            tools_dict[tool_name], tool_args, tool_name
+        )
         logger.debug(
             "mcp tool result for %s: %s%s",
             tool_name,

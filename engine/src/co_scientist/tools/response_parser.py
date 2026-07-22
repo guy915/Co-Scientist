@@ -361,18 +361,10 @@ class ResponseParser:
     ) -> Any:
         """Evaluate a field mapping expression.
 
-        Supported expressions:
-        - "fieldname" -> item["fieldname"]
-        - "@key" -> dict_key
-        - "@url_from_key" -> construct PubMed URL from dict_key
-        - "'static'" -> "static" (quoted string)
-        - "field|transform1|transform2" -> apply transforms
-
-        Transforms:
-        - split:DELIM -> split string by delimiter
-        - index:N -> get Nth element
-        - int -> convert to integer
-        - default:VALUE -> use VALUE if None
+        Expressions: "fieldname" (item lookup), "@key" (dict_key),
+        "@url_from_key" (PubMed URL from dict_key), "'static'" (quoted
+        literal), or "field|transform1|transform2" (pipe chain of
+        transforms: split:DELIM, index:N, int, default:VALUE).
 
         Args:
             expr: Expression string

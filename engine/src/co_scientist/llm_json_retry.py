@@ -61,6 +61,16 @@ def _rate_limit_backoff_seconds(attempt: int) -> float:
     return float(ceiling * (0.5 + random.random() / 2))
 
 
+@dataclass(frozen=True)
+class _JsonCallSpec:
+    """Bundles the model/token/schema fields shared by json-attempt helpers."""
+
+    model_name: str
+    max_tokens: int
+    temperature: float
+    json_schema: dict[str, Any] | None
+
+
 @dataclass
 class _JsonAttemptOutcome:
     """Result of a single ``call_llm_json`` attempt.
@@ -168,8 +178,8 @@ def _json_validation_failure_outcome(
         repaired: Whether the result needed JSON repair before validation.
 
     Returns:
-        An outcome carrying the error and, unless this is the final attempt,
-        a retry prompt with validation feedback appended.
+        An outcome carrying the error, plus a retry prompt with validation
+        feedback appended unless this is the final attempt.
     """
     logger.warning(
         "Schema validation failed%s on attempt %s: %s",
@@ -177,11 +187,9 @@ def _json_validation_failure_outcome(
         attempt,
         error.message,
     )
-
     next_prompt = None
     if not is_final_attempt:
         next_prompt = original_prompt + _validation_feedback(error)
-
     return _JsonAttemptOutcome(
         value=None,
         error=error,
@@ -230,13 +238,62 @@ def _non_validating_repair_outcome(
     )
 
 
+def _cache_validated_result(
+    cache: LLMCache | NullCache,
+    prompt: str,
+    spec: _JsonCallSpec,
+    result: dict[str, Any],
+) -> None:
+    """Caches a schema-validated (or schema-less) attempt result."""
+    cache.set(
+        prompt,
+        spec.model_name,
+        spec.temperature,
+        spec.max_tokens,
+        result,
+        json_schema=spec.json_schema,
+    )
+
+
+def _finalize_validated_result(
+    result: dict[str, Any],
+    response_text: str,
+    prompt: str,
+    original_prompt: str,
+    spec: _JsonCallSpec,
+    is_final_attempt: bool,
+    attempt: int,
+    repaired: bool,
+    cache: LLMCache | NullCache,
+) -> _JsonAttemptOutcome:
+    """Validates a parsed result, caching it on success.
+
+    Returns a success outcome (already cached) when validation passes (or
+    there is no schema to validate against), otherwise the failure outcome
+    built by ``_json_validation_failure_outcome``.
+    """
+    try:
+        if spec.json_schema is not None:
+            _backfill_and_validate(result, spec.json_schema, spec.model_name)
+    except ValidationError as e:
+        return _json_validation_failure_outcome(
+            e,
+            response_text,
+            original_prompt,
+            is_final_attempt,
+            attempt,
+            repaired,
+        )
+    _cache_validated_result(cache, prompt, spec, result)
+    return _JsonAttemptOutcome(
+        value=result, error=None, response_text=response_text, next_prompt=None
+    )
+
+
 async def _attempt_call_llm_json(
     prompt: str,
     original_prompt: str,
-    model_name: str,
-    max_tokens: int,
-    temperature: float,
-    json_schema: dict[str, Any] | None,
+    spec: _JsonCallSpec,
     is_final_attempt: bool,
     attempt: int,
     cache: LLMCache | NullCache,
@@ -244,67 +301,31 @@ async def _attempt_call_llm_json(
 ) -> _JsonAttemptOutcome:
     """Runs one call_llm_json attempt: call, parse/repair, validate, cache.
 
-    Returns an outcome with ``value`` set on success (already cached), or
-    ``error``/``response_text``/``next_prompt`` describing how to continue
-    the retry loop otherwise. Does not raise on validation/parse failures —
-    callers should let genuine call failures (network, etc.) propagate.
-
-    Args:
-        prompt: The prompt to send this attempt (may carry validation
-            feedback from a previous attempt).
-        original_prompt: The original prompt, without validation feedback,
-            used to build the next retry prompt.
-        model_name: Model name in litellm format.
-        max_tokens: Maximum tokens in response.
-        temperature: Sampling temperature.
-        json_schema: Optional JSON schema to constrain the response format.
-        is_final_attempt: Whether this is the last retry attempt.
-        attempt: The 1-indexed attempt number, used for logging.
-        cache: The cache to store a successful validated result in.
-        call_for_json: Async callable making the raw LLM call for this
-            attempt's prompt; returns the fence-stripped response text.
-
-    Returns:
-        The outcome of this attempt.
+    ``prompt`` (possibly carrying validation feedback) is what gets sent and
+    cached; ``original_prompt`` builds the next retry prompt on a schema
+    failure. Does not raise on validation/parse failures -- callers should
+    let genuine call failures (network, etc.) propagate.
     """
     response_text = await call_for_json(prompt)
 
-    # Steps 1-2: parse response text as JSON, repairing if needed
-    # (minor repairs always tried, major repairs only on the final
-    # attempt).
+    # Parse response text as JSON, repairing if needed (minor repairs always
+    # tried, major repairs only on the final attempt).
     result, was_major_repair, repaired, parse_error = _parse_or_repair_json(
         response_text, is_final_attempt
     )
-
-    # Step 3: Validate against the schema (when given), cache, return
     if result is not None:
-        try:
-            if json_schema is not None:
-                _backfill_and_validate(result, json_schema, model_name)
-            cache.set(
-                prompt,
-                model_name,
-                temperature,
-                max_tokens,
-                result,
-                json_schema=json_schema,
-            )
-            return _JsonAttemptOutcome(
-                value=result,
-                error=None,
-                response_text=response_text,
-                next_prompt=None,
-            )
-        except ValidationError as e:
-            return _json_validation_failure_outcome(
-                e,
-                response_text,
-                original_prompt,
-                is_final_attempt,
-                attempt,
-                repaired,
-            )
-
+        # Validate against the schema (when given), cache, and return.
+        return _finalize_validated_result(
+            result,
+            response_text,
+            prompt,
+            original_prompt,
+            spec,
+            is_final_attempt,
+            attempt,
+            repaired,
+            cache,
+        )
     return _non_validating_repair_outcome(
         was_major_repair, is_final_attempt, response_text, parse_error
     )
@@ -334,13 +355,41 @@ def _apply_json_attempt_outcome(
     return prompt, last_response_text
 
 
+async def _handle_json_call_failure(
+    error: Exception, attempt: int, is_final_attempt: bool
+) -> _JsonAttemptOutcome:
+    """Converts a non-timeout ``call_llm_json`` call failure to an outcome.
+
+    Re-raises (via a bare ``raise``, so it must be called from within the
+    caller's own ``except`` block) on the final attempt. A throttled failure
+    waits out a jittered backoff before returning the outcome so the retry
+    loop's next attempt goes out already spaced from the burst that caused
+    the throttle.
+    """
+    logger.error("LLM call failed on attempt %s: %s", attempt, error)
+    if is_final_attempt:
+        raise
+    if _is_rate_limited(error):
+        # Unlike a schema failure -- where the next attempt carries
+        # corrective feedback and should go out at once -- throttling is
+        # answered by waiting. Retrying a throttled call immediately feeds
+        # the burst that caused it.
+        delay = _rate_limit_backoff_seconds(attempt)
+        logger.warning(
+            "Rate limited on attempt %s; waiting %.1fs before retrying",
+            attempt,
+            delay,
+        )
+        await asyncio.sleep(delay)
+    return _JsonAttemptOutcome(
+        value=None, error=error, response_text=None, next_prompt=None
+    )
+
+
 async def _run_json_attempt(
     prompt: str,
     original_prompt: str,
-    model_name: str,
-    max_tokens: int,
-    temperature: float,
-    json_schema: dict[str, Any] | None,
+    spec: _JsonCallSpec,
     is_final_attempt: bool,
     attempt: int,
     cache: LLMCache | NullCache,
@@ -351,65 +400,24 @@ async def _run_json_attempt(
     A genuine call failure (network, provider error, etc.) is surfaced to the
     retry loop as an outcome carrying the error, except on the final attempt,
     where it is re-raised so the caller's exception propagates unchanged.
-
-    Args:
-        prompt: The prompt to send this attempt (may carry validation
-            feedback from a previous attempt).
-        original_prompt: The original prompt, without validation feedback,
-            used to build the next retry prompt.
-        model_name: Model name in litellm format.
-        max_tokens: Maximum tokens in response.
-        temperature: Sampling temperature.
-        json_schema: Optional JSON schema to constrain the response format.
-        is_final_attempt: Whether this is the last retry attempt.
-        attempt: The 1-indexed attempt number, used for logging.
-        cache: The cache to store a successful validated result in.
-        call_for_json: Async callable making the raw LLM call for this
-            attempt's prompt; returns the fence-stripped response text.
-
-    Returns:
-        The outcome of this attempt.
-
-    Raises:
-        Exception: The call failure, when this is the final attempt.
+    ``LLMTimeoutError`` is deliberately never retried: a provider that
+    accepted the request and then stopped answering will not answer the same
+    request faster next time, so retrying multiplies one stalled call by the
+    attempt count -- exactly the unbounded stall the timeout ceiling exists
+    to prevent.
     """
     try:
         return await _attempt_call_llm_json(
             prompt,
             original_prompt,
-            model_name,
-            max_tokens,
-            temperature,
-            json_schema,
+            spec,
             is_final_attempt,
             attempt,
             cache,
             call_for_json,
         )
     except LLMTimeoutError:
-        # Deliberately not retried. A provider that accepted the request and
-        # then stopped answering will not answer the same request faster on
-        # the next attempt, so retrying multiplies one stalled call by the
-        # attempt count -- exactly the unbounded stall the ceiling exists to
-        # prevent. Fail now and let the run surface the error.
         logger.error("LLM call timed out on attempt %s; not retrying", attempt)
         raise
     except Exception as e:
-        logger.error("LLM call failed on attempt %s: %s", attempt, e)
-        if is_final_attempt:
-            raise
-        if _is_rate_limited(e):
-            # Unlike a schema failure -- where the next attempt carries
-            # corrective feedback and should go out at once -- throttling is
-            # answered by waiting. Retrying a throttled call immediately feeds
-            # the burst that caused it.
-            delay = _rate_limit_backoff_seconds(attempt)
-            logger.warning(
-                "Rate limited on attempt %s; waiting %.1fs before retrying",
-                attempt,
-                delay,
-            )
-            await asyncio.sleep(delay)
-        return _JsonAttemptOutcome(
-            value=None, error=e, response_text=None, next_prompt=None
-        )
+        return await _handle_json_call_failure(e, attempt, is_final_attempt)

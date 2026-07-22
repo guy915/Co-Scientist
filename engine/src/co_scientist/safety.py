@@ -219,6 +219,64 @@ def _first_match(
     return None
 
 
+def _match_review(
+    text: str,
+    patterns: tuple[re.Pattern[str], ...],
+    outcome: SafetyOutcome,
+    reason: str,
+) -> SafetyReview | None:
+    """Build a SafetyReview from the first pattern match, or None."""
+    hit = _first_match(text, patterns)
+    if hit is None:
+        return None
+    return SafetyReview(outcome, reason, (hit,), POLICY_VERSION)
+
+
+# Checked, in order, before the obfuscation/dual-use/redact tiers below.
+_PRE_OBFUSCATION_CHECKS: tuple[
+    tuple[tuple[re.Pattern[str], ...], SafetyOutcome, str], ...
+] = (
+    (
+        _PROHIBITED,
+        SafetyOutcome.PROHIBITED,
+        "matches a prohibited weaponization/mass-casualty pattern",
+    ),
+    (
+        _ETHICAL,
+        SafetyOutcome.ETHICAL_CONCERN,
+        "raises an ethical-norms concern",
+    ),
+)
+
+# Checked, in order, after the obfuscation tier, before the default allow.
+_POST_OBFUSCATION_CHECKS: tuple[
+    tuple[tuple[re.Pattern[str], ...], SafetyOutcome, str], ...
+] = (
+    (
+        _DUAL_USE,
+        SafetyOutcome.DUAL_USE,
+        "legitimate but dual-use; allow with redaction/annotation",
+    ),
+    (
+        _REDACT,
+        SafetyOutcome.REDACT,
+        "contains sensitive operational detail to redact",
+    ),
+)
+
+
+def _first_tiered_review(
+    text: str,
+    checks: tuple[tuple[tuple[re.Pattern[str], ...], SafetyOutcome, str], ...],
+) -> SafetyReview | None:
+    """Return the first matching tier's SafetyReview, or None."""
+    for patterns, outcome, reason in checks:
+        review = _match_review(text, patterns, outcome, reason)
+        if review is not None:
+            return review
+    return None
+
+
 def review_hypothesis_safety(text: str) -> SafetyReview:
     """Review one hypothesis's text and return a structured safety outcome.
 
@@ -232,20 +290,10 @@ def review_hypothesis_safety(text: str) -> SafetyReview:
     Returns:
         The :class:`SafetyReview`.
     """
-    if (hit := _first_match(text, _PROHIBITED)) is not None:
-        return SafetyReview(
-            SafetyOutcome.PROHIBITED,
-            "matches a prohibited weaponization/mass-casualty pattern",
-            (hit,),
-            POLICY_VERSION,
-        )
-    if (hit := _first_match(text, _ETHICAL)) is not None:
-        return SafetyReview(
-            SafetyOutcome.ETHICAL_CONCERN,
-            "raises an ethical-norms concern",
-            (hit,),
-            POLICY_VERSION,
-        )
+    review = _first_tiered_review(text, _PRE_OBFUSCATION_CHECKS)
+    if review is not None:
+        return review
+
     obfuscation = _first_match(text, _OBFUSCATION)
     if obfuscation is not None and _first_match(text, _SENSITIVE_HINT):
         return SafetyReview(
@@ -254,20 +302,11 @@ def review_hypothesis_safety(text: str) -> SafetyReview:
             (obfuscation,),
             POLICY_VERSION,
         )
-    if (hit := _first_match(text, _DUAL_USE)) is not None:
-        return SafetyReview(
-            SafetyOutcome.DUAL_USE,
-            "legitimate but dual-use; allow with redaction/annotation",
-            (hit,),
-            POLICY_VERSION,
-        )
-    if (hit := _first_match(text, _REDACT)) is not None:
-        return SafetyReview(
-            SafetyOutcome.REDACT,
-            "contains sensitive operational detail to redact",
-            (hit,),
-            POLICY_VERSION,
-        )
+
+    review = _first_tiered_review(text, _POST_OBFUSCATION_CHECKS)
+    if review is not None:
+        return review
+
     return SafetyReview(
         SafetyOutcome.ALLOW,
         "no safety concern detected",

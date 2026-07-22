@@ -50,6 +50,41 @@ _PLAIN_COPY_STATE_KEYS = tuple(
 )
 
 
+def _merge_hypotheses_field(
+    cumulative_state: dict[str, Any], node_state: dict[str, Any]
+) -> None:
+    """Merges a node's hypotheses update via the compiled graph's reducer.
+
+    hypotheses go through the same reducer the compiled graph uses, so an
+    AppendHypotheses op is applied (append) rather than stored verbatim.
+    """
+    if "hypotheses" not in node_state:
+        return
+    cumulative_state["hypotheses"] = deduplicate_hypotheses(
+        cumulative_state["hypotheses"], node_state["hypotheses"]
+    )
+    logger.debug("updated hypotheses")
+
+
+def _merge_metrics_field(
+    cumulative_state: dict[str, Any], node_state: dict[str, Any]
+) -> None:
+    """Merges a node's metrics update into the cumulative metrics."""
+    if "metrics" not in node_state:
+        return
+    cumulative_state["metrics"] = merge_metrics(
+        cumulative_state["metrics"], node_state["metrics"]
+    )
+    logger.debug(
+        "merged metrics: reviews=%s, "
+        "tournaments=%s, evolutions=%s, llm_calls=%s",
+        cumulative_state["metrics"].reviews_count,
+        cumulative_state["metrics"].tournaments_count,
+        cumulative_state["metrics"].evolutions_count,
+        cumulative_state["metrics"].llm_calls,
+    )
+
+
 def _merge_node_state_into_cumulative(
     cumulative_state: dict[str, Any],
     node_state: dict[str, Any],
@@ -78,28 +113,11 @@ def _merge_node_state_into_cumulative(
         if key in node_state:
             cumulative_state[key] = node_state[key]
             logger.debug("updated %s", key)
-    # hypotheses go through the same reducer the compiled graph uses, so an
-    # AppendHypotheses op is applied (append) rather than stored verbatim.
-    if "hypotheses" in node_state:
-        cumulative_state["hypotheses"] = deduplicate_hypotheses(
-            cumulative_state["hypotheses"], node_state["hypotheses"]
-        )
-        logger.debug("updated hypotheses")
+    _merge_hypotheses_field(cumulative_state, node_state)
     if "supervisor_guidance" in node_state:
         cumulative_state["research_plan"] = node_state["supervisor_guidance"]
         logger.debug("updated research_plan")
-    if "metrics" in node_state:
-        cumulative_state["metrics"] = merge_metrics(
-            cumulative_state["metrics"], node_state["metrics"]
-        )
-        logger.debug(
-            "merged metrics: reviews=%s, "
-            "tournaments=%s, evolutions=%s, llm_calls=%s",
-            cumulative_state["metrics"].reviews_count,
-            cumulative_state["metrics"].tournaments_count,
-            cumulative_state["metrics"].evolutions_count,
-            cumulative_state["metrics"].llm_calls,
-        )
+    _merge_metrics_field(cumulative_state, node_state)
 
 
 def cumulative_stream_state_from(state: dict[str, Any]) -> dict[str, Any]:

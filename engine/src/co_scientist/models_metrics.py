@@ -95,18 +95,15 @@ def merge_metrics(
         Merged metrics (new object, does not mutate inputs)
     """
     # LangGraph invokes this reducer whenever a node's state update includes
-    # a "metrics" key; "new" is that node's create_metrics_update(...)
-    # output (deltas only, per its docstring), not a cumulative snapshot.
-    # Create a NEW metrics object (don't mutate existing!)
+    # a "metrics" key; "new" is that node's create_metrics_update(...) output
+    # (deltas only), not a cumulative snapshot. Builds a NEW metrics object.
     merged_phase_times = _merge_phase_times(
         existing.phase_times, new.phase_times
     )
 
-    # Per-field merge policy, matched to what create_metrics_update
-    # produces: hypothesis_count is the node's reported running *total*
-    # rather than a delta, so max() keeps the larger observed count instead
-    # of double-counting; total_time only overwrites when a node actually
-    # measured one (> 0); the rest are straightforward additive deltas.
+    # hypothesis_count is the node's reported running *total* rather than a
+    # delta, so max() avoids double-counting; total_time only overwrites
+    # when a node measured one (> 0); the rest are additive deltas.
     merged = ExecutionMetrics(
         hypothesis_count=max(existing.hypothesis_count, new.hypothesis_count),
         reviews_count=existing.reviews_count + new.reviews_count,

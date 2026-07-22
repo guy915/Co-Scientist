@@ -79,24 +79,21 @@ def _short_circuit_availability(
 ) -> bool | None:
     """Resolves availability without calling any tool, when possible.
 
-    Checks, in order: whether the MCP server returned any tools at all,
-    whether the workflow config opts out of a source-specific check, and
-    whether no check tool is configured. Returns None when none of these
-    apply, meaning the caller must actually invoke check_tool_name.
+    Checks, in order: no tools at all (unavailable), the workflow config
+    opts out of a source-specific check, or no check tool is configured
+    (both available since the server itself responded). Returns None when
+    none apply, meaning the caller must actually invoke check_tool_name.
 
     Args:
         all_tools_dict: Tools available on the already-initialized client.
-        check_tool_name: Name of the availability-check tool to call, or
-            None if no such tool is configured.
-        skip_availability_check: When True, the source is treated as
-            available once the MCP server itself responds, without calling
-            a tool.
+        check_tool_name: Availability-check tool name, or None if none is
+            configured.
+        skip_availability_check: Whether the server responding is enough,
+            without calling a tool.
 
     Returns:
         True/False if availability is already decided, else None.
     """
-    # An empty tool list means the MCP server is not usable, so the
-    # literature source is unavailable.
     if not all_tools_dict:
         logger.warning(
             "MCP server responded but provided no tools,"
@@ -104,21 +101,45 @@ def _short_circuit_availability(
         )
         return False
 
-    # If no availability check configured, assume available since MCP is up
-    if skip_availability_check:
+    if skip_availability_check or check_tool_name is None:
         logger.info(
             "MCP server available, skipping source-specific availability check"
-        )
-        return True
-
-    # If no check tool configured but we have a registry, assume available
-    if check_tool_name is None:
-        logger.info(
-            "no availability check tool configured, assuming source available"
+            if skip_availability_check
+            else "no availability check tool configured, assuming source"
+            " available"
         )
         return True
 
     return None
+
+
+async def _call_check_tool(
+    mcp_client: "MCPToolClient",
+    check_tool_name: str | None,
+    all_tools_dict: dict[str, Any],
+) -> bool:
+    """Calls check_tool_name and interprets its result, if it exists.
+
+    Args:
+        mcp_client: An initialized MCPToolClient to call the tool on.
+        check_tool_name: Name of the availability-check tool to call.
+        all_tools_dict: Tools available on the already-initialized client.
+
+    Returns:
+        True/False per the tool's answer, or False if the tool is absent.
+    """
+    if check_tool_name not in all_tools_dict:
+        logger.warning(
+            "availability check tool '%s' not found. available tools: %s",
+            check_tool_name,
+            list(all_tools_dict.keys()),
+        )
+        return False
+
+    logger.debug("%s tool found, executing", check_tool_name)
+    # Result should be a boolean or "true"/"false" string.
+    result = await mcp_client.call_tool(check_tool_name)
+    return _interpret_availability_result(result, check_tool_name)
 
 
 async def _probe_literature_source_availability(
@@ -154,21 +175,7 @@ async def _probe_literature_source_availability(
     )
     logger.debug("available mcp tools: %s", list(all_tools_dict.keys()))
 
-    if check_tool_name not in all_tools_dict:
-        logger.warning(
-            "availability check tool '%s' not found. available tools: %s",
-            check_tool_name,
-            list(all_tools_dict.keys()),
-        )
-        return False
-
-    logger.debug("%s tool found, executing", check_tool_name)
-
-    # Call tool directly
-    result = await mcp_client.call_tool(check_tool_name)
-
-    # Result should be a boolean or "true"/"false" string
-    return _interpret_availability_result(result, check_tool_name)
+    return await _call_check_tool(mcp_client, check_tool_name, all_tools_dict)
 
 
 def _log_mcp_test_start(

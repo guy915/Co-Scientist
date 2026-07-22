@@ -110,26 +110,30 @@ def _add_workflow_nodes(
         workflow.add_node("reflection", reflection_node)
 
 
-def _add_workflow_edges(
-    workflow: _WorkflowBuilder, enable_literature_review_node: bool
-) -> None:
-    """Wires every workflow edge, including the entry point and routing.
+def _add_entry_edge(workflow: _WorkflowBuilder) -> None:
+    """Wires the graph entry: resume at the orchestrator, else supervisor.
 
-    Args:
-        workflow: The graph under construction, with all nodes already
-            registered; mutated in place.
-        enable_literature_review_node: Whether the literature review and
-            reflection nodes are present, which determines the initial
-            flow into "review".
+    A checkpoint-restored run (resume=True) re-enters at the orchestrator
+    loop point; a fresh run starts at the supervisor.
     """
-    # Entry: a checkpoint-restored run (resume=True) re-enters at the
-    # orchestrator loop point; a fresh run starts at the supervisor.
     workflow.add_conditional_edges(
         START,
         _resume_router,
         {"supervisor": "supervisor", "orchestrator": "orchestrator"},
     )
 
+
+def _add_generation_phase_edges(
+    workflow: _WorkflowBuilder, enable_literature_review_node: bool
+) -> None:
+    """Wires the supervisor through generation into the review phase.
+
+    Args:
+        workflow: The graph under construction; mutated in place.
+        enable_literature_review_node: Whether the literature review and
+            reflection nodes are present, which determines the initial
+            flow into "review".
+    """
     if enable_literature_review_node:
         # Full flow: supervisor → literature_review → generate → reflection
         # → review → ranking
@@ -142,26 +146,34 @@ def _add_workflow_edges(
         workflow.add_edge("supervisor", "generate")
         workflow.add_edge("generate", "review")
 
+
+def _add_review_and_ranking_edges(workflow: _WorkflowBuilder) -> None:
+    """Wires the review phase through safety/verification into ranking."""
     workflow.add_edge("review", "comprehensive_reflection")
     workflow.add_edge("comprehensive_reflection", "safety_screen")
     workflow.add_edge("safety_screen", "deep_verification")
+    # Verification precedes every tournament so contradicted fundamentals
+    # do not contaminate Elo.
     workflow.add_edge("deep_verification", "ranking")
 
-    # Evolve branch: meta_review → evolve → review (children re-reviewed).
+
+def _add_evolution_edges(workflow: _WorkflowBuilder) -> None:
+    """Wires the evolve branch: meta_review → evolve → review (re-reviewed)."""
     workflow.add_edge("meta_review", "evolve")
     workflow.add_edge("evolve", "review")
 
-    # Note: review → safety_screen → ranking already defined above.
 
-    # Verification precedes every tournament so contradicted fundamentals do
-    # not contaminate Elo; ranking then returns to the adaptive loop point.
+def _add_loop_and_terminal_edges(workflow: _WorkflowBuilder) -> None:
+    """Wires the orchestrator loop-back edges and terminal synthesis.
+
+    Ranking and proximity are both maintenance tasks that return to the
+    adaptive loop point; the orchestrator's recorded decision then routes
+    to the node that begins the next task (or to terminal synthesis),
+    replacing the fixed post-ranking/post-proximity iteration-count edges.
+    Every completion path flows through research-overview before ending.
+    """
     workflow.add_edge("ranking", "orchestrator")
-    # Proximity is a maintenance task; it returns to the orchestrator too.
     workflow.add_edge("proximity", "orchestrator")
-
-    # The orchestrator's recorded decision routes to the node that begins the
-    # next task (or to terminal synthesis). This replaces the fixed
-    # post-ranking/post-proximity iteration-count edges.
     workflow.add_conditional_edges(
         "orchestrator",
         _route_next_task,
@@ -174,7 +186,23 @@ def _add_workflow_edges(
             "research_overview": "research_overview",
         },
     )
-
-    # Terminal synthesis: every completion path flows through the
-    # research-overview node before ending.
     workflow.add_edge("research_overview", END)
+
+
+def _add_workflow_edges(
+    workflow: _WorkflowBuilder, enable_literature_review_node: bool
+) -> None:
+    """Wires every workflow edge, including the entry point and routing.
+
+    Args:
+        workflow: The graph under construction, with all nodes already
+            registered; mutated in place.
+        enable_literature_review_node: Whether the literature review and
+            reflection nodes are present, which determines the initial
+            flow into "review".
+    """
+    _add_entry_edge(workflow)
+    _add_generation_phase_edges(workflow, enable_literature_review_node)
+    _add_review_and_ranking_edges(workflow)
+    _add_evolution_edges(workflow)
+    _add_loop_and_terminal_edges(workflow)
