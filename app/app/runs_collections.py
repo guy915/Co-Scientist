@@ -1,0 +1,209 @@
+"""Read-only run collection and report endpoints.
+
+Split out of ``app.runs`` (which re-exports every name here and mounts
+``router`` on its own, so the served route set is unchanged): the
+per-run collection getters (hypotheses, evidence, matches, proximity,
+reviews, safety, citations, metrics, logs, claim-evidence), the safety
+adjudication endpoint that operates on those decisions, and the report
+payload/Markdown reads.
+"""
+
+from __future__ import annotations
+
+from typing import Any
+
+from fastapi import APIRouter, HTTPException, Query, Request
+from fastapi.responses import PlainTextResponse
+
+from app import store
+from app.auth import client_id
+from app.logs_api import logs_payload
+from app.runs_models import SafetyAdjudicationRequest
+from app.runs_support import _require_run, _run_or_404
+from app.store import RunStatus
+
+router = APIRouter()
+
+
+@router.get("/{run_id}/hypotheses")
+async def get_hypotheses(run_id: str) -> dict[str, Any]:
+    """Return the run's hypotheses with Elo state, lineage, and verification."""
+    run = _run_or_404(run_id)
+    from app.report_render import _unverified_hypothesis_ids
+
+    hyps = store.list_hypotheses(run_id)
+    # Flag ideas without an evidence-supported claim so the UI can badge them
+    # "Unverified" (they are ranked and published under the rank-and-publish
+    # policy; only contradicted/unsafe ideas are withheld from the report).
+    # Offline-backed runs (mock demos, deterministic offline engine runs) are
+    # illustrative fixtures, not assessed science, so they are never badged
+    # (they carry simulated "insufficient" claim rows that would otherwise
+    # flag every idea). Keyed on the run's persisted backend, not the process
+    # offline_mode(), so a real engine run created while offline is badged.
+    if store.run_used_offline(run):
+        for hyp in hyps:
+            hyp["unverified"] = False
+    else:
+        unverified = _unverified_hypothesis_ids(run_id, None, hyps)
+        for hyp in hyps:
+            hyp["unverified"] = str(hyp.get("id")) in unverified
+    return {"hypotheses": hyps}
+
+
+@router.get("/{run_id}/evidence")
+async def get_evidence(run_id: str) -> dict[str, Any]:
+    """Return the literature evidence retrieved for the run."""
+    _require_run(run_id)
+    return {"evidence": store.list_evidence(run_id)}
+
+
+@router.get("/{run_id}/matches")
+async def get_matches(run_id: str) -> dict[str, Any]:
+    """Return the run's tournament matches with Elo snapshots."""
+    _require_run(run_id)
+    return {"matches": store.list_matches(run_id)}
+
+
+@router.get("/{run_id}/proximity")
+async def get_proximity(run_id: str) -> dict[str, Any]:
+    """Return the persisted weighted idea-proximity landscape."""
+    _require_run(run_id)
+    return {"proximity": store.list_proximity_edges(run_id)}
+
+
+@router.get("/{run_id}/reviews")
+async def get_reviews(run_id: str) -> dict[str, Any]:
+    """Return reviewer and meta-review notes for the run."""
+    _require_run(run_id)
+    return {"reviews": store.list_reviews(run_id)}
+
+
+@router.get("/{run_id}/safety")
+async def get_safety(run_id: str) -> dict[str, Any]:
+    """Return the run's intake/final safety-gate decisions."""
+    _require_run(run_id)
+    return {"safety": store.list_safety_decisions(run_id)}
+
+
+@router.post("/{run_id}/safety/{decision_id}/adjudicate")
+async def adjudicate_safety(
+    run_id: str,
+    decision_id: int,
+    body: SafetyAdjudicationRequest,
+    request: Request,
+) -> dict[str, Any]:
+    """Resolve one held safety decision and update the run lifecycle."""
+    run = _run_or_404(run_id)
+    reviewer = client_id(request)
+    if not reviewer:
+        raise HTTPException(
+            status_code=403, detail="an identified reviewer is required"
+        )
+    resolved = store.resolve_safety_decision(
+        run_id, decision_id, body.resolution, reviewer
+    )
+    if not resolved:
+        raise HTTPException(
+            status_code=409,
+            detail="decision is not reviewable or was already resolved",
+        )
+    if body.resolution == "rejected":
+        store.update_run_status(
+            run_id,
+            RunStatus.BLOCKED,
+            error="Safety reviewer rejected held content.",
+        )
+    elif run.status == RunStatus.PAUSED.value:
+        # Intake holds return to draft; final holds retain a checkpoint and can
+        # resume through the ordinary recovery path.
+        decisions = store.list_safety_decisions(run_id)
+        decision = next(item for item in decisions if item["id"] == decision_id)
+        target = (
+            RunStatus.DRAFT
+            if decision["stage"] == "intake"
+            else RunStatus.PAUSED
+        )
+        store.update_run_status(run_id, target, error=None)
+    return {"resolution": body.resolution, "decision_id": decision_id}
+
+
+@router.get("/{run_id}/citations")
+async def get_citations(run_id: str) -> dict[str, Any]:
+    """Return the run's citation rows with classification states."""
+    _require_run(run_id)
+    return {"citations": store.list_citations(run_id)}
+
+
+@router.get("/{run_id}/metrics")
+async def get_metrics(run_id: str) -> dict[str, Any]:
+    """Return the run's persisted execution metrics.
+
+    The metrics dict (LLM calls, phase timings, artifact counts) is
+    persisted when the workflow finalizes; ``metrics`` is null for runs
+    that have not completed a finalize yet.
+    """
+    _require_run(run_id)
+    return {"metrics": store.get_run_metrics(run_id)}
+
+
+@router.get("/{run_id}/logs")
+async def get_run_logs(
+    run_id: str,
+    after_id: int = Query(0, ge=0),
+    limit: int = Query(200, ge=1, le=1000),
+    min_level: str | None = None,
+    q: str | None = None,
+    verbose: bool = False,
+) -> dict[str, Any]:
+    """Return the run's persisted application log records, oldest-first.
+
+    Run-scoped view of ``GET /api/logs``: same filters and payload shape,
+    with ``run_id`` fixed to this run.
+    """
+    _require_run(run_id)
+    return logs_payload(
+        after_id=after_id,
+        limit=limit,
+        min_level=min_level,
+        run_id=run_id,
+        q=q,
+        verbose=verbose,
+    )
+
+
+@router.get("/{run_id}/claim-evidence")
+async def get_claim_evidence(run_id: str) -> dict[str, Any]:
+    """Return the run's claim-level entailment graph (Milestone 5).
+
+    Each edge is one atomic claim of a hypothesis with its assessed label
+    (supports/contradicts/insufficient) and the exact supporting/contradicting
+    passages that drove the verdict.
+    """
+    _require_run(run_id)
+    return {"claim_evidence": store.list_claim_evidence(run_id)}
+
+
+@router.get("/{run_id}/report")
+async def get_report(run_id: str) -> dict[str, Any]:
+    """Return the latest structured report, or 404 before synthesis."""
+    _require_run(run_id)
+    report = store.get_latest_report(run_id)
+    if not report:
+        raise HTTPException(status_code=404, detail="no report yet")
+    return report
+
+
+@router.get("/{run_id}/report.md", response_class=PlainTextResponse)
+async def get_report_markdown(run_id: str) -> PlainTextResponse:
+    """Return the rendered Markdown report as a file download."""
+    _require_run(run_id)
+    md = store.read_report_markdown(run_id)
+    if md is None:
+        raise HTTPException(status_code=404, detail="no report yet")
+    # Content-Disposition makes browsers save it as <run_id>.md.
+    return PlainTextResponse(
+        md,
+        headers={
+            "Content-Disposition": f'attachment; filename="{run_id}.md"',
+        },
+    )

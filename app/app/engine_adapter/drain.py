@@ -13,11 +13,7 @@ import sqlite3
 from typing import Any, NamedTuple
 
 from app import store
-from app.citations import (
-    CitationRecord,
-    classify_citation,
-    empty_citation_summary,
-)
+from app.citations import empty_citation_summary
 from app.claim_grounding import (
     assess_hypothesis_claims,
     build_assessor,
@@ -26,8 +22,50 @@ from app.claim_grounding import (
 )
 from app.config import settings
 from app.elo import INITIAL_ELO
+
+# Review/citation and match/proximity persistence moved verbatim to sibling
+# modules; every moved name is re-exported so this module's namespace (the
+# seam tests and callers patch/import against) keeps resolving.
+from app.engine_adapter.drain_matches import (
+    _matchup_loser_engine_id as _matchup_loser_engine_id,
+)
+from app.engine_adapter.drain_matches import (
+    _persist_engine_matches as _persist_engine_matches,
+)
+from app.engine_adapter.drain_matches import (
+    _persist_engine_proximity as _persist_engine_proximity,
+)
+from app.engine_adapter.drain_matches import (
+    _resolve_match_sides as _resolve_match_sides,
+)
+from app.engine_adapter.drain_reviews import (
+    _citation_map as _citation_map,
+)
+from app.engine_adapter.drain_reviews import (
+    _citation_url as _citation_url,
+)
+from app.engine_adapter.drain_reviews import (
+    _ensure_citation_evidence_id as _ensure_citation_evidence_id,
+)
+from app.engine_adapter.drain_reviews import (
+    _hypothesis_grounding_text as _hypothesis_grounding_text,
+)
+from app.engine_adapter.drain_reviews import (
+    _persist_deep_verification_review as _persist_deep_verification_review,
+)
+from app.engine_adapter.drain_reviews import (
+    _persist_engine_citations as _persist_engine_citations,
+)
+from app.engine_adapter.drain_reviews import (
+    _persist_engine_review_rows as _persist_engine_review_rows,
+)
+from app.engine_adapter.drain_reviews import (
+    _persist_engine_reviews as _persist_engine_reviews,
+)
+from app.engine_adapter.drain_reviews import (
+    _score_or_none as _score_or_none,
+)
 from app.hypothesis_screening import screen_hypotheses
-from app.report_render import format_deep_verification_critique
 from app.text_utils import first_sentence
 
 logger = logging.getLogger(__name__)
@@ -215,159 +253,6 @@ def _persist_engine_hypothesis_row(
     return hyp_id, identity.engine_id
 
 
-def _score_or_none(value: Any) -> float | None:
-    """Coerce a raw engine score to a float, treating 0/falsy as unset."""
-    return float(value or 0) or None
-
-
-def _persist_engine_review_rows(
-    run_id: str, hyp_id: str, h: dict[str, Any], conn: sqlite3.Connection
-) -> None:
-    """Persist a hypothesis's per-review rows from the engine's reviews list."""
-    for rv in h.get("reviews") or []:
-        scores = rv.get("scores", {})
-        store.add_review(
-            run_id=run_id,
-            hypothesis_id=hyp_id,
-            reviewer_agent="review",
-            summary=rv.get("review_summary", ""),
-            critique=rv.get("constructive_feedback", ""),
-            novelty=_score_or_none(scores.get("novelty", 0)),
-            plausibility=_score_or_none(scores.get("scientific_soundness", 0)),
-            testability=_score_or_none(scores.get("testability", 0)),
-            overall=_score_or_none(rv.get("overall_score", 0)),
-            conn=conn,
-        )
-
-
-def _persist_deep_verification_review(
-    run_id: str,
-    hyp_id: str,
-    h: dict[str, Any],
-    conn: sqlite3.Connection,
-) -> None:
-    """Persist deep-verification probes as a dedicated review row, if any."""
-    probes = h.get("deep_verification_probes") or []
-    if not probes:
-        return
-    summary, critique = format_deep_verification_critique(
-        probes, h.get("deep_verification_verdict")
-    )
-    store.add_review(
-        run_id=run_id,
-        hypothesis_id=hyp_id,
-        reviewer_agent="deep_verification",
-        summary=summary,
-        critique=critique,
-        conn=conn,
-    )
-
-
-def _persist_engine_reviews(
-    run_id: str,
-    hyp_id: str,
-    h: dict[str, Any],
-    conn: sqlite3.Connection,
-) -> None:
-    """Persist a hypothesis's per-review rows plus its deep-verification row."""
-    _persist_engine_review_rows(run_id, hyp_id, h, conn)
-    _persist_deep_verification_review(run_id, hyp_id, h, conn)
-
-
-def _ensure_citation_evidence_id(
-    run_id: str,
-    cite_title: str,
-    cite_info: dict[str, Any],
-    cite_url: str,
-    ev_id_by_title: dict[str, str],
-    conn: sqlite3.Connection,
-) -> str:
-    """Return the evidence id for a cited source, adding it on the fly.
-
-    Mutates `ev_id_by_title` in place when a new evidence row is added.
-    """
-    cite_ev_id = ev_id_by_title.get(cite_title)
-    if cite_ev_id is None:
-        cite_ev_id = store.add_evidence(
-            run_id,
-            cite_title,
-            source=cite_info.get("type", "engine"),
-            url=cite_url,
-            authors=cite_info.get("authors") or [],
-            year=cite_info.get("year"),
-            abstract="",
-            available=True,
-            conn=conn,
-        )
-        ev_id_by_title[cite_title] = cite_ev_id
-    return cite_ev_id
-
-
-def _hypothesis_grounding_text(h: dict[str, Any]) -> str:
-    """Return the literature-grounding text used as a citation's claim basis.
-
-    Falls back to the hypothesis's own statement text, then to empty, when no
-    dedicated grounding text was generated.
-    """
-    return str(h.get("literature_grounding") or h.get("text") or "")
-
-
-def _citation_map(h: dict[str, Any]) -> dict[str, Any]:
-    """Return a hypothesis's raw engine citation map, defaulting to empty."""
-    return h.get("citation_map") or {}
-
-
-def _citation_url(cite_info: dict[str, Any]) -> str:
-    """Return a citation's URL, defaulting to empty (an unavailable source)."""
-    return cite_info.get("url") or ""
-
-
-def _persist_engine_citations(
-    run_id: str,
-    hyp_id: str,
-    h: dict[str, Any],
-    ev_id_by_title: dict[str, str],
-    abstract_by_title: dict[str, str],
-    citation_summary: dict[str, int],
-    conn: sqlite3.Connection,
-) -> None:
-    """Persist a hypothesis's citations, classifying each via the shared path.
-
-    Route each through the shared classifier (the same path the mock uses)
-    rather than hardcoding a state, so the four-state citation UI reflects
-    real runs. The hypothesis grounding is the claim the citation supports;
-    it is matched against the cited paper's abstract (when the source was
-    retrieved), and a source with no resolvable URL (e.g. a knowledge-graph
-    statement) falls out as "unavailable".
-
-    Mutates `ev_id_by_title` (a citation may add evidence for its source on
-    the fly) and `citation_summary` (running citation-state counts) in place.
-    """
-    grounding = _hypothesis_grounding_text(h)
-    for cite_key, cite_info in _citation_map(h).items():
-        cite_title = cite_info.get("title", cite_key)
-        cite_url = _citation_url(cite_info)
-        cite_ev_id = _ensure_citation_evidence_id(
-            run_id, cite_title, cite_info, cite_url, ev_id_by_title, conn
-        )
-        claim = f"[{cite_key}] cited in hypothesis"
-        state = classify_citation(
-            CitationRecord(
-                url=cite_url,
-                abstract=abstract_by_title.get(cite_title, ""),
-                claim=grounding,
-                available=(
-                    bool(cite_url)
-                    and not bool(cite_info.get("is_retracted"))
-                    and str(cite_info.get("correction_status") or "").lower()
-                    != "retracted"
-                ),
-            )
-        )
-        citation_summary[state] += 1
-        store.add_citation(run_id, hyp_id, cite_ev_id, claim, state, conn=conn)
-
-
 def _persist_engine_hypothesis(
     run_id: str,
     h: dict[str, Any],
@@ -429,73 +314,6 @@ def _hypotheses_with_proximity_archive(
     return list(by_id.values())
 
 
-def _matchup_loser_engine_id(
-    m: dict[str, Any], a_engine_id: str | None, winner_engine_id: str | None
-) -> str | None:
-    """Return the losing side's engine id: whichever side didn't win."""
-    b_engine_id = m.get("hypothesis_b_id")
-    return b_engine_id if winner_engine_id == a_engine_id else a_engine_id
-
-
-def _resolve_match_sides(
-    m: dict[str, Any],
-    store_id_by_engine_id: dict[str, str],
-) -> tuple[str, str] | None:
-    """Resolve a matchup's winner/loser store ids, or None if unresolved.
-
-    Matchups may legitimately reference hypotheses that are absent from the
-    final set (e.g. proximity pruned a duplicate after it competed), so an
-    unresolved id is expected rather than an error — logged and skipped by
-    the caller.
-    """
-    a_engine_id = m.get("hypothesis_a_id")
-    winner_engine_id = m.get("winner_id")
-    loser_engine_id = _matchup_loser_engine_id(m, a_engine_id, winner_engine_id)
-
-    winner_id = store_id_by_engine_id.get(winner_engine_id or "")
-    loser_id = store_id_by_engine_id.get(loser_engine_id or "")
-    # Inlined (rather than routed through a predicate helper) so mypy's
-    # flow-sensitive narrowing sees both ids as non-None below.
-    if not winner_id or not loser_id:
-        logger.warning(
-            "skipping matchup: unresolved hypothesis id "
-            "(winner=%s, loser=%s) — likely a hypothesis dropped "
-            "during evolution",
-            winner_engine_id,
-            loser_engine_id,
-        )
-        return None
-    return winner_id, loser_id
-
-
-def _persist_engine_matches(
-    run_id: str,
-    matchups: list[dict[str, Any]],
-    store_id_by_engine_id: dict[str, str],
-    conn: sqlite3.Connection,
-) -> None:
-    """Persist tournament matches, resolving each side by engine id."""
-    for m in matchups:
-        sides = _resolve_match_sides(m, store_id_by_engine_id)
-        if sides is None:
-            continue
-        winner_id, loser_id = sides
-        store.add_match(
-            run_id=run_id,
-            iteration=0,
-            winner_id=winner_id,
-            loser_id=loser_id,
-            winner_before=int(m.get("winner_elo_before", INITIAL_ELO)),
-            winner_after=int(m.get("winner_elo_after", INITIAL_ELO)),
-            loser_before=int(m.get("loser_elo_before", INITIAL_ELO)),
-            loser_after=int(m.get("loser_elo_after", INITIAL_ELO)),
-            rationale=m.get("reasoning", ""),
-            tier=m.get("tier") or None,
-            debate_turns=int(m.get("debate_turns", 1)),
-            conn=conn,
-        )
-
-
 def _final_state_list(
     final_state: dict[str, Any], key: str
 ) -> list[dict[str, Any]]:
@@ -506,34 +324,6 @@ def _final_state_list(
 def _final_state_dict(final_state: dict[str, Any], key: str) -> dict[str, Any]:
     """Return a dict-valued key from the engine's final state, or empty."""
     return final_state.get(key) or {}
-
-
-def _persist_engine_proximity(
-    run_id: str,
-    graph: dict[str, Any],
-    store_id_by_engine_id: dict[str, str],
-    conn: sqlite3.Connection,
-) -> None:
-    """Persist weighted graph edges after resolving engine hypothesis ids."""
-    meta = graph.get("meta") or {}
-    for edge in graph.get("edges") or []:
-        source = store_id_by_engine_id.get(str(edge.get("source") or ""))
-        target = store_id_by_engine_id.get(str(edge.get("target") or ""))
-        if not source or not target:
-            continue
-        store.add_proximity_edge(
-            run_id,
-            source,
-            target,
-            float(edge.get("similarity", 0.0)),
-            degree=edge.get("degree"),
-            cluster_id=edge.get("cluster_id"),
-            method=meta.get("method"),
-            version=meta.get("version"),
-            model=meta.get("model"),
-            updated_at=meta.get("updated_at"),
-            conn=conn,
-        )
 
 
 def _persist_final_state(

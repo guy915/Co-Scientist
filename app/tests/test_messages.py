@@ -9,7 +9,7 @@ from fastapi.testclient import TestClient
 from app import store
 from tests._client import make_client as _client
 from tests._client import wait_for_status
-from tests.test_engine_tasks import _seed_checkpoint, _task_state
+from tests._engine_tasks_helpers import _seed_checkpoint, _task_state
 
 
 def test_append_and_list_messages(isolated_db: str) -> None:

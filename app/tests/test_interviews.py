@@ -9,7 +9,6 @@ terminal ``interview`` frame via :func:`_interview_payload` rather than
 from __future__ import annotations
 
 import json
-from types import SimpleNamespace
 from typing import Any, cast
 
 import pytest
@@ -19,6 +18,8 @@ from fastapi.testclient import TestClient
 from app import interviews
 from app.config import settings
 from app.main import app
+
+from ._interviews_helpers import _fake_stream, _response
 
 
 def _interview_payload(response: Any) -> dict[str, Any]:
@@ -50,25 +51,6 @@ def _stream_frames(response: Any) -> list[dict[str, Any]]:
         for line in response.text.splitlines()
         if line.startswith("data: ")
     ]
-
-
-def _response(
-    message: str,
-    *,
-    challenge: str = "How can resistant bacteria regain drug susceptibility?",
-    focus: list[str] | None = None,
-    preferences: list[str] | None = None,
-    title: str | None = None,
-    completed: bool = False,
-) -> dict[str, Any]:
-    return {
-        "assistant_message": message,
-        "research_challenge": challenge,
-        "focus_area": focus or [],
-        "preferences": preferences or [],
-        "title": title,
-        "completed": completed,
-    }
 
 
 def test_interview_persists_turns_progress_and_final_plan(
@@ -239,98 +221,6 @@ def test_scientist_can_edit_and_finalize_fields(
     assert edited.json()["status"] == "completed"
 
 
-def _fake_stream(content: str, reasoning: str = "") -> Any:
-    """Build a litellm-style streaming completion.
-
-    Mirrors the real DeepSeek delta order verified against the live API: the
-    whole chain of thought arrives as ``reasoning_content`` deltas before the
-    first ``content`` delta.
-
-    Args:
-        content: The answer text, delivered as a single content delta.
-        reasoning: Optional chain of thought delivered before the answer.
-
-    Returns:
-        An async iterator of litellm-shaped streaming chunks.
-    """
-
-    def _chunk(
-        *, reasoning_content: str | None = None, content: str | None = None
-    ) -> SimpleNamespace:
-        delta = SimpleNamespace(
-            reasoning_content=reasoning_content, content=content
-        )
-        return SimpleNamespace(choices=[SimpleNamespace(delta=delta)])
-
-    async def _chunks() -> Any:
-        if reasoning:
-            yield _chunk(reasoning_content=reasoning)
-        yield _chunk(content=content)
-
-    return _chunks()
-
-
-async def test_interview_downgrades_response_format_for_deepseek(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """DeepSeek rejects json_schema, so the interview must use json_object.
-
-    The engine already downgrades DeepSeek to json_object + schema-in-prompt;
-    the interview call must defer to the same provider-capability check rather
-    than hardcoding json_schema (which DeepSeek returns a BadRequest for).
-    """
-    import json
-
-    import litellm
-
-    captured: dict[str, Any] = {}
-
-    async def _fake_acompletion(**kwargs: Any) -> Any:
-        captured.update(kwargs)
-        return _fake_stream(json.dumps(_response("Which mechanism?")))
-
-    monkeypatch.setattr(litellm, "acompletion", _fake_acompletion)
-    monkeypatch.setattr(settings, "chat_model_name", "deepseek/deepseek-chat")
-
-    interview = {
-        "turns": [{"role": "user", "content": "restore susceptibility"}],
-        "fields": {},
-    }
-    result = await interviews._call_interview_model(interview)
-
-    assert captured["response_format"] == {"type": "json_object"}
-    # The schema is restated in the prompt so structure survives the downgrade.
-    prompt_text = " ".join(m["content"] for m in captured["messages"])
-    assert "assistant_message" in prompt_text
-    assert result["assistant_message"] == "Which mechanism?"
-
-
-async def test_interview_keeps_json_schema_for_supporting_model(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """A model that supports json_schema still gets the native schema format."""
-    import json
-
-    import litellm
-
-    captured: dict[str, Any] = {}
-
-    async def _fake_acompletion(**kwargs: Any) -> Any:
-        captured.update(kwargs)
-        return _fake_stream(json.dumps(_response("ok")))
-
-    monkeypatch.setattr(litellm, "acompletion", _fake_acompletion)
-    monkeypatch.setattr(settings, "chat_model_name", "openai/gpt-4o")
-
-    interview = {
-        "turns": [{"role": "user", "content": "test"}],
-        "fields": {},
-    }
-    await interviews._call_interview_model(interview)
-
-    assert captured["response_format"]["type"] == "json_schema"
-
-
 def test_turn_streams_real_reasoning_before_resolving(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -463,71 +353,3 @@ def test_interview_remains_usable_during_model_outage(
         "preferences": ["Use human organoids and exclude animal work."],
         "title": None,
     }
-
-
-async def test_interview_carries_audience_lab_context(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """The SBI/UCD interview is briefed on the group it is interviewing.
-
-    Regression: the interview is the first surface a scientist talks to, but
-    it was the only conversational surface that never received the audience
-    context. Asking the Agent "what do you know about SBI?" in SBI mode had
-    it deny knowing the lab, while the in-run Q&A answered the same question
-    fine.
-    """
-    import json
-
-    import litellm
-
-    captured: dict[str, Any] = {}
-
-    async def _fake_acompletion(**kwargs: Any) -> Any:
-        captured.update(kwargs)
-        return _fake_stream(json.dumps(_response("Which mechanism?")))
-
-    monkeypatch.setattr(litellm, "acompletion", _fake_acompletion)
-
-    interview = {
-        "turns": [{"role": "user", "content": "resistance mechanisms"}],
-        "fields": {},
-        "audience": "sbi_ucd",
-    }
-    await interviews._call_interview_model(interview)
-
-    system = next(
-        m["content"] for m in captured["messages"] if m["role"] == "system"
-    )
-    assert "Systems Biology Ireland" in system
-    # The group's own papers ride along too, so the Agent can speak to them.
-    assert "paper_id" in system
-
-
-async def test_interview_without_audience_is_unchanged(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """A general-audience interview gets no injected lab context."""
-    import json
-
-    import litellm
-
-    captured: dict[str, Any] = {}
-
-    async def _fake_acompletion(**kwargs: Any) -> Any:
-        captured.update(kwargs)
-        return _fake_stream(json.dumps(_response("Which mechanism?")))
-
-    monkeypatch.setattr(litellm, "acompletion", _fake_acompletion)
-
-    interview = {
-        "turns": [{"role": "user", "content": "resistance mechanisms"}],
-        "fields": {},
-        "audience": "general",
-    }
-    await interviews._call_interview_model(interview)
-
-    system = next(
-        m["content"] for m in captured["messages"] if m["role"] == "system"
-    )
-    assert "Systems Biology Ireland" not in system
-    assert "paper_id" not in system

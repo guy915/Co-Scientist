@@ -13,7 +13,7 @@ from typing import Any, ClassVar, cast
 import httpx
 import pytest
 
-from app.cli import runs_cmd
+from app.cli import runs_cmd, runs_stream_cmd
 from app.cli.http import ApiClient, ApiUnreachableError, CliError
 
 # The package re-exports the ``main`` function under the same name as the
@@ -247,7 +247,10 @@ def _watch_args(after: int = 0) -> argparse.Namespace:
 def _watch_client(
     handler: object, monkeypatch: pytest.MonkeyPatch
 ) -> ApiClient:
-    monkeypatch.setattr(runs_cmd, "WATCH_RECONNECT_WAIT", 0.0)
+    # ``handle_watch`` reads the constant from its defining module at call
+    # time, so the patch must target ``runs_stream_cmd`` (the re-export in
+    # ``runs_cmd`` is a separate binding).
+    monkeypatch.setattr(runs_stream_cmd, "WATCH_RECONNECT_WAIT", 0.0)
     transport = httpx.MockTransport(handler)  # type: ignore[arg-type]
     return ApiClient("http://api.test", transport=transport, retry_wait=0.0)
 

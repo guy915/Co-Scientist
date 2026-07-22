@@ -28,97 +28,163 @@ tasks and update the run row, which the workers observe. Streams are backed
 by the persisted event log so they survive client reconnects and full
 backend restarts. Request models live in ``runs_models`` and SSE streaming
 helpers in ``runs_events``.
+
+This module owns run create/list/read, the SSE stream, and the chat
+endpoints, and assembles the full route set by including the sibling
+endpoint routers -- ``runs_lifecycle`` (start/cancel/pause/resume and the
+startup auto-resume launcher), ``runs_collections`` (read-only collection
+getters, safety adjudication, reports), and ``runs_contrib``
+(scientist-contributed hypotheses/reviews/attachments), with shared
+existence guards in ``runs_support``. Every moved name is re-exported
+here so ``app.runs`` remains the stable import and monkeypatch surface.
 """
 
 from __future__ import annotations
 
-import asyncio
-import logging
-import os
-import sqlite3
-from typing import Annotated, Any
+from typing import Any
 
 from fastapi import (
     APIRouter,
     BackgroundTasks,
-    File,
-    Form,
     HTTPException,
     Query,
     Request,
     Response,
-    UploadFile,
 )
-from fastapi.responses import (
-    JSONResponse,
-    PlainTextResponse,
-    StreamingResponse,
-)
+from fastapi.responses import JSONResponse, StreamingResponse
 
 from app import (
-    document_ingest,
     engine_adapter,
     engine_tasks,
-    human_input,
     paper_corpus,
     qa,
-    run_corpus,
+    runs_collections,
+    runs_contrib,
+    runs_lifecycle,
     store,
-    task_worker,
 )
 from app.audience import audience_chat_context
 from app.auth import client_id
-from app.config import settings
-from app.hypothesis_screening import screen_hypotheses
-from app.logs_api import logs_payload
+from app.runs_collections import (
+    adjudicate_safety as adjudicate_safety,
+)
+from app.runs_collections import (
+    get_citations as get_citations,
+)
+from app.runs_collections import (
+    get_claim_evidence as get_claim_evidence,
+)
+from app.runs_collections import (
+    get_evidence as get_evidence,
+)
+from app.runs_collections import (
+    get_hypotheses as get_hypotheses,
+)
+from app.runs_collections import (
+    get_matches as get_matches,
+)
+from app.runs_collections import (
+    get_metrics as get_metrics,
+)
+from app.runs_collections import (
+    get_proximity as get_proximity,
+)
+from app.runs_collections import (
+    get_report as get_report,
+)
+from app.runs_collections import (
+    get_report_markdown as get_report_markdown,
+)
+from app.runs_collections import (
+    get_reviews as get_reviews,
+)
+from app.runs_collections import (
+    get_run_logs as get_run_logs,
+)
+from app.runs_collections import (
+    get_safety as get_safety,
+)
+from app.runs_contrib import (
+    add_attachment as add_attachment,
+)
+from app.runs_contrib import (
+    add_human_hypothesis as add_human_hypothesis,
+)
+from app.runs_contrib import (
+    add_human_review as add_human_review,
+)
+from app.runs_contrib import (
+    search_attachments as search_attachments,
+)
+from app.runs_contrib import (
+    upload_attachment as upload_attachment,
+)
 from app.runs_events import _event_stream
+from app.runs_lifecycle import (
+    _check_startable as _check_startable,
+)
+from app.runs_lifecycle import (
+    _has_paused_engine_task as _has_paused_engine_task,
+)
+from app.runs_lifecycle import (
+    _launch_resume as _launch_resume,
+)
+from app.runs_lifecycle import (
+    _log_resume_task_result as _log_resume_task_result,
+)
+from app.runs_lifecycle import (
+    _resume_tasks as _resume_tasks,
+)
+from app.runs_lifecycle import (
+    cancel_run as cancel_run,
+)
+from app.runs_lifecycle import (
+    pause_run as pause_run,
+)
+from app.runs_lifecycle import (
+    resume_interrupted_runs as resume_interrupted_runs,
+)
+from app.runs_lifecycle import (
+    resume_run as resume_run,
+)
+from app.runs_lifecycle import (
+    start_run as start_run,
+)
 from app.runs_models import (
     AskRequest,
     CreateRunRequest,
-    HumanAttachmentRequest,
-    HumanHypothesisRequest,
-    HumanReviewRequest,
-    SafetyAdjudicationRequest,
     SendMessageRequest,
-    StartRunRequest,
     _build_create_run_config,
 )
-from app.store import TERMINAL_STATUSES, RunRow, RunStatus
+from app.runs_models import (
+    HumanAttachmentRequest as HumanAttachmentRequest,
+)
+from app.runs_models import (
+    HumanHypothesisRequest as HumanHypothesisRequest,
+)
+from app.runs_models import (
+    HumanReviewRequest as HumanReviewRequest,
+)
+from app.runs_models import (
+    SafetyAdjudicationRequest as SafetyAdjudicationRequest,
+)
+from app.runs_models import (
+    StartRunRequest as StartRunRequest,
+)
+from app.runs_support import (
+    _require_run as _require_run,
+)
+from app.runs_support import (
+    _run_or_404 as _run_or_404,
+)
+from app.store import RunStatus
 from app.title_gen import generate_run_title
 
-logger = logging.getLogger(__name__)
-
-# Strong references to detached resume tasks so they are not garbage-collected
-# mid-run; each removes itself on completion (see _launch_resume).
-_resume_tasks: set[asyncio.Task[None]] = set()
 router = APIRouter(prefix="/api/runs", tags=["runs"])
 
 
 # ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
-
-def _run_or_404(run_id: str, conn: sqlite3.Connection | None = None) -> RunRow:
-    """Return the run row or raise a 404 for unknown run ids."""
-    run = store.get_run(run_id, conn=conn)
-    if not run:
-        raise HTTPException(status_code=404, detail="run not found")
-    return run
-
-
-def _require_run(run_id: str) -> None:
-    """404 if the run does not exist, without materializing the row.
-
-    Use this for endpoints that only need an existence guard; ``_run_or_404``
-    is for the few that read the run row itself.
-    """
-    if not store.run_exists(run_id):
-        raise HTTPException(status_code=404, detail="run not found")
-
-
-# ---------------------------------------------------------------------------
-# Lifecycle
+# Create / list / read
 # ---------------------------------------------------------------------------
 
 
@@ -288,267 +354,8 @@ async def get_run(run_id: str) -> dict[str, Any]:
     }
 
 
-def _check_startable(run: RunRow) -> None:
-    """Raise 409 if `run` cannot be (re)started in its current status.
-
-    Only draft/failed/blocked/cancelled runs may (re)start; in-progress and
-    completed runs 409 rather than double-running.
-    """
-    if run.status in (
-        RunStatus.QUEUED,
-        RunStatus.RUNNING,
-        RunStatus.SYNTHESIZING,
-    ):
-        raise HTTPException(status_code=409, detail="run already in progress")
-    if run.status == RunStatus.COMPLETED:
-        raise HTTPException(status_code=409, detail="run already completed")
-
-
-@router.post("/{run_id}/start")
-async def start_run(
-    run_id: str, req: StartRunRequest, background: BackgroundTasks
-) -> dict[str, Any]:
-    """Queue a run and launch its workflow through the durable worker.
-
-    Args:
-        run_id: Path identifier of the run to start.
-        req: Request body (empty; kept to preserve the endpoint's body
-            contract for existing clients).
-        background: FastAPI background task registry for the embedded-worker
-            compatibility mode.
-
-    Returns:
-        A dict with the run 'id', its new 'status', and the enqueued task id.
-
-    Raises:
-        HTTPException: If the run is missing, already in progress, already
-            completed, or the client's concurrent-run limit is reached.
-    """
-    run = _run_or_404(run_id)
-    _check_startable(run)
-    mode = str(run.profile)
-    # One ceiling for every tier: heavier tiers were previously capped
-    # harder (ultra at 1), which stopped a researcher from investigating two
-    # questions at once -- precisely what the deep tiers are for. Bounding
-    # provider spend is the tier budget's job (max_llm_calls); this only has
-    # to stop one client queueing unboundedly.
-    limit = settings.max_concurrent_runs
-    if not store.reserve_run_capacity(
-        run_id,
-        profile=mode,
-        client_id=run.client_id,
-        limit=limit,
-    ):
-        raise HTTPException(
-            status_code=409,
-            detail=f"concurrent {mode} run limit reached ({limit})",
-        )
-
-    # Every run is delivered through the durable worker queue -- the engine is
-    # the only provider now, so there is no in-process alternative to select.
-    store.append_event(run_id, "lifecycle", {"event": "queued"})
-    task = task_worker.enqueue_run_workflow(run_id, force_provider="engine")
-    if os.getenv("COSCIENTIST_EMBEDDED_WORKER", "1") == "1":
-        # Local compatibility mode consumes the same durable lease. A
-        # production worker service runs ``python -m app.task_worker`` and
-        # sets COSCIENTIST_EMBEDDED_WORKER=0 on the API service.
-        background.add_task(
-            task_worker.run_run_worker_pool_sync,
-            run_id,
-            f"embedded-api:{os.getpid()}",
-        )
-    return {"id": run_id, "status": "queued", "task_id": task.id}
-
-
-@router.post("/{run_id}/cancel")
-async def cancel_run(run_id: str) -> dict[str, Any]:
-    """Cancel a run by revoking its durable tasks and marking it CANCELLED.
-
-    Cancellation is durable, not in-process: revoking the run's queued and
-    leased tasks is what stops the workers (their lease heartbeat observes
-    the revocation and cancels in-flight work), so any non-terminal run is
-    transitioned to CANCELLED here directly and a terminal ``cancelled``
-    status event is emitted (mirroring the failed-run path) so open SSE
-    streams close. An already-terminal run cannot be cancelled, returns 409.
-    """
-    run = _run_or_404(run_id)
-    if run.status in TERMINAL_STATUSES:
-        raise HTTPException(status_code=409, detail="run already finished")
-    store.cancel_run_tasks(run_id)
-    store.update_run_status(run_id, RunStatus.CANCELLED)
-    store.append_event(run_id, "status", {"status": "cancelled"})
-    return {"id": run_id, "status": "cancelled"}
-
-
-@router.post("/{run_id}/pause")
-async def pause_run(run_id: str) -> dict[str, Any]:
-    """Cooperatively pause a durably-queued/running engine run.
-
-    Marks the run's queued/leased engine tasks paused and the run PAUSED; the
-    durable worker's own per-task checkpoint (``engine_tasks.py``) is what
-    makes the run resumable, so no extra checkpoint needs to be created here.
-    """
-    run = _run_or_404(run_id)
-    has_engine_task = any(
-        task.task_type.startswith("engine.")
-        for task in store.list_tasks(run_id)
-    )
-    if has_engine_task and run.status in {
-        RunStatus.QUEUED.value,
-        RunStatus.RUNNING.value,
-    }:
-        store.pause_run_tasks(run_id)
-        store.update_run_status(run_id, RunStatus.PAUSED)
-        store.append_event(run_id, "lifecycle", {"event": "pause_requested"})
-        return {"id": run_id, "status": "paused"}
-    raise HTTPException(status_code=404, detail="run is not active")
-
-
-def _has_paused_engine_task(run_id: str) -> bool:
-    """Return whether the run has a paused engine-provider task queued."""
-    return any(
-        task.status == "paused" and task.task_type.startswith("engine.")
-        for task in store.list_tasks(run_id)
-    )
-
-
-@router.post("/{run_id}/resume")
-async def resume_run(run_id: str) -> dict[str, Any]:
-    """Resume a paused or interrupted run from its last checkpoint.
-
-    Requires a durable checkpoint (else there is nothing to resume from). A
-    true engine resume restores the persisted WorkflowState; a legacy
-    (pre-flip) envelope checkpoint instead clears derived artifacts and
-    re-bootstraps the run from its goal/config (see ``_launch_resume``). A
-    completed or actively-running run cannot be resumed.
-    """
-    run = _run_or_404(run_id)
-    if run.status == RunStatus.COMPLETED.value:
-        raise HTTPException(status_code=409, detail="run already completed")
-    if run.status in (RunStatus.RUNNING.value, RunStatus.SYNTHESIZING.value):
-        raise HTTPException(status_code=409, detail="run already in progress")
-    if not store.has_checkpoint(run_id) and not _has_paused_engine_task(run_id):
-        raise HTTPException(status_code=409, detail="run has no checkpoint")
-    await _launch_resume(run_id)
-    return {"id": run_id, "status": "queued"}
-
-
-def _log_resume_task_result(task: asyncio.Task[None]) -> None:
-    """Drop the finished resume worker, reporting a crash rather than hiding it.
-
-    The detached task's reference used to be discarded without touching its
-    result, so an exception inside the worker was never retrieved and never
-    logged: the run just stopped.
-
-    Args:
-        task: The completed detached worker task.
-    """
-    _resume_tasks.discard(task)
-    if not task.cancelled() and task.exception() is not None:
-        logger.error("Resume worker crashed", exc_info=task.exception())
-
-
-async def _launch_resume(run_id: str) -> None:
-    """Relaunch a run through the durable worker, on a detached task.
-
-    Shared by the resume endpoint and the startup auto-resume launcher.
-    Resume runs outside a request scope (also used at startup), so this
-    drives the worker on a detached asyncio task rather than FastAPI
-    BackgroundTasks; a strong reference is kept until it finishes so it is
-    not garbage-collected. Two resume modes, chosen by the kind of
-    checkpoint on disk:
-
-    - Engine checkpoint (a serialized WorkflowState) or an already-queued
-      paused engine task: a *true* resume. The engine restores that state
-      and re-enters at the orchestrator, so completed LLM/tool work is not
-      repeated. Derived data is NOT cleared — the engine persists artifacts
-      only at the final drain, so a mid-run interruption left only events +
-      the checkpoint, and clearing would discard the pre-orchestrator events
-      that resume never re-emits.
-    - Legacy (pre-flip) envelope checkpoint: there is no persisted engine
-      state to restore, so the durable worker re-bootstraps the run from its
-      goal/config instead of a true resume. Derived data AND the stale
-      envelope checkpoint are cleared so the fresh run neither duplicates rows
-      or events nor trips the durable bootstrap's empty-checkpoint guard
-      (``engine_tasks.execute_bootstrap`` asserts an empty checkpoint
-      history).
-
-    A completed run is never relaunched by callers.
-    """
-    _run_or_404(run_id)
-    checkpoint = store.get_latest_checkpoint(run_id)
-    true_resume = engine_adapter.is_engine_checkpoint(
-        checkpoint
-    ) or _has_paused_engine_task(run_id)
-    if not true_resume:
-        store.clear_run_derived_data(run_id)
-        store.clear_checkpoints(run_id)
-    store.update_run_status(run_id, RunStatus.QUEUED)
-    store.append_event(
-        run_id,
-        "status",
-        {
-            "status": "resuming",
-            "detail": (
-                "from specialist checkpoint"
-                if true_resume
-                else "from checkpoint"
-            ),
-        },
-    )
-    queued = task_worker.enqueue_run_workflow(run_id, resume=true_resume)
-    # Say what the resume actually landed on, not just that it happened. The
-    # "resuming" event above is emitted before any work is queued, so on its
-    # own it cannot distinguish a resume that started work from one that
-    # enqueued nothing -- which is how a wedged run could announce a resume
-    # every restart and sit silent for hours with no way to tell why. A task
-    # here that is not 'queued' is the tell: nothing is claimable.
-    logger.info(
-        "Resume for run %s landed on %s task %s (status=%s)",
-        run_id,
-        queued.task_type,
-        queued.id[:8],
-        queued.status,
-    )
-    if os.getenv("COSCIENTIST_EMBEDDED_WORKER", "1") == "1":
-        # Same cohort, and the same thread hand-off, that starting a run
-        # gets. Driving the worker with ``create_task`` ran its synchronous
-        # SQLite writes and WorkflowState serialization on the API's event
-        # loop, so a resumed run starved request handling -- a boot carrying
-        # interrupted runs stopped answering /health and was killed mid-run,
-        # leaving one more interrupted run for the next boot to inherit.
-        # Consuming the queue serially also gave a resumed run a quarter of
-        # the parallelism of a fresh one, which is backwards: an interrupted
-        # run is precisely the one with work already queued up to overlap.
-        task = asyncio.create_task(
-            asyncio.to_thread(
-                task_worker.run_run_worker_pool_sync,
-                run_id,
-                f"embedded-resume:{os.getpid()}",
-            )
-        )
-        _resume_tasks.add(task)
-        # Surface a crash in the detached worker instead of discarding it with
-        # the reference: without this the task's exception is never retrieved
-        # and the run simply stops, silently.
-        task.add_done_callback(_log_resume_task_result)
-
-
-async def resume_interrupted_runs(run_ids: list[str]) -> None:
-    """Relaunch each resumable interrupted run at startup (Milestone 4).
-
-    Called from the app lifespan after ``reconcile_interrupted_runs`` finds
-    runs left non-terminal by a restart that still hold a checkpoint. Skips
-    any run that has since completed.
-    """
-    for run_id in run_ids:
-        run = store.get_run(run_id)
-        if run is None or run.status == RunStatus.COMPLETED.value:
-            continue
-        try:
-            await _launch_resume(run_id)
-        except HTTPException:
-            logger.warning("Could not auto-resume run %s", run_id)
+# Lifecycle endpoints (start/cancel/pause/resume) live in runs_lifecycle.
+router.include_router(runs_lifecycle.router)
 
 
 # ---------------------------------------------------------------------------
@@ -597,435 +404,11 @@ async def stream_events(
     )
 
 
-# ---------------------------------------------------------------------------
-# Read endpoints
-# ---------------------------------------------------------------------------
-
-
-@router.get("/{run_id}/hypotheses")
-async def get_hypotheses(run_id: str) -> dict[str, Any]:
-    """Return the run's hypotheses with Elo state, lineage, and verification."""
-    run = _run_or_404(run_id)
-    from app.report_render import _unverified_hypothesis_ids
-
-    hyps = store.list_hypotheses(run_id)
-    # Flag ideas without an evidence-supported claim so the UI can badge them
-    # "Unverified" (they are ranked and published under the rank-and-publish
-    # policy; only contradicted/unsafe ideas are withheld from the report).
-    # Offline-backed runs (mock demos, deterministic offline engine runs) are
-    # illustrative fixtures, not assessed science, so they are never badged
-    # (they carry simulated "insufficient" claim rows that would otherwise
-    # flag every idea). Keyed on the run's persisted backend, not the process
-    # offline_mode(), so a real engine run created while offline is badged.
-    if store.run_used_offline(run):
-        for hyp in hyps:
-            hyp["unverified"] = False
-    else:
-        unverified = _unverified_hypothesis_ids(run_id, None, hyps)
-        for hyp in hyps:
-            hyp["unverified"] = str(hyp.get("id")) in unverified
-    return {"hypotheses": hyps}
-
-
-@router.get("/{run_id}/evidence")
-async def get_evidence(run_id: str) -> dict[str, Any]:
-    """Return the literature evidence retrieved for the run."""
-    _require_run(run_id)
-    return {"evidence": store.list_evidence(run_id)}
-
-
-@router.get("/{run_id}/matches")
-async def get_matches(run_id: str) -> dict[str, Any]:
-    """Return the run's tournament matches with Elo snapshots."""
-    _require_run(run_id)
-    return {"matches": store.list_matches(run_id)}
-
-
-@router.get("/{run_id}/proximity")
-async def get_proximity(run_id: str) -> dict[str, Any]:
-    """Return the persisted weighted idea-proximity landscape."""
-    _require_run(run_id)
-    return {"proximity": store.list_proximity_edges(run_id)}
-
-
-@router.get("/{run_id}/reviews")
-async def get_reviews(run_id: str) -> dict[str, Any]:
-    """Return reviewer and meta-review notes for the run."""
-    _require_run(run_id)
-    return {"reviews": store.list_reviews(run_id)}
-
-
-@router.get("/{run_id}/safety")
-async def get_safety(run_id: str) -> dict[str, Any]:
-    """Return the run's intake/final safety-gate decisions."""
-    _require_run(run_id)
-    return {"safety": store.list_safety_decisions(run_id)}
-
-
-@router.post("/{run_id}/safety/{decision_id}/adjudicate")
-async def adjudicate_safety(
-    run_id: str,
-    decision_id: int,
-    body: SafetyAdjudicationRequest,
-    request: Request,
-) -> dict[str, Any]:
-    """Resolve one held safety decision and update the run lifecycle."""
-    run = _run_or_404(run_id)
-    reviewer = client_id(request)
-    if not reviewer:
-        raise HTTPException(
-            status_code=403, detail="an identified reviewer is required"
-        )
-    resolved = store.resolve_safety_decision(
-        run_id, decision_id, body.resolution, reviewer
-    )
-    if not resolved:
-        raise HTTPException(
-            status_code=409,
-            detail="decision is not reviewable or was already resolved",
-        )
-    if body.resolution == "rejected":
-        store.update_run_status(
-            run_id,
-            RunStatus.BLOCKED,
-            error="Safety reviewer rejected held content.",
-        )
-    elif run.status == RunStatus.PAUSED.value:
-        # Intake holds return to draft; final holds retain a checkpoint and can
-        # resume through the ordinary recovery path.
-        decisions = store.list_safety_decisions(run_id)
-        decision = next(item for item in decisions if item["id"] == decision_id)
-        target = (
-            RunStatus.DRAFT
-            if decision["stage"] == "intake"
-            else RunStatus.PAUSED
-        )
-        store.update_run_status(run_id, target, error=None)
-    return {"resolution": body.resolution, "decision_id": decision_id}
-
-
-@router.get("/{run_id}/citations")
-async def get_citations(run_id: str) -> dict[str, Any]:
-    """Return the run's citation rows with classification states."""
-    _require_run(run_id)
-    return {"citations": store.list_citations(run_id)}
-
-
-@router.get("/{run_id}/metrics")
-async def get_metrics(run_id: str) -> dict[str, Any]:
-    """Return the run's persisted execution metrics.
-
-    The metrics dict (LLM calls, phase timings, artifact counts) is
-    persisted when the workflow finalizes; ``metrics`` is null for runs
-    that have not completed a finalize yet.
-    """
-    _require_run(run_id)
-    return {"metrics": store.get_run_metrics(run_id)}
-
-
-@router.get("/{run_id}/logs")
-async def get_run_logs(
-    run_id: str,
-    after_id: int = Query(0, ge=0),
-    limit: int = Query(200, ge=1, le=1000),
-    min_level: str | None = None,
-    q: str | None = None,
-    verbose: bool = False,
-) -> dict[str, Any]:
-    """Return the run's persisted application log records, oldest-first.
-
-    Run-scoped view of ``GET /api/logs``: same filters and payload shape,
-    with ``run_id`` fixed to this run.
-    """
-    _require_run(run_id)
-    return logs_payload(
-        after_id=after_id,
-        limit=limit,
-        min_level=min_level,
-        run_id=run_id,
-        q=q,
-        verbose=verbose,
-    )
-
-
-@router.get("/{run_id}/claim-evidence")
-async def get_claim_evidence(run_id: str) -> dict[str, Any]:
-    """Return the run's claim-level entailment graph (Milestone 5).
-
-    Each edge is one atomic claim of a hypothesis with its assessed label
-    (supports/contradicts/insufficient) and the exact supporting/contradicting
-    passages that drove the verdict.
-    """
-    _require_run(run_id)
-    return {"claim_evidence": store.list_claim_evidence(run_id)}
-
-
-@router.post("/{run_id}/hypotheses")
-async def add_human_hypothesis(
-    run_id: str, req: HumanHypothesisRequest, request: Request
-) -> dict[str, Any]:
-    """Admit a scientist-contributed hypothesis (Milestone 7).
-
-    The hypothesis passes the *same* per-hypothesis safety review every
-    generated hypothesis does (no bypass for human authorship). If admitted,
-    it is persisted with `origin=scientist_manual` and its author, screened by
-    the shared safety path (so its `safety_status` is set like any other), and
-    thereafter appears in the run's hypotheses. A blocked hypothesis returns
-    the admission decision and is not persisted (HTTP 200 with admitted=false).
-    """
-    _require_run(run_id)
-    author = client_id(request) or req.author
-    admission = human_input.admit_human_hypothesis(
-        text=req.statement, author=author, title=req.title
-    )
-    if not admission.admitted or admission.hypothesis is None:
-        return {"admitted": False, "safety": admission.safety_review.to_dict()}
-
-    hyp = admission.hypothesis
-    hyp_id = store.add_hypothesis(
-        run_id,
-        title=str(hyp["title"]),
-        statement=str(hyp["statement"]),
-        created_by_agent=human_input.SCIENTIST_MANUAL_ORIGIN,
-        author=author,
-    )
-    # Same safety screen as the pipeline, so the manual hypothesis carries a
-    # persisted safety_status and any blocking outcome is audited identically.
-    screen_hypotheses(run_id, store.list_hypotheses(run_id))
-    message = store.append_message(
-        run_id,
-        author,
-        "Scientist-contributed hypothesis to evaluate in subsequent work: "
-        f"{req.statement}",
-        "steering",
-        meta={"kind": "manual_hypothesis", "hypothesis_id": hyp_id},
-    )
-    continuation = engine_tasks.enqueue_scientist_continuation(
-        run_id, message.id
-    )
-    store.append_event(
-        run_id,
-        "scientist.hypothesis",
-        {"hypothesis_id": hyp_id, "author": author},
-    )
-    return {
-        "admitted": True,
-        "id": hyp_id,
-        "author": author,
-        "continuation_task_id": continuation.id if continuation else None,
-        "safety": admission.safety_review.to_dict(),
-    }
-
-
-@router.post("/{run_id}/reviews")
-async def add_human_review(
-    run_id: str, req: HumanReviewRequest, request: Request
-) -> dict[str, Any]:
-    """Persist a scientist-contributed review (Milestone 7).
-
-    The review enters the same reviews table as an agent review, attributed to
-    its author with `reviewer_agent=scientist`. The verdict must be one of
-    support/oppose/revise, and the reviewed hypothesis must belong to the run
-    in the URL (no cross-run or dangling review rows).
-    """
-    _require_run(run_id)
-    hyp = store.get_hypothesis(req.hypothesis_id)
-    if hyp is None or hyp.get("run_id") != run_id:
-        raise HTTPException(
-            status_code=404, detail="hypothesis not found in this run"
-        )
-    author = client_id(request) or req.author
-    try:
-        review = human_input.build_human_review(
-            hypothesis_id=req.hypothesis_id,
-            author=author,
-            verdict=req.verdict,
-            critique=req.critique,
-        )
-    except ValueError as exc:
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
-    store.add_review(
-        run_id,
-        hypothesis_id=review.hypothesis_id,
-        reviewer_agent="scientist",
-        summary=f"Scientist verdict: {review.verdict} (by {review.author})",
-        critique=review.critique,
-    )
-    message = store.append_message(
-        run_id,
-        author,
-        "Scientist review of hypothesis "
-        f"{req.hypothesis_id}: verdict={review.verdict}; {review.critique}",
-        "steering",
-        meta={"kind": "human_review", "hypothesis_id": req.hypothesis_id},
-    )
-    continuation = engine_tasks.enqueue_scientist_continuation(
-        run_id, message.id
-    )
-    store.append_event(
-        run_id,
-        "scientist.review",
-        {
-            "hypothesis_id": req.hypothesis_id,
-            "author": author,
-            "verdict": review.verdict,
-        },
-    )
-    return {
-        "recorded": True,
-        "continuation_task_id": continuation.id if continuation else None,
-        **review.to_dict(),
-    }
-
-
-@router.post("/{run_id}/attachments")
-async def add_attachment(
-    run_id: str, req: HumanAttachmentRequest
-) -> dict[str, Any]:
-    """Attach a scientist-provided text document to a run's corpus (M7).
-
-    Text-only and consent-gated: no binary or archive is accepted (so there is
-    no extraction/malware surface), the text is size-capped by the request
-    model, and ``consent`` must be true. The document is stored as run-scoped
-    evidence marked as an attachment and indexed into the private retrieval
-    corpus (``run_corpus``).
-    """
-    _require_run(run_id)
-    if not req.consent:
-        raise HTTPException(
-            status_code=422, detail="consent is required to index a document"
-        )
-    ev_id = store.add_evidence(
-        run_id,
-        req.title,
-        source=run_corpus.ATTACHMENT_SOURCE,
-        abstract=req.text,
-    )
-    message = store.append_message(
-        run_id,
-        "scientist",
-        f"Use the private research document '{req.title}' in subsequent work.",
-        "steering",
-        meta={"kind": "attachment", "evidence_id": ev_id},
-    )
-    continuation = engine_tasks.enqueue_scientist_continuation(
-        run_id, message.id
-    )
-    return {
-        "id": ev_id,
-        "indexed": True,
-        "continuation_task_id": continuation.id if continuation else None,
-    }
-
-
-@router.post("/{run_id}/attachments/upload")
-async def upload_attachment(
-    run_id: str,
-    request: Request,
-    file: Annotated[UploadFile, File()],
-    consent: Annotated[bool, Form()],
-) -> dict[str, Any]:
-    """Extract and index a real scientist-uploaded document with provenance."""
-    _require_run(run_id)
-    client_id(request)  # Require the run's authenticated researcher context.
-    if not consent:
-        raise HTTPException(
-            status_code=422, detail="consent is required to index a document"
-        )
-    data = await file.read(document_ingest.MAX_UPLOAD_BYTES + 1)
-    try:
-        extracted = document_ingest.extract_document(
-            data, file.content_type or "application/octet-stream"
-        )
-    except ValueError as exc:
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
-    title = (file.filename or "Uploaded document").strip()
-    evidence_id = store.add_evidence(
-        run_id,
-        title,
-        source=run_corpus.ATTACHMENT_SOURCE,
-        abstract=extracted.text,
-        mime_type=extracted.mime_type,
-        sha256=extracted.sha256,
-        byte_size=extracted.byte_size,
-        document_version=extracted.sha256,
-        extraction_tool=extracted.extraction_tool,
-    )
-    message = store.append_message(
-        run_id,
-        client_id(request),
-        "Use the uploaded private research document "
-        f"'{title}' in subsequent work.",
-        "steering",
-        meta={"kind": "attachment", "evidence_id": evidence_id},
-    )
-    continuation = engine_tasks.enqueue_scientist_continuation(
-        run_id, message.id
-    )
-    store.append_event(
-        run_id,
-        "scientist.attachment",
-        {"evidence_id": evidence_id, "title": title},
-    )
-    return {
-        "id": evidence_id,
-        "indexed": True,
-        "sha256": extracted.sha256,
-        "byte_size": extracted.byte_size,
-        "mime_type": extracted.mime_type,
-        "extraction_tool": extracted.extraction_tool,
-        "continuation_task_id": continuation.id if continuation else None,
-    }
-
-
-@router.get("/{run_id}/attachments/search")
-async def search_attachments(run_id: str, q: str) -> dict[str, Any]:
-    """Retrieve a run's attachment corpus by keyword (Milestone 7).
-
-    Proves the attachment path is a live retrieval corpus, not a dead
-    connector: the scientist's uploaded documents are searchable via the
-    run-scoped keyword retriever.
-    """
-    _require_run(run_id)
-    documents = run_corpus.corpus_from_evidence(store.list_evidence(run_id))
-    retriever = run_corpus.KeywordCorpusRetriever(documents)
-    hits = retriever.retrieve(q)
-    return {
-        "results": [
-            {
-                "id": h.document.doc_id,
-                "title": h.document.title,
-                "score": h.score,
-            }
-            for h in hits
-        ]
-    }
-
-
-@router.get("/{run_id}/report")
-async def get_report(run_id: str) -> dict[str, Any]:
-    """Return the latest structured report, or 404 before synthesis."""
-    _require_run(run_id)
-    report = store.get_latest_report(run_id)
-    if not report:
-        raise HTTPException(status_code=404, detail="no report yet")
-    return report
-
-
-@router.get("/{run_id}/report.md", response_class=PlainTextResponse)
-async def get_report_markdown(run_id: str) -> PlainTextResponse:
-    """Return the rendered Markdown report as a file download."""
-    _require_run(run_id)
-    md = store.read_report_markdown(run_id)
-    if md is None:
-        raise HTTPException(status_code=404, detail="no report yet")
-    # Content-Disposition makes browsers save it as <run_id>.md.
-    return PlainTextResponse(
-        md,
-        headers={
-            "Content-Disposition": f'attachment; filename="{run_id}.md"',
-        },
-    )
+# Read-only collection/report endpoints live in runs_collections; the
+# scientist-contribution endpoints (hypotheses/reviews/attachments) in
+# runs_contrib.
+router.include_router(runs_collections.router)
+router.include_router(runs_contrib.router)
 
 
 # ---------------------------------------------------------------------------
