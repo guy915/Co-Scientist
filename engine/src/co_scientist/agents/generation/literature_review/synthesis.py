@@ -21,6 +21,31 @@ from co_scientist.state import WorkflowState
 logger = logging.getLogger(__name__)
 
 
+def _build_synthesis_prompt(
+    paper_analyses: list[dict[str, Any]],
+    state: WorkflowState,
+    background_context: str,
+) -> str:
+    """Builds the synthesis prompt and logs the upcoming LLM call.
+
+    background_context is the (possibly empty) Phase 2.6 knowledge-graph
+    text; the synthesis prompt weaves it in alongside the per-paper analyses
+    so the LLM can ground statements in both.
+    """
+    prompt = get_literature_review_synthesis_prompt(
+        research_goal=state["research_goal"],
+        paper_analyses=paper_analyses,
+        background_context=background_context,
+    )
+
+    logger.info(
+        "Calling synthesis LLM with %s chars, %s papers",
+        len(prompt),
+        len(paper_analyses),
+    )
+    return prompt
+
+
 async def _run_synthesis_llm(
     paper_analyses: list[dict[str, Any]],
     state: WorkflowState,
@@ -38,17 +63,7 @@ async def _run_synthesis_llm(
     Returns:
         The synthesis text.
     """
-    prompt = get_literature_review_synthesis_prompt(
-        research_goal=state["research_goal"],
-        paper_analyses=paper_analyses,
-        background_context=background_context,
-    )
-
-    logger.info(
-        "Calling synthesis LLM with %s chars, %s papers",
-        len(prompt),
-        len(paper_analyses),
-    )
+    prompt = _build_synthesis_prompt(paper_analyses, state, background_context)
 
     synthesis = await call_llm(
         prompt=prompt,

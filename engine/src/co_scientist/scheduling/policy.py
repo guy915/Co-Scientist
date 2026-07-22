@@ -17,6 +17,8 @@ minimum match coverage), the value here is a documented clone default; see the
 
 from __future__ import annotations
 
+from collections.abc import Callable
+
 from co_scientist.scheduling.models import (
     Budget,
     SchedulerStats,
@@ -139,6 +141,177 @@ def _generation_vs_evolution(stats: SchedulerStats) -> SupervisorDecision:
     return _generate("too few reviewed leaders to evolve; generate")
 
 
+def _check_stop_signals(stats: SchedulerStats) -> SupervisorDecision | None:
+    """Step 1: external stop signals (cancellation, safety) win outright."""
+    if stats.cancelled:
+        return _terminate(TerminationReason.CANCELLED, "run cancelled")
+    if stats.safety_blocked:
+        return _terminate(
+            TerminationReason.SAFETY, "safety block halted the run"
+        )
+    return None
+
+
+def _check_retry(stats: SchedulerStats) -> SupervisorDecision | None:
+    """Step 3: retry a failed task before scheduling new work."""
+    if stats.last_task_failed is not None and stats.retries_remaining > 0:
+        return SupervisorDecision(
+            next_task=stats.last_task_failed,
+            reason=(
+                f"retrying failed task {stats.last_task_failed.value} "
+                f"({stats.retries_remaining} retries remaining)"
+            ),
+        )
+    return None
+
+
+def _check_steering(stats: SchedulerStats) -> SupervisorDecision | None:
+    """Step 4: user steering is a high-priority request to explore anew."""
+    if stats.pending_steering:
+        return SupervisorDecision(
+            next_task=TaskType.GENERATE,
+            reason="pending user steering; generate to incorporate it",
+        )
+    return None
+
+
+def _check_review_backlog(
+    stats: SchedulerStats,
+) -> SupervisorDecision | None:
+    """Step 5: review the backlog before ranking or evolving unreviewed work."""
+    if stats.unreviewed_count > 0:
+        return SupervisorDecision(
+            next_task=TaskType.REFLECT,
+            reason=(
+                f"{stats.unreviewed_count} unreviewed hypotheses; review "
+                "before ranking"
+            ),
+        )
+    return None
+
+
+def _check_pool_size(
+    stats: SchedulerStats, budget: Budget
+) -> SupervisorDecision | None:
+    """Step 6: a tournament needs at least two hypotheses.
+
+    Honors the iteration ceiling here too: if generation keeps failing to
+    grow the pool past one hypothesis, each GENERATE still advances the
+    iteration counter, so without this the run would loop until the graph's
+    recursion limit raised GraphRecursionError instead of terminating with a
+    recorded reason. (The resource ceilings are already enforced above; only
+    the iteration ceiling sits below this branch, so only it needs handling
+    here.)
+    """
+    if stats.pool_size >= 2:
+        return None
+    if stats.iteration >= budget.max_iterations:
+        return _terminate(
+            TerminationReason.COMPLETED,
+            f"pool too small to continue ({stats.pool_size}) and "
+            f"iteration budget reached ({stats.iteration}/"
+            f"{budget.max_iterations})",
+        )
+    return SupervisorDecision(
+        next_task=TaskType.GENERATE,
+        reason=(
+            f"pool too small for a tournament ({stats.pool_size}); "
+            "generate more"
+        ),
+    )
+
+
+def _check_tournament_coverage(
+    stats: SchedulerStats, min_match_coverage: float
+) -> SupervisorDecision | None:
+    """Step 7: ensure minimum tournament coverage / calibration.
+
+    Only when at least two hypotheses are rankable; otherwise there is
+    nothing to rank and demanding coverage would loop the orchestrator
+    forever (a pool of evidence-gate-rejected ideas can never accrue
+    matches).
+    """
+    if stats.rankable_count >= 2 and stats.match_coverage < min_match_coverage:
+        return SupervisorDecision(
+            next_task=TaskType.RANK,
+            reason=(
+                f"avg match coverage {stats.match_coverage:.2f} below "
+                f"{min_match_coverage:.2f}; run more tournament rounds"
+            ),
+        )
+    return None
+
+
+def _check_proximity_refresh(
+    stats: SchedulerStats,
+) -> SupervisorDecision | None:
+    """Step 8: refresh proximity when the pool grew (dedup + matchmaking)."""
+    if stats.pool_grew_since_proximity:
+        return SupervisorDecision(
+            next_task=TaskType.PROXIMITY,
+            reason="pool grew since last proximity; refresh clustering",
+        )
+    return None
+
+
+def _check_convergence(
+    stats: SchedulerStats,
+    convergence_cycles: int,
+    min_cycles_before_convergence: int,
+) -> SupervisorDecision | None:
+    """Step 9: stable leaderboard with no outstanding work.
+
+    Only fires after enough work cycles that the loop has both evolved and
+    generated.
+    """
+    if (
+        stats.iteration >= min_cycles_before_convergence
+        and stats.rank_stable_cycles >= convergence_cycles
+    ):
+        return _terminate(
+            TerminationReason.CONVERGED,
+            f"top-ranked Elo stable for {stats.rank_stable_cycles} cycles",
+        )
+    return None
+
+
+def _check_iteration_budget(
+    stats: SchedulerStats, budget: Budget
+) -> SupervisorDecision | None:
+    """Step 10: satisfied iteration budget."""
+    if stats.iteration >= budget.max_iterations:
+        return _terminate(
+            TerminationReason.COMPLETED,
+            f"reached iteration budget ({stats.iteration}/"
+            f"{budget.max_iterations})",
+        )
+    return None
+
+
+def _ordered_checks(
+    stats: SchedulerStats,
+    budget: Budget,
+    min_match_coverage: float,
+    convergence_cycles: int,
+    min_cycles_before_convergence: int,
+) -> tuple[Callable[[], SupervisorDecision | None], ...]:
+    """Builds the precedence-ordered scheduling checks (steps 1-10)."""
+    return (
+        lambda: _check_stop_signals(stats),
+        lambda: _budget_termination(stats, budget),
+        lambda: _check_retry(stats),
+        lambda: _check_steering(stats),
+        lambda: _check_review_backlog(stats),
+        lambda: _check_pool_size(stats, budget),
+        lambda: _check_tournament_coverage(stats, min_match_coverage),
+        lambda: _check_proximity_refresh(stats),
+        lambda: _check_convergence(
+            stats, convergence_cycles, min_cycles_before_convergence
+        ),
+        lambda: _check_iteration_budget(stats, budget),
+    )
+
+
 def decide_next_task(
     stats: SchedulerStats,
     budget: Budget,
@@ -149,159 +322,34 @@ def decide_next_task(
 ) -> SupervisorDecision:
     """Choose the next task (or terminate) from observable state.
 
-    The precedence, highest first: external stop signals (cancellation,
-    safety), hard budget ceilings, retry of a failed task, user steering,
-    review backlog, minimum pool for a tournament, tournament coverage,
-    proximity refresh, convergence, satisfied iteration budget, and finally
-    the generation-vs-evolution choice.
-
-    Args:
-        stats: Observable statistics computed from the workflow state.
-        budget: Compute budget and its termination limits.
-        min_match_coverage: Minimum avg matches/hypothesis before ranking is
-            considered sufficient (clone default).
-        convergence_cycles: Stable-Elo cycles before declaring convergence
-            (clone default).
-        min_cycles_before_convergence: Minimum work cycles before convergence
-            may fire, so the loop evolves and generates at least once first
-            (clone default).
+    The precedence, highest first, is exactly ``_ordered_checks``'s steps 1-
+    10 (see each check's docstring), and finally the generation-vs-evolution
+    choice. ``min_match_coverage``, ``convergence_cycles``, and
+    ``min_cycles_before_convergence`` are clone defaults where Google does
+    not publish a predicate.
 
     Returns:
         The scheduler's decision, always carrying a recorded reason.
     """
-    # 1. External stop signals win outright.
-    if stats.cancelled:
-        return _terminate(TerminationReason.CANCELLED, "run cancelled")
-    if stats.safety_blocked:
-        return _terminate(
-            TerminationReason.SAFETY, "safety block halted the run"
-        )
-
-    # 2. Hard budget ceilings.
-    budget_stop = _budget_termination(stats, budget)
-    if budget_stop is not None:
-        return budget_stop
-
-    # 3. Retry a failed task before scheduling new work.
-    if stats.last_task_failed is not None and stats.retries_remaining > 0:
-        return SupervisorDecision(
-            next_task=stats.last_task_failed,
-            reason=(
-                f"retrying failed task {stats.last_task_failed.value} "
-                f"({stats.retries_remaining} retries remaining)"
-            ),
-        )
-
-    # 4. User steering is a high-priority request to explore anew.
-    if stats.pending_steering:
-        return SupervisorDecision(
-            next_task=TaskType.GENERATE,
-            reason="pending user steering; generate to incorporate it",
-        )
-
-    # 5. Review the backlog before ranking or evolving unreviewed work.
-    if stats.unreviewed_count > 0:
-        return SupervisorDecision(
-            next_task=TaskType.REFLECT,
-            reason=(
-                f"{stats.unreviewed_count} unreviewed hypotheses; review "
-                "before ranking"
-            ),
-        )
-
-    # 6. A tournament needs at least two hypotheses. Honor the iteration
-    # ceiling here too: if generation keeps failing to grow the pool past one
-    # hypothesis, each GENERATE still advances the iteration counter, so
-    # without this the run would loop until the graph's recursion limit raised
-    # GraphRecursionError instead of terminating with a recorded reason. (The
-    # resource ceilings are already enforced above; only the iteration ceiling
-    # sits below this branch, so only it needs handling here.)
-    if stats.pool_size < 2:
-        if stats.iteration >= budget.max_iterations:
-            return _terminate(
-                TerminationReason.COMPLETED,
-                f"pool too small to continue ({stats.pool_size}) and "
-                f"iteration budget reached ({stats.iteration}/"
-                f"{budget.max_iterations})",
-            )
-        return SupervisorDecision(
-            next_task=TaskType.GENERATE,
-            reason=(
-                f"pool too small for a tournament ({stats.pool_size}); "
-                "generate more"
-            ),
-        )
-
-    # 7. Ensure minimum tournament coverage / calibration. Only when at least
-    # two hypotheses are rankable; otherwise there is nothing to rank and
-    # demanding coverage would loop the orchestrator forever (a pool of
-    # evidence-gate-rejected ideas can never accrue matches).
-    if stats.rankable_count >= 2 and stats.match_coverage < min_match_coverage:
-        return SupervisorDecision(
-            next_task=TaskType.RANK,
-            reason=(
-                f"avg match coverage {stats.match_coverage:.2f} below "
-                f"{min_match_coverage:.2f}; run more tournament rounds"
-            ),
-        )
-
-    # 8. Refresh proximity when the pool grew (dedup + matchmaking input).
-    if stats.pool_grew_since_proximity:
-        return SupervisorDecision(
-            next_task=TaskType.PROXIMITY,
-            reason="pool grew since last proximity; refresh clustering",
-        )
-
-    # 9. Convergence: stable leaderboard with no outstanding work, but only
-    # after enough work cycles that the loop has both evolved and generated.
-    if (
-        stats.iteration >= min_cycles_before_convergence
-        and stats.rank_stable_cycles >= convergence_cycles
+    for check in _ordered_checks(
+        stats,
+        budget,
+        min_match_coverage,
+        convergence_cycles,
+        min_cycles_before_convergence,
     ):
-        return _terminate(
-            TerminationReason.CONVERGED,
-            f"top-ranked Elo stable for {stats.rank_stable_cycles} cycles",
-        )
+        decision = check()
+        if decision is not None:
+            return decision
 
-    # 10. Satisfied iteration budget.
-    if stats.iteration >= budget.max_iterations:
-        return _terminate(
-            TerminationReason.COMPLETED,
-            f"reached iteration budget ({stats.iteration}/"
-            f"{budget.max_iterations})",
-        )
-
-    # 11. Generation vs evolution by relative yield.
+    # Generation vs evolution by relative yield.
     return _generation_vs_evolution(stats)
 
 
-def validate_decision(
-    decision: SupervisorDecision, stats: SchedulerStats
-) -> SupervisorDecision:
-    """Enforce allowed transitions on a (possibly LLM-recommended) decision.
-
-    The code — not the model — validates. A decision that violates a
-    precondition is downgraded to a safe alternative rather than executed:
-
-    - RANK requires at least two hypotheses; otherwise GENERATE.
-    - EVOLVE requires at least one reviewed hypothesis; otherwise, if there is
-      a review backlog, REFLECT, else GENERATE.
-    - A non-terminate task outside ``ALLOWED_LOOP_TASKS`` is not dispatchable;
-      fall back to GENERATE.
-
-    Args:
-        decision: The proposed decision (from :func:`decide_next_task` or an
-            LLM Supervisor recommendation).
-        stats: The statistics the decision must be consistent with.
-
-    Returns:
-        The original decision, or a corrected safe one, with the reason
-        annotated when it was changed.
-    """
-    task = decision.next_task
-    if decision.terminate:
-        return decision
-
+def _correct_for_steering(
+    task: TaskType, stats: SchedulerStats
+) -> SupervisorDecision | None:
+    """Pending scientist steering reprioritizes fresh generation."""
     if stats.pending_steering and task is not TaskType.GENERATE:
         return SupervisorDecision(
             next_task=TaskType.GENERATE,
@@ -310,12 +358,25 @@ def validate_decision(
             ),
             priority=100,
         )
+    return None
 
+
+def _correct_disallowed_task(
+    task: TaskType, stats: SchedulerStats
+) -> SupervisorDecision | None:
+    """A task outside ``ALLOWED_LOOP_TASKS`` is not dispatchable."""
     if task not in ALLOWED_LOOP_TASKS:
         return SupervisorDecision(
             next_task=TaskType.GENERATE,
             reason=f"corrected: {task.value} is not a dispatchable loop task",
         )
+    return None
+
+
+def _correct_rank_precondition(
+    task: TaskType, stats: SchedulerStats
+) -> SupervisorDecision | None:
+    """RANK requires at least two rankable hypotheses; otherwise GENERATE."""
     if task == TaskType.RANK and stats.rankable_count < 2:
         return SupervisorDecision(
             next_task=TaskType.GENERATE,
@@ -324,6 +385,13 @@ def validate_decision(
                 f"({stats.rankable_count}); generate instead of looping on rank"
             ),
         )
+    return None
+
+
+def _correct_evolve_precondition(
+    task: TaskType, stats: SchedulerStats
+) -> SupervisorDecision | None:
+    """EVOLVE needs a reviewed hypothesis; otherwise REFLECT or GENERATE."""
     if task == TaskType.EVOLVE and stats.reviewed_count < 1:
         fallback = (
             TaskType.REFLECT
@@ -337,4 +405,38 @@ def validate_decision(
                 f"{fallback.value}"
             ),
         )
+    return None
+
+
+def validate_decision(
+    decision: SupervisorDecision, stats: SchedulerStats
+) -> SupervisorDecision:
+    """Enforce allowed transitions on a (possibly LLM-recommended) decision.
+
+    The code — not the model — validates. A decision that violates a
+    precondition is downgraded to a safe alternative rather than executed;
+    see each ``_correct_*`` helper for its specific precondition.
+
+    Args:
+        decision: The proposed decision (from :func:`decide_next_task` or an
+            LLM Supervisor recommendation).
+        stats: The statistics the decision must be consistent with.
+
+    Returns:
+        The original decision, or a corrected safe one, with the reason
+        annotated when it was changed.
+    """
+    if decision.terminate:
+        return decision
+
+    task = decision.next_task
+    for correct in (
+        _correct_for_steering,
+        _correct_disallowed_task,
+        _correct_rank_precondition,
+        _correct_evolve_precondition,
+    ):
+        corrected = correct(task, stats)
+        if corrected is not None:
+            return corrected
     return decision

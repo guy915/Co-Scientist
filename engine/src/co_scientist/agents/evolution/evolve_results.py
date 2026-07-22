@@ -63,13 +63,6 @@ def _build_evolution_child(
     reviews or deep-verification state so it must be reviewed before it can be
     ranked. The parent object is not touched.
 
-    Args:
-        parent: The hypothesis being evolved; left byte-for-byte unchanged.
-        refined_text: Accepted refined hypothesis text for the child.
-        explanation: Refined explanation for the child.
-        experiment: Refined experiment for the child.
-        creation_iteration: Workflow iteration that produced the child.
-
     Returns:
         A new child ``Hypothesis`` linked to ``parent``.
     """
@@ -96,6 +89,28 @@ def _build_evolution_child(
     )
 
 
+def _build_evolution_detail(
+    hypothesis: Hypothesis,
+    child: Hypothesis,
+    refined_text: str,
+    refinement_summary: str,
+) -> dict[str, Any]:
+    """Builds the evolution_detail record for an accepted refinement.
+
+    Feeds evolution_details in evolve_node's state delta, which the UI
+    surfaces as the rationale for each change; records both parent and
+    child ids so the lineage edge is explicit.
+    """
+    return {
+        "parent_id": hypothesis.id,
+        "child_id": child.id,
+        "original": hypothesis.text,
+        "evolved": refined_text,
+        "rationale": refinement_summary,
+        "operator": "enhancement",
+    }
+
+
 def _apply_refined_hypothesis(
     hypothesis: Hypothesis,
     refined_text: str,
@@ -107,15 +122,8 @@ def _apply_refined_hypothesis(
 ) -> tuple[Hypothesis, dict[str, Any]]:
     """Builds an immutable child for an accepted refinement and its detail.
 
-    Args:
-        hypothesis: Parent hypothesis being evolved; NOT mutated.
-        refined_text: Accepted refined hypothesis text.
-        explanation: Refined explanation.
-        experiment: Refined experiment.
-        refinement_summary: LLM's summary of what changed and why.
-        max_similarity: Max similarity to the sampled peer hypotheses, for
-            the debug log.
-        creation_iteration: Workflow iteration that produced the child.
+    ``hypothesis`` is NOT mutated. ``max_similarity`` is the max similarity
+    to the sampled peer hypotheses, used only for the debug log.
 
     Returns:
         The new child hypothesis, and its evolution detail.
@@ -134,19 +142,51 @@ def _apply_refined_hypothesis(
         max_similarity,
     )
 
-    # evolution_detail feeds evolution_details in evolve_node's state delta
-    # below, which the UI surfaces as the rationale for each change. It now
-    # records both parent and child ids so the lineage edge is explicit.
-    evolution_detail = {
-        "parent_id": hypothesis.id,
-        "child_id": child.id,
-        "original": hypothesis.text,
-        "evolved": refined_text,
-        "rationale": refinement_summary,
-        "operator": "enhancement",
-    }
-
+    evolution_detail = _build_evolution_detail(
+        hypothesis, child, refined_text, refinement_summary
+    )
     return child, evolution_detail
+
+
+def _rejected_as_unchanged(hypothesis: Hypothesis, refined_text: str) -> bool:
+    """True if the refinement echoed the parent text back verbatim.
+
+    The LLM sometimes echoes the input back verbatim (e.g. it judges no
+    refinement is warranted); treat this as a no-op that creates no child
+    rather than minting a duplicate of the parent.
+    """
+    if refined_text != hypothesis.text:
+        return False
+    logger.warning("Evolution returned unchanged hypothesis; no child")
+    return True
+
+
+def _near_duplicate_similarity(
+    hypothesis: Hypothesis,
+    refined_text: str,
+    other_hypotheses_texts: list[str],
+) -> float | None:
+    """Max similarity to a peer, or None if it crosses the reject threshold.
+
+    DUPLICATE_SIMILARITY_THRESHOLD (0.95) is the same bound proximity.py
+    uses for its high-similarity duplicate clusters; crossing it here means
+    the refinement converged onto a peer, so the evolution is rejected and
+    no child is minted.
+    """
+    max_similarity, most_similar_text = _find_most_similar(
+        refined_text, other_hypotheses_texts
+    )
+    if max_similarity <= DUPLICATE_SIMILARITY_THRESHOLD:
+        return max_similarity
+    logger.warning(
+        "Evolution created near-duplicate! Similarity: %.2f. Creating no"
+        " child.",
+        max_similarity,
+    )
+    logger.debug("original: %s...", hypothesis.text[:100])
+    assert most_similar_text is not None
+    logger.debug("similar to: %s...", most_similar_text[:100])
+    return None
 
 
 def _apply_evolution_result(
@@ -157,17 +197,10 @@ def _apply_evolution_result(
 ) -> tuple[Hypothesis | None, dict[str, Any] | None]:
     """Turns an LLM evolution response into a child hypothesis, if acceptable.
 
-    Rejects the refinement (creating NO child) if the LLM echoed the input
-    back verbatim, or if the refined text converged too closely onto one of
-    the peer hypotheses shown as diversity context. A rejected evolution is a
-    genuine no-op: the parent stays unchanged and no fake child is minted.
-
-    Args:
-        hypothesis: Parent hypothesis being evolved; never mutated.
-        response: Parsed JSON response from the evolution LLM call.
-        other_hypotheses_texts: Strategically sampled subset of other
-            hypotheses (max 15), used for the similarity check.
-        creation_iteration: Workflow iteration that produced any child.
+    Rejects the refinement (creating NO child, ``hypothesis`` never mutated)
+    if the LLM echoed the input back verbatim, or if the refined text
+    converged too closely onto one of the peer hypotheses shown as diversity
+    context.
 
     Returns:
         A ``(child, detail)`` pair on acceptance, or ``(None, None)`` when the
@@ -176,36 +209,13 @@ def _apply_evolution_result(
     refined_text, explanation, experiment, refinement_summary = (
         _extract_evolution_fields(hypothesis, response)
     )
-
-    # Check if the refinement actually changed the text.
-    # The LLM sometimes echoes the input back verbatim (e.g. it judges no
-    # refinement is warranted); treat this as a no-op that creates no child
-    # rather than minting a duplicate of the parent.
-    if refined_text == hypothesis.text:
-        logger.warning("Evolution returned unchanged hypothesis; no child")
+    if _rejected_as_unchanged(hypothesis, refined_text):
         return None, None
-
-    # Check similarity to other hypotheses
-    max_similarity, most_similar_text = _find_most_similar(
-        refined_text, other_hypotheses_texts
+    max_similarity = _near_duplicate_similarity(
+        hypothesis, refined_text, other_hypotheses_texts
     )
-
-    # If too similar to a peer, create no child.
-    # DUPLICATE_SIMILARITY_THRESHOLD (0.95) is the same bound proximity.py
-    # uses for its high-similarity duplicate clusters; crossing it here
-    # means the refinement converged onto a peer, so the evolution is
-    # rejected and no child is minted.
-    if max_similarity > DUPLICATE_SIMILARITY_THRESHOLD:
-        logger.warning(
-            "Evolution created near-duplicate! Similarity: %.2f."
-            " Creating no child.",
-            max_similarity,
-        )
-        logger.debug("original: %s...", hypothesis.text[:100])
-        assert most_similar_text is not None
-        logger.debug("similar to: %s...", most_similar_text[:100])
+    if max_similarity is None:
         return None, None
-
     child, detail = _apply_refined_hypothesis(
         hypothesis,
         refined_text,
@@ -257,11 +267,8 @@ def _build_evolve_state_delta(
 ) -> dict[str, Any]:
     """Builds the evolve_node state delta: metrics update plus payload.
 
-    Args:
-        children: New evolution children produced this round.
-        evolution_details: Evolution detail entries, one per created child.
-        attempt_count: Number of parents evolution attempted this round (one
-            LLM call each), used for the llm_calls metric.
+    ``attempt_count`` is the number of parents evolution attempted this
+    round (one LLM call each), used for the llm_calls metric.
 
     Returns:
         The evolve_node state delta dictionary.

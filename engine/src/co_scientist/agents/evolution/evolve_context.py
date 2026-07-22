@@ -25,6 +25,36 @@ def _sample_up_to(pool: list[Hypothesis], count: int) -> list[Hypothesis]:
     return random.sample(pool, min(count, len(pool)))
 
 
+def _sample_top_and_random(
+    others: list[Hypothesis], top_count: int, random_count: int
+) -> list[Hypothesis]:
+    """Combine the top-Elo performers with a random sample of the rest.
+
+    Args:
+        others: Candidate hypotheses, not yet sorted.
+        top_count: Number of top-Elo performers to keep unconditionally.
+        random_count: Number of additional hypotheses to sample randomly
+            from the remainder.
+
+    Returns:
+        The top performers followed by the randomly sampled remainder.
+    """
+    others_sorted = rank_by_elo(others)
+    top_performers = others_sorted[:top_count]
+    remaining = others_sorted[top_count:]
+    sampled_others = _sample_up_to(remaining, random_count)
+
+    logger.debug(
+        "sampled %s context hypotheses (top %s + %s random) from %s total",
+        len(top_performers) + len(sampled_others),
+        top_count,
+        len(sampled_others),
+        len(others),
+    )
+
+    return top_performers + sampled_others
+
+
 def sample_context_hypotheses(
     all_hypotheses: list[Hypothesis],
     exclude_hypothesis: Hypothesis,
@@ -51,25 +81,8 @@ def sample_context_hypotheses(
         # Small pool, include all
         return _hypothesis_texts(others)
 
-    # Sort by Elo rating (descending)
-    others_sorted = rank_by_elo(others)
-
-    # Take top 5 by Elo (the best ones to avoid copying)
-    top_performers = others_sorted[:5]
-    remaining = others_sorted[5:]
-
-    # Sample up to 10 more from the rest
-    sampled_others = _sample_up_to(remaining, 10)
-
-    # Combine: top 5 + sampled 10 = max 15
-    context_hypotheses = top_performers + sampled_others
-
-    logger.debug(
-        "sampled %s context hypotheses (top 5 + %s random) from %s total",
-        len(context_hypotheses),
-        len(sampled_others),
-        len(others),
-    )
+    # Top 5 by Elo (avoid copying winners) + up to 10 random (diversity).
+    context_hypotheses = _sample_top_and_random(others, 5, 10)
 
     return _hypothesis_texts(context_hypotheses)
 

@@ -38,8 +38,19 @@ async def meta_review_node(state: WorkflowState) -> dict[str, Any]:
     """
     hypotheses = state["hypotheses"]
     logger.info("Synthesizing meta-review from %s hypotheses", len(hypotheses))
+    return await _run_meta_review_phase(state, hypotheses)
 
-    # Emit progress
+
+async def _run_meta_review_phase(
+    state: WorkflowState, hypotheses: list[Hypothesis]
+) -> dict[str, Any]:
+    """Runs the meta-review synthesis phase and builds the state delta.
+
+    Collects the complete feedback history (every review and every ranking
+    debate -- later feedback does not erase earlier failure patterns),
+    synthesizes via the LLM, and emits progress before and after. Returns a
+    minimal meta_review with no LLM call if nothing has been reviewed yet.
+    """
     await emit_progress(
         state,
         "meta_review_start",
@@ -47,32 +58,17 @@ async def meta_review_node(state: WorkflowState) -> dict[str, Any]:
         PROGRESS_META_REVIEW_START,
     )
 
-    # Collect the complete feedback history: every review and every ranking
-    # debate. Later feedback does not erase earlier failure patterns.
     all_reviews = _collect_feedback_records(
         hypotheses, state.get("tournament_matchups", [])
     )
-
-    # Edge case: no hypothesis has been reviewed yet (e.g. review node was
-    # skipped or failed for all hypotheses). Skip the LLM call and return a
-    # minimal meta_review instead; downstream readers (evolve, ranking
-    # prompts) use dict.get() with defaults, so the omitted
-    # "emerging_themes" key here is still handled safely.
     if not all_reviews:
         logger.warning("No reviews available for meta-review")
         return _empty_meta_review_result()
 
-    # Call LLM to synthesize meta-review
-    prompt_context = _build_meta_review_prompt_context(state, all_reviews)
-    prompt, schema = get_meta_review_prompt(**prompt_context)
-    response = await _call_meta_review_llm(
-        state, prompt, schema, len(hypotheses), len(all_reviews)
+    meta_review = await _synthesize_meta_review(
+        state, all_reviews, len(hypotheses)
     )
 
-    meta_review = _build_meta_review(response)
-    _log_meta_review_summary(meta_review)
-
-    # Emit progress
     await emit_progress(
         state,
         "meta_review_complete",
@@ -83,6 +79,22 @@ async def meta_review_node(state: WorkflowState) -> dict[str, Any]:
     )
 
     return _build_meta_review_result(meta_review)
+
+
+async def _synthesize_meta_review(
+    state: WorkflowState,
+    all_reviews: list[dict[str, Any]],
+    hypotheses_count: int,
+) -> dict[str, Any]:
+    """Builds the prompt, calls the LLM, and assembles the meta-review."""
+    prompt_context = _build_meta_review_prompt_context(state, all_reviews)
+    prompt, schema = get_meta_review_prompt(**prompt_context)
+    response = await _call_meta_review_llm(
+        state, prompt, schema, hypotheses_count, len(all_reviews)
+    )
+    meta_review = _build_meta_review(response)
+    _log_meta_review_summary(meta_review)
+    return meta_review
 
 
 async def _call_meta_review_llm(

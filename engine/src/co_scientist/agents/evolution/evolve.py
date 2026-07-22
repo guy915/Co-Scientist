@@ -93,6 +93,36 @@ from co_scientist.state import WorkflowState
 logger = logging.getLogger(__name__)
 
 
+def _evolve_token_budget(other_hypotheses_texts: list[str]) -> int:
+    """Computes and logs the evolution call's token budget.
+
+    Fixed token budget since we strategically sample max 15 context
+    hypotheses: 8000 base + 15 * 800 = 20,000 tokens at the cap, so the
+    budget is bounded for any pool size.
+    """
+    evolve_max_tokens = scaled_max_tokens(
+        EXTENDED_MAX_TOKENS,
+        len(other_hypotheses_texts),
+        per_item=EVOLVE_TOKENS_PER_CONTEXT_HYPOTHESIS,
+        cap=EVOLVE_MAX_TOKENS_CAP,
+    )
+    logger.debug(
+        "evolution token budget: %s (%s context hypotheses)",
+        evolve_max_tokens,
+        len(other_hypotheses_texts),
+    )
+    return evolve_max_tokens
+
+
+def _evolve_prompt_name(hypothesis_index: int | None) -> str:
+    """Names the saved prompt for this evolution call, if indexed."""
+    return (
+        f"evolve_{hypothesis_index}"
+        if hypothesis_index is not None
+        else "evolve"
+    )
+
+
 async def _call_evolution_llm(
     full_prompt: str,
     schema: dict[str, Any] | None,
@@ -107,8 +137,8 @@ async def _call_evolution_llm(
         full_prompt: The evolution prompt, including the diversity
             instruction.
         schema: JSON schema for the expected LLM response.
-        other_hypotheses_texts: Strategically sampled subset of other
-            hypotheses (max 15), used only to size the token budget.
+        other_hypotheses_texts: Sampled subset of other hypotheses (max
+            15), used only to size the token budget.
         model_name: LLM model to use.
         run_id: Optional run ID for saving prompts.
         hypothesis_index: Optional index for naming saved prompts.
@@ -116,29 +146,8 @@ async def _call_evolution_llm(
     Returns:
         Parsed JSON response from the LLM.
     """
-    # Fixed token budget since we strategically sample max 15 context
-    # hypotheses: 8000 base + 15 * 800 = 20,000 tokens at the cap, so the
-    # budget is bounded for any pool size.
-    evolve_max_tokens = scaled_max_tokens(
-        EXTENDED_MAX_TOKENS,
-        len(other_hypotheses_texts),
-        per_item=EVOLVE_TOKENS_PER_CONTEXT_HYPOTHESIS,
-        cap=EVOLVE_MAX_TOKENS_CAP,
-    )
-
-    logger.debug(
-        "evolution token budget: %s (%s context hypotheses)",
-        evolve_max_tokens,
-        len(other_hypotheses_texts),
-    )
-
-    prompt_name = (
-        f"evolve_{hypothesis_index}"
-        if hypothesis_index is not None
-        else "evolve"
-    )
-
-    # Call LLM to evolve hypothesis
+    evolve_max_tokens = _evolve_token_budget(other_hypotheses_texts)
+    prompt_name = _evolve_prompt_name(hypothesis_index)
     return await call_llm_json(
         prompt=full_prompt,
         model_name=model_name,
@@ -175,39 +184,47 @@ async def evolve_single_hypothesis(
 ) -> tuple[Hypothesis | None, dict[str, Any] | None]:
     """Evolve a single hypothesis into a new child with sampled context.
 
-    This is the CRITICAL anti-duplicate strategy: we pass a subset of other
-    hypotheses (top 5 by Elo + random samples) so the LLM knows what to
-    avoid while keeping token budget manageable for large hypothesis pools.
-
-    Args:
-        hypothesis: Parent hypothesis to evolve (never mutated)
-        other_hypotheses_texts: Strategically sampled subset of other
-            hypotheses (max 15)
-        meta_review: Meta-review insights for strategic guidance
-        model_name: LLM model to use
-        removed_duplicates: Previously removed duplicate texts to avoid
-        supervisor_guidance: Optional supervisor guidance for evolution phase
-        articles_with_reasoning: Optional literature review synthesis
-            for context
-        run_id: Optional run ID for saving prompts
-        hypothesis_index: Optional index for naming saved prompts
-        tool_registry: Optional ToolRegistry for dynamic tool instructions
-        run_setup_guidance: Optional durable setup guidance
-        run_focus_guidance: Optional selected focus guidance
-        creation_iteration: Workflow iteration producing any child
-        operator: Distinct evolution strategy assigned to this task.
-        specialist_feedback: Bounded prior-agent outputs for this parent.
-
-    Returns:
-        A ``(child, detail)`` pair on acceptance, or ``(None, None)`` when the
-        refinement is rejected (no child created).
+    Returns ``(child, detail)`` on acceptance, else ``(None, None)``.
     """
-    # The following call only logs meta-review signals (common
-    # strengths/weaknesses, strategic recommendations, emerging themes)
-    # for debugging; the same fields are formatted into the prompt itself
-    # further below via _build_meta_review_insights.
-    _log_meta_review_debug(meta_review)
+    response = await _evolve_llm_response(
+        hypothesis=hypothesis,
+        other_hypotheses_texts=other_hypotheses_texts,
+        meta_review=meta_review,
+        model_name=model_name,
+        removed_duplicates=removed_duplicates,
+        supervisor_guidance=supervisor_guidance,
+        articles_with_reasoning=articles_with_reasoning,
+        run_id=run_id,
+        hypothesis_index=hypothesis_index,
+        tool_registry=tool_registry,
+        run_setup_guidance=run_setup_guidance,
+        run_focus_guidance=run_focus_guidance,
+        operator=operator,
+        specialist_feedback=specialist_feedback,
+    )
+    return _apply_evolution_result(
+        hypothesis, response, other_hypotheses_texts, creation_iteration
+    )
 
+
+async def _evolve_llm_response(
+    hypothesis: Hypothesis,
+    other_hypotheses_texts: list[str],
+    meta_review: dict[str, Any],
+    model_name: str,
+    removed_duplicates: list[str],
+    supervisor_guidance: dict[str, Any] | None,
+    articles_with_reasoning: str | None,
+    run_id: str | None,
+    hypothesis_index: int | None,
+    tool_registry: Any | None,
+    run_setup_guidance: str | None,
+    run_focus_guidance: str | None,
+    operator: EvolutionOperator,
+    specialist_feedback: str,
+) -> dict[str, Any]:
+    """Builds the prompt, calls the evolution LLM, tags the operator used."""
+    _log_meta_review_debug(meta_review)
     full_prompt, schema = _build_evolution_prompt(
         hypothesis=hypothesis,
         other_hypotheses_texts=other_hypotheses_texts,
@@ -221,7 +238,6 @@ async def evolve_single_hypothesis(
         operator=operator,
         specialist_feedback=specialist_feedback,
     )
-
     response = await _call_evolution_llm(
         full_prompt=full_prompt,
         schema=schema,
@@ -230,14 +246,7 @@ async def evolve_single_hypothesis(
         run_id=run_id,
         hypothesis_index=hypothesis_index,
     )
-
-    response["_evolution_operator"] = operator.value
-    return _apply_evolution_result(
-        hypothesis,
-        response,
-        other_hypotheses_texts,
-        creation_iteration,
-    )
+    return {**response, "_evolution_operator": operator.value}
 
 
 def _select_evolution_pool(
@@ -264,6 +273,26 @@ def _select_evolution_pool(
     return hypotheses[:evolution_max_count]
 
 
+async def _emit_evolution_start(
+    state: WorkflowState, actual_count: int
+) -> None:
+    """Logs and emits the start-of-phase progress for this evolution round."""
+    logger.info("Evolving top %s hypotheses", actual_count)
+
+    await emit_progress(
+        state,
+        "evolve_start",
+        f"Evolving top {actual_count} hypotheses...",
+        PROGRESS_EVOLVE_START,
+    )
+
+    logger.info(
+        "Evolving %s hypotheses with strategic context sampling "
+        "(max 15 context hypotheses per evolution)",
+        actual_count,
+    )
+
+
 async def _prepare_evolution_round(
     state: WorkflowState,
     hypotheses: list[Hypothesis],
@@ -280,36 +309,53 @@ async def _prepare_evolution_round(
         duplicate texts, supervisor guidance for the evolution phase).
     """
     top_k = _select_evolution_pool(state, hypotheses)
-    actual_count = len(top_k)
+    await _emit_evolution_start(state, len(top_k))
 
-    logger.info("Evolving top %s hypotheses", actual_count)
-
-    # Emit progress
-    await emit_progress(
-        state,
-        "evolve_start",
-        f"Evolving top {actual_count} hypotheses...",
-        PROGRESS_EVOLVE_START,
-    )
-
-    logger.info(
-        "Evolving %s hypotheses with strategic context sampling "
-        "(max 15 context hypotheses per evolution)",
-        actual_count,
-    )
-
-    # Get previously removed duplicates
     # Flatten proximity.py's removed_duplicates dicts down to bare text;
     # used below to steer evolution away from recreating hypotheses that
     # were already pruned as duplicates in an earlier iteration.
     removed_duplicates = [
         dup.get("text", "") for dup in state.get("removed_duplicates", [])
     ]
-
-    # Get supervisor guidance from state
     supervisor_guidance = state.get("supervisor_guidance")
 
     return top_k, removed_duplicates, supervisor_guidance
+
+
+def _build_single_evolution_task(
+    state: WorkflowState,
+    i: int,
+    hyp: Hypothesis,
+    top_k: list[Hypothesis],
+    removed_duplicates: list[str],
+    supervisor_guidance: dict[str, Any] | None,
+    creation_iteration: int,
+) -> Coroutine[Any, Any, tuple[Hypothesis | None, dict[str, Any] | None]]:
+    """Builds the evolve_single_hypothesis coroutine for one pool member."""
+    return evolve_single_hypothesis(
+        hypothesis=hyp,
+        # Context is sampled from top_k (the peers also being evolved this
+        # round), not the full hypothesis pool, so the diversity check is
+        # scoped to the leaders a new child could resemble.
+        other_hypotheses_texts=sample_context_hypotheses(
+            all_hypotheses=top_k,
+            exclude_hypothesis=hyp,
+            max_context=15,  # cap at 15 for fixed token budget
+        ),
+        meta_review=state.get("meta_review", {}),
+        model_name=state["model_name"],
+        removed_duplicates=removed_duplicates,
+        supervisor_guidance=supervisor_guidance,
+        articles_with_reasoning=state.get("articles_with_reasoning"),
+        run_id=state.get("run_id"),
+        hypothesis_index=i,
+        tool_registry=state.get("tool_registry"),
+        run_setup_guidance=state.get("run_setup_guidance"),
+        run_focus_guidance=state.get("run_focus_guidance"),
+        creation_iteration=creation_iteration,
+        operator=select_operator(i, creation_iteration),
+        specialist_feedback=_specialist_feedback_for(state, hyp),
+    )
 
 
 def _build_evolution_tasks(
@@ -336,39 +382,24 @@ def _build_evolution_tasks(
     """
     creation_iteration = state.get("current_iteration", 0)
     return [
-        evolve_single_hypothesis(
-            hypothesis=hyp,
-            # Context is sampled from top_k (the peers also being evolved
-            # this round), not the full hypothesis pool, so the diversity
-            # check is scoped to the leaders a new child could resemble.
-            other_hypotheses_texts=sample_context_hypotheses(
-                all_hypotheses=top_k,
-                exclude_hypothesis=hyp,
-                max_context=15,  # cap at 15 for fixed token budget
-            ),
-            meta_review=state.get("meta_review", {}),
-            model_name=state["model_name"],
-            removed_duplicates=removed_duplicates,
-            supervisor_guidance=supervisor_guidance,
-            articles_with_reasoning=state.get("articles_with_reasoning"),
-            run_id=state.get("run_id"),
-            hypothesis_index=i,
-            tool_registry=state.get("tool_registry"),
-            run_setup_guidance=state.get("run_setup_guidance"),
-            run_focus_guidance=state.get("run_focus_guidance"),
-            creation_iteration=creation_iteration,
-            operator=select_operator(i, creation_iteration),
-            specialist_feedback=_specialist_feedback_for(state, hyp),
+        _build_single_evolution_task(
+            state,
+            i,
+            hyp,
+            top_k,
+            removed_duplicates,
+            supervisor_guidance,
+            creation_iteration,
         )
         for i, hyp in enumerate(top_k)
     ]
 
 
-def _specialist_feedback_for(
+def _debates_for(
     state: WorkflowState, hypothesis: Hypothesis
-) -> str:
-    """Build a bounded, hypothesis-specific feedback ledger for evolution."""
-    debates = [
+) -> list[dict[str, Any]]:
+    """Build the bounded debate-transcript slice for this hypothesis."""
+    return [
         {
             "debate_id": item.get("debate_id"),
             "transcript": str(item.get("transcript") or "")[-2500:],
@@ -376,6 +407,12 @@ def _specialist_feedback_for(
         for item in state.get("debate_transcripts") or []
         if item.get("hypothesis_text") == hypothesis.text
     ][-2:]
+
+
+def _tournament_matches_for(
+    state: WorkflowState, hypothesis: Hypothesis
+) -> list[dict[str, Any]]:
+    """Build this hypothesis's tournament-matchup outcomes."""
     matches = []
     for item in state.get("tournament_matchups", []):
         side_a = item.get("hypothesis_a_id") == hypothesis.id
@@ -391,6 +428,13 @@ def _specialist_feedback_for(
                 "confidence": item.get("confidence"),
             }
         )
+    return matches
+
+
+def _proximity_neighbors_for(
+    state: WorkflowState, hypothesis: Hypothesis
+) -> list[dict[str, Any]]:
+    """Build this hypothesis's proximity-graph neighbor list."""
     neighbors = []
     for edge in (state.get("proximity_graph") or {}).get("edges", []):
         if edge.get("source") == hypothesis.id:
@@ -406,15 +450,22 @@ def _specialist_feedback_for(
                 "cluster_id": edge.get("cluster_id"),
             }
         )
+    return neighbors
+
+
+def _specialist_feedback_for(
+    state: WorkflowState, hypothesis: Hypothesis
+) -> str:
+    """Build a bounded, hypothesis-specific feedback ledger for evolution."""
     verification = {
         "verdict": hypothesis.deep_verification_verdict,
         "probes": hypothesis.deep_verification_probes,
     }
     ledger = {
         "claim_evidence_gate": hypothesis.enrichments.get("claim_gate") or {},
-        "debates": debates,
-        "tournament": matches[-8:],
-        "proximity_neighbors": neighbors[:8],
+        "debates": _debates_for(state, hypothesis),
+        "tournament": _tournament_matches_for(state, hypothesis)[-8:],
+        "proximity_neighbors": _proximity_neighbors_for(state, hypothesis)[:8],
         "deep_verification": verification,
     }
     return json.dumps(ledger, indent=2)[:8000]

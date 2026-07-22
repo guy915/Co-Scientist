@@ -157,61 +157,103 @@ async def _verify_one(
     Returns:
         The parsed deep-verification result, or None if the call failed.
     """
-    # Cross-agent meta-review feedback names recurring error patterns across
-    # the run; appending it to the evidence context lets deep verification's
-    # probing questions target those patterns, so meta-review reaches this
-    # agent too (the disclosed all-agent feedback loop, audit E28). Additive:
-    # empty when no meta-review exists yet.
-    meta_context = _format_meta_review_context(state.get("meta_review"))
-    if meta_context:
-        evidence_context = (
-            f"{evidence_context}\n\nCross-agent meta-review feedback "
-            f"(recurring patterns to probe):\n{meta_context}"
-        )
-    # Semaphore bounds how many of these run concurrently across the whole
-    # top-k batch, shared with the caller via the `semaphore` argument.
+    evidence_context = _augment_evidence_context_with_meta_review(
+        evidence_context, state
+    )
+    return await _verify_within_semaphore(
+        semaphore,
+        hypothesis,
+        research_goal,
+        model_name,
+        tool_registry,
+        evidence_context,
+        state,
+    )
+
+
+async def _verify_within_semaphore(
+    semaphore: asyncio.Semaphore,
+    hypothesis: Hypothesis,
+    research_goal: str,
+    model_name: str,
+    tool_registry: Any | None,
+    evidence_context: str,
+    state: WorkflowState,
+) -> dict[str, Any] | None:
+    """Runs verification bounded by the shared semaphore, isolating failure.
+
+    Bounds concurrent verifications across the whole top-k batch. Broad
+    except by design: one hypothesis's failure should not abort the batch;
+    None means "leave its probes/verdict untouched."
+    """
     async with semaphore:
         try:
-            initial = await _call_verification(
+            return await _verify_with_probes(
                 hypothesis,
                 research_goal,
                 model_name,
                 tool_registry,
                 evidence_context,
+                state,
             )
-            queries = _probe_queries(initial)
-            articles, retrieval_errors = await _retrieve_probe_evidence(
-                state, queries
-            )
-            if not articles:
-                initial["retrieval_queries"] = queries
-                initial["retrieval_errors"] = retrieval_errors
-                initial["retrieved_articles"] = []
-                initial["verification_llm_calls"] = 1
-                return initial
-            targeted_context = _retrieved_evidence_context(articles)
-            result = await _call_verification(
-                hypothesis,
-                research_goal,
-                model_name,
-                tool_registry,
-                f"{evidence_context}\n\nTargeted probe evidence:\n"
-                f"{targeted_context}",
-            )
-            result["retrieval_queries"] = queries
-            result["retrieval_errors"] = retrieval_errors
-            result["retrieved_articles"] = [
-                article.to_dict() for article in articles
-            ]
-            result["verification_llm_calls"] = 2
-            return result
         except Exception as e:
-            # Deliberately broad: one hypothesis's verification failing
-            # (timeout, malformed response, provider error, etc.) should
-            # not abort the whole batch. The caller treats None as "leave
-            # this hypothesis's existing probes/verdict untouched."
             logger.error("Deep verification failed: %s", e)
             return None
+
+
+def _augment_evidence_context_with_meta_review(
+    evidence_context: str, state: WorkflowState
+) -> str:
+    """Appends cross-agent meta-review feedback to the evidence context.
+
+    Cross-agent meta-review feedback names recurring error patterns across
+    the run; appending it lets deep verification's probing questions target
+    those patterns, so meta-review reaches this agent too (the disclosed
+    all-agent feedback loop, audit E28). Returns evidence_context unchanged
+    when no meta-review exists yet.
+    """
+    meta_context = _format_meta_review_context(state.get("meta_review"))
+    if not meta_context:
+        return evidence_context
+    return (
+        f"{evidence_context}\n\nCross-agent meta-review feedback "
+        f"(recurring patterns to probe):\n{meta_context}"
+    )
+
+
+async def _verify_with_probes(
+    hypothesis: Hypothesis,
+    research_goal: str,
+    model_name: str,
+    tool_registry: Any | None,
+    evidence_context: str,
+    state: WorkflowState,
+) -> dict[str, Any]:
+    """Runs the initial verification call, then a targeted probe retry."""
+    initial = await _call_verification(
+        hypothesis, research_goal, model_name, tool_registry, evidence_context
+    )
+    queries = _probe_queries(initial)
+    articles, retrieval_errors = await _retrieve_probe_evidence(state, queries)
+    if not articles:
+        initial["retrieval_queries"] = queries
+        initial["retrieval_errors"] = retrieval_errors
+        initial["retrieved_articles"] = []
+        initial["verification_llm_calls"] = 1
+        return initial
+    targeted_context = _retrieved_evidence_context(articles)
+    result = await _call_verification(
+        hypothesis,
+        research_goal,
+        model_name,
+        tool_registry,
+        f"{evidence_context}\n\nTargeted probe evidence:\n{targeted_context}",
+    )
+    result["retrieval_queries"] = queries
+    result["retrieval_errors"] = retrieval_errors
+    result["retrieved_articles"] = [article.to_dict() for article in articles]
+    result["verification_llm_calls"] = 2
+    return result
 
 
 def _select_hypotheses_to_verify(
@@ -336,12 +378,23 @@ async def deep_verification_node(state: WorkflowState) -> dict[str, Any]:
         return {}
 
     verified_count, llm_calls = await _run_verification_batch(state, to_verify)
+    return _deep_verification_result(
+        hypotheses, state["articles"], verified_count, llm_calls
+    )
 
+
+def _deep_verification_result(
+    hypotheses: list[Hypothesis],
+    articles: list[Article] | None,
+    verified_count: int,
+    llm_calls: int,
+) -> dict[str, Any]:
+    """Builds the deep_verification_node state delta after a batch runs."""
     logger.info("Deep verification complete: %s hypotheses", verified_count)
     metrics = create_metrics_update(llm_calls_delta=llm_calls)
     return {
         "hypotheses": hypotheses,
-        "articles": state["articles"],
+        "articles": articles,
         "metrics": metrics,
         "messages": phase_message(
             "deep_verification",
@@ -356,10 +409,8 @@ async def _run_verification_batch(
 ) -> tuple[int, int]:
     """Runs deep verification for a batch of hypotheses and applies results.
 
-    Verifies the given hypotheses concurrently, bounded by a semaphore
-    (created fresh per call, local to this node) that caps in-flight LLM
-    calls, and applies the results in place on the same Hypothesis objects
-    passed in. Emits progress before and after.
+    Verifies concurrently (semaphore-bounded), applies results in place on
+    the same Hypothesis objects, and emits progress before and after.
 
     Args:
         state: Current workflow state.
@@ -375,10 +426,38 @@ async def _run_verification_batch(
         PROGRESS_DEEP_VERIFICATION_START,
     )
 
-    semaphore = asyncio.Semaphore(MAX_CONCURRENT_LLM_CALLS)
     tool_registry = state.get("tool_registry")
     evidence_context = _verification_evidence_context(state)
-    results = await asyncio.gather(
+    results = await _gather_verification_results(
+        to_verify, state, tool_registry, evidence_context
+    )
+    verified_count, llm_calls = _finalize_verification_batch(
+        to_verify, results, state
+    )
+
+    await emit_progress(
+        state,
+        "deep_verification_complete",
+        f"Deep-verified {verified_count} hypotheses",
+        PROGRESS_DEEP_VERIFICATION_COMPLETE,
+    )
+
+    return verified_count, llm_calls
+
+
+async def _gather_verification_results(
+    to_verify: list[Hypothesis],
+    state: WorkflowState,
+    tool_registry: Any | None,
+    evidence_context: str,
+) -> list[dict[str, Any] | None]:
+    """Runs _verify_one for every hypothesis concurrently, semaphore-bounded.
+
+    The semaphore is created fresh per call, local to this node, and caps
+    in-flight LLM calls across the whole batch.
+    """
+    semaphore = asyncio.Semaphore(MAX_CONCURRENT_LLM_CALLS)
+    return await asyncio.gather(
         *[
             _verify_one(
                 h,
@@ -393,6 +472,13 @@ async def _run_verification_batch(
         ]
     )
 
+
+def _finalize_verification_batch(
+    to_verify: list[Hypothesis],
+    results: list[dict[str, Any] | None],
+    state: WorkflowState,
+) -> tuple[int, int]:
+    """Applies results, merges retrieved articles, and tallies LLM calls."""
     verified_count = _apply_verification_results(to_verify, results)
     state["articles"] = merge_retrieved_articles(state.get("articles"), results)
     llm_calls = sum(
@@ -400,12 +486,4 @@ async def _run_verification_batch(
         for result in results
         if result
     )
-
-    await emit_progress(
-        state,
-        "deep_verification_complete",
-        f"Deep-verified {verified_count} hypotheses",
-        PROGRESS_DEEP_VERIFICATION_COMPLETE,
-    )
-
     return verified_count, llm_calls

@@ -156,6 +156,38 @@ async def _search_source_for_query(
         return {}
 
 
+async def _run_single_source_queries(
+    queries: list[str],
+    slug: str,
+    run_id: str,
+    tool_config: "ToolConfig",
+    src_name: str,
+    papers_per_query: int,
+    mcp_client: MCPToolClient,
+    errors: list[str] | None,
+) -> dict[str, dict[str, Any]]:
+    """Runs every query against one source sequentially and merges results.
+
+    Queries run sequentially (not gathered) within a single source, so this
+    source's total time is proportional to its query count; the caller
+    instead parallelizes across sources.
+    """
+    source_results: dict[str, dict[str, Any]] = {}
+    for query in queries:
+        normalized = await _search_source_for_query(
+            query,
+            slug,
+            run_id,
+            tool_config,
+            src_name,
+            papers_per_query,
+            mcp_client,
+            errors,
+        )
+        source_results.update(normalized)
+    return source_results
+
+
 async def _search_single_source(
     source_config: "SearchSourceConfig",
     queries: list[str],
@@ -173,33 +205,25 @@ async def _search_single_source(
         )
         return (source_config.tool, {})
 
-    mcp_tool_name = tool_config.mcp_tool_name
     src_name = extract_source_name(tool_config)
     papers_per_query = source_config.papers_per_query
-
     logger.info(
         "Searching %s (%s): %s papers/query",
         src_name,
-        mcp_tool_name,
+        tool_config.mcp_tool_name,
         papers_per_query,
     )
 
-    # Queries run sequentially (not gathered) within a single source, so
-    # this source's total time is proportional to its query count; the
-    # caller instead parallelizes across sources.
-    source_results = {}
-    for query in queries:
-        normalized = await _search_source_for_query(
-            query,
-            slug,
-            run_id,
-            tool_config,
-            src_name,
-            papers_per_query,
-            mcp_client,
-            errors,
-        )
-        source_results.update(normalized)
+    source_results = await _run_single_source_queries(
+        queries,
+        slug,
+        run_id,
+        tool_config,
+        src_name,
+        papers_per_query,
+        mcp_client,
+        errors,
+    )
 
     logger.info("Source %s: collected %s papers", src_name, len(source_results))
     return (source_config.tool, source_results)
@@ -289,40 +313,19 @@ async def _search_all_sources(
     return await asyncio.gather(*tasks)
 
 
-async def _phase2_collect_papers_multi_source(
-    queries: list[str],
-    slug: str,
-    state: WorkflowState,
+def _merge_and_budget_multi_source(
+    source_results: list[tuple[str, dict[str, dict[str, Any]]]],
+    enabled_sources: list["SearchSourceConfig"],
     config: SearchConfig,
-    mcp_client: MCPToolClient,
-    errors: list[str] | None = None,
 ) -> tuple[dict[str, dict[str, Any]], dict[str, str]]:
-    """Phase 2 (multi-source): Collect papers from all sources in parallel."""
-    # Multi-source mode guarantees a configured workflow and tool registry.
+    """Merges per-source results and trims the merged set to the budget.
+
+    Optionally dedupes by title (config-driven via
+    deduplicate_across_sources) and builds paper_source_map so later phases
+    know which source's tool config applies to each paper, then applies
+    select_within_budget's reserved-slots selection.
+    """
     assert config.workflow is not None
-    assert config.tool_registry is not None
-    # The registry reconciles source flags with tool flags at load time
-    # (ToolRegistry._apply_disabled_tools), so enabled sources here are
-    # exactly the sources whose tools are live.
-    enabled_sources = config.workflow.get_enabled_search_sources()
-    logger.info(
-        "Phase 2: collecting papers from %s sources", len(enabled_sources)
-    )
-
-    source_results = await _search_all_sources(
-        enabled_sources,
-        queries,
-        slug,
-        state["run_id"],
-        config.tool_registry,
-        mcp_client,
-        errors,
-    )
-
-    # Merge results
-    # Optionally dedupes by title (config-driven via
-    # deduplicate_across_sources) and builds paper_source_map so later
-    # phases know which source's tool config applies to each paper.
     all_paper_metadata, paper_source_map = merge_search_results(
         source_results,
         deduplicate=config.workflow.deduplicate_across_sources,
@@ -341,6 +344,41 @@ async def _phase2_collect_papers_multi_source(
         for paper_id in selected_ids
         if paper_id in paper_source_map
     }
+    return all_paper_metadata, paper_source_map
+
+
+async def _phase2_collect_papers_multi_source(
+    queries: list[str],
+    slug: str,
+    state: WorkflowState,
+    config: SearchConfig,
+    mcp_client: MCPToolClient,
+    errors: list[str] | None = None,
+) -> tuple[dict[str, dict[str, Any]], dict[str, str]]:
+    """Phase 2 (multi-source): Collect papers from all sources in parallel."""
+    # Multi-source mode guarantees a configured workflow/tool registry; the
+    # registry already reconciled source flags with tool flags at load time
+    # (ToolRegistry._apply_disabled_tools), so enabled sources are exactly
+    # the sources whose tools are live.
+    assert config.workflow is not None and config.tool_registry is not None
+    enabled_sources = config.workflow.get_enabled_search_sources()
+    logger.info(
+        "Phase 2: collecting papers from %s sources", len(enabled_sources)
+    )
+
+    source_results = await _search_all_sources(
+        enabled_sources,
+        queries,
+        slug,
+        state["run_id"],
+        config.tool_registry,
+        mcp_client,
+        errors,
+    )
+
+    all_paper_metadata, paper_source_map = _merge_and_budget_multi_source(
+        source_results, enabled_sources, config
+    )
 
     logger.info(
         "Multi-source search complete: %s unique papers from %s sources",
@@ -364,20 +402,8 @@ async def _search_all_queries(
     """Searches all queries against the single configured source in parallel.
 
     Unlike multi-source mode, there is only one tool/source involved here so
-    no per-source serialization is needed.
-
-    Args:
-        queries: Queries to run.
-        papers_per_query: Base per-query papers budget.
-        remainder: Extra papers handed to the first `remainder` queries.
-        slug: Corpus slug shared across this run's searches.
-        run_id: Current workflow run id.
-        config: Search config providing the single-source tool name/config.
-        mcp_client: Client used to call the search tool.
-        errors: Shared list that failed queries append error strings to.
-
-    Returns:
-        Per-query (index, results) pairs, in query order.
+    no per-source serialization is needed. Returns per-query (index,
+    results) pairs, in query order.
     """
     tasks = [
         _search_single_query(
@@ -394,6 +420,20 @@ async def _search_all_queries(
         for i, query in enumerate(queries)
     ]
     return await asyncio.gather(*tasks)
+
+
+def _combine_and_cap_single_source_results(
+    search_results: list[tuple[int, dict[str, dict[str, Any]]]],
+    config: SearchConfig,
+) -> dict[str, dict[str, Any]]:
+    """Merges per-query results, dedupes/ranks, and caps to the read count."""
+    combined: dict[str, dict[str, Any]] = {}
+    for _, result_data in search_results:
+        combined.update(result_data)
+    ranked, _ = merge_search_results(
+        [(config.search_tool_name, combined)], deduplicate=True
+    )
+    return dict(list(ranked.items())[: config.papers_to_read_count])
 
 
 async def _phase2_collect_papers_single_source(
@@ -428,14 +468,7 @@ async def _phase2_collect_papers_single_source(
         errors,
     )
 
-    combined: dict[str, dict[str, Any]] = {}
-    for _, result_data in search_results:
-        combined.update(result_data)
-    ranked, _ = merge_search_results(
-        [(config.search_tool_name, combined)], deduplicate=True
+    all_paper_metadata = _combine_and_cap_single_source_results(
+        search_results, config
     )
-    all_paper_metadata = dict(
-        list(ranked.items())[: config.papers_to_read_count]
-    )
-
     return all_paper_metadata, {}

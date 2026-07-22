@@ -59,17 +59,41 @@ def _prompt_variables(
     tool_instructions = build_tool_instructions(tool_ids, registry)
     hypothesis_text = hypothesis.text
     if review_type is ReviewType.RECURRENT:
-        tournament = {
-            "elo_rating": hypothesis.elo_rating,
-            "match_count": hypothesis.total_matches,
-            "reviews": [asdict(review) for review in hypothesis.reviews],
-        }
-        hypothesis_text += (
-            "\n\nRecurrent-review context from the growing tournament:\n"
-            + json.dumps(tournament, indent=2)
-            + "\n\nCross-agent feedback:\n"
-            + _format_meta_review_context(state.get("meta_review"))
-        )
+        hypothesis_text += _recurrent_review_suffix(state, hypothesis)
+    domain_context = _build_domain_context(state, targeted_articles)
+    return {
+        "research_goal": state["research_goal"],
+        "hypothesis_text": hypothesis_text,
+        "domain_context": (
+            "Evidence available to this review:\n" + domain_context
+            if domain_context
+            else "No retrieved evidence is available to this review."
+        ),
+        "tool_instructions": tool_instructions,
+    }
+
+
+def _recurrent_review_suffix(
+    state: WorkflowState, hypothesis: Hypothesis
+) -> str:
+    """Builds the tournament + meta-review context for a recurrent review."""
+    tournament = {
+        "elo_rating": hypothesis.elo_rating,
+        "match_count": hypothesis.total_matches,
+        "reviews": [asdict(review) for review in hypothesis.reviews],
+    }
+    return (
+        "\n\nRecurrent-review context from the growing tournament:\n"
+        + json.dumps(tournament, indent=2)
+        + "\n\nCross-agent feedback:\n"
+        + _format_meta_review_context(state.get("meta_review"))
+    )
+
+
+def _build_domain_context(
+    state: WorkflowState, targeted_articles: list[Article] | None
+) -> str:
+    """Formats retrieved public and private evidence for a review prompt."""
     evidence = [
         article
         for article in (state.get("articles") or [])
@@ -85,17 +109,7 @@ def _prompt_variables(
         str(source.get("display") or "")[:1800]
         for source in (state.get("context_enrichment_sources") or [])[:4]
     ]
-    domain_context = "\n\n".join([*evidence_sections, *private_sections])
-    return {
-        "research_goal": state["research_goal"],
-        "hypothesis_text": hypothesis_text,
-        "domain_context": (
-            "Evidence available to this review:\n" + domain_context
-            if domain_context
-            else "No retrieved evidence is available to this review."
-        ),
-        "tool_instructions": tool_instructions,
-    }
+    return "\n\n".join([*evidence_sections, *private_sections])
 
 
 async def _hypothesis_search_queries(
@@ -123,8 +137,28 @@ async def _hypothesis_search_queries(
     # never run, so formulating queries would just burn a call per review.
     if not state.get("mcp_available"):
         return []
+    result = await _call_hypothesis_query_llm(state, hypothesis)
+    if result is None:
+        return []
+    queries = [
+        " ".join(str(query).split())
+        for query in result.get("queries") or []
+        if str(query).strip()
+    ]
+    return queries[:_MAX_HYPOTHESIS_QUERIES]
+
+
+async def _call_hypothesis_query_llm(
+    state: WorkflowState, hypothesis: Hypothesis
+) -> dict[str, Any] | None:
+    """Calls the LLM to generate keyword queries for one hypothesis.
+
+    Mechanical extraction of terms already present in the hypothesis, run
+    once per reviewed hypothesis; reasoning adds nothing here and this is a
+    high-frequency call, so thinking is disabled. Returns None on failure.
+    """
     try:
-        result = await call_llm_json(
+        return await call_llm_json(
             prompt=get_hypothesis_query_generation_prompt(
                 research_goal=state["research_goal"],
                 hypothesis=hypothesis.text,
@@ -135,20 +169,11 @@ async def _hypothesis_search_queries(
             json_schema=LITERATURE_QUERY_SCHEMA,
             run_id=state.get("run_id"),
             prompt_name=f"hypothesis_queries_{hypothesis.id}",
-            # Mechanical extraction of terms already present in the
-            # hypothesis, run once per reviewed hypothesis; reasoning adds
-            # nothing here and this is a high-frequency call.
             enable_thinking=False,
         )
     except Exception as exc:
         logger.warning("Query generation failed for %s: %s", hypothesis.id, exc)
-        return []
-    queries = [
-        " ".join(str(query).split())
-        for query in result.get("queries") or []
-        if str(query).strip()
-    ]
-    return queries[:_MAX_HYPOTHESIS_QUERIES]
+        return None
 
 
 async def _run_review(
@@ -157,28 +182,14 @@ async def _run_review(
     review_type: ReviewType,
 ) -> tuple[ReviewType, dict[str, Any] | None]:
     """Execute one independently meaningful Reflection review call."""
-    targeted_articles: list[Article] = []
-    retrieval_errors: list[str] = []
-    retrieval_queries: list[str] = []
-    if review_type in {ReviewType.FULL, ReviewType.SIMULATION}:
-        retrieval_queries = await _hypothesis_search_queries(state, hypothesis)
-        targeted_articles, retrieval_errors = await _retrieve_probe_evidence(
-            state, retrieval_queries
-        )
-    template_type = (
-        ReviewType.FULL if review_type is ReviewType.RECURRENT else review_type
+    (
+        retrieval_queries,
+        targeted_articles,
+        retrieval_errors,
+    ) = await _retrieve_review_evidence(state, hypothesis, review_type)
+    prompt, schema = _build_review_prompt(
+        state, hypothesis, review_type, targeted_articles
     )
-    prompt, schema = load_prompt_with_schema(
-        prompt_name_for(template_type),
-        _prompt_variables(state, hypothesis, review_type, targeted_articles),
-    )
-    if review_type is ReviewType.RECURRENT:
-        prompt = (
-            "Perform a recurrent/tournament review. Adapt the full review to "
-            "the accumulated reviews, Elo outcomes, recurring issues, and "
-            "meta-review feedback below. Identify what changed since the "
-            "earlier review.\n\n" + prompt
-        )
     try:
         result = await call_llm_json(
             prompt=prompt,
@@ -200,6 +211,45 @@ async def _run_review(
         article.to_dict() for article in targeted_articles
     ]
     return review_type, result
+
+
+async def _retrieve_review_evidence(
+    state: WorkflowState, hypothesis: Hypothesis, review_type: ReviewType
+) -> tuple[list[str], list[Article], list[str]]:
+    """Retrieves targeted literature evidence for full/simulation reviews.
+
+    Recurrent reviews reuse the accumulated tournament context instead of
+    re-searching, so this returns empty lists for any other review type.
+    """
+    if review_type not in {ReviewType.FULL, ReviewType.SIMULATION}:
+        return [], [], []
+    queries = await _hypothesis_search_queries(state, hypothesis)
+    articles, errors = await _retrieve_probe_evidence(state, queries)
+    return queries, articles, errors
+
+
+def _build_review_prompt(
+    state: WorkflowState,
+    hypothesis: Hypothesis,
+    review_type: ReviewType,
+    targeted_articles: list[Article],
+) -> tuple[str, dict[str, Any] | None]:
+    """Builds the review prompt/schema, adding the recurrent-review preamble."""
+    template_type = (
+        ReviewType.FULL if review_type is ReviewType.RECURRENT else review_type
+    )
+    prompt, schema = load_prompt_with_schema(
+        prompt_name_for(template_type),
+        _prompt_variables(state, hypothesis, review_type, targeted_articles),
+    )
+    if review_type is ReviewType.RECURRENT:
+        prompt = (
+            "Perform a recurrent/tournament review. Adapt the full review to "
+            "the accumulated reviews, Elo outcomes, recurring issues, and "
+            "meta-review feedback below. Identify what changed since the "
+            "earlier review.\n\n" + prompt
+        )
+    return prompt, schema
 
 
 async def _review_hypothesis(

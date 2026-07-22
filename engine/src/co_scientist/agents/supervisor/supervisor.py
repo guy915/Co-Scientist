@@ -32,14 +32,30 @@ async def supervisor_node(state: WorkflowState) -> dict[str, Any]:
         Dictionary with updated state fields (supervisor_guidance)
     """
     prompt_context = _extract_supervisor_context(state)
+    await _announce_supervisor_start(state, prompt_context)
+
+    supervisor_guidance = await _run_supervisor_planning(state, prompt_context)
+    logger.info("Supervisor plan created")
+
+    key_areas = _extract_key_areas(supervisor_guidance)
+    _log_key_areas(key_areas)
+    await _announce_supervisor_complete(state, key_areas)
+
+    return _build_supervisor_result(supervisor_guidance, key_areas)
+
+
+async def _announce_supervisor_start(
+    state: WorkflowState, prompt_context: dict[str, Any]
+) -> None:
+    """Logs and streams the start of supervisor planning.
+
+    This is the first node in the graph, so this also marks the start of
+    the entire workflow from the UI's perspective.
+    """
     research_goal = prompt_context["research_goal"]
     logger.info(
         "Supervisor analyzing research goal: %s...", research_goal[:100]
     )
-
-    # Emit progress
-    # This is the first node in the graph, so this also marks the start of
-    # the entire workflow from the UI's perspective.
     await emit_progress(
         state,
         "supervisor_start",
@@ -47,23 +63,11 @@ async def supervisor_node(state: WorkflowState) -> dict[str, Any]:
         PROGRESS_SUPERVISOR_START,
     )
 
-    # Call llm to create research plan with all context
-    prompt, schema = get_supervisor_prompt(**prompt_context)
-    response = await _call_supervisor_llm(state, prompt, schema)
-    supervisor_guidance = _build_supervisor_guidance(response)
 
-    logger.info("Supervisor plan created")
-
-    # Log key insights from supervisor
-    key_areas = _extract_key_areas(supervisor_guidance)
-    if key_areas:
-        logger.info(
-            "Key research areas identified: %s", ", ".join(key_areas[:3])
-        )
-
-    # Emit progress
-    # key_areas count is surfaced to the UI as extra context alongside the
-    # phase completion.
+async def _announce_supervisor_complete(
+    state: WorkflowState, key_areas: list[str]
+) -> None:
+    """Streams supervisor-plan completion; key_areas count rides along."""
     await emit_progress(
         state,
         "supervisor_complete",
@@ -72,7 +76,22 @@ async def supervisor_node(state: WorkflowState) -> dict[str, Any]:
         key_areas=len(key_areas),
     )
 
-    return _build_supervisor_result(supervisor_guidance, key_areas)
+
+async def _run_supervisor_planning(
+    state: WorkflowState, prompt_context: dict[str, Any]
+) -> dict[str, Any]:
+    """Builds the prompt, calls the LLM, and assembles supervisor guidance."""
+    prompt, schema = get_supervisor_prompt(**prompt_context)
+    response = await _call_supervisor_llm(state, prompt, schema)
+    return _build_supervisor_guidance(response)
+
+
+def _log_key_areas(key_areas: list[str]) -> None:
+    """Logs identified key research areas, if any."""
+    if key_areas:
+        logger.info(
+            "Key research areas identified: %s", ", ".join(key_areas[:3])
+        )
 
 
 async def _call_supervisor_llm(

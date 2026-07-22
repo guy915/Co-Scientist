@@ -59,6 +59,28 @@ def _prepare_hypotheses_for_analysis(
     ]
 
 
+async def _call_proximity_llm(
+    state: WorkflowState,
+    prompt: str,
+    schema: dict[str, Any] | None,
+    hypotheses_count: int,
+) -> dict[str, Any]:
+    """Calls the proximity LLM and returns its parsed JSON response."""
+    return await call_llm_json(
+        prompt=prompt,
+        model_name=state["model_name"],
+        max_tokens=LONG_MAX_TOKENS,
+        temperature=LOW_TEMPERATURE,
+        json_schema=schema,
+        run_id=state.get("run_id"),
+        prompt_name="proximity",
+        prompt_metadata={
+            "prompt_length_chars": len(prompt),
+            "hypotheses_count": hypotheses_count,
+        },
+    )
+
+
 async def _fetch_similarity_clusters(
     state: WorkflowState, hypotheses: list[Hypothesis]
 ) -> list[dict[str, Any]]:
@@ -76,28 +98,13 @@ async def _fetch_similarity_clusters(
         if the response was malformed or contained none).
     """
     hypotheses_for_analysis = _prepare_hypotheses_for_analysis(hypotheses)
-
-    # Get supervisor guidance from state
     supervisor_guidance = state.get("supervisor_guidance")
 
-    # Call LLM to cluster by similarity
     prompt, schema = get_proximity_prompt(
         hypotheses_for_analysis, supervisor_guidance=supervisor_guidance
     )
 
-    response = await call_llm_json(
-        prompt=prompt,
-        model_name=state["model_name"],
-        max_tokens=LONG_MAX_TOKENS,
-        temperature=LOW_TEMPERATURE,
-        json_schema=schema,
-        run_id=state.get("run_id"),
-        prompt_name="proximity",
-        prompt_metadata={
-            "prompt_length_chars": len(prompt),
-            "hypotheses_count": len(hypotheses),
-        },
-    )
+    response = await _call_proximity_llm(state, prompt, schema, len(hypotheses))
 
     similarity_clusters: list[dict[str, Any]] = response.get(
         "similarity_clusters", []
@@ -148,6 +155,29 @@ class _ClusteringOutcome:
     similarity_clusters: list[dict[str, Any]]
 
 
+def _cluster_and_dedupe(
+    hypotheses: list[Hypothesis], similarity_clusters: list[dict[str, Any]]
+) -> tuple[list[Hypothesis], list[dict[str, Any]]]:
+    """Assigns cluster ids onto `hypotheses` in place, then dedupes them."""
+    _assign_cluster_ids(hypotheses, similarity_clusters)
+    return _dedupe_by_cluster(hypotheses)
+
+
+def _finish_clustering(
+    hypotheses: list[Hypothesis], similarity_clusters: list[dict[str, Any]]
+) -> _ClusteringOutcome:
+    """Dedupes the clustered hypotheses and logs the pass's summary."""
+    hypotheses_to_keep, removed_duplicates = _cluster_and_dedupe(
+        hypotheses, similarity_clusters
+    )
+    _log_dedup_summary(
+        len(hypotheses), len(hypotheses_to_keep), removed_duplicates
+    )
+    return _ClusteringOutcome(
+        hypotheses_to_keep, removed_duplicates, similarity_clusters
+    )
+
+
 async def _run_proximity_clustering(
     state: WorkflowState,
     hypotheses: list[Hypothesis],
@@ -155,8 +185,7 @@ async def _run_proximity_clustering(
     """Runs one LLM clustering + dedup pass for proximity_node.
 
     Emits the "proximity_start" progress event, then calls the proximity LLM
-    and resolves cluster duplicates. Assigns cluster ids onto `hypotheses`
-    in place.
+    and resolves cluster duplicates.
 
     Args:
         state: Current workflow state.
@@ -182,16 +211,42 @@ async def _run_proximity_clustering(
         )
         return None
 
-    _assign_cluster_ids(hypotheses, similarity_clusters)
+    return _finish_clustering(hypotheses, similarity_clusters)
 
-    hypotheses_to_keep, removed_duplicates = _dedupe_by_cluster(hypotheses)
 
-    _log_dedup_summary(
-        len(hypotheses), len(hypotheses_to_keep), removed_duplicates
+def _build_updated_proximity_graph(
+    state: WorkflowState, outcome: _ClusteringOutcome
+) -> dict[str, Any]:
+    """Builds the persisted weighted proximity graph for this pass's clusters.
+
+    Edges over the kept hypotheses carry a similarity score and
+    method/model/goal/update-time provenance (Milestone 3). The id map is
+    keyed by member_match_key so a cluster member echoed by the LLM resolves
+    to its surviving hypothesis the same way the node's clustering does.
+    """
+    id_by_text = {
+        member_match_key(h.text): h.id for h in outcome.hypotheses_to_keep
+    }
+    return build_proximity_graph(
+        outcome.similarity_clusters,
+        id_by_text,
+        research_goal=state["research_goal"],
+        model=state["model_name"],
+        updated_at=time.time(),
     )
 
-    return _ClusteringOutcome(
-        hypotheses_to_keep, removed_duplicates, similarity_clusters
+
+def _proximity_update_message(
+    hypotheses: list[Hypothesis], outcome: _ClusteringOutcome
+) -> list[dict[str, Any]]:
+    """Builds this pass's phase_message payload for the state delta."""
+    return phase_message(
+        "proximity",
+        f"Deduplication: {len(hypotheses)}"
+        f" → {len(outcome.hypotheses_to_keep)}"
+        f" ({len(outcome.removed_duplicates)} removed)",
+        duplicates_removed=len(outcome.removed_duplicates),
+        clusters=len(outcome.similarity_clusters),
     )
 
 
@@ -219,41 +274,32 @@ def _build_proximity_update(
         Dictionary with updated state fields (deduplicated hypotheses).
     """
     metrics = create_metrics_update(llm_calls_delta=1)
-
     all_removed_duplicates = (
         state.get("removed_duplicates", []) + outcome.removed_duplicates
     )
-
-    # Build the persisted weighted proximity graph from this pass's clusters
-    # (Milestone 3): edges over the kept hypotheses carry a similarity score
-    # and method/model/goal/update-time provenance. The id map is keyed by
-    # member_match_key so a cluster member echoed by the LLM resolves to its
-    # surviving hypothesis the same way the node's clustering does.
-    id_by_text = {
-        member_match_key(h.text): h.id for h in outcome.hypotheses_to_keep
-    }
-    proximity_graph = build_proximity_graph(
-        outcome.similarity_clusters,
-        id_by_text,
-        research_goal=state["research_goal"],
-        model=state["model_name"],
-        updated_at=time.time(),
-    )
+    proximity_graph = _build_updated_proximity_graph(state, outcome)
 
     return {
         "hypotheses": outcome.hypotheses_to_keep,
         "removed_duplicates": all_removed_duplicates,
         "proximity_graph": proximity_graph,
         "metrics": metrics,
-        "messages": phase_message(
-            "proximity",
-            f"Deduplication: {len(hypotheses)}"
-            f" → {len(outcome.hypotheses_to_keep)}"
-            f" ({len(outcome.removed_duplicates)} removed)",
-            duplicates_removed=len(outcome.removed_duplicates),
-            clusters=len(outcome.similarity_clusters),
-        ),
+        "messages": _proximity_update_message(hypotheses, outcome),
     }
+
+
+async def _emit_proximity_complete(
+    state: WorkflowState, outcome: _ClusteringOutcome
+) -> None:
+    """Emits the proximity_complete progress event for a finished pass."""
+    await emit_progress(
+        state,
+        "proximity_complete",
+        f"Removed {len(outcome.removed_duplicates)} duplicates",
+        PROGRESS_PROXIMITY_COMPLETE,
+        duplicates_removed=len(outcome.removed_duplicates),
+        remaining=len(outcome.hypotheses_to_keep),
+    )
 
 
 async def proximity_node(state: WorkflowState) -> dict[str, Any]:
@@ -287,14 +333,6 @@ async def proximity_node(state: WorkflowState) -> dict[str, Any]:
     if outcome is None:
         return {"hypotheses": hypotheses}
 
-    # Emit progress
-    await emit_progress(
-        state,
-        "proximity_complete",
-        f"Removed {len(outcome.removed_duplicates)} duplicates",
-        PROGRESS_PROXIMITY_COMPLETE,
-        duplicates_removed=len(outcome.removed_duplicates),
-        remaining=len(outcome.hypotheses_to_keep),
-    )
+    await _emit_proximity_complete(state, outcome)
 
     return _build_proximity_update(state, hypotheses, outcome)

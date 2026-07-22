@@ -413,6 +413,45 @@ def merge_search_results(
     return ranked, ranked_source_map
 
 
+def _fill_reserved_slots(
+    ranked: dict[str, dict[str, Any]],
+    source_map: dict[str, str],
+    sources: list["SearchSourceConfig"],
+    budget: int,
+) -> list[str]:
+    """Fills each source's reserved slots best-first, capped at the budget."""
+    reserved: list[str] = []
+    for source in sources:
+        if source.reserved_slots <= 0:
+            continue
+        remaining = budget - len(reserved)
+        if remaining <= 0:
+            break
+        from_source = [
+            paper_id
+            for paper_id in ranked
+            if source_map.get(paper_id) == source.tool
+        ]
+        reserved.extend(from_source[: min(source.reserved_slots, remaining)])
+    return reserved
+
+
+def _fill_remaining_by_score(
+    ranked: dict[str, dict[str, Any]],
+    reserved: list[str],
+    budget: int,
+) -> list[str]:
+    """Appends the best-ranked remaining papers up to the budget."""
+    selected = list(reserved)
+    reserved_ids = set(reserved)
+    for paper_id in ranked:
+        if len(selected) >= budget:
+            break
+        if paper_id not in reserved_ids:
+            selected.append(paper_id)
+    return selected
+
+
 def select_within_budget(
     ranked: dict[str, dict[str, Any]],
     source_map: dict[str, str],
@@ -447,27 +486,8 @@ def select_within_budget(
     if budget <= 0:
         return []
 
-    reserved: list[str] = []
-    for source in sources:
-        if source.reserved_slots <= 0:
-            continue
-        remaining = budget - len(reserved)
-        if remaining <= 0:
-            break
-        from_source = [
-            paper_id
-            for paper_id in ranked
-            if source_map.get(paper_id) == source.tool
-        ]
-        reserved.extend(from_source[: min(source.reserved_slots, remaining)])
-
-    selected = list(reserved)
-    reserved_ids = set(reserved)
-    for paper_id in ranked:
-        if len(selected) >= budget:
-            break
-        if paper_id not in reserved_ids:
-            selected.append(paper_id)
+    reserved = _fill_reserved_slots(ranked, source_map, sources, budget)
+    selected = _fill_remaining_by_score(ranked, reserved, budget)
 
     if reserved:
         logger.info(

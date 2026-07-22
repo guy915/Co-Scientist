@@ -88,23 +88,7 @@ def _hard_stop(
             stats/budget, reused for the satisfied-completion/convergence
             fall-through rather than recomputed.
     """
-    reason: tuple[TerminationReason, str] | None = None
-    if stats.cancelled:
-        reason = (TerminationReason.CANCELLED, "run cancelled")
-    elif stats.safety_blocked:
-        reason = (TerminationReason.SAFETY, "safety block halted the run")
-    elif (
-        budget.max_llm_calls is not None
-        and stats.llm_calls >= budget.max_llm_calls
-    ):
-        reason = (TerminationReason.BUDGET, "LLM-call budget exhausted")
-    elif budget.max_tasks is not None and stats.tasks_run >= budget.max_tasks:
-        reason = (TerminationReason.MAX_TASKS, "task budget exhausted")
-    elif (
-        budget.max_wall_clock_s is not None
-        and stats.elapsed_s >= budget.max_wall_clock_s
-    ):
-        reason = (TerminationReason.WALL_CLOCK, "wall-clock budget exhausted")
+    reason = _hard_stop_reason(stats, budget)
     if reason is None:
         # Satisfied completion and convergence are evaluated by the disclosed
         # scheduler predicates after required review/ranking/proximity work.
@@ -116,6 +100,29 @@ def _hard_stop(
         terminate=True,
         termination_reason=termination_reason,
     )
+
+
+def _hard_stop_reason(
+    stats: SchedulerStats, budget: Budget
+) -> tuple[TerminationReason, str] | None:
+    """Return the code-enforced termination reason, if any, for these stats."""
+    if stats.cancelled:
+        return TerminationReason.CANCELLED, "run cancelled"
+    if stats.safety_blocked:
+        return TerminationReason.SAFETY, "safety block halted the run"
+    if (
+        budget.max_llm_calls is not None
+        and stats.llm_calls >= budget.max_llm_calls
+    ):
+        return TerminationReason.BUDGET, "LLM-call budget exhausted"
+    if budget.max_tasks is not None and stats.tasks_run >= budget.max_tasks:
+        return TerminationReason.MAX_TASKS, "task budget exhausted"
+    if (
+        budget.max_wall_clock_s is not None
+        and stats.elapsed_s >= budget.max_wall_clock_s
+    ):
+        return TerminationReason.WALL_CLOCK, "wall-clock budget exhausted"
+    return None
 
 
 def _planning_prompt(
@@ -195,46 +202,64 @@ async def choose_supervisor_task(
         return stop, "hard-invariant"
 
     try:
-        response = await call_llm_json(
-            prompt=_planning_prompt(state, stats, budget),
-            model_name=state["supervisor_model_name"],
-            # The routing output is small, but DeepSeek thinking spends
-            # reasoning tokens against this budget first; 800 risked an empty
-            # answer, so give reasoning + decision headroom.
-            max_tokens=3000,
-            temperature=MEDIUM_TEMPERATURE,
-            json_schema=_DECISION_SCHEMA,
-            use_cache=False,
-            run_id=state.get("run_id"),
-            prompt_name="supervisor_allocation",
-            prompt_metadata={"iteration": stats.iteration},
+        validated = await _call_supervisor_planner(state, stats, budget)
+        return _resolve_planner_decision(
+            state, stats, budget, baseline, validated
         )
-        proposed = SupervisorDecision(
-            next_task=TaskType(str(response["next_task"])),
-            reason=str(response["reason"]),
-            priority=max(0, min(100, int(response.get("priority", 50)))),
-            queue_actions=tuple(response.get("queue_actions") or ()),
-        )
-        validated = validate_decision(proposed, stats)
-        if _repeats_without_iteration_progress(
-            state, stats, validated, baseline
-        ):
-            # A freeform Supervisor may spend one maintenance pass beyond the
-            # baseline, but repeating the same pass without a work-cycle
-            # advance is a non-progress loop. Fall back to the disclosed
-            # scheduler and record that the code-enforced invariant fired.
-            return baseline, "hard-invariant"
-        if (
-            not stats.pending_steering
-            and stats.iteration >= budget.max_iterations
-            and validated.next_task in WORK_TASKS
-        ):
-            # Once the exploration budget is spent, the model may select the
-            # required review/ranking/proximity cleanup but cannot grow the
-            # pool again. The deterministic policy owns that terminal drain.
-            return baseline, "hard-invariant"
-        return validated, "model"
     except Exception as exc:
         logger.warning("Supervisor allocation failed; using fallback: %s", exc)
         fallback = validate_decision(baseline, stats)
         return fallback, "reconstructed-fallback"
+
+
+async def _call_supervisor_planner(
+    state: WorkflowState, stats: SchedulerStats, budget: Budget
+) -> SupervisorDecision:
+    """Calls the Supervisor model and validates its proposed allocation."""
+    response = await call_llm_json(
+        prompt=_planning_prompt(state, stats, budget),
+        model_name=state["supervisor_model_name"],
+        # The routing output is small, but DeepSeek thinking spends
+        # reasoning tokens against this budget first; 800 risked an empty
+        # answer, so give reasoning + decision headroom.
+        max_tokens=3000,
+        temperature=MEDIUM_TEMPERATURE,
+        json_schema=_DECISION_SCHEMA,
+        use_cache=False,
+        run_id=state.get("run_id"),
+        prompt_name="supervisor_allocation",
+        prompt_metadata={"iteration": stats.iteration},
+    )
+    proposed = SupervisorDecision(
+        next_task=TaskType(str(response["next_task"])),
+        reason=str(response["reason"]),
+        priority=max(0, min(100, int(response.get("priority", 50)))),
+        queue_actions=tuple(response.get("queue_actions") or ()),
+    )
+    return validate_decision(proposed, stats)
+
+
+def _resolve_planner_decision(
+    state: WorkflowState,
+    stats: SchedulerStats,
+    budget: Budget,
+    baseline: SupervisorDecision,
+    validated: SupervisorDecision,
+) -> tuple[SupervisorDecision, str]:
+    """Applies the non-progress and post-budget-growth guards to a proposal."""
+    if _repeats_without_iteration_progress(state, stats, validated, baseline):
+        # A freeform Supervisor may spend one maintenance pass beyond the
+        # baseline, but repeating the same pass without a work-cycle
+        # advance is a non-progress loop. Fall back to the disclosed
+        # scheduler and record that the code-enforced invariant fired.
+        return baseline, "hard-invariant"
+    if (
+        not stats.pending_steering
+        and stats.iteration >= budget.max_iterations
+        and validated.next_task in WORK_TASKS
+    ):
+        # Once the exploration budget is spent, the model may select the
+        # required review/ranking/proximity cleanup but cannot grow the
+        # pool again. The deterministic policy owns that terminal drain.
+        return baseline, "hard-invariant"
+    return validated, "model"

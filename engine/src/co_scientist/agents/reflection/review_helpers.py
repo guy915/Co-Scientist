@@ -83,22 +83,38 @@ def _prepare_batch_review_call(
     Returns:
         Tuple of (prompt, schema, max_tokens, max_attempts).
     """
-    hypotheses_list = "\n\n".join(
-        [f"**Hypothesis {i}:**\n{hyp.text}" for i, hyp in enumerate(hypotheses)]
-    )
     prompt, schema = get_review_batch_prompt(
         research_goal=research_goal,
-        hypotheses_list=hypotheses_list,
+        hypotheses_list=_build_hypotheses_list_text(hypotheses),
         supervisor_guidance=supervisor_guidance,
         meta_review=meta_review,
         tool_registry=tool_registry,
         run_setup_guidance=run_setup_guidance,
         run_focus_guidance=run_focus_guidance,
     )
-
-    # Scale max_tokens based on hypothesis count in batch (base budget covers
-    # the first REVIEW_BATCH_FREE_HYPOTHESES hypotheses).
     hypothesis_count = len(hypotheses)
+    max_tokens, max_attempts = _scaled_batch_review_budget(hypothesis_count)
+    logger.debug(
+        "batch review: %s hypotheses, max_tokens=%s",
+        hypothesis_count,
+        max_tokens,
+    )
+    return prompt, schema, max_tokens, max_attempts
+
+
+def _build_hypotheses_list_text(hypotheses: list[Hypothesis]) -> str:
+    """Formats hypotheses as a numbered list for the batch review prompt."""
+    return "\n\n".join(
+        [f"**Hypothesis {i}:**\n{hyp.text}" for i, hyp in enumerate(hypotheses)]
+    )
+
+
+def _scaled_batch_review_budget(hypothesis_count: int) -> tuple[int, int]:
+    """Scales the batch review token budget and retry count by batch size.
+
+    Base budget covers the first REVIEW_BATCH_FREE_HYPOTHESES hypotheses;
+    more retries are allotted for large batches.
+    """
     max_tokens = scaled_max_tokens(
         THINKING_MAX_TOKENS,
         hypothesis_count,
@@ -106,16 +122,8 @@ def _prepare_batch_review_call(
         cap=REVIEW_BATCH_MAX_TOKENS_CAP,
         free_count=REVIEW_BATCH_FREE_HYPOTHESES,
     )
-    # More retries for large batches.
     max_attempts = 7 if hypothesis_count > 10 else 5
-
-    logger.debug(
-        "batch review: %s hypotheses, max_tokens=%s",
-        hypothesis_count,
-        max_tokens,
-    )
-
-    return prompt, schema, max_tokens, max_attempts
+    return max_tokens, max_attempts
 
 
 def _log_batch_review_response_shape(

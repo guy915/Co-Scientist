@@ -120,6 +120,63 @@ def _assumptions_slice(total_count: int) -> int:
     return max(1, total_count // 4) if total_count >= 4 else 0
 
 
+def _dev_isolation_counts(total_count: int) -> GenerationCounts:
+    """Route every hypothesis to the tool-based path, for dev isolation."""
+    return GenerationCounts(
+        tools_count=total_count,
+        debate_with_lit_count=0,
+        debate_only_count=0,
+        is_dev_isolation=True,
+    )
+
+
+def _lit_and_tools_counts(total_count: int) -> GenerationCounts:
+    """Allocate condition (a): tools + debate-with-lit + an assumptions slice.
+
+    Reserves a slice for iterative-assumptions (a first-class SSR §4
+    technique, not degraded-mode only), then splits the remainder between
+    the tool-driven and debate-with-literature paths.
+    """
+    assumptions_count = _assumptions_slice(total_count)
+    tools_count, debate_with_lit_count = _split_tools_and_debate_counts(
+        total_count - assumptions_count
+    )
+    return GenerationCounts(
+        tools_count=tools_count,
+        debate_with_lit_count=debate_with_lit_count,
+        debate_only_count=0,
+        assumptions_count=assumptions_count,
+    )
+
+
+def _lit_only_counts(total_count: int) -> GenerationCounts:
+    """Allocate condition (c): the remainder to debate-with-literature."""
+    assumptions_count = _assumptions_slice(total_count)
+    return GenerationCounts(
+        tools_count=0,
+        debate_with_lit_count=total_count - assumptions_count,
+        debate_only_count=0,
+        assumptions_count=assumptions_count,
+    )
+
+
+def _no_lit_counts(total_count: int) -> GenerationCounts:
+    """Allocate condition (b): the remainder to debate-only, degraded mode.
+
+    Flagged so callers can attach an explicit "no literature" warning to
+    every hypothesis. Reserves the same iterative-assumptions slice so the
+    LLM-only path uses more than one generation technique (SSR §4).
+    """
+    assumptions_count = _assumptions_slice(total_count)
+    return GenerationCounts(
+        tools_count=0,
+        debate_with_lit_count=0,
+        debate_only_count=total_count - assumptions_count,
+        assumptions_count=assumptions_count,
+        is_degraded_mode=True,
+    )
+
+
 def _determine_generation_counts(
     state: WorkflowState,
     total_count: int,
@@ -130,51 +187,13 @@ def _determine_generation_counts(
     strategy = _classify_generation_strategy(
         state, has_literature, enable_tool_calling
     )
-
-    if strategy == "dev_isolation":
-        return GenerationCounts(
-            tools_count=total_count,
-            debate_with_lit_count=0,
-            debate_only_count=0,
-            is_dev_isolation=True,
-        )
-
-    if strategy == "lit_and_tools":
-        # Reserve a slice for iterative-assumptions (a first-class SSR §4
-        # technique, not degraded-mode only), then split the remainder between
-        # the tool-driven and debate-with-literature paths.
-        assumptions_count = _assumptions_slice(total_count)
-        tools_count, debate_with_lit_count = _split_tools_and_debate_counts(
-            total_count - assumptions_count
-        )
-        return GenerationCounts(
-            tools_count=tools_count,
-            debate_with_lit_count=debate_with_lit_count,
-            debate_only_count=0,
-            assumptions_count=assumptions_count,
-        )
-
-    if strategy == "lit_only":
-        assumptions_count = _assumptions_slice(total_count)
-        return GenerationCounts(
-            tools_count=0,
-            debate_with_lit_count=total_count - assumptions_count,
-            debate_only_count=0,
-            assumptions_count=assumptions_count,
-        )
-
-    # strategy == "no_lit". Flagged so callers can attach an explicit "no
-    # literature" warning to every hypothesis. Reserves the same
-    # iterative-assumptions slice so the LLM-only path uses more than one
-    # generation technique (SSR §4).
-    assumptions_count = _assumptions_slice(total_count)
-    return GenerationCounts(
-        tools_count=0,
-        debate_with_lit_count=0,
-        debate_only_count=total_count - assumptions_count,
-        assumptions_count=assumptions_count,
-        is_degraded_mode=True,
-    )
+    strategy_counts = {
+        "dev_isolation": _dev_isolation_counts,
+        "lit_and_tools": _lit_and_tools_counts,
+        "lit_only": _lit_only_counts,
+        "no_lit": _no_lit_counts,
+    }
+    return strategy_counts[strategy](total_count)
 
 
 def _generation_log_case(counts: GenerationCounts) -> str:

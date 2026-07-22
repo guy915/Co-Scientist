@@ -73,6 +73,37 @@ def _articles_to_paper_dict(articles: list[Any]) -> dict[str, dict[str, Any]]:
     return papers
 
 
+def _build_search_canonical_params(
+    hypothesis_text: str,
+    max_papers: int,
+    shared_slug: str,
+    run_id: str | None,
+) -> dict[str, Any]:
+    """Build the canonical search params for one hypothesis's paper search.
+
+    Canonical params get mapped by the caller through the tool's own
+    parameter mapping (domain/tool-specific field names); "slug" carries
+    the shared corpus slug so this search reuses the warm corpus.
+
+    Args:
+        hypothesis_text: text of the draft hypothesis being validated.
+        max_papers: maximum number of papers to retrieve.
+        shared_slug: shared corpus slug reused from the draft phase.
+        run_id: current run id, if any.
+
+    Returns:
+        The canonical search params dict.
+    """
+    canonical_params: dict[str, Any] = {
+        "query": hypothesis_text[:200],
+        "max_papers": max_papers,
+        "slug": shared_slug,
+    }
+    if run_id:
+        canonical_params["run_id"] = run_id
+    return canonical_params
+
+
 async def _search_papers_via_tool_config(
     tool_config: "ToolConfig",
     hypothesis_text: str,
@@ -96,16 +127,9 @@ async def _search_papers_via_tool_config(
         {paper_id: {"title": ..., "authors": [...], "year": ...,
         "fulltext": ...}}
     """
-    # Canonical params get mapped below through the tool's own parameter
-    # mapping (domain/tool-specific field names); "slug" carries the
-    # shared corpus slug so this search reuses the warm corpus.
-    canonical_params = {
-        "query": hypothesis_text[:200],
-        "max_papers": max_papers,
-        "slug": shared_slug,
-    }
-    if run_id:
-        canonical_params["run_id"] = run_id
+    canonical_params = _build_search_canonical_params(
+        hypothesis_text, max_papers, shared_slug, run_id
+    )
     mapped_params = tool_config.map_parameters(canonical_params)
 
     result = await mcp_client.call_tool(
@@ -153,6 +177,22 @@ async def _search_papers_legacy_fallback(
     return cast(dict[str, dict[str, Any]], parse_mcp_result(result))
 
 
+def _skip_search_no_tool_configured() -> dict[str, dict[str, Any]]:
+    """Log and return no papers when validation has no search tool configured.
+
+    Not an error: returning {} just means there is nothing to compare this
+    hypothesis against, so validation continues without it.
+
+    Returns:
+        An empty papers dict.
+    """
+    logger.warning(
+        "no search tools configured for validation workflow,"
+        " skipping novelty search"
+    )
+    return {}
+
+
 async def _search_papers_for_hypothesis(
     hypothesis_text: str,
     mcp_client: Any,
@@ -187,13 +227,7 @@ async def _search_papers_for_hypothesis(
         )
 
     if tool_registry:
-        # Not an error: returning {} just means there is nothing to compare
-        # this hypothesis against, so validation continues without it.
-        logger.warning(
-            "no search tools configured for validation workflow,"
-            " skipping novelty search"
-        )
-        return {}
+        return _skip_search_no_tool_configured()
 
     return await _search_papers_legacy_fallback(
         hypothesis_text, mcp_client, max_papers, shared_slug, run_id

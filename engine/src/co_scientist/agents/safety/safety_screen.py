@@ -44,79 +44,100 @@ def _screen_text(h: Hypothesis) -> str:
     return " ".join(parts)
 
 
-async def safety_screen_node(
-    state: WorkflowState,
-) -> dict[str, Any]:
-    """Screen hypotheses for safety before ranking.
+def _build_safety_decision(review: Any, h: Hypothesis) -> dict[str, Any] | None:
+    """Build the audit-trail decision entry for an UNCERTAIN/blocked review.
 
-    Args:
-        state: Current workflow state.
+    Returns None for a review outcome that neither holds nor blocks.
+    """
+    if review.outcome == SafetyOutcome.UNCERTAIN or review.blocks_tournament:
+        return {
+            "hypothesis_id": h.id,
+            "text_prefix": h.text[:120],
+            **review.to_dict(),
+        }
+    return None
+
+
+def _redact_if_needed(h: Hypothesis, review: Any) -> None:
+    """Redact operational-detail fields for a DUAL_USE/REDACT review."""
+    if review.outcome in (SafetyOutcome.DUAL_USE, SafetyOutcome.REDACT):
+        _, h.explanation, h.experiment = redact_hypothesis_fields(
+            h.text, h.explanation, h.experiment
+        )
+
+
+def _screen_one_hypothesis(
+    h: Hypothesis,
+) -> tuple[bool, dict[str, Any] | None, dict[str, Any] | None]:
+    """Screen one hypothesis, applying redaction as a side effect.
+
+    Mutates h.safety_status, and h.explanation/h.experiment for a
+    DUAL_USE/REDACT outcome that stays in the pool.
 
     Returns:
-        State update with filtered hypothesis pool, safety decisions, and
-        any hypotheses held for manual review.
+        Tuple of (is_safe, decision, held): decision is None unless
+        UNCERTAIN/blocked; held is None unless UNCERTAIN.
     """
-    start = time.time()
-    hypotheses: list[Hypothesis] = state.get("hypotheses", [])
+    if h.safety_status is not None:
+        return True, None, None
 
-    await emit_progress(
-        state,
-        "safety_screen",
-        "Screening hypotheses for safety",
-        PROGRESS_SAFETY_SCREEN_START,
-        hypotheses_count=len(hypotheses),
-    )
+    review = review_hypothesis_safety(_screen_text(h))
+    h.safety_status = review.outcome.value
+    decision = _build_safety_decision(review, h)
 
+    if review.outcome == SafetyOutcome.UNCERTAIN:
+        logger.warning(
+            "Safety screen: UNCERTAIN hypothesis held for review: "
+            "%s... (id=%s)",
+            h.text[:80],
+            h.id,
+        )
+        return False, decision, h.to_dict()
+
+    if review.blocks_tournament:
+        logger.warning(
+            "Safety screen: blocked hypothesis (%s): %s... (id=%s)",
+            review.outcome.value,
+            h.text[:80],
+            h.id,
+        )
+        return False, decision, None
+
+    _redact_if_needed(h, review)
+    return True, decision, None
+
+
+def _screen_hypothesis_pool(
+    hypotheses: list[Hypothesis],
+) -> tuple[list[Hypothesis], list[dict[str, Any]], list[dict[str, Any]]]:
+    """Screen every hypothesis in the pool, splitting safe from blocked/held.
+
+    Returns:
+        Tuple of (safe, new_decisions, new_held).
+    """
     safe: list[Hypothesis] = []
     new_decisions: list[dict[str, Any]] = []
     new_held: list[dict[str, Any]] = []
 
     for h in hypotheses:
-        if h.safety_status is not None:
-            safe.append(h)
-            continue
-        review = review_hypothesis_safety(_screen_text(h))
-        h.safety_status = review.outcome.value
-
-        if (
-            review.outcome == SafetyOutcome.UNCERTAIN
-            or review.blocks_tournament
-        ):
-            new_decisions.append(
-                {
-                    "hypothesis_id": h.id,
-                    "text_prefix": h.text[:120],
-                    **review.to_dict(),
-                }
-            )
-        if review.outcome == SafetyOutcome.UNCERTAIN:
-            new_held.append(h.to_dict())
-            logger.warning(
-                "Safety screen: UNCERTAIN hypothesis held for review: "
-                "%s... (id=%s)",
-                h.text[:80],
-                h.id,
-            )
-        elif review.blocks_tournament:
-            logger.warning(
-                "Safety screen: blocked hypothesis (%s): %s... (id=%s)",
-                review.outcome.value,
-                h.text[:80],
-                h.id,
-            )
-        else:
-            if review.outcome in (
-                SafetyOutcome.DUAL_USE,
-                SafetyOutcome.REDACT,
-            ):
-                _, h.explanation, h.experiment = redact_hypothesis_fields(
-                    h.text, h.explanation, h.experiment
-                )
+        is_safe, decision, held = _screen_one_hypothesis(h)
+        if decision is not None:
+            new_decisions.append(decision)
+        if held is not None:
+            new_held.append(held)
+        if is_safe:
             safe.append(h)
 
-    blocked_count = len(hypotheses) - len(safe)
-    held_count = len(new_held)
+    return safe, new_decisions, new_held
 
+
+def _log_screen_summary(
+    hypotheses: list[Hypothesis],
+    safe: list[Hypothesis],
+    blocked_count: int,
+    held_count: int,
+) -> None:
+    """Log the blocked/held counts, and warn if the pool is now empty."""
     if blocked_count:
         logger.info(
             "Safety screen: %d/%d hypotheses blocked (%d held for review)",
@@ -131,24 +152,24 @@ async def safety_screen_node(
             len(hypotheses),
         )
 
+
+def _build_screen_result(
+    hypotheses: list[Hypothesis],
+    safe: list[Hypothesis],
+    new_decisions: list[dict[str, Any]],
+    new_held: list[dict[str, Any]],
+    state: WorkflowState,
+    elapsed: float,
+) -> dict[str, Any]:
+    """Build the safety_screen_node state-update dict."""
+    blocked_count = len(hypotheses) - len(safe)
+    held_count = len(new_held)
     # ``or []`` (not a .get default): a checkpoint restore can carry an
     # explicit None for a field that was unset when the run was serialized.
     existing_decisions: list[dict[str, Any]] = (
         state.get("safety_decisions") or []
     )
     existing_held: list[dict[str, Any]] = state.get("held_for_review") or []
-
-    elapsed = time.time() - start
-
-    await emit_progress(
-        state,
-        "safety_screen_complete",
-        f"Safety screening complete ({blocked_count} blocked)",
-        PROGRESS_SAFETY_SCREEN_COMPLETE,
-        blocked_count=blocked_count,
-        held_count=held_count,
-    )
-
     return {
         "hypotheses": ReplaceHypotheses(safe),
         "safety_decisions": existing_decisions + new_decisions,
@@ -163,3 +184,42 @@ async def safety_screen_node(
             phase_times={"safety_screen": elapsed}
         ),
     }
+
+
+async def safety_screen_node(
+    state: WorkflowState,
+) -> dict[str, Any]:
+    """Screen hypotheses for safety before ranking.
+
+    Returns:
+        State update with filtered hypothesis pool, safety decisions, and
+        any hypotheses held for manual review.
+    """
+    start = time.time()
+    hypotheses: list[Hypothesis] = state.get("hypotheses", [])
+    await emit_progress(
+        state,
+        "safety_screen",
+        "Screening hypotheses for safety",
+        PROGRESS_SAFETY_SCREEN_START,
+        hypotheses_count=len(hypotheses),
+    )
+
+    safe, new_decisions, new_held = _screen_hypothesis_pool(hypotheses)
+    blocked_count = len(hypotheses) - len(safe)
+    held_count = len(new_held)
+    _log_screen_summary(hypotheses, safe, blocked_count, held_count)
+    elapsed = time.time() - start
+
+    await emit_progress(
+        state,
+        "safety_screen_complete",
+        f"Safety screening complete ({blocked_count} blocked)",
+        PROGRESS_SAFETY_SCREEN_COMPLETE,
+        blocked_count=blocked_count,
+        held_count=held_count,
+    )
+
+    return _build_screen_result(
+        hypotheses, safe, new_decisions, new_held, state, elapsed
+    )

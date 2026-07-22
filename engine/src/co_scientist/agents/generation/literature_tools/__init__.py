@@ -117,6 +117,75 @@ def _log_generated_hypothesis_methods(hypotheses: list[Hypothesis]) -> None:
         )
 
 
+async def _run_draft_phase(
+    state: WorkflowState,
+    count: int,
+    mcp_client: Any,
+    tool_registry: Any | None,
+    reference_index: Optional["ReferenceIndex"],
+) -> list[dict[str, str]]:
+    """Run Phase 1: draft hypotheses from identified literature gaps.
+
+    Args:
+        state: Current workflow state.
+        count: Number of hypotheses to draft.
+        mcp_client: MCP client for tool access.
+        tool_registry: optional ToolRegistry for config-driven tool
+            selection.
+        reference_index: Citation key -> source mapping for structured
+            citations.
+
+    Returns:
+        List of draft dicts from Phase 1.
+    """
+    draft_hyps = await draft_hypotheses(
+        state=state,
+        count=count,
+        mcp_client=mcp_client,
+        tool_registry=tool_registry,
+        reference_index=reference_index,
+    )
+    logger.info("Phase 1 complete: drafted %s hypotheses", len(draft_hyps))
+    return draft_hyps
+
+
+async def _run_validate_phase(
+    state: WorkflowState,
+    draft_hyps: list[dict[str, str]],
+    mcp_client: Any,
+    tool_registry: Any | None,
+    reference_index: Optional["ReferenceIndex"],
+) -> list[Hypothesis]:
+    """Run Phase 2: search competing work and decide approve/refine/pivot.
+
+    Output is tagged GenerationMethod.LITERATURE_TOOLS inside
+    hypothesis_from_llm_output (citations.py), which validate_hypotheses
+    calls per hypothesis.
+
+    Args:
+        state: Current workflow state.
+        draft_hyps: draft dicts produced by Phase 1.
+        mcp_client: MCP client for tool access.
+        tool_registry: optional ToolRegistry for config-driven tool
+            selection.
+        reference_index: Citation key -> source mapping for structured
+            citations.
+
+    Returns:
+        List of validated hypotheses tagged
+        GenerationMethod.LITERATURE_TOOLS.
+    """
+    hypotheses = await validate_hypotheses(
+        state=state,
+        draft_hypotheses=draft_hyps,
+        mcp_client=mcp_client,
+        tool_registry=tool_registry,
+        reference_index=reference_index,
+    )
+    logger.info("Phase 2 complete: validated %s hypotheses", len(hypotheses))
+    return hypotheses
+
+
 async def generate_with_tools(
     state: WorkflowState,
     count: int,
@@ -139,39 +208,20 @@ async def generate_with_tools(
         "Generating %s hypotheses with two-phase tool-based process", count
     )
 
-    # Resolved once and threaded into both draft_hypotheses() and
-    # validate_hypotheses() below, so both phases resolve tool whitelists
-    # from the same registry (see the fallback logic in draft.py/validate.py).
+    # Resolved once and threaded into both phases below, so both resolve
+    # tool whitelists from the same registry (see draft.py/validate.py).
     tool_registry = state.get("tool_registry")
     mcp_client = await _get_mcp_client_for_generation(tool_registry)
 
     _log_warm_start_diagnostics(state.get("articles", []))
 
-    # Phase 1: read papers (warm-started and freshly searched) and draft
-    # initial hypothesis ideas from gaps identified in the literature.
-    draft_hyps = await draft_hypotheses(
-        state=state,
-        count=count,
-        mcp_client=mcp_client,
-        tool_registry=tool_registry,
-        reference_index=reference_index,
+    draft_hyps = await _run_draft_phase(
+        state, count, mcp_client, tool_registry, reference_index
     )
 
-    logger.info("Phase 1 complete: drafted %s hypotheses", len(draft_hyps))
-
-    # Phase 2: search for competing/prior work per draft and decide
-    # approve/refine/pivot. Output is tagged
-    # GenerationMethod.LITERATURE_TOOLS inside hypothesis_from_llm_output
-    # (citations.py), which validate_hypotheses calls per hypothesis.
-    hypotheses = await validate_hypotheses(
-        state=state,
-        draft_hypotheses=draft_hyps,
-        mcp_client=mcp_client,
-        tool_registry=tool_registry,
-        reference_index=reference_index,
+    hypotheses = await _run_validate_phase(
+        state, draft_hyps, mcp_client, tool_registry, reference_index
     )
-
-    logger.info("Phase 2 complete: validated %s hypotheses", len(hypotheses))
 
     _log_generated_hypothesis_methods(hypotheses)
 

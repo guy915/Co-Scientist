@@ -41,9 +41,9 @@ async def research_overview_node(state: WorkflowState) -> dict[str, Any]:
         # synthesizing an overview from an empty pool.
         return {"research_overview": {}}
 
-    summary = _summarize_top_hypotheses(hypotheses)
-    contact_candidates = _build_contact_candidates(state.get("articles"))
-    evidence_corpus = _build_evidence_corpus(state.get("articles"))
+    summary, contact_candidates, evidence_corpus = (
+        _prepare_research_overview_inputs(state, hypotheses)
+    )
 
     await emit_progress(
         state,
@@ -55,17 +55,31 @@ async def research_overview_node(state: WorkflowState) -> dict[str, Any]:
     research_overview = await _synthesize_research_overview(
         state, summary, contact_candidates, evidence_corpus
     )
+    return await _finalize_research_overview(state, research_overview)
 
+
+async def _finalize_research_overview(
+    state: WorkflowState, research_overview: dict[str, Any]
+) -> dict[str, Any]:
+    """Streams completion, logs, and builds the research_overview result."""
     await emit_progress(
         state,
         "research_overview_complete",
         "Research overview ready",
         PROGRESS_RESEARCH_OVERVIEW_COMPLETE,
     )
-
     logger.info("Research overview complete")
-
     return _build_research_overview_result(research_overview)
+
+
+def _prepare_research_overview_inputs(
+    state: WorkflowState, hypotheses: list[Hypothesis]
+) -> tuple[str, dict[str, dict[str, Any]], dict[str, dict[str, Any]]]:
+    """Builds the hypothesis summary and evidence pools for synthesis."""
+    summary = _summarize_top_hypotheses(hypotheses)
+    contact_candidates = _build_contact_candidates(state.get("articles"))
+    evidence_corpus = _build_evidence_corpus(state.get("articles"))
+    return summary, contact_candidates, evidence_corpus
 
 
 def _summarize_top_hypotheses(hypotheses: list[Hypothesis]) -> str:
@@ -123,7 +137,17 @@ async def _synthesize_research_overview(
         run_setup_guidance=state.get("run_setup_guidance"),
         run_focus_guidance=state.get("run_focus_guidance"),
     )
-    response = await call_llm_json(
+    response = await _call_research_overview_llm(state, prompt, schema)
+    return _format_research_overview_response(
+        response, contact_candidates, evidence_corpus
+    )
+
+
+async def _call_research_overview_llm(
+    state: WorkflowState, prompt: str, schema: dict[str, Any] | None
+) -> dict[str, Any]:
+    """Calls the supervisor model to synthesize the research overview."""
+    return await call_llm_json(
         prompt=prompt,
         model_name=state["supervisor_model_name"],
         max_tokens=THINKING_MAX_TOKENS,
@@ -131,6 +155,13 @@ async def _synthesize_research_overview(
         json_schema=schema,
     )
 
+
+def _format_research_overview_response(
+    response: dict[str, Any],
+    contact_candidates: dict[str, dict[str, Any]],
+    evidence_corpus: dict[str, dict[str, Any]],
+) -> dict[str, Any]:
+    """Formats and validates the raw LLM response into the overview shape."""
     return {
         "overview": response.get("overview", {}),
         "nih_specific_aims": response.get("nih_specific_aims", {}),

@@ -151,26 +151,37 @@ async def fetch_indra_evidence(
     if not entities:
         return empty
 
+    result = await _resolve_indra_result(
+        tool_registry, mcp_names, entities, max_statements
+    )
+    return result if result is not None else empty
+
+
+async def _resolve_indra_result(
+    tool_registry: Optional["ToolRegistry"],
+    mcp_names: list[str],
+    entities: list[str],
+    max_statements: int,
+) -> dict[str, Any] | None:
+    """Queries INDRA via the MCP client, returning None on any failure.
+
+    Covers MCP client/connection failures, tool-call errors, etc. This is
+    best-effort enrichment, so any failure here falls back to None rather
+    than propagating into reflection_node.
+    """
     try:
-        from co_scientist.mcp_client import (
-            get_mcp_client,
-        )
+        from co_scientist.mcp_client import get_mcp_client
 
         # get_mcp_client returns a shared/global client (lazily created and
         # cached), so this reuses the same connection across hypotheses and
         # nodes rather than opening one per call.
         client = await get_mcp_client(tool_registry=tool_registry)
-        result = await _fetch_evidence_result(
+        return await _fetch_evidence_result(
             client, mcp_names, entities, max_statements
         )
-        return result if result is not None else empty
-
     except Exception as e:
-        # Covers MCP client/connection failures, tool-call errors, etc.
-        # This is best-effort enrichment, so any failure here falls back to
-        # empty rather than propagating into reflection_node.
         logger.debug("reflection evidence fetch skipped: %s", e)
-        return empty
+        return None
 
 
 def _pick_available_tool(client: Any, mcp_names: list[str]) -> str:

@@ -12,7 +12,7 @@ import hashlib
 import logging
 import statistics
 import weakref
-from typing import Any
+from typing import Any, NamedTuple
 
 from co_scientist.agents.ranking.ranking_prompt import _build_matchup_prompt
 from co_scientist.agents.ranking.ranking_results import _extract_reasoning
@@ -56,6 +56,59 @@ def _get_ranking_semaphore() -> asyncio.Semaphore:
     return semaphore
 
 
+def _matchup_prompt_name(matchup_index: int | None) -> str:
+    """Builds the saved-prompt name for one matchup judge call."""
+    return (
+        f"ranking_matchup_{matchup_index}"
+        if matchup_index is not None
+        else "ranking_matchup"
+    )
+
+
+def _judge_call_metadata(
+    matchup_index: int | None,
+    prompt: str,
+    reflection_notes_a: str | None,
+    reflection_notes_b: str | None,
+) -> dict[str, Any]:
+    """Builds the prompt_metadata dict for one matchup judge call."""
+    return {
+        "matchup_index": matchup_index,
+        "prompt_length_chars": len(prompt),
+        "has_reflection_a": bool(reflection_notes_a),
+        "has_reflection_b": bool(reflection_notes_b),
+    }
+
+
+async def _invoke_matchup_judge_call(
+    prompt: str,
+    schema: dict[str, Any] | None,
+    model_name: str,
+    run_id: str | None,
+    prompt_name: str,
+    metadata: dict[str, Any],
+) -> dict[str, Any]:
+    """Calls the judge LLM with the tournament's reduced-thinking settings.
+
+    The only engine node that opts out of thinking: the tournament runs one
+    matchup per hypothesis pair, so these calls scale O(n^2) per cycle and
+    their reasoning spend dominates run latency. The prompt already asks
+    for an explicit rationale, so the comparison stays reasoned in the
+    answer itself.
+    """
+    return await call_llm_json(
+        prompt=prompt,
+        model_name=model_name,
+        max_tokens=THINKING_MAX_TOKENS,
+        temperature=LOW_TEMPERATURE,
+        json_schema=schema,
+        run_id=run_id,
+        prompt_name=prompt_name,
+        enable_thinking=False,
+        prompt_metadata=metadata,
+    )
+
+
 async def _call_matchup_judge(
     prompt: str,
     schema: dict[str, Any] | None,
@@ -79,34 +132,15 @@ async def _call_matchup_judge(
     Returns:
         Parsed JSON response from the LLM.
     """
-    prompt_name = (
-        f"ranking_matchup_{matchup_index}"
-        if matchup_index is not None
-        else "ranking_matchup"
+    prompt_name = _matchup_prompt_name(matchup_index)
+    metadata = _judge_call_metadata(
+        matchup_index, prompt, reflection_notes_a, reflection_notes_b
     )
 
     # Use semaphore to limit concurrent calls (avoid rate limits)
     async with _get_ranking_semaphore():
-        return await call_llm_json(
-            prompt=prompt,
-            model_name=model_name,
-            max_tokens=THINKING_MAX_TOKENS,
-            temperature=LOW_TEMPERATURE,
-            json_schema=schema,
-            run_id=run_id,
-            prompt_name=prompt_name,
-            # The only engine node that opts out of thinking: the tournament
-            # runs one matchup per hypothesis pair, so these calls scale
-            # O(n^2) per cycle and their reasoning spend dominates run
-            # latency. The prompt already asks for an explicit rationale, so
-            # the comparison stays reasoned in the answer itself.
-            enable_thinking=False,
-            prompt_metadata={
-                "matchup_index": matchup_index,
-                "prompt_length_chars": len(prompt),
-                "has_reflection_a": bool(reflection_notes_a),
-                "has_reflection_b": bool(reflection_notes_b),
-            },
+        return await _invoke_matchup_judge_call(
+            prompt, schema, model_name, run_id, prompt_name, metadata
         )
 
 
@@ -169,6 +203,228 @@ def _append_debate_context(
     return prompt + "".join(lines)
 
 
+class _DebateContext(NamedTuple):
+    """Immutable per-matchup inputs threaded unchanged through every turn."""
+
+    hypothesis_a: Hypothesis
+    hypothesis_b: Hypothesis
+    research_goal: str
+    supervisor_guidance: dict[str, Any] | None
+    meta_review: dict[str, Any] | None
+    tool_registry: Any | None
+    run_setup_guidance: str | None
+    run_focus_guidance: str | None
+    model_name: str
+    run_id: str | None
+    matchup_index: int | None
+
+
+def _build_matchup_prompt_from_ctx(
+    ctx: _DebateContext,
+) -> tuple[str, dict[str, Any] | None, str | None, str | None]:
+    """Renders the base (unswapped) matchup prompt from the debate context."""
+    return _build_matchup_prompt(
+        ctx.hypothesis_a,
+        ctx.hypothesis_b,
+        ctx.research_goal,
+        ctx.supervisor_guidance,
+        ctx.meta_review,
+        ctx.tool_registry,
+        ctx.run_setup_guidance,
+        ctx.run_focus_guidance,
+    )
+
+
+def _build_turn_prompt(
+    ctx: _DebateContext,
+    turn: int,
+    swapped: bool,
+    base_prompt: str,
+    base_schema: dict[str, Any] | None,
+    base_notes_a: str | None,
+    base_notes_b: str | None,
+    transcript: list[dict[str, Any]],
+) -> tuple[str, dict[str, Any] | None, str | None, str | None]:
+    """Selects and prepares one debate turn's prompt, schema, and notes.
+
+    A swapped turn re-renders the prompt with A/B presentation reversed;
+    every turn after the first also carries the accumulated transcript.
+    """
+    if swapped:
+        turn_prompt, turn_schema, turn_notes_a, turn_notes_b = (
+            _build_matchup_prompt(
+                ctx.hypothesis_b,
+                ctx.hypothesis_a,
+                ctx.research_goal,
+                ctx.supervisor_guidance,
+                ctx.meta_review,
+                ctx.tool_registry,
+                ctx.run_setup_guidance,
+                ctx.run_focus_guidance,
+            )
+        )
+    else:
+        turn_prompt = base_prompt
+        turn_schema = base_schema
+        turn_notes_a = base_notes_a
+        turn_notes_b = base_notes_b
+    if turn > 0:
+        turn_prompt = _append_debate_context(turn_prompt, transcript)
+    return turn_prompt, turn_schema, turn_notes_a, turn_notes_b
+
+
+def _resolve_turn_winner(
+    response: dict[str, Any], swapped: bool, fallback: str
+) -> tuple[str, bool]:
+    """Resolves one turn's winner, un-swapping the judge's raw side."""
+    raw_fallback = ("b" if fallback == "a" else "a") if swapped else fallback
+    raw_winner, valid_output = _parse_matchup_winner(
+        response, fallback=raw_fallback
+    )
+    winner = ("b" if raw_winner == "a" else "a") if swapped else raw_winner
+    return winner, valid_output
+
+
+async def _run_debate_turn(
+    ctx: _DebateContext,
+    turn: int,
+    swapped: bool,
+    turn_prompt: str,
+    turn_schema: dict[str, Any] | None,
+    turn_notes_a: str | None,
+    turn_notes_b: str | None,
+    fallback: str,
+) -> tuple[str, dict[str, Any], dict[str, Any]]:
+    """Judges one debate turn and builds its transcript entry.
+
+    Returns:
+        Tuple of (winner, transcript_entry, raw_response).
+    """
+    response = await _call_matchup_judge(
+        turn_prompt,
+        turn_schema,
+        ctx.model_name,
+        ctx.run_id,
+        ctx.matchup_index,
+        turn_notes_a,
+        turn_notes_b,
+    )
+    winner, valid_output = _resolve_turn_winner(response, swapped, fallback)
+    entry = {
+        "turn": turn + 1,
+        "winner": winner,
+        "winner_id": (
+            ctx.hypothesis_a.id if winner == "a" else ctx.hypothesis_b.id
+        ),
+        "reasoning": _extract_reasoning(response),
+        "presentation_order": "ba" if swapped else "ab",
+        "valid_output": valid_output,
+    }
+    return winner, entry, response
+
+
+def _finalize_debate_response(
+    response: dict[str, Any],
+    votes: list[str],
+    transcript: list[dict[str, Any]],
+    fallback: str,
+    turns: int,
+    model_name: str,
+) -> str:
+    """Determines the debate's overall winner and attaches provenance fields."""
+    winner = "a" if votes.count("a") > votes.count("b") else "b"
+    if votes.count("a") == votes.count("b"):
+        winner = fallback
+
+    response["debate_turns"] = turns
+    response["debate_transcript"] = transcript
+    response["judge_model"] = model_name
+    response["consensus_votes"] = votes
+    response["position_balanced"] = turns > 1
+    response["invalid_output_fallback"] = not all(
+        turn["valid_output"] for turn in transcript
+    )
+    return winner
+
+
+async def _execute_debate_turn(
+    ctx: _DebateContext,
+    turn: int,
+    start_parity: int,
+    prompt: str,
+    schema: dict[str, Any] | None,
+    reflection_notes_a: str | None,
+    reflection_notes_b: str | None,
+    transcript: list[dict[str, Any]],
+    fallback: str,
+) -> tuple[str, dict[str, Any], dict[str, Any]]:
+    """Builds and judges one debate turn.
+
+    Returns:
+        Tuple of (winner, transcript_entry, raw_response).
+    """
+    swapped = (turn + start_parity) % 2 == 1
+    turn_prompt, turn_schema, turn_notes_a, turn_notes_b = _build_turn_prompt(
+        ctx,
+        turn,
+        swapped,
+        prompt,
+        schema,
+        reflection_notes_a,
+        reflection_notes_b,
+        transcript,
+    )
+    return await _run_debate_turn(
+        ctx,
+        turn,
+        swapped,
+        turn_prompt,
+        turn_schema,
+        turn_notes_a,
+        turn_notes_b,
+        fallback,
+    )
+
+
+async def _run_debate_turns(
+    ctx: _DebateContext,
+    turns: int,
+    prompt: str,
+    schema: dict[str, Any] | None,
+    reflection_notes_a: str | None,
+    reflection_notes_b: str | None,
+    fallback: str,
+) -> tuple[list[str], list[dict[str, Any]], dict[str, Any]]:
+    """Runs every debate turn, alternating A/B presentation order.
+
+    Folds the matchup index into the starting presentation order so a
+    single-turn (lower-ranked) comparison does not always present
+    hypothesis A first (see ``_execute_debate_turn``).
+
+    Returns:
+        Tuple of (votes, transcript, final raw response).
+    """
+    transcript: list[dict[str, Any]] = []
+    votes: list[str] = []
+    response: dict[str, Any] = {}
+    start_parity = int(ctx.matchup_index or 0) % 2
+    for turn in range(turns):
+        winner, entry, response = await _execute_debate_turn(
+            ctx,
+            turn,
+            start_parity,
+            prompt,
+            schema,
+            reflection_notes_a,
+            reflection_notes_b,
+            transcript,
+            fallback,
+        )
+        votes.append(winner)
+        transcript.append(entry)
+    return votes, transcript, response
+
+
 async def judge_matchup(
     hypothesis_a: Hypothesis,
     hypothesis_b: Hypothesis,
@@ -185,12 +441,11 @@ async def judge_matchup(
 ) -> tuple[str, dict[str, Any]]:
     """Has an LLM judge which hypothesis is superior.
 
-    For ``debate_turns == 1`` (lower-ranked matchups) this is a single-turn
-    comparison. For ``debate_turns > 1`` (top-ranked matchups) it runs a
-    position-balanced multi-turn scientific debate: each turn re-examines the
-    accumulated transcript, alternating A/B presentation order. The majority
-    identity-normalized verdict stands. The complete turn-by-turn transcript,
-    debate depth, and model provenance are returned for persistence.
+    Single-turn for ``debate_turns == 1`` (lower-ranked matchups); a
+    position-balanced multi-turn scientific debate otherwise (mechanics in
+    ``_run_debate_turns``). Returns the majority identity-normalized
+    verdict; the full transcript, debate depth, and model provenance are
+    attached to the response for persistence.
 
     Args:
         hypothesis_a: First hypothesis
@@ -211,100 +466,39 @@ async def judge_matchup(
         response carries ``debate_turns``, ``debate_transcript``, and
         ``judge_model`` provenance keys.
     """
-    prompt, schema, reflection_notes_a, reflection_notes_b = (
-        _build_matchup_prompt(
-            hypothesis_a,
-            hypothesis_b,
-            research_goal,
-            supervisor_guidance,
-            meta_review,
-            tool_registry,
-            run_setup_guidance,
-            run_focus_guidance,
-        )
+    ctx = _DebateContext(
+        hypothesis_a,
+        hypothesis_b,
+        research_goal,
+        supervisor_guidance,
+        meta_review,
+        tool_registry,
+        run_setup_guidance,
+        run_focus_guidance,
+        model_name,
+        run_id,
+        matchup_index,
     )
-
+    prompt, schema, reflection_notes_a, reflection_notes_b = (
+        _build_matchup_prompt_from_ctx(ctx)
+    )
     turns = max(SINGLE_TURN_DEBATE_TURNS, debate_turns)
-    transcript: list[dict[str, Any]] = []
-    votes: list[str] = []
     fallback = _balanced_invalid_fallback(
         hypothesis_a, hypothesis_b, matchup_index
     )
-    response: dict[str, Any] = {}
-    # Fold the matchup index into the starting presentation order so that
-    # single-turn (lower-ranked) comparisons, which only ever run turn 0, do
-    # not always present hypothesis A first — otherwise any residual positional
-    # bias in the judge would systematically favor the A slot. Multi-turn
-    # debates still alternate every turn; even matchup indices preserve the
-    # historical ab/ba/ab ordering.
-    start_parity = int(matchup_index or 0) % 2
-    for turn in range(turns):
-        swapped = (turn + start_parity) % 2 == 1
-        if swapped:
-            turn_prompt, turn_schema, turn_notes_a, turn_notes_b = (
-                _build_matchup_prompt(
-                    hypothesis_b,
-                    hypothesis_a,
-                    research_goal,
-                    supervisor_guidance,
-                    meta_review,
-                    tool_registry,
-                    run_setup_guidance,
-                    run_focus_guidance,
-                )
-            )
-        else:
-            turn_prompt = prompt
-            turn_schema = schema
-            turn_notes_a = reflection_notes_a
-            turn_notes_b = reflection_notes_b
-        turn_prompt = (
-            turn_prompt
-            if turn == 0
-            else _append_debate_context(turn_prompt, transcript)
-        )
-        response = await _call_matchup_judge(
-            turn_prompt,
-            turn_schema,
-            model_name,
-            run_id,
-            matchup_index,
-            turn_notes_a,
-            turn_notes_b,
-        )
-        raw_fallback = (
-            ("b" if fallback == "a" else "a") if swapped else fallback
-        )
-        raw_winner, valid_output = _parse_matchup_winner(
-            response, fallback=raw_fallback
-        )
-        winner = ("b" if raw_winner == "a" else "a") if swapped else raw_winner
-        votes.append(winner)
-        transcript.append(
-            {
-                "turn": turn + 1,
-                "winner": winner,
-                "winner_id": (
-                    hypothesis_a.id if winner == "a" else hypothesis_b.id
-                ),
-                "reasoning": _extract_reasoning(response),
-                "presentation_order": "ba" if swapped else "ab",
-                "valid_output": valid_output,
-            }
-        )
 
-    winner = "a" if votes.count("a") > votes.count("b") else "b"
-    if votes.count("a") == votes.count("b"):
-        winner = fallback
+    votes, transcript, response = await _run_debate_turns(
+        ctx,
+        turns,
+        prompt,
+        schema,
+        reflection_notes_a,
+        reflection_notes_b,
+        fallback,
+    )
 
-    # Persist debate provenance on the final response.
-    response["debate_turns"] = turns
-    response["debate_transcript"] = transcript
-    response["judge_model"] = model_name
-    response["consensus_votes"] = votes
-    response["position_balanced"] = turns > 1
-    response["invalid_output_fallback"] = not all(
-        turn["valid_output"] for turn in transcript
+    winner = _finalize_debate_response(
+        response, votes, transcript, fallback, turns, model_name
     )
     return winner, response
 

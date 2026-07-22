@@ -20,6 +20,43 @@ from co_scientist.tools.response_parser import parse_mcp_result
 logger = logging.getLogger(__name__)
 
 
+def _extract_enrichment_payload(
+    parsed: Any, enrichment: EnrichmentConfig
+) -> Any:
+    """Extract the nested results array from a parsed enrichment result.
+
+    E.g. pulls out the "results" array for an NvdSearchResponse-shaped
+    result; returns parsed unchanged when no results_path is configured or
+    parsed is not a dict.
+    """
+    if enrichment.results_path and isinstance(parsed, dict):
+        return parsed.get(enrichment.results_path, parsed)
+    return parsed
+
+
+async def _call_enrichment_tool(
+    hyp: Hypothesis,
+    enrichment: EnrichmentConfig,
+    tool_config: ToolConfig,
+    mcp_client: Any,
+    semaphore: asyncio.Semaphore,
+) -> Any:
+    """Call one enrichment tool for one hypothesis and return its payload.
+
+    input_field selects which hypothesis attribute to query with (e.g. its
+    explanation instead of its text); falls back to text.
+    """
+    input_value = getattr(hyp, enrichment.input_field, hyp.text)
+    async with semaphore:
+        result = await mcp_client.call_tool(
+            tool_config.mcp_tool_name,
+            topic=input_value,
+            max_results=enrichment.max_results,
+        )
+    parsed = parse_mcp_result(result)
+    return _extract_enrichment_payload(parsed, enrichment)
+
+
 async def _enrich_one_hypothesis(
     hyp: Hypothesis,
     enrichment: EnrichmentConfig,
@@ -40,22 +77,10 @@ async def _enrich_one_hypothesis(
         mcp_client: MCP client used to call the enrichment tool.
         semaphore: shared concurrency limiter across all enrichment calls.
     """
-    # input_field selects which hypothesis attribute to query with (e.g. its
-    # explanation instead of its text); falls back to text.
-    input_value = getattr(hyp, enrichment.input_field, hyp.text)
     try:
-        async with semaphore:
-            result = await mcp_client.call_tool(
-                tool_config.mcp_tool_name,
-                topic=input_value,
-                max_results=enrichment.max_results,
-            )
-        parsed = parse_mcp_result(result)
-        # Extract nested array via results_path (e.g., "results" for
-        # NvdSearchResponse)
-        if enrichment.results_path and isinstance(parsed, dict):
-            parsed = parsed.get(enrichment.results_path, parsed)
-        hyp.enrichments[output_key] = parsed
+        hyp.enrichments[output_key] = await _call_enrichment_tool(
+            hyp, enrichment, tool_config, mcp_client, semaphore
+        )
     except Exception as e:
         # Enrichment is supplementary, not load-bearing: a failure here must
         # not fail hypothesis generation, so it is recorded on the

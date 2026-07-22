@@ -89,10 +89,102 @@ from co_scientist.agents.generation.literature_tools import (
     generate_with_tools,
 )
 from co_scientist.exceptions import GenerationError
-from co_scientist.models import GenerationMethod
+from co_scientist.models import GenerationMethod, Hypothesis
 from co_scientist.state import AppendHypotheses, WorkflowState
 
 logger = logging.getLogger(__name__)
+
+
+def _build_tools_task(
+    state: WorkflowState,
+    counts: GenerationCounts,
+    reference_index: ReferenceIndex,
+) -> tuple[str, Coroutine[Any, Any, Any]] | None:
+    """Build the tool-based generation task, or None if none is allocated."""
+    if counts.tools_count <= 0:
+        return None
+    logger.info(
+        "Running tool-based generation for %s hypotheses", counts.tools_count
+    )
+    return (
+        "tools",
+        generate_with_tools(state, counts.tools_count, reference_index),
+    )
+
+
+def _build_debate_lit_task(
+    state: WorkflowState,
+    counts: GenerationCounts,
+    articles_with_reasoning: str | None,
+    reference_index: ReferenceIndex,
+) -> tuple[str, Coroutine[Any, Any, Any]] | None:
+    """Build the debate-with-literature task, or None if none is allocated."""
+    if counts.debate_with_lit_count <= 0:
+        return None
+    logger.info(
+        "Running debate-with-literature for %s hypotheses",
+        counts.debate_with_lit_count,
+    )
+    return (
+        "debate_lit",
+        generate_with_debate(
+            state=state,
+            count=counts.debate_with_lit_count,
+            articles_with_reasoning=articles_with_reasoning,
+            reference_index=reference_index,
+        ),
+    )
+
+
+def _build_debate_only_task(
+    state: WorkflowState,
+    counts: GenerationCounts,
+) -> tuple[str, Coroutine[Any, Any, Any]] | None:
+    """Build the debate-only (degraded-mode) task, or None if unallocated."""
+    if counts.debate_only_count <= 0:
+        return None
+    logger.info(
+        "Running debate-only for %s hypotheses", counts.debate_only_count
+    )
+    return (
+        "debate_only",
+        generate_with_debate(
+            state=state,
+            count=counts.debate_only_count,
+            # Passed explicitly rather than omitted, so degraded-mode
+            # debates never accidentally pick up literature context from a
+            # caller-supplied default.
+            articles_with_reasoning=None,  # explicitly no literature
+            reference_index=ReferenceIndex(text="", sources={}),
+        ),
+    )
+
+
+def _build_assumptions_task(
+    state: WorkflowState,
+    counts: GenerationCounts,
+    articles_with_reasoning: str | None,
+    reference_index: ReferenceIndex,
+) -> tuple[str, Coroutine[Any, Any, Any]] | None:
+    """Build the assumptions-technique task, or None if none is allocated."""
+    if counts.assumptions_count <= 0:
+        return None
+    logger.info(
+        "Running assumptions generation for %s hypotheses",
+        counts.assumptions_count,
+    )
+    return (
+        "assumptions",
+        generate_with_assumptions(
+            state,
+            counts.assumptions_count,
+            # Guarded inside the technique: a real (non-empty) reference
+            # index grounds the claims; the degraded path supplies an empty
+            # index and ignores the prose.
+            articles_with_reasoning=articles_with_reasoning,
+            reference_index=reference_index,
+        ),
+    )
 
 
 def _build_generation_tasks(
@@ -118,77 +210,17 @@ def _build_generation_tasks(
     # coroutine so results can be routed back to the right bucket after
     # asyncio.gather() returns them in call order (order is not otherwise
     # recoverable once the coroutines are unpacked into gather()).
-    tasks: list[tuple[str, Coroutine[Any, Any, Any]]] = []
-
-    if counts.tools_count > 0:
-        logger.info(
-            "Running tool-based generation for %s hypotheses",
-            counts.tools_count,
-        )
-        tasks.append(
-            (
-                "tools",
-                generate_with_tools(state, counts.tools_count, reference_index),
-            )
-        )
-
-    if counts.debate_with_lit_count > 0:
-        logger.info(
-            "Running debate-with-literature for %s hypotheses",
-            counts.debate_with_lit_count,
-        )
-        tasks.append(
-            (
-                "debate_lit",
-                generate_with_debate(
-                    state=state,
-                    count=counts.debate_with_lit_count,
-                    articles_with_reasoning=articles_with_reasoning,
-                    reference_index=reference_index,
-                ),
-            )
-        )
-
-    if counts.debate_only_count > 0:
-        logger.info(
-            "Running debate-only for %s hypotheses", counts.debate_only_count
-        )
-        tasks.append(
-            (
-                "debate_only",
-                generate_with_debate(
-                    state=state,
-                    count=counts.debate_only_count,
-                    # Passed explicitly rather than omitted, so degraded-mode
-                    # debates never accidentally pick up literature context from
-                    # a caller-supplied default.
-                    articles_with_reasoning=None,  # explicitly no literature
-                    reference_index=ReferenceIndex(text="", sources={}),
-                ),
-            )
-        )
-
-    if counts.assumptions_count > 0:
-        logger.info(
-            "Running assumptions generation for %s hypotheses",
-            counts.assumptions_count,
-        )
-        tasks.append(
-            (
-                "assumptions",
-                generate_with_assumptions(
-                    state,
-                    counts.assumptions_count,
-                    # Guarded inside the technique: a real (non-empty)
-                    # reference index grounds the claims; the degraded path
-                    # supplies an empty index and ignores the prose.
-                    articles_with_reasoning=articles_with_reasoning,
-                    reference_index=reference_index,
-                ),
-            )
-        )
-
-    return tasks
+    task_builders = (
+        _build_tools_task(state, counts, reference_index),
+        _build_debate_lit_task(
+            state, counts, articles_with_reasoning, reference_index
+        ),
+        _build_debate_only_task(state, counts),
+        _build_assumptions_task(
+            state, counts, articles_with_reasoning, reference_index
+        ),
+    )
+    return [task for task in task_builders if task is not None]
 
 
 async def _execute_generation_tasks(
@@ -227,6 +259,42 @@ def _log_reference_index_summary(reference_index: ReferenceIndex) -> None:
     )
 
 
+def _extract_generation_inputs(
+    state: WorkflowState,
+) -> tuple[str | None, bool, bool, int]:
+    """Extract generation preconditions from state, validating as it goes.
+
+    Args:
+        state: current workflow state
+
+    Returns:
+        Tuple of (articles_with_reasoning, mcp_available, enable_tool_calling,
+        total_count).
+
+    Raises:
+        GenerationError: if supervisor_guidance is missing from state.
+    """
+    # supervisor_guidance drives prompt assembly in every downstream
+    # generation path, so its absence is treated as a hard precondition
+    # failure rather than something to silently work around.
+    if not state.get("supervisor_guidance"):
+        raise GenerationError(
+            "No supervisor_guidance in state for node=generation"
+        )
+    articles_with_reasoning = state.get("articles_with_reasoning")
+    mcp_available = bool(state.get("mcp_available", False))
+    enable_tool_calling = bool(
+        state.get("enable_tool_calling_generation", False)
+    )
+    total_count = state["initial_hypotheses_count"]
+    return (
+        articles_with_reasoning,
+        mcp_available,
+        enable_tool_calling,
+        total_count,
+    )
+
+
 async def _prepare_generation(
     state: WorkflowState,
 ) -> tuple[GenerationCounts, ReferenceIndex, str | None]:
@@ -235,30 +303,18 @@ async def _prepare_generation(
     Also logs the resolved strategy and emits the generation-start progress
     callback, since both key off the counts computed here.
 
-    Args:
-        state: current workflow state
-
     Returns:
         Tuple of (counts, reference_index, articles_with_reasoning).
 
     Raises:
         GenerationError: if supervisor_guidance is missing from state.
     """
-    supervisor_guidance = state.get("supervisor_guidance")
-    articles_with_reasoning = state.get("articles_with_reasoning")
-    mcp_available = bool(state.get("mcp_available", False))
-    enable_tool_calling = bool(
-        state.get("enable_tool_calling_generation", False)
-    )
-    total_count = state["initial_hypotheses_count"]
-
-    # supervisor_guidance drives prompt assembly in every downstream
-    # generation path, so its absence is treated as a hard precondition
-    # failure rather than something to silently work around.
-    if not supervisor_guidance:
-        raise GenerationError(
-            "No supervisor_guidance in state for node=generation"
-        )
+    (
+        articles_with_reasoning,
+        mcp_available,
+        enable_tool_calling,
+        total_count,
+    ) = _extract_generation_inputs(state)
 
     has_literature = _check_literature_availability(
         articles_with_reasoning, mcp_available
@@ -267,9 +323,7 @@ async def _prepare_generation(
         state, total_count, has_literature, enable_tool_calling
     )
 
-    # Built once up front and threaded through every strategy below so all
-    # hypotheses generated in this call share one [C*] citation-key
-    # namespace, regardless of which method produced them.
+    # Shared [C*] citation-key namespace for every strategy below.
     reference_index = build_reference_index(
         articles=state.get("articles"),
         context_enrichment_sources=state.get("context_enrichment_sources"),
@@ -280,6 +334,32 @@ async def _prepare_generation(
     await _emit_start_progress(state, counts, total_count)
 
     return counts, reference_index, articles_with_reasoning
+
+
+def _stamp_generation_lineage(
+    hypotheses: list[Hypothesis], creation_iteration: int
+) -> None:
+    """Stamp generation-0 lineage and research-expansion provenance in place.
+
+    origin/generation keep their construction defaults (GENERATION, 0); the
+    Generation agent produces roots, so parent_id stays None. Later
+    research-expansion cycles reuse this node with a higher iteration, in
+    which case the underlying generation method is preserved as provenance
+    before the observable technique is stamped over it.
+
+    Args:
+        hypotheses: hypotheses to stamp, mutated in place.
+        creation_iteration: workflow iteration that produced these
+            hypotheses.
+    """
+    for hyp in hypotheses:
+        hyp.creation_iteration = creation_iteration
+        if creation_iteration > 0:
+            if hyp.generation_method is not None:
+                hyp.enrichments["base_generation_method"] = (
+                    hyp.generation_method.value
+                )
+            hyp.generation_method = GenerationMethod.RESEARCH_EXPANSION
 
 
 async def _finalize_generation(
@@ -300,41 +380,22 @@ async def _finalize_generation(
     # Only debate_only_hypotheses need the fallback message: tools_ and
     # debate_with_lit_hypotheses are only populated when has_literature was
     # true, so is_degraded_mode and those lists are mutually exclusive by
-    # construction.
+    # construction. Assumptions generation runs in the same no-literature
+    # path, so its hypotheses need the same fallback grounding.
     if counts.is_degraded_mode:
         _apply_degraded_mode_fallback(results.debate_only_hypotheses)
-        # Assumptions generation runs in the same no-literature path, so its
-        # hypotheses need the same "no literature review available" grounding.
         _apply_degraded_mode_fallback(results.assumptions_hypotheses)
 
     _log_generation_summary(results)
     message_content = await _emit_complete_progress(state, results, counts)
 
     all_hypotheses = results.all_hypotheses
-
-    # Stamp generation-0 lineage: which workflow iteration produced these.
-    # origin/generation keep their construction defaults (GENERATION, 0); the
-    # Generation agent produces roots, so parent_id stays None. Later
-    # research-expansion cycles reuse this node with a higher iteration.
-    creation_iteration = state.get("current_iteration", 0)
-    for hyp in all_hypotheses:
-        hyp.creation_iteration = creation_iteration
-        if creation_iteration > 0:
-            # Later Supervisor-directed generation is the disclosed research-
-            # expansion technique: prompts already receive meta-review context
-            # and seek underexplored branches. Preserve the underlying method
-            # as provenance before stamping the observable technique.
-            if hyp.generation_method is not None:
-                hyp.enrichments["base_generation_method"] = (
-                    hyp.generation_method.value
-                )
-            hyp.generation_method = GenerationMethod.RESEARCH_EXPANSION
+    _stamp_generation_lineage(all_hypotheses, state.get("current_iteration", 0))
 
     # Run post-generation enrichments (e.g., NVD CVE lookup)
     await _enrich_hypotheses(all_hypotheses, state)
 
-    # Append to the pool rather than replace it (explicit reducer op): a later
-    # generation cycle adds to the existing hypotheses instead of wiping them.
+    # Append (not replace): a later generation cycle adds to the pool.
     return {
         "hypotheses": AppendHypotheses(all_hypotheses),
         "debate_transcripts": results.debate_transcripts,

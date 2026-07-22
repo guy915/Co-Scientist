@@ -82,6 +82,59 @@ def _cluster_member_ids(
     return members
 
 
+def _accumulate_cluster_edges(
+    edges: dict[frozenset[str], dict[str, Any]],
+    cluster: dict[str, Any],
+    hypotheses_by_text: dict[str, str],
+) -> None:
+    """Merges one cluster's pairwise edges into the accumulating edge map.
+
+    Keeps the strongest similarity per unordered pair when the same pair
+    appears in more than one cluster.
+    """
+    cluster_id = cluster.get("cluster_id", "unknown")
+    members = _cluster_member_ids(cluster, hypotheses_by_text)
+    for (id_a, deg_a), (id_b, deg_b) in itertools.combinations(members, 2):
+        if id_a == id_b:
+            continue
+        key = frozenset({id_a, id_b})
+        weight = max(_degree_weight(deg_a), _degree_weight(deg_b))
+        existing = edges.get(key)
+        if existing is None or weight > existing["similarity"]:
+            edges[key] = {
+                "source": id_a,
+                "target": id_b,
+                "similarity": weight,
+                "degree": (
+                    deg_a
+                    if _degree_weight(deg_a) >= _degree_weight(deg_b)
+                    else deg_b
+                ),
+                "cluster_id": cluster_id,
+            }
+
+
+def _proximity_graph_meta(
+    edges: dict[frozenset[str], dict[str, Any]],
+    research_goal: str,
+    model: str,
+    updated_at: float,
+) -> dict[str, Any]:
+    """Builds the provenance metadata for a persisted proximity graph."""
+    return {
+        "method": PROXIMITY_METHOD,
+        "version": PROXIMITY_METHOD_VERSION,
+        "model": model,
+        "research_goal": research_goal,
+        "updated_at": updated_at,
+        "node_count": len(
+            {v["source"] for v in edges.values()}
+            | {v["target"] for v in edges.values()}
+        ),
+        "edge_count": len(edges),
+    }
+
+
 def build_proximity_graph(
     similarity_clusters: list[dict[str, Any]],
     hypotheses_by_text: dict[str, str],
@@ -110,39 +163,9 @@ def build_proximity_graph(
     """
     edges: dict[frozenset[str], dict[str, Any]] = {}
     for cluster in similarity_clusters:
-        cluster_id = cluster.get("cluster_id", "unknown")
-        members = _cluster_member_ids(cluster, hypotheses_by_text)
-        for (id_a, deg_a), (id_b, deg_b) in itertools.combinations(members, 2):
-            if id_a == id_b:
-                continue
-            key = frozenset({id_a, id_b})
-            weight = max(_degree_weight(deg_a), _degree_weight(deg_b))
-            existing = edges.get(key)
-            if existing is None or weight > existing["similarity"]:
-                edges[key] = {
-                    "source": id_a,
-                    "target": id_b,
-                    "similarity": weight,
-                    "degree": (
-                        deg_a
-                        if _degree_weight(deg_a) >= _degree_weight(deg_b)
-                        else deg_b
-                    ),
-                    "cluster_id": cluster_id,
-                }
+        _accumulate_cluster_edges(edges, cluster, hypotheses_by_text)
 
     return {
         "edges": list(edges.values()),
-        "meta": {
-            "method": PROXIMITY_METHOD,
-            "version": PROXIMITY_METHOD_VERSION,
-            "model": model,
-            "research_goal": research_goal,
-            "updated_at": updated_at,
-            "node_count": len(
-                {v["source"] for v in edges.values()}
-                | {v["target"] for v in edges.values()}
-            ),
-            "edge_count": len(edges),
-        },
+        "meta": _proximity_graph_meta(edges, research_goal, model, updated_at),
     }

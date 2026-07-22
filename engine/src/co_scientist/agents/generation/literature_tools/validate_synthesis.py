@@ -98,6 +98,33 @@ def _setup_validation_tool_provider(
     return provider, openai_tools, tool_registry, max_iterations
 
 
+def _compute_synthesis_max_tokens(
+    batch: list[dict[str, Any]], batch_label: str
+) -> int:
+    """Scale and log the synthesis call's max-token budget for one batch.
+
+    Args:
+        batch: hypothesis batch (with novelty analyses) to synthesize.
+        batch_label: label identifying this batch, used in logging.
+
+    Returns:
+        The scaled max-tokens budget for this batch's synthesis call.
+    """
+    synthesis_max_tokens = scaled_max_tokens(
+        EXTENDED_MAX_TOKENS,
+        len(batch),
+        per_item=VALIDATION_SYNTHESIS_TOKENS_PER_HYPOTHESIS,
+        cap=VALIDATION_SYNTHESIS_MAX_TOKENS_CAP,
+    )
+    logger.debug(
+        "Batch %s token budget: %s for %s hypotheses",
+        batch_label,
+        synthesis_max_tokens,
+        len(batch),
+    )
+    return synthesis_max_tokens
+
+
 def _build_synthesis_call_inputs(
     batch: list[dict[str, Any]],
     batch_label: str,
@@ -128,18 +155,7 @@ def _build_synthesis_call_inputs(
         already_validated_texts=already_validated_texts,
     )
 
-    synthesis_max_tokens = scaled_max_tokens(
-        EXTENDED_MAX_TOKENS,
-        len(batch),
-        per_item=VALIDATION_SYNTHESIS_TOKENS_PER_HYPOTHESIS,
-        cap=VALIDATION_SYNTHESIS_MAX_TOKENS_CAP,
-    )
-    logger.debug(
-        "Batch %s token budget: %s for %s hypotheses",
-        batch_label,
-        synthesis_max_tokens,
-        len(batch),
-    )
+    synthesis_max_tokens = _compute_synthesis_max_tokens(batch, batch_label)
 
     return synthesis_prompt, synthesis_max_tokens
 
@@ -206,6 +222,41 @@ def _parse_synthesis_response(
     return result
 
 
+def _partition_synthesis_results(
+    batches: list[list[dict[str, Any]]],
+    raw_results: list[list[dict[str, Any]] | BaseException],
+) -> tuple[list[dict[str, Any]], list[tuple[int, list[dict[str, Any]]]]]:
+    """Split gathered synthesis results into validated hypotheses vs failures.
+
+    Args:
+        batches: the hypothesis batches the results correspond to.
+        raw_results: per-batch results or exceptions from
+            asyncio.gather(return_exceptions=True).
+
+    Returns:
+        Tuple of (validated hypothesis dicts from batches that succeeded,
+        list of (batch_index, batch) pairs for batches that raised).
+    """
+    all_validated_hypotheses: list[dict[str, Any]] = []
+    failed_batches: list[tuple[int, list[dict[str, Any]]]] = []
+
+    for i, result in enumerate(raw_results):
+        if isinstance(result, Exception):
+            logger.warning(
+                "Batch %s failed (%s); will retry hypotheses individually",
+                i + 1,
+                result,
+            )
+            failed_batches.append((i, batches[i]))
+        else:
+            # gather(return_exceptions=True) types results as possibly
+            # BaseException; the isinstance branch above already filtered
+            # those out, which mypy cannot narrow across the if/else.
+            all_validated_hypotheses.extend(result)  # type: ignore[arg-type]
+
+    return all_validated_hypotheses, failed_batches
+
+
 async def _run_synthesis_batches(
     batches: list[list[dict[str, Any]]],
     call_synthesis: _SynthesisCaller,
@@ -231,23 +282,9 @@ async def _run_synthesis_batches(
         return_exceptions=True,
     )
 
-    all_validated_hypotheses: list[dict[str, Any]] = []
-    failed_batches: list[tuple[int, list[dict[str, Any]]]] = []
-
-    for i, result in enumerate(raw_results):
-        if isinstance(result, Exception):
-            logger.warning(
-                "Batch %s failed (%s); will retry hypotheses individually",
-                i + 1,
-                result,
-            )
-            failed_batches.append((i, batches[i]))
-        else:
-            # gather(return_exceptions=True) types results as possibly
-            # BaseException; the isinstance branch above already filtered
-            # those out, which mypy cannot narrow across the if/else.
-            all_validated_hypotheses.extend(result)  # type: ignore[arg-type]
-
+    all_validated_hypotheses, failed_batches = _partition_synthesis_results(
+        batches, raw_results
+    )
     logger.info(
         "%s/%s batches succeeded, %s need individual retry",
         len(batches) - len(failed_batches),
@@ -256,6 +293,27 @@ async def _run_synthesis_batches(
     )
 
     return all_validated_hypotheses, failed_batches
+
+
+def _accumulate_retry_result(
+    single_result: list[dict[str, Any]],
+    all_validated_hypotheses: list[dict[str, Any]],
+    accumulated_texts: list[str],
+) -> None:
+    """Merge one successful individual retry into the shared accumulators.
+
+    Args:
+        single_result: the validated hypothesis dict(s) from one retry.
+        all_validated_hypotheses: validated hypothesis dicts accumulated so
+            far; extended in place.
+        accumulated_texts: hypothesis texts validated so far; extended in
+            place so subsequent retries in the same pass see this context.
+    """
+    all_validated_hypotheses.extend(single_result)
+    for h in single_result:
+        text = h.get("hypothesis", "")
+        if text:
+            accumulated_texts.append(text)
 
 
 async def _retry_one_hypothesis(
@@ -269,15 +327,12 @@ async def _retry_one_hypothesis(
     """Retry a single hypothesis from a failed batch, best-effort.
 
     A hypothesis whose individual retry also fails is dropped; the run
-    continues with whatever validated. Successful results are appended to
-    ``all_validated_hypotheses`` and their texts to ``accumulated_texts`` in
-    place, so subsequent retries in the same pass see this one's context.
+    continues with whatever validated.
 
     Args:
-        batch_idx: 0-based index of the failed batch this hypothesis came
-            from, used in the retry label and error logging.
-        hyp_idx: 0-based index of this hypothesis within its failed batch,
-            used in the retry label and error logging.
+        batch_idx: 0-based index of the failed batch, used in the retry
+            label and error logging.
+        hyp_idx: 0-based index of this hypothesis within its failed batch.
         hyp_data: the hypothesis dict to retry.
         accumulated_texts: hypothesis texts validated so far; extended in
             place on success.
@@ -298,12 +353,9 @@ async def _retry_one_hypothesis(
         )
         return
 
-    all_validated_hypotheses.extend(single_result)
-    # Accumulate for subsequent retries within this loop
-    for h in single_result:
-        text = h.get("hypothesis", "")
-        if text:
-            accumulated_texts.append(text)
+    _accumulate_retry_result(
+        single_result, all_validated_hypotheses, accumulated_texts
+    )
 
 
 async def _retry_failed_synthesis_batches(

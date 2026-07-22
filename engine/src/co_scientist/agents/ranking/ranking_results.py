@@ -9,6 +9,7 @@ from co_scientist.agents.ranking.ranking_elo import (
 )
 from co_scientist.constants import truncate
 from co_scientist.models import (
+    ExecutionMetrics,
     Hypothesis,
     create_metrics_update,
     phase_message,
@@ -54,6 +55,41 @@ class _MatchupOutcome(NamedTuple):
     loser_elo_after: int
 
 
+def _compute_elo_update(
+    winner_hyp: Hypothesis, loser_hyp: Hypothesis, k_factor: int | None
+) -> tuple[int, int]:
+    """Computes and applies the post-match Elo ratings, logging the update.
+
+    Mutates winner_hyp/loser_hyp's elo_rating and win/loss counters in
+    place.
+    """
+    elo_kwargs = {"k_factor": k_factor} if k_factor is not None else {}
+    new_winner_elo, new_loser_elo = calculate_elo_update(
+        winner_elo=winner_hyp.elo_rating,
+        loser_elo=loser_hyp.elo_rating,
+        **elo_kwargs,
+    )
+    logger.debug(
+        "Matchup result: Winner %s -> %s, Loser %s -> %s",
+        winner_hyp.elo_rating,
+        new_winner_elo,
+        loser_hyp.elo_rating,
+        new_loser_elo,
+    )
+    winner_hyp.elo_rating = new_winner_elo
+    loser_hyp.elo_rating = new_loser_elo
+    winner_hyp.win_count += 1
+    loser_hyp.loss_count += 1
+    return new_winner_elo, new_loser_elo
+
+
+def _resolve_matchup_sides(
+    hyp_a: Hypothesis, hyp_b: Hypothesis, winner: str
+) -> tuple[Hypothesis, Hypothesis]:
+    """Resolves (winner, loser) based on the judge's "a"/"b" side."""
+    return (hyp_a, hyp_b) if winner == "a" else (hyp_b, hyp_a)
+
+
 def _apply_matchup_elo(
     hyp_a: Hypothesis,
     hyp_b: Hypothesis,
@@ -76,30 +112,13 @@ def _apply_matchup_elo(
     Returns:
         The pre/post Elo ratings for the winner and loser.
     """
-    # Resolve which Hypothesis object actually won this pairing based on the
-    # "a"/"b" side the judge picked.
-    winner_hyp, loser_hyp = (hyp_a, hyp_b) if winner == "a" else (hyp_b, hyp_a)
+    winner_hyp, loser_hyp = _resolve_matchup_sides(hyp_a, hyp_b, winner)
     old_winner_elo = winner_hyp.elo_rating
     old_loser_elo = loser_hyp.elo_rating
 
-    elo_kwargs = {"k_factor": k_factor} if k_factor is not None else {}
-    new_winner_elo, new_loser_elo = calculate_elo_update(
-        winner_elo=winner_hyp.elo_rating,
-        loser_elo=loser_hyp.elo_rating,
-        **elo_kwargs,
+    new_winner_elo, new_loser_elo = _compute_elo_update(
+        winner_hyp, loser_hyp, k_factor
     )
-    logger.debug(
-        "Matchup result: Winner %s -> %s, Loser %s -> %s",
-        winner_hyp.elo_rating,
-        new_winner_elo,
-        loser_hyp.elo_rating,
-        new_loser_elo,
-    )
-
-    winner_hyp.elo_rating = new_winner_elo
-    loser_hyp.elo_rating = new_loser_elo
-    winner_hyp.win_count += 1
-    loser_hyp.loss_count += 1
 
     return _MatchupOutcome(
         winner_hyp,
@@ -109,6 +128,36 @@ def _apply_matchup_elo(
         old_loser_elo,
         new_loser_elo,
     )
+
+
+def _debate_provenance_fields(
+    response: dict[str, Any], winner: str
+) -> dict[str, Any]:
+    """Extracts one matchup's debate provenance for its detail dict.
+
+    Depth (1 = single-turn comparison, >1 = multi-turn scientific debate),
+    the turn-by-turn transcript, and the judge model (Milestone 3).
+    """
+    return {
+        "debate_turns": response.get("debate_turns", 1),
+        "debate_transcript": response.get("debate_transcript", []),
+        "judge_model": response.get("judge_model"),
+        "consensus_votes": response.get("consensus_votes", [winner]),
+        "position_balanced": response.get("position_balanced", False),
+        "invalid_output_fallback": response.get(
+            "invalid_output_fallback", False
+        ),
+    }
+
+
+def _elo_transition_fields(outcome: _MatchupOutcome) -> dict[str, Any]:
+    """Extracts the pre/post Elo fields for one matchup's detail dict."""
+    return {
+        "winner_elo_before": outcome.winner_elo_before,
+        "winner_elo_after": outcome.winner_elo_after,
+        "loser_elo_before": outcome.loser_elo_before,
+        "loser_elo_after": outcome.loser_elo_after,
+    }
 
 
 def _build_matchup_detail(
@@ -147,22 +196,32 @@ def _build_matchup_detail(
             outcome.loser_elo_before,
             response.get("confidence_level", ""),
         ),
-        # Debate provenance (Milestone 3): depth (1 = single-turn comparison,
-        # >1 = multi-turn scientific debate), the turn-by-turn transcript, and
-        # the judge model.
-        "debate_turns": response.get("debate_turns", 1),
-        "debate_transcript": response.get("debate_transcript", []),
-        "judge_model": response.get("judge_model"),
-        "consensus_votes": response.get("consensus_votes", [winner]),
-        "position_balanced": response.get("position_balanced", False),
-        "invalid_output_fallback": response.get(
-            "invalid_output_fallback", False
-        ),
-        "winner_elo_before": outcome.winner_elo_before,
-        "winner_elo_after": outcome.winner_elo_after,
-        "loser_elo_before": outcome.loser_elo_before,
-        "loser_elo_after": outcome.loser_elo_after,
+        **_debate_provenance_fields(response, winner),
+        **_elo_transition_fields(outcome),
     }
+
+
+def _ranking_metrics_update(
+    tournament_rounds: int, total_llm_calls: int | None
+) -> ExecutionMetrics:
+    """Builds the ranking_node metrics delta (llm calls + tournament count).
+
+    A multi-turn debate makes several judge calls per round, so llm_calls is
+    the summed turn count, not the round count; it defaults to one call per
+    round when the caller has no summed count.
+    """
+    llm_calls = (
+        total_llm_calls if total_llm_calls is not None else tournament_rounds
+    )
+    metrics = create_metrics_update(
+        llm_calls_delta=llm_calls, tournaments_count_delta=tournament_rounds
+    )
+    logger.debug(
+        "ranking node creating metrics delta: tournaments=%s, llm_calls=%s",
+        tournament_rounds,
+        llm_calls,
+    )
+    return metrics
 
 
 def _build_ranking_delta(
@@ -188,20 +247,7 @@ def _build_ranking_delta(
         other ideas" view, and metrics/messages accumulate via their
         respective reducers rather than overwriting prior state.
     """
-    # Update metrics (deltas only, merge_metrics will add to existing state).
-    # A multi-turn debate makes several judge calls per round, so llm_calls is
-    # the summed turn count, not the round count.
-    llm_calls = (
-        total_llm_calls if total_llm_calls is not None else tournament_rounds
-    )
-    metrics = create_metrics_update(
-        llm_calls_delta=llm_calls, tournaments_count_delta=tournament_rounds
-    )
-    logger.debug(
-        "ranking node creating metrics delta: tournaments=%s, llm_calls=%s",
-        tournament_rounds,
-        llm_calls,
-    )
+    metrics = _ranking_metrics_update(tournament_rounds, total_llm_calls)
 
     return {
         "hypotheses": hypotheses,  # Now sorted by Elo rating

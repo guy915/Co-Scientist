@@ -10,7 +10,11 @@ from co_scientist.agents.evolution.evolution_operators import (
 )
 from co_scientist.constants import truncate
 from co_scientist.models import Hypothesis
-from co_scientist.prompts import load_prompt_with_schema
+from co_scientist.prompts import (
+    _format_run_guidance,
+    _get_domain_variables,
+    load_prompt_with_schema,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -181,6 +185,41 @@ def _build_supervisor_guidance_text(
     return "".join(guidance_sections)
 
 
+def _format_bullet_list(texts: list[str]) -> str:
+    """Format texts as a bullet list, each truncated to 200 chars.
+
+    200 chars is enough for the LLM to recognize overlap without materially
+    growing the prompt.
+    """
+    return "\n".join(f"- {text[:200]}..." for text in texts)
+
+
+_DIVERSITY_INSTRUCTION_TEMPLATE = """
+
+## CRITICAL: Preserve Diversity
+
+**Other hypotheses being evolved simultaneously:**
+{other_hyps}
+
+**Previously removed duplicates (DO NOT recreate these):**
+{removed_dups}
+
+**CRITICAL REQUIREMENT:** Your refined hypothesis MUST remain DISTINCT from:
+1. All other hypotheses listed above
+2. Previously removed duplicates
+
+DO NOT:
+- Use the same biomarker/methodology as other hypotheses
+- Make only trivial wording changes
+- Converge toward similar concepts
+
+DO:
+- Maintain the unique aspects of this hypothesis
+- Explore different mechanisms or approaches
+- Preserve conceptual diversity
+"""
+
+
 def _format_diversity_instruction(
     other_hypotheses_texts: list[str], removed_duplicates: list[str]
 ) -> str:
@@ -199,42 +238,16 @@ def _format_diversity_instruction(
     Returns:
         Diversity-instruction text to append to the evolution prompt.
     """
-    # Truncate each listed hypothesis to 200 chars: enough for the LLM to
-    # recognize overlap without materially growing the prompt.
-    other_hyps_formatted = "\n".join(
-        [f"- {text[:200]}..." for text in other_hypotheses_texts]
-    )
+    other_hyps_formatted = _format_bullet_list(other_hypotheses_texts)
     # Only the 5 most recently removed duplicates are shown, keeping this
     # section bounded regardless of how many duplicates accumulate over a
     # run.
-    removed_dups_formatted = "\n".join(
-        [f"- {text[:200]}..." for text in removed_duplicates[-5:]]
-    )  # Last 5
+    removed_dups_formatted = _format_bullet_list(removed_duplicates[-5:])
 
-    return f"""
-
-## CRITICAL: Preserve Diversity
-
-**Other hypotheses being evolved simultaneously:**
-{other_hyps_formatted if other_hyps_formatted else "None"}
-
-**Previously removed duplicates (DO NOT recreate these):**
-{removed_dups_formatted if removed_dups_formatted else "None"}
-
-**CRITICAL REQUIREMENT:** Your refined hypothesis MUST remain DISTINCT from:
-1. All other hypotheses listed above
-2. Previously removed duplicates
-
-DO NOT:
-- Use the same biomarker/methodology as other hypotheses
-- Make only trivial wording changes
-- Converge toward similar concepts
-
-DO:
-- Maintain the unique aspects of this hypothesis
-- Explore different mechanisms or approaches
-- Preserve conceptual diversity
-"""
+    return _DIVERSITY_INSTRUCTION_TEMPLATE.format(
+        other_hyps=other_hyps_formatted or "None",
+        removed_dups=removed_dups_formatted or "None",
+    )
 
 
 def _build_evolution_variables(
@@ -250,47 +263,54 @@ def _build_evolution_variables(
     """Builds the template variables for the "evolution" prompt.
 
     Unlike most nodes, evolve has no dedicated get_evolution_prompt()
-    wrapper in prompts.py, so _build_evolution_prompt calls
-    load_prompt_with_schema directly and this helper pulls in these
-    normally-internal helpers itself to build the same
-    run-guidance/domain variables the wrappers assemble.
-
-    Args:
-        hypothesis: Hypothesis to evolve.
-        meta_review: Meta-review insights for strategic guidance.
-        supervisor_guidance: Optional supervisor guidance for evolution
-            phase.
-        articles_with_reasoning: Optional literature review synthesis for
-            context.
-        tool_registry: Optional ToolRegistry for dynamic tool instructions.
-        run_setup_guidance: Optional durable setup guidance.
-        run_focus_guidance: Optional selected focus guidance.
-        specialist_feedback: Bounded outputs from prior specialist agents.
+    wrapper in prompts.py, so this helper pulls in the normally-internal
+    run-guidance/domain helpers itself to build the same variables those
+    wrappers assemble. All parameters feed the identically-named "evolution"
+    prompt template variables (specialist_feedback and articles_with_reasoning
+    fall back to a placeholder / empty string when unset).
 
     Returns:
         Template variables for the "evolution" prompt.
     """
-    from co_scientist.prompts import (
-        _format_run_guidance,
-        _get_domain_variables,
+    variables = _base_evolution_variables(
+        hypothesis, meta_review, supervisor_guidance
     )
+    variables["run_guidance"] = _format_run_guidance(
+        run_setup_guidance, run_focus_guidance
+    )
+    variables["articles_with_reasoning"] = articles_with_reasoning or ""
+    variables["specialist_feedback"] = (
+        specialist_feedback or "No prior specialist feedback."
+    )
+    variables.update(_get_domain_variables(tool_registry))
+    return variables
 
-    variables = {
+
+def _base_evolution_variables(
+    hypothesis: Hypothesis,
+    meta_review: dict[str, Any],
+    supervisor_guidance: dict[str, Any] | None,
+) -> dict[str, Any]:
+    """Builds the hypothesis/meta-review/supervisor-guidance variables."""
+    return {
         "original_hypothesis": hypothesis.text,
         "review_feedback": _build_review_feedback(hypothesis),
         "meta_review_insights": _build_meta_review_insights(meta_review),
         "supervisor_guidance": _build_supervisor_guidance_text(
             supervisor_guidance
         ),
-        "run_guidance": _format_run_guidance(
-            run_setup_guidance, run_focus_guidance
-        ),
-        "articles_with_reasoning": articles_with_reasoning or "",
-        "specialist_feedback": specialist_feedback
-        or "No prior specialist feedback.",
     }
-    variables.update(_get_domain_variables(tool_registry))
-    return variables
+
+
+def _format_operator_section(operator: EvolutionOperator) -> str:
+    """Format the required-evolution-operator section of the prompt."""
+    return (
+        "\n\n## Required Evolution Operator\n"
+        f"**Operator:** {operator.value}\n"
+        f"{operator_instruction(operator)}\n"
+        "Record how this operator changed the proposal in the refinement "
+        "summary.\n"
+    )
 
 
 def _build_evolution_prompt(
@@ -308,22 +328,6 @@ def _build_evolution_prompt(
 ) -> tuple[str, dict[str, Any] | None]:
     """Assembles the full evolution prompt (and schema) for one hypothesis.
 
-    Args:
-        hypothesis: Hypothesis to evolve.
-        other_hypotheses_texts: Strategically sampled subset of other
-            hypotheses (max 15).
-        meta_review: Meta-review insights for strategic guidance.
-        removed_duplicates: Previously removed duplicate texts to avoid.
-        supervisor_guidance: Optional supervisor guidance for evolution
-            phase.
-        articles_with_reasoning: Optional literature review synthesis for
-            context.
-        tool_registry: Optional ToolRegistry for dynamic tool instructions.
-        run_setup_guidance: Optional durable setup guidance.
-        run_focus_guidance: Optional selected focus guidance.
-        operator: Distinct evolution strategy this task must execute.
-        specialist_feedback: Bounded outputs from prior specialist agents.
-
     Returns:
         Tuple of (full prompt text with diversity instruction appended,
         JSON schema for the expected LLM response).
@@ -338,20 +342,13 @@ def _build_evolution_prompt(
         run_focus_guidance=run_focus_guidance,
         specialist_feedback=specialist_feedback,
     )
-
     prompt, schema = load_prompt_with_schema("evolution", variables)
 
-    # Add critical diversity instruction
-    diversity_instruction = _format_diversity_instruction(
-        other_hypotheses_texts, removed_duplicates
+    full_prompt = (
+        prompt
+        + _format_operator_section(operator)
+        + _format_diversity_instruction(
+            other_hypotheses_texts, removed_duplicates
+        )
     )
-    operator_section = (
-        "\n\n## Required Evolution Operator\n"
-        f"**Operator:** {operator.value}\n"
-        f"{operator_instruction(operator)}\n"
-        "Record how this operator changed the proposal in the refinement "
-        "summary.\n"
-    )
-    full_prompt = prompt + operator_section + diversity_instruction
-
     return full_prompt, schema

@@ -127,20 +127,69 @@ def _compute_stats(
     pool_size = len(hyps)
     reviewed = sum(1 for h in hyps if h.reviews)
     total_matches = sum(h.total_matches for h in hyps)
-    # Coverage is measured over the rankable pool only. An un-rankable idea
-    # (undermined or review/evidence-gate rejected) can never accrue matches,
-    # so counting it in the denominator would hold average coverage below the
-    # gate forever and loop the orchestrator on ranking (see SchedulerStats).
+    rankable_count, avg_coverage = _rankable_coverage(hyps)
+    top_elo = max((h.elo_rating for h in hyps), default=INITIAL_ELO_RATING)
+    llm_calls, gen_yield, evo_yield, elapsed_s = _scheduler_scalars(
+        state, book, pool_size
+    )
+
+    return _build_scheduler_stats(
+        state,
+        book,
+        pool_size=pool_size,
+        reviewed=reviewed,
+        rankable_count=rankable_count,
+        total_matches=total_matches,
+        avg_coverage=avg_coverage,
+        top_elo=top_elo,
+        llm_calls=llm_calls,
+        gen_yield=gen_yield,
+        evo_yield=evo_yield,
+        elapsed_s=elapsed_s,
+    )
+
+
+def _rankable_coverage(hyps: list[Hypothesis]) -> tuple[int, float]:
+    """Return (rankable_count, average_match_coverage) over the rankable pool.
+
+    Coverage is measured over the rankable pool only. An un-rankable idea
+    (undermined or review/evidence-gate rejected) can never accrue matches,
+    so counting it in the denominator would hold average coverage below the
+    gate forever and loop the orchestrator on ranking (see SchedulerStats).
+    """
     rankable = [h for h in hyps if h.is_rankable()]
     rankable_count = len(rankable)
     rankable_matches = sum(h.total_matches for h in rankable)
     avg_coverage = rankable_matches / rankable_count if rankable_count else 0.0
-    top_elo = max((h.elo_rating for h in hyps), default=INITIAL_ELO_RATING)
+    return rankable_count, avg_coverage
+
+
+def _scheduler_scalars(
+    state: WorkflowState, book: dict[str, Any], pool_size: int
+) -> tuple[int, float, float, float]:
+    """Return (llm_calls, generation_yield, evolution_yield, elapsed_s)."""
     metrics = state.get("metrics")
     llm_calls = metrics.llm_calls if metrics is not None else 0
     gen_yield, evo_yield = _yields(pool_size, book)
     start = state.get("start_time") or time.time()
+    return llm_calls, gen_yield, evo_yield, time.time() - start
 
+
+def _build_scheduler_stats(
+    state: WorkflowState,
+    book: dict[str, Any],
+    pool_size: int,
+    reviewed: int,
+    rankable_count: int,
+    total_matches: int,
+    avg_coverage: float,
+    top_elo: int,
+    llm_calls: int,
+    gen_yield: float,
+    evo_yield: float,
+    elapsed_s: float,
+) -> SchedulerStats:
+    """Assembles the SchedulerStats value object from computed scalars."""
     return SchedulerStats(
         pool_size=pool_size,
         reviewed_count=reviewed,
@@ -159,7 +208,7 @@ def _compute_stats(
         last_work_task=_task_type_or_none(book.get("last_work_task")),
         llm_calls=llm_calls,
         tasks_run=len(state.get("task_history", [])),
-        elapsed_s=time.time() - start,
+        elapsed_s=elapsed_s,
         pending_steering=bool(state.get("pending_steering")),
         cancelled=bool(state.get("cancel_requested")),
         safety_blocked=bool(state.get("safety_blocked")),
@@ -257,32 +306,110 @@ async def orchestrator_node(state: WorkflowState) -> dict[str, Any]:
     book = state.get("orchestrator_state") or _init_bookkeeping(
         state["hypotheses"]
     )
+    stats, decision, decision_provenance = await _run_supervisor_decision(
+        state, book
+    )
+    iteration, observable_reason, termination_reason_value = _decision_context(
+        state, stats, decision
+    )
+    return await _finalize_orchestrator_decision(
+        state,
+        book,
+        stats,
+        decision,
+        decision_provenance,
+        iteration,
+        observable_reason,
+        termination_reason_value,
+    )
+
+
+async def _finalize_orchestrator_decision(
+    state: WorkflowState,
+    book: dict[str, Any],
+    stats: SchedulerStats,
+    decision: SupervisorDecision,
+    decision_provenance: str,
+    iteration: int,
+    observable_reason: str,
+    termination_reason_value: str | None,
+) -> dict[str, Any]:
+    """Logs/streams the decision, then assembles the orchestrator_node delta."""
+    await _emit_orchestrator_decision(
+        state,
+        decision,
+        iteration,
+        observable_reason,
+        termination_reason_value,
+        decision_provenance,
+    )
+    return _orchestrator_result(
+        state,
+        book,
+        stats,
+        decision,
+        decision_provenance,
+        iteration,
+        observable_reason,
+        termination_reason_value,
+    )
+
+
+async def _run_supervisor_decision(
+    state: WorkflowState, book: dict[str, Any]
+) -> tuple[SchedulerStats, SupervisorDecision, str]:
+    """Computes scheduler stats and budget, then asks the policy to decide."""
     stats = _compute_stats(state, book)
     budget = _default_budget(state)
-
     decision, decision_provenance = await choose_supervisor_task(
         state, stats, budget
     )
+    return stats, decision, decision_provenance
 
+
+def _advance_iteration(
+    state: WorkflowState, decision: SupervisorDecision
+) -> int:
+    """Advances current_iteration for a work task; unchanged for maintenance.
+
+    A work cycle (generate/evolve) advances the iteration counter; a
+    maintenance task (proximity/rank/reflect) and termination do not.
+    """
     iteration = state.get("current_iteration", 0)
-    # A work cycle (generate/evolve) advances the iteration counter; a
-    # maintenance task (proximity/rank/reflect) and termination do not.
     if decision.next_task in WORK_TASKS:
         iteration += 1
+    return iteration
+
+
+def _decision_context(
+    state: WorkflowState, stats: SchedulerStats, decision: SupervisorDecision
+) -> tuple[int, str, str | None]:
+    """Derives the iteration, observable reason, and termination value."""
+    iteration = _advance_iteration(state, decision)
     observable_reason = _observable_decision_reason(stats, decision)
     termination_reason_value = (
         decision.termination_reason.value
         if decision.termination_reason is not None
         else None
     )
+    return iteration, observable_reason, termination_reason_value
 
+
+async def _emit_orchestrator_decision(
+    state: WorkflowState,
+    decision: SupervisorDecision,
+    iteration: int,
+    observable_reason: str,
+    termination_reason_value: str | None,
+    decision_provenance: str,
+) -> None:
+    """Logs and streams the scheduling decision."""
     logger.info(
         "Orchestrator scheduled %s (iteration %s): %s",
         decision.next_task.value,
         iteration,
         observable_reason,
     )
-
     await emit_progress(
         state,
         "orchestrator_decision",
@@ -293,6 +420,18 @@ async def orchestrator_node(state: WorkflowState) -> dict[str, Any]:
         decision_provenance=decision_provenance,
     )
 
+
+def _orchestrator_result(
+    state: WorkflowState,
+    book: dict[str, Any],
+    stats: SchedulerStats,
+    decision: SupervisorDecision,
+    decision_provenance: str,
+    iteration: int,
+    observable_reason: str,
+    termination_reason_value: str | None,
+) -> dict[str, Any]:
+    """Assembles the orchestrator_node state delta."""
     return {
         "next_task": decision.next_task.value,
         "next_task_priority": decision.priority,

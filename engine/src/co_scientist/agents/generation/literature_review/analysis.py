@@ -26,6 +26,47 @@ from co_scientist.state import WorkflowState
 logger = logging.getLogger(__name__)
 
 
+async def _run_paper_analysis_llm(
+    paper_id: str,
+    metadata: dict[str, Any],
+    research_goal: str,
+    model_name: str,
+) -> dict[str, Any]:
+    """Builds the paper-analysis prompt and calls the LLM, unwrapped."""
+    year = parse_year_from_metadata(metadata)
+    # Prefers fulltext, falls back to abstract, and truncates to a
+    # bounded length so a single very long paper cannot blow the
+    # analysis prompt's token budget.
+    content = get_paper_content_for_analysis(metadata)
+
+    prompt = get_literature_review_paper_analysis_prompt(
+        research_goal=research_goal,
+        title=metadata.get("title", "Unknown"),
+        authors=metadata.get("authors", []),
+        year=year,
+        fulltext=content,
+    )
+
+    analysis = await call_llm_json(
+        prompt=prompt,
+        model_name=model_name,
+        json_schema=LITERATURE_PAPER_ANALYSIS_SCHEMA,
+        max_tokens=DEFAULT_MAX_TOKENS,
+        temperature=HIGH_TEMPERATURE,
+    )
+
+    logger.debug(
+        "Analyzed paper %s: %s",
+        paper_id,
+        metadata.get("title", "Unknown")[:60],
+    )
+    return {
+        "paper_id": paper_id,
+        "metadata": metadata,
+        "analysis": analysis,
+    }
+
+
 async def _analyze_single_paper(
     paper_id: str,
     metadata: dict[str, Any],
@@ -34,39 +75,9 @@ async def _analyze_single_paper(
 ) -> dict[str, Any] | None:
     """Analyze a single paper for gaps and opportunities."""
     try:
-        year = parse_year_from_metadata(metadata)
-        # Prefers fulltext, falls back to abstract, and truncates to a
-        # bounded length so a single very long paper cannot blow the
-        # analysis prompt's token budget.
-        content = get_paper_content_for_analysis(metadata)
-
-        prompt = get_literature_review_paper_analysis_prompt(
-            research_goal=research_goal,
-            title=metadata.get("title", "Unknown"),
-            authors=metadata.get("authors", []),
-            year=year,
-            fulltext=content,
+        return await _run_paper_analysis_llm(
+            paper_id, metadata, research_goal, model_name
         )
-
-        analysis = await call_llm_json(
-            prompt=prompt,
-            model_name=model_name,
-            json_schema=LITERATURE_PAPER_ANALYSIS_SCHEMA,
-            max_tokens=DEFAULT_MAX_TOKENS,
-            temperature=HIGH_TEMPERATURE,
-        )
-
-        logger.debug(
-            "Analyzed paper %s: %s",
-            paper_id,
-            metadata.get("title", "Unknown")[:60],
-        )
-        return {
-            "paper_id": paper_id,
-            "metadata": metadata,
-            "analysis": analysis,
-        }
-
     except Exception as e:
         # Returning None (not raising) lets _phase3_analyze_papers filter
         # this paper out and continue synthesizing from the rest.

@@ -41,14 +41,87 @@ async def analyze_single_hypothesis(
         run_id: optional run ID for saving prompts
         tool_registry: optional ToolRegistry for dynamic tool instructions
         meta_review: optional cross-iteration meta-review feedback
-
     Returns:
         dict with classification and reasoning, or None if failed
     """
     logger.debug(
         "\n→ analyzing hypothesis %s/%s", hypothesis_index, total_count
     )
+    return await _analyze_single_hypothesis_impl(
+        hypothesis,
+        articles_with_reasoning,
+        model_name,
+        hypothesis_index,
+        total_count,
+        run_id,
+        tool_registry,
+        meta_review,
+    )
 
+
+async def _analyze_single_hypothesis_impl(
+    hypothesis: Hypothesis,
+    articles_with_reasoning: str,
+    model_name: str,
+    hypothesis_index: int,
+    total_count: int,
+    run_id: str | None,
+    tool_registry: Any | None,
+    meta_review: dict[str, Any] | None,
+) -> dict[str, Any] | None:
+    """Prepares the reflection call and runs it, isolating per-idea failure."""
+    prompt, schema, indra_data = await _prepare_reflection_call(
+        hypothesis,
+        articles_with_reasoning,
+        tool_registry,
+        meta_review,
+        hypothesis_index,
+    )
+    return await _run_reflection_llm_or_none(
+        prompt,
+        schema,
+        indra_data,
+        model_name,
+        run_id,
+        hypothesis_index,
+        total_count,
+    )
+
+
+async def _run_reflection_llm_or_none(
+    prompt: str,
+    schema: dict[str, Any] | None,
+    indra_data: dict[str, Any],
+    model_name: str,
+    run_id: str | None,
+    hypothesis_index: int,
+    total_count: int,
+) -> dict[str, Any] | None:
+    """Calls the reflection LLM, isolating any failure to this hypothesis.
+
+    Returns None instead of raising, so the asyncio.gather in
+    reflection_node still completes for every other hypothesis in the batch.
+    """
+    try:
+        response = await _call_reflection_llm(
+            prompt, schema, model_name, run_id, hypothesis_index, total_count
+        )
+        return _format_reflection_result(response, indra_data, hypothesis_index)
+    except Exception as e:
+        logger.error(
+            "Reflection failed for hypothesis %s: %s", hypothesis_index, e
+        )
+        return None
+
+
+async def _prepare_reflection_call(
+    hypothesis: Hypothesis,
+    articles_with_reasoning: str,
+    tool_registry: Any | None,
+    meta_review: dict[str, Any] | None,
+    hypothesis_index: int,
+) -> tuple[str, dict[str, Any] | None, dict[str, Any]]:
+    """Fetches INDRA evidence and builds the reflection prompt for one idea."""
     # Pre-fetch INDRA evidence for this hypothesis (non-critical, skip on
     # failure)
     indra_data = await _fetch_indra_for_hypothesis(
@@ -56,7 +129,6 @@ async def analyze_single_hypothesis(
         tool_registry,
         hypothesis_index,
     )
-
     # Get reflection prompt (uses formatted text for LLM context)
     prompt, schema = get_reflection_prompt(
         articles_with_reasoning=articles_with_reasoning,
@@ -65,20 +137,7 @@ async def analyze_single_hypothesis(
         tool_registry=tool_registry,
         indra_evidence=indra_data.get("prompt_text", ""),
     )
-
-    try:
-        response = await _call_reflection_llm(
-            prompt, schema, model_name, run_id, hypothesis_index, total_count
-        )
-        return _format_reflection_result(response, indra_data, hypothesis_index)
-    except Exception as e:
-        # Isolate this hypothesis's failure: return None instead of
-        # raising, so the asyncio.gather in reflection_node still
-        # completes for every other hypothesis in the batch.
-        logger.error(
-            "Reflection failed for hypothesis %s: %s", hypothesis_index, e
-        )
-        return None
+    return prompt, schema, indra_data
 
 
 async def _call_reflection_llm(

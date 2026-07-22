@@ -46,6 +46,29 @@ class GenerationResults:
         )
 
 
+_DEBATE_TASK_TYPES = ("debate_lit", "debate_only")
+
+
+def _route_one_task_result(
+    task_type: str,
+    result: Any,
+    buckets: dict[str, list[Hypothesis]],
+    debate_transcripts: list[dict[str, Any]],
+) -> None:
+    """Route one gathered task result into its bucket, mutating in place.
+
+    A debate task's result is a (hypotheses, transcripts) tuple, unlike the
+    tools/assumptions tasks' plain hypothesis lists, so debate transcripts
+    are extended into debate_transcripts as they are encountered.
+    """
+    if task_type in _DEBATE_TASK_TYPES:
+        hypotheses, transcripts = result
+        buckets[task_type] = hypotheses
+        debate_transcripts.extend(transcripts)
+    else:
+        buckets[task_type] = result
+
+
 def _unpack_generation_results(
     tasks: list[tuple[str, Coroutine[Any, Any, Any]]],
     results: list[Any],
@@ -63,30 +86,25 @@ def _unpack_generation_results(
         GenerationResults with each strategy's hypotheses/transcripts routed
         to the right field.
     """
-    tools_hypotheses: list[Hypothesis] = []
-    debate_with_lit_hypotheses: list[Hypothesis] = []
-    debate_only_hypotheses: list[Hypothesis] = []
-    assumptions_hypotheses: list[Hypothesis] = []
+    buckets: dict[str, list[Hypothesis]] = {
+        "tools": [],
+        "debate_lit": [],
+        "debate_only": [],
+        "assumptions": [],
+    }
     debate_transcripts: list[dict[str, Any]] = []
 
     for i, (task_type, _) in enumerate(tasks):
-        if task_type == "tools":
-            tools_hypotheses = results[i]
-        elif task_type == "debate_lit":
-            debate_with_lit_hypotheses, transcripts = results[i]
-            debate_transcripts.extend(transcripts)
-        elif task_type == "debate_only":
-            debate_only_hypotheses, transcripts = results[i]
-            debate_transcripts.extend(transcripts)
-        elif task_type == "assumptions":
-            assumptions_hypotheses = results[i]
+        _route_one_task_result(
+            task_type, results[i], buckets, debate_transcripts
+        )
 
     return GenerationResults(
-        tools_hypotheses=tools_hypotheses,
-        debate_with_lit_hypotheses=debate_with_lit_hypotheses,
-        debate_only_hypotheses=debate_only_hypotheses,
+        tools_hypotheses=buckets["tools"],
+        debate_with_lit_hypotheses=buckets["debate_lit"],
+        debate_only_hypotheses=buckets["debate_only"],
         debate_transcripts=debate_transcripts,
-        assumptions_hypotheses=assumptions_hypotheses,
+        assumptions_hypotheses=buckets["assumptions"],
     )
 
 

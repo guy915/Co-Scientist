@@ -29,32 +29,18 @@ from co_scientist.state import WorkflowState
 logger = logging.getLogger(__name__)
 
 
-async def generate_with_assumptions(
-    state: WorkflowState,
-    count: int,
-    articles_with_reasoning: str | None = None,
-    reference_index: ReferenceIndex | None = None,
-) -> list[Hypothesis]:
-    """Generate ``count`` hypotheses by interrogating the area's assumptions.
+def _resolve_assumptions_context(
+    reference_index: ReferenceIndex | None,
+    articles_with_reasoning: str | None,
+) -> tuple[str, dict[str, dict[str, Any]], str]:
+    """Resolve the reference text/sources/literature-context for one call.
 
-    In a literature-available run the technique still starts from the area's
-    assumptions, but grounds each hypothesis's claims in the supplied
-    references so the ``literature_grounding`` field cites real ``[C*]`` keys
-    rather than inventing citations (SSR §4). With no reference index (the
-    degraded LLM-only path) it behaves exactly as before.
-
-    Args:
-        state: Current workflow state (supplies the research goal and any
-            meta-review feedback for a later research-expansion cycle).
-        count: Number of hypotheses to request.
-        articles_with_reasoning: Optional literature-review synthesis prose,
-            admitted only alongside a real reference index.
-        reference_index: Optional shared ``[C*]`` citation index; when
-            non-empty its keys are offered to the prompt and its sources
-            resolve the generated hypotheses' citation keys.
+    Prose literature context is admitted only alongside a real (non-empty)
+    reference index, so a stale degraded-mode summary string can never leak
+    in.
 
     Returns:
-        The generated hypotheses, tagged ``GenerationMethod.ASSUMPTIONS``.
+        Tuple of (reference_text, sources, literature_context).
     """
     if reference_index is not None and not reference_index.is_empty():
         reference_text = reference_index.text
@@ -64,15 +50,24 @@ async def generate_with_assumptions(
         reference_text = ""
         sources = {}
         has_references = False
-    # Prose literature context is admitted only alongside a real reference
-    # index, so a stale degraded-mode summary string can never leak in.
+
     literature_context = (
         "Relevant findings from the literature review:\n"
         f"{articles_with_reasoning}\n"
         if has_references and articles_with_reasoning
         else ""
     )
-    prompt, schema = load_prompt_with_schema(
+    return reference_text, sources, literature_context
+
+
+def _build_assumptions_prompt(
+    state: WorkflowState,
+    count: int,
+    reference_text: str,
+    literature_context: str,
+) -> tuple[str, Any]:
+    """Build the assumptions-technique prompt/schema for one call."""
+    return load_prompt_with_schema(
         "generation_assumptions",
         {
             "research_goal": state["research_goal"],
@@ -86,6 +81,30 @@ async def generate_with_assumptions(
             ),
             "literature_context": literature_context,
         },
+    )
+
+
+async def generate_with_assumptions(
+    state: WorkflowState,
+    count: int,
+    articles_with_reasoning: str | None = None,
+    reference_index: ReferenceIndex | None = None,
+) -> list[Hypothesis]:
+    """Generate ``count`` hypotheses by interrogating the area's assumptions.
+
+    Grounds each hypothesis's claims in the supplied references so
+    ``literature_grounding`` cites real ``[C*]`` keys rather than inventing
+    citations (SSR §4). With no reference index (the degraded LLM-only
+    path) it behaves exactly as before.
+
+    Returns:
+        The generated hypotheses, tagged ``GenerationMethod.ASSUMPTIONS``.
+    """
+    reference_text, sources, literature_context = _resolve_assumptions_context(
+        reference_index, articles_with_reasoning
+    )
+    prompt, schema = _build_assumptions_prompt(
+        state, count, reference_text, literature_context
     )
     response = await call_llm_json(
         prompt,

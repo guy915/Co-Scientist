@@ -48,6 +48,50 @@ def _describe_exc(exc: BaseException) -> str:
     )
 
 
+async def _emit_search_errors_diagnostic(
+    state: WorkflowState,
+    queries: list[str],
+    search_errors: list[str],
+) -> None:
+    """Log and report progress when every Phase 2 search call errored."""
+    logger.error(
+        "Literature review found no papers: %s of %s search call(s) "
+        "errored: %s",
+        len(search_errors),
+        len(queries),
+        "; ".join(search_errors[:5]),
+    )
+    await emit_progress(
+        state,
+        "literature_review_error",
+        "Literature search failed (no papers retrieved)",
+        0.2,
+        queries_count=len(queries),
+        search_errors_count=len(search_errors),
+        search_error_sample=search_errors[:5],
+    )
+
+
+async def _emit_empty_results_diagnostic(
+    state: WorkflowState,
+    queries: list[str],
+) -> None:
+    """Log and report progress when Phase 2 search cleanly found nothing."""
+    logger.warning(
+        "Literature review found no papers: all %s query/queries "
+        "returned zero results (no errors)",
+        len(queries),
+    )
+    await emit_progress(
+        state,
+        "literature_review_empty",
+        "Literature search returned no results",
+        0.2,
+        queries_count=len(queries),
+        search_errors_count=0,
+    )
+
+
 async def _emit_empty_search_diagnostics(
     state: WorkflowState,
     queries: list[str],
@@ -60,36 +104,9 @@ async def _emit_empty_search_diagnostics(
     cause.
     """
     if search_errors:
-        logger.error(
-            "Literature review found no papers: %s of %s search call(s) "
-            "errored: %s",
-            len(search_errors),
-            len(queries),
-            "; ".join(search_errors[:5]),
-        )
-        await emit_progress(
-            state,
-            "literature_review_error",
-            "Literature search failed (no papers retrieved)",
-            0.2,
-            queries_count=len(queries),
-            search_errors_count=len(search_errors),
-            search_error_sample=search_errors[:5],
-        )
+        await _emit_search_errors_diagnostic(state, queries, search_errors)
     else:
-        logger.warning(
-            "Literature review found no papers: all %s query/queries "
-            "returned zero results (no errors)",
-            len(queries),
-        )
-        await emit_progress(
-            state,
-            "literature_review_empty",
-            "Literature search returned no results",
-            0.2,
-            queries_count=len(queries),
-            search_errors_count=0,
-        )
+        await _emit_empty_results_diagnostic(state, queries)
 
 
 async def _handle_no_papers_found(

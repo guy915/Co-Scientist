@@ -101,6 +101,28 @@ async def _run_pdf_discovery(
     return _apply_metadata_field(all_paper_metadata, results, "pdf_url")
 
 
+async def _run_and_log_pdf_discovery(
+    papers_needing_discovery: list[tuple[str, dict[str, Any], str, str]],
+    mcp_client: MCPToolClient,
+    all_paper_metadata: dict[str, dict[str, Any]],
+) -> None:
+    """Runs PDF discovery for the given papers and logs the outcome."""
+    logger.info(
+        "Phase 2.4: discovering PDF links for %s papers",
+        len(papers_needing_discovery),
+    )
+
+    discovered_count = await _run_pdf_discovery(
+        papers_needing_discovery, mcp_client, all_paper_metadata
+    )
+
+    logger.info(
+        "PDF discovery complete: %s/%s papers",
+        discovered_count,
+        len(papers_needing_discovery),
+    )
+
+
 async def _phase2_4_discover_pdf_links(
     all_paper_metadata: dict[str, dict[str, Any]],
     paper_source_map: dict[str, str],
@@ -132,20 +154,44 @@ async def _phase2_4_discover_pdf_links(
     if not papers_needing_discovery:
         return
 
-    logger.info(
-        "Phase 2.4: discovering PDF links for %s papers",
-        len(papers_needing_discovery),
-    )
-
-    discovered_count = await _run_pdf_discovery(
+    await _run_and_log_pdf_discovery(
         papers_needing_discovery, mcp_client, all_paper_metadata
     )
 
-    logger.info(
-        "PDF discovery complete: %s/%s papers",
-        discovered_count,
-        len(papers_needing_discovery),
+
+def _prepare_content_call_args(
+    paper_id: str,
+    content_url: str,
+    content_cfg: "ContentToolConfig",
+    runtime_context: dict[str, Any],
+) -> dict[str, Any]:
+    """Resolves per-tool content params and builds the MCP tool-call args.
+
+    content_cfg's raw YAML params may contain placeholders (e.g. referencing
+    the research goal) that resolve_content_params fills in from
+    runtime_context before the tool call.
+    """
+    # Imported locally to avoid a module-level import cycle between
+    # config.schema and the nodes package.
+    from co_scientist.config.schema import (
+        resolve_content_params,
     )
+
+    resolved_params = resolve_content_params(
+        content_cfg.content_params, runtime_context
+    )
+    tool_args = {"url": content_url, **resolved_params}
+
+    logger.debug(
+        "Fetching content for %s via %s: %s",
+        paper_id,
+        content_cfg.mcp_tool_name,
+        content_url,
+    )
+    if resolved_params:
+        logger.debug("  with params: %s", list(resolved_params.keys()))
+
+    return tool_args
 
 
 async def _fetch_paper_content(
@@ -156,37 +202,14 @@ async def _fetch_paper_content(
     runtime_context: dict[str, Any],
 ) -> tuple[str, str | None]:
     """Fetch content for a single paper."""
-    # Imported locally to avoid a module-level import cycle between
-    # config.schema and the nodes package.
-    from co_scientist.config.schema import (
-        resolve_content_params,
-    )
-
     content_url = metadata.get(content_cfg.url_field)
     if not content_url:
         return (paper_id, None)
 
     try:
-        # Resolve content_params with runtime context
-        # content_cfg's raw YAML params may contain placeholders (e.g.
-        # referencing the research goal) that resolve_content_params fills
-        # in from runtime_context before the tool call.
-        resolved_params = resolve_content_params(
-            content_cfg.content_params, runtime_context
+        tool_args = _prepare_content_call_args(
+            paper_id, content_url, content_cfg, runtime_context
         )
-
-        # Build tool call args: url is always required, add any resolved params
-        tool_args = {"url": content_url, **resolved_params}
-
-        logger.debug(
-            "Fetching content for %s via %s: %s",
-            paper_id,
-            content_cfg.mcp_tool_name,
-            content_url,
-        )
-        if resolved_params:
-            logger.debug("  with params: %s", list(resolved_params.keys()))
-
         result = await mcp_client.call_tool(
             content_cfg.mcp_tool_name, **tool_args
         )
@@ -252,6 +275,30 @@ async def _run_content_fetch(
     return _apply_metadata_field(all_paper_metadata, results, "fulltext")
 
 
+async def _run_and_log_content_fetch(
+    papers_needing_content: list[
+        tuple[str, dict[str, Any], "ContentToolConfig"]
+    ],
+    mcp_client: MCPToolClient,
+    runtime_context: dict[str, Any],
+    all_paper_metadata: dict[str, dict[str, Any]],
+) -> None:
+    """Runs content fetch for the given papers and logs the outcome."""
+    logger.info(
+        "Phase 2.5: fetching content for %s papers", len(papers_needing_content)
+    )
+
+    fetched_count = await _run_content_fetch(
+        papers_needing_content, mcp_client, runtime_context, all_paper_metadata
+    )
+
+    logger.info(
+        "Content retrieval complete: %s/%s papers",
+        fetched_count,
+        len(papers_needing_content),
+    )
+
+
 async def _phase2_5_fetch_content(
     all_paper_metadata: dict[str, dict[str, Any]],
     paper_source_map: dict[str, str],
@@ -286,18 +333,7 @@ async def _phase2_5_fetch_content(
     if not papers_needing_content:
         return
 
-    logger.info(
-        "Phase 2.5: fetching content for %s papers", len(papers_needing_content)
-    )
-
     runtime_context = _build_content_runtime_context(state)
-
-    fetched_count = await _run_content_fetch(
+    await _run_and_log_content_fetch(
         papers_needing_content, mcp_client, runtime_context, all_paper_metadata
-    )
-
-    logger.info(
-        "Content retrieval complete: %s/%s papers",
-        fetched_count,
-        len(papers_needing_content),
     )

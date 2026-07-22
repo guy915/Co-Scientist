@@ -196,52 +196,33 @@ class _CollectionResult:
     context_enrichment_sources: list[dict[str, Any]]
 
 
-async def _collect_and_enrich_papers(
-    queries: list[str],
+def _merge_private_sources(
     state: WorkflowState,
-    config: SearchConfig,
-    mcp_client: MCPToolClient,
-) -> _CollectionResult:
-    """Phases 2 through 2.6: collect, discover PDFs, fetch content/enrichment.
-
-    Returns:
-        A _CollectionResult bundling the collected papers and enrichment
-        context.
-    """
-    search_errors: list[str] = []
-    all_paper_metadata, paper_source_map = await _phase2_collect_papers(
-        queries, state, config, mcp_client, search_errors
-    )
-
-    if not all_paper_metadata:
-        await _emit_empty_search_diagnostics(state, queries, search_errors)
-
-    # Phase 2.4: discover PDF links. Mutates all_paper_metadata in place
-    # (no-op when no pdf_discovery_tool is configured for any source).
-    await _phase2_4_discover_pdf_links(
-        all_paper_metadata, paper_source_map, config, mcp_client
-    )
-
-    # Phase 2.5 + 2.6: fetch content and context enrichment in parallel
-    (
-        background_context,
-        context_enrichment_sources,
-    ) = await _fetch_content_and_enrichment(
-        all_paper_metadata, paper_source_map, config, mcp_client, state
-    )
+    background_context: str,
+    context_enrichment_sources: list[dict[str, Any]],
+) -> tuple[str, list[dict[str, Any]]]:
+    """Prepends any per-run private-corpus sources ahead of fetched ones."""
     private_sources = state.get("context_enrichment_sources") or []
-    if private_sources:
-        context_enrichment_sources = [
-            *private_sources,
-            *context_enrichment_sources,
-        ]
-        private_context = "\n\n".join(
-            str(item.get("display") or "") for item in private_sources
-        )
-        background_context = "\n\n".join(
-            part for part in (private_context, background_context) if part
-        )
+    if not private_sources:
+        return background_context, context_enrichment_sources
 
+    context_enrichment_sources = [
+        *private_sources,
+        *context_enrichment_sources,
+    ]
+    private_context = "\n\n".join(
+        str(item.get("display") or "") for item in private_sources
+    )
+    background_context = "\n\n".join(
+        part for part in (private_context, background_context) if part
+    )
+    return background_context, context_enrichment_sources
+
+
+def _log_collection_summary(
+    all_paper_metadata: dict[str, dict[str, Any]],
+) -> None:
+    """Logs the fulltext / no-fulltext paper counts collected this run."""
     with_fulltext, without_fulltext = count_papers_with_fulltext(
         all_paper_metadata
     )
@@ -254,6 +235,83 @@ async def _collect_and_enrich_papers(
         logger.warning(
             "%s papers do not have fulltexts available", without_fulltext
         )
+
+
+async def _collect_papers_with_diagnostics(
+    queries: list[str],
+    state: WorkflowState,
+    config: SearchConfig,
+    mcp_client: MCPToolClient,
+) -> tuple[dict[str, dict[str, Any]], dict[str, str], list[str]]:
+    """Runs Phase 2 collection and emits diagnostics if it found nothing."""
+    search_errors: list[str] = []
+    all_paper_metadata, paper_source_map = await _phase2_collect_papers(
+        queries, state, config, mcp_client, search_errors
+    )
+    if not all_paper_metadata:
+        await _emit_empty_search_diagnostics(state, queries, search_errors)
+    return all_paper_metadata, paper_source_map, search_errors
+
+
+async def _enrich_collected_papers(
+    all_paper_metadata: dict[str, dict[str, Any]],
+    paper_source_map: dict[str, str],
+    config: SearchConfig,
+    mcp_client: MCPToolClient,
+    state: WorkflowState,
+) -> tuple[str, list[dict[str, Any]]]:
+    """Phases 2.4-2.6: discover PDFs, fetch content/enrichment, and merge.
+
+    Mutates all_paper_metadata in place via Phases 2.4/2.5 (a no-op when no
+    relevant tool is configured for any source).
+
+    Returns:
+        (background_context, context_enrichment_sources) ready for
+        synthesis, with any per-run private-corpus sources merged in.
+    """
+    await _phase2_4_discover_pdf_links(
+        all_paper_metadata, paper_source_map, config, mcp_client
+    )
+
+    (
+        background_context,
+        context_enrichment_sources,
+    ) = await _fetch_content_and_enrichment(
+        all_paper_metadata, paper_source_map, config, mcp_client, state
+    )
+    return _merge_private_sources(
+        state, background_context, context_enrichment_sources
+    )
+
+
+async def _collect_and_enrich_papers(
+    queries: list[str],
+    state: WorkflowState,
+    config: SearchConfig,
+    mcp_client: MCPToolClient,
+) -> _CollectionResult:
+    """Phases 2 through 2.6: collect, discover PDFs, fetch content/enrichment.
+
+    Returns:
+        A _CollectionResult bundling the collected papers and enrichment
+        context.
+    """
+    (
+        all_paper_metadata,
+        paper_source_map,
+        search_errors,
+    ) = await _collect_papers_with_diagnostics(
+        queries, state, config, mcp_client
+    )
+
+    (
+        background_context,
+        context_enrichment_sources,
+    ) = await _enrich_collected_papers(
+        all_paper_metadata, paper_source_map, config, mcp_client, state
+    )
+
+    _log_collection_summary(all_paper_metadata)
 
     return _CollectionResult(
         all_paper_metadata=all_paper_metadata,

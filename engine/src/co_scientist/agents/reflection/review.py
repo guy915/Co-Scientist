@@ -9,6 +9,7 @@ to the LLM (the pool only ever grows, so re-reviewing it would be quadratic).
 
 import asyncio
 import logging
+from collections.abc import Coroutine
 from typing import Any
 
 from co_scientist.agents.reflection.review_helpers import (
@@ -112,34 +113,48 @@ async def review_single_hypothesis(
         run_setup_guidance=run_setup_guidance,
         run_focus_guidance=run_focus_guidance,
     )
+    response = await _call_review_llm(
+        prompt, schema, model_name, run_id, hypothesis_index
+    )
+    return _review_from_response(response)
 
-    # prompt_name distinguishes each hypothesis's saved prompt artifact on
-    # disk (when COSCIENTIST_SAVE_PROMPTS is enabled) for debugging.
-    prompt_name = (
+
+def _review_prompt_name(hypothesis_index: int | None) -> str:
+    """Builds the per-hypothesis prompt name used for saved-prompt debugging."""
+    return (
         f"review_individual_{hypothesis_index}"
         if hypothesis_index is not None
         else "review_individual"
     )
-    # Unlike analyze_single_hypothesis in reflection.py, this call is not
-    # wrapped in a try/except: a failure here (e.g. exhausted retries)
-    # raises out of this coroutine and, via asyncio.gather in
-    # review_parallel_individual, aborts the whole review batch rather than
-    # degrading to a per-hypothesis fallback.
-    response = await call_llm_json(
+
+
+async def _call_review_llm(
+    prompt: str,
+    schema: dict[str, Any] | None,
+    model_name: str,
+    run_id: str | None,
+    hypothesis_index: int | None,
+) -> dict[str, Any]:
+    """Calls the LLM to review a single hypothesis.
+
+    Unlike analyze_single_hypothesis in reflection.py, this call is not
+    wrapped in a try/except: a failure here raises out of this coroutine
+    and, via asyncio.gather in review_parallel_individual, aborts the
+    whole review batch rather than degrading to a per-hypothesis fallback.
+    """
+    return await call_llm_json(
         prompt=prompt,
         model_name=model_name,
         max_tokens=EXTENDED_MAX_TOKENS,
         temperature=HIGH_TEMPERATURE,
         json_schema=schema,
         run_id=run_id,
-        prompt_name=prompt_name,
+        prompt_name=_review_prompt_name(hypothesis_index),
         prompt_metadata={
             "hypothesis_index": hypothesis_index,
             "prompt_length_chars": len(prompt),
         },
     )
-
-    return _review_from_response(response)
 
 
 async def review_parallel_individual(
@@ -153,10 +168,7 @@ async def review_parallel_individual(
     run_setup_guidance: str | None = None,
     run_focus_guidance: str | None = None,
 ) -> list[HypothesisReview]:
-    """Reviews hypotheses in parallel (original approach).
-
-    Each hypothesis is reviewed independently without seeing others.
-    Fast but may produce similar scores for high-quality hypotheses.
+    """Reviews hypotheses in parallel (original approach), one call each.
 
     Args:
         hypotheses: List of hypotheses to review
@@ -170,13 +182,36 @@ async def review_parallel_individual(
         run_focus_guidance: Optional run-focus guidance for the prompt
 
     Returns:
-        List of reviews (one per hypothesis)
+        List of reviews (one per hypothesis). No concurrency semaphore is
+        applied; gather preserves order so results align with `hypotheses`.
     """
-    # No concurrency semaphore is applied here, so every per-hypothesis
-    # review is dispatched at once; the count-based strategy in review_node
-    # is what bounds fan-out. gather preserves input order, so the returned
-    # reviews line up positionally with `hypotheses`.
-    review_tasks = [
+    review_tasks = _build_parallel_review_tasks(
+        hypotheses,
+        research_goal,
+        model_name,
+        supervisor_guidance,
+        meta_review,
+        run_id,
+        tool_registry,
+        run_setup_guidance,
+        run_focus_guidance,
+    )
+    return await asyncio.gather(*review_tasks)
+
+
+def _build_parallel_review_tasks(
+    hypotheses: list[Hypothesis],
+    research_goal: str,
+    model_name: str,
+    supervisor_guidance: dict[str, Any] | None,
+    meta_review: dict[str, Any] | None,
+    run_id: str | None,
+    tool_registry: Any | None,
+    run_setup_guidance: str | None,
+    run_focus_guidance: str | None,
+) -> list[Coroutine[Any, Any, HypothesisReview]]:
+    """Builds one review_single_hypothesis coroutine per hypothesis."""
+    return [
         review_single_hypothesis(
             hypothesis_text=hyp.text,
             research_goal=research_goal,
@@ -192,8 +227,6 @@ async def review_parallel_individual(
         for i, hyp in enumerate(hypotheses)
     ]
 
-    return await asyncio.gather(*review_tasks)
-
 
 async def review_comparative_batch(
     hypotheses: list[Hypothesis],
@@ -206,10 +239,10 @@ async def review_comparative_batch(
     run_setup_guidance: str | None = None,
     run_focus_guidance: str | None = None,
 ) -> list[HypothesisReview]:
-    """Reviews hypotheses in a single comparative batch.
+    """Reviews hypotheses in a single comparative batch (one LLM call).
 
-    All hypotheses are shown to one LLM call for relative comparison.
-    Produces more differentiated scores but limited by token constraints.
+    All hypotheses are shown together for relative comparison, producing
+    more differentiated scores but limited by token constraints.
 
     Args:
         hypotheses: List of hypotheses to review
@@ -225,6 +258,32 @@ async def review_comparative_batch(
     Returns:
         List of reviews (one per hypothesis)
     """
+    response = await _run_batch_review_call(
+        hypotheses,
+        research_goal,
+        model_name,
+        supervisor_guidance,
+        meta_review,
+        run_id,
+        tool_registry,
+        run_setup_guidance,
+        run_focus_guidance,
+    )
+    return _parse_batch_review_response(response, hypotheses, run_id)
+
+
+async def _run_batch_review_call(
+    hypotheses: list[Hypothesis],
+    research_goal: str,
+    model_name: str,
+    supervisor_guidance: dict[str, Any] | None,
+    meta_review: dict[str, Any] | None,
+    run_id: str | None,
+    tool_registry: Any | None,
+    run_setup_guidance: str | None,
+    run_focus_guidance: str | None,
+) -> dict[str, Any]:
+    """Prepares the batch-review prompt and calls the LLM for it."""
     prompt, schema, max_tokens, max_attempts = _prepare_batch_review_call(
         hypotheses,
         research_goal,
@@ -234,8 +293,22 @@ async def review_comparative_batch(
         run_setup_guidance,
         run_focus_guidance,
     )
+    return await _call_batch_review_llm(
+        prompt, schema, max_tokens, max_attempts, model_name, run_id, hypotheses
+    )
 
-    response = await call_llm_json(
+
+async def _call_batch_review_llm(
+    prompt: str,
+    schema: dict[str, Any] | None,
+    max_tokens: int,
+    max_attempts: int,
+    model_name: str,
+    run_id: str | None,
+    hypotheses: list[Hypothesis],
+) -> dict[str, Any]:
+    """Calls the LLM to review a comparative batch of hypotheses."""
+    return await call_llm_json(
         prompt=prompt,
         model_name=model_name,
         max_tokens=max_tokens,
@@ -250,8 +323,6 @@ async def review_comparative_batch(
             "prompt_length_chars": len(prompt),
         },
     )
-
-    return _parse_batch_review_response(response, hypotheses, run_id)
 
 
 async def _run_review_strategy(
@@ -306,34 +377,34 @@ async def review_node(state: WorkflowState) -> dict[str, Any]:
     Returns:
         Dictionary with updated state fields
     """
-    logger.info("Starting review node")
-
     hypotheses = state["hypotheses"]
     unreviewed = [hyp for hyp in hypotheses if not hyp.reviews]
-    num_unreviewed = len(unreviewed)
-
-    logger.info(
-        "Reviewing %s unreviewed of %s hypotheses",
-        num_unreviewed,
-        len(hypotheses),
-    )
+    _log_review_intake(hypotheses, unreviewed)
 
     if not unreviewed:
-        return {
-            "hypotheses": hypotheses,
-            "messages": phase_message(
-                "review",
-                "No unreviewed hypotheses; review skipped",
-                strategy="skipped",
-            ),
-        }
+        return _skipped_review_result(hypotheses)
 
-    use_comparative, strategy_name = _select_review_strategy(num_unreviewed)
+    reviews, llm_calls, strategy_name = await _run_review_phase(
+        state, unreviewed
+    )
+
+    return _review_node_result(hypotheses, reviews, llm_calls, strategy_name)
+
+
+async def _run_review_phase(
+    state: WorkflowState, unreviewed: list[Hypothesis]
+) -> tuple[list[HypothesisReview], int, str]:
+    """Selects a strategy, runs it, and finalizes the review results.
+
+    Emits progress before and after; emit_progress is a no-op unless a
+    progress_callback was wired into state.
+    """
+    use_comparative, strategy_name = _select_review_strategy(len(unreviewed))
 
     await emit_progress(
         state,
         "review_start",
-        f"Reviewing {num_unreviewed} hypotheses...",
+        f"Reviewing {len(unreviewed)} hypotheses...",
         PROGRESS_REVIEW_START,
     )
 
@@ -341,13 +412,7 @@ async def review_node(state: WorkflowState) -> dict[str, Any]:
         state, unreviewed, use_comparative
     )
 
-    _validate_reviews(reviews)
-    _attach_reviews_to_hypotheses(unreviewed, reviews)
-    _apply_initial_review_gate(unreviewed, reviews)
-
-    logger.info(
-        "Completed %s reviews using %s strategy", len(reviews), strategy_name
-    )
+    _finalize_reviews(unreviewed, reviews, strategy_name)
 
     await emit_progress(
         state,
@@ -357,6 +422,54 @@ async def review_node(state: WorkflowState) -> dict[str, Any]:
         reviews_count=len(reviews),
     )
 
+    return reviews, llm_calls, strategy_name
+
+
+def _log_review_intake(
+    hypotheses: list[Hypothesis], unreviewed: list[Hypothesis]
+) -> None:
+    """Logs the incoming review batch size."""
+    logger.info("Starting review node")
+    logger.info(
+        "Reviewing %s unreviewed of %s hypotheses",
+        len(unreviewed),
+        len(hypotheses),
+    )
+
+
+def _skipped_review_result(hypotheses: list[Hypothesis]) -> dict[str, Any]:
+    """Builds the review_node result when there are no unreviewed hypotheses."""
+    return {
+        "hypotheses": hypotheses,
+        "messages": phase_message(
+            "review",
+            "No unreviewed hypotheses; review skipped",
+            strategy="skipped",
+        ),
+    }
+
+
+def _finalize_reviews(
+    unreviewed: list[Hypothesis],
+    reviews: list[HypothesisReview],
+    strategy_name: str,
+) -> None:
+    """Validates, attaches, and gates completed reviews in place."""
+    _validate_reviews(reviews)
+    _attach_reviews_to_hypotheses(unreviewed, reviews)
+    _apply_initial_review_gate(unreviewed, reviews)
+    logger.info(
+        "Completed %s reviews using %s strategy", len(reviews), strategy_name
+    )
+
+
+def _review_node_result(
+    hypotheses: list[Hypothesis],
+    reviews: list[HypothesisReview],
+    llm_calls: int,
+    strategy_name: str,
+) -> dict[str, Any]:
+    """Builds the final review_node state delta with metrics."""
     # Update metrics (deltas only, merge_metrics will add to existing state)
     metrics = create_metrics_update(
         reviews_count_delta=len(reviews), llm_calls_delta=llm_calls

@@ -95,6 +95,7 @@ from co_scientist.agents.generation.literature_review.run_config import (
 )
 from co_scientist.cache import NodeCache, get_node_cache
 from co_scientist.mcp_client import (
+    MCPToolClient,
     check_mcp_available,
     get_mcp_client,
 )
@@ -238,19 +239,19 @@ async def _check_server_available(
 # =============================================================================
 
 
-async def literature_review_node(state: WorkflowState) -> dict[str, Any]:
-    """Conducts literature review using configured MCP tools with LLM analysis.
+async def _prepare_review(
+    state: WorkflowState,
+) -> (
+    tuple[SearchConfig, NodeCache, dict[str, Any], bool, MCPToolClient]
+    | dict[str, Any]
+):
+    """Resolve config/cache, gate on cache/server, and open the MCP client.
 
-    Orchestrates the following phases:
-    1. Generate search queries (MCP tool or LLM)
-    2. Collect papers from configured sources
-    3. Discover PDF links (for sources returning landing pages)
-    4. Fetch content (for sources without fulltext)
-    5. Analyze each paper for gaps/limitations
-    6. Synthesize findings into articles_with_reasoning
+    Returns:
+        Either the (config, node_cache, cache_params, force_cache, mcp_client)
+        tuple needed to continue the run, or an early-exit result dict on a
+        cache hit or an unreachable MCP server.
     """
-    logger.info("Starting literature review node")
-
     config, node_cache, cache_params, force_cache = _initialize_review(state)
 
     cached = await _check_cache(state, node_cache, cache_params, force_cache)
@@ -266,29 +267,23 @@ async def literature_review_node(state: WorkflowState) -> dict[str, Any]:
     )
 
     mcp_client = await get_mcp_client(tool_registry=config.tool_registry)
+    return config, node_cache, cache_params, force_cache, mcp_client
 
-    # Phase 1: generate queries
-    queries = await _phase1_generate_queries(state, config, mcp_client)
 
-    # Phases 2-2.6: collect papers, discover PDFs, fetch content/enrichment
-    collected = await _collect_and_enrich_papers(
-        queries, state, config, mcp_client
-    )
-
-    edge_case_result = await _handle_collection_edge_cases(
-        state, collected, queries, config
-    )
-    if edge_case_result is not None:
-        return edge_case_result
-
-    _log_sample_papers(collected.all_paper_metadata)
-
-    # Phase 3 + 4: analyze papers, then synthesize
+async def _finalize_review(
+    state: WorkflowState,
+    config: SearchConfig,
+    collected: _CollectionResult,
+    queries: list[str],
+    node_cache: NodeCache,
+    cache_params: dict[str, Any],
+    force_cache: bool,
+) -> dict[str, Any]:
+    """Phases 3-5: analyze, synthesize, finalize, and cache the result."""
     synthesis = await _analyze_and_synthesize(
         collected.all_paper_metadata, state, collected.background_context
     )
 
-    # Phase 5: create articles and append KG evidence
     synthesis, articles = _finalize_synthesis_and_articles(
         synthesis,
         collected.all_paper_metadata,
@@ -305,6 +300,67 @@ async def literature_review_node(state: WorkflowState) -> dict[str, Any]:
         queries,
         articles,
         collected.context_enrichment_sources,
+        node_cache,
+        cache_params,
+        force_cache,
+    )
+
+
+async def _run_search_phases(
+    state: WorkflowState,
+    config: SearchConfig,
+    mcp_client: MCPToolClient,
+) -> tuple[list[str], _CollectionResult] | dict[str, Any]:
+    """Phase 1 + 2-2.6: generate queries, collect papers, and gate on them.
+
+    Returns:
+        Either the (queries, collected) pair to continue with, or an
+        early-exit failure result dict if collection yielded nothing usable.
+    """
+    queries = await _phase1_generate_queries(state, config, mcp_client)
+
+    collected = await _collect_and_enrich_papers(
+        queries, state, config, mcp_client
+    )
+
+    edge_case_result = await _handle_collection_edge_cases(
+        state, collected, queries, config
+    )
+    if edge_case_result is not None:
+        return edge_case_result
+
+    _log_sample_papers(collected.all_paper_metadata)
+    return queries, collected
+
+
+async def literature_review_node(state: WorkflowState) -> dict[str, Any]:
+    """Conducts literature review using configured MCP tools with LLM analysis.
+
+    Orchestrates the following phases:
+    1. Generate search queries (MCP tool or LLM)
+    2. Collect papers from configured sources
+    3. Discover PDF links (for sources returning landing pages)
+    4. Fetch content (for sources without fulltext)
+    5. Analyze each paper for gaps/limitations
+    6. Synthesize findings into articles_with_reasoning
+    """
+    logger.info("Starting literature review node")
+
+    prepared = await _prepare_review(state)
+    if isinstance(prepared, dict):
+        return prepared
+    config, node_cache, cache_params, force_cache, mcp_client = prepared
+
+    phase_result = await _run_search_phases(state, config, mcp_client)
+    if isinstance(phase_result, dict):
+        return phase_result
+    queries, collected = phase_result
+
+    return await _finalize_review(
+        state,
+        config,
+        collected,
+        queries,
         node_cache,
         cache_params,
         force_cache,

@@ -39,6 +39,20 @@ def _match_cluster_member(
     return None
 
 
+def _apply_cluster_membership(
+    matched: Hypothesis, cluster_id: str, similar_hyp: dict[str, Any]
+) -> None:
+    """Assigns one cluster id and (first-write-wins) similarity degree.
+
+    First match wins: if the LLM's clusters overlap and a hypothesis
+    appears more than once, its degree is fixed by whichever cluster is
+    processed first rather than being overwritten by later matches.
+    """
+    matched.similarity_cluster_id = cluster_id
+    if matched.similarity_degree is None:
+        matched.similarity_degree = similar_hyp.get("similarity_degree", "low")
+
+
 def _assign_cluster_ids(
     hypotheses: list[Hypothesis], similarity_clusters: list[dict[str, Any]]
 ) -> None:
@@ -74,16 +88,7 @@ def _assign_cluster_ids(
             matched = _match_cluster_member(similar_hyp, hypotheses, by_prefix)
             if matched is None:
                 continue
-            matched.similarity_cluster_id = cluster_id
-            # Store similarity degree (only set if not already set)
-            # First match wins: if the LLM's clusters overlap and a
-            # hypothesis appears more than once, its degree is fixed by
-            # whichever cluster is processed first rather than being
-            # overwritten by later matches.
-            if matched.similarity_degree is None:
-                matched.similarity_degree = similar_hyp.get(
-                    "similarity_degree", "low"
-                )
+            _apply_cluster_membership(matched, cluster_id, similar_hyp)
 
 
 def _partition_by_similarity_degree(
@@ -140,6 +145,28 @@ def _build_removed_duplicate_record(
     }
 
 
+def _build_removed_duplicates_for_cluster(
+    high_similarity: list[Hypothesis], cluster_id: str, best: Hypothesis
+) -> list[dict[str, Any]]:
+    """Builds removed-duplicate records for the non-kept high-similarity set.
+
+    Every high-similarity hypothesis in the cluster other than ``best`` is
+    dropped; each drop is logged for visibility.
+    """
+    removed_duplicates: list[dict[str, Any]] = []
+    for duplicate in high_similarity[1:]:
+        removed_duplicates.append(
+            _build_removed_duplicate_record(duplicate, cluster_id, best)
+        )
+        logger.info(
+            "Removed duplicate from cluster %s: %s... (Elo: %s)",
+            cluster_id,
+            duplicate.text[:100],
+            duplicate.elo_rating,
+        )
+    return removed_duplicates
+
+
 def _resolve_cluster_duplicates(
     cluster_id: str, cluster_hypotheses: list[Hypothesis]
 ) -> tuple[list[Hypothesis], list[dict[str, Any]]]:
@@ -163,37 +190,39 @@ def _resolve_cluster_duplicates(
     high_similarity, others = _partition_by_similarity_degree(
         cluster_hypotheses
     )
-
-    # Keep all non-high-similarity hypotheses
-    hypotheses_to_keep: list[Hypothesis] = []
-    hypotheses_to_keep.extend(others)
-
+    # Keep all non-high-similarity hypotheses.
+    hypotheses_to_keep: list[Hypothesis] = list(others)
     if not high_similarity:
         return hypotheses_to_keep, []
 
     # For high-similarity duplicates, keep only the best. Rank by Elo
     # (primary), then score, then text as deterministic tiebreakers.
     high_similarity = rank_by_elo(high_similarity)
-
-    # Keep the best
     best = high_similarity[0]
     hypotheses_to_keep.append(best)
 
-    # Remove the rest
-    # Every other high-similarity hypothesis in the cluster is dropped.
-    removed_duplicates: list[dict[str, Any]] = []
-    for duplicate in high_similarity[1:]:
-        removed_duplicates.append(
-            _build_removed_duplicate_record(duplicate, cluster_id, best)
-        )
-        logger.info(
-            "Removed duplicate from cluster %s: %s... (Elo: %s)",
-            cluster_id,
-            duplicate.text[:100],
-            duplicate.elo_rating,
-        )
+    removed_duplicates = _build_removed_duplicates_for_cluster(
+        high_similarity, cluster_id, best
+    )
 
     return hypotheses_to_keep, removed_duplicates
+
+
+def _group_by_cluster(
+    hypotheses: list[Hypothesis],
+) -> dict[str, list[Hypothesis]]:
+    """Groups hypotheses by their assigned similarity_cluster_id.
+
+    Rebuilt from each hypothesis's own similarity_cluster_id (rather than
+    reusing the LLM's similarity_clusters list directly), so every
+    hypothesis -- including any the LLM left unclustered -- is accounted
+    for exactly once.
+    """
+    clusters_dict: dict[str, list[Hypothesis]] = {}
+    for hyp in hypotheses:
+        cluster_id = hyp.similarity_cluster_id or "unclustered"
+        clusters_dict.setdefault(cluster_id, []).append(hyp)
+    return clusters_dict
 
 
 def _dedupe_by_cluster(
@@ -219,19 +248,8 @@ def _dedupe_by_cluster(
     removed_duplicates: list[dict[str, Any]] = []
     hypotheses_to_keep: list[Hypothesis] = []
 
-    # Group by cluster
-    # Rebuilt from each hypothesis's own similarity_cluster_id (rather
-    # than reusing the LLM's similarity_clusters list directly), so every
-    # hypothesis -- including any the LLM left unclustered -- is
-    # accounted for exactly once below.
-    clusters_dict: dict[str, list[Hypothesis]] = {}
-    for hyp in hypotheses:
-        cluster_id = hyp.similarity_cluster_id or "unclustered"
-        if cluster_id not in clusters_dict:
-            clusters_dict[cluster_id] = []
-        clusters_dict[cluster_id].append(hyp)
+    clusters_dict = _group_by_cluster(hypotheses)
 
-    # For each cluster, handle high-similarity duplicates
     for cluster_id, cluster_hypotheses in clusters_dict.items():
         kept, removed = _resolve_cluster_duplicates(
             cluster_id, cluster_hypotheses

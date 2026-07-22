@@ -159,6 +159,90 @@ def _select_partner(
     return _weighted_choice(scored, rng)
 
 
+def _select_round_partner(
+    primary: MatchCandidate,
+    candidates: list[MatchCandidate],
+    coverage: dict[str, int],
+    recent_pairs: set[frozenset[str]],
+    prev_pair: frozenset[str] | None,
+    weights: MatchmakingWeights,
+    rng: random.Random,
+) -> MatchCandidate | None:
+    """Selects a partner for ``primary``, relaxing forbidden pairs as needed.
+
+    Fallback ladder: avoid all recent pairs, then only the immediately
+    previous pair (so no back-to-back rematch), then — only when even
+    that leaves no partner (a two-hypothesis pool) — allow any non-self
+    partner so the tournament can still rematch.
+    """
+    prev_only: set[frozenset[str]] = (
+        {prev_pair} if prev_pair is not None else set()
+    )
+    for forbidden in (recent_pairs | prev_only, prev_only, set()):
+        partner = _select_partner(
+            primary, candidates, coverage, forbidden, weights, rng
+        )
+        if partner is not None:
+            return partner
+    return None
+
+
+def _schedule_one_pairing(
+    candidates: list[MatchCandidate],
+    coverage: dict[str, int],
+    recent_pairs: set[frozenset[str]],
+    prev_pair: frozenset[str] | None,
+    weights: MatchmakingWeights,
+    rng: random.Random,
+) -> tuple[str, str] | None:
+    """Selects and commits one pairing, updating coverage and recency.
+
+    Returns:
+        The scheduled ``(primary_id, partner_id)`` pair, or None if no
+        valid partner exists for the round's chosen primary.
+    """
+    primary = _select_primary(candidates, coverage, weights, rng)
+    partner = _select_round_partner(
+        primary, candidates, coverage, recent_pairs, prev_pair, weights, rng
+    )
+    if partner is None:
+        return None
+    coverage[primary.id] += 1
+    coverage[partner.id] += 1
+    recent_pairs.add(frozenset({primary.id, partner.id}))
+    return primary.id, partner.id
+
+
+def _init_pairing_state(
+    candidates: list[MatchCandidate],
+    seed: int,
+    weights: MatchmakingWeights | None,
+) -> tuple[MatchmakingWeights, random.Random, dict[str, int], int]:
+    """Initializes RNG, per-hypothesis coverage, and the max-pairs bound."""
+    resolved_weights = weights or MatchmakingWeights()
+    rng = random.Random(seed)
+    coverage = {c.id: c.matches for c in candidates}
+    max_pairs = len(candidates) * (len(candidates) - 1) // 2
+    return resolved_weights, rng, coverage, max_pairs
+
+
+def _reset_if_exhausted(
+    recent_pairs: set[frozenset[str]],
+    prev_pair: frozenset[str] | None,
+    max_pairs: int,
+) -> set[frozenset[str]]:
+    """Resets the recent-pairs window once every valid pair has been used.
+
+    A long tournament on a small pool can still schedule rematches without
+    starving -- it just avoids back-to-back repeats. The immediately
+    previous pair is always forbidden (even across a reset) so no pair
+    repeats twice in a row.
+    """
+    if len(recent_pairs) >= max_pairs:
+        return {prev_pair} if prev_pair is not None else set()
+    return recent_pairs
+
+
 def build_weighted_pairings(
     candidates: list[MatchCandidate],
     rounds: int,
@@ -180,45 +264,21 @@ def build_weighted_pairings(
     """
     if len(candidates) < 2:
         return []
-    weights = weights or MatchmakingWeights()
-    rng = random.Random(seed)
-    coverage = {c.id: c.matches for c in candidates}
+    weights, rng, coverage, max_pairs = _init_pairing_state(
+        candidates, seed, weights
+    )
 
     pairings: list[tuple[str, str]] = []
-    # Duplicate-avoidance resets once every valid pair has been used, so a
-    # long tournament on a small pool can still schedule rematches without
-    # starving — it just avoids back-to-back repeats. The immediately previous
-    # pair is always forbidden (even across a reset) so no pair repeats twice
-    # in a row.
     recent_pairs: set[frozenset[str]] = set()
     prev_pair: frozenset[str] | None = None
-    max_pairs = len(candidates) * (len(candidates) - 1) // 2
-
     for _ in range(rounds):
-        if len(recent_pairs) >= max_pairs:
-            recent_pairs = {prev_pair} if prev_pair is not None else set()
-        primary = _select_primary(candidates, coverage, weights, rng)
-        prev_only: set[frozenset[str]] = (
-            {prev_pair} if prev_pair is not None else set()
+        recent_pairs = _reset_if_exhausted(recent_pairs, prev_pair, max_pairs)
+        pair = _schedule_one_pairing(
+            candidates, coverage, recent_pairs, prev_pair, weights, rng
         )
-        # Fallback ladder: avoid all recent pairs, then only the immediately
-        # previous pair (so no back-to-back rematch), then — only when even
-        # that leaves no partner (a two-hypothesis pool) — allow any non-self
-        # partner so the tournament can still rematch.
-        partner: MatchCandidate | None = None
-        for forbidden in (recent_pairs | prev_only, prev_only, set()):
-            partner = _select_partner(
-                primary, candidates, coverage, forbidden, weights, rng
-            )
-            if partner is not None:
-                break
-        if partner is None:
+        if pair is None:
             continue
-        pair = frozenset({primary.id, partner.id})
-        pairings.append((primary.id, partner.id))
-        coverage[primary.id] += 1
-        coverage[partner.id] += 1
-        recent_pairs.add(pair)
-        prev_pair = pair
+        pairings.append(pair)
+        prev_pair = frozenset(pair)
 
     return pairings

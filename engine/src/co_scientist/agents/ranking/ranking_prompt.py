@@ -152,6 +152,93 @@ def _warn_if_reflection_notes_dropped(
         )
 
 
+def _log_matchup_reflection_notes(
+    hypothesis_a: Hypothesis, hypothesis_b: Hypothesis
+) -> tuple[str | None, str | None]:
+    """Extracts reflection notes for both sides and logs their availability."""
+    reflection_notes_a = hypothesis_a.reflection_notes
+    reflection_notes_b = hypothesis_b.reflection_notes
+    logger.debug("\n→ Ranking Tournament Matchup")
+    _log_reflection_debug("A", reflection_notes_a)
+    _log_reflection_debug("B", reflection_notes_b)
+    return reflection_notes_a, reflection_notes_b
+
+
+def _render_matchup_prompt(
+    hypothesis_a: Hypothesis,
+    hypothesis_b: Hypothesis,
+    research_goal: str,
+    supervisor_guidance: dict[str, Any] | None,
+    meta_review: dict[str, Any] | None,
+    tool_registry: Any | None,
+    run_setup_guidance: str | None,
+    run_focus_guidance: str | None,
+    review_a: dict[str, Any] | None,
+    review_b: dict[str, Any] | None,
+    deep_verification_a: dict[str, Any] | None,
+    deep_verification_b: dict[str, Any] | None,
+    reflection_notes_a: str | None,
+    reflection_notes_b: str | None,
+) -> tuple[str, dict[str, Any] | None]:
+    """Renders the ranking-matchup prompt template with gathered context."""
+    return get_ranking_prompt(
+        research_goal=research_goal,
+        hypothesis_a=hypothesis_a.text,
+        hypothesis_b=hypothesis_b.text,
+        supervisor_guidance=supervisor_guidance,
+        review_a=review_a,
+        review_b=review_b,
+        reflection_notes_a=reflection_notes_a,
+        reflection_notes_b=reflection_notes_b,
+        deep_verification_a=deep_verification_a,
+        deep_verification_b=deep_verification_b,
+        meta_review=meta_review,
+        tool_registry=tool_registry,
+        run_setup_guidance=run_setup_guidance,
+        run_focus_guidance=run_focus_guidance,
+    )
+
+
+def _assemble_matchup_prompt(
+    hypothesis_a: Hypothesis,
+    hypothesis_b: Hypothesis,
+    research_goal: str,
+    supervisor_guidance: dict[str, Any] | None,
+    meta_review: dict[str, Any] | None,
+    tool_registry: Any | None,
+    run_setup_guidance: str | None,
+    run_focus_guidance: str | None,
+) -> tuple[str, dict[str, Any] | None, str | None, str | None]:
+    """Gathers summaries and reflection notes, then renders the prompt."""
+    review_a, review_b, deep_verification_a, deep_verification_b = (
+        _gather_matchup_summaries(hypothesis_a, hypothesis_b)
+    )
+    reflection_notes_a, reflection_notes_b = _log_matchup_reflection_notes(
+        hypothesis_a, hypothesis_b
+    )
+
+    prompt, schema = _render_matchup_prompt(
+        hypothesis_a,
+        hypothesis_b,
+        research_goal,
+        supervisor_guidance,
+        meta_review,
+        tool_registry,
+        run_setup_guidance,
+        run_focus_guidance,
+        review_a,
+        review_b,
+        deep_verification_a,
+        deep_verification_b,
+        reflection_notes_a,
+        reflection_notes_b,
+    )
+    _warn_if_reflection_notes_dropped(
+        prompt, reflection_notes_a, reflection_notes_b
+    )
+    return prompt, schema, reflection_notes_a, reflection_notes_b
+
+
 def _build_matchup_prompt(
     hypothesis_a: Hypothesis,
     hypothesis_b: Hypothesis,
@@ -175,41 +262,15 @@ def _build_matchup_prompt(
         run_focus_guidance: Optional run-focus guidance for the prompt.
 
     Returns:
-        Tuple of (prompt, schema, reflection_notes_a, reflection_notes_b);
-        the reflection notes are returned alongside the prompt so the
-        caller can fold them into the LLM-call metadata without
-        re-reading the hypotheses.
+        Tuple of (prompt, schema, reflection_notes_a, reflection_notes_b).
     """
-    review_a, review_b, deep_verification_a, deep_verification_b = (
-        _gather_matchup_summaries(hypothesis_a, hypothesis_b)
+    return _assemble_matchup_prompt(
+        hypothesis_a,
+        hypothesis_b,
+        research_goal,
+        supervisor_guidance,
+        meta_review,
+        tool_registry,
+        run_setup_guidance,
+        run_focus_guidance,
     )
-
-    reflection_notes_a = hypothesis_a.reflection_notes
-    reflection_notes_b = hypothesis_b.reflection_notes
-
-    logger.debug("\n→ Ranking Tournament Matchup")
-    _log_reflection_debug("A", reflection_notes_a)
-    _log_reflection_debug("B", reflection_notes_b)
-
-    prompt, schema = get_ranking_prompt(
-        research_goal=research_goal,
-        hypothesis_a=hypothesis_a.text,
-        hypothesis_b=hypothesis_b.text,
-        supervisor_guidance=supervisor_guidance,
-        review_a=review_a,
-        review_b=review_b,
-        reflection_notes_a=reflection_notes_a,
-        reflection_notes_b=reflection_notes_b,
-        deep_verification_a=deep_verification_a,
-        deep_verification_b=deep_verification_b,
-        meta_review=meta_review,
-        tool_registry=tool_registry,
-        run_setup_guidance=run_setup_guidance,
-        run_focus_guidance=run_focus_guidance,
-    )
-
-    _warn_if_reflection_notes_dropped(
-        prompt, reflection_notes_a, reflection_notes_b
-    )
-
-    return prompt, schema, reflection_notes_a, reflection_notes_b

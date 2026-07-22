@@ -176,6 +176,31 @@ def _parse_enrichment_result(raw: Any) -> tuple[str, list[dict[str, Any]]]:
     return _wrap_as_text_result(data)
 
 
+async def _query_enrichment_entity(
+    tool_config: Any,
+    tool_name: str,
+    tool_id: str,
+    canonical: dict[str, Any],
+    entity: str,
+    mcp_client: MCPToolClient,
+) -> tuple[str, list[dict[str, Any]]]:
+    """Query one enrichment tool for one entity, tagging results by it.
+
+    map_parameters translates the canonical entity_name/limit pair into
+    this tool's own YAML-configured parameter names.
+    """
+    params = tool_config.map_parameters({**canonical, "entity_name": entity})
+    raw = await _call_enrichment_tool_for_entity(tool_name, params, mcp_client)
+    if raw is None:
+        return "", []
+    text, items = _parse_enrichment_result(raw)
+    # Tag each item with entity and tool_id for citation building
+    for item in items:
+        item.setdefault("tool_id", tool_id)
+        item.setdefault("entity", entity)
+    return text, items
+
+
 async def _call_enrichment_tool_for_entities(
     tool_config: Any,
     entities: list[str],
@@ -193,26 +218,15 @@ async def _call_enrichment_tool_for_entities(
         "limit": _CONTEXT_ENRICHMENT_RESULTS_PER_ENTITY,
     }
 
-    async def _query_one(entity: str) -> tuple[str, list[dict[str, Any]]]:
-        # map_parameters translates the canonical entity_name/limit pair
-        # into this tool's own YAML-configured parameter names.
-        params = tool_config.map_parameters(
-            {**canonical, "entity_name": entity}
-        )
-        raw = await _call_enrichment_tool_for_entity(
-            tool_name, params, mcp_client
-        )
-        if raw is None:
-            return "", []
-        text, items = _parse_enrichment_result(raw)
-        # Tag each item with entity and tool_id for citation building
-        for item in items:
-            item.setdefault("tool_id", tool_id)
-            item.setdefault("entity", entity)
-        return text, items
-
     # One tool call per entity, all in parallel.
-    per_entity = await asyncio.gather(*[_query_one(e) for e in entities])
+    per_entity = await asyncio.gather(
+        *[
+            _query_enrichment_entity(
+                tool_config, tool_name, tool_id, canonical, entity, mcp_client
+            )
+            for entity in entities
+        ]
+    )
 
     text_lines: list[str] = []
     all_items: list[dict[str, Any]] = []
@@ -338,6 +352,40 @@ def _cap_enrichment_text(combined: str) -> str:
     return combined
 
 
+async def _gather_enrichment_content(
+    workflow: "WorkflowConfig",
+    tool_registry: "ToolRegistry",
+    entities: list[str],
+    mcp_client: MCPToolClient,
+) -> tuple[list[str], list[dict[str, Any]]] | None:
+    """Resolves tool configs and runs them, returning sections/items or None.
+
+    Returns None when no enrichment tool is actually available (unresolvable
+    or disabled), so the caller can short-circuit to the empty result.
+    """
+    tool_configs = _resolve_enrichment_tool_configs(
+        workflow, tool_registry, mcp_client
+    )
+    if not tool_configs:
+        return None
+    return await _run_enrichment_tools(entities, tool_configs, mcp_client)
+
+
+def _finalize_enrichment_output(
+    sections: list[str],
+    all_structured: list[dict[str, Any]],
+) -> tuple[str, list[dict[str, Any]]]:
+    """Caps the combined enrichment text and logs the Phase 2.6 summary."""
+    combined = _cap_enrichment_text("\n\n".join(sections))
+    logger.info(
+        "Phase 2.6 complete: %s tool(s), %s structured items (%s chars)",
+        len(sections),
+        len(all_structured),
+        len(combined),
+    )
+    return combined, all_structured
+
+
 async def _phase2_6_fetch_context_enrichment(
     state: WorkflowState,
     config: SearchConfig,
@@ -368,27 +416,16 @@ async def _phase2_6_fetch_context_enrichment(
         len(workflow.context_enrichment_tools),
     )
 
-    tool_configs = _resolve_enrichment_tool_configs(
-        workflow, tool_registry, mcp_client
+    gathered = await _gather_enrichment_content(
+        workflow, tool_registry, entities, mcp_client
     )
-    if not tool_configs:
+    if gathered is None:
         return empty
-
-    sections, all_structured = await _run_enrichment_tools(
-        entities, tool_configs, mcp_client
-    )
+    sections, all_structured = gathered
     if not sections and not all_structured:
         return empty
 
-    combined = _cap_enrichment_text("\n\n".join(sections))
-
-    logger.info(
-        "Phase 2.6 complete: %s tool(s), %s structured items (%s chars)",
-        len(sections),
-        len(all_structured),
-        len(combined),
-    )
-    return combined, all_structured
+    return _finalize_enrichment_output(sections, all_structured)
 
 
 def _format_kg_section_with_keys(
