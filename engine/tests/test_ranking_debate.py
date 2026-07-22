@@ -10,8 +10,8 @@ from typing import Any
 
 import pytest
 
-from co_scientist.agents.ranking import ranking
-from co_scientist.agents.ranking.ranking import (
+from co_scientist.agents.ranking import ranking_debate
+from co_scientist.agents.ranking.ranking_debate import (
     _matchup_debate_turns,
     _median_elo,
     judge_matchup,
@@ -67,7 +67,7 @@ def _stub_turn_counter(monkeypatch: pytest.MonkeyPatch) -> list[int]:
             "confidence_level": "High",
         }
 
-    monkeypatch.setattr(ranking, "call_llm_json", fake)
+    monkeypatch.setattr(ranking_debate, "call_llm_json", fake)
     return calls
 
 

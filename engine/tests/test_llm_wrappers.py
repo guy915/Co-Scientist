@@ -9,107 +9,47 @@ response object (a ``SimpleNamespace`` tree mirroring
 ``response.choices[0].message.{role,content,tool_calls}``). No network is
 touched.
 
-Caching is disabled deterministically by patching ``co_scientist.llm.get_cache``
+Caching is disabled deterministically by patching
+``co_scientist.llm_tool_loop.get_cache``
 to return a fresh ``LLMCache(enabled=False)``: a disabled cache's ``get`` always
 returns ``None`` and ``set`` is a no-op, so each call exercises the real
 completion path. Patching the env var is unreliable because ``get_cache``
 memoizes a process-global instance that may already exist.
+
+The ``call_llm_with_tools`` tool-loop cases live in
+``test_llm_wrappers_tools.py`` and the DeepSeek thinking-mode cases in
+``test_llm_wrappers_thinking.py``; the litellm-shaped response fakes
+are shared via ``tests/_llm_wrapper_fakes.py``.
 """
 
 import json
 from pathlib import Path
-from types import SimpleNamespace
 from typing import Any
 
 import pytest
 
 from co_scientist import cache as cache_mod
-from co_scientist import llm
+from co_scientist import llm_tool_loop
 from co_scientist import prompts as prompts_mod
 from co_scientist.cache import LLMCache
 from co_scientist.llm import call_llm, call_llm_json, call_llm_with_tools
 from tests._llm_fake import disable_llm_cache as _disable_cache
+from tests._llm_wrapper_fakes import (
+    SEARCH_TOOL as _SEARCH_TOOL,
+)
+from tests._llm_wrapper_fakes import (
+    make_completion as _completion,
+)
+from tests._llm_wrapper_fakes import (
+    make_message as _message,
+)
+from tests._llm_wrapper_fakes import (
+    patch_acompletion as _patch_acompletion,
+)
 
 # The real prompt writer, captured at import time -- i.e. before the autouse
 # ``_no_prompt_disk_writes`` conftest fixture swaps in its per-test no-op.
 _REAL_SAVE_PROMPT_TO_DISK = prompts_mod.save_prompt_to_disk
-
-# --- helpers ---------------------------------------------------------------
-
-
-def _message(
-    content: str | None,
-    tool_calls: list[Any] | None = None,
-    role: str = "assistant",
-) -> SimpleNamespace:
-    """Build a litellm-shaped ``choices[0].message`` object.
-
-    Args:
-        content: The assistant message text (``None`` mirrors an empty
-            completion).
-        tool_calls: Optional list of tool-call namespaces; ``None`` ends the
-            tool loop because the wrapper guards with
-            ``and message.tool_calls``.
-        role: The message role echoed back into the message history.
-
-    Returns:
-        A ``SimpleNamespace`` exposing ``role``, ``content``, and
-        ``tool_calls``.
-    """
-    return SimpleNamespace(role=role, content=content, tool_calls=tool_calls)
-
-
-def _completion(message: SimpleNamespace) -> SimpleNamespace:
-    """Wrap a message in the ``choices[0].message`` envelope litellm returns.
-
-    Args:
-        message: The message namespace from :func:`_message`.
-
-    Returns:
-        A response namespace with a single choice carrying ``message``.
-    """
-    return SimpleNamespace(choices=[SimpleNamespace(message=message)])
-
-
-def _tool_call(call_id: str, name: str, arguments: str) -> SimpleNamespace:
-    """Build a litellm-shaped tool-call namespace.
-
-    Args:
-        call_id: The tool-call id echoed into the message history.
-        name: The function name the wrapper reads via ``tc.function.name``.
-        arguments: The raw JSON argument string (kept opaque by the wrapper).
-
-    Returns:
-        A namespace exposing ``id`` and ``function.{name,arguments}``.
-    """
-    return SimpleNamespace(
-        id=call_id, function=SimpleNamespace(name=name, arguments=arguments)
-    )
-
-
-def _patch_acompletion(
-    monkeypatch: pytest.MonkeyPatch, responses: list[SimpleNamespace]
-) -> dict[str, int]:
-    """Patch ``litellm.acompletion`` to return queued responses in order.
-
-    Args:
-        monkeypatch: The pytest monkeypatch fixture.
-        responses: Completion namespaces to return on successive calls.
-
-    Returns:
-        A mutable dict whose ``"calls"`` key counts how many times the fake ran.
-    """
-    state = {"calls": 0}
-    queue = iter(responses)
-
-    async def fake_acompletion(*_args: Any, **_kwargs: Any) -> SimpleNamespace:
-        state["calls"] += 1
-        return next(queue)
-
-    monkeypatch.setattr(
-        "co_scientist.llm.litellm.acompletion", fake_acompletion
-    )
-    return state
 
 
 _INT_SCHEMA: dict[str, Any] = {
@@ -117,13 +57,6 @@ _INT_SCHEMA: dict[str, Any] = {
     "properties": {"a": {"type": "integer"}},
     "required": ["a"],
 }
-
-# The tool schema shared verbatim by every call_llm_with_tools test below; the
-# wrapper only reads it (passes it through to the fake acompletion), never
-# mutates it, so sharing one instance across tests is safe.
-_SEARCH_TOOL: list[dict[str, Any]] = [
-    {"type": "function", "function": {"name": "search"}}
-]
 
 
 # --- call_llm --------------------------------------------------------------
@@ -187,7 +120,7 @@ async def test_scoped_cache_override_false_skips_get_cache(
         calls["get_cache"] += 1
         return LLMCache(enabled=True)
 
-    monkeypatch.setattr(llm, "get_cache", _tracking_get_cache)
+    monkeypatch.setattr(llm_tool_loop, "get_cache", _tracking_get_cache)
     _patch_acompletion(monkeypatch, [_completion(_message("fresh"))])
 
     with cache_mod.scoped_cache_override(False):
@@ -212,7 +145,7 @@ async def test_no_scoped_override_still_uses_get_cache(
         calls["get_cache"] += 1
         return LLMCache(enabled=False)
 
-    monkeypatch.setattr(llm, "get_cache", _tracking_get_cache)
+    monkeypatch.setattr(llm_tool_loop, "get_cache", _tracking_get_cache)
     _patch_acompletion(monkeypatch, [_completion(_message("fresh"))])
 
     await call_llm("a prompt", "test-model", use_cache=True)
@@ -311,280 +244,6 @@ async def test_call_llm_json_schema_mismatch_raises_validation_error(
         await call_llm_json(
             "a prompt", "test-model", json_schema=_INT_SCHEMA, max_attempts=2
         )
-
-
-# --- call_llm_with_tools ---------------------------------------------------
-
-
-async def test_call_llm_with_tools_runs_executor_then_finishes(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """The tool loop executes a requested tool, then ends on a tool-free reply.
-
-    First completion carries a ``tool_calls`` entry, so ``tool_executor`` runs;
-    the second completion has ``tool_calls=None`` (falsy), ending the loop and
-    returning the final text. Asserts the executor was invoked with the tool
-    call, the final text, and that the history threads through user message,
-    assistant tool request, tool result, and final assistant message.
-    """
-    _disable_cache(monkeypatch)
-    first = _completion(
-        _message(None, tool_calls=[_tool_call("call-1", "search", '{"q": 1}')])
-    )
-    second = _completion(_message("final answer"))
-    state = _patch_acompletion(monkeypatch, [first, second])
-
-    seen: list[Any] = []
-
-    async def tool_executor(tc: Any) -> dict[str, Any]:
-        seen.append(tc)
-        return {
-            "role": "tool",
-            "tool_call_id": tc.id,
-            "content": "tool result",
-        }
-
-    final_text, history = await call_llm_with_tools(
-        "a prompt",
-        "test-model",
-        tools=_SEARCH_TOOL,
-        tool_executor=tool_executor,
-    )
-
-    assert final_text == "final answer"
-    assert state["calls"] == 2
-    # The executor ran exactly once, on the tool call the model requested.
-    assert len(seen) == 1
-    assert seen[0].id == "call-1"
-    assert seen[0].function.name == "search"
-    # History: user -> assistant(tool request) -> tool result -> assistant.
-    assert history[0] == {"role": "user", "content": "a prompt"}
-    assert history[1]["tool_calls"][0]["id"] == "call-1"
-    assert history[2] == {
-        "role": "tool",
-        "tool_call_id": "call-1",
-        "content": "tool result",
-    }
-    assert history[-1]["content"] == "final answer"
-
-
-async def test_call_llm_with_tools_no_tool_calls_returns_immediately(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """A first reply without tool calls returns at once without the executor."""
-    _disable_cache(monkeypatch)
-    _patch_acompletion(monkeypatch, [_completion(_message("direct answer"))])
-
-    called = {"ran": False}
-
-    async def tool_executor(_tc: Any) -> dict[str, Any]:
-        called["ran"] = True
-        return {"role": "tool", "content": ""}
-
-    final_text, history = await call_llm_with_tools(
-        "a prompt",
-        "test-model",
-        tools=_SEARCH_TOOL,
-        tool_executor=tool_executor,
-    )
-
-    assert final_text == "direct answer"
-    assert called["ran"] is False
-    assert history[-1]["content"] == "direct answer"
-
-
-async def test_tool_loop_applies_provider_quirks(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """The tool loop's turn carries the same provider handling as call_llm.
-
-    DashScope's compatible-mode endpoint does not support
-    ``reasoning_effort`` (the guard lives in
-    ``llm_request.reasoning_effort_args``), and every turn asks the
-    provider client to give up on its own via the ``timeout`` argument.
-    """
-    _disable_cache(monkeypatch)
-    captured: dict[str, Any] = {}
-
-    async def capturing_acompletion(**kwargs: Any) -> SimpleNamespace:
-        captured.clear()
-        captured.update(kwargs)
-        return _completion(_message("direct answer"))
-
-    monkeypatch.setattr(
-        "co_scientist.llm.litellm.acompletion", capturing_acompletion
-    )
-
-    async def tool_executor(_tc: Any) -> dict[str, Any]:
-        raise AssertionError("no tool call should run")
-
-    await call_llm_with_tools(
-        "a prompt",
-        "dashscope/deepseek-v4-pro",
-        tools=_SEARCH_TOOL,
-        tool_executor=tool_executor,
-    )
-    assert captured["extra_body"] == {"enable_thinking": True}
-    assert "reasoning_effort" not in captured
-    assert captured["timeout"] > 0
-
-    await call_llm_with_tools(
-        "a prompt",
-        "deepseek/deepseek-v4-pro",
-        tools=_SEARCH_TOOL,
-        tool_executor=tool_executor,
-    )
-    assert captured["reasoning_effort"] == "low"
-
-
-def test_message_to_history_preserves_reasoning_content() -> None:
-    """Thinking's reasoning_content is echoed back on a tool-call turn.
-
-    DeepSeek rejects a follow-up turn whose assistant tool-call message drops
-    the reasoning_content it emitted, so the replayed history must keep it.
-    """
-    from co_scientist.llm_tool_loop import _message_to_history_dict
-
-    message = _message(
-        "", tool_calls=[_tool_call("call-1", "search", '{"q": 1}')]
-    )
-    message.reasoning_content = "chain of thought"
-
-    result = _message_to_history_dict(message)
-
-    assert result["reasoning_content"] == "chain of thought"
-    assert result["tool_calls"][0]["id"] == "call-1"
-
-
-def test_message_to_history_omits_absent_reasoning_content() -> None:
-    """A non-thinking message carries no reasoning_content key."""
-    from co_scientist.llm_tool_loop import _message_to_history_dict
-
-    result = _message_to_history_dict(_message("final answer"))
-
-    assert "reasoning_content" not in result
-    assert result["content"] == "final answer"
-
-
-# --- DeepSeek thinking mode --------------------------------------------------
-
-
-def test_thinking_enabled_by_default_for_deepseek() -> None:
-    """Every DeepSeek call thinks unless a call site opts out."""
-    from co_scientist.llm_request import _build_completion_args
-
-    args = _build_completion_args(
-        "prompt", "deepseek/deepseek-v4-flash", 100, 0.5, False, None
-    )
-
-    assert args["extra_body"] == {"thinking": {"type": "enabled"}}
-    assert args["reasoning_effort"] == "low"
-
-
-def test_thinking_disabled_drops_reasoning_effort() -> None:
-    """Opting out disables thinking explicitly and spends no reasoning.
-
-    ``reasoning_effort`` must not survive the opt-out: it would ask the
-    provider to size a reasoning budget for a call that does not reason.
-    """
-    from co_scientist.llm_request import _build_completion_args
-
-    args = _build_completion_args(
-        "prompt",
-        "deepseek/deepseek-v4-flash",
-        100,
-        0.5,
-        False,
-        None,
-        enable_thinking=False,
-    )
-
-    assert args["extra_body"] == {"thinking": {"type": "disabled"}}
-    assert "reasoning_effort" not in args
-
-
-def test_dashscope_deepseek_uses_enable_thinking_flag() -> None:
-    """DeepSeek-on-DashScope thinks via the provider's own boolean knob.
-
-    DashScope's compatible-mode endpoint ignores DeepSeek's native
-    ``thinking`` object and defaults thinking OFF, so the native format
-    would silently disable reasoning. It also has no ``reasoning_effort``
-    tiers.
-    """
-    from co_scientist.llm_request import _build_completion_args
-
-    args = _build_completion_args(
-        "prompt", "dashscope/deepseek-v4-flash", 100, 0.5, False, None
-    )
-
-    assert args["extra_body"] == {"enable_thinking": True}
-    assert "reasoning_effort" not in args
-
-
-def test_dashscope_deepseek_thinking_opt_out() -> None:
-    """The thinking opt-out maps to enable_thinking=False on DashScope."""
-    from co_scientist.llm_request import _build_completion_args
-
-    args = _build_completion_args(
-        "prompt",
-        "dashscope/deepseek-v4-pro",
-        100,
-        0.5,
-        False,
-        None,
-        enable_thinking=False,
-    )
-
-    assert args["extra_body"] == {"enable_thinking": False}
-    assert "reasoning_effort" not in args
-
-
-def test_thinking_params_absent_for_non_deepseek_models() -> None:
-    """The thinking params are DeepSeek-specific and never sent elsewhere."""
-    from co_scientist.llm_request import _build_completion_args
-
-    args = _build_completion_args(
-        "prompt", "gemini/gemini-2.5-flash", 100, 0.5, False, None
-    )
-
-    assert "extra_body" not in args
-    assert "reasoning_effort" not in args
-
-
-async def test_ranking_matchup_opts_out_of_thinking(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """The O(n^2) tournament judge is the one engine node that skips thinking.
-
-    Asserted at the litellm seam through the real ``call_llm_json`` ->
-    ``call_llm`` chain, so the opt-out is verified end to end rather than at
-    the ranking call site alone.
-    """
-    import litellm
-
-    from co_scientist.agents.ranking.ranking import _call_matchup_judge
-
-    seen: dict[str, Any] = {}
-
-    async def fake_acompletion(*_args: Any, **kwargs: Any) -> SimpleNamespace:
-        seen.update(kwargs)
-        return _completion(_message('{"winner": "A"}'))
-
-    monkeypatch.setattr(litellm, "acompletion", fake_acompletion)
-    _disable_cache(monkeypatch)
-
-    await _call_matchup_judge(
-        "compare A and B",
-        None,
-        "deepseek/deepseek-v4-flash",
-        None,
-        None,
-        None,
-        None,
-    )
-
-    assert seen["extra_body"] == {"thinking": {"type": "disabled"}}
-    assert "reasoning_effort" not in seen
 
 
 # --- prompt debug-artifact saving --------------------------------------------

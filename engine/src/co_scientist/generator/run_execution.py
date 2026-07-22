@@ -1,0 +1,268 @@
+"""Streaming execution for the hypothesis generator.
+
+Split out of ``core`` to keep that module focused on configuration and
+graph preparation. ``HypothesisGenerator`` mixes in
+``StreamExecutionMixin`` (exactly like ``availability``'s
+``McpAvailabilityMixin``), so the methods here run with the attributes
+its ``__init__`` assigns.
+"""
+
+import logging
+from collections.abc import AsyncIterator, Awaitable, Callable
+from typing import TYPE_CHECKING, Any, cast
+
+from co_scientist.cache import scoped_cache_override
+from co_scientist.generator.streaming import (
+    _build_stream_state_dict,
+    _initial_cumulative_stream_state,
+    _merge_node_state_into_cumulative,
+    cumulative_stream_state_from,
+)
+from co_scientist.state import WorkflowState
+
+if TYPE_CHECKING:
+    from co_scientist.generator.graph import CompiledWorkflow
+
+logger = logging.getLogger(__name__)
+
+# LangGraph super-step budget for one run: each node visit consumes a step,
+# so higher max-iteration runs need headroom well above LangGraph's default
+# of 25. Applied to every graph invocation (ainvoke and both astream paths).
+_GRAPH_RECURSION_LIMIT = 100
+
+
+class StreamExecutionMixin:
+    """Streaming/resume execution methods for ``HypothesisGenerator``.
+
+    The declarations under ``TYPE_CHECKING`` below are provided at runtime
+    by ``HypothesisGenerator`` (``generator.core``), which assigns the
+    attributes in its ``__init__`` and defines the methods directly or via
+    ``McpAvailabilityMixin``.
+    """
+
+    if TYPE_CHECKING:
+        _graph: "CompiledWorkflow | None"
+        enable_cache: bool | None
+        _tool_registry: Any
+
+        async def _prepare_generation(
+            self,
+            research_goal: str,
+            progress_callback: None
+            | (Callable[[str, dict[str, Any]], Awaitable[None]]) = None,
+            opts: dict[str, Any] | None = None,
+            run_id: str | None = None,
+        ) -> WorkflowState: ...
+
+        async def _resolve_literature_review_settings(
+            self,
+            opts: dict[str, Any],
+        ) -> tuple[bool, bool, bool]: ...
+
+        def _ensure_graph_built(
+            self, enable_literature_review_node: bool
+        ) -> None: ...
+
+    async def _generate_hypotheses_with_streaming(
+        self,
+        research_goal: str,
+        progress_callback: None
+        | (Callable[[str, dict[str, Any]], Awaitable[None]]) = None,
+        opts: dict[str, Any] | None = None,
+        run_id: str | None = None,
+        checkpoint_callback: None
+        | (Callable[[str, dict[str, Any]], Awaitable[None]]) = None,
+    ) -> AsyncIterator[tuple[str, dict[str, Any]]]:
+        """Internal method to handle streaming generation.
+
+        Yields (node_name, state_dict) tuples after each node completes.
+        """
+        with scoped_cache_override(self.enable_cache):
+            # Prepare generation (shared setup logic)
+            initial_state = await self._prepare_generation(
+                research_goal=research_goal,
+                progress_callback=progress_callback,
+                opts=opts,
+                run_id=run_id,
+            )
+
+            # Delegate to streaming implementation
+            async for node_name, state_dict in self._handle_streaming(
+                initial_state, checkpoint_callback=checkpoint_callback
+            ):
+                yield node_name, state_dict
+
+    async def _handle_streaming(
+        self,
+        initial_state: WorkflowState,
+        cumulative_seed: dict[str, Any] | None = None,
+        checkpoint_callback: None
+        | (Callable[[str, dict[str, Any]], Awaitable[None]]) = None,
+    ) -> AsyncIterator[tuple[str, dict[str, Any]]]:
+        """Internal method to handle streaming generation.
+
+        Args:
+            initial_state: Prepared workflow state
+            cumulative_seed: Optional pre-seeded cumulative state (used on
+                resume so streamed snapshots reflect the restored pool).
+            checkpoint_callback: Optional async hook invoked with
+                ``(node_name, full_state)`` after each node completes and
+                *before* that node's event is yielded, so a durable checkpoint
+                exists before the caller observes (and persists an event for)
+                the node. ``full_state`` is the complete post-node
+                ``WorkflowState`` (Milestone 4 resume boundary).
+
+        Yields:
+            Tuple of (node_name, state_dict) after each node completes
+        """
+        assert self._graph is not None  # built by _prepare_generation
+        # Maintain cumulative state across nodes
+        cumulative_state = (
+            cumulative_seed
+            if cumulative_seed is not None
+            else _initial_cumulative_stream_state()
+        )
+
+        if checkpoint_callback is None:
+            async for item in self._stream_updates_only(
+                initial_state, cumulative_state
+            ):
+                yield item
+            return
+
+        async for item in self._stream_with_checkpoints(
+            initial_state, cumulative_state, checkpoint_callback
+        ):
+            yield item
+
+    async def _stream_updates_only(
+        self,
+        initial_state: WorkflowState,
+        cumulative_state: dict[str, Any],
+    ) -> AsyncIterator[tuple[str, dict[str, Any]]]:
+        """Stream node updates without checkpointing (the default path)."""
+        assert self._graph is not None
+        try:
+            async for chunk in self._graph.astream(
+                initial_state,
+                config={"recursion_limit": _GRAPH_RECURSION_LIMIT},
+            ):
+                # Chunk is a dict with node names as keys
+                for node_name, node_state in chunk.items():
+                    logger.debug("streaming node: %s", node_name)
+                    _merge_node_state_into_cumulative(
+                        cumulative_state, node_state
+                    )
+                    state_dict = _build_stream_state_dict(cumulative_state)
+                    logger.debug("yielding state for node: %s", node_name)
+                    yield node_name, state_dict
+        except Exception as e:
+            logger.error(
+                "Hypothesis generation streaming failed: %s", e, exc_info=True
+            )
+            raise
+
+    async def _stream_with_checkpoints(
+        self,
+        initial_state: WorkflowState,
+        cumulative_state: dict[str, Any],
+        checkpoint_callback: Callable[[str, dict[str, Any]], Awaitable[None]],
+    ) -> AsyncIterator[tuple[str, dict[str, Any]]]:
+        """Stream node updates, checkpointing the full state before each yield.
+
+        Streams in ``["updates", "values"]`` mode so each super-step yields
+        both the node's incremental update (for the caller-facing snapshot,
+        built exactly as the default path does) and the full post-node
+        ``WorkflowState`` (for the checkpoint). LangGraph emits the ``updates``
+        item first, then the ``values`` item for the same step, so the full
+        state is checkpointed — before the node's event is yielded — once the
+        matching values item arrives.
+        """
+        assert self._graph is not None
+        pending: list[tuple[str, dict[str, Any]]] = []
+        try:
+            async for mode, data in self._graph.astream(
+                initial_state,
+                stream_mode=["updates", "values"],
+                config={"recursion_limit": _GRAPH_RECURSION_LIMIT},
+            ):
+                if mode == "updates":
+                    updates: dict[str, Any] = cast(dict[str, Any], data)
+                    for node_name, node_state in updates.items():
+                        logger.debug("streaming node: %s", node_name)
+                        _merge_node_state_into_cumulative(
+                            cumulative_state, node_state
+                        )
+                        pending.append(
+                            (
+                                node_name,
+                                _build_stream_state_dict(cumulative_state),
+                            )
+                        )
+                    continue
+                # mode == "values": the full post-super-step WorkflowState.
+                if not pending:
+                    # The initial values item (before any node) has no
+                    # pending node; nothing to checkpoint or yield yet.
+                    continue
+                full_state: dict[str, Any] = cast(dict[str, Any], data)
+                await checkpoint_callback(pending[-1][0], full_state)
+                for node_name, state_dict in pending:
+                    logger.debug("yielding state for node: %s", node_name)
+                    yield node_name, state_dict
+                pending = []
+        except Exception as e:
+            logger.error(
+                "Hypothesis generation streaming failed: %s", e, exc_info=True
+            )
+            raise
+
+    async def resume_hypotheses(
+        self,
+        restored_state: dict[str, Any],
+        progress_callback: None
+        | (Callable[[str, dict[str, Any]], Awaitable[None]]) = None,
+        opts: dict[str, Any] | None = None,
+        checkpoint_callback: None
+        | (Callable[[str, dict[str, Any]], Awaitable[None]]) = None,
+    ) -> AsyncIterator[tuple[str, dict[str, Any]]]:
+        """Resume a checkpoint-restored run, streaming remaining node outputs.
+
+        The restored state carries ``resume=True`` (from
+        ``checkpoint.restore_workflow_state``), so the graph re-enters at the
+        orchestrator loop point and continues without re-running completed
+        nodes. The streamed cumulative state is seeded from the restored pool
+        so snapshots reflect work already done (Milestone 4).
+
+        Args:
+            restored_state: A ``WorkflowState`` restored from a checkpoint.
+            progress_callback: Live progress callback to re-inject.
+            opts: Generation options (used to resolve the graph shape, e.g.
+                literature-review availability).
+            checkpoint_callback: Optional async hook invoked with
+                ``(node_name, full_state)`` after each remaining node, so a
+                re-interrupted resume stays recoverable.
+
+        Yields:
+            Tuple of (node_name, state_dict) after each remaining node.
+        """
+        opts = opts or {}
+        with scoped_cache_override(self.enable_cache):
+            (
+                _mcp_available,
+                _pubmed_available,
+                enable_literature_review_node,
+            ) = await self._resolve_literature_review_settings(opts)
+            self._ensure_graph_built(enable_literature_review_node)
+
+            restored_state["progress_callback"] = progress_callback
+            restored_state["tool_registry"] = self._tool_registry
+            restored_state["resume"] = True
+
+            cumulative_seed = cumulative_stream_state_from(restored_state)
+            async for node_name, state_dict in self._handle_streaming(
+                cast(WorkflowState, restored_state),
+                cumulative_seed,
+                checkpoint_callback=checkpoint_callback,
+            ):
+                yield node_name, state_dict

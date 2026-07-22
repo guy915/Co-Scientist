@@ -6,6 +6,10 @@ top. These tests drive a custom config written to ``tmp_path`` so behavior does
 not depend on the developer's home directory. A ``merge_strategy: replace`` in
 the custom config yields a registry containing *exactly* the test fixture, which
 lets us assert on precise parsed structures rather than "it loaded".
+
+The ``disabled_tools`` / search-source reconciliation cases live in
+``test_config_registry_tools.py``; the shared fixture config lives in
+``tests/_registry_config.py``.
 """
 
 import textwrap
@@ -21,74 +25,8 @@ from co_scientist.config.registry import (
     substitute_env_vars,
 )
 from co_scientist.exceptions import ConfigError
-
-# A self-contained config that fully replaces the bundled default
-# (``settings.merge_strategy: replace``), so the resulting registry contains
-# only the tools/servers/workflows defined here. Values are literal (no ${...}
-# placeholders) so env-var substitution is a no-op and the tests are
-# deterministic regardless of the environment.
-_REPLACE_CONFIG = textwrap.dedent("""
-    version: "2.0"
-    servers:
-      myserver:
-        url: "http://example.test/mcp"
-        transport: "streamable_http"
-        enabled: true
-      offserver:
-        url: "http://off.test/mcp"
-        enabled: false
-    tools:
-      search_tools:
-        alpha_search:
-          server: "myserver"
-          mcp_tool_name: "search_alpha"
-          display_name: "Alpha Search"
-          category: "search"
-          enabled: true
-        beta_search:
-          server: "myserver"
-          mcp_tool_name: "search_beta"
-          enabled: false
-      utility_tools:
-        gamma_util:
-          server: "myserver"
-          mcp_tool_name: "util_gamma"
-          enabled: true
-    workflows:
-      literature_review:
-        primary_search: "alpha_search"
-        fallback_search: "beta_search"
-        availability_check: "gamma_util"
-      draft_generation:
-        search_tools:
-          - "alpha_search"
-          - "beta_search"
-    enrichments:
-      - tool: "gamma_util"
-        output_key: "gamma_out"
-        enabled: true
-        workflow: "generation"
-      - tool: "alpha_search"
-        output_key: "alpha_out"
-        enabled: true
-        workflow: "reflection"
-      - tool: "beta_search"
-        output_key: "beta_out"
-        enabled: false
-        workflow: "generation"
-    prompts:
-      domain_context: "test domain context"
-      generation_guidance: "test generation guidance"
-    settings:
-      merge_strategy: "replace"
-    """)
-
-
-def _write_config(tmp_path: Path, body: str) -> str:
-    """Write ``body`` to a YAML file under ``tmp_path`` and return its path."""
-    path = tmp_path / "tools.yaml"
-    path.write_text(body, encoding="utf-8")
-    return str(path)
+from tests._registry_config import REPLACE_CONFIG as _REPLACE_CONFIG
+from tests._registry_config import write_config as _write_config
 
 
 @pytest.fixture()
@@ -265,134 +203,6 @@ def test_get_prompts_config_parses_domain_fields(
     assert prompts.generation_guidance == "test generation guidance"
     # Unset fields default to empty strings.
     assert prompts.review_guidance == ""
-
-
-# --- disabled_tools constructor argument ----------------------------------
-
-
-def test_disabled_tools_argument_flips_enabled(tmp_path: Path) -> None:
-    """``disabled_tools`` disables a tool that was enabled in the config."""
-    path = _write_config(tmp_path, _REPLACE_CONFIG)
-    registry = ToolRegistry(
-        config_path=path,
-        skip_user_config=True,
-        disabled_tools=["alpha_search"],
-    )
-    alpha = registry.get_tool("alpha_search")
-    assert alpha is not None and alpha.enabled is False
-    # With alpha disabled, the literature_review workflow drops to gamma only.
-    assert registry.get_tools_for_workflow("literature_review") == [
-        "gamma_util",
-    ]
-
-
-def test_disabled_tools_also_disables_its_search_source(
-    tmp_path: Path,
-) -> None:
-    """A disabled tool must not survive as a live search source.
-
-    The multi-source literature pipeline picks sources on
-    ``SearchSourceConfig.enabled`` and never consults the tool's own flag,
-    so a caller-disabled tool would otherwise keep being searched while the
-    workflow whitelists correctly dropped it -- the gap that let a
-    per-audience tool restriction leak into the literature review.
-    """
-    config = textwrap.dedent("""
-        version: "2.0"
-        servers:
-          myserver:
-            url: "http://example.test/mcp"
-            enabled: true
-        tools:
-          search_tools:
-            alpha_search:
-              server: "myserver"
-              mcp_tool_name: "search_alpha"
-              enabled: true
-            beta_search:
-              server: "myserver"
-              mcp_tool_name: "search_beta"
-              enabled: true
-        workflows:
-          literature_review:
-            search_sources:
-              - tool: "alpha_search"
-                papers_per_query: 4
-                enabled: true
-              - tool: "beta_search"
-                papers_per_query: 4
-                enabled: true
-    """)
-    path = _write_config(tmp_path, config)
-
-    enabled = ToolRegistry(config_path=path, skip_user_config=True)
-    workflow = enabled.get_workflow("literature_review")
-    assert workflow is not None
-    assert [s.tool for s in workflow.get_enabled_search_sources()] == [
-        "alpha_search",
-        "beta_search",
-    ]
-
-    restricted = ToolRegistry(
-        config_path=path,
-        skip_user_config=True,
-        disabled_tools=["alpha_search"],
-    )
-    restricted_workflow = restricted.get_workflow("literature_review")
-    assert restricted_workflow is not None
-    assert [
-        s.tool for s in restricted_workflow.get_enabled_search_sources()
-    ] == ["beta_search"]
-
-
-def test_yaml_disabled_or_missing_tool_disables_its_search_source(
-    tmp_path: Path,
-) -> None:
-    """Source flags are reconciled with tool flags however a tool is off.
-
-    ``disabled_tools`` is not the only way a source's tool can be dead: the
-    YAML itself may disable the tool while leaving the source enabled, or a
-    source may name a tool that was never defined. The load-time
-    reconciliation must cover those too, since the search phase trusts
-    ``get_enabled_search_sources()`` alone.
-    """
-    config = textwrap.dedent("""
-        version: "2.0"
-        servers:
-          myserver:
-            url: "http://example.test/mcp"
-            enabled: true
-        tools:
-          search_tools:
-            alpha_search:
-              server: "myserver"
-              mcp_tool_name: "search_alpha"
-              enabled: true
-            beta_search:
-              server: "myserver"
-              mcp_tool_name: "search_beta"
-              enabled: false
-        workflows:
-          literature_review:
-            search_sources:
-              - tool: "alpha_search"
-                papers_per_query: 4
-                enabled: true
-              - tool: "beta_search"
-                papers_per_query: 4
-                enabled: true
-              - tool: "ghost_search"
-                papers_per_query: 4
-                enabled: true
-    """)
-    path = _write_config(tmp_path, config)
-
-    registry = ToolRegistry(config_path=path, skip_user_config=True)
-    workflow = registry.get_workflow("literature_review")
-    assert workflow is not None
-    assert [s.tool for s in workflow.get_enabled_search_sources()] == [
-        "alpha_search",
-    ]
 
 
 # --- override merge strategy (default) ------------------------------------

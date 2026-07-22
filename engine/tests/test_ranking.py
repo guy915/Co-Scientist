@@ -1,6 +1,7 @@
 """Tests for ranking_node: the Elo pairwise tournament orchestration.
 
-The node's external dependency is ``call_llm_json``, invoked once per matchup
+The node's external dependency is ``call_llm_json`` (consumed in
+``ranking_debate``), invoked once per matchup
 via ``judge_matchup``. These tests stub that call so the judged winner is
 deterministic, then assert on the real Elo-update and win/loss bookkeeping the
 node performs, plus the recorded ``tournament_matchups`` it returns. The pure
@@ -11,7 +12,7 @@ from typing import Any
 
 import pytest
 
-from co_scientist.agents.ranking import ranking
+from co_scientist.agents.ranking import ranking, ranking_debate
 from co_scientist.agents.ranking.ranking import ranking_node
 from co_scientist.constants import (
     INITIAL_ELO_RATING,
@@ -23,7 +24,7 @@ from tests._state import make_hypothesis, make_state
 def _stub_winner_by_text(
     monkeypatch: pytest.MonkeyPatch, winner_text: str
 ) -> None:
-    """Patch ranking's call_llm_json to always elect ``winner_text``.
+    """Patch the debate judge's call_llm_json to always elect ``winner_text``.
 
     ``judge_matchup`` builds a prompt that embeds both hypotheses' texts in
     slot order (hypothesis "a" first, then "b") and reads ``response["winner"]``
@@ -51,7 +52,7 @@ def _stub_winner_by_text(
             "confidence_level": "High",
         }
 
-    monkeypatch.setattr(ranking, "call_llm_json", fake)
+    monkeypatch.setattr(ranking_debate, "call_llm_json", fake)
 
 
 def _other_text_pos(prompt: str, winner_text: str) -> int:
@@ -196,7 +197,7 @@ async def test_malformed_judge_response_uses_position_balanced_fallback(
     async def fake(**_: Any) -> dict[str, Any]:
         return {}
 
-    monkeypatch.setattr(ranking, "call_llm_json", fake)
+    monkeypatch.setattr(ranking_debate, "call_llm_json", fake)
 
     state = make_state(
         hypotheses=[
@@ -235,7 +236,7 @@ async def test_ranking_honors_tournament_pairs(
             "confidence_level": "High",
         }
 
-    monkeypatch.setattr(ranking, "call_llm_json", fake)
+    monkeypatch.setattr(ranking_debate, "call_llm_json", fake)
 
     state = make_state(hypotheses=hypotheses, tournament_pairs=5)
     result = await ranking_node(state)
@@ -305,7 +306,7 @@ async def test_undermined_hypothesis_cannot_enter_tournament(
             "confidence_level": "High",
         }
 
-    monkeypatch.setattr(ranking, "call_llm_json", fake)
+    monkeypatch.setattr(ranking_debate, "call_llm_json", fake)
     state = make_state(
         hypotheses=[undermined, non_novel, eligible_a, eligible_b],
         tournament_pairs=2,
@@ -375,7 +376,7 @@ def test_matchup_judging_survives_more_than_one_event_loop(
         await asyncio.sleep(0)
         return {"winner": "A", "reasoning": "because"}
 
-    monkeypatch.setattr(ranking, "call_llm_json", fake_call_llm_json)
+    monkeypatch.setattr(ranking_debate, "call_llm_json", fake_call_llm_json)
 
     async def judge_a_full_wave() -> None:
         """Force real contention so the semaphore has to wait."""

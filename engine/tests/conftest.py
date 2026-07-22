@@ -56,7 +56,7 @@ def _patch_mcp_seam(
     )
 
     from co_scientist import (
-        mcp_client as mcp_mod,
+        mcp_client_session as mcp_session_mod,
     )
     from co_scientist.mcp_client import (
         reset_mcp_client,
@@ -70,7 +70,7 @@ def _patch_mcp_seam(
         tools: ClassVar[list[StructuredTool]] = []
         error: Exception | None = None
 
-    monkeypatch.setattr(mcp_mod, "MultiServerMCPClient", _Fake)
+    monkeypatch.setattr(mcp_session_mod, "MultiServerMCPClient", _Fake)
     reset_mcp_client()
     yield _Fake
     reset_mcp_client()

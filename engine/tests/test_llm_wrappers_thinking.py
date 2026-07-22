@@ -1,0 +1,141 @@
+"""Tests for DeepSeek thinking-mode completion parameters.
+
+Split from ``test_llm_wrappers.py``: covers how
+``co_scientist.llm_request._build_completion_args`` maps the thinking
+opt-in/opt-out onto DeepSeek's native ``thinking`` object, DashScope's
+``enable_thinking`` boolean, and ``reasoning_effort`` -- plus the one
+engine node (the tournament matchup judge) that opts out end to end.
+"""
+
+from types import SimpleNamespace
+from typing import Any
+
+import pytest
+
+from tests._llm_fake import disable_llm_cache as _disable_cache
+from tests._llm_wrapper_fakes import (
+    make_completion as _completion,
+)
+from tests._llm_wrapper_fakes import (
+    make_message as _message,
+)
+
+# --- DeepSeek thinking mode --------------------------------------------------
+
+
+def test_thinking_enabled_by_default_for_deepseek() -> None:
+    """Every DeepSeek call thinks unless a call site opts out."""
+    from co_scientist.llm_request import _build_completion_args
+
+    args = _build_completion_args(
+        "prompt", "deepseek/deepseek-v4-flash", 100, 0.5, False, None
+    )
+
+    assert args["extra_body"] == {"thinking": {"type": "enabled"}}
+    assert args["reasoning_effort"] == "low"
+
+
+def test_thinking_disabled_drops_reasoning_effort() -> None:
+    """Opting out disables thinking explicitly and spends no reasoning.
+
+    ``reasoning_effort`` must not survive the opt-out: it would ask the
+    provider to size a reasoning budget for a call that does not reason.
+    """
+    from co_scientist.llm_request import _build_completion_args
+
+    args = _build_completion_args(
+        "prompt",
+        "deepseek/deepseek-v4-flash",
+        100,
+        0.5,
+        False,
+        None,
+        enable_thinking=False,
+    )
+
+    assert args["extra_body"] == {"thinking": {"type": "disabled"}}
+    assert "reasoning_effort" not in args
+
+
+def test_dashscope_deepseek_uses_enable_thinking_flag() -> None:
+    """DeepSeek-on-DashScope thinks via the provider's own boolean knob.
+
+    DashScope's compatible-mode endpoint ignores DeepSeek's native
+    ``thinking`` object and defaults thinking OFF, so the native format
+    would silently disable reasoning. It also has no ``reasoning_effort``
+    tiers.
+    """
+    from co_scientist.llm_request import _build_completion_args
+
+    args = _build_completion_args(
+        "prompt", "dashscope/deepseek-v4-flash", 100, 0.5, False, None
+    )
+
+    assert args["extra_body"] == {"enable_thinking": True}
+    assert "reasoning_effort" not in args
+
+
+def test_dashscope_deepseek_thinking_opt_out() -> None:
+    """The thinking opt-out maps to enable_thinking=False on DashScope."""
+    from co_scientist.llm_request import _build_completion_args
+
+    args = _build_completion_args(
+        "prompt",
+        "dashscope/deepseek-v4-pro",
+        100,
+        0.5,
+        False,
+        None,
+        enable_thinking=False,
+    )
+
+    assert args["extra_body"] == {"enable_thinking": False}
+    assert "reasoning_effort" not in args
+
+
+def test_thinking_params_absent_for_non_deepseek_models() -> None:
+    """The thinking params are DeepSeek-specific and never sent elsewhere."""
+    from co_scientist.llm_request import _build_completion_args
+
+    args = _build_completion_args(
+        "prompt", "gemini/gemini-2.5-flash", 100, 0.5, False, None
+    )
+
+    assert "extra_body" not in args
+    assert "reasoning_effort" not in args
+
+
+async def test_ranking_matchup_opts_out_of_thinking(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The O(n^2) tournament judge is the one engine node that skips thinking.
+
+    Asserted at the litellm seam through the real ``call_llm_json`` ->
+    ``call_llm`` chain, so the opt-out is verified end to end rather than at
+    the ranking call site alone.
+    """
+    import litellm
+
+    from co_scientist.agents.ranking.ranking import _call_matchup_judge
+
+    seen: dict[str, Any] = {}
+
+    async def fake_acompletion(*_args: Any, **kwargs: Any) -> SimpleNamespace:
+        seen.update(kwargs)
+        return _completion(_message('{"winner": "A"}'))
+
+    monkeypatch.setattr(litellm, "acompletion", fake_acompletion)
+    _disable_cache(monkeypatch)
+
+    await _call_matchup_judge(
+        "compare A and B",
+        None,
+        "deepseek/deepseek-v4-flash",
+        None,
+        None,
+        None,
+        None,
+    )
+
+    assert seen["extra_body"] == {"thinking": {"type": "disabled"}}
+    assert "reasoning_effort" not in seen

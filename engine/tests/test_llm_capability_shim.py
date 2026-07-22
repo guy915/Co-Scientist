@@ -13,7 +13,7 @@ Following ``test_llm_wrappers.py``, every network seam is mocked:
 ``litellm.acompletion`` is replaced with an async fake returning
 litellm-shaped ``SimpleNamespace`` objects, ``litellm.supports_response_schema``
 is replaced to force each capability branch, and caching is disabled by
-patching ``co_scientist.llm.get_cache``.
+patching ``co_scientist.llm_tool_loop.get_cache``.
 """
 
 import json

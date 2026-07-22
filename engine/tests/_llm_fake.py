@@ -1,8 +1,10 @@
 """Fakes for the ``litellm.acompletion`` boundary.
 
 Also exposes ``disable_llm_cache``, a small shared helper that patches
-``co_scientist.llm.get_cache`` to a disabled cache so the llm-wrapper and
-capability-shim unit tests always exercise the real completion path.
+``co_scientist.llm_tool_loop.get_cache`` (the module where the shared
+pre-call sequence ``_prepare_llm_call`` lives) to a disabled cache so the
+llm-wrapper and capability-shim unit tests always exercise the real
+completion path.
 
 Used by the integration and system tests to run the *real* compiled
 LangGraph workflow end-to-end with only the network boundary faked.
@@ -54,7 +56,7 @@ from typing import Any
 
 import pytest
 
-from co_scientist import cache, llm
+from co_scientist import cache, llm_tool_loop
 from co_scientist.cache import LLMCache
 from co_scientist.offline_llm import (
     _ARRAY_LENGTH_HINTS,
@@ -81,7 +83,7 @@ def _next_leaf() -> str:
 
 
 def disable_llm_cache(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Force ``llm.get_cache`` to hand back a disabled cache.
+    """Force ``llm_tool_loop.get_cache`` to hand back a disabled cache.
 
     A disabled ``LLMCache`` returns ``None`` from ``get`` and no-ops in
     ``set``, so the completion path always runs and nothing leaks between
@@ -90,7 +92,9 @@ def disable_llm_cache(monkeypatch: pytest.MonkeyPatch) -> None:
     Args:
         monkeypatch: The pytest monkeypatch fixture.
     """
-    monkeypatch.setattr(llm, "get_cache", lambda: LLMCache(enabled=False))
+    monkeypatch.setattr(
+        llm_tool_loop, "get_cache", lambda: LLMCache(enabled=False)
+    )
 
 
 async def _fake_acompletion(**kwargs: Any) -> Any:
