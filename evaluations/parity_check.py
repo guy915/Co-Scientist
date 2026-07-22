@@ -170,6 +170,82 @@ def _test_defined_in(file_path: pathlib.Path, test_name: str) -> bool:
     return f"def {test_name}(" in text
 
 
+def _check_continuation_token(
+    prefix: str,
+    token: str,
+    last_file: pathlib.Path | None,
+    repo_root: pathlib.Path,
+) -> tuple[int, list[str]]:
+    """Check a bare ``::test_name`` token against the last cited file.
+
+    Args:
+        prefix: The ``file:line: id`` error prefix for this row.
+        token: The backticked token, starting with ``::``.
+        last_file: The previously cited evidence file, if any.
+        repo_root: Directory that relative evidence paths resolve against.
+
+    Returns:
+        A ``(checked_increment, errors)`` pair.
+    """
+    if last_file is None:
+        return 0, []
+    name = token[2:]
+    if _test_defined_in(last_file, name):
+        return 1, []
+    return 0, [
+        f"{prefix} cites test {name!r} which is not defined "
+        f"in {last_file.relative_to(repo_root)}"
+    ]
+
+
+def _check_glob_token(
+    prefix: str, path_part: str, repo_root: pathlib.Path
+) -> tuple[int, list[str]]:
+    """Check a glob evidence token against the repo root."""
+    if any(repo_root.glob(path_part)):
+        return 1, []
+    return 0, [
+        f"{prefix} cites evidence glob {path_part!r} which "
+        f"matches no files under the repo root"
+    ]
+
+
+def _check_path_token(
+    prefix: str,
+    token: str,
+    repo_root: pathlib.Path,
+) -> tuple[int, pathlib.Path | None, list[str]]:
+    """Check one path/glob/nodeid token from a Test/Eval cell.
+
+    Returns a ``(checked_increment, cited_file, errors)`` triple;
+    ``cited_file`` is the resolved evidence file when the token named
+    one directly.
+    """
+    path_part, _, test_name = token.partition("::")
+    if not _looks_like_path(path_part):
+        return 0, None, []
+    if "*" in path_part:
+        found, glob_errors = _check_glob_token(prefix, path_part, repo_root)
+        return found, None, glob_errors
+    file_path = repo_root / path_part
+    if not file_path.is_file():
+        return (
+            0,
+            None,
+            [
+                f"{prefix} cites evidence file {path_part!r} which does "
+                f"not exist under the repo root"
+            ],
+        )
+    errors: list[str] = []
+    if test_name and not _test_defined_in(file_path, test_name):
+        errors.append(
+            f"{prefix} cites test {test_name!r} which is not defined "
+            f"in {path_part}"
+        )
+    return 1, file_path, errors
+
+
 def _evidence_errors(
     source: str,
     lineno: int,
@@ -179,23 +255,11 @@ def _evidence_errors(
 ) -> list[str]:
     """Validate the cited evidence of one ``verified`` row.
 
-    Extracts every backtick-quoted reference from the Test/Eval cell and
-    checks the ones that look like file references: plain paths and pytest
-    nodeids must point at an existing file (with the named test defined for
-    ``.py`` files), globs must match at least one file, and a bare
-    ``::test_name`` continuation is resolved against the previously cited
-    file. A ``verified`` row must yield at least one such checkable
-    reference.
-
-    Args:
-        source: The ledger file name, for error prefixes.
-        lineno: The row's 1-based line number in the ledger.
-        req_id: The requirement ID of the row.
-        cell: The raw Test/Eval cell text.
-        repo_root: Directory that relative evidence paths resolve against.
-
-    Returns:
-        Human-readable error strings (empty when the evidence checks out).
+    Checks every backtick-quoted reference that looks like a file
+    reference (path, glob, or pytest nodeid; a bare ``::test_name``
+    continues the previously cited file). A ``verified`` row must yield
+    at least one checkable reference. Returns human-readable error
+    strings (empty when the evidence checks out).
     """
     prefix = f"{source}:{lineno}: {req_id!r}"
     errors: list[str] = []
@@ -205,44 +269,15 @@ def _evidence_errors(
     for raw in _BACKTICK_RE.findall(cell):
         token = raw.strip()
         if token.startswith("::"):
-            # Continuation nodeid: another test in the last cited file.
-            if last_file is None:
-                continue
-            name = token[2:]
-            if _test_defined_in(last_file, name):
-                checked += 1
-            else:
-                errors.append(
-                    f"{prefix} cites test {name!r} which is not defined "
-                    f"in {last_file.relative_to(repo_root)}"
-                )
-            continue
-        path_part, _, test_name = token.partition("::")
-        if not _looks_like_path(path_part):
-            continue
-        if "*" in path_part:
-            if any(repo_root.glob(path_part)):
-                checked += 1
-            else:
-                errors.append(
-                    f"{prefix} cites evidence glob {path_part!r} which "
-                    f"matches no files under the repo root"
-                )
-            continue
-        file_path = repo_root / path_part
-        if not file_path.is_file():
-            errors.append(
-                f"{prefix} cites evidence file {path_part!r} which does "
-                f"not exist under the repo root"
+            found, errs = _check_continuation_token(
+                prefix, token, last_file, repo_root
             )
-            continue
-        checked += 1
-        last_file = file_path
-        if test_name and not _test_defined_in(file_path, test_name):
-            errors.append(
-                f"{prefix} cites test {test_name!r} which is not defined "
-                f"in {path_part}"
-            )
+        else:
+            found, cited, errs = _check_path_token(prefix, token, repo_root)
+            if cited is not None:
+                last_file = cited
+        checked += found
+        errors.extend(errs)
 
     if checked == 0 and not errors:
         errors.append(
@@ -253,24 +288,104 @@ def _evidence_errors(
     return errors
 
 
-def check_parity(
-    ledger_path: pathlib.Path | str = _DEFAULT_LEDGER,
-    repo_root: pathlib.Path | str = _REPO_ROOT,
-) -> CheckResult:
-    """Parse the ledger and collect any invariant violations.
+def _row_status_errors(
+    source: str,
+    lineno: int,
+    req_id: str,
+    status: str,
+    test_eval: str,
+    residual: str,
+    root: pathlib.Path,
+) -> list[str]:
+    """Return violations of one requirement row's status contract."""
+    errors: list[str] = []
+    if status == "verified":
+        if _cell_is_empty(test_eval):
+            errors.append(
+                f"{source}:{lineno}: {req_id!r} is 'verified' but "
+                f"names no test/eval evidence (Test/Eval cell is empty)"
+            )
+        else:
+            errors.extend(
+                _evidence_errors(source, lineno, req_id, test_eval, root)
+            )
 
-    Args:
-        ledger_path: Path to the PARITY.md file to check.
-        repo_root: Directory that cited evidence paths resolve against.
+    # A 'partial'/'missing' row must record what remains and who owns it.
+    # Downgrading a claim without naming the residual gap is the exact
+    # truth-drift the ledger exists to prevent.
+    if status in ("partial", "missing") and _cell_is_empty(residual):
+        errors.append(
+            f"{source}:{lineno}: {req_id!r} is {status!r} but records "
+            f"no residual gap / owner (the Residual gap cell is empty)"
+        )
+    return errors
 
-    Returns:
-        A :class:`CheckResult` with every parsed row and a list of
-        human-readable error strings (empty when the ledger is clean).
-    """
-    path = pathlib.Path(ledger_path)
-    root = pathlib.Path(repo_root)
-    text = path.read_text(encoding="utf-8")
 
+def _check_requirement_row(
+    source: str,
+    lineno: int,
+    cells: list[str],
+    header: tuple[int, int, int, int],
+    root: pathlib.Path,
+) -> tuple[Row | None, list[str]]:
+    """Parse one aligned data row into a Row plus its violations."""
+    id_idx, status_idx, test_idx, residual_idx = header
+    req_id = cells[id_idx].strip("` ")
+    status = cells[status_idx].strip().lower()
+    test_eval = cells[test_idx].strip() if test_idx >= 0 else ""
+    residual = cells[residual_idx].strip() if residual_idx >= 0 else ""
+    if not req_id or status not in ALLOWED_STATUSES:
+        # Not a requirement row (e.g. a legend/notes table); skip quietly
+        # unless it looks like one with a bad status.
+        if req_id and status and status not in ALLOWED_STATUSES:
+            return None, [
+                f"{source}:{lineno}: row {req_id!r} has unknown status "
+                f"{status!r} (allowed: {sorted(ALLOWED_STATUSES)})"
+            ]
+        return None, []
+    row = Row(req_id, status, test_eval, lineno)
+    return row, _row_status_errors(
+        source, lineno, req_id, status, test_eval, residual, root
+    )
+
+
+def _handle_data_row(
+    source: str,
+    lineno: int,
+    cells: list[str],
+    header: tuple[int, int, int, int],
+    expected_cols: int,
+    root: pathlib.Path,
+    rows: list[Row],
+    seen_ids: dict[str, int],
+) -> list[str]:
+    """Process one data row, appending to ``rows``; return its violations."""
+    # A misaligned row means a literal pipe inside a cell (or a missing
+    # cell) silently shifted columns — fail loudly instead of misparsing.
+    if len(cells) != expected_cols:
+        return [
+            f"{source}:{lineno}: row starting {cells[0]!r} has "
+            f"{len(cells)} columns, expected {expected_cols} (a literal "
+            f"'|' inside a cell?)"
+        ]
+    row, errors = _check_requirement_row(source, lineno, cells, header, root)
+    if row is None:
+        return errors
+    rows.append(row)
+    if row.req_id in seen_ids:
+        errors.append(
+            f"{source}:{lineno}: duplicate requirement ID {row.req_id!r} "
+            f"(first seen at line {seen_ids[row.req_id]})"
+        )
+    else:
+        seen_ids[row.req_id] = lineno
+    return errors
+
+
+def _parse_ledger_lines(
+    source: str, text: str, root: pathlib.Path
+) -> tuple[list[Row], list[str]]:
+    """Parse every ledger line into rows plus violations."""
     rows: list[Row] = []
     errors: list[str] = []
     seen_ids: dict[str, int] = {}
@@ -279,9 +394,7 @@ def check_parity(
 
     for lineno, line in enumerate(text.splitlines(), start=1):
         cells = _split_pipe_row(line)
-        if cells is None:
-            continue
-        if _is_separator_row(cells):
+        if cells is None or _is_separator_row(cells):
             continue
         maybe_header = _header_indexes(cells)
         if maybe_header is not None:
@@ -290,60 +403,34 @@ def check_parity(
             continue
         if header is None:
             continue
-        id_idx, status_idx, test_idx, residual_idx = header
-        # A misaligned row means a literal pipe inside a cell (or a missing
-        # cell) silently shifted columns — fail loudly instead of misparsing.
-        if len(cells) != expected_cols:
-            errors.append(
-                f"{path.name}:{lineno}: row starting {cells[0]!r} has "
-                f"{len(cells)} columns, expected {expected_cols} (a literal "
-                f"'|' inside a cell?)"
+        errors.extend(
+            _handle_data_row(
+                source,
+                lineno,
+                cells,
+                header,
+                expected_cols,
+                root,
+                rows,
+                seen_ids,
             )
-            continue
-        req_id = cells[id_idx].strip("` ")
-        status = cells[status_idx].strip().lower()
-        test_eval = cells[test_idx].strip() if test_idx >= 0 else ""
-        residual = cells[residual_idx].strip() if residual_idx >= 0 else ""
-        if not req_id or status not in ALLOWED_STATUSES:
-            # Not a requirement row (e.g. a legend/notes table); skip quietly
-            # unless it looks like one with a bad status.
-            if req_id and status and status not in ALLOWED_STATUSES:
-                errors.append(
-                    f"{path.name}:{lineno}: row {req_id!r} has unknown status "
-                    f"{status!r} (allowed: {sorted(ALLOWED_STATUSES)})"
-                )
-            continue
+        )
+    return rows, errors
 
-        rows.append(Row(req_id, status, test_eval, lineno))
 
-        if req_id in seen_ids:
-            errors.append(
-                f"{path.name}:{lineno}: duplicate requirement ID {req_id!r} "
-                f"(first seen at line {seen_ids[req_id]})"
-            )
-        else:
-            seen_ids[req_id] = lineno
+def check_parity(
+    ledger_path: pathlib.Path | str = _DEFAULT_LEDGER,
+    repo_root: pathlib.Path | str = _REPO_ROOT,
+) -> CheckResult:
+    """Parse the ledger at ``ledger_path`` into a :class:`CheckResult`.
 
-        if status == "verified":
-            if _cell_is_empty(test_eval):
-                errors.append(
-                    f"{path.name}:{lineno}: {req_id!r} is 'verified' but "
-                    f"names no test/eval evidence (Test/Eval cell is empty)"
-                )
-            else:
-                errors.extend(
-                    _evidence_errors(path.name, lineno, req_id, test_eval, root)
-                )
+    Cited evidence paths resolve against ``repo_root``.
+    """
+    path = pathlib.Path(ledger_path)
+    root = pathlib.Path(repo_root)
+    text = path.read_text(encoding="utf-8")
 
-        # A 'partial'/'missing' row must record what remains and who owns it.
-        # Downgrading a claim without naming the residual gap is the exact
-        # truth-drift the ledger exists to prevent.
-        if status in ("partial", "missing") and _cell_is_empty(residual):
-            errors.append(
-                f"{path.name}:{lineno}: {req_id!r} is {status!r} but records "
-                f"no residual gap / owner (the Residual gap cell is empty)"
-            )
-
+    rows, errors = _parse_ledger_lines(path.name, text, root)
     if not rows:
         errors.append(f"{path.name}: no requirement rows parsed")
 

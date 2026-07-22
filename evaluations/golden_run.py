@@ -233,6 +233,39 @@ def _sample_spans(spans: list[dict[str, Any]]) -> list[dict[str, Any]]:
     ]
 
 
+def _build_report(
+    run_id: str,
+    events: int,
+    collected: dict[str, Any],
+    assessment: dict[str, Any],
+) -> dict[str, Any]:
+    """Assemble the reproducibility report payload."""
+    report_row = collected["report"] or {}
+    return {
+        "goal": _GOAL,
+        "provider": "engine",
+        "model": os.environ["MODEL_NAME"],
+        "mcp_server_url": os.environ["MCP_SERVER_URL"],
+        "tools_config": os.environ["TOOLS_CONFIG"],
+        "claim_assessor": os.environ["CLAIM_ASSESSOR"],
+        "run_id": run_id,
+        "events_streamed": events,
+        "acceptance": assessment,
+        "evidence_sample": _sample_evidence(collected["evidence"]),
+        "support_span_sample": _sample_spans(
+            _support_passages(collected["claim_edges"])
+        ),
+        "report_hypothesis_count": (report_row.get("payload") or {}).get(
+            "hypothesis_count"
+        ),
+        "reproduce": (
+            "DEEPSEEK_API_KEY=... PYTHONPATH=engine/src:app "
+            ".venv/bin/python -m evaluations.golden_run"
+        ),
+        "captured_at": datetime.datetime.now().isoformat(timespec="seconds"),
+    }
+
+
 def run() -> dict[str, Any]:
     """Execute the golden run and return the reproducibility report."""
     tmp_db = tempfile.mkdtemp(prefix="golden-run-")
@@ -250,31 +283,7 @@ def run() -> dict[str, Any]:
     events = asyncio.run(_drive_run(run_row.id, db_path))
     collected = _collect(run_row.id, db_path)
     assessment = _assess(collected, tool_calls)
-
-    report_row = collected["report"] or {}
-    return {
-        "goal": _GOAL,
-        "provider": "engine",
-        "model": os.environ["MODEL_NAME"],
-        "mcp_server_url": os.environ["MCP_SERVER_URL"],
-        "tools_config": os.environ["TOOLS_CONFIG"],
-        "claim_assessor": os.environ["CLAIM_ASSESSOR"],
-        "run_id": run_row.id,
-        "events_streamed": events,
-        "acceptance": assessment,
-        "evidence_sample": _sample_evidence(collected["evidence"]),
-        "support_span_sample": _sample_spans(
-            _support_passages(collected["claim_edges"])
-        ),
-        "report_hypothesis_count": (report_row.get("payload") or {}).get(
-            "hypothesis_count"
-        ),
-        "reproduce": (
-            "DEEPSEEK_API_KEY=... PYTHONPATH=engine/src:app "
-            ".venv/bin/python -m evaluations.golden_run"
-        ),
-        "captured_at": datetime.datetime.now().isoformat(timespec="seconds"),
-    }
+    return _build_report(run_row.id, events, collected, assessment)
 
 
 def main() -> int:

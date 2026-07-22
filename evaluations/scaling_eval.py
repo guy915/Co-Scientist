@@ -29,6 +29,38 @@ def _verified_ratio(hypotheses: Sequence[dict[str, Any]]) -> float | None:
     return round(verified / total, 4) if total else None
 
 
+def _scaling_point(snapshot: dict[str, Any]) -> dict[str, Any]:
+    """Build one scaling-curve point from a single run snapshot."""
+    hypotheses = list(snapshot.get("hypotheses") or [])
+    ranked = sorted(
+        hypotheses,
+        key=lambda item: int(item.get("elo_rating", 0)),
+        reverse=True,
+    )
+    top = ranked[:10]
+    expert_scores = [
+        float(item["expert_score"])
+        for item in top
+        if item.get("expert_score") is not None
+    ]
+    metrics = snapshot.get("metrics") or {}
+    return {
+        "run_id": snapshot.get("run_id"),
+        "goal_id": snapshot.get("goal_id"),
+        "compute": {
+            "llm_calls": int(metrics.get("llm_calls", 0)),
+            "tasks": int(metrics.get("tasks", 0)),
+        },
+        "best_elo": (int(ranked[0].get("elo_rating", 0)) if ranked else None),
+        "top10_expert_quality": _mean(expert_scores),
+        "top10_diversity": hypothesis_diversity([_text(item) for item in top]),
+        "verified_claim_ratio": _verified_ratio(top),
+        "cost_usd": metrics.get("cost_usd"),
+        "latency_seconds": metrics.get("latency_seconds"),
+        "hypothesis_count": len(hypotheses),
+    }
+
+
 def scaling_curve(snapshots: Sequence[dict[str, Any]]) -> list[dict[str, Any]]:
     """Compute quality, diversity, grounding, cost, and latency by budget.
 
@@ -37,42 +69,7 @@ def scaling_curve(snapshots: Sequence[dict[str, Any]]) -> list[dict[str, Any]]:
     never treated as external quality ground truth; blinded ``expert_score`` is
     the independent quality field when available.
     """
-    points = []
-    for snapshot in snapshots:
-        hypotheses = list(snapshot.get("hypotheses") or [])
-        ranked = sorted(
-            hypotheses,
-            key=lambda item: int(item.get("elo_rating", 0)),
-            reverse=True,
-        )
-        top = ranked[:10]
-        expert_scores = [
-            float(item["expert_score"])
-            for item in top
-            if item.get("expert_score") is not None
-        ]
-        metrics = snapshot.get("metrics") or {}
-        points.append(
-            {
-                "run_id": snapshot.get("run_id"),
-                "goal_id": snapshot.get("goal_id"),
-                "compute": {
-                    "llm_calls": int(metrics.get("llm_calls", 0)),
-                    "tasks": int(metrics.get("tasks", 0)),
-                },
-                "best_elo": (
-                    int(ranked[0].get("elo_rating", 0)) if ranked else None
-                ),
-                "top10_expert_quality": _mean(expert_scores),
-                "top10_diversity": hypothesis_diversity(
-                    [_text(item) for item in top]
-                ),
-                "verified_claim_ratio": _verified_ratio(top),
-                "cost_usd": metrics.get("cost_usd"),
-                "latency_seconds": metrics.get("latency_seconds"),
-                "hypothesis_count": len(hypotheses),
-            }
-        )
+    points = [_scaling_point(snapshot) for snapshot in snapshots]
     return sorted(
         points,
         key=lambda item: (

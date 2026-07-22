@@ -89,6 +89,38 @@ class ExpertReviewValidationError(Exception):
     """Raised when an imported rating violates the schema."""
 
 
+def _parse_one_rating(raw: dict[str, Any]) -> ExpertRating:
+    """Validate one raw rating dict, failing closed on any violation."""
+    rater_id = str(raw.get("rater_id") or "")
+    item_id = str(raw.get("item_id") or "")
+    if not rater_id:
+        raise ExpertReviewValidationError("missing rater_id")
+    if not item_id:
+        raise ExpertReviewValidationError("missing item_id")
+    for axis in RATING_AXES:
+        value = raw.get(axis)
+        if not isinstance(value, int) or not 1 <= value <= 5:
+            raise ExpertReviewValidationError(
+                f"{axis} must be an integer in 1-5, got {value!r}"
+            )
+    rank = raw.get("preference_rank")
+    if not isinstance(rank, int) or rank < 1:
+        raise ExpertReviewValidationError(
+            f"preference_rank must be a positive integer, got {rank!r}"
+        )
+    return ExpertRating(
+        rater_id=rater_id,
+        item_id=item_id,
+        alignment=raw["alignment"],
+        plausibility=raw["plausibility"],
+        novelty=raw["novelty"],
+        testability=raw["testability"],
+        safety=raw["safety"],
+        impact=raw["impact"],
+        preference_rank=rank,
+    )
+
+
 def parse_ratings(payload: dict[str, Any]) -> list[ExpertRating]:
     """Validate and parse an imported expert-ratings payload.
 
@@ -112,42 +144,14 @@ def parse_ratings(payload: dict[str, Any]) -> list[ExpertRating]:
     ratings: list[ExpertRating] = []
     seen: set[tuple[str, str]] = set()
     for raw in payload.get("ratings", []):
-        rater_id = str(raw.get("rater_id") or "")
-        item_id = str(raw.get("item_id") or "")
-        if not rater_id:
-            raise ExpertReviewValidationError("missing rater_id")
-        if not item_id:
-            raise ExpertReviewValidationError("missing item_id")
-        identity = (rater_id, item_id)
+        rating = _parse_one_rating(raw)
+        identity = (rating.rater_id, rating.item_id)
         if identity in seen:
             raise ExpertReviewValidationError(
                 f"duplicate rating for rater/item {identity!r}"
             )
         seen.add(identity)
-        for axis in RATING_AXES:
-            value = raw.get(axis)
-            if not isinstance(value, int) or not 1 <= value <= 5:
-                raise ExpertReviewValidationError(
-                    f"{axis} must be an integer in 1-5, got {value!r}"
-                )
-        rank = raw.get("preference_rank")
-        if not isinstance(rank, int) or rank < 1:
-            raise ExpertReviewValidationError(
-                f"preference_rank must be a positive integer, got {rank!r}"
-            )
-        ratings.append(
-            ExpertRating(
-                rater_id=rater_id,
-                item_id=item_id,
-                alignment=raw["alignment"],
-                plausibility=raw["plausibility"],
-                novelty=raw["novelty"],
-                testability=raw["testability"],
-                safety=raw["safety"],
-                impact=raw["impact"],
-                preference_rank=rank,
-            )
-        )
+        ratings.append(rating)
     return ratings
 
 
@@ -187,21 +191,10 @@ def _wilson_interval(successes: int, total: int) -> list[float] | None:
     return [round(centre - margin, 4), round(centre + margin, 4)]
 
 
-def summarize_ratings(ratings: list[ExpertRating]) -> dict[str, Any]:
-    """Summarize a real panel with uncertainty and inter-rater agreement.
-
-    Agreement is reported as transparent pairwise exact and within-one-point
-    proportions across every co-rated item/axis, each with a Wilson interval.
-    No statistic is emitted when the panel has no co-rated items.
-    """
-    by_axis: dict[str, list[int]] = {axis: [] for axis in RATING_AXES}
-    co_ratings: dict[tuple[str, str], list[int]] = defaultdict(list)
-    for rating in ratings:
-        for axis in RATING_AXES:
-            value = int(getattr(rating, axis))
-            by_axis[axis].append(value)
-            co_ratings[(rating.item_id, axis)].append(value)
-
+def _pairwise_agreement(
+    co_ratings: dict[tuple[str, str], list[int]],
+) -> dict[str, Any]:
+    """Compute pairwise agreement statistics across co-rated item-axis pairs."""
     exact = 0
     within_one = 0
     comparisons = 0
@@ -220,6 +213,29 @@ def summarize_ratings(ratings: list[ExpertRating]) -> dict[str, Any]:
         }
 
     return {
+        "pairwise_comparisons": comparisons,
+        "exact": agreement(exact),
+        "within_one_point": agreement(within_one),
+        "method": "pairwise agreement across co-rated item-axis pairs",
+    }
+
+
+def summarize_ratings(ratings: list[ExpertRating]) -> dict[str, Any]:
+    """Summarize a real panel with uncertainty and inter-rater agreement.
+
+    Agreement is reported as transparent pairwise exact and within-one-point
+    proportions across every co-rated item/axis, each with a Wilson interval.
+    No statistic is emitted when the panel has no co-rated items.
+    """
+    by_axis: dict[str, list[int]] = {axis: [] for axis in RATING_AXES}
+    co_ratings: dict[tuple[str, str], list[int]] = defaultdict(list)
+    for rating in ratings:
+        for axis in RATING_AXES:
+            value = int(getattr(rating, axis))
+            by_axis[axis].append(value)
+            co_ratings[(rating.item_id, axis)].append(value)
+
+    return {
         "schema_version": SCHEMA_VERSION,
         "panel": {
             "rater_count": len({rating.rater_id for rating in ratings}),
@@ -230,10 +246,5 @@ def summarize_ratings(ratings: list[ExpertRating]) -> dict[str, Any]:
             axis: _mean_confidence_interval(values) if values else None
             for axis, values in by_axis.items()
         },
-        "inter_rater_agreement": {
-            "pairwise_comparisons": comparisons,
-            "exact": agreement(exact),
-            "within_one_point": agreement(within_one),
-            "method": "pairwise agreement across co-rated item-axis pairs",
-        },
+        "inter_rater_agreement": _pairwise_agreement(co_ratings),
     }

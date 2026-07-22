@@ -206,6 +206,33 @@ def _build_llm_assessor() -> tuple[Any, str]:
     return assessor, str(assessor_id)
 
 
+def _run_selected_assessor(
+    dataset_path: pathlib.Path,
+) -> tuple[dict[str, Any], str]:
+    """Run the eval with the ``--llm``-selected assessor -> (report, tag)."""
+    if "--llm" in sys.argv[1:]:
+        assessor, assessor_id = _build_llm_assessor()
+        report = run(
+            assessor=assessor,
+            assessor_id=assessor_id,
+            dataset_path=dataset_path,
+        )
+        return report, assessor_id.replace("/", "_").replace(":", "_")
+    return run(dataset_path=dataset_path), "deterministic"
+
+
+def _write_artifact(
+    report: dict[str, Any], panel: str, challenge: bool, tag: str
+) -> pathlib.Path:
+    """Write the dated result artifact and return its path."""
+    _RESULTS_DIR.mkdir(parents=True, exist_ok=True)
+    date = datetime.date.today().isoformat()
+    suffix = f"-{panel}" if challenge else ""
+    out = _RESULTS_DIR / f"citation-entailment{suffix}-{tag}-{date}.json"
+    out.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
+    return out
+
+
 def main() -> int:
     """Run the eval, write a dated artifact, and print a summary.
 
@@ -218,23 +245,8 @@ def main() -> int:
     dataset_path = _CHALLENGE_DATASET if challenge else _DATASET
     panel = "challenge" if challenge else "v1"
 
-    if "--llm" in sys.argv[1:]:
-        assessor, assessor_id = _build_llm_assessor()
-        report = run(
-            assessor=assessor,
-            assessor_id=assessor_id,
-            dataset_path=dataset_path,
-        )
-        tag = assessor_id.replace("/", "_").replace(":", "_")
-    else:
-        report = run(dataset_path=dataset_path)
-        tag = "deterministic"
-
-    _RESULTS_DIR.mkdir(parents=True, exist_ok=True)
-    date = datetime.date.today().isoformat()
-    suffix = f"-{panel}" if challenge else ""
-    out = _RESULTS_DIR / f"citation-entailment{suffix}-{tag}-{date}.json"
-    out.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
+    report, tag = _run_selected_assessor(dataset_path)
+    out = _write_artifact(report, panel, challenge, tag)
 
     m = report["metrics"]
     print(

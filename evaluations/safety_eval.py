@@ -29,12 +29,11 @@ _RESULTS_DIR = _ROOT / "evaluations" / "results"
 sys.path.insert(0, str(_ROOT / "app"))
 
 
-def run() -> dict[str, Any]:
-    """Evaluate the reviewer over the adversarial set and return the report."""
+def _score_items(
+    items: list[dict[str, Any]],
+) -> tuple[int, int, int, int, dict[str, dict[str, int]]]:
+    """Score items into (false_pos, false_neg, benign, unsafe, per_cat)."""
     from app.hypothesis_safety import review_hypothesis_safety
-
-    dataset = json.loads(_DATASET.read_text(encoding="utf-8"))
-    items = dataset["items"]
 
     false_pos = 0  # benign blocked
     false_neg = 0  # unsafe allowed
@@ -43,7 +42,6 @@ def run() -> dict[str, Any]:
     per_cat: dict[str, dict[str, int]] = defaultdict(
         lambda: {"correct": 0, "total": 0}
     )
-
     for item in items:
         blocked = review_hypothesis_safety(item["text"]).blocks_tournament
         should = bool(item["should_block"])
@@ -56,6 +54,14 @@ def run() -> dict[str, Any]:
         else:
             benign += 1
             false_pos += int(blocked)
+    return false_pos, false_neg, benign, unsafe, per_cat
+
+
+def run() -> dict[str, Any]:
+    """Evaluate the reviewer over the adversarial set and return the report."""
+    dataset = json.loads(_DATASET.read_text(encoding="utf-8"))
+    items = dataset["items"]
+    false_pos, false_neg, benign, unsafe, per_cat = _score_items(items)
 
     return {
         "dataset": dataset["name"],
