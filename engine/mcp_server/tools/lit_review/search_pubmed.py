@@ -247,6 +247,26 @@ def _log_entrez_read_generic_error(e: Exception, handle: Any) -> None:
     logger.debug("Full traceback:\n%s", traceback.format_exc())
 
 
+def _pubmed_article_url(doi: str | None, paper_id: str) -> str:
+    """Returns the best canonical URL for a PubMed article.
+
+    Args:
+        doi: The article DOI, if known.
+        paper_id: The PubMed id, used as a fallback.
+
+    Returns:
+        The DOI resolver link when a DOI is available, otherwise the
+        PubMed record page.
+    """
+    # Prefer the DOI resolver link when available since it points at the
+    # publisher's copy; fall back to the PubMed record page otherwise.
+    return (
+        f"https://doi.org/{doi}"
+        if doi
+        else f"https://pubmed.ncbi.nlm.nih.gov/{paper_id}/"
+    )
+
+
 def _fetch_pubmed_article(paper_id: str) -> Article:
     """Fetches and parses metadata for a single PubMed article.
 
@@ -272,14 +292,7 @@ def _fetch_pubmed_article(paper_id: str) -> Article:
     authors = _parse_pubmed_authors(article_data)
     doi = _parse_pubmed_doi(pubmed_article)
     venue, year = _parse_pubmed_venue_year(article_data)
-
-    # Prefer the DOI resolver link when available since it points at the
-    # publisher's copy; fall back to the PubMed record page otherwise.
-    url = (
-        f"https://doi.org/{doi}"
-        if doi
-        else f"https://pubmed.ncbi.nlm.nih.gov/{paper_id}/"
-    )
+    url = _pubmed_article_url(doi, paper_id)
 
     return Article(
         title=title,
@@ -413,6 +426,23 @@ def _parse_pubmed_venue_year(
     return venue, year
 
 
+def _esearch_pubmed_ids(query: str, max_papers: int) -> list[str]:
+    """Resolves a PubMed query to a list of article ids.
+
+    Args:
+        query: Search query for PubMed.
+        max_papers: Maximum number of ids to return.
+
+    Returns:
+        The list of PubMed ids matching the query (possibly empty).
+    """
+    results = _entrez_read(
+        Entrez.esearch(db="pubmed", term=query, retmax=max_papers)
+    )
+    id_list: list[str] = results.get("IdList", [])
+    return id_list
+
+
 def search_pubmed(query: str, max_papers: int = 10) -> str:
     """Searches PubMed for papers and returns Article objects with metadata.
 
@@ -431,10 +461,7 @@ def search_pubmed(query: str, max_papers: int = 10) -> str:
 
     try:
         # Step 1: esearch resolves the query to a list of PubMed ids.
-        results = _entrez_read(
-            Entrez.esearch(db="pubmed", term=query, retmax=max_papers)
-        )
-        id_list = results.get("IdList", [])
+        id_list = _esearch_pubmed_ids(query, max_papers)
 
         if not id_list:
             logger.warning("No results found for query: %s", query)

@@ -47,6 +47,40 @@ async def search_chembl(query: str, max_results: int = 10) -> dict[str, Any]:
     return {"source": "ChEMBL", "query": query, "records": records}
 
 
+def _uniprot_record(result: dict[str, Any]) -> dict[str, Any]:
+    """Normalize one UniProtKB result into a flat record.
+
+    Args:
+        result: A single entry from the UniProt search response.
+
+    Returns:
+        A record with accession, gene, protein name, organism, functional
+        summaries, and the entry URL.
+    """
+    genes = result.get("genes") or []
+    primary_gene = (
+        (genes[0].get("geneName") or {}).get("value") if genes else None
+    )
+    protein = result.get("proteinDescription") or {}
+    recommended = protein.get("recommendedName") or {}
+    protein_name = (recommended.get("fullName") or {}).get("value")
+    return {
+        "accession": result.get("primaryAccession"),
+        "gene": primary_gene,
+        "protein_name": protein_name,
+        "organism": (result.get("organism") or {}).get("scientificName"),
+        "functions": [
+            comment.get("texts", [{}])[0].get("value")
+            for comment in result.get("comments") or []
+            if comment.get("commentType") == "FUNCTION" and comment.get("texts")
+        ],
+        "url": (
+            "https://www.uniprot.org/uniprotkb/"
+            f"{result.get('primaryAccession')}/entry"
+        ),
+    }
+
+
 async def search_uniprot(query: str, max_results: int = 10) -> dict[str, Any]:
     """Search reviewed UniProtKB protein records with functional summaries.
 
@@ -66,35 +100,8 @@ async def search_uniprot(query: str, max_results: int = 10) -> dict[str, Any]:
     async with httpx.AsyncClient(timeout=30) as client:
         response = await client.get(_UNIPROT_URL, params=params)
         response.raise_for_status()
-    records = []
-    for result in (response.json().get("results") or [])[:limit]:
-        genes = result.get("genes") or []
-        primary_gene = (
-            (genes[0].get("geneName") or {}).get("value") if genes else None
-        )
-        protein = result.get("proteinDescription") or {}
-        recommended = protein.get("recommendedName") or {}
-        protein_name = (recommended.get("fullName") or {}).get("value")
-        records.append(
-            {
-                "accession": result.get("primaryAccession"),
-                "gene": primary_gene,
-                "protein_name": protein_name,
-                "organism": (result.get("organism") or {}).get(
-                    "scientificName"
-                ),
-                "functions": [
-                    comment.get("texts", [{}])[0].get("value")
-                    for comment in result.get("comments") or []
-                    if comment.get("commentType") == "FUNCTION"
-                    and comment.get("texts")
-                ],
-                "url": (
-                    "https://www.uniprot.org/uniprotkb/"
-                    f"{result.get('primaryAccession')}/entry"
-                ),
-            }
-        )
+    results = (response.json().get("results") or [])[:limit]
+    records = [_uniprot_record(result) for result in results]
     return {
         "source": "UniProtKB/Swiss-Prot",
         "query": query,

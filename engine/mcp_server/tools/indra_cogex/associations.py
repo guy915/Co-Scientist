@@ -38,38 +38,57 @@ async def query_gene_disease_network(
         Dict with associated entities, counts, and query metadata.
     """
     try:
-        # Convert "NAMESPACE:id" into the [namespace, id] pair CoGex
-        # expects.
-        curie = parse_id(identifier)
-        result: dict[str, Any] = {
-            "query": {"identifier": identifier, "entity_type": entity_type},
-        }
-
-        if entity_type == "disease":
-            disease_result = await _fetch_genes_for_disease(
-                curie, include_variants, max_results
-            )
-            result.update(disease_result)
-        elif entity_type == "gene":
-            gene_result = await _fetch_diseases_for_gene(
-                curie, include_variants, max_results
-            )
-            result.update(gene_result)
-        else:
-            entity_err = f"invalid entity_type '{entity_type}'"
-            return {"error": f"{entity_err}, use 'disease' or 'gene'"}
-
-        return result
-
-    # Any failure (bad identifier, network error, API error) is converted
-    # into a structured error payload rather than raised, since this
-    # function is an MCP tool endpoint and must always return a dict.
+        return await _run_gene_disease_network(
+            identifier, entity_type, include_variants, max_results
+        )
+    # Any failure (bad identifier, network error, API error) becomes a
+    # structured error payload rather than being raised, since this backs
+    # an MCP tool endpoint that must always return a dict.
     except Exception as e:
         logger.error("query_gene_disease_network failed: %s", e)
         return {
             "error": str(e),
             "query": {"identifier": identifier, "entity_type": entity_type},
         }
+
+
+async def _run_gene_disease_network(
+    identifier: str,
+    entity_type: str,
+    include_variants: bool,
+    max_results: int,
+) -> dict[str, Any]:
+    """Routes a gene-disease query to the disease or gene path.
+
+    Args:
+        identifier: Entity in "NAMESPACE:id" format.
+        entity_type: "disease" to find genes, "gene" to find diseases.
+        include_variants: Also return associated genetic variants.
+        max_results: Max results per category.
+
+    Returns:
+        Dict with associated entities and query metadata, or an error
+        payload for an invalid entity_type.
+    """
+    # Convert "NAMESPACE:id" into the [namespace, id] pair CoGex expects.
+    curie = parse_id(identifier)
+    result: dict[str, Any] = {
+        "query": {"identifier": identifier, "entity_type": entity_type},
+    }
+
+    if entity_type == "disease":
+        result.update(
+            await _fetch_genes_for_disease(curie, include_variants, max_results)
+        )
+    elif entity_type == "gene":
+        result.update(
+            await _fetch_diseases_for_gene(curie, include_variants, max_results)
+        )
+    else:
+        entity_err = f"invalid entity_type '{entity_type}'"
+        return {"error": f"{entity_err}, use 'disease' or 'gene'"}
+
+    return result
 
 
 async def _fetch_genes_for_disease(

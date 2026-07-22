@@ -88,6 +88,99 @@ async def _extract_fulltexts(
     return sum(await asyncio.gather(*extractions))
 
 
+def _pubmed_cache_dir() -> Path:
+    """Returns the literature-review cache root, creating it if needed.
+
+    Returns:
+        The directory configured by COSCIENTIST_LIT_REVIEW_DIR (default
+        ``./cache/literature_review``), guaranteed to exist.
+    """
+    # Entrez credentials are configured at import time by literature_review.
+    lit_review_dir = Path(
+        os.getenv("COSCIENTIST_LIT_REVIEW_DIR", "./cache/literature_review")
+    )
+    lit_review_dir.mkdir(parents=True, exist_ok=True)
+    return lit_review_dir
+
+
+def _fulltext_run_dir(
+    lit_review_dir: Path, slug: str, run_id: str | None
+) -> Path:
+    """Returns the directory holding cached fulltext HTML for a run.
+
+    Args:
+        lit_review_dir: Literature-review cache root.
+        slug: Snake_case identifier for organizing results.
+        run_id: Unique run identifier, or None for the shared pool.
+
+    Returns:
+        The per-run symlinked directory when ``run_id`` is given, otherwise
+        the shared slug directory.
+    """
+    # Fulltext HTML lives under the per-run symlinked directory when a
+    # run_id is given, otherwise fall back to the shared slug directory.
+    base_dir = lit_review_dir / "pubmed" / slug
+    return base_dir / "runs" / run_id if run_id else base_dir
+
+
+async def _run_pubmed_search(
+    lit_review_dir: Path,
+    query: str,
+    slug: str,
+    max_papers: int,
+    recency_years: int,
+    run_id: str | None,
+) -> dict[str, dict[str, Any]]:
+    """Runs the PubMed search against the on-disk cache.
+
+    Args:
+        lit_review_dir: Literature-review cache root.
+        query: PubMed boolean query (AND/OR/NOT operators).
+        slug: Snake_case identifier for organizing results.
+        max_papers: Maximum papers to retrieve.
+        recency_years: Filter to papers from last N years (0 = no filter).
+        run_id: Unique run identifier, enabling per-run tracking.
+
+    Returns:
+        Dict mapping paper_id to metadata for the matched papers.
+    """
+    # PubmedSource owns the on-disk cache under lit_review_dir/pubmed; see
+    # its shared-pool layout described in the module docstring above.
+    pubmed_source = PubmedSource(lit_review_dir / "pubmed")
+    logger.info(
+        "Searching pubmed with query: %s, slug: %s, run_id: %s, "
+        "max_papers: %s, recency_years: %s",
+        query,
+        slug,
+        run_id,
+        max_papers,
+        recency_years,
+    )
+    results = await pubmed_source.pubmed_search(
+        query, slug, max_papers, recency_years, run_id
+    )
+    logger.info("Pubmed search complete - found %s papers", len(results))
+    return results
+
+
+async def _attach_fulltexts(
+    results: dict[str, dict[str, Any]], run_dir: Path
+) -> None:
+    """Extracts and attaches fulltext to matched papers, logging the count.
+
+    Args:
+        results: Mapping of paper_id to metadata; mutated in place with a
+            "fulltext" key where extraction succeeds.
+        run_dir: Directory containing the cached fulltext HTML files.
+    """
+    papers_with_fulltext = await _extract_fulltexts(results, run_dir)
+    logger.info(
+        "Extracted fulltext for %s/%s papers",
+        papers_with_fulltext,
+        len(results),
+    )
+
+
 async def pubmed_search_with_fulltext(
     query: str,
     slug: str,
@@ -114,45 +207,14 @@ async def pubmed_search_with_fulltext(
         Dict mapping paper_id to metadata (title, abstract, authors, doi,
         pmc_full_text_id, etc.).
     """
-    # Entrez credentials are configured at import time by literature_review.
-    lit_review_dir = Path(
-        os.getenv("COSCIENTIST_LIT_REVIEW_DIR", "./cache/literature_review")
-    )
-    lit_review_dir.mkdir(parents=True, exist_ok=True)
-
-    # PubmedSource owns the on-disk cache under lit_review_dir/pubmed; see
-    # its shared-pool layout described in the module docstring above.
-    pubmed_source = PubmedSource(lit_review_dir / "pubmed")
-
-    # Fetch papers with fulltexts (pass run_id for per-run tracking)
-    logger.info(
-        "Searching pubmed with query: %s, slug: %s, run_id: %s, "
-        "max_papers: %s, recency_years: %s",
-        query,
-        slug,
-        run_id,
-        max_papers,
-        recency_years,
-    )
-    results = await pubmed_source.pubmed_search(
-        query, slug, max_papers, recency_years, run_id
+    lit_review_dir = _pubmed_cache_dir()
+    results = await _run_pubmed_search(
+        lit_review_dir, query, slug, max_papers, recency_years, run_id
     )
 
-    logger.info("Pubmed search complete - found %s papers", len(results))
-
-    # Extract fulltext from HTML and add to metadata
-    # Fulltext HTML lives under the per-run symlinked directory when a
-    # run_id is given, otherwise fall back to the shared slug directory.
-    base_dir = lit_review_dir / "pubmed" / slug
-    run_dir = base_dir / "runs" / run_id if run_id else base_dir
-
-    papers_with_fulltext = await _extract_fulltexts(results, run_dir)
-
-    logger.info(
-        "Extracted fulltext for %s/%s papers",
-        papers_with_fulltext,
-        len(results),
-    )
+    # Extract fulltext from HTML and add to metadata.
+    run_dir = _fulltext_run_dir(lit_review_dir, slug, run_id)
+    await _attach_fulltexts(results, run_dir)
 
     # `results` metadata dicts were mutated in place by extract_fulltext,
     # so the fulltext (where available) is already attached here.

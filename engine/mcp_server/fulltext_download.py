@@ -67,6 +67,56 @@ class _FulltextMixin(_EntrezClient):
                 break
         return "".join(text)
 
+    def _read_or_fetch_fulltext(self, fulltext_file: Path, pmc_id: str) -> str:
+        """Returns a paper's fulltext, reusing the shared-pool copy if present.
+
+        Args:
+            fulltext_file: Shared-pool path where the fulltext is cached.
+            pmc_id: PMC article identifier to download when not cached.
+
+        Returns:
+            The fulltext contents, read from disk when already cached or
+            freshly downloaded and written to the shared pool otherwise.
+        """
+        if fulltext_file.exists():
+            logger.info("Fulltext %s found in shared pool, reusing", pmc_id)
+            with open(fulltext_file, encoding="utf-8") as f:
+                return f.read()
+        contents = self._download_pmc_fulltext(pmc_id)
+        with open(fulltext_file, "w", encoding="utf-8") as f:
+            f.write(contents)
+        logger.info("Downloaded and saved fulltext %s to shared pool", pmc_id)
+        return contents
+
+    def _store_fulltext(
+        self, pmc_id: str, slug: str, run_id: str | None
+    ) -> str:
+        """Fetches a PMC fulltext into the shared pool and links it per-run.
+
+        Args:
+            pmc_id: PMC article identifier.
+            slug: Identifier for organizing results.
+            run_id: Unique run identifier for per-run symlink creation, or
+                None to skip the symlink.
+
+        Returns:
+            The fulltext contents of the paper.
+        """
+        # Check shared pool first
+        base_dir = self.qualified_path / slug
+        shared_dir = base_dir / "shared"
+        shared_dir.mkdir(parents=True, exist_ok=True)
+        fulltext_file = shared_dir / f"{pmc_id}.fulltext.html"
+
+        contents = self._read_or_fetch_fulltext(fulltext_file, pmc_id)
+
+        # Create symlink into the per-run directory if one was requested.
+        if run_id:
+            run_dir = base_dir / "runs" / run_id
+            run_dir.mkdir(parents=True, exist_ok=True)
+            _symlink_into_run(run_dir, f"{pmc_id}.fulltext.html")
+        return contents
+
     def get_pubmed_fulltext(
         self, pmc_id: str, slug: str, run_id: str | None = None
     ) -> str | None:
@@ -88,32 +138,7 @@ class _FulltextMixin(_EntrezClient):
             fails.
         """
         try:
-            # Check shared pool first
-            base_dir = self.qualified_path / slug
-            shared_dir = base_dir / "shared"
-            shared_dir.mkdir(parents=True, exist_ok=True)
-            fulltext_file = shared_dir / f"{pmc_id}.fulltext.html"
-
-            # Reuse the shared-pool copy if present, otherwise download once.
-            if fulltext_file.exists():
-                logger.info("Fulltext %s found in shared pool, reusing", pmc_id)
-                with open(fulltext_file, encoding="utf-8") as f:
-                    contents = f.read()
-            else:
-                contents = self._download_pmc_fulltext(pmc_id)
-                with open(fulltext_file, "w", encoding="utf-8") as f:
-                    f.write(contents)
-                logger.info(
-                    "Downloaded and saved fulltext %s to shared pool", pmc_id
-                )
-
-            # Create symlink into the per-run directory if one was requested.
-            if run_id:
-                run_dir = base_dir / "runs" / run_id
-                run_dir.mkdir(parents=True, exist_ok=True)
-                _symlink_into_run(run_dir, f"{pmc_id}.fulltext.html")
-
-            return contents
+            return self._store_fulltext(pmc_id, slug, run_id)
         except Exception as e:
             logger.error(
                 "Failed to download PMC fulltext for %s: %s: %s",
@@ -123,6 +148,35 @@ class _FulltextMixin(_EntrezClient):
             )
             logger.debug(traceback.format_exc())
             return None
+
+    async def _download_one_fulltext(
+        self,
+        paper_id: str,
+        all_details: dict[str, Any],
+        slug: str,
+        run_id: str | None,
+        semaphore: "asyncio.Semaphore",
+    ) -> None:
+        """Downloads fulltext for a single paper to the shared pool.
+
+        Args:
+            paper_id: PubMed article ID to download fulltext for.
+            all_details: Metadata dict keyed by paper_id, used to look up the
+                paper's PMC fulltext ID.
+            slug: Identifier for organizing results.
+            run_id: Unique run identifier for per-run symlink creation.
+            semaphore: Concurrency limiter, shared with the metadata fetch
+                phase.
+        """
+        # Imported locally, matching the other async helpers in this class.
+        import asyncio
+
+        async with semaphore:
+            pmc_id = all_details[paper_id]["pmc_full_text_id"]
+            # get_pubmed_fulltext is synchronous, run in executor
+            await asyncio.get_event_loop().run_in_executor(
+                None, self.get_pubmed_fulltext, pmc_id, slug, run_id
+            )
 
     async def _download_fulltexts_for_papers(
         self,
@@ -143,27 +197,20 @@ class _FulltextMixin(_EntrezClient):
             semaphore: Concurrency limiter, shared with the metadata fetch
                 phase.
         """
+        if not papers_to_use:
+            return
         # Imported locally, matching the other async helpers in this class.
         import asyncio
 
-        async def download_fulltext(paper_id: str) -> None:
-            """Downloads fulltext for a single paper to shared pool.
-
-            Args:
-                paper_id: PubMed article ID to download fulltext for.
-            """
-            async with semaphore:
-                pmc_id = all_details[paper_id]["pmc_full_text_id"]
-                # get_pubmed_fulltext is synchronous, run in executor
-                await asyncio.get_event_loop().run_in_executor(
-                    None, self.get_pubmed_fulltext, pmc_id, slug, run_id
+        logger.info(
+            "Downloading %s fulltexts in parallel (max 3 concurrent)",
+            len(papers_to_use),
+        )
+        await asyncio.gather(
+            *[
+                self._download_one_fulltext(
+                    pid, all_details, slug, run_id, semaphore
                 )
-
-        if papers_to_use:
-            logger.info(
-                "Downloading %s fulltexts in parallel (max 3 concurrent)",
-                len(papers_to_use),
-            )
-            await asyncio.gather(
-                *[download_fulltext(pid) for pid in papers_to_use]
-            )
+                for pid in papers_to_use
+            ]
+        )

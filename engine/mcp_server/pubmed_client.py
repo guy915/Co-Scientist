@@ -65,6 +65,73 @@ def _extract_doi(pubmed_article: dict[str, Any]) -> str:
     )
 
 
+def _parse_date_revised(citation: dict[str, Any]) -> str:
+    """Formats a citation's DateRevised as "YYYY/M/D".
+
+    Args:
+        citation: Entrez-parsed ``MedlineCitation`` mapping.
+
+    Returns:
+        The revision date joined as "YYYY/M/D" with no zero-padding, to
+        match the split-and-index expression this field is consumed with
+        elsewhere (e.g. field_mapping "date_revised|split:/|index:0|int" to
+        pull out just the year).
+    """
+    # Entrez.read parses DateRevised into a dict-like with separate
+    # Year/Month/Day string fields.
+    date_revised_raw = citation["DateRevised"]
+    return "{}/{}/{}".format(
+        *[str(date_revised_raw[field]) for field in ["Year", "Month", "Day"]]
+    )
+
+
+def _extract_abstract(article: dict[str, Any]) -> str:
+    """Extracts and joins an article's abstract text.
+
+    Args:
+        article: Entrez-parsed ``Article`` mapping.
+
+    Returns:
+        The abstract text with any labeled sections joined into one string,
+        or "<not found>" when the article carries no abstract.
+    """
+    try:
+        # Some articles split the abstract into multiple labeled sections
+        # (Background, Methods, ...); join them into one string. Articles
+        # with no abstract omit the key entirely.
+        return " ".join(article["Abstract"]["AbstractText"])
+    except KeyError:
+        return "<not found>"
+
+
+def _apply_recency_filter(
+    search_params: dict[str, Any], recency_years: int
+) -> None:
+    """Adds a publication-date window to PubMed search params in place.
+
+    Args:
+        search_params: esearch parameter dict to mutate.
+        recency_years: Number of years back from the current year to keep;
+            values of 0 or less leave the params unchanged.
+    """
+    if recency_years <= 0:
+        return
+    # Imported locally since it is only needed for this branch.
+    from datetime import datetime
+
+    current_year = datetime.now().year
+    min_year = current_year - recency_years
+    search_params["mindate"] = f"{min_year}/01/01"
+    search_params["maxdate"] = f"{current_year}/12/31"
+    search_params["datetype"] = "pdat"  # filter by publication date
+    logger.debug(
+        "applying recency filter: %s-%s (last %s years)",
+        min_year,
+        current_year,
+        recency_years,
+    )
+
+
 class _EntrezClient:
     """PubMed source base: Entrez search and per-paper metadata primitives."""
 
@@ -142,40 +209,15 @@ class _EntrezClient:
         citation = pubmed_article["MedlineCitation"]
         article = citation["Article"]
 
-        # Entrez.read parses DateRevised into a dict-like with separate
-        # Year/Month/Day string fields; join them into "YYYY/M/D" (no
-        # zero-padding) to match the split-and-index expression this field
-        # is consumed with elsewhere (e.g. field_mapping "date_revised|
-        # split:/|index:0|int" to pull out just the year).
-        date_revised_raw = citation["DateRevised"]
-        date_revised = "{}/{}/{}".format(
-            *[
-                str(date_revised_raw[field])
-                for field in ["Year", "Month", "Day"]
-            ]
-        )
-        try:
-            # Some articles split the abstract into multiple labeled
-            # sections (Background, Methods, ...); join them into one
-            # string. Articles with no abstract omit the key entirely.
-            abstract = " ".join(article["Abstract"]["AbstractText"])
-        except KeyError:
-            abstract = "<not found>"
-
-        title = article["ArticleTitle"]
-        authors = _parse_authors(article)
         doi = _extract_doi(pubmed_article)
-        publication = article["Journal"]["Title"]
-        pmc_full_text = self._fetch_pmc_fulltext_id(paper_id, doi)
-
         return {
-            "date_revised": date_revised,
-            "title": title,
-            "abstract": abstract,
+            "date_revised": _parse_date_revised(citation),
+            "title": article["ArticleTitle"],
+            "abstract": _extract_abstract(article),
             "doi": doi,
-            "authors": authors,
-            "publication": publication,
-            "pmc_full_text_id": pmc_full_text,
+            "authors": _parse_authors(article),
+            "publication": article["Journal"]["Title"],
+            "pmc_full_text_id": self._fetch_pmc_fulltext_id(paper_id, doi),
         }
 
     def pubmed_search_ids(
@@ -191,29 +233,13 @@ class _EntrezClient:
         Returns:
             List of PubMed IDs sorted by publication date (most recent first).
         """
-        search_params = {
+        search_params: dict[str, Any] = {
             "db": "pubmed",
             "term": query,
             "retmax": retmax,
             "sort": "pub_date",
         }
-
-        # Add recency filter if specified
-        if recency_years > 0:
-            # Imported locally since it is only needed for this branch.
-            from datetime import datetime
-
-            current_year = datetime.now().year
-            min_year = current_year - recency_years
-            search_params["mindate"] = f"{min_year}/01/01"
-            search_params["maxdate"] = f"{current_year}/12/31"
-            search_params["datetype"] = "pdat"  # filter by publication date
-            logger.debug(
-                "applying recency filter: %s-%s (last %s years)",
-                min_year,
-                current_year,
-                recency_years,
-            )
+        _apply_recency_filter(search_params, recency_years)
 
         logger.debug("searching pubmed with sort=pub_date (most recent first)")
         results = self.entrez_read(Entrez.esearch(**search_params))

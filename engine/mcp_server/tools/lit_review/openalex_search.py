@@ -265,6 +265,36 @@ def _next_cursor(data: Any) -> str | None:
     return str(cursor) if cursor else None
 
 
+async def _collect_openalex_works(
+    params: dict[str, str], per_page: int, max_papers: int
+) -> dict[str, Any]:
+    """Pages through OpenAlex works up to ``max_papers``.
+
+    Args:
+        params: Query parameters for the works endpoint; mutated with the
+            page size and cursor as pagination proceeds.
+        per_page: Base page size requested from OpenAlex.
+        max_papers: Maximum number of works to collect.
+
+    Returns:
+        A dict of normalized works, at most ``max_papers`` entries.
+    """
+    collected: dict[str, Any] = {}
+    async with httpx.AsyncClient(timeout=30) as client:
+        while len(collected) < max(max_papers, 0):
+            params["per_page"] = str(min(per_page, max_papers - len(collected)))
+            resp = await client.get(_OPENALEX_WORKS_URL, params=params)
+            resp.raise_for_status()
+            data = resp.json()
+            page = normalize_works(data, max_papers - len(collected))
+            collected.update(page)
+            cursor = _next_cursor(data)
+            if not page or not cursor:
+                break
+            params["cursor"] = cursor
+    return collected
+
+
 async def search_openalex(
     query: str,
     max_papers: int = 10,
@@ -285,27 +315,11 @@ async def search_openalex(
         literature-review node degrades gracefully.
     """
     params, per_page = _build_search_params(query, max_papers, recency_years)
-
-    collected: dict[str, Any] = {}
     try:
-        async with httpx.AsyncClient(timeout=30) as client:
-            while len(collected) < max(max_papers, 0):
-                params["per_page"] = str(
-                    min(per_page, max_papers - len(collected))
-                )
-                resp = await client.get(_OPENALEX_WORKS_URL, params=params)
-                resp.raise_for_status()
-                data = resp.json()
-                page = normalize_works(data, max_papers - len(collected))
-                collected.update(page)
-                cursor = _next_cursor(data)
-                if not page or not cursor:
-                    break
-                params["cursor"] = cursor
+        return await _collect_openalex_works(params, per_page, max_papers)
     except (httpx.HTTPError, ValueError) as exc:
         # Network/parsing failures degrade to no results rather than
         # propagating, so a single failed source doesn't fail the whole
         # literature-review step.
         logger.warning("OpenAlex search failed for %r: %s", query, exc)
         return {}
-    return collected

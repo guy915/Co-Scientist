@@ -28,92 +28,132 @@ async def query_mechanistic_statements(
 ) -> dict[str, Any]:
     """Queries INDRA mechanistic statements from curated biomedical knowledge.
 
-    INDRA statements are structured causal claims extracted and curated from
-    scientific papers. This is the primary tool for accessing INDRA's unique
-    mechanistic knowledge about biological interactions.
-
-    Two query modes:
-    1. By agent names: find statements about specific genes/proteins/drugs.
-       Accepts plain names ("KRAS", "EGFR", "sotorasib") or CURIEs
-       ("HGNC:6407").
-    2. By MeSH term: find all statements annotated with a disease/topic.
+    INDRA statements are structured causal claims extracted from scientific
+    papers. Query by agent name(s) (plain names like "KRAS" or CURIEs like
+    "HGNC:6407"), or by a MeSH disease/topic term.
 
     Args:
-        agent: Gene, protein, or drug name (e.g. "KRAS", "EGFR", "sotorasib").
-            Also accepts "NAMESPACE:id" identifiers like "HGNC:6407".
-        other_agent: Second entity to find relationships between (e.g.
-            agent="KRAS", other_agent="RAF1").
-        relation_types: Filter by relationship type(s). Common types:
-            Activation, Inhibition, Phosphorylation, IncreaseAmount,
-            DecreaseAmount, Complex, Deactivation, Influence
-        agent_role: "subject" or "object" to constrain the agent's causal role.
-        mesh_term: MeSH disease/topic ID in "MESH:id" format to query
-            statements annotated with that term. E.g. "MESH:D002289" (lung
-            neoplasms), "MESH:D000544" (Alzheimer disease).
+        agent: Gene, protein, or drug name, or a "NAMESPACE:id" identifier.
+        other_agent: Second entity to find relationships between.
+        relation_types: Filter by relation type(s), e.g. Activation,
+            Inhibition, Phosphorylation, IncreaseAmount, Complex.
+        agent_role: "subject" or "object" to constrain the agent's role.
+        mesh_term: MeSH disease/topic ID in "MESH:id" format, e.g.
+            "MESH:D002289" (lung neoplasms).
         limit: Max statements to return (default 30).
         evidence_limit: Max evidence entries per statement (default 5).
 
     Returns:
         Dict with mechanistic statements, evidence, and metadata.
     """
-    query_meta = {
-        "agent": agent,
-        "other_agent": other_agent,
-        "mesh_term": mesh_term,
-        "relation_types": relation_types,
-    }
+    return await _dispatch_statement_query(
+        agent,
+        other_agent,
+        relation_types,
+        agent_role,
+        mesh_term,
+        limit,
+        evidence_limit,
+    )
 
+
+async def _dispatch_statement_query(
+    agent: str | None,
+    other_agent: str | None,
+    relation_types: list[str] | None,
+    agent_role: str | None,
+    mesh_term: str | None,
+    limit: int,
+    evidence_limit: int,
+) -> dict[str, Any]:
+    """Routes a statement query to the MeSH or agent path, wrapping errors.
+
+    Returns:
+        Dict with statements and metadata, or an error payload.
+    """
+    query_meta = _statement_query_meta(
+        agent, other_agent, mesh_term, relation_types
+    )
     try:
         if mesh_term:
-            # MeSH-anchored query takes precedence over agent-based
-            # lookup when both happen to be supplied.
-            return await _query_by_mesh(
-                mesh_term,
-                evidence_limit,
-                limit,
-                query_meta,
+            stmts, total = await _query_by_mesh(
+                mesh_term, evidence_limit, limit
             )
-        if agent:
-            return await _query_by_agents(
+        elif agent:
+            stmts, total = await _query_by_agents(
                 agent,
                 other_agent,
                 relation_types,
                 agent_role,
                 limit,
                 evidence_limit,
-                query_meta,
             )
-        return {
-            "error": "provide either 'agent' or 'mesh_term'",
-            "query": query_meta,
-        }
-
+        else:
+            return {
+                "error": "provide either 'agent' or 'mesh_term'",
+                "query": query_meta,
+            }
+        return _statements_response(stmts, total, query_meta)
     except Exception as e:
         logger.error("query_mechanistic_statements failed: %s", e)
         return {"error": str(e), "query": query_meta}
+
+
+def _statements_response(
+    stmts: list[Any],
+    total: int,
+    query_meta: dict[str, Any],
+) -> dict[str, Any]:
+    """Wraps capped statements and their total into the tool response dict.
+
+    Returns:
+        Dict with statements, total_statements, and query metadata.
+    """
+    return {
+        "statements": stmts,
+        "total_statements": total,
+        "query": query_meta,
+    }
+
+
+def _statement_query_meta(
+    agent: str | None,
+    other_agent: str | None,
+    mesh_term: str | None,
+    relation_types: list[str] | None,
+) -> dict[str, Any]:
+    """Builds the query-metadata dict echoed back in every response.
+
+    Returns:
+        Dict summarizing the agent, other_agent, mesh_term, and
+        relation_types the caller supplied.
+    """
+    return {
+        "agent": agent,
+        "other_agent": other_agent,
+        "mesh_term": mesh_term,
+        "relation_types": relation_types,
+    }
 
 
 async def _query_by_mesh(
     mesh_term: str,
     evidence_limit: int,
     limit: int,
-    query_meta: dict[str, Any],
-) -> dict[str, Any]:
+) -> tuple[list[Any], int]:
     """Queries statements by MeSH disease/topic annotation.
 
     Args:
         mesh_term: MeSH identifier in "MESH:id" format.
         evidence_limit: Max evidence entries per statement.
         limit: Max statements to return.
-        query_meta: Query metadata dict to include in response.
 
     Returns:
-        Dict with statements, total count, and query metadata.
+        Tuple of (capped statement list, total statement count).
     """
     curie = parse_id(mesh_term)
-    # include_child_terms also pulls statements annotated with more
-    # specific MeSH descendants of this term (e.g. subtypes of a
-    # disease).
+    # include_child_terms also pulls statements annotated with more specific
+    # MeSH descendants of this term (e.g. subtypes of a disease).
     raw = await indra_post(
         "/api/get_stmts_for_mesh",
         {
@@ -123,12 +163,7 @@ async def _query_by_mesh(
             "include_db_evidence": True,
         },
     )
-    stmts, total = cap_results(raw, limit)
-    return {
-        "statements": stmts,
-        "total_statements": total,
-        "query": query_meta,
-    }
+    return cap_results(raw, limit)
 
 
 async def _query_by_agents(
@@ -138,8 +173,7 @@ async def _query_by_agents(
     agent_role: str | None,
     limit: int,
     evidence_limit: int,
-    query_meta: dict[str, Any],
-) -> dict[str, Any]:
+) -> tuple[list[Any], int]:
     """Queries statements by agent name(s) and optional filters.
 
     Args:
@@ -149,14 +183,12 @@ async def _query_by_agents(
         agent_role: Optional role constraint ("subject" or "object").
         limit: Max statements to return.
         evidence_limit: Max evidence entries per statement.
-        query_meta: Query metadata dict to include in response.
 
     Returns:
-        Dict with statements, total count, and query metadata.
+        Tuple of (capped statement list, total statement count).
     """
-    # Build the payload incrementally: only include filters the caller
-    # actually specified, since the CoGex endpoint treats a present-but-
-    # empty filter differently from an absent one.
+    # Only include filters the caller specified: the CoGex endpoint treats
+    # a present-but-empty filter differently from an absent one.
     payload: dict[str, Any] = {
         "agent": maybe_parse_agent(agent),
         "limit": limit,
@@ -170,9 +202,4 @@ async def _query_by_agents(
         payload["agent_role"] = agent_role
 
     raw = await indra_post("/api/get_statements", payload)
-    stmts, total = cap_results(raw, limit)
-    return {
-        "statements": stmts,
-        "total_statements": total,
-        "query": query_meta,
-    }
+    return cap_results(raw, limit)

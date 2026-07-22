@@ -224,6 +224,53 @@ def _fallback_extract_text(html_content: str, max_chars: int) -> str:
         return "[error: could not extract text from HTML]"
 
 
+def _strip_pmc_clutter(soup: BeautifulSoup) -> None:
+    """Removes non-content PMC tags from a parsed document in place.
+
+    Args:
+        soup: Parsed PMC document (JATS XML) to prune. "back" holds trailing
+            matter (references/notes container), "ref-list" is the
+            bibliography, "ack" is acknowledgments, "fn-group" is footnotes,
+            and "fig"/"table-wrap" are figure/table containers whose captions
+            are not useful as plain text and whose images cannot be rendered
+            here.
+    """
+    for tag in soup.find_all(
+        ["back", "ref-list", "ack", "fn-group", "fig", "table-wrap"]
+    ):
+        tag.decompose()
+
+
+def _pmc_html_to_markdown(html_content: str, max_chars: int) -> str:
+    """Converts well-formed PMC JATS XML to truncated markdown.
+
+    Args:
+        html_content: Raw PMC HTML/XML content, assumed well-formed JATS.
+        max_chars: Maximum characters to return (truncate if exceeded).
+
+    Returns:
+        Markdown text with the abstract and top-level body sections,
+        truncated to ``max_chars``.
+    """
+    # PMC fulltext is JATS XML (a specific article-tag vocabulary), so
+    # parse with the lxml-xml parser rather than an HTML parser.
+    soup = BeautifulSoup(html_content, "lxml-xml")
+    _strip_pmc_clutter(soup)
+
+    abstract_text = _extract_abstract_text(soup)
+    sections = _extract_body_sections(soup)
+
+    # Combine abstract and body
+    parts = []
+    if abstract_text:
+        parts.append(f"# abstract\n\n{abstract_text}")
+
+    parts.extend(sections)
+
+    markdown = "\n\n".join(parts)
+    return truncate_markdown(markdown, max_chars)
+
+
 def extract_text_from_pmc_html(
     html_content: str, max_chars: int = 200_000
 ) -> str:
@@ -249,34 +296,7 @@ def extract_text_from_pmc_html(
         Markdown-formatted text ready for LLM consumption.
     """
     try:
-        # PMC fulltext is JATS XML (a specific article-tag vocabulary), so
-        # parse with the lxml-xml parser rather than an HTML parser.
-        soup = BeautifulSoup(html_content, "lxml-xml")
-
-        # Remove sections we don't need. "back" holds trailing matter
-        # (references/notes container), "ref-list" is the bibliography,
-        # "ack" is acknowledgments, "fn-group" is footnotes, "fig" and
-        # "table-wrap" are figure/table containers whose captions are not
-        # useful as plain text and whose images cannot be rendered here.
-        for tag in soup.find_all(
-            ["back", "ref-list", "ack", "fn-group", "fig", "table-wrap"]
-        ):
-            tag.decompose()
-
-        abstract_text = _extract_abstract_text(soup)
-        sections = _extract_body_sections(soup)
-
-        # Combine abstract and body
-        parts = []
-        if abstract_text:
-            parts.append(f"# abstract\n\n{abstract_text}")
-
-        parts.extend(sections)
-
-        markdown = "\n\n".join(parts)
-
-        return truncate_markdown(markdown, max_chars)
-
+        return _pmc_html_to_markdown(html_content, max_chars)
     except Exception as e:
         # Structured extraction above assumes well-formed JATS XML; if the
         # document deviates (malformed XML, unexpected schema) fall back to

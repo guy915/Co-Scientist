@@ -93,6 +93,29 @@ def _brave_freshness(recency_days: int) -> str | None:
     return None
 
 
+def _result_metadata(
+    item: dict[str, Any],
+    url: str,
+    provider_fields: Callable[[dict[str, Any]], dict[str, Any]],
+) -> dict[str, Any]:
+    """Builds the metadata for one normalized result.
+
+    Args:
+        item: One raw result item from the provider.
+        url: The item's already-extracted result URL.
+        provider_fields: Maps the item to provider-specific fields.
+
+    Returns:
+        The common metadata merged with the provider-specific fields.
+    """
+    return {
+        "title": clean_snippet(item.get("title")),
+        "url": url,
+        "source": "web",
+        **provider_fields(item),
+    }
+
+
 def _normalize_results(
     results: Any,
     max_results: int,
@@ -127,12 +150,8 @@ def _normalize_results(
         url = str(item.get("url") or "")
         if not url:
             continue
-        out[_result_id(prefix, index, url)] = {
-            "title": clean_snippet(item.get("title")),
-            "url": url,
-            "source": "web",
-            **provider_fields(item),
-        }
+        key = _result_id(prefix, index, url)
+        out[key] = _result_metadata(item, url, provider_fields)
     return out
 
 

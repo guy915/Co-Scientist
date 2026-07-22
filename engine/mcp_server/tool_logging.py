@@ -96,6 +96,60 @@ def _log_failure(
     )
 
 
+def _wrap_async(fn: Callable[..., Any], name: str) -> Callable[..., Any]:
+    """Build the logging wrapper for an asynchronous tool.
+
+    Args:
+        fn: The asynchronous tool function.
+        name: The name the tool is registered under.
+
+    Returns:
+        An async wrapper carrying the wrapped function's signature.
+    """
+
+    @functools.wraps(fn)
+    async def async_wrapper(*args: Any, **kwargs: Any) -> Any:
+        started = time.monotonic()
+        described = _describe_args(args, kwargs)
+        try:
+            result = await fn(*args, **kwargs)
+        except BaseException as exc:
+            _log_failure(name, described, exc, started)
+            raise
+        _log_success(name, described, result, started)
+        return result
+
+    async_wrapper.__signature__ = inspect.signature(fn)  # type: ignore[attr-defined]
+    return async_wrapper
+
+
+def _wrap_sync(fn: Callable[..., Any], name: str) -> Callable[..., Any]:
+    """Build the logging wrapper for a synchronous tool.
+
+    Args:
+        fn: The synchronous tool function.
+        name: The name the tool is registered under.
+
+    Returns:
+        A sync wrapper carrying the wrapped function's signature.
+    """
+
+    @functools.wraps(fn)
+    def sync_wrapper(*args: Any, **kwargs: Any) -> Any:
+        started = time.monotonic()
+        described = _describe_args(args, kwargs)
+        try:
+            result = fn(*args, **kwargs)
+        except BaseException as exc:
+            _log_failure(name, described, exc, started)
+            raise
+        _log_success(name, described, result, started)
+        return result
+
+    sync_wrapper.__signature__ = inspect.signature(fn)  # type: ignore[attr-defined]
+    return sync_wrapper
+
+
 def with_call_logging(fn: Callable[..., Any], name: str) -> Callable[..., Any]:
     """Wrap one tool so every call logs its name, arguments, and outcome.
 
@@ -112,33 +166,5 @@ def with_call_logging(fn: Callable[..., Any], name: str) -> Callable[..., Any]:
         A wrapper of the same kind (async for async, sync for sync).
     """
     if inspect.iscoroutinefunction(fn):
-
-        @functools.wraps(fn)
-        async def async_wrapper(*args: Any, **kwargs: Any) -> Any:
-            started = time.monotonic()
-            described = _describe_args(args, kwargs)
-            try:
-                result = await fn(*args, **kwargs)
-            except BaseException as exc:
-                _log_failure(name, described, exc, started)
-                raise
-            _log_success(name, described, result, started)
-            return result
-
-        async_wrapper.__signature__ = inspect.signature(fn)  # type: ignore[attr-defined]
-        return async_wrapper
-
-    @functools.wraps(fn)
-    def sync_wrapper(*args: Any, **kwargs: Any) -> Any:
-        started = time.monotonic()
-        described = _describe_args(args, kwargs)
-        try:
-            result = fn(*args, **kwargs)
-        except BaseException as exc:
-            _log_failure(name, described, exc, started)
-            raise
-        _log_success(name, described, result, started)
-        return result
-
-    sync_wrapper.__signature__ = inspect.signature(fn)  # type: ignore[attr-defined]
-    return sync_wrapper
+        return _wrap_async(fn, name)
+    return _wrap_sync(fn, name)

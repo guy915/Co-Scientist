@@ -90,6 +90,33 @@ def _render_response(response: httpx.Response) -> str:
     return f"[note: unsupported content type {content_type or 'unknown'}]"
 
 
+async def _fetch_and_render(url: str) -> str:
+    """Fetches an already-screened URL and renders its body to text.
+
+    Redirect targets are re-screened by ``_get_with_screened_redirects``;
+    the caller must have screened the initial URL.
+
+    Args:
+        url: Already-screened absolute URL to fetch.
+
+    Returns:
+        The extracted, still-untruncated text of the response.
+
+    Raises:
+        UrlNotFetchableError: If a redirect target fails the screen.
+        httpx.HTTPError: On any transport or status error.
+    """
+    headers: dict[str, Any] = {"User-Agent": _USER_AGENT}
+    async with httpx.AsyncClient(
+        timeout=_REQUEST_TIMEOUT, headers=headers
+    ) as client:
+        response = await _get_with_screened_redirects(client, url)
+        response.raise_for_status()
+        # In a worker thread: BeautifulSoup/pypdf parsing is CPU-bound
+        # and can hold the event loop for seconds on a large document.
+        return await asyncio.to_thread(_render_response, response)
+
+
 async def read_url(url: str, max_chars: int = 50_000) -> str:
     """Fetch a URL and return its readable content as text.
 
@@ -114,16 +141,8 @@ async def read_url(url: str, max_chars: int = 50_000) -> str:
         logger.info("Blocked fetch of %s: %s", url, exc)
         return f"[blocked: {exc}]"
 
-    headers: dict[str, Any] = {"User-Agent": _USER_AGENT}
     try:
-        async with httpx.AsyncClient(
-            timeout=_REQUEST_TIMEOUT, headers=headers
-        ) as client:
-            response = await _get_with_screened_redirects(client, url)
-            response.raise_for_status()
-            # In a worker thread: BeautifulSoup/pypdf parsing is CPU-bound
-            # and can hold the event loop for seconds on a large document.
-            text = await asyncio.to_thread(_render_response, response)
+        text = await _fetch_and_render(url)
     except UrlNotFetchableError as exc:
         logger.info("Blocked redirect while fetching %s: %s", url, exc)
         return f"[blocked: {exc}]"

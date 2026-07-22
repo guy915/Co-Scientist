@@ -46,31 +46,47 @@ async def query_drug_info(
         Dict with query results and metadata.
     """
     try:
-        curie = parse_id(identifier)
-        result: dict[str, Any] = {
-            "query": {"identifier": identifier, "query_type": query_type},
-        }
-
-        if query_type not in _DRUG_ENDPOINTS:
-            valid = ", ".join(_DRUG_ENDPOINTS.keys())
-            return {"error": f"invalid query_type '{query_type}', use: {valid}"}
-
-        # Generic dispatch: look up the CoGex endpoint, the payload key it
-        # expects the entity under, and the key to store results under,
-        # all driven by the single _DRUG_ENDPOINTS table above.
-        endpoint, param_name, result_key = _DRUG_ENDPOINTS[query_type]
-        raw = await indra_post(endpoint, {param_name: curie})
-        items, total = cap_results(raw, max_results)
-        result[result_key] = items
-        result[f"total_{result_key}"] = total
-        return result
-
+        return await _run_drug_query(identifier, query_type, max_results)
     except Exception as e:
         logger.error("query_drug_info failed: %s", e)
         return {
             "error": str(e),
             "query": {"identifier": identifier, "query_type": query_type},
         }
+
+
+async def _run_drug_query(
+    identifier: str,
+    query_type: str,
+    max_results: int,
+) -> dict[str, Any]:
+    """Resolves a drug query against the _DRUG_ENDPOINTS dispatch table.
+
+    Args:
+        identifier: Entity in "NAMESPACE:id" format.
+        query_type: Key into _DRUG_ENDPOINTS selecting the CoGex endpoint.
+        max_results: Max results to return.
+
+    Returns:
+        Dict with query results and metadata, or an error payload for an
+        unknown query_type.
+    """
+    curie = parse_id(identifier)
+    result: dict[str, Any] = {
+        "query": {"identifier": identifier, "query_type": query_type},
+    }
+    if query_type not in _DRUG_ENDPOINTS:
+        valid = ", ".join(_DRUG_ENDPOINTS.keys())
+        return {"error": f"invalid query_type '{query_type}', use: {valid}"}
+
+    # Generic dispatch: look up the CoGex endpoint, the payload key it
+    # expects the entity under, and the key to store results under.
+    endpoint, param_name, result_key = _DRUG_ENDPOINTS[query_type]
+    raw = await indra_post(endpoint, {param_name: curie})
+    items, total = cap_results(raw, max_results)
+    result[result_key] = items
+    result[f"total_{result_key}"] = total
+    return result
 
 
 async def query_clinical_trials(
@@ -93,34 +109,47 @@ async def query_clinical_trials(
         Dict with clinical trials and metadata.
     """
     try:
-        curie = parse_id(identifier)
-
-        if entity_type == "disease":
-            # Trials that study this disease/condition.
-            raw = await indra_post(
-                "/api/get_trials_for_disease",
-                {"disease": curie},
-            )
-        elif entity_type == "drug":
-            # Trials that test this drug as an intervention.
-            raw = await indra_post(
-                "/api/get_trials_for_drug",
-                {"drug": curie},
-            )
-        else:
-            entity_err = f"invalid entity_type '{entity_type}'"
-            return {"error": f"{entity_err}, use 'disease' or 'drug'"}
-
-        trials, total = cap_results(raw, max_results)
-        return {
-            "trials": trials,
-            "total_trials": total,
-            "query": {"identifier": identifier, "entity_type": entity_type},
-        }
-
+        return await _run_clinical_trials(identifier, entity_type, max_results)
     except Exception as e:
         logger.error("query_clinical_trials failed: %s", e)
         return {
             "error": str(e),
             "query": {"identifier": identifier, "entity_type": entity_type},
         }
+
+
+async def _run_clinical_trials(
+    identifier: str,
+    entity_type: str,
+    max_results: int,
+) -> dict[str, Any]:
+    """Fetches clinical trials for a disease or drug from INDRA.
+
+    Args:
+        identifier: Entity in "NAMESPACE:id" format.
+        entity_type: "disease" or "drug".
+        max_results: Max trials to return.
+
+    Returns:
+        Dict with clinical trials and metadata, or an error payload for an
+        invalid entity_type.
+    """
+    curie = parse_id(identifier)
+    if entity_type == "disease":
+        # Trials that study this disease/condition.
+        raw = await indra_post(
+            "/api/get_trials_for_disease", {"disease": curie}
+        )
+    elif entity_type == "drug":
+        # Trials that test this drug as an intervention.
+        raw = await indra_post("/api/get_trials_for_drug", {"drug": curie})
+    else:
+        entity_err = f"invalid entity_type '{entity_type}'"
+        return {"error": f"{entity_err}, use 'disease' or 'drug'"}
+
+    trials, total = cap_results(raw, max_results)
+    return {
+        "trials": trials,
+        "total_trials": total,
+        "query": {"identifier": identifier, "entity_type": entity_type},
+    }

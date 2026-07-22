@@ -94,8 +94,129 @@ def _shared_pool_paper_year(paper_tuple: tuple[str, dict[str, Any]]) -> int:
         return 0
 
 
+def _link_metadata_to_run(run_dir: Path | None, paper_id: str) -> None:
+    """Symlinks a shared-pool metadata file into the run directory.
+
+    Args:
+        run_dir: Per-run directory to symlink into, or None to skip.
+        paper_id: Paper id whose metadata file should be linked.
+    """
+    # No-op without a run_id: metadata still lands in the shared pool, it
+    # just is not exposed under a per-run directory.
+    if not run_dir:
+        return
+    _symlink_into_run(run_dir, f"{paper_id}.metadata.json")
+
+
+def _build_run_manifest(
+    run_id: str,
+    run_dir: Path,
+    papers_to_use: list[str],
+    all_details: dict[str, Any],
+    query: str,
+) -> dict[str, Any]:
+    """Builds the per-run manifest dict recording the analyzed papers.
+
+    Args:
+        run_id: Unique run identifier.
+        run_dir: Per-run directory whose mtime dates the manifest.
+        papers_to_use: Paper IDs included in this run's result set.
+        all_details: Metadata dict keyed by paper_id.
+        query: Original PubMed boolean query, recorded for reference.
+
+    Returns:
+        The manifest dict ready to serialize as JSON.
+    """
+    return {
+        "run_id": run_id,
+        "paper_ids": papers_to_use,
+        "pmc_ids": [
+            all_details[pid]["pmc_full_text_id"]
+            for pid in papers_to_use
+            if all_details[pid].get("pmc_full_text_id")
+        ],
+        "query": query,
+        # Directory mtime as a coarse "when was this run's data
+        # last touched" timestamp, not a precise search time.
+        "timestamp": os.path.getmtime(str(run_dir)),
+    }
+
+
 class _SharedPoolMixin(_FulltextMixin):
     """Adds shared-pool metadata gathering and per-run bookkeeping."""
+
+    async def _fetch_and_cache_metadata(
+        self,
+        paper_id: str,
+        metadata_file: Path,
+        run_dir: Path | None,
+        semaphore: "asyncio.Semaphore",
+    ) -> tuple[str, dict[str, Any] | None]:
+        """Fetches metadata from Entrez and caches it to the shared pool.
+
+        Args:
+            paper_id: PubMed article ID.
+            metadata_file: Shared-pool path to write fetched metadata to.
+            run_dir: Per-run directory to symlink the metadata into, or None.
+            semaphore: Concurrency limiter shared with the fulltext phase.
+
+        Returns:
+            Tuple of (paper_id, metadata_dict) or (paper_id, None) on error.
+        """
+        # Imported locally so this module can be imported without asyncio.
+        import asyncio
+
+        async with semaphore:
+            try:
+                # Entrez.efetch/elink use blocking urllib and entrez_read
+                # sleeps for rate limiting; run off the event loop so the
+                # gathered fetches actually proceed concurrently.
+                paper_details = await asyncio.to_thread(
+                    self._fetch_paper_details, paper_id
+                )
+                with open(metadata_file, "w", encoding="utf-8") as f:
+                    json.dump(paper_details, f)
+                logger.debug("Saved metadata for %s to shared pool", paper_id)
+                _link_metadata_to_run(run_dir, paper_id)
+                return (paper_id, paper_details)
+            except Exception as e:
+                logger.warning("Failed to read paper %s: %s", paper_id, e)
+                logger.debug(traceback.format_exc())
+                return (paper_id, None)
+
+    async def _fetch_one_paper_metadata(
+        self,
+        paper_id: str,
+        shared_dir: Path,
+        run_dir: Path | None,
+        semaphore: "asyncio.Semaphore",
+    ) -> tuple[str, dict[str, Any] | None]:
+        """Fetches metadata for a single paper, preferring the shared pool.
+
+        Args:
+            paper_id: PubMed article ID.
+            shared_dir: Shared-pool directory holding cached metadata files.
+            run_dir: Per-run directory to symlink cache hits and fresh
+                fetches into, or None if no run tracking is requested.
+            semaphore: Concurrency limiter shared with the fulltext phase.
+
+        Returns:
+            Tuple of (paper_id, metadata_dict) or (paper_id, None) on error.
+        """
+        # Check shared pool first (smart cache across runs)
+        metadata_file = shared_dir / f"{paper_id}.metadata.json"
+        if metadata_file.exists():
+            logger.debug(
+                "Paper %s metadata found in shared pool, reusing", paper_id
+            )
+            with open(metadata_file, encoding="utf-8") as f:
+                metadata = json.load(f)
+            _link_metadata_to_run(run_dir, paper_id)
+            return (paper_id, metadata)
+
+        return await self._fetch_and_cache_metadata(
+            paper_id, metadata_file, run_dir, semaphore
+        )
 
     async def _gather_paper_metadata(
         self,
@@ -109,86 +230,23 @@ class _SharedPoolMixin(_FulltextMixin):
         Args:
             paper_ids: PubMed article IDs to fetch metadata for.
             shared_dir: Shared-pool directory holding cached metadata files.
-            run_dir: Per-run directory to symlink cache hits and fresh
-                fetches into, or None if no run tracking is requested.
-            semaphore: Concurrency limiter, shared with the fulltext
-                download phase.
+            run_dir: Per-run directory to symlink into, or None.
+            semaphore: Concurrency limiter shared with the fulltext phase.
 
         Returns:
-            Dict mapping paper_id to metadata for every paper fetched
-            successfully (failures are omitted).
+            Dict mapping paper_id to successfully-fetched metadata.
         """
-        # Imported locally so importing this module does not require an
-        # event loop / asyncio setup unless this async method is actually
-        # called.
-        import asyncio
+        import asyncio  # Local: importable without asyncio available.
 
-        def link_to_run(paper_id: str) -> None:
-            """Symlinks a shared-pool metadata file into the run directory."""
-            # No-op without a run_id: metadata still lands in the shared
-            # pool, it just is not exposed under a per-run directory.
-            if not run_dir:
-                return
-            _symlink_into_run(run_dir, f"{paper_id}.metadata.json")
-
-        async def fetch_paper_metadata(
-            paper_id: str,
-        ) -> tuple[str, dict[str, Any] | None]:
-            """Fetches metadata for a single paper with rate limiting.
-
-            Args:
-                paper_id: PubMed article ID.
-
-            Returns:
-                Tuple of (paper_id, metadata_dict) or (paper_id, None) on error.
-            """
-            # Check shared pool first (smart cache across runs)
-            metadata_file = shared_dir / f"{paper_id}.metadata.json"
-
-            if metadata_file.exists():
-                logger.debug(
-                    "Paper %s metadata found in shared pool, reusing", paper_id
-                )
-                with open(metadata_file, encoding="utf-8") as f:
-                    metadata = json.load(f)
-
-                link_to_run(paper_id)
-                return (paper_id, metadata)
-
-            async with semaphore:
-                try:
-                    # Entrez.efetch/elink use blocking urllib and entrez_read
-                    # sleeps for rate limiting; run off the event loop so the
-                    # gathered fetches actually proceed concurrently.
-                    paper_details = await asyncio.to_thread(
-                        self._fetch_paper_details, paper_id
-                    )
-
-                    # Save metadata to shared pool
-                    with open(metadata_file, "w", encoding="utf-8") as f:
-                        json.dump(paper_details, f)
-                    logger.debug(
-                        "Saved metadata for %s to shared pool", paper_id
-                    )
-
-                    link_to_run(paper_id)
-                    return (paper_id, paper_details)
-
-                except Exception as e:
-                    logger.warning("Failed to read paper %s: %s", paper_id, e)
-                    logger.debug(traceback.format_exc())
-                    return (paper_id, None)
-
-        # Fetch all paper metadata in parallel
         logger.debug(
             "fetching metadata for %s papers in parallel (max 3 concurrent)",
             len(paper_ids),
         )
-        metadata_results = await asyncio.gather(
-            *[fetch_paper_metadata(pid) for pid in paper_ids]
-        )
-
-        # Collect successful results
+        coros = [
+            self._fetch_one_paper_metadata(pid, shared_dir, run_dir, semaphore)
+            for pid in paper_ids
+        ]
+        metadata_results = await asyncio.gather(*coros)
         all_details = {
             paper_id: metadata
             for paper_id, metadata in metadata_results
@@ -201,6 +259,60 @@ class _SharedPoolMixin(_FulltextMixin):
         )
         return all_details
 
+    def _select_supplement_papers(
+        self,
+        shared_dir: Path,
+        papers_to_use: list[str],
+        fulltext_shortfall: int,
+    ) -> list[tuple[str, dict[str, Any]]]:
+        """Selects shared-pool papers to top up a short result set.
+
+        Args:
+            shared_dir: Shared-pool directory to scan for candidates.
+            papers_to_use: Paper IDs already selected for this run.
+            fulltext_shortfall: Number of additional papers needed.
+
+        Returns:
+            Up to ``fulltext_shortfall`` (paper_id, metadata) tuples, most
+            recent first; empty if none are suitable.
+        """
+        logger.info(
+            "attempting to supplement %s papers from shared pool",
+            fulltext_shortfall,
+        )
+        current_paper_ids_set = set(papers_to_use)
+        supplement_candidates = _scan_shared_pool_candidates(
+            shared_dir, current_paper_ids_set
+        )
+        supplement_candidates.sort(key=_shared_pool_paper_year, reverse=True)
+        return supplement_candidates[:fulltext_shortfall]
+
+    def _apply_shared_pool_supplements(
+        self,
+        run_dir: Path,
+        papers_to_supplement: list[tuple[str, dict[str, Any]]],
+        papers_to_use: list[str],
+        all_details: dict[str, Any],
+    ) -> None:
+        """Symlinks supplemented papers into the run and records them.
+
+        Args:
+            run_dir: Per-run directory to symlink supplemented papers into.
+            papers_to_supplement: (paper_id, metadata) tuples to add.
+            papers_to_use: Paper IDs for this run; mutated in place.
+            all_details: Metadata dict keyed by paper_id; mutated in place.
+        """
+        logger.info(
+            "Found %s papers in shared pool to supplement",
+            len(papers_to_supplement),
+        )
+        for paper_id, metadata in papers_to_supplement:
+            _symlink_into_run(run_dir, f"{paper_id}.metadata.json")
+            pmc_id = metadata["pmc_full_text_id"]
+            _symlink_into_run(run_dir, f"{pmc_id}.fulltext.html")
+            papers_to_use.append(paper_id)
+            all_details[paper_id] = metadata
+
     def _supplement_from_shared_pool(
         self,
         shared_dir: Path,
@@ -212,58 +324,29 @@ class _SharedPoolMixin(_FulltextMixin):
     ) -> None:
         """Tops up a short-of-target result set from the shared pool.
 
-        Scans the shared pool for already-downloaded papers not already in
-        this run's result set and, if any are found, symlinks them into the
-        run directory and appends them to papers_to_use/all_details in
-        place.
+        Scans for already-downloaded papers not in this run's result set
+        and, if any are found, symlinks them into the run directory and
+        appends them to papers_to_use/all_details in place.
 
         Args:
             shared_dir: Shared-pool directory to scan for candidate papers.
             run_dir: Per-run directory to symlink supplemented papers into.
-            papers_to_use: Paper IDs selected for this run so far; mutated
-                in place with any supplemented paper IDs.
-            all_details: Metadata dict keyed by paper_id; mutated in place
-                with any supplemented papers' metadata.
-            fulltext_shortfall: Number of additional papers needed to reach
-                max_papers.
-            max_papers: Target number of papers WITH fulltext, used only
-                for the summary log line.
+            papers_to_use: Paper IDs so far; mutated in place.
+            all_details: Metadata dict keyed by paper_id; mutated in place.
+            fulltext_shortfall: Additional papers needed to reach max_papers.
+            max_papers: Target paper count, for the summary log line only.
         """
-        logger.info(
-            "attempting to supplement %s papers from shared pool",
-            fulltext_shortfall,
+        papers_to_supplement = self._select_supplement_papers(
+            shared_dir, papers_to_use, fulltext_shortfall
         )
-
-        current_paper_ids_set = set(papers_to_use)
-        supplement_candidates = _scan_shared_pool_candidates(
-            shared_dir, current_paper_ids_set
-        )
-        supplement_candidates.sort(key=_shared_pool_paper_year, reverse=True)
-
-        # Take up to shortfall papers
-        papers_to_supplement = supplement_candidates[:fulltext_shortfall]
-
         if not papers_to_supplement:
             logger.warning(
                 "No suitable papers found in shared pool for supplementation"
             )
             return
-
-        logger.info(
-            "Found %s papers in shared pool to supplement",
-            len(papers_to_supplement),
+        self._apply_shared_pool_supplements(
+            run_dir, papers_to_supplement, papers_to_use, all_details
         )
-
-        # Create symlinks for supplemented papers
-        for paper_id, metadata in papers_to_supplement:
-            _symlink_into_run(run_dir, f"{paper_id}.metadata.json")
-            pmc_id = metadata["pmc_full_text_id"]
-            _symlink_into_run(run_dir, f"{pmc_id}.fulltext.html")
-
-            # Add to results
-            papers_to_use.append(paper_id)
-            all_details[paper_id] = metadata
-
         logger.info(
             "Supplemented %s papers from shared pool (total: %s/%s)",
             len(papers_to_supplement),
@@ -294,19 +377,9 @@ class _SharedPoolMixin(_FulltextMixin):
             all_details: Metadata dict keyed by paper_id.
             query: Original PubMed boolean query, recorded for reference.
         """
-        manifest = {
-            "run_id": run_id,
-            "paper_ids": papers_to_use,
-            "pmc_ids": [
-                all_details[pid]["pmc_full_text_id"]
-                for pid in papers_to_use
-                if all_details[pid].get("pmc_full_text_id")
-            ],
-            "query": query,
-            # Directory mtime as a coarse "when was this run's data
-            # last touched" timestamp, not a precise search time.
-            "timestamp": os.path.getmtime(str(run_dir)),
-        }
+        manifest = _build_run_manifest(
+            run_id, run_dir, papers_to_use, all_details, query
+        )
         manifest_file = run_dir / ".manifest.json"
         with open(manifest_file, "w", encoding="utf-8") as f:
             json.dump(manifest, f, indent=2)

@@ -1,5 +1,6 @@
 """PubMed document source with fulltext download from PMC."""
 
+import dataclasses
 import logging
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -28,6 +29,29 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+@dataclasses.dataclass(frozen=True)
+class _PubmedRun:
+    """Static filesystem and concurrency context for one search run.
+
+    Attributes:
+        query: PubMed boolean query for this run.
+        slug: Identifier for organizing results (research goal hash).
+        max_papers: Target number of papers WITH fulltext to collect.
+        run_id: Unique run identifier, or None to skip per-run tracking.
+        run_dir: Per-run directory to symlink into, or None.
+        shared_dir: Shared-pool directory holding accumulated papers.
+        semaphore: Concurrency limiter bounding entrez API calls.
+    """
+
+    query: str
+    slug: str
+    max_papers: int
+    run_id: str | None
+    run_dir: Path | None
+    shared_dir: Path
+    semaphore: "asyncio.Semaphore"
+
+
 class PubmedSource(_SharedPoolMixin):
     """PubMed document source with fulltext download from PMC."""
 
@@ -42,19 +66,16 @@ class PubmedSource(_SharedPoolMixin):
     ) -> dict[str, Any]:
         """Searches PubMed and fetches metadata for a buffer of candidates.
 
-        Requests 3x the target paper count to account for ~33% fulltext
-        availability - the buffer is filtered down to max_papers with
-        fulltext by the caller.
+        Requests 3x the target paper count to cover ~33% fulltext
+        availability; the buffer is filtered to max_papers by the caller.
 
         Args:
             query: PubMed boolean query.
             max_papers: Target number of papers WITH fulltext to collect.
             recency_years: Filter to papers from last N years (0 = no filter).
             shared_dir: Shared-pool directory holding cached metadata files.
-            run_dir: Per-run directory to symlink cache hits and fresh
-                fetches into, or None if no run tracking is requested.
-            semaphore: Concurrency limiter, shared with the fulltext
-                download phase.
+            run_dir: Per-run directory for symlinks, or None if untracked.
+            semaphore: Concurrency limiter shared with fulltext download.
 
         Returns:
             Dict mapping paper_id to metadata for every paper fetched
@@ -99,7 +120,33 @@ class PubmedSource(_SharedPoolMixin):
             if all_details[paper_id].get("pmc_full_text_id") is not None
         ]
         papers_to_use = papers_with_pmc[:max_papers]
+        fulltext_shortfall = max_papers - len(papers_to_use)
+        self._log_fulltext_selection(
+            papers_with_pmc,
+            papers_to_use,
+            all_details,
+            max_papers,
+            fulltext_shortfall,
+        )
+        return papers_to_use, fulltext_shortfall
 
+    def _log_fulltext_selection(
+        self,
+        papers_with_pmc: list[str],
+        papers_to_use: list[str],
+        all_details: dict[str, Any],
+        max_papers: int,
+        fulltext_shortfall: int,
+    ) -> None:
+        """Logs fulltext availability and any shortfall against target.
+
+        Args:
+            papers_with_pmc: Paper IDs that have a PMC fulltext.
+            papers_to_use: Paper IDs selected, capped at max_papers.
+            all_details: Metadata keyed by paper_id.
+            max_papers: Target number of papers WITH fulltext.
+            fulltext_shortfall: Papers still needed to reach max_papers.
+        """
         logger.info(
             "fulltext availability: %s/%s papers have PMC fulltexts",
             len(papers_with_pmc),
@@ -111,8 +158,6 @@ class PubmedSource(_SharedPoolMixin):
             len(papers_with_pmc),
             max_papers,
         )
-
-        fulltext_shortfall = max_papers - len(papers_to_use)
         if fulltext_shortfall > 0:
             logger.warning(
                 "Short of target by %s papers - will attempt shared pool "
@@ -123,8 +168,6 @@ class PubmedSource(_SharedPoolMixin):
             logger.error(
                 "No papers have PMC fulltexts - (no documents to analyze)"
             )
-
-        return papers_to_use, fulltext_shortfall
 
     def _assemble_final_results(
         self,
@@ -165,58 +208,57 @@ class PubmedSource(_SharedPoolMixin):
 
     async def _download_and_record(
         self,
+        run: _PubmedRun,
         papers_to_use: list[str],
         all_details: dict[str, Any],
-        slug: str,
-        run_id: str | None,
-        run_dir: Path | None,
-        shared_dir: Path,
         fulltext_shortfall: int,
-        max_papers: int,
-        query: str,
-        semaphore: "asyncio.Semaphore",
     ) -> None:
         """Downloads fulltexts, tops up shortfalls, and records the run.
 
         Args:
-            papers_to_use: Paper IDs selected for this run so far; mutated
-                in place with any shared-pool supplements.
-            all_details: Metadata dict keyed by paper_id; mutated in place
-                with any shared-pool supplements' metadata.
-            slug: Identifier for organizing results.
-            run_id: Unique run identifier for this execution, or None to
-                skip per-run tracking.
-            run_dir: Per-run directory to symlink into, or None if run_id
-                was not provided.
-            shared_dir: Shared-pool directory to scan when supplementing.
-            fulltext_shortfall: Number of additional papers needed to reach
-                max_papers.
-            max_papers: Target number of papers WITH fulltext.
-            query: Original PubMed boolean query, recorded in the manifest.
-            semaphore: Concurrency limiter, shared with the metadata fetch
-                phase.
+            run: Filesystem and concurrency context for this search run.
+            papers_to_use: Selected paper IDs; mutated with supplements.
+            all_details: Metadata keyed by paper_id; mutated with supplements.
+            fulltext_shortfall: Additional papers needed to reach max_papers.
         """
         await self._download_fulltexts_for_papers(
-            papers_to_use, all_details, slug, run_id, semaphore
+            papers_to_use, all_details, run.slug, run.run_id, run.semaphore
         )
+        self._maybe_supplement_from_pool(
+            run, papers_to_use, all_details, fulltext_shortfall
+        )
+        if run.run_id and run.run_dir:
+            self._save_run_manifest(
+                run.run_id, run.run_dir, papers_to_use, all_details, run.query
+            )
 
-        # If short of target, supplement from shared pool. Requires run_dir
-        # because supplementing only makes sense when building a per-run
-        # view (symlinks below need somewhere to go); without a run_id
-        # there is no per-run result set to top up.
-        if fulltext_shortfall > 0 and run_dir:
+    def _maybe_supplement_from_pool(
+        self,
+        run: _PubmedRun,
+        papers_to_use: list[str],
+        all_details: dict[str, Any],
+        fulltext_shortfall: int,
+    ) -> None:
+        """Tops up the result set from the shared pool when short of target.
+
+        Supplementing only makes sense when building a per-run view, so it
+        is skipped without a run_dir: the symlinks it creates need a per-run
+        destination, and without a run_id there is no result set to top up.
+
+        Args:
+            run: Filesystem and concurrency context for this search run.
+            papers_to_use: Selected paper IDs; mutated in place.
+            all_details: Metadata keyed by paper_id; mutated in place.
+            fulltext_shortfall: Additional papers needed to reach max_papers.
+        """
+        if fulltext_shortfall > 0 and run.run_dir:
             self._supplement_from_shared_pool(
-                shared_dir,
-                run_dir,
+                run.shared_dir,
+                run.run_dir,
                 papers_to_use,
                 all_details,
                 fulltext_shortfall,
-                max_papers,
-            )
-
-        if run_id and run_dir:
-            self._save_run_manifest(
-                run_id, run_dir, papers_to_use, all_details, query
+                run.max_papers,
             )
 
     async def pubmed_search(
@@ -255,37 +297,77 @@ class PubmedSource(_SharedPoolMixin):
         Returns:
             Dict mapping paper_id to metadata, with fulltext where available.
         """
-        # Imported locally so importing this module does not require an
-        # event loop / asyncio setup unless this async method is actually
-        # called.
-        import asyncio
+        return await self._pubmed_search_impl(
+            query, slug, max_papers, recency_years, run_id
+        )
 
-        shared_dir, run_dir = self._prepare_run_directories(slug, run_id)
+    async def _pubmed_search_impl(
+        self,
+        query: str,
+        slug: str,
+        max_papers: int,
+        recency_years: int,
+        run_id: str | None,
+    ) -> dict[str, Any]:
+        """Runs the full PubMed search, download, and assembly pipeline.
 
-        # Semaphore to limit concurrent entrez API calls (respect rate limits)
-        # allow 3 concurrent (conservative, can increase to 10 with API key)
-        semaphore = asyncio.Semaphore(3)
+        Args:
+            query: PubMed boolean query.
+            slug: Identifier for organizing results (research goal hash).
+            max_papers: Target number of papers WITH fulltext to collect.
+            recency_years: Filter to papers from last N years (0 = no filter).
+            run_id: Unique run identifier, or None to skip per-run tracking.
 
+        Returns:
+            Dict mapping paper_id to metadata, with fulltext where available.
+        """
+        run = self._build_run(query, slug, max_papers, run_id)
         all_details = await self._search_and_collect_metadata(
-            query, max_papers, recency_years, shared_dir, run_dir, semaphore
+            query,
+            max_papers,
+            recency_years,
+            run.shared_dir,
+            run.run_dir,
+            run.semaphore,
         )
         papers_to_use, fulltext_shortfall = self._select_fulltext_papers(
             all_details, max_papers
         )
-
         await self._download_and_record(
-            papers_to_use,
-            all_details,
+            run, papers_to_use, all_details, fulltext_shortfall
+        )
+        return self._assemble_final_results(
+            papers_to_use, all_details, max_papers
+        )
+
+    def _build_run(
+        self, query: str, slug: str, max_papers: int, run_id: str | None
+    ) -> _PubmedRun:
+        """Prepares run directories and assembles the run context.
+
+        The entrez semaphore allows 3 concurrent calls (conservative; can
+        rise to 10 with an API key).
+
+        Args:
+            query: PubMed boolean query.
+            slug: Identifier for organizing results (research goal hash).
+            max_papers: Target number of papers WITH fulltext to collect.
+            run_id: Unique run identifier, or None to skip per-run tracking.
+
+        Returns:
+            A _PubmedRun bundling the filesystem context and semaphore.
+        """
+        # Imported locally so importing this module does not require an
+        # event loop / asyncio setup unless this async path is actually run.
+        import asyncio
+
+        shared_dir, run_dir = self._prepare_run_directories(slug, run_id)
+        return _PubmedRun(
+            query,
             slug,
+            max_papers,
             run_id,
             run_dir,
             shared_dir,
-            fulltext_shortfall,
-            max_papers,
-            query,
-            semaphore,
-        )
-
-        return self._assemble_final_results(
-            papers_to_use, all_details, max_papers
+            asyncio.Semaphore(3),
         )
