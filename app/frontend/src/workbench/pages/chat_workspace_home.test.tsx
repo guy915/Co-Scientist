@@ -11,6 +11,26 @@ beforeEach(() => {
   installChatWorkspaceMocks();
 });
 
+/**
+ * Seeds six completed recent runs so the home stage has more cards than the
+ * initial four-card window reveals.
+ */
+function seedSixRecentRuns() {
+  apiMock.listDemoRuns.mockResolvedValue([]);
+  apiMock.getHypotheses.mockResolvedValue([]);
+  apiMock.listRuns.mockResolvedValue(
+    Array.from({length: 6}, (_, index) =>
+      minimalRun({
+        id: `run-${index + 1}`,
+        research_goal: `Recent research question ${index + 1}`,
+        created_at: index + 1,
+        updated_at: index + 1,
+        completed_at: index + 2,
+      }),
+    ),
+  );
+}
+
 describe('ChatWorkspace home stage', () => {
   it('opens on the reference-style Co-Scientist home screen', async () => {
     renderWorkspace();
@@ -44,19 +64,7 @@ describe('ChatWorkspace home stage', () => {
   });
 
   it('shows four recent cards before revealing the rest', async () => {
-    apiMock.listDemoRuns.mockResolvedValue([]);
-    apiMock.getHypotheses.mockResolvedValue([]);
-    apiMock.listRuns.mockResolvedValue(
-      Array.from({length: 6}, (_, index) =>
-        minimalRun({
-          id: `run-${index + 1}`,
-          research_goal: `Recent research question ${index + 1}`,
-          created_at: index + 1,
-          updated_at: index + 1,
-          completed_at: index + 2,
-        }),
-      ),
-    );
+    seedSixRecentRuns();
 
     renderWorkspace();
 

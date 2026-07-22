@@ -1,5 +1,6 @@
 import {act, fireEvent, screen, waitFor} from '@testing-library/react';
 import {beforeEach, describe, expect, it, vi} from 'vitest';
+import type {AppLogRecord} from '@/api/logs';
 import {DIAGNOSTIC_EVENT} from './dom_events';
 import {
   apiMock,
@@ -7,6 +8,50 @@ import {
   logsApiMock,
   renderLayout,
 } from './layout_test_utils';
+
+function logRecord(
+  id: number,
+  overrides: Partial<AppLogRecord> = {},
+): AppLogRecord {
+  return {
+    id,
+    created_at: 1_700_000_000 + id,
+    level: 'INFO',
+    levelno: 20,
+    logger: 'app.main',
+    message: `record ${id}`,
+    run_id: null,
+    exc_text: null,
+    ...overrides,
+  };
+}
+
+/** jsdom does no layout, so the list's scroll geometry is stubbed. */
+function stubListGeometry(list: HTMLElement): void {
+  Object.defineProperty(list, 'scrollHeight', {
+    configurable: true,
+    value: 1000,
+  });
+  Object.defineProperty(list, 'clientHeight', {
+    configurable: true,
+    value: 100,
+  });
+}
+
+/**
+ * Waits for the mount-time log loads to settle — including the remount
+ * caused by the navigation-log version bump — so racing requests issued
+ * afterwards belong to the same effect generation (the `disposed` guard
+ * must not be what saves us).
+ */
+async function settleMountTimeLoads(): Promise<void> {
+  await waitFor(() =>
+    expect(logsApiMock.getAppLogs.mock.calls.length).toBeGreaterThanOrEqual(2),
+  );
+  await act(async () => {
+    // let the remounted effect finish its initial load
+  });
+}
 
 describe('Layout diagnostics popover', () => {
   beforeEach(() => installLayoutMocks());
@@ -123,26 +168,17 @@ describe('Layout diagnostics popover', () => {
   it('loads persisted backend logs into the diagnostics popover', async () => {
     logsApiMock.getAppLogs.mockResolvedValue({
       logs: [
-        {
-          id: 3,
-          created_at: 1_700_000_000,
+        logRecord(3, {
           level: 'ERROR',
           levelno: 40,
           logger: 'app.engine_adapter',
           message: 'workflow exploded',
-          run_id: null,
-          exc_text: null,
-        },
-        {
-          id: 4,
-          created_at: 1_700_000_050,
-          level: 'INFO',
-          levelno: 20,
+        }),
+        logRecord(4, {
           logger: 'app.runs',
           message: 'run started',
           run_id: 'run-12345678',
-          exc_text: null,
-        },
+        }),
       ],
       last_id: 4,
       total: 2,
@@ -291,34 +327,14 @@ describe('Layout diagnostics popover', () => {
 
   it('ignores stale out-of-order log responses', async () => {
     const payload = (id: number) => ({
-      logs: [
-        {
-          id,
-          created_at: 1_700_000_000 + id,
-          level: 'INFO',
-          levelno: 20,
-          logger: 'app.main',
-          message: `record ${id}`,
-          run_id: null,
-          exc_text: null,
-        },
-      ],
+      logs: [logRecord(id)],
       last_id: id,
       total: id,
     });
-    // Let the mount-time loads settle first — including the remount
-    // caused by the navigation-log version bump — so both racing
-    // requests below belong to the same effect generation (the
-    // `disposed` guard must not be what saves us).
+    // Let the mount-time loads settle first, so both racing requests
+    // below belong to the same effect generation.
     renderLayout();
-    await waitFor(() =>
-      expect(logsApiMock.getAppLogs.mock.calls.length).toBeGreaterThanOrEqual(
-        2,
-      ),
-    );
-    await act(async () => {
-      // let the remounted effect finish its initial load
-    });
+    await settleMountTimeLoads();
 
     // The next request hangs (stale); the one after answers fresh. The
     // stale response then arrives LAST and must be dropped.
@@ -348,26 +364,14 @@ describe('Layout diagnostics popover', () => {
   it('renders the message as plain text with the level in the meta row', async () => {
     logsApiMock.getAppLogs.mockResolvedValue({
       logs: [
-        {
-          id: 1,
-          created_at: 1_700_000_000,
-          level: 'INFO',
-          levelno: 20,
-          logger: 'app.main',
-          message: 'a long message that must wrap freely',
-          run_id: null,
-          exc_text: null,
-        },
-        {
-          id: 2,
-          created_at: 1_700_000_001,
+        logRecord(1, {message: 'a long message that must wrap freely'}),
+        logRecord(2, {
           level: 'ERROR',
           levelno: 40,
           logger: 'app.engine_adapter',
           message: 'workflow exploded',
-          run_id: null,
           exc_text: 'Traceback: boom',
-        },
+        }),
       ],
       last_id: 2,
       total: 2,
@@ -393,18 +397,8 @@ describe('Layout diagnostics popover', () => {
   });
 
   it('does not jump to the end while the user is scrolled up', async () => {
-    const record = (id: number) => ({
-      id,
-      created_at: 1_700_000_000 + id,
-      level: 'INFO',
-      levelno: 20,
-      logger: 'app.main',
-      message: `record ${id}`,
-      run_id: null,
-      exc_text: null,
-    });
     logsApiMock.getAppLogs.mockResolvedValue({
-      logs: [record(1), record(2)],
+      logs: [logRecord(1), logRecord(2)],
       last_id: 2,
       total: 2,
     });
@@ -414,21 +408,14 @@ describe('Layout diagnostics popover', () => {
     const list = await screen.findByLabelText('Log events');
 
     // Simulate a scrollable list with the user scrolled well above the
-    // bottom (jsdom does no layout, so the geometry is stubbed).
-    Object.defineProperty(list, 'scrollHeight', {
-      configurable: true,
-      value: 1000,
-    });
-    Object.defineProperty(list, 'clientHeight', {
-      configurable: true,
-      value: 100,
-    });
+    // bottom.
+    stubListGeometry(list);
     list.scrollTop = 100;
     fireEvent.scroll(list);
 
     // New records arrive (an in-page event bumps the fetch version).
     logsApiMock.getAppLogs.mockResolvedValue({
-      logs: [record(1), record(2), record(3)],
+      logs: [logRecord(1), logRecord(2), logRecord(3)],
       last_id: 3,
       total: 3,
     });
@@ -445,18 +432,8 @@ describe('Layout diagnostics popover', () => {
   });
 
   it('keeps following the newest record at the window cap when pinned', async () => {
-    const record = (id: number) => ({
-      id,
-      created_at: 1_700_000_000 + id,
-      level: 'INFO',
-      levelno: 20,
-      logger: 'app.main',
-      message: `record ${id}`,
-      run_id: null,
-      exc_text: null,
-    });
     logsApiMock.getAppLogs.mockResolvedValue({
-      logs: [record(1), record(2)],
+      logs: [logRecord(1), logRecord(2)],
       last_id: 2,
       total: 2,
     });
@@ -465,14 +442,7 @@ describe('Layout diagnostics popover', () => {
     fireEvent.click(await screen.findByRole('button', {name: /Logs 2/i}));
     const list = await screen.findByLabelText('Log events');
 
-    Object.defineProperty(list, 'scrollHeight', {
-      configurable: true,
-      value: 1000,
-    });
-    Object.defineProperty(list, 'clientHeight', {
-      configurable: true,
-      value: 100,
-    });
+    stubListGeometry(list);
     list.scrollTop = 900; // at the bottom: pinned
     fireEvent.scroll(list);
 
@@ -480,7 +450,7 @@ describe('Layout diagnostics popover', () => {
     // entry COUNT stays the same and only the ids advance. Auto-follow
     // must still fire for the pinned reader.
     logsApiMock.getAppLogs.mockResolvedValue({
-      logs: [record(2), record(3)],
+      logs: [logRecord(2), logRecord(3)],
       last_id: 3,
       total: 3,
     });

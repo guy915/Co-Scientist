@@ -10,6 +10,20 @@ import {
   systemApiMock,
 } from './layout_test_utils';
 
+/** Renders the layout with twelve real runs feeding the sidebar chat list. */
+function renderTwelveSidebarChats() {
+  apiMock.listDemoRuns.mockResolvedValue([]);
+  apiMock.listRuns.mockResolvedValue(
+    Array.from({length: 12}, (_, index) =>
+      runFixture(
+        `run-${index + 1}`,
+        `Very long sidebar research question ${index + 1}`,
+      ),
+    ),
+  );
+  renderLayout();
+}
+
 describe('Layout', () => {
   beforeEach(() => {
     installLayoutMocks();
@@ -101,17 +115,7 @@ describe('Layout', () => {
   });
 
   it('shows ten sidebar chats before expanding the rest', async () => {
-    apiMock.listDemoRuns.mockResolvedValue([]);
-    apiMock.listRuns.mockResolvedValue(
-      Array.from({length: 12}, (_, index) =>
-        runFixture(
-          `run-${index + 1}`,
-          `Very long sidebar research question ${index + 1}`,
-        ),
-      ),
-    );
-
-    renderLayout();
+    renderTwelveSidebarChats();
 
     expect(
       await screen.findByRole('link', {
@@ -143,7 +147,7 @@ describe('Layout', () => {
     expect(screen.getByRole('button', {name: 'Show more'})).toBeInTheDocument();
   });
 
-  it('opens shell panels from icon buttons and dismisses on outside click', async () => {
+  it('opens the settings menu and dismisses on outside click', async () => {
     renderLayout();
 
     fireEvent.click(screen.getByRole('button', {name: 'Settings'}));
@@ -160,6 +164,10 @@ describe('Layout', () => {
 
     fireEvent.pointerDown(screen.getByText('Workspace content'));
     expect(screen.queryByRole('menuitem', {name: 'Appearance'})).toBeNull();
+  });
+
+  it('opens the logs popover and dismisses on outside click', async () => {
+    renderLayout();
 
     fireEvent.click(screen.getByRole('button', {name: /Logs 0/i}));
     expect(screen.getByRole('button', {name: /Logs 0/i})).toHaveAttribute(

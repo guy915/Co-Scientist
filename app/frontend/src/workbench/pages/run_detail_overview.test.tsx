@@ -1,6 +1,11 @@
 import {render, screen} from '@testing-library/react';
 import {describe, expect, it} from 'vitest';
-import type {Hypothesis, Report, RunWithSummary} from '@/api/runs';
+import type {
+  Hypothesis,
+  Report,
+  ResearchOverview,
+  RunWithSummary,
+} from '@/api/runs';
 import {makeHypothesis, makeMatch} from '@/test_fixtures';
 import {ResearchOverviewView} from './run_detail_overview';
 
@@ -29,6 +34,87 @@ function makeReport(overrides: Partial<Report['payload']> = {}): Report {
       ...overrides,
     },
   } as unknown as Report;
+}
+
+function makeFullOverviewSection(): ResearchOverview['overview'] {
+  return {
+    summary: 'A synthesized summary of the research.',
+    research_directions: [
+      {
+        title: 'Direction one',
+        importance: 'It matters because X.',
+        suggested_experiments: ['Experiment A', 'Experiment B'],
+      },
+      {
+        title: 'Direction two (no experiments)',
+        importance: 'It matters because Y.',
+        suggested_experiments: [],
+      },
+    ],
+  };
+}
+
+function makeFullSpecificAims(): ResearchOverview['nih_specific_aims'] {
+  return {
+    introduction: 'An introduction to the aims.',
+    aims: [
+      {
+        aim: 'Aim 1: Do the thing',
+        rationale: 'Because reasons.',
+        approach: 'Via this approach.',
+      },
+    ],
+    impact: 'The impact statement.',
+  };
+}
+
+function makeFullResearchContacts(): ResearchOverview['research_contacts'] {
+  return [
+    {
+      candidate_id: 'author-1-1',
+      name: 'Ada Researcher',
+      expertise: 'Fibrosis mechanisms',
+      justification: 'Authored a directly relevant analyzed paper.',
+      source_id: 'PMID:123',
+      source_title: 'A fibrosis study',
+      source_url: 'https://pubmed.ncbi.nlm.nih.gov/123/',
+      source: 'pubmed',
+    },
+  ];
+}
+
+function makeFullReport(): Report {
+  return makeReport({
+    hypothesis_count: 2,
+    evidence_count: 11,
+    match_count: 3,
+    idea_buckets: {
+      high_potential: [
+        {id: 'h1', title: 'Leaderboard idea', reason: 'Released.'},
+      ],
+      non_viable: [{id: 'h3', title: 'Rejected idea', reason: 'Contradicted.'}],
+    },
+    leaderboard: [
+      {id: 'h1', title: 'Leaderboard idea', elo: 1735},
+      {id: 'h2', title: 'Second idea', elo: 1600},
+    ],
+    research_overview: {
+      overview: makeFullOverviewSection(),
+      nih_specific_aims: makeFullSpecificAims(),
+      research_contacts: makeFullResearchContacts(),
+    },
+  });
+}
+
+function renderFullReport() {
+  render(
+    <ResearchOverviewView
+      run={makeRun()}
+      report={makeFullReport()}
+      hypotheses={[]}
+      matches={[]}
+    />,
+  );
 }
 
 describe('ResearchOverviewView', () => {
@@ -73,73 +159,8 @@ describe('ResearchOverviewView', () => {
     expect(screen.queryByText('Winning ideas')).not.toBeInTheDocument();
   });
 
-  it('renders the full synthesized report: summary, research directions, specific aims, and leaderboard', () => {
-    const report = makeReport({
-      hypothesis_count: 2,
-      evidence_count: 11,
-      match_count: 3,
-      idea_buckets: {
-        high_potential: [
-          {id: 'h1', title: 'Leaderboard idea', reason: 'Released.'},
-        ],
-        non_viable: [
-          {id: 'h3', title: 'Rejected idea', reason: 'Contradicted.'},
-        ],
-      },
-      leaderboard: [
-        {id: 'h1', title: 'Leaderboard idea', elo: 1735},
-        {id: 'h2', title: 'Second idea', elo: 1600},
-      ],
-      research_overview: {
-        overview: {
-          summary: 'A synthesized summary of the research.',
-          research_directions: [
-            {
-              title: 'Direction one',
-              importance: 'It matters because X.',
-              suggested_experiments: ['Experiment A', 'Experiment B'],
-            },
-            {
-              title: 'Direction two (no experiments)',
-              importance: 'It matters because Y.',
-              suggested_experiments: [],
-            },
-          ],
-        },
-        nih_specific_aims: {
-          introduction: 'An introduction to the aims.',
-          aims: [
-            {
-              aim: 'Aim 1: Do the thing',
-              rationale: 'Because reasons.',
-              approach: 'Via this approach.',
-            },
-          ],
-          impact: 'The impact statement.',
-        },
-        research_contacts: [
-          {
-            candidate_id: 'author-1-1',
-            name: 'Ada Researcher',
-            expertise: 'Fibrosis mechanisms',
-            justification: 'Authored a directly relevant analyzed paper.',
-            source_id: 'PMID:123',
-            source_title: 'A fibrosis study',
-            source_url: 'https://pubmed.ncbi.nlm.nih.gov/123/',
-            source: 'pubmed',
-          },
-        ],
-      },
-    });
-
-    render(
-      <ResearchOverviewView
-        run={makeRun()}
-        report={report}
-        hypotheses={[]}
-        matches={[]}
-      />,
-    );
+  it('renders the synthesized summary and idea buckets from the report', () => {
+    renderFullReport();
 
     expect(
       screen.getByText('A synthesized summary of the research.'),
@@ -149,6 +170,10 @@ describe('ResearchOverviewView', () => {
     expect(screen.getByText('Verified ideas')).toBeInTheDocument();
     expect(screen.getByText('Sources Analyzed')).toBeInTheDocument();
     expect(screen.getByText('11')).toBeInTheDocument();
+  });
+
+  it('renders the research directions with their suggested experiments', () => {
+    renderFullReport();
 
     expect(
       screen.getByRole('heading', {name: 'Research directions'}),
@@ -161,6 +186,10 @@ describe('ResearchOverviewView', () => {
     expect(
       screen.getByText('Direction two (no experiments)'),
     ).toBeInTheDocument();
+  });
+
+  it('renders the specific aims and research contacts', () => {
+    renderFullReport();
 
     expect(
       screen.getByRole('heading', {name: 'Specific aims'}),
@@ -179,6 +208,10 @@ describe('ResearchOverviewView', () => {
     expect(
       screen.getByRole('link', {name: 'Evidence: A fibrosis study'}),
     ).toHaveAttribute('href', 'https://pubmed.ncbi.nlm.nih.gov/123/');
+  });
+
+  it('renders the leaderboard of winning ideas and the closing stats line', () => {
+    renderFullReport();
 
     expect(
       screen.getByRole('heading', {name: 'Winning ideas'}),

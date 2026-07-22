@@ -21,8 +21,12 @@ let containerWidth = 20;
 let containerHeight = 10;
 let originalDescriptors: Record<string, PropertyDescriptor | undefined>;
 
-beforeAll(() => {
-  originalDescriptors = {
+/** Snapshots the layout property descriptors so afterAll can restore them. */
+function snapshotLayoutDescriptors(): Record<
+  string,
+  PropertyDescriptor | undefined
+> {
+  return {
     scrollWidth: Object.getOwnPropertyDescriptor(
       HTMLElement.prototype,
       'scrollWidth',
@@ -40,6 +44,10 @@ beforeAll(() => {
       'clientHeight',
     ),
   };
+}
+
+/** Installs the character-count layout model on HTMLElement.prototype. */
+function installCharacterCountLayout() {
   Object.defineProperty(HTMLElement.prototype, 'scrollWidth', {
     configurable: true,
     get(this: HTMLElement) {
@@ -64,6 +72,11 @@ beforeAll(() => {
       return containerHeight;
     },
   });
+}
+
+beforeAll(() => {
+  originalDescriptors = snapshotLayoutDescriptors();
+  installCharacterCountLayout();
 });
 
 afterAll(() => {

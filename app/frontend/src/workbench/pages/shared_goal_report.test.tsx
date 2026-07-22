@@ -9,42 +9,49 @@ vi.mock('@/api/runs', async importOriginal => ({
   getSharedGoalReport: vi.fn(),
 }));
 
-describe('SharedGoalReportPage', () => {
-  it('renders the four read-only report sections from a capability', async () => {
-    vi.mocked(getSharedGoalReport).mockResolvedValue({
-      share_id: 'share-1',
-      run: {
-        id: 'run-1',
-        title: 'Shared pathway study',
+/** Builds a shared-report capability payload with one knowledge-base topic. */
+function buildSharedReport() {
+  return {
+    share_id: 'share-1',
+    run: {
+      id: 'run-1',
+      title: 'Shared pathway study',
+      research_goal: 'Study pathway control',
+      run_mode: 'standard',
+    },
+    report: {
+      payload: {
+        leaderboard: [],
+        provider: 'engine',
         research_goal: 'Study pathway control',
-        run_mode: 'standard',
-      },
-      report: {
-        payload: {
-          leaderboard: [],
-          provider: 'engine',
-          research_goal: 'Study pathway control',
-          knowledge_base: [
-            {
-              id: 'topic-1',
-              title: 'Feedback control',
-              summary: 'A verified feedback mechanism.',
-              detail: 'Perturbation details.',
-              reference_ids: ['e1'],
-            },
-          ],
-          agent_insights: {
-            key_findings: ['Feedback is causal.'],
-            uncertainties: [],
-            contradictions: [],
-            recommended_directions: [],
-            next_experiments: [],
+        knowledge_base: [
+          {
+            id: 'topic-1',
+            title: 'Feedback control',
+            summary: 'A verified feedback mechanism.',
+            detail: 'Perturbation details.',
+            reference_ids: ['e1'],
           },
+        ],
+        agent_insights: {
+          key_findings: ['Feedback is causal.'],
+          uncertainties: [],
+          contradictions: [],
+          recommended_directions: [],
+          next_experiments: [],
         },
       },
-      hypotheses: [],
-      evidence: [],
-    } as never);
+    },
+    hypotheses: [],
+    evidence: [],
+  };
+}
+
+describe('SharedGoalReportPage', () => {
+  it('renders the four read-only report sections from a capability', async () => {
+    vi.mocked(getSharedGoalReport).mockResolvedValue(
+      buildSharedReport() as never,
+    );
 
     render(
       <MemoryRouter initialEntries={['/shared/token-1']}>
