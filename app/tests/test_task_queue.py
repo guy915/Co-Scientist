@@ -5,6 +5,7 @@ from __future__ import annotations
 import subprocess
 import sys
 import time
+from typing import Any
 
 from app import store
 
@@ -46,6 +47,46 @@ def _parallel_scripts(script: str, arguments: list[list[str]]) -> list[str]:
 
 def _run() -> str:
     return store.create_run("queue goal", "standard", "engine", {}).id
+
+
+def _enqueue(
+    run_id: str, task_type: str, key: str, db: str, **kwargs: Any
+) -> Any:
+    """Enqueue an empty-input task by type and idempotency key."""
+    return store.enqueue_task(
+        run_id, task_type, {}, idempotency_key=key, db_path=db, **kwargs
+    )
+
+
+def _three_control_tasks(run_id: str, db: str) -> tuple[str, str, str]:
+    """Enqueue promote/cancel/retry tasks and fail the retry one.
+
+    Returns the ``(promoted, cancelled, failed)`` task ids.
+    """
+    promoted = _enqueue(
+        run_id, "reflection.full", "control:promote", db, priority=1
+    )
+    cancelled = _enqueue(
+        run_id, "generation.assumptions", "control:cancel", db, priority=2
+    )
+    failed = _enqueue(
+        run_id,
+        "verification.deep",
+        "control:retry",
+        db,
+        priority=100,
+        max_attempts=1,
+    )
+    leased = store.claim_task("failed-worker", run_id=run_id, db_path=db)
+    assert leased is not None and leased.id == failed.id
+    assert store.fail_task(
+        failed.id,
+        "failed-worker",
+        "transient provider error",
+        retryable=False,
+        db_path=db,
+    )
+    return promoted.id, cancelled.id, failed.id
 
 
 def test_enqueue_is_idempotent(isolated_db: str) -> None:
@@ -299,20 +340,10 @@ def test_task_progress_is_monotonic_and_budget_derived(
 ) -> None:
     """Progress uses committed task rows and advances only on terminal work."""
     run_id = _run()
-    first = store.enqueue_task(
-        run_id,
-        "retrieval.pubmed",
-        {},
-        idempotency_key="progress:retrieval",
-        db_path=isolated_db,
+    first = _enqueue(
+        run_id, "retrieval.pubmed", "progress:retrieval", isolated_db
     )
-    store.enqueue_task(
-        run_id,
-        "generation.initial",
-        {},
-        idempotency_key="progress:generation",
-        db_path=isolated_db,
-    )
+    _enqueue(run_id, "generation.initial", "progress:generation", isolated_db)
     initial = store.task_progress(run_id, db_path=isolated_db)
     assert initial == {
         "determinate": True,
@@ -436,56 +467,23 @@ def test_supervisor_can_reprioritize_cancel_and_retry_individual_tasks(
 ) -> None:
     """Queue controls mutate only tasks in compatible lifecycle states."""
     run_id = _run()
-    promoted = store.enqueue_task(
-        run_id,
-        "reflection.full",
-        {},
-        idempotency_key="control:promote",
-        priority=1,
-        db_path=isolated_db,
-    )
-    cancelled = store.enqueue_task(
-        run_id,
-        "generation.assumptions",
-        {},
-        idempotency_key="control:cancel",
-        priority=2,
-        db_path=isolated_db,
-    )
-    failed = store.enqueue_task(
-        run_id,
-        "verification.deep",
-        {},
-        idempotency_key="control:retry",
-        priority=100,
-        max_attempts=1,
-        db_path=isolated_db,
-    )
-    leased = store.claim_task(
-        "failed-worker", run_id=run_id, db_path=isolated_db
-    )
-    assert leased is not None and leased.id == failed.id
-    assert store.fail_task(
-        failed.id,
-        "failed-worker",
-        "transient provider error",
-        retryable=False,
-        db_path=isolated_db,
+    promoted_id, cancelled_id, failed_id = _three_control_tasks(
+        run_id, isolated_db
     )
 
     assert store.reprioritize_task(
-        promoted.id,
+        promoted_id,
         99,
         reason="most valuable evidence gap",
         db_path=isolated_db,
     )
     assert store.cancel_task(
-        cancelled.id,
+        cancelled_id,
         reason="superseded branch",
         db_path=isolated_db,
     )
     assert store.retry_task(
-        failed.id,
+        failed_id,
         reason="new evidence available",
         db_path=isolated_db,
     )
@@ -493,7 +491,7 @@ def test_supervisor_can_reprioritize_cancel_and_retry_individual_tasks(
     by_id = {
         task.id: task for task in store.list_tasks(run_id, db_path=isolated_db)
     }
-    assert by_id[promoted.id].priority == 99
-    assert by_id[cancelled.id].status == "cancelled"
-    assert by_id[failed.id].status == "queued"
-    assert by_id[failed.id].max_attempts == 2
+    assert by_id[promoted_id].priority == 99
+    assert by_id[cancelled_id].status == "cancelled"
+    assert by_id[failed_id].status == "queued"
+    assert by_id[failed_id].max_attempts == 2

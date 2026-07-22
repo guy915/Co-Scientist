@@ -67,19 +67,10 @@ def _free_port() -> int:
     return port
 
 
-def _spawn_server(
-    tmp_path_factory: pytest.TempPathFactory,
-) -> tuple[str, subprocess.Popen[bytes]]:
-    """Spawn an offline-backend uvicorn server on a free port.
-
-    The server runs from an isolated cwd so neither ``load_dotenv`` nor
-    pydantic-settings find the repo ``.env`` (no provider keys leak in), with a
-    temp SQLite database and reports directory.
-    """
-    home = tmp_path_factory.mktemp("cli_server_home")
-    reports = home / "reports"
-    reports.mkdir()
-    port = _free_port()
+def _offline_server_env(
+    home: pathlib.Path, reports: pathlib.Path
+) -> dict[str, str]:
+    """Build the subprocess env: offline backend, temp db, no provider keys."""
     env = {k: v for k, v in os.environ.items() if k not in _KEY_VARS}
     env.update(
         {
@@ -98,7 +89,14 @@ def _spawn_server(
             "COSCIENTIST_REPORTS_DIR": str(reports),
         }
     )
-    proc = subprocess.Popen(
+    return env
+
+
+def _spawn_uvicorn(
+    env: dict[str, str], home: pathlib.Path, port: int
+) -> subprocess.Popen[bytes]:
+    """Launch the uvicorn subprocess bound to ``port`` from ``home``."""
+    return subprocess.Popen(
         [
             sys.executable,
             "-m",
@@ -118,6 +116,23 @@ def _spawn_server(
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
     )
+
+
+def _spawn_server(
+    tmp_path_factory: pytest.TempPathFactory,
+) -> tuple[str, subprocess.Popen[bytes]]:
+    """Spawn an offline-backend uvicorn server on a free port.
+
+    The server runs from an isolated cwd so neither ``load_dotenv`` nor
+    pydantic-settings find the repo ``.env`` (no provider keys leak in), with a
+    temp SQLite database and reports directory.
+    """
+    home = tmp_path_factory.mktemp("cli_server_home")
+    reports = home / "reports"
+    reports.mkdir()
+    port = _free_port()
+    env = _offline_server_env(home, reports)
+    proc = _spawn_uvicorn(env, home, port)
     base = f"http://127.0.0.1:{port}"
     try:
         _await_health(proc, base)

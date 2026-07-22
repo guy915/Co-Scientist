@@ -14,6 +14,68 @@ from co_scientist.config.registry import ToolRegistry
 from tests._registry_config import REPLACE_CONFIG as _REPLACE_CONFIG
 from tests._registry_config import write_config as _write_config
 
+# A two-source workflow whose tools are both enabled in the YAML, so any
+# disabling under test comes from the ``disabled_tools`` constructor argument.
+_TWO_SOURCE_CONFIG = textwrap.dedent("""
+    version: "2.0"
+    servers:
+      myserver:
+        url: "http://example.test/mcp"
+        enabled: true
+    tools:
+      search_tools:
+        alpha_search:
+          server: "myserver"
+          mcp_tool_name: "search_alpha"
+          enabled: true
+        beta_search:
+          server: "myserver"
+          mcp_tool_name: "search_beta"
+          enabled: true
+    workflows:
+      literature_review:
+        search_sources:
+          - tool: "alpha_search"
+            papers_per_query: 4
+            enabled: true
+          - tool: "beta_search"
+            papers_per_query: 4
+            enabled: true
+""")
+
+# beta_search is disabled in the YAML and ghost_search names a tool that is
+# never defined -- both cases the load-time reconciliation must cover.
+_YAML_DISABLED_CONFIG = textwrap.dedent("""
+    version: "2.0"
+    servers:
+      myserver:
+        url: "http://example.test/mcp"
+        enabled: true
+    tools:
+      search_tools:
+        alpha_search:
+          server: "myserver"
+          mcp_tool_name: "search_alpha"
+          enabled: true
+        beta_search:
+          server: "myserver"
+          mcp_tool_name: "search_beta"
+          enabled: false
+    workflows:
+      literature_review:
+        search_sources:
+          - tool: "alpha_search"
+            papers_per_query: 4
+            enabled: true
+          - tool: "beta_search"
+            papers_per_query: 4
+            enabled: true
+          - tool: "ghost_search"
+            papers_per_query: 4
+            enabled: true
+""")
+
+
 # --- disabled_tools constructor argument ----------------------------------
 
 
@@ -44,33 +106,7 @@ def test_disabled_tools_also_disables_its_search_source(
     workflow whitelists correctly dropped it -- the gap that let a
     per-audience tool restriction leak into the literature review.
     """
-    config = textwrap.dedent("""
-        version: "2.0"
-        servers:
-          myserver:
-            url: "http://example.test/mcp"
-            enabled: true
-        tools:
-          search_tools:
-            alpha_search:
-              server: "myserver"
-              mcp_tool_name: "search_alpha"
-              enabled: true
-            beta_search:
-              server: "myserver"
-              mcp_tool_name: "search_beta"
-              enabled: true
-        workflows:
-          literature_review:
-            search_sources:
-              - tool: "alpha_search"
-                papers_per_query: 4
-                enabled: true
-              - tool: "beta_search"
-                papers_per_query: 4
-                enabled: true
-    """)
-    path = _write_config(tmp_path, config)
+    path = _write_config(tmp_path, _TWO_SOURCE_CONFIG)
 
     enabled = ToolRegistry(config_path=path, skip_user_config=True)
     workflow = enabled.get_workflow("literature_review")
@@ -103,36 +139,7 @@ def test_yaml_disabled_or_missing_tool_disables_its_search_source(
     reconciliation must cover those too, since the search phase trusts
     ``get_enabled_search_sources()`` alone.
     """
-    config = textwrap.dedent("""
-        version: "2.0"
-        servers:
-          myserver:
-            url: "http://example.test/mcp"
-            enabled: true
-        tools:
-          search_tools:
-            alpha_search:
-              server: "myserver"
-              mcp_tool_name: "search_alpha"
-              enabled: true
-            beta_search:
-              server: "myserver"
-              mcp_tool_name: "search_beta"
-              enabled: false
-        workflows:
-          literature_review:
-            search_sources:
-              - tool: "alpha_search"
-                papers_per_query: 4
-                enabled: true
-              - tool: "beta_search"
-                papers_per_query: 4
-                enabled: true
-              - tool: "ghost_search"
-                papers_per_query: 4
-                enabled: true
-    """)
-    path = _write_config(tmp_path, config)
+    path = _write_config(tmp_path, _YAML_DISABLED_CONFIG)
 
     registry = ToolRegistry(config_path=path, skip_user_config=True)
     workflow = registry.get_workflow("literature_review")

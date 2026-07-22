@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from app import report_render, store
+from app import store
 from app.claim_grounding import (
     GroundingResult,
     build_assessor,
@@ -18,6 +18,7 @@ from app.claim_grounding import (
     ground_hypotheses,
 )
 from app.claims import AssessorDraft, EntailmentLabel, as_passages
+from tests._drain_helpers import _build_report
 
 # A claim whose evidence flatly contradicts it (negation marker + shared terms).
 _CONTRADICTED = (
@@ -35,6 +36,29 @@ def _add(run_id: str, title: str, statement: str, db: str) -> str:
     return store.add_hypothesis(
         run_id, title=title, statement=statement, db_path=db
     )
+
+
+def _assert_contradicted_graph(
+    run_id: str, bad_id: str, ok_id: str, db_path: str
+) -> None:
+    """The persisted graph has a provenance-stamped contradicts edge.
+
+    The contradicts edge's support span carries provenance (evidence id +
+    located offsets); the benign speculation resolves to insufficient.
+    """
+    edges = store.list_claim_evidence(run_id, db_path=db_path)
+    labels = {e["hypothesis_id"]: e["label"] for e in edges}
+    assert labels.get(bad_id) == "contradicts"
+    contradicted_edge = next(e for e in edges if e["hypothesis_id"] == bad_id)
+    spans = contradicted_edge["contradicting"]
+    assert spans  # spans recorded
+    span = spans[0]
+    assert span["evidence_id"] == "passage-0"
+    assert span["quote"] and span["end"] > span["start"] >= 0
+    assert contradicted_edge["assessor"]  # provenance recorded
+    speculative_edge = next(e for e in edges if e["hypothesis_id"] == ok_id)
+    assert speculative_edge["label"] == "insufficient"
+    assert speculative_edge["claim_role"] == "speculative"
 
 
 def test_ground_persists_graph_and_blocks_contradicted(
@@ -56,21 +80,7 @@ def test_ground_persists_graph_and_blocks_contradicted(
     # scientific context cannot enter ranking either.
     assert result.blocked_ids == frozenset({bad_id, ok_id})
 
-    # The claim-evidence graph is persisted, with a contradicts edge whose
-    # support span carries provenance (evidence id + located offsets).
-    edges = store.list_claim_evidence(run.id, db_path=isolated_db)
-    labels = {e["hypothesis_id"]: e["label"] for e in edges}
-    assert labels.get(bad_id) == "contradicts"
-    contradicted_edge = next(e for e in edges if e["hypothesis_id"] == bad_id)
-    spans = contradicted_edge["contradicting"]
-    assert spans  # spans recorded
-    span = spans[0]
-    assert span["evidence_id"] == "passage-0"
-    assert span["quote"] and span["end"] > span["start"] >= 0
-    assert contradicted_edge["assessor"]  # provenance recorded
-    speculative_edge = next(e for e in edges if e["hypothesis_id"] == ok_id)
-    assert speculative_edge["label"] == "insufficient"
-    assert speculative_edge["claim_role"] == "speculative"
+    _assert_contradicted_graph(run.id, bad_id, ok_id, isolated_db)
 
     # A claim_gate audit row was recorded for the block.
     decisions = store.list_safety_decisions(run.id, db_path=isolated_db)
@@ -138,18 +148,7 @@ def test_contradicted_hypothesis_excluded_from_report(
         db_path=isolated_db,
     )
 
-    payload, markdown = report_render._build_report_content(
-        run_id=run.id,
-        research_goal=run.research_goal,
-        run_mode="standard",
-        provider="engine",
-        citation_summary=None,
-        meta_review=None,
-        research_overview=None,
-        execution_time=1.0,
-        summary=None,
-        db_path=isolated_db,
-    )
+    payload, markdown = _build_report(run, isolated_db)
 
     leaderboard_ids = {row["id"] for row in payload["leaderboard"]}
     assert bad_id not in leaderboard_ids
@@ -157,43 +156,38 @@ def test_contradicted_hypothesis_excluded_from_report(
     assert "kinase X reduces melanoma" not in markdown
 
 
-def test_speculative_insufficient_hypothesis_remains_visible(
-    isolated_db: str,
-) -> None:
-    """Novel proposal text publishes as speculation, never as a finding."""
+def _seed_speculative_run(db_path: str) -> tuple[Any, str]:
+    """Seed a novel-proposal run with one supporting evidence row, grounded."""
     run = store.create_run("novel proposal", "standard", "engine", {})
     hypothesis_id = store.add_hypothesis(
         run.id,
         title="Novel proposal",
         statement="We hypothesize channel X may alter neuronal ATP recovery.",
         mechanism="Astrocytes contribute to neuronal energy metabolism.",
-        db_path=isolated_db,
+        db_path=db_path,
     )
     store.add_evidence(
         run.id,
         "General energetics review",
         abstract="Astrocytes contribute to neuronal energy metabolism.",
-        db_path=isolated_db,
+        db_path=db_path,
     )
     ground_hypotheses(
         run.id,
-        store.list_hypotheses(run.id, db_path=isolated_db),
-        evidence_passages(run.id, db_path=isolated_db),
-        db_path=isolated_db,
+        store.list_hypotheses(run.id, db_path=db_path),
+        evidence_passages(run.id, db_path=db_path),
+        db_path=db_path,
     )
+    return run, hypothesis_id
 
-    payload, markdown = report_render._build_report_content(
-        run_id=run.id,
-        research_goal=run.research_goal,
-        run_mode="standard",
-        provider="engine",
-        citation_summary=None,
-        meta_review=None,
-        research_overview=None,
-        execution_time=1.0,
-        summary=None,
-        db_path=isolated_db,
-    )
+
+def test_speculative_insufficient_hypothesis_remains_visible(
+    isolated_db: str,
+) -> None:
+    """Novel proposal text publishes as speculation, never as a finding."""
+    run, hypothesis_id = _seed_speculative_run(isolated_db)
+
+    payload, markdown = _build_report(run, isolated_db)
 
     assert hypothesis_id in {row["id"] for row in payload["leaderboard"]}
     edge = next(
@@ -284,32 +278,11 @@ def test_build_assessor_selects_by_mode() -> None:
     assert llm_id == "llm:deepseek/deepseek-chat"
 
 
-def test_ground_with_llm_assessor_persists_provenance(
-    isolated_db: str, monkeypatch: Any
-) -> None:
-    """Grounding with the LLM assessor (faked) persists llm-tagged spans."""
+def _ev_completion(ev_id: str) -> Any:
+    """A faked litellm.completion citing ``ev_id`` so its span locates."""
     import types
 
-    import litellm
-
-    run = store.create_run("grounding goal", "standard", "engine", {})
-    hyp_id = _add(
-        run.id,
-        "Supported",
-        "Inhibiting kinase X reduces melanoma tumor growth in mouse models.",
-        isolated_db,
-    )
-    ev_id = store.add_evidence(
-        run.id,
-        "Kinase X melanoma study",
-        abstract="Kinase X inhibition reduces melanoma tumor growth markedly.",
-        source="pubmed",
-        url="https://example.org/ev",
-        db_path=isolated_db,
-    )
-
-    # The faked model cites the real evidence id so the span locates.
-    def _completion_for_ev(**_kwargs: Any) -> Any:
+    def _completion(**_kwargs: Any) -> Any:
         content = (
             '{"label": "supports", "supporting": '
             f'[{{"evidence_id": "{ev_id}", '
@@ -321,7 +294,38 @@ def test_ground_with_llm_assessor_persists_provenance(
             choices=[types.SimpleNamespace(message=message)]
         )
 
-    monkeypatch.setattr(litellm, "completion", _completion_for_ev)
+    return _completion
+
+
+def _seed_llm_assessor(db_path: str) -> tuple[Any, str, str]:
+    """Seed a supported hypothesis + a pubmed evidence row for LLM grounding."""
+    run = store.create_run("grounding goal", "standard", "engine", {})
+    hyp_id = _add(
+        run.id,
+        "Supported",
+        "Inhibiting kinase X reduces melanoma tumor growth in mouse models.",
+        db_path,
+    )
+    ev_id = store.add_evidence(
+        run.id,
+        "Kinase X melanoma study",
+        abstract="Kinase X inhibition reduces melanoma tumor growth markedly.",
+        source="pubmed",
+        url="https://example.org/ev",
+        db_path=db_path,
+    )
+    return run, hyp_id, ev_id
+
+
+def test_ground_with_llm_assessor_persists_provenance(
+    isolated_db: str, monkeypatch: Any
+) -> None:
+    """Grounding with the LLM assessor (faked) persists llm-tagged spans."""
+    import litellm
+
+    run, hyp_id, ev_id = _seed_llm_assessor(isolated_db)
+    # The faked model cites the real evidence id so the span locates.
+    monkeypatch.setattr(litellm, "completion", _ev_completion(ev_id))
 
     assessor, assessor_id = build_assessor("llm", "deepseek/deepseek-chat")
     ground_hypotheses(

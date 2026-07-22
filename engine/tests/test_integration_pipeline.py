@@ -26,9 +26,79 @@ import pytest
 
 from co_scientist.constants import INITIAL_ELO_RATING
 from co_scientist.generator import HypothesisGenerator
-from co_scientist.models import HypothesisOrigin
+from co_scientist.models import Hypothesis, HypothesisOrigin
 from co_scientist.state import WorkflowState
 from tests._llm_fake import install_fake_llm
+
+
+def _make_gen(**overrides: Any) -> HypothesisGenerator:
+    """Build a small, fast generator; overrides tweak individual knobs."""
+    params: dict[str, Any] = {
+        "model_name": "fake/model",
+        "max_iterations": 1,
+        "initial_hypotheses_count": 2,
+        "evolution_max_count": 2,
+        "tournament_pairs": 2,
+        "enable_cache": False,
+    }
+    params.update(overrides)
+    return HypothesisGenerator(**params)
+
+
+def _generations(
+    final_state: WorkflowState,
+) -> tuple[list[Hypothesis], list[Hypothesis]]:
+    """Split the final pool into generation-0 parents and their children."""
+    hyps = final_state["hypotheses"]
+    parents = [h for h in hyps if h.generation == 0]
+    children = [h for h in hyps if h.generation >= 1]
+    return parents, children
+
+
+def _assert_iteration_children(
+    children: list[Hypothesis], parent_ids: set[str]
+) -> None:
+    """Each child is a fresh, reviewed EVOLUTION entrant of a real parent."""
+    for child in children:
+        assert child.origin is HypothesisOrigin.EVOLUTION
+        assert child.parent_id in parent_ids
+        assert child.generation == 1
+        assert len(child.reviews) >= 1  # reviewed before ranking
+        assert child.evolution_history
+
+
+def _assert_top_ranked_verified(final_state: WorkflowState) -> None:
+    """Deep verification probed the top hypothesis by Elo (top-k, not all)."""
+    ranked = sorted(
+        final_state["hypotheses"], key=lambda h: h.elo_rating, reverse=True
+    )
+    assert ranked[0].deep_verification_verdict
+    assert ranked[0].deep_verification_probes
+
+
+def _assert_meta_review_shape(final_state: WorkflowState) -> None:
+    """Meta-review synthesis ran and produced the expected shape."""
+    meta_review = final_state["meta_review"]
+    assert meta_review["summary"]
+    assert "common_strengths" in meta_review
+    assert "strategic_recommendations" in meta_review
+
+
+def _assert_terminal_overview(final_state: WorkflowState) -> None:
+    """Research overview was synthesized as the terminal step."""
+    overview = final_state["research_overview"]
+    assert overview is not None
+    assert overview["overview"]
+    assert overview["nih_specific_aims"]
+
+
+def _assert_execution_metrics(final_state: WorkflowState) -> None:
+    """Execution metrics were populated across nodes, not just one."""
+    metrics = final_state["metrics"]
+    assert metrics.llm_calls > 0
+    assert metrics.reviews_count >= 2
+    assert metrics.tournaments_count >= 2
+    assert metrics.evolutions_count == 2
 
 
 async def _run_graph(
@@ -66,77 +136,35 @@ async def test_single_iteration_pipeline_updates_cross_node_state(
     proximity -> research_overview.
     """
     install_fake_llm(monkeypatch)
-    gen = HypothesisGenerator(
-        model_name="fake/model",
-        max_iterations=1,
-        initial_hypotheses_count=2,
-        evolution_max_count=2,
-        tournament_pairs=2,
-        enable_cache=False,
-    )
+    gen = _make_gen()
 
     final_state = await _run_graph(gen, "Explain how protein X folds")
 
+    # The pool grew: 2 generation-0 parents plus 2 appended evolution children.
     hypotheses = final_state["hypotheses"]
-    # The pool grew: 2 generation-0 parents plus the appended evolution
-    # children (the fake LLM mints a unique leaf per call, so both evolutions
-    # are accepted and neither the reducer nor proximity collapses them).
-    parents = [h for h in hypotheses if h.generation == 0]
-    children = [h for h in hypotheses if h.generation >= 1]
+    parents, children = _generations(final_state)
     assert len(parents) == 2
     assert len(children) == 2
     assert len(hypotheses) == 4
-
     # Every hypothesis has distinct text.
     texts = [h.text for h in hypotheses]
     assert len(texts) == len(set(texts))
 
-    # Reviews are incremental: each parent is reviewed once and is not
-    # re-reviewed on the post-evolve pass (that pass only reviews the new,
-    # unreviewed children). Each child is a fresh entrant reviewed before
-    # ranking (EVO-COMPETE-001) and linked to a real parent at Elo 1200.
+    # Reviews are incremental: each parent reviewed once; children reviewed
+    # before ranking (EVO-COMPETE-001).
     assert all(len(p.reviews) == 1 for p in parents)
-    parent_ids = {p.id for p in parents}
-    for child in children:
-        assert child.origin is HypothesisOrigin.EVOLUTION
-        assert child.parent_id in parent_ids
-        assert child.generation == 1
-        assert len(child.reviews) >= 1  # reviewed before ranking
-        assert child.evolution_history
+    _assert_iteration_children(children, {p.id for p in parents})
 
     # The tournament judged matchups and moved Elo off the initial rating.
     assert final_state["tournament_matchups"]
     assert any(h.elo_rating != INITIAL_ELO_RATING for h in hypotheses)
+    assert final_state["evolution_details"]  # evolution left an audit trail
+    _assert_top_ranked_verified(final_state)
+    _assert_meta_review_shape(final_state)
+    _assert_terminal_overview(final_state)
+    _assert_execution_metrics(final_state)
 
-    # Meta-review synthesis ran and produced the expected shape.
-    meta_review = final_state["meta_review"]
-    assert meta_review["summary"]
-    assert "common_strengths" in meta_review
-    assert "strategic_recommendations" in meta_review
-
-    # Evolution ran and left an audit trail.
-    assert final_state["evolution_details"]
-
-    # Deep verification probed the top hypotheses by Elo (top-k, not all).
-    ranked = sorted(hypotheses, key=lambda h: h.elo_rating, reverse=True)
-    assert ranked[0].deep_verification_verdict
-    assert ranked[0].deep_verification_probes
-
-    # Research overview was synthesized as the terminal step.
-    overview = final_state["research_overview"]
-    assert overview is not None
-    assert overview["overview"]
-    assert overview["nih_specific_aims"]
-
-    # Execution metrics were populated across nodes, not just one.
-    metrics = final_state["metrics"]
-    assert metrics.llm_calls > 0
-    assert metrics.reviews_count >= 2
-    assert metrics.tournaments_count >= 2
-    assert metrics.evolutions_count == 2
-
-    # One full iteration cycle completed (proximity increments the
-    # counter exactly once per pass through the iterate loop).
+    # One full iteration cycle completed (proximity increments once per pass).
     assert final_state["current_iteration"] == 1
 
 
@@ -151,14 +179,7 @@ async def test_evolve_path_appends_immutable_children(
     shrinking (paper invariant SSR §4, §12).
     """
     install_fake_llm(monkeypatch)
-    gen = HypothesisGenerator(
-        model_name="fake/model",
-        max_iterations=1,
-        initial_hypotheses_count=3,
-        evolution_max_count=2,
-        tournament_pairs=3,
-        enable_cache=False,
-    )
+    gen = _make_gen(initial_hypotheses_count=3, tournament_pairs=3)
 
     final_state = await _run_graph(gen, "Identify a synthetic-lethal target")
 
@@ -167,8 +188,7 @@ async def test_evolve_path_appends_immutable_children(
     # substituted for their parents.
     assert len(hypotheses) > 3
 
-    children = [h for h in hypotheses if h.generation >= 1]
-    parents = [h for h in hypotheses if h.generation == 0]
+    parents, children = _generations(final_state)
     assert len(parents) == 3  # every parent survived
     assert children, "evolution should append at least one child"
 
@@ -199,14 +219,7 @@ async def test_adaptive_orchestration_schedules_generation_and_records_reasons(
     terminates with an explicit termination reason.
     """
     install_fake_llm(monkeypatch)
-    gen = HypothesisGenerator(
-        model_name="fake/model",
-        max_iterations=3,
-        initial_hypotheses_count=2,
-        evolution_max_count=2,
-        tournament_pairs=2,
-        enable_cache=False,
-    )
+    gen = _make_gen(max_iterations=3)
 
     final_state = await _run_graph(gen, "Explain how protein X folds")
 
@@ -273,13 +286,7 @@ async def test_zero_iteration_pipeline_deep_verifies_and_skips_iterate(
     routing -- never run at all.
     """
     install_fake_llm(monkeypatch)
-    gen = HypothesisGenerator(
-        model_name="fake/model",
-        max_iterations=0,
-        initial_hypotheses_count=2,
-        tournament_pairs=2,
-        enable_cache=False,
-    )
+    gen = _make_gen(max_iterations=0)
 
     final_state = await _run_graph(
         gen, "Repurpose an existing kinase inhibitor"

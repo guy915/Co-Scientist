@@ -27,7 +27,44 @@ from co_scientist.agents.evolution.evolve import (
 )
 from co_scientist.constants import INITIAL_ELO_RATING
 from co_scientist.models import Hypothesis, HypothesisOrigin
+from co_scientist.state import WorkflowState
 from tests._state import make_hypothesis, make_state
+
+# Canned refinement reused by the single-hypothesis evolution tests. Its
+# vocabulary is disjoint from the input hypotheses so neither the unchanged
+# guard nor the 0.95 near-duplicate guard fires.
+_RAPAMYCIN_RESPONSE: dict[str, Any] = {
+    "hypothesis": "rapamycin suppresses mtor signaling downstream",
+    "explanation": "fresh layman walkthrough",
+    "experiment": "knock down the kinase and measure growth",
+    "refinement_summary": "pivoted to a kinase mechanism",
+}
+
+_STALE_PROBE: dict[str, Any] = {
+    "question": "stale q",
+    "answer": "stale a",
+    "reasoning": "stale r",
+    "assumption_is_fundamental": True,
+}
+
+_MAX_COUNT_TEXTS = [
+    "alpha membrane channel governs sodium",
+    "bravo cytokine triggers inflammation cascade",
+    "charlie enzyme catalyzes lipid breakdown",
+    "delta receptor binds dopamine selectively",
+    "echo transporter shuttles glucose intracellularly",
+]
+
+# A distinct, disjoint evolved text per top-k original so neither the
+# unchanged guard nor the 0.95 near-duplicate guard fires.
+_MAX_COUNT_EVOLVED = {
+    "alpha membrane channel governs sodium": (
+        "foxtrot scaffold stabilizes microtubule assembly"
+    ),
+    "bravo cytokine triggers inflammation cascade": (
+        "golf ligand quenches reactive oxygen species"
+    ),
+}
 
 
 def _children(result: dict[str, Any]) -> list[Hypothesis]:
@@ -51,20 +88,41 @@ def _stub_llm(
     monkeypatch.setattr(evolve, "call_llm_json", fake)
 
 
-def test_specialist_feedback_joins_prior_agent_outputs() -> None:
-    """Evolution receives debate, tournament, proximity, and probe feedback."""
-    hypothesis = make_hypothesis(
-        text="mitochondrial checkpoint controls neuronal aging",
-        deep_verification_verdict="partially_holds",
-        deep_verification_probes=[
-            {"question": "Is it causal?", "answer": "Unknown"}
-        ],
-    )
-    hypothesis.enrichments["claim_gate"] = {
-        "decision": "block",
-        "reason": "one causal claim lacks support",
-    }
-    state = make_state(
+def _assert_fresh_immutable_child(
+    child: Hypothesis, parent: Hypothesis
+) -> None:
+    """A child is a fresh, immutable entrant linked to its parent."""
+    assert child.id != parent.id
+    assert child.parent_id == parent.id
+    assert child.generation == 1
+    assert child.origin is HypothesisOrigin.EVOLUTION
+    assert child.elo_rating == INITIAL_ELO_RATING
+    assert child.win_count == 0 and child.loss_count == 0
+    assert child.reviews == []
+
+
+def _assert_single_evolution_detail(
+    result: dict[str, Any],
+    *,
+    parent: Hypothesis,
+    child: Hypothesis,
+    original: str,
+    evolved: str,
+    rationale: str,
+) -> None:
+    """The lone evolution detail records the parent->child transformation."""
+    details = result["evolution_details"]
+    assert len(details) == 1
+    assert details[0]["parent_id"] == parent.id
+    assert details[0]["child_id"] == child.id
+    assert details[0]["original"] == original
+    assert details[0]["evolved"] == evolved
+    assert details[0]["rationale"] == rationale
+
+
+def _feedback_state(hypothesis: Hypothesis) -> WorkflowState:
+    """Build a state carrying debate, tournament, and proximity feedback."""
+    return make_state(
         hypotheses=[hypothesis],
         debate_transcripts=[
             {
@@ -93,6 +151,42 @@ def test_specialist_feedback_joins_prior_agent_outputs() -> None:
             ]
         },
     )
+
+
+def _make_top_k_builder(
+    evolved_by_original: dict[str, str],
+) -> Callable[[str], dict[str, Any]]:
+    """Map a prompt to a response by matching the primary-slot original."""
+
+    def builder(prompt: str) -> dict[str, Any]:
+        # Match the primary slot, not the truncated "other hypotheses" context
+        # block where every sibling original also appears.
+        for original, evolved in evolved_by_original.items():
+            anchor = f"**Original Hypothesis:**\n{original}"
+            if anchor in prompt:
+                return {
+                    "hypothesis": evolved,
+                    "refinement_summary": f"refined: {evolved}",
+                }
+        raise AssertionError("evolution called for a non-top-k hypothesis")
+
+    return builder
+
+
+def test_specialist_feedback_joins_prior_agent_outputs() -> None:
+    """Evolution receives debate, tournament, proximity, and probe feedback."""
+    hypothesis = make_hypothesis(
+        text="mitochondrial checkpoint controls neuronal aging",
+        deep_verification_verdict="partially_holds",
+        deep_verification_probes=[
+            {"question": "Is it causal?", "answer": "Unknown"}
+        ],
+    )
+    hypothesis.enrichments["claim_gate"] = {
+        "decision": "block",
+        "reason": "one causal claim lacks support",
+    }
+    state = _feedback_state(hypothesis)
 
     feedback = _specialist_feedback_for(state, hypothesis)
 
@@ -138,15 +232,7 @@ async def test_evolution_produces_evolved_hypotheses(
         experiment="old experiment",
     )
     state = make_state(hypotheses=[original], evolution_max_count=1)
-    _stub_llm(
-        monkeypatch,
-        {
-            "hypothesis": "rapamycin suppresses mtor signaling downstream",
-            "explanation": "fresh layman walkthrough",
-            "experiment": "knock down the kinase and measure growth",
-            "refinement_summary": "pivoted to a kinase mechanism",
-        },
-    )
+    _stub_llm(monkeypatch, _RAPAMYCIN_RESPONSE)
 
     result = await evolve_node(state)
 
@@ -156,28 +242,20 @@ async def test_evolution_produces_evolved_hypotheses(
     assert child.text == "rapamycin suppresses mtor signaling downstream"
     assert child.explanation == "fresh layman walkthrough"
     assert child.experiment == "knock down the kinase and measure growth"
-    # The child is a fresh, immutable entrant linked to its parent.
-    assert child.id != original.id
-    assert child.parent_id == original.id
-    assert child.generation == 1
-    assert child.origin is HypothesisOrigin.EVOLUTION
-    assert child.elo_rating == INITIAL_ELO_RATING
-    assert child.win_count == 0 and child.loss_count == 0
-    assert child.reviews == []
+    _assert_fresh_immutable_child(child, original)
     # The child's history records the parent's text; the parent is untouched.
     assert "quercetin inhibits aldolase activity" in child.evolution_history
     assert original.text == "quercetin inhibits aldolase activity"
     assert original.elo_rating == INITIAL_ELO_RATING
 
-    details = result["evolution_details"]
-    assert len(details) == 1
-    assert details[0]["parent_id"] == original.id
-    assert details[0]["child_id"] == child.id
-    assert details[0]["original"] == "quercetin inhibits aldolase activity"
-    assert details[0]["evolved"] == (
-        "rapamycin suppresses mtor signaling downstream"
+    _assert_single_evolution_detail(
+        result,
+        parent=original,
+        child=child,
+        original="quercetin inhibits aldolase activity",
+        evolved="rapamycin suppresses mtor signaling downstream",
+        rationale="pivoted to a kinase mechanism",
     )
-    assert details[0]["rationale"] == "pivoted to a kinase mechanism"
 
 
 async def test_evolution_child_starts_without_deep_verification(
@@ -190,26 +268,11 @@ async def test_evolution_child_starts_without_deep_verification(
     """
     original = make_hypothesis(
         text="quercetin inhibits aldolase activity",
-        deep_verification_probes=[
-            {
-                "question": "stale q",
-                "answer": "stale a",
-                "reasoning": "stale r",
-                "assumption_is_fundamental": True,
-            }
-        ],
+        deep_verification_probes=[_STALE_PROBE],
         deep_verification_verdict="holds",
     )
     state = make_state(hypotheses=[original], evolution_max_count=1)
-    _stub_llm(
-        monkeypatch,
-        {
-            "hypothesis": "rapamycin suppresses mtor signaling downstream",
-            "explanation": "fresh layman walkthrough",
-            "experiment": "knock down the kinase and measure growth",
-            "refinement_summary": "pivoted to a kinase mechanism",
-        },
-    )
+    _stub_llm(monkeypatch, _RAPAMYCIN_RESPONSE)
 
     result = await evolve_node(state)
 
@@ -218,14 +281,7 @@ async def test_evolution_child_starts_without_deep_verification(
     assert child.deep_verification_probes == []
     assert child.deep_verification_verdict is None
     # The parent's own probes are untouched.
-    assert original.deep_verification_probes == [
-        {
-            "question": "stale q",
-            "answer": "stale a",
-            "reasoning": "stale r",
-            "assumption_is_fundamental": True,
-        }
-    ]
+    assert original.deep_verification_probes == [_STALE_PROBE]
     assert original.deep_verification_verdict == "holds"
 
 
@@ -270,40 +326,9 @@ async def test_respects_evolution_max_count(
     evolved hypotheses (the first two) and two evolution details; the lower
     ranked three are discarded.
     """
-    texts = [
-        "alpha membrane channel governs sodium",
-        "bravo cytokine triggers inflammation cascade",
-        "charlie enzyme catalyzes lipid breakdown",
-        "delta receptor binds dopamine selectively",
-        "echo transporter shuttles glucose intracellularly",
-    ]
-    hypotheses = [make_hypothesis(text=t) for t in texts]
+    hypotheses = [make_hypothesis(text=t) for t in _MAX_COUNT_TEXTS]
     state = make_state(hypotheses=hypotheses, evolution_max_count=2)
-
-    # Derive a distinct, disjoint evolved text per original so neither the
-    # unchanged-guard nor the 0.95 near-duplicate guard fires.
-    evolved_by_original = {
-        "alpha membrane channel governs sodium": (
-            "foxtrot scaffold stabilizes microtubule assembly"
-        ),
-        "bravo cytokine triggers inflammation cascade": (
-            "golf ligand quenches reactive oxygen species"
-        ),
-    }
-
-    def builder(prompt: str) -> dict[str, Any]:
-        # Match the primary slot, not the truncated "other hypotheses" context
-        # block where every sibling original also appears.
-        for original, evolved in evolved_by_original.items():
-            anchor = f"**Original Hypothesis:**\n{original}"
-            if anchor in prompt:
-                return {
-                    "hypothesis": evolved,
-                    "refinement_summary": f"refined: {evolved}",
-                }
-        raise AssertionError("evolution called for a non-top-k hypothesis")
-
-    _stub_llm_from_prompt(monkeypatch, builder)
+    _stub_llm_from_prompt(monkeypatch, _make_top_k_builder(_MAX_COUNT_EVOLVED))
 
     result = await evolve_node(state)
 
@@ -311,13 +336,10 @@ async def test_respects_evolution_max_count(
     assert len(children) == 2
     assert len(result["evolution_details"]) == 2
     evolved_texts = {h.text for h in children}
-    assert evolved_texts == {
-        "foxtrot scaffold stabilizes microtubule assembly",
-        "golf ligand quenches reactive oxygen species",
-    }
+    assert evolved_texts == set(_MAX_COUNT_EVOLVED.values())
     # Only the top-2 were evolved; the children are new-text entrants and each
     # links back to one of the top-2 parents.
-    assert not (evolved_texts & set(texts))
+    assert not (evolved_texts & set(_MAX_COUNT_TEXTS))
     top_two_ids = {hypotheses[0].id, hypotheses[1].id}
     assert {c.parent_id for c in children} == top_two_ids
 

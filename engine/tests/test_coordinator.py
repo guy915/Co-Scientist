@@ -163,12 +163,8 @@ async def test_condition_a_splits_tools_debate_and_assumptions(
     assert assumptions.articles_with_reasoning == "some papers and reasoning"
     # Assembly order: tools, then debate, then assumptions.
     # generate returns an AppendHypotheses op (children appended to the pool).
-    assert [h.text for h in result["hypotheses"].items] == [
-        "t1",
-        "d1",
-        "d2",
-        "a1",
-    ]
+    texts = [h.text for h in result["hypotheses"].items]
+    assert texts == ["t1", "d1", "d2", "a1"]
     assert result["hypothesis_count"] == 4
     assert len(result["debate_transcripts"]) == 2
 

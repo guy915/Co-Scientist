@@ -138,33 +138,33 @@ def test_log_generated_hypothesis_methods_handles_set_and_none() -> None:
 # -----------------------------------------------------------------------------
 
 
-async def test_generate_with_tools_orchestrates_both_phases(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """generate_with_tools threads the resolved client/registry through.
+class _OrchestrationProbe:
+    """Sentinels and recorded phase calls for the orchestration test."""
 
-    Resolves the MCP client and threads it and the registry into both
-    phases, returning phase 2's hypotheses unchanged.
-    """
-    sentinel_client = object()
-    sentinel_registry = object()
+    def __init__(self) -> None:
+        self.client = object()
+        self.registry = object()
+        self.final: list[Hypothesis] = [make_hypothesis(text="validated one")]
+        self.draft_calls: list[dict[str, Any]] = []
+        self.validate_calls: list[dict[str, Any]] = []
+
+
+def _install_orchestration_fakes(
+    monkeypatch: pytest.MonkeyPatch, probe: _OrchestrationProbe
+) -> None:
+    """Stub client resolution and both phases to record onto ``probe``."""
 
     async def fake_get_mcp_client(**kwargs: Any) -> Any:
-        assert kwargs["tool_registry"] is sentinel_registry
-        return sentinel_client
-
-    draft_calls: list[dict[str, Any]] = []
-    validate_calls: list[dict[str, Any]] = []
+        assert kwargs["tool_registry"] is probe.registry
+        return probe.client
 
     async def fake_draft_hypotheses(**kwargs: Any) -> list[dict[str, Any]]:
-        draft_calls.append(kwargs)
+        probe.draft_calls.append(kwargs)
         return [{"text": "draft one"}]
 
-    final_hypotheses = [make_hypothesis(text="validated one")]
-
     async def fake_validate_hypotheses(**kwargs: Any) -> list[Hypothesis]:
-        validate_calls.append(kwargs)
-        return final_hypotheses
+        probe.validate_calls.append(kwargs)
+        return probe.final
 
     monkeypatch.setattr(lit_tools_mod, "get_mcp_client", fake_get_mcp_client)
     monkeypatch.setattr(
@@ -174,18 +174,32 @@ async def test_generate_with_tools_orchestrates_both_phases(
         lit_tools_mod, "validate_hypotheses", fake_validate_hypotheses
     )
 
+
+async def test_generate_with_tools_orchestrates_both_phases(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """generate_with_tools threads the resolved client/registry through.
+
+    Resolves the MCP client and threads it and the registry into both
+    phases, returning phase 2's hypotheses unchanged.
+    """
+    probe = _OrchestrationProbe()
+    _install_orchestration_fakes(monkeypatch, probe)
+
     state = make_state(
-        tool_registry=sentinel_registry,
+        tool_registry=probe.registry,
         articles=[make_article(used_in_analysis=True)],
     )
     result = await lit_tools_mod.generate_with_tools(
         state, count=3, reference_index=None
     )
 
-    assert result == final_hypotheses
-    assert draft_calls[0]["count"] == 3
-    assert draft_calls[0]["mcp_client"] is sentinel_client
-    assert draft_calls[0]["tool_registry"] is sentinel_registry
-    assert validate_calls[0]["draft_hypotheses"] == [{"text": "draft one"}]
-    assert validate_calls[0]["mcp_client"] is sentinel_client
-    assert validate_calls[0]["tool_registry"] is sentinel_registry
+    assert result == probe.final
+    assert probe.draft_calls[0]["count"] == 3
+    assert probe.draft_calls[0]["mcp_client"] is probe.client
+    assert probe.draft_calls[0]["tool_registry"] is probe.registry
+    assert probe.validate_calls[0]["draft_hypotheses"] == [
+        {"text": "draft one"}
+    ]
+    assert probe.validate_calls[0]["mcp_client"] is probe.client
+    assert probe.validate_calls[0]["tool_registry"] is probe.registry

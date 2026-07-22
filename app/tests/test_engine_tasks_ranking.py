@@ -1,18 +1,15 @@
 """Tournament progress-cadence and wave-concurrency tests for ranking."""
 
-import asyncio
-from typing import Any
-
 import pytest
-from co_scientist.models import (
-    Hypothesis,
-)
 
 from app import engine_tasks, store
 from tests._engine_tasks_helpers import (
-    _Generator,
-    _seed_checkpoint,
-    _task_state,
+    _drain_ranking_matches,
+    _install_concurrency_tracking_judge,
+    _install_plain_fake_judge,
+    _run_ranking_node,
+    _running_ranking_events,
+    _seed_ranking_node,
 )
 
 
@@ -29,81 +26,23 @@ async def test_long_tournament_reports_progress_between_its_matches(
     newest handful of events) still shows the surrounding phases.
     """
     run = store.create_run("Task-level science", "standard", "engine", {})
-    state = _task_state(run.id)
-    hypotheses = [
-        Hypothesis(
-            text=f"Mechanism {index} accelerates ATP recovery.",
-            literature_grounding=(
-                f"Mechanism {index} accelerates ATP recovery."
-            ),
-        )
-        for index in range(4)
-    ]
-    for hypothesis in hypotheses:
-        hypothesis.review_disposition = "viable"
-    state.update({"hypotheses": hypotheses, "tournament_pairs": 12})
-    checkpoint_seq = _seed_checkpoint(run.id, state)
-    store.enqueue_task(
+    _seed_ranking_node(
         run.id,
-        f"{engine_tasks.NODE_TASK_PREFIX}ranking",
-        {"checkpoint_seq": checkpoint_seq},
+        monkeypatch,
+        hypothesis_count=4,
+        tournament_pairs=12,
         idempotency_key="ranking-node",
         db_path=isolated_db,
     )
-    generator = _Generator(state)
-    monkeypatch.setattr(
-        engine_tasks, "_generator_and_opts", lambda *_: (generator, {})
-    )
-    monkeypatch.setattr(
-        engine_tasks, "_generator_for_restore", lambda *_: generator
-    )
+    _install_plain_fake_judge(monkeypatch)
 
-    import co_scientist.agents.ranking.ranking as ranking_module
-
-    async def fake_judge(*_: Any, **kwargs: Any) -> tuple[str, dict[str, Any]]:
-        return "a", {
-            "decision_summary": "A is stronger",
-            "confidence_level": "high",
-            "debate_turns": int(kwargs["debate_turns"]),
-            "debate_transcript": [],
-            "judge_model": "fixture",
-        }
-
-    monkeypatch.setattr(ranking_module, "judge_matchup", fake_judge)
-    leased = store.claim_task("ranking", run_id=run.id, db_path=isolated_db)
-    assert leased is not None
-    scheduled = await engine_tasks.execute_node_task(
-        leased, db_path=isolated_db
-    )
-    assert store.complete_task(
-        leased.id, "ranking", scheduled, db_path=isolated_db
-    )
+    scheduled = await _run_ranking_node(run.id, isolated_db)
     rounds = int(scheduled["tournament_rounds"])
     assert rounds > engine_tasks.RANKING_PROGRESS_EVERY
 
-    matches = 0
-    while True:
-        match = store.claim_task(
-            f"match-{matches}", run_id=run.id, db_path=isolated_db
-        )
-        assert match is not None
-        if match.task_type != engine_tasks.RANKING_MATCH_TASK:
-            break
-        result = await engine_tasks.execute_ranking_match(
-            match, db_path=isolated_db
-        )
-        assert store.complete_task(
-            match.id, f"match-{matches}", result, db_path=isolated_db
-        )
-        matches += 1
+    matches = await _drain_ranking_matches(run.id, isolated_db)
 
-    events = store.list_events(run.id, db_path=isolated_db)
-    progress = [
-        e
-        for e in events
-        if e["payload"].get("task") == "ranking"
-        and e["payload"].get("status") == "running"
-    ]
+    progress = _running_ranking_events(run.id, isolated_db)
     # The tournament is no longer silent...
     assert progress, "a long tournament emitted no progress at all"
     # ...but it does not drown the feed either.
@@ -126,65 +65,18 @@ async def test_tournament_judges_a_wave_of_matchups_concurrently(
     never gave it more than one call to bound.
     """
     run = store.create_run("Wave science", "standard", "engine", {})
-    state = _task_state(run.id)
-    hypotheses = [
-        Hypothesis(
-            text=f"Mechanism {index} accelerates ATP recovery.",
-            literature_grounding=(
-                f"Mechanism {index} accelerates ATP recovery."
-            ),
-        )
-        for index in range(6)
-    ]
-    for hypothesis in hypotheses:
-        hypothesis.review_disposition = "viable"
-    state.update({"hypotheses": hypotheses, "tournament_pairs": 12})
-    checkpoint_seq = _seed_checkpoint(run.id, state)
-    store.enqueue_task(
+    _seed_ranking_node(
         run.id,
-        f"{engine_tasks.NODE_TASK_PREFIX}ranking",
-        {"checkpoint_seq": checkpoint_seq},
+        monkeypatch,
+        hypothesis_count=6,
+        tournament_pairs=12,
         idempotency_key="wave-ranking-node",
         db_path=isolated_db,
     )
-    generator = _Generator(state)
-    monkeypatch.setattr(
-        engine_tasks, "_generator_and_opts", lambda *_: (generator, {})
-    )
-    monkeypatch.setattr(
-        engine_tasks, "_generator_for_restore", lambda *_: generator
-    )
+    tracker = _install_concurrency_tracking_judge(monkeypatch)
 
-    import co_scientist.agents.ranking.ranking as ranking_module
-
-    in_flight = 0
-    peak = 0
-
-    async def fake_judge(*_: Any, **kwargs: Any) -> tuple[str, dict[str, Any]]:
-        nonlocal in_flight, peak
-        in_flight += 1
-        peak = max(peak, in_flight)
-        await asyncio.sleep(0)  # Yield so siblings can overlap.
-        in_flight -= 1
-        return "a", {
-            "decision_summary": "A is stronger",
-            "confidence_level": "high",
-            "debate_turns": int(kwargs["debate_turns"]),
-            "debate_transcript": [],
-            "judge_model": "fixture",
-        }
-
-    monkeypatch.setattr(ranking_module, "judge_matchup", fake_judge)
-    leased = store.claim_task("ranking", run_id=run.id, db_path=isolated_db)
-    assert leased is not None
-    scheduled = await engine_tasks.execute_node_task(
-        leased, db_path=isolated_db
-    )
-    assert store.complete_task(
-        leased.id, "ranking", scheduled, db_path=isolated_db
-    )
-    rounds = int(scheduled["tournament_rounds"])
-    assert rounds > 1
+    scheduled = await _run_ranking_node(run.id, isolated_db)
+    assert int(scheduled["tournament_rounds"]) > 1
 
     match = store.claim_task("w", run_id=run.id, db_path=isolated_db)
     assert match is not None
@@ -193,7 +85,7 @@ async def test_tournament_judges_a_wave_of_matchups_concurrently(
         match, db_path=isolated_db
     )
 
-    assert peak > 1, "matchups in a wave must be judged concurrently"
+    assert tracker["peak"] > 1, "matchups in a wave must be judged concurrently"
     assert result["matches_committed"] > 1, "one task must advance a wave"
 
 
@@ -212,55 +104,17 @@ async def test_tournament_wave_fills_to_the_configured_size(
     durable task: the ultra run spent about two hours across 178 of them.
     """
     run = store.create_run("Wave size", "standard", "engine", {})
-    state = _task_state(run.id)
-    hypotheses = [
-        Hypothesis(
-            text=f"Mechanism {index} accelerates ATP recovery.",
-            literature_grounding=(
-                f"Mechanism {index} accelerates ATP recovery."
-            ),
-        )
-        for index in range(8)
-    ]
-    for hypothesis in hypotheses:
-        hypothesis.review_disposition = "viable"
-    state.update({"hypotheses": hypotheses, "tournament_pairs": 20})
-    checkpoint_seq = _seed_checkpoint(run.id, state)
-    store.enqueue_task(
+    _seed_ranking_node(
         run.id,
-        f"{engine_tasks.NODE_TASK_PREFIX}ranking",
-        {"checkpoint_seq": checkpoint_seq},
+        monkeypatch,
+        hypothesis_count=8,
+        tournament_pairs=20,
         idempotency_key="wave-size-ranking-node",
         db_path=isolated_db,
     )
-    generator = _Generator(state)
-    monkeypatch.setattr(
-        engine_tasks, "_generator_and_opts", lambda *_: (generator, {})
-    )
-    monkeypatch.setattr(
-        engine_tasks, "_generator_for_restore", lambda *_: generator
-    )
+    _install_plain_fake_judge(monkeypatch)
 
-    import co_scientist.agents.ranking.ranking as ranking_module
-
-    async def fake_judge(*_: Any, **kwargs: Any) -> tuple[str, dict[str, Any]]:
-        return "a", {
-            "decision_summary": "A is stronger",
-            "confidence_level": "high",
-            "debate_turns": int(kwargs["debate_turns"]),
-            "debate_transcript": [],
-            "judge_model": "fixture",
-        }
-
-    monkeypatch.setattr(ranking_module, "judge_matchup", fake_judge)
-    leased = store.claim_task("ranking", run_id=run.id, db_path=isolated_db)
-    assert leased is not None
-    scheduled = await engine_tasks.execute_node_task(
-        leased, db_path=isolated_db
-    )
-    assert store.complete_task(
-        leased.id, "ranking", scheduled, db_path=isolated_db
-    )
+    scheduled = await _run_ranking_node(run.id, isolated_db)
     assert int(scheduled["tournament_rounds"]) >= engine_tasks.RANKING_WAVE_SIZE
 
     match = store.claim_task("w", run_id=run.id, db_path=isolated_db)

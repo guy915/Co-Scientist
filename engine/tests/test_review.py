@@ -92,6 +92,32 @@ def _batch_entry(scores: dict[str, int]) -> dict[str, Any]:
     }
 
 
+def _stub_batch(
+    monkeypatch: pytest.MonkeyPatch, score_dicts: list[dict[str, int]]
+) -> None:
+    """Stub review's LLM to return one batch entry per given score dict."""
+    _stub_llm(
+        monkeypatch,
+        {"reviews": [_batch_entry(scores) for scores in score_dicts]},
+    )
+
+
+def _assert_batch_review(
+    hyp: Any, overall: float, scores: dict[str, int]
+) -> None:
+    """Assert a hypothesis got one batch review with the expected values."""
+    assert len(hyp.reviews) == 1
+    rev = hyp.reviews[0]
+    assert rev.overall_score == pytest.approx(overall)
+    assert rev.review_summary == "batch summary"
+    # scores flow through verbatim, keyed to the matching batch entry.
+    assert rev.scores == scores
+    assert rev.safety_ethical_concerns == "none noted"
+    assert rev.constructive_feedback == "tighten the experiment"
+    # Node mirrors the review's overall_score onto the hypothesis score.
+    assert hyp.score == pytest.approx(overall)
+
+
 async def test_comparative_batch_attaches_reviews(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -101,22 +127,14 @@ async def test_comparative_batch_attaches_reviews(
     comparative-batch path runs. The stub returns one entry per hypothesis;
     each hypothesis gets that entry's review with overall_score == mean(scores).
     """
-    hyps = [
-        make_hypothesis(text="h0"),
-        make_hypothesis(text="h1"),
-        make_hypothesis(text="h2"),
-    ]
+    hyps = [make_hypothesis(text=f"h{i}") for i in range(3)]
     assert len(hyps) <= COMPARATIVE_BATCH_THRESHOLD
-    _stub_llm(
-        monkeypatch,
-        {
-            "reviews": [
-                _batch_entry({"soundness": 8, "novelty": 6}),  # mean 7.0
-                _batch_entry({"soundness": 4, "novelty": 6}),  # mean 5.0
-                _batch_entry({"soundness": 9, "novelty": 9}),  # mean 9.0
-            ]
-        },
-    )
+    expected_scores = [
+        {"soundness": 8, "novelty": 6},  # mean 7.0
+        {"soundness": 4, "novelty": 6},  # mean 5.0
+        {"soundness": 9, "novelty": 9},  # mean 9.0
+    ]
+    _stub_batch(monkeypatch, expected_scores)
 
     result = await review_node(state=make_state(hypotheses=hyps))
 
@@ -127,25 +145,10 @@ async def test_comparative_batch_attaches_reviews(
     assert result["metrics"].llm_calls == 1
     assert result["metrics"].reviews_count == 3
     # Each hypothesis received exactly one review with parsed fields.
-    expected_overalls = [7.0, 5.0, 9.0]
-    expected_scores = [
-        {"soundness": 8, "novelty": 6},
-        {"soundness": 4, "novelty": 6},
-        {"soundness": 9, "novelty": 9},
-    ]
-    for hyp, expected, scores in zip(
-        returned, expected_overalls, expected_scores, strict=True
+    for hyp, overall, scores in zip(
+        returned, [7.0, 5.0, 9.0], expected_scores, strict=True
     ):
-        assert len(hyp.reviews) == 1
-        rev = hyp.reviews[0]
-        assert rev.overall_score == pytest.approx(expected)
-        assert rev.review_summary == "batch summary"
-        # scores flow through verbatim, keyed to the matching batch entry.
-        assert rev.scores == scores
-        assert rev.safety_ethical_concerns == "none noted"
-        assert rev.constructive_feedback == "tighten the experiment"
-        # Node mirrors the review's overall_score onto the hypothesis score.
-        assert hyp.score == pytest.approx(expected)
+        _assert_batch_review(hyp, overall, scores)
 
 
 async def test_parallel_individual_attaches_reviews(

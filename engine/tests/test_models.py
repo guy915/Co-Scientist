@@ -17,6 +17,58 @@ from co_scientist.models import (
     HypothesisReview,
 )
 
+# Exact serialized key sets are part of the contract this net pins.
+_HYPOTHESIS_DICT_KEYS = {
+    "id",
+    "parent_id",
+    "generation",
+    "origin",
+    "creation_iteration",
+    "text",
+    "category",
+    "explanation",
+    "literature_grounding",
+    "experiment",
+    "novelty_validation",
+    "enrichments",
+    "citation_map",
+    "score",
+    "elo_rating",
+    "reviews",
+    "similarity_cluster_id",
+    "evolution_history",
+    "reflection_notes",
+    "deep_verification_probes",
+    "deep_verification_verdict",
+    "review_disposition",
+    "safety_status",
+    "generation_method",
+    "debate_id",
+    "win_count",
+    "loss_count",
+    "total_matches",
+    "win_rate",
+}
+
+_ARTICLE_DICT_KEYS = {
+    "title",
+    "url",
+    "authors",
+    "year",
+    "venue",
+    "citations",
+    "abstract",
+    "content",
+    "source_id",
+    "source",
+    "doi",
+    "is_retracted",
+    "correction_status",
+    "publication_type",
+    "pdf_links",
+    "used_in_analysis",
+}
+
 # --- Hypothesis: construction and defaults ----------------------------------
 
 
@@ -135,38 +187,7 @@ def test_hypothesis_to_dict_shape_and_computed_fields() -> None:
     # similarity_degree is a real field but is intentionally NOT serialized.
     assert "similarity_degree" not in d
     # Exact key set is part of the contract this regression net pins.
-    expected_keys = {
-        "id",
-        "parent_id",
-        "generation",
-        "origin",
-        "creation_iteration",
-        "text",
-        "category",
-        "explanation",
-        "literature_grounding",
-        "experiment",
-        "novelty_validation",
-        "enrichments",
-        "citation_map",
-        "score",
-        "elo_rating",
-        "reviews",
-        "similarity_cluster_id",
-        "evolution_history",
-        "reflection_notes",
-        "deep_verification_probes",
-        "deep_verification_verdict",
-        "review_disposition",
-        "safety_status",
-        "generation_method",
-        "debate_id",
-        "win_count",
-        "loss_count",
-        "total_matches",
-        "win_rate",
-    }
-    assert set(d.keys()) == expected_keys
+    assert set(d.keys()) == _HYPOTHESIS_DICT_KEYS
 
 
 def test_hypothesis_to_dict_serializes_reviews() -> None:
@@ -415,25 +436,7 @@ def test_article_to_dict_shape() -> None:
         used_in_analysis=True,
     )
     d = art.to_dict()
-    expected_keys = {
-        "title",
-        "url",
-        "authors",
-        "year",
-        "venue",
-        "citations",
-        "abstract",
-        "content",
-        "source_id",
-        "source",
-        "doi",
-        "is_retracted",
-        "correction_status",
-        "publication_type",
-        "pdf_links",
-        "used_in_analysis",
-    }
-    assert set(d.keys()) == expected_keys
+    assert set(d.keys()) == _ARTICLE_DICT_KEYS
     assert d["doi"] == "10.1000/example"
     assert d["is_retracted"] is True
     assert d["correction_status"] == "retracted"

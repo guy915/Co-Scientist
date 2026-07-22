@@ -53,19 +53,16 @@ async def test_guidance_carries_response_subobjects(
     result = await supervisor_node(make_state())
 
     guidance = result["supervisor_guidance"]
-    assert (
-        guidance["research_goal_analysis"] == response["research_goal_analysis"]
-    )
-    assert guidance["workflow_plan"] == response["workflow_plan"]
-    assert guidance["config_synthesis"] == response["config_synthesis"]
-    assert (
-        guidance["performance_assessment"] == response["performance_assessment"]
-    )
-    assert (
-        guidance["adjustment_recommendations"]
-        == response["adjustment_recommendations"]
-    )
-    assert guidance["output_preparation"] == response["output_preparation"]
+    # Every response sub-object is carried into guidance verbatim.
+    for key in (
+        "research_goal_analysis",
+        "workflow_plan",
+        "config_synthesis",
+        "performance_assessment",
+        "adjustment_recommendations",
+        "output_preparation",
+    ):
+        assert guidance[key] == response[key]
     # Metrics update is always emitted (one LLM call this node).
     assert result["metrics"] is not None
     assert result["metrics"].llm_calls == 1

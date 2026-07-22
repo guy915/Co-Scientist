@@ -65,6 +65,52 @@ def _make_generator() -> HypothesisGenerator:
     )
 
 
+async def _collect_stream_events(
+    gen: HypothesisGenerator, goal: str
+) -> list[tuple[str, dict[str, Any]]]:
+    """Consume the streaming API into a list of (node_name, state) tuples."""
+    events: list[tuple[str, dict[str, Any]]] = []
+    async for node_name, state_dict in gen.generate_hypotheses(
+        goal,
+        opts={"enable_literature_review_node": False},
+        stream=True,
+    ):
+        events.append((node_name, state_dict))
+    return events
+
+
+def _assert_public_hypothesis_shape(hyp: dict[str, Any]) -> None:
+    """A serialized hypothesis is a plain dict with the public fields."""
+    assert isinstance(hyp, dict)
+    assert hyp["text"]
+    assert isinstance(hyp["reviews"], list) and hyp["reviews"]
+    assert hyp["elo_rating"] != 0
+    # Lineage fields are part of the public serialized shape.
+    assert "parent_id" in hyp and "origin" in hyp
+
+
+def _assert_streaming_final_state(
+    events: list[tuple[str, dict[str, Any]]],
+) -> None:
+    """The final yielded state matches the non-streaming shape invariants.
+
+    The pool grew to 4: 2 generation-0 parents plus 2 appended evolution
+    children.
+    """
+    node_name, final_state = events[-1]
+    assert node_name == "research_overview"
+    assert len(final_state["hypotheses"]) == 4
+    generations = [h["generation"] for h in final_state["hypotheses"]]
+    assert sorted(generations) == [0, 0, 1, 1]
+    assert final_state["research_overview"]["overview"]
+    assert final_state["research_overview"]["nih_specific_aims"]
+    assert final_state["evolution_details"]
+    final_metrics = final_state["metrics"]
+    assert final_metrics["llm_calls"] > 0
+    assert final_metrics["hypothesis_count"] == 2
+    assert final_metrics["evolutions_count"] == 2
+
+
 async def test_generate_hypotheses_non_streaming_result_shape(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -84,13 +130,7 @@ async def test_generate_hypotheses_non_streaming_result_shape(
     assert len(hypotheses) == 4
     assert sorted(h["generation"] for h in hypotheses) == [0, 0, 1, 1]
     for hyp in hypotheses:
-        # Public shape: plain dicts (Hypothesis.to_dict()), not objects.
-        assert isinstance(hyp, dict)
-        assert hyp["text"]
-        assert isinstance(hyp["reviews"], list) and hyp["reviews"]
-        assert hyp["elo_rating"] != 0
-        # Lineage fields are part of the public serialized shape.
-        assert "parent_id" in hyp and "origin" in hyp
+        _assert_public_hypothesis_shape(hyp)
     # Deep verification runs on the top-k by Elo, so at least the top-ranked
     # hypotheses carry a verdict.
     verdicts = [h["deep_verification_verdict"] for h in hypotheses]
@@ -120,13 +160,9 @@ async def test_generate_hypotheses_streaming_event_progression(
     install_fake_llm(monkeypatch)
     gen = _make_generator()
 
-    events: list[tuple[str, dict[str, Any]]] = []
-    async for node_name, state_dict in gen.generate_hypotheses(
-        "Identify a synthetic-lethal target",
-        opts={"enable_literature_review_node": False},
-        stream=True,
-    ):
-        events.append((node_name, state_dict))
+    events = await _collect_stream_events(
+        gen, "Identify a synthetic-lethal target"
+    )
 
     assert [name for name, _ in events] == _EXPECTED_NODE_SEQUENCE
 
@@ -153,20 +189,8 @@ async def test_generate_hypotheses_streaming_event_progression(
     assert iterations[-1] == 1
 
     # Final yielded state (after research_overview) matches the shape and
-    # content invariants of the non-streaming result. The pool grew to 4:
-    # 2 generation-0 parents plus 2 appended evolution children.
-    node_name, final_state = events[-1]
-    assert node_name == "research_overview"
-    assert len(final_state["hypotheses"]) == 4
-    generations = [h["generation"] for h in final_state["hypotheses"]]
-    assert sorted(generations) == [0, 0, 1, 1]
-    assert final_state["research_overview"]["overview"]
-    assert final_state["research_overview"]["nih_specific_aims"]
-    assert final_state["evolution_details"]
-    final_metrics = final_state["metrics"]
-    assert final_metrics["llm_calls"] > 0
-    assert final_metrics["hypothesis_count"] == 2
-    assert final_metrics["evolutions_count"] == 2
+    # content invariants of the non-streaming result.
+    _assert_streaming_final_state(events)
 
 
 async def test_streaming_and_non_streaming_agree_on_final_shape(
@@ -174,10 +198,9 @@ async def test_streaming_and_non_streaming_agree_on_final_shape(
 ) -> None:
     """Both modes settle on the same cumulative counts for equal configs.
 
-    The two runs use independent fake-LLM content (a shared, ever-
-    incrementing counter backs every stub string), so hypothesis text
-    will differ between them; this asserts structural agreement, not
-    byte-for-byte equality.
+    The two runs use independent fake-LLM content (a shared, ever-incrementing
+    counter backs every stub string), so hypothesis text differs between them;
+    this asserts structural agreement, not byte-for-byte equality.
     """
     install_fake_llm(monkeypatch)
 
@@ -187,14 +210,11 @@ async def test_streaming_and_non_streaming_agree_on_final_shape(
         stream=False,
     )
 
-    last_state: dict[str, Any] | None = None
-    async for _node_name, state_dict in _make_generator().generate_hypotheses(
-        "Explain a resistance mechanism",
-        opts={"enable_literature_review_node": False},
-        stream=True,
-    ):
-        last_state = state_dict
-    assert last_state is not None
+    events = await _collect_stream_events(
+        _make_generator(), "Explain a resistance mechanism"
+    )
+    assert events
+    last_state = events[-1][1]
 
     assert len(last_state["hypotheses"]) == len(
         non_streaming_result["hypotheses"]

@@ -26,6 +26,34 @@ from co_scientist.llm import call_llm_json
 from tests._state import make_state
 
 
+async def _fresh_call_llm(
+    prompt: str,
+    model_name: str,
+    max_tokens: int = 4000,
+    temperature: float = 0.7,
+    force_json: bool = False,
+    json_schema: Any = None,
+    use_cache: bool = True,
+    enable_thinking: bool = True,
+) -> str:
+    """Stand-in ``call_llm`` that always returns a fresh (uncached) response."""
+    return json.dumps({"hypotheses": [{"hypothesis": "FRESH"}]})
+
+
+def _run_json_call(schema: Any, *, use_cache: bool) -> dict[str, Any]:
+    """Run ``call_llm_json`` with the fixed test parameters."""
+    return asyncio.run(
+        call_llm_json(
+            "P",
+            "m",
+            max_tokens=100,
+            temperature=0.7,
+            json_schema=schema,
+            use_cache=use_cache,
+        )
+    )
+
+
 def test_null_cache_is_noop() -> None:
     cache = NullCache()
     assert cache.get("anything", "m", 0.7, 100) is None
@@ -52,71 +80,32 @@ def test_call_llm_json_bypasses_warm_cache_when_disabled(
         {"hypotheses": [{"hypothesis": "CACHED"}]},
         json_schema=schema,
     )
+    monkeypatch.setattr(llm_mod, "call_llm", _fresh_call_llm)
 
-    async def fake_call_llm(
-        prompt: str,
-        model_name: str,
-        max_tokens: int = 4000,
-        temperature: float = 0.7,
-        force_json: bool = False,
-        json_schema: Any = None,
-        use_cache: bool = True,
-        enable_thinking: bool = True,
-    ) -> str:
-        return json.dumps({"hypotheses": [{"hypothesis": "FRESH"}]})
-
-    monkeypatch.setattr(llm_mod, "call_llm", fake_call_llm)
-
-    cached = asyncio.run(
-        call_llm_json(
-            "P",
-            "m",
-            max_tokens=100,
-            temperature=0.7,
-            json_schema=schema,
-            use_cache=True,
-        )
-    )
+    cached = _run_json_call(schema, use_cache=True)
     assert cached["hypotheses"][0]["hypothesis"] == "CACHED"
 
-    fresh = asyncio.run(
-        call_llm_json(
-            "P",
-            "m",
-            max_tokens=100,
-            temperature=0.7,
-            json_schema=schema,
-            use_cache=False,
-        )
-    )
+    fresh = _run_json_call(schema, use_cache=False)
     assert fresh["hypotheses"][0]["hypothesis"] == "FRESH"
 
     monkeypatch.setattr(cache_mod, "_global_cache", None)
 
 
-def test_parallel_debates_stay_distinct_with_warm_cache(
-    monkeypatch: Any,
-) -> None:
-    """N parallel debates yield N distinct hypotheses with a warm cache.
+async def _fake_debate_call_llm(
+    *_a: Any, use_cache: bool = True, **_k: Any
+) -> str:
+    # Debate turns must also bypass the cache.
+    assert use_cache is False
+    return "turn"
 
-    Distinctness holds because generation bypasses the cache.
 
-    The fake LLM emulates the cache: a warm cache (use_cache=True) would return
-    one identical response for every debate (the collapse); bypassing it
-    (use_cache=False, the fix) yields a fresh, distinct response per call.
+def _make_fake_debate_call_llm_json(counter: dict[str, int]) -> Any:
+    """Build a fake ``call_llm_json`` that emulates warm-cache collapse.
+
+    A warm cache (use_cache=True) returns one identical response for every
+    debate (the collapse); bypassing it (use_cache=False, the fix) yields a
+    fresh, distinct response per call, tracked via ``counter``.
     """
-    monkeypatch.setattr(
-        debate,
-        "get_debate_generation_prompt",
-        lambda **_: ("prompt", {"name": "x"}),
-    )
-
-    async def fake_call_llm(*_a: Any, use_cache: bool = True, **_k: Any) -> str:
-        # Debate turns must also bypass the cache.
-        assert use_cache is False
-        return "turn"
-
-    counter = {"n": 0}
 
     async def fake_call_llm_json(
         *_a: Any, use_cache: bool = True, **_k: Any
@@ -125,8 +114,7 @@ def test_parallel_debates_stay_distinct_with_warm_cache(
             text = "CACHED-IDENTICAL"  # warm-cache collapse (regression)
         else:
             counter["n"] += 1
-            n = counter["n"]
-            text = f"FRESH-{n}"  # fresh per call (fixed)
+            text = f"FRESH-{counter['n']}"  # fresh per call (fixed)
         return {
             "hypotheses": [
                 {
@@ -138,8 +126,25 @@ def test_parallel_debates_stay_distinct_with_warm_cache(
             ]
         }
 
-    monkeypatch.setattr(debate, "call_llm", fake_call_llm)
-    monkeypatch.setattr(debate, "call_llm_json", fake_call_llm_json)
+    return fake_call_llm_json
+
+
+def test_parallel_debates_stay_distinct_with_warm_cache(
+    monkeypatch: Any,
+) -> None:
+    """N parallel debates yield N distinct hypotheses with a warm cache.
+
+    Distinctness holds because generation bypasses the cache.
+    """
+    monkeypatch.setattr(
+        debate,
+        "get_debate_generation_prompt",
+        lambda **_: ("prompt", {"name": "x"}),
+    )
+    monkeypatch.setattr(debate, "call_llm", _fake_debate_call_llm)
+    monkeypatch.setattr(
+        debate, "call_llm_json", _make_fake_debate_call_llm_json({"n": 0})
+    )
 
     state = make_state(research_goal="g", model_name="m")
     hyps, _ = asyncio.run(generate_with_debate(state, count=4))

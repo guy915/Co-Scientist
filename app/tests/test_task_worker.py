@@ -12,6 +12,47 @@ from app import engine_adapter, engine_tasks, store, task_worker
 from tests._client import make_client
 
 
+def _save_resume_checkpoint(
+    run_id: str,
+    successor: str,
+    db: str,
+    *,
+    stage: str = "post_generation",
+    last_event_seq: int = 1,
+    provider: str | None = None,
+) -> None:
+    """Save a checkpoint that records ``successor`` as the resume target."""
+    state: dict[str, Any] = {"resume_successor": successor}
+    if provider is not None:
+        state["provider"] = provider
+    store.save_checkpoint(
+        run_id,
+        stage=stage,
+        schema_version=1,
+        last_event_seq=last_event_seq,
+        state=state,
+        db_path=db,
+    )
+
+
+def _mark_leased(
+    task_id: str,
+    db: str,
+    *,
+    owner: str,
+    expires_at: float,
+    spend_budget: bool,
+) -> None:
+    """Force a task into the leased state held by ``owner``."""
+    extra = ", attempt=max_attempts" if spend_budget else ""
+    with store.connect(db) as conn:
+        conn.execute(
+            "UPDATE scientific_tasks SET status='leased', lease_owner=?, "
+            f"lease_expires_at=?{extra} WHERE id=?",
+            (owner, expires_at, task_id),
+        )
+
+
 def test_enqueue_workflow_is_idempotent(isolated_db: str) -> None:
     """Repeated start delivery creates one workflow task per checkpoint."""
     run = store.create_run("worker goal", "standard", "engine", {})
@@ -44,16 +85,13 @@ def test_resume_uses_recorded_successor_not_orchestrator_default(
         idempotency_key=f"{supervisor_type}:1",
         db_path=isolated_db,
     )
-    store.save_checkpoint(
+    _save_resume_checkpoint(
         run.id,
+        supervisor_type,
+        isolated_db,
         stage="engine_task:bootstrap",
-        schema_version=1,
         last_event_seq=0,
-        state={
-            "provider": "engine",
-            "resume_successor": supervisor_type,
-        },
-        db_path=isolated_db,
+        provider="engine",
     )
 
     resumed = task_worker.enqueue_run_workflow(
@@ -363,14 +401,7 @@ def test_resume_revives_a_lease_stranded_by_a_dead_worker(
     """
     run = store.create_run("stranded goal", "standard", "engine", {})
     task_type = f"{engine_tasks.NODE_TASK_PREFIX}ranking"
-    store.save_checkpoint(
-        run.id,
-        stage="post_generation",
-        schema_version=1,
-        last_event_seq=1,
-        state={"resume_successor": task_type},
-        db_path=isolated_db,
-    )
+    _save_resume_checkpoint(run.id, task_type, isolated_db)
     task = store.enqueue_task(
         run.id,
         task_type,
@@ -378,12 +409,13 @@ def test_resume_revives_a_lease_stranded_by_a_dead_worker(
         idempotency_key=f"{task_type}:1",
         db_path=isolated_db,
     )
-    with store.connect(isolated_db) as conn:
-        conn.execute(
-            "UPDATE scientific_tasks SET status='leased', lease_owner='dead', "
-            "lease_expires_at=?, attempt=max_attempts WHERE id=?",
-            (time.time() - 3600, task.id),
-        )
+    _mark_leased(
+        task.id,
+        isolated_db,
+        owner="dead",
+        expires_at=time.time() - 3600,
+        spend_budget=True,
+    )
     assert not _queued(run.id, isolated_db)
 
     task_worker.enqueue_run_workflow(run.id, resume=True, db_path=isolated_db)

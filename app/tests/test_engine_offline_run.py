@@ -46,6 +46,65 @@ def _isolate_offline_router(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(offline_llm, "_original_supports_json_schema", None)
 
 
+def _install_recording_router(
+    monkeypatch: pytest.MonkeyPatch,
+) -> list[dict[str, Any]]:
+    """Install the offline router wrapping a call-recording original.
+
+    Returns the list every escaped call is appended to; it stays empty when
+    nothing bypasses the offline router. A leak is still answered offline so
+    it cannot break the run -- recording turns it into an assertion failure
+    rather than a silent real request.
+    """
+    escaped_calls: list[dict[str, Any]] = []
+
+    async def _recording_original(**kwargs: Any) -> Any:
+        escaped_calls.append(kwargs)
+        return await offline_llm.offline_acompletion(**kwargs)
+
+    monkeypatch.setattr(litellm, "acompletion", _recording_original)
+    offline_llm.install_offline_router()
+    return escaped_calls
+
+
+def _persist_offline_run(isolated_db: str) -> tuple[Any, dict[str, Any]]:
+    """Persist an offline-backed express run; return the run and its config.
+
+    It carries the default mock provider but is driven on the engine below;
+    the engine path keys the generator's model on the ``llm_backend`` column.
+    """
+    config: dict[str, Any] = {
+        "tier": "express",
+        "enable_literature_review": False,
+    }
+    run = store.create_run(
+        research_goal="Explain how protein X folds under crowding.",
+        profile="express",
+        provider="mock",
+        config=config,
+        client_id="offline-e2e",
+        llm_backend="offline",
+        db_path=isolated_db,
+    )
+    return run, config
+
+
+def _drive_offline_engine(
+    run: Any, config: dict[str, Any], isolated_db: str
+) -> list[dict[str, Any]]:
+    """Drive the persisted run on the engine; return its emitted events."""
+    return _drain(
+        engine_adapter.run_workflow(
+            run.id,
+            run.research_goal,
+            config,
+            force_provider="engine",
+            db_path=isolated_db,
+            sleep_seconds=0,
+        )
+    )
+
+
 def test_offline_engine_run_completes_without_a_real_call(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -60,43 +119,9 @@ def test_offline_engine_run_completes_without_a_real_call(
     from app.config import settings
 
     monkeypatch.setattr(settings, "semantic_safety_enabled", False)
-
-    escaped_calls: list[dict[str, Any]] = []
-
-    async def _recording_original(**kwargs: Any) -> Any:
-        # Still answered offline so a leak would not break the run; recording
-        # it turns a leak into a hard assertion failure rather than a silent
-        # real request.
-        escaped_calls.append(kwargs)
-        return await offline_llm.offline_acompletion(**kwargs)
-
-    monkeypatch.setattr(litellm, "acompletion", _recording_original)
-    offline_llm.install_offline_router()
-
-    # Persist an offline-backed run. It carries the default mock provider (the
-    # Task 2 default is unchanged) but is driven on the engine below; the
-    # engine path keys the generator's model on the ``llm_backend`` column.
-    config = {"tier": "express", "enable_literature_review": False}
-    run = store.create_run(
-        research_goal="Explain how protein X folds under crowding.",
-        profile="express",
-        provider="mock",
-        config=config,
-        client_id="offline-e2e",
-        llm_backend="offline",
-        db_path=isolated_db,
-    )
-
-    events = _drain(
-        engine_adapter.run_workflow(
-            run.id,
-            run.research_goal,
-            config,
-            force_provider="engine",
-            db_path=isolated_db,
-            sleep_seconds=0,
-        )
-    )
+    escaped_calls = _install_recording_router(monkeypatch)
+    run, config = _persist_offline_run(isolated_db)
+    events = _drive_offline_engine(run, config, isolated_db)
 
     assert not escaped_calls, (
         "a call reached the original acompletion instead of the offline "

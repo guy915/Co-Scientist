@@ -13,6 +13,67 @@ import pytest
 from app import engine_adapter, engine_tasks, store, task_worker
 
 
+def _enqueue_test_tasks(
+    run_id: str, count: int, prefix: str, db_path: str
+) -> None:
+    """Enqueue ``count`` independent ``engine.test.<i>`` specialist tasks."""
+    for index in range(count):
+        store.enqueue_task(
+            run_id,
+            f"engine.test.{index}",
+            {},
+            idempotency_key=f"{prefix}:{index}",
+            db_path=db_path,
+        )
+
+
+def _assert_all_completed(run_id: str, db_path: str) -> None:
+    """Assert every task in the run reached the completed status."""
+    assert {
+        task.status for task in store.list_tasks(run_id, db_path=db_path)
+    } == {"completed"}
+
+
+def _enqueue_one(run_id: str, task_type: str, key: str, db_path: str) -> Any:
+    """Enqueue a single specialist task with the given idempotency key."""
+    return store.enqueue_task(
+        run_id, task_type, {}, idempotency_key=key, db_path=db_path
+    )
+
+
+def _count_lease_renewals(monkeypatch: pytest.MonkeyPatch) -> dict[str, int]:
+    """Patch ``store.renew_task_lease`` with a counter, return the counter."""
+    box = {"renewals": 0}
+
+    def _renew(*_args: Any, **_kwargs: Any) -> bool:
+        box["renewals"] += 1
+        return True
+
+    monkeypatch.setattr(store, "renew_task_lease", _renew)
+    return box
+
+
+class _ConcurrencyProbe:
+    """A fake executor that records the peak number of overlapping leases."""
+
+    def __init__(self, sleep_seconds: float) -> None:
+        self._sleep = sleep_seconds
+        self._active = 0
+        self.max_active = 0
+        self._lock = asyncio.Lock()
+
+    async def execute(
+        self, _task: store.ScientificTask, *, db_path: str | None = None
+    ) -> dict[str, bool]:
+        async with self._lock:
+            self._active += 1
+            self.max_active = max(self.max_active, self._active)
+        await asyncio.sleep(self._sleep)
+        async with self._lock:
+            self._active -= 1
+        return {"completed": True}
+
+
 @pytest.mark.asyncio
 async def test_worker_heartbeats_long_workflow_lease(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
@@ -95,31 +156,9 @@ async def test_embedded_worker_pool_executes_fanout_concurrently(
 ) -> None:
     """Default embedded workers overlap independent specialist leases."""
     run = store.create_run("parallel goal", "standard", "engine", {})
-    for index in range(4):
-        store.enqueue_task(
-            run.id,
-            f"engine.test.{index}",
-            {},
-            idempotency_key=f"parallel:{index}",
-            db_path=isolated_db,
-        )
-    active = 0
-    max_active = 0
-    lock = asyncio.Lock()
-
-    async def _execute(
-        _task: store.ScientificTask, *, db_path: str | None = None
-    ) -> dict[str, bool]:
-        nonlocal active, max_active
-        async with lock:
-            active += 1
-            max_active = max(max_active, active)
-        await asyncio.sleep(0.03)
-        async with lock:
-            active -= 1
-        return {"completed": True}
-
-    monkeypatch.setattr(engine_tasks, "execute_engine_task", _execute)
+    _enqueue_test_tasks(run.id, 4, "parallel", isolated_db)
+    probe = _ConcurrencyProbe(0.03)
+    monkeypatch.setattr(engine_tasks, "execute_engine_task", probe.execute)
 
     await task_worker.run_run_worker_pool(
         run.id,
@@ -129,10 +168,8 @@ async def test_embedded_worker_pool_executes_fanout_concurrently(
         lease_seconds=1,
     )
 
-    assert max_active == 4
-    assert {
-        task.status for task in store.list_tasks(run.id, db_path=isolated_db)
-    } == {"completed"}
+    assert probe.max_active == 4
+    _assert_all_completed(run.id, isolated_db)
 
 
 @pytest.mark.asyncio
@@ -226,40 +263,16 @@ async def test_default_worker_cohort_overlaps_more_than_four_leases(
     run at once, never what any of them produces.
     """
     run = store.create_run("wide fanout", "standard", "engine", {})
-    for index in range(12):
-        store.enqueue_task(
-            run.id,
-            f"engine.test.{index}",
-            {},
-            idempotency_key=f"wide:{index}",
-            db_path=isolated_db,
-        )
-    active = 0
-    max_active = 0
-    lock = asyncio.Lock()
-
-    async def _execute(
-        _task: store.ScientificTask, *, db_path: str | None = None
-    ) -> dict[str, bool]:
-        nonlocal active, max_active
-        async with lock:
-            active += 1
-            max_active = max(max_active, active)
-        await asyncio.sleep(0.05)
-        async with lock:
-            active -= 1
-        return {"completed": True}
-
-    monkeypatch.setattr(engine_tasks, "execute_engine_task", _execute)
+    _enqueue_test_tasks(run.id, 12, "wide", isolated_db)
+    probe = _ConcurrencyProbe(0.05)
+    monkeypatch.setattr(engine_tasks, "execute_engine_task", probe.execute)
 
     await task_worker.run_run_worker_pool(
         run.id, "embedded-test", db_path=isolated_db, lease_seconds=5
     )
 
-    assert max_active > 4
-    assert {
-        task.status for task in store.list_tasks(run.id, db_path=isolated_db)
-    } == {"completed"}
+    assert probe.max_active > 4
+    _assert_all_completed(run.id, isolated_db)
 
 
 @pytest.mark.asyncio
@@ -277,21 +290,10 @@ async def test_heartbeat_writes_on_the_lease_schedule_not_the_poll_schedule(
     outright with "database is locked".
     """
     run = store.create_run("heartbeat cost", "standard", "engine", {})
-    task = store.enqueue_task(
-        run.id,
-        "engine.test.heartbeat",
-        {},
-        idempotency_key="heartbeat:0",
-        db_path=isolated_db,
+    task = _enqueue_one(
+        run.id, "engine.test.heartbeat", "heartbeat:0", isolated_db
     )
-    renewals = 0
-
-    def _renew(*args: Any, **kwargs: Any) -> bool:
-        nonlocal renewals
-        renewals += 1
-        return True
-
-    monkeypatch.setattr(store, "renew_task_lease", _renew)
+    renewals = _count_lease_renewals(monkeypatch)
 
     stop = asyncio.Event()
     lease_lost = asyncio.Event()
@@ -311,7 +313,8 @@ async def test_heartbeat_writes_on_the_lease_schedule_not_the_poll_schedule(
 
     # A 300s lease is renewed on its own schedule; 2.5 seconds of polling
     # owes the database nothing.
-    assert renewals == 0, f"{renewals} lease writes in 2.5s of polling"
+    count = renewals["renewals"]
+    assert count == 0, f"{count} lease writes in 2.5s of polling"
 
 
 def test_idle_claim_does_not_contend_for_the_write_lock(

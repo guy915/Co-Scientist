@@ -14,6 +14,60 @@ from typing import Any
 from app import engine_adapter, report_render, store
 
 
+def _seed_gate_split(run: Any, db_path: str) -> tuple[str, str, str]:
+    """Seed supported/unsupported/contradicted hypotheses for the gate split.
+
+    The supported idea gets a ``supports`` edge and the contradicted one a
+    ``contradicts`` edge; the unsupported idea deliberately gets no edge at all.
+    """
+    supported_id = store.add_hypothesis(
+        run.id,
+        title="Supported",
+        statement="Kinase X inhibition drives AML apoptosis.",
+        db_path=db_path,
+    )
+    unsupported_id = store.add_hypothesis(
+        run.id,
+        title="Unsupported",
+        statement="A novel latent mechanism without any evidence yet.",
+        db_path=db_path,
+    )
+    contradicted_id = store.add_hypothesis(
+        run.id,
+        title="Contradicted",
+        statement="Drug Y single-handedly cures the disease.",
+        db_path=db_path,
+    )
+    _add_gate_split_edges(run, supported_id, contradicted_id, db_path)
+    return supported_id, unsupported_id, contradicted_id
+
+
+def _add_gate_split_edges(
+    run: Any, supported_id: str, contradicted_id: str, db_path: str
+) -> None:
+    """Add a supports edge for the supported id, contradicts for the other."""
+    store.add_claim_evidence(
+        run.id,
+        supported_id,
+        "Kinase X inhibition drives AML apoptosis.",
+        "supports",
+        ["A supporting source span."],
+        [],
+        "fixture",
+        db_path=db_path,
+    )
+    store.add_claim_evidence(
+        run.id,
+        contradicted_id,
+        "Drug Y single-handedly cures the disease.",
+        "contradicts",
+        [],
+        ["A source span refuting the claim."],
+        "fixture",
+        db_path=db_path,
+    )
+
+
 def test_rank_and_publish_splits_contradicted_from_unverified(
     isolated_db: str,
 ) -> None:
@@ -25,45 +79,9 @@ def test_rank_and_publish_splits_contradicted_from_unverified(
     no claim-evidence at all (mock demo runs) flags nothing.
     """
     run = store.create_run("gate split", "standard", "engine", {})
-    supported_id = store.add_hypothesis(
-        run.id,
-        title="Supported",
-        statement="Kinase X inhibition drives AML apoptosis.",
-        db_path=isolated_db,
+    supported_id, unsupported_id, contradicted_id = _seed_gate_split(
+        run, isolated_db
     )
-    unsupported_id = store.add_hypothesis(
-        run.id,
-        title="Unsupported",
-        statement="A novel latent mechanism without any evidence yet.",
-        db_path=isolated_db,
-    )
-    contradicted_id = store.add_hypothesis(
-        run.id,
-        title="Contradicted",
-        statement="Drug Y single-handedly cures the disease.",
-        db_path=isolated_db,
-    )
-    store.add_claim_evidence(
-        run.id,
-        supported_id,
-        "Kinase X inhibition drives AML apoptosis.",
-        "supports",
-        ["A supporting source span."],
-        [],
-        "fixture",
-        db_path=isolated_db,
-    )
-    store.add_claim_evidence(
-        run.id,
-        contradicted_id,
-        "Drug Y single-handedly cures the disease.",
-        "contradicts",
-        [],
-        ["A source span refuting the claim."],
-        "fixture",
-        db_path=isolated_db,
-    )
-    # ``unsupported_id`` deliberately has no claim-evidence edge at all.
 
     contradicted = report_render._contradicted_hypothesis_ids(
         run.id, isolated_db
@@ -83,14 +101,56 @@ def test_rank_and_publish_splits_contradicted_from_unverified(
     # Contradicted is withheld; supported and unsupported both publish.
     assert kept_ids == {supported_id, unsupported_id}
 
-    # A run with no claim-evidence at all badges nothing (mock demo exemption).
+    _assert_demo_run_badges_nothing(isolated_db)
+
+
+def _assert_demo_run_badges_nothing(db_path: str) -> None:
+    """A run with no claim-evidence at all badges nothing (demo exemption)."""
     demo = store.create_run("demo", "standard", "mock", {})
     store.add_hypothesis(
-        demo.id, title="Demo", statement="Demo idea.", db_path=isolated_db
+        demo.id, title="Demo", statement="Demo idea.", db_path=db_path
     )
-    assert (
-        report_render._unverified_hypothesis_ids(demo.id, isolated_db) == set()
-    )
+    assert report_render._unverified_hypothesis_ids(demo.id, db_path) == set()
+
+
+def _screening_hypothesis(hyp_id: str, text: str) -> dict[str, Any]:
+    """A minimal engine hypothesis carrying every field the drain reads."""
+    return {
+        "id": hyp_id,
+        "text": text,
+        "parent_id": None,
+        "generation": 0,
+        "origin": "generation",
+        "elo_rating": 1200,
+        "win_count": 0,
+        "loss_count": 0,
+        "reviews": [],
+        "citation_map": {},
+        "evolution_history": [],
+        "deep_verification_probes": [],
+        "deep_verification_verdict": None,
+    }
+
+
+def _screening_state() -> dict[str, Any]:
+    """A final state with one safe and one unsafe hypothesis to screen."""
+    return {
+        "hypotheses": [
+            _screening_hypothesis(
+                "safe-1",
+                "Inhibiting kinase X reduces AML growth via apoptosis.",
+            ),
+            _screening_hypothesis(
+                "unsafe-1",
+                "Weaponize the pathogen to enhance transmissibility.",
+            ),
+        ],
+        "articles": [],
+        "tournament_matchups": [],
+        "meta_review": {},
+        "evolution_details": [],
+        "research_overview": {},
+    }
 
 
 def test_drain_screens_hypotheses_before_finalize(isolated_db: str) -> None:
@@ -101,45 +161,7 @@ def test_drain_screens_hypotheses_before_finalize(isolated_db: str) -> None:
     at persistence time -- not only filtered out later at report synthesis.
     """
     run = store.create_run("safety goal", "standard", "engine", {})
-    state: dict[str, Any] = {
-        "hypotheses": [
-            {
-                "id": "safe-1",
-                "text": "Inhibiting kinase X reduces AML growth via apoptosis.",
-                "parent_id": None,
-                "generation": 0,
-                "origin": "generation",
-                "elo_rating": 1200,
-                "win_count": 0,
-                "loss_count": 0,
-                "reviews": [],
-                "citation_map": {},
-                "evolution_history": [],
-                "deep_verification_probes": [],
-                "deep_verification_verdict": None,
-            },
-            {
-                "id": "unsafe-1",
-                "text": "Weaponize the pathogen to enhance transmissibility.",
-                "parent_id": None,
-                "generation": 0,
-                "origin": "generation",
-                "elo_rating": 1200,
-                "win_count": 0,
-                "loss_count": 0,
-                "reviews": [],
-                "citation_map": {},
-                "evolution_history": [],
-                "deep_verification_probes": [],
-                "deep_verification_verdict": None,
-            },
-        ],
-        "articles": [],
-        "tournament_matchups": [],
-        "meta_review": {},
-        "evolution_details": [],
-        "research_overview": {},
-    }
+    state = _screening_state()
 
     engine_adapter._persist_final_state(
         run_id=run.id, final_state=state, db_path=isolated_db

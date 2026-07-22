@@ -280,6 +280,29 @@ async def test_each_round_selects_from_committed_current_elo(
     assert hypotheses[0].win_count == 2
 
 
+def _record_matchup_prompts(monkeypatch: pytest.MonkeyPatch) -> list[str]:
+    """Stub the debate judge to always elect slot "a" and record its prompts.
+
+    Args:
+        monkeypatch: The pytest monkeypatch fixture.
+
+    Returns:
+        The list every matchup prompt is appended to.
+    """
+    seen_prompts: list[str] = []
+
+    async def fake(*, prompt: str, **_: Any) -> dict[str, Any]:
+        seen_prompts.append(prompt)
+        return {
+            "winner": "a",
+            "decision_summary": "A wins.",
+            "confidence_level": "High",
+        }
+
+    monkeypatch.setattr(ranking_debate, "call_llm_json", fake)
+    return seen_prompts
+
+
 async def test_undermined_hypothesis_cannot_enter_tournament(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -296,17 +319,7 @@ async def test_undermined_hypothesis_cannot_enter_tournament(
     )
     eligible_a = make_hypothesis(text="supported mechanism alpha")
     eligible_b = make_hypothesis(text="supported mechanism beta")
-    seen_prompts: list[str] = []
-
-    async def fake(*, prompt: str, **_: Any) -> dict[str, Any]:
-        seen_prompts.append(prompt)
-        return {
-            "winner": "a",
-            "decision_summary": "A wins.",
-            "confidence_level": "High",
-        }
-
-    monkeypatch.setattr(ranking_debate, "call_llm_json", fake)
+    seen_prompts = _record_matchup_prompts(monkeypatch)
     state = make_state(
         hypotheses=[undermined, non_novel, eligible_a, eligible_b],
         tournament_pairs=2,

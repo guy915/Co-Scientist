@@ -68,6 +68,18 @@ def _count(db: str) -> int:
         )
 
 
+def _seed_raw_checkpoints(db: str, run_id: str, count: int) -> None:
+    """Insert ``count`` checkpoint rows directly, bypassing the prune path."""
+    with store.connect(db) as conn:
+        for i in range(1, count + 1):
+            conn.execute(
+                "INSERT INTO checkpoints (run_id, seq, stage, schema_version, "
+                "last_event_seq, state_json, created_at) "
+                "VALUES (?, ?, ?, 1, ?, ?, 0.0)",
+                (run_id, i, f"stage_{i}", i, f'{{"round": {i}}}'),
+            )
+
+
 def test_saving_prunes_the_checkpoints_it_supersedes(isolated_db: str) -> None:
     """Only the newest checkpoint survives, because only it is readable.
 
@@ -129,14 +141,7 @@ def test_prune_superseded_reclaims_pre_existing_history(
     pruning write path, exactly as the old code left them.
     """
     run_id = _run(isolated_db)
-    with store.connect(isolated_db) as conn:
-        for i in range(1, 21):
-            conn.execute(
-                "INSERT INTO checkpoints (run_id, seq, stage, schema_version, "
-                "last_event_seq, state_json, created_at) "
-                "VALUES (?, ?, ?, 1, ?, ?, 0.0)",
-                (run_id, i, f"stage_{i}", i, f'{{"round": {i}}}'),
-            )
+    _seed_raw_checkpoints(isolated_db, run_id, 20)
     assert _count(isolated_db) == 20
 
     deleted = store.prune_superseded_checkpoints(db_path=isolated_db)
@@ -182,14 +187,7 @@ def test_prune_batches_and_folds_the_wal_between_batches(
     from app.store import checkpoints as checkpoints_module
 
     run_id = _run(isolated_db)
-    with store.connect(isolated_db) as conn:
-        for i in range(1, 12):
-            conn.execute(
-                "INSERT INTO checkpoints (run_id, seq, stage, schema_version, "
-                "last_event_seq, state_json, created_at) "
-                "VALUES (?, ?, ?, 1, ?, ?, 0.0)",
-                (run_id, i, f"stage_{i}", i, f'{{"round": {i}}}'),
-            )
+    _seed_raw_checkpoints(isolated_db, run_id, 11)
 
     checkpoints: list[int] = []
     real_checkpoint_wal = store.checkpoint_wal

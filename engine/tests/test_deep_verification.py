@@ -149,15 +149,12 @@ def test_verification_context_includes_public_and_private_evidence() -> None:
     assert "Private scientist result" in context
 
 
-@pytest.mark.asyncio
-async def test_probe_questions_trigger_retrieval_and_second_adjudication(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Deep verification searches its probes before the final verdict.
+def _probe_retrieval_mocks() -> tuple[AsyncMock, AsyncMock]:
+    """Build the call_llm_json and _retrieve_probe_evidence probe-run mocks.
 
-    The search uses each probe's ``search_query``, not its question: the
-    literature back end ANDs every term, so the question form would match
-    nothing.
+    The first adjudication is ``weakened`` with a probe carrying a
+    ``search_query``; targeted retrieval then supplies evidence and the second
+    adjudication ``holds``.
     """
     first = {
         "probes": [
@@ -191,6 +188,20 @@ async def test_probe_questions_trigger_retrieval_and_second_adjudication(
             [],
         )
     )
+    return call, retrieve
+
+
+@pytest.mark.asyncio
+async def test_probe_questions_trigger_retrieval_and_second_adjudication(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Deep verification searches its probes before the final verdict.
+
+    The search uses each probe's ``search_query``, not its question: the
+    literature back end ANDs every term, so the question form would match
+    nothing.
+    """
+    call, retrieve = _probe_retrieval_mocks()
     monkeypatch.setattr(dv, "call_llm_json", call)
     monkeypatch.setattr(dv, "_retrieve_probe_evidence", retrieve)
     hypothesis = make_hypothesis(text="X controls Y", elo_rating=1800)

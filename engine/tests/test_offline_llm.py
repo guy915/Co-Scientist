@@ -273,29 +273,24 @@ async def test_install_offline_router_idempotency_does_not_lose_passthrough(
     assert len(calls) == 1
 
 
-async def test_end_to_end_offline_generator_run_yields_hypotheses(
+def _install_recording_router(
     monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """A real graph run through the runtime router, no fake content path.
-
-    Mirrors the shape of ``tests/test_integration_pipeline.py`` but installs
-    only the runtime router (``install_offline_router``); every response is
-    produced by the production ``offline_acompletion``, never by
-    ``tests._llm_fake``'s monkeypatch-based fake. MCP is genuinely
-    unavailable in this test environment (no server listening), and
-    literature review is explicitly disabled, so only
-    ``call_llm``/``call_llm_json`` are exercised -- ``supervisor_model_name``
-    is left unset so it defaults to ``model_name``
-    (``HypothesisGenerator.__init__``), meaning every model name the graph
-    reads from state is the same offline one.
+) -> list[dict[str, Any]]:
+    """Install the offline router over a recording passthrough stub.
 
     Before installing the router, ``litellm.acompletion`` is replaced with a
-    recording stub; the router captures it as its passthrough target for
-    any non-offline model. The stub still answers through
-    ``offline_acompletion`` so the run is unaffected if something did leak,
-    but recording every call it receives turns "the run completed" into an
-    actual proof that zero calls escaped the offline router, rather than an
-    assumption resting on ``supervisor_model_name``'s default.
+    recording stub; the router captures it as its passthrough target for any
+    non-offline model. The stub still answers through ``offline_acompletion``
+    so a run is unaffected if something did leak, but recording every call it
+    receives turns "the run completed" into actual proof that zero calls
+    escaped the offline router rather than an assumption resting on
+    ``supervisor_model_name``'s default.
+
+    Args:
+        monkeypatch: The pytest monkeypatch fixture.
+
+    Returns:
+        The list every escaped non-offline call would be appended to.
     """
     escaped_calls: list[dict[str, Any]] = []
 
@@ -305,8 +300,12 @@ async def test_end_to_end_offline_generator_run_yields_hypotheses(
 
     monkeypatch.setattr(litellm, "acompletion", _recording_original)
     offline_llm.install_offline_router()
+    return escaped_calls
 
-    gen = HypothesisGenerator(
+
+def _offline_generator() -> HypothesisGenerator:
+    """Build the small single-iteration generator the end-to-end run uses."""
+    return HypothesisGenerator(
         model_name=offline_llm.DEFAULT_OFFLINE_MODEL,
         max_iterations=1,
         initial_hypotheses_count=2,
@@ -315,7 +314,24 @@ async def test_end_to_end_offline_generator_run_yields_hypotheses(
         enable_cache=False,
     )
 
-    result = await gen.generate_hypotheses(
+
+async def test_end_to_end_offline_generator_run_yields_hypotheses(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A real graph run through the runtime router, no fake content path.
+
+    Mirrors the shape of ``tests/test_integration_pipeline.py`` but installs
+    only the runtime router (``install_offline_router``); every response is
+    produced by the production ``offline_acompletion``, never by
+    ``tests._llm_fake``'s monkeypatch-based fake. MCP is genuinely unavailable
+    (no server listening) and literature review is explicitly disabled, so only
+    ``call_llm``/``call_llm_json`` are exercised -- ``supervisor_model_name``
+    defaults to ``model_name``, so every model name the graph reads is the same
+    offline one.
+    """
+    escaped_calls = _install_recording_router(monkeypatch)
+
+    result = await _offline_generator().generate_hypotheses(
         "Explain how protein X folds",
         opts={"enable_literature_review_node": False},
         stream=False,

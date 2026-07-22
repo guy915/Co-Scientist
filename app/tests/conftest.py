@@ -36,14 +36,10 @@ def _offline_router() -> None:
     install_offline_router()
 
 
-@pytest.fixture(autouse=True)
-def isolated_db(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path
-) -> Iterator[str]:
-    """Point the SQLite store at a per-test database and force offline mode."""
-    db_path = str(tmp_path / "test.db")
-    reports_dir = str(tmp_path / "reports")
-    os.makedirs(reports_dir, exist_ok=True)
+def _apply_offline_env(
+    monkeypatch: pytest.MonkeyPatch, db_path: str, reports_dir: str
+) -> None:
+    """Bind the store to a per-test db and force the hermetic offline path."""
     monkeypatch.setenv("COSCIENTIST_DB_PATH", db_path)
     monkeypatch.setenv("COSCIENTIST_REPORTS_DIR", reports_dir)
     # Hermetic + offline: strip any real provider credentials and force the
@@ -61,6 +57,17 @@ def isolated_db(
     from app.config import settings
 
     monkeypatch.setattr(settings, "claim_assessor", "deterministic")
+
+
+@pytest.fixture(autouse=True)
+def isolated_db(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path
+) -> Iterator[str]:
+    """Point the SQLite store at a per-test database and force offline mode."""
+    db_path = str(tmp_path / "test.db")
+    reports_dir = str(tmp_path / "reports")
+    os.makedirs(reports_dir, exist_ok=True)
+    _apply_offline_env(monkeypatch, db_path, reports_dir)
     # The app-level contextual safety screen is not disabled here: offline-
     # backed runs already skip escalation (safety.screen_with_escalation keys
     # on the run's offline backend), so no offline run makes a real safety call,

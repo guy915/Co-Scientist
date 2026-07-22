@@ -251,6 +251,56 @@ async def test_search_single_source_collects_across_queries() -> None:
 # =============================================================================
 
 
+def _two_source_workflow(papers_per_query: int) -> WorkflowConfig:
+    """A cross-source-deduped workflow with src_a and src_b sources."""
+    return WorkflowConfig(
+        search_sources=[
+            SearchSourceConfig(tool="src_a", papers_per_query=papers_per_query),
+            SearchSourceConfig(tool="src_b", papers_per_query=papers_per_query),
+        ],
+        deduplicate_across_sources=True,
+    )
+
+
+def _multi_source_config(
+    registry: Any,
+    workflow: WorkflowConfig,
+    *,
+    source_name: str,
+    papers_to_read_count: int,
+    search_tool_name: str = "unused",
+) -> SearchConfig:
+    """A multi-source SearchConfig over the given registry and workflow."""
+    return SearchConfig(
+        tool_registry=cast(ToolRegistry, registry),
+        workflow=workflow,
+        is_multi_source=True,
+        search_tool_name=search_tool_name,
+        search_tool_config=None,
+        source_name=source_name,
+        papers_to_read_count=papers_to_read_count,
+        is_dev_mode=False,
+    )
+
+
+async def _collect_multi_source(
+    queries: list[str],
+    state: Any,
+    config: SearchConfig,
+    client: Any,
+    errors: list[str],
+) -> tuple[dict[str, Any], dict[str, str]]:
+    """Run multi-source phase 2 collection with the shared ``"slug"`` slug."""
+    return await search._phase2_collect_papers_multi_source(
+        queries,
+        "slug",
+        state,
+        config,
+        cast(MCPToolClient, client),
+        errors,
+    )
+
+
 async def test_phase2_collect_papers_multi_source_merges_and_dedupes() -> None:
     """Multi-source phase 2 collects from all sources and dedupes by title.
 
@@ -262,22 +312,12 @@ async def test_phase2_collect_papers_multi_source_merges_and_dedupes() -> None:
     tool_a = _tool_config(mcp_tool_name="search_a")
     # src_b is unresolvable.
     registry = make_tool_lookup_registry({"src_a": tool_a})
-    workflow = WorkflowConfig(
-        search_sources=[
-            SearchSourceConfig(tool="src_a", papers_per_query=2),
-            SearchSourceConfig(tool="src_b", papers_per_query=2),
-        ],
-        deduplicate_across_sources=True,
-    )
-    config = SearchConfig(
-        tool_registry=cast(ToolRegistry, registry),
-        workflow=workflow,
-        is_multi_source=True,
-        search_tool_name="pubmed_search_with_fulltext",
-        search_tool_config=None,
+    config = _multi_source_config(
+        registry,
+        _two_source_workflow(2),
         source_name="pubmed",
         papers_to_read_count=10,
-        is_dev_mode=False,
+        search_tool_name="pubmed_search_with_fulltext",
     )
     client = _SequencedMCPClient(
         [
@@ -288,16 +328,8 @@ async def test_phase2_collect_papers_multi_source_merges_and_dedupes() -> None:
     state = make_state(run_id="run-multi")
     errors: list[str] = []
 
-    (
-        all_paper_metadata,
-        paper_source_map,
-    ) = await search._phase2_collect_papers_multi_source(
-        ["q1", "q2"],
-        "slug",
-        state,
-        config,
-        cast(MCPToolClient, client),
-        errors,
+    all_paper_metadata, paper_source_map = await _collect_multi_source(
+        ["q1", "q2"], state, config, client, errors
     )
 
     assert set(all_paper_metadata) == {"P1"}
@@ -312,22 +344,11 @@ async def test_multi_source_collection_respects_unique_evidence_budget() -> (
     tool_a = _tool_config(mcp_tool_name="search_a")
     tool_b = _tool_config(mcp_tool_name="search_b")
     registry = make_tool_lookup_registry({"src_a": tool_a, "src_b": tool_b})
-    workflow = WorkflowConfig(
-        search_sources=[
-            SearchSourceConfig(tool="src_a", papers_per_query=4),
-            SearchSourceConfig(tool="src_b", papers_per_query=4),
-        ],
-        deduplicate_across_sources=True,
-    )
-    config = SearchConfig(
-        tool_registry=cast(ToolRegistry, registry),
-        workflow=workflow,
-        is_multi_source=True,
-        search_tool_name="unused",
-        search_tool_config=None,
+    config = _multi_source_config(
+        registry,
+        _two_source_workflow(4),
         source_name="academic",
         papers_to_read_count=2,
-        is_dev_mode=False,
     )
     client = _SequencedMCPClient(
         [
@@ -342,13 +363,8 @@ async def test_multi_source_collection_respects_unique_evidence_budget() -> (
         ]
     )
 
-    metadata, source_map = await search._phase2_collect_papers_multi_source(
-        ["query"],
-        "slug",
-        make_state(run_id="run-budget"),
-        config,
-        cast(MCPToolClient, client),
-        [],
+    metadata, source_map = await _collect_multi_source(
+        ["query"], make_state(run_id="run-budget"), config, client, []
     )
 
     assert len(metadata) == 2

@@ -6,8 +6,8 @@ from app import store
 from app.main import app
 
 
-def test_share_link_is_unique_hashed_and_revocable(isolated_db: str) -> None:
-    """Owner creation hashes the token; revocation closes public access."""
+def _run_with_report(isolated_db: str) -> str:
+    """Persist a completed run with a saved Goal Report; return its id."""
     run = store.create_run(
         "Study a causal pathway",
         "standard",
@@ -22,15 +22,21 @@ def test_share_link_is_unique_hashed_and_revocable(isolated_db: str) -> None:
         "# Goal Report",
         db_path=isolated_db,
     )
+    return run.id
+
+
+def test_share_link_is_unique_hashed_and_revocable(isolated_db: str) -> None:
+    """Owner creation hashes the token; revocation closes public access."""
+    run_id = _run_with_report(isolated_db)
     with TestClient(app) as client:
         denied = client.post(
-            f"/api/runs/{run.id}/shares",
+            f"/api/runs/{run_id}/shares",
             headers={"X-Client-ID": "other"},
         )
         assert denied.status_code == 404
 
         created = client.post(
-            f"/api/runs/{run.id}/shares",
+            f"/api/runs/{run_id}/shares",
             headers={"X-Client-ID": "owner-a"},
         )
         assert created.status_code == 200
@@ -51,7 +57,7 @@ def test_share_link_is_unique_hashed_and_revocable(isolated_db: str) -> None:
         )
 
         revoked = client.delete(
-            f"/api/runs/{run.id}/shares/{share['id']}",
+            f"/api/runs/{run_id}/shares/{share['id']}",
             headers={"X-Client-ID": "owner-a"},
         )
         assert revoked.status_code == 204

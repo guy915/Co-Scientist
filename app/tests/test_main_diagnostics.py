@@ -39,6 +39,25 @@ _INDRA_CONFIG = str(
 )
 
 
+def _seed_interrupted_engine_run(isolated_db: str) -> str:
+    """Persist a RUNNING engine run with a checkpoint (a crash's leavings)."""
+    interrupted = store.create_run(
+        "interrupted goal", "default", "engine", {}, db_path=isolated_db
+    )
+    store.update_run_status(
+        interrupted.id, store.RunStatus.RUNNING, db_path=isolated_db
+    )
+    store.save_checkpoint(
+        interrupted.id,
+        stage="engine_task:test",
+        schema_version=1,
+        last_event_seq=0,
+        state={"provider": "engine", "state": {"hypotheses": []}},
+        db_path=isolated_db,
+    )
+    return interrupted.id
+
+
 def test_root_endpoint_returns_api_metadata() -> None:
     res = _client().get("/")
     assert res.status_code == 200
@@ -253,21 +272,7 @@ def test_startup_does_not_block_on_run_recovery(
         await asyncio.sleep(30)
 
     monkeypatch.setattr(runs_module, "resume_interrupted_runs", slow_resume)
-
-    interrupted = store.create_run(
-        "interrupted goal", "default", "engine", {}, db_path=isolated_db
-    )
-    store.update_run_status(
-        interrupted.id, store.RunStatus.RUNNING, db_path=isolated_db
-    )
-    store.save_checkpoint(
-        interrupted.id,
-        stage="engine_task:test",
-        schema_version=1,
-        last_event_seq=0,
-        state={"provider": "engine", "state": {"hypotheses": []}},
-        db_path=isolated_db,
-    )
+    _seed_interrupted_engine_run(isolated_db)
 
     started = time.monotonic()
     with TestClient(main_module.app) as client:

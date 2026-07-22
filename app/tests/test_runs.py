@@ -3,10 +3,71 @@
 from __future__ import annotations
 
 import asyncio
-from typing import ClassVar
+from typing import Any, ClassVar
+
+from fastapi.testclient import TestClient
 
 from tests._client import make_client as _client
 from tests._client import wait_for_status as _wait_status
+
+
+def _run_with_held_decision(
+    client: TestClient, headers: dict[str, str]
+) -> tuple[str, str]:
+    """Create a run carrying one held intake safety decision."""
+    from app import store
+
+    created = client.post(
+        "/api/runs",
+        headers=headers,
+        json={"research_goal": "Review a sensitive research protocol"},
+    ).json()
+    store.add_safety_decision(
+        created["id"],
+        "intake",
+        "hold",
+        "Context requires review.",
+        [],
+        category="uncertain",
+        policy_version="coscientist-safety-v2",
+        requires_review=True,
+    )
+    decision_id = store.list_safety_decisions(created["id"])[0]["id"]
+    return created["id"], decision_id
+
+
+def _start_and_complete(
+    client: TestClient,
+    goal: str,
+    *,
+    tier: str = "express",
+    timeout: float = 30.0,
+) -> str:
+    """Create and start a run, returning its id once it completes."""
+    res = client.post("/api/runs", json={"research_goal": goal, "tier": tier})
+    run_id: str = res.json()["id"]
+    assert client.post(f"/api/runs/{run_id}/start", json={}).status_code == 200
+    assert _wait_status(client, run_id, "completed", timeout=timeout), (
+        "run did not reach 'completed'"
+    )
+    return run_id
+
+
+def _run_views(client: TestClient, run_id: str) -> dict[str, Any]:
+    """Fetch every persisted run collection the durable path publishes."""
+
+    def _get(name: str) -> Any:
+        return client.get(f"/api/runs/{run_id}/{name}").json()
+
+    return {
+        "hyps": _get("hypotheses")["hypotheses"],
+        "evidence": _get("evidence")["evidence"],
+        "matches": _get("matches")["matches"],
+        "citations": _get("citations")["citations"],
+        "safety": _get("safety")["safety"],
+        "claim_evidence": _get("claim-evidence")["claim_evidence"],
+        "report": _get("report"),
+    }
 
 
 def test_create_run_returns_draft_status() -> None:
@@ -72,42 +133,27 @@ def test_safety_adjudication_is_identified_and_single_use(
 
     client = _client()
     headers = {"X-Client-ID": "reviewer-1"}
-    created = client.post(
-        "/api/runs",
-        headers=headers,
-        json={"research_goal": "Review a sensitive research protocol"},
-    ).json()
-    store.add_safety_decision(
-        created["id"],
-        "intake",
-        "hold",
-        "Context requires review.",
-        [],
-        category="uncertain",
-        policy_version="coscientist-safety-v2",
-        requires_review=True,
-    )
-    decision_id = store.list_safety_decisions(created["id"])[0]["id"]
+    run_id, decision_id = _run_with_held_decision(client, headers)
 
     anonymous = client.post(
-        f"/api/runs/{created['id']}/safety/{decision_id}/adjudicate",
+        f"/api/runs/{run_id}/safety/{decision_id}/adjudicate",
         json={"resolution": "approved"},
     )
     # Ownership middleware hides the existence of another client's run.
     assert anonymous.status_code == 404
 
     approved = client.post(
-        f"/api/runs/{created['id']}/safety/{decision_id}/adjudicate",
+        f"/api/runs/{run_id}/safety/{decision_id}/adjudicate",
         headers=headers,
         json={"resolution": "approved"},
     )
     assert approved.status_code == 200
     assert store.safety_stage_is_approved(
-        created["id"], "intake", "coscientist-safety-v2"
+        run_id, "intake", "coscientist-safety-v2"
     )
 
     repeated = client.post(
-        f"/api/runs/{created['id']}/safety/{decision_id}/adjudicate",
+        f"/api/runs/{run_id}/safety/{decision_id}/adjudicate",
         headers=headers,
         json={"resolution": "rejected"},
     )
@@ -227,74 +273,42 @@ def test_default_run_completes_and_persists(isolated_db: str) -> None:
     keyless run produces no evidence/citations -- that is the offline reality.
     """
     client = _client()
-    res = client.post(
-        "/api/runs",
-        json={
-            "research_goal": "Investigate ferroptosis as a "
-            "tumor-suppression mechanism",
-            "tier": "express",
-        },
+    run_id = _start_and_complete(
+        client,
+        "Investigate ferroptosis as a tumor-suppression mechanism",
     )
-    run_id = res.json()["id"]
-
-    start = client.post(f"/api/runs/{run_id}/start", json={})
-    assert start.status_code == 200
-
-    assert _wait_status(client, run_id, "completed", timeout=30.0), (
-        "run did not reach 'completed'"
-    )
-
-    hyps = client.get(f"/api/runs/{run_id}/hypotheses").json()["hypotheses"]
-    evidence = client.get(f"/api/runs/{run_id}/evidence").json()["evidence"]
-    matches = client.get(f"/api/runs/{run_id}/matches").json()["matches"]
-    citations = client.get(f"/api/runs/{run_id}/citations").json()["citations"]
-    safety = client.get(f"/api/runs/{run_id}/safety").json()["safety"]
-    claim_evidence = client.get(f"/api/runs/{run_id}/claim-evidence").json()[
-        "claim_evidence"
-    ]
-    report = client.get(f"/api/runs/{run_id}/report").json()
+    views = _run_views(client, run_id)
+    hyps = views["hyps"]
 
     assert len(hyps) >= 2  # initial + evolved children
     assert any(h["parent_id"] for h in hyps), "no evolved children persisted"
     assert all(h["elo_rating"] >= 1000 for h in hyps)
-    # At least one hypothesis must have moved away from the initial Elo of 1200,
-    # otherwise the tournament didn't actually update anything.
+    # An Elo moved off the initial 1200, so the tournament updated something.
     assert any(h["elo_rating"] != 1200 for h in hyps), "no Elo updates observed"
     # No literature review under test, so a keyless run grounds no evidence.
-    assert evidence == []
-    assert citations == []
-    assert len(matches) >= 2
-    assert {s["stage"] for s in safety} >= {"intake", "final"}
-    # The pre-tournament safety screen ran: every hypothesis carries a real
-    # safety_status (benign hypotheses are 'allow', never left 'pending').
+    assert views["evidence"] == []
+    assert views["citations"] == []
+    assert len(views["matches"]) >= 2
+    assert {s["stage"] for s in views["safety"]} >= {"intake", "final"}
+    # Pre-tournament safety screen ran: benign hypotheses are 'allow'.
     assert all(h["safety_status"] == "allow" for h in hyps)
     # The pre-tournament claim grounding persisted the entailment graph.
-    assert len(claim_evidence) >= 1
+    assert len(views["claim_evidence"]) >= 1
     assert all(
         e["label"] in {"supports", "contradicts", "insufficient"}
-        for e in claim_evidence
+        for e in views["claim_evidence"]
     )
-    # Offline-backed runs are illustrative fixtures, never assessed science, so
-    # the "Unverified" badge is suppressed even though they carry simulated
-    # claim-evidence rows that would otherwise flag every idea.
+    # Offline fixtures are illustrative, so the "Unverified" badge stays off.
     assert all(h.get("unverified") is False for h in hyps)
-    assert report["payload"]["leaderboard"]
+    assert views["report"]["payload"]["leaderboard"]
 
 
 def test_run_reopens_after_restart(isolated_db: str) -> None:
     """Run completes; new TestClient (= simulated restart) can still read it."""
     client = _client()
-    res = client.post(
-        "/api/runs",
-        json={
-            "research_goal": "Senescent cell removal in aged tissues",
-            "tier": "express",
-        },
+    run_id = _start_and_complete(
+        client, "Senescent cell removal in aged tissues"
     )
-    run_id = res.json()["id"]
-    client.post(f"/api/runs/{run_id}/start", json={})
-
-    assert _wait_status(client, run_id, "completed", timeout=30.0)
 
     # Discard the client and re-import the app, simulating a fresh process.
     import importlib
@@ -302,10 +316,6 @@ def test_run_reopens_after_restart(isolated_db: str) -> None:
     import app.main
 
     importlib.reload(app.main)
-    from fastapi.testclient import (
-        TestClient,
-    )
-
     new_client = TestClient(app.main.app)
 
     r = new_client.get(f"/api/runs/{run_id}")
@@ -344,7 +354,7 @@ def test_legacy_advanced_profile_maps_to_standard_tier(
             "profile": "advanced",
         },
     )
-    run_id = res.json()["id"]
+    run_id: str = res.json()["id"]
     client.post(f"/api/runs/{run_id}/start", json={})
 
     assert _wait_status(client, run_id, "completed", timeout=60.0)

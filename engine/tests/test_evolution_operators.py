@@ -15,6 +15,19 @@ from co_scientist.agents.evolution.evolve_prompt import _build_evolution_prompt
 from tests._state import make_hypothesis
 
 
+def _operator_child_payload(operator: EvolutionOperator) -> dict[str, Any]:
+    """The stubbed LLM response an operator run should turn into a child."""
+    return {
+        "hypothesis": (
+            f"The {operator.value} route tests a distinct temporal "
+            "checkpoint with an orthogonal perturbation and readout."
+        ),
+        "explanation": "The operator creates a separately testable path.",
+        "experiment": "Perturb the checkpoint and compare the readout.",
+        "refinement_summary": f"Applied {operator.value} behavior.",
+    }
+
+
 def test_portfolio_contains_every_disclosed_operator() -> None:
     """All material evolution strategies are executable and distinct."""
     assert {operator.value for operator in EvolutionOperator} == {
@@ -83,15 +96,7 @@ async def test_every_operator_executes_as_a_distinct_evolution_task(
     async def fake_llm(*, prompt: str, **_: Any) -> dict[str, Any]:
         nonlocal observed_prompt
         observed_prompt = prompt
-        return {
-            "hypothesis": (
-                f"The {operator.value} route tests a distinct temporal "
-                "checkpoint with an orthogonal perturbation and readout."
-            ),
-            "explanation": "The operator creates a separately testable path.",
-            "experiment": "Perturb the checkpoint and compare the readout.",
-            "refinement_summary": f"Applied {operator.value} behavior.",
-        }
+        return _operator_child_payload(operator)
 
     monkeypatch.setattr(evolve, "call_llm_json", fake_llm)
     parent = make_hypothesis(

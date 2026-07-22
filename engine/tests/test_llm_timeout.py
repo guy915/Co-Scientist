@@ -171,6 +171,15 @@ async def test_generic_failure_is_still_retried(
     assert calls == 3, "generic failures must still exhaust retries"
 
 
+def _recording_sleep(slept: list[float]) -> Any:
+    """A fake ``asyncio.sleep`` that records each requested delay."""
+
+    async def fake_sleep(seconds: float) -> None:
+        slept.append(seconds)
+
+    return fake_sleep
+
+
 class _ProviderRateLimitError(Exception):
     """Stands in for a provider SDK's throttling error.
 
@@ -193,11 +202,9 @@ async def test_rate_limited_retry_waits_before_trying_again(
     the burst that caused the throttle.
     """
     slept: list[float] = []
-
-    async def fake_sleep(seconds: float) -> None:
-        slept.append(seconds)
-
-    monkeypatch.setattr("co_scientist.llm_json_retry.asyncio.sleep", fake_sleep)
+    monkeypatch.setattr(
+        "co_scientist.llm_json_retry.asyncio.sleep", _recording_sleep(slept)
+    )
     calls = 0
 
     async def throttled(**_kwargs: Any) -> Any:
@@ -241,11 +248,9 @@ async def test_schema_failure_still_retries_without_waiting(
 ) -> None:
     """Backoff is scoped to throttling; a bad payload retries immediately."""
     slept: list[float] = []
-
-    async def fake_sleep(seconds: float) -> None:
-        slept.append(seconds)
-
-    monkeypatch.setattr("co_scientist.llm_json_retry.asyncio.sleep", fake_sleep)
+    monkeypatch.setattr(
+        "co_scientist.llm_json_retry.asyncio.sleep", _recording_sleep(slept)
+    )
     calls = 0
 
     async def failing(**_kwargs: Any) -> Any:

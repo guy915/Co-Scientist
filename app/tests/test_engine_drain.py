@@ -23,10 +23,102 @@ from typing import Any
 from app import engine_adapter, report_render, store
 from tests._client import drain as _drain
 from tests._drain_helpers import (
+    _build_report,
     _final_state_with_features,
     _final_state_with_lineage,
     _persist_and_finalize,
 )
+
+
+async def _emit(type_: str, payload: dict[str, Any]) -> dict[str, Any]:
+    """A plain-dict event emitter for finalize paths that need no event log."""
+    return {"type": type_, "payload": payload}
+
+
+def _assert_features_proximity_edge(run_id: str, db_path: str) -> None:
+    """The single feature-fixture proximity edge is persisted intact."""
+    edges = store.list_proximity_edges(run_id, db_path=db_path)
+    hypotheses = store.list_hypotheses(run_id, db_path=db_path)
+    hypothesis_ids = {hypothesis["id"] for hypothesis in hypotheses}
+    assert len(edges) == 1
+    edge = edges[0]
+    assert edge["source_hypothesis_id"] in hypothesis_ids
+    assert edge["target_hypothesis_id"] in hypothesis_ids
+    assert edge["source_hypothesis_id"] != edge["target_hypothesis_id"]
+    assert edge["similarity"] == 0.82
+    assert edge["degree"] == "high"
+    assert edge["cluster_id"] == "cluster-1"
+    assert edge["method"] == "llm_cluster_pairwise_graph"
+    assert edge["version"] == "1"
+    assert edge["model"] == "fixture-model"
+    assert edge["updated_at"] == 1234.5
+
+
+def _seed_safe_and_unsafe(run: Any, db_path: str) -> tuple[str, str]:
+    """Add one safe and one unsafe hypothesis, each with claim evidence."""
+    safe_id = store.add_hypothesis(
+        run.id,
+        title="Safe idea",
+        statement="Inhibiting kinase X reduces AML tumor growth via apoptosis.",
+        db_path=db_path,
+    )
+    unsafe_id = store.add_hypothesis(
+        run.id,
+        title="Unsafe idea",
+        statement=(
+            "Weaponize the pathogen to enhance transmissibility in humans."
+        ),
+        db_path=db_path,
+    )
+    store.add_claim_evidence(
+        run.id,
+        safe_id,
+        "Inhibiting kinase X reduces AML tumor growth via apoptosis.",
+        "supports",
+        ["A source-supported safe mechanism."],
+        [],
+        "fixture",
+        claim_role="speculative",
+        db_path=db_path,
+    )
+    store.add_claim_evidence(
+        run.id,
+        unsafe_id,
+        "Weaponize the pathogen to enhance transmissibility in humans.",
+        "supports",
+        ["A source span is present so the safety gate decides this fixture."],
+        [],
+        "fixture",
+        db_path=db_path,
+    )
+    return safe_id, unsafe_id
+
+
+def _archived_parent_state() -> dict[str, Any]:
+    """A lineage state whose parent is archived as a proximity duplicate."""
+    state = _final_state_with_lineage()
+    parent = state["hypotheses"][0]
+    state["hypotheses"] = [state["hypotheses"][1]]
+    state["removed_duplicates"] = [
+        {
+            "text": parent["text"],
+            "cluster_id": "cluster-1",
+            "reason": "high_similarity_duplicate",
+            "kept_hypothesis_id": "child-1",
+            "kept_instead": "Child hypothesis",
+            "hypothesis": parent,
+        }
+    ]
+    state["tournament_matchups"] = [
+        {
+            "hypothesis_a_id": "parent-1",
+            "hypothesis_b_id": "child-1",
+            "winner_id": "child-1",
+            "reasoning": "The child is more specific.",
+            "confidence": "High",
+        }
+    ]
+    return state
 
 
 def test_persist_writes_research_overview_into_report(isolated_db: str) -> None:
@@ -55,21 +147,7 @@ def test_persist_writes_research_overview_into_report(isolated_db: str) -> None:
     )
     assert retracted["available"] == 0
 
-    edges = store.list_proximity_edges(run.id, db_path=isolated_db)
-    hypotheses = store.list_hypotheses(run.id, db_path=isolated_db)
-    hypothesis_ids = {hypothesis["id"] for hypothesis in hypotheses}
-    assert len(edges) == 1
-    edge = edges[0]
-    assert edge["source_hypothesis_id"] in hypothesis_ids
-    assert edge["target_hypothesis_id"] in hypothesis_ids
-    assert edge["source_hypothesis_id"] != edge["target_hypothesis_id"]
-    assert edge["similarity"] == 0.82
-    assert edge["degree"] == "high"
-    assert edge["cluster_id"] == "cluster-1"
-    assert edge["method"] == "llm_cluster_pairwise_graph"
-    assert edge["version"] == "1"
-    assert edge["model"] == "fixture-model"
-    assert edge["updated_at"] == 1234.5
+    _assert_features_proximity_edge(run.id, isolated_db)
 
 
 def test_drain_persists_explicit_lineage(isolated_db: str) -> None:
@@ -128,28 +206,7 @@ def test_drain_preserves_proximity_pruned_parent_as_non_viable(
     isolated_db: str,
 ) -> None:
     """A full duplicate archive retains lineage outside active synthesis."""
-    state = _final_state_with_lineage()
-    parent = state["hypotheses"][0]
-    state["hypotheses"] = [state["hypotheses"][1]]
-    state["removed_duplicates"] = [
-        {
-            "text": parent["text"],
-            "cluster_id": "cluster-1",
-            "reason": "high_similarity_duplicate",
-            "kept_hypothesis_id": "child-1",
-            "kept_instead": "Child hypothesis",
-            "hypothesis": parent,
-        }
-    ]
-    state["tournament_matchups"] = [
-        {
-            "hypothesis_a_id": "parent-1",
-            "hypothesis_b_id": "child-1",
-            "winner_id": "child-1",
-            "reasoning": "The child is more specific.",
-            "confidence": "High",
-        }
-    ]
+    state = _archived_parent_state()
     run = store.create_run("kinase archive goal", "standard", "engine", {})
 
     engine_adapter._persist_final_state(
@@ -194,54 +251,9 @@ def test_unsafe_hypothesis_excluded_from_synthesis(isolated_db: str) -> None:
     hypotheses from the leaderboard and top ideas, recording an audit decision.
     """
     run = store.create_run("safety goal", "standard", "engine", {})
-    safe_id = store.add_hypothesis(
-        run.id,
-        title="Safe idea",
-        statement="Inhibiting kinase X reduces AML tumor growth via apoptosis.",
-        db_path=isolated_db,
-    )
-    unsafe_id = store.add_hypothesis(
-        run.id,
-        title="Unsafe idea",
-        statement=(
-            "Weaponize the pathogen to enhance transmissibility in humans."
-        ),
-        db_path=isolated_db,
-    )
-    store.add_claim_evidence(
-        run.id,
-        safe_id,
-        "Inhibiting kinase X reduces AML tumor growth via apoptosis.",
-        "supports",
-        ["A source-supported safe mechanism."],
-        [],
-        "fixture",
-        claim_role="speculative",
-        db_path=isolated_db,
-    )
-    store.add_claim_evidence(
-        run.id,
-        unsafe_id,
-        "Weaponize the pathogen to enhance transmissibility in humans.",
-        "supports",
-        ["A source span is present so the safety gate decides this fixture."],
-        [],
-        "fixture",
-        db_path=isolated_db,
-    )
+    safe_id, _unsafe_id = _seed_safe_and_unsafe(run, isolated_db)
 
-    payload, markdown = report_render._build_report_content(
-        run_id=run.id,
-        research_goal=run.research_goal,
-        run_mode="standard",
-        provider="engine",
-        citation_summary=None,
-        meta_review=None,
-        research_overview=None,
-        execution_time=1.0,
-        summary=None,
-        db_path=isolated_db,
-    )
+    payload, markdown = _build_report(run, isolated_db)
 
     # Only the safe hypothesis is synthesized.
     assert payload["hypothesis_count"] == 1
@@ -269,9 +281,6 @@ def test_resumed_finalize_does_not_double_publish(isolated_db: str) -> None:
         final_state=_final_state_with_features(),
         db_path=isolated_db,
     )
-
-    async def _emit(type_: str, payload: dict[str, Any]) -> dict[str, Any]:
-        return {"type": type_, "payload": payload}
 
     def _finalize(resumed: bool) -> list[Any]:
         return _drain(

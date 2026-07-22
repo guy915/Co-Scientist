@@ -75,6 +75,63 @@ async def _await_condition(
     raise AssertionError("condition not met before timeout")
 
 
+def _start_express_run(client: Any, goal: str) -> str:
+    """Create and start an express run over the sync client; return its id."""
+    res = client.post(
+        "/api/runs", json={"research_goal": goal, "tier": "express"}
+    )
+    run_id: str = res.json()["id"]
+    start = client.post(f"/api/runs/{run_id}/start", json={})
+    assert start.status_code == 200
+    assert _wait_status(client, run_id, "completed", timeout=20.0)
+    return run_id
+
+
+async def _drive_replay_then_live_run(
+    isolated_db: str,
+) -> tuple[str, httpx.Response, httpx.Response, int]:
+    """Start a run and capture its SSE stream opened mid-flight."""
+    async with httpx.AsyncClient(
+        transport=ASGITransport(app=_asgi_app()), base_url="http://test"
+    ) as client:
+        create = await client.post(
+            "/api/runs",
+            json={
+                "research_goal": "Integration flow: SSE replay-then-live "
+                "consistency",
+                "tier": "express",
+            },
+        )
+        run_id = create.json()["id"]
+        start_task = asyncio.create_task(
+            client.post(f"/api/runs/{run_id}/start", json={})
+        )
+        # Let a handful of events land before the stream opens, so the request
+        # below genuinely mixes replayed history with live-tail delivery
+        # instead of only ever seeing a full-history snapshot.
+        await _await_condition(
+            lambda: len(store.list_events(run_id, db_path=isolated_db)) >= 3
+        )
+        events_at_open = len(store.list_events(run_id, db_path=isolated_db))
+        events_resp = await client.get(
+            f"/api/runs/{run_id}/events", params={"after": 0}
+        )
+        start_resp = await start_task
+    return run_id, events_resp, start_resp, events_at_open
+
+
+def _assert_cancelled_everywhere(run_id: str, db_path: str) -> None:
+    """The terminal cancelled state is consistent across every surface."""
+    from app.store import RunStatus
+
+    final = store.get_run(run_id, db_path=db_path)
+    assert final is not None and final.status == RunStatus.CANCELLED.value
+    stored = store.list_events(run_id, db_path=db_path)
+    assert stored[-1]["type"] == "status"
+    assert stored[-1]["payload"]["status"] == "cancelled"
+    assert store.get_latest_report(run_id, db_path=db_path) is None
+
+
 # ---------------------------------------------------------------------------
 # Full run: creation -> start -> completion, event log cross-checked via the
 # store AND the HTTP API.
@@ -85,19 +142,10 @@ def test_full_run_flow_persists_events_matching_store_and_api(
     isolated_db: str,
 ) -> None:
     client = _client()
-    res = client.post(
-        "/api/runs",
-        json={
-            "research_goal": "Integration flow: dissect ferroptosis "
-            "resistance in melanoma",
-            "tier": "express",
-        },
+    run_id = _start_express_run(
+        client,
+        "Integration flow: dissect ferroptosis resistance in melanoma",
     )
-    run_id = res.json()["id"]
-
-    start = client.post(f"/api/runs/{run_id}/start", json={})
-    assert start.status_code == 200
-    assert _wait_status(client, run_id, "completed", timeout=20.0)
 
     stored = store.list_events(run_id, db_path=isolated_db)
     assert stored
@@ -133,35 +181,12 @@ def test_full_run_flow_persists_events_matching_store_and_api(
 async def test_sse_stream_replay_then_live_matches_full_event_log(
     isolated_db: str,
 ) -> None:
-    async with httpx.AsyncClient(
-        transport=ASGITransport(app=_asgi_app()), base_url="http://test"
-    ) as client:
-        create = await client.post(
-            "/api/runs",
-            json={
-                "research_goal": "Integration flow: SSE replay-then-live "
-                "consistency",
-                "tier": "express",
-            },
-        )
-        run_id = create.json()["id"]
-
-        start_task: asyncio.Task[httpx.Response] = asyncio.create_task(
-            client.post(f"/api/runs/{run_id}/start", json={})
-        )
-
-        # Let a handful of events land before the stream opens, so the
-        # request below genuinely mixes replayed history with live-tail
-        # delivery instead of only ever seeing a full-history snapshot.
-        await _await_condition(
-            lambda: len(store.list_events(run_id, db_path=isolated_db)) >= 3
-        )
-        events_at_open = len(store.list_events(run_id, db_path=isolated_db))
-
-        events_resp = await client.get(
-            f"/api/runs/{run_id}/events", params={"after": 0}
-        )
-        start_resp = await start_task
+    (
+        run_id,
+        events_resp,
+        start_resp,
+        events_at_open,
+    ) = await _drive_replay_then_live_run(isolated_db)
 
     assert start_resp.status_code == 200
     assert events_resp.status_code == 200
@@ -202,7 +227,6 @@ async def test_cancel_mid_run_leaves_consistent_terminal_state(
     isolated_db: str,
 ) -> None:
     from app import engine_adapter
-    from app.store import RunStatus
 
     run = store.create_run(
         "Integration flow: cancel mid-run consistency",
@@ -235,12 +259,7 @@ async def test_cancel_mid_run_leaves_consistent_terminal_state(
 
     # The terminal state is consistent everywhere: run row cancelled, the last
     # persisted event is the cancelled status, and no report was published.
-    final = store.get_run(run.id, db_path=isolated_db)
-    assert final is not None and final.status == RunStatus.CANCELLED.value
-    stored = store.list_events(run.id, db_path=isolated_db)
-    assert stored[-1]["type"] == "status"
-    assert stored[-1]["payload"]["status"] == "cancelled"
-    assert store.get_latest_report(run.id, db_path=isolated_db) is None
+    _assert_cancelled_everywhere(run.id, isolated_db)
 
 
 def test_completion_notification_is_opt_in_and_durable(

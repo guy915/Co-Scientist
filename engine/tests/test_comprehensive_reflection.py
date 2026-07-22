@@ -10,6 +10,16 @@ from co_scientist.models import Article
 from tests._state import make_hypothesis, make_state
 
 
+def _validation_article() -> Article:
+    """The single retrieved article a targeted full review evaluates."""
+    return Article(
+        title="Targeted validation",
+        source_id="validation-1",
+        abstract="The proposed mechanism survived direct testing.",
+        used_in_analysis=True,
+    )
+
+
 async def test_full_and_simulation_run_for_every_viable_hypothesis(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -109,19 +119,7 @@ async def test_full_review_executes_targeted_retrieval(
             {"verdict": "sound"},
         ]
     )
-    retrieve = AsyncMock(
-        return_value=(
-            [
-                Article(
-                    title="Targeted validation",
-                    source_id="validation-1",
-                    abstract="The proposed mechanism survived direct testing.",
-                    used_in_analysis=True,
-                )
-            ],
-            [],
-        )
-    )
+    retrieve = AsyncMock(return_value=([_validation_article()], []))
     monkeypatch.setattr(cr, "call_llm_json", call)
     monkeypatch.setattr(cr, "_retrieve_probe_evidence", retrieve)
     hypothesis = make_hypothesis(text="Mechanism X controls response Y")

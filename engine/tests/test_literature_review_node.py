@@ -92,6 +92,27 @@ class _FakeMCPClient:
         return False
 
 
+def _stub_llms(
+    monkeypatch: pytest.MonkeyPatch,
+    queries: list[str] | None,
+    synthesis: str,
+) -> None:
+    """Stub the query-generation, per-paper analysis, and synthesis LLMs."""
+
+    async def fake_llm_json(**_: Any) -> dict[str, Any]:
+        # Shared by query-generation (reads "queries") and paper analysis
+        # (stores the whole dict opaquely for synthesis).
+        return {"queries": queries if queries is not None else ["query one"]}
+
+    monkeypatch.setattr(lr_queries, "call_llm_json", fake_llm_json)
+    monkeypatch.setattr(lr_analysis, "call_llm_json", fake_llm_json)
+
+    async def fake_llm(**_: Any) -> str:
+        return synthesis
+
+    monkeypatch.setattr(lr_synthesis, "call_llm", fake_llm)
+
+
 def _stub_node(
     monkeypatch: pytest.MonkeyPatch,
     *,
@@ -102,20 +123,11 @@ def _stub_node(
 ) -> _FakeMCPClient:
     """Patch every external seam of ``literature_review_node``.
 
-    Args:
-        monkeypatch: The pytest monkeypatch fixture.
-        server_available: Value returned by ``check_mcp_available`` -- the
-            node's precondition is a reachable MCP server, not any one
-            source's health.
-        search_payload: ``{paper_id: metadata}`` the fake MCP client returns
-            from ``call_tool``.
-        queries: Queries returned by the stubbed query-generation LLM. Defaults
-            to a single query.
-        synthesis: Text returned by the stubbed synthesis ``call_llm``.
-
-    Returns:
-        The ``_FakeMCPClient`` instance wired into the node (so the test can
-        inspect ``.calls``).
+    ``server_available`` drives ``check_mcp_available`` (the reachable-server
+    precondition, not any one source's health); ``search_payload`` is the
+    ``{paper_id: metadata}`` the fake MCP client returns from ``call_tool``;
+    ``queries`` and ``synthesis`` feed the stubbed query and synthesis LLMs.
+    Returns the wired-in ``_FakeMCPClient`` so the test can inspect ``.calls``.
     """
     fake_client = _FakeMCPClient(search_payload or {})
 
@@ -130,19 +142,7 @@ def _stub_node(
         return fake_client
 
     monkeypatch.setattr(lr, "get_mcp_client", fake_get_client)
-
-    async def fake_llm_json(**_: Any) -> dict[str, Any]:
-        # Shared by query-generation (reads "queries") and paper analysis
-        # (stores the whole dict opaquely for synthesis).
-        return {"queries": queries if queries is not None else ["query one"]}
-
-    monkeypatch.setattr(lr_queries, "call_llm_json", fake_llm_json)
-    monkeypatch.setattr(lr_analysis, "call_llm_json", fake_llm_json)
-
-    async def fake_llm(**_: Any) -> str:
-        return synthesis
-
-    monkeypatch.setattr(lr_synthesis, "call_llm", fake_llm)
+    _stub_llms(monkeypatch, queries, synthesis)
 
     return fake_client
 
@@ -164,6 +164,34 @@ def _make_event_recorder() -> tuple[
         events.append((event, payload))
 
     return events, callback
+
+
+_TWO_PAPERS: dict[str, dict[str, Any]] = {
+    "PMID1": {
+        "title": "Tumor microenvironment review",
+        "authors": ["Smith J"],
+        "year": "2021",
+        "fulltext": "Full body one.",
+        "abstract": "Abstract one.",
+    },
+    "PMID2": {
+        "title": "Immune checkpoint blockade",
+        "authors": ["Doe A"],
+        "year": "2022",
+        "fulltext": "Full body two.",
+        "abstract": "Abstract two.",
+    },
+}
+
+
+class _RaisingClient:
+    """An MCP client whose every search call raises a transport error."""
+
+    async def call_tool(self, _tool_name: str, **_: Any) -> Any:
+        raise ConnectionError("All connection attempts failed")
+
+    def has_tool(self, _tool_name: str) -> bool:
+        return False
 
 
 # =============================================================================
@@ -199,13 +227,11 @@ async def test_node_gate_is_server_reachability_not_source_health(
     """The node proceeds whenever the MCP server responds.
 
     Regression guard: the node once gated on a single source's availability
-    (``check_pubmed``). A PubMed outage then aborted the whole node before any
-    source ran -- including the group's local corpus, which never depends on a
-    remote service. The gate is now server reachability, and each source's own
-    failure is swallowed downstream so the healthy sources still return. This
-    test pins the gate: with the server reachable the node runs its search
-    regardless of any one source's health, and it consults
-    ``check_mcp_available`` rather than a source-specific probe.
+    (``check_pubmed``), so a PubMed outage aborted the whole node -- including
+    the always-available local corpus. The gate is now server reachability.
+    This pins it: with the server reachable the node runs its search regardless
+    of any one source's health, consulting ``check_mcp_available`` rather than a
+    source-specific probe.
     """
     # The node must not reach for a source-specific availability probe; if it
     # imported one, this would catch a regression to the old coupling.
@@ -250,26 +276,10 @@ async def test_happy_path_populates_synthesis_and_articles(
     query LLM yields two queries, the per-paper analysis LLM is stubbed, and the
     synthesis LLM returns canned text that lands in ``articles_with_reasoning``.
     """
-    papers = {
-        "PMID1": {
-            "title": "Tumor microenvironment review",
-            "authors": ["Smith J"],
-            "year": "2021",
-            "fulltext": "Full body one.",
-            "abstract": "Abstract one.",
-        },
-        "PMID2": {
-            "title": "Immune checkpoint blockade",
-            "authors": ["Doe A"],
-            "year": "2022",
-            "fulltext": "Full body two.",
-            "abstract": "Abstract two.",
-        },
-    }
     _stub_node(
         monkeypatch,
         server_available=True,
-        search_payload=papers,
+        search_payload=_TWO_PAPERS,
         queries=["query alpha", "query beta"],
         synthesis="SYNTHESIZED REVIEW",
     )
@@ -430,13 +440,6 @@ async def test_no_papers_with_search_error_emits_error_event(
     _stub_node(
         monkeypatch, server_available=True, search_payload={}, queries=["q"]
     )
-
-    class _RaisingClient:
-        async def call_tool(self, _tool_name: str, **_: Any) -> Any:
-            raise ConnectionError("All connection attempts failed")
-
-        def has_tool(self, _tool_name: str) -> bool:
-            return False
 
     async def fake_get_client(**_: Any) -> _RaisingClient:
         return _RaisingClient()

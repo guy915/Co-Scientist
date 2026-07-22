@@ -15,11 +15,59 @@ from co_scientist.models import (
 
 from app import engine_tasks, store, task_worker
 from tests._engine_tasks_helpers import (
-    _deterministic_screen,
     _Generator,
+    _milestones,
+    _patch_generator,
+    _patch_task_node,
     _seed_checkpoint,
     _task_state,
 )
+
+
+def _priority_state(run_id: str, deferred_id: str) -> dict[str, Any]:
+    """State carrying a next-task priority and a reprioritize queue action."""
+    return {
+        **_task_state(run_id),
+        "next_task_priority": 97,
+        "supervisor_queue_actions": [
+            {
+                "action": "reprioritize",
+                "task_id": deferred_id,
+                "priority": 98,
+                "reason": "Review backlog is urgent.",
+            }
+        ],
+    }
+
+
+def _seed_orchestrator_task(run_id: str, db_path: str) -> tuple[Any, Any]:
+    """Seed a claimed orchestrator task plus a low-priority deferred task."""
+    store.save_checkpoint(
+        run_id,
+        stage="seed",
+        schema_version=1,
+        last_event_seq=0,
+        state={"provider": "engine"},
+        db_path=db_path,
+    )
+    queued = store.enqueue_task(
+        run_id,
+        "engine.node.orchestrator",
+        {"checkpoint_seq": 1},
+        idempotency_key="orchestrator-priority",
+        db_path=db_path,
+    )
+    task = store.claim_task("worker", run_id=run_id, db_path=db_path)
+    assert task is not None and task.id == queued.id
+    deferred = store.enqueue_task(
+        run_id,
+        "engine.node.reflect",
+        {},
+        idempotency_key="deferred-reflection",
+        priority=10,
+        db_path=db_path,
+    )
+    return task, deferred
 
 
 def test_orchestrator_priority_reaches_durable_successor(
@@ -27,46 +75,11 @@ def test_orchestrator_priority_reaches_durable_successor(
 ) -> None:
     """The Supervisor's selected priority controls queue claim order."""
     run = store.create_run("Priority science", "standard", "engine", {})
-    store.save_checkpoint(
-        run.id,
-        stage="seed",
-        schema_version=1,
-        last_event_seq=0,
-        state={"provider": "engine"},
-        db_path=isolated_db,
-    )
-    queued = store.enqueue_task(
-        run.id,
-        "engine.node.orchestrator",
-        {"checkpoint_seq": 1},
-        idempotency_key="orchestrator-priority",
-        db_path=isolated_db,
-    )
-    task = store.claim_task("worker", run_id=run.id, db_path=isolated_db)
-    assert task is not None and task.id == queued.id
-    deferred = store.enqueue_task(
-        run.id,
-        "engine.node.reflect",
-        {},
-        idempotency_key="deferred-reflection",
-        priority=10,
-        db_path=isolated_db,
-    )
+    task, deferred = _seed_orchestrator_task(run.id, isolated_db)
 
     engine_tasks._save_state_and_enqueue(
         task,
-        {
-            **_task_state(run.id),
-            "next_task_priority": 97,
-            "supervisor_queue_actions": [
-                {
-                    "action": "reprioritize",
-                    "task_id": deferred.id,
-                    "priority": 98,
-                    "reason": "Review backlog is urgent.",
-                }
-            ],
-        },
+        _priority_state(run.id, deferred.id),
         "generate",
         expected_checkpoint_seq=1,
         db_path=isolated_db,
@@ -87,20 +100,9 @@ async def test_worker_consumes_independent_specialist_task_chain(
     run = store.create_run("Task-level science", "standard", "engine", {})
     engine_tasks.enqueue_bootstrap(run.id, db_path=isolated_db)
     generator = _Generator(_task_state(run.id))
-    monkeypatch.setattr(
-        engine_tasks, "_generator_and_opts", lambda *_: (generator, {})
-    )
-    monkeypatch.setattr(
-        engine_tasks, "_generator_for_restore", lambda *_: generator
-    )
-    monkeypatch.setattr(
-        engine_tasks, "screen_with_escalation", _deterministic_screen
-    )
+    _patch_generator(monkeypatch, generator, restore=True, screen=True)
 
-    successors = {
-        "supervisor": "research_overview",
-        "research_overview": None,
-    }
+    successors = {"supervisor": "research_overview", "research_overview": None}
 
     async def execute(
         name: str, state: dict[str, Any]
@@ -111,9 +113,7 @@ async def test_worker_consumes_independent_specialist_task_chain(
         store.update_run_status(task.run_id, store.RunStatus.COMPLETED)
         return {"run_id": task.run_id, "status": "completed"}
 
-    import co_scientist.task_runtime as runtime
-
-    monkeypatch.setattr(runtime, "execute_task_node", execute)
+    _patch_task_node(monkeypatch, execute)
     monkeypatch.setattr(engine_tasks, "execute_finalize", finalize)
     await task_worker.run_run_until_idle(run.id, "worker", db_path=isolated_db)
 
@@ -125,41 +125,25 @@ async def test_worker_consumes_independent_specialist_task_chain(
         "engine.finalize",
     ]
     assert all(task.status == "completed" for task in tasks)
-    # Each milestone-bearing node completion appends its chat message once,
-    # in commit order -- the same milestones the streaming path emits for
-    # `supervisor.plan` and `research_overview` (see events.py).
-    milestones = [
-        message
-        for message in store.list_messages(run.id, db_path=isolated_db)
-        if message.kind == "milestone"
-    ]
-    assert [message.content for message in milestones] == [
+    # Milestones append once in commit order, matching the streaming path's
+    # `supervisor.plan` and `research_overview` emissions (see events.py).
+    assert _milestones(run.id, db_path=isolated_db) == [
         "Research plan ready — supervisor complete",
         "Research overview ready",
     ]
 
 
-@pytest.mark.asyncio
-async def test_execute_finalize_emits_post_drain_stage_events(
-    isolated_db: str, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """The durable finalize task emits the three post-drain stage events.
-
-    Pins the production ``execute_finalize`` path end to end: it must pop the
-    drain's ``safety_counts``/``grounding_counts`` (which are not
-    ``finalize_report`` kwargs), emit ``safety.hypothesis``,
-    ``citation.grounding``, and ``citation_audit`` from them, and still run
-    ``finalize_report`` to completion. Without the pop this path would raise
-    ``TypeError: finalize_report() got an unexpected keyword argument``.
-    """
-    run = store.create_run("Task-level science", "standard", "engine", {})
+def _seed_finalize_task(
+    run_id: str, monkeypatch: pytest.MonkeyPatch, db_path: str
+) -> Any:
+    """Seed a grounded finalize task; patch restore to the fixture generator."""
     hypothesis = Hypothesis(
         text="Astrocyte lactate accelerates synaptic ATP recovery.",
         literature_grounding=(
             "Astrocyte lactate accelerates synaptic ATP recovery."
         ),
     )
-    state = _task_state(run.id)
+    state = _task_state(run_id)
     state["hypotheses"] = [hypothesis]
     # An article whose abstract carries the hypothesis's claim so grounding
     # finds support (blocked=0) rather than quarantining it as unsupported.
@@ -170,31 +154,24 @@ async def test_execute_finalize_emits_post_drain_stage_events(
             abstract="Astrocyte lactate accelerates synaptic ATP recovery.",
         )
     ]
-    _seed_checkpoint(run.id, state, db_path=isolated_db)
+    _seed_checkpoint(run_id, state, db_path=db_path)
     task = store.enqueue_task(
-        run.id,
+        run_id,
         engine_tasks.FINALIZE_TASK,
         {},
         idempotency_key="finalize",
-        db_path=isolated_db,
+        db_path=db_path,
     )
     # Restore builds a real generator otherwise; the fixture generator carries a
     # null tool_registry, which restore_workflow_state accepts.
     monkeypatch.setattr(
-        engine_tasks,
-        "_generator_for_restore",
-        lambda *_: _Generator(state),
+        engine_tasks, "_generator_for_restore", lambda *_: _Generator(state)
     )
+    return task
 
-    result = await engine_tasks.execute_finalize(task, db_path=isolated_db)
 
-    # finalize_report ran to completion (no leaked kwargs, no TypeError).
-    assert result["status"] == store.RunStatus.COMPLETED.value
-    assert store.get_latest_report(run.id, db_path=isolated_db) is not None
-
-    events = store.list_events(run.id, db_path=isolated_db)
-    by_type = {e["type"]: e["payload"] for e in events}
-
+def _assert_post_drain_counts(by_type: dict[str, Any]) -> None:
+    """Pin the safety/grounding/citation-audit stage-event payloads."""
     assert set(by_type["safety.hypothesis"]) == {
         "screened",
         "blocked",
@@ -220,6 +197,33 @@ async def test_execute_finalize_emits_post_drain_stage_events(
     citation_audit = by_type["citation_audit"]
     assert citation_audit
     assert all(isinstance(v, int) for v in citation_audit.values())
+
+
+@pytest.mark.asyncio
+async def test_execute_finalize_emits_post_drain_stage_events(
+    isolated_db: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The durable finalize task emits the three post-drain stage events.
+
+    Pins the production ``execute_finalize`` path end to end: it must pop the
+    drain's ``safety_counts``/``grounding_counts`` (which are not
+    ``finalize_report`` kwargs), emit ``safety.hypothesis``,
+    ``citation.grounding``, and ``citation_audit`` from them, and still run
+    ``finalize_report`` to completion. Without the pop this path would raise
+    ``TypeError: finalize_report() got an unexpected keyword argument``.
+    """
+    run = store.create_run("Task-level science", "standard", "engine", {})
+    task = _seed_finalize_task(run.id, monkeypatch, isolated_db)
+
+    result = await engine_tasks.execute_finalize(task, db_path=isolated_db)
+
+    # finalize_report ran to completion (no leaked kwargs, no TypeError).
+    assert result["status"] == store.RunStatus.COMPLETED.value
+    assert store.get_latest_report(run.id, db_path=isolated_db) is not None
+
+    events = store.list_events(run.id, db_path=isolated_db)
+    by_type = {e["type"]: e["payload"] for e in events}
+    _assert_post_drain_counts(by_type)
 
 
 @pytest.mark.asyncio
@@ -292,14 +296,12 @@ async def test_generic_node_completion_emits_matching_milestone(
     Covers the four node types (reflection, evolve, proximity, meta_review)
     the streaming path milestones (see events.py's ``_MILESTONE_BUILDERS``)
     that no other durable-executor test happens to exercise through
-    ``execute_node_task``'s generic completion path -- supervisor.plan and
-    research_overview are covered by
+    ``execute_node_task``'s generic completion path. The rest are covered
+    elsewhere: supervisor.plan and research_overview by
     ``test_worker_consumes_independent_specialist_task_chain``, generate by
     ``test_generation_strategies_are_independently_leased_and_aggregated``,
-    ranking by
-    ``test_ranking_matches_are_separate_sequential_checkpointed_tasks``, and
-    deep_verification by
-    ``test_verification_children_commit_through_single_aggregator``.
+    ranking by ``test_ranking_matches_..._checkpointed_tasks``, and
+    deep_verification by ``test_verification_children_..._aggregator``.
     """
     run = store.create_run("Task-level science", "standard", "engine", {})
     checkpoint_seq = _seed_checkpoint(run.id, _task_state(run.id))
@@ -318,15 +320,7 @@ async def test_generic_node_completion_emits_matching_milestone(
     ) -> tuple[dict[str, Any], str | None]:
         return {**state, **extra_state}, None
 
-    import co_scientist.task_runtime as runtime
-
-    monkeypatch.setattr(runtime, "execute_task_node", execute)
+    _patch_task_node(monkeypatch, execute)
     result = await engine_tasks.execute_node_task(leased, db_path=isolated_db)
     assert store.complete_task(leased.id, "worker", result, db_path=isolated_db)
-
-    milestones = [
-        message
-        for message in store.list_messages(run.id, db_path=isolated_db)
-        if message.kind == "milestone"
-    ]
-    assert [message.content for message in milestones] == [expected_milestone]
+    assert _milestones(run.id, db_path=isolated_db) == [expected_milestone]

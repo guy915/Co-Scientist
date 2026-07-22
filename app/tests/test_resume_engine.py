@@ -21,13 +21,127 @@ import pytest
 
 from app import engine_adapter, store
 from tests._resume_engine_helpers import (
+    _assert_events_unique_and_monotonic,
+    _assert_published_report,
+    _assert_unique_ids,
     _drain_all,
     _drain_until,
     _engine_cfg,
     _engine_stream,
     _install_fake_engine_llm,
+    _latest_checkpoint,
+    _post_generate_boundary,
     _reviewed_boundary,
 )
+
+
+def _count_llm_calls(monkeypatch: pytest.MonkeyPatch) -> dict[str, int]:
+    """Wrap ``litellm.acompletion`` with a call counter, return the counter."""
+    import litellm
+
+    calls = {"n": 0}
+    original = litellm.acompletion
+
+    async def _counting(*args: Any, **kwargs: Any) -> Any:
+        calls["n"] += 1
+        return await original(*args, **kwargs)
+
+    monkeypatch.setattr(litellm, "acompletion", _counting)
+    return calls
+
+
+def _seed_stale_mock_run(run_id: str) -> str:
+    """Persist stale mock-era artifacts a re-bootstrap must clear.
+
+    Returns the id of the stale agent-authored hypothesis.
+    """
+    stale_id = store.add_hypothesis(
+        run_id,
+        title="Stale agent idea",
+        statement="A hypothesis from the retired mock run.",
+        created_by_agent="generation",
+    )
+    store.add_evidence(run_id, "Old mock paper", source="pubmed", abstract="x")
+    return stale_id
+
+
+def _save_legacy_mock_checkpoint(run_id: str) -> None:
+    """Save a pre-flip mock envelope checkpoint (not engine WorkflowState)."""
+    store.save_checkpoint(
+        run_id,
+        stage="iteration_1",
+        schema_version=1,
+        last_event_seq=store.latest_event_seq(run_id),
+        state={
+            "provider": "mock",
+            "run_mode": "express",
+            "iteration": 1,
+            "config": {"tier": "express"},
+        },
+    )
+
+
+def _assert_rebootstrapped_completed(run_id: str, stale_id: str) -> None:
+    """Assert a legacy resume cleared stale data and completed durably.
+
+    (1) the stale mock-era hypothesis is gone, (2) durable engine tasks drove
+    the run, (3) fresh hypotheses were generated, ranked, and published.
+    """
+    final_hyps = store.list_hypotheses(run_id)
+    assert stale_id not in {h["id"] for h in final_hyps}
+    assert any(
+        task.task_type.startswith("engine.")
+        for task in store.list_tasks(run_id)
+    )
+    assert final_hyps
+    _assert_published_report(run_id)
+    final = store.get_run(run_id)
+    assert final is not None
+    assert final.status == store.RunStatus.COMPLETED.value
+
+
+def _enqueue_paused_blocking_task(run_id: str, db_path: str) -> None:
+    """Enqueue one blocking engine task and leave the run paused."""
+    store.enqueue_task(
+        run_id,
+        "engine.test.blocking",
+        {},
+        idempotency_key="blocking:0",
+        db_path=db_path,
+    )
+    store.pause_run_tasks(run_id, db_path=db_path)
+    store.update_run_status(run_id, store.RunStatus.PAUSED)
+
+
+def _install_blocking_execute(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Patch the task executor with a synchronous ~1s blocking cost.
+
+    Stands in for the worker's real synchronous cost: a large json.dumps plus
+    a committed SQLite write, run directly on the caller's loop.
+    """
+    import time as _time
+
+    from app import engine_tasks
+
+    async def _execute(
+        _task: Any, *, db_path: str | None = None
+    ) -> dict[str, bool]:
+        _time.sleep(1.0)
+        return {"completed": True}
+
+    monkeypatch.setattr(engine_tasks, "execute_engine_task", _execute)
+
+
+async def _worst_loop_stall(stop: asyncio.Event) -> float:
+    """Return the worst delay the loop imposed on a 10ms sleep until stopped."""
+    import time as _time
+
+    worst = 0.0
+    while not stop.is_set():
+        started = _time.monotonic()
+        await asyncio.sleep(0.01)
+        worst = max(worst, _time.monotonic() - started - 0.01)
+    return worst
 
 
 async def test_engine_run_persists_real_state_checkpoints(
@@ -60,15 +174,12 @@ async def test_engine_resume_preserves_work_and_reports_once(
     cfg = _engine_cfg()
     run = store.create_run("Engine resume", "standard", "engine", {})
 
-    # Interrupt once a safe checkpoint exists with reviewed hypotheses (the
-    # engine's pre-orchestrator resume boundary).
+    # Interrupt at the pre-orchestrator boundary (all hypotheses reviewed).
     await _drain_until(
         _engine_stream(run.id, run.research_goal, cfg),
         _reviewed_boundary(run.id),
     )
-
-    checkpoint = store.get_latest_checkpoint(run.id)
-    assert checkpoint is not None
+    checkpoint = _latest_checkpoint(run.id)
     checkpointed_ids = {
         h["id"] for h in checkpoint["state"]["state"]["hypotheses"]
     }
@@ -76,46 +187,23 @@ async def test_engine_resume_preserves_work_and_reports_once(
     assert store.get_latest_report(run.id) is None  # not finished yet
     high_water = checkpoint["last_event_seq"]
 
-    # Resume: the engine restores the checkpoint and re-enters at the
-    # orchestrator, streaming only remaining nodes.
+    # Resume: restore the checkpoint and re-enter at the orchestrator.
     resume_events = await _drain_all(
         _engine_stream(run.id, run.research_goal, cfg, resume=True)
     )
-
-    # This fixture intentionally disables literature retrieval, so the resumed
-    # run finalizes with latent-only (unverified) hypotheses. Under the
-    # rank-and-publish policy that is a completion: the ungrounded ideas are
-    # ranked and published (badged "Unverified"), not withheld.
-    report = store.get_latest_report(run.id)
-    assert report is not None
-    assert report["payload"]["leaderboard"]  # ranked ideas were published
+    _assert_published_report(run.id)  # latent-only ideas ranked + published
     assert resume_events[-1]["payload"].get("status") == "completed"
 
-    # Completed work preserved: every checkpointed hypothesis survives into
-    # the final pool (resume did not discard it via a from-zero re-run).
+    # Completed work preserved; artifacts persist exactly once (no dup).
     final_hyps = store.list_hypotheses(run.id)
-    final_ids = {h["id"] for h in final_hyps}
-    assert checkpointed_ids <= final_ids
+    assert checkpointed_ids <= {h["id"] for h in final_hyps}
+    _assert_unique_ids(final_hyps)
+    _assert_unique_ids(store.list_matches(run.id))
 
-    # Artifacts persisted exactly once (no duplication across the resume): the
-    # engine persists only at the final drain, so ids must be unique.
-    hyp_ids = [h["id"] for h in final_hyps]
-    assert len(hyp_ids) == len(set(hyp_ids))
-    match_ids = [m["id"] for m in store.list_matches(run.id)]
-    assert len(match_ids) == len(set(match_ids))
-
-    # No replay of the completed first pass: the resumed stream re-enters at
-    # the orchestrator, so the supervisor never runs again. (The adaptive
-    # orchestrator may schedule a *new* generate cycle as fresh work — that is
-    # not a replay; the first pass's hypotheses are preserved, asserted above.)
-    resumed_types = [e["type"] for e in resume_events]
-    assert "supervisor.plan" not in resumed_types
-
-    # Event seqs are globally unique and monotonic across the resume boundary.
-    seqs = [e["seq"] for e in store.list_events(run.id)]
-    assert len(seqs) == len(set(seqs))
-    assert seqs == sorted(seqs)
-    # Resumed events continue strictly above the checkpoint high-water mark.
+    # No replay: supervisor never re-runs; seqs stay unique/monotonic and
+    # continue above the high-water mark.
+    assert "supervisor.plan" not in [e["type"] for e in resume_events]
+    _assert_events_unique_and_monotonic(run.id)
     after_hw = store.list_events(run.id, after_seq=high_water)
     assert after_hw and min(e["seq"] for e in after_hw) > high_water
 
@@ -137,41 +225,26 @@ async def test_engine_resume_from_unreviewed_pool_self_heals(
     cfg = _engine_cfg()
     run = store.create_run("Engine resume unreviewed", "standard", "engine", {})
 
-    # Interrupt at the post-generate checkpoint: hypotheses exist but none are
-    # reviewed yet (the next node, review, has not run).
-    def _post_generate(_seen: list[dict[str, Any]]) -> bool:
-        cp = store.get_latest_checkpoint(run.id)
-        if cp is None:
-            return False
-        hyps = cp["state"].get("state", {}).get("hypotheses", [])
-        return bool(hyps) and all(not h.get("reviews") for h in hyps)
-
+    # Interrupt after generate: hypotheses exist but none reviewed yet.
     await _drain_until(
-        _engine_stream(run.id, run.research_goal, cfg), _post_generate
+        _engine_stream(run.id, run.research_goal, cfg),
+        _post_generate_boundary(run.id),
     )
-
-    checkpoint = store.get_latest_checkpoint(run.id)
-    assert checkpoint is not None
-    checkpointed = checkpoint["state"]["state"]["hypotheses"]
+    checkpointed = _latest_checkpoint(run.id)["state"]["state"]["hypotheses"]
     assert checkpointed and all(not h.get("reviews") for h in checkpointed)
     checkpointed_ids = {h["id"] for h in checkpointed}
 
     resume_events = await _drain_all(
         _engine_stream(run.id, run.research_goal, cfg, resume=True)
     )
-
     # The resume caught up: it ran review + the pre-ranking safety screen.
     resumed_types = [e["type"] for e in resume_events]
     assert "review" in resumed_types
     assert "safety_screen" in resumed_types
     assert "supervisor.plan" not in resumed_types  # supervisor never re-runs
 
-    # Completed generation is preserved and the latent-only output is published:
-    # rank-and-publish ranks the ungrounded ideas (badged "Unverified") rather
-    # than withholding a report.
-    report = store.get_latest_report(run.id)
-    assert report is not None
-    assert report["payload"]["leaderboard"]  # ranked ideas were published
+    # Completed generation preserved; latent-only output published.
+    _assert_published_report(run.id)
     final_ids = {h["id"] for h in store.list_hypotheses(run.id)}
     assert checkpointed_ids <= final_ids
     assert resume_events[-1]["payload"].get("status") == "completed"
@@ -183,17 +256,7 @@ async def test_engine_resume_does_not_repeat_completed_llm_calls(
     """Resuming makes fewer LLM calls than a full run (work is reused)."""
     _install_fake_engine_llm(monkeypatch)
     cfg = _engine_cfg()
-
-    import litellm
-
-    calls = {"n": 0}
-    original = litellm.acompletion
-
-    async def _counting(*args: Any, **kwargs: Any) -> Any:
-        calls["n"] += 1
-        return await original(*args, **kwargs)
-
-    monkeypatch.setattr(litellm, "acompletion", _counting)
+    calls = _count_llm_calls(monkeypatch)
 
     # Baseline: an uninterrupted run's total LLM-call count.
     full_run = store.create_run("Engine full", "standard", "engine", {})
@@ -251,17 +314,12 @@ async def test_launch_resume_drives_engine_resume_end_to_end(
     await asyncio.gather(*list(runs_mod._resume_tasks))
 
     # Engine checkpoint => derived data NOT cleared => pre-resume events kept.
-    all_events = store.list_events(run.id)
-    all_seqs = [e["seq"] for e in all_events]
+    all_seqs = [e["seq"] for e in store.list_events(run.id)]
     assert pre_resume_seqs <= set(all_seqs)
-    assert len(all_seqs) == len(set(all_seqs))  # unique
-    assert all_seqs == sorted(all_seqs)  # monotonic
-    # The launcher reaches finalization exactly once. This fixture supplies no
-    # evidence, so the ideas are latent-only (unverified); rank-and-publish
-    # ranks and publishes them (badged "Unverified") rather than blocking.
-    report = store.get_latest_report(run.id)
-    assert report is not None
-    assert report["payload"]["leaderboard"]  # ranked ideas were published
+    _assert_events_unique_and_monotonic(run.id)
+    # The launcher reaches finalization once; latent-only ideas are ranked and
+    # published (badged "Unverified") rather than blocked.
+    _assert_published_report(run.id)
     final = store.get_run(run.id)
     assert final is not None
     assert final.status == store.RunStatus.COMPLETED.value
@@ -288,31 +346,10 @@ async def test_launch_resume_rebootstraps_legacy_mock_checkpoint(
         "Legacy mock resume", "express", "mock", {"tier": "express"}
     )
 
-    # Stale agent-authored artifacts the original mock run persisted; a
-    # re-bootstrap must clear these rather than resume on top of them.
-    stale_id = store.add_hypothesis(
-        run.id,
-        title="Stale agent idea",
-        statement="A hypothesis from the retired mock run.",
-        created_by_agent="generation",
-    )
-    store.add_evidence(run.id, "Old mock paper", source="pubmed", abstract="x")
-
-    # A legacy pre-flip mock envelope checkpoint: an app-level envelope, NOT a
-    # serialized engine WorkflowState, so ``is_engine_checkpoint`` is False and
-    # no paused engine task exists -- exactly the fallback branch's trigger.
-    store.save_checkpoint(
-        run.id,
-        stage="iteration_1",
-        schema_version=1,
-        last_event_seq=store.latest_event_seq(run.id),
-        state={
-            "provider": "mock",
-            "run_mode": "express",
-            "iteration": 1,
-            "config": {"tier": "express"},
-        },
-    )
+    # Stale mock-era artifacts a re-bootstrap must clear, plus a legacy mock
+    # envelope checkpoint (not an engine WorkflowState) -- the fallback trigger.
+    stale_id = _seed_stale_mock_run(run.id)
+    _save_legacy_mock_checkpoint(run.id)
     assert not engine_adapter.is_engine_checkpoint(
         store.get_latest_checkpoint(run.id)
     )
@@ -322,25 +359,8 @@ async def test_launch_resume_rebootstraps_legacy_mock_checkpoint(
     await runs_mod._launch_resume(run.id)
     await asyncio.gather(*list(runs_mod._resume_tasks))
 
-    # (1) Legacy (non-engine) checkpoint => derived data cleared: the stale
-    # mock-era hypothesis did not survive into the re-bootstrapped run.
-    final_hyps = store.list_hypotheses(run.id)
-    assert stale_id not in {h["id"] for h in final_hyps}
-    # (2) The durable bootstrap task drove the run (not the retired in-process
-    # path).
-    assert any(
-        task.task_type.startswith("engine.")
-        for task in store.list_tasks(run.id)
-    )
-    # (3) It resumed as a sensible fresh offline engine run: fresh hypotheses
-    # were generated, ranked, and published in a completed report.
-    assert final_hyps
-    report = store.get_latest_report(run.id)
-    assert report is not None
-    assert report["payload"]["leaderboard"]  # ranked ideas were published
-    final = store.get_run(run.id)
-    assert final is not None
-    assert final.status == store.RunStatus.COMPLETED.value
+    # Legacy checkpoint => stale data cleared; re-bootstrapped run completes.
+    _assert_rebootstrapped_completed(run.id, stale_id)
 
 
 async def test_resume_does_not_execute_run_work_on_the_event_loop(
@@ -356,50 +376,14 @@ async def test_resume_does_not_execute_run_work_on_the_event_loop(
     next boot inherited one more interrupted run -- a spiral in which runs
     only advanced during the doomed startup window.
     """
-    import time as _time
-
     import app.runs as runs_mod
-    from app import engine_tasks
-    from app import store as store_mod
 
-    run = store_mod.create_run("loop freedom", "standard", "engine", {})
-    store_mod.enqueue_task(
-        run.id,
-        "engine.test.blocking",
-        {},
-        idempotency_key="blocking:0",
-        db_path=isolated_db,
-    )
-    store_mod.pause_run_tasks(run.id, db_path=isolated_db)
-    store_mod.update_run_status(run.id, store_mod.RunStatus.PAUSED)
-
-    def _blocking_execute(
-        _task: Any, *, db_path: str | None = None
-    ) -> dict[str, bool]:
-        # Stands in for the worker's real synchronous cost: a large
-        # json.dumps plus a committed SQLite write.
-        _time.sleep(1.0)
-        return {"completed": True}
-
-    async def _execute(
-        task: Any, *, db_path: str | None = None
-    ) -> dict[str, bool]:
-        return _blocking_execute(task, db_path=db_path)
-
-    monkeypatch.setattr(engine_tasks, "execute_engine_task", _execute)
+    run = store.create_run("loop freedom", "standard", "engine", {})
+    _enqueue_paused_blocking_task(run.id, isolated_db)
+    _install_blocking_execute(monkeypatch)
 
     stop = asyncio.Event()
-
-    async def _probe() -> float:
-        """Return the worst delay the loop imposed on a 10ms sleep."""
-        worst = 0.0
-        while not stop.is_set():
-            started = _time.monotonic()
-            await asyncio.sleep(0.01)
-            worst = max(worst, _time.monotonic() - started - 0.01)
-        return worst
-
-    probe = asyncio.create_task(_probe())
+    probe = asyncio.create_task(_worst_loop_stall(stop))
     await runs_mod._launch_resume(run.id)
     await asyncio.gather(*list(runs_mod._resume_tasks))
     stop.set()

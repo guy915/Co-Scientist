@@ -53,64 +53,111 @@ def _stream_frames(response: Any) -> list[dict[str, Any]]:
     ]
 
 
-def test_interview_persists_turns_progress_and_final_plan(
-    isolated_db: str, monkeypatch: pytest.MonkeyPatch
+def _patch_model_sequence(
+    monkeypatch: pytest.MonkeyPatch, responses: list[dict[str, Any]]
 ) -> None:
-    """Contextual Agent turns produce and persist exactly four plan fields."""
-    responses = iter(
-        [
-            _response(
-                "Which resistance mechanism should the study prioritize?"
-            ),
-            _response(
-                "What models, constraints, or exclusions should guide it?",
-                focus=["Efflux-pump regulation"],
-            ),
-            _response(
-                "The goal is ready for run configuration.",
-                focus=["Efflux-pump regulation"],
-                preferences=[
-                    "Use clinical Gram-negative isolates",
-                    "Exclude new antibiotic discovery",
-                ],
-                title="Restoring Antibiotic Susceptibility",
-                completed=True,
-            ),
-        ]
-    )
+    """Patch the interview model to return each response in turn."""
+    replies = iter(responses)
 
     async def _model(
         _interview: dict[str, Any], _on_reasoning: Any = None
     ) -> dict[str, Any]:
-        return next(responses)
+        return next(replies)
 
     monkeypatch.setattr(interviews, "_call_interview_model", _model)
+
+
+def _patch_model_raising(
+    monkeypatch: pytest.MonkeyPatch, exc: Exception
+) -> None:
+    """Patch the interview model to raise ``exc`` on every call."""
+
+    async def _unavailable(
+        _interview: dict[str, Any], _on_reasoning: Any = None
+    ) -> dict[str, Any]:
+        raise exc
+
+    monkeypatch.setattr(interviews, "_call_interview_model", _unavailable)
+
+
+def _patch_streaming_litellm(
+    monkeypatch: pytest.MonkeyPatch,
+    response: dict[str, Any],
+    *,
+    reasoning: str,
+) -> None:
+    """Swap ``litellm.acompletion`` for a fake DeepSeek-shaped stream."""
+    import litellm
+
+    async def _fake_acompletion(**_kwargs: Any) -> Any:
+        return _fake_stream(json.dumps(response), reasoning=reasoning)
+
+    monkeypatch.setattr(litellm, "acompletion", _fake_acompletion)
+    monkeypatch.setattr(settings, "chat_model_name", "deepseek/deepseek-v4-pro")
+
+
+def _antibiotic_responses() -> list[dict[str, Any]]:
+    """Return the three model turns of the antibiotic-resistance interview."""
+    return [
+        _response("Which resistance mechanism should the study prioritize?"),
+        _response(
+            "What models, constraints, or exclusions should guide it?",
+            focus=["Efflux-pump regulation"],
+        ),
+        _response(
+            "The goal is ready for run configuration.",
+            focus=["Efflux-pump regulation"],
+            preferences=[
+                "Use clinical Gram-negative isolates",
+                "Exclude new antibiotic discovery",
+            ],
+            title="Restoring Antibiotic Susceptibility",
+            completed=True,
+        ),
+    ]
+
+
+def _run_antibiotic_interview(
+    client: TestClient, headers: dict[str, str]
+) -> tuple[str, Any, Any, Any]:
+    """Drive the three-turn antibiotic interview; return id and responses."""
+    created = client.post(
+        "/api/interviews",
+        headers=headers,
+        json={
+            "research_challenge": (
+                "How can resistant bacteria regain drug susceptibility?"
+            )
+        },
+    )
+    interview_id = _interview_payload(created)["id"]
+    second = client.post(
+        f"/api/interviews/{interview_id}/turns",
+        headers=headers,
+        json={"content": "Prioritize efflux-pump regulation."},
+    )
+    final = client.post(
+        f"/api/interviews/{interview_id}/turns",
+        headers=headers,
+        json={
+            "content": (
+                "Use clinical Gram-negative isolates and exclude new "
+                "antibiotic discovery."
+            )
+        },
+    )
+    return interview_id, created, second, final
+
+
+def test_interview_persists_turns_progress_and_final_plan(
+    isolated_db: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Contextual Agent turns produce and persist exactly four plan fields."""
+    _patch_model_sequence(monkeypatch, _antibiotic_responses())
     headers = {"X-Client-ID": "scientist-a"}
     with TestClient(app) as client:
-        created = client.post(
-            "/api/interviews",
-            headers=headers,
-            json={
-                "research_challenge": (
-                    "How can resistant bacteria regain drug susceptibility?"
-                )
-            },
-        )
-        interview_id = _interview_payload(created)["id"]
-        second = client.post(
-            f"/api/interviews/{interview_id}/turns",
-            headers=headers,
-            json={"content": "Prioritize efflux-pump regulation."},
-        )
-        final = client.post(
-            f"/api/interviews/{interview_id}/turns",
-            headers=headers,
-            json={
-                "content": (
-                    "Use clinical Gram-negative isolates and exclude new "
-                    "antibiotic discovery."
-                )
-            },
+        interview_id, created, second, final = _run_antibiotic_interview(
+            client, headers
         )
 
         assert created.status_code == 200
@@ -135,6 +182,19 @@ def test_interview_persists_turns_progress_and_final_plan(
         resumed = client.get(f"/api/interviews/{interview_id}", headers=headers)
         assert resumed.json()["fields"] == payload["fields"]
 
+
+def test_completed_interview_authoritatively_seeds_run_creation(
+    isolated_db: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The interview's saved plan, not the client body, drives the run."""
+    _patch_model_sequence(monkeypatch, _antibiotic_responses())
+    headers = {"X-Client-ID": "scientist-a"}
+    with TestClient(app) as client:
+        interview_id, _created, _second, final = _run_antibiotic_interview(
+            client, headers
+        )
+        fields = _interview_payload(final)["fields"]
+
         run = client.post(
             "/api/runs",
             headers=headers,
@@ -144,14 +204,11 @@ def test_interview_persists_turns_progress_and_final_plan(
                 "tier": "ultra",
             },
         )
-        assert run.status_code == 200
-        run_payload = run.json()
-        assert (
-            run_payload["research_goal"]
-            == payload["fields"]["research_challenge"]
-        )
-        assert run_payload["title"] == "Restoring Antibiotic Susceptibility"
-        assert run_payload["config"]["interview_id"] == interview_id
+    assert run.status_code == 200
+    run_payload = run.json()
+    assert run_payload["research_goal"] == fields["research_challenge"]
+    assert run_payload["title"] == "Restoring Antibiotic Susceptibility"
+    assert run_payload["config"]["interview_id"] == interview_id
 
 
 def test_interview_is_owner_scoped_and_requires_completion(
@@ -232,16 +289,11 @@ def test_turn_streams_real_reasoning_before_resolving(
     also stay out of the persisted transcript, so a resumed interview does not
     replay stale thinking as if it were the Agent's message.
     """
-    import litellm
-
-    async def _fake_acompletion(**_kwargs: Any) -> Any:
-        return _fake_stream(
-            json.dumps(_response("Which mechanism should we prioritize?")),
-            reasoning="No mechanism named yet, so ask for one.",
-        )
-
-    monkeypatch.setattr(litellm, "acompletion", _fake_acompletion)
-    monkeypatch.setattr(settings, "chat_model_name", "deepseek/deepseek-v4-pro")
+    _patch_streaming_litellm(
+        monkeypatch,
+        _response("Which mechanism should we prioritize?"),
+        reasoning="No mechanism named yet, so ask for one.",
+    )
 
     with TestClient(app) as client:
         created = client.post(
@@ -273,7 +325,8 @@ def test_interview_completes_when_model_reports_no_preferences(
     terminal state, so an empty preferences list must not deadlock the
     interview in 'active' (which would leave the run un-creatable).
     """
-    responses = iter(
+    _patch_model_sequence(
+        monkeypatch,
         [
             _response("Which pathways should this research prioritize?"),
             _response(
@@ -282,15 +335,8 @@ def test_interview_completes_when_model_reports_no_preferences(
                 preferences=[],  # scientist stated there are no constraints
                 completed=True,
             ),
-        ]
+        ],
     )
-
-    async def _model(
-        _interview: dict[str, Any], _on_reasoning: Any = None
-    ) -> dict[str, Any]:
-        return next(responses)
-
-    monkeypatch.setattr(interviews, "_call_interview_model", _model)
     headers = {"X-Client-ID": "no-prefs-scientist"}
     with TestClient(app) as client:
         created = client.post(
@@ -315,13 +361,9 @@ def test_interview_remains_usable_during_model_outage(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Explicit answers populate the four fields when the model is absent."""
-
-    async def _unavailable(
-        _interview: dict[str, Any], _on_reasoning: Any = None
-    ) -> dict[str, Any]:
-        raise HTTPException(status_code=503, detail="unavailable")
-
-    monkeypatch.setattr(interviews, "_call_interview_model", _unavailable)
+    _patch_model_raising(
+        monkeypatch, HTTPException(status_code=503, detail="unavailable")
+    )
     headers = {"X-Client-ID": "offline-scientist"}
     with TestClient(app) as client:
         created = client.post(

@@ -13,6 +13,7 @@ from __future__ import annotations
 import logging
 import sys
 from types import SimpleNamespace
+from typing import Any
 
 import pytest
 
@@ -51,7 +52,8 @@ def test_manifest_skips_citation_without_evidence_id() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_build_system_prompt_includes_every_section() -> None:
+def _every_section_inputs() -> tuple[list[Any], ...]:
+    """Return (hyps, reviews, matches, history, manifest) for the prompt."""
     hyps = [
         {"title": "H1", "elo_rating": 1300, "win_count": 2, "loss_count": 1}
     ]
@@ -89,6 +91,11 @@ def test_build_system_prompt_includes_every_section() -> None:
             "state": "unavailable",
         },
     ]
+    return hyps, reviews, matches, history, manifest
+
+
+def test_build_system_prompt_includes_every_section() -> None:
+    hyps, reviews, matches, history, manifest = _every_section_inputs()
 
     prompt = qa.build_system_prompt(
         "Investigate X", hyps, reviews, matches, history, manifest

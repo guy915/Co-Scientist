@@ -97,6 +97,34 @@ def _engine_stream(
     )
 
 
+def _latest_checkpoint(run_id: str) -> dict[str, Any]:
+    """Return the run's latest checkpoint, asserting one exists."""
+    checkpoint = store.get_latest_checkpoint(run_id)
+    assert checkpoint is not None
+    return checkpoint
+
+
+def _assert_published_report(run_id: str) -> dict[str, Any]:
+    """Assert a report exists with a populated leaderboard, and return it."""
+    report = store.get_latest_report(run_id)
+    assert report is not None
+    assert report["payload"]["leaderboard"]  # ranked ideas were published
+    return report
+
+
+def _assert_unique_ids(items: list[dict[str, Any]]) -> None:
+    """Assert every item carries a distinct id (no duplication)."""
+    ids = [item["id"] for item in items]
+    assert len(ids) == len(set(ids))
+
+
+def _assert_events_unique_and_monotonic(run_id: str) -> None:
+    """Assert the run's event seqs are globally unique and sorted."""
+    seqs = [e["seq"] for e in store.list_events(run_id)]
+    assert len(seqs) == len(set(seqs))
+    assert seqs == sorted(seqs)
+
+
 def _reviewed_boundary(
     run_id: str,
 ) -> Callable[[list[dict[str, Any]]], bool]:
@@ -114,3 +142,22 @@ def _reviewed_boundary(
         return bool(hyps) and all(h.get("reviews") for h in hyps)
 
     return _safe_boundary
+
+
+def _post_generate_boundary(
+    run_id: str,
+) -> Callable[[list[dict[str, Any]]], bool]:
+    """Build a predicate: checkpoint exists, hypotheses present, none reviewed.
+
+    The post-generate boundary — the model has drafted hypotheses but the
+    review node has not run yet.
+    """
+
+    def _boundary(_seen: list[dict[str, Any]]) -> bool:
+        cp = store.get_latest_checkpoint(run_id)
+        if cp is None:
+            return False
+        hyps = cp["state"].get("state", {}).get("hypotheses", [])
+        return bool(hyps) and all(not h.get("reviews") for h in hyps)
+
+    return _boundary

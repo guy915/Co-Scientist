@@ -14,6 +14,30 @@ from co_scientist.prompts.loading import load_prompt_with_schema
 from tests._state import make_state
 
 
+def _one_hypothesis_payload() -> dict[str, Any]:
+    """The stubbed LLM response: one grounded hypothesis citing ``[C1]``."""
+    return {
+        "hypotheses": [
+            {
+                "hypothesis": "A testable claim",
+                "explanation": "why",
+                "literature_grounding": "This builds on prior work [C1].",
+                "experiment": "how",
+            }
+        ]
+    }
+
+
+def _c1_reference_index() -> Any:
+    """A reference index whose sole source is keyed ``C1``."""
+    from co_scientist.agents.generation.citations import ReferenceIndex
+
+    return ReferenceIndex(
+        text="[C1] Author et al. (2020). A relevant paper.",
+        sources={"C1": {"title": "A relevant paper", "type": "paper"}},
+    )
+
+
 def test_assumptions_technique_produces_hypotheses() -> None:
     """The assumptions technique emits hypotheses directly."""
     _, schema = load_prompt_with_schema(
@@ -40,34 +64,17 @@ async def test_assumptions_grounds_in_supplied_literature(
     must resolve against those sources (previously the technique hardcoded an
     empty ``domain_context`` and an empty source map, so it could never ground).
     """
-    from co_scientist.agents.generation import (
-        assumptions as assumptions_mod,
-    )
-    from co_scientist.agents.generation.citations import (
-        ReferenceIndex,
-    )
+    from co_scientist.agents.generation import assumptions as assumptions_mod
 
     captured: dict[str, str] = {}
 
     async def _fake_call_llm_json(prompt: str, *_a: Any, **_k: Any) -> Any:
         captured["prompt"] = prompt
-        return {
-            "hypotheses": [
-                {
-                    "hypothesis": "A testable claim",
-                    "explanation": "why",
-                    "literature_grounding": "This builds on prior work [C1].",
-                    "experiment": "how",
-                }
-            ]
-        }
+        return _one_hypothesis_payload()
 
     monkeypatch.setattr(assumptions_mod, "call_llm_json", _fake_call_llm_json)
 
-    reference_index = ReferenceIndex(
-        text="[C1] Author et al. (2020). A relevant paper.",
-        sources={"C1": {"title": "A relevant paper", "type": "paper"}},
-    )
+    reference_index = _c1_reference_index()
     state = make_state(
         research_goal="A goal",
         model_name="fake-model",

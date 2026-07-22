@@ -18,9 +18,54 @@ from app import engine_tasks, safety, store, task_worker
 from tests._engine_tasks_helpers import (
     _deterministic_screen,
     _Generator,
+    _milestones,
+    _patch_generator,
+    _patch_task_node,
     _seed_checkpoint,
+    _task_events,
     _task_state,
 )
+
+
+def _forbid_contextual_escalation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Fail the run if it escalates to the contextual safety model.
+
+    Patched in both namespaces: ``app.safety`` is the seam the escalation
+    wrapper calls, and ``engine_tasks`` is where a direct ``screen_contextual``
+    import rebinds it -- so reintroducing the call fails rather than silently
+    escalating again (raising=False: the name is absent while the code routes
+    through the wrapper, which is the point).
+    """
+
+    async def _fail_if_called(*_: Any, **__: Any) -> Any:
+        raise AssertionError(
+            "offline-backed run escalated to the contextual safety model"
+        )
+
+    monkeypatch.setattr(safety, "screen_contextual", _fail_if_called)
+    monkeypatch.setattr(
+        engine_tasks, "screen_contextual", _fail_if_called, raising=False
+    )
+
+
+async def _advance_to_supervisor(
+    run_id: str,
+    monkeypatch: pytest.MonkeyPatch,
+    db_path: str,
+) -> Any:
+    """Bootstrap ``run_id`` and return its claimed supervisor node task."""
+    bootstrap = engine_tasks.enqueue_bootstrap(run_id, db_path=db_path)
+    leased = store.claim_task("worker", run_id=run_id, db_path=db_path)
+    assert leased is not None
+    generator = _Generator(_task_state(run_id))
+    _patch_generator(monkeypatch, generator, screen=True)
+    result = await engine_tasks.execute_bootstrap(leased, db_path=db_path)
+    assert store.complete_task(bootstrap.id, "worker", result, db_path=db_path)
+    supervisor = store.claim_task("worker", run_id=run_id, db_path=db_path)
+    assert supervisor is not None
+    return supervisor
 
 
 def test_scientist_inputs_merge_into_engine_state_once(
@@ -225,26 +270,8 @@ async def test_bootstrap_never_escalates_an_offline_backed_run(
     engine_tasks.enqueue_bootstrap(run.id, db_path=isolated_db)
     leased = store.claim_task("worker", run_id=run.id, db_path=isolated_db)
     assert leased is not None
-    monkeypatch.setattr(
-        engine_tasks,
-        "_generator_and_opts",
-        lambda *_: (_Generator(_task_state(run.id)), {}),
-    )
-
-    async def _fail_if_called(*_: Any, **__: Any) -> Any:
-        raise AssertionError(
-            "offline-backed run escalated to the contextual safety model"
-        )
-
-    # Patched in both namespaces: ``app.safety`` is the seam the escalation
-    # wrapper calls, and ``engine_tasks`` is where a direct
-    # ``screen_contextual`` import rebinds it -- so reintroducing the call fails
-    # rather than silently escalating again (raising=False: the name is absent
-    # while the code routes through the wrapper, which is the point).
-    monkeypatch.setattr(safety, "screen_contextual", _fail_if_called)
-    monkeypatch.setattr(
-        engine_tasks, "screen_contextual", _fail_if_called, raising=False
-    )
+    _patch_generator(monkeypatch, _Generator(_task_state(run.id)))
+    _forbid_contextual_escalation(monkeypatch)
 
     result = await engine_tasks.execute_bootstrap(leased, db_path=isolated_db)
 
@@ -261,22 +288,7 @@ async def test_node_task_commits_once_and_schedules_successor(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     run = store.create_run("Task-level science", "standard", "engine", {})
-    bootstrap = engine_tasks.enqueue_bootstrap(run.id, db_path=isolated_db)
-    leased = store.claim_task("worker", run_id=run.id, db_path=isolated_db)
-    assert leased is not None
-    generator = _Generator(_task_state(run.id))
-    monkeypatch.setattr(
-        engine_tasks, "_generator_and_opts", lambda *_: (generator, {})
-    )
-    monkeypatch.setattr(
-        engine_tasks, "screen_with_escalation", _deterministic_screen
-    )
-    result = await engine_tasks.execute_bootstrap(leased, db_path=isolated_db)
-    assert store.complete_task(
-        bootstrap.id, "worker", result, db_path=isolated_db
-    )
-    supervisor = store.claim_task("worker", run_id=run.id, db_path=isolated_db)
-    assert supervisor is not None
+    supervisor = await _advance_to_supervisor(run.id, monkeypatch, isolated_db)
 
     async def execute(
         _name: str, state: dict[str, Any]
@@ -284,9 +296,7 @@ async def test_node_task_commits_once_and_schedules_successor(
         state["supervisor_guidance"] = {"plan": "fixture"}
         return state, "generate"
 
-    import co_scientist.task_runtime as runtime
-
-    monkeypatch.setattr(runtime, "execute_task_node", execute)
+    _patch_task_node(monkeypatch, execute)
     committed = await engine_tasks.execute_node_task(
         supervisor, db_path=isolated_db
     )
@@ -304,17 +314,9 @@ async def test_node_task_commits_once_and_schedules_successor(
     ]
 
 
-@pytest.mark.asyncio
-async def test_ranking_matches_are_separate_sequential_checkpointed_tasks(
-    isolated_db: str, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """Every Elo match observes the checkpoint committed by its predecessor."""
-    from co_scientist.checkpoint import restore_workflow_state
-
-    run = store.create_run("Task-level science", "standard", "engine", {})
-    state = _task_state(run.id)
-    # Ground each idea so the pre-ranking evidence gate keeps it eligible; the
-    # tournament-mechanics assertions below need at least two ranked ideas.
+def _seed_ranking_state(run_id: str, db_path: str) -> tuple[Any, _Generator]:
+    """Seed a 3-idea ranking node whose grounded ideas survive the gate."""
+    state = _task_state(run_id)
     hypotheses = [
         Hypothesis(
             text=f"Mechanism {index} accelerates ATP recovery.",
@@ -340,21 +342,22 @@ async def test_ranking_matches_are_separate_sequential_checkpointed_tasks(
             ],
         }
     )
-    checkpoint_seq = _seed_checkpoint(run.id, state)
+    checkpoint_seq = _seed_checkpoint(run_id, state)
     node = store.enqueue_task(
-        run.id,
+        run_id,
         f"{engine_tasks.NODE_TASK_PREFIX}ranking",
         {"checkpoint_seq": checkpoint_seq},
         idempotency_key="ranking-node",
-        db_path=isolated_db,
+        db_path=db_path,
     )
-    generator = _Generator(state)
-    monkeypatch.setattr(
-        engine_tasks, "_generator_and_opts", lambda *_: (generator, {})
-    )
-    monkeypatch.setattr(
-        engine_tasks, "_generator_for_restore", lambda *_: generator
-    )
+    return node, _Generator(state)
+
+
+def _patch_ranking_judge(
+    monkeypatch: pytest.MonkeyPatch, generator: _Generator
+) -> None:
+    """Route the generator seams and stub the pairwise Elo judge."""
+    _patch_generator(monkeypatch, generator, restore=True)
 
     import co_scientist.agents.ranking.ranking as ranking_module
 
@@ -369,6 +372,86 @@ async def test_ranking_matches_are_separate_sequential_checkpointed_tasks(
         }
 
     monkeypatch.setattr(ranking_module, "judge_matchup", fake_judge)
+
+
+async def _drain_ranking_matches(
+    run_id: str, db_path: str
+) -> tuple[Any, list[int], int]:
+    """Claim and judge each match wave in order; return the finalizer.
+
+    Matchups are judged concurrently inside a wave, but the waves themselves
+    stay sequential: each observes the checkpoint its predecessor committed.
+    The first match is replayed to prove idempotent re-execution.
+    """
+    observed_sequences: list[int] = []
+    committed = 0
+    index = 0
+    while True:
+        match = store.claim_task(
+            f"match-{index}", run_id=run_id, db_path=db_path
+        )
+        assert match is not None
+        if match.task_type != engine_tasks.RANKING_MATCH_TASK:
+            return match, observed_sequences, committed
+        observed_sequences.append(int(match.inputs["checkpoint_seq"]))
+        result = await engine_tasks.execute_ranking_match(
+            match, db_path=db_path
+        )
+        if index == 0:
+            replay = await engine_tasks.execute_ranking_match(
+                match, db_path=db_path
+            )
+            assert replay["replayed"] is True
+        committed = int(result["matches_committed"])
+        assert store.complete_task(
+            match.id, f"match-{index}", result, db_path=db_path
+        )
+        index += 1
+
+
+async def _finalize_and_assert_ranking(
+    finalizer: Any,
+    run_id: str,
+    observed_sequences: list[int],
+    db_path: str,
+) -> None:
+    """Run the ranking finalizer and pin the committed tournament state."""
+    from co_scientist.checkpoint import restore_workflow_state
+
+    result = await engine_tasks.execute_ranking_finalize(
+        finalizer, db_path=db_path
+    )
+    assert store.complete_task(
+        finalizer.id,
+        finalizer.lease_owner or "finalizer",
+        result,
+        db_path=db_path,
+    )
+    checkpoint = store.get_latest_checkpoint(run_id, db_path=db_path)
+    assert checkpoint is not None
+    restored = restore_workflow_state(checkpoint["state"])
+    assert len(restored["tournament_matchups"]) == 3
+    assert sum(item.total_matches for item in restored["hypotheses"]) == 6
+    tasks = store.list_tasks(run_id, db_path=db_path)
+    assert sum(
+        task.task_type == engine_tasks.RANKING_MATCH_TASK for task in tasks
+    ) == len(observed_sequences)
+    assert _milestones(run_id, db_path=db_path) == [
+        "Tournament complete (iteration 0, 3 matches)"
+    ]
+    ranking_events = _task_events(run_id, "ranking", db_path=db_path)
+    assert len(ranking_events) == 1
+    assert ranking_events[0]["payload"]["successor"] == "orchestrator"
+
+
+@pytest.mark.asyncio
+async def test_ranking_matches_are_separate_sequential_checkpointed_tasks(
+    isolated_db: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Every Elo match observes the checkpoint committed by its predecessor."""
+    run = store.create_run("Task-level science", "standard", "engine", {})
+    node, generator = _seed_ranking_state(run.id, isolated_db)
+    _patch_ranking_judge(monkeypatch, generator)
     leased = store.claim_task("ranking", run_id=run.id, db_path=isolated_db)
     assert leased is not None and leased.id == node.id
     scheduled = await engine_tasks.execute_node_task(
@@ -378,69 +461,16 @@ async def test_ranking_matches_are_separate_sequential_checkpointed_tasks(
         leased.id, "ranking", scheduled, db_path=isolated_db
     )
 
-    # Matchups are judged concurrently inside a wave, but the waves themselves
-    # stay sequential: each observes the checkpoint its predecessor committed.
-    observed_sequences: list[int] = []
-    committed = 0
-    index = 0
-    while True:
-        match = store.claim_task(
-            f"match-{index}", run_id=run.id, db_path=isolated_db
-        )
-        assert match is not None
-        if match.task_type != engine_tasks.RANKING_MATCH_TASK:
-            finalizer = match
-            break
-        observed_sequences.append(int(match.inputs["checkpoint_seq"]))
-        result = await engine_tasks.execute_ranking_match(
-            match, db_path=isolated_db
-        )
-        if index == 0:
-            replay = await engine_tasks.execute_ranking_match(
-                match, db_path=isolated_db
-            )
-            assert replay["replayed"] is True
-        committed = int(result["matches_committed"])
-        assert store.complete_task(
-            match.id, f"match-{index}", result, db_path=isolated_db
-        )
-        index += 1
+    finalizer, observed_sequences, committed = await _drain_ranking_matches(
+        run.id, isolated_db
+    )
     assert observed_sequences == sorted(observed_sequences)
     assert len(set(observed_sequences)) == len(observed_sequences)
     assert committed == 3, "the whole round is judged exactly once"
 
-    result = await engine_tasks.execute_ranking_finalize(
-        finalizer, db_path=isolated_db
+    await _finalize_and_assert_ranking(
+        finalizer, run.id, observed_sequences, isolated_db
     )
-    assert store.complete_task(
-        finalizer.id,
-        finalizer.lease_owner or "finalizer",
-        result,
-        db_path=isolated_db,
-    )
-    checkpoint = store.get_latest_checkpoint(run.id, db_path=isolated_db)
-    assert checkpoint is not None
-    restored = restore_workflow_state(checkpoint["state"])
-    assert len(restored["tournament_matchups"]) == 3
-    assert sum(item.total_matches for item in restored["hypotheses"]) == 6
-    tasks = store.list_tasks(run.id, db_path=isolated_db)
-    assert sum(
-        task.task_type == engine_tasks.RANKING_MATCH_TASK for task in tasks
-    ) == len(observed_sequences)
-    milestones = [
-        message
-        for message in store.list_messages(run.id, db_path=isolated_db)
-        if message.kind == "milestone"
-    ]
-    assert [message.content for message in milestones] == [
-        "Tournament complete (iteration 0, 3 matches)"
-    ]
-    events = store.list_events(run.id, db_path=isolated_db)
-    ranking_events = [
-        e for e in events if e["payload"].get("task") == "ranking"
-    ]
-    assert len(ranking_events) == 1
-    assert ranking_events[0]["payload"]["successor"] == "orchestrator"
 
 
 @pytest.mark.asyncio
@@ -449,22 +479,7 @@ async def test_inflight_pause_checkpoints_exact_successor(
 ) -> None:
     """A node finishing after pause commits state but enqueues no next work."""
     run = store.create_run("Task-level science", "standard", "engine", {})
-    bootstrap = engine_tasks.enqueue_bootstrap(run.id, db_path=isolated_db)
-    leased = store.claim_task("worker", run_id=run.id, db_path=isolated_db)
-    assert leased is not None
-    generator = _Generator(_task_state(run.id))
-    monkeypatch.setattr(
-        engine_tasks, "_generator_and_opts", lambda *_: (generator, {})
-    )
-    monkeypatch.setattr(
-        engine_tasks, "screen_with_escalation", _deterministic_screen
-    )
-    result = await engine_tasks.execute_bootstrap(leased, db_path=isolated_db)
-    assert store.complete_task(
-        bootstrap.id, "worker", result, db_path=isolated_db
-    )
-    supervisor = store.claim_task("worker", run_id=run.id, db_path=isolated_db)
-    assert supervisor is not None
+    supervisor = await _advance_to_supervisor(run.id, monkeypatch, isolated_db)
 
     async def execute(
         _name: str, state: dict[str, Any]
@@ -472,9 +487,7 @@ async def test_inflight_pause_checkpoints_exact_successor(
         store.update_run_status(run.id, store.RunStatus.PAUSED)
         return state, "generate"
 
-    import co_scientist.task_runtime as runtime
-
-    monkeypatch.setattr(runtime, "execute_task_node", execute)
+    _patch_task_node(monkeypatch, execute)
     paused = await engine_tasks.execute_node_task(
         supervisor, db_path=isolated_db
     )

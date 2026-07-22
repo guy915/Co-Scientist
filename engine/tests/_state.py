@@ -43,17 +43,9 @@ def make_hypothesis(text: str = "a hypothesis", **overrides: Any) -> Hypothesis:
     return Hypothesis(**fields)
 
 
-def make_state(**overrides: Any) -> WorkflowState:
-    """Build a complete WorkflowState with inert defaults.
-
-    Args:
-        **overrides: WorkflowState keys to override (e.g. ``hypotheses``,
-            ``model_name``, ``current_iteration``).
-
-    Returns:
-        A WorkflowState with every key populated; overrides applied last.
-    """
-    base: dict[str, Any] = {
+def _run_and_pool_defaults() -> dict[str, Any]:
+    """Run configuration plus the hypothesis-pool / bookkeeping channels."""
+    return {
         "research_goal": "test research goal",
         "model_name": "test-model",
         "supervisor_model_name": "test-model",
@@ -75,6 +67,12 @@ def make_state(**overrides: Any) -> WorkflowState:
         "run_id": "test-run",
         "progress_callback": None,
         "messages": [],
+    }
+
+
+def _input_and_literature_defaults() -> dict[str, Any]:
+    """Scientist inputs, literature channels, and runtime feature flags."""
+    return {
         "preferences": None,
         "attributes": None,
         "constraints": None,
@@ -90,6 +88,22 @@ def make_state(**overrides: Any) -> WorkflowState:
         "dev_test_lit_tools_isolation": False,
         "tool_registry": None,
         "context_enrichment_sources": None,
+    }
+
+
+def make_state(**overrides: Any) -> WorkflowState:
+    """Build a complete WorkflowState with inert defaults.
+
+    Args:
+        **overrides: WorkflowState keys to override (e.g. ``hypotheses``,
+            ``model_name``, ``current_iteration``).
+
+    Returns:
+        A WorkflowState with every key populated; overrides applied last.
+    """
+    base: dict[str, Any] = {
+        **_run_and_pool_defaults(),
+        **_input_and_literature_defaults(),
     }
     base.update(overrides)
     return cast(WorkflowState, base)

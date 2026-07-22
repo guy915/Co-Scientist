@@ -1,5 +1,7 @@
 """Pre-ranking evidence-gate and semantic-audit tests for the executor."""
 
+import threading
+import time
 from typing import Any
 
 import pytest
@@ -8,8 +10,129 @@ from co_scientist.models import (
     Hypothesis,
 )
 
-from app import engine_tasks
+from app import claim_grounding, engine_tasks
+from app.claims import (
+    AssessorDraft,
+    EntailmentLabel,
+    deterministic_assessor,
+)
 from app.config import settings
+
+
+def _private_corpus_source() -> dict[str, Any]:
+    """An uploaded private document that grounds the hypothesis's claim."""
+    return {
+        "display": (
+            "Private scientist source 'Lab notes': Astrocyte lactate "
+            "accelerates synaptic ATP recovery."
+        ),
+        "source_type": "private_document",
+        "data": {
+            "document_id": "doc-1",
+            "title": "Lab notes",
+            "excerpt": ("Astrocyte lactate accelerates synaptic ATP recovery."),
+            "private": True,
+        },
+    }
+
+
+def _install_counting_assessor(
+    monkeypatch: pytest.MonkeyPatch,
+) -> dict[str, int]:
+    """Patch build_assessor with a call-counting deterministic assessor."""
+    calls = {"n": 0}
+
+    def counting(claim: str, passages: Any) -> Any:
+        calls["n"] += 1
+        return deterministic_assessor(claim, passages)
+
+    monkeypatch.setattr(
+        claim_grounding,
+        "build_assessor",
+        lambda *_: (counting, "counting-v1"),
+    )
+    return calls
+
+
+def _install_peak_assessor(
+    monkeypatch: pytest.MonkeyPatch,
+) -> dict[str, int]:
+    """Patch build_assessor to record peak concurrent claim assessments."""
+    state = {"active": 0, "peak": 0}
+    lock = threading.Lock()
+
+    def _slow_assessor(claim: str, passages: Any) -> AssessorDraft:
+        """Record how many assessments overlap, then stall like a call."""
+        with lock:
+            state["active"] += 1
+            state["peak"] = max(state["peak"], state["active"])
+        time.sleep(0.05)
+        with lock:
+            state["active"] -= 1
+        return AssessorDraft(label=EntailmentLabel.INSUFFICIENT)
+
+    monkeypatch.setattr(
+        claim_grounding,
+        "build_assessor",
+        lambda *_: (_slow_assessor, "slow-v1"),
+    )
+    monkeypatch.setattr(settings, "claim_assessor", "llm")
+    return state
+
+
+def _install_overlap_assessor(
+    monkeypatch: pytest.MonkeyPatch,
+) -> dict[str, bool]:
+    """Patch build_assessor to flag overlap between two hypotheses' claims."""
+    in_flight: set[str] = set()
+    flags = {"overlapped": False}
+    lock = threading.Lock()
+
+    def _slow_assessor(claim: str, passages: Any) -> AssessorDraft:
+        """Flag whenever two different hypotheses' claims overlap."""
+        owner = "alpha" if "alpha" in claim else "beta"
+        with lock:
+            in_flight.add(owner)
+            if len(in_flight) > 1:
+                flags["overlapped"] = True
+        time.sleep(0.05)
+        with lock:
+            in_flight.discard(owner)
+        return AssessorDraft(label=EntailmentLabel.INSUFFICIENT)
+
+    monkeypatch.setattr(
+        claim_grounding,
+        "build_assessor",
+        lambda *_: (_slow_assessor, "slow-v1"),
+    )
+    monkeypatch.setattr(settings, "claim_assessor", "llm")
+    return flags
+
+
+def _multi_claim_state() -> dict[str, Any]:
+    """A viable two-claim hypothesis grounded by one supporting article."""
+    hypothesis = Hypothesis(
+        text=(
+            "Astrocyte lactate accelerates synaptic ATP recovery. "
+            "Neuronal mitochondria buffer the resulting calcium influx."
+        ),
+        literature_grounding=(
+            "Astrocytes participate in neuronal energy support. "
+            "Lactate shuttling is documented in cortical slices."
+        ),
+        explanation="Glycolytic flux rises before the ATP rebound.",
+        experiment="Measure ATP recovery under lactate blockade.",
+    )
+    hypothesis.review_disposition = "viable"
+    return {
+        "hypotheses": [hypothesis],
+        "articles": [
+            Article(
+                title="Astrocyte energetics",
+                abstract="Astrocytes participate in neuronal energy support.",
+            )
+        ],
+    }
 
 
 @pytest.mark.asyncio
@@ -64,23 +187,7 @@ async def test_pre_ranking_gate_grounds_claims_in_private_corpus() -> None:
     await engine_tasks._apply_pre_ranking_evidence_gate(state)
     assert hypothesis.review_disposition == "viable"
 
-    state["context_enrichment_sources"] = [
-        {
-            "display": (
-                "Private scientist source 'Lab notes': Astrocyte lactate "
-                "accelerates synaptic ATP recovery."
-            ),
-            "source_type": "private_document",
-            "data": {
-                "document_id": "doc-1",
-                "title": "Lab notes",
-                "excerpt": (
-                    "Astrocyte lactate accelerates synaptic ATP recovery."
-                ),
-                "private": True,
-            },
-        }
-    ]
+    state["context_enrichment_sources"] = [_private_corpus_source()]
     await engine_tasks._apply_pre_ranking_evidence_gate(state)
 
     assert hypothesis.review_disposition == "viable"
@@ -92,21 +199,7 @@ async def test_pre_ranking_gate_reuses_unchanged_semantic_audit(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Repeated tournaments do not repay for identical claim assessments."""
-    from app import claim_grounding
-    from app.claims import deterministic_assessor
-
-    calls = 0
-
-    def counting_assessor(claim: str, passages: Any) -> Any:
-        nonlocal calls
-        calls += 1
-        return deterministic_assessor(claim, passages)
-
-    monkeypatch.setattr(
-        claim_grounding,
-        "build_assessor",
-        lambda *_: (counting_assessor, "counting-v1"),
-    )
+    calls = _install_counting_assessor(monkeypatch)
     hypothesis = Hypothesis(
         text="We hypothesize lactate may accelerate ATP recovery.",
         literature_grounding="Astrocyte lactate accelerates ATP recovery.",
@@ -124,11 +217,11 @@ async def test_pre_ranking_gate_reuses_unchanged_semantic_audit(
     }
 
     await engine_tasks._apply_pre_ranking_evidence_gate(state)
-    first_call_count = calls
+    first_call_count = calls["n"]
     await engine_tasks._apply_pre_ranking_evidence_gate(state)
 
     assert first_call_count > 0
-    assert calls == first_call_count
+    assert calls["n"] == first_call_count
     assert hypothesis.enrichments["claim_gate"]["input_fingerprint"]
 
 
@@ -178,59 +271,14 @@ async def test_pre_ranking_gate_assesses_claims_concurrently(
     all of it this gate. The provider is not the constraint -- twenty-four
     concurrent completions return in the same wall clock as four.
     """
-    import threading
-    import time as _time
-
-    from app import claim_grounding
-    from app.claims import AssessorDraft, EntailmentLabel
-
-    active = 0
-    peak = 0
-    lock = threading.Lock()
-
-    def _slow_assessor(claim: str, passages: Any) -> AssessorDraft:
-        """Record how many assessments overlap, then stall like a call."""
-        nonlocal active, peak
-        with lock:
-            active += 1
-            peak = max(peak, active)
-        _time.sleep(0.05)
-        with lock:
-            active -= 1
-        return AssessorDraft(label=EntailmentLabel.INSUFFICIENT)
-
-    monkeypatch.setattr(
-        claim_grounding,
-        "build_assessor",
-        lambda *_: (_slow_assessor, "slow-v1"),
-    )
-    monkeypatch.setattr(settings, "claim_assessor", "llm")
-    hypothesis = Hypothesis(
-        text=(
-            "Astrocyte lactate accelerates synaptic ATP recovery. "
-            "Neuronal mitochondria buffer the resulting calcium influx."
-        ),
-        literature_grounding=(
-            "Astrocytes participate in neuronal energy support. "
-            "Lactate shuttling is documented in cortical slices."
-        ),
-        explanation="Glycolytic flux rises before the ATP rebound.",
-        experiment="Measure ATP recovery under lactate blockade.",
-    )
-    hypothesis.review_disposition = "viable"
-    state = {
-        "hypotheses": [hypothesis],
-        "articles": [
-            Article(
-                title="Astrocyte energetics",
-                abstract="Astrocytes participate in neuronal energy support.",
-            )
-        ],
-    }
+    probe = _install_peak_assessor(monkeypatch)
+    state = _multi_claim_state()
 
     await engine_tasks._apply_pre_ranking_evidence_gate(state)
 
-    assert len(hypothesis.enrichments["claim_gate"]["claims"]) > 1
+    claims = state["hypotheses"][0].enrichments["claim_gate"]["claims"]
+    assert len(claims) > 1
+    peak = probe["peak"]
     assert peak > 1, f"claims were assessed serially (peak concurrency {peak})"
 
 
@@ -246,35 +294,7 @@ async def test_pre_ranking_gate_overlaps_claims_across_hypotheses(
     independent across hypotheses as well as within one, so the gate flattens
     them into a single bounded wave.
     """
-    import threading
-    import time as _time
-
-    from app import claim_grounding
-    from app.claims import AssessorDraft, EntailmentLabel
-
-    in_flight: set[str] = set()
-    overlapped = False
-    lock = threading.Lock()
-
-    def _slow_assessor(claim: str, passages: Any) -> AssessorDraft:
-        """Flag whenever two different hypotheses' claims overlap."""
-        nonlocal overlapped
-        owner = "alpha" if "alpha" in claim else "beta"
-        with lock:
-            in_flight.add(owner)
-            if len(in_flight) > 1:
-                overlapped = True
-        _time.sleep(0.05)
-        with lock:
-            in_flight.discard(owner)
-        return AssessorDraft(label=EntailmentLabel.INSUFFICIENT)
-
-    monkeypatch.setattr(
-        claim_grounding,
-        "build_assessor",
-        lambda *_: (_slow_assessor, "slow-v1"),
-    )
-    monkeypatch.setattr(settings, "claim_assessor", "llm")
+    flags = _install_overlap_assessor(monkeypatch)
     first = Hypothesis(
         text=(
             "Alpha lactate accelerates alpha ATP recovery. "
@@ -297,4 +317,4 @@ async def test_pre_ranking_gate_overlaps_claims_across_hypotheses(
 
     assert first.enrichments["claim_gate"]["claims"]
     assert second.enrichments["claim_gate"]["claims"]
-    assert overlapped, "hypotheses were assessed one after another"
+    assert flags["overlapped"], "hypotheses were assessed one after another"

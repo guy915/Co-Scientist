@@ -46,14 +46,10 @@ def _make_unsafe_hypothesis() -> Hypothesis:
     )
 
 
-@pytest.mark.asyncio()
-async def test_unsafe_hypothesis_never_reaches_tournament(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """An injected unsafe hypothesis is removed before ranking."""
-    install_fake_llm(monkeypatch)
-
+def _inject_unsafe(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Wrap generate_node so every generation appends the unsafe hypothesis."""
     from co_scientist.agents.generation import generate as gen_module
+    from co_scientist.generator import graph as graph_module
 
     original_generate_node = gen_module.generate_node
 
@@ -68,28 +64,33 @@ async def test_unsafe_hypothesis_never_reaches_tournament(
         return result
 
     monkeypatch.setattr(gen_module, "generate_node", _generate_with_unsafe)
-    from co_scientist.generator import graph as graph_module
-
     monkeypatch.setattr(graph_module, "generate_node", _generate_with_unsafe)
 
-    gen = _make_generator()
 
+async def _collect_events(
+    gen: HypothesisGenerator, goal: str
+) -> list[tuple[str, dict[str, Any]]]:
+    """Consume the streaming API into a list of (node_name, state) tuples."""
     events: list[tuple[str, dict[str, Any]]] = []
     async for node_name, state_dict in gen.generate_hypotheses(
-        "Identify a synthetic-lethal target for cancer therapy",
+        goal,
         opts={"enable_literature_review_node": False},
         stream=True,
     ):
         events.append((node_name, state_dict))
+    return events
 
-    # --- Verify the unsafe hypothesis was present after generate ---
+
+def _assert_injected_then_screened(
+    events: list[tuple[str, dict[str, Any]]],
+) -> None:
+    """Unsafe is present after generate and gone from every safety_screen."""
     generate_state = dict(events)["generate"]
     generate_ids = {h["id"] for h in generate_state["hypotheses"]}
     assert UNSAFE_ID in generate_ids, (
         "Test setup failed: unsafe hypothesis not injected into generate output"
     )
 
-    # --- Verify safety_screen removed it ---
     safety_events = [(n, s) for n, s in events if n == "safety_screen"]
     assert len(safety_events) >= 1
     for _, ss_state in safety_events:
@@ -98,10 +99,10 @@ async def test_unsafe_hypothesis_never_reaches_tournament(
             f"Unsafe hypothesis survived safety_screen: {pool_ids}"
         )
 
-    # --- Verify it never appears in tournament matchups ---
-    final_state = events[-1][1]
-    matchups = final_state.get("tournament_matchups", [])
-    for matchup in matchups:
+
+def _assert_absent_from_final(final_state: dict[str, Any]) -> None:
+    """Unsafe never appears in matchups, the final pool, meta-review, or evo."""
+    for matchup in final_state.get("tournament_matchups", []):
         matchup_text = str(matchup)
         assert UNSAFE_TEXT not in matchup_text, (
             f"Unsafe hypothesis text found in tournament matchup: {matchup}"
@@ -110,7 +111,6 @@ async def test_unsafe_hypothesis_never_reaches_tournament(
             f"Unsafe hypothesis ID found in tournament matchup: {matchup}"
         )
 
-    # --- Verify it never appears in the final hypothesis pool ---
     final_ids = {h["id"] for h in final_state["hypotheses"]}
     assert UNSAFE_ID not in final_ids, "Unsafe hypothesis present in final pool"
     final_texts = {h["text"] for h in final_state["hypotheses"]}
@@ -118,22 +118,19 @@ async def test_unsafe_hypothesis_never_reaches_tournament(
         "Unsafe hypothesis text present in final pool"
     )
 
-    # --- Verify it never appears in meta_review ---
-    meta_review = final_state.get("meta_review", {})
-    meta_text = str(meta_review)
+    meta_text = str(final_state.get("meta_review", {}))
     assert UNSAFE_TEXT not in meta_text, (
         "Unsafe hypothesis text found in meta_review"
     )
 
-    # --- Verify it never appears in evolution_details ---
-    evolution_details = final_state.get("evolution_details", [])
-    for detail in evolution_details:
-        detail_text = str(detail)
-        assert UNSAFE_ID not in detail_text, (
+    for detail in final_state.get("evolution_details", []):
+        assert UNSAFE_ID not in str(detail), (
             f"Unsafe hypothesis ID found in evolution detail: {detail}"
         )
 
-    # --- Verify safety_decisions recorded the block ---
+
+def _assert_block_recorded(final_state: dict[str, Any]) -> None:
+    """Safety screen recorded a prohibited decision for the unsafe hyp."""
     decisions = final_state.get("safety_decisions", [])
     blocked_ids = {d["hypothesis_id"] for d in decisions}
     assert UNSAFE_ID in blocked_ids, (
@@ -143,6 +140,25 @@ async def test_unsafe_hypothesis_never_reaches_tournament(
         d for d in decisions if d["hypothesis_id"] == UNSAFE_ID
     )
     assert blocked_decision["outcome"] == "prohibited"
+
+
+@pytest.mark.asyncio()
+async def test_unsafe_hypothesis_never_reaches_tournament(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An injected unsafe hypothesis is removed before ranking."""
+    install_fake_llm(monkeypatch)
+    _inject_unsafe(monkeypatch)
+    gen = _make_generator()
+
+    events = await _collect_events(
+        gen, "Identify a synthetic-lethal target for cancer therapy"
+    )
+
+    _assert_injected_then_screened(events)
+    final_state = events[-1][1]
+    _assert_absent_from_final(final_state)
+    _assert_block_recorded(final_state)
 
 
 @pytest.mark.asyncio()

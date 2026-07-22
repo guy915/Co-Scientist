@@ -17,48 +17,54 @@ from app import store
 from tests._client import make_client as _client
 
 
-def test_resume_preserves_scientist_contributions(isolated_db: str) -> None:
-    """Clearing derived data keeps human hypotheses/reviews/attachments."""
-    run = store.create_run(
-        "Human input survives resume", "express", "engine", {}
-    )
-
-    # Agent-authored artifacts: a generated hypothesis, an agent review of it,
-    # and retrieved (pubmed) evidence -- everything a resume rebuilds.
+def _seed_agent_artifacts(run_id: str) -> str:
+    """Persist agent-authored hypothesis + review + retrieved evidence."""
     agent_id = store.add_hypothesis(
-        run.id,
+        run_id,
         title="Agent idea",
         statement="An agent-generated hypothesis.",
         created_by_agent="generation",
     )
     store.add_review(
-        run.id,
+        run_id,
         hypothesis_id=agent_id,
         reviewer_agent="reflection",
         summary="agent review",
         critique="agent critique",
     )
-    store.add_evidence(run.id, "Retrieved paper", source="pubmed", abstract="x")
+    store.add_evidence(run_id, "Retrieved paper", source="pubmed", abstract="x")
+    return agent_id
 
-    # Scientist contributions: a manual hypothesis, a human review of it, and
-    # an attachment (run-scoped evidence with the attachment source).
+
+def _seed_scientist_artifacts(run_id: str) -> str:
+    """Persist scientist hypothesis + human review + an attachment."""
     manual_id = store.add_hypothesis(
-        run.id,
+        run_id,
         title="Human idea",
         statement="A scientist-authored hypothesis.",
         created_by_agent="scientist_manual",
         author="dr-who",
     )
     store.add_review(
-        run.id,
+        run_id,
         hypothesis_id=manual_id,
         reviewer_agent="scientist",
         summary="human review",
         critique="looks promising",
     )
     store.add_evidence(
-        run.id, "Attached doc", source="attachment", abstract="notes"
+        run_id, "Attached doc", source="attachment", abstract="notes"
     )
+    return manual_id
+
+
+def test_resume_preserves_scientist_contributions(isolated_db: str) -> None:
+    """Clearing derived data keeps human hypotheses/reviews/attachments."""
+    run = store.create_run(
+        "Human input survives resume", "express", "engine", {}
+    )
+    _seed_agent_artifacts(run.id)
+    manual_id = _seed_scientist_artifacts(run.id)
 
     store.clear_run_derived_data(run.id)
 

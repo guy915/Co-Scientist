@@ -52,33 +52,61 @@ _EXPECTED_TYPES = {
 }
 
 
+def _streaming_hypotheses() -> list[dict[str, Any]]:
+    """The two streamed hypotheses (only the first carries review/probes)."""
+    return [
+        {
+            "id": "eng-h1",
+            "text": "H1: a mechanistic claim about the pathway.",
+            "elo_rating": 1300,
+            "win_count": 2,
+            "loss_count": 0,
+            "evolution_history": [],
+            "reviews": [{"review_summary": "Sound mechanism."}],
+            "deep_verification_verdict": "verified",
+            "deep_verification_probes": [
+                {"question": "Does X cause Y?", "answer": "Yes, via Z."}
+            ],
+        },
+        {
+            "id": "eng-h2",
+            "text": "H2: an evolved variant of the leading claim.",
+            "elo_rating": 1250,
+            "win_count": 1,
+            "loss_count": 1,
+            "evolution_history": [{"round": 1}],
+            "reviews": [],
+        },
+    ]
+
+
+def _streaming_research_overview() -> dict[str, Any]:
+    """The streamed research-overview sub-state."""
+    return {
+        "overview": {"summary": "Targeting the pathway looks promising."},
+        "nih_specific_aims": {"introduction": "Background.", "aims": []},
+    }
+
+
+def _streaming_proximity_graph() -> dict[str, Any]:
+    """The streamed one-edge proximity graph."""
+    return {
+        "edges": [
+            {
+                "source": "eng-h1",
+                "target": "eng-h2",
+                "similarity": 0.8,
+                "cluster_id": "cluster-0",
+            }
+        ],
+        "meta": {"method": "embedding", "version": 1},
+    }
+
+
 def _engine_streaming_state() -> dict[str, Any]:
     """A plain-dict engine snapshot the fake generator yields for every node."""
     return {
-        "hypotheses": [
-            {
-                "id": "eng-h1",
-                "text": "H1: a mechanistic claim about the pathway.",
-                "elo_rating": 1300,
-                "win_count": 2,
-                "loss_count": 0,
-                "evolution_history": [],
-                "reviews": [{"review_summary": "Sound mechanism."}],
-                "deep_verification_verdict": "verified",
-                "deep_verification_probes": [
-                    {"question": "Does X cause Y?", "answer": "Yes, via Z."}
-                ],
-            },
-            {
-                "id": "eng-h2",
-                "text": "H2: an evolved variant of the leading claim.",
-                "elo_rating": 1250,
-                "win_count": 1,
-                "loss_count": 1,
-                "evolution_history": [{"round": 1}],
-                "reviews": [],
-            },
-        ],
+        "hypotheses": _streaming_hypotheses(),
         "articles": [
             {
                 "title": "A1",
@@ -105,21 +133,8 @@ def _engine_streaming_state() -> dict[str, Any]:
             "common_weaknesses": ["Thin evidence"],
         },
         "evolution_details": [],
-        "research_overview": {
-            "overview": {"summary": "Targeting the pathway looks promising."},
-            "nih_specific_aims": {"introduction": "Background.", "aims": []},
-        },
-        "proximity_graph": {
-            "edges": [
-                {
-                    "source": "eng-h1",
-                    "target": "eng-h2",
-                    "similarity": 0.8,
-                    "cluster_id": "cluster-0",
-                }
-            ],
-            "meta": {"method": "embedding", "version": 1},
-        },
+        "research_overview": _streaming_research_overview(),
+        "proximity_graph": _streaming_proximity_graph(),
         "current_iteration": 1,
     }
 
@@ -185,18 +200,8 @@ def _run_fake_engine(
     return run, events
 
 
-def test_engine_adapter_emits_canonical_event_types(
-    isolated_db: str, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """The real-engine branch emits the canonical vocabulary, never engine.*.
-
-    CI only exercises the mock path, so this fake-driven test is the sole guard
-    on the node→type mapping and the frontend-facing payload shape.
-    """
-    _, events = _run_fake_engine(monkeypatch, "Canonical vocab goal")
-
-    types_emitted = [e["type"] for e in events]
-
+def _assert_canonical_event_types(types_emitted: list[str]) -> None:
+    """No engine.* leaks; every node maps to its canonical type + lifecycle."""
     # No legacy engine.* types leak out of the adapter.
     assert not any(t.startswith("engine.") for t in types_emitted)
 
@@ -211,9 +216,9 @@ def test_engine_adapter_emits_canonical_event_types(
     assert "report" in types_emitted
     assert types_emitted[-1] == "status"  # completed
 
-    by_type = {e["type"]: e["payload"] for e in events}
 
-    # Payload keys are normalized to the mock's shape the frontend reads.
+def _assert_normalized_payloads(by_type: dict[str, Any]) -> None:
+    """Payload keys are normalized to the mock's shape the frontend reads."""
     generate = by_type["generate"]
     assert generate["count"] == 2
     assert len(generate["hypotheses"]) == 2
@@ -224,7 +229,9 @@ def test_engine_adapter_emits_canonical_event_types(
     assert len(by_type["literature_review"]["evidence"]) == 1
     assert by_type["supervisor.plan"]["agents"]
 
-    # Full-fidelity payloads: only eng-h1 carries reviews/deep-verification.
+
+def _assert_full_fidelity_payloads(by_type: dict[str, Any]) -> None:
+    """Full-fidelity payloads: only eng-h1 carries reviews/deep-verification."""
     assert by_type["reflection"]["reviewed"] == 1
     assert by_type["proximity"]["clusters"] == {"cluster-0": 2}
     assert (
@@ -242,13 +249,16 @@ def test_engine_adapter_emits_canonical_event_types(
             ],
         }
     ]
-    assert by_type["research_overview"]["research_overview"] == {
-        "overview": {"summary": "Targeting the pathway looks promising."},
-        "nih_specific_aims": {"introduction": "Background.", "aims": []},
-    }
+    assert (
+        by_type["research_overview"]["research_overview"]
+        == _streaming_research_overview()
+    )
 
-    # Post-drain stage events: emitted once after the engine's own node
-    # stream finishes, from counts the drain computed while persisting.
+
+def _assert_post_drain_stage_events(
+    by_type: dict[str, Any], types_emitted: list[str]
+) -> None:
+    """Post-drain stage events, emitted once after the node stream finishes."""
     for stage_type in (
         "safety.hypothesis",
         "citation.grounding",
@@ -276,6 +286,25 @@ def test_engine_adapter_emits_canonical_event_types(
     assert all(isinstance(v, int) for v in citation_audit_payload.values())
 
 
+def test_engine_adapter_emits_canonical_event_types(
+    isolated_db: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The real-engine branch emits the canonical vocabulary, never engine.*.
+
+    CI only exercises the mock path, so this fake-driven test is the sole guard
+    on the node→type mapping and the frontend-facing payload shape.
+    """
+    _, events = _run_fake_engine(monkeypatch, "Canonical vocab goal")
+
+    types_emitted = [e["type"] for e in events]
+    by_type = {e["type"]: e["payload"] for e in events}
+
+    _assert_canonical_event_types(types_emitted)
+    _assert_normalized_payloads(by_type)
+    _assert_full_fidelity_payloads(by_type)
+    _assert_post_drain_stage_events(by_type, types_emitted)
+
+
 def test_engine_adapter_generates_canonical_milestones(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -297,6 +326,18 @@ def test_engine_adapter_generates_canonical_milestones(
     assert "Research overview ready" in text
 
 
+def _streamed_metrics() -> dict[str, Any]:
+    """The cumulative metrics dict the fake generator's snapshot carries."""
+    return {
+        "hypothesis_count": 2,
+        "reviews_count": 3,
+        "tournaments_count": 1,
+        "evolutions_count": 1,
+        "llm_calls": 9,
+        "phase_times": {"generate": 1.5, "ranking": 0.5},
+    }
+
+
 def test_engine_adapter_persists_streamed_metrics(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -305,14 +346,7 @@ def test_engine_adapter_persists_streamed_metrics(
     ``total_time`` is absent from the snapshot, so the adapter must fill it
     from its own wall clock.
     """
-    streamed_metrics = {
-        "hypothesis_count": 2,
-        "reviews_count": 3,
-        "tournaments_count": 1,
-        "evolutions_count": 1,
-        "llm_calls": 9,
-        "phase_times": {"generate": 1.5, "ranking": 0.5},
-    }
+    streamed_metrics = _streamed_metrics()
     state = _engine_streaming_state()
     state["metrics"] = streamed_metrics
 

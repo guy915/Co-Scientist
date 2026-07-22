@@ -39,15 +39,38 @@ def test_persist_writes_deep_verification_reviews(isolated_db: str) -> None:
     assert deep[0]["overall"] is None
 
 
-def _final_state_with_citations() -> dict[str, Any]:
-    """A minimal final state whose hypothesis cites three distinct sources.
+def _citations_citation_map() -> dict[str, Any]:
+    """Three citations engineered to land in three distinct citation states.
 
-    The three citations are engineered to land in three different citation
-    states once routed through ``classify_citation``: a retrieved paper whose
-    abstract overlaps the grounding (verified), a paper with a URL but no
-    retrieved abstract (unsupported), and a knowledge-graph source with no URL
+    Once routed through ``classify_citation``: a retrieved paper whose abstract
+    overlaps the grounding (verified), a paper with a URL but no retrieved
+    abstract (unsupported), and a knowledge-graph source with no URL
     (unavailable).
     """
+    return {
+        "C1": {
+            "type": "paper",
+            "title": "CXCR1 drives CSC renewal",
+            "url": "https://example.org/c1",
+            "authors": ["Smith"],
+            "year": 2023,
+        },
+        "C2": {
+            "type": "paper",
+            "title": "Unrelated off-target study",
+            "url": "https://example.org/c2",
+            "authors": ["Doe"],
+            "year": 2021,
+        },
+        "C3": {
+            "type": "knowledge_graph",
+            "display": "INDRA: CXCR1 -> STAT3",
+        },
+    }
+
+
+def _final_state_with_citations() -> dict[str, Any]:
+    """A minimal final state whose hypothesis cites three distinct sources."""
     grounding = "CXCR1 signaling drives breast cancer stem cell renewal"
     return {
         "hypotheses": [
@@ -55,26 +78,7 @@ def _final_state_with_citations() -> dict[str, Any]:
                 "eng-hyp-a",
                 "Blocking CXCR1 suppresses breast cancer stem cells.",
                 literature_grounding=grounding,
-                citation_map={
-                    "C1": {
-                        "type": "paper",
-                        "title": "CXCR1 drives CSC renewal",
-                        "url": "https://example.org/c1",
-                        "authors": ["Smith"],
-                        "year": 2023,
-                    },
-                    "C2": {
-                        "type": "paper",
-                        "title": "Unrelated off-target study",
-                        "url": "https://example.org/c2",
-                        "authors": ["Doe"],
-                        "year": 2021,
-                    },
-                    "C3": {
-                        "type": "knowledge_graph",
-                        "display": "INDRA: CXCR1 -> STAT3",
-                    },
-                },
+                citation_map=_citations_citation_map(),
             )
         ],
         "articles": [

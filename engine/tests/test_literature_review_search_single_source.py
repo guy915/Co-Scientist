@@ -11,13 +11,43 @@ from co_scientist.agents.generation.literature_review.search_support import (
 from co_scientist.mcp_client import MCPToolClient
 from co_scientist.state import WorkflowState
 
+# Two queries' worth of pubmed results: query 2 repeats query 1's "Shared
+# paper" (case-insensitively) and adds a retracted entry, so dedup and the
+# retraction filter both fire.
+_OVERFETCH_RESULTS: list[tuple[int, dict[str, dict[str, Any]]]] = [
+    (
+        1,
+        {
+            "p1": {"title": "Shared paper", "source": "pubmed", "year": 2025},
+            "p2": {
+                "title": "Independent paper",
+                "source": "pubmed",
+                "year": 2024,
+            },
+        },
+    ),
+    (
+        2,
+        {
+            "duplicate": {
+                "title": "shared paper",
+                "source": "pubmed",
+                "year": 2025,
+            },
+            "p3": {"title": "Third paper", "source": "pubmed", "year": 2023},
+            "retracted": {
+                "title": "Retracted paper",
+                "source": "pubmed",
+                "year": 2026,
+                "is_retracted": True,
+            },
+        },
+    ),
+]
 
-@pytest.mark.asyncio
-async def test_single_source_overfetches_dedupes_ranks_and_caps(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Expanded queries fill one unique, quality-ranked evidence budget."""
-    observed: dict[str, int] = {}
+
+def _recording_search_all_queries(observed: dict[str, int]) -> Any:
+    """Fake ``_search_all_queries`` recording budget args into ``observed``."""
 
     async def fake_search_all_queries(
         queries: list[str],
@@ -29,46 +59,20 @@ async def test_single_source_overfetches_dedupes_ranks_and_caps(
         observed["queries"] = len(queries)
         observed["papers_per_query"] = papers_per_query
         observed["remainder"] = remainder
-        return [
-            (
-                1,
-                {
-                    "p1": {
-                        "title": "Shared paper",
-                        "source": "pubmed",
-                        "year": 2025,
-                    },
-                    "p2": {
-                        "title": "Independent paper",
-                        "source": "pubmed",
-                        "year": 2024,
-                    },
-                },
-            ),
-            (
-                2,
-                {
-                    "duplicate": {
-                        "title": "shared paper",
-                        "source": "pubmed",
-                        "year": 2025,
-                    },
-                    "p3": {
-                        "title": "Third paper",
-                        "source": "pubmed",
-                        "year": 2023,
-                    },
-                    "retracted": {
-                        "title": "Retracted paper",
-                        "source": "pubmed",
-                        "year": 2026,
-                        "is_retracted": True,
-                    },
-                },
-            ),
-        ]
+        return _OVERFETCH_RESULTS
 
-    monkeypatch.setattr(search, "_search_all_queries", fake_search_all_queries)
+    return fake_search_all_queries
+
+
+@pytest.mark.asyncio
+async def test_single_source_overfetches_dedupes_ranks_and_caps(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Expanded queries fill one unique, quality-ranked evidence budget."""
+    observed: dict[str, int] = {}
+    monkeypatch.setattr(
+        search, "_search_all_queries", _recording_search_all_queries(observed)
+    )
     config = SearchConfig(
         tool_registry=None,
         workflow=None,

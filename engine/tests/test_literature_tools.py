@@ -229,6 +229,24 @@ def _stub_synthesis_llm(
     monkeypatch.setattr(validate_mod, "call_llm_with_tools", fake)
 
 
+_TWO_HYPOTHESIS_SYNTHESIS: list[dict[str, Any]] = [
+    {
+        "hypothesis": "alpha kinase drives resistance",
+        "explanation": "the mechanism fits",
+        "literature_grounding": "grounded in prior work",
+        "experiment": "run the kinase assay",
+        "novelty_validation": "no exact prior match found",
+    },
+    {
+        "hypothesis": "beta receptor modulates response",
+        "explanation": "downstream signalling",
+        "literature_grounding": None,
+        "experiment": "knock out beta",
+        "novelty_validation": "partially novel",
+    },
+]
+
+
 async def test_validate_builds_literature_tools_hypotheses(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -238,23 +256,7 @@ async def test_validate_builds_literature_tools_hypotheses(
     synthesis seam is exercised -- the clean synthesis-only path.
     """
     _disable_registry(monkeypatch)
-    synthesis: list[dict[str, Any]] = [
-        {
-            "hypothesis": "alpha kinase drives resistance",
-            "explanation": "the mechanism fits",
-            "literature_grounding": "grounded in prior work",
-            "experiment": "run the kinase assay",
-            "novelty_validation": "no exact prior match found",
-        },
-        {
-            "hypothesis": "beta receptor modulates response",
-            "explanation": "downstream signalling",
-            "literature_grounding": None,
-            "experiment": "knock out beta",
-            "novelty_validation": "partially novel",
-        },
-    ]
-    _stub_synthesis_llm(monkeypatch, synthesis)
+    _stub_synthesis_llm(monkeypatch, _TWO_HYPOTHESIS_SYNTHESIS)
     drafts = [
         {"text": "draft one", "gap_reasoning": "gap a"},
         {"text": "draft two", "gap_reasoning": "gap b"},
@@ -280,6 +282,24 @@ async def test_validate_builds_literature_tools_hypotheses(
     assert result[0].citation_map == {}
 
 
+_PRIOR_ALPHA_PAPERS: dict[str, Any] = {
+    "p1": {
+        "title": "Prior alpha study",
+        "authors": ["Smith"],
+        "year": 2020,
+        "fulltext": "some body text about alpha",
+    }
+}
+
+_VALIDATED_ALPHA_SYNTHESIS: list[dict[str, Any]] = [
+    {
+        "hypothesis": "alpha hypothesis validated",
+        "explanation": "fits",
+        "experiment": "assay",
+    }
+]
+
+
 async def test_validate_runs_novelty_pass_when_papers_found(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -289,14 +309,6 @@ async def test_validate_runs_novelty_pass_when_papers_found(
     empty-papers path never reaches.
     """
     _disable_registry(monkeypatch)
-    papers = {
-        "p1": {
-            "title": "Prior alpha study",
-            "authors": ["Smith"],
-            "year": 2020,
-            "fulltext": "some body text about alpha",
-        }
-    }
     novelty_calls: list[bool] = []
 
     async def fake_novelty(**_: Any) -> dict[str, Any]:
@@ -304,21 +316,12 @@ async def test_validate_runs_novelty_pass_when_papers_found(
         return {"novelty_assessment": "novel", "key_findings": "kf"}
 
     monkeypatch.setattr(validate_mod, "call_llm_json", fake_novelty)
-    _stub_synthesis_llm(
-        monkeypatch,
-        [
-            {
-                "hypothesis": "alpha hypothesis validated",
-                "explanation": "fits",
-                "experiment": "assay",
-            }
-        ],
-    )
+    _stub_synthesis_llm(monkeypatch, _VALIDATED_ALPHA_SYNTHESIS)
 
     result = await validate_hypotheses(
         state=make_state(),
         draft_hypotheses=[{"text": "alpha draft"}],
-        mcp_client=_FakeMcpClient(papers=papers),
+        mcp_client=_FakeMcpClient(papers=_PRIOR_ALPHA_PAPERS),
         tool_registry=None,
     )
 

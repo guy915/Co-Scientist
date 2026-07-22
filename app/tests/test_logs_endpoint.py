@@ -26,6 +26,23 @@ def _seed(
     )
 
 
+def _seed_from(
+    isolated_db: str,
+    logger_name: str,
+    message: str,
+    *,
+    level: str = "INFO",
+    levelno: int = logging.INFO,
+) -> int:
+    return store.append_log(
+        level=level,
+        levelno=levelno,
+        logger_name=logger_name,
+        message=message,
+        db_path=isolated_db,
+    )
+
+
 def test_logs_endpoint_returns_rows_and_last_id(isolated_db: str) -> None:
     first = _seed(isolated_db, "first line")
     last = _seed(isolated_db, "second line")
@@ -95,27 +112,17 @@ def test_logs_endpoint_total_respects_filters_not_cursor(
 
 def test_logs_endpoint_hides_noise_by_default(isolated_db: str) -> None:
     _seed(isolated_db, "run started")
-    store.append_log(
-        level="INFO",
-        levelno=logging.INFO,
-        logger_name="uvicorn.access",
-        message="GET /status 200",
-        db_path=isolated_db,
-    )
-    store.append_log(
+    _seed_from(isolated_db, "uvicorn.access", "GET /status 200")
+    _seed_from(
+        isolated_db,
+        "uvicorn.access",
+        "request blew up",
         level="ERROR",
         levelno=logging.ERROR,
-        logger_name="uvicorn.access",
-        message="request blew up",
-        db_path=isolated_db,
     )
     # MCP availability probes repeat on every /status poll: noise too.
-    store.append_log(
-        level="INFO",
-        levelno=logging.INFO,
-        logger_name="co_scientist.mcp_client",
-        message="initializing MCP client",
-        db_path=isolated_db,
+    _seed_from(
+        isolated_db, "co_scientist.mcp_client", "initializing MCP client"
     )
     client = make_operator_client()
 

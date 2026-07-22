@@ -26,8 +26,8 @@ from co_scientist.models import (
 )
 
 
-def _rich_state() -> dict[str, object]:
-    """A workflow state carrying every non-trivial checkpoint field."""
+def _rich_hypotheses() -> list[Hypothesis]:
+    """A parent and its evolved child carrying reviews and match tallies."""
     parent = Hypothesis(text="parent hypothesis", elo_rating=1240)
     child = Hypothesis(
         text="child hypothesis",
@@ -47,12 +47,17 @@ def _rich_state() -> dict[str, object]:
         win_count=2,
         loss_count=1,
     )
+    return [parent, child]
+
+
+def _rich_state() -> dict[str, object]:
+    """A workflow state carrying every non-trivial checkpoint field."""
     return {
         "research_goal": "Explain X",
         "model_name": "fake/model",
         "supervisor_model_name": "fake/model",
         "max_iterations": 3,
-        "hypotheses": [parent, child],
+        "hypotheses": _rich_hypotheses(),
         "current_iteration": 2,
         "task_history": [{"task_type": "evolve", "reason": "leaders"}],
         "next_task": "generate",

@@ -34,6 +34,34 @@ from tests._llm_wrapper_fakes import (
 # --- call_llm_with_tools ---------------------------------------------------
 
 
+def _recording_tool_executor() -> tuple[list[Any], Any]:
+    """A tool executor recording its calls, returning a fixed tool result."""
+    seen: list[Any] = []
+
+    async def tool_executor(tc: Any) -> dict[str, Any]:
+        seen.append(tc)
+        return {
+            "role": "tool",
+            "tool_call_id": tc.id,
+            "content": "tool result",
+        }
+
+    return seen, tool_executor
+
+
+def _assert_executor_history(history: list[dict[str, Any]]) -> None:
+    """Assert the threaded history for the executor-then-finish loop."""
+    # History: user -> assistant(tool request) -> tool result -> assistant.
+    assert history[0] == {"role": "user", "content": "a prompt"}
+    assert history[1]["tool_calls"][0]["id"] == "call-1"
+    assert history[2] == {
+        "role": "tool",
+        "tool_call_id": "call-1",
+        "content": "tool result",
+    }
+    assert history[-1]["content"] == "final answer"
+
+
 async def test_call_llm_with_tools_runs_executor_then_finishes(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -52,15 +80,7 @@ async def test_call_llm_with_tools_runs_executor_then_finishes(
     second = _completion(_message("final answer"))
     state = _patch_acompletion(monkeypatch, [first, second])
 
-    seen: list[Any] = []
-
-    async def tool_executor(tc: Any) -> dict[str, Any]:
-        seen.append(tc)
-        return {
-            "role": "tool",
-            "tool_call_id": tc.id,
-            "content": "tool result",
-        }
+    seen, tool_executor = _recording_tool_executor()
 
     final_text, history = await call_llm_with_tools(
         "a prompt",
@@ -75,15 +95,7 @@ async def test_call_llm_with_tools_runs_executor_then_finishes(
     assert len(seen) == 1
     assert seen[0].id == "call-1"
     assert seen[0].function.name == "search"
-    # History: user -> assistant(tool request) -> tool result -> assistant.
-    assert history[0] == {"role": "user", "content": "a prompt"}
-    assert history[1]["tool_calls"][0]["id"] == "call-1"
-    assert history[2] == {
-        "role": "tool",
-        "tool_call_id": "call-1",
-        "content": "tool result",
-    }
-    assert history[-1]["content"] == "final answer"
+    _assert_executor_history(history)
 
 
 async def test_call_llm_with_tools_no_tool_calls_returns_immediately(
@@ -111,6 +123,21 @@ async def test_call_llm_with_tools_no_tool_calls_returns_immediately(
     assert history[-1]["content"] == "direct answer"
 
 
+def _capturing_acompletion(captured: dict[str, Any]) -> Any:
+    """A fake ``acompletion`` that records its kwargs into ``captured``."""
+
+    async def acompletion(**kwargs: Any) -> SimpleNamespace:
+        captured.clear()
+        captured.update(kwargs)
+        return _completion(_message("direct answer"))
+
+    return acompletion
+
+
+async def _raising_tool_executor(_tc: Any) -> dict[str, Any]:
+    raise AssertionError("no tool call should run")
+
+
 async def test_tool_loop_applies_provider_quirks(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -123,24 +150,16 @@ async def test_tool_loop_applies_provider_quirks(
     """
     _disable_cache(monkeypatch)
     captured: dict[str, Any] = {}
-
-    async def capturing_acompletion(**kwargs: Any) -> SimpleNamespace:
-        captured.clear()
-        captured.update(kwargs)
-        return _completion(_message("direct answer"))
-
     monkeypatch.setattr(
-        "co_scientist.llm.litellm.acompletion", capturing_acompletion
+        "co_scientist.llm.litellm.acompletion",
+        _capturing_acompletion(captured),
     )
-
-    async def tool_executor(_tc: Any) -> dict[str, Any]:
-        raise AssertionError("no tool call should run")
 
     await call_llm_with_tools(
         "a prompt",
         "dashscope/deepseek-v4-pro",
         tools=_SEARCH_TOOL,
-        tool_executor=tool_executor,
+        tool_executor=_raising_tool_executor,
     )
     assert captured["extra_body"] == {"enable_thinking": True}
     assert "reasoning_effort" not in captured
@@ -150,7 +169,7 @@ async def test_tool_loop_applies_provider_quirks(
         "a prompt",
         "deepseek/deepseek-v4-pro",
         tools=_SEARCH_TOOL,
-        tool_executor=tool_executor,
+        tool_executor=_raising_tool_executor,
     )
     assert captured["reasoning_effort"] == "low"
 

@@ -115,37 +115,38 @@ def test_wrong_schema_version_fails_closed() -> None:
         parse_ratings({"schema_version": 999, "ratings": []})
 
 
+_TWO_EXPERT_PANEL = {
+    "schema_version": SCHEMA_VERSION,
+    "ratings": [
+        {
+            "rater_id": "expert-1",
+            "item_id": "item-a",
+            "alignment": 5,
+            "plausibility": 4,
+            "novelty": 3,
+            "testability": 5,
+            "safety": 5,
+            "impact": 4,
+            "preference_rank": 1,
+        },
+        {
+            "rater_id": "expert-2",
+            "item_id": "item-a",
+            "alignment": 4,
+            "plausibility": 4,
+            "novelty": 3,
+            "testability": 4,
+            "safety": 5,
+            "impact": 3,
+            "preference_rank": 1,
+        },
+    ],
+}
+
+
 def test_panel_summary_reports_confidence_and_agreement() -> None:
     """Real panel imports produce uncertainty and agreement statistics."""
-    ratings = parse_ratings(
-        {
-            "schema_version": SCHEMA_VERSION,
-            "ratings": [
-                {
-                    "rater_id": "expert-1",
-                    "item_id": "item-a",
-                    "alignment": 5,
-                    "plausibility": 4,
-                    "novelty": 3,
-                    "testability": 5,
-                    "safety": 5,
-                    "impact": 4,
-                    "preference_rank": 1,
-                },
-                {
-                    "rater_id": "expert-2",
-                    "item_id": "item-a",
-                    "alignment": 4,
-                    "plausibility": 4,
-                    "novelty": 3,
-                    "testability": 4,
-                    "safety": 5,
-                    "impact": 3,
-                    "preference_rank": 1,
-                },
-            ],
-        }
-    )
+    ratings = parse_ratings(_TWO_EXPERT_PANEL)
 
     summary = summarize_ratings(ratings)
 
