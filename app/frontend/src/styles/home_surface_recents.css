@@ -1,0 +1,355 @@
+/* Home recents panel: recent-run cards, live-run steps, load more. */
+/* Composer chrome shadow lives on a token because the reference only casts
+   it in light mode (dark zeroes it). */
+.reference-composer {
+  box-shadow: var(--cosci-composer-shadow);
+}
+
+.reference-recents-panel {
+  display: grid;
+  min-height: 0;
+  align-content: start;
+  gap: 1.3rem;
+  overflow: hidden;
+  padding-top: 0.25rem;
+}
+
+.reference-recents-list {
+  display: grid;
+  min-height: 0;
+  max-height: calc(100vh - 12rem);
+  max-height: calc(100dvh - 12rem);
+  gap: 2.6rem;
+  margin: 0;
+  overflow-y: auto;
+  padding: 0 0.6rem 0 0;
+  list-style: none;
+  /* Soften the scroll-viewport bottom edge so the last visible card fades out
+     instead of hard-cutting (mirrors the composer's fade over the timeline).
+     A mask is scroll-aware and background-agnostic, so it works in both
+     themes without matching a surface token. */
+  mask-image: linear-gradient(
+    to bottom,
+    #000 calc(100% - 2.25rem),
+    transparent
+  );
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    #000 calc(100% - 2.25rem),
+    transparent
+  );
+}
+
+.reference-recents-heading {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.reference-recents-heading-icon {
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
+.reference-recents-heading-title {
+  margin: 0;
+  color: var(--cosci-recents-heading);
+  font-size: 1.15rem;
+  font-weight: 600;
+}
+
+.reference-recents--empty {
+  grid-template-rows: auto 1fr;
+  align-self: stretch;
+  padding-bottom: 2rem;
+}
+
+.reference-recents-list.reference-recents-list--empty {
+  height: 100%;
+  max-height: none;
+  overflow: hidden;
+  padding: 0;
+  /* No scroll viewport here, so drop the bottom fade — otherwise it dims the
+     lower edge of the empty-state card. */
+  mask-image: none;
+  -webkit-mask-image: none;
+}
+
+.reference-recents-empty-item {
+  height: 100%;
+  min-height: 0;
+}
+
+.reference-recents-empty-state {
+  box-sizing: border-box;
+  display: grid;
+  width: 100%;
+  height: 100%;
+  min-height: 25rem;
+  place-items: center;
+  align-content: center;
+  gap: 1rem;
+  border: 1.5px dashed var(--cosci-border);
+  border-radius: 1.35rem;
+  background: transparent;
+  color: var(--cosci-muted);
+  padding: 1.5rem;
+  text-align: center;
+}
+
+.reference-recents-empty-icon {
+  display: block;
+  width: 2.1rem;
+  height: 1.95rem;
+  color: var(--cosci-logo-color);
+}
+
+.reference-recents-empty-copy {
+  max-width: 17rem;
+  color: inherit;
+  font-size: 1rem;
+  font-weight: 650;
+  line-height: 1.35;
+}
+
+.reference-recent-card {
+  display: grid;
+  width: 100%;
+  min-height: 15.75rem;
+  align-content: start;
+  gap: 0.7rem;
+  border: 1px solid var(--cosci-recent-card-border);
+  border-radius: 0.75rem;
+  background: var(--cosci-recent-card-bg);
+  color: var(--cosci-recent-card-text);
+  cursor: pointer;
+  padding: 1rem;
+  text-align: left;
+  text-decoration: none;
+  box-shadow:
+    0 1px 2px rgb(0 0 0 / 15%),
+    0 2px 10px rgb(0 0 0 / 10%);
+  transition: background-color 160ms cubic-bezier(0.2, 0, 0, 1);
+}
+
+/* Reference hover: fill shifts to surface-container-low; the elevation shadow
+   stays constant (and identical in both themes — the dark .card rule only
+   swaps the fill, never the shadow). */
+.reference-recent-card:hover,
+.reference-recent-card:focus-visible {
+  background: var(--cosci-recent-card-hover-bg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reference-recent-card {
+    transition: none;
+  }
+}
+
+.reference-recent-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.reference-recent-meta-chip {
+  border-radius: 0.3125rem;
+  background: var(--cosci-recent-meta-bg);
+  color: var(--cosci-recent-meta-text);
+  font-size: 0.6875rem;
+  font-weight: 500;
+  letter-spacing: 0.1px;
+  padding: 0.25rem 0.5rem;
+}
+
+.reference-recent-title {
+  display: -webkit-box;
+  overflow: hidden;
+  font-size: 1rem;
+  font-weight: 500;
+  line-height: 1.5;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.reference-recent-description {
+  display: -webkit-box;
+  overflow: hidden;
+  color: var(--cosci-recent-card-copy);
+  font-size: 0.9rem;
+  line-height: 1.35;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+
+.reference-recent-chips {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.reference-recent-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  border-radius: 0.3125rem;
+  background: var(--cosci-recent-chip-bg);
+  color: var(--cosci-recent-chip-text);
+  font-size: 0.6875rem;
+  font-weight: 500;
+  letter-spacing: 0.1px;
+  padding: 0.25rem 0.5rem;
+}
+
+.reference-recent-chip-icon {
+  width: 1rem;
+  height: 1rem;
+}
+
+.reference-winner-list {
+  display: grid;
+  gap: 0.65rem;
+  margin: 0.15rem 0 0;
+  padding: 0;
+  color: var(--cosci-recent-card-text);
+  font-size: 0.75rem;
+  letter-spacing: 0.1px;
+  line-height: 1.33;
+  list-style: none;
+}
+
+/* Rank number in a fixed first column, the idea text in a shrinkable second
+   column so it can clamp (min-width: 0 lets it narrow below content size). */
+.reference-winner-list-item {
+  display: grid;
+  grid-template-columns: 1.4rem minmax(0, 1fr);
+  gap: 0.2rem;
+}
+
+/* Idea title: word-truncated to two lines via TruncatedLabel (the JS fitter
+   drops whole trailing words and appends an ellipsis; this clamp bounds the
+   measured height it fits against). */
+.reference-winner-list-text {
+  display: -webkit-box;
+  overflow: hidden;
+  min-width: 0;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+/* Live-run "session loading" flow (reference: Step X of N + the four
+   run steps). Present at every width — the run card renders it in
+   the recents rail while a run is active. */
+.reference-run-steps {
+  display: grid;
+  gap: 0.7rem;
+  margin-top: 0.1rem;
+}
+
+.reference-run-step-list {
+  display: grid;
+}
+
+.reference-run-step {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  color: var(--cosci-recent-card-text);
+  font-size: 0.85rem;
+  font-weight: 500;
+  line-height: 1.2;
+}
+
+.reference-run-step-icon {
+  width: 1.25rem;
+  height: 1.25rem;
+  flex-shrink: 0;
+  color: var(--cosci-recent-card-copy);
+}
+
+.reference-run-step-label {
+  min-width: 0;
+}
+
+/* Retained on purpose: the flow currently marks progress by which phases it
+   lists at all, so nothing renders this today. Kept ready for a per-phase
+   check mark rather than being rebuilt from scratch if one is wanted again. */
+.reference-run-step-done {
+  width: 1.05rem;
+  height: 1.05rem;
+  flex-shrink: 0;
+  color: #1e8e3e;
+}
+
+:root[data-theme='dark'] .reference-run-step-done {
+  color: var(--cosci-green);
+}
+
+.reference-run-step-spinner {
+  width: 1.05rem;
+  height: 1.05rem;
+  flex-shrink: 0;
+  border-radius: 9999px;
+  border: 2px solid color-mix(in srgb, var(--color-th-primary) 28%, transparent);
+  border-top-color: var(--color-th-primary);
+  animation: reference-run-step-spin 0.8s linear infinite;
+}
+
+/* The In Progress row's spinner stands in for a step glyph, so it occupies the
+   same 1.25rem column as the step icons and the delimiter's centre line. */
+.reference-run-step-glyph {
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
+@keyframes reference-run-step-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reference-run-step-spinner {
+    animation: none;
+  }
+}
+
+/* 1px connector between steps, inset to sit under the 1.25rem icon's center. */
+.reference-run-step-delimiter {
+  height: 0.75rem;
+  margin: 0.2rem 0 0.2rem 0.625rem;
+  border-inline-start: 1px solid var(--cosci-border);
+}
+
+.reference-load-more-item {
+  display: flex;
+  justify-content: center;
+  padding-block: 0.25rem 0.5rem;
+}
+
+.reference-load-more {
+  justify-self: center;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  border: 0;
+  background: transparent;
+  color: var(--cosci-idea-ref-blue);
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 500;
+  padding: 0.25rem 0.5rem;
+  cursor: pointer;
+}
+
+.reference-load-more:hover,
+.reference-load-more:focus-visible {
+  text-decoration: underline;
+}
+
+:root[data-theme='dark'] .reference-load-more {
+  color: var(--cosci-blue);
+}
+

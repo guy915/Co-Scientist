@@ -1,26 +1,29 @@
 // Run lifecycle API client. Mirrors the FastAPI router in app/runs.py.
+//
+// The client is split across sibling modules, all re-exported here so
+// callers keep importing everything from '@/api/runs':
+// - runs_http.ts: shared fetch/auth primitives
+// - runs_interviews.ts: the research-goal interview
+// - runs_collections.ts: per-run collections, reports, and shares
 
-import {clearAccessToken, getAccessToken, getClientId} from '@/lib/client_id';
 import {mergeByIdNewestFirst} from '@/lib/merge';
 import type {
   Audience,
-  ClaimEvidenceRow,
-  Evidence,
-  Hypothesis,
-  Interview,
-  MatchRow,
-  ProximityEdge,
-  Report,
-  ReportShare,
-  Review,
   Run,
   RunFocus,
   RunStatus,
   RunTier,
   RunWithSummary,
-  SafetyDecision,
-  SharedGoalReport,
 } from './run_types';
+import {
+  API_BASE_URL,
+  authQuery,
+  clientHeaders,
+  fetchField,
+  fetchJson,
+  jsonRequest,
+  readSseFrames,
+} from './runs_http';
 // Re-export the run-domain types so callers can `import type {...} from
 // '@/api/runs'` alongside the API functions below, without a second import
 // from './run_types'.
@@ -58,42 +61,32 @@ export type {
   SharedGoalReport,
   SupportSpan,
 } from './run_types';
-
-const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string) || '';
-
-/** Exchange a configured researcher invite code for a signed session. */
-export function exchangeAccessCode(
-  accessCode: string,
-): Promise<{access_token: string; researcher_id: string; expires_in: number}> {
-  return fetchJson(
-    '/api/auth/exchange',
-    jsonRequest({access_code: accessCode}),
-  );
-}
-
-/**
- * Header identifying the calling browser client to the backend. Exported for
- * sibling API clients (e.g. `@/api/feedback`) so the auth-header policy stays
- * defined once.
- */
-export function clientHeaders(): Record<string, string> {
-  const token = getAccessToken();
-  return token
-    ? {Authorization: `Bearer ${token}`}
-    : {'X-Client-ID': getClientId()};
-}
-
-/**
- * Auth query string for a direct browser navigation (download/SSE URLs that
- * carry no request headers): the signed session token when present, else the
- * client id, mirroring `clientHeaders`.
- */
-function authQuery(): string {
-  const token = getAccessToken();
-  return token
-    ? `access_token=${encodeURIComponent(token)}`
-    : `client_id=${encodeURIComponent(getClientId())}`;
-}
+export {clientHeaders, exchangeAccessCode, fetchJson} from './runs_http';
+export {
+  addInterviewTurn,
+  createInterview,
+  editInterviewFields,
+  getInterview,
+} from './runs_interviews';
+export {
+  addScientistHypothesis,
+  addScientistReview,
+  adjudicateSafety,
+  createReportShare,
+  getClaimEvidence,
+  getEvidence,
+  getHypotheses,
+  getMatches,
+  getProximity,
+  getReport,
+  getReviews,
+  getSafety,
+  getSharedGoalReport,
+  listReportShares,
+  reportMarkdownUrl,
+  revokeReportShare,
+  uploadRunDocument,
+} from './runs_collections';
 
 /** Statuses for a run whose workflow is still in progress. */
 const ACTIVE_STATUSES: readonly RunStatus[] = [
@@ -118,98 +111,6 @@ export function isActiveStatus(status: RunStatus | undefined): boolean {
  */
 export function runGoal(run: Run | null | undefined): string {
   return run?.config.setup?.goal ?? run?.research_goal ?? '';
-}
-
-/**
- * Builds the error message for a non-ok response: a clearer message for an
- * empty-bodied 500 (the API process itself is typically unreachable, e.g.
- * cold start or a proxy with no upstream, rather than a handled application
- * error), else the caller's prefix, else the raw status and body.
- */
-function responseErrorMessage(
-  status: number,
-  statusText: string,
-  text: string,
-  errorPrefix?: string,
-): string {
-  if (status === 500 && !text.trim()) return 'API unavailable';
-  if (errorPrefix) return `${errorPrefix} ${status}`;
-  return `${status} ${text || statusText}`;
-}
-
-/**
- * Parses a fetch `Response` as JSON, or throws a descriptive `Error` when the
- * response was not ok.
- */
-/**
- * Drop the stored researcher session on a 401. The token is expired or invalid,
- * so keeping it makes `clientHeaders` re-send a dead Bearer on every request —
- * each one 401s and the tab is bricked until sessionStorage is cleared by hand.
- * Dropping it lets the next request fall back to X-Client-ID. Called from every
- * response path that inspects status (plain JSON, SSE streams, raw requests).
- */
-function forgetSessionIfUnauthorized(res: Response): void {
-  if (res.status === 401) clearAccessToken();
-}
-
-async function parseJson<T>(res: Response, errorPrefix?: string): Promise<T> {
-  if (!res.ok) {
-    forgetSessionIfUnauthorized(res);
-    const text = await res.text().catch(() => res.statusText);
-    throw new Error(
-      responseErrorMessage(res.status, res.statusText, text, errorPrefix),
-    );
-  }
-  return (await res.json()) as T;
-}
-
-/**
- * Fetches `path` relative to the API base URL and parses the JSON body.
- * Exported for sibling API clients (e.g. `@/api/system`) so the base-URL
- * and error-shaping policy stays defined once.
- */
-export async function fetchJson<T>(
-  path: string,
-  init?: RequestInit,
-  errorPrefix?: string,
-): Promise<T> {
-  const res = await fetch(`${API_BASE_URL}${path}`, init);
-  return parseJson<T>(res, errorPrefix);
-}
-
-/**
- * Fetches a `{[field]: T}` envelope and unwraps the named field.
- *
- * @param path Request path.
- * @param field Response key to unwrap.
- * @param init Optional fetch options (e.g. client headers).
- * @param errorPrefix Optional prefix for error messages.
- * @returns The unwrapped value.
- */
-async function fetchField<K extends string, T>(
-  path: string,
-  field: K,
-  init?: RequestInit,
-  errorPrefix?: string,
-): Promise<T> {
-  const data = await fetchJson<Record<K, T>>(path, init, errorPrefix);
-  return data[field];
-}
-
-/**
- * Builds a JSON POST `RequestInit`. `includeClientId` is opt-in because only
- * endpoints that scope data by owning client (e.g. creating/listing runs)
- * need the `X-Client-ID` header.
- */
-function jsonRequest(body: unknown, includeClientId = false): RequestInit {
-  return {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      ...(includeClientId ? clientHeaders() : {}),
-    },
-    body: JSON.stringify(body),
-  };
 }
 
 /**
@@ -238,128 +139,6 @@ export async function createRun(input: {
   audience?: Audience;
 }): Promise<Run> {
   return fetchJson('/api/runs', jsonRequest(input, true));
-}
-
-/**
- * Yields each `data:` payload of an SSE response body as it arrives.
- *
- * @param res A streaming response; a non-OK status throws before any frame.
- * @param errorPrefix Prefix for the thrown non-OK error message.
- */
-async function* readSseFrames<T>(
-  res: Response,
-  errorPrefix?: string,
-): AsyncGenerator<T> {
-  if (!res.ok || !res.body) {
-    forgetSessionIfUnauthorized(res);
-    const text = await res.text().catch(() => res.statusText);
-    throw new Error(
-      responseErrorMessage(res.status, res.statusText, text, errorPrefix),
-    );
-  }
-  const reader = res.body.getReader();
-  const decoder = new TextDecoder();
-  let pending = '';
-  for (;;) {
-    const {done, value} = await reader.read();
-    pending += decoder.decode(value, {stream: !done});
-    const frames = pending.split('\n\n');
-    // A trailing partial frame stays buffered until its terminator arrives.
-    pending = frames.pop() || '';
-    for (const frame of frames) {
-      const data = frame
-        .split('\n')
-        .find(line => line.startsWith('data: '))
-        ?.slice(6);
-      if (data) yield JSON.parse(data) as T;
-    }
-    if (done) break;
-  }
-}
-
-/** A frame of a streamed interview turn. */
-type InterviewFrame =
-  | {type: 'reasoning'; content: string}
-  | {type: 'interview'; interview: Interview}
-  | {type: 'error'; detail: string};
-
-/**
- * Runs one streamed interview turn, relaying the model's live reasoning.
- *
- * The turn streams so the chain of thought can be shown while the Agent is
- * still composing, but the transport stays an implementation detail: callers
- * await the resolved interview exactly as they did over plain JSON.
- *
- * @param path The interview endpoint to post to.
- * @param body The JSON request body.
- * @param onReasoning Receives each chain-of-thought fragment as it arrives.
- */
-async function streamInterviewTurn(
-  path: string,
-  body: unknown,
-  onReasoning?: (fragment: string) => void,
-): Promise<Interview> {
-  const res = await fetch(`${API_BASE_URL}${path}`, jsonRequest(body, true));
-  let interview: Interview | undefined;
-  for await (const frame of readSseFrames<InterviewFrame>(res)) {
-    if (frame.type === 'reasoning') onReasoning?.(frame.content);
-    else if (frame.type === 'interview') interview = frame.interview;
-    else if (frame.type === 'error') throw new Error(frame.detail);
-  }
-  if (!interview) {
-    throw new Error('The Agent could not continue the interview.');
-  }
-  return interview;
-}
-
-/**
- * Starts a durable model-driven research-goal interview.
- *
- * The audience is sent once, at creation: the server stores it on the
- * interview so every later turn is conducted with the same lab context,
- * which is also what lets the Agent answer questions about the group.
- */
-export async function createInterview(
-  researchChallenge: string,
-  onReasoning?: (fragment: string) => void,
-  audience?: Audience,
-): Promise<Interview> {
-  return streamInterviewTurn(
-    '/api/interviews',
-    {research_challenge: researchChallenge, audience},
-    onReasoning,
-  );
-}
-
-/** Sends one scientist answer and returns the Agent's updated derivation. */
-export async function addInterviewTurn(
-  interviewId: string,
-  content: string,
-  onReasoning?: (fragment: string) => void,
-): Promise<Interview> {
-  return streamInterviewTurn(
-    `/api/interviews/${interviewId}/turns`,
-    {content},
-    onReasoning,
-  );
-}
-
-/** Reloads a durable interview for resume. */
-export async function getInterview(interviewId: string): Promise<Interview> {
-  return fetchJson(`/api/interviews/${interviewId}`, {
-    headers: clientHeaders(),
-  });
-}
-
-/** Persists scientist edits to the four verified fields. */
-export async function editInterviewFields(
-  interviewId: string,
-  fields: Interview['fields'],
-): Promise<Interview> {
-  return fetchJson(
-    `/api/interviews/${interviewId}/fields`,
-    jsonRequest(fields, true),
-  );
 }
 
 /**
@@ -431,161 +210,6 @@ export async function startRun(
   return fetchJson(`/api/runs/${id}/start`, jsonRequest(body, true));
 }
 
-/**
- * Fetches a run sub-resource `/api/runs/{id}/{key}` that the API returns
- * wrapped as `{[key]: T[]}`.
- *
- * @param id Run identifier.
- * @param key Sub-resource path segment, doubling as the response key.
- * @returns The unwrapped array.
- */
-function getRunList<T>(id: string, key: string): Promise<T[]> {
-  return fetchField<string, T[]>(`/api/runs/${id}/${key}`, key, {
-    headers: clientHeaders(),
-  });
-}
-
-/**
- * Fetches the hypotheses generated by a run.
- *
- * @param id Run identifier.
- * @returns The run's hypotheses.
- */
-export function getHypotheses(id: string): Promise<Hypothesis[]> {
-  return getRunList<Hypothesis>(id, 'hypotheses');
-}
-
-/**
- * Fetches the literature evidence gathered for a run.
- *
- * @param id Run identifier.
- * @returns The run's evidence records.
- */
-export function getEvidence(id: string): Promise<Evidence[]> {
-  return getRunList<Evidence>(id, 'evidence');
-}
-
-/**
- * Fetches the pairwise tournament matches for a run.
- *
- * @param id Run identifier.
- * @returns The run's match rows.
- */
-export function getMatches(id: string): Promise<MatchRow[]> {
-  return getRunList<MatchRow>(id, 'matches');
-}
-
-/**
- * Fetches the reviewer critiques for a run's hypotheses.
- *
- * @param id Run identifier.
- * @returns The run's reviews.
- */
-export function getReviews(id: string): Promise<Review[]> {
-  return getRunList<Review>(id, 'reviews');
-}
-
-/** Fetch the versioned safety audit trail for a run. */
-export function getSafety(id: string): Promise<SafetyDecision[]> {
-  return getRunList<SafetyDecision>(id, 'safety');
-}
-
-/** Resolve one held safety decision as the identified run owner. */
-export function adjudicateSafety(
-  runId: string,
-  decisionId: number,
-  resolution: 'approved' | 'rejected',
-): Promise<{decision_id: number; resolution: string}> {
-  return fetchJson(
-    `/api/runs/${runId}/safety/${decisionId}/adjudicate`,
-    jsonRequest({resolution}, true),
-  );
-}
-
-/**
- * Fetches the claim-level entailment graph for a run's hypotheses.
- *
- * The endpoint path (`claim-evidence`) differs from the response key
- * (`claim_evidence`), so this cannot use the `getRunList` shorthand.
- *
- * @param id Run identifier.
- * @returns The run's claim-evidence edges.
- */
-export function getClaimEvidence(id: string): Promise<ClaimEvidenceRow[]> {
-  return fetchField<'claim_evidence', ClaimEvidenceRow[]>(
-    `/api/runs/${id}/claim-evidence`,
-    'claim_evidence',
-    {headers: clientHeaders()},
-  );
-}
-
-/** Return the persisted weighted hypothesis proximity graph. */
-export function getProximity(id: string): Promise<ProximityEdge[]> {
-  return getRunList<ProximityEdge>(id, 'proximity');
-}
-
-/** Submit a scientist-authored hypothesis through the shared safety gate. */
-export function addScientistHypothesis(
-  runId: string,
-  input: {title?: string; statement: string; author: string},
-): Promise<{admitted: boolean; id?: string; safety: {outcome: string}}> {
-  return fetchJson(`/api/runs/${runId}/hypotheses`, jsonRequest(input, true));
-}
-
-/** Attach a scientist verdict to an existing hypothesis. */
-export function addScientistReview(
-  runId: string,
-  input: {
-    hypothesis_id: string;
-    author: string;
-    verdict: 'support' | 'oppose' | 'revise';
-    critique: string;
-  },
-): Promise<{recorded: boolean}> {
-  return fetchJson(`/api/runs/${runId}/reviews`, jsonRequest(input, true));
-}
-
-/** Upload and index a private scientific document for subsequent tasks. */
-export function uploadRunDocument(
-  runId: string,
-  file: File,
-): Promise<{
-  id: string;
-  indexed: boolean;
-  sha256: string;
-  byte_size: number;
-  mime_type: string;
-  extraction_tool: string;
-}> {
-  const body = new FormData();
-  body.set('file', file);
-  body.set('consent', 'true');
-  return fetchJson(`/api/runs/${runId}/attachments/upload`, {
-    method: 'POST',
-    headers: clientHeaders(),
-    body,
-  });
-}
-
-/**
- * Fetches a run's final report, or null if none exists yet.
- *
- * @param id Run identifier.
- * @returns The report, or null when not yet generated.
- */
-export async function getReport(id: string): Promise<Report | null> {
-  const res = await fetch(`${API_BASE_URL}/api/runs/${id}/report`, {
-    headers: clientHeaders(),
-  });
-  if (res.status === 404) return null; // no report yet, not an error
-  return parseJson<Report>(res);
-}
-
-/** Returns the browser-download URL for a persisted Markdown Goal Report. */
-export function reportMarkdownUrl(id: string): string {
-  return `${API_BASE_URL}/api/runs/${id}/report.md?${authQuery()}`;
-}
-
 /** Streams a grounded report-level or idea-level Agent answer to completion. */
 export async function askRunQuestion(
   id: string,
@@ -613,36 +237,6 @@ export function sendRunSteering(
   content: string,
 ): Promise<{id: string; status: string}> {
   return fetchJson(`/api/runs/${id}/messages`, jsonRequest({content}, true));
-}
-
-/** Enables public read-only access and returns the one-time bearer token. */
-export function createReportShare(id: string): Promise<ReportShare> {
-  return fetchJson(`/api/runs/${id}/shares`, jsonRequest({}, true));
-}
-
-/** Lists active grants without disclosing their bearer tokens. */
-export function listReportShares(id: string): Promise<ReportShare[]> {
-  return getRunList<ReportShare>(id, 'shares');
-}
-
-/** Revokes one public report capability. */
-export async function revokeReportShare(
-  runId: string,
-  shareId: string,
-): Promise<void> {
-  const response = await fetch(
-    `${API_BASE_URL}/api/runs/${runId}/shares/${shareId}`,
-    {method: 'DELETE', headers: clientHeaders()},
-  );
-  if (!response.ok) {
-    forgetSessionIfUnauthorized(response);
-    throw new Error(await response.text());
-  }
-}
-
-/** Loads a public read-only Goal Report without a client ownership header. */
-export function getSharedGoalReport(token: string): Promise<SharedGoalReport> {
-  return fetchJson(`/api/shared/${token}`);
 }
 
 /**

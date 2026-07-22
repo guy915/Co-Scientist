@@ -1,0 +1,391 @@
+/* Shell popover panels, feedback form, FAQ, toast, and sidebar chat list. */
+/* Filled action button used inside header popovers (the feedback form's
+   submit, the team note's link to the recommendations page). Takes the app's
+   teal accent from the same baseline tokens as the header pill it drops out
+   of; --cosci-blue is the settings rail's selection color, not an action
+   color. */
+.ucs-panel-button {
+  display: inline-block;
+  border: 0;
+  border-radius: 9999px;
+  background: var(--cosci-step-dot-bg);
+  color: var(--cosci-step-dot-text);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 600;
+  padding: 0.45rem 1.1rem;
+  text-decoration: none;
+}
+
+.ucs-panel-button:hover:not(:disabled) {
+  background: color-mix(
+    in srgb,
+    var(--cosci-step-dot-bg) 88%,
+    var(--cosci-step-dot-text)
+  );
+}
+
+.ucs-panel-button:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+/* Secondary actions beside a filled one. A tonal fill rather than an outline:
+   the shell's cards carry no borders, and three filled pills in a row would
+   read as three equal choices. The fill is mixed toward the text rather than
+   taken from --cosci-hover directly, which in dark is the popover's own
+   background and would leave the pill invisible. */
+.ucs-panel-button.is-tonal {
+  background: color-mix(in srgb, var(--cosci-hover) 88%, var(--cosci-text));
+  color: var(--cosci-text);
+}
+
+.ucs-panel-button.is-tonal:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--cosci-hover) 76%, var(--cosci-text));
+}
+
+/* Row of actions under the note. Wraps rather than overflowing: the panel is
+   capped at 28rem and the labels are translated. */
+.ucs-team-note-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+/* Hebrew note to the Google team. `justify-items: start` resolves against
+   the inline direction, so under dir="rtl" the button hugs the right edge
+   without any RTL-specific rule. */
+.ucs-team-note {
+  display: grid;
+  gap: 0.85rem;
+  justify-items: start;
+  padding: 1rem;
+}
+
+/* The UA's default paragraph margin would pad the text top and bottom
+   inside the panel, reading as vertical centering. Zeroed here rather than
+   globally: a global reset collapses the rendered Goal Report markdown. */
+.ucs-team-note p {
+  margin: 0;
+  font-size: 0.9rem;
+  line-height: 1.6;
+}
+
+/* Pilot feedback form in the SBI/UCD header popover. Reuses the settings
+   dialog's field and selection vocabulary so the panel reads as part of the
+   same product surface. */
+.ucs-feedback-form {
+  display: grid;
+  gap: 0.7rem;
+  padding: 1rem;
+}
+
+.ucs-feedback-title {
+  margin: 0;
+  font-family: 'Google Sans', system-ui, sans-serif;
+  font-size: 1rem;
+  font-weight: 500;
+}
+
+.ucs-feedback-intro {
+  margin: -0.3rem 0 0;
+  color: var(--cosci-muted);
+  font-size: 0.8rem;
+}
+
+.ucs-feedback-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.ucs-feedback-chip {
+  border: 0;
+  border-radius: 9999px;
+  background: var(--cosci-menu-row-hover);
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 500;
+  padding: 0.35rem 0.7rem;
+}
+
+/* Selected chip fills with the app's teal accent. A translucent tint was
+   tried first and read as *less* prominent than the unselected chips, whose
+   background is a solid neutral; filling inverts that back. Both tokens
+   re-theme, so no dark-mode override is needed. */
+.ucs-feedback-chip--selected,
+.ucs-feedback-chip--selected:hover {
+  background: var(--cosci-step-dot-bg);
+  color: var(--cosci-step-dot-text);
+}
+
+.ucs-feedback-input {
+  box-sizing: border-box;
+  width: 100%;
+  border: 1px solid var(--cosci-border);
+  border-radius: 0.75rem;
+  background: var(--cosci-menu-bg);
+  color: var(--cosci-menu-text);
+  font: inherit;
+  font-size: 0.85rem;
+  padding: 0.6rem 0.75rem;
+  resize: vertical;
+}
+
+.ucs-feedback-input:focus-visible {
+  border-color: var(--cosci-blue);
+  outline: 1px solid var(--cosci-blue);
+}
+
+.ucs-feedback-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+}
+
+.ucs-feedback-status {
+  color: var(--cosci-muted);
+  font-size: 0.75rem;
+}
+
+/* Get-help FAQ: native <details> accordion, styled as stacked rows with a
+   chevron that rotates when the row is open. */
+.ucs-faq {
+  display: grid;
+  gap: 0.35rem;
+  margin-top: 0.5rem;
+}
+
+.ucs-faq-item {
+  border-top: 1px solid var(--cosci-menu-divider);
+}
+
+.ucs-faq-item:last-child {
+  border-bottom: 1px solid var(--cosci-menu-divider);
+}
+
+.ucs-faq-question {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  cursor: pointer;
+  font-size: 0.9rem;
+  font-weight: 500;
+  list-style: none;
+  padding: 0.85rem 0.15rem;
+}
+
+/* Hide the default disclosure triangle (Safari renders it via ::-webkit). */
+.ucs-faq-question::-webkit-details-marker {
+  display: none;
+}
+
+.ucs-faq-question:hover {
+  color: var(--cosci-blue);
+}
+
+.ucs-faq-chevron {
+  flex: 0 0 auto;
+  color: var(--cosci-menu-icon);
+  font-size: 1.25rem;
+  transition: transform 160ms cubic-bezier(0.2, 0, 0, 1);
+}
+
+.ucs-faq-item[open] .ucs-faq-chevron {
+  transform: rotate(180deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ucs-faq-chevron {
+    transition: none;
+  }
+}
+
+.ucs-faq-answer {
+  margin: 0;
+  padding: 0 0.15rem 0.9rem;
+  color: var(--cosci-muted);
+  font-size: 0.85rem;
+  line-height: 1.5;
+}
+
+.ucs-settings-toast {
+  position: fixed;
+  bottom: 1.5rem;
+  left: 50%;
+  border-radius: 0.5rem;
+  background: #1f1f1f;
+  color: #fff;
+  font-size: 0.875rem;
+  padding: 0.85rem 1.5rem;
+  transform: translateX(-50%);
+}
+
+:root[data-theme='dark'] .ucs-settings-toast {
+  background: #e3e3e3;
+  color: #1f1f1f;
+}
+
+/* One sidebar treatment for every route — the chat rail must look
+   identical on the home surface and inside a run (no home/report
+   variants). */
+.ucs-side-content {
+  display: grid;
+  min-width: 0;
+  gap: 0.35rem;
+  margin-top: 1rem;
+  max-height: 22rem;
+  overflow: hidden;
+  opacity: 1;
+  visibility: visible;
+}
+
+/* "Chats" section heading: on-surface (dark in light, white in dark), matching
+   the reference's section labels. The sidebar uses a single font size (the nav
+   labels' 0.875rem); the heading is only distinguished by weight and color. Its
+   text is indented to the shared 0.75rem gutter so it lines up with the nav
+   icons and the chat item labels rather than sitting flush-left. */
+.ucs-side-heading {
+  margin: 1.15rem 0 0.55rem;
+  padding-inline: 0.75rem;
+  color: var(--cosci-text);
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.ucs-chat-list {
+  display: grid;
+  min-width: 0;
+  gap: 0.35rem;
+}
+
+/* Desktop: the chat area takes the height the rail actually has, between the
+   top actions and Settings, rather than a fixed cap that cut the list off
+   with the rail half empty. Mirrors the max-width:700px drawer rules further
+   down. The .ucs-app-shell prefix outranks tooltips.css, which forces
+   overflow:visible on these selectors at single-class specificity.
+
+   The list only becomes a scroll container when it has more chats than fit
+   (see useOverflowing): a scroll container clips its content whether or not a
+   scrollbar shows, which would cut off the chat-link tooltips that escape to
+   the right. Nothing to scroll -> no clipping -> tooltips work. */
+@media (min-width: 701px) {
+  .ucs-app-shell .ucs-nav-top--open {
+    display: flex;
+    min-height: 0;
+    flex: 1;
+    flex-direction: column;
+  }
+
+  .ucs-app-shell .ucs-side-content {
+    display: flex;
+    min-height: 0;
+    max-height: none;
+    flex: 1;
+    flex-direction: column;
+    overflow: visible;
+  }
+
+  .ucs-app-shell .ucs-chat-list {
+    min-height: 0;
+    max-height: none;
+    overflow: visible;
+  }
+
+  .ucs-app-shell .ucs-chat-list--scrollable {
+    overflow-x: hidden;
+    overflow-y: auto;
+  }
+}
+
+.ucs-chat-link {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  min-height: 2.35rem;
+  align-items: center;
+  overflow: visible;
+  border-radius: 9999px;
+  color: var(--cosci-shell-icon);
+  font-size: 0.875rem;
+  line-height: 2.35rem;
+  padding-inline: 0.75rem;
+  text-decoration: none;
+}
+
+.ucs-chat-link:hover,
+.ucs-chat-link:focus-visible {
+  background: var(--cosci-shell-hover-bg);
+  color: var(--cosci-shell-hover-text);
+}
+
+/* Active conversation: a persistent filled pill in the shell-hover tone, so the
+   chat the user is viewing stays highlighted in the rail (matches the
+   reference's selected conversation). */
+.ucs-chat-link--active,
+.ucs-chat-link--active:hover,
+.ucs-chat-link--active:focus-visible {
+  background: var(--cosci-shell-hover-bg);
+  color: var(--cosci-shell-hover-text);
+}
+
+:root[data-theme='dark'] .ucs-chat-link {
+  color: var(--cosci-muted);
+}
+
+:root[data-theme='dark'] .ucs-chat-link:hover,
+:root[data-theme='dark'] .ucs-chat-link:focus-visible,
+:root[data-theme='dark'] .ucs-chat-link--active,
+:root[data-theme='dark'] .ucs-chat-link--active:hover,
+:root[data-theme='dark'] .ucs-chat-link--active:focus-visible {
+  background: var(--cosci-shell-hover-bg);
+  color: var(--cosci-shell-hover-text);
+}
+
+.ucs-chat-label {
+  /* Fill the link's width regardless of content so word-boundary truncation
+     measures against the full available width (flex-basis:0 grow), not the
+     truncated text — otherwise the label collapses to its own clipped
+     content. */
+  flex: 1 1 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ucs-chat-more {
+  justify-self: start;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  border: 0;
+  border-radius: 9999px;
+  background: transparent;
+  color: var(--cosci-shell-icon);
+  font: inherit;
+  font-size: 0.84rem;
+  padding: 0.48rem 0.75rem;
+  cursor: pointer;
+}
+
+.ucs-chat-more:hover,
+.ucs-chat-more:focus-visible {
+  background: var(--cosci-shell-hover-bg);
+  color: var(--cosci-shell-hover-text);
+}
+
+:root[data-theme='dark'] .ucs-chat-more {
+  color: var(--cosci-muted);
+}
+
+:root[data-theme='dark'] .ucs-chat-more:hover,
+:root[data-theme='dark'] .ucs-chat-more:focus-visible {
+  background: var(--cosci-shell-hover-bg);
+  color: var(--cosci-shell-hover-text);
+}
+
