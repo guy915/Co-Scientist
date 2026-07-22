@@ -1,0 +1,113 @@
+import {render} from '@testing-library/react';
+import type {Report, ResearchOverview, RunWithSummary} from '@/api/runs';
+import {ResearchOverviewView} from './run_detail_overview';
+
+export function makeRun(
+  overrides: Partial<RunWithSummary> = {},
+): RunWithSummary {
+  return {
+    id: 'run-1',
+    research_goal: 'Study pathway X',
+    status: 'completed',
+    config: {},
+    created_at: 1_700_000_000,
+    completed_at: 1_700_000_000 + 3 * 3600,
+    ...overrides,
+  } as unknown as RunWithSummary;
+}
+
+export function makeReport(overrides: Partial<Report['payload']> = {}): Report {
+  return {
+    id: 'rep-1',
+    run_id: 'run-1',
+    markdown_path: '',
+    created_at: 1,
+    payload: {
+      research_goal: 'Study pathway X',
+      provider: 'mock',
+      leaderboard: [],
+      ...overrides,
+    },
+  } as unknown as Report;
+}
+
+export function makeFullOverviewSection(): ResearchOverview['overview'] {
+  return {
+    summary: 'A synthesized summary of the research.',
+    research_directions: [
+      {
+        title: 'Direction one',
+        importance: 'It matters because X.',
+        suggested_experiments: ['Experiment A', 'Experiment B'],
+      },
+      {
+        title: 'Direction two (no experiments)',
+        importance: 'It matters because Y.',
+        suggested_experiments: [],
+      },
+    ],
+  };
+}
+
+export function makeFullSpecificAims(): ResearchOverview['nih_specific_aims'] {
+  return {
+    introduction: 'An introduction to the aims.',
+    aims: [
+      {
+        aim: 'Aim 1: Do the thing',
+        rationale: 'Because reasons.',
+        approach: 'Via this approach.',
+      },
+    ],
+    impact: 'The impact statement.',
+  };
+}
+
+export function makeFullResearchContacts(): ResearchOverview['research_contacts'] {
+  return [
+    {
+      candidate_id: 'author-1-1',
+      name: 'Ada Researcher',
+      expertise: 'Fibrosis mechanisms',
+      justification: 'Authored a directly relevant analyzed paper.',
+      source_id: 'PMID:123',
+      source_title: 'A fibrosis study',
+      source_url: 'https://pubmed.ncbi.nlm.nih.gov/123/',
+      source: 'pubmed',
+    },
+  ];
+}
+
+export function makeFullReport(): Report {
+  return makeReport({
+    hypothesis_count: 2,
+    evidence_count: 11,
+    match_count: 3,
+    idea_buckets: {
+      high_potential: [
+        {id: 'h1', title: 'Leaderboard idea', reason: 'Released.'},
+      ],
+      non_viable: [{id: 'h3', title: 'Rejected idea', reason: 'Contradicted.'}],
+    },
+    leaderboard: [
+      {id: 'h1', title: 'Leaderboard idea', elo: 1735},
+      {id: 'h2', title: 'Second idea', elo: 1600},
+    ],
+    research_overview: {
+      overview: makeFullOverviewSection(),
+      nih_specific_aims: makeFullSpecificAims(),
+      research_contacts: makeFullResearchContacts(),
+    },
+  });
+}
+
+export function renderFullReport() {
+  render(
+    <ResearchOverviewView
+      run={makeRun()}
+      report={makeFullReport()}
+      hypotheses={[]}
+      matches={[]}
+    />,
+  );
+}

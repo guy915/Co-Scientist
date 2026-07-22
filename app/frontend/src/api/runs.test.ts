@@ -311,61 +311,59 @@ describe('listDemoRuns', () => {
   });
 });
 
-describe('loadRunHistory', () => {
-  it('merges owned and demo runs, de-duplicated by id and sorted newest first', async () => {
-    fetchMock().mockImplementation((url: string) => {
-      if (url.includes('/demo')) {
-        // Demo runs are appended after owned runs, so a shared id here wins
-        // the de-dup (later entries win ties in mergeByIdNewestFirst).
-        return Promise.resolve(
-          jsonResponse({
-            runs: [
-              {id: 'shared', updated_at: 99},
-              {id: 'other', updated_at: 50},
-            ],
-          }),
-        );
-      }
+it('merges owned and demo runs, de-duplicated by id and sorted newest first', async () => {
+  fetchMock().mockImplementation((url: string) => {
+    if (url.includes('/demo')) {
+      // Demo runs are appended after owned runs, so a shared id here wins
+      // the de-dup (later entries win ties in mergeByIdNewestFirst).
       return Promise.resolve(
-        jsonResponse({runs: [{id: 'shared', updated_at: 1}]}),
+        jsonResponse({
+          runs: [
+            {id: 'shared', updated_at: 99},
+            {id: 'other', updated_at: 50},
+          ],
+        }),
       );
-    });
-
-    const result = await loadRunHistory();
-
-    expect(result.map(run => run.id)).toEqual(['shared', 'other']);
-    expect(result.find(run => run.id === 'shared')?.updated_at).toBe(99);
+    }
+    return Promise.resolve(
+      jsonResponse({runs: [{id: 'shared', updated_at: 1}]}),
+    );
   });
 
-  it('degrades a failing demo source to an empty list without blocking owned runs', async () => {
-    fetchMock().mockImplementation((url: string) => {
-      if (url.includes('/demo')) {
-        return Promise.reject(new TypeError('Failed to fetch'));
-      }
-      return Promise.resolve(
-        jsonResponse({runs: [{id: 'owned', updated_at: 10}]}),
-      );
-    });
+  const result = await loadRunHistory();
 
-    const result = await loadRunHistory();
+  expect(result.map(run => run.id)).toEqual(['shared', 'other']);
+  expect(result.find(run => run.id === 'shared')?.updated_at).toBe(99);
+});
 
-    expect(result).toEqual([{id: 'owned', updated_at: 10}]);
-  });
-
-  it('degrades a failing owned-runs source to an empty list without blocking demo runs', async () => {
-    fetchMock().mockImplementation((url: string) => {
-      if (url.includes('/demo')) {
-        return Promise.resolve(
-          jsonResponse({runs: [{id: 'demo-1', updated_at: 10}]}),
-        );
-      }
+it('degrades a failing demo source to an empty list without blocking owned runs', async () => {
+  fetchMock().mockImplementation((url: string) => {
+    if (url.includes('/demo')) {
       return Promise.reject(new TypeError('Failed to fetch'));
-    });
-
-    const result = await loadRunHistory();
-
-    expect(result).toEqual([{id: 'demo-1', updated_at: 10}]);
+    }
+    return Promise.resolve(
+      jsonResponse({runs: [{id: 'owned', updated_at: 10}]}),
+    );
   });
+
+  const result = await loadRunHistory();
+
+  expect(result).toEqual([{id: 'owned', updated_at: 10}]);
+});
+
+it('degrades a failing owned-runs source to an empty list without blocking demo runs', async () => {
+  fetchMock().mockImplementation((url: string) => {
+    if (url.includes('/demo')) {
+      return Promise.resolve(
+        jsonResponse({runs: [{id: 'demo-1', updated_at: 10}]}),
+      );
+    }
+    return Promise.reject(new TypeError('Failed to fetch'));
+  });
+
+  const result = await loadRunHistory();
+
+  expect(result).toEqual([{id: 'demo-1', updated_at: 10}]);
 });
 
 describe('getReport', () => {

@@ -1,5 +1,5 @@
 import {fireEvent, render, screen} from '@testing-library/react';
-import {describe, expect, it, vi} from 'vitest';
+import {expect, test, vi} from 'vitest';
 import {Composer} from './chat_composer';
 
 function renderComposer(
@@ -16,99 +16,97 @@ function renderComposer(
   return props;
 }
 
-describe('Composer', () => {
-  it('forwards typed text to setInput', () => {
-    const {setInput} = renderComposer();
-    fireEvent.change(screen.getByRole('textbox'), {
-      target: {value: 'ferroptosis regulators'},
-    });
-    expect(setInput).toHaveBeenCalledWith('ferroptosis regulators');
+test('forwards typed text to setInput', () => {
+  const {setInput} = renderComposer();
+  fireEvent.change(screen.getByRole('textbox'), {
+    target: {value: 'ferroptosis regulators'},
   });
+  expect(setInput).toHaveBeenCalledWith('ferroptosis regulators');
+});
 
-  it('disables submit when the input is empty or whitespace', () => {
-    renderComposer({input: '   '});
-    const submit = screen.getByRole('button', {name: /send|start|research/i});
-    expect(submit).toBeDisabled();
-  });
+test('disables submit when the input is empty or whitespace', () => {
+  renderComposer({input: '   '});
+  const submit = screen.getByRole('button', {name: /send|start|research/i});
+  expect(submit).toBeDisabled();
+});
 
-  it('enables submit once there is real input', () => {
-    renderComposer({input: 'a goal'});
-    const submit = screen.getByRole('button', {name: /send|start|research/i});
-    expect(submit).toBeEnabled();
-  });
+test('enables submit once there is real input', () => {
+  renderComposer({input: 'a goal'});
+  const submit = screen.getByRole('button', {name: /send|start|research/i});
+  expect(submit).toBeEnabled();
+});
 
-  it('submits on Enter without shift', () => {
-    const {onSubmit} = renderComposer({input: 'a goal'});
-    fireEvent.keyDown(screen.getByRole('textbox'), {key: 'Enter'});
-    expect(onSubmit).toHaveBeenCalledOnce();
-  });
+test('submits on Enter without shift', () => {
+  const {onSubmit} = renderComposer({input: 'a goal'});
+  fireEvent.keyDown(screen.getByRole('textbox'), {key: 'Enter'});
+  expect(onSubmit).toHaveBeenCalledOnce();
+});
 
-  it('inserts a newline on Shift+Enter instead of submitting', () => {
-    const {onSubmit} = renderComposer({input: 'a goal'});
-    fireEvent.keyDown(screen.getByRole('textbox'), {
-      key: 'Enter',
-      shiftKey: true,
-    });
-    expect(onSubmit).not.toHaveBeenCalled();
+test('inserts a newline on Shift+Enter instead of submitting', () => {
+  const {onSubmit} = renderComposer({input: 'a goal'});
+  fireEvent.keyDown(screen.getByRole('textbox'), {
+    key: 'Enter',
+    shiftKey: true,
   });
+  expect(onSubmit).not.toHaveBeenCalled();
+});
 
-  it('does not submit on Enter while the submit button is disabled', () => {
-    // requestSubmit() ignores the submit button's disabled state, so Enter has
-    // to be gated on the same condition or it bypasses the greyed-out button.
-    const {onSubmit} = renderComposer({input: '   '});
-    fireEvent.keyDown(screen.getByRole('textbox'), {key: 'Enter'});
-    expect(onSubmit).not.toHaveBeenCalled();
-  });
+test('does not submit on Enter while the submit button is disabled', () => {
+  // requestSubmit() ignores the submit button's disabled state, so Enter has
+  // to be gated on the same condition or it bypasses the greyed-out button.
+  const {onSubmit} = renderComposer({input: '   '});
+  fireEvent.keyDown(screen.getByRole('textbox'), {key: 'Enter'});
+  expect(onSubmit).not.toHaveBeenCalled();
+});
 
-  it('blocks only submitting while the session is busy', () => {
-    renderComposer({input: 'a goal', busy: true});
-    // Busy means "there is nothing to send this to yet", not "go away": the
-    // textarea must stay usable so the next message can be written meanwhile.
-    expect(screen.getByRole('textbox')).toBeEnabled();
-    expect(
-      screen.getByRole('button', {name: /send|start|research/i}),
-    ).toBeDisabled();
-  });
+test('blocks only submitting while the session is busy', () => {
+  renderComposer({input: 'a goal', busy: true});
+  // Busy means "there is nothing to send this to yet", not "go away": the
+  // textarea must stay usable so the next message can be written meanwhile.
+  expect(screen.getByRole('textbox')).toBeEnabled();
+  expect(
+    screen.getByRole('button', {name: /send|start|research/i}),
+  ).toBeDisabled();
+});
 
-  it('keeps focus and accepts typing while the session is busy', () => {
-    const {setInput} = renderComposer({input: 'a goal', busy: true});
-    const textarea = screen.getByRole('textbox');
-    textarea.focus();
-    fireEvent.change(textarea, {target: {value: 'a goal, refined'}});
-    // Disabling a focused element blurs it, which is what used to eject the
-    // caret mid-response and force a click to get back in.
-    expect(textarea).toHaveFocus();
-    expect(setInput).toHaveBeenCalledWith('a goal, refined');
-  });
+test('keeps focus and accepts typing while the session is busy', () => {
+  const {setInput} = renderComposer({input: 'a goal', busy: true});
+  const textarea = screen.getByRole('textbox');
+  textarea.focus();
+  fireEvent.change(textarea, {target: {value: 'a goal, refined'}});
+  // Disabling a focused element blurs it, which is what used to eject the
+  // caret mid-response and force a click to get back in.
+  expect(textarea).toHaveFocus();
+  expect(setInput).toHaveBeenCalledWith('a goal, refined');
+});
 
-  it('takes focus on mount when asked, even while busy', () => {
-    // The in-conversation composer mounts busy, replacing the home one mid
-    // send; without this the caret lands on the body and typing needs a click.
-    renderComposer({input: 'a goal', busy: true, autoFocus: true});
-    expect(screen.getByRole('textbox')).toHaveFocus();
-  });
+test('takes focus on mount when asked, even while busy', () => {
+  // The in-conversation composer mounts busy, replacing the home one mid
+  // send; without this the caret lands on the body and typing needs a click.
+  renderComposer({input: 'a goal', busy: true, autoFocus: true});
+  expect(screen.getByRole('textbox')).toHaveFocus();
+});
 
-  it('does not take focus on mount by default', () => {
-    renderComposer();
-    expect(screen.getByRole('textbox')).not.toHaveFocus();
-  });
+test('does not take focus on mount by default', () => {
+  renderComposer();
+  expect(screen.getByRole('textbox')).not.toHaveFocus();
+});
 
-  it('does not submit on Enter while the session is busy', () => {
-    const {onSubmit} = renderComposer({input: 'a goal', busy: true});
-    fireEvent.keyDown(screen.getByRole('textbox'), {key: 'Enter'});
-    expect(onSubmit).not.toHaveBeenCalled();
-  });
+test('does not submit on Enter while the session is busy', () => {
+  const {onSubmit} = renderComposer({input: 'a goal', busy: true});
+  fireEvent.keyDown(screen.getByRole('textbox'), {key: 'Enter'});
+  expect(onSubmit).not.toHaveBeenCalled();
+});
 
-  it('submits again on Enter once the session is no longer busy', () => {
-    const props = {
-      input: 'a goal',
-      setInput: vi.fn(),
-      busy: true,
-      onSubmit: vi.fn((e: {preventDefault: () => void}) => e.preventDefault()),
-    };
-    const {rerender} = render(<Composer {...props} />);
-    rerender(<Composer {...props} busy={false} />);
-    fireEvent.keyDown(screen.getByRole('textbox'), {key: 'Enter'});
-    expect(props.onSubmit).toHaveBeenCalledOnce();
-  });
+test('submits again on Enter once the session is no longer busy', () => {
+  const props = {
+    input: 'a goal',
+    setInput: vi.fn(),
+    busy: true,
+    onSubmit: vi.fn((e: {preventDefault: () => void}) => e.preventDefault()),
+  };
+  const {rerender} = render(<Composer {...props} />);
+  rerender(<Composer {...props} busy={false} />);
+  fireEvent.keyDown(screen.getByRole('textbox'), {key: 'Enter'});
+  expect(props.onSubmit).toHaveBeenCalledOnce();
 });

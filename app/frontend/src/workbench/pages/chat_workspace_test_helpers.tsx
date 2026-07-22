@@ -3,7 +3,7 @@ import {MemoryRouter, useLocation} from 'react-router-dom';
 import {vi} from 'vitest';
 import type {Run} from '@/api/runs';
 import {makeHypothesis, makeRun} from '@/test_fixtures';
-import {AudienceProvider} from '../audience_context';
+import {AudienceProvider, type Audience} from '../audience_context';
 import {RunHistoryProvider} from '../hooks/run_history_context';
 import {ChatWorkspace} from './chat_workspace';
 
@@ -75,6 +75,61 @@ function LocationProbe() {
   const location = useLocation();
   return <div data-testid="location">{location.pathname}</div>;
 }
+
+/**
+ * Renders ChatWorkspace pinned to a specific audience. The Lab papers connector
+ * row is gated to the sbi_ucd audience, and {@link renderWorkspace} always
+ * resolves to 'general'. Mirrors that helper's provider stack so the
+ * `@/api/runs` mock it registers still applies.
+ *
+ * @param audience The audience to pin the workspace to.
+ * @returns The React Testing Library render result.
+ */
+export function renderWorkspaceAs(audience: Audience) {
+  return render(
+    <MemoryRouter>
+      <AudienceProvider initialAudience={audience}>
+        <RunHistoryProvider>
+          <ChatWorkspace />
+        </RunHistoryProvider>
+      </AudienceProvider>
+    </MemoryRouter>,
+  );
+}
+
+/**
+ * Drives the connectors menu off a real /status payload. Only the connectors
+ * list is read by the menu, so the rest of the response is left out. Must run
+ * after installChatWorkspaceMocks, which clears stubbed globals.
+ *
+ * @param connectors The connector rows the stubbed /status returns.
+ */
+export function stubStatusConnectors(
+  connectors: {id: string; display: string}[] = [
+    {id: 'pubmed', display: 'PubMed'},
+    {id: 'web_search', display: 'Web search'},
+  ],
+) {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({connectors}),
+      text: async () => '',
+    })) as unknown as typeof fetch,
+  );
+}
+
+/**
+ * Backend-ordered connectors (web, pubmed, corpus) including the SBI/UCD paper
+ * corpus, used by the audience-gated Lab papers connector tests.
+ */
+export const CORPUS_CONNECTORS = [
+  {id: 'web_search', display: 'Web search'},
+  {id: 'pubmed', display: 'PubMed'},
+  {id: 'paper_corpus', display: 'Lab papers'},
+];
 
 /**
  * Builds a minimal run record, merging in any per-test overrides.

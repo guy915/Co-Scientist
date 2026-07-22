@@ -56,113 +56,107 @@ describe('proposals data', () => {
   });
 });
 
-describe('proposals layout', () => {
-  it('positions every node', () => {
-    const missing = nodes.filter(node => !nodePositions[node.id]);
-    expect(missing).toEqual([]);
-  });
-
-  it('is deterministic across reads', () => {
-    const first = JSON.stringify(nodePositions);
-    const second = JSON.stringify(nodePositions);
-    expect(first).toBe(second);
-  });
-
-  it('keeps clustered nodes nearer their own group than another', () => {
-    // The grouping has to be visible spatially, not just by color.
-    const scaling = nodes.filter(node => node.cluster === 'scaling');
-    const knowledge = nodes.filter(node => node.cluster === 'knowledge');
-    const withinScaling = Math.max(
-      ...scaling.map(a =>
-        Math.min(
-          ...scaling
-            .filter(b => b.id !== a.id)
-            .map(b =>
-              Math.hypot(
-                nodePositions[a.id].x - nodePositions[b.id].x,
-                nodePositions[a.id].y - nodePositions[b.id].y,
-              ),
-            ),
-        ),
-      ),
-    );
-    const acrossGroups = Math.min(
-      ...scaling.flatMap(a =>
-        knowledge.map(b =>
-          Math.hypot(
-            nodePositions[a.id].x - nodePositions[b.id].x,
-            nodePositions[a.id].y - nodePositions[b.id].y,
-          ),
-        ),
-      ),
-    );
-    expect(withinScaling).toBeLessThan(acrossGroups);
-  });
-
-  it('separates the edges of a doubled pair', () => {
-    const doubled = edgeGeometry.filter(
-      ({edge}) =>
-        [edge.from, edge.to].includes('persistent-kb') &&
-        [edge.from, edge.to].includes('transitivity'),
-    );
-    expect(doubled).toHaveLength(2);
-    // Two edges between the same pair must not be drawn on top of each
-    // other; the router bows at least one of them off the straight line.
-    expect(doubled[0].path).not.toBe(doubled[1].path);
-    expect(doubled.some(geometry => geometry.path.includes('Q'))).toBe(true);
-  });
-
-  it('draws a lone edge straight', () => {
-    const single = edgeGeometry.find(
-      ({edge}) =>
-        edge.from === 'live-session' && edge.to === 'question-generation',
-    );
-    expect(single?.path).toContain('L');
-    expect(single?.path).not.toContain('Q');
-  });
+it('positions every node', () => {
+  const missing = nodes.filter(node => !nodePositions[node.id]);
+  expect(missing).toEqual([]);
 });
 
-describe('relations', () => {
-  it('makes brute-force the most connected proposal', () => {
-    // The page's central claim: most of the tension routes through it.
-    // Degree counts every touching edge, including both of a doubled pair.
-    const degreeOf = (id: string) =>
-      edges.filter(edge => edge.from === id || edge.to === id).length;
-    const degrees = nodes.map(node => degreeOf(node.id));
-    expect(degreeOf('brute-force')).toBe(Math.max(...degrees));
-  });
+it('is deterministic across reads', () => {
+  const first = JSON.stringify(nodePositions);
+  const second = JSON.stringify(nodePositions);
+  expect(first).toBe(second);
+});
 
-  it('reverses directed phrasing for the inbound side', () => {
-    // live-session enables question-generation, so the relationship reads
-    // one way from each end.
-    const outbound = relationsOf('live-session').find(
-      relation => relation.other.id === 'question-generation',
-    );
-    const inbound = relationsOf('question-generation').find(
-      relation => relation.other.id === 'live-session',
-    );
-    expect(outbound?.phrase).toBe('is a prerequisite for');
-    expect(inbound?.phrase).toBe('depends on');
-  });
+it('keeps clustered nodes nearer their own group than another', () => {
+  // The grouping has to be visible spatially, not just by color.
+  const scaling = nodes.filter(node => node.cluster === 'scaling');
+  const knowledge = nodes.filter(node => node.cluster === 'knowledge');
+  const withinScaling = Math.max(
+    ...scaling.map(a =>
+      Math.min(
+        ...scaling
+          .filter(b => b.id !== a.id)
+          .map(b =>
+            Math.hypot(
+              nodePositions[a.id].x - nodePositions[b.id].x,
+              nodePositions[a.id].y - nodePositions[b.id].y,
+            ),
+          ),
+      ),
+    ),
+  );
+  const acrossGroups = Math.min(
+    ...scaling.flatMap(a =>
+      knowledge.map(b =>
+        Math.hypot(
+          nodePositions[a.id].x - nodePositions[b.id].x,
+          nodePositions[a.id].y - nodePositions[b.id].y,
+        ),
+      ),
+    ),
+  );
+  expect(withinScaling).toBeLessThan(acrossGroups);
+});
 
-  it('reads undirected kinds the same from both ends', () => {
-    const forward = relationsOf('brute-force').find(
-      relation =>
-        relation.other.id === 'live-session' && relation.kind === 'tension',
-    );
-    const back = relationsOf('live-session').find(
-      relation =>
-        relation.other.id === 'brute-force' && relation.kind === 'tension',
-    );
-    expect(forward?.phrase).toBe(back?.phrase);
-  });
+it('separates the edges of a doubled pair', () => {
+  const doubled = edgeGeometry.filter(
+    ({edge}) =>
+      [edge.from, edge.to].includes('persistent-kb') &&
+      [edge.from, edge.to].includes('transitivity'),
+  );
+  expect(doubled).toHaveLength(2);
+  // Two edges between the same pair must not be drawn on top of each
+  // other; the router bows at least one of them off the straight line.
+  expect(doubled[0].path).not.toBe(doubled[1].path);
+  expect(doubled.some(geometry => geometry.path.includes('Q'))).toBe(true);
+});
 
-  it('groups a node relations by kind in legend order', () => {
-    const order = EDGE_KINDS.map(entry => entry.kind);
-    const kinds = relationsOf('brute-force').map(relation => relation.kind);
-    const sorted = [...kinds].sort(
-      (a, b) => order.indexOf(a) - order.indexOf(b),
-    );
-    expect(kinds).toEqual(sorted);
-  });
+it('draws a lone edge straight', () => {
+  const single = edgeGeometry.find(
+    ({edge}) =>
+      edge.from === 'live-session' && edge.to === 'question-generation',
+  );
+  expect(single?.path).toContain('L');
+  expect(single?.path).not.toContain('Q');
+});
+
+it('makes brute-force the most connected proposal', () => {
+  // The page's central claim: most of the tension routes through it.
+  // Degree counts every touching edge, including both of a doubled pair.
+  const degreeOf = (id: string) =>
+    edges.filter(edge => edge.from === id || edge.to === id).length;
+  const degrees = nodes.map(node => degreeOf(node.id));
+  expect(degreeOf('brute-force')).toBe(Math.max(...degrees));
+});
+
+it('reverses directed phrasing for the inbound side', () => {
+  // live-session enables question-generation, so the relationship reads
+  // one way from each end.
+  const outbound = relationsOf('live-session').find(
+    relation => relation.other.id === 'question-generation',
+  );
+  const inbound = relationsOf('question-generation').find(
+    relation => relation.other.id === 'live-session',
+  );
+  expect(outbound?.phrase).toBe('is a prerequisite for');
+  expect(inbound?.phrase).toBe('depends on');
+});
+
+it('reads undirected kinds the same from both ends', () => {
+  const forward = relationsOf('brute-force').find(
+    relation =>
+      relation.other.id === 'live-session' && relation.kind === 'tension',
+  );
+  const back = relationsOf('live-session').find(
+    relation =>
+      relation.other.id === 'brute-force' && relation.kind === 'tension',
+  );
+  expect(forward?.phrase).toBe(back?.phrase);
+});
+
+it('groups a node relations by kind in legend order', () => {
+  const order = EDGE_KINDS.map(entry => entry.kind);
+  const kinds = relationsOf('brute-force').map(relation => relation.kind);
+  const sorted = [...kinds].sort((a, b) => order.indexOf(a) - order.indexOf(b));
+  expect(kinds).toEqual(sorted);
 });

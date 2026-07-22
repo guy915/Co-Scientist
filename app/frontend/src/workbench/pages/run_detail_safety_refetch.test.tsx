@@ -1,6 +1,8 @@
-import {screen} from '@testing-library/react';
+import {fireEvent, render, screen, waitFor} from '@testing-library/react';
+import {MemoryRouter, Route, Routes} from 'react-router-dom';
 import {beforeEach, expect, it, vi} from 'vitest';
 import * as runsApi from '@/api/runs';
+import {RunDetail} from './run_detail';
 import {makeRun, renderAt} from './run_detail_test_support';
 
 // Controllable stream mock: tests mutate `streamState` then rerender to drive
@@ -69,41 +71,70 @@ beforeEach(() => {
   vi.mocked(runsApi.getSafety).mockResolvedValue([]);
 });
 
-it('shows truthful live metrics and activity instead of report controls', async () => {
-  vi.mocked(runsApi.getRun).mockResolvedValue({
-    ...makeRun('Study pathway X'),
-    status: 'running',
-    execution_progress: {
-      determinate: false,
-      completed_tasks: 4,
-      total_tasks: 9,
-      fraction: null,
-      active_task: 'engine.node.generate',
-      queued_tasks: 3,
+it('shows and adjudicates held safety decisions', async () => {
+  vi.mocked(runsApi.getSafety).mockResolvedValue([
+    {
+      id: 7,
+      stage: 'intake',
+      decision: 'hold',
+      reason: 'Ambiguous dual-use intent.',
+      matches: [],
+      category: 'uncertain',
+      policy_version: 'coscientist-safety-v2',
+      risk_domains: ['biology'],
+      requires_review: true,
+      assessor: 'semantic:test-model',
+      resolution: null,
     },
-  });
-  setStream([{seq: 1, type: 'scientific_task', payload: {task: 'generate'}}]);
-
+  ]);
   renderAt('/runs/run-1/specifications');
 
-  expect(await screen.findByText('Research in progress')).toBeInTheDocument();
-  expect(screen.getByText('Time remaining')).toBeInTheDocument();
-  expect(screen.getByText('Estimating…')).toBeInTheDocument();
-  expect(screen.getByText('Sources Analyzed')).toBeInTheDocument();
-  expect(screen.getByText('Ideas explored')).toBeInTheDocument();
-  expect(screen.getByText('Engine Node Generate')).toBeInTheDocument();
-  const activityLog = screen.getByRole('region', {name: 'Activity log'});
-  // The timeline maps the scientific_task's node (payload.task 'generate')
-  // to its human phase title.
-  expect(activityLog).toHaveTextContent('Live activity');
-  expect(activityLog).toHaveTextContent('Generating hypotheses');
-  expect(screen.queryByText('Open in NotebookLM')).toBeNull();
-  expect(screen.queryByRole('link', {name: 'Download'})).toBeNull();
-  expect(screen.queryByText('Run Specifications')).toBeNull();
+  expect(
+    await screen.findByRole('heading', {name: 'Safety audit'}),
+  ).toBeInTheDocument();
+  fireEvent.click(
+    screen.getByRole('button', {name: 'Approve for research use'}),
+  );
+  await waitFor(() =>
+    expect(runsApi.adjudicateSafety).toHaveBeenCalledWith(
+      'run-1',
+      7,
+      'approved',
+    ),
+  );
 });
 
-it('shows a skeleton while loading, then the goal details', async () => {
-  renderAt('/runs/run-1/specifications');
-  expect(document.querySelector('[aria-busy="true"]')).toBeInTheDocument();
-  expect(await screen.findByText('Run Specifications')).toBeInTheDocument();
+it('refetches on a coalesced batch that ends in status but carries data', async () => {
+  const getRun = vi.mocked(runsApi.getRun);
+  // A fresh element each render — passing the same reference makes React
+  // bail out of re-rendering, so the mutated stream would never be re-read.
+  const makeUi = () => (
+    <MemoryRouter initialEntries={['/runs/run-1/specifications']}>
+      <Routes>
+        <Route path="/runs/:id" element={<RunDetail />} />
+        <Route path="/runs/:id/:tab" element={<RunDetail />} />
+      </Routes>
+    </MemoryRouter>
+  );
+  const {rerender} = render(makeUi());
+  await screen.findByText('Run Specifications');
+  const afterMount = getRun.mock.calls.length;
+
+  // A pure-status delta must not refetch (preserves the original filter).
+  setStream([{seq: 1, type: 'status', payload: {}}]);
+  rerender(makeUi());
+  expect(getRun.mock.calls.length).toBe(afterMount);
+
+  // A batch whose newest event is 'status' but which carries a data event
+  // must still refetch. The old tail-only check skipped this; the batch
+  // scan fixes it. This assertion fails against the pre-fix implementation.
+  setStream([
+    {seq: 1, type: 'status', payload: {}},
+    {seq: 2, type: 'generate', payload: {}},
+    {seq: 3, type: 'status', payload: {}},
+  ]);
+  rerender(makeUi());
+  await waitFor(() =>
+    expect(getRun.mock.calls.length).toBeGreaterThan(afterMount),
+  );
 });

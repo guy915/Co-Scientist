@@ -1,5 +1,5 @@
 import {fireEvent, screen, waitFor} from '@testing-library/react';
-import {beforeEach, describe, expect, it, vi} from 'vitest';
+import {beforeEach, expect, it, vi} from 'vitest';
 import {
   apiMock,
   installChatWorkspaceMocks,
@@ -104,139 +104,137 @@ async function startRunFromSpec() {
   });
 }
 
-describe('ChatWorkspace run flow', () => {
-  it('shows request and response action controls in the chat transcript', async () => {
-    const spies = installClipboardAndDownloadSpies();
+it('shows request and response action controls in the chat transcript', async () => {
+  const spies = installClipboardAndDownloadSpies();
 
-    renderWorkspace();
-    submitResearchGoal();
+  renderWorkspace();
+  submitResearchGoal();
 
-    expect(await screen.findByLabelText('Copy prompt')).toBeInTheDocument();
-    expect(screen.getByLabelText('Edit prompt')).toBeInTheDocument();
-    expect(screen.getAllByLabelText('Retry response')).not.toHaveLength(0);
-    expect(screen.getAllByLabelText('Copy response')).not.toHaveLength(0);
-    expect(screen.getAllByLabelText('Download response')).not.toHaveLength(0);
+  expect(await screen.findByLabelText('Copy prompt')).toBeInTheDocument();
+  expect(screen.getByLabelText('Edit prompt')).toBeInTheDocument();
+  expect(screen.getAllByLabelText('Retry response')).not.toHaveLength(0);
+  expect(screen.getAllByLabelText('Copy response')).not.toHaveLength(0);
+  expect(screen.getAllByLabelText('Download response')).not.toHaveLength(0);
 
-    fireEvent.click(screen.getByLabelText('Edit prompt'));
-    expect(screen.getByRole('textbox')).toHaveValue(RESEARCH_GOAL);
+  fireEvent.click(screen.getByLabelText('Edit prompt'));
+  expect(screen.getByRole('textbox')).toHaveValue(RESEARCH_GOAL);
 
-    fireEvent.click(screen.getByLabelText('Copy prompt'));
-    await waitFor(() => {
-      expect(spies.writeText).toHaveBeenCalledWith(RESEARCH_GOAL);
-    });
-    expect(
-      screen.getByRole('heading', {name: 'Research plan'}),
-    ).toBeInTheDocument();
+  fireEvent.click(screen.getByLabelText('Copy prompt'));
+  await waitFor(() => {
+    expect(spies.writeText).toHaveBeenCalledWith(RESEARCH_GOAL);
+  });
+  expect(
+    screen.getByRole('heading', {name: 'Research plan'}),
+  ).toBeInTheDocument();
 
-    fireEvent.click(screen.getAllByLabelText('Copy response').at(-1)!);
-    await waitFor(() => {
-      expect(spies.writeText).toHaveBeenCalledWith(
-        expect.stringContaining('# Cold-stress glucose homeostasis'),
-      );
-    });
-
-    fireEvent.click(screen.getAllByLabelText('Download response').at(-1)!);
-    expect(spies.createObjectURL).toHaveBeenCalled();
-    expect(spies.createObjectURL.mock.calls[0][0].type).toBe(
-      'text/markdown;charset=utf-8',
+  fireEvent.click(screen.getAllByLabelText('Copy response').at(-1)!);
+  await waitFor(() => {
+    expect(spies.writeText).toHaveBeenCalledWith(
+      expect.stringContaining('# Cold-stress glucose homeostasis'),
     );
-    expect(spies.downloadedNames).toContain('co-scientist-research-plan.md');
-    expect(spies.anchorClick).toHaveBeenCalled();
-    expect(spies.revokeObjectURL).toHaveBeenCalledWith(RESPONSE_BLOB_URL);
   });
 
-  it('cancels a draft setup back to the home screen with a toast', async () => {
-    renderWorkspace();
+  fireEvent.click(screen.getAllByLabelText('Download response').at(-1)!);
+  expect(spies.createObjectURL).toHaveBeenCalled();
+  expect(spies.createObjectURL.mock.calls[0][0].type).toBe(
+    'text/markdown;charset=utf-8',
+  );
+  expect(spies.downloadedNames).toContain('co-scientist-research-plan.md');
+  expect(spies.anchorClick).toHaveBeenCalled();
+  expect(spies.revokeObjectURL).toHaveBeenCalledWith(RESPONSE_BLOB_URL);
+});
 
-    const input = screen.getByRole('textbox');
-    fireEvent.change(input, {
-      target: {value: 'Investigate glucose homeostasis under cold stress.'},
-    });
-    fireEvent.submit(input.closest('form')!);
+it('cancels a draft setup back to the home screen with a toast', async () => {
+  renderWorkspace();
 
-    expect(
-      await screen.findByRole('heading', {name: 'Research plan'}),
-    ).toBeInTheDocument();
-
-    fireEvent.click(screen.getByText('Cancel'));
-
-    expect(
-      screen.getByRole('heading', {
-        name: 'What breakthrough should we make today?',
-      }),
-    ).toBeInTheDocument();
-    expect(screen.getByText('The session was canceled')).toBeInTheDocument();
-    expect(screen.queryByRole('heading', {name: 'Research plan'})).toBeNull();
+  const input = screen.getByRole('textbox');
+  fireEvent.change(input, {
+    target: {value: 'Investigate glucose homeostasis under cold stress.'},
   });
+  fireEvent.submit(input.closest('form')!);
 
-  it('infers a run spec in chat from the research goal', async () => {
-    await driveToRunSpec();
+  expect(
+    await screen.findByRole('heading', {name: 'Research plan'}),
+  ).toBeInTheDocument();
 
-    expect(screen.queryByText('AI Co-Scientist')).toBeNull();
-    expect(
-      screen.getByRole('heading', {name: 'Research plan'}),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText("Here's my plan to tackle the topic:"),
-    ).toBeInTheDocument();
-    expect(
-      screen
-        .getByRole('heading', {
-          name: 'Cold-stress glucose homeostasis',
-        })
-        .closest('.reference-setup-document'),
-    ).not.toBeNull();
-    expect(screen.getByText('Cancel')).toBeInTheDocument();
-    expect(screen.getByRole('group', {name: 'Focus'})).toBeInTheDocument();
-    expect(screen.getByRole('group', {name: 'Run type'})).toBeInTheDocument();
-    expect(screen.getByLabelText(/Standard/i)).toBeChecked();
-  });
+  fireEvent.click(screen.getByText('Cancel'));
 
-  it('starts the durable run on confirmation', async () => {
-    await driveToRunSpec();
-    await startRunFromSpec();
+  expect(
+    screen.getByRole('heading', {
+      name: 'What breakthrough should we make today?',
+    }),
+  ).toBeInTheDocument();
+  expect(screen.getByText('The session was canceled')).toBeInTheDocument();
+  expect(screen.queryByRole('heading', {name: 'Research plan'})).toBeNull();
+});
 
-    expect(screen.getByTestId('location')).toHaveTextContent('/');
-    expect(
-      await screen.findByText(
-        /Your session has been started and Co-Scientist has started research/,
-      ),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole('heading', {name: 'Research plan'}),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole('heading', {
+it('infers a run spec in chat from the research goal', async () => {
+  await driveToRunSpec();
+
+  expect(screen.queryByText('AI Co-Scientist')).toBeNull();
+  expect(
+    screen.getByRole('heading', {name: 'Research plan'}),
+  ).toBeInTheDocument();
+  expect(
+    screen.getByText("Here's my plan to tackle the topic:"),
+  ).toBeInTheDocument();
+  expect(
+    screen
+      .getByRole('heading', {
         name: 'Cold-stress glucose homeostasis',
-      }),
-    ).toBeInTheDocument();
-    expect(screen.getByRole('button', {name: 'Start research'})).toBeDisabled();
-    expect(screen.getByText('Research session')).toBeInTheDocument();
-    expect(screen.getByRole('button', {name: /Open/i})).toBeInTheDocument();
-    expect(
-      screen.getByRole('button', {name: 'View session details'}),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole('button', {
-        name: 'Start a new research goal session on a new topic',
-      }),
-    ).toBeInTheDocument();
-    expect(screen.queryByText('Report ready')).not.toBeInTheDocument();
-    expect(
-      screen.queryByText('Mitochondrial feedback hypothesis'),
-    ).not.toBeInTheDocument();
-  });
+      })
+      .closest('.reference-setup-document'),
+  ).not.toBeNull();
+  expect(screen.getByText('Cancel')).toBeInTheDocument();
+  expect(screen.getByRole('group', {name: 'Focus'})).toBeInTheDocument();
+  expect(screen.getByRole('group', {name: 'Run type'})).toBeInTheDocument();
+  expect(screen.getByLabelText(/Standard/i)).toBeChecked();
+});
 
-  it('opens the started run detail from the session card', async () => {
-    await driveToRunSpec();
-    await startRunFromSpec();
+it('starts the durable run on confirmation', async () => {
+  await driveToRunSpec();
+  await startRunFromSpec();
 
-    fireEvent.click(screen.getByRole('button', {name: /Open/i}));
+  expect(screen.getByTestId('location')).toHaveTextContent('/');
+  expect(
+    await screen.findByText(
+      /Your session has been started and Co-Scientist has started research/,
+    ),
+  ).toBeInTheDocument();
+  expect(
+    screen.getByRole('heading', {name: 'Research plan'}),
+  ).toBeInTheDocument();
+  expect(
+    screen.getByRole('heading', {
+      name: 'Cold-stress glucose homeostasis',
+    }),
+  ).toBeInTheDocument();
+  expect(screen.getByRole('button', {name: 'Start research'})).toBeDisabled();
+  expect(screen.getByText('Research session')).toBeInTheDocument();
+  expect(screen.getByRole('button', {name: /Open/i})).toBeInTheDocument();
+  expect(
+    screen.getByRole('button', {name: 'View session details'}),
+  ).toBeInTheDocument();
+  expect(
+    screen.getByRole('button', {
+      name: 'Start a new research goal session on a new topic',
+    }),
+  ).toBeInTheDocument();
+  expect(screen.queryByText('Report ready')).not.toBeInTheDocument();
+  expect(
+    screen.queryByText('Mitochondrial feedback hypothesis'),
+  ).not.toBeInTheDocument();
+});
 
-    await waitFor(() => {
-      expect(screen.getByTestId('location')).toHaveTextContent(
-        '/runs/run-1/details',
-      );
-    });
+it('opens the started run detail from the session card', async () => {
+  await driveToRunSpec();
+  await startRunFromSpec();
+
+  fireEvent.click(screen.getByRole('button', {name: /Open/i}));
+
+  await waitFor(() => {
+    expect(screen.getByTestId('location')).toHaveTextContent(
+      '/runs/run-1/details',
+    );
   });
 });
