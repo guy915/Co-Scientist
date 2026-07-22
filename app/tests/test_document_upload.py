@@ -143,8 +143,19 @@ def test_image_upload_is_ocr_extracted_with_multimodal_provenance(
 
 
 def test_invalid_image_is_rejected_without_persisting_evidence(
-    isolated_db: str,
+    isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    from app import document_ingest
+
+    # Force the decode-failure path so the assertion holds regardless of
+    # whether Tesseract is installed on the runner; without a monkeypatch,
+    # a runner missing the binary raises "image OCR is unavailable" instead.
+    def _raise_decode_failure(_data: bytes) -> str:
+        raise ValueError("image could not be decoded or OCR failed")
+
+    monkeypatch.setattr(
+        document_ingest, "_extract_image_ocr", _raise_decode_failure
+    )
     client, run_id = _client_with_run("Inspect private figure")
 
     response = client.post(
