@@ -8,7 +8,9 @@ from app import store
 
 
 def _run(db: str) -> str:
-    return store.create_run("goal", "standard", "mock", {}, db_path=db).id
+    return store.create_run(
+        "goal", "standard", "mock", {}, store.RunCreateOptions(db_path=db)
+    ).id
 
 
 def test_save_and_get_latest_checkpoint(isolated_db: str) -> None:
@@ -19,18 +21,22 @@ def test_save_and_get_latest_checkpoint(isolated_db: str) -> None:
 
     seq1 = store.save_checkpoint(
         run_id,
-        stage="post_generation",
-        schema_version=1,
-        last_event_seq=5,
-        state={"hyp_ids": ["a", "b"]},
+        store.NewCheckpoint(
+            stage="post_generation",
+            schema_version=1,
+            last_event_seq=5,
+            state={"hyp_ids": ["a", "b"]},
+        ),
         db_path=isolated_db,
     )
     seq2 = store.save_checkpoint(
         run_id,
-        stage="post_ranking",
-        schema_version=1,
-        last_event_seq=12,
-        state={"hyp_ids": ["a", "b"], "round": 1},
+        store.NewCheckpoint(
+            stage="post_ranking",
+            schema_version=1,
+            last_event_seq=12,
+            state={"hyp_ids": ["a", "b"], "round": 1},
+        ),
         db_path=isolated_db,
     )
     assert (seq1, seq2) == (1, 2)
@@ -50,10 +56,9 @@ def test_checkpoints_are_run_scoped(isolated_db: str) -> None:
     run_b = _run(isolated_db)
     store.save_checkpoint(
         run_a,
-        stage="s",
-        schema_version=1,
-        last_event_seq=1,
-        state={"x": 1},
+        store.NewCheckpoint(
+            stage="s", schema_version=1, last_event_seq=1, state={"x": 1}
+        ),
         db_path=isolated_db,
     )
     assert store.has_checkpoint(run_a, db_path=isolated_db)
@@ -92,10 +97,12 @@ def test_saving_prunes_the_checkpoints_it_supersedes(isolated_db: str) -> None:
     for i in range(5):
         store.save_checkpoint(
             run_id,
-            stage=f"stage_{i}",
-            schema_version=1,
-            last_event_seq=i,
-            state={"round": i},
+            store.NewCheckpoint(
+                stage=f"stage_{i}",
+                schema_version=1,
+                last_event_seq=i,
+                state={"round": i},
+            ),
             db_path=isolated_db,
         )
 
@@ -117,10 +124,12 @@ def test_pruning_is_per_run(isolated_db: str) -> None:
         for i in range(3):
             store.save_checkpoint(
                 run_id,
-                stage=f"s{i}",
-                schema_version=1,
-                last_event_seq=i,
-                state={"run": run_id, "round": i},
+                store.NewCheckpoint(
+                    stage=f"s{i}",
+                    schema_version=1,
+                    last_event_seq=i,
+                    state={"run": run_id, "round": i},
+                ),
                 db_path=isolated_db,
             )
 
@@ -160,10 +169,9 @@ def test_prune_superseded_is_idempotent(isolated_db: str) -> None:
     run_id = _run(isolated_db)
     store.save_checkpoint(
         run_id,
-        stage="only",
-        schema_version=1,
-        last_event_seq=1,
-        state={},
+        store.NewCheckpoint(
+            stage="only", schema_version=1, last_event_seq=1, state={}
+        ),
         db_path=isolated_db,
     )
 

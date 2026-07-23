@@ -13,7 +13,11 @@ from typing import Any
 
 import pytest
 
-from co_scientist.llm import call_llm_with_tools
+from co_scientist.llm import (
+    CompletionSpec,
+    ToolLoop,
+    call_llm_with_tools,
+)
 from tests._llm_fake import disable_llm_cache as _disable_cache
 from tests._llm_wrapper_fakes import (
     SEARCH_TOOL as _SEARCH_TOOL,
@@ -84,9 +88,8 @@ async def test_call_llm_with_tools_runs_executor_then_finishes(
 
     final_text, history = await call_llm_with_tools(
         "a prompt",
-        "test-model",
-        tools=_SEARCH_TOOL,
-        tool_executor=tool_executor,
+        CompletionSpec(model_name="test-model"),
+        ToolLoop(tools=_SEARCH_TOOL, executor=tool_executor),
     )
 
     assert final_text == "final answer"
@@ -113,9 +116,8 @@ async def test_call_llm_with_tools_no_tool_calls_returns_immediately(
 
     final_text, history = await call_llm_with_tools(
         "a prompt",
-        "test-model",
-        tools=_SEARCH_TOOL,
-        tool_executor=tool_executor,
+        CompletionSpec(model_name="test-model"),
+        ToolLoop(tools=_SEARCH_TOOL, executor=tool_executor),
     )
 
     assert final_text == "direct answer"
@@ -157,9 +159,8 @@ async def test_tool_loop_applies_provider_quirks(
 
     await call_llm_with_tools(
         "a prompt",
-        "dashscope/deepseek-v4-pro",
-        tools=_SEARCH_TOOL,
-        tool_executor=_raising_tool_executor,
+        CompletionSpec(model_name="dashscope/deepseek-v4-pro"),
+        ToolLoop(tools=_SEARCH_TOOL, executor=_raising_tool_executor),
     )
     assert captured["extra_body"] == {"enable_thinking": True}
     assert "reasoning_effort" not in captured
@@ -167,9 +168,8 @@ async def test_tool_loop_applies_provider_quirks(
 
     await call_llm_with_tools(
         "a prompt",
-        "deepseek/deepseek-v4-pro",
-        tools=_SEARCH_TOOL,
-        tool_executor=_raising_tool_executor,
+        CompletionSpec(model_name="deepseek/deepseek-v4-pro"),
+        ToolLoop(tools=_SEARCH_TOOL, executor=_raising_tool_executor),
     )
     assert captured["reasoning_effort"] == "low"
 

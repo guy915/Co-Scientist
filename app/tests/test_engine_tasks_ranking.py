@@ -7,6 +7,7 @@ from tests._engine_tasks_helpers import (
     _drain_ranking_matches,
     _install_concurrency_tracking_judge,
     _install_plain_fake_judge,
+    _RankingSeed,
     _run_ranking_node,
     _running_ranking_events,
     _seed_ranking_node,
@@ -29,10 +30,12 @@ async def test_long_tournament_reports_progress_between_its_matches(
     _seed_ranking_node(
         run.id,
         monkeypatch,
-        hypothesis_count=4,
-        tournament_pairs=12,
-        idempotency_key="ranking-node",
-        db_path=isolated_db,
+        _RankingSeed(
+            hypothesis_count=4,
+            tournament_pairs=12,
+            idempotency_key="ranking-node",
+        ),
+        isolated_db,
     )
     _install_plain_fake_judge(monkeypatch)
 
@@ -68,10 +71,12 @@ async def test_tournament_judges_a_wave_of_matchups_concurrently(
     _seed_ranking_node(
         run.id,
         monkeypatch,
-        hypothesis_count=6,
-        tournament_pairs=12,
-        idempotency_key="wave-ranking-node",
-        db_path=isolated_db,
+        _RankingSeed(
+            hypothesis_count=6,
+            tournament_pairs=12,
+            idempotency_key="wave-ranking-node",
+        ),
+        isolated_db,
     )
     tracker = _install_concurrency_tracking_judge(monkeypatch)
 
@@ -107,10 +112,12 @@ async def test_tournament_wave_fills_to_the_configured_size(
     _seed_ranking_node(
         run.id,
         monkeypatch,
-        hypothesis_count=8,
-        tournament_pairs=20,
-        idempotency_key="wave-size-ranking-node",
-        db_path=isolated_db,
+        _RankingSeed(
+            hypothesis_count=8,
+            tournament_pairs=20,
+            idempotency_key="wave-size-ranking-node",
+        ),
+        isolated_db,
     )
     _install_plain_fake_judge(monkeypatch)
 

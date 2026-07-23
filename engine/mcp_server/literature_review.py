@@ -12,13 +12,13 @@ from mcp_server.pubmed_client import _parse_authors as _parse_authors
 from mcp_server.shared_pool import (
     _load_shared_pool_candidate as _load_shared_pool_candidate,
 )
+from mcp_server.shared_pool import _PoolDirs, _SharedPoolMixin
 from mcp_server.shared_pool import (
     _scan_shared_pool_candidates as _scan_shared_pool_candidates,
 )
 from mcp_server.shared_pool import (
     _shared_pool_paper_year as _shared_pool_paper_year,
 )
-from mcp_server.shared_pool import _SharedPoolMixin
 
 if TYPE_CHECKING:
     # asyncio is imported lazily inside the async methods below (see their
@@ -60,9 +60,7 @@ class PubmedSource(_SharedPoolMixin):
         query: str,
         max_papers: int,
         recency_years: int,
-        shared_dir: Path,
-        run_dir: Path | None,
-        semaphore: "asyncio.Semaphore",
+        run: "_PubmedRun",
     ) -> dict[str, Any]:
         """Searches PubMed and fetches metadata for a buffer of candidates.
 
@@ -73,9 +71,7 @@ class PubmedSource(_SharedPoolMixin):
             query: PubMed boolean query.
             max_papers: Target number of papers WITH fulltext to collect.
             recency_years: Filter to papers from last N years (0 = no filter).
-            shared_dir: Shared-pool directory holding cached metadata files.
-            run_dir: Per-run directory for symlinks, or None if untracked.
-            semaphore: Concurrency limiter shared with fulltext download.
+            run: Filesystem and concurrency context for this search run.
 
         Returns:
             Dict mapping paper_id to metadata for every paper fetched
@@ -91,7 +87,7 @@ class PubmedSource(_SharedPoolMixin):
             query, retmax=search_buffer, recency_years=recency_years
         )
         return await self._gather_paper_metadata(
-            paper_ids, shared_dir, run_dir, semaphore
+            paper_ids, run.shared_dir, run.run_dir, run.semaphore
         )
 
     def _select_fulltext_papers(
@@ -253,8 +249,7 @@ class PubmedSource(_SharedPoolMixin):
         """
         if fulltext_shortfall > 0 and run.run_dir:
             self._supplement_from_shared_pool(
-                run.shared_dir,
-                run.run_dir,
+                _PoolDirs(shared_dir=run.shared_dir, run_dir=run.run_dir),
                 papers_to_use,
                 all_details,
                 fulltext_shortfall,
@@ -323,12 +318,7 @@ class PubmedSource(_SharedPoolMixin):
         """
         run = self._build_run(query, slug, max_papers, run_id)
         all_details = await self._search_and_collect_metadata(
-            query,
-            max_papers,
-            recency_years,
-            run.shared_dir,
-            run.run_dir,
-            run.semaphore,
+            query, max_papers, recency_years, run
         )
         papers_to_use, fulltext_shortfall = self._select_fulltext_papers(
             all_details, max_papers

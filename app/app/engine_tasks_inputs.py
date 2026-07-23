@@ -22,16 +22,18 @@ def enqueue_bootstrap(
 ) -> ScientificTask:
     """Enqueue the first idempotent task of a node-level engine run."""
     return store.enqueue_task(
-        run_id,
-        BOOTSTRAP_TASK,
-        {},
-        idempotency_key="engine:bootstrap:v1",
-        priority=100,
-        provenance={
-            "behavior": "evidence-bounded-reconstruction",
-            "scheduler": "durable-specialist-tasks-v1",
-        },
-        budget={"lease_seconds": 300},
+        store.NewTask(
+            run_id=run_id,
+            task_type=BOOTSTRAP_TASK,
+            inputs={},
+            idempotency_key="engine:bootstrap:v1",
+            priority=100,
+            provenance={
+                "behavior": "evidence-bounded-reconstruction",
+                "scheduler": "durable-specialist-tasks-v1",
+            },
+            budget={"lease_seconds": 300},
+        ),
         db_path=db_path,
     )
 
@@ -53,16 +55,18 @@ def enqueue_scientist_continuation(
         return None
     store.update_run_status(run_id, RunStatus.QUEUED, db_path=db_path)
     return store.enqueue_task(
-        run_id,
-        f"{NODE_TASK_PREFIX}orchestrator",
-        {"checkpoint_seq": int(checkpoint["seq"])},
-        idempotency_key=f"engine:scientist-continuation:{input_id}",
-        priority=100,
-        provenance={
-            "behavior": "scientist-directed-continuation",
-            "input_id": input_id,
-        },
-        budget={"lease_seconds": 300},
+        store.NewTask(
+            run_id=run_id,
+            task_type=f"{NODE_TASK_PREFIX}orchestrator",
+            inputs={"checkpoint_seq": int(checkpoint["seq"])},
+            idempotency_key=f"engine:scientist-continuation:{input_id}",
+            priority=100,
+            provenance={
+                "behavior": "scientist-directed-continuation",
+                "input_id": input_id,
+            },
+            budget={"lease_seconds": 300},
+        ),
         db_path=db_path,
     )
 

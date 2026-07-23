@@ -17,6 +17,7 @@ from app.audience import AUDIENCE_PATTERN, audience_context
 from app.run_modes import (
     RUN_FOCUS_PATTERN,
     RUN_TIER_PATTERN,
+    PlanningLists,
     normalize_run_focus,
     normalize_run_tier,
     resolved_run_config,
@@ -186,9 +187,11 @@ def _build_create_run_config(
     # `setup` is the durable planning block persisted inside config_json.
     setup = setup_config(
         research_goal=req.research_goal,
-        requirements=req.requirements,
-        attributes=req.attributes,
-        criteria=req.criteria,
+        lists=PlanningLists(
+            requirements=req.requirements,
+            attributes=req.attributes,
+            criteria=req.criteria,
+        ),
         focus=focus,
         tier=tier,
         audience_context=context,

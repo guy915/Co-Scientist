@@ -1,10 +1,12 @@
 """Prompt builders for the debate-based hypothesis generation flow."""
 
+from dataclasses import dataclass, field
 from typing import Any
 
 from co_scientist.prompts._common import (
+    PromptRunContext,
     _format_meta_review_context,
-    _format_run_guidance,
+    _run_guidance_section,
 )
 from co_scientist.prompts.generation_formatting import (
     _build_citation_reference_section,
@@ -207,90 +209,94 @@ def _build_debate_literature_variables(
     return variables
 
 
-def _build_debate_base_variables(
-    research_goal: str,
-    hypotheses_count: int,
-    transcript: str,
-    preferences: str | None,
-    attributes: str | list[str] | None,
-) -> dict[str, Any]:
+@dataclass(frozen=True)
+class DebatePromptRequest:
+    """Inputs for one turn of the debate-based generation prompt.
+
+    Attributes:
+        research_goal: The run's research goal.
+        hypotheses_count: How many hypotheses the debate must produce.
+        transcript: The debate transcript accumulated so far.
+        preferences: Free-text user preferences, if any.
+        attributes: Desired hypothesis attributes, as text or a list.
+        is_final_turn: Whether this is the schema-constrained final turn.
+        articles_with_reasoning: The literature-review synthesis text; its
+            presence also selects the literature-aware template.
+        articles: Literature-review articles for citation metadata.
+        reference_list: The ``[C*]`` citation reference list.
+        context: Run-scoped prompt context (supervisor guidance,
+            meta-review, tool registry, run setup/focus guidance).
+    """
+
+    research_goal: str
+    hypotheses_count: int
+    transcript: str
+    preferences: str | None = None
+    attributes: str | list[str] | None = None
+    is_final_turn: bool = False
+    articles_with_reasoning: str | None = None
+    articles: list[Any] | None = None
+    reference_list: str = ""
+    context: PromptRunContext = field(default_factory=PromptRunContext)
+
+
+def _build_debate_base_variables(req: DebatePromptRequest) -> dict[str, Any]:
     """Build the goal/transcript/preferences core of the debate variables."""
     return {
-        "goal": research_goal,
-        "hypotheses_count": hypotheses_count,
-        "transcript": transcript or "",
-        "preferences": preferences
+        "goal": req.research_goal,
+        "hypotheses_count": req.hypotheses_count,
+        "transcript": req.transcript or "",
+        "preferences": req.preferences
         or "Novel, testable, scientifically sound, specific, and diverse"
         " hypotheses",
-        "attributes": _format_debate_attributes(attributes),
+        "attributes": _format_debate_attributes(req.attributes),
     }
 
 
 def _build_debate_guidance_variables(
-    supervisor_guidance: dict[str, Any] | None,
-    meta_review: dict[str, Any] | None,
-    run_setup_guidance: str | None,
-    run_focus_guidance: str | None,
-    tool_registry: Any | None,
+    context: PromptRunContext,
 ) -> dict[str, Any]:
     """Build the guidance/context/domain variables for the debate prompt.
 
     Covers supervisor guidance, cross-iteration meta-review context (blank
     on iteration 1), run setup/focus guidance, and the domain-specific
     prompt customizations from the tool registry.
+
+    Args:
+        context: Run-scoped prompt context for this debate turn.
+
+    Returns:
+        Dict of the guidance, meta-review, and domain template variables.
     """
     variables: dict[str, Any] = {
         "supervisor_guidance": _format_supervisor_guidance_for_debate(
-            supervisor_guidance
+            context.supervisor_guidance
         ),
-        "meta_review_context": _format_meta_review_context(meta_review),
-        "run_guidance": _format_run_guidance(
-            run_setup_guidance, run_focus_guidance
-        ),
+        "meta_review_context": _format_meta_review_context(context.meta_review),
+        "run_guidance": _run_guidance_section(context),
     }
-    variables.update(_get_domain_variables(tool_registry))
+    variables.update(_get_domain_variables(context.tool_registry))
     return variables
 
 
 def _build_debate_prompt_variables(
-    research_goal: str,
-    hypotheses_count: int,
-    transcript: str,
-    preferences: str | None,
-    attributes: str | list[str] | None,
-    articles_with_reasoning: str | None,
-    articles: list[Any] | None,
-    reference_list: str,
-    supervisor_guidance: dict[str, Any] | None,
-    meta_review: dict[str, Any] | None,
-    run_setup_guidance: str | None,
-    run_focus_guidance: str | None,
-    tool_registry: Any | None,
+    req: DebatePromptRequest,
 ) -> dict[str, Any]:
     """Build the dict of template variables for the debate generation prompt.
 
-    Mirrors the parameters of get_debate_generation_prompt, which forwards
-    them here unchanged: ``reference_list`` is the ``[C*]`` citation
-    reference list, and the guidance/meta-review/tool-registry inputs are
-    formatted into prompt context blocks.
+    Args:
+        req: The resolved debate-prompt request for this turn.
+
+    Returns:
+        Dict of template variables for the debate prompt.
     """
-    variables = _build_debate_base_variables(
-        research_goal, hypotheses_count, transcript, preferences, attributes
-    )
+    variables = _build_debate_base_variables(req)
     variables.update(
         _build_debate_literature_variables(
-            articles_with_reasoning, articles, reference_list
+            req.articles_with_reasoning, req.articles, req.reference_list
         )
     )
-    variables.update(
-        _build_debate_guidance_variables(
-            supervisor_guidance,
-            meta_review,
-            run_setup_guidance,
-            run_focus_guidance,
-            tool_registry,
-        )
-    )
+    variables.update(_build_debate_guidance_variables(req.context))
     return variables
 
 
@@ -332,42 +338,23 @@ def _render_debate_prompt(
 # final turn switches from free-form discussion to schema-constrained JSON
 # output (GENERATION_SCHEMA).
 def get_debate_generation_prompt(
-    research_goal: str,
-    hypotheses_count: int,
-    transcript: str,
-    supervisor_guidance: dict[str, Any] | None = None,
-    preferences: str | None = None,
-    attributes: str | list[str] | None = None,
-    is_final_turn: bool = False,
-    articles_with_reasoning: str | None = None,
-    articles: list[Any] | None = None,
-    tool_registry: Any | None = None,
-    reference_list: str = "",
-    meta_review: dict[str, Any] | None = None,
-    run_setup_guidance: str | None = None,
-    run_focus_guidance: str | None = None,
+    req: DebatePromptRequest,
 ) -> tuple[str, dict[str, Any] | None]:
     """Get the debate-based hypothesis generation prompt.
 
-    Multi-turn: experts discuss and refine hypotheses while ``transcript``
-    accumulates; the final turn switches to schema-constrained JSON output.
-    Returns a (formatted prompt string, JSON schema dict or None) tuple.
+    Multi-turn: experts discuss and refine hypotheses while the request's
+    ``transcript`` accumulates; the final turn switches to
+    schema-constrained JSON output.
+
+    Args:
+        req: The resolved debate-prompt request for this turn; its fields
+            are documented on DebatePromptRequest.
+
+    Returns:
+        Tuple of (rendered prompt string, JSON schema dict or None).
     """
-    variables = _build_debate_prompt_variables(
-        research_goal=research_goal,
-        hypotheses_count=hypotheses_count,
-        transcript=transcript,
-        preferences=preferences,
-        attributes=attributes,
-        articles_with_reasoning=articles_with_reasoning,
-        articles=articles,
-        reference_list=reference_list,
-        supervisor_guidance=supervisor_guidance,
-        meta_review=meta_review,
-        run_setup_guidance=run_setup_guidance,
-        run_focus_guidance=run_focus_guidance,
-        tool_registry=tool_registry,
-    )
     return _render_debate_prompt(
-        variables, articles_with_reasoning, is_final_turn
+        _build_debate_prompt_variables(req),
+        req.articles_with_reasoning,
+        req.is_final_turn,
     )

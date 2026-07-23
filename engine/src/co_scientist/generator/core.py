@@ -20,7 +20,6 @@ from co_scientist.constants import (
     DEFAULT_EVOLUTION_MAX_COUNT,
     DEFAULT_INITIAL_HYPOTHESES_COUNT,
     DEFAULT_MAX_ITERATIONS,
-    ELO_K_FACTOR,
 )
 from co_scientist.generator.availability import McpAvailabilityMixin
 from co_scientist.generator.graph import (
@@ -28,7 +27,13 @@ from co_scientist.generator.graph import (
     _add_workflow_edges,
     _add_workflow_nodes,
 )
-from co_scientist.generator.initial_state import _build_initial_state
+from co_scientist.generator.initial_state import (
+    RunCallbacks,
+    RunCapabilities,
+    RunIdentity,
+    _build_initial_state,
+)
+from co_scientist.generator.options import GeneratorOptions
 from co_scientist.generator.run_execution import (
     _GRAPH_RECURSION_LIMIT,
     StreamExecutionMixin,
@@ -51,30 +56,15 @@ class HypothesisGenerator(McpAvailabilityMixin, StreamExecutionMixin):
 
     Args:
         model_name: LLM model to use (litellm format).
-        supervisor_model_name: Model for the supervisor and meta-review
-            steps (None = use ``model_name``).
         max_iterations: Number of refinement iterations.
         initial_hypotheses_count: Number of initial hypotheses.
         evolution_max_count: Number of top hypotheses to evolve.
-        tournament_pairs: Number of Elo tournament comparisons per ranking.
-        elo_k_factor: Rating sensitivity applied to every committed match.
-        literature_review_papers_count: Number of papers to read/analyze.
-        enable_cache: Enable/disable LLM response caching for this
-            generator's own calls (None = the process default from
-            ``COSCIENTIST_CACHE_ENABLED``). Scoped to this generator's own
-            execution via ``cache.scoped_cache_override`` rather than
-            mutating that env var, so it never disables caching for
-            another generator running in the same process.
-        cache_dir: Directory for cache files (None = use default).
-        tools_config: Path to custom tools YAML config file
-            (None = use defaults).
-        disable_tools: List of tool IDs to disable
-            (None = use all enabled tools).
-        budget: Optional serialized ``scheduling.Budget`` (keys
-            ``max_iterations``/``max_llm_calls``/``max_tasks``/
-            ``max_wall_clock_s``) giving the adaptive scheduler hard
-            termination ceilings beyond ``max_iterations``. None derives a
-            budget from ``max_iterations`` alone.
+        options: Advanced configuration beyond the four run-size knobs
+            above -- the supervisor model, Elo/tournament/literature
+            tuning, caching, tool configuration, and the scheduler budget.
+            Every field is documented on ``GeneratorOptions`` and defaults
+            to the generator's historical default; omit it entirely for the
+            all-defaults behavior.
 
     ``generate_hypotheses`` and ``resume_hypotheses`` accept an ``opts``
     dict with user preferences and inputs:
@@ -105,64 +95,84 @@ class HypothesisGenerator(McpAvailabilityMixin, StreamExecutionMixin):
         ... )
         >>> result = await generator.generate_hypotheses(
         ...     research_goal="Cure cancer",
-        ...     progress_callback=my_callback
+        ...     callbacks=RunCallbacks(progress=my_callback),
         ... )
     """
 
     def __init__(
         self,
         model_name: str = "deepseek/deepseek-v4-flash",
-        supervisor_model_name: str | None = None,
         max_iterations: int = DEFAULT_MAX_ITERATIONS,
         initial_hypotheses_count: int = DEFAULT_INITIAL_HYPOTHESES_COUNT,
         evolution_max_count: int = DEFAULT_EVOLUTION_MAX_COUNT,
-        tournament_pairs: int = 12,
-        elo_k_factor: int = ELO_K_FACTOR,
-        literature_review_papers_count: int = 8,
-        enable_cache: bool | None = None,
-        cache_dir: str | None = None,
-        tools_config: str | None = None,
-        disable_tools: list[str] | None = None,
-        budget: dict[str, Any] | None = None,
+        options: GeneratorOptions | None = None,
     ):
         """Initialize the generator; parameters are documented on the class."""
+        opts = options if options is not None else GeneratorOptions()
         # Constructor arguments become per-instance defaults that seed the
         # initial workflow state on every generate_hypotheses() call below.
-        self._init_tuning_params(
+        self._init_model_and_budget(
             model_name,
-            supervisor_model_name,
+            opts.supervisor_model_name,
             max_iterations,
+            opts.budget,
+        )
+        self._init_count_params(
             initial_hypotheses_count,
             evolution_max_count,
-            tournament_pairs,
-            elo_k_factor,
-            literature_review_papers_count,
-            budget,
+            opts.tournament_pairs,
+            opts.elo_k_factor,
+            opts.literature_review_papers_count,
         )
-        self._init_cache_settings(enable_cache, cache_dir)
+        self._init_cache_settings(opts.enable_cache, opts.cache_dir)
         # Bundled provider-neutral registry unless a custom config replaces
         # it (faithful runs must not silently collapse to a single source).
-        self._tool_registry = _build_tool_registry(tools_config, disable_tools)
+        self._tool_registry = _build_tool_registry(
+            opts.tools_config, opts.disable_tools
+        )
         self._graph: CompiledWorkflow | None = None  # built lazily
         self._mcp_available: bool | None = None
         self._pubmed_available: bool | None = None
 
-    def _init_tuning_params(
+    def _init_model_and_budget(
         self,
         model_name: str,
         supervisor_model_name: str | None,
         max_iterations: int,
+        budget: dict[str, Any] | None,
+    ) -> None:
+        """Sets the model, iteration, and compute-budget attributes.
+
+        Args:
+            model_name: Worker-tier model, documented on the class.
+            supervisor_model_name: Planning model, defaulting to model_name.
+            max_iterations: Maximum refinement iterations for the run.
+            budget: Extra adaptive-scheduler budget fields, if any.
+        """
+        self.model_name = model_name
+        self.supervisor_model_name = supervisor_model_name or model_name
+        self.max_iterations = max_iterations
+        # The scheduler always sees max_iterations; merge it into an explicit
+        # budget so a run configured with only max_iterations still terminates.
+        self.budget = {"max_iterations": max_iterations, **(budget or {})}
+
+    def _init_count_params(
+        self,
         initial_hypotheses_count: int,
         evolution_max_count: int,
         tournament_pairs: int,
         elo_k_factor: int,
         literature_review_papers_count: int,
-        budget: dict[str, Any] | None,
     ) -> None:
-        """Sets the generation-tuning attributes from the constructor args."""
-        self.model_name = model_name
-        self.supervisor_model_name = supervisor_model_name or model_name
-        self.max_iterations = max_iterations
+        """Sets the per-node count and Elo-tuning attributes.
+
+        The counts are documented on the class; only ``elo_k_factor`` is
+        validated here, since a non-positive step size makes the tournament
+        ratings never move.
+
+        Raises:
+            ValueError: If ``elo_k_factor`` is not positive.
+        """
         self.initial_hypotheses_count = initial_hypotheses_count
         self.evolution_max_count = evolution_max_count
         self.tournament_pairs = tournament_pairs
@@ -170,9 +180,6 @@ class HypothesisGenerator(McpAvailabilityMixin, StreamExecutionMixin):
             raise ValueError("elo_k_factor must be positive")
         self.elo_k_factor = elo_k_factor
         self.literature_review_papers_count = literature_review_papers_count
-        # The scheduler always sees max_iterations; merge it into an explicit
-        # budget so a run configured with only max_iterations still terminates.
-        self.budget = {"max_iterations": max_iterations, **(budget or {})}
 
     def _init_cache_settings(
         self, enable_cache: bool | None, cache_dir: str | None
@@ -250,59 +257,51 @@ class HypothesisGenerator(McpAvailabilityMixin, StreamExecutionMixin):
         opts = opts or {}
         user_inputs = opts.get("user_inputs") or {}
         (
-            mcp_available,
-            pubmed_available,
+            capabilities,
             enable_literature_review_node,
-            enable_tool_calling_generation,
-            dev_test_lit_tools_isolation,
         ) = await self._resolve_generation_settings(opts)
         # Build graph if not already built, or rebuild if the setting changed.
         self._ensure_graph_built(enable_literature_review_node)
         return _build_initial_state(
             config_fields=self._initial_config_fields(),
-            research_goal=research_goal,
-            start_time=start_time,
-            run_id=run_id,
-            progress_callback=progress_callback,
+            identity=RunIdentity(
+                research_goal=research_goal,
+                start_time=start_time,
+                run_id=run_id,
+                progress_callback=progress_callback,
+            ),
+            capabilities=capabilities,
             opts=opts,
             user_inputs=user_inputs,
-            mcp_available=mcp_available,
-            pubmed_available=pubmed_available,
-            enable_tool_calling_generation=enable_tool_calling_generation,
-            dev_test_lit_tools_isolation=dev_test_lit_tools_isolation,
         )
 
     async def _resolve_generation_settings(
         self, opts: dict[str, Any]
-    ) -> tuple[bool, bool, bool, bool, bool]:
+    ) -> tuple[RunCapabilities, bool]:
         """Resolves literature-review/MCP/tool-calling/dev-isolation settings.
 
         Args:
             opts: Caller-supplied generation options.
 
         Returns:
-            Tuple of (mcp_available, pubmed_available,
-            enable_literature_review_node, enable_tool_calling_generation,
-            dev_test_lit_tools_isolation).
+            Tuple of (capabilities, enable_literature_review_node).
         """
         (
             mcp_available,
             pubmed_available,
             enable_literature_review_node,
         ) = await self._resolve_literature_review_settings(opts)
-        enable_tool_calling_generation = _resolve_tool_calling_generation(
-            opts, mcp_available, enable_literature_review_node
+        capabilities = RunCapabilities(
+            mcp_available=mcp_available,
+            pubmed_available=pubmed_available,
+            enable_tool_calling_generation=_resolve_tool_calling_generation(
+                opts, mcp_available, enable_literature_review_node
+            ),
+            # This flag is threaded through to the initial state and the
+            # consuming nodes branch on it directly.
+            dev_test_lit_tools_isolation=_resolve_dev_isolation_flag(opts),
         )
-        # This flag is threaded through to the initial state and the
-        # consuming nodes branch on it directly.
-        dev_test_lit_tools_isolation = _resolve_dev_isolation_flag(opts)
-        return (
-            mcp_available,
-            pubmed_available,
-            enable_literature_review_node,
-            enable_tool_calling_generation,
-            dev_test_lit_tools_isolation,
-        )
+        return capabilities, enable_literature_review_node
 
     def _initial_config_fields(self) -> dict[str, Any]:
         """Builds the generator-config fragment of the initial state.
@@ -357,64 +356,54 @@ class HypothesisGenerator(McpAvailabilityMixin, StreamExecutionMixin):
     def generate_hypotheses(
         self,
         research_goal: str,
-        progress_callback: None
-        | (Callable[[str, dict[str, Any]], Awaitable[None]]) = None,
+        callbacks: RunCallbacks | None = None,
         opts: dict[str, Any] | None = None,
         run_id: str | None = None,
         stream: Literal[False] = False,
-        checkpoint_callback: None
-        | (Callable[[str, dict[str, Any]], Awaitable[None]]) = None,
     ) -> Awaitable[dict[str, Any]]: ...
 
     @overload
     def generate_hypotheses(
         self,
         research_goal: str,
-        progress_callback: None
-        | (Callable[[str, dict[str, Any]], Awaitable[None]]) = None,
+        callbacks: RunCallbacks | None = None,
         opts: dict[str, Any] | None = None,
         run_id: str | None = None,
         stream: Literal[True] = True,
-        checkpoint_callback: None
-        | (Callable[[str, dict[str, Any]], Awaitable[None]]) = None,
     ) -> AsyncIterator[tuple[str, dict[str, Any]]]: ...
 
     def generate_hypotheses(
         self,
         research_goal: str,
-        progress_callback: None
-        | (Callable[[str, dict[str, Any]], Awaitable[None]]) = None,
+        callbacks: RunCallbacks | None = None,
         opts: dict[str, Any] | None = None,
         run_id: str | None = None,
         stream: bool = False,
-        checkpoint_callback: None
-        | (Callable[[str, dict[str, Any]], Awaitable[None]]) = None,
     ) -> Awaitable[dict[str, Any]] | AsyncIterator[tuple[str, dict[str, Any]]]:
         """Generate hypotheses, with optional streaming.
 
         Args:
             research_goal: The research question or goal.
-            progress_callback: Async ``(phase_name, data)`` progress hook.
+            callbacks: Optional async progress/checkpoint hooks. The
+                checkpoint hook runs only in streaming mode.
             opts: User preferences and inputs; keys in the class docstring.
             run_id: Unique identifier for this run (generated if omitted).
             stream: If True, return an async iterator yielding
                 ``(node_name, state_dict)`` tuples; if False, return a
                 coroutine resolving to the result dict (class docstring).
-            checkpoint_callback: Async ``(node_name, full_state)`` hook run
-                after each node in streaming mode, for persisting a
-                resumable checkpoint. Ignored when ``stream`` is False.
         """
+        cb = callbacks or RunCallbacks()
         if stream:
             return self._generate_hypotheses_with_streaming(
                 research_goal=research_goal,
-                progress_callback=progress_callback,
+                progress_callback=cb.progress,
                 opts=opts,
                 run_id=run_id,
-                checkpoint_callback=checkpoint_callback,
+                checkpoint_callback=cb.checkpoint,
             )
         return self._generate_hypotheses_without_streaming(
             research_goal=research_goal,
-            progress_callback=progress_callback,
+            progress_callback=cb.progress,
             opts=opts,
             run_id=run_id,
         )

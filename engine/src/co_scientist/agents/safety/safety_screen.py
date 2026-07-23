@@ -16,7 +16,7 @@ evolution parent set, meta-review, or final report. The node:
 
 import logging
 import time
-from typing import Any
+from typing import Any, NamedTuple
 
 from co_scientist.constants import (
     PROGRESS_SAFETY_SCREEN_COMPLETE,
@@ -107,13 +107,27 @@ def _screen_one_hypothesis(
     return True, decision, None
 
 
+class _ScreenOutcome(NamedTuple):
+    """What one screening pass over the pool produced.
+
+    Attributes:
+        safe: Hypotheses cleared to continue into ranking.
+        decisions: Safety-decision records for the blocked hypotheses.
+        held: Records for hypotheses held for manual review.
+    """
+
+    safe: list[Hypothesis]
+    decisions: list[dict[str, Any]]
+    held: list[dict[str, Any]]
+
+
 def _screen_hypothesis_pool(
     hypotheses: list[Hypothesis],
-) -> tuple[list[Hypothesis], list[dict[str, Any]], list[dict[str, Any]]]:
+) -> _ScreenOutcome:
     """Screen every hypothesis in the pool, splitting safe from blocked/held.
 
     Returns:
-        Tuple of (safe, new_decisions, new_held).
+        The pass's safe hypotheses, decision records, and held records.
     """
     safe: list[Hypothesis] = []
     new_decisions: list[dict[str, Any]] = []
@@ -128,7 +142,7 @@ def _screen_hypothesis_pool(
         if is_safe:
             safe.append(h)
 
-    return safe, new_decisions, new_held
+    return _ScreenOutcome(safe, new_decisions, new_held)
 
 
 def _log_screen_summary(
@@ -155,15 +169,14 @@ def _log_screen_summary(
 
 def _build_screen_result(
     hypotheses: list[Hypothesis],
-    safe: list[Hypothesis],
-    new_decisions: list[dict[str, Any]],
-    new_held: list[dict[str, Any]],
+    outcome: _ScreenOutcome,
     state: WorkflowState,
     elapsed: float,
 ) -> dict[str, Any]:
     """Build the safety_screen_node state-update dict."""
+    safe = outcome.safe
     blocked_count = len(hypotheses) - len(safe)
-    held_count = len(new_held)
+    held_count = len(outcome.held)
     # ``or []`` (not a .get default): a checkpoint restore can carry an
     # explicit None for a field that was unset when the run was serialized.
     existing_decisions: list[dict[str, Any]] = (
@@ -172,8 +185,8 @@ def _build_screen_result(
     existing_held: list[dict[str, Any]] = state.get("held_for_review") or []
     return {
         "hypotheses": ReplaceHypotheses(safe),
-        "safety_decisions": existing_decisions + new_decisions,
-        "held_for_review": existing_held + new_held,
+        "safety_decisions": existing_decisions + outcome.decisions,
+        "held_for_review": existing_held + outcome.held,
         "messages": phase_message(
             "safety_screen",
             f"Screened {len(hypotheses)} hypotheses: "
@@ -205,9 +218,10 @@ async def safety_screen_node(
         hypotheses_count=len(hypotheses),
     )
 
-    safe, new_decisions, new_held = _screen_hypothesis_pool(hypotheses)
+    outcome = _screen_hypothesis_pool(hypotheses)
+    safe = outcome.safe
     blocked_count = len(hypotheses) - len(safe)
-    held_count = len(new_held)
+    held_count = len(outcome.held)
     _log_screen_summary(hypotheses, safe, blocked_count, held_count)
     elapsed = time.time() - start
 
@@ -220,6 +234,4 @@ async def safety_screen_node(
         held_count=held_count,
     )
 
-    return _build_screen_result(
-        hypotheses, safe, new_decisions, new_held, state, elapsed
-    )
+    return _build_screen_result(hypotheses, outcome, state, elapsed)

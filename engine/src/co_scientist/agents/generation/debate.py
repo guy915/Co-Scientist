@@ -2,6 +2,11 @@
 
 Each debate runs multiple turns between experts to generate a single hypothesis.
 Multiple debates can run in parallel.
+
+Diversity and final-turn budget helpers live in the sibling module
+debate_support.py; the LLM seams (call_llm and call_llm_json) stay here so
+tests can monkeypatch them on this namespace. All helper names are re-exported
+here for compatibility.
 """
 
 import asyncio
@@ -14,133 +19,84 @@ from co_scientist.agents.generation.citations import (
     ReferenceIndex,
     hypothesis_from_llm_output,
 )
+from co_scientist.agents.generation.debate_support import (
+    _DEBATE_DIVERSITY_ANGLES as _DEBATE_DIVERSITY_ANGLES,
+)
+from co_scientist.agents.generation.debate_support import (
+    _append_diversity_instruction as _append_diversity_instruction,
+)
+from co_scientist.agents.generation.debate_support import (
+    _debate_diversity_instruction as _debate_diversity_instruction,
+)
+from co_scientist.agents.generation.debate_support import (
+    _debate_final_turn_max_tokens as _debate_final_turn_max_tokens,
+)
+from co_scientist.agents.generation.debate_support import (
+    _final_turn_prompt_metadata as _final_turn_prompt_metadata,
+)
 from co_scientist.constants import (
-    DEBATE_FINAL_TURN_MAX_TOKENS_CAP,
-    DEBATE_FINAL_TURN_TOKENS_PER_HYPOTHESIS,
     DEBATE_MAX_TURNS,
     EXTENDED_MAX_TOKENS,
     HIGH_TEMPERATURE,
-    scaled_max_tokens,
 )
 from co_scientist.exceptions import GenerationError
-from co_scientist.llm import call_llm, call_llm_json
+from co_scientist.llm import (
+    CompletionSpec,
+    LLMCallOptions,
+    call_llm,
+    call_llm_json,
+)
 from co_scientist.models import GenerationMethod, Hypothesis
-from co_scientist.prompts import get_debate_generation_prompt
+from co_scientist.prompts import (
+    DebatePromptRequest,
+    PromptRunContext,
+    get_debate_generation_prompt,
+)
 from co_scientist.state import WorkflowState
 
 logger = logging.getLogger(__name__)
 
-# Angles cycled through parallel debates (via debate_id modulo the list
-# length in _debate_diversity_instruction) so concurrent debates on the
-# same research goal explore different facets instead of converging on
-# the same obvious hypothesis.
-_DEBATE_DIVERSITY_ANGLES = [
-    "a direct causal molecular or mechanistic intervention",
-    "an upstream regulatory or control-system mechanism",
-    "a downstream measurable phenotype or functional assay",
-    "a cross-pathway interaction that could explain an unexpected effect",
-    "a temporal or state-dependent mechanism that changes across conditions",
-    "a translational experiment or intervention with practical constraints",
-    "a falsification-focused hypothesis with a discriminating negative control",
-    "a high-novelty mechanism that challenges the dominant explanation",
-]
-
-
-def _debate_diversity_instruction(
-    debate_id: int | None, total_debates: int
-) -> str | None:
-    """Return a debate-specific angle for parallel hypothesis diversity."""
-    # A single, non-parallel debate has no sibling to diverge from, so no
-    # diversity nudge is needed.
-    if debate_id is None or total_debates <= 1:
-        return None
-    angle = _DEBATE_DIVERSITY_ANGLES[debate_id % len(_DEBATE_DIVERSITY_ANGLES)]
-    return (
-        f"Parallel debate {debate_id + 1} of {total_debates}: focus this "
-        f"debate on {angle}. Produce a final hypothesis that is meaningfully "
-        "different from what other parallel debates would generate; do not "
-        "collapse to the most generic or obvious mechanism unless it uniquely "
-        "fits this assigned angle."
-    )
-
-
-def _append_diversity_instruction(
-    preferences: str | None, instruction: str | None
-) -> str | None:
-    """Append the parallel-debate diversity instruction to preferences."""
-    # Augments, rather than replaces, any user-supplied preferences so both
-    # constraints are honored together in the generation prompt.
-    if not instruction:
-        return preferences
-    if preferences:
-        return f"{preferences}\n\n{instruction}"
-    return instruction
-
-
-def _debate_final_turn_max_tokens(count: int) -> int:
-    """Compute the final debate turn's token budget for count hypotheses.
-
-    count is always 1 here (one hypothesis per debate), so this evaluates to
-    a fixed budget (base + one per_item increment) rather than truly scaling
-    with batch size, unlike other scaled_max_tokens call sites that pass a
-    variable count.
-    """
-    return scaled_max_tokens(
-        EXTENDED_MAX_TOKENS,
-        count,
-        per_item=DEBATE_FINAL_TURN_TOKENS_PER_HYPOTHESIS,
-        cap=DEBATE_FINAL_TURN_MAX_TOKENS_CAP,
-    )
-
-
-def _final_turn_prompt_metadata(
-    debate_id: int | None,
-    turn: int,
-    articles_with_reasoning: str | None,
-    ref_idx: ReferenceIndex,
-    prompt: str,
-) -> dict[str, Any]:
-    """Build the prompt_metadata payload for a debate's final-turn LLM call."""
-    return {
-        "debate_id": debate_id,
-        "turn": turn,
-        "has_literature": articles_with_reasoning is not None,
-        "reference_keys": list(ref_idx.sources.keys()),
-        "prompt_length_chars": len(prompt),
-    }
-
 
 async def _call_final_debate_turn(
     state: WorkflowState,
+    ctx: "_DebateContext",
+    turn: int,
     prompt: str,
     schema: Any,
-    debate_id: int | None,
-    turn: int,
-    articles_with_reasoning: str | None,
-    ref_idx: ReferenceIndex,
 ) -> dict[str, Any]:
     """Call the LLM for a debate's final structured-output turn.
+
+    Args:
+        state: current workflow state
+        ctx: per-debate context shared by every turn of this debate
+        turn: 1-based index of this (final) turn
+        prompt: the final-turn prompt built from the transcript so far
+        schema: JSON schema constraining the final turn's output
 
     Returns:
         Parsed JSON response containing the "hypotheses" list.
     """
-    count = 1  # each debate generates exactly 1 hypothesis
-    final_max_tokens = _debate_final_turn_max_tokens(count)
+    final_max_tokens = _debate_final_turn_max_tokens(ctx.count)
 
     return await call_llm_json(
         prompt=prompt,
-        model_name=state["model_name"],
-        max_tokens=final_max_tokens,
-        temperature=HIGH_TEMPERATURE,
-        json_schema=schema,
-        # Generation is stochastic and diversity-critical: never cache it,
-        # so parallel debates and re-runs stay diverse regardless of cache
-        # state.
-        use_cache=False,
-        run_id=state.get("run_id"),
-        prompt_name=f"generate_debate_{debate_id}_final",
-        prompt_metadata=_final_turn_prompt_metadata(
-            debate_id, turn, articles_with_reasoning, ref_idx, prompt
+        spec=CompletionSpec(
+            model_name=state["model_name"],
+            max_tokens=final_max_tokens,
+            temperature=HIGH_TEMPERATURE,
+            json_schema=schema,
+        ),
+        options=LLMCallOptions(
+            use_cache=False,
+            run_id=state.get("run_id"),
+            prompt_name=f"generate_debate_{ctx.debate_id}_final",
+            prompt_metadata=_final_turn_prompt_metadata(
+                ctx.debate_id,
+                turn,
+                ctx.articles_with_reasoning,
+                ctx.ref_idx,
+                prompt,
+            ),
         ),
     )
 
@@ -165,18 +121,22 @@ def _first_debate_hypothesis_data(
 
 async def _run_final_debate_turn(
     state: WorkflowState,
+    ctx: "_DebateContext",
+    turn: int,
     prompt: str,
     schema: Any,
-    debate_id: int | None,
-    debate_label: str,
-    turn: int,
-    articles_with_reasoning: str | None,
-    ref_idx: ReferenceIndex,
 ) -> Hypothesis:
     """Run the final debate turn and build the resulting Hypothesis.
 
     The final turn is constrained to structured JSON output (unlike earlier
     free-form turns), which this parses into a single Hypothesis.
+
+    Args:
+        state: current workflow state
+        ctx: per-debate context shared by every turn of this debate
+        turn: 1-based index of this (final) turn
+        prompt: the final-turn prompt built from the transcript so far
+        schema: JSON schema constraining the final turn's output
 
     Returns:
         The Hypothesis built from the final turn's structured output.
@@ -184,10 +144,8 @@ async def _run_final_debate_turn(
     Raises:
         GenerationError: if the final turn produced no hypothesis.
     """
-    response = await _call_final_debate_turn(
-        state, prompt, schema, debate_id, turn, articles_with_reasoning, ref_idx
-    )
-    hyp_data = _first_debate_hypothesis_data(response, debate_label)
+    response = await _call_final_debate_turn(state, ctx, turn, prompt, schema)
+    hyp_data = _first_debate_hypothesis_data(response, ctx.debate_label)
 
     # Shared constructor (also used by the literature_tools validate phase)
     # resolves citation keys against ref_idx.sources and stamps debate_id so
@@ -195,48 +153,52 @@ async def _run_final_debate_turn(
     # debate that produced it.
     return hypothesis_from_llm_output(
         hyp_data,
-        ref_idx.sources,
+        ctx.ref_idx.sources,
         GenerationMethod.DEBATE,
-        debate_id=debate_id,
+        debate_id=ctx.debate_id,
     )
 
 
 def _build_debate_turn_prompt(
     state: WorkflowState,
-    count: int,
+    ctx: "_DebateContext",
     transcript: str,
-    supervisor_guidance: Any,
-    preferences: str | None,
-    attributes: Any,
     is_final: bool,
-    articles_with_reasoning: str | None,
-    ref_idx: ReferenceIndex,
-    meta_review: Any,
 ) -> tuple[str, Any]:
     """Build the prompt/schema for one debate turn.
 
     Thin wrapper around get_debate_generation_prompt that isolates its long
-    keyword-argument list from the turn loop in _run_single_debate. is_final
+    keyword-argument list from the turn loop in _run_debate_turns. is_final
     selects the structured-output final turn vs. an earlier free-form turn.
+
+    Args:
+        state: current workflow state
+        ctx: per-debate context shared by every turn of this debate
+        transcript: the debate transcript accumulated so far
+        is_final: whether this is the structured-output final turn
 
     Returns:
         The (prompt, schema) pair for this turn.
     """
     return get_debate_generation_prompt(
-        research_goal=state["research_goal"],
-        hypotheses_count=count,
-        transcript=transcript,
-        supervisor_guidance=supervisor_guidance,
-        preferences=preferences,
-        attributes=attributes,
-        is_final_turn=is_final,
-        articles_with_reasoning=articles_with_reasoning,
-        articles=state.get("articles"),
-        tool_registry=state.get("tool_registry"),
-        reference_list=ref_idx.text,
-        meta_review=meta_review,
-        run_setup_guidance=state.get("run_setup_guidance"),
-        run_focus_guidance=state.get("run_focus_guidance"),
+        DebatePromptRequest(
+            research_goal=state["research_goal"],
+            hypotheses_count=ctx.count,
+            transcript=transcript,
+            preferences=ctx.preferences,
+            attributes=ctx.attributes,
+            is_final_turn=is_final,
+            articles_with_reasoning=ctx.articles_with_reasoning,
+            articles=state.get("articles"),
+            reference_list=ctx.ref_idx.text,
+            context=PromptRunContext(
+                supervisor_guidance=ctx.supervisor_guidance,
+                meta_review=ctx.meta_review,
+                tool_registry=state.get("tool_registry"),
+                run_setup_guidance=state.get("run_setup_guidance"),
+                run_focus_guidance=state.get("run_focus_guidance"),
+            ),
+        )
     )
 
 
@@ -257,10 +219,14 @@ async def _run_intermediate_debate_turn(
     # transcript actually happens.
     return await call_llm(
         prompt=prompt,
-        model_name=state["model_name"],
-        max_tokens=EXTENDED_MAX_TOKENS,
-        temperature=HIGH_TEMPERATURE,
-        use_cache=False,  # keep debate turns fresh too
+        spec=CompletionSpec(
+            model_name=state["model_name"],
+            max_tokens=EXTENDED_MAX_TOKENS,
+            temperature=HIGH_TEMPERATURE,
+        ),
+        options=LLMCallOptions(
+            use_cache=False,
+        ),
     )
 
 
@@ -269,11 +235,13 @@ class _DebateContext:
     """Per-debate values that stay constant across all turns of one debate."""
 
     ref_idx: ReferenceIndex
+    debate_id: int | None
     debate_label: str
     supervisor_guidance: Any
     meta_review: Any
     preferences: str | None
     attributes: Any
+    articles_with_reasoning: str | None
     count: int = 1  # each debate generates exactly 1 hypothesis
 
 
@@ -281,6 +249,7 @@ def _build_debate_context(
     state: WorkflowState,
     debate_id: int | None,
     total_debates: int,
+    articles_with_reasoning: str | None,
     reference_index: ReferenceIndex | None,
 ) -> _DebateContext:
     """Resolve the per-debate context shared by every turn of one debate.
@@ -289,6 +258,8 @@ def _build_debate_context(
         state: current workflow state
         debate_id: id for this debate (used for tracking and identification)
         total_debates: total number of parallel debates in this batch
+        articles_with_reasoning: optional literature review context for the
+            debate
         reference_index: citation key → source mapping for structured
             citations; callers may omit it (e.g. the debate-only path in
             coordinator.py), which falls back to an empty index so citation
@@ -302,6 +273,7 @@ def _build_debate_context(
     )
     return _DebateContext(
         ref_idx=reference_index or ReferenceIndex(text="", sources={}),
+        debate_id=debate_id,
         debate_label=(
             f"debate {debate_id}" if debate_id is not None else "debate"
         ),
@@ -311,59 +283,14 @@ def _build_debate_context(
             state.get("preferences"), diversity_instruction
         ),
         attributes=state.get("attributes"),
-    )
-
-
-def _prompt_for_turn(
-    state: WorkflowState,
-    ctx: _DebateContext,
-    transcript: str,
-    is_final: bool,
-    articles_with_reasoning: str | None,
-) -> tuple[str, Any]:
-    """Build the prompt/schema for one turn from context and turn state."""
-    return _build_debate_turn_prompt(
-        state,
-        ctx.count,
-        transcript,
-        ctx.supervisor_guidance,
-        ctx.preferences,
-        ctx.attributes,
-        is_final,
-        articles_with_reasoning,
-        ctx.ref_idx,
-        ctx.meta_review,
-    )
-
-
-async def _finish_final_turn(
-    state: WorkflowState,
-    ctx: _DebateContext,
-    debate_id: int | None,
-    turn: int,
-    prompt: str,
-    schema: Any,
-    articles_with_reasoning: str | None,
-) -> Hypothesis:
-    """Run the final turn's LLM call and build its resulting Hypothesis."""
-    return await _run_final_debate_turn(
-        state,
-        prompt,
-        schema,
-        debate_id,
-        ctx.debate_label,
-        turn,
-        articles_with_reasoning,
-        ctx.ref_idx,
+        articles_with_reasoning=articles_with_reasoning,
     )
 
 
 async def _run_debate_turns(
     state: WorkflowState,
     ctx: _DebateContext,
-    debate_id: int | None,
     num_turns: int,
-    articles_with_reasoning: str | None,
 ) -> tuple[Hypothesis, str]:
     """Run every turn of one debate, returning its hypothesis and transcript.
 
@@ -378,19 +305,13 @@ async def _run_debate_turns(
     transcript = ""
     for turn in range(1, num_turns + 1):
         is_final = turn == num_turns
-        prompt, schema = _prompt_for_turn(
-            state, ctx, transcript, is_final, articles_with_reasoning
+        prompt, schema = _build_debate_turn_prompt(
+            state, ctx, transcript, is_final
         )
 
         if is_final:
-            hypothesis = await _finish_final_turn(
-                state,
-                ctx,
-                debate_id,
-                turn,
-                prompt,
-                schema,
-                articles_with_reasoning,
+            hypothesis = await _run_final_debate_turn(
+                state, ctx, turn, prompt, schema
             )
             return hypothesis, transcript
 
@@ -402,31 +323,20 @@ async def _run_debate_turns(
 
 async def _run_single_debate(
     state: WorkflowState,
-    debate_id: int | None = None,
-    total_debates: int = 1,
+    ctx: _DebateContext,
     num_turns: int = DEBATE_MAX_TURNS,
-    articles_with_reasoning: str | None = None,
-    reference_index: ReferenceIndex | None = None,
 ) -> tuple[Hypothesis, str]:
     """Generate a single hypothesis using multi-turn debate strategy.
 
     Args:
         state: current workflow state
-        debate_id: id for this debate (used for tracking and identification)
-        total_debates: total number of parallel debates in this batch
+        ctx: per-debate context from _build_debate_context
         num_turns: number of debate turns to run (default from constants)
-        articles_with_reasoning: optional literature review context for debate
-        reference_index: citation key → source mapping for structured citations
 
     Returns:
         Tuple of (single generated Hypothesis object, debate transcript string)
     """
-    ctx = _build_debate_context(
-        state, debate_id, total_debates, reference_index
-    )
-    return await _run_debate_turns(
-        state, ctx, debate_id, num_turns, articles_with_reasoning
-    )
+    return await _run_debate_turns(state, ctx, num_turns)
 
 
 def _unpack_debate_results(
@@ -470,10 +380,9 @@ def _build_debate_tasks(
     return [
         _run_single_debate(
             state,
-            debate_id=i,
-            total_debates=count,
-            articles_with_reasoning=articles_with_reasoning,
-            reference_index=reference_index,
+            _build_debate_context(
+                state, i, count, articles_with_reasoning, reference_index
+            ),
         )
         for i in range(count)
     ]

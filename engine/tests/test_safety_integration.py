@@ -13,7 +13,10 @@ from typing import Any
 
 import pytest
 
-from co_scientist.generator import HypothesisGenerator
+from co_scientist.generator import (
+    GeneratorOptions,
+    HypothesisGenerator,
+)
 from co_scientist.models import GenerationMethod, Hypothesis, HypothesisOrigin
 from co_scientist.state import AppendHypotheses
 from tests._llm_fake import install_fake_llm
@@ -28,8 +31,10 @@ def _make_generator() -> HypothesisGenerator:
         max_iterations=1,
         initial_hypotheses_count=2,
         evolution_max_count=2,
-        tournament_pairs=2,
-        enable_cache=False,
+        options=GeneratorOptions(
+            tournament_pairs=2,
+            enable_cache=False,
+        ),
     )
 
 

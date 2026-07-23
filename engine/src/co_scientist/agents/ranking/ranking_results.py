@@ -11,6 +11,7 @@ from co_scientist.constants import truncate
 from co_scientist.models import (
     ExecutionMetrics,
     Hypothesis,
+    MetricDeltas,
     create_metrics_update,
     phase_message,
 )
@@ -214,7 +215,7 @@ def _ranking_metrics_update(
         total_llm_calls if total_llm_calls is not None else tournament_rounds
     )
     metrics = create_metrics_update(
-        llm_calls_delta=llm_calls, tournaments_count_delta=tournament_rounds
+        deltas=MetricDeltas(llm_calls=llm_calls, tournaments=tournament_rounds)
     )
     logger.debug(
         "ranking node creating metrics delta: tournaments=%s, llm_calls=%s",

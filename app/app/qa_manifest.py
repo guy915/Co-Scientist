@@ -10,6 +10,7 @@ the system prompt from the run's hypotheses/reviews/matches.
 
 from __future__ import annotations
 
+import dataclasses
 from collections.abc import Iterator
 from typing import Any
 
@@ -174,100 +175,110 @@ def _format_manifest_for_prompt(manifest: list[dict[str, Any]]) -> str:
     return "\n".join(lines)
 
 
+@dataclasses.dataclass(frozen=True)
+class QaRunContext:
+    """One run's current state, as the grounded-Q&A prompt sees it.
+
+    Attributes:
+        research_goal: The run's research goal.
+        hypotheses: The run's hypotheses, already ordered by Elo descending.
+        reviews: The run's reviews, oldest-first.
+        matches: The run's tournament matches, oldest-first.
+        history: Prior chat messages, excluding the current question.
+        manifest: The numbered evidence manifest citations resolve against.
+    """
+
+    research_goal: str
+    hypotheses: list[dict[str, Any]]
+    reviews: list[dict[str, Any]]
+    matches: list[dict[str, Any]]
+    history: list[Any]
+    manifest: list[dict[str, Any]]
+
+
+@dataclasses.dataclass(frozen=True)
+class _PromptSections:
+    """The rendered prompt sections, in the order the template lays them out."""
+
+    hypotheses: str
+    reviews: str
+    matches: str
+    evidence: str
+    conversation: str
+
+
 def build_system_prompt(
-    research_goal: str,
-    hypotheses: list[dict[str, Any]],
-    reviews: list[dict[str, Any]],
-    matches: list[dict[str, Any]],
-    history: list[Any],
-    manifest: list[dict[str, Any]],
+    context: QaRunContext,
+    *,
     audience_context: str = "",
     corpus_catalog: str = "",
 ) -> str:
     """Assemble the grounded-Q&A system prompt from a run's current state.
 
-    ``hypotheses`` is assumed already ordered by Elo descending, and
-    ``history`` excludes the current question. ``audience_context`` and
-    ``corpus_catalog`` are appended only when non-empty; see
-    ``_append_audience_context`` and ``_append_corpus_catalog``.
+    Args:
+        context: The run state the answer must stay grounded in.
+        audience_context: The audience's field background, appended only
+            when non-empty; see ``_append_audience_context``.
+        corpus_catalog: The audience's paper catalog, appended only when
+            non-empty; see ``_append_corpus_catalog``.
 
     Returns:
         The system prompt string.
     """
-    evidence_lines = _format_manifest_for_prompt(manifest)
-    hyp_lines, review_lines, match_lines, conv_lines = _summarize_run_context(
-        hypotheses, reviews, matches, history
-    )
     prompt = _base_system_prompt(
-        research_goal,
-        hyp_lines,
-        review_lines,
-        match_lines,
-        evidence_lines,
-        conv_lines,
+        context.research_goal, _summarize_run_context(context)
     )
     prompt = _append_audience_context(prompt, audience_context)
     prompt = _append_corpus_catalog(prompt, corpus_catalog)
     return prompt
 
 
-def _summarize_run_context(
-    hypotheses: list[dict[str, Any]],
-    reviews: list[dict[str, Any]],
-    matches: list[dict[str, Any]],
-    history: list[Any],
-) -> tuple[str, str, str, str]:
-    """Summarize hypotheses, reviews, matches, and history for the prompt.
+def _summarize_run_context(context: QaRunContext) -> _PromptSections:
+    """Summarize hypotheses, reviews, matches, evidence, and history.
 
     Each section is truncated (top 5 hypotheses, last 5 reviews, last 3
     matches, last 10 messages) to keep the prompt bounded on long runs.
-    ``hypotheses`` is assumed already ordered by Elo descending.
 
     Returns:
-        A ``(hyp_lines, review_lines, match_lines, conv_lines)`` tuple.
+        The five rendered prompt sections.
     """
-    hyp_lines = "\n".join(
-        f"- [{h['title']}] Elo {h['elo_rating']}, "
-        f"{h['win_count']}W/{h['loss_count']}L"
-        for h in hypotheses[:5]
+    return _PromptSections(
+        hypotheses="\n".join(
+            f"- [{h['title']}] Elo {h['elo_rating']}, "
+            f"{h['win_count']}W/{h['loss_count']}L"
+            for h in context.hypotheses[:5]
+        ),
+        reviews="\n".join(
+            f"- {r['reviewer_agent']} on {r['hypothesis_id'][:8]}: "
+            f"{r['summary'][:120]}"
+            for r in context.reviews[-5:]
+        ),
+        matches="\n".join(
+            f"- Winner {m['winner_id'][:8]} (Elo {m['winner_elo_after']}) — "
+            f"{(m.get('rationale') or '')[:100]}"
+            for m in context.matches[-3:]
+        ),
+        evidence=_format_manifest_for_prompt(context.manifest),
+        conversation="\n".join(
+            f"{'User' if m.sender == 'user' else 'Assistant'}: {m.content}"
+            for m in context.history[-10:]
+        ),
     )
-    review_lines = "\n".join(
-        f"- {r['reviewer_agent']} on {r['hypothesis_id'][:8]}: "
-        f"{r['summary'][:120]}"
-        for r in reviews[-5:]
-    )
-    match_lines = "\n".join(
-        f"- Winner {m['winner_id'][:8]} (Elo {m['winner_elo_after']}) — "
-        f"{(m.get('rationale') or '')[:100]}"
-        for m in matches[-3:]
-    )
-    conv_lines = "\n".join(
-        f"{'User' if m.sender == 'user' else 'Assistant'}: {m.content}"
-        for m in history[-10:]
-    )
-    return hyp_lines, review_lines, match_lines, conv_lines
 
 
-def _base_system_prompt(
-    research_goal: str,
-    hyp_lines: str,
-    review_lines: str,
-    match_lines: str,
-    evidence_lines: str,
-    conv_lines: str,
-) -> str:
+def _base_system_prompt(research_goal: str, sections: _PromptSections) -> str:
     """Render the grounded-Q&A system prompt before audience/corpus appends."""
     return (
         f"You are a concise research assistant helping the user understand "
         f"an ongoing AI-driven hypothesis generation run.\n\n"
         f"Research goal: {research_goal}\n\n"
-        f"Top hypotheses by Elo:\n{hyp_lines or '(none yet)'}\n\n"
-        f"Recent reviews:\n{review_lines or '(none yet)'}\n\n"
-        f"Recent tournament matches:\n{match_lines or '(none yet)'}\n\n"
+        f"Top hypotheses by Elo:\n{sections.hypotheses or '(none yet)'}\n\n"
+        f"Recent reviews:\n{sections.reviews or '(none yet)'}\n\n"
+        f"Recent tournament matches:\n{sections.matches or '(none yet)'}\n\n"
         f"Evidence (cite supporting sources inline as [n] using ONLY this "
         f"numbered list; never invent a citation):\n"
-        f"{evidence_lines or '(no evidence retrieved)'}\n\n"
-        f"Conversation history:\n{conv_lines or '(none)'}\n\n"
+        f"{sections.evidence or '(no evidence retrieved)'}\n\n"
+        f"Conversation history:\n{sections.conversation or '(none)'}\n\n"
         f"Claims about this run -- what the hypotheses say, how they were "
         f"reviewed or ranked, and what the evidence shows -- must come ONLY "
         f"from the artifacts above. If the run's artifacts do not contain "

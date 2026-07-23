@@ -95,14 +95,18 @@ def test_terminal_status_from_run_returns_none_for_unknown_run(
 def test_terminal_status_from_run_returns_none_for_active_run(
     isolated_db: str,
 ) -> None:
-    run = store.create_run("g", "default", "mock", {}, db_path=isolated_db)
+    run = store.create_run(
+        "g", "default", "mock", {}, store.RunCreateOptions(db_path=isolated_db)
+    )
     assert runs_events._terminal_status_from_run(run.id) is None
 
 
 def test_terminal_status_from_run_returns_terminal_status(
     isolated_db: str,
 ) -> None:
-    run = store.create_run("g", "default", "mock", {}, db_path=isolated_db)
+    run = store.create_run(
+        "g", "default", "mock", {}, store.RunCreateOptions(db_path=isolated_db)
+    )
     store.update_run_status(run.id, RunStatus.COMPLETED, db_path=isolated_db)
     assert runs_events._terminal_status_from_run(run.id) == "completed"
 
@@ -125,7 +129,9 @@ def test_resolve_tick_terminal_skips_run_query_on_non_safety_tick(
     isolated_db: str,
 ) -> None:
     # tick=3 (3 % 10 != 9): no store query, even though the run is terminal.
-    run = store.create_run("g", "default", "mock", {}, db_path=isolated_db)
+    run = store.create_run(
+        "g", "default", "mock", {}, store.RunCreateOptions(db_path=isolated_db)
+    )
     store.update_run_status(run.id, RunStatus.COMPLETED, db_path=isolated_db)
     assert runs_events._resolve_tick_terminal(None, run.id, 3) is None
 
@@ -133,7 +139,9 @@ def test_resolve_tick_terminal_skips_run_query_on_non_safety_tick(
 def test_resolve_tick_terminal_safety_net_queries_on_tenth_tick(
     isolated_db: str,
 ) -> None:
-    run = store.create_run("g", "default", "mock", {}, db_path=isolated_db)
+    run = store.create_run(
+        "g", "default", "mock", {}, store.RunCreateOptions(db_path=isolated_db)
+    )
     store.update_run_status(run.id, RunStatus.COMPLETED, db_path=isolated_db)
     assert runs_events._resolve_tick_terminal(None, run.id, 9) == "completed"
 
@@ -146,7 +154,9 @@ def test_resolve_tick_terminal_safety_net_queries_on_tenth_tick(
 def test_drain_tick_frames_returns_new_events_as_sse_frames(
     isolated_db: str,
 ) -> None:
-    run = store.create_run("g", "default", "mock", {}, db_path=isolated_db)
+    run = store.create_run(
+        "g", "default", "mock", {}, store.RunCreateOptions(db_path=isolated_db)
+    )
     store.append_event(run.id, "log", {"i": 0}, db_path=isolated_db)
     seq1 = store.append_event(run.id, "log", {"i": 1}, db_path=isolated_db)
 
@@ -161,7 +171,9 @@ def test_drain_tick_frames_returns_new_events_as_sse_frames(
 def test_drain_tick_frames_detects_terminal_status_event(
     isolated_db: str,
 ) -> None:
-    run = store.create_run("g", "default", "mock", {}, db_path=isolated_db)
+    run = store.create_run(
+        "g", "default", "mock", {}, store.RunCreateOptions(db_path=isolated_db)
+    )
     seq = store.append_event(
         run.id, "status", {"status": "failed"}, db_path=isolated_db
     )
@@ -181,7 +193,9 @@ def test_drain_tick_frames_detects_terminal_status_event(
 def test_stream_live_tail_returns_immediately_on_disconnect(
     isolated_db: str,
 ) -> None:
-    run = store.create_run("g", "default", "mock", {}, db_path=isolated_db)
+    run = store.create_run(
+        "g", "default", "mock", {}, store.RunCreateOptions(db_path=isolated_db)
+    )
     request = _FakeRequest(disconnected=True)
 
     frames = _drain(
@@ -196,7 +210,9 @@ def test_stream_live_tail_returns_immediately_on_disconnect(
 
 def test_stream_live_tail_ends_on_terminal_event(isolated_db: str) -> None:
     """The poll drains the terminal status event and closes the stream."""
-    run = store.create_run("g", "default", "mock", {}, db_path=isolated_db)
+    run = store.create_run(
+        "g", "default", "mock", {}, store.RunCreateOptions(db_path=isolated_db)
+    )
     seq = store.append_event(
         run.id, "status", {"status": "completed"}, db_path=isolated_db
     )
@@ -217,7 +233,9 @@ def test_stream_live_tail_ends_on_terminal_event(isolated_db: str) -> None:
 
 def test_stream_live_tail_polls_to_a_cancelled_close(isolated_db: str) -> None:
     """A cancelled run's status event ends the polled stream."""
-    run = store.create_run("g", "default", "mock", {}, db_path=isolated_db)
+    run = store.create_run(
+        "g", "default", "mock", {}, store.RunCreateOptions(db_path=isolated_db)
+    )
     store.append_event(
         run.id, "status", {"status": "cancelled"}, db_path=isolated_db
     )
@@ -242,7 +260,9 @@ def test_stream_live_tail_polls_to_a_cancelled_close(isolated_db: str) -> None:
 def test_event_stream_replays_history_then_terminal_for_finished_run(
     isolated_db: str,
 ) -> None:
-    run = store.create_run("g", "default", "mock", {}, db_path=isolated_db)
+    run = store.create_run(
+        "g", "default", "mock", {}, store.RunCreateOptions(db_path=isolated_db)
+    )
     store.append_event(run.id, "log", {"i": 0}, db_path=isolated_db)
     store.update_run_status(run.id, RunStatus.COMPLETED, db_path=isolated_db)
     finished_run = store.get_run(run.id, db_path=isolated_db)
@@ -271,7 +291,9 @@ def test_event_stream_falls_through_to_live_tail_for_active_run(
     connected (a pre-existing event would be caught by the history replay
     phase instead, which is a different code path).
     """
-    run = store.create_run("g", "default", "mock", {}, db_path=isolated_db)
+    run = store.create_run(
+        "g", "default", "mock", {}, store.RunCreateOptions(db_path=isolated_db)
+    )
     request = _FakeRequest()
 
     async def _append_terminal_soon() -> None:
@@ -312,7 +334,11 @@ def test_events_endpoint_serves_json_snapshot_when_stream_false(
     from tests._client import make_client
 
     run = store.create_run(
-        "JSON events goal", "default", "mock", {}, db_path=isolated_db
+        "JSON events goal",
+        "default",
+        "mock",
+        {},
+        store.RunCreateOptions(db_path=isolated_db),
     )
     store.append_event(run.id, "lifecycle", {"event": "created"})
     store.append_event(run.id, "status", {"status": "running"})

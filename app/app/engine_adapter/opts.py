@@ -230,33 +230,40 @@ def _generator_kwargs(
 
     `cfg` went through `resolved_run_config` upstream, so every numeric key
     is present -- index directly rather than re-inventing defaults here.
+    The four run-size knobs stay top-level; every other engine knob is
+    grouped into the engine's ``GeneratorOptions`` bundle.
     """
+    from co_scientist import GeneratorOptions
+
     return {
         "model_name": model_name,
-        "supervisor_model_name": supervisor_model_name,
-        "enable_cache": enable_cache,
         "max_iterations": int(cfg["max_iterations"]),
-        # Hard termination ceiling on top of max_iterations. Present even
-        # for runs created before the knob existed: resolved_run_config
-        # seeds every load from the tier table.
-        "budget": {"max_llm_calls": int(cfg["max_llm_calls"])},
         "initial_hypotheses_count": int(cfg["initial_hypotheses_count"]),
         "evolution_max_count": int(cfg["evolution_max_count"]),
-        "tournament_pairs": int(cfg["tournament_pairs"]),
-        "elo_k_factor": int(cfg["k_factor"]),
-        # ``evidence_count`` is the single literature-budget knob in the tier
-        # table; map it to the engine's parameter name at this translation
-        # boundary rather than persisting a second synced key.
-        "literature_review_papers_count": int(cfg["evidence_count"]),
-        # Forward the configured tools YAML so a real run actually enables
-        # the domain tools (e.g. INDRA for the production
-        # indra_cancer.yaml). None loads the engine's bundled default
-        # registry, whose literature_review workflow is multi-source (the
-        # group's paper corpus, PubMed, and OpenAlex) -- not PubMed-only.
-        # Startup already validated this path is readable (see app.main
-        # lifespan).
-        "tools_config": settings.tools_config,
-        "disable_tools": _resolve_generator_disable_tools(cfg),
+        "options": GeneratorOptions(
+            supervisor_model_name=supervisor_model_name,
+            enable_cache=enable_cache,
+            # Hard termination ceiling on top of max_iterations. Present
+            # even for runs created before the knob existed:
+            # resolved_run_config seeds every load from the tier table.
+            budget={"max_llm_calls": int(cfg["max_llm_calls"])},
+            tournament_pairs=int(cfg["tournament_pairs"]),
+            elo_k_factor=int(cfg["k_factor"]),
+            # ``evidence_count`` is the single literature-budget knob in the
+            # tier table; map it to the engine's parameter name at this
+            # translation boundary rather than persisting a second synced
+            # key.
+            literature_review_papers_count=int(cfg["evidence_count"]),
+            # Forward the configured tools YAML so a real run actually
+            # enables the domain tools (e.g. INDRA for the production
+            # indra_cancer.yaml). None loads the engine's bundled default
+            # registry, whose literature_review workflow is multi-source
+            # (the group's paper corpus, PubMed, and OpenAlex) -- not
+            # PubMed-only. Startup already validated this path is readable
+            # (see app.main lifespan).
+            tools_config=settings.tools_config,
+            disable_tools=_resolve_generator_disable_tools(cfg),
+        ),
     }
 
 

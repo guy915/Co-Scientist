@@ -10,14 +10,17 @@ import httpx
 import pytest
 
 from app.cli import logs_cmd
-from app.cli.http import ApiClient
+from app.cli.http import ApiClient, ApiClientOptions
 
 cli_main = importlib.import_module("app.cli.main")
 
 
 def _client(handler: object) -> ApiClient:
     transport = httpx.MockTransport(handler)  # type: ignore[arg-type]
-    return ApiClient("http://api.test", transport=transport, retry_wait=0.0)
+    return ApiClient(
+        "http://api.test",
+        options=ApiClientOptions(transport=transport, retry_wait=0.0),
+    )
 
 
 def _args(**overrides: Any) -> argparse.Namespace:

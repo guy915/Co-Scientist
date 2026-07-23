@@ -12,7 +12,7 @@ import httpx
 import pytest
 
 from app.cli import runs_cmd, status_cmd
-from app.cli.http import ApiClient, CliError
+from app.cli.http import ApiClient, ApiClientOptions, CliError
 
 cli_main = importlib.import_module("app.cli.main")
 
@@ -20,7 +20,10 @@ cli_main = importlib.import_module("app.cli.main")
 def _client(handler: object) -> ApiClient:
     """Build an ApiClient whose requests are served by ``handler``."""
     transport = httpx.MockTransport(handler)  # type: ignore[arg-type]
-    return ApiClient("http://api.test", transport=transport, retry_wait=0.0)
+    return ApiClient(
+        "http://api.test",
+        options=ApiClientOptions(transport=transport, retry_wait=0.0),
+    )
 
 
 def _read_args(run_id: str = "r1", as_json: bool = False) -> argparse.Namespace:
@@ -364,7 +367,10 @@ def test_verbose_logs_requests_to_stderr(
 
     transport = httpx.MockTransport(handler)
     client = ApiClient(
-        "http://api.test", transport=transport, verbose=True, retry_wait=0.0
+        "http://api.test",
+        options=ApiClientOptions(
+            transport=transport, verbose=True, retry_wait=0.0
+        ),
     )
     client.request_json("GET", "/health")
     err = capsys.readouterr().err

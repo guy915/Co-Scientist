@@ -26,6 +26,9 @@ exercised in their plain (domain-agnostic) form.
 from typing import Any
 
 from co_scientist.prompts import (
+    PromptRunContext,
+    RankingSide,
+    SupervisorPromptInputs,
     get_meta_review_prompt,
     get_proximity_prompt,
     get_ranking_prompt,
@@ -127,10 +130,12 @@ def test_get_domain_variables_none_returns_string_dict() -> None:
 def test_supervisor_prompt_interpolates_goal_and_counts() -> None:
     """The supervisor prompt embeds the goal and the planning counts."""
     prompt, schema = get_supervisor_prompt(
-        research_goal="map gut-brain axis signaling",
-        initial_hypotheses_count=4,
-        max_iterations=3,
-        evolution_max_count=6,
+        SupervisorPromptInputs(
+            research_goal="map gut-brain axis signaling",
+            initial_hypotheses_count=4,
+            max_iterations=3,
+            evolution_max_count=6,
+        )
     )
     assert isinstance(prompt, str)
     assert prompt
@@ -145,10 +150,14 @@ def test_supervisor_prompt_interpolates_goal_and_counts() -> None:
 def test_supervisor_prompt_constraints_branch_changes_output() -> None:
     """Supplying constraints injects them; omitting them shows the default."""
     with_constraints, _ = get_supervisor_prompt(
-        research_goal="goal",
-        constraints=["budget under 10k", "in-vitro only"],
+        SupervisorPromptInputs(
+            research_goal="goal",
+            constraints=["budget under 10k", "in-vitro only"],
+        )
     )
-    without_constraints, _ = get_supervisor_prompt(research_goal="goal")
+    without_constraints, _ = get_supervisor_prompt(
+        SupervisorPromptInputs(research_goal="goal")
+    )
     assert "budget under 10k" in with_constraints
     assert "budget under 10k" not in without_constraints
     assert "None provided" in without_constraints
@@ -157,10 +166,12 @@ def test_supervisor_prompt_constraints_branch_changes_output() -> None:
 def test_supervisor_prompt_pubmed_availability_branch() -> None:
     """PubMed/MCP availability flips the literature-review description text."""
     available, _ = get_supervisor_prompt(
-        research_goal="g", pubmed_available=True
+        SupervisorPromptInputs(research_goal="g", pubmed_available=True)
     )
     unavailable, _ = get_supervisor_prompt(
-        research_goal="g", pubmed_available=False, mcp_available=False
+        SupervisorPromptInputs(
+            research_goal="g", pubmed_available=False, mcp_available=False
+        )
     )
     assert "search pubmed" in available.lower()
     assert "not available" in unavailable.lower()
@@ -171,10 +182,11 @@ def test_prompt_builders_include_run_setup_guidance() -> None:
     setup_guidance = "Run setup:\n- Requirements:\n  - Focus on primary data"
     focus_guidance = "Prefer novelty while preserving testability."
     prompt, _ = get_supervisor_prompt(
-        research_goal="g",
-        run_setup_guidance=setup_guidance,
-        run_focus_guidance=focus_guidance,
-        criteria=["Causal clarity"],
+        SupervisorPromptInputs(research_goal="g", criteria=["Causal clarity"]),
+        PromptRunContext(
+            run_setup_guidance=setup_guidance,
+            run_focus_guidance=focus_guidance,
+        ),
     )
     assert "Run Setup Guidance" in prompt
     assert "Run Focus Guidance" in prompt
@@ -205,7 +217,9 @@ def test_review_prompt_supervisor_guidance_branch() -> None:
         research_goal="g", hypothesis_text="h"
     )
     with_guidance, _ = get_review_prompt(
-        research_goal="g", hypothesis_text="h", supervisor_guidance=_GUIDANCE
+        research_goal="g",
+        hypothesis_text="h",
+        context=PromptRunContext(supervisor_guidance=_GUIDANCE),
     )
     assert len(with_guidance) > len(without_guidance)
     assert "Supervisor Guidance for Review" in with_guidance
@@ -233,7 +247,9 @@ def test_review_prompt_surfaces_synthesized_config() -> None:
         }
     }
     prompt, _ = get_review_prompt(
-        research_goal="g", hypothesis_text="h", supervisor_guidance=guidance
+        research_goal="g",
+        hypothesis_text="h",
+        context=PromptRunContext(supervisor_guidance=guidance),
     )
     assert "testable within 2 years" in prompt
     assert "penalize ideas that restate known biology" in prompt
@@ -248,7 +264,9 @@ def test_review_prompt_meta_review_branch() -> None:
         "common_weaknesses": ["weak controls"],
     }
     prompt, _ = get_review_prompt(
-        research_goal="g", hypothesis_text="h", meta_review=meta_review
+        research_goal="g",
+        hypothesis_text="h",
+        context=PromptRunContext(meta_review=meta_review),
     )
     assert "Meta-Review Context" in prompt
     assert "clear mechanism" in prompt
@@ -293,7 +311,9 @@ def test_meta_review_prompt_interpolates_goal_and_reviews() -> None:
 def test_meta_review_prompt_supervisor_guidance_branch() -> None:
     """Guidance adds key areas and evolution guidance to the meta-review."""
     with_guidance, _ = get_meta_review_prompt(
-        research_goal="g", all_reviews="r", supervisor_guidance=_GUIDANCE
+        research_goal="g",
+        all_reviews="r",
+        context=PromptRunContext(supervisor_guidance=_GUIDANCE),
     )
     assert "mitochondrial dysfunction" in with_guidance
     assert "Evolution Phase Guidance" in with_guidance
@@ -331,8 +351,8 @@ def test_ranking_prompt_interpolates_both_hypotheses() -> None:
     """The ranking prompt embeds the goal and both compared hypotheses."""
     prompt, schema = get_ranking_prompt(
         research_goal="optimise CRISPR delivery",
-        hypothesis_a="lipid nanoparticle approach",
-        hypothesis_b="AAV vector approach",
+        side_a=RankingSide(text="lipid nanoparticle approach"),
+        side_b=RankingSide(text="AAV vector approach"),
     )
     assert "optimise CRISPR delivery" in prompt
     assert "lipid nanoparticle approach" in prompt
@@ -345,10 +365,10 @@ def test_ranking_prompt_review_scores_branch() -> None:
     """Providing review scores adds a review-scores context section."""
     prompt, _ = get_ranking_prompt(
         research_goal="g",
-        hypothesis_a="a",
-        hypothesis_b="b",
-        review_a={"overall_score": 8.5, "scores": {"novelty": 9}},
-        review_b={"overall_score": 6.0},
+        side_a=RankingSide(
+            text="a", review={"overall_score": 8.5, "scores": {"novelty": 9}}
+        ),
+        side_b=RankingSide(text="b", review={"overall_score": 6.0}),
     )
     assert "Review Scores Context" in prompt
     assert "8.5" in prompt
@@ -358,7 +378,9 @@ def test_ranking_prompt_review_scores_branch() -> None:
 def test_ranking_prompt_reflection_notes_default_when_absent() -> None:
     """Absent reflection notes fall back to the documented placeholder text."""
     prompt, _ = get_ranking_prompt(
-        research_goal="g", hypothesis_a="a", hypothesis_b="b"
+        research_goal="g",
+        side_a=RankingSide(text="a"),
+        side_b=RankingSide(text="b"),
     )
     assert "No reflection notes available." in prompt
 
@@ -383,7 +405,7 @@ def test_domain_injection_populates_domain_placeholders() -> None:
     prompt, _ = get_review_prompt(
         research_goal="g",
         hypothesis_text="h",
-        tool_registry=_StubRegistry(),
+        context=PromptRunContext(tool_registry=_StubRegistry()),
     )
     assert "ONCOLOGY-CONTEXT" in prompt
     assert "REVIEW-G" in prompt

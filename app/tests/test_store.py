@@ -44,9 +44,16 @@ def test_list_runs_reports_top_elo(db: str) -> None:
     run = store.create_run("top-elo", "standard", "mock", {})
     for rating in (1240, 1310, 1180):
         hid = store.add_hypothesis(
-            run.id, title="t", statement="s", created_by_agent="generation"
+            store.NewHypothesis(
+                run_id=run.id,
+                title="t",
+                statement="s",
+                created_by_agent="generation",
+            )
         )
-        store.update_hypothesis_state(hid, elo_rating=rating)
+        store.update_hypothesis_state(
+            hid, store.HypothesisStateChanges(elo_rating=rating)
+        )
     # A second run with no hypotheses reports None rather than a stray value.
     store.create_run("no-hyps", "standard", "mock", {})
 
@@ -62,9 +69,16 @@ def test_list_runs_reports_top_hypotheses_by_elo(db: str) -> None:
     run = store.create_run("top-hyps", "standard", "mock", {})
     for title, rating in (("Low", 1180), ("High", 1320), ("Mid", 1250)):
         hid = store.add_hypothesis(
-            run.id, title=title, statement="s", created_by_agent="generation"
+            store.NewHypothesis(
+                run_id=run.id,
+                title=title,
+                statement="s",
+                created_by_agent="generation",
+            )
         )
-        store.update_hypothesis_state(hid, elo_rating=rating)
+        store.update_hypothesis_state(
+            hid, store.HypothesisStateChanges(elo_rating=rating)
+        )
     # A run with no hypotheses reports an empty list, not None or a stray value.
     store.create_run("no-hyps", "standard", "mock", {})
 
@@ -82,12 +96,16 @@ def test_list_runs_caps_top_hypotheses_at_three(db: str) -> None:
     run = store.create_run("many-hyps", "standard", "mock", {})
     for rating in (1300, 1290, 1280, 1270, 1260):
         hid = store.add_hypothesis(
-            run.id,
-            title=f"h{rating}",
-            statement="s",
-            created_by_agent="generation",
+            store.NewHypothesis(
+                run_id=run.id,
+                title=f"h{rating}",
+                statement="s",
+                created_by_agent="generation",
+            )
         )
-        store.update_hypothesis_state(hid, elo_rating=rating)
+        store.update_hypothesis_state(
+            hid, store.HypothesisStateChanges(elo_rating=rating)
+        )
 
     listed = {r.research_goal: r for r in store.list_runs()}["many-hyps"]
     assert listed.top_hypotheses == ["h1300", "h1290", "h1280"]
@@ -115,17 +133,23 @@ def test_list_runs_reports_latest_pipeline_stage(db: str) -> None:
 def test_hypothesis_state_decoupled_from_hypothesis_row(db: str) -> None:
     run = store.create_run("decoupling test", "standard", "mock", {})
     hid = store.add_hypothesis(
-        run.id,
-        title="t",
-        statement="s",
-        mechanism="m",
-        expected_effect="e",
-        experimental_context="x",
-        created_by_agent="generation",
+        store.NewHypothesis(
+            run_id=run.id,
+            title="t",
+            statement="s",
+            mechanism="m",
+            expected_effect="e",
+            experimental_context="x",
+            created_by_agent="generation",
+        )
     )
     # Mutate state.
-    store.update_hypothesis_state(hid, elo_rating=1300, win_delta=1)
-    store.update_hypothesis_state(hid, elo_rating=1350, win_delta=1)
+    store.update_hypothesis_state(
+        hid, store.HypothesisStateChanges(elo_rating=1300, win_delta=1)
+    )
+    store.update_hypothesis_state(
+        hid, store.HypothesisStateChanges(elo_rating=1350, win_delta=1)
+    )
     h = store.get_hypothesis(hid)
     assert h is not None
     assert h["elo_rating"] == 1350
@@ -138,18 +162,22 @@ def test_hypothesis_state_decoupled_from_hypothesis_row(db: str) -> None:
 def test_evolved_hypothesis_has_parent_and_higher_generation(db: str) -> None:
     run = store.create_run("lineage", "standard", "mock", {})
     parent = store.add_hypothesis(
-        run.id,
-        title="P",
-        statement="ps",
-        created_by_agent="generation",
+        store.NewHypothesis(
+            run_id=run.id,
+            title="P",
+            statement="ps",
+            created_by_agent="generation",
+        )
     )
     child = store.add_hypothesis(
-        run.id,
-        title="C",
-        statement="cs",
-        created_by_agent="evolution",
-        parent_id=parent,
-        generation=1,
+        store.NewHypothesis(
+            run_id=run.id,
+            title="C",
+            statement="cs",
+            parent_id=parent,
+            generation=1,
+            created_by_agent="evolution",
+        )
     )
     rows = store.list_hypotheses(run.id)
     by_id = {r["id"]: r for r in rows}
@@ -162,11 +190,13 @@ def test_evolved_hypothesis_has_parent_and_higher_generation(db: str) -> None:
 def test_redact_hypothesis_fields_overwrites_detail_columns(db: str) -> None:
     run = store.create_run("redact", "standard", "mock", {})
     hid = store.add_hypothesis(
-        run.id,
-        title="H",
-        statement="keep me",
-        mechanism="secret mechanism",
-        experimental_context="secret protocol",
+        store.NewHypothesis(
+            run_id=run.id,
+            title="H",
+            statement="keep me",
+            mechanism="secret mechanism",
+            experimental_context="secret protocol",
+        )
     )
     store.redact_hypothesis_fields(
         hid, {"mechanism": "[X]", "experimental_context": "[X]"}
@@ -183,7 +213,9 @@ def test_redact_hypothesis_fields_rejects_non_redactable_column(
     db: str,
 ) -> None:
     run = store.create_run("redact", "standard", "mock", {})
-    hid = store.add_hypothesis(run.id, title="H", statement="s")
+    hid = store.add_hypothesis(
+        store.NewHypothesis(run_id=run.id, title="H", statement="s")
+    )
     with pytest.raises(ValueError, match="non-redactable"):
         store.redact_hypothesis_fields(hid, {"statement": "wiped"})
 
@@ -201,7 +233,13 @@ def test_reports_round_trip_markdown_to_disk(db: str) -> None:
 def test_safety_decision_persists_matches_array(db: str) -> None:
     run = store.create_run("safety", "standard", "mock", {})
     store.add_safety_decision(
-        run.id, "intake", "block", "test reason", ["match-a", "match-b"]
+        store.NewSafetyDecision(
+            run_id=run.id,
+            stage="intake",
+            decision="block",
+            reason="test reason",
+            matches=["match-a", "match-b"],
+        )
     )
     rows = store.list_safety_decisions(run.id)
     assert rows[0]["decision"] == "block"
@@ -210,7 +248,19 @@ def test_safety_decision_persists_matches_array(db: str) -> None:
 
 def test_match_log_preserves_pre_post_elo(db: str) -> None:
     run = store.create_run("matches", "standard", "mock", {})
-    store.add_match(run.id, 1, "w", "l", 1200, 1212, 1200, 1188, "rationale")
+    store.add_match(
+        store.NewMatch(
+            run_id=run.id,
+            iteration=1,
+            winner_id="w",
+            loser_id="l",
+            winner_before=1200,
+            winner_after=1212,
+            loser_before=1200,
+            loser_after=1188,
+            rationale="rationale",
+        )
+    )
     rows = store.list_matches(run.id)
     assert rows[0]["winner_elo_before"] == 1200
     assert rows[0]["winner_elo_after"] == 1212
@@ -221,9 +271,32 @@ def test_match_log_preserves_pre_post_elo(db: str) -> None:
 def test_match_log_records_debate_turns(db: str) -> None:
     run = store.create_run("matches", "standard", "mock", {})
     # A single-turn comparison (default) and a multi-turn scientific debate.
-    store.add_match(run.id, 1, "w", "l", 1200, 1212, 1200, 1188, "single")
     store.add_match(
-        run.id, 1, "w", "l", 1212, 1230, 1188, 1170, "multi", debate_turns=3
+        store.NewMatch(
+            run_id=run.id,
+            iteration=1,
+            winner_id="w",
+            loser_id="l",
+            winner_before=1200,
+            winner_after=1212,
+            loser_before=1200,
+            loser_after=1188,
+            rationale="single",
+        )
+    )
+    store.add_match(
+        store.NewMatch(
+            run_id=run.id,
+            iteration=1,
+            winner_id="w",
+            loser_id="l",
+            winner_before=1212,
+            winner_after=1230,
+            loser_before=1188,
+            loser_after=1170,
+            rationale="multi",
+            debate_turns=3,
+        )
     )
     rows = store.list_matches(run.id)
     assert rows[0]["debate_turns"] == 1

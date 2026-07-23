@@ -14,6 +14,7 @@ from co_scientist.agents.generation.literature_tools.validate_search import (
     _articles_to_paper_dict,
     _find_search_tool,
     _first,
+    _NoveltySearchContext,
     _search_papers_for_hypothesis,
     _search_papers_via_tool_config,
 )
@@ -179,10 +180,13 @@ async def test_search_papers_via_tool_config_returns_paper_dict() -> None:
     result = await _search_papers_via_tool_config(
         tool_config,
         "hypothesis text",
-        mcp_client,
+        _NoveltySearchContext(
+            mcp_client=mcp_client,
+            tool_registry=None,
+            shared_slug="slug-1",
+            run_id="run-1",
+        ),
         max_papers=5,
-        shared_slug="slug-1",
-        run_id="run-1",
     )
 
     assert result == {
@@ -207,10 +211,13 @@ async def test_search_papers_via_tool_config_omits_run_id_when_absent() -> None:
     await _search_papers_via_tool_config(
         tool_config,
         "hypothesis text",
-        mcp_client,
+        _NoveltySearchContext(
+            mcp_client=mcp_client,
+            tool_registry=None,
+            shared_slug="slug-1",
+            run_id=None,
+        ),
         max_papers=5,
-        shared_slug="slug-1",
-        run_id=None,
     )
 
     _, kwargs = mcp_client.calls[0]
@@ -235,11 +242,13 @@ async def test_search_papers_for_hypothesis_uses_config_tool() -> None:
 
     result = await _search_papers_for_hypothesis(
         "hypothesis text",
-        mcp_client,
-        registry,
+        _NoveltySearchContext(
+            mcp_client=mcp_client,
+            tool_registry=registry,
+            shared_slug="slug-1",
+            run_id=None,
+        ),
         max_papers=3,
-        shared_slug="slug-1",
-        run_id=None,
     )
 
     assert "p1" in result
@@ -254,11 +263,13 @@ async def test_search_papers_for_hypothesis_no_tool_returns_empty(
 
     result = await _search_papers_for_hypothesis(
         "hypothesis text",
-        mcp_client,
-        registry,
+        _NoveltySearchContext(
+            mcp_client=mcp_client,
+            tool_registry=registry,
+            shared_slug="slug-1",
+            run_id=None,
+        ),
         max_papers=3,
-        shared_slug="slug-1",
-        run_id=None,
     )
 
     assert result == {}
@@ -271,11 +282,13 @@ async def test_search_papers_for_hypothesis_legacy_fallback() -> None:
 
     result = await _search_papers_for_hypothesis(
         "hypothesis text",
-        mcp_client,
-        None,
+        _NoveltySearchContext(
+            mcp_client=mcp_client,
+            tool_registry=None,
+            shared_slug="slug-1",
+            run_id=None,
+        ),
         max_papers=3,
-        shared_slug="slug-1",
-        run_id=None,
     )
 
     assert result == {"p1": {"title": "Legacy paper"}}

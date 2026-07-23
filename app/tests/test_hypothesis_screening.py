@@ -23,10 +23,9 @@ def _add(
     mechanism: str = "",
 ) -> str:
     return store.add_hypothesis(
-        run_id,
-        title=title,
-        statement=statement,
-        mechanism=mechanism,
+        store.NewHypothesis(
+            run_id=run_id, title=title, statement=statement, mechanism=mechanism
+        ),
         db_path=db,
     )
 
@@ -96,11 +95,13 @@ def test_screen_redacts_detail_fields_of_redact_outcome(
 
     run = store.create_run("safety goal", "standard", "mock", {})
     hyp_id = store.add_hypothesis(
-        run.id,
-        title="Sensitive detail",
-        statement="A therapeutic approach for a viral disease.",
-        mechanism="A step-by-step synthesis protocol for the compound.",
-        experimental_context="Follow the synthesis route in a BSL-2 lab.",
+        store.NewHypothesis(
+            run_id=run.id,
+            title="Sensitive detail",
+            statement="A therapeutic approach for a viral disease.",
+            mechanism="A step-by-step synthesis protocol for the compound.",
+            experimental_context="Follow the synthesis route in a BSL-2 lab.",
+        ),
         db_path=isolated_db,
     )
     payloads = store.list_hypotheses(run.id)
@@ -140,10 +141,12 @@ def test_rescreen_does_not_downgrade_a_redacted_hypothesis(
     """
     run = store.create_run("safety goal", "standard", "mock", {})
     store.add_hypothesis(
-        run.id,
-        title="Sensitive detail",
-        statement="A therapeutic approach.",
-        mechanism="A step-by-step synthesis protocol.",
+        store.NewHypothesis(
+            run_id=run.id,
+            title="Sensitive detail",
+            statement="A therapeutic approach.",
+            mechanism="A step-by-step synthesis protocol.",
+        ),
         db_path=isolated_db,
     )
 

@@ -17,6 +17,7 @@ from co_scientist.agents.generation import coordinator_enrichment
 from co_scientist.agents.generation.coordinator_enrichment import (
     _enrich_hypotheses,
     _enrich_one_hypothesis,
+    _ResolvedEnrichment,
     _run_one_enrichment,
 )
 from co_scientist.config.schema import EnrichmentConfig, ToolConfig
@@ -65,9 +66,7 @@ async def test_enrich_one_hypothesis_unwraps_results_path() -> None:
 
     await _enrich_one_hypothesis(
         hyp,
-        enrichment,
-        tool_config,
-        "cves",
+        _ResolvedEnrichment(enrichment, tool_config, "cves"),
         mcp_client,
         asyncio.Semaphore(2),
     )
@@ -89,9 +88,7 @@ async def test_enrich_one_hypothesis_without_results_path_uses_raw_parsed() -> (
 
     await _enrich_one_hypothesis(
         hyp,
-        enrichment,
-        tool_config,
-        "cves",
+        _ResolvedEnrichment(enrichment, tool_config, "cves"),
         mcp_client,
         asyncio.Semaphore(2),
     )
@@ -108,9 +105,7 @@ async def test_enrich_one_hypothesis_defaults_input_to_text() -> None:
 
     await _enrich_one_hypothesis(
         hyp,
-        enrichment,
-        tool_config,
-        "cves",
+        _ResolvedEnrichment(enrichment, tool_config, "cves"),
         mcp_client,
         asyncio.Semaphore(1),
     )
@@ -127,9 +122,7 @@ async def test_enrich_one_hypothesis_records_error_on_failure() -> None:
 
     await _enrich_one_hypothesis(
         hyp,
-        enrichment,
-        tool_config,
-        "cves",
+        _ResolvedEnrichment(enrichment, tool_config, "cves"),
         mcp_client,
         asyncio.Semaphore(1),
     )

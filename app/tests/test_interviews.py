@@ -19,7 +19,7 @@ from app import interviews
 from app.config import settings
 from app.main import app
 
-from ._interviews_helpers import _fake_stream, _response
+from ._interviews_helpers import InterviewFields, _fake_stream, _response
 
 
 def _interview_payload(response: Any) -> dict[str, Any]:
@@ -102,17 +102,19 @@ def _antibiotic_responses() -> list[dict[str, Any]]:
         _response("Which resistance mechanism should the study prioritize?"),
         _response(
             "What models, constraints, or exclusions should guide it?",
-            focus=["Efflux-pump regulation"],
+            InterviewFields(focus=["Efflux-pump regulation"]),
         ),
         _response(
             "The goal is ready for run configuration.",
-            focus=["Efflux-pump regulation"],
-            preferences=[
-                "Use clinical Gram-negative isolates",
-                "Exclude new antibiotic discovery",
-            ],
-            title="Restoring Antibiotic Susceptibility",
-            completed=True,
+            InterviewFields(
+                focus=["Efflux-pump regulation"],
+                preferences=[
+                    "Use clinical Gram-negative isolates",
+                    "Exclude new antibiotic discovery",
+                ],
+                title="Restoring Antibiotic Susceptibility",
+                completed=True,
+            ),
         ),
     ]
 
@@ -331,9 +333,12 @@ def test_interview_completes_when_model_reports_no_preferences(
             _response("Which pathways should this research prioritize?"),
             _response(
                 "The goal is finalized. Proceeding with the analysis.",
-                focus=["PI3K/AKT/mTOR pathway"],
-                preferences=[],  # scientist stated there are no constraints
-                completed=True,
+                InterviewFields(
+                    focus=["PI3K/AKT/mTOR pathway"],
+                    # scientist stated there are no constraints
+                    preferences=[],
+                    completed=True,
+                ),
             ),
         ],
     )

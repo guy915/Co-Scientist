@@ -6,6 +6,7 @@ review node composes. The LLM-calling functions and the node itself live in
 the sibling ``review.py``.
 """
 
+import dataclasses
 import logging
 from typing import Any
 
@@ -19,9 +20,53 @@ from co_scientist.constants import (
 )
 from co_scientist.exceptions import GenerationError
 from co_scientist.models import Hypothesis, HypothesisReview
-from co_scientist.prompts import get_review_batch_prompt
+from co_scientist.prompts import PromptRunContext, get_review_batch_prompt
+from co_scientist.state import WorkflowState
 
 logger = logging.getLogger(__name__)
+
+
+@dataclasses.dataclass(frozen=True)
+class ReviewContext:
+    """Run-level context shared by every review call this pass.
+
+    Threaded unchanged into each hypothesis review (single, batch, or
+    parallel) so the prompt sees the same research goal and guidance
+    regardless of which hypotheses are being reviewed.
+    """
+
+    research_goal: str
+    model_name: str
+    run_id: str | None = None
+    supervisor_guidance: dict[str, Any] | None = None
+    meta_review: dict[str, Any] | None = None
+    tool_registry: Any | None = None
+    run_setup_guidance: str | None = None
+    run_focus_guidance: str | None = None
+
+    @classmethod
+    def from_state(cls, state: WorkflowState) -> "ReviewContext":
+        """Builds the review context from the current workflow state."""
+        return cls(
+            research_goal=state["research_goal"],
+            model_name=state["model_name"],
+            run_id=state.get("run_id"),
+            supervisor_guidance=state.get("supervisor_guidance"),
+            meta_review=state.get("meta_review"),
+            tool_registry=state.get("tool_registry"),
+            run_setup_guidance=state.get("run_setup_guidance"),
+            run_focus_guidance=state.get("run_focus_guidance"),
+        )
+
+
+@dataclasses.dataclass(frozen=True)
+class _BatchReviewCall:
+    """A prepared batch-review prompt and its token/retry budget."""
+
+    prompt: str
+    schema: dict[str, Any] | None
+    max_tokens: int
+    max_attempts: int
 
 
 def _review_from_response(data: dict[str, Any]) -> HypothesisReview:
@@ -62,35 +107,28 @@ def _review_from_response(data: dict[str, Any]) -> HypothesisReview:
 
 def _prepare_batch_review_call(
     hypotheses: list[Hypothesis],
-    research_goal: str,
-    supervisor_guidance: dict[str, Any] | None,
-    meta_review: dict[str, Any] | None,
-    tool_registry: Any | None,
-    run_setup_guidance: str | None,
-    run_focus_guidance: str | None,
-) -> tuple[str, dict[str, Any] | None, int, int]:
+    context: ReviewContext,
+) -> _BatchReviewCall:
     """Builds the batch-review prompt and derives its token/retry budget.
 
     Args:
         hypotheses: Hypotheses to include in the batch prompt.
-        research_goal: Research goal for context.
-        supervisor_guidance: Optional planning guidance from the supervisor.
-        meta_review: Optional meta-review feedback for context.
-        tool_registry: Optional ToolRegistry for dynamic tool instructions.
-        run_setup_guidance: Optional run-setup guidance for the prompt.
-        run_focus_guidance: Optional run-focus guidance for the prompt.
+        context: Run-level review context (research goal, guidance, tool
+            registry).
 
     Returns:
-        Tuple of (prompt, schema, max_tokens, max_attempts).
+        The prepared batch-review call (prompt, schema, token/retry budget).
     """
     prompt, schema = get_review_batch_prompt(
-        research_goal=research_goal,
+        research_goal=context.research_goal,
         hypotheses_list=_build_hypotheses_list_text(hypotheses),
-        supervisor_guidance=supervisor_guidance,
-        meta_review=meta_review,
-        tool_registry=tool_registry,
-        run_setup_guidance=run_setup_guidance,
-        run_focus_guidance=run_focus_guidance,
+        context=PromptRunContext(
+            supervisor_guidance=context.supervisor_guidance,
+            meta_review=context.meta_review,
+            tool_registry=context.tool_registry,
+            run_setup_guidance=context.run_setup_guidance,
+            run_focus_guidance=context.run_focus_guidance,
+        ),
     )
     hypothesis_count = len(hypotheses)
     max_tokens, max_attempts = _scaled_batch_review_budget(hypothesis_count)
@@ -99,7 +137,12 @@ def _prepare_batch_review_call(
         hypothesis_count,
         max_tokens,
     )
-    return prompt, schema, max_tokens, max_attempts
+    return _BatchReviewCall(
+        prompt=prompt,
+        schema=schema,
+        max_tokens=max_tokens,
+        max_attempts=max_attempts,
+    )
 
 
 def _build_hypotheses_list_text(hypotheses: list[Hypothesis]) -> str:

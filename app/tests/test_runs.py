@@ -23,14 +23,16 @@ def _run_with_held_decision(
         json={"research_goal": "Review a sensitive research protocol"},
     ).json()
     store.add_safety_decision(
-        created["id"],
-        "intake",
-        "hold",
-        "Context requires review.",
-        [],
-        category="uncertain",
-        policy_version="coscientist-safety-v2",
-        requires_review=True,
+        store.NewSafetyDecision(
+            run_id=created["id"],
+            stage="intake",
+            decision="hold",
+            reason="Context requires review.",
+            matches=[],
+            category="uncertain",
+            policy_version="coscientist-safety-v2",
+            requires_review=True,
+        )
     )
     decision_id = store.list_safety_decisions(created["id"])[0]["id"]
     return created["id"], decision_id
@@ -105,13 +107,23 @@ def test_owned_proximity_endpoint_returns_persisted_landscape(
         json={"research_goal": "Map a conceptual hypothesis landscape"},
     ).json()
     source = store.add_hypothesis(
-        run["id"], title="Source", statement="Source mechanism"
+        store.NewHypothesis(
+            run_id=run["id"], title="Source", statement="Source mechanism"
+        )
     )
     target = store.add_hypothesis(
-        run["id"], title="Target", statement="Target mechanism"
+        store.NewHypothesis(
+            run_id=run["id"], title="Target", statement="Target mechanism"
+        )
     )
     store.add_proximity_edge(
-        run["id"], source, target, 0.81, cluster_id="cluster-1"
+        store.NewProximityEdge(
+            run_id=run["id"],
+            source_hypothesis_id=source,
+            target_hypothesis_id=target,
+            similarity=0.81,
+            cluster_id="cluster-1",
+        )
     )
 
     response = client.get(f"/api/runs/{run['id']}/proximity", headers=headers)

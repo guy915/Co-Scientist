@@ -3,14 +3,17 @@
 Covers the supervisor, meta-review, and research-overview nodes.
 """
 
+from dataclasses import dataclass
 from typing import Any
 
 from co_scientist.prompts._common import (
+    PromptRunContext,
+    PromptSections,
     _format_bullet_list,
     _format_bullet_section,
     _format_csv_list,
     _format_meta_review_context,
-    _format_run_guidance,
+    _run_guidance_section,
 )
 from co_scientist.prompts.loading import _build_prompt
 
@@ -21,13 +24,22 @@ from co_scientist.prompts.loading import _build_prompt
 def get_meta_review_prompt(
     research_goal: str,
     all_reviews: str,
-    supervisor_guidance: dict[str, Any] | None = None,
     instructions: str | None = None,
-    tool_registry: Any | None = None,
-    run_setup_guidance: str | None = None,
-    run_focus_guidance: str | None = None,
+    context: PromptRunContext | None = None,
 ) -> tuple[str, dict[str, Any] | None]:
-    """Get the meta-review synthesis prompt and schema."""
+    """Get the meta-review synthesis prompt and schema.
+
+    Args:
+        research_goal: The run's research goal.
+        all_reviews: JSON dump of every review collected so far.
+        instructions: Optional extra synthesis instructions.
+        context: Run-scoped prompt context (supervisor guidance, tool
+            registry, run setup/focus guidance).
+
+    Returns:
+        Tuple of (rendered prompt string, JSON schema dict or None).
+    """
+    ctx = context or PromptRunContext()
     return _build_prompt(
         "meta_review",
         {
@@ -35,13 +47,13 @@ def get_meta_review_prompt(
             "all_reviews": all_reviews,
             "instructions": instructions or "",
         },
-        supervisor_guidance=_format_supervisor_guidance_for_meta_review(
-            supervisor_guidance
+        sections=PromptSections(
+            supervisor_guidance=_format_supervisor_guidance_for_meta_review(
+                ctx.supervisor_guidance
+            ),
+            run_guidance=_run_guidance_section(ctx),
         ),
-        run_guidance=_format_run_guidance(
-            run_setup_guidance, run_focus_guidance
-        ),
-        tool_registry=tool_registry,
+        tool_registry=ctx.tool_registry,
     )
 
 
@@ -52,12 +64,22 @@ def get_research_overview_prompt(
     hypotheses_summary: str,
     contact_candidates: str = "No verified literature authors available.",
     evidence_corpus: str = "No verified evidence corpus available.",
-    meta_review: dict[str, Any] | None = None,
-    tool_registry: Any | None = None,
-    run_setup_guidance: str | None = None,
-    run_focus_guidance: str | None = None,
+    context: PromptRunContext | None = None,
 ) -> tuple[str, dict[str, Any] | None]:
-    """Get the research-overview + NIH Specific Aims prompt and schema."""
+    """Get the research-overview + NIH Specific Aims prompt and schema.
+
+    Args:
+        research_goal: The run's research goal.
+        hypotheses_summary: Formatted summary of the top-Elo hypotheses.
+        contact_candidates: Verified literature authors, pre-formatted.
+        evidence_corpus: Analyzed sources, pre-formatted.
+        context: Run-scoped prompt context (meta-review, tool registry,
+            run setup/focus guidance).
+
+    Returns:
+        Tuple of (rendered prompt string, JSON schema dict or None).
+    """
+    ctx = context or PromptRunContext()
     return _build_prompt(
         "research_overview",
         {
@@ -66,11 +88,11 @@ def get_research_overview_prompt(
             "contact_candidates": contact_candidates,
             "evidence_corpus": evidence_corpus,
         },
-        meta_review_context=_format_meta_review_context(meta_review),
-        run_guidance=_format_run_guidance(
-            run_setup_guidance, run_focus_guidance
+        sections=PromptSections(
+            meta_review_context=_format_meta_review_context(ctx.meta_review),
+            run_guidance=_run_guidance_section(ctx),
         ),
-        tool_registry=tool_registry,
+        tool_registry=ctx.tool_registry,
     )
 
 
@@ -86,19 +108,41 @@ def _format_lit_review_description(
     return "literature review is not available (no pubmed access)"
 
 
+@dataclass(frozen=True)
+class SupervisorPromptInputs:
+    """The run inputs the supervisor plans against.
+
+    Attributes:
+        research_goal: The run's research goal.
+        preferences: Free-text user preferences, if any.
+        attributes: Desired hypothesis attributes.
+        constraints: User-supplied run constraints.
+        criteria: User-supplied evaluation criteria.
+        user_hypotheses: Seed hypotheses supplied by the user.
+        user_literature: Seed literature supplied by the user.
+        initial_hypotheses_count: Requested first-wave hypothesis count.
+        max_iterations: Requested maximum workflow iterations.
+        evolution_max_count: Requested maximum evolved hypotheses.
+        mcp_available: Whether an MCP server is reachable.
+        pubmed_available: Whether PubMed search is reachable.
+    """
+
+    research_goal: str
+    preferences: str | None = None
+    attributes: list[str] | None = None
+    constraints: list[str] | None = None
+    criteria: list[str] | None = None
+    user_hypotheses: list[str] | None = None
+    user_literature: list[str] | None = None
+    initial_hypotheses_count: int | None = None
+    max_iterations: int | None = None
+    evolution_max_count: int | None = None
+    mcp_available: bool = False
+    pubmed_available: bool = False
+
+
 def _build_supervisor_prompt_variables(
-    research_goal: str,
-    preferences: str | None,
-    attributes: list[str] | None,
-    constraints: list[str] | None,
-    criteria: list[str] | None,
-    user_hypotheses: list[str] | None,
-    user_literature: list[str] | None,
-    initial_hypotheses_count: int | None,
-    max_iterations: int | None,
-    evolution_max_count: int | None,
-    mcp_available: bool,
-    pubmed_available: bool,
+    inputs: SupervisorPromptInputs,
 ) -> dict[str, Any]:
     """Build the template variables for the supervisor planning prompt.
 
@@ -106,20 +150,28 @@ def _build_supervisor_prompt_variables(
     hypotheses/literature, count knobs) is normalized to a "None
     provided"/"not specified" string so the template never renders a raw
     Python None.
+
+    Args:
+        inputs: The run inputs the supervisor plans against.
+
+    Returns:
+        Dict of template variables for the supervisor prompt.
     """
     return {
-        "research_goal": research_goal,
-        "preferences": preferences or "None provided",
-        "attributes": _format_csv_list(attributes),
-        "constraints": _format_bullet_list(constraints),
-        "criteria": _format_bullet_list(criteria),
-        "user_hypotheses": _format_bullet_list(user_hypotheses),
-        "user_literature": _format_bullet_list(user_literature),
-        "initial_hypotheses_count": initial_hypotheses_count or "not specified",
-        "max_iterations": max_iterations or "not specified",
-        "evolution_max_count": evolution_max_count or "not specified",
+        "research_goal": inputs.research_goal,
+        "preferences": inputs.preferences or "None provided",
+        "attributes": _format_csv_list(inputs.attributes),
+        "constraints": _format_bullet_list(inputs.constraints),
+        "criteria": _format_bullet_list(inputs.criteria),
+        "user_hypotheses": _format_bullet_list(inputs.user_hypotheses),
+        "user_literature": _format_bullet_list(inputs.user_literature),
+        "initial_hypotheses_count": (
+            inputs.initial_hypotheses_count or "not specified"
+        ),
+        "max_iterations": inputs.max_iterations or "not specified",
+        "evolution_max_count": inputs.evolution_max_count or "not specified",
         "literature_review_description": _format_lit_review_description(
-            mcp_available, pubmed_available
+            inputs.mcp_available, inputs.pubmed_available
         ),
     }
 
@@ -127,44 +179,25 @@ def _build_supervisor_prompt_variables(
 # Renders prompts/supervisor.md for nodes/supervisor.py, the planning call
 # at the head of the graph.
 def get_supervisor_prompt(
-    research_goal: str,
-    preferences: str | None = None,
-    attributes: list[str] | None = None,
-    constraints: list[str] | None = None,
-    user_hypotheses: list[str] | None = None,
-    user_literature: list[str] | None = None,
-    initial_hypotheses_count: int | None = None,
-    max_iterations: int | None = None,
-    evolution_max_count: int | None = None,
-    mcp_available: bool = False,
-    pubmed_available: bool = False,
-    tool_registry: Any | None = None,
-    criteria: list[str] | None = None,
-    run_setup_guidance: str | None = None,
-    run_focus_guidance: str | None = None,
+    inputs: SupervisorPromptInputs,
+    context: PromptRunContext | None = None,
 ) -> tuple[str, dict[str, Any] | None]:
-    """Get the supervisor research planning prompt and schema."""
-    variables = _build_supervisor_prompt_variables(
-        research_goal=research_goal,
-        preferences=preferences,
-        attributes=attributes,
-        constraints=constraints,
-        criteria=criteria,
-        user_hypotheses=user_hypotheses,
-        user_literature=user_literature,
-        initial_hypotheses_count=initial_hypotheses_count,
-        max_iterations=max_iterations,
-        evolution_max_count=evolution_max_count,
-        mcp_available=mcp_available,
-        pubmed_available=pubmed_available,
-    )
+    """Get the supervisor research planning prompt and schema.
+
+    Args:
+        inputs: The run inputs the supervisor plans against.
+        context: Run-scoped prompt context (tool registry, run setup/focus
+            guidance).
+
+    Returns:
+        Tuple of (rendered prompt string, JSON schema dict or None).
+    """
+    ctx = context or PromptRunContext()
     return _build_prompt(
         "supervisor",
-        variables,
-        run_guidance=_format_run_guidance(
-            run_setup_guidance, run_focus_guidance
-        ),
-        tool_registry=tool_registry,
+        _build_supervisor_prompt_variables(inputs),
+        sections=PromptSections(run_guidance=_run_guidance_section(ctx)),
+        tool_registry=ctx.tool_registry,
     )
 
 

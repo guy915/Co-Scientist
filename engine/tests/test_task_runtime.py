@@ -4,7 +4,11 @@ from typing import Any
 
 import pytest
 
-from co_scientist.models import Hypothesis, create_metrics_update
+from co_scientist.models import (
+    Hypothesis,
+    MetricDeltas,
+    create_metrics_update,
+)
 from co_scientist.state import AppendHypotheses
 from co_scientist.task_runtime import (
     TASK_NODES,
@@ -23,7 +27,7 @@ def test_apply_task_update_uses_graph_state_reducers() -> None:
         state,
         {
             "hypotheses": AppendHypotheses([child]),
-            "metrics": create_metrics_update(llm_calls_delta=2),
+            "metrics": create_metrics_update(deltas=MetricDeltas(llm_calls=2)),
         },
     )
     assert [hypothesis.text for hypothesis in merged["hypotheses"]] == [

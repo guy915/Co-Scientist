@@ -178,18 +178,23 @@ def _parse_enrichment_result(raw: Any) -> tuple[str, list[dict[str, Any]]]:
 
 async def _query_enrichment_entity(
     tool_config: Any,
-    tool_name: str,
-    tool_id: str,
-    canonical: dict[str, Any],
     entity: str,
     mcp_client: MCPToolClient,
 ) -> tuple[str, list[dict[str, Any]]]:
     """Query one enrichment tool for one entity, tagging results by it.
 
-    map_parameters translates the canonical entity_name/limit pair into
-    this tool's own YAML-configured parameter names.
+    The tool name and id are derived from tool_config; map_parameters
+    translates the canonical entity_name/limit pair into this tool's own
+    YAML-configured parameter names.
     """
-    params = tool_config.map_parameters({**canonical, "entity_name": entity})
+    tool_name = tool_config.mcp_tool_name
+    tool_id = getattr(tool_config, "tool_id", tool_name)
+    params = tool_config.map_parameters(
+        {
+            "entity_name": entity,
+            "limit": _CONTEXT_ENRICHMENT_RESULTS_PER_ENTITY,
+        }
+    )
     raw = await _call_enrichment_tool_for_entity(tool_name, params, mcp_client)
     if raw is None:
         return "", []
@@ -211,19 +216,10 @@ async def _call_enrichment_tool_for_entities(
     Returns (formatted_text, structured_items) where structured_items carry
     the tool_id so they can be stored in context_enrichment_sources.
     """
-    tool_name = tool_config.mcp_tool_name
-    tool_id = getattr(tool_config, "tool_id", tool_name)
-    canonical = {
-        "entity_name": "",
-        "limit": _CONTEXT_ENRICHMENT_RESULTS_PER_ENTITY,
-    }
-
     # One tool call per entity, all in parallel.
     per_entity = await asyncio.gather(
         *[
-            _query_enrichment_entity(
-                tool_config, tool_name, tool_id, canonical, entity, mcp_client
-            )
+            _query_enrichment_entity(tool_config, entity, mcp_client)
             for entity in entities
         ]
     )

@@ -16,7 +16,7 @@ hypotheses and the canned responses use disjoint vocabularies.
 """
 
 from collections.abc import Callable
-from typing import Any
+from typing import Any, NamedTuple
 
 import pytest
 
@@ -101,23 +101,29 @@ def _assert_fresh_immutable_child(
     assert child.reviews == []
 
 
+class _ExpectedTransformation(NamedTuple):
+    """The text an evolution detail is expected to record."""
+
+    original: str
+    evolved: str
+    rationale: str
+
+
 def _assert_single_evolution_detail(
     result: dict[str, Any],
     *,
     parent: Hypothesis,
     child: Hypothesis,
-    original: str,
-    evolved: str,
-    rationale: str,
+    expected: _ExpectedTransformation,
 ) -> None:
     """The lone evolution detail records the parent->child transformation."""
     details = result["evolution_details"]
     assert len(details) == 1
     assert details[0]["parent_id"] == parent.id
     assert details[0]["child_id"] == child.id
-    assert details[0]["original"] == original
-    assert details[0]["evolved"] == evolved
-    assert details[0]["rationale"] == rationale
+    assert details[0]["original"] == expected.original
+    assert details[0]["evolved"] == expected.evolved
+    assert details[0]["rationale"] == expected.rationale
 
 
 def _feedback_state(hypothesis: Hypothesis) -> WorkflowState:
@@ -252,9 +258,11 @@ async def test_evolution_produces_evolved_hypotheses(
         result,
         parent=original,
         child=child,
-        original="quercetin inhibits aldolase activity",
-        evolved="rapamycin suppresses mtor signaling downstream",
-        rationale="pivoted to a kinase mechanism",
+        expected=_ExpectedTransformation(
+            original="quercetin inhibits aldolase activity",
+            evolved="rapamycin suppresses mtor signaling downstream",
+            rationale="pivoted to a kinase mechanism",
+        ),
     )
 
 

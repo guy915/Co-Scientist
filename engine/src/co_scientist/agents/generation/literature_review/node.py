@@ -57,6 +57,9 @@ from co_scientist.agents.generation.literature_review.orchestration import (
 from co_scientist.agents.generation.literature_review.orchestration import (
     _phase2_collect_papers as _phase2_collect_papers,
 )
+from co_scientist.agents.generation.literature_review.orchestration import (
+    _ReviewCachePlan as _ReviewCachePlan,
+)
 from co_scientist.agents.generation.literature_review.outcomes import (
     _describe_exc as _describe_exc,
 )
@@ -93,7 +96,7 @@ from co_scientist.agents.generation.literature_review.run_config import (
 from co_scientist.agents.generation.literature_review.run_config import (
     _resolve_single_source_tool as _resolve_single_source_tool,
 )
-from co_scientist.cache import NodeCache, get_node_cache
+from co_scientist.cache import get_node_cache
 from co_scientist.mcp_client import (
     MCPToolClient,
     check_mcp_available,
@@ -142,11 +145,11 @@ def _literature_cache_params(
 
 def _initialize_review(
     state: WorkflowState,
-) -> tuple[SearchConfig, NodeCache, dict[str, Any], bool]:
+) -> tuple[SearchConfig, _ReviewCachePlan]:
     """Resolves search config and cache lookup parameters for this run.
 
     Returns:
-        A (config, node_cache, cache_params, force_cache) tuple.
+        A (config, cache_plan) tuple.
     """
     config = _get_search_config(state)
     logger.info(
@@ -165,14 +168,12 @@ def _initialize_review(
     if force_cache:
         logger.info("Dev isolation mode: forcing literature review cache")
 
-    return config, node_cache, cache_params, force_cache
+    return config, _ReviewCachePlan(node_cache, cache_params, force_cache)
 
 
 async def _check_cache(
     state: WorkflowState,
-    node_cache: NodeCache,
-    cache_params: dict[str, Any],
-    force_cache: bool,
+    cache_plan: _ReviewCachePlan,
 ) -> dict[str, Any] | None:
     """Return the cached literature review result, if any.
 
@@ -183,8 +184,10 @@ async def _check_cache(
     Returns:
         The cached result dict on a cache hit, else None.
     """
-    cached = node_cache.get(
-        "literature_review", force=force_cache, **cache_params
+    cached = cache_plan.node_cache.get(
+        "literature_review",
+        force=cache_plan.force_cache,
+        **cache_plan.cache_params,
     )
     if cached is None:
         return None
@@ -241,20 +244,17 @@ async def _check_server_available(
 
 async def _prepare_review(
     state: WorkflowState,
-) -> (
-    tuple[SearchConfig, NodeCache, dict[str, Any], bool, MCPToolClient]
-    | dict[str, Any]
-):
+) -> tuple[SearchConfig, _ReviewCachePlan, MCPToolClient] | dict[str, Any]:
     """Resolve config/cache, gate on cache/server, and open the MCP client.
 
     Returns:
-        Either the (config, node_cache, cache_params, force_cache, mcp_client)
-        tuple needed to continue the run, or an early-exit result dict on a
-        cache hit or an unreachable MCP server.
+        Either the (config, cache_plan, mcp_client) tuple needed to continue
+        the run, or an early-exit result dict on a cache hit or an
+        unreachable MCP server.
     """
-    config, node_cache, cache_params, force_cache = _initialize_review(state)
+    config, cache_plan = _initialize_review(state)
 
-    cached = await _check_cache(state, node_cache, cache_params, force_cache)
+    cached = await _check_cache(state, cache_plan)
     if cached is not None:
         return cached
 
@@ -267,7 +267,7 @@ async def _prepare_review(
     )
 
     mcp_client = await get_mcp_client(tool_registry=config.tool_registry)
-    return config, node_cache, cache_params, force_cache, mcp_client
+    return config, cache_plan, mcp_client
 
 
 async def _finalize_review(
@@ -275,9 +275,7 @@ async def _finalize_review(
     config: SearchConfig,
     collected: _CollectionResult,
     queries: list[str],
-    node_cache: NodeCache,
-    cache_params: dict[str, Any],
-    force_cache: bool,
+    cache_plan: _ReviewCachePlan,
 ) -> dict[str, Any]:
     """Phases 3-5: analyze, synthesize, finalize, and cache the result."""
     synthesis = await _analyze_and_synthesize(
@@ -300,9 +298,7 @@ async def _finalize_review(
         queries,
         articles,
         collected.context_enrichment_sources,
-        node_cache,
-        cache_params,
-        force_cache,
+        cache_plan,
     )
 
 
@@ -349,19 +345,11 @@ async def literature_review_node(state: WorkflowState) -> dict[str, Any]:
     prepared = await _prepare_review(state)
     if isinstance(prepared, dict):
         return prepared
-    config, node_cache, cache_params, force_cache, mcp_client = prepared
+    config, cache_plan, mcp_client = prepared
 
     phase_result = await _run_search_phases(state, config, mcp_client)
     if isinstance(phase_result, dict):
         return phase_result
     queries, collected = phase_result
 
-    return await _finalize_review(
-        state,
-        config,
-        collected,
-        queries,
-        node_cache,
-        cache_params,
-        force_cache,
-    )
+    return await _finalize_review(state, config, collected, queries, cache_plan)

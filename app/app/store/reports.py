@@ -12,6 +12,7 @@ import json
 import logging
 import sqlite3
 import uuid
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -28,14 +29,18 @@ def _write_report_markdown(md_path: Path, markdown: str) -> None:
         logger.warning("Could not write report markdown to disk at %s", md_path)
 
 
-def _insert_report_row(
-    conn: sqlite3.Connection,
-    report_id: str,
-    run_id: str,
-    payload: dict[str, Any],
-    md_path: Path,
-    markdown: str,
-) -> None:
+@dataclass(frozen=True)
+class _NewReportFields:
+    """Fields needed to insert one report row."""
+
+    report_id: str
+    run_id: str
+    payload: dict[str, Any]
+    md_path: Path
+    markdown: str
+
+
+def _insert_report_row(conn: sqlite3.Connection, f: _NewReportFields) -> None:
     """Insert the report row on an open connection."""
     conn.execute(
         "INSERT INTO reports "
@@ -43,11 +48,11 @@ def _insert_report_row(
         "markdown_text, created_at) "
         "VALUES (?,?,?,?,?,?)",
         (
-            report_id,
-            run_id,
-            json.dumps(payload),
-            str(md_path),
-            markdown,
+            f.report_id,
+            f.run_id,
+            json.dumps(f.payload),
+            str(f.md_path),
+            f.markdown,
             _now(),
         ),
     )
@@ -80,7 +85,16 @@ def save_report(
     md_path = _reports_dir() / f"{run_id}.md"
     _write_report_markdown(md_path, markdown)
     with _use_conn(conn, db_path) as conn:
-        _insert_report_row(conn, report_id, run_id, payload, md_path, markdown)
+        _insert_report_row(
+            conn,
+            _NewReportFields(
+                report_id=report_id,
+                run_id=run_id,
+                payload=payload,
+                md_path=md_path,
+                markdown=markdown,
+            ),
+        )
     return {"id": report_id, "markdown_path": str(md_path)}
 
 

@@ -21,36 +21,35 @@ from app.store.db import _now, _use_conn
 
 
 @dataclass(frozen=True)
-class _NewHypothesisFields:
-    """Fields needed to insert a hypothesis row and its state row.
+class NewHypothesis:
+    """One hypothesis row to insert, mirroring the hypotheses table.
 
-    ``hyp_id`` is the engine's stable hypothesis id when the engine
+    ``hypothesis_id`` is the engine's stable hypothesis id when the engine
     adapter inserts (so ids stay consistent engine -> DB -> API -> UI) and
-    a fresh uuid4 otherwise. ``generation`` is 0 for originally generated
-    hypotheses; ``category`` is a short classification label that drives
-    the viewer breadcrumb; ``created_by_agent`` names the creating agent
-    (e.g. 'generation'); ``author`` records authorship provenance for a
-    scientist-contributed hypothesis and stays empty for agent-generated
-    ones.
+    None to have a fresh uuid4 assigned. ``generation`` is 0 for
+    originally generated hypotheses; ``category`` is a short
+    classification label that drives the viewer breadcrumb;
+    ``created_by_agent`` names the creating agent (e.g. 'generation');
+    ``author`` records authorship provenance for a scientist-contributed
+    hypothesis and stays empty for agent-generated ones.
     """
 
-    hyp_id: str
     run_id: str
-    parent_id: str | None
-    generation: int
-    category: str | None
     title: str
     statement: str
-    mechanism: str
-    expected_effect: str
-    experimental_context: str
-    created_by_agent: str
-    author: str
-    now: float
+    hypothesis_id: str | None = None
+    parent_id: str | None = None
+    generation: int = 0
+    category: str | None = None
+    mechanism: str = ""
+    expected_effect: str = ""
+    experimental_context: str = ""
+    created_by_agent: str = "generation"
+    author: str = ""
 
 
 def _insert_hypothesis_rows(
-    conn: sqlite3.Connection, f: _NewHypothesisFields
+    conn: sqlite3.Connection, hyp_id: str, f: NewHypothesis, now: float
 ) -> None:
     """Insert the hypothesis row and its initial mutable-state row."""
     conn.execute(
@@ -59,7 +58,7 @@ def _insert_hypothesis_rows(
         "experimental_context, created_by_agent, author, created_at) "
         "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
         (
-            f.hyp_id,
+            hyp_id,
             f.run_id,
             f.parent_id,
             f.generation,
@@ -71,63 +70,62 @@ def _insert_hypothesis_rows(
             f.experimental_context,
             f.created_by_agent,
             f.author,
-            f.now,
+            now,
         ),
     )
     conn.execute(
         "INSERT INTO hypothesis_state (hypothesis_id, elo_rating, "
         "updated_at) VALUES (?,?,?)",
-        (f.hyp_id, INITIAL_ELO, f.now),
+        (hyp_id, INITIAL_ELO, now),
     )
 
 
 def add_hypothesis(
-    run_id: str,
-    title: str,
-    statement: str,
+    hypothesis: NewHypothesis,
     *,
-    hypothesis_id: str | None = None,
-    parent_id: str | None = None,
-    generation: int = 0,
-    category: str | None = None,
-    mechanism: str = "",
-    expected_effect: str = "",
-    experimental_context: str = "",
-    created_by_agent: str = "generation",
-    author: str = "",
     db_path: str | None = None,
     conn: sqlite3.Connection | None = None,
 ) -> str:
-    """Insert a hypothesis row; returns its id (see _NewHypothesisFields)."""
-    fields = _NewHypothesisFields(
-        hyp_id=hypothesis_id or str(uuid.uuid4()),
-        run_id=run_id,
-        parent_id=parent_id,
-        generation=generation,
-        category=category,
-        title=title,
-        statement=statement,
-        mechanism=mechanism,
-        expected_effect=expected_effect,
-        experimental_context=experimental_context,
-        created_by_agent=created_by_agent,
-        author=author,
-        now=_now(),
-    )
+    """Insert a hypothesis row and its state row; return the row id.
+
+    Args:
+        hypothesis: The hypothesis to insert (see
+            :class:`NewHypothesis`).
+        db_path: Optional override for the SQLite database path.
+        conn: Optional open connection to reuse (e.g. from ``transaction``).
+
+    Returns:
+        The identifier of the new hypothesis row.
+    """
+    hyp_id = hypothesis.hypothesis_id or str(uuid.uuid4())
     with _use_conn(conn, db_path) as conn:
-        _insert_hypothesis_rows(conn, fields)
-    return fields.hyp_id
+        _insert_hypothesis_rows(conn, hyp_id, hypothesis, _now())
+    return hyp_id
+
+
+@dataclass(frozen=True)
+class HypothesisStateChanges:
+    """The mutable hypothesis-state fields a caller wants to change.
+
+    Only the fields set here are written. The deltas add to the win/loss
+    counts (and are skipped when zero); every other field sets an absolute
+    value and is skipped while None. ``safety_status`` is the
+    pre-tournament safety review's per-hypothesis status (e.g. 'allow',
+    'redact', 'blocked'); ``status`` is the lifecycle status, such as
+    active or review-rejected.
+    """
+
+    elo_rating: int | None = None
+    win_delta: int = 0
+    loss_delta: int = 0
+    novelty: float | None = None
+    cluster_id: str | None = None
+    safety_status: str | None = None
+    status: str | None = None
 
 
 def _hypothesis_state_updates(
-    *,
-    elo_rating: int | None,
-    win_delta: int,
-    loss_delta: int,
-    novelty: float | None,
-    cluster_id: str | None,
-    safety_status: str | None,
-    status: str | None,
+    changes: HypothesisStateChanges,
 ) -> list[tuple[str, Any]]:
     """Return the (SQL fragment, value) pairs for the provided fields.
 
@@ -136,14 +134,15 @@ def _hypothesis_state_updates(
     counts, so they are included only when non-zero; the rest are included
     whenever explicitly set (not None).
     """
+    c = changes
     candidates: tuple[tuple[bool, str, Any], ...] = (
-        (elo_rating is not None, "elo_rating=?", elo_rating),
-        (bool(win_delta), "win_count=win_count+?", win_delta),
-        (bool(loss_delta), "loss_count=loss_count+?", loss_delta),
-        (novelty is not None, "novelty_score=?", novelty),
-        (cluster_id is not None, "cluster_id=?", cluster_id),
-        (safety_status is not None, "safety_status=?", safety_status),
-        (status is not None, "status=?", status),
+        (c.elo_rating is not None, "elo_rating=?", c.elo_rating),
+        (bool(c.win_delta), "win_count=win_count+?", c.win_delta),
+        (bool(c.loss_delta), "loss_count=loss_count+?", c.loss_delta),
+        (c.novelty is not None, "novelty_score=?", c.novelty),
+        (c.cluster_id is not None, "cluster_id=?", c.cluster_id),
+        (c.safety_status is not None, "safety_status=?", c.safety_status),
+        (c.status is not None, "status=?", c.status),
     )
     return [
         (fragment, value) for active, fragment, value in candidates if active
@@ -174,34 +173,22 @@ def _persist_hypothesis_state_update(
 
 def update_hypothesis_state(
     hypothesis_id: str,
+    changes: HypothesisStateChanges,
     *,
-    elo_rating: int | None = None,
-    win_delta: int = 0,
-    loss_delta: int = 0,
-    novelty: float | None = None,
-    cluster_id: str | None = None,
-    safety_status: str | None = None,
-    status: str | None = None,
     db_path: str | None = None,
     conn: sqlite3.Connection | None = None,
 ) -> None:
     """Update selected mutable-state fields for a hypothesis.
 
-    Only the fields whose arguments are provided are updated (the deltas
-    add to the win/loss counts; the rest set absolute values); everything
-    else is left untouched. ``safety_status`` is the pre-tournament safety
-    review's per-hypothesis status (e.g. 'allow', 'redact', 'blocked');
-    ``status`` is the lifecycle status, such as active or review-rejected.
+    Args:
+        hypothesis_id: Identifier of the hypothesis to update.
+        changes: The fields to write (see
+            :class:`HypothesisStateChanges`); everything else is left
+            untouched.
+        db_path: Optional override for the SQLite database path.
+        conn: Optional open connection to reuse (e.g. from ``transaction``).
     """
-    updates = _hypothesis_state_updates(
-        elo_rating=elo_rating,
-        win_delta=win_delta,
-        loss_delta=loss_delta,
-        novelty=novelty,
-        cluster_id=cluster_id,
-        safety_status=safety_status,
-        status=status,
-    )
+    updates = _hypothesis_state_updates(changes)
     with _use_conn(conn, db_path) as conn:
         _persist_hypothesis_state_update(conn, hypothesis_id, updates)
 

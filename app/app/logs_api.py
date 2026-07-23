@@ -11,11 +11,12 @@ high-water mark regardless of filters, letting pollers resume with
 
 from __future__ import annotations
 
+import dataclasses
 import hmac
 import logging
 import sqlite3
 import time
-from typing import Any
+from typing import Annotated, Any
 
 from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import BaseModel, Field
@@ -137,55 +138,16 @@ def _min_levelno(min_level: str | None) -> int:
     return levelno
 
 
-def _query_logs_payload(
-    conn: sqlite3.Connection,
-    *,
-    after_id: int,
-    limit: int,
-    min_levelno: int,
-    run_id: str | None,
-    q: str | None,
-    noise_loggers: tuple[str, ...] | None,
-    scope_client_id: str | None,
-) -> dict[str, Any]:
-    """Run the three reads backing one logs response on an open connection."""
-    rows = store.list_logs(
-        after_id=after_id,
-        min_levelno=min_levelno,
-        run_id=run_id,
-        contains=q,
-        noise_loggers=noise_loggers,
-        scope_client_id=scope_client_id,
-        limit=limit,
-        conn=conn,
-    )
-    # `total` counts the whole matching set (no cursor, no limit) so the
-    # UI badge shows the true size even when the window is capped.
-    total = store.count_logs(
-        min_levelno=min_levelno,
-        run_id=run_id,
-        contains=q,
-        noise_loggers=noise_loggers,
-        scope_client_id=scope_client_id,
-        conn=conn,
-    )
-    last_id = store.latest_log_id(conn=conn)
-    return {"logs": rows, "last_id": last_id, "total": total}
+class LogQuery(BaseModel):
+    """The query parameters ``GET /api/logs`` accepts.
 
+    A Pydantic query-parameter model: FastAPI expands its fields back into
+    the same query-string names, defaults, and validation the handler used
+    to declare one by one, so the HTTP contract and the generated OpenAPI
+    schema are unchanged. The caller's visibility scope is deliberately
+    absent -- it is derived from the request, never accepted from it.
 
-def logs_payload(
-    *,
-    after_id: int,
-    limit: int,
-    min_level: str | None,
-    run_id: str | None,
-    q: str | None,
-    verbose: bool = False,
-    scope_client_id: str | None = None,
-) -> dict[str, Any]:
-    """Build the shared logs response for the given filters.
-
-    Args:
+    Attributes:
         after_id: Only rows with an id strictly greater than this.
         limit: Maximum rows returned (the newest matches, oldest-first).
         min_level: Minimum level name, case-insensitive; None for all.
@@ -193,26 +155,89 @@ def logs_payload(
         q: Case-insensitive message substring filter.
         verbose: Include high-volume noise records (HTTP access, UI
             clicks/navigation, dependency chatter) below WARNING.
-        scope_client_id: One client's records only; None is the
-            app-wide, operator-only view.
+    """
+
+    after_id: int = Field(0, ge=0)
+    limit: int = Field(200, ge=1, le=1000)
+    min_level: str | None = None
+    run_id: str | None = None
+    q: str | None = None
+    verbose: bool = False
+
+
+class RunLogQuery(BaseModel):
+    """The query parameters the run-scoped logs endpoint accepts.
+
+    :class:`LogQuery` minus ``run_id``, which that endpoint reads from the
+    path instead of the query string.
+    """
+
+    after_id: int = Field(0, ge=0)
+    limit: int = Field(200, ge=1, le=1000)
+    min_level: str | None = None
+    q: str | None = None
+    verbose: bool = False
+
+    def for_run(self, run_id: str) -> LogQuery:
+        """Return the equivalent app-wide query pinned to one run."""
+        return LogQuery(run_id=run_id, **self.model_dump())
+
+
+def _query_logs_payload(
+    conn: sqlite3.Connection,
+    filters: store.LogFilters,
+    limit: int,
+) -> dict[str, Any]:
+    """Run the three reads backing one logs response on an open connection.
+
+    Args:
+        conn: The open connection all three reads share.
+        filters: The window and filters of the row query.
+        limit: Maximum rows returned (the newest matches, oldest-first).
+
+    Returns:
+        The ``{"logs", "last_id", "total"}`` payload.
+    """
+    rows = store.list_logs(filters=filters, limit=limit, conn=conn)
+    # `total` counts the whole matching set (no cursor, no limit) so the
+    # UI badge shows the true size even when the window is capped.
+    total = store.count_logs(
+        filters=dataclasses.replace(filters, after_id=0), conn=conn
+    )
+    last_id = store.latest_log_id(conn=conn)
+    return {"logs": rows, "last_id": last_id, "total": total}
+
+
+def logs_payload(
+    query: LogQuery, *, scope_client_id: str | None = None
+) -> dict[str, Any]:
+    """Build the shared logs response for the given query.
+
+    Args:
+        query: The query window and filters, as the caller sent them.
+        scope_client_id: One client's records only; None is the app-wide,
+            operator-only view. Derived from the request, never accepted
+            as a query parameter.
+
+    Returns:
+        The ``{"logs", "last_id", "total"}`` payload both endpoints return.
 
     Raises:
         HTTPException: 422 when ``min_level`` is not a known level name.
     """
-    min_levelno = _min_levelno(min_level)
-    noise_loggers = None if verbose else NOISE_LOGGERS
+    # Validated before a connection is opened, so an unknown level name
+    # costs nothing but the 422.
+    filters = store.LogFilters(
+        after_id=query.after_id,
+        min_levelno=_min_levelno(query.min_level),
+        run_id=query.run_id,
+        contains=query.q,
+        noise_loggers=None if query.verbose else NOISE_LOGGERS,
+        scope_client_id=scope_client_id,
+    )
     # One connection for the three reads: the UI polls this continuously.
     with store.connect() as conn:
-        return _query_logs_payload(
-            conn,
-            after_id=after_id,
-            limit=limit,
-            min_levelno=min_levelno,
-            run_id=run_id,
-            q=q,
-            noise_loggers=noise_loggers,
-            scope_client_id=scope_client_id,
-        )
+        return _query_logs_payload(conn, filters, query.limit)
 
 
 class ClientLogRecord(BaseModel):
@@ -253,12 +278,16 @@ async def post_logs(batch: ClientLogBatch, request: Request) -> dict[str, Any]:
                 else f"ui.{record.logger}"
             )
             store.append_log(
-                level=logging.getLevelName(levelno),
-                levelno=levelno,
-                logger_name=logger_name,
-                message=_sanitize(record.message)[:MAX_CLIENT_MESSAGE_CHARS],
-                run_id=record.run_id,
-                client_id=owner or None,
+                store.NewLogRecord(
+                    level=logging.getLevelName(levelno),
+                    levelno=levelno,
+                    logger_name=logger_name,
+                    message=_sanitize(record.message)[
+                        :MAX_CLIENT_MESSAGE_CHARS
+                    ],
+                    run_id=record.run_id,
+                    client_id=owner or None,
+                ),
                 conn=conn,
             )
         last_id = store.latest_log_id(conn=conn)
@@ -279,12 +308,7 @@ async def delete_logs(request: Request) -> dict[str, Any]:
 @router.get("/api/logs")
 async def get_logs(
     request: Request,
-    after_id: int = Query(0, ge=0),
-    limit: int = Query(200, ge=1, le=1000),
-    min_level: str | None = None,
-    run_id: str | None = None,
-    q: str | None = None,
-    verbose: bool = False,
+    query: Annotated[LogQuery, Query()],
 ) -> dict[str, Any]:
     """Return persisted application log records, oldest-first.
 
@@ -295,12 +319,4 @@ async def get_logs(
     noise (HTTP access records, UI clicks/navigation, dependency
     chatter) below WARNING; ``verbose=1`` returns everything visible.
     """
-    return logs_payload(
-        after_id=after_id,
-        limit=limit,
-        min_level=min_level,
-        run_id=run_id,
-        q=q,
-        verbose=verbose,
-        scope_client_id=_scope_for(request),
-    )
+    return logs_payload(query, scope_client_id=_scope_for(request))

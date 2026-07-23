@@ -12,7 +12,9 @@ from typing import Any
 
 from app import store
 from app.claim_grounding import (
+    AssessorSpec,
     GroundingResult,
+    GroundingTarget,
     build_assessor,
     evidence_passages,
     ground_hypotheses,
@@ -34,7 +36,8 @@ _SUPPORTED = "A dietary change improves cardiovascular outcomes in adults."
 
 def _add(run_id: str, title: str, statement: str, db: str) -> str:
     return store.add_hypothesis(
-        run_id, title=title, statement=statement, db_path=db
+        store.NewHypothesis(run_id=run_id, title=title, statement=statement),
+        db_path=db,
     )
 
 
@@ -72,7 +75,7 @@ def test_ground_persists_graph_and_blocks_contradicted(
         run.id,
         store.list_hypotheses(run.id),
         as_passages([_CONTRADICTING_EVIDENCE]),
-        db_path=isolated_db,
+        target=GroundingTarget(db_path=isolated_db),
     )
 
     assert isinstance(result, GroundingResult)
@@ -96,10 +99,12 @@ def test_unsupported_categorical_rationale_is_quarantined(
     """A proposal label cannot excuse unsupported background rationale."""
     run = store.create_run("grounding goal", "standard", "engine", {})
     hypothesis_id = store.add_hypothesis(
-        run.id,
-        title="Unsupported rationale",
-        statement="We hypothesize kinase X may alter neuronal recovery.",
-        mechanism="Kinase X is established as the recovery controller.",
+        store.NewHypothesis(
+            run_id=run.id,
+            title="Unsupported rationale",
+            statement="We hypothesize kinase X may alter neuronal recovery.",
+            mechanism="Kinase X is established as the recovery controller.",
+        ),
         db_path=isolated_db,
     )
 
@@ -107,7 +112,7 @@ def test_unsupported_categorical_rationale_is_quarantined(
         run.id,
         store.list_hypotheses(run.id, db_path=isolated_db),
         as_passages(["An unrelated passage about photosynthesis in plants."]),
-        db_path=isolated_db,
+        target=GroundingTarget(db_path=isolated_db),
     )
 
     assert result.blocked_ids == frozenset({hypothesis_id})
@@ -125,16 +130,20 @@ def test_contradicted_hypothesis_excluded_from_report(
     bad_id = _add(run.id, "Contradicted", _CONTRADICTED, isolated_db)
     ok_id = _add(run.id, "Benign", _SUPPORTED, isolated_db)
     store.add_evidence(
-        run.id,
-        "Kinase X mouse study",
-        abstract=_CONTRADICTING_EVIDENCE,
+        store.NewEvidence(
+            run_id=run.id,
+            title="Kinase X mouse study",
+            abstract=_CONTRADICTING_EVIDENCE,
+        ),
         db_path=isolated_db,
     )
     store.add_evidence(
-        run.id,
-        "Cardiovascular diet study",
-        abstract=(
-            "A dietary change improves cardiovascular outcomes in adults."
+        store.NewEvidence(
+            run_id=run.id,
+            title="Cardiovascular diet study",
+            abstract=(
+                "A dietary change improves cardiovascular outcomes in adults."
+            ),
         ),
         db_path=isolated_db,
     )
@@ -145,7 +154,7 @@ def test_contradicted_hypothesis_excluded_from_report(
         run.id,
         store.list_hypotheses(run.id),
         evidence_passages(run.id, db_path=isolated_db),
-        db_path=isolated_db,
+        target=GroundingTarget(db_path=isolated_db),
     )
 
     payload, markdown = _build_report(run, isolated_db)
@@ -160,23 +169,29 @@ def _seed_speculative_run(db_path: str) -> tuple[Any, str]:
     """Seed a novel-proposal run with one supporting evidence row, grounded."""
     run = store.create_run("novel proposal", "standard", "engine", {})
     hypothesis_id = store.add_hypothesis(
-        run.id,
-        title="Novel proposal",
-        statement="We hypothesize channel X may alter neuronal ATP recovery.",
-        mechanism="Astrocytes contribute to neuronal energy metabolism.",
+        store.NewHypothesis(
+            run_id=run.id,
+            title="Novel proposal",
+            statement=(
+                "We hypothesize channel X may alter neuronal ATP recovery."
+            ),
+            mechanism="Astrocytes contribute to neuronal energy metabolism.",
+        ),
         db_path=db_path,
     )
     store.add_evidence(
-        run.id,
-        "General energetics review",
-        abstract="Astrocytes contribute to neuronal energy metabolism.",
+        store.NewEvidence(
+            run_id=run.id,
+            title="General energetics review",
+            abstract="Astrocytes contribute to neuronal energy metabolism.",
+        ),
         db_path=db_path,
     )
     ground_hypotheses(
         run.id,
         store.list_hypotheses(run.id, db_path=db_path),
         evidence_passages(run.id, db_path=db_path),
-        db_path=db_path,
+        target=GroundingTarget(db_path=db_path),
     )
     return run, hypothesis_id
 
@@ -222,13 +237,15 @@ def test_ground_records_claim_evidence_round_trip(isolated_db: str) -> None:
     """
     run = store.create_run("grounding goal", "standard", "mock", {})
     store.add_claim_evidence(
-        run.id,
-        "hyp-1",
-        "A supported claim about a mechanism.",
-        "supports",
-        ["Supporting passage one.", "Supporting passage two."],
-        [],
-        "deterministic-v1",
+        store.NewClaimEvidence(
+            run_id=run.id,
+            hypothesis_id="hyp-1",
+            claim="A supported claim about a mechanism.",
+            label="supports",
+            supporting=["Supporting passage one.", "Supporting passage two."],
+            contradicting=[],
+            assessor="deterministic-v1",
+        ),
         db_path=isolated_db,
     )
     edges = store.list_claim_evidence(run.id, db_path=isolated_db)
@@ -248,19 +265,23 @@ def test_evidence_passages_excludes_unavailable_sources(
     """Unavailable publications cannot supply claim-grounding passages."""
     run = store.create_run("grounding goal", "standard", "engine", {})
     current_id = store.add_evidence(
-        run.id,
-        "Current publication",
-        abstract="A current result supports the proposed mechanism.",
-        url="https://example.org/current",
-        available=True,
+        store.NewEvidence(
+            run_id=run.id,
+            title="Current publication",
+            url="https://example.org/current",
+            abstract="A current result supports the proposed mechanism.",
+            available=True,
+        ),
         db_path=isolated_db,
     )
     store.add_evidence(
-        run.id,
-        "Retracted publication",
-        abstract="A retracted result must not support the mechanism.",
-        url="https://example.org/retracted",
-        available=False,
+        store.NewEvidence(
+            run_id=run.id,
+            title="Retracted publication",
+            url="https://example.org/retracted",
+            abstract="A retracted result must not support the mechanism.",
+            available=False,
+        ),
         db_path=isolated_db,
     )
 
@@ -307,11 +328,15 @@ def _seed_llm_assessor(db_path: str) -> tuple[Any, str, str]:
         db_path,
     )
     ev_id = store.add_evidence(
-        run.id,
-        "Kinase X melanoma study",
-        abstract="Kinase X inhibition reduces melanoma tumor growth markedly.",
-        source="pubmed",
-        url="https://example.org/ev",
+        store.NewEvidence(
+            run_id=run.id,
+            title="Kinase X melanoma study",
+            source="pubmed",
+            url="https://example.org/ev",
+            abstract=(
+                "Kinase X inhibition reduces melanoma tumor growth markedly."
+            ),
+        ),
         db_path=db_path,
     )
     return run, hyp_id, ev_id
@@ -332,9 +357,8 @@ def test_ground_with_llm_assessor_persists_provenance(
         run.id,
         store.list_hypotheses(run.id),
         evidence_passages(run.id, db_path=isolated_db),
-        assessor=assessor,
-        assessor_id=assessor_id,
-        db_path=isolated_db,
+        assessment=AssessorSpec(assessor, assessor_id),
+        target=GroundingTarget(db_path=isolated_db),
     )
 
     edges = store.list_claim_evidence(run.id, db_path=isolated_db)
@@ -358,13 +382,15 @@ def test_ground_records_provenance_spans_round_trip(isolated_db: str) -> None:
         "url": "https://example.org/9",
     }
     store.add_claim_evidence(
-        run.id,
-        "hyp-1",
-        "A supported claim.",
-        "supports",
-        [span],
-        [],
-        "llm:deepseek/deepseek-chat",
+        store.NewClaimEvidence(
+            run_id=run.id,
+            hypothesis_id="hyp-1",
+            claim="A supported claim.",
+            label="supports",
+            supporting=[span],
+            contradicting=[],
+            assessor="llm:deepseek/deepseek-chat",
+        ),
         db_path=isolated_db,
     )
     edges = store.list_claim_evidence(run.id, db_path=isolated_db)

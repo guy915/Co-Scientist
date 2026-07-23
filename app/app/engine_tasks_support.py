@@ -1,10 +1,11 @@
 """Shared plumbing for the durable engine-task modules.
 
-The task-type vocabulary, the checkpoint save/enqueue/restore helpers,
-and the node-completion event emitters used by every ``engine_tasks_*``
-module. Split from ``app.engine_tasks``, which re-exports these names,
-so the fan-out/ranking/gate modules can share them without an import
-cycle back into the dispatcher.
+The task-type vocabulary and the checkpoint save/enqueue/restore
+helpers used by every ``engine_tasks_*`` module. Split from
+``app.engine_tasks``, which re-exports these names, so the
+fan-out/ranking/gate modules can share them without an import cycle
+back into the dispatcher. The node-completion emitters moved on to
+``app.engine_tasks_emit`` and are re-exported below.
 """
 
 from __future__ import annotations
@@ -15,7 +16,20 @@ from typing import Any
 from app import store
 from app.engine_adapter.opts import _build_engine_opts, _build_generator
 from app.engine_adapter.provider import _import_hypothesis_generator
-from app.report_render import make_emitter
+from app.engine_tasks_context import ExactSuccessor, TaskCommit
+from app.engine_tasks_emit import (
+    NodeCompletion as NodeCompletion,
+)
+from app.engine_tasks_emit import (
+    _emit_node_completion as _emit_node_completion,
+)
+from app.engine_tasks_emit import (
+    _emit_node_milestone as _emit_node_milestone,
+)
+from app.engine_tasks_emit import (
+    _plain_final_state as _plain_final_state,
+)
+from app.report_render import make_emitter as make_emitter
 from app.run_modes import resolved_run_config
 from app.store import ScientificTask
 
@@ -115,13 +129,15 @@ def _enqueue_node_successor(
         int(state.get("next_task_priority", 90)) if is_orchestrator else 90
     )
     return store.enqueue_task(
-        task.run_id,
-        successor_type,
-        {"checkpoint_seq": checkpoint_seq},
-        idempotency_key=f"{successor_type}:{checkpoint_seq}",
-        priority=max(0, min(100, priority)),
-        dependencies=(task.id,),
-        provenance={"scheduled_by": task.task_type},
+        store.NewTask(
+            run_id=task.run_id,
+            task_type=successor_type,
+            inputs={"checkpoint_seq": checkpoint_seq},
+            idempotency_key=f"{successor_type}:{checkpoint_seq}",
+            priority=max(0, min(100, priority)),
+            dependencies=(task.id,),
+            provenance={"scheduled_by": task.task_type},
+        ),
         conn=conn,
     )
 
@@ -156,14 +172,16 @@ def _save_node_checkpoint(
         )
     return store.save_checkpoint(
         task.run_id,
-        stage=f"engine_task:{task.id}",
-        schema_version=CHECKPOINT_VERSION,
-        last_event_seq=envelope["last_event_seq"],
-        state={
-            "provider": _CHECKPOINT_PROVIDER,
-            "resume_successor": successor_type,
-            **envelope,
-        },
+        store.NewCheckpoint(
+            stage=f"engine_task:{task.id}",
+            schema_version=CHECKPOINT_VERSION,
+            last_event_seq=envelope["last_event_seq"],
+            state={
+                "provider": _CHECKPOINT_PROVIDER,
+                "resume_successor": successor_type,
+                **envelope,
+            },
+        ),
         conn=conn,
     )
 
@@ -263,66 +281,72 @@ def _save_exact_checkpoint(
         raise RuntimeError("checkpoint changed during scientific task")
     return store.save_checkpoint(
         task.run_id,
-        stage=f"engine_task:{task.id}",
-        schema_version=CHECKPOINT_VERSION,
-        last_event_seq=envelope["last_event_seq"],
-        state={"provider": _CHECKPOINT_PROVIDER, **envelope},
+        store.NewCheckpoint(
+            stage=f"engine_task:{task.id}",
+            schema_version=CHECKPOINT_VERSION,
+            last_event_seq=envelope["last_event_seq"],
+            state={"provider": _CHECKPOINT_PROVIDER, **envelope},
+        ),
         conn=conn,
     )
 
 
 def _enqueue_exact_successor(
     task: ScientificTask,
-    successor_type: str,
-    successor_inputs: dict[str, Any],
-    idempotency_key: str,
+    successor: ExactSuccessor,
     checkpoint_seq: int,
     conn: sqlite3.Connection,
 ) -> ScientificTask:
     """Enqueue a non-node scientific task at an exact checkpoint sequence."""
-    inputs = {**successor_inputs, "checkpoint_seq": checkpoint_seq}
+    inputs = {**successor.inputs, "checkpoint_seq": checkpoint_seq}
     return store.enqueue_task(
-        task.run_id,
-        successor_type,
-        inputs,
-        idempotency_key=idempotency_key.format(checkpoint_seq=checkpoint_seq),
-        priority=86,
-        dependencies=(task.id,),
-        provenance={"scheduled_by": task.task_type},
+        store.NewTask(
+            run_id=task.run_id,
+            task_type=successor.task_type,
+            inputs=inputs,
+            idempotency_key=successor.idempotency_key.format(
+                checkpoint_seq=checkpoint_seq
+            ),
+            priority=86,
+            dependencies=(task.id,),
+            provenance={"scheduled_by": task.task_type},
+        ),
         conn=conn,
     )
 
 
 def _save_state_and_enqueue_exact(
-    task: ScientificTask,
+    commit: TaskCommit,
     state: dict[str, Any],
-    successor_type: str,
-    successor_inputs: dict[str, Any],
-    *,
-    idempotency_key: str,
-    expected_checkpoint_seq: int,
-    db_path: str | None,
+    successor: ExactSuccessor,
 ) -> tuple[int, str]:
-    """Checkpoint one effect and enqueue a non-node scientific task."""
+    """Checkpoint one effect and enqueue a non-node scientific task.
+
+    Args:
+        commit: The leased task, its expected checkpoint seq, and db path.
+        state: Workflow state to serialize into the checkpoint.
+        successor: The non-node task to enqueue against the new checkpoint.
+
+    Returns:
+        A tuple of (committed checkpoint sequence, successor task id).
+    """
     from co_scientist.checkpoint import serialize_workflow_state
 
+    task = commit.task
     envelope = serialize_workflow_state(
         state,
-        last_event_seq=store.latest_event_seq(task.run_id, db_path=db_path),
+        last_event_seq=store.latest_event_seq(
+            task.run_id, db_path=commit.db_path
+        ),
     )
-    with store.transaction(db_path) as conn:
+    with store.transaction(commit.db_path) as conn:
         checkpoint_seq = _save_exact_checkpoint(
-            task, envelope, expected_checkpoint_seq, conn
+            task, envelope, commit.current_seq, conn
         )
-        successor = _enqueue_exact_successor(
-            task,
-            successor_type,
-            successor_inputs,
-            idempotency_key,
-            checkpoint_seq,
-            conn,
+        enqueued = _enqueue_exact_successor(
+            task, successor, checkpoint_seq, conn
         )
-    return checkpoint_seq, successor.id
+    return checkpoint_seq, enqueued.id
 
 
 def _save_paused_state(
@@ -350,14 +374,16 @@ def _save_paused_state(
             raise RuntimeError("checkpoint changed while pausing task")
         return store.save_checkpoint(
             task.run_id,
-            stage=f"engine_task_paused:{task.id}",
-            schema_version=CHECKPOINT_VERSION,
-            last_event_seq=envelope["last_event_seq"],
-            state={
-                "provider": _CHECKPOINT_PROVIDER,
-                "resume_successor": resume_successor,
-                **envelope,
-            },
+            store.NewCheckpoint(
+                stage=f"engine_task_paused:{task.id}",
+                schema_version=CHECKPOINT_VERSION,
+                last_event_seq=envelope["last_event_seq"],
+                state={
+                    "provider": _CHECKPOINT_PROVIDER,
+                    "resume_successor": resume_successor,
+                    **envelope,
+                },
+            ),
             conn=conn,
         )
 
@@ -435,95 +461,3 @@ def _restore_item_checkpoint(
         checkpoint["state"], tool_registry=generator.tool_registry
     )
     return state, expected_seq
-
-
-def _plain_final_state(state: dict[str, Any]) -> dict[str, Any]:
-    """Convert restored typed state into the app drain's persisted shape."""
-    metrics = state.get("metrics")
-    return {
-        **state,
-        "hypotheses": [item.to_dict() for item in state.get("hypotheses", [])],
-        "articles": [item.to_dict() for item in state.get("articles") or []],
-        "metrics": metrics.to_dict() if metrics else {},
-    }
-
-
-def _emit_node_milestone(
-    run_id: str,
-    node_name: str,
-    state: dict[str, Any],
-    db_path: str | None,
-) -> None:
-    """Append the milestone chat message the streaming path emits for a node.
-
-    Reuses ``events.py``'s canonical vocabulary and its
-    ``append_node_milestone`` helper (the single home for the milestone
-    message's shape) so the durable and streaming engine paths never carry
-    two copies of the milestone strings. A no-op for node types with no
-    milestone builder (e.g. ``review``, ``orchestrator``, ``safety_screen``,
-    ``comprehensive_reflection``) -- checked before the state conversion
-    below so those completions pay no extra cost.
-
-    Callers place this immediately after the node's checkpoint commit (the
-    same call site as the durable path's ``scientific_task`` event, where one
-    exists), which is only reached once per real checkpoint advance -- a
-    redelivered/replayed task returns earlier, at the function's existing
-    idempotency guard, so a retried task never emits a duplicate milestone.
-    A crash between the checkpoint commit and this call loses that node's
-    milestone rather than duplicating it, the same failure mode the existing
-    ``scientific_task`` emit already has.
-    """
-    from app.engine_adapter.events import (
-        _MILESTONE_BUILDERS,
-        _canonical_engine_payload,
-        _canonical_event_type,
-        append_node_milestone,
-    )
-
-    node_type = _canonical_event_type(node_name)
-    if node_type not in _MILESTONE_BUILDERS:
-        return
-    payload = _canonical_engine_payload(
-        node_name, node_type, _plain_final_state(state)
-    )
-    append_node_milestone(run_id, node_type, payload, db_path=db_path)
-
-
-async def _emit_node_completion(
-    run_id: str,
-    node_name: str,
-    successor: str | None,
-    committed: dict[str, Any],
-    checkpoint_seq: int,
-    db_path: str | None,
-) -> None:
-    """Emit the milestone and ``scientific_task`` event for one node.
-
-    Pairs the two side-effects the streaming path's ``_emit_engine_node_event``
-    couples for every node: a milestone chat message (a no-op for node types
-    without one) and the ``scientific_task`` completion event the frontend's
-    live-activity feed (``ACTIVITY_META``) and mid-run refetch logic key on.
-
-    Before this, the five fan-out aggregate completions (``generate``,
-    ``review``, ``comprehensive_reflection``, ``deep_verification``,
-    ``ranking`` -- the node types where the durable path's actual scientific
-    work happens) emitted no event of any kind, leaving the live-activity feed
-    blind to exactly the nodes doing the substantive work. Only the generic
-    ``execute_node_task`` completion path emitted ``scientific_task``.
-
-    Callers place this immediately after the node's checkpoint commit,
-    downstream of that function's existing checkpoint-replay/supersession
-    guard, so a redelivered or replayed task never double-emits either side
-    effect (same reasoning as ``_emit_node_milestone``).
-    """
-    _emit_node_milestone(run_id, node_name, committed, db_path)
-    emit = make_emitter(run_id, db_path=db_path)
-    await emit(
-        "scientific_task",
-        {
-            "task": node_name,
-            "status": "completed",
-            "checkpoint_seq": checkpoint_seq,
-            "successor": successor,
-        },
-    )

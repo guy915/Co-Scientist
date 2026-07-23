@@ -11,7 +11,11 @@ from co_scientist.agents.evolution.evolution_operators import (
     select_operator,
 )
 from co_scientist.agents.evolution.evolve import evolve_single_hypothesis
-from co_scientist.agents.evolution.evolve_prompt import _build_evolution_prompt
+from co_scientist.agents.evolution.evolve_prompt import (
+    _build_evolution_prompt,
+    _EvolutionContext,
+    _EvolutionOperation,
+)
 from tests._state import make_hypothesis
 
 
@@ -52,14 +56,10 @@ def test_prompt_requires_assigned_operator() -> None:
     prompt, _ = _build_evolution_prompt(
         hypothesis=make_hypothesis("Parent mechanism."),
         other_hypotheses_texts=["Complementary peer mechanism."],
-        meta_review={},
-        removed_duplicates=[],
-        supervisor_guidance=None,
-        articles_with_reasoning=None,
-        tool_registry=None,
-        run_setup_guidance=None,
-        run_focus_guidance=None,
-        operator=EvolutionOperator.COMBINATION,
+        context=_EvolutionContext(
+            model_name="fake/model", meta_review={}, removed_duplicates=[]
+        ),
+        operation=_EvolutionOperation(operator=EvolutionOperator.COMBINATION),
     )
     assert "**Operator:** combination" in prompt
     assert "Combination is required" in prompt
@@ -70,14 +70,10 @@ def test_out_of_box_prompt_permits_core_mechanism_replacement() -> None:
     prompt, _ = _build_evolution_prompt(
         hypothesis=make_hypothesis("Parent mechanism."),
         other_hypotheses_texts=[],
-        meta_review={},
-        removed_duplicates=[],
-        supervisor_guidance=None,
-        articles_with_reasoning=None,
-        tool_registry=None,
-        run_setup_guidance=None,
-        run_focus_guidance=None,
-        operator=EvolutionOperator.OUT_OF_BOX,
+        context=_EvolutionContext(
+            model_name="fake/model", meta_review={}, removed_duplicates=[]
+        ),
+        operation=_EvolutionOperation(operator=EvolutionOperator.OUT_OF_BOX),
     )
 
     assert "**Operator:** out_of_box" in prompt
@@ -106,11 +102,13 @@ async def test_every_operator_executes_as_a_distinct_evolution_task(
     child, detail = await evolve_single_hypothesis(
         parent,
         other_hypotheses_texts=[],
-        meta_review={},
-        model_name="fake/model",
-        removed_duplicates=[],
-        creation_iteration=2,
-        operator=operator,
+        context=_EvolutionContext(
+            model_name="fake/model",
+            meta_review={},
+            removed_duplicates=[],
+            creation_iteration=2,
+        ),
+        operation=_EvolutionOperation(operator=operator),
     )
 
     assert child is not None

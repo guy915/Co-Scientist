@@ -14,7 +14,11 @@ from co_scientist.constants import (
     HIGH_TEMPERATURE,
     LITERATURE_REVIEW_FAILED,
 )
-from co_scientist.llm import call_llm
+from co_scientist.llm import (
+    CompletionSpec,
+    LLMCallOptions,
+    call_llm,
+)
 from co_scientist.prompts import get_literature_review_synthesis_prompt
 from co_scientist.state import WorkflowState
 
@@ -67,15 +71,19 @@ async def _run_synthesis_llm(
 
     synthesis = await call_llm(
         prompt=prompt,
-        model_name=state["model_name"],
-        max_tokens=EXTENDED_MAX_TOKENS,
-        temperature=HIGH_TEMPERATURE,
-        run_id=state.get("run_id"),
-        prompt_name="literature_review_synthesis",
-        prompt_metadata={
-            "prompt_length_chars": len(prompt),
-            "papers_analyzed": len(paper_analyses),
-        },
+        spec=CompletionSpec(
+            model_name=state["model_name"],
+            max_tokens=EXTENDED_MAX_TOKENS,
+            temperature=HIGH_TEMPERATURE,
+        ),
+        options=LLMCallOptions(
+            run_id=state.get("run_id"),
+            prompt_name="literature_review_synthesis",
+            prompt_metadata={
+                "prompt_length_chars": len(prompt),
+                "papers_analyzed": len(paper_analyses),
+            },
+        ),
     )
 
     logger.info("Synthesis complete - length: %s chars", len(synthesis))

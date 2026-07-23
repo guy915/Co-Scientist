@@ -25,24 +25,45 @@ from typing import Any, cast
 import pytest
 
 from co_scientist.constants import INITIAL_ELO_RATING
-from co_scientist.generator import HypothesisGenerator
+from co_scientist.generator import (
+    GeneratorOptions,
+    HypothesisGenerator,
+)
 from co_scientist.models import Hypothesis, HypothesisOrigin
 from co_scientist.state import WorkflowState
 from tests._llm_fake import install_fake_llm
 
+_ADVANCED_KNOBS = frozenset(
+    {
+        "supervisor_model_name",
+        "tournament_pairs",
+        "elo_k_factor",
+        "literature_review_papers_count",
+        "enable_cache",
+        "cache_dir",
+        "tools_config",
+        "disable_tools",
+        "budget",
+    }
+)
+
 
 def _make_gen(**overrides: Any) -> HypothesisGenerator:
-    """Build a small, fast generator; overrides tweak individual knobs."""
+    """Build a small, fast generator; overrides tweak individual knobs.
+
+    Overrides may name any constructor knob flatly; advanced knobs are
+    routed into ``GeneratorOptions`` for the caller.
+    """
     params: dict[str, Any] = {
         "model_name": "fake/model",
         "max_iterations": 1,
         "initial_hypotheses_count": 2,
         "evolution_max_count": 2,
-        "tournament_pairs": 2,
-        "enable_cache": False,
     }
-    params.update(overrides)
-    return HypothesisGenerator(**params)
+    options: dict[str, Any] = {"tournament_pairs": 2, "enable_cache": False}
+    for key, value in overrides.items():
+        (options if key in _ADVANCED_KNOBS else params)[key] = value
+    return HypothesisGenerator(**params, options=GeneratorOptions(**options))
 
 
 def _generations(
@@ -255,12 +276,15 @@ async def test_budget_exhaustion_terminates_the_run(
     install_fake_llm(monkeypatch)
     gen = HypothesisGenerator(
         model_name="fake/model",
-        max_iterations=50,  # would run for many cycles without a budget
+        max_iterations=50,
+        # would run for many cycles without a budget
         initial_hypotheses_count=2,
         evolution_max_count=2,
-        tournament_pairs=2,
-        enable_cache=False,
-        budget={"max_llm_calls": 12},
+        options=GeneratorOptions(
+            tournament_pairs=2,
+            enable_cache=False,
+            budget={"max_llm_calls": 12},
+        ),
     )
 
     final_state = await _run_graph(gen, "Explain how protein X folds")

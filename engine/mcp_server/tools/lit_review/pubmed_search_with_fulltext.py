@@ -7,6 +7,7 @@ search + fulltext download + text extraction as a single MCP tool.
 import asyncio
 import logging
 import os
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -123,23 +124,34 @@ def _fulltext_run_dir(
     return base_dir / "runs" / run_id if run_id else base_dir
 
 
-async def _run_pubmed_search(
-    lit_review_dir: Path,
-    query: str,
-    slug: str,
-    max_papers: int,
-    recency_years: int,
-    run_id: str | None,
-) -> dict[str, dict[str, Any]]:
-    """Runs the PubMed search against the on-disk cache.
+@dataclass(frozen=True)
+class _PubmedSearchParams:
+    """The search request a caller supplied to the tool.
 
-    Args:
-        lit_review_dir: Literature-review cache root.
+    Attributes:
         query: PubMed boolean query (AND/OR/NOT operators).
         slug: Snake_case identifier for organizing results.
         max_papers: Maximum papers to retrieve.
         recency_years: Filter to papers from last N years (0 = no filter).
         run_id: Unique run identifier, enabling per-run tracking.
+    """
+
+    query: str
+    slug: str
+    max_papers: int
+    recency_years: int
+    run_id: str | None
+
+
+async def _run_pubmed_search(
+    lit_review_dir: Path,
+    params: _PubmedSearchParams,
+) -> dict[str, dict[str, Any]]:
+    """Runs the PubMed search against the on-disk cache.
+
+    Args:
+        lit_review_dir: Literature-review cache root.
+        params: The caller's search request.
 
     Returns:
         Dict mapping paper_id to metadata for the matched papers.
@@ -150,14 +162,18 @@ async def _run_pubmed_search(
     logger.info(
         "Searching pubmed with query: %s, slug: %s, run_id: %s, "
         "max_papers: %s, recency_years: %s",
-        query,
-        slug,
-        run_id,
-        max_papers,
-        recency_years,
+        params.query,
+        params.slug,
+        params.run_id,
+        params.max_papers,
+        params.recency_years,
     )
     results = await pubmed_source.pubmed_search(
-        query, slug, max_papers, recency_years, run_id
+        params.query,
+        params.slug,
+        params.max_papers,
+        params.recency_years,
+        params.run_id,
     )
     logger.info("Pubmed search complete - found %s papers", len(results))
     return results
@@ -209,7 +225,14 @@ async def pubmed_search_with_fulltext(
     """
     lit_review_dir = _pubmed_cache_dir()
     results = await _run_pubmed_search(
-        lit_review_dir, query, slug, max_papers, recency_years, run_id
+        lit_review_dir,
+        _PubmedSearchParams(
+            query=query,
+            slug=slug,
+            max_papers=max_papers,
+            recency_years=recency_years,
+            run_id=run_id,
+        ),
     )
 
     # Extract fulltext from HTML and add to metadata.

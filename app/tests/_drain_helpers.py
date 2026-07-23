@@ -199,16 +199,14 @@ def _final_state_with_features() -> dict[str, Any]:
 def _build_report(run: Any, db_path: str) -> tuple[dict[str, Any], str]:
     """Build report content for a run with the drain's default (None) inputs."""
     return report_render._build_report_content(
-        run_id=run.id,
-        research_goal=run.research_goal,
-        run_mode="standard",
-        provider="engine",
-        citation_summary=None,
-        meta_review=None,
-        research_overview=None,
-        execution_time=1.0,
-        summary=None,
-        db_path=db_path,
+        run.id,
+        report_render.ReportRequest(
+            research_goal=run.research_goal,
+            run_mode="standard",
+            provider="engine",
+            execution_time=1.0,
+            db_path=db_path,
+        ),
     )
 
 
@@ -232,14 +230,16 @@ def _persist_and_finalize(
 
     _drain(
         report_render.finalize_report(
-            run_id=run.id,
-            research_goal=run.research_goal,
-            run_mode="standard",
-            provider="engine",
-            emit=_emit,
-            execution_time=1.0,
-            db_path=db_path,
-            **drained.report_inputs,
+            run.id,
+            report_render.ReportRequest(
+                research_goal=run.research_goal,
+                run_mode="standard",
+                provider="engine",
+                execution_time=1.0,
+                db_path=db_path,
+                **drained.report_inputs,
+            ),
+            _emit,
         )
     )
 

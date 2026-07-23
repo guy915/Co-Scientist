@@ -19,10 +19,12 @@ def _enqueue_test_tasks(
     """Enqueue ``count`` independent ``engine.test.<i>`` specialist tasks."""
     for index in range(count):
         store.enqueue_task(
-            run_id,
-            f"engine.test.{index}",
-            {},
-            idempotency_key=f"{prefix}:{index}",
+            store.NewTask(
+                run_id=run_id,
+                task_type=f"engine.test.{index}",
+                inputs={},
+                idempotency_key=f"{prefix}:{index}",
+            ),
             db_path=db_path,
         )
 
@@ -37,7 +39,10 @@ def _assert_all_completed(run_id: str, db_path: str) -> None:
 def _enqueue_one(run_id: str, task_type: str, key: str, db_path: str) -> Any:
     """Enqueue a single specialist task with the given idempotency key."""
     return store.enqueue_task(
-        run_id, task_type, {}, idempotency_key=key, db_path=db_path
+        store.NewTask(
+            run_id=run_id, task_type=task_type, inputs={}, idempotency_key=key
+        ),
+        db_path=db_path,
     )
 
 
@@ -81,15 +86,17 @@ async def test_worker_heartbeats_long_workflow_lease(
     """Long execution cannot be reclaimed after its original lease expires."""
     run = store.create_run("long worker goal", "standard", "engine", {})
     store.enqueue_task(
-        run.id,
-        "run.workflow",
-        {},
-        idempotency_key="legacy-long-workflow",
+        store.NewTask(
+            run_id=run.id,
+            task_type="run.workflow",
+            inputs={},
+            idempotency_key="legacy-long-workflow",
+        ),
         db_path=isolated_db,
     )
     release = asyncio.Event()
 
-    async def _workflow(**_kwargs: Any) -> Any:
+    async def _workflow(*_args: Any, **_kwargs: Any) -> Any:
         await release.wait()
         store.update_run_status(run.id, store.RunStatus.COMPLETED)
         if False:
@@ -114,10 +121,12 @@ async def test_worker_cancels_execution_after_lease_revocation(
     """Run cancellation interrupts an already executing specialist task."""
     run = store.create_run("cancel active work", "standard", "engine", {})
     task = store.enqueue_task(
-        run.id,
-        "engine.test.cancellable",
-        {},
-        idempotency_key="cancellable",
+        store.NewTask(
+            run_id=run.id,
+            task_type="engine.test.cancellable",
+            inputs={},
+            idempotency_key="cancellable",
+        ),
         db_path=isolated_db,
     )
     started = asyncio.Event()
@@ -164,8 +173,7 @@ async def test_embedded_worker_pool_executes_fanout_concurrently(
         run.id,
         "embedded-test",
         worker_count=4,
-        db_path=isolated_db,
-        lease_seconds=1,
+        policy=task_worker.WorkerPolicy(db_path=isolated_db, lease_seconds=1),
     )
 
     assert probe.max_active == 4
@@ -177,10 +185,12 @@ async def test_worker_isolates_unknown_task_failure(isolated_db: str) -> None:
     """An unsupported task fails without crashing the worker loop."""
     run = store.create_run("worker goal", "standard", "engine", {})
     task = store.enqueue_task(
-        run.id,
-        "unknown.task",
-        {},
-        idempotency_key="unknown:0",
+        store.NewTask(
+            run_id=run.id,
+            task_type="unknown.task",
+            inputs={},
+            idempotency_key="unknown:0",
+        ),
         db_path=isolated_db,
     )
     assert await task_worker.run_once("worker-a", db_path=isolated_db)
@@ -205,10 +215,12 @@ async def test_transient_provider_failure_keeps_its_retry_budget(
     """
     run = store.create_run("Transient failure", "standard", "engine", {})
     task = store.enqueue_task(
-        run.id,
-        "engine.node.ranking",
-        {},
-        idempotency_key="transient-1",
+        store.NewTask(
+            run_id=run.id,
+            task_type="engine.node.ranking",
+            inputs={},
+            idempotency_key="transient-1",
+        ),
         db_path=isolated_db,
     )
 
@@ -231,10 +243,12 @@ async def test_unsupported_task_type_is_still_permanent(
     """A task no worker can execute must not be retried forever."""
     run = store.create_run("Bad task type", "standard", "engine", {})
     task = store.enqueue_task(
-        run.id,
-        "engine.node.ranking",
-        {},
-        idempotency_key="unsupported-1",
+        store.NewTask(
+            run_id=run.id,
+            task_type="engine.node.ranking",
+            inputs={},
+            idempotency_key="unsupported-1",
+        ),
         db_path=isolated_db,
     )
 
@@ -268,7 +282,9 @@ async def test_default_worker_cohort_overlaps_more_than_four_leases(
     monkeypatch.setattr(engine_tasks, "execute_engine_task", probe.execute)
 
     await task_worker.run_run_worker_pool(
-        run.id, "embedded-test", db_path=isolated_db, lease_seconds=5
+        run.id,
+        "embedded-test",
+        policy=task_worker.WorkerPolicy(db_path=isolated_db, lease_seconds=5),
     )
 
     assert probe.max_active > 4
@@ -301,8 +317,7 @@ async def test_heartbeat_writes_on_the_lease_schedule_not_the_poll_schedule(
         task_worker._heartbeat_lease(
             task,
             "worker-hb",
-            stop,
-            lease_lost,
+            task_worker._HeartbeatSignals(stop=stop, lease_lost=lease_lost),
             db_path=isolated_db,
             lease_seconds=300.0,
         )
@@ -363,10 +378,12 @@ def test_idle_wait_does_not_decode_every_task(
     run = store.create_run("idle wait cost", "standard", "engine", {})
     for index in range(30):
         store.enqueue_task(
-            run.id,
-            f"engine.test.{index}",
-            {},
-            idempotency_key=f"idle:{index}",
+            store.NewTask(
+                run_id=run.id,
+                task_type=f"engine.test.{index}",
+                inputs={},
+                idempotency_key=f"idle:{index}",
+            ),
             db_path=isolated_db,
         )
     calls = 0

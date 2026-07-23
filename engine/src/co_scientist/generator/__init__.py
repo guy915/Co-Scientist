@@ -25,6 +25,9 @@ from co_scientist.generator.graph import (
 )
 from co_scientist.generator.graph import _WorkflowBuilder as _WorkflowBuilder
 from co_scientist.generator.initial_state import (
+    RunCallbacks as RunCallbacks,
+)
+from co_scientist.generator.initial_state import (
     _build_initial_state as _build_initial_state,
 )
 from co_scientist.generator.initial_state import (
@@ -36,6 +39,7 @@ from co_scientist.generator.initial_state import (
 from co_scientist.generator.initial_state import (
     _initial_user_and_literature_fields as _initial_user_and_literature_fields,
 )
+from co_scientist.generator.options import GeneratorOptions as GeneratorOptions
 from co_scientist.generator.run_setup import (
     _build_tool_registry as _build_tool_registry,
 )

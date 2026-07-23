@@ -5,6 +5,7 @@ biomedical literature (e.g. "KRAS activates RAF1", "Sotorasib inhibits KRAS").
 """
 
 import logging
+from dataclasses import dataclass
 from typing import Any
 
 from mcp_server.tools.indra_cogex.client import (
@@ -15,6 +16,29 @@ from mcp_server.tools.indra_cogex.client import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True)
+class _StatementQuery:
+    """One mechanistic-statement query, as supplied by the caller.
+
+    Attributes:
+        agent: Primary agent name or CURIE, if querying by agent.
+        other_agent: Optional secondary agent to relate the primary to.
+        relation_types: Optional relation-type filters.
+        agent_role: Optional role constraint ("subject" or "object").
+        mesh_term: MeSH identifier, if querying by disease/topic instead.
+        limit: Max statements to return.
+        evidence_limit: Max evidence entries per statement.
+    """
+
+    agent: str | None
+    other_agent: str | None
+    relation_types: list[str] | None
+    agent_role: str | None
+    mesh_term: str | None
+    limit: int
+    evidence_limit: int
 
 
 async def query_mechanistic_statements(
@@ -47,47 +71,34 @@ async def query_mechanistic_statements(
         Dict with mechanistic statements, evidence, and metadata.
     """
     return await _dispatch_statement_query(
-        agent,
-        other_agent,
-        relation_types,
-        agent_role,
-        mesh_term,
-        limit,
-        evidence_limit,
+        _StatementQuery(
+            agent=agent,
+            other_agent=other_agent,
+            relation_types=relation_types,
+            agent_role=agent_role,
+            mesh_term=mesh_term,
+            limit=limit,
+            evidence_limit=evidence_limit,
+        )
     )
 
 
 async def _dispatch_statement_query(
-    agent: str | None,
-    other_agent: str | None,
-    relation_types: list[str] | None,
-    agent_role: str | None,
-    mesh_term: str | None,
-    limit: int,
-    evidence_limit: int,
+    query: _StatementQuery,
 ) -> dict[str, Any]:
     """Routes a statement query to the MeSH or agent path, wrapping errors.
 
     Returns:
         Dict with statements and metadata, or an error payload.
     """
-    query_meta = _statement_query_meta(
-        agent, other_agent, mesh_term, relation_types
-    )
+    query_meta = _statement_query_meta(query)
     try:
-        if mesh_term:
+        if query.mesh_term:
             stmts, total = await _query_by_mesh(
-                mesh_term, evidence_limit, limit
+                query.mesh_term, query.evidence_limit, query.limit
             )
-        elif agent:
-            stmts, total = await _query_by_agents(
-                agent,
-                other_agent,
-                relation_types,
-                agent_role,
-                limit,
-                evidence_limit,
-            )
+        elif query.agent:
+            stmts, total = await _query_by_agents(query.agent, query)
         else:
             return {
                 "error": "provide either 'agent' or 'mesh_term'",
@@ -116,12 +127,7 @@ def _statements_response(
     }
 
 
-def _statement_query_meta(
-    agent: str | None,
-    other_agent: str | None,
-    mesh_term: str | None,
-    relation_types: list[str] | None,
-) -> dict[str, Any]:
+def _statement_query_meta(query: _StatementQuery) -> dict[str, Any]:
     """Builds the query-metadata dict echoed back in every response.
 
     Returns:
@@ -129,10 +135,10 @@ def _statement_query_meta(
         relation_types the caller supplied.
     """
     return {
-        "agent": agent,
-        "other_agent": other_agent,
-        "mesh_term": mesh_term,
-        "relation_types": relation_types,
+        "agent": query.agent,
+        "other_agent": query.other_agent,
+        "mesh_term": query.mesh_term,
+        "relation_types": query.relation_types,
     }
 
 
@@ -168,21 +174,13 @@ async def _query_by_mesh(
 
 async def _query_by_agents(
     agent: str,
-    other_agent: str | None,
-    relation_types: list[str] | None,
-    agent_role: str | None,
-    limit: int,
-    evidence_limit: int,
+    query: _StatementQuery,
 ) -> tuple[list[Any], int]:
     """Queries statements by agent name(s) and optional filters.
 
     Args:
-        agent: Primary agent name or CURIE.
-        other_agent: Optional secondary agent name or CURIE.
-        relation_types: Optional list of relation type filters.
-        agent_role: Optional role constraint ("subject" or "object").
-        limit: Max statements to return.
-        evidence_limit: Max evidence entries per statement.
+        agent: Primary agent name or CURIE, already narrowed to non-None.
+        query: The full query whose filters and limits shape the payload.
 
     Returns:
         Tuple of (capped statement list, total statement count).
@@ -191,15 +189,15 @@ async def _query_by_agents(
     # a present-but-empty filter differently from an absent one.
     payload: dict[str, Any] = {
         "agent": maybe_parse_agent(agent),
-        "limit": limit,
-        "evidence_limit": evidence_limit,
+        "limit": query.limit,
+        "evidence_limit": query.evidence_limit,
     }
-    if other_agent:
-        payload["other_agent"] = maybe_parse_agent(other_agent)
-    if relation_types:
-        payload["rel_types"] = relation_types
-    if agent_role:
-        payload["agent_role"] = agent_role
+    if query.other_agent:
+        payload["other_agent"] = maybe_parse_agent(query.other_agent)
+    if query.relation_types:
+        payload["rel_types"] = query.relation_types
+    if query.agent_role:
+        payload["agent_role"] = query.agent_role
 
     raw = await indra_post("/api/get_statements", payload)
-    return cap_results(raw, limit)
+    return cap_results(raw, query.limit)

@@ -19,9 +19,14 @@ from co_scientist.constants import (
     PROGRESS_PROXIMITY_COMPLETE,
     PROGRESS_PROXIMITY_START,
 )
-from co_scientist.llm import call_llm_json
+from co_scientist.llm import (
+    CompletionSpec,
+    LLMCallOptions,
+    call_llm_json,
+)
 from co_scientist.models import (
     Hypothesis,
+    MetricDeltas,
     create_metrics_update,
     phase_message,
 )
@@ -68,16 +73,20 @@ async def _call_proximity_llm(
     """Calls the proximity LLM and returns its parsed JSON response."""
     return await call_llm_json(
         prompt=prompt,
-        model_name=state["model_name"],
-        max_tokens=LONG_MAX_TOKENS,
-        temperature=LOW_TEMPERATURE,
-        json_schema=schema,
-        run_id=state.get("run_id"),
-        prompt_name="proximity",
-        prompt_metadata={
-            "prompt_length_chars": len(prompt),
-            "hypotheses_count": hypotheses_count,
-        },
+        spec=CompletionSpec(
+            model_name=state["model_name"],
+            max_tokens=LONG_MAX_TOKENS,
+            temperature=LOW_TEMPERATURE,
+            json_schema=schema,
+        ),
+        options=LLMCallOptions(
+            run_id=state.get("run_id"),
+            prompt_name="proximity",
+            prompt_metadata={
+                "prompt_length_chars": len(prompt),
+                "hypotheses_count": hypotheses_count,
+            },
+        ),
     )
 
 
@@ -273,7 +282,7 @@ def _build_proximity_update(
     Returns:
         Dictionary with updated state fields (deduplicated hypotheses).
     """
-    metrics = create_metrics_update(llm_calls_delta=1)
+    metrics = create_metrics_update(deltas=MetricDeltas(llm_calls=1))
     all_removed_duplicates = (
         state.get("removed_duplicates", []) + outcome.removed_duplicates
     )

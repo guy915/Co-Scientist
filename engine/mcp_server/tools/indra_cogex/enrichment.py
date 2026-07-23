@@ -1,11 +1,36 @@
 """Gene set enrichment analysis tools via INDRA CoGex."""
 
 import logging
+from dataclasses import dataclass
 from typing import Any
 
 from mcp_server.tools.indra_cogex.client import indra_post
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True)
+class _EnrichmentRequest:
+    """One enrichment request, as supplied by the caller.
+
+    Attributes:
+        gene_list: Gene identifiers, or "GENE-SITE" phosphosites for the
+            kinase analysis type.
+        analysis_type: "discrete", "signed", or "kinase".
+        negative_genes: Downregulated genes, required for signed analysis.
+        alpha: Significance threshold.
+        keep_insignificant: Whether non-significant results are returned.
+        minimum_evidence_count: Min supporting evidence per result.
+        minimum_belief: Min belief score threshold.
+    """
+
+    gene_list: list[str]
+    analysis_type: str
+    negative_genes: list[str] | None
+    alpha: float
+    keep_insignificant: bool
+    minimum_evidence_count: int
+    minimum_belief: float
 
 
 async def run_enrichment_analysis(
@@ -38,45 +63,47 @@ async def run_enrichment_analysis(
         Dict with enrichment results and metadata.
     """
     return await _run_enrichment(
-        gene_list,
-        analysis_type,
-        negative_genes,
-        alpha,
-        keep_insignificant,
-        minimum_evidence_count,
-        minimum_belief,
+        _EnrichmentRequest(
+            gene_list=gene_list,
+            analysis_type=analysis_type,
+            negative_genes=negative_genes,
+            alpha=alpha,
+            keep_insignificant=keep_insignificant,
+            minimum_evidence_count=minimum_evidence_count,
+            minimum_belief=minimum_belief,
+        )
     )
 
 
-async def _run_enrichment(
-    gene_list: list[str],
-    analysis_type: str,
-    negative_genes: list[str] | None,
-    alpha: float,
-    keep_insignificant: bool,
-    minimum_evidence_count: int,
-    minimum_belief: float,
-) -> dict[str, Any]:
+async def _run_enrichment(request: _EnrichmentRequest) -> dict[str, Any]:
     """Validates the request, then dispatches enrichment analysis to INDRA.
 
     Returns:
         Dict with enrichment results, or a structured error payload when
         validation fails or the INDRA call raises.
     """
-    query_meta = {"analysis_type": analysis_type, "gene_count": len(gene_list)}
-    error = _validate_enrichment(analysis_type, negative_genes, query_meta)
+    query_meta = {
+        "analysis_type": request.analysis_type,
+        "gene_count": len(request.gene_list),
+    }
+    error = _validate_enrichment(
+        request.analysis_type, request.negative_genes, query_meta
+    )
     if error is not None:
         return error
 
     filters = {
-        "alpha": alpha,
-        "keep_insignificant": keep_insignificant,
-        "minimum_evidence_count": minimum_evidence_count,
-        "minimum_belief": minimum_belief,
+        "alpha": request.alpha,
+        "keep_insignificant": request.keep_insignificant,
+        "minimum_evidence_count": request.minimum_evidence_count,
+        "minimum_belief": request.minimum_belief,
     }
     try:
         raw = await _dispatch_enrichment_analysis(
-            analysis_type, gene_list, negative_genes, filters
+            request.analysis_type,
+            request.gene_list,
+            request.negative_genes,
+            filters,
         )
         return {"results": raw, "query": query_meta}
     except Exception as e:

@@ -25,7 +25,11 @@ def _stage_records(
 def run_id(isolated_db: str) -> str:
     """A real run id: run_events has a foreign key to runs."""
     run = store.create_run(
-        "stage logging", "standard", "mock", {}, db_path=isolated_db
+        "stage logging",
+        "standard",
+        "mock",
+        {},
+        store.RunCreateOptions(db_path=isolated_db),
     )
     return str(run.id)
 

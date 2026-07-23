@@ -70,14 +70,16 @@ def _ensure_demo_run_row(
     if run is not None:
         return run
     return store.create_run(
-        research_goal=goal,
-        profile=_DEMO_TIER,
-        provider="engine",
-        config=config,
-        client_id=DEMO_CLIENT_ID,
-        title=_DEMO_TITLES.get(goal),
-        llm_backend="offline",
-        db_path=db_path,
+        goal,
+        _DEMO_TIER,
+        "engine",
+        config,
+        store.RunCreateOptions(
+            client_id=DEMO_CLIENT_ID,
+            title=_DEMO_TITLES.get(goal),
+            llm_backend="offline",
+            db_path=db_path,
+        ),
     )
 
 
@@ -103,12 +105,14 @@ async def _seed_demo_run(
     # sleep_seconds=0.0 skips the boundary emitter's pacing so seeding
     # finishes immediately rather than over several seconds.
     async for _ in engine_adapter.run_workflow(
-        run_id=run.id,
-        research_goal=goal,
-        config=config,
-        db_path=db_path,
-        sleep_seconds=0.0,
-        force_provider="engine",
+        run.id,
+        goal,
+        config,
+        engine_adapter.WorkflowOptions(
+            db_path=db_path,
+            sleep_seconds=0.0,
+            force_provider="engine",
+        ),
     ):
         pass  # events are persisted as a side effect; drain and drop.
     logger.info("Seeded demo run %s (%.60s…)", run.id[:8], goal)

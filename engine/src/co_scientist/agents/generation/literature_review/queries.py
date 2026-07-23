@@ -20,9 +20,15 @@ from co_scientist.constants import (
     DEFAULT_MAX_TOKENS,
     HIGH_TEMPERATURE,
 )
-from co_scientist.llm import call_llm_json
+from co_scientist.llm import (
+    CompletionSpec,
+    call_llm_json,
+)
 from co_scientist.mcp_client import MCPToolClient
-from co_scientist.prompts import get_literature_review_query_generation_prompt
+from co_scientist.prompts import (
+    LiteratureQueryInputs,
+    get_literature_review_query_generation_prompt,
+)
 from co_scientist.schemas import LITERATURE_QUERY_SCHEMA
 from co_scientist.state import WorkflowState
 
@@ -77,19 +83,23 @@ async def _generate_queries_via_llm(
     prompt = get_literature_review_query_generation_prompt(
         research_goal=state["research_goal"],
         source_type=source_type,
-        preferences=state.get("preferences", ""),
-        attributes=state.get("attributes", []),
-        user_literature=state.get("literature", []),
-        user_hypotheses=state.get("starting_hypotheses", []),
+        inputs=LiteratureQueryInputs(
+            preferences=state.get("preferences", ""),
+            attributes=state.get("attributes", []),
+            user_literature=state.get("literature", []),
+            user_hypotheses=state.get("starting_hypotheses", []),
+        ),
     )
 
     try:
         result = await call_llm_json(
             prompt=prompt,
-            model_name=state["model_name"],
-            max_tokens=DEFAULT_MAX_TOKENS,
-            temperature=HIGH_TEMPERATURE,
-            json_schema=LITERATURE_QUERY_SCHEMA,
+            spec=CompletionSpec(
+                model_name=state["model_name"],
+                max_tokens=DEFAULT_MAX_TOKENS,
+                temperature=HIGH_TEMPERATURE,
+                json_schema=LITERATURE_QUERY_SCHEMA,
+            ),
         )
         return cast(list[str], result.get("queries", []))
     except Exception as e:

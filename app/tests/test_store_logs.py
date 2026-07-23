@@ -12,28 +12,34 @@ def _append(
     message: str,
     *,
     level: str = "INFO",
-    levelno: int = logging.INFO,
     logger_name: str = "app.test",
     run_id: str | None = None,
-    exc_text: str | None = None,
 ) -> int:
+    # The numeric level always tracks the name, so it is derived here
+    # rather than passed alongside it.
     return store.append_log(
-        level=level,
-        levelno=levelno,
-        logger_name=logger_name,
-        message=message,
-        run_id=run_id,
-        exc_text=exc_text,
+        store.NewLogRecord(
+            level=level,
+            levelno=int(logging.getLevelName(level)),
+            logger_name=logger_name,
+            message=message,
+            run_id=run_id,
+        ),
         db_path=isolated_db,
     )
 
 
 def test_append_and_list_roundtrip(isolated_db: str) -> None:
-    row_id = _append(
-        isolated_db,
-        "hello world",
-        run_id="run-1",
-        exc_text="Traceback: boom",
+    row_id = store.append_log(
+        store.NewLogRecord(
+            level="INFO",
+            levelno=logging.INFO,
+            logger_name="app.test",
+            message="hello world",
+            run_id="run-1",
+            exc_text="Traceback: boom",
+        ),
+        db_path=isolated_db,
     )
     rows = store.list_logs(db_path=isolated_db)
     assert len(rows) == 1
@@ -50,7 +56,9 @@ def test_append_and_list_roundtrip(isolated_db: str) -> None:
 
 def test_list_after_id_and_limit(isolated_db: str) -> None:
     ids = [_append(isolated_db, f"m{i}") for i in range(5)]
-    rows = store.list_logs(after_id=ids[1], db_path=isolated_db)
+    rows = store.list_logs(
+        filters=store.LogFilters(after_id=ids[1]), db_path=isolated_db
+    )
     assert [row["message"] for row in rows] == ["m2", "m3", "m4"]
     rows = store.list_logs(limit=2, db_path=isolated_db)
     # A limit keeps the NEWEST rows, still returned in ascending order.
@@ -58,10 +66,13 @@ def test_list_after_id_and_limit(isolated_db: str) -> None:
 
 
 def test_list_filters_by_min_level(isolated_db: str) -> None:
-    _append(isolated_db, "debugging", level="DEBUG", levelno=logging.DEBUG)
+    _append(isolated_db, "debugging", level="DEBUG")
     _append(isolated_db, "informational")
-    _append(isolated_db, "bad", level="ERROR", levelno=logging.ERROR)
-    rows = store.list_logs(min_levelno=logging.WARNING, db_path=isolated_db)
+    _append(isolated_db, "bad", level="ERROR")
+    rows = store.list_logs(
+        filters=store.LogFilters(min_levelno=logging.WARNING),
+        db_path=isolated_db,
+    )
     assert [row["message"] for row in rows] == ["bad"]
 
 
@@ -70,9 +81,13 @@ def test_list_filters_by_run_and_substring(isolated_db: str) -> None:
     _append(isolated_db, "run line one", run_id="run-1")
     _append(isolated_db, "run line two", run_id="run-1")
     _append(isolated_db, "other run", run_id="run-2")
-    rows = store.list_logs(run_id="run-1", db_path=isolated_db)
+    rows = store.list_logs(
+        filters=store.LogFilters(run_id="run-1"), db_path=isolated_db
+    )
     assert [row["message"] for row in rows] == ["run line one", "run line two"]
-    rows = store.list_logs(contains="line one", db_path=isolated_db)
+    rows = store.list_logs(
+        filters=store.LogFilters(contains="line one"), db_path=isolated_db
+    )
     assert [row["message"] for row in rows] == ["run line one"]
 
 
@@ -81,14 +96,28 @@ def test_count_logs_ignores_limit_and_respects_filters(
 ) -> None:
     for i in range(5):
         _append(isolated_db, f"info {i}")
-    _append(isolated_db, "bad", level="ERROR", levelno=logging.ERROR)
+    _append(isolated_db, "bad", level="ERROR")
     _append(isolated_db, "scoped", run_id="run-1")
     assert store.count_logs(db_path=isolated_db) == 7
     assert (
-        store.count_logs(min_levelno=logging.WARNING, db_path=isolated_db) == 1
+        store.count_logs(
+            filters=store.LogFilters(min_levelno=logging.WARNING),
+            db_path=isolated_db,
+        )
+        == 1
     )
-    assert store.count_logs(run_id="run-1", db_path=isolated_db) == 1
-    assert store.count_logs(contains="info", db_path=isolated_db) == 5
+    assert (
+        store.count_logs(
+            filters=store.LogFilters(run_id="run-1"), db_path=isolated_db
+        )
+        == 1
+    )
+    assert (
+        store.count_logs(
+            filters=store.LogFilters(contains="info"), db_path=isolated_db
+        )
+        == 5
+    )
 
 
 def test_noise_loggers_hidden_below_warning(isolated_db: str) -> None:
@@ -100,24 +129,32 @@ def test_noise_loggers_hidden_below_warning(isolated_db: str) -> None:
         "request failed",
         logger_name="uvicorn.access",
         level="WARNING",
-        levelno=logging.WARNING,
     )
     noise = ("uvicorn.access", "ui.interaction")
-    rows = store.list_logs(noise_loggers=noise, db_path=isolated_db)
+    rows = store.list_logs(
+        filters=store.LogFilters(noise_loggers=noise), db_path=isolated_db
+    )
     # INFO chatter from noise loggers is hidden; WARNING+ always shows,
     # and INFO from other loggers is untouched.
     assert [row["message"] for row in rows] == [
         "run started",
         "request failed",
     ]
-    assert store.count_logs(noise_loggers=noise, db_path=isolated_db) == 2
+    assert (
+        store.count_logs(
+            filters=store.LogFilters(noise_loggers=noise), db_path=isolated_db
+        )
+        == 2
+    )
     # Without the filter everything is still there.
     assert store.count_logs(db_path=isolated_db) == 4
 
 
 def test_noise_loggers_match_by_prefix(isolated_db: str) -> None:
     _append(isolated_db, "pool note", logger_name="httpx.client")
-    rows = store.list_logs(noise_loggers=("httpx",), db_path=isolated_db)
+    rows = store.list_logs(
+        filters=store.LogFilters(noise_loggers=("httpx",)), db_path=isolated_db
+    )
     assert rows == []
 
 

@@ -24,7 +24,10 @@ from co_scientist.checkpoint import (
     restore_workflow_state,
     serialize_workflow_state,
 )
-from co_scientist.generator import HypothesisGenerator
+from co_scientist.generator import (
+    GeneratorOptions,
+    HypothesisGenerator,
+)
 from tests._llm_fake import install_fake_llm
 
 
@@ -34,8 +37,10 @@ def _make() -> HypothesisGenerator:
         max_iterations=2,
         initial_hypotheses_count=2,
         evolution_max_count=2,
-        tournament_pairs=2,
-        enable_cache=False,
+        options=GeneratorOptions(
+            tournament_pairs=2,
+            enable_cache=False,
+        ),
     )
 
 

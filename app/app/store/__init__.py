@@ -24,6 +24,7 @@ store`` / ``from app.store import ...`` unchanged.
 from __future__ import annotations
 
 from app.store.checkpoints import (
+    NewCheckpoint,
     clear_checkpoints,
     get_latest_checkpoint,
     has_checkpoint,
@@ -38,6 +39,8 @@ from app.store.db import (
 from app.store.events import append_event, latest_event_seq, list_events
 from app.store.feedback import append_feedback, list_feedback
 from app.store.hypotheses import (
+    HypothesisStateChanges,
+    NewHypothesis,
     add_hypothesis,
     get_hypothesis,
     list_hypotheses,
@@ -51,6 +54,8 @@ from app.store.interviews import (
     update_interview,
 )
 from app.store.logs import (
+    LogFilters,
+    NewLogRecord,
     append_log,
     clear_logs,
     count_logs,
@@ -59,6 +64,7 @@ from app.store.logs import (
     prune_logs,
 )
 from app.store.messages import (
+    NewMessage,
     append_message,
     get_pending_steering,
     list_messages,
@@ -76,6 +82,13 @@ from app.store.models import (
     RunStatus,
 )
 from app.store.records import (
+    NewCitation,
+    NewClaimEvidence,
+    NewEvidence,
+    NewMatch,
+    NewProximityEdge,
+    NewReview,
+    NewSafetyDecision,
     add_citation,
     add_claim_evidence,
     add_evidence,
@@ -99,6 +112,7 @@ from app.store.reports import (
     save_report,
 )
 from app.store.runs import (
+    RunCreateOptions,
     clear_publication_artifacts,
     clear_run_derived_data,
     create_run,
@@ -121,6 +135,7 @@ from app.store.shares import (
     revoke_report_share,
 )
 from app.store.tasks import (
+    NewTask,
     ScientificTask,
     cancel_run_tasks,
     cancel_task,
@@ -145,7 +160,22 @@ from app.store.tasks import (
 __all__ = [
     "DEMO_CLIENT_ID",
     "TERMINAL_STATUSES",
+    "HypothesisStateChanges",
+    "LogFilters",
     "MessageRow",
+    "NewCheckpoint",
+    "NewCitation",
+    "NewClaimEvidence",
+    "NewEvidence",
+    "NewHypothesis",
+    "NewLogRecord",
+    "NewMatch",
+    "NewMessage",
+    "NewProximityEdge",
+    "NewReview",
+    "NewSafetyDecision",
+    "NewTask",
+    "RunCreateOptions",
     "RunRow",
     "RunStatus",
     "ScientificTask",

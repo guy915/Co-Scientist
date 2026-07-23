@@ -10,7 +10,7 @@ from __future__ import annotations
 from typing import Any
 
 from app import store
-from app.qa import build_evidence_manifest, build_system_prompt
+from app.qa import QaRunContext, build_evidence_manifest, build_system_prompt
 
 
 def _evidence(eid: str, **over: Any) -> dict[str, Any]:
@@ -51,19 +51,21 @@ def test_system_prompt_enforces_grounding_only() -> None:
     decline rather than draw on outside knowledge.
     """
     prompt = build_system_prompt(
-        research_goal="A goal",
-        hypotheses=[
-            {
-                "title": "H1",
-                "elo_rating": 1200,
-                "win_count": 1,
-                "loss_count": 0,
-            }
-        ],
-        reviews=[],
-        matches=[],
-        history=[],
-        manifest=build_evidence_manifest([_evidence("e1")], []),
+        QaRunContext(
+            research_goal="A goal",
+            hypotheses=[
+                {
+                    "title": "H1",
+                    "elo_rating": 1200,
+                    "win_count": 1,
+                    "loss_count": 0,
+                }
+            ],
+            reviews=[],
+            matches=[],
+            history=[],
+            manifest=build_evidence_manifest([_evidence("e1")], []),
+        ),
     )
     lowered = prompt.lower()
     # Claims about the run are confined to the run's own artifacts, and the
@@ -85,12 +87,14 @@ def test_system_prompt_separates_background_from_run_claims() -> None:
     manifest is not, since [n] must resolve to a real retrieved source.
     """
     prompt = build_system_prompt(
-        research_goal="A goal",
-        hypotheses=[],
-        reviews=[],
-        matches=[],
-        history=[],
-        manifest=build_evidence_manifest([_evidence("e1")], []),
+        QaRunContext(
+            research_goal="A goal",
+            hypotheses=[],
+            reviews=[],
+            matches=[],
+            history=[],
+            manifest=build_evidence_manifest([_evidence("e1")], []),
+        ),
         audience_context="The lab uses Modular Response Analysis.",
     )
     lowered = prompt.lower()
@@ -110,12 +114,14 @@ def test_system_prompt_marks_corpus_catalog_as_prior_work() -> None:
     must not be reported as findings this run produced.
     """
     prompt = build_system_prompt(
-        research_goal="A goal",
-        hypotheses=[],
-        reviews=[],
-        matches=[],
-        history=[],
-        manifest=build_evidence_manifest([_evidence("e1")], []),
+        QaRunContext(
+            research_goal="A goal",
+            hypotheses=[],
+            reviews=[],
+            matches=[],
+            history=[],
+            manifest=build_evidence_manifest([_evidence("e1")], []),
+        ),
         corpus_catalog=(
             "- **Control of cell state transitions** "
             "(paper_id: `control-of-cell-state-transitions`)\n  cSTAR maps "
@@ -131,12 +137,14 @@ def test_system_prompt_marks_corpus_catalog_as_prior_work() -> None:
 def test_system_prompt_omits_the_corpus_section_when_empty() -> None:
     """No corpus installed must not leave an empty heading in the prompt."""
     prompt = build_system_prompt(
-        research_goal="A goal",
-        hypotheses=[],
-        reviews=[],
-        matches=[],
-        history=[],
-        manifest=build_evidence_manifest([_evidence("e1")], []),
+        QaRunContext(
+            research_goal="A goal",
+            hypotheses=[],
+            reviews=[],
+            matches=[],
+            history=[],
+            manifest=build_evidence_manifest([_evidence("e1")], []),
+        ),
     )
     assert "published papers" not in prompt.lower()
 
@@ -176,18 +184,24 @@ def test_manifest_ignores_citations_to_unknown_evidence() -> None:
 def test_message_meta_round_trips(isolated_db: str) -> None:
     """A message's structured meta survives a write/read cycle."""
     store.create_run(
-        "rg", "default", "engine", {}, client_id="c1", db_path=isolated_db
+        "rg",
+        "default",
+        "engine",
+        {},
+        store.RunCreateOptions(client_id="c1", db_path=isolated_db),
     )
     run_id = store.list_runs(client_id="c1", db_path=isolated_db)[0].id
 
     sources = [{"n": 1, "evidence_id": "e1", "title": "T", "state": "verified"}]
     store.append_message(
-        run_id,
-        "system",
-        "Answer [1].",
-        "qa",
+        store.NewMessage(
+            run_id=run_id,
+            sender="system",
+            content="Answer [1].",
+            kind="qa",
+            meta={"sources": sources},
+        ),
         db_path=isolated_db,
-        meta={"sources": sources},
     )
 
     msgs = store.list_messages(run_id, db_path=isolated_db)
@@ -199,9 +213,18 @@ def test_message_meta_round_trips(isolated_db: str) -> None:
 def test_message_without_meta_is_none(isolated_db: str) -> None:
     """Messages written without meta read back as ``None`` (back-compat)."""
     store.create_run(
-        "rg", "default", "engine", {}, client_id="c1", db_path=isolated_db
+        "rg",
+        "default",
+        "engine",
+        {},
+        store.RunCreateOptions(client_id="c1", db_path=isolated_db),
     )
     run_id = store.list_runs(client_id="c1", db_path=isolated_db)[0].id
-    store.append_message(run_id, "user", "hi", "steering", db_path=isolated_db)
+    store.append_message(
+        store.NewMessage(
+            run_id=run_id, sender="user", content="hi", kind="steering"
+        ),
+        db_path=isolated_db,
+    )
     msgs = store.list_messages(run_id, db_path=isolated_db)
     assert msgs[0].meta is None

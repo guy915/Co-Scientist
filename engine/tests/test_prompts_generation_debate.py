@@ -8,7 +8,9 @@ neither-present), list-valued ``attributes``, and the literature-context
 branch that injects ``articles_with_reasoning`` into the template variables.
 """
 
+from co_scientist.prompts._common import PromptRunContext
 from co_scientist.prompts.generation_debate import (
+    DebatePromptRequest,
     _build_debate_literature_variables,
     _format_debate_attributes,
     _format_supervisor_guidance_for_debate,
@@ -169,10 +171,12 @@ def test_build_debate_literature_variables_omits_reasoning_when_absent() -> (
 def test_get_debate_generation_prompt_with_list_attributes() -> None:
     """List-valued attributes are comma-joined into the rendered prompt."""
     prompt, _schema = get_debate_generation_prompt(
-        research_goal="engineer a drought-resistant crop",
-        hypotheses_count=2,
-        transcript="",
-        attributes=["novel", "field-testable"],
+        DebatePromptRequest(
+            research_goal="engineer a drought-resistant crop",
+            hypotheses_count=2,
+            transcript="",
+            attributes=["novel", "field-testable"],
+        )
     )
     assert "novel, field-testable" in prompt
 
@@ -185,10 +189,14 @@ def test_get_debate_generation_prompt_with_articles_with_reasoning() -> None:
     get_debate_generation_prompt.
     """
     prompt, schema = get_debate_generation_prompt(
-        research_goal="engineer a drought-resistant crop",
-        hypotheses_count=2,
-        transcript="prior turns",
-        articles_with_reasoning="Prior work suggests ABA signaling matters.",
+        DebatePromptRequest(
+            research_goal="engineer a drought-resistant crop",
+            hypotheses_count=2,
+            transcript="prior turns",
+            articles_with_reasoning=(
+                "Prior work suggests ABA signaling matters."
+            ),
+        )
     )
     assert "Prior work suggests ABA signaling matters." in prompt
     # Unlike generation_after_debate.md, the literature template also has a
@@ -201,15 +209,21 @@ def test_get_debate_generation_prompt_with_articles_with_reasoning() -> None:
 def test_get_debate_generation_prompt_with_full_supervisor_guidance() -> None:
     """Supervisor guidance with both key areas and phase focus is embedded."""
     prompt, _schema = get_debate_generation_prompt(
-        research_goal="engineer a drought-resistant crop",
-        hypotheses_count=3,
-        transcript="",
-        supervisor_guidance={
-            "research_goal_analysis": {"key_areas": ["osmotic stress"]},
-            "workflow_plan": {
-                "generation_phase": {"focus_areas": ["root architecture"]}
-            },
-        },
+        DebatePromptRequest(
+            research_goal="engineer a drought-resistant crop",
+            hypotheses_count=3,
+            transcript="",
+            context=PromptRunContext(
+                supervisor_guidance={
+                    "research_goal_analysis": {"key_areas": ["osmotic stress"]},
+                    "workflow_plan": {
+                        "generation_phase": {
+                            "focus_areas": ["root architecture"]
+                        }
+                    },
+                }
+            ),
+        )
     )
     assert "osmotic stress" in prompt
     assert "root architecture" in prompt
@@ -225,9 +239,11 @@ def test_debate_prompt_does_not_force_clone_sentence_template() -> None:
     old phrase to prohibit it.
     """
     prompt, _schema = get_debate_generation_prompt(
-        research_goal="reduce cardiac senescence",
-        hypotheses_count=1,
-        transcript="prior turns",
+        DebatePromptRequest(
+            research_goal="reduce cardiac senescence",
+            hypotheses_count=1,
+            transcript="prior turns",
+        )
     )
     # The phrase may appear only inside a negative instruction ("Do NOT ...").
     assert "to enable [Y]" not in prompt

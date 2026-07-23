@@ -13,7 +13,13 @@ from collections.abc import Coroutine
 from typing import Any
 
 from co_scientist.agents.reflection.review_helpers import (
+    ReviewContext as ReviewContext,
+)
+from co_scientist.agents.reflection.review_helpers import (
     _attach_reviews_to_hypotheses as _attach_reviews_to_hypotheses,
+)
+from co_scientist.agents.reflection.review_helpers import (
+    _BatchReviewCall as _BatchReviewCall,
 )
 from co_scientist.agents.reflection.review_helpers import (
     _build_reviews_with_placeholders as _build_reviews_with_placeholders,
@@ -42,15 +48,20 @@ from co_scientist.constants import (
     PROGRESS_REVIEW_COMPLETE,
     PROGRESS_REVIEW_START,
 )
-from co_scientist.llm import call_llm_json
+from co_scientist.llm import (
+    CompletionSpec,
+    LLMCallOptions,
+    call_llm_json,
+)
 from co_scientist.models import (
     Hypothesis,
     HypothesisReview,
+    MetricDeltas,
     create_metrics_update,
     phase_message,
 )
 from co_scientist.progress import emit_progress
-from co_scientist.prompts import get_review_prompt
+from co_scientist.prompts import PromptRunContext, get_review_prompt
 from co_scientist.state import WorkflowState
 
 logger = logging.getLogger(__name__)
@@ -77,33 +88,28 @@ def _apply_initial_review_gate(
 
 async def review_single_hypothesis(
     hypothesis_text: str,
-    research_goal: str,
-    model_name: str,
-    supervisor_guidance: dict[str, Any] | None = None,
-    meta_review: dict[str, Any] | None = None,
-    run_id: str | None = None,
+    context: ReviewContext,
     hypothesis_index: int | None = None,
-    tool_registry: Any | None = None,
-    run_setup_guidance: str | None = None,
-    run_focus_guidance: str | None = None,
 ) -> HypothesisReview:
     """Reviews a single hypothesis and returns its ``HypothesisReview``.
 
-    The optional guidance parameters (supervisor, meta-review, run
-    setup/focus) and the tool registry feed the prompt as context;
-    ``run_id`` and ``hypothesis_index`` only name saved prompts.
+    ``context`` supplies the research goal, model, run id, and the optional
+    guidance (supervisor, meta-review, run setup/focus) and tool registry
+    that feed the prompt; ``hypothesis_index`` only names the saved prompt.
     """
     prompt, schema = get_review_prompt(
-        research_goal=research_goal,
+        research_goal=context.research_goal,
         hypothesis_text=hypothesis_text,
-        supervisor_guidance=supervisor_guidance,
-        meta_review=meta_review,
-        tool_registry=tool_registry,
-        run_setup_guidance=run_setup_guidance,
-        run_focus_guidance=run_focus_guidance,
+        context=PromptRunContext(
+            supervisor_guidance=context.supervisor_guidance,
+            meta_review=context.meta_review,
+            tool_registry=context.tool_registry,
+            run_setup_guidance=context.run_setup_guidance,
+            run_focus_guidance=context.run_focus_guidance,
+        ),
     )
     response = await _call_review_llm(
-        prompt, schema, model_name, run_id, hypothesis_index
+        prompt, schema, context.model_name, context.run_id, hypothesis_index
     )
     return _review_from_response(response)
 
@@ -133,85 +139,51 @@ async def _call_review_llm(
     """
     return await call_llm_json(
         prompt=prompt,
-        model_name=model_name,
-        max_tokens=EXTENDED_MAX_TOKENS,
-        temperature=HIGH_TEMPERATURE,
-        json_schema=schema,
-        run_id=run_id,
-        prompt_name=_review_prompt_name(hypothesis_index),
-        prompt_metadata={
-            "hypothesis_index": hypothesis_index,
-            "prompt_length_chars": len(prompt),
-        },
+        spec=CompletionSpec(
+            model_name=model_name,
+            max_tokens=EXTENDED_MAX_TOKENS,
+            temperature=HIGH_TEMPERATURE,
+            json_schema=schema,
+        ),
+        options=LLMCallOptions(
+            run_id=run_id,
+            prompt_name=_review_prompt_name(hypothesis_index),
+            prompt_metadata={
+                "hypothesis_index": hypothesis_index,
+                "prompt_length_chars": len(prompt),
+            },
+        ),
     )
 
 
 async def review_parallel_individual(
     hypotheses: list[Hypothesis],
-    research_goal: str,
-    model_name: str,
-    supervisor_guidance: dict[str, Any] | None = None,
-    meta_review: dict[str, Any] | None = None,
-    run_id: str | None = None,
-    tool_registry: Any | None = None,
-    run_setup_guidance: str | None = None,
-    run_focus_guidance: str | None = None,
+    context: ReviewContext,
 ) -> list[HypothesisReview]:
     """Reviews hypotheses in parallel (original approach), one call each.
 
     Args:
         hypotheses: List of hypotheses to review
-        research_goal: Research goal for context
-        model_name: LLM model to use
-        supervisor_guidance: Optional planning guidance from the supervisor
-        meta_review: Optional meta-review feedback for context
-        run_id: Optional run ID for saving prompts
-        tool_registry: Optional ToolRegistry for dynamic tool instructions
-        run_setup_guidance: Optional run-setup guidance for the prompt
-        run_focus_guidance: Optional run-focus guidance for the prompt
+        context: Run-level review context threaded into every review
 
     Returns:
         List of reviews (one per hypothesis). No concurrency semaphore is
         applied; gather preserves order so results align with `hypotheses`.
     """
-    review_tasks = _build_parallel_review_tasks(
-        hypotheses,
-        research_goal,
-        model_name,
-        supervisor_guidance,
-        meta_review,
-        run_id,
-        tool_registry,
-        run_setup_guidance,
-        run_focus_guidance,
-    )
+    review_tasks = _build_parallel_review_tasks(hypotheses, context)
     return await asyncio.gather(*review_tasks)
 
 
 def _build_parallel_review_tasks(
     hypotheses: list[Hypothesis],
-    research_goal: str,
-    model_name: str,
-    supervisor_guidance: dict[str, Any] | None,
-    meta_review: dict[str, Any] | None,
-    run_id: str | None,
-    tool_registry: Any | None,
-    run_setup_guidance: str | None,
-    run_focus_guidance: str | None,
+    context: ReviewContext,
 ) -> list[Coroutine[Any, Any, HypothesisReview]]:
     """Builds one review_single_hypothesis coroutine per hypothesis."""
     return [
         review_single_hypothesis(
             hypothesis_text=hyp.text,
-            research_goal=research_goal,
-            model_name=model_name,
-            supervisor_guidance=supervisor_guidance,
-            meta_review=meta_review,
-            run_id=run_id,
+            context=context,
             hypothesis_index=i,
-            tool_registry=tool_registry,
-            run_setup_guidance=run_setup_guidance,
-            run_focus_guidance=run_focus_guidance,
         )
         for i, hyp in enumerate(hypotheses)
     ]
@@ -219,87 +191,53 @@ def _build_parallel_review_tasks(
 
 async def review_comparative_batch(
     hypotheses: list[Hypothesis],
-    research_goal: str,
-    model_name: str,
-    supervisor_guidance: dict[str, Any] | None = None,
-    meta_review: dict[str, Any] | None = None,
-    run_id: str | None = None,
-    tool_registry: Any | None = None,
-    run_setup_guidance: str | None = None,
-    run_focus_guidance: str | None = None,
+    context: ReviewContext,
 ) -> list[HypothesisReview]:
     """Reviews hypotheses in a single comparative batch (one LLM call).
 
     All hypotheses are shown together for relative comparison, producing
     more differentiated scores but limited by token constraints. Returns
-    one review per hypothesis. The optional guidance parameters and the
-    tool registry feed the prompt as context; ``run_id`` only names saved
-    prompts.
+    one review per hypothesis. ``context`` supplies the research goal,
+    guidance, and tool registry as prompt context; its ``run_id`` only
+    names saved prompts.
     """
-    response = await _run_batch_review_call(
-        hypotheses,
-        research_goal,
-        model_name,
-        supervisor_guidance,
-        meta_review,
-        run_id,
-        tool_registry,
-        run_setup_guidance,
-        run_focus_guidance,
-    )
-    return _parse_batch_review_response(response, hypotheses, run_id)
+    response = await _run_batch_review_call(hypotheses, context)
+    return _parse_batch_review_response(response, hypotheses, context.run_id)
 
 
 async def _run_batch_review_call(
     hypotheses: list[Hypothesis],
-    research_goal: str,
-    model_name: str,
-    supervisor_guidance: dict[str, Any] | None,
-    meta_review: dict[str, Any] | None,
-    run_id: str | None,
-    tool_registry: Any | None,
-    run_setup_guidance: str | None,
-    run_focus_guidance: str | None,
+    context: ReviewContext,
 ) -> dict[str, Any]:
     """Prepares the batch-review prompt and calls the LLM for it."""
-    prompt, schema, max_tokens, max_attempts = _prepare_batch_review_call(
-        hypotheses,
-        research_goal,
-        supervisor_guidance,
-        meta_review,
-        tool_registry,
-        run_setup_guidance,
-        run_focus_guidance,
-    )
-    return await _call_batch_review_llm(
-        prompt, schema, max_tokens, max_attempts, model_name, run_id, hypotheses
-    )
+    call = _prepare_batch_review_call(hypotheses, context)
+    return await _call_batch_review_llm(call, context, hypotheses)
 
 
 async def _call_batch_review_llm(
-    prompt: str,
-    schema: dict[str, Any] | None,
-    max_tokens: int,
-    max_attempts: int,
-    model_name: str,
-    run_id: str | None,
+    call: _BatchReviewCall,
+    context: ReviewContext,
     hypotheses: list[Hypothesis],
 ) -> dict[str, Any]:
     """Calls the LLM to review a comparative batch of hypotheses."""
     return await call_llm_json(
-        prompt=prompt,
-        model_name=model_name,
-        max_tokens=max_tokens,
-        temperature=HIGH_TEMPERATURE,
-        json_schema=schema,
-        max_attempts=max_attempts,
-        run_id=run_id,
-        prompt_name="review_batch",
-        prompt_metadata={
-            "hypotheses_count": len(hypotheses),
-            "scaled_max_tokens": max_tokens,
-            "prompt_length_chars": len(prompt),
-        },
+        prompt=call.prompt,
+        spec=CompletionSpec(
+            model_name=context.model_name,
+            max_tokens=call.max_tokens,
+            temperature=HIGH_TEMPERATURE,
+            json_schema=call.schema,
+        ),
+        max_attempts=call.max_attempts,
+        options=LLMCallOptions(
+            run_id=context.run_id,
+            prompt_name="review_batch",
+            prompt_metadata={
+                "hypotheses_count": len(hypotheses),
+                "scaled_max_tokens": call.max_tokens,
+                "prompt_length_chars": len(call.prompt),
+            },
+        ),
     )
 
 
@@ -319,22 +257,15 @@ async def _run_review_strategy(
     Returns:
         Tuple of (reviews, llm_calls_used).
     """
-    kwargs: dict[str, Any] = {
-        "hypotheses": hypotheses,
-        "research_goal": state["research_goal"],
-        "model_name": state["model_name"],
-        "supervisor_guidance": state.get("supervisor_guidance"),
-        "meta_review": state.get("meta_review"),
-        "run_id": state.get("run_id"),
-        "tool_registry": state.get("tool_registry"),
-        "run_setup_guidance": state.get("run_setup_guidance"),
-        "run_focus_guidance": state.get("run_focus_guidance"),
-    }
+    context = ReviewContext.from_state(state)
     if use_comparative:
         # Single batch call.
-        return await review_comparative_batch(**kwargs), 1
+        return await review_comparative_batch(hypotheses, context), 1
     # One call per hypothesis.
-    return await review_parallel_individual(**kwargs), len(hypotheses)
+    return (
+        await review_parallel_individual(hypotheses, context),
+        len(hypotheses),
+    )
 
 
 async def review_node(state: WorkflowState) -> dict[str, Any]:
@@ -450,7 +381,7 @@ def _review_node_result(
     """Builds the final review_node state delta with metrics."""
     # Update metrics (deltas only, merge_metrics will add to existing state)
     metrics = create_metrics_update(
-        reviews_count_delta=len(reviews), llm_calls_delta=llm_calls
+        deltas=MetricDeltas(reviews=len(reviews), llm_calls=llm_calls)
     )
     logger.debug(
         "review node creating metrics delta: reviews=%s, llm_calls=%s",

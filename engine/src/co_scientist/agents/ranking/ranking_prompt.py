@@ -1,12 +1,45 @@
 """Matchup prompt assembly and reflection diagnostics for the ranking node."""
 
+import dataclasses
 import logging
 from typing import Any
 
 from co_scientist.models import Hypothesis
-from co_scientist.prompts import get_ranking_prompt
+from co_scientist.prompts import (
+    PromptRunContext,
+    RankingSide,
+    get_ranking_prompt,
+)
 
 logger = logging.getLogger(__name__)
+
+
+@dataclasses.dataclass(frozen=True)
+class _MatchupPromptContext:
+    """Run-level context shared by every ranking-matchup prompt.
+
+    These are set earlier in the workflow and threaded unchanged into each
+    pairing, independent of which two hypotheses are being compared.
+    """
+
+    research_goal: str
+    supervisor_guidance: dict[str, Any] | None = None
+    meta_review: dict[str, Any] | None = None
+    tool_registry: Any | None = None
+    run_setup_guidance: str | None = None
+    run_focus_guidance: str | None = None
+
+
+@dataclasses.dataclass(frozen=True)
+class _MatchupSummaries:
+    """Per-side review, deep-verification, and reflection-note context."""
+
+    review_a: dict[str, Any] | None
+    review_b: dict[str, Any] | None
+    deep_verification_a: dict[str, Any] | None
+    deep_verification_b: dict[str, Any] | None
+    reflection_notes_a: str | None
+    reflection_notes_b: str | None
 
 
 def _review_summary(hypothesis: Hypothesis) -> dict[str, Any] | None:
@@ -167,110 +200,90 @@ def _log_matchup_reflection_notes(
 def _render_matchup_prompt(
     hypothesis_a: Hypothesis,
     hypothesis_b: Hypothesis,
-    research_goal: str,
-    supervisor_guidance: dict[str, Any] | None,
-    meta_review: dict[str, Any] | None,
-    tool_registry: Any | None,
-    run_setup_guidance: str | None,
-    run_focus_guidance: str | None,
-    review_a: dict[str, Any] | None,
-    review_b: dict[str, Any] | None,
-    deep_verification_a: dict[str, Any] | None,
-    deep_verification_b: dict[str, Any] | None,
-    reflection_notes_a: str | None,
-    reflection_notes_b: str | None,
+    context: _MatchupPromptContext,
+    summaries: _MatchupSummaries,
 ) -> tuple[str, dict[str, Any] | None]:
     """Renders the ranking-matchup prompt template with gathered context."""
     return get_ranking_prompt(
-        research_goal=research_goal,
-        hypothesis_a=hypothesis_a.text,
-        hypothesis_b=hypothesis_b.text,
-        supervisor_guidance=supervisor_guidance,
-        review_a=review_a,
-        review_b=review_b,
-        reflection_notes_a=reflection_notes_a,
-        reflection_notes_b=reflection_notes_b,
-        deep_verification_a=deep_verification_a,
-        deep_verification_b=deep_verification_b,
-        meta_review=meta_review,
-        tool_registry=tool_registry,
-        run_setup_guidance=run_setup_guidance,
-        run_focus_guidance=run_focus_guidance,
+        research_goal=context.research_goal,
+        side_a=RankingSide(
+            text=hypothesis_a.text,
+            review=summaries.review_a,
+            reflection_notes=summaries.reflection_notes_a,
+            deep_verification=summaries.deep_verification_a,
+        ),
+        side_b=RankingSide(
+            text=hypothesis_b.text,
+            review=summaries.review_b,
+            reflection_notes=summaries.reflection_notes_b,
+            deep_verification=summaries.deep_verification_b,
+        ),
+        context=PromptRunContext(
+            supervisor_guidance=context.supervisor_guidance,
+            meta_review=context.meta_review,
+            tool_registry=context.tool_registry,
+            run_setup_guidance=context.run_setup_guidance,
+            run_focus_guidance=context.run_focus_guidance,
+        ),
     )
 
 
-def _assemble_matchup_prompt(
-    hypothesis_a: Hypothesis,
-    hypothesis_b: Hypothesis,
-    research_goal: str,
-    supervisor_guidance: dict[str, Any] | None,
-    meta_review: dict[str, Any] | None,
-    tool_registry: Any | None,
-    run_setup_guidance: str | None,
-    run_focus_guidance: str | None,
-) -> tuple[str, dict[str, Any] | None, str | None, str | None]:
-    """Gathers summaries and reflection notes, then renders the prompt."""
+def _gather_matchup_side_summaries(
+    hypothesis_a: Hypothesis, hypothesis_b: Hypothesis
+) -> _MatchupSummaries:
+    """Bundles review, deep-verification, and reflection-note context."""
     review_a, review_b, deep_verification_a, deep_verification_b = (
         _gather_matchup_summaries(hypothesis_a, hypothesis_b)
     )
     reflection_notes_a, reflection_notes_b = _log_matchup_reflection_notes(
         hypothesis_a, hypothesis_b
     )
+    return _MatchupSummaries(
+        review_a=review_a,
+        review_b=review_b,
+        deep_verification_a=deep_verification_a,
+        deep_verification_b=deep_verification_b,
+        reflection_notes_a=reflection_notes_a,
+        reflection_notes_b=reflection_notes_b,
+    )
+
+
+def _assemble_matchup_prompt(
+    hypothesis_a: Hypothesis,
+    hypothesis_b: Hypothesis,
+    context: _MatchupPromptContext,
+) -> tuple[str, dict[str, Any] | None, str | None, str | None]:
+    """Gathers summaries and reflection notes, then renders the prompt."""
+    summaries = _gather_matchup_side_summaries(hypothesis_a, hypothesis_b)
 
     prompt, schema = _render_matchup_prompt(
-        hypothesis_a,
-        hypothesis_b,
-        research_goal,
-        supervisor_guidance,
-        meta_review,
-        tool_registry,
-        run_setup_guidance,
-        run_focus_guidance,
-        review_a,
-        review_b,
-        deep_verification_a,
-        deep_verification_b,
-        reflection_notes_a,
-        reflection_notes_b,
+        hypothesis_a, hypothesis_b, context, summaries
     )
     _warn_if_reflection_notes_dropped(
-        prompt, reflection_notes_a, reflection_notes_b
+        prompt, summaries.reflection_notes_a, summaries.reflection_notes_b
     )
-    return prompt, schema, reflection_notes_a, reflection_notes_b
+    return (
+        prompt,
+        schema,
+        summaries.reflection_notes_a,
+        summaries.reflection_notes_b,
+    )
 
 
 def _build_matchup_prompt(
     hypothesis_a: Hypothesis,
     hypothesis_b: Hypothesis,
-    research_goal: str,
-    supervisor_guidance: dict[str, Any] | None,
-    meta_review: dict[str, Any] | None,
-    tool_registry: Any | None,
-    run_setup_guidance: str | None,
-    run_focus_guidance: str | None,
+    context: _MatchupPromptContext,
 ) -> tuple[str, dict[str, Any] | None, str | None, str | None]:
     """Assembles the ranking-matchup prompt (and schema) for one pairing.
 
     Args:
         hypothesis_a: First hypothesis.
         hypothesis_b: Second hypothesis.
-        research_goal: Research goal for context.
-        supervisor_guidance: Optional planning guidance from the supervisor.
-        meta_review: Optional cross-iteration meta-review feedback.
-        tool_registry: Optional ToolRegistry for dynamic tool instructions.
-        run_setup_guidance: Optional run-setup guidance for the prompt.
-        run_focus_guidance: Optional run-focus guidance for the prompt.
+        context: Run-level context threaded into the prompt (research goal,
+            guidance, meta-review, tool registry).
 
     Returns:
         Tuple of (prompt, schema, reflection_notes_a, reflection_notes_b).
     """
-    return _assemble_matchup_prompt(
-        hypothesis_a,
-        hypothesis_b,
-        research_goal,
-        supervisor_guidance,
-        meta_review,
-        tool_registry,
-        run_setup_guidance,
-        run_focus_guidance,
-    )
+    return _assemble_matchup_prompt(hypothesis_a, hypothesis_b, context)

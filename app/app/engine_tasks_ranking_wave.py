@@ -1,0 +1,304 @@
+"""Wave building and judging for the durable ranking tournament.
+
+One durable ranking task judges a bounded *wave* of Elo matchups: this
+module owns the value objects describing a wave, the pairing selection, the
+concurrent judging, and the Elo application that folds a judged wave back
+into the running totals. Split from ``app.engine_tasks_ranking``, which
+re-exports every name here so its namespace keeps resolving.
+"""
+
+from __future__ import annotations
+
+import asyncio
+from dataclasses import dataclass
+from typing import Any
+
+from app.store import ScientificTask
+
+# How many matchups one durable task judges concurrently. Bounded so a wave
+# still commits a checkpoint often enough to be a useful resume point, and so
+# the pool's Elo ratings re-adapt between waves rather than drifting across a
+# whole round judged from one stale snapshot.
+RANKING_WAVE_SIZE = 5
+
+
+@dataclass(frozen=True)
+class _WavePlan:
+    """The matchups one ranking task judges and where they sit in a round.
+
+    Attributes:
+        wave: Distinct matchups this task judges concurrently.
+        index: Round index the wave starts at.
+        rounds: Total matchups budgeted for the tournament.
+    """
+
+    wave: list[Any]
+    index: int
+    rounds: int
+
+
+@dataclass(frozen=True)
+class _WaveResult:
+    """What judging one wave contributed to the running tournament totals.
+
+    Attributes:
+        details: Every matchup detail committed so far this task.
+        total_calls: Cumulative LLM calls the tournament has spent.
+        next_index: Round index the next task resumes at.
+        last_pair: Hypothesis ids of the wave's final matchup (rematch guard).
+    """
+
+    details: list[dict[str, Any]]
+    total_calls: int
+    next_index: int
+    last_pair: list[str]
+
+
+@dataclass(frozen=True)
+class _WaveJudgeContext:
+    """Per-wave context shared by every matchup a wave judges.
+
+    Attributes:
+        state: Restored workflow state the wave is judged against.
+        context: The engine's gathered tournament context tuple.
+        index: Round index the wave starts at (matchup numbering base).
+    """
+
+    state: dict[str, Any]
+    context: tuple[Any, Any, Any, Any, Any]
+    index: int
+
+
+def _ranking_wave(
+    candidates: list[Any],
+    previous_pair: frozenset[str],
+    index: int,
+    rounds: int,
+) -> list[Any]:
+    """Return the distinct matchups this task should judge concurrently.
+
+    Skips the pair the previous wave ended on (the existing rematch guard) and
+    never repeats a pair inside one wave, since every pairing in a wave is
+    drawn from the same Elo snapshot and would otherwise be judged twice.
+    Never runs past the round budget.
+    """
+    remaining = max(0, rounds - index)
+    wave: list[Any] = []
+    seen: set[frozenset[str]] = {previous_pair} if previous_pair else set()
+    for pair in candidates:
+        if len(wave) >= min(RANKING_WAVE_SIZE, remaining):
+            break
+        key = frozenset({pair[0].id, pair[1].id})
+        if key in seen:
+            continue
+        seen.add(key)
+        wave.append(pair)
+    if not wave and candidates and remaining:
+        # Every candidate was a repeat; judging the best one again still makes
+        # progress and matches the previous one-per-task fallback.
+        wave.append(candidates[0])
+    return wave
+
+
+def _prepare_ranking_wave(
+    task: ScientificTask,
+    state: dict[str, Any],
+    eligible: list[Any],
+    index: int,
+    rounds: int,
+) -> _WavePlan:
+    """Build this task's wave of distinct matchups to judge concurrently.
+
+    Enough pairings are drawn to fill a wave, plus one for the rematch guard
+    to skip. The streaming path asks for three because it then picks exactly
+    one; the durable path inherited that number when it started judging
+    waves, which silently capped every wave at three no matter how many
+    rounds remained. A short wave is not lost work, it is another sequential
+    durable task: the ultra run spent about two hours across 178 of them.
+
+    A matchup is three debate turns of real model work (~45s), so
+    one-per-task ran a 128-match round at a concurrency of one -- about 94
+    minutes of wall clock for ~20 minutes of work. Judging a wave instead
+    draws every pairing in it from the same Elo snapshot, which is the cost
+    of the parallelism: adaptation happens at wave boundaries rather than
+    after every single match.
+
+    Args:
+        task: The leased ranking-match task.
+        state: Restored workflow state for this tournament.
+        eligible: Hypotheses eligible for a matchup.
+        index: Round index this wave starts at.
+        rounds: Total matchups budgeted for the tournament.
+
+    Returns:
+        The wave to judge, with the round position it occupies.
+    """
+    from co_scientist.agents.ranking.ranking import _build_tournament_pairings
+
+    candidates = _build_tournament_pairings(
+        eligible,
+        min(RANKING_WAVE_SIZE + 1, rounds),
+        state["research_goal"],
+        int(state.get("current_iteration", 0)) * 10_000 + index,
+    )
+    previous_pair = frozenset(
+        str(item) for item in task.inputs["previous_pair"]
+    )
+    return _WavePlan(
+        wave=_ranking_wave(candidates, previous_pair, index, rounds),
+        index=index,
+        rounds=rounds,
+    )
+
+
+async def _judge_one_matchup(
+    pair: tuple[Any, Any],
+    offset: int,
+    judge_context: _WaveJudgeContext,
+    debate_turns: int,
+) -> tuple[str, dict[str, Any]]:
+    """Judge one matchup of a wave against the wave's shared context.
+
+    Args:
+        pair: The two hypotheses to judge.
+        offset: Position of this matchup inside its wave.
+        judge_context: State, tournament context, and the wave's base index.
+        debate_turns: Debate depth this matchup was assigned.
+
+    Returns:
+        The judged winner and its raw debate response.
+    """
+    from co_scientist.agents.ranking.ranking import (
+        _DebateContext,
+        judge_matchup,
+    )
+
+    state = judge_context.state
+    guidance, registry, meta_review, setup, focus = judge_context.context
+    debate_ctx = _DebateContext(
+        pair[0],
+        pair[1],
+        state["research_goal"],
+        state["model_name"],
+        supervisor_guidance=guidance,
+        meta_review=meta_review,
+        tool_registry=registry,
+        run_setup_guidance=setup,
+        run_focus_guidance=focus,
+        run_id=state.get("run_id"),
+        matchup_index=judge_context.index + offset,
+    )
+    judgement: tuple[str, dict[str, Any]] = await judge_matchup(
+        debate_ctx, debate_turns=debate_turns
+    )
+    return judgement
+
+
+async def _judge_wave_matchups(
+    plan: _WavePlan,
+    state: dict[str, Any],
+    eligible: list[Any],
+) -> tuple[list[tuple[str, dict[str, Any]]], list[int]]:
+    """Judge one wave of matchups concurrently against a shared Elo snapshot.
+
+    The engine's ranking semaphore bounds the real fan-out; gather only
+    offers it more than one call to bound.
+
+    Args:
+        plan: The wave to judge and its position in the round.
+        state: Restored workflow state for this tournament.
+        eligible: Hypotheses eligible for a matchup (the Elo snapshot).
+
+    Returns:
+        A tuple of (judgements in wave order, per-matchup debate depths).
+    """
+    from co_scientist.agents.ranking.ranking import (
+        _gather_tournament_context,
+        _matchup_debate_turns,
+        _median_elo,
+    )
+
+    wave = plan.wave
+    judge_context = _WaveJudgeContext(
+        state, _gather_tournament_context(state), plan.index
+    )
+    median = _median_elo(eligible)
+    depths = [_matchup_debate_turns(pair[0], pair[1], median) for pair in wave]
+    judged = await asyncio.gather(
+        *(
+            _judge_one_matchup(pair, offset, judge_context, depths[offset])
+            for offset, pair in enumerate(wave)
+        )
+    )
+    return list(judged), depths
+
+
+def _apply_wave_elo(
+    wave: list[Any],
+    judged: list[tuple[str, dict[str, Any]]],
+    depths: list[int],
+    state: dict[str, Any],
+) -> tuple[list[dict[str, Any]], int, list[str]]:
+    """Apply a judged wave's Elo updates in wave order.
+
+    Elo is applied in wave order so the committed result is independent of
+    the order the concurrent judgements happened to return in.
+    """
+    from co_scientist.agents.ranking.ranking import (
+        _apply_matchup_elo,
+        _build_matchup_detail,
+    )
+    from co_scientist.constants import ELO_K_FACTOR
+
+    k_factor = int(state.get("elo_k_factor") or ELO_K_FACTOR)
+    details: list[dict[str, Any]] = []
+    total_calls = 0
+    last_pair: list[str] = []
+    for offset, (pair, (winner, response)) in enumerate(
+        zip(wave, judged, strict=True)
+    ):
+        hypothesis_a, hypothesis_b = pair
+        outcome = _apply_matchup_elo(
+            hypothesis_a, hypothesis_b, winner, k_factor=k_factor
+        )
+        details.append(
+            _build_matchup_detail(
+                hypothesis_a, hypothesis_b, winner, response, outcome
+            )
+        )
+        total_calls += depths[offset]
+        last_pair = [hypothesis_a.id, hypothesis_b.id]
+    return details, total_calls, last_pair
+
+
+async def _advance_ranking_wave(
+    plan: _WavePlan,
+    state: dict[str, Any],
+    eligible: list[Any],
+    carried: _WaveResult,
+) -> _WaveResult:
+    """Judge a wave (if any) and fold its results into the running totals.
+
+    Args:
+        plan: The wave to judge and its position in the round.
+        state: Restored workflow state for this tournament.
+        eligible: Hypotheses eligible for a matchup (the Elo snapshot).
+        carried: Details and LLM calls the tournament already accumulated.
+
+    Returns:
+        The updated running totals; an empty wave jumps to the round end.
+    """
+    if not plan.wave:
+        return _WaveResult(
+            carried.details, carried.total_calls, plan.rounds, []
+        )
+    judged, depths = await _judge_wave_matchups(plan, state, eligible)
+    new_details, calls_delta, last_pair = _apply_wave_elo(
+        plan.wave, judged, depths, state
+    )
+    return _WaveResult(
+        details=carried.details + new_details,
+        total_calls=carried.total_calls + calls_delta,
+        next_index=plan.index + len(plan.wave),
+        last_pair=last_pair,
+    )

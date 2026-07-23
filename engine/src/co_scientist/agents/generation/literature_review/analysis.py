@@ -18,7 +18,10 @@ from co_scientist.constants import (
     DEFAULT_MAX_TOKENS,
     HIGH_TEMPERATURE,
 )
-from co_scientist.llm import call_llm_json
+from co_scientist.llm import (
+    CompletionSpec,
+    call_llm_json,
+)
 from co_scientist.prompts import get_literature_review_paper_analysis_prompt
 from co_scientist.schemas import LITERATURE_PAPER_ANALYSIS_SCHEMA
 from co_scientist.state import WorkflowState
@@ -49,10 +52,12 @@ async def _run_paper_analysis_llm(
 
     analysis = await call_llm_json(
         prompt=prompt,
-        model_name=model_name,
-        json_schema=LITERATURE_PAPER_ANALYSIS_SCHEMA,
-        max_tokens=DEFAULT_MAX_TOKENS,
-        temperature=HIGH_TEMPERATURE,
+        spec=CompletionSpec(
+            model_name=model_name,
+            max_tokens=DEFAULT_MAX_TOKENS,
+            temperature=HIGH_TEMPERATURE,
+            json_schema=LITERATURE_PAPER_ANALYSIS_SCHEMA,
+        ),
     )
 
     logger.debug(

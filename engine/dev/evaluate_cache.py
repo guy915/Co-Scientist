@@ -18,17 +18,26 @@ from collections.abc import Sequence
 
 from absl import app
 
-from co_scientist import HypothesisGenerator, clear_cache, get_cache_stats
+from co_scientist import (
+    GeneratorOptions,
+    HypothesisGenerator,
+    clear_cache,
+    get_cache_stats,
+)
 
 
 async def run_generation():
     """Run a simple generation to test caching."""
     generator = HypothesisGenerator(
         model_name="gemini/gemini-2.5-flash",
-        max_iterations=0,  # No iterations for faster testing
+        max_iterations=0,
+        # No iterations for faster testing
         initial_hypotheses_count=3,
         evolution_max_count=2,
-        enable_cache=True,  # Explicitly enable cache
+        # Explicitly enable cache,
+        options=GeneratorOptions(
+            enable_cache=True,
+        ),
     )
 
     research_goal = (

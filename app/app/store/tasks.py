@@ -2,8 +2,9 @@
 
 The control-plane lifecycle operations (Supervisor reprioritize/cancel/
 retry, run-scoped cancel/pause/resume, and terminally-dead task revival)
-live in ``app.store.tasks_lifecycle`` and are re-exported here so the
-module namespace is unchanged.
+live in ``app.store.tasks_lifecycle``, and the read-only cohort liveness
+probes live in ``app.store.tasks_probes``; both are re-exported here so
+the module namespace is unchanged.
 """
 
 from __future__ import annotations
@@ -15,7 +16,7 @@ import uuid
 from collections.abc import Iterable, Mapping
 from typing import Any
 
-from app.store.db import _now, _use_conn, connect, transaction
+from app.store.db import _now, _use_conn, transaction
 from app.store.tasks_lifecycle import cancel_run_tasks as cancel_run_tasks
 from app.store.tasks_lifecycle import cancel_task as cancel_task
 from app.store.tasks_lifecycle import pause_run_tasks as pause_run_tasks
@@ -25,6 +26,14 @@ from app.store.tasks_lifecycle import retry_task as retry_task
 from app.store.tasks_lifecycle import (
     revive_task_for_retry as revive_task_for_retry,
 )
+from app.store.tasks_probes import (
+    _EXPIRED_LEASE_RESCUABLE as _EXPIRED_LEASE_RESCUABLE,
+)
+from app.store.tasks_probes import (
+    _has_claimable_task as _has_claimable_task,
+)
+from app.store.tasks_probes import cohort_poll as cohort_poll
+from app.store.tasks_probes import has_active_lease as has_active_lease
 
 
 @dataclasses.dataclass(frozen=True)
@@ -102,74 +111,79 @@ def _fetch_task_by_idempotency_key(
     return row
 
 
+@dataclasses.dataclass(frozen=True)
+class NewTask:
+    """One durable task to enqueue, mirroring the scientific_tasks row.
+
+    ``idempotency_key`` is unique per run and makes duplicate delivery a
+    no-op. ``priority`` orders the queue, ``dependencies`` names the task
+    ids that must finish first, ``provenance`` records who enqueued it,
+    ``budget`` caps its resource use, and ``max_attempts`` is its retry
+    budget.
+    """
+
+    run_id: str
+    task_type: str
+    inputs: Mapping[str, Any]
+    idempotency_key: str
+    priority: int = 0
+    dependencies: Iterable[str] = ()
+    provenance: Mapping[str, Any] | None = None
+    budget: Mapping[str, Any] | None = None
+    max_attempts: int = 3
+
+
 def _task_row_values(
-    task_id: str,
-    run_id: str,
-    task_type: str,
-    priority: int,
-    inputs: Mapping[str, Any],
-    dependencies: Iterable[str],
-    provenance: Mapping[str, Any] | None,
-    idempotency_key: str,
-    budget: Mapping[str, Any] | None,
-    max_attempts: int,
-    now: float,
+    task_id: str, task: NewTask, now: float
 ) -> tuple[Any, ...]:
     """Build the bound values tuple for a new task row."""
     return (
         task_id,
-        run_id,
-        task_type,
+        task.run_id,
+        task.task_type,
         "queued",
-        priority,
-        json.dumps(dict(inputs), sort_keys=True),
-        json.dumps(list(dependencies)),
-        json.dumps(dict(provenance or {}), sort_keys=True),
-        idempotency_key,
-        json.dumps(dict(budget or {}), sort_keys=True),
-        max_attempts,
+        task.priority,
+        json.dumps(dict(task.inputs), sort_keys=True),
+        json.dumps(list(task.dependencies)),
+        json.dumps(dict(task.provenance or {}), sort_keys=True),
+        task.idempotency_key,
+        json.dumps(dict(task.budget or {}), sort_keys=True),
+        task.max_attempts,
         now,
         now,
     )
 
 
 def enqueue_task(
-    run_id: str,
-    task_type: str,
-    inputs: Mapping[str, Any],
+    task: NewTask,
     *,
-    idempotency_key: str,
-    priority: int = 0,
-    dependencies: Iterable[str] = (),
-    provenance: Mapping[str, Any] | None = None,
-    budget: Mapping[str, Any] | None = None,
-    max_attempts: int = 3,
     db_path: str | None = None,
     conn: sqlite3.Connection | None = None,
 ) -> ScientificTask:
-    """Enqueue a task once and return the existing row on duplicate delivery."""
-    if not idempotency_key.strip():
+    """Enqueue a task once and return the existing row on duplicate delivery.
+
+    Args:
+        task: The task to enqueue (see :class:`NewTask`).
+        db_path: Optional override for the SQLite database path.
+        conn: Optional open connection to reuse.
+
+    Returns:
+        The enqueued task, or the pre-existing row on duplicate delivery.
+
+    Raises:
+        ValueError: If the idempotency key is blank or max_attempts < 1.
+        RuntimeError: If the row could not be read back after insert.
+    """
+    if not task.idempotency_key.strip():
         raise ValueError("idempotency_key must not be empty")
-    if max_attempts < 1:
+    if task.max_attempts < 1:
         raise ValueError("max_attempts must be positive")
-    task_id = str(uuid.uuid4())
-    now = _now()
-    values = _task_row_values(
-        task_id,
-        run_id,
-        task_type,
-        priority,
-        inputs,
-        dependencies,
-        provenance,
-        idempotency_key,
-        budget,
-        max_attempts,
-        now,
-    )
+    values = _task_row_values(str(uuid.uuid4()), task, _now())
     with _use_conn(conn, db_path) as active:
         _insert_task_row(active, values)
-        row = _fetch_task_by_idempotency_key(active, run_id, idempotency_key)
+        row = _fetch_task_by_idempotency_key(
+            active, task.run_id, task.idempotency_key
+        )
     if row is None:
         raise RuntimeError("task enqueue did not persist a row")
     return _decode(row)
@@ -280,93 +294,6 @@ def _dependencies_complete(
     return len(rows) == len(task.dependencies) and all(
         row["status"] in allowed for row in rows
     )
-
-
-def has_active_lease(run_id: str, db_path: str | None = None) -> bool:
-    """Return whether any of a run's tasks is currently leased.
-
-    Answers the cohort's idle question -- "is anyone still working?" -- with
-    a single existence check. Listing and decoding every row of the run's
-    task table to compute the same boolean costs more the further a run
-    gets, and every idle worker asks twenty times a second.
-
-    Args:
-        run_id: Identifier of the run whose cohort is waiting.
-        db_path: Optional override for the SQLite database path.
-
-    Returns:
-        True when at least one task of the run is leased.
-    """
-    with connect(db_path) as conn:
-        row = conn.execute(
-            "SELECT 1 FROM scientific_tasks WHERE run_id=? AND status='leased'"
-            " LIMIT 1",
-            (run_id,),
-        ).fetchone()
-    return row is not None
-
-
-# The liveness invariant shared by the advisory probes and the claim's
-# rescue UPDATE: an expired lease with retry budget left is claimable
-# again. One fragment, interpolated everywhere it applies, so a probe can
-# never say "no work" while the claim's rescue would have found some.
-# Binds one parameter: the current time.
-_EXPIRED_LEASE_RESCUABLE = (
-    "status='leased' AND lease_expires_at<=? AND attempt<max_attempts"
-)
-
-
-def _has_claimable_task(run_id: str | None, db_path: str | None) -> bool:
-    """Return whether a claim attempt could plausibly find work.
-
-    Read-only and advisory. Every worker in every run's cohort polls for
-    work several times a second, and opening a write transaction just to
-    discover the queue is empty turned an idle cohort into a write-lock
-    storm: hundreds of no-op BEGIN IMMEDIATEs a second against a database
-    with a single writer, changing no rows. The database looked idle while
-    ordinary API writes exhausted their 30-second busy timeout and run
-    creation returned 500. In WAL a reader takes no write lock, so asking
-    first costs nothing and the common answer is "no".
-
-    The claim itself re-checks everything under the write lock, so a race
-    here only risks a wasted attempt, never a double lease.
-    """
-    query = (
-        "SELECT 1 FROM scientific_tasks WHERE status='queued'"
-        " AND (? IS NULL OR run_id=?)"
-        " UNION ALL "
-        "SELECT 1 FROM scientific_tasks WHERE (? IS NULL OR run_id=?)"
-        f" AND {_EXPIRED_LEASE_RESCUABLE}"
-        " LIMIT 1"
-    )
-    with connect(db_path) as conn:
-        row = conn.execute(
-            query, (run_id, run_id, run_id, run_id, _now())
-        ).fetchone()
-    return row is not None
-
-
-def cohort_poll(run_id: str, db_path: str | None = None) -> tuple[bool, bool]:
-    """One idle-tick snapshot for a cohort worker: (claimable, active lease).
-
-    The cohort's idle loop needs both answers every tick -- "is there work
-    to claim" and "is a sibling still holding a lease that may fan out
-    more". Asking them separately opened two connections per tick per
-    worker, sustained for the whole wall clock of every run; one read-only
-    connection answers both from a single consistent snapshot.
-    """
-    query = (
-        "SELECT"
-        " EXISTS(SELECT 1 FROM scientific_tasks"
-        "        WHERE run_id=? AND status='queued')"
-        " OR EXISTS(SELECT 1 FROM scientific_tasks WHERE run_id=?"
-        f"        AND {_EXPIRED_LEASE_RESCUABLE}) AS claimable,"
-        " EXISTS(SELECT 1 FROM scientific_tasks"
-        "        WHERE run_id=? AND status='leased') AS active"
-    )
-    with connect(db_path) as conn:
-        row = conn.execute(query, (run_id, run_id, _now(), run_id)).fetchone()
-    return bool(row["claimable"]), bool(row["active"])
 
 
 def _rescue_expired_leases(conn: sqlite3.Connection, now: float) -> None:

@@ -1,10 +1,11 @@
 """Run CRUD and lifecycle helpers for the runs table.
 
 Covers creating runs, reading them, status transitions (including
-terminal-state timestamps), startup reconciliation of runs interrupted by a
-restart, and the per-run summary counts. The enriched list rollups and the
-derived-data resets live in ``app.store.runs_views`` and are re-exported
-here so the module namespace is unchanged.
+terminal-state timestamps), and the per-run summary counts. The enriched
+list rollups and the derived-data resets live in ``app.store.runs_views``,
+and the startup reconciliation of runs interrupted by a restart lives in
+``app.store.runs_reconcile``; both are re-exported here so the module
+namespace is unchanged.
 """
 
 from __future__ import annotations
@@ -16,14 +17,24 @@ import uuid
 from dataclasses import dataclass
 from typing import Any
 
-from app.store.checkpoints import has_checkpoint
 from app.store.db import _now, _use_conn, connect, transaction
-from app.store.events import _append_event
 from app.store.models import (
     TERMINAL_STATUSES,
     RunRow,
     RunStatus,
     _row_to_run,
+)
+from app.store.runs_reconcile import (
+    _ACTIVE_RUN_STATUSES as _ACTIVE_RUN_STATUSES,
+)
+from app.store.runs_reconcile import (
+    _fail_interrupted_run as _fail_interrupted_run,
+)
+from app.store.runs_reconcile import (
+    _reconcile_one_run as _reconcile_one_run,
+)
+from app.store.runs_reconcile import (
+    reconcile_interrupted_runs as reconcile_interrupted_runs,
 )
 from app.store.runs_views import (
     clear_publication_artifacts as clear_publication_artifacts,
@@ -34,13 +45,6 @@ from app.store.runs_views import (
 from app.store.runs_views import list_runs as list_runs
 
 logger = logging.getLogger(__name__)
-
-# Statuses that mark a run as occupying a concurrency slot / still in flight.
-_ACTIVE_RUN_STATUSES: tuple[str, str, str] = (
-    RunStatus.QUEUED.value,
-    RunStatus.RUNNING.value,
-    RunStatus.SYNTHESIZING.value,
-)
 
 
 def _resolve_llm_backend(provider: str, llm_backend: str | None) -> str:
@@ -118,28 +122,27 @@ def _log_run_created(f: _NewRunFields) -> None:
     )
 
 
-def _create_run_impl(
-    research_goal: str,
-    profile: str,
-    provider: str,
-    config: dict[str, Any],
-    client_id: str,
-    title: str | None,
-    llm_backend: str | None,
-    db_path: str | None,
-) -> RunRow:
+@dataclass(frozen=True)
+class RunCreateOptions:
+    """The optional inputs to a run creation, plus the db override.
+
+    ``client_id`` is the owning client identifier used for run isolation.
+    ``title`` is a short session heading, usually NULL at creation and
+    filled in shortly after by a background title generator, but supplied
+    directly for curated demo runs. ``llm_backend`` is the backend the run
+    will execute against, "offline" or "real"; when omitted it is derived
+    from the provider (the mock was always offline-backed), matching the
+    legacy-row default. ``db_path`` overrides the SQLite database path.
+    """
+
+    client_id: str = ""
+    title: str | None = None
+    llm_backend: str | None = None
+    db_path: str | None = None
+
+
+def _create_run_impl(fields: _NewRunFields, db_path: str | None) -> RunRow:
     """Persist a new DRAFT run row and return it as a RunRow."""
-    fields = _NewRunFields(
-        run_id=str(uuid.uuid4()),
-        research_goal=research_goal,
-        title=title,
-        profile=profile,
-        provider=provider,
-        config=config,
-        client_id=client_id,
-        now=_now(),
-        backend=_resolve_llm_backend(provider, llm_backend),
-    )
     with connect(db_path) as conn:
         _insert_run_row(conn, fields)
     _log_run_created(fields)
@@ -151,10 +154,7 @@ def create_run(
     profile: str,
     provider: str,
     config: dict[str, Any],
-    client_id: str = "",
-    title: str | None = None,
-    llm_backend: str | None = None,
-    db_path: str | None = None,
+    options: RunCreateOptions | None = None,
 ) -> RunRow:
     """Insert a new run row in the DRAFT state and return it.
 
@@ -164,28 +164,25 @@ def create_run(
             compatibility with older clients.
         provider: The execution provider, e.g. 'mock' or 'engine'.
         config: Run configuration values serialized to JSON.
-        client_id: Owning client identifier used for run isolation.
-        title: Optional short session heading. Usually NULL at creation and
-            filled in shortly after by a background title generator; may be
-            supplied directly (e.g. curated demo runs).
-        llm_backend: The LLM backend the run will execute against, "offline"
-            or "real". When omitted it is derived from the provider (the mock
-            was always offline-backed), matching the legacy-row default.
-        db_path: Optional override for the SQLite database path.
+        options: Optional creation inputs and database override (see
+            :class:`RunCreateOptions`).
 
     Returns:
         The newly created run as a RunRow.
     """
-    return _create_run_impl(
-        research_goal,
-        profile,
-        provider,
-        config,
-        client_id,
-        title,
-        llm_backend,
-        db_path,
+    opts = options or RunCreateOptions()
+    fields = _NewRunFields(
+        run_id=str(uuid.uuid4()),
+        research_goal=research_goal,
+        title=opts.title,
+        profile=profile,
+        provider=provider,
+        config=config,
+        client_id=opts.client_id,
+        now=_now(),
+        backend=_resolve_llm_backend(provider, opts.llm_backend),
     )
+    return _create_run_impl(fields, opts.db_path)
 
 
 def run_used_offline(run: RunRow) -> bool:
@@ -387,91 +384,6 @@ def update_run_status(
             "completed_at=? WHERE id=?",
             (status.value, error, now, completed_at, run_id),
         )
-
-
-def _fail_interrupted_run(
-    conn: sqlite3.Connection,
-    run_id: str,
-    now: float,
-    reason: str,
-) -> None:
-    """Transition one interrupted run to failed and log a status event.
-
-    Args:
-        conn: Open connection to run the update and event append on.
-        run_id: Identifier of the run to fail.
-        now: Timestamp to record as the update and completion time.
-        reason: Human-readable interruption reason to store and log.
-    """
-    conn.execute(
-        "UPDATE runs SET status=?, error=?, updated_at=?, "
-        "completed_at=? WHERE id=?",
-        (RunStatus.FAILED.value, reason, now, now, run_id),
-    )
-    _append_event(
-        conn, run_id, "status", {"status": "failed", "error": reason}, now
-    )
-
-
-def _reconcile_one_run(
-    conn: sqlite3.Connection, run_id: str, now: float, reason: str
-) -> str:
-    """Reconcile one interrupted run and return its outcome.
-
-    Args:
-        conn: Open connection to run the checkpoint check and update on.
-        run_id: Identifier of the interrupted run.
-        now: Timestamp to record for any status change.
-        reason: Human-readable interruption reason for a failed outcome.
-
-    Returns:
-        ``"resumable"`` when a checkpoint exists, else ``"failed"``.
-    """
-    if has_checkpoint(run_id, conn=conn):
-        _append_event(
-            conn,
-            run_id,
-            "status",
-            {"status": "resumable", "detail": "checkpoint available"},
-            now,
-        )
-        return "resumable"
-    _fail_interrupted_run(conn, run_id, now, reason)
-    return "failed"
-
-
-def reconcile_interrupted_runs(
-    db_path: str | None = None,
-) -> dict[str, list[str]]:
-    """Reconcile runs left non-terminal by a previous process (crash/restart).
-
-    On startup no workflow tasks are running, so any run still marked queued,
-    running, or synthesizing was interrupted. A run that has a durable
-    checkpoint is *resumable* (Milestone 4): it is left for the resume path
-    rather than failed, and a ``resumable`` status event is logged. A run with
-    no checkpoint cannot be resumed and is transitioned to ``failed`` with a
-    clear reason and a status event so the stream/UI reflect the interruption.
-
-    Args:
-        db_path: Optional override for the SQLite database path.
-
-    Returns:
-        ``{"failed": [...], "resumable": [...]}`` — the ids in each outcome.
-    """
-    now = _now()
-    reason = "Run interrupted by a server restart."
-    failed: list[str] = []
-    resumable: list[str] = []
-    with connect(db_path) as conn:
-        rows = conn.execute(
-            "SELECT id FROM runs WHERE status IN (?,?,?)",
-            _ACTIVE_RUN_STATUSES,
-        ).fetchall()
-        for row in rows:
-            rid = row["id"]
-            outcome = _reconcile_one_run(conn, rid, now, reason)
-            (resumable if outcome == "resumable" else failed).append(rid)
-    return {"failed": failed, "resumable": resumable}
 
 
 def summary_counts(

@@ -32,7 +32,14 @@ from co_scientist import cache as cache_mod
 from co_scientist import llm_tool_loop
 from co_scientist import prompts as prompts_mod
 from co_scientist.cache import LLMCache
-from co_scientist.llm import call_llm, call_llm_json, call_llm_with_tools
+from co_scientist.llm import (
+    CompletionSpec,
+    LLMCallOptions,
+    ToolLoop,
+    call_llm,
+    call_llm_json,
+    call_llm_with_tools,
+)
 from tests._llm_fake import disable_llm_cache as _disable_cache
 from tests._llm_wrapper_fakes import (
     SEARCH_TOOL as _SEARCH_TOOL,
@@ -67,7 +74,7 @@ async def test_call_llm_returns_message_content(
     _disable_cache(monkeypatch)
     _patch_acompletion(monkeypatch, [_completion(_message("the answer text"))])
 
-    result = await call_llm("a prompt", "test-model")
+    result = await call_llm("a prompt", CompletionSpec(model_name="test-model"))
 
     assert result == "the answer text"
 
@@ -83,7 +90,7 @@ async def test_call_llm_empty_content_raises(
     _patch_acompletion(monkeypatch, [_completion(_message("   "))])
 
     with pytest.raises(ValueError, match="None or empty content"):
-        await call_llm("a prompt", "test-model")
+        await call_llm("a prompt", CompletionSpec(model_name="test-model"))
 
 
 async def test_call_llm_invoked_once(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -91,7 +98,7 @@ async def test_call_llm_invoked_once(monkeypatch: pytest.MonkeyPatch) -> None:
     _disable_cache(monkeypatch)
     state = _patch_acompletion(monkeypatch, [_completion(_message("hi"))])
 
-    await call_llm("a prompt", "test-model")
+    await call_llm("a prompt", CompletionSpec(model_name="test-model"))
 
     assert state["calls"] == 1
 
@@ -124,7 +131,11 @@ async def test_scoped_cache_override_false_skips_get_cache(
     _patch_acompletion(monkeypatch, [_completion(_message("fresh"))])
 
     with cache_mod.scoped_cache_override(False):
-        result = await call_llm("a prompt", "test-model", use_cache=True)
+        result = await call_llm(
+            "a prompt",
+            CompletionSpec(model_name="test-model"),
+            options=LLMCallOptions(use_cache=True),
+        )
 
     assert result == "fresh"
     assert calls["get_cache"] == 0
@@ -148,7 +159,11 @@ async def test_no_scoped_override_still_uses_get_cache(
     monkeypatch.setattr(llm_tool_loop, "get_cache", _tracking_get_cache)
     _patch_acompletion(monkeypatch, [_completion(_message("fresh"))])
 
-    await call_llm("a prompt", "test-model", use_cache=True)
+    await call_llm(
+        "a prompt",
+        CompletionSpec(model_name="test-model"),
+        options=LLMCallOptions(use_cache=True),
+    )
 
     assert calls["get_cache"] == 1
 
@@ -165,7 +180,9 @@ async def test_call_llm_json_parses_clean_object(
         monkeypatch, [_completion(_message('{"a": 1, "b": "x"}'))]
     )
 
-    result = await call_llm_json("a prompt", "test-model")
+    result = await call_llm_json(
+        "a prompt", CompletionSpec(model_name="test-model")
+    )
 
     assert result == {"a": 1, "b": "x"}
 
@@ -182,7 +199,9 @@ async def test_call_llm_json_strips_markdown_fence(
     fenced = '```json\n{"a": 7}\n```'
     _patch_acompletion(monkeypatch, [_completion(_message(fenced))])
 
-    result = await call_llm_json("a prompt", "test-model")
+    result = await call_llm_json(
+        "a prompt", CompletionSpec(model_name="test-model")
+    )
 
     assert result == {"a": 7}
 
@@ -200,7 +219,9 @@ async def test_call_llm_json_repairs_trailing_comma_and_validates_schema(
     _patch_acompletion(monkeypatch, [_completion(_message('{"a": 1,}'))])
 
     result = await call_llm_json(
-        "a prompt", "test-model", json_schema=_INT_SCHEMA, max_attempts=2
+        "a prompt",
+        CompletionSpec(model_name="test-model", json_schema=_INT_SCHEMA),
+        max_attempts=2,
     )
 
     assert result == {"a": 1}
@@ -221,7 +242,9 @@ async def test_call_llm_json_unparseable_raises_json_decode_error(
     _patch_acompletion(monkeypatch, [garbage, garbage])
 
     with pytest.raises(json.JSONDecodeError):
-        await call_llm_json("a prompt", "test-model", max_attempts=2)
+        await call_llm_json(
+            "a prompt", CompletionSpec(model_name="test-model"), max_attempts=2
+        )
 
 
 async def test_call_llm_json_schema_mismatch_raises_validation_error(
@@ -242,7 +265,9 @@ async def test_call_llm_json_schema_mismatch_raises_validation_error(
 
     with pytest.raises(ValidationError):
         await call_llm_json(
-            "a prompt", "test-model", json_schema=_INT_SCHEMA, max_attempts=2
+            "a prompt",
+            CompletionSpec(model_name="test-model", json_schema=_INT_SCHEMA),
+            max_attempts=2,
         )
 
 
@@ -287,10 +312,12 @@ async def test_call_llm_json_saves_prompt_when_named(
 
     result = await call_llm_json(
         "the review prompt",
-        "test-model",
-        run_id="run-1",
-        prompt_name="review_batch",
-        prompt_metadata={"hypotheses_count": 3},
+        CompletionSpec(model_name="test-model"),
+        options=LLMCallOptions(
+            run_id="run-1",
+            prompt_name="review_batch",
+            prompt_metadata={"hypotheses_count": 3},
+        ),
     )
 
     assert result == {"a": 1}
@@ -309,7 +336,11 @@ async def test_call_llm_json_does_not_save_without_prompt_name(
     _disable_cache(monkeypatch)
     _patch_acompletion(monkeypatch, [_completion(_message('{"a": 1}'))])
 
-    await call_llm_json("a prompt", "test-model", run_id="run-1")
+    await call_llm_json(
+        "a prompt",
+        CompletionSpec(model_name="test-model"),
+        options=LLMCallOptions(run_id="run-1"),
+    )
 
     assert not (tmp_path / ".coscientist_prompts").exists()
 
@@ -326,7 +357,11 @@ async def test_call_llm_json_run_id_falls_back_to_unknown(
     _disable_cache(monkeypatch)
     _patch_acompletion(monkeypatch, [_completion(_message('{"a": 1}'))])
 
-    await call_llm_json("a prompt", "test-model", prompt_name="proximity")
+    await call_llm_json(
+        "a prompt",
+        CompletionSpec(model_name="test-model"),
+        options=LLMCallOptions(prompt_name="proximity"),
+    )
 
     saved = tmp_path / ".coscientist_prompts" / "unknown" / "proximity.txt"
     assert saved.exists()
@@ -342,9 +377,10 @@ async def test_call_llm_saves_prompt_when_named(
 
     await call_llm(
         "the synthesis prompt",
-        "test-model",
-        run_id="run-2",
-        prompt_name="literature_review_synthesis",
+        CompletionSpec(model_name="test-model"),
+        options=LLMCallOptions(
+            run_id="run-2", prompt_name="literature_review_synthesis"
+        ),
     )
 
     saved = (
@@ -370,10 +406,9 @@ async def test_call_llm_with_tools_saves_prompt_when_named(
 
     await call_llm_with_tools(
         "the draft prompt",
-        "test-model",
-        tools=_SEARCH_TOOL,
-        tool_executor=tool_executor,
-        prompt_name="generate_draft_with_tools",
+        CompletionSpec(model_name="test-model"),
+        ToolLoop(tools=_SEARCH_TOOL, executor=tool_executor),
+        options=LLMCallOptions(prompt_name="generate_draft_with_tools"),
     )
 
     saved = (

@@ -2,7 +2,12 @@
 
 Groups the simple insert/list helpers for the tables that hang off a run:
 literature evidence and the claim-to-evidence citation links, reviewer
-critiques, pairwise tournament matches, and safety-gate decisions.
+critiques, pairwise tournament matches, and safety-gate decisions. The
+tournament matches live in ``app.store.records_matches``, the safety-gate
+decisions in ``app.store.records_safety``, the proximity edges in
+``app.store.records_proximity``, and the shared per-run listing query in
+``app.store.records_support``; all are re-exported here so the module
+namespace is unchanged.
 
 Every helper accepts ``db_path`` (override for the SQLite database path)
 and ``conn`` (an open connection to reuse, e.g. from ``transaction``).
@@ -19,6 +24,35 @@ from typing import Any
 
 from app.citations import CitationState
 from app.store.db import _now, _use_conn
+from app.store.records_matches import NewMatch as NewMatch
+from app.store.records_matches import _insert_match_row as _insert_match_row
+from app.store.records_matches import add_match as add_match
+from app.store.records_matches import list_matches as list_matches
+from app.store.records_proximity import (
+    NewProximityEdge as NewProximityEdge,
+)
+from app.store.records_proximity import (
+    add_proximity_edge as add_proximity_edge,
+)
+from app.store.records_proximity import (
+    list_proximity_edges as list_proximity_edges,
+)
+from app.store.records_safety import (
+    NewSafetyDecision as NewSafetyDecision,
+)
+from app.store.records_safety import (
+    add_safety_decision as add_safety_decision,
+)
+from app.store.records_safety import (
+    list_safety_decisions as list_safety_decisions,
+)
+from app.store.records_safety import (
+    resolve_safety_decision as resolve_safety_decision,
+)
+from app.store.records_safety import (
+    safety_stage_is_approved as safety_stage_is_approved,
+)
+from app.store.records_support import _list_by_run as _list_by_run
 
 # ---------------------------------------------------------------------------
 # Evidence / citations
@@ -26,8 +60,8 @@ from app.store.db import _now, _use_conn
 
 
 @dataclass(frozen=True)
-class _NewEvidenceFields:
-    """Fields needed to insert an evidence row.
+class NewEvidence:
+    """One evidence row to insert, mirroring the evidence table.
 
     ``source`` names where the evidence came from (e.g. 'pubmed', 'arxiv',
     or 'mock') and ``available`` records whether its full text is
@@ -38,24 +72,23 @@ class _NewEvidenceFields:
     produced the text.
     """
 
-    ev_id: str
     run_id: str
     title: str
-    source: str
-    url: str
-    authors: Iterable[str] | None
-    year: int | None
-    abstract: str
-    available: bool
-    mime_type: str | None
-    sha256: str | None
-    byte_size: int | None
-    document_version: str | None
-    extraction_tool: str | None
+    source: str = "mock"
+    url: str = ""
+    authors: Iterable[str] | None = None
+    year: int | None = None
+    abstract: str = ""
+    available: bool = True
+    mime_type: str | None = None
+    sha256: str | None = None
+    byte_size: int | None = None
+    document_version: str | None = None
+    extraction_tool: str | None = None
 
 
 def _insert_evidence_row(
-    conn: sqlite3.Connection, f: _NewEvidenceFields
+    conn: sqlite3.Connection, ev_id: str, f: NewEvidence
 ) -> None:
     """Insert an evidence row for a run on an open connection."""
     conn.execute(
@@ -64,7 +97,7 @@ def _insert_evidence_row(
         "byte_size, document_version, extraction_tool, created_at) "
         "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
         (
-            f.ev_id,
+            ev_id,
             f.run_id,
             f.title,
             f.source,
@@ -84,58 +117,25 @@ def _insert_evidence_row(
 
 
 def add_evidence(
-    run_id: str,
-    title: str,
+    evidence: NewEvidence,
     *,
-    source: str = "mock",
-    url: str = "",
-    authors: Iterable[str] | None = None,
-    year: int | None = None,
-    abstract: str = "",
-    available: bool = True,
-    mime_type: str | None = None,
-    sha256: str | None = None,
-    byte_size: int | None = None,
-    document_version: str | None = None,
-    extraction_tool: str | None = None,
     db_path: str | None = None,
     conn: sqlite3.Connection | None = None,
 ) -> str:
-    """Insert an evidence row; returns its id (see _NewEvidenceFields)."""
-    fields = _NewEvidenceFields(
-        ev_id=str(uuid.uuid4()),
-        run_id=run_id,
-        title=title,
-        source=source,
-        url=url,
-        authors=authors,
-        year=year,
-        abstract=abstract,
-        available=available,
-        mime_type=mime_type,
-        sha256=sha256,
-        byte_size=byte_size,
-        document_version=document_version,
-        extraction_tool=extraction_tool,
-    )
-    with _use_conn(conn, db_path) as conn:
-        _insert_evidence_row(conn, fields)
-    return fields.ev_id
+    """Insert an evidence row and return its generated id.
 
+    Args:
+        evidence: The evidence row to insert (see :class:`NewEvidence`).
+        db_path: Optional override for the SQLite database path.
+        conn: Optional open connection to reuse (e.g. from ``transaction``).
 
-def _list_by_run(
-    table: str,
-    run_id: str,
-    db_path: str | None = None,
-    conn: sqlite3.Connection | None = None,
-) -> list[dict[str, Any]]:
-    """Return a run's rows from ``table`` (a trusted literal), oldest first."""
+    Returns:
+        The identifier assigned to the new evidence row.
+    """
+    ev_id = str(uuid.uuid4())
     with _use_conn(conn, db_path) as conn:
-        rows = conn.execute(
-            f"SELECT * FROM {table} WHERE run_id=? ORDER BY created_at ASC",
-            (run_id,),
-        ).fetchall()
-        return [dict(r) for r in rows]
+        _insert_evidence_row(conn, ev_id, evidence)
+    return ev_id
 
 
 def list_evidence(
@@ -161,22 +161,47 @@ def list_evidence(
     return out
 
 
+@dataclass(frozen=True)
+class NewCitation:
+    """One classified claim-to-evidence citation link to insert.
+
+    ``state`` is the classification of how the cited evidence relates to
+    the claim it was attached to.
+    """
+
+    run_id: str
+    hypothesis_id: str
+    evidence_id: str
+    claim: str
+    state: CitationState
+
+
 def add_citation(
-    run_id: str,
-    hypothesis_id: str,
-    evidence_id: str,
-    claim: str,
-    state: CitationState,
+    citation: NewCitation,
+    *,
     db_path: str | None = None,
     conn: sqlite3.Connection | None = None,
 ) -> None:
-    """Insert a classified claim-to-evidence citation link."""
+    """Insert a classified claim-to-evidence citation link.
+
+    Args:
+        citation: The citation link to insert (see :class:`NewCitation`).
+        db_path: Optional override for the SQLite database path.
+        conn: Optional open connection to reuse (e.g. from ``transaction``).
+    """
     with _use_conn(conn, db_path) as conn:
         conn.execute(
             "INSERT INTO citations (run_id, hypothesis_id, evidence_id, "
             "claim, state, created_at) "
             "VALUES (?,?,?,?,?,?)",
-            (run_id, hypothesis_id, evidence_id, claim, state.value, _now()),
+            (
+                citation.run_id,
+                citation.hypothesis_id,
+                citation.evidence_id,
+                citation.claim,
+                citation.state.value,
+                _now(),
+            ),
         )
 
 
@@ -189,50 +214,9 @@ def list_citations(
     return _list_by_run("citations", run_id, db_path, conn)
 
 
-def _insert_claim_evidence_row(
-    conn: sqlite3.Connection,
-    *,
-    run_id: str,
-    hypothesis_id: str,
-    claim: str,
-    label: str,
-    claim_role: str,
-    supporting: Iterable[Any],
-    contradicting: Iterable[Any],
-    assessor: str,
-) -> None:
-    """Insert one claim-level entailment edge on an open connection."""
-    conn.execute(
-        "INSERT INTO claim_evidence (run_id, hypothesis_id, claim, label, "
-        "claim_role, supporting_json, contradicting_json, assessor, "
-        "created_at) VALUES (?,?,?,?,?,?,?,?,?)",
-        (
-            run_id,
-            hypothesis_id,
-            claim,
-            label,
-            claim_role,
-            json.dumps(list(supporting)),
-            json.dumps(list(contradicting)),
-            assessor,
-            _now(),
-        ),
-    )
-
-
-def add_claim_evidence(
-    run_id: str,
-    hypothesis_id: str,
-    claim: str,
-    label: str,
-    supporting: Iterable[Any],
-    contradicting: Iterable[Any],
-    assessor: str,
-    claim_role: str = "categorical",
-    db_path: str | None = None,
-    conn: sqlite3.Connection | None = None,
-) -> None:
-    """Insert one claim-level entailment edge for the claim-evidence graph.
+@dataclass(frozen=True)
+class NewClaimEvidence:
+    """One claim-level entailment edge of the claim-evidence graph.
 
     ``label`` is the entailment verdict ('supports' | 'contradicts' |
     'insufficient') and ``claim_role`` marks a categorical finding versus
@@ -242,18 +226,55 @@ def add_claim_evidence(
     rows stored bare passage strings). ``assessor`` is the provenance id
     of the entailment assessor.
     """
+
+    run_id: str
+    hypothesis_id: str
+    claim: str
+    label: str
+    supporting: Iterable[Any]
+    contradicting: Iterable[Any]
+    assessor: str
+    claim_role: str = "categorical"
+
+
+def _insert_claim_evidence_row(
+    conn: sqlite3.Connection, edge: NewClaimEvidence
+) -> None:
+    """Insert one claim-level entailment edge on an open connection."""
+    conn.execute(
+        "INSERT INTO claim_evidence (run_id, hypothesis_id, claim, label, "
+        "claim_role, supporting_json, contradicting_json, assessor, "
+        "created_at) VALUES (?,?,?,?,?,?,?,?,?)",
+        (
+            edge.run_id,
+            edge.hypothesis_id,
+            edge.claim,
+            edge.label,
+            edge.claim_role,
+            json.dumps(list(edge.supporting)),
+            json.dumps(list(edge.contradicting)),
+            edge.assessor,
+            _now(),
+        ),
+    )
+
+
+def add_claim_evidence(
+    edge: NewClaimEvidence,
+    *,
+    db_path: str | None = None,
+    conn: sqlite3.Connection | None = None,
+) -> None:
+    """Insert one claim-level entailment edge for the claim-evidence graph.
+
+    Args:
+        edge: The entailment edge to insert (see
+            :class:`NewClaimEvidence`).
+        db_path: Optional override for the SQLite database path.
+        conn: Optional open connection to reuse (e.g. from ``transaction``).
+    """
     with _use_conn(conn, db_path) as conn:
-        _insert_claim_evidence_row(
-            conn,
-            run_id=run_id,
-            hypothesis_id=hypothesis_id,
-            claim=claim,
-            label=label,
-            claim_role=claim_role,
-            supporting=supporting,
-            contradicting=contradicting,
-            assessor=assessor,
-        )
+        _insert_claim_evidence_row(conn, edge)
 
 
 def list_claim_evidence(
@@ -275,19 +296,26 @@ def list_claim_evidence(
 # ---------------------------------------------------------------------------
 
 
-def _insert_review_row(
-    conn: sqlite3.Connection,
-    *,
-    run_id: str,
-    hypothesis_id: str,
-    reviewer_agent: str,
-    summary: str,
-    critique: str,
-    novelty: float | None,
-    plausibility: float | None,
-    testability: float | None,
-    overall: float | None,
-) -> None:
+@dataclass(frozen=True)
+class NewReview:
+    """One reviewer's assessment of a hypothesis, mirroring the row.
+
+    ``reviewer_agent`` names the agent that produced the review (e.g.
+    'reflection'); the four reviewer-assigned scores are optional.
+    """
+
+    run_id: str
+    hypothesis_id: str
+    reviewer_agent: str
+    summary: str
+    critique: str
+    novelty: float | None = None
+    plausibility: float | None = None
+    testability: float | None = None
+    overall: float | None = None
+
+
+def _insert_review_row(conn: sqlite3.Connection, review: NewReview) -> None:
     """Insert a reviewer's assessment of a hypothesis on an open connection."""
     conn.execute(
         "INSERT INTO reviews (run_id, hypothesis_id, "
@@ -295,52 +323,35 @@ def _insert_review_row(
         "novelty, plausibility, testability, overall, created_at) "
         "VALUES (?,?,?,?,?,?,?,?,?,?)",
         (
-            run_id,
-            hypothesis_id,
-            reviewer_agent,
-            summary,
-            critique,
-            novelty,
-            plausibility,
-            testability,
-            overall,
+            review.run_id,
+            review.hypothesis_id,
+            review.reviewer_agent,
+            review.summary,
+            review.critique,
+            review.novelty,
+            review.plausibility,
+            review.testability,
+            review.overall,
             _now(),
         ),
     )
 
 
 def add_review(
-    run_id: str,
-    hypothesis_id: str,
-    reviewer_agent: str,
-    summary: str,
-    critique: str,
+    review: NewReview,
     *,
-    novelty: float | None = None,
-    plausibility: float | None = None,
-    testability: float | None = None,
-    overall: float | None = None,
     db_path: str | None = None,
     conn: sqlite3.Connection | None = None,
 ) -> None:
     """Insert a reviewer's assessment of a hypothesis.
 
-    ``reviewer_agent`` names the agent that produced the review (e.g.
-    'reflection'); the four reviewer-assigned scores are optional.
+    Args:
+        review: The review row to insert (see :class:`NewReview`).
+        db_path: Optional override for the SQLite database path.
+        conn: Optional open connection to reuse (e.g. from ``transaction``).
     """
     with _use_conn(conn, db_path) as conn:
-        _insert_review_row(
-            conn,
-            run_id=run_id,
-            hypothesis_id=hypothesis_id,
-            reviewer_agent=reviewer_agent,
-            summary=summary,
-            critique=critique,
-            novelty=novelty,
-            plausibility=plausibility,
-            testability=testability,
-            overall=overall,
-        )
+        _insert_review_row(conn, review)
 
 
 def list_reviews(
@@ -350,239 +361,3 @@ def list_reviews(
 ) -> list[dict[str, Any]]:
     """Return a run's review rows ordered by creation time."""
     return _list_by_run("reviews", run_id, db_path, conn)
-
-
-# ---------------------------------------------------------------------------
-# Matches
-# ---------------------------------------------------------------------------
-
-
-@dataclass(frozen=True)
-class _MatchFields:
-    """Fields needed to insert one pairwise tournament match row.
-
-    Carries the winner's and loser's Elo before/after the match, the
-    judge's rationale for why the winner prevailed, the decisiveness
-    ``tier`` (upset|decisive|clear|narrow), and the debate depth in turns
-    (1 = single-turn comparison, >1 = multi-turn scientific debate).
-    """
-
-    run_id: str
-    iteration: int
-    winner_id: str
-    loser_id: str
-    winner_before: int
-    winner_after: int
-    loser_before: int
-    loser_after: int
-    rationale: str
-    tier: str | None
-    debate_turns: int
-
-
-def _insert_match_row(conn: sqlite3.Connection, f: _MatchFields) -> None:
-    """Insert the outcome row for a pairwise tournament match."""
-    conn.execute(
-        "INSERT INTO matches (run_id, iteration, winner_id, loser_id, "
-        "winner_elo_before, winner_elo_after, loser_elo_before, "
-        "loser_elo_after, rationale, tier, debate_turns, created_at) "
-        "VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
-        (
-            f.run_id,
-            f.iteration,
-            f.winner_id,
-            f.loser_id,
-            f.winner_before,
-            f.winner_after,
-            f.loser_before,
-            f.loser_after,
-            f.rationale,
-            f.tier,
-            f.debate_turns,
-            _now(),
-        ),
-    )
-
-
-def add_match(
-    run_id: str,
-    iteration: int,
-    winner_id: str,
-    loser_id: str,
-    winner_before: int,
-    winner_after: int,
-    loser_before: int,
-    loser_after: int,
-    rationale: str,
-    tier: str | None = None,
-    debate_turns: int = 1,
-    db_path: str | None = None,
-    conn: sqlite3.Connection | None = None,
-) -> None:
-    """Record the outcome of a pairwise tournament match.
-
-    Field semantics are documented on ``_MatchFields``.
-    """
-    fields = _MatchFields(
-        run_id=run_id,
-        iteration=iteration,
-        winner_id=winner_id,
-        loser_id=loser_id,
-        winner_before=winner_before,
-        winner_after=winner_after,
-        loser_before=loser_before,
-        loser_after=loser_after,
-        rationale=rationale,
-        tier=tier,
-        debate_turns=debate_turns,
-    )
-    with _use_conn(conn, db_path) as conn:
-        _insert_match_row(conn, fields)
-
-
-def list_matches(
-    run_id: str,
-    db_path: str | None = None,
-    conn: sqlite3.Connection | None = None,
-) -> list[dict[str, Any]]:
-    """Return a run's tournament match rows ordered by creation time."""
-    return _list_by_run("matches", run_id, db_path, conn)
-
-
-# ---------------------------------------------------------------------------
-# Safety
-# ---------------------------------------------------------------------------
-
-
-def add_safety_decision(
-    run_id: str,
-    stage: str,
-    decision: str,
-    reason: str,
-    matches: list[str],
-    category: str | None = None,
-    policy_version: str | None = None,
-    risk_domains: list[str] | None = None,
-    requires_review: bool = False,
-    assessor: str | None = None,
-    db_path: str | None = None,
-    conn: sqlite3.Connection | None = None,
-) -> None:
-    """Record a safety-gate decision ('intake', 'hypothesis', or 'final')."""
-    with _use_conn(conn, db_path) as conn:
-        conn.execute(
-            "INSERT INTO safety_decisions (run_id, stage, decision, reason, "
-            "matches_json, category, policy_version, risk_domains_json, "
-            "requires_review, assessor, created_at) "
-            "VALUES (?,?,?,?,?,?,?,?,?,?,?)",
-            (
-                run_id,
-                stage,
-                decision,
-                reason,
-                json.dumps(matches),
-                category,
-                policy_version,
-                json.dumps(risk_domains or []),
-                1 if requires_review else 0,
-                assessor,
-                _now(),
-            ),
-        )
-
-
-def list_safety_decisions(
-    run_id: str, db_path: str | None = None
-) -> list[dict[str, Any]]:
-    """Return a run's safety decisions with the matches list decoded."""
-    out = []
-    for d in _list_by_run("safety_decisions", run_id, db_path):
-        # Expose decoded 'matches' instead of the raw matches_json column.
-        d["matches"] = json.loads(d.pop("matches_json") or "[]")
-        d["risk_domains"] = json.loads(d.pop("risk_domains_json", None) or "[]")
-        d["requires_review"] = bool(d.get("requires_review"))
-        out.append(d)
-    return out
-
-
-def add_proximity_edge(
-    run_id: str,
-    source_hypothesis_id: str,
-    target_hypothesis_id: str,
-    similarity: float,
-    *,
-    degree: str | None = None,
-    cluster_id: str | None = None,
-    method: str | None = None,
-    version: str | None = None,
-    model: str | None = None,
-    updated_at: float | None = None,
-    conn: sqlite3.Connection | None = None,
-    db_path: str | None = None,
-) -> None:
-    """Persist one explainable proximity edge between stored hypotheses."""
-    with _use_conn(conn, db_path) as active:
-        active.execute(
-            "INSERT INTO proximity_edges (run_id, source_hypothesis_id, "
-            "target_hypothesis_id, similarity, degree, cluster_id, method, "
-            "version, model, updated_at, created_at) "
-            "VALUES (?,?,?,?,?,?,?,?,?,?,?)",
-            (
-                run_id,
-                source_hypothesis_id,
-                target_hypothesis_id,
-                similarity,
-                degree,
-                cluster_id,
-                method,
-                version,
-                model,
-                updated_at,
-                _now(),
-            ),
-        )
-
-
-def list_proximity_edges(
-    run_id: str,
-    db_path: str | None = None,
-    conn: sqlite3.Connection | None = None,
-) -> list[dict[str, Any]]:
-    """Return a run's weighted proximity landscape edges."""
-    return _list_by_run("proximity_edges", run_id, db_path, conn)
-
-
-def resolve_safety_decision(
-    run_id: str,
-    decision_id: int,
-    resolution: str,
-    resolved_by: str,
-    db_path: str | None = None,
-) -> bool:
-    """Resolve one held/redacted safety decision exactly once."""
-    if resolution not in {"approved", "rejected"}:
-        raise ValueError("resolution must be approved or rejected")
-    with _use_conn(None, db_path) as conn:
-        cursor = conn.execute(
-            "UPDATE safety_decisions SET resolution=?, resolved_by=?, "
-            "resolved_at=? WHERE id=? AND run_id=? AND requires_review=1 "
-            "AND resolution IS NULL",
-            (resolution, resolved_by, _now(), decision_id, run_id),
-        )
-        return cursor.rowcount == 1
-
-
-def safety_stage_is_approved(
-    run_id: str,
-    stage: str,
-    policy_version: str,
-    db_path: str | None = None,
-) -> bool:
-    """Return whether a reviewer approved the latest matching policy stage."""
-    with _use_conn(None, db_path) as conn:
-        row = conn.execute(
-            "SELECT resolution FROM safety_decisions WHERE run_id=? AND "
-            "stage=? AND policy_version=? ORDER BY id DESC LIMIT 1",
-            (run_id, stage, policy_version),
-        ).fetchone()
-    return bool(row and row["resolution"] == "approved")

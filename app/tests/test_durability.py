@@ -12,7 +12,11 @@ from app.store import db as store_db
 
 def _make_run(goal: str, isolated_db: str) -> str:
     run = store.create_run(
-        goal, "default", "engine", {}, client_id="c1", db_path=isolated_db
+        goal,
+        "default",
+        "engine",
+        {},
+        store.RunCreateOptions(client_id="c1", db_path=isolated_db),
     )
     return run.id
 
@@ -59,16 +63,18 @@ def test_active_engine_tasks_are_discoverable_before_lease_expiry(
         "standard",
         "engine",
         {},
-        db_path=isolated_db,
+        store.RunCreateOptions(db_path=isolated_db),
     )
     store.update_run_status(
         run.id, store.RunStatus.RUNNING, db_path=isolated_db
     )
     store.enqueue_task(
-        run.id,
-        "engine.node.review",
-        {"checkpoint_seq": 1},
-        idempotency_key="recover-review",
+        store.NewTask(
+            run_id=run.id,
+            task_type="engine.node.review",
+            inputs={"checkpoint_seq": 1},
+            idempotency_key="recover-review",
+        ),
         db_path=isolated_db,
     )
     assert (
@@ -87,10 +93,12 @@ def test_reconcile_marks_checkpointed_run_resumable(isolated_db: str) -> None:
     store.update_run_status(rid, store.RunStatus.RUNNING, db_path=isolated_db)
     store.save_checkpoint(
         rid,
-        stage="post_ranking",
-        schema_version=1,
-        last_event_seq=7,
-        state={"round": 1},
+        store.NewCheckpoint(
+            stage="post_ranking",
+            schema_version=1,
+            last_event_seq=7,
+            state={"round": 1},
+        ),
         db_path=isolated_db,
     )
 
@@ -165,7 +173,11 @@ def test_headerless_run_survives_restart(isolated_db: str) -> None:
     without an X-Client-ID header would silently vanish on restart.
     """
     run = store.create_run(
-        "g", "default", "engine", {}, client_id="", db_path=isolated_db
+        "g",
+        "default",
+        "engine",
+        {},
+        store.RunCreateOptions(client_id="", db_path=isolated_db),
     )
     # Simulate a server restart re-running migrations on the existing DB.
     with store.connect(isolated_db) as conn:

@@ -8,6 +8,7 @@ recorded on the hypothesis, never raised.
 
 import asyncio
 import logging
+from dataclasses import dataclass
 from typing import Any
 
 from co_scientist.config.schema import EnrichmentConfig, ToolConfig
@@ -18,6 +19,21 @@ from co_scientist.state import WorkflowState
 from co_scientist.tools.response_parser import parse_mcp_result
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True)
+class _ResolvedEnrichment:
+    """One enrichment config resolved against the tool registry.
+
+    Attributes:
+        enrichment: The enrichment config (input field, tool, result shape).
+        tool_config: The resolved tool config for enrichment.tool.
+        output_key: Key under which results are stored on hyp.enrichments.
+    """
+
+    enrichment: EnrichmentConfig
+    tool_config: ToolConfig
+    output_key: str
 
 
 def _extract_enrichment_payload(
@@ -59,9 +75,7 @@ async def _call_enrichment_tool(
 
 async def _enrich_one_hypothesis(
     hyp: Hypothesis,
-    enrichment: EnrichmentConfig,
-    tool_config: ToolConfig,
-    output_key: str,
+    resolved: _ResolvedEnrichment,
     mcp_client: Any,
     semaphore: asyncio.Semaphore,
 ) -> None:
@@ -69,17 +83,20 @@ async def _enrich_one_hypothesis(
 
     Args:
         hyp: the hypothesis to enrich; the result is stored on
-            hyp.enrichments[output_key].
-        enrichment: the enrichment config (input field, tool, result shape).
-        tool_config: the resolved tool config for enrichment.tool.
-        output_key: key under which the result is stored on
-            hyp.enrichments.
+            hyp.enrichments[resolved.output_key].
+        resolved: the enrichment config with its resolved tool config and
+            output key.
         mcp_client: MCP client used to call the enrichment tool.
         semaphore: shared concurrency limiter across all enrichment calls.
     """
+    output_key = resolved.output_key
     try:
         hyp.enrichments[output_key] = await _call_enrichment_tool(
-            hyp, enrichment, tool_config, mcp_client, semaphore
+            hyp,
+            resolved.enrichment,
+            resolved.tool_config,
+            mcp_client,
+            semaphore,
         )
     except Exception as e:
         # Enrichment is supplementary, not load-bearing: a failure here must
@@ -110,10 +127,14 @@ async def _run_one_enrichment(
         )
         return
 
-    output_key = enrichment.output_key or enrichment.tool
+    resolved = _ResolvedEnrichment(
+        enrichment=enrichment,
+        tool_config=tool_config,
+        output_key=enrichment.output_key or enrichment.tool,
+    )
     logger.info(
         "running enrichment '%s' via %s for %s hypotheses",
-        output_key,
+        resolved.output_key,
         tool_config.mcp_tool_name,
         len(hypotheses),
     )
@@ -122,9 +143,7 @@ async def _run_one_enrichment(
     # semaphore inside _enrich_one_hypothesis bounds actual concurrency.
     await asyncio.gather(
         *(
-            _enrich_one_hypothesis(
-                hyp, enrichment, tool_config, output_key, mcp_client, semaphore
-            )
+            _enrich_one_hypothesis(hyp, resolved, mcp_client, semaphore)
             for hyp in hypotheses
         )
     )

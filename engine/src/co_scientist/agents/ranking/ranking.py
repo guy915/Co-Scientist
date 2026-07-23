@@ -8,6 +8,9 @@ from co_scientist.agents.ranking.ranking_debate import (
     _call_matchup_judge as _call_matchup_judge,
 )
 from co_scientist.agents.ranking.ranking_debate import (
+    _DebateContext as _DebateContext,
+)
+from co_scientist.agents.ranking.ranking_debate import (
     _matchup_debate_turns as _matchup_debate_turns,
 )
 from co_scientist.agents.ranking.ranking_debate import (
@@ -21,6 +24,27 @@ from co_scientist.agents.ranking.ranking_elo import (
 )
 from co_scientist.agents.ranking.ranking_elo import (
     match_tier as match_tier,
+)
+from co_scientist.agents.ranking.ranking_lifecycle import (
+    _finalize_ranking_result as _finalize_ranking_result,
+)
+from co_scientist.agents.ranking.ranking_lifecycle import (
+    _gather_tournament_context as _gather_tournament_context,
+)
+from co_scientist.agents.ranking.ranking_lifecycle import (
+    _prepare_ranking_round as _prepare_ranking_round,
+)
+from co_scientist.agents.ranking.ranking_lifecycle import (
+    _sort_hypotheses_by_elo as _sort_hypotheses_by_elo,
+)
+from co_scientist.agents.ranking.ranking_lifecycle import (
+    _sort_hypotheses_for_tournament as _sort_hypotheses_for_tournament,
+)
+from co_scientist.agents.ranking.ranking_lifecycle import (
+    _tournament_round_count as _tournament_round_count,
+)
+from co_scientist.agents.ranking.ranking_lifecycle import (
+    _TournamentGuidance as _TournamentGuidance,
 )
 from co_scientist.agents.ranking.ranking_matchmaking import (
     MatchCandidate,
@@ -69,7 +93,6 @@ from co_scientist.constants import (
     ELO_K_FACTOR,
 )
 from co_scientist.models import Hypothesis
-from co_scientist.progress import emit_progress
 from co_scientist.state import WorkflowState
 
 logger = logging.getLogger(__name__)
@@ -144,11 +167,7 @@ def _build_tournament_context(
     state: WorkflowState,
     hypotheses: list[Hypothesis],
     tournament_rounds: int,
-    supervisor_guidance: dict[str, Any] | None,
-    tool_registry: Any | None,
-    meta_review: dict[str, Any] | None,
-    run_setup_guidance: str | None,
-    run_focus_guidance: str | None,
+    guidance: _TournamentGuidance,
 ) -> _TournamentContext:
     """Bundles this tournament's round-invariant inputs into one context."""
     return _TournamentContext(
@@ -156,11 +175,11 @@ def _build_tournament_context(
         tournament_rounds,
         state["research_goal"],
         state.get("current_iteration", 0),
-        supervisor_guidance,
-        tool_registry,
-        meta_review,
-        run_setup_guidance,
-        run_focus_guidance,
+        guidance.supervisor_guidance,
+        guidance.tool_registry,
+        guidance.meta_review,
+        guidance.run_setup_guidance,
+        guidance.run_focus_guidance,
     )
 
 
@@ -203,20 +222,20 @@ async def _judge_and_commit_matchup(
         Tuple of (matchup detail dict, debate depth used).
     """
     depth = _matchup_debate_turns(hyp_a, hyp_b, _median_elo(ctx.hypotheses))
-    winner, response = await judge_matchup(
+    debate_ctx = _DebateContext(
         hyp_a,
         hyp_b,
         state["research_goal"],
         state["model_name"],
-        ctx.supervisor_guidance,
-        run_id=state.get("run_id"),
-        matchup_index=index,
-        tool_registry=ctx.tool_registry,
+        supervisor_guidance=ctx.supervisor_guidance,
         meta_review=ctx.meta_review,
+        tool_registry=ctx.tool_registry,
         run_setup_guidance=ctx.run_setup_guidance,
         run_focus_guidance=ctx.run_focus_guidance,
-        debate_turns=depth,
+        run_id=state.get("run_id"),
+        matchup_index=index,
     )
+    winner, response = await judge_matchup(debate_ctx, debate_turns=depth)
     outcome = _apply_matchup_elo(
         hyp_a,
         hyp_b,
@@ -276,11 +295,7 @@ async def _run_tournament_matchups(
     state: WorkflowState,
     hypotheses: list[Hypothesis],
     tournament_rounds: int,
-    supervisor_guidance: dict[str, Any] | None,
-    tool_registry: Any | None,
-    meta_review: dict[str, Any] | None,
-    run_setup_guidance: str | None,
-    run_focus_guidance: str | None,
+    guidance: _TournamentGuidance,
 ) -> tuple[
     list[dict[str, Any]],
     int,
@@ -291,177 +306,16 @@ async def _run_tournament_matchups(
         state: Current workflow state.
         hypotheses: Hypotheses sorted by review score, eligible for pairing.
         tournament_rounds: Number of pairings to generate and judge.
-        supervisor_guidance: Optional planning guidance from the supervisor.
-        tool_registry: Optional ToolRegistry for dynamic tool instructions.
-        meta_review: Optional cross-iteration meta-review feedback.
-        run_setup_guidance: Optional run-setup guidance for the prompt.
-        run_focus_guidance: Optional run-focus guidance for the prompt.
+        guidance: Cross-node context threaded into every judged matchup.
 
     Returns:
         Tuple of (matchup details, total LLM calls); see
         ``_execute_tournament_rounds`` for the commit ordering.
     """
     ctx = _build_tournament_context(
-        state,
-        hypotheses,
-        tournament_rounds,
-        supervisor_guidance,
-        tool_registry,
-        meta_review,
-        run_setup_guidance,
-        run_focus_guidance,
+        state, hypotheses, tournament_rounds, guidance
     )
     return await _execute_tournament_rounds(state, tournament_rounds, ctx)
-
-
-def _gather_tournament_context(
-    state: WorkflowState,
-) -> tuple[
-    dict[str, Any] | None, Any, dict[str, Any] | None, str | None, str | None
-]:
-    """Gathers the cross-node context threaded into every judged matchup.
-
-    These are set earlier in the workflow (supervisor planning, a prior
-    iteration's meta-review, and the run's setup/focus prompts); threaded
-    unchanged into every judged matchup so the judge sees the same context
-    for every pairing.
-
-    Args:
-        state: Current workflow state.
-
-    Returns:
-        Tuple of (supervisor_guidance, tool_registry, meta_review,
-        run_setup_guidance, run_focus_guidance).
-    """
-    return (
-        state.get("supervisor_guidance"),
-        state.get("tool_registry"),
-        state.get("meta_review"),
-        state.get("run_setup_guidance"),
-        state.get("run_focus_guidance"),
-    )
-
-
-def _sort_hypotheses_for_tournament(hypotheses: list[Hypothesis]) -> None:
-    """Sorts the pool by review score in place (text as tiebreaker)."""
-    hypotheses.sort(key=lambda h: (h.score, h.text), reverse=True)
-    logger.info(
-        "Sorted hypotheses by review score (top score: %.2f)",
-        hypotheses[0].score,
-    )
-
-
-def _tournament_round_count(
-    state: WorkflowState, hypotheses: list[Hypothesis]
-) -> int:
-    """Resolves the tier-configured tournament round count.
-
-    tournament_pairs is normally set upstream from the run-tier config
-    (e.g. 6/12/20/32 pairs for express/default/extended/ultra); the
-    "or len(hypotheses)" fallback only applies if it is missing/zero
-    (e.g. ad-hoc/test state).
-    """
-    tournament_rounds = max(
-        1, int(state.get("tournament_pairs") or len(hypotheses))
-    )
-    logger.info("Running %s tournament rounds", tournament_rounds)
-    return tournament_rounds
-
-
-async def _prepare_ranking_round(
-    state: WorkflowState,
-    hypotheses: list[Hypothesis],
-) -> tuple[
-    int,
-    dict[str, Any] | None,
-    Any,
-    dict[str, Any] | None,
-    str | None,
-    str | None,
-]:
-    """Sorts the pool and gathers the cross-node tournament context.
-
-    Also emits the start-of-tournament progress event. The returned
-    context is threaded into every judged matchup.
-
-    Args:
-        state: Current workflow state.
-        hypotheses: Hypothesis pool entering the tournament; sorted in
-            place by review score (text as tiebreaker for determinism).
-
-    Returns:
-        Tuple of (tournament_rounds, supervisor_guidance, tool_registry,
-        meta_review, run_setup_guidance, run_focus_guidance).
-    """
-    _sort_hypotheses_for_tournament(hypotheses)
-
-    await emit_progress(
-        state,
-        "tournament_start",
-        f"Running tournament with {len(hypotheses)} hypotheses...",
-        65,
-    )
-
-    tournament_rounds = _tournament_round_count(state, hypotheses)
-    return (tournament_rounds, *_gather_tournament_context(state))
-
-
-def _sort_hypotheses_by_elo(
-    hypotheses: list[Hypothesis],
-) -> list[Hypothesis]:
-    """Sorts the pool by Elo rating (highest first), unrankable ones last.
-
-    Score then text break ties deterministically when Elo ratings are equal.
-    """
-    return sorted(
-        hypotheses,
-        key=lambda item: (
-            not item.is_rankable(),
-            -item.elo_rating,
-            -item.score,
-            item.text,
-        ),
-    )
-
-
-async def _finalize_ranking_result(
-    state: WorkflowState,
-    hypotheses: list[Hypothesis],
-    matchup_details: list[dict[str, Any]],
-    tournament_rounds: int,
-    total_llm_calls: int,
-) -> dict[str, Any]:
-    """Applies matchup results and builds the ranking_node state delta.
-
-    The hypothesis pool is re-ranked by Elo before the delta is built.
-
-    Args:
-        state: Current workflow state.
-        hypotheses: Hypothesis pool that was paired for this tournament.
-        matchup_details: Sequentially committed tournament outcomes.
-        tournament_rounds: Number of tournament rounds run.
-        total_llm_calls: Total judge LLM calls (summed over debate turns).
-
-    Returns:
-        The ranking_node state delta dictionary.
-    """
-    hypotheses = _sort_hypotheses_by_elo(hypotheses)
-
-    logger.info("Tournament complete. Top Elo: %s", hypotheses[0].elo_rating)
-    logger.info("Top hypothesis: %s...", hypotheses[0].text[:100])
-
-    await emit_progress(
-        state,
-        "tournament_complete",
-        f"Tournament complete ({tournament_rounds} rounds)",
-        80,
-        top_elo=hypotheses[0].elo_rating,
-        top_hypothesis=hypotheses[0].text[:200],
-    )
-
-    return _build_ranking_delta(
-        hypotheses, matchup_details, tournament_rounds, total_llm_calls
-    )
 
 
 def _filter_eligible_hypotheses(
@@ -484,24 +338,10 @@ async def _run_tournament(
     eligible: list[Hypothesis],
 ) -> dict[str, Any]:
     """Prepares, runs, and finalizes one ranking tournament round."""
-    (
-        tournament_rounds,
-        supervisor_guidance,
-        tool_registry,
-        meta_review,
-        run_setup_guidance,
-        run_focus_guidance,
-    ) = await _prepare_ranking_round(state, eligible)
+    tournament_rounds, guidance = await _prepare_ranking_round(state, eligible)
 
     matchup_details, total_llm_calls = await _run_tournament_matchups(
-        state,
-        eligible,
-        tournament_rounds,
-        supervisor_guidance,
-        tool_registry,
-        meta_review,
-        run_setup_guidance,
-        run_focus_guidance,
+        state, eligible, tournament_rounds, guidance
     )
 
     return await _finalize_ranking_result(

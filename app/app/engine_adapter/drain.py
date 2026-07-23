@@ -22,11 +22,42 @@ from app.claim_grounding import (
 )
 from app.claims import EvidencePassage
 from app.config import settings
-from app.elo import INITIAL_ELO
+from app.elo import INITIAL_ELO as INITIAL_ELO
 
-# Review/citation and match/proximity persistence moved verbatim to sibling
-# modules; every moved name is re-exported so this module's namespace (the
-# seam tests and callers patch/import against) keeps resolving.
+# Evidence/hypothesis, review/citation, and match/proximity persistence
+# moved verbatim to sibling modules; every moved name is re-exported so this
+# module's namespace (the seam tests and callers patch/import against) keeps
+# resolving.
+from app.engine_adapter.drain_hypotheses import (
+    _article_coalesced_fields as _article_coalesced_fields,
+)
+from app.engine_adapter.drain_hypotheses import (
+    _derive_hypothesis_identity as _derive_hypothesis_identity,
+)
+from app.engine_adapter.drain_hypotheses import (
+    _HypIdentity as _HypIdentity,
+)
+from app.engine_adapter.drain_hypotheses import (
+    _hypotheses_with_proximity_archive as _hypotheses_with_proximity_archive,
+)
+from app.engine_adapter.drain_hypotheses import (
+    _HypothesisSink as _HypothesisSink,
+)
+from app.engine_adapter.drain_hypotheses import (
+    _persist_engine_evidence as _persist_engine_evidence,
+)
+from app.engine_adapter.drain_hypotheses import (
+    _persist_engine_hypothesis as _persist_engine_hypothesis,
+)
+from app.engine_adapter.drain_hypotheses import (
+    _persist_engine_hypothesis_row as _persist_engine_hypothesis_row,
+)
+from app.engine_adapter.drain_hypotheses import (
+    _persist_hypothesis_state as _persist_hypothesis_state,
+)
+from app.engine_adapter.drain_hypotheses import (
+    _resolve_persisted_parent_id as _resolve_persisted_parent_id,
+)
 from app.engine_adapter.drain_matches import (
     _matchup_loser_engine_id as _matchup_loser_engine_id,
 )
@@ -44,6 +75,9 @@ from app.engine_adapter.drain_reviews import (
 )
 from app.engine_adapter.drain_reviews import (
     _citation_url as _citation_url,
+)
+from app.engine_adapter.drain_reviews import (
+    _CitationSink as _CitationSink,
 )
 from app.engine_adapter.drain_reviews import (
     _ensure_citation_evidence_id as _ensure_citation_evidence_id,
@@ -67,7 +101,7 @@ from app.engine_adapter.drain_reviews import (
     _score_or_none as _score_or_none,
 )
 from app.hypothesis_screening import screen_hypotheses
-from app.text_utils import first_sentence
+from app.text_utils import first_sentence as first_sentence
 
 logger = logging.getLogger(__name__)
 
@@ -83,247 +117,6 @@ class DrainResult(NamedTuple):
     report_inputs: dict[str, Any]
     safety_counts: dict[str, int]
     grounding_counts: dict[str, int]
-
-
-class _HypIdentity(NamedTuple):
-    """An engine hypothesis's persistence identity and lineage.
-
-    Bundles the fields the drain derives once from an engine hypothesis dict
-    and threads into the store row: the statement text, a derived title, and
-    the explicit lineage (generation, creating agent, engine id, parent id).
-    """
-
-    text: str
-    title: str
-    generation: int
-    agent: str
-    engine_id: str | None
-    parent_id: str | None
-
-
-def _article_coalesced_fields(
-    art: dict[str, Any],
-) -> tuple[str, list[str], str]:
-    """Extract an article's (url, authors, abstract), each falling back.
-
-    Isolates the fields whose raw value needs an empty-default fallback (as
-    opposed to the fields below that already have a `dict.get` default), so
-    the persistence loop stays free of branching.
-    """
-    url = art.get("url") or ""
-    authors = art.get("authors") or []
-    abstract = art.get("abstract") or ""
-    return url, authors, abstract
-
-
-def _persist_engine_evidence(
-    run_id: str,
-    articles: list[dict[str, Any]],
-    conn: sqlite3.Connection,
-) -> tuple[dict[str, str], dict[str, str]]:
-    """Persist retrieved articles as evidence rows.
-
-    Returns:
-        A tuple of (evidence id by title, abstract by title) lookups the
-        hypothesis/citation pass needs: the citation_map carries no abstract
-        of its own, so a cited source is classified against its evidence
-        row's abstract via this title-keyed map.
-    """
-    ev_id_by_title: dict[str, str] = {}
-    abstract_by_title: dict[str, str] = {}
-    for art in articles:
-        url, authors, abstract = _article_coalesced_fields(art)
-        ev_id = store.add_evidence(
-            run_id,
-            art.get("title", "Untitled"),
-            source=art.get("source", "engine"),
-            url=url,
-            authors=authors,
-            year=art.get("year"),
-            abstract=abstract,
-            available=bool(url) and not bool(art.get("is_retracted")),
-            conn=conn,
-        )
-        ev_id_by_title[art.get("title", "")] = ev_id
-        abstract_by_title[art.get("title", "")] = abstract
-    return ev_id_by_title, abstract_by_title
-
-
-def _derive_hypothesis_identity(h: dict[str, Any]) -> _HypIdentity:
-    """Derive an engine hypothesis's statement, title, and explicit lineage.
-
-    Reads the engine's explicit lineage fields (``parent_id``/``generation``/
-    ``origin``) rather than reconstructing lineage from ``evolution_history``.
-    Pre-lineage cached payloads (which lack these keys) fall
-    back to the old ``evolution_history`` inference so old runs still drain.
-    The title is the first sentence of the statement (see ``first_sentence``).
-
-    Returns:
-        The hypothesis's persistence identity and lineage.
-    """
-    text = h.get("text", "")
-    title = first_sentence(text)
-    engine_id = h.get("id") or None
-
-    if "generation" in h or "parent_id" in h or "origin" in h:
-        # Explicit lineage from a current engine payload.
-        generation = int(h.get("generation", 0))
-        parent_id = h.get("parent_id") or None
-        agent = str(h.get("origin") or "generation")
-    else:
-        # Legacy fallback: infer from evolution_history (pre-lineage cache).
-        is_evolved = bool(h.get("evolution_history"))
-        generation = 1 if is_evolved else 0
-        parent_id = None
-        agent = "evolution" if is_evolved else "generation"
-
-    return _HypIdentity(text, title, generation, agent, engine_id, parent_id)
-
-
-def _persist_hypothesis_state(
-    hyp_id: str, h: dict[str, Any], conn: sqlite3.Connection
-) -> None:
-    """Persist a hypothesis's mutable state: Elo rating, wins, losses, score."""
-    store.update_hypothesis_state(
-        hyp_id,
-        elo_rating=int(h.get("elo_rating", INITIAL_ELO)),
-        win_delta=int(h.get("win_count", 0)),
-        loss_delta=int(h.get("loss_count", 0)),
-        novelty=_score_or_none(h.get("score", 0)),
-        status=(
-            "rejected"
-            if h.get("review_disposition")
-            in {
-                "inaccurate",
-                "non_novel",
-                "inaccurate_and_non_novel",
-                "duplicate",
-                "evidence_blocked",
-            }
-            else "active"
-        ),
-        conn=conn,
-    )
-
-
-def _resolve_persisted_parent_id(
-    identity: _HypIdentity, persisted_engine_ids: set[str]
-) -> str | None:
-    """Return the parent id to persist, dropping references to pruned parents.
-
-    The parent was pruned (e.g. by proximity) whenever it is absent from
-    ``persisted_engine_ids``, in which case persisting it would violate the
-    ``hypotheses.parent_id`` foreign key, so the child is stored as a root
-    with a logged, broken lineage edge instead.
-    """
-    parent_id = identity.parent_id
-    if parent_id is not None and parent_id not in persisted_engine_ids:
-        logger.warning(
-            "hypothesis %s references pruned parent %s; storing as root",
-            identity.engine_id,
-            parent_id,
-        )
-        return None
-    return parent_id
-
-
-def _persist_engine_hypothesis_row(
-    run_id: str,
-    h: dict[str, Any],
-    persisted_engine_ids: set[str],
-    conn: sqlite3.Connection,
-) -> tuple[str, str | None]:
-    """Persist one engine hypothesis's row and mutable state (Elo/wins/losses).
-
-    The engine's stable hypothesis id is passed straight through as the store
-    row id, so identity holds end-to-end (engine -> DB -> API -> UI) and
-    matchups resolve by id rather than by fragile text-prefix matching.
-    ``parent_id`` is carried through (store rows share the engine id, so a
-    child's engine parent_id already equals the parent's store row id) via
-    ``_resolve_persisted_parent_id``.
-
-    Returns:
-        A tuple of (persisted store row id, the engine's own id or None).
-    """
-    identity = _derive_hypothesis_identity(h)
-    parent_id = _resolve_persisted_parent_id(identity, persisted_engine_ids)
-    hyp_id = store.add_hypothesis(
-        run_id=run_id,
-        title=identity.title,
-        statement=identity.text,
-        hypothesis_id=identity.engine_id,
-        parent_id=parent_id,
-        category=h.get("category") or None,
-        mechanism=h.get("literature_grounding") or "",
-        expected_effect=h.get("explanation") or "",
-        experimental_context=h.get("experiment") or "",
-        generation=identity.generation,
-        created_by_agent=identity.agent,
-        conn=conn,
-    )
-    _persist_hypothesis_state(hyp_id, h, conn)
-    return hyp_id, identity.engine_id
-
-
-def _persist_engine_hypothesis(
-    run_id: str,
-    h: dict[str, Any],
-    ev_id_by_title: dict[str, str],
-    abstract_by_title: dict[str, str],
-    store_id_by_engine_id: dict[str, str],
-    citation_summary: dict[str, int],
-    persisted_engine_ids: set[str],
-    conn: sqlite3.Connection,
-) -> None:
-    """Persist one engine hypothesis: its row, state, reviews, and citations.
-
-    Mutates `store_id_by_engine_id` (engine id -> persisted row id),
-    `ev_id_by_title` (a citation may add evidence for its source on the fly),
-    and `citation_summary` (running citation-state counts) in place.
-    """
-    hyp_id, engine_id = _persist_engine_hypothesis_row(
-        run_id, h, persisted_engine_ids, conn
-    )
-    if engine_id:
-        store_id_by_engine_id[engine_id] = hyp_id
-    _persist_engine_reviews(run_id, hyp_id, h, conn)
-    _persist_engine_citations(
-        run_id,
-        hyp_id,
-        h,
-        ev_id_by_title,
-        abstract_by_title,
-        citation_summary,
-        conn,
-    )
-
-
-def _hypotheses_with_proximity_archive(
-    active: list[dict[str, Any]], removed: list[dict[str, Any]]
-) -> list[dict[str, Any]]:
-    """Return active hypotheses plus full proximity-pruned archive records."""
-    archived: dict[str, dict[str, Any]] = {}
-    for record in removed:
-        hypothesis = record.get("hypothesis")
-        if not isinstance(hypothesis, dict) or not hypothesis.get("id"):
-            # Legacy checkpoints retained only a text audit entry. They cannot
-            # safely reconstruct stable identity or lineage after the fact.
-            continue
-        archived_hypothesis = dict(hypothesis)
-        archived_hypothesis["review_disposition"] = "duplicate"
-        archived[str(archived_hypothesis["id"])] = archived_hypothesis
-
-    # An active row wins if an old audit record and the current pool ever share
-    # an id; the archive exists only for hypotheses absent from active ranking.
-    by_id = dict(archived)
-    by_id.update(
-        {
-            str(hypothesis["id"]): hypothesis
-            for hypothesis in active
-            if hypothesis.get("id")
-        }
-    )
-    return list(by_id.values())
 
 
 def _final_state_list(
@@ -342,30 +135,23 @@ def _persist_evidence_and_hypotheses(
     run_id: str,
     articles: list[dict[str, Any]],
     hyps_parents_first: list[dict[str, Any]],
-    store_id_by_engine_id: dict[str, str],
-    citation_summary: dict[str, int],
-    persisted_engine_ids: set[str],
+    sink: _HypothesisSink,
     conn: sqlite3.Connection,
 ) -> None:
     """Persist retrieved evidence, then hypotheses parents before children.
 
-    Mutates `store_id_by_engine_id` and `citation_summary` in place (see
-    `_persist_engine_hypothesis`).
+    Mutates the sink in place (see `_persist_engine_hypothesis`).
+
+    Args:
+        run_id: Run the drained state belongs to.
+        articles: The engine's retrieved articles.
+        hyps_parents_first: Hypotheses ordered so parents insert first.
+        sink: The drain's hypothesis and citation lookups.
+        conn: Open connection of the caller's transaction.
     """
-    ev_id_by_title, abstract_by_title = _persist_engine_evidence(
-        run_id, articles, conn
-    )
+    _persist_engine_evidence(run_id, articles, sink.citations, conn)
     for h in hyps_parents_first:
-        _persist_engine_hypothesis(
-            run_id,
-            h,
-            ev_id_by_title,
-            abstract_by_title,
-            store_id_by_engine_id,
-            citation_summary,
-            persisted_engine_ids,
-            conn,
-        )
+        _persist_engine_hypothesis(run_id, h, sink, conn)
 
 
 def _screen_and_collect_grounding_inputs(
@@ -397,9 +183,8 @@ def _screen_and_collect_grounding_inputs(
 def _persist_grounding_matches_and_proximity(
     run_id: str,
     assessed: Any,
-    matchups: list[dict[str, Any]],
+    inputs: _FinalStateInputs,
     store_id_by_engine_id: dict[str, str],
-    proximity_graph: dict[str, Any],
     conn: sqlite3.Connection,
 ) -> Any:
     """Persist claim grounding, tournament matches, and the proximity graph.
@@ -407,13 +192,22 @@ def _persist_grounding_matches_and_proximity(
     Pure database work: the claim assessment that produced `assessed` has
     already run, outside any transaction.
 
+    Args:
+        run_id: Run the drained state belongs to.
+        assessed: The claim assessment produced between the transactions.
+        inputs: The drain's precomputed matchups and proximity graph.
+        store_id_by_engine_id: Persisted row id per engine hypothesis id.
+        conn: Open connection of the caller's transaction.
+
     Returns:
         The claim-grounding persistence result.
     """
     grounding_result = persist_grounding(run_id, assessed, conn=conn)
-    _persist_engine_matches(run_id, matchups, store_id_by_engine_id, conn)
+    _persist_engine_matches(
+        run_id, inputs.matchups, store_id_by_engine_id, conn
+    )
     _persist_engine_proximity(
-        run_id, proximity_graph, store_id_by_engine_id, conn
+        run_id, inputs.proximity_graph, store_id_by_engine_id, conn
     )
     return grounding_result
 
@@ -525,14 +319,21 @@ def _persist_evidence_hypotheses_and_screen(
         The (screening result, evidence passages, grounding candidates)
         tuple `_screen_and_collect_grounding_inputs` produces.
     """
+    sink = _HypothesisSink(
+        citations=_CitationSink(
+            ev_id_by_title={},
+            abstract_by_title={},
+            citation_summary=citation_summary,
+        ),
+        store_id_by_engine_id=store_id_by_engine_id,
+        persisted_engine_ids=inputs.persisted_engine_ids,
+    )
     with store.transaction(db_path) as conn:
         _persist_evidence_and_hypotheses(
             run_id,
             inputs.articles,
             inputs.hyps_parents_first,
-            store_id_by_engine_id,
-            citation_summary,
-            inputs.persisted_engine_ids,
+            sink,
             conn,
         )
         return _screen_and_collect_grounding_inputs(run_id, conn)
@@ -548,12 +349,7 @@ def _persist_grounding_matches_proximity_txn(
     """Run the drain's second transaction: grounding, matches, proximity."""
     with store.transaction(db_path) as conn:
         return _persist_grounding_matches_and_proximity(
-            run_id,
-            assessed,
-            inputs.matchups,
-            store_id_by_engine_id,
-            inputs.proximity_graph,
-            conn,
+            run_id, assessed, inputs, store_id_by_engine_id, conn
         )
 
 

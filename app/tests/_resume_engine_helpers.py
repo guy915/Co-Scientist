@@ -91,9 +91,9 @@ def _engine_stream(
         run_id,
         goal,
         cfg,
-        force_provider="engine",
-        sleep_seconds=0,
-        resume=resume,
+        engine_adapter.WorkflowOptions(
+            force_provider="engine", sleep_seconds=0, resume=resume
+        ),
     )
 
 

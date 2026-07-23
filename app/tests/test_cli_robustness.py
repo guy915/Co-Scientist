@@ -14,7 +14,12 @@ import httpx
 import pytest
 
 from app.cli import runs_cmd, runs_stream_cmd
-from app.cli.http import ApiClient, ApiUnreachableError, CliError
+from app.cli.http import (
+    ApiClient,
+    ApiClientOptions,
+    ApiUnreachableError,
+    CliError,
+)
 
 # The package re-exports the ``main`` function under the same name as the
 # module, so fetch the module itself for monkeypatching.
@@ -26,8 +31,7 @@ def _client(handler: object, **kwargs: object) -> ApiClient:
     transport = httpx.MockTransport(handler)  # type: ignore[arg-type]
     return ApiClient(
         "http://api.test",
-        transport=transport,
-        retry_wait=0.0,
+        options=ApiClientOptions(transport=transport, retry_wait=0.0),
         **kwargs,  # type: ignore[arg-type]
     )
 
@@ -128,13 +132,13 @@ class _RecordingClient:
         base_url: str,
         client_id: str | None = None,
         *,
-        timeout: float = 30.0,
+        options: Any = None,
         **kwargs: Any,
     ) -> None:
         _RecordingClient.captured = {
             "base_url": base_url,
             "client_id": client_id,
-            "timeout": timeout,
+            "timeout": options.timeout if options else 30.0,
             **kwargs,
         }
 
@@ -252,7 +256,10 @@ def _watch_client(
     # ``runs_cmd`` is a separate binding).
     monkeypatch.setattr(runs_stream_cmd, "WATCH_RECONNECT_WAIT", 0.0)
     transport = httpx.MockTransport(handler)  # type: ignore[arg-type]
-    return ApiClient("http://api.test", transport=transport, retry_wait=0.0)
+    return ApiClient(
+        "http://api.test",
+        options=ApiClientOptions(transport=transport, retry_wait=0.0),
+    )
 
 
 def test_watch_reconnects_after_mid_stream_drop(

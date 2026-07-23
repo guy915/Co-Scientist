@@ -38,6 +38,7 @@ from co_scientist.agents.generation.literature_review.outcomes import (
 from co_scientist.agents.generation.literature_review.search import (
     _phase2_collect_papers_multi_source,
     _phase2_collect_papers_single_source,
+    _SearchRunContext,
 )
 from co_scientist.agents.generation.literature_review.synthesis import (
     _phase4_synthesize,
@@ -108,15 +109,16 @@ async def _phase2_collect_papers(
     on-disk corpus so a warm-started corpus from a prior run/tool-based
     generation phase is reused rather than re-downloaded.
     """
-    slug = corpus_slug(state["research_goal"])
+    ctx = _SearchRunContext(
+        slug=corpus_slug(state["research_goal"]),
+        run_id=state["run_id"],
+        mcp_client=mcp_client,
+        errors=search_errors,
+    )
 
     if config.is_multi_source:
-        return await _phase2_collect_papers_multi_source(
-            queries, slug, state, config, mcp_client, search_errors
-        )
-    return await _phase2_collect_papers_single_source(
-        queries, slug, state, config, mcp_client, search_errors
-    )
+        return await _phase2_collect_papers_multi_source(queries, config, ctx)
+    return await _phase2_collect_papers_single_source(queries, config, ctx)
 
 
 async def _fetch_content_and_enrichment(
@@ -146,14 +148,27 @@ async def _fetch_content_and_enrichment(
     return cast(tuple[str, list[dict[str, Any]]], enrichment_result)
 
 
+@dataclass(frozen=True)
+class _ReviewCachePlan:
+    """Cache lookup/store plan resolved once per literature review run.
+
+    Attributes:
+        node_cache: Node cache the review result is looked up in/stored to.
+        cache_params: Material inputs that key the cached result.
+        force_cache: Whether dev isolation forces cache use.
+    """
+
+    node_cache: NodeCache
+    cache_params: dict[str, Any]
+    force_cache: bool
+
+
 def _build_and_cache_result(
     synthesis: str,
     queries: list[str],
     articles: list[Article],
     context_enrichment_sources: list[dict[str, Any]],
-    node_cache: NodeCache,
-    cache_params: dict[str, Any],
-    force_cache: bool,
+    cache_plan: _ReviewCachePlan,
 ) -> dict[str, Any]:
     """Build the success result dict and populate the node cache with it.
 
@@ -171,8 +186,11 @@ def _build_and_cache_result(
     result = make_success_result(synthesis, queries, articles)
     if context_enrichment_sources:
         result["context_enrichment_sources"] = context_enrichment_sources
-    node_cache.set(
-        "literature_review", result, force=force_cache, **cache_params
+    cache_plan.node_cache.set(
+        "literature_review",
+        result,
+        force=cache_plan.force_cache,
+        **cache_plan.cache_params,
     )
     return result
 

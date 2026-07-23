@@ -260,7 +260,7 @@ async def test_second_invocation_reviews_only_new_hypotheses(
 
     async def counting_stub(**kwargs: Any) -> dict[str, Any]:
         calls.append(kwargs)
-        count = kwargs["prompt_metadata"]["hypotheses_count"]
+        count = kwargs["options"].prompt_metadata["hypotheses_count"]
         return {
             "reviews": [_batch_entry({"soundness": 6}) for _ in range(count)]
         }
@@ -278,7 +278,7 @@ async def test_second_invocation_reviews_only_new_hypotheses(
 
     # One comparative-batch call covering only the single new hypothesis.
     assert len(calls) == 2
-    assert calls[1]["prompt_metadata"]["hypotheses_count"] == 1
+    assert calls[1]["options"].prompt_metadata["hypotheses_count"] == 1
     assert second["metrics"].reviews_count == 1
     # Previously reviewed hypotheses were not re-reviewed; the new one was.
     assert [len(h.reviews) for h in second["hypotheses"]] == [1, 1, 1, 1]

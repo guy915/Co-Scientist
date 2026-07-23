@@ -18,6 +18,7 @@ from typing import Any
 
 from app import store
 from app.config import deepseek_thinking_kwargs, settings
+from app.qa_manifest import QaRunContext as QaRunContext
 from app.qa_manifest import build_evidence_manifest as build_evidence_manifest
 from app.qa_manifest import build_system_prompt as build_system_prompt
 
@@ -226,7 +227,13 @@ def _persist_qa_answer(
     """
     answer = "".join(full)
     store.append_message(
-        run_id, "system", answer, "qa", meta=_citation_meta(manifest)
+        store.NewMessage(
+            run_id=run_id,
+            sender="system",
+            content=answer,
+            kind="qa",
+            meta=_citation_meta(manifest),
+        )
     )
 
 
@@ -242,7 +249,11 @@ def _handle_qa_stream_error(run_id: str, exc: Exception) -> str:
         "Q&A requires a language model API key "
         "(set CHAT_MODEL_NAME or MODEL_NAME)."
     )
-    store.append_message(run_id, "system", fallback, "qa")
+    store.append_message(
+        store.NewMessage(
+            run_id=run_id, sender="system", content=fallback, kind="qa"
+        )
+    )
     return fallback
 
 

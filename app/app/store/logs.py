@@ -14,10 +14,12 @@ and ``conn`` (an open connection to reuse).
 
 from __future__ import annotations
 
+import dataclasses
 import logging
 import sqlite3
 import time
 from collections.abc import Sequence
+from dataclasses import dataclass
 from typing import Any
 
 from app.store.db import _use_conn
@@ -32,17 +34,29 @@ def _escape_like(text: str) -> str:
     return text.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
 
 
+@dataclass(frozen=True)
+class NewLogRecord:
+    """One log record to persist, mirroring the app_logs row.
+
+    ``levelno`` is kept alongside the level name for range filtering;
+    ``exc_text`` carries pre-formatted traceback text when one was
+    attached; ``client_id`` is the owning client for records ingested
+    from a UI (None for server-side records, which only operators may
+    read); ``created_at`` defaults to now when None.
+    """
+
+    level: str
+    levelno: int
+    logger_name: str
+    message: str
+    run_id: str | None = None
+    exc_text: str | None = None
+    client_id: str | None = None
+    created_at: float | None = None
+
+
 def _insert_log_row(
-    conn: sqlite3.Connection,
-    *,
-    level: str,
-    levelno: int,
-    logger_name: str,
-    message: str,
-    run_id: str | None,
-    exc_text: str | None,
-    client_id: str | None,
-    created_at: float,
+    conn: sqlite3.Connection, record: NewLogRecord, created_at: float
 ) -> int:
     """Insert one log row on an open connection and return its row id."""
     cur = conn.execute(
@@ -50,71 +64,72 @@ def _insert_log_row(
         "message, run_id, exc_text, client_id) VALUES (?,?,?,?,?,?,?,?)",
         (
             created_at,
-            level,
-            levelno,
-            logger_name,
-            message,
-            run_id,
-            exc_text,
-            client_id,
+            record.level,
+            record.levelno,
+            record.logger_name,
+            record.message,
+            record.run_id,
+            record.exc_text,
+            record.client_id,
         ),
     )
     return int(cur.lastrowid or 0)
 
 
 def append_log(
+    record: NewLogRecord,
     *,
-    level: str,
-    levelno: int,
-    logger_name: str,
-    message: str,
-    run_id: str | None = None,
-    exc_text: str | None = None,
-    client_id: str | None = None,
-    created_at: float | None = None,
     db_path: str | None = None,
     conn: sqlite3.Connection | None = None,
 ) -> int:
     """Persist one log record and return its row id.
 
-    ``levelno`` is kept alongside the level name for range filtering;
-    ``exc_text`` carries pre-formatted traceback text when one was
-    attached; ``client_id`` is the owning client for records ingested
-    from a UI (None for server-side records, which only operators may
-    read); ``created_at`` defaults to now.
+    Args:
+        record: The record to persist (see :class:`NewLogRecord`).
+        db_path: Optional override for the SQLite database path.
+        conn: Optional open connection to reuse.
+
+    Returns:
+        The row id assigned to the persisted record.
     """
+    created_at = record.created_at
     with _use_conn(conn, db_path) as c:
         return _insert_log_row(
-            c,
-            level=level,
-            levelno=levelno,
-            logger_name=logger_name,
-            message=message,
-            run_id=run_id,
-            exc_text=exc_text,
-            client_id=client_id,
-            created_at=created_at if created_at is not None else time.time(),
+            c, record, created_at if created_at is not None else time.time()
         )
 
 
-def _log_filters(
-    *,
-    after_id: int,
-    min_levelno: int,
-    run_id: str | None,
-    contains: str | None,
-    noise_loggers: Sequence[str] | None,
-    scope_client_id: str | None = None,
-) -> tuple[str, list[Any]]:
+@dataclass(frozen=True)
+class LogFilters:
+    """The filters narrowing a log query.
+
+    Rows must have an id strictly above ``after_id`` and a level at or
+    above ``min_levelno``. ``run_id`` and ``contains`` restrict to one run
+    and to a message substring; ``noise_loggers`` lists logger-name
+    prefixes whose sub-WARNING records are hidden (None disables), and
+    ``scope_client_id`` restricts to one client's own records (None reads
+    app-wide, operators only).
+    """
+
+    after_id: int = 0
+    min_levelno: int = 0
+    run_id: str | None = None
+    contains: str | None = None
+    noise_loggers: Sequence[str] | None = None
+    scope_client_id: str | None = None
+
+
+def _log_filters(filters: LogFilters) -> tuple[str, list[Any]]:
     """Build the shared WHERE clause and parameters for log queries."""
     where = ["id > ?", "levelno >= ?"]
-    params: list[Any] = [after_id, min_levelno]
-    if run_id is not None:
+    params: list[Any] = [filters.after_id, filters.min_levelno]
+    if filters.run_id is not None:
         where.append("run_id = ?")
-        params.append(run_id)
-    if contains:
+        params.append(filters.run_id)
+    if filters.contains:
         where.append("message LIKE ? ESCAPE '\\'")
-        params.append(f"%{_escape_like(contains)}%")
+        params.append(f"%{_escape_like(filters.contains)}%")
+    noise_loggers = filters.noise_loggers
     if noise_loggers:
         # Hide sub-WARNING records whose logger starts with any noise
         # prefix; WARNING+ from those loggers still matches.
@@ -122,37 +137,22 @@ def _log_filters(
         where.append(f"NOT (levelno < ? AND ({likes}))")
         params.append(NOISE_VISIBLE_LEVELNO)
         params.extend(f"{_escape_like(name)}%" for name in noise_loggers)
-    if scope_client_id is not None:
+    if filters.scope_client_id is not None:
         # A client sees records it submitted plus records belonging to
         # runs it owns; un-owned server records stay operator-only.
         where.append(
             "(client_id = ? OR run_id IN "
             "(SELECT id FROM runs WHERE client_id = ?))"
         )
-        params.extend([scope_client_id, scope_client_id])
+        params.extend([filters.scope_client_id, filters.scope_client_id])
     return " AND ".join(where), params
 
 
 def _fetch_log_page(
-    conn: sqlite3.Connection,
-    *,
-    after_id: int,
-    min_levelno: int,
-    run_id: str | None,
-    contains: str | None,
-    noise_loggers: Sequence[str] | None,
-    scope_client_id: str | None,
-    limit: int,
+    conn: sqlite3.Connection, filters: LogFilters, limit: int
 ) -> list[dict[str, Any]]:
     """Run the filtered, newest-first-capped log query and return rows."""
-    where, params = _log_filters(
-        after_id=after_id,
-        min_levelno=min_levelno,
-        run_id=run_id,
-        contains=contains,
-        noise_loggers=noise_loggers,
-        scope_client_id=scope_client_id,
-    )
+    where, params = _log_filters(filters)
     params.append(limit)
     query = (
         "SELECT * FROM (SELECT * FROM app_logs WHERE "
@@ -165,12 +165,7 @@ def _fetch_log_page(
 
 def list_logs(
     *,
-    after_id: int = 0,
-    min_levelno: int = 0,
-    run_id: str | None = None,
-    contains: str | None = None,
-    noise_loggers: Sequence[str] | None = None,
-    scope_client_id: str | None = None,
+    filters: LogFilters | None = None,
     limit: int = 200,
     db_path: str | None = None,
     conn: sqlite3.Connection | None = None,
@@ -179,33 +174,25 @@ def list_logs(
 
     The ``limit`` keeps the NEWEST matching rows (the useful tail), still
     returned oldest-first so callers can print them in order and resume
-    with ``after_id`` set to the last row's id. Filters: id strictly
-    above ``after_id``, minimum numeric level, run id, case-insensitive
-    message substring, ``noise_loggers`` (logger-name prefixes whose
-    sub-WARNING records are hidden; None disables), and
-    ``scope_client_id`` (restrict to one client's own records; None reads
-    app-wide, operators only).
+    with ``after_id`` set to the last row's id.
+
+    Args:
+        filters: Which rows to match (see :class:`LogFilters`); None
+            matches every row.
+        limit: Maximum number of rows to keep, newest first.
+        db_path: Optional override for the SQLite database path.
+        conn: Optional open connection to reuse.
+
+    Returns:
+        The matching rows as dicts, oldest first.
     """
     with _use_conn(conn, db_path) as c:
-        return _fetch_log_page(
-            c,
-            after_id=after_id,
-            min_levelno=min_levelno,
-            run_id=run_id,
-            contains=contains,
-            noise_loggers=noise_loggers,
-            scope_client_id=scope_client_id,
-            limit=limit,
-        )
+        return _fetch_log_page(c, filters or LogFilters(), limit)
 
 
 def count_logs(
     *,
-    min_levelno: int = 0,
-    run_id: str | None = None,
-    contains: str | None = None,
-    noise_loggers: Sequence[str] | None = None,
-    scope_client_id: str | None = None,
+    filters: LogFilters | None = None,
     db_path: str | None = None,
     conn: sqlite3.Connection | None = None,
 ) -> int:
@@ -213,26 +200,20 @@ def count_logs(
 
     Unlike :func:`list_logs` there is no ``after_id`` or ``limit``: this
     is the size of the whole matching set, so the UI can show a true
-    total next to a capped window.
+    total next to a capped window. Any ``after_id`` on ``filters`` is
+    therefore ignored.
 
     Args:
-        min_levelno: Minimum numeric level (e.g. ``logging.WARNING``).
-        run_id: Only rows bound to this run.
-        contains: Case-insensitive message substring filter.
-        noise_loggers: Logger-name prefixes whose sub-WARNING records are
-            hidden; None disables the filter.
-        scope_client_id: Restrict to one client's own records; None reads
-            app-wide (operators only).
+        filters: Which rows to match (see :class:`LogFilters`); None
+            matches every row.
         db_path: Optional override for the SQLite database path.
         conn: Optional open connection to reuse.
+
+    Returns:
+        The number of matching rows.
     """
     where, params = _log_filters(
-        after_id=0,
-        min_levelno=min_levelno,
-        run_id=run_id,
-        contains=contains,
-        noise_loggers=noise_loggers,
-        scope_client_id=scope_client_id,
+        dataclasses.replace(filters or LogFilters(), after_id=0)
     )
     query = "SELECT COUNT(*) AS n FROM app_logs WHERE " + where
     with _use_conn(conn, db_path) as c:
@@ -279,12 +260,7 @@ def clear_logs(
         # Scoped clears must not reset the shared id sequence, which
         # other clients' cursors and numbering depend on.
         where, params = _log_filters(
-            after_id=0,
-            min_levelno=0,
-            run_id=None,
-            contains=None,
-            noise_loggers=None,
-            scope_client_id=scope_client_id,
+            LogFilters(scope_client_id=scope_client_id)
         )
         with _use_conn(conn, db_path) as c:
             cur = c.execute(f"DELETE FROM app_logs WHERE {where}", params)

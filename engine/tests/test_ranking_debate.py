@@ -12,6 +12,7 @@ import pytest
 
 from co_scientist.agents.ranking import ranking_debate
 from co_scientist.agents.ranking.ranking_debate import (
+    _DebateContext,
     _matchup_debate_turns,
     _median_elo,
     judge_matchup,
@@ -79,12 +80,9 @@ async def test_multi_turn_debate_runs_multiple_calls_and_persists_transcript(
     a = make_hypothesis(text="alpha hypothesis")
     b = make_hypothesis(text="beta hypothesis")
 
+    ctx = _DebateContext(a, b, "goal", "fake/model")
     winner, response = await judge_matchup(
-        a,
-        b,
-        research_goal="goal",
-        model_name="fake/model",
-        debate_turns=MULTI_TURN_DEBATE_TURNS,
+        ctx, debate_turns=MULTI_TURN_DEBATE_TURNS
     )
 
     assert winner == "a"
@@ -107,9 +105,8 @@ async def test_single_turn_debate_runs_one_call(
     a = make_hypothesis(text="alpha")
     b = make_hypothesis(text="beta")
 
-    _, response = await judge_matchup(
-        a, b, research_goal="goal", model_name="fake/model", debate_turns=1
-    )
+    ctx = _DebateContext(a, b, "goal", "fake/model")
+    _, response = await judge_matchup(ctx, debate_turns=1)
 
     assert len(calls) == 1
     assert response["debate_turns"] == 1
@@ -132,14 +129,8 @@ async def test_single_turn_alternates_presentation_order_across_matchups(
     orders = []
     for index in (0, 1, 2, 3):
         _stub_turn_counter(monkeypatch)
-        _, response = await judge_matchup(
-            a,
-            b,
-            research_goal="goal",
-            model_name="fake/model",
-            matchup_index=index,
-            debate_turns=1,
-        )
+        ctx = _DebateContext(a, b, "goal", "fake/model", matchup_index=index)
+        _, response = await judge_matchup(ctx, debate_turns=1)
         orders.append(response["debate_transcript"][0]["presentation_order"])
 
     assert orders == ["ab", "ba", "ab", "ba"]

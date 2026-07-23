@@ -98,7 +98,9 @@ def test_build_system_prompt_includes_every_section() -> None:
     hyps, reviews, matches, history, manifest = _every_section_inputs()
 
     prompt = qa.build_system_prompt(
-        "Investigate X", hyps, reviews, matches, history, manifest
+        qa.QaRunContext(
+            "Investigate X", hyps, reviews, matches, history, manifest
+        )
     )
 
     assert "Investigate X" in prompt
@@ -112,7 +114,7 @@ def test_build_system_prompt_includes_every_section() -> None:
 
 
 def test_build_system_prompt_falls_back_when_sections_are_empty() -> None:
-    prompt = qa.build_system_prompt("Goal", [], [], [], [], [])
+    prompt = qa.build_system_prompt(qa.QaRunContext("Goal", [], [], [], [], []))
     assert "(none yet)" in prompt
     assert "(none)" in prompt
     assert "(no evidence retrieved)" in prompt
@@ -120,13 +122,14 @@ def test_build_system_prompt_falls_back_when_sections_are_empty() -> None:
 
 def test_system_prompt_includes_audience_context() -> None:
     prompt = qa.build_system_prompt(
-        "goal", [], [], [], [], [], audience_context="LAB BACKGROUND"
+        qa.QaRunContext("goal", [], [], [], [], []),
+        audience_context="LAB BACKGROUND",
     )
     assert "LAB BACKGROUND" in prompt
 
 
 def test_system_prompt_without_audience_context() -> None:
-    prompt = qa.build_system_prompt("goal", [], [], [], [], [])
+    prompt = qa.build_system_prompt(qa.QaRunContext("goal", [], [], [], [], []))
     assert "LAB BACKGROUND" not in prompt
 
 
@@ -192,7 +195,11 @@ def test_handle_qa_stream_error_persists_fallback_and_logs(
     isolated_db: str, caplog: pytest.LogCaptureFixture
 ) -> None:
     store.create_run(
-        "goal", "default", "mock", {}, client_id="c1", db_path=isolated_db
+        "goal",
+        "default",
+        "mock",
+        {},
+        store.RunCreateOptions(client_id="c1", db_path=isolated_db),
     )
     run_id = store.list_runs(client_id="c1", db_path=isolated_db)[0].id
 
@@ -216,7 +223,11 @@ def test_stream_answer_happy_path_persists_and_yields_frames(
 ) -> None:
     monkeypatch.setitem(sys.modules, "litellm", _fake_litellm(["Ans", "wer"]))
     store.create_run(
-        "goal", "default", "mock", {}, client_id="c1", db_path=isolated_db
+        "goal",
+        "default",
+        "mock",
+        {},
+        store.RunCreateOptions(client_id="c1", db_path=isolated_db),
     )
     run_id = store.list_runs(client_id="c1", db_path=isolated_db)[0].id
     manifest = [
@@ -241,7 +252,11 @@ def test_stream_answer_without_manifest_skips_sources_and_meta(
 ) -> None:
     monkeypatch.setitem(sys.modules, "litellm", _fake_litellm(["Ok"]))
     store.create_run(
-        "goal", "default", "mock", {}, client_id="c2", db_path=isolated_db
+        "goal",
+        "default",
+        "mock",
+        {},
+        store.RunCreateOptions(client_id="c2", db_path=isolated_db),
     )
     run_id = store.list_runs(client_id="c2", db_path=isolated_db)[0].id
 
@@ -261,7 +276,11 @@ def test_stream_answer_error_path_persists_and_emits_fallback(
         _fake_litellm([], raise_exc=RuntimeError("no key")),
     )
     store.create_run(
-        "goal", "default", "mock", {}, client_id="c3", db_path=isolated_db
+        "goal",
+        "default",
+        "mock",
+        {},
+        store.RunCreateOptions(client_id="c3", db_path=isolated_db),
     )
     run_id = store.list_runs(client_id="c3", db_path=isolated_db)[0].id
 
@@ -325,7 +344,11 @@ def test_stream_offline_answer_emits_sources_chunks_done_and_persists(
 ) -> None:
     """The offline stream mirrors the LLM SSE framing and persists it."""
     store.create_run(
-        "goal", "default", "mock", {}, client_id="off1", db_path=isolated_db
+        "goal",
+        "default",
+        "mock",
+        {},
+        store.RunCreateOptions(client_id="off1", db_path=isolated_db),
     )
     run_id = store.list_runs(client_id="off1", db_path=isolated_db)[0].id
     manifest = [

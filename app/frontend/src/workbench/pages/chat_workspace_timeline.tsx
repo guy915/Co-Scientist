@@ -166,15 +166,29 @@ function updateDraftSpec(
 // Builds the draft RunSpecCard node: focus/tier edits write straight back
 // into draftSpec, and cancel/edit/retry/start delegate to the session hook's
 // handlers.
-function draftSpecCardNode(
-  draft: SpecStage,
-  isStarting: boolean,
-  setDraft: Dispatch<SetStateAction<SpecStage | null>>,
-  handleCancelDraftSpec: () => void,
-  handleEditPlan: (spec: InferredRunSpec) => void,
-  handleRetryDraftSpec: () => void,
-  handleStartRun: () => Promise<void>,
-): ReactNode {
+type DraftSpecCardArgs = Omit<
+  Pick<
+    BuildTimelineItemsArgs,
+    | 'draft'
+    | 'isStarting'
+    | 'setDraft'
+    | 'handleCancelDraftSpec'
+    | 'handleEditPlan'
+    | 'handleRetryDraftSpec'
+    | 'handleStartRun'
+  >,
+  'draft'
+> & {draft: SpecStage};
+
+function draftSpecCardNode({
+  draft,
+  isStarting,
+  setDraft,
+  handleCancelDraftSpec,
+  handleEditPlan,
+  handleRetryDraftSpec,
+  handleStartRun,
+}: DraftSpecCardArgs): ReactNode {
   return (
     <RunSpecCard
       spec={draft.spec}
@@ -222,7 +236,7 @@ function draftTimelineItems({
       id: DRAFT_SPEC_ITEM_ID,
       at: draft.createdAt,
       order: 50,
-      node: draftSpecCardNode(
+      node: draftSpecCardNode({
         draft,
         isStarting,
         setDraft,
@@ -230,7 +244,7 @@ function draftTimelineItems({
         handleEditPlan,
         handleRetryDraftSpec,
         handleStartRun,
-      ),
+      }),
     },
   ];
 }

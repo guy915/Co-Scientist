@@ -18,6 +18,7 @@ from co_scientist.agents.generation.literature_tools.validate_synthesis import (
     _retry_one_hypothesis,
     _run_synthesis_batches,
     _setup_validation_tool_provider,
+    _SynthesisRetryState,
 )
 from co_scientist.exceptions import ResponseParseError
 from co_scientist.tools.provider import MCPToolProvider
@@ -153,7 +154,10 @@ async def test_retry_one_hypothesis_success_accumulates_text() -> None:
     all_validated: list[dict[str, Any]] = []
 
     await _retry_one_hypothesis(
-        0, 0, {"draft": "x"}, accumulated_texts, all_validated, call_synthesis
+        0,
+        0,
+        {"draft": "x"},
+        _SynthesisRetryState(all_validated, accumulated_texts, call_synthesis),
     )
 
     assert all_validated == [{"hypothesis": "retried hypothesis"}]
@@ -174,7 +178,10 @@ async def test_retry_one_hypothesis_skips_empty_text_result() -> None:
     all_validated: list[dict[str, Any]] = []
 
     await _retry_one_hypothesis(
-        0, 0, {"draft": "x"}, accumulated_texts, all_validated, call_synthesis
+        0,
+        0,
+        {"draft": "x"},
+        _SynthesisRetryState(all_validated, accumulated_texts, call_synthesis),
     )
 
     assert all_validated == [{"other_field": "no hypothesis key"}]
@@ -198,7 +205,10 @@ async def test_retry_one_hypothesis_failure_drops_and_logs(
     all_validated: list[dict[str, Any]] = []
 
     await _retry_one_hypothesis(
-        1, 2, {"draft": "y"}, accumulated_texts, all_validated, call_synthesis
+        1,
+        2,
+        {"draft": "y"},
+        _SynthesisRetryState(all_validated, accumulated_texts, call_synthesis),
     )
 
     assert all_validated == []

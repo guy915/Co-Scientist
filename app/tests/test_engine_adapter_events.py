@@ -15,12 +15,33 @@ from __future__ import annotations
 import sys
 import types
 from collections.abc import AsyncIterator
+from dataclasses import dataclass
 from typing import Any
 
 import pytest
 
 from app import engine_adapter, store
 from tests._client import drain as _drain
+
+
+@dataclass
+class _FakeRunCallbacks:
+    """Mirrors the engine's ``RunCallbacks`` for the stubbed module."""
+
+    progress: Any = None
+    checkpoint: Any = None
+
+
+class _FakeGeneratorOptions:
+    """Permissive stand-in for the engine's ``GeneratorOptions``.
+
+    The fake generator ignores its constructor options, so this only needs
+    to accept the adapter's keyword fields without inspecting them.
+    """
+
+    def __init__(self, **_kwargs: Any) -> None:
+        pass
+
 
 # Node names streamed by the real engine (generator.py ``add_node`` calls) and
 # the canonical event type each must be normalized to by the adapter.
@@ -152,9 +173,9 @@ class _FakeGenerator:
         stream: bool,
         run_id: str,
         opts: dict[str, Any] | None = None,
-        checkpoint_callback: Any = None,
+        callbacks: Any = None,
     ) -> AsyncIterator[tuple[str, dict[str, Any]]]:
-        _ = (research_goal, stream, run_id, opts, checkpoint_callback)
+        _ = (research_goal, stream, run_id, opts, callbacks)
         state = _engine_streaming_state()
         for node in _ENGINE_NODES:
             yield node, state
@@ -178,7 +199,11 @@ def _run_fake_engine(
     Returns:
         A tuple of the created run and its drained events.
     """
-    fake_module = types.SimpleNamespace(HypothesisGenerator=generator_cls)
+    fake_module = types.SimpleNamespace(
+        HypothesisGenerator=generator_cls,
+        RunCallbacks=_FakeRunCallbacks,
+        GeneratorOptions=_FakeGeneratorOptions,
+    )
     monkeypatch.setitem(sys.modules, "co_scientist", fake_module)
     # This suite validates the engine event vocabulary, not the safety gate;
     # keep the app-level semantic screen offline so its real provider call
@@ -193,8 +218,9 @@ def _run_fake_engine(
             run.id,
             run.research_goal,
             run.config,
-            force_provider="engine",
-            sleep_seconds=0,
+            engine_adapter.WorkflowOptions(
+                force_provider="engine", sleep_seconds=0
+            ),
         )
     )
     return run, events
@@ -358,9 +384,9 @@ def test_engine_adapter_persists_streamed_metrics(
             stream: bool,
             run_id: str,
             opts: dict[str, Any] | None = None,
-            checkpoint_callback: Any = None,
+            callbacks: Any = None,
         ) -> AsyncIterator[tuple[str, dict[str, Any]]]:
-            _ = (research_goal, stream, run_id, opts, checkpoint_callback)
+            _ = (research_goal, stream, run_id, opts, callbacks)
             for node in _ENGINE_NODES:
                 yield node, state
 

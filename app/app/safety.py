@@ -30,6 +30,7 @@ __all__ = [
     "SAFETY_MODE",
     "SafetyDecision",
     "SafetyMode",
+    "ScreenSubject",
     "screen_contextual",
     "screen_final",
     "screen_intake",
@@ -271,11 +272,28 @@ def _should_escalate_to_semantic(
     return not offline and not approved
 
 
+@dataclass(frozen=True)
+class ScreenSubject:
+    """What one safety stage is screening, with its deterministic verdict.
+
+    The deterministic hard blocks always run first and produce
+    ``deterministic``; this bundle carries their result to the escalation
+    decision, never ahead of it.
+
+    Attributes:
+        stage: Safety stage being screened (``"intake"`` or ``"final"``).
+        text: The content the contextual screen would re-assess.
+        deterministic: The already-computed deterministic decision.
+    """
+
+    stage: str
+    text: str
+    deterministic: SafetyDecision
+
+
 async def screen_with_escalation(
     run_id: str,
-    stage: str,
-    text: str,
-    deterministic: SafetyDecision,
+    subject: ScreenSubject,
     *,
     provider: str,
     db_path: str | None = None,
@@ -284,15 +302,13 @@ async def screen_with_escalation(
 
     Both the intake and final gates first run their deterministic screen, then
     escalate to the contextual model unless the run is offline-backed or this
-    stage was already human-approved on the run. Returns ``deterministic``
-    unchanged when no escalation applies, so callers can gate on the result
-    either way.
+    stage was already human-approved on the run. Returns the deterministic
+    decision unchanged when no escalation applies, so callers can gate on the
+    result either way.
 
     Args:
         run_id: Identifier of the run being gated.
-        stage: Safety stage being screened (``"intake"`` or ``"final"``).
-        text: The content the contextual screen would re-assess.
-        deterministic: The already-computed deterministic decision.
+        subject: The stage, its content, and its deterministic decision.
         provider: The active workflow provider; only a fallback signal used
             when the run row is gone (the run's persisted backend wins).
         db_path: Optional override for the SQLite database path.
@@ -300,9 +316,13 @@ async def screen_with_escalation(
     Returns:
         The decision to gate on: escalated when applicable, else deterministic.
     """
-    if _should_escalate_to_semantic(run_id, stage, provider, db_path=db_path):
-        return await screen_contextual(text, stage, deterministic=deterministic)
-    return deterministic
+    if _should_escalate_to_semantic(
+        run_id, subject.stage, provider, db_path=db_path
+    ):
+        return await screen_contextual(
+            subject.text, subject.stage, deterministic=subject.deterministic
+        )
+    return subject.deterministic
 
 
 def _record_safety_decision(
@@ -310,16 +330,18 @@ def _record_safety_decision(
 ) -> None:
     """Persist the decision and log it at a level matching its severity."""
     store.add_safety_decision(
-        run_id,
-        result.stage,
-        result.decision,
-        result.reason,
-        result.matches,
-        category=result.category,
-        policy_version=result.policy_version,
-        risk_domains=result.risk_domains,
-        requires_review=result.requires_review,
-        assessor=result.assessor,
+        store.NewSafetyDecision(
+            run_id=run_id,
+            stage=result.stage,
+            decision=result.decision,
+            reason=result.reason,
+            matches=result.matches,
+            category=result.category,
+            policy_version=result.policy_version,
+            risk_domains=result.risk_domains,
+            requires_review=result.requires_review,
+            assessor=result.assessor,
+        ),
         db_path=db_path,
     )
     if result.decision in {"block", "hold"}:

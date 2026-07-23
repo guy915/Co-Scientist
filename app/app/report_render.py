@@ -46,12 +46,18 @@ from app.report_events import emit_cancel_or_pause as emit_cancel_or_pause
 from app.report_events import hypothesis_stub as hypothesis_stub
 from app.report_events import make_emitter as make_emitter
 from app.report_events import match_stub as match_stub
-from app.report_markdown import build_report_payload, render_report_markdown
+from app.report_markdown import (
+    ReportMarkdownInputs,
+    ReportPayloadInputs,
+    build_report_payload,
+    render_report_markdown,
+)
 from app.report_markdown import (
     format_deep_verification_critique as format_deep_verification_critique,
 )
 from app.safety import (
     SafetyDecision,
+    ScreenSubject,
     apply_safety_gate,
     screen_final,
     screen_with_escalation,
@@ -61,18 +67,39 @@ from app.store import RunStatus
 logger = logging.getLogger(__name__)
 
 
-class _ReportBuildArgs(NamedTuple):
-    """Bundled ``finalize_report`` arguments threaded through its pipeline."""
+class ReportRequest(NamedTuple):
+    """Everything ``finalize_report`` needs besides the run id and emitter.
+
+    Both providers build this from their drained final state -- the run's
+    identity and tier, the synthesized sections, and where to persist -- and
+    it is threaded unchanged through the whole finalize pipeline.
+
+    Attributes:
+        research_goal: The run's research goal.
+        run_mode: The run's normalized tier.
+        provider: The active workflow provider.
+        citation_summary: Per-state citation counts, when audited.
+        meta_review: The meta-review agent's synthesis, when produced.
+        research_overview: The research-overview synthesis, when produced.
+        execution_time: Wall-clock seconds the run took, when measured.
+        summary: Optional summary paragraph for the markdown header.
+        db_path: Optional override for the SQLite database path.
+    """
 
     research_goal: str
     run_mode: str
     provider: str
-    citation_summary: dict[str, int] | None
-    meta_review: dict[str, Any] | None
-    research_overview: dict[str, Any] | None
-    execution_time: float | None
-    summary: str | None
-    db_path: str | None
+    citation_summary: dict[str, int] | None = None
+    meta_review: dict[str, Any] | None = None
+    research_overview: dict[str, Any] | None = None
+    execution_time: float | None = None
+    summary: str | None = None
+    db_path: str | None = None
+
+
+# The pre-bundle name, kept so existing imports and monkeypatch seams keep
+# resolving.
+_ReportBuildArgs = ReportRequest
 
 
 class _ReportData(NamedTuple):
@@ -86,70 +113,52 @@ class _ReportData(NamedTuple):
     counts: dict[str, int]
 
 
-def _build_report_content(
-    *,
-    run_id: str,
-    research_goal: str,
-    run_mode: str,
-    provider: str,
-    citation_summary: dict[str, int] | None,
-    meta_review: dict[str, Any] | None,
-    research_overview: dict[str, Any] | None,
-    execution_time: float | None,
-    summary: str | None,
-    db_path: str | None,
-) -> tuple[dict[str, Any], str]:
+class _BuiltReport(NamedTuple):
+    """One run's report in both persisted forms."""
+
+    payload: dict[str, Any]
+    markdown: str
+
+
+def _build_report_content(run_id: str, req: _ReportBuildArgs) -> _BuiltReport:
     """Gather store data and build the report payload and markdown.
 
     Leaderboard, top hypotheses, and every row count are read from the store
     -- the drain has already persisted everything the payload counts, so the
-    counts have one definition across providers. Delegates to
-    ``_gather_report_data`` for the store reads, ``_assemble_report_payload``
-    for the payload dict, and ``_render_report_content_markdown`` for the
-    markdown; see those for the per-argument contract.
+    counts have one definition across providers.
+
+    Args:
+        run_id: Identifier of the run being reported on.
+        req: The finalize request's descriptive inputs (goal, tier,
+            provider, synthesized sections, and the store path).
 
     Returns:
-        A tuple of (report payload, rendered markdown).
+        The report payload and its rendered markdown.
     """
-    data = _gather_report_data(run_id, db_path)
-    shared: dict[str, Any] = {
-        "research_goal": research_goal,
-        "provider": provider,
-        "meta_review": meta_review,
-        "citation_summary": citation_summary,
-        "research_overview": research_overview,
-    }
-    payload = _assemble_report_payload(
-        data=data, run_mode=run_mode, execution_time=execution_time, **shared
+    data = _gather_report_data(run_id, req.db_path)
+    return _BuiltReport(
+        payload=_assemble_report_payload(data, req),
+        markdown=_render_report_content_markdown(data, req),
     )
-    markdown = _render_report_content_markdown(
-        data=data, summary=summary, **shared
-    )
-    return payload, markdown
 
 
 def _render_report_content_markdown(
-    *,
-    data: _ReportData,
-    research_goal: str,
-    provider: str,
-    meta_review: dict[str, Any] | None,
-    citation_summary: dict[str, int] | None,
-    research_overview: dict[str, Any] | None,
-    summary: str | None,
+    data: _ReportData, req: _ReportBuildArgs
 ) -> str:
     """Render the report markdown from already-gathered store data."""
     return render_report_markdown(
-        research_goal=research_goal,
-        provider=provider,
-        # Report body is capped to the top 5 by Elo; the full set remains
-        # available via the leaderboard and the hypotheses API endpoint.
-        top_hypotheses=data.hyps[:5],
-        meta_review=meta_review,
-        citation_summary=citation_summary,
-        research_overview=research_overview,
-        summary=summary,
-        claim_evidence=data.released_claim_edges,
+        ReportMarkdownInputs(
+            research_goal=req.research_goal,
+            provider=req.provider,
+            # Report body is capped to the top 5 by Elo; the full set remains
+            # available via the leaderboard and the hypotheses API endpoint.
+            top_hypotheses=data.hyps[:5],
+            meta_review=req.meta_review,
+            citation_summary=req.citation_summary,
+            research_overview=req.research_overview,
+            summary=req.summary,
+            claim_evidence=data.released_claim_edges,
+        )
     )
 
 
@@ -174,79 +183,63 @@ def _gather_report_data(run_id: str, db_path: str | None) -> _ReportData:
 
 
 def _assemble_report_payload(
-    *,
-    data: _ReportData,
-    research_goal: str,
-    run_mode: str,
-    provider: str,
-    citation_summary: dict[str, int] | None,
-    meta_review: dict[str, Any] | None,
-    research_overview: dict[str, Any] | None,
-    execution_time: float | None,
+    data: _ReportData, req: _ReportBuildArgs
 ) -> dict[str, Any]:
     """Build the report payload dict from already-gathered store data."""
     hyps, all_hyps, claim_edges = data.hyps, data.all_hyps, data.claim_edges
     synthesized_topics = _synthesized_knowledge_base_topics(
-        research_overview, data.evidence
+        req.research_overview, data.evidence
     )
     return build_report_payload(
-        research_goal=research_goal,
-        run_mode=run_mode,
-        provider=provider,
-        leaderboard=live_leaderboard(hyps),
-        hypothesis_count=len(hyps),
-        evidence_count=data.counts["evidence"],
-        match_count=data.counts["matches"],
-        citation_summary=citation_summary,
-        meta_review=meta_review,
-        research_overview=research_overview,
-        knowledge_base=(
-            synthesized_topics or _knowledge_base_topics(hyps, claim_edges)
-        ),
-        agent_insights=_agent_insights(hyps, claim_edges, meta_review),
-        idea_buckets=_idea_buckets(hyps, all_hyps, claim_edges),
-        claim_evidence=data.released_claim_edges,
-        execution_time=execution_time,
+        ReportPayloadInputs(
+            research_goal=req.research_goal,
+            run_mode=req.run_mode,
+            provider=req.provider,
+            leaderboard=live_leaderboard(hyps),
+            hypothesis_count=len(hyps),
+            evidence_count=data.counts["evidence"],
+            match_count=data.counts["matches"],
+            citation_summary=req.citation_summary,
+            meta_review=req.meta_review,
+            research_overview=req.research_overview,
+            knowledge_base=(
+                synthesized_topics or _knowledge_base_topics(hyps, claim_edges)
+            ),
+            agent_insights=_agent_insights(hyps, claim_edges, req.meta_review),
+            idea_buckets=_idea_buckets(hyps, all_hyps, claim_edges),
+            claim_evidence=data.released_claim_edges,
+            execution_time=req.execution_time,
+        )
     )
 
 
 async def finalize_report(
-    *,
     run_id: str,
-    research_goal: str,
-    run_mode: str,
-    provider: str,
-    citation_summary: dict[str, int] | None,
-    meta_review: dict[str, Any] | None,
-    research_overview: dict[str, Any] | None,
+    req: ReportRequest,
     emit: EmitFn,
-    execution_time: float | None = None,
-    summary: str | None = None,
+    *,
     resumed: bool = False,
-    db_path: str | None = None,
 ) -> AsyncIterator[dict[str, Any]]:
     """Build, screen, persist, and emit a run's final report.
 
     Single finalize path both providers invoke after their drain; order
     enforced by ``_finalize_report_pipeline``.
 
+    Args:
+        run_id: Identifier of the run being finalized.
+        req: The drained report inputs; see :class:`ReportRequest`.
+        emit: The run's event emitter.
+        resumed: When true, a report already published for this run makes
+            this a no-op rather than a duplicate finalize.
+
     Yields:
         Event dicts to forward on the workflow's event stream.
     """
-    logger.info("Finalizing report for run %s (provider=%s).", run_id, provider)
-    if resumed and _report_already_published(run_id, db_path=db_path):
-        return
-    req = _ReportBuildArgs(
-        research_goal=research_goal,
-        run_mode=run_mode,
-        provider=provider,
-        citation_summary=citation_summary,
-        meta_review=meta_review,
-        research_overview=research_overview,
-        execution_time=execution_time,
-        summary=summary,
-        db_path=db_path,
+    logger.info(
+        "Finalizing report for run %s (provider=%s).", run_id, req.provider
     )
+    if resumed and _report_already_published(run_id, db_path=req.db_path):
+        return
     async for event in _finalize_report_pipeline(run_id, req, emit):
         yield event
 
@@ -258,16 +251,14 @@ async def _finalize_report_pipeline(
 
     Order matches the shared contract documented on ``finalize_report``.
     """
-    payload, markdown, blocked, gate_events = await _build_and_gate_report(
+    built, blocked, gate_events = await _build_and_gate_report(
         run_id, req, emit
     )
     for event in gate_events:
         yield event
     if blocked:
         return
-    async for event in _gate_readiness_and_publish(
-        run_id, req, emit, payload, markdown
-    ):
+    async for event in _gate_readiness_and_publish(run_id, req, emit, built):
         yield event
 
 
@@ -275,8 +266,7 @@ async def _gate_readiness_and_publish(
     run_id: str,
     req: _ReportBuildArgs,
     emit: EmitFn,
-    payload: dict[str, Any],
-    markdown: str,
+    built: _BuiltReport,
 ) -> AsyncIterator[dict[str, Any]]:
     """Block an empty leaderboard, or publish the report otherwise.
 
@@ -284,41 +274,32 @@ async def _gate_readiness_and_publish(
     independently readable; order matches the shared contract documented on
     ``finalize_report``.
     """
-    if _readiness_blocked(payload, req.provider, run_id, db_path=req.db_path):
+    if _readiness_blocked(
+        built.payload, req.provider, run_id, db_path=req.db_path
+    ):
         async for event in _block_for_empty_leaderboard(
             run_id, req.provider, emit, db_path=req.db_path
         ):
             yield event
         return
     async for event in _publish_report(
-        run_id, req.research_goal, payload, markdown, emit, db_path=req.db_path
+        run_id, req.research_goal, built, emit, db_path=req.db_path
     ):
         yield event
 
 
 async def _build_and_gate_report(
     run_id: str, req: _ReportBuildArgs, emit: EmitFn
-) -> tuple[dict[str, Any], str, bool, list[dict[str, Any]]]:
+) -> tuple[_BuiltReport, bool, list[dict[str, Any]]]:
     """Build the report content and run it through the final safety gate.
 
     Returns:
-        A tuple of (payload, markdown, blocked, safety-gate events to yield
-        in order before checking ``blocked``).
+        A tuple of (built report, blocked, safety-gate events to yield in
+        order before checking ``blocked``).
     """
-    payload, markdown = _build_report_content(
-        run_id=run_id,
-        research_goal=req.research_goal,
-        run_mode=req.run_mode,
-        provider=req.provider,
-        citation_summary=req.citation_summary,
-        meta_review=req.meta_review,
-        research_overview=req.research_overview,
-        execution_time=req.execution_time,
-        summary=req.summary,
-        db_path=req.db_path,
-    )
+    built = _build_report_content(run_id, req)
     final = await _screen_final_report(
-        run_id, markdown, req.provider, db_path=req.db_path
+        run_id, built.markdown, req.provider, db_path=req.db_path
     )
     gate_events = [
         event
@@ -332,7 +313,7 @@ async def _build_and_gate_report(
             "Report finalize withheld for run %s by the final safety gate.",
             run_id,
         )
-    return payload, markdown, blocked, gate_events
+    return built, blocked, gate_events
 
 
 def _report_already_published(run_id: str, *, db_path: str | None) -> bool:
@@ -356,9 +337,7 @@ async def _screen_final_report(
     """Run the final safety screen (with escalation) over the report text."""
     return await screen_with_escalation(
         run_id,
-        "final",
-        markdown,
-        screen_final(markdown),
+        ScreenSubject("final", markdown, screen_final(markdown)),
         provider=provider,
         db_path=db_path,
     )
@@ -367,14 +346,14 @@ async def _screen_final_report(
 async def _publish_report(
     run_id: str,
     research_goal: str,
-    payload: dict[str, Any],
-    markdown: str,
+    built: _BuiltReport,
     emit: EmitFn,
     *,
     db_path: str | None,
 ) -> AsyncIterator[dict[str, Any]]:
     """Save the report, emit it, mark the run completed, and notify."""
-    saved = store.save_report(run_id, payload, markdown, db_path=db_path)
+    payload = built.payload
+    saved = store.save_report(run_id, payload, built.markdown, db_path=db_path)
     yield await emit("report", {**payload, "report_id": saved["id"]})
     store.update_run_status(run_id, RunStatus.COMPLETED, db_path=db_path)
     _enqueue_completion_notification(
@@ -424,11 +403,13 @@ async def _block_for_empty_leaderboard(
         "contradicted by the evidence or withheld by the safety review."
     )
     store.add_safety_decision(
-        run_id,
-        stage="scientific_readiness",
-        decision="block",
-        reason=reason,
-        matches=[],
+        store.NewSafetyDecision(
+            run_id=run_id,
+            stage="scientific_readiness",
+            decision="block",
+            reason=reason,
+            matches=[],
+        ),
         db_path=db_path,
     )
     store.update_run_status(
@@ -453,18 +434,20 @@ def _enqueue_completion_notification(
     if not (notification.get("enabled") and notification.get("email")):
         return
     store.enqueue_task(
-        run_id,
-        "notification.email",
-        {
-            "run_id": run_id,
-            "email": notification["email"],
-            "title": run.title or research_goal if run else research_goal,
-        },
-        idempotency_key=f"completion-email:{report_id}",
-        priority=-100,
-        dependencies=(),
-        provenance={"trigger": "Goal Report completed"},
-        budget={"delivery_attempts": 3},
-        max_attempts=3,
+        store.NewTask(
+            run_id=run_id,
+            task_type="notification.email",
+            inputs={
+                "run_id": run_id,
+                "email": notification["email"],
+                "title": run.title or research_goal if run else research_goal,
+            },
+            idempotency_key=f"completion-email:{report_id}",
+            priority=-100,
+            dependencies=(),
+            provenance={"trigger": "Goal Report completed"},
+            budget={"delivery_attempts": 3},
+            max_attempts=3,
+        ),
         db_path=db_path,
     )

@@ -1,11 +1,13 @@
 """Prompt builder for the Phase 1 draft-with-tools generation flow."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 from co_scientist.prompts._common import (
+    PromptRunContext,
+    PromptSections,
     _format_meta_review_context,
-    _format_run_guidance,
+    _run_guidance_section,
 )
 from co_scientist.prompts.generation_formatting import (
     _build_citation_reference_section,
@@ -28,37 +30,38 @@ def _resolve_draft_tool_instructions(tool_registry: Any | None) -> str:
 
 
 @dataclass(frozen=True)
-class _DraftPromptRequest:
-    """Inputs for the Phase 1 draft-with-tools prompt, one per parameter.
+class DraftPromptRequest:
+    """Inputs for the Phase 1 draft-with-tools prompt.
 
-    Mirrors the parameters of get_draft_prompt_with_tools, which forwards
-    them here unchanged: the research goal and hypothesis count, the
-    supervisor guidance, the literature review outputs (articles, the
-    synthesis text, and the ``[C*]`` citation reference list), the user's
-    preferences/attributes/starting hypotheses, custom instructions, the
-    agent's max tool iterations, the tool registry for dynamic tool
-    instructions, cross-iteration meta-review feedback, and the durable
-    run setup/focus guidance texts.
+    Attributes:
+        research_goal: The run's research goal.
+        hypotheses_count: How many draft hypotheses to produce.
+        articles: Literature-review articles for citation metadata.
+        articles_with_reasoning: The literature-review synthesis text.
+        preferences: Free-text user preferences, if any.
+        attributes: Desired hypothesis attributes.
+        user_hypotheses: Seed hypotheses supplied by the user.
+        instructions: Custom drafting instructions.
+        max_iterations: The agent's max tool iterations.
+        reference_list: The ``[C*]`` citation reference list.
+        context: Run-scoped prompt context (supervisor guidance,
+            meta-review, tool registry, run setup/focus guidance).
     """
 
     research_goal: str
     hypotheses_count: int
-    supervisor_guidance: dict[str, Any] | None
-    articles: list[Any] | None
-    articles_with_reasoning: str | None
-    preferences: str | None
-    attributes: list[str] | None
-    user_hypotheses: list[str] | None
-    instructions: str | None
-    max_iterations: int
-    tool_registry: Any | None
-    reference_list: str
-    meta_review: dict[str, Any] | None
-    run_setup_guidance: str | None
-    run_focus_guidance: str | None
+    articles: list[Any] | None = None
+    articles_with_reasoning: str | None = None
+    preferences: str | None = None
+    attributes: list[str] | None = None
+    user_hypotheses: list[str] | None = None
+    instructions: str | None = None
+    max_iterations: int = 8
+    reference_list: str = ""
+    context: PromptRunContext = field(default_factory=PromptRunContext)
 
 
-def _build_draft_prompt_variables(req: _DraftPromptRequest) -> dict[str, Any]:
+def _build_draft_prompt_variables(req: DraftPromptRequest) -> dict[str, Any]:
     """Build the template variables for the Phase 1 draft-with-tools prompt."""
     return {
         "goal": req.research_goal,
@@ -67,7 +70,7 @@ def _build_draft_prompt_variables(req: _DraftPromptRequest) -> dict[str, Any]:
         "attributes": format_attributes(req.attributes),
         "user_hypotheses": format_user_hypotheses(req.user_hypotheses),
         "supervisor_guidance": format_supervisor_guidance_for_generation(
-            req.supervisor_guidance
+            req.context.supervisor_guidance
         ),
         "articles_with_reasoning": req.articles_with_reasoning
         or "no literature review summary available - examine papers"
@@ -81,24 +84,9 @@ def _build_draft_prompt_variables(req: _DraftPromptRequest) -> dict[str, Any]:
         or "Focus on creative ideation - draft diverse hypotheses"
         " based on literature gaps.",
         "tool_instructions": _resolve_draft_tool_instructions(
-            req.tool_registry
+            req.context.tool_registry
         ),
     }
-
-
-def _load_draft_prompt(
-    req: _DraftPromptRequest,
-) -> tuple[str, dict[str, Any] | None]:
-    """Render the draft prompt and schema for one prompt request."""
-    return _build_prompt(
-        "generation_draft_with_tools",
-        _build_draft_prompt_variables(req),
-        meta_review_context=_format_meta_review_context(req.meta_review),
-        run_guidance=_format_run_guidance(
-            req.run_setup_guidance, req.run_focus_guidance
-        ),
-        tool_registry=req.tool_registry,
-    )
 
 
 # Renders prompts/generation_draft_with_tools.md for the Phase 1 draft
@@ -107,39 +95,24 @@ def _load_draft_prompt(
 # papers and identifying gaps, with the lit review summary included as
 # context (not instructions).
 def get_draft_prompt_with_tools(
-    research_goal: str,
-    hypotheses_count: int,
-    supervisor_guidance: dict[str, Any] | None = None,
-    articles: list[Any] | None = None,
-    articles_with_reasoning: str | None = None,
-    preferences: str | None = None,
-    attributes: list[str] | None = None,
-    user_hypotheses: list[str] | None = None,
-    instructions: str | None = None,
-    max_iterations: int = 8,
-    tool_registry: Any | None = None,
-    reference_list: str = "",
-    meta_review: dict[str, Any] | None = None,
-    run_setup_guidance: str | None = None,
-    run_focus_guidance: str | None = None,
+    req: DraftPromptRequest,
 ) -> tuple[str, dict[str, Any] | None]:
-    """Get the Phase 1 draft prompt; params doc'd on _DraftPromptRequest."""
-    return _load_draft_prompt(
-        _DraftPromptRequest(
-            research_goal=research_goal,
-            hypotheses_count=hypotheses_count,
-            supervisor_guidance=supervisor_guidance,
-            articles=articles,
-            articles_with_reasoning=articles_with_reasoning,
-            preferences=preferences,
-            attributes=attributes,
-            user_hypotheses=user_hypotheses,
-            instructions=instructions,
-            max_iterations=max_iterations,
-            tool_registry=tool_registry,
-            reference_list=reference_list,
-            meta_review=meta_review,
-            run_setup_guidance=run_setup_guidance,
-            run_focus_guidance=run_focus_guidance,
-        )
+    """Get the Phase 1 draft prompt; params doc'd on DraftPromptRequest.
+
+    Args:
+        req: The resolved draft-prompt request.
+
+    Returns:
+        Tuple of (rendered prompt string, JSON schema dict or None).
+    """
+    return _build_prompt(
+        "generation_draft_with_tools",
+        _build_draft_prompt_variables(req),
+        sections=PromptSections(
+            meta_review_context=_format_meta_review_context(
+                req.context.meta_review
+            ),
+            run_guidance=_run_guidance_section(req.context),
+        ),
+        tool_registry=req.context.tool_registry,
     )

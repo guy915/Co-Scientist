@@ -7,10 +7,65 @@ literature-review output placeholders.
 """
 
 from collections.abc import Awaitable, Callable
+from dataclasses import dataclass
 from typing import Any, cast
 
 from co_scientist.models import ExecutionMetrics
 from co_scientist.state import WorkflowState
+
+ProgressCallback = Callable[[str, dict[str, Any]], Awaitable[None]] | None
+
+
+@dataclass(frozen=True)
+class RunCallbacks:
+    """Async hooks a caller can attach to a generation run.
+
+    Attributes:
+        progress: Async ``(phase_name, data)`` hook called as the run
+            advances through phases.
+        checkpoint: Async ``(node_name, full_state)`` hook called after
+            each node in streaming mode, for persisting a resumable
+            checkpoint. Ignored when ``stream`` is False.
+    """
+
+    progress: ProgressCallback = None
+    checkpoint: ProgressCallback = None
+
+
+@dataclass(frozen=True)
+class RunIdentity:
+    """Who this run is and where its progress is reported.
+
+    Attributes:
+        research_goal: The research question or goal.
+        start_time: Wall-clock start time (``time.time()``) for the run.
+        run_id: Unique identifier for this run.
+        progress_callback: Async callback for progress updates.
+    """
+
+    research_goal: str
+    start_time: float
+    run_id: str
+    progress_callback: ProgressCallback = None
+
+
+@dataclass(frozen=True)
+class RunCapabilities:
+    """The system capabilities and modes resolved for one run.
+
+    Attributes:
+        mcp_available: Whether the MCP server is available.
+        pubmed_available: Whether PubMed is available via MCP.
+        enable_tool_calling_generation: Whether tool-calling generation is
+            enabled for this run.
+        dev_test_lit_tools_isolation: Whether dev lit-tools isolation is
+            enabled for this run.
+    """
+
+    mcp_available: bool = False
+    pubmed_available: bool = False
+    enable_tool_calling_generation: bool = False
+    dev_test_lit_tools_isolation: bool = False
 
 
 def _initial_runtime_fields() -> dict[str, Any]:
@@ -49,44 +104,31 @@ def _initial_runtime_fields() -> dict[str, Any]:
 
 
 def _initial_run_identity_fields(
-    *,
-    research_goal: str,
-    start_time: float,
-    run_id: str,
-    progress_callback: None
-    | (Callable[[str, dict[str, Any]], Awaitable[None]]),
-    mcp_available: bool,
-    pubmed_available: bool,
-    enable_tool_calling_generation: bool,
-    dev_test_lit_tools_isolation: bool,
+    identity: RunIdentity, capabilities: RunCapabilities
 ) -> dict[str, Any]:
     """Builds the run-identity/system-availability state fragment.
 
     Args:
-        research_goal: The research question or goal.
-        start_time: Wall-clock start time (``time.time()``) for the run.
-        run_id: Unique identifier for this run.
-        progress_callback: Async callback for progress updates.
-        mcp_available: Whether the MCP server is available.
-        pubmed_available: Whether PubMed is available via MCP.
-        enable_tool_calling_generation: Whether tool-calling generation is
-            enabled for this run.
-        dev_test_lit_tools_isolation: Whether dev lit-tools isolation is
-            enabled for this run.
+        identity: Who this run is and where its progress is reported.
+        capabilities: The system capabilities and modes resolved for it.
 
     Returns:
         State fields identifying this run and the system capabilities
         available to it.
     """
     return {
-        "research_goal": research_goal,
-        "start_time": start_time,
-        "run_id": run_id,
-        "progress_callback": progress_callback,
-        "mcp_available": mcp_available,
-        "pubmed_available": pubmed_available,
-        "enable_tool_calling_generation": enable_tool_calling_generation,
-        "dev_test_lit_tools_isolation": dev_test_lit_tools_isolation,
+        "research_goal": identity.research_goal,
+        "start_time": identity.start_time,
+        "run_id": identity.run_id,
+        "progress_callback": identity.progress_callback,
+        "mcp_available": capabilities.mcp_available,
+        "pubmed_available": capabilities.pubmed_available,
+        "enable_tool_calling_generation": (
+            capabilities.enable_tool_calling_generation
+        ),
+        "dev_test_lit_tools_isolation": (
+            capabilities.dev_test_lit_tools_isolation
+        ),
     }
 
 
@@ -129,37 +171,23 @@ def _initial_user_and_literature_fields(
 
 
 def _build_identity_and_literature_fields(
-    research_goal: str,
-    start_time: float,
-    run_id: str,
-    progress_callback: None
-    | (Callable[[str, dict[str, Any]], Awaitable[None]]),
+    identity: RunIdentity,
+    capabilities: RunCapabilities,
     opts: dict[str, Any],
     user_inputs: dict[str, Any],
-    mcp_available: bool,
-    pubmed_available: bool,
-    enable_tool_calling_generation: bool,
-    dev_test_lit_tools_isolation: bool,
 ) -> dict[str, Any]:
     """Builds and merges the identity and user/literature state fragments.
 
-    Forwards its arguments to ``_initial_run_identity_fields`` and
-    ``_initial_user_and_literature_fields`` respectively; see those
-    functions for individual argument descriptions.
+    Args:
+        identity: Who this run is and where its progress is reported.
+        capabilities: The system capabilities and modes resolved for it.
+        opts: Caller-supplied generation options.
+        user_inputs: The ``user_inputs`` sub-dict of opts.
 
     Returns:
         The merged identity and user/literature state fragment.
     """
-    identity_fields = _initial_run_identity_fields(
-        research_goal=research_goal,
-        start_time=start_time,
-        run_id=run_id,
-        progress_callback=progress_callback,
-        mcp_available=mcp_available,
-        pubmed_available=pubmed_available,
-        enable_tool_calling_generation=enable_tool_calling_generation,
-        dev_test_lit_tools_isolation=dev_test_lit_tools_isolation,
-    )
+    identity_fields = _initial_run_identity_fields(identity, capabilities)
     user_and_literature_fields = _initial_user_and_literature_fields(
         opts=opts, user_inputs=user_inputs
     )
@@ -169,19 +197,19 @@ def _build_identity_and_literature_fields(
 def _build_initial_state(
     *,
     config_fields: dict[str, Any],
-    research_goal: str,
-    start_time: float,
-    run_id: str,
-    progress_callback: None
-    | (Callable[[str, dict[str, Any]], Awaitable[None]]),
+    identity: RunIdentity,
+    capabilities: RunCapabilities,
     opts: dict[str, Any],
     user_inputs: dict[str, Any],
-    mcp_available: bool,
-    pubmed_available: bool,
-    enable_tool_calling_generation: bool,
-    dev_test_lit_tools_isolation: bool,
 ) -> WorkflowState:
     """Assembles the initial workflow state dict for a generation run.
+
+    Args:
+        config_fields: The generator-config fragment of the initial state.
+        identity: Who this run is and where its progress is reported.
+        capabilities: The system capabilities and modes resolved for it.
+        opts: Caller-supplied generation options.
+        user_inputs: The ``user_inputs`` sub-dict of opts.
 
     Returns:
         The initial workflow state.
@@ -192,16 +220,7 @@ def _build_initial_state(
             **config_fields,
             **_initial_runtime_fields(),
             **_build_identity_and_literature_fields(
-                research_goal,
-                start_time,
-                run_id,
-                progress_callback,
-                opts,
-                user_inputs,
-                mcp_available,
-                pubmed_available,
-                enable_tool_calling_generation,
-                dev_test_lit_tools_isolation,
+                identity, capabilities, opts, user_inputs
             ),
         },
     )

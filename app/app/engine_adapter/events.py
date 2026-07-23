@@ -307,5 +307,11 @@ def append_node_milestone(
     milestone = _format_milestone(node_type, payload)
     if milestone:
         store.append_message(
-            run_id, "system", milestone, "milestone", db_path=db_path
+            store.NewMessage(
+                run_id=run_id,
+                sender="system",
+                content=milestone,
+                kind="milestone",
+            ),
+            db_path=db_path,
         )

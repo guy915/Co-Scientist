@@ -4,6 +4,7 @@ import json
 import logging
 import os
 import traceback
+from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -16,6 +17,19 @@ if TYPE_CHECKING:
     import asyncio
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True)
+class _PoolDirs:
+    """The two directories a supplementation pass reads and writes.
+
+    Attributes:
+        shared_dir: Shared-pool directory holding accumulated papers.
+        run_dir: Per-run directory the supplemented papers link into.
+    """
+
+    shared_dir: Path
+    run_dir: Path
 
 
 def _load_shared_pool_candidate(
@@ -315,8 +329,7 @@ class _SharedPoolMixin(_FulltextMixin):
 
     def _supplement_from_shared_pool(
         self,
-        shared_dir: Path,
-        run_dir: Path,
+        dirs: _PoolDirs,
         papers_to_use: list[str],
         all_details: dict[str, Any],
         fulltext_shortfall: int,
@@ -329,13 +342,14 @@ class _SharedPoolMixin(_FulltextMixin):
         appends them to papers_to_use/all_details in place.
 
         Args:
-            shared_dir: Shared-pool directory to scan for candidate papers.
-            run_dir: Per-run directory to symlink supplemented papers into.
+            dirs: Shared-pool and per-run directories for this pass.
             papers_to_use: Paper IDs so far; mutated in place.
             all_details: Metadata dict keyed by paper_id; mutated in place.
             fulltext_shortfall: Additional papers needed to reach max_papers.
             max_papers: Target paper count, for the summary log line only.
         """
+        shared_dir = dirs.shared_dir
+        run_dir = dirs.run_dir
         papers_to_supplement = self._select_supplement_papers(
             shared_dir, papers_to_use, fulltext_shortfall
         )

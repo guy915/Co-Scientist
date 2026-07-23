@@ -16,6 +16,7 @@ from typing import Any
 
 from co_scientist.constants import INITIAL_ELO_RATING
 from co_scientist.models_metrics import ExecutionMetrics as ExecutionMetrics
+from co_scientist.models_metrics import MetricDeltas as MetricDeltas
 from co_scientist.models_metrics import _known_field_kwargs
 from co_scientist.models_metrics import (
     create_metrics_update as create_metrics_update,

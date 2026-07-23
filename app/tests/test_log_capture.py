@@ -82,10 +82,12 @@ def test_capture_respects_level_threshold(isolated_db: str) -> None:
 def test_configure_prunes_existing_backlog(isolated_db: str) -> None:
     for i in range(10):
         store.append_log(
-            level="INFO",
-            levelno=logging.INFO,
-            logger_name="app.capture_test",
-            message=f"old {i}",
+            store.NewLogRecord(
+                level="INFO",
+                levelno=logging.INFO,
+                logger_name="app.capture_test",
+                message=f"old {i}",
+            ),
             db_path=isolated_db,
         )
     configure_log_capture(max_rows=4)

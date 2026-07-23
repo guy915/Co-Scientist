@@ -15,7 +15,7 @@ Prerequisites:
 import asyncio
 from typing import Any
 
-from co_scientist import HypothesisGenerator
+from co_scientist import HypothesisGenerator, RunCallbacks
 
 MODEL_NAME = "gemini/gemini-2.5-flash"
 
@@ -86,7 +86,7 @@ async def _run() -> None:
 
     result = await generator.generate_hypotheses(
         research_goal=research_goal,
-        progress_callback=_report_progress,
+        callbacks=RunCallbacks(progress=_report_progress),
         opts={
             "enable_literature_review_node": True,
             "enable_tool_calling_generation": True,

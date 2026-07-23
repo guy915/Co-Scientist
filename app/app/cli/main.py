@@ -19,7 +19,7 @@ from typing import cast
 from app.cli import logs_cmd as logs_cmd
 from app.cli import runs_cmd as runs_cmd
 from app.cli import status_cmd as status_cmd
-from app.cli.http import ApiClient, CliError
+from app.cli.http import ApiClient, ApiClientOptions, CliError
 from app.cli.parsers import (
     DEFAULT_TIMEOUT as DEFAULT_TIMEOUT,
 )
@@ -102,8 +102,7 @@ def main(argv: list[str] | None = None) -> int:
         args.api_url,
         args.client_id,
         logs_token=args.logs_token,
-        timeout=args.timeout,
-        verbose=args.verbose,
+        options=ApiClientOptions(timeout=args.timeout, verbose=args.verbose),
     )
     try:
         return cast(Handler, handler)(args, client)

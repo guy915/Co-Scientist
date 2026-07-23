@@ -6,38 +6,45 @@ import json
 import sqlite3
 import uuid
 from collections.abc import Mapping
+from dataclasses import dataclass
 from typing import Any
 
 from app.store.db import _now, _use_conn, connect
 
 
+@dataclass(frozen=True)
+class _NewInterviewFields:
+    """Fields needed to insert an interview and its opening turn."""
+
+    interview_id: str
+    client_id: str
+    challenge: str
+    audience: str | None
+    fields: dict[str, Any]
+    now: float
+
+
 def _insert_interview_rows(
-    conn: sqlite3.Connection,
-    interview_id: str,
-    client_id: str,
-    challenge: str,
-    audience: str | None,
-    fields: dict[str, Any],
-    now: float,
+    conn: sqlite3.Connection, f: _NewInterviewFields
 ) -> None:
     """Insert the interview row and its opening transcript turn."""
     conn.execute(
         "INSERT INTO interviews (id, client_id, status, fields_json, "
         "audience, created_at, updated_at) VALUES (?,?,?,?,?,?,?)",
         (
-            interview_id,
-            client_id,
+            f.interview_id,
+            f.client_id,
             "active",
-            json.dumps(fields),
-            audience,
-            now,
-            now,
+            json.dumps(f.fields),
+            f.audience,
+            f.now,
+            f.now,
         ),
     )
     conn.execute(
         "INSERT INTO interview_turns (interview_id, role, content, "
         "created_at) VALUES (?,?,?,?)",
-        (interview_id, "user", challenge.strip(), now),
+        (f.interview_id, "user", f.challenge.strip(), f.now),
     )
 
 
@@ -70,7 +77,15 @@ def create_interview(
     }
     with connect(db_path) as conn:
         _insert_interview_rows(
-            conn, interview_id, client_id, challenge, audience, fields, now
+            conn,
+            _NewInterviewFields(
+                interview_id=interview_id,
+                client_id=client_id,
+                challenge=challenge,
+                audience=audience,
+                fields=fields,
+                now=now,
+            ),
         )
     result = get_interview(interview_id, db_path=db_path)
     assert result is not None

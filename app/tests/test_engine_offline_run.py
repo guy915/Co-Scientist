@@ -78,13 +78,13 @@ def _persist_offline_run(isolated_db: str) -> tuple[Any, dict[str, Any]]:
         "enable_literature_review": False,
     }
     run = store.create_run(
-        research_goal="Explain how protein X folds under crowding.",
-        profile="express",
-        provider="mock",
-        config=config,
-        client_id="offline-e2e",
-        llm_backend="offline",
-        db_path=isolated_db,
+        "Explain how protein X folds under crowding.",
+        "express",
+        "mock",
+        config,
+        store.RunCreateOptions(
+            client_id="offline-e2e", llm_backend="offline", db_path=isolated_db
+        ),
     )
     return run, config
 
@@ -98,9 +98,9 @@ def _drive_offline_engine(
             run.id,
             run.research_goal,
             config,
-            force_provider="engine",
-            db_path=isolated_db,
-            sleep_seconds=0,
+            engine_adapter.WorkflowOptions(
+                force_provider="engine", db_path=isolated_db, sleep_seconds=0
+            ),
         )
     )
 

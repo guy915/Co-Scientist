@@ -5,9 +5,9 @@ from __future__ import annotations
 import subprocess
 import sys
 import time
-from typing import Any
 
 from app import store
+from tests._task_queue_helpers import _enqueue, _run
 
 _CLAIM_SCRIPT = """
 import sys
@@ -45,65 +45,25 @@ def _parallel_scripts(script: str, arguments: list[list[str]]) -> list[str]:
     return outputs
 
 
-def _run() -> str:
-    return store.create_run("queue goal", "standard", "engine", {}).id
-
-
-def _enqueue(
-    run_id: str, task_type: str, key: str, db: str, **kwargs: Any
-) -> Any:
-    """Enqueue an empty-input task by type and idempotency key."""
-    return store.enqueue_task(
-        run_id, task_type, {}, idempotency_key=key, db_path=db, **kwargs
-    )
-
-
-def _three_control_tasks(run_id: str, db: str) -> tuple[str, str, str]:
-    """Enqueue promote/cancel/retry tasks and fail the retry one.
-
-    Returns the ``(promoted, cancelled, failed)`` task ids.
-    """
-    promoted = _enqueue(
-        run_id, "reflection.full", "control:promote", db, priority=1
-    )
-    cancelled = _enqueue(
-        run_id, "generation.assumptions", "control:cancel", db, priority=2
-    )
-    failed = _enqueue(
-        run_id,
-        "verification.deep",
-        "control:retry",
-        db,
-        priority=100,
-        max_attempts=1,
-    )
-    leased = store.claim_task("failed-worker", run_id=run_id, db_path=db)
-    assert leased is not None and leased.id == failed.id
-    assert store.fail_task(
-        failed.id,
-        "failed-worker",
-        "transient provider error",
-        retryable=False,
-        db_path=db,
-    )
-    return promoted.id, cancelled.id, failed.id
-
-
 def test_enqueue_is_idempotent(isolated_db: str) -> None:
     """Duplicate Supervisor delivery resolves to one durable task."""
     run_id = _run()
     first = store.enqueue_task(
-        run_id,
-        "generation.observation",
-        {"branch": "a"},
-        idempotency_key="generation:a:0",
+        store.NewTask(
+            run_id=run_id,
+            task_type="generation.observation",
+            inputs={"branch": "a"},
+            idempotency_key="generation:a:0",
+        ),
         db_path=isolated_db,
     )
     duplicate = store.enqueue_task(
-        run_id,
-        "generation.observation",
-        {"branch": "changed"},
-        idempotency_key="generation:a:0",
+        store.NewTask(
+            run_id=run_id,
+            task_type="generation.observation",
+            inputs={"branch": "changed"},
+            idempotency_key="generation:a:0",
+        ),
         db_path=isolated_db,
     )
     assert duplicate.id == first.id
@@ -115,20 +75,24 @@ def test_claim_respects_priority_and_dependencies(isolated_db: str) -> None:
     """Workers lease only ready tasks and prefer Supervisor priority."""
     run_id = _run()
     prerequisite = store.enqueue_task(
-        run_id,
-        "retrieval.pubmed",
-        {},
-        idempotency_key="retrieval:0",
-        priority=1,
+        store.NewTask(
+            run_id=run_id,
+            task_type="retrieval.pubmed",
+            inputs={},
+            idempotency_key="retrieval:0",
+            priority=1,
+        ),
         db_path=isolated_db,
     )
     store.enqueue_task(
-        run_id,
-        "reflection.full",
-        {},
-        idempotency_key="review:0",
-        priority=100,
-        dependencies=[prerequisite.id],
+        store.NewTask(
+            run_id=run_id,
+            task_type="reflection.full",
+            inputs={},
+            idempotency_key="review:0",
+            priority=100,
+            dependencies=[prerequisite.id],
+        ),
         db_path=isolated_db,
     )
     leased = store.claim_task("worker-a", run_id=run_id, db_path=isolated_db)
@@ -146,10 +110,12 @@ def test_completion_is_exactly_once(isolated_db: str) -> None:
     """A stale or duplicate delivery cannot commit a second result."""
     run_id = _run()
     task = store.enqueue_task(
-        run_id,
-        "ranking.debate",
-        {},
-        idempotency_key="match:a:b:0",
+        store.NewTask(
+            run_id=run_id,
+            task_type="ranking.debate",
+            inputs={},
+            idempotency_key="match:a:b:0",
+        ),
         db_path=isolated_db,
     )
     leased = store.claim_task("worker-a", run_id=run_id, db_path=isolated_db)
@@ -170,10 +136,12 @@ def test_multi_process_claim_has_single_lease_winner(
     """Independent worker processes cannot lease the same queued task."""
     run_id = _run()
     task = store.enqueue_task(
-        run_id,
-        "ranking.debate",
-        {},
-        idempotency_key="multi-process-claim",
+        store.NewTask(
+            run_id=run_id,
+            task_type="ranking.debate",
+            inputs={},
+            idempotency_key="multi-process-claim",
+        ),
         db_path=isolated_db,
     )
 
@@ -195,10 +163,12 @@ def test_multi_process_duplicate_completion_commits_one_effect(
     """Concurrent duplicate acknowledgements commit exactly one result."""
     run_id = _run()
     task = store.enqueue_task(
-        run_id,
-        "verification.deep",
-        {},
-        idempotency_key="multi-process-completion",
+        store.NewTask(
+            run_id=run_id,
+            task_type="verification.deep",
+            inputs={},
+            idempotency_key="multi-process-completion",
+        ),
         db_path=isolated_db,
     )
     leased = store.claim_task(
@@ -227,11 +197,13 @@ def test_crashed_process_lease_is_redelivered_after_restart(
     """A process exit before acknowledgement is recovered by a new worker."""
     run_id = _run()
     task = store.enqueue_task(
-        run_id,
-        "evolution.combine",
-        {},
-        idempotency_key="process-crash-redelivery",
-        max_attempts=2,
+        store.NewTask(
+            run_id=run_id,
+            task_type="evolution.combine",
+            inputs={},
+            idempotency_key="process-crash-redelivery",
+            max_attempts=2,
+        ),
         db_path=isolated_db,
     )
     crash_script = _CLAIM_SCRIPT.replace(
@@ -263,11 +235,13 @@ def test_expired_lease_is_recovered(isolated_db: str) -> None:
     """A worker crash releases its task through lease expiry."""
     run_id = _run()
     store.enqueue_task(
-        run_id,
-        "evolution.combine",
-        {},
-        idempotency_key="evolve:0",
-        max_attempts=2,
+        store.NewTask(
+            run_id=run_id,
+            task_type="evolution.combine",
+            inputs={},
+            idempotency_key="evolve:0",
+            max_attempts=2,
+        ),
         db_path=isolated_db,
     )
     first = store.claim_task(
@@ -287,10 +261,12 @@ def test_owned_lease_can_be_renewed_without_redelivery(
     """A heartbeat extension prevents another worker from reclaiming work."""
     run_id = _run()
     queued = store.enqueue_task(
-        run_id,
-        "verification.deep",
-        {},
-        idempotency_key="renew:0",
+        store.NewTask(
+            run_id=run_id,
+            task_type="verification.deep",
+            inputs={},
+            idempotency_key="renew:0",
+        ),
         db_path=isolated_db,
     )
     leased = store.claim_task(
@@ -313,11 +289,13 @@ def test_failure_retries_then_stops(isolated_db: str) -> None:
     """Transient failures retry only up to the task's declared limit."""
     run_id = _run()
     store.enqueue_task(
-        run_id,
-        "verification.deep",
-        {},
-        idempotency_key="verify:0",
-        max_attempts=2,
+        store.NewTask(
+            run_id=run_id,
+            task_type="verification.deep",
+            inputs={},
+            idempotency_key="verify:0",
+            max_attempts=2,
+        ),
         db_path=isolated_db,
     )
     first = store.claim_task("worker-a", run_id=run_id, db_path=isolated_db)
@@ -374,10 +352,12 @@ def test_monolithic_workflow_lease_is_honestly_indeterminate(
     """A process wrapper is not misrepresented as a scientific task budget."""
     run_id = _run()
     store.enqueue_task(
-        run_id,
-        "run.workflow",
-        {},
-        idempotency_key="workflow:0:0",
+        store.NewTask(
+            run_id=run_id,
+            task_type="run.workflow",
+            inputs={},
+            idempotency_key="workflow:0:0",
+        ),
         db_path=isolated_db,
     )
     assert store.task_progress(run_id, db_path=isolated_db) == {
@@ -396,102 +376,15 @@ def test_dynamic_engine_plan_stays_indeterminate_as_tasks_expand(
     """A model-expanded task denominator never produces regressing percent."""
     run_id = _run()
     store.enqueue_task(
-        run_id,
-        "engine.bootstrap",
-        {},
-        idempotency_key="engine-bootstrap",
+        store.NewTask(
+            run_id=run_id,
+            task_type="engine.bootstrap",
+            inputs={},
+            idempotency_key="engine-bootstrap",
+        ),
         db_path=isolated_db,
     )
     progress = store.task_progress(run_id, db_path=isolated_db)
     assert progress["determinate"] is False
     assert progress["fraction"] is None
     assert progress["total_tasks"] == 1
-
-
-def test_cancel_run_tasks_revokes_queued_and_leased_work(
-    isolated_db: str,
-) -> None:
-    """Cancellation prevents both queued and in-flight task acknowledgement."""
-    run_id = _run()
-    first = store.enqueue_task(
-        run_id,
-        "engine.node.review",
-        {},
-        idempotency_key="cancel:first",
-        db_path=isolated_db,
-    )
-    store.enqueue_task(
-        run_id,
-        "engine.node.ranking",
-        {},
-        idempotency_key="cancel:second",
-        db_path=isolated_db,
-    )
-    assert store.claim_task("worker", run_id=run_id, db_path=isolated_db)
-    assert store.cancel_run_tasks(run_id, db_path=isolated_db) == 2
-    assert not store.complete_task(
-        first.id, "worker", {"late": True}, db_path=isolated_db
-    )
-    statuses = {
-        task.status for task in store.list_tasks(run_id, db_path=isolated_db)
-    }
-    assert statuses == {"cancelled"}
-
-
-def test_pause_and_resume_make_queued_tasks_non_claimable(
-    isolated_db: str,
-) -> None:
-    """Paused work stays durable but leaves the global claimable queue."""
-    run_id = _run()
-    task = store.enqueue_task(
-        run_id,
-        "engine.bootstrap",
-        {},
-        idempotency_key="pause-bootstrap",
-        db_path=isolated_db,
-    )
-    assert store.pause_run_tasks(run_id, db_path=isolated_db) == 1
-    assert (
-        store.claim_task("worker", run_id=run_id, db_path=isolated_db) is None
-    )
-    paused = store.get_task(task.id, db_path=isolated_db)
-    assert paused is not None
-    assert paused.status == "paused"
-    assert store.resume_run_tasks(run_id, db_path=isolated_db) == 1
-    claimed = store.claim_task("worker", run_id=run_id, db_path=isolated_db)
-    assert claimed is not None and claimed.id == task.id
-
-
-def test_supervisor_can_reprioritize_cancel_and_retry_individual_tasks(
-    isolated_db: str,
-) -> None:
-    """Queue controls mutate only tasks in compatible lifecycle states."""
-    run_id = _run()
-    promoted_id, cancelled_id, failed_id = _three_control_tasks(
-        run_id, isolated_db
-    )
-
-    assert store.reprioritize_task(
-        promoted_id,
-        99,
-        reason="most valuable evidence gap",
-        db_path=isolated_db,
-    )
-    assert store.cancel_task(
-        cancelled_id,
-        reason="superseded branch",
-        db_path=isolated_db,
-    )
-    assert store.retry_task(
-        failed_id,
-        reason="new evidence available",
-        db_path=isolated_db,
-    )
-
-    by_id = {
-        task.id: task for task in store.list_tasks(run_id, db_path=isolated_db)
-    }
-    assert by_id[promoted_id].priority == 99
-    assert by_id[cancelled_id].status == "cancelled"
-    assert by_id[failed_id].status == "queued"
-    assert by_id[failed_id].max_attempts == 2

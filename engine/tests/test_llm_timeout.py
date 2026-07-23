@@ -14,6 +14,7 @@ import pytest
 
 from co_scientist import llm, llm_json_retry, llm_request
 from co_scientist.exceptions import LLMTimeoutError
+from co_scientist.llm import CompletionSpec, LLMCallOptions, ToolLoop
 
 
 def test_timeout_defaults_when_unset(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -53,7 +54,11 @@ def test_completion_args_carry_timeout(monkeypatch: pytest.MonkeyPatch) -> None:
     """The provider client is asked to give up on its own too."""
     monkeypatch.setenv(llm_request.LLM_TIMEOUT_ENV, "42")
     args = llm_request._build_completion_args(
-        "prompt", "deepseek/deepseek-v4-flash", 100, 0.5, False, None
+        "prompt",
+        "deepseek/deepseek-v4-flash",
+        100,
+        0.5,
+        llm_request.CompletionShape(),
     )
     assert args["timeout"] == 42.0
 
@@ -64,7 +69,11 @@ def test_completion_args_omit_timeout_when_disabled(
     """A disabled ceiling passes no timeout argument at all."""
     monkeypatch.setenv(llm_request.LLM_TIMEOUT_ENV, "0")
     args = llm_request._build_completion_args(
-        "prompt", "deepseek/deepseek-v4-flash", 100, 0.5, False, None
+        "prompt",
+        "deepseek/deepseek-v4-flash",
+        100,
+        0.5,
+        llm_request.CompletionShape(),
     )
     assert "timeout" not in args
 
@@ -114,10 +123,9 @@ async def test_hung_tool_loop_call_raises_timeout_error(
     with pytest.raises(LLMTimeoutError):
         await llm.call_llm_with_tools(
             "prompt",
-            "deepseek/deepseek-v4-pro",
-            tools=[],
-            tool_executor=unused_executor,
-            use_cache=False,
+            CompletionSpec(model_name="deepseek/deepseek-v4-pro"),
+            ToolLoop(tools=[], executor=unused_executor),
+            options=LLMCallOptions(use_cache=False),
         )
 
 
@@ -141,9 +149,9 @@ async def test_timeout_is_not_retried(monkeypatch: pytest.MonkeyPatch) -> None:
     with pytest.raises(LLMTimeoutError):
         await llm.call_llm_json(
             "prompt",
-            "deepseek/deepseek-v4-flash",
+            CompletionSpec(model_name="deepseek/deepseek-v4-flash"),
             max_attempts=5,
-            use_cache=False,
+            options=LLMCallOptions(use_cache=False),
         )
     assert calls == 1, "a timeout must not be retried"
 
@@ -164,9 +172,9 @@ async def test_generic_failure_is_still_retried(
     with pytest.raises(RuntimeError):
         await llm.call_llm_json(
             "prompt",
-            "deepseek/deepseek-v4-flash",
+            CompletionSpec(model_name="deepseek/deepseek-v4-flash"),
             max_attempts=3,
-            use_cache=False,
+            options=LLMCallOptions(use_cache=False),
         )
     assert calls == 3, "generic failures must still exhaust retries"
 
@@ -220,9 +228,9 @@ async def test_rate_limited_retry_waits_before_trying_again(
     with pytest.raises(_ProviderRateLimitError):
         await llm.call_llm_json(
             "prompt",
-            "deepseek/deepseek-v4-flash",
+            CompletionSpec(model_name="deepseek/deepseek-v4-flash"),
             max_attempts=3,
-            use_cache=False,
+            options=LLMCallOptions(use_cache=False),
         )
     assert calls == 3, "throttling stays retryable"
     assert len(slept) == 2, "every retry but the last waits first"
@@ -263,9 +271,9 @@ async def test_schema_failure_still_retries_without_waiting(
     with pytest.raises(ValueError):
         await llm.call_llm_json(
             "prompt",
-            "deepseek/deepseek-v4-flash",
+            CompletionSpec(model_name="deepseek/deepseek-v4-flash"),
             max_attempts=3,
-            use_cache=False,
+            options=LLMCallOptions(use_cache=False),
         )
     assert calls == 3
     assert slept == [], "only throttling should slow the retry loop"

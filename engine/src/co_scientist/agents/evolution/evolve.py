@@ -1,13 +1,11 @@
 """Evolve node - refine top hypotheses with context-aware evolution."""
 
 import asyncio
-import json
 import logging
 from collections.abc import Coroutine
 from typing import Any
 
 from co_scientist.agents.evolution.evolution_operators import (
-    EvolutionOperator,
     select_operator,
 )
 from co_scientist.agents.evolution.evolve_context import (
@@ -25,6 +23,18 @@ from co_scientist.agents.evolution.evolve_context import (
 from co_scientist.agents.evolution.evolve_context import (
     sample_context_hypotheses as sample_context_hypotheses,
 )
+from co_scientist.agents.evolution.evolve_feedback import (
+    _debates_for as _debates_for,
+)
+from co_scientist.agents.evolution.evolve_feedback import (
+    _proximity_neighbors_for as _proximity_neighbors_for,
+)
+from co_scientist.agents.evolution.evolve_feedback import (
+    _specialist_feedback_for as _specialist_feedback_for,
+)
+from co_scientist.agents.evolution.evolve_feedback import (
+    _tournament_matches_for as _tournament_matches_for,
+)
 from co_scientist.agents.evolution.evolve_prompt import (
     _build_evolution_prompt as _build_evolution_prompt,
 )
@@ -39,6 +49,12 @@ from co_scientist.agents.evolution.evolve_prompt import (
 )
 from co_scientist.agents.evolution.evolve_prompt import (
     _build_supervisor_guidance_text as _build_supervisor_guidance_text,
+)
+from co_scientist.agents.evolution.evolve_prompt import (
+    _EvolutionContext as _EvolutionContext,
+)
+from co_scientist.agents.evolution.evolve_prompt import (
+    _EvolutionOperation as _EvolutionOperation,
 )
 from co_scientist.agents.evolution.evolve_prompt import (
     _format_diversity_instruction as _format_diversity_instruction,
@@ -76,21 +92,38 @@ from co_scientist.agents.evolution.evolve_results import (
 from co_scientist.agents.evolution.evolve_results import (
     _extract_evolution_fields as _extract_evolution_fields,
 )
+from co_scientist.agents.evolution.evolve_round import (
+    _emit_evolution_start as _emit_evolution_start,
+)
+from co_scientist.agents.evolution.evolve_round import (
+    _finalize_evolve_result as _finalize_evolve_result,
+)
+from co_scientist.agents.evolution.evolve_round import (
+    _prepare_evolution_round as _prepare_evolution_round,
+)
+from co_scientist.agents.evolution.evolve_round import (
+    _select_evolution_pool as _select_evolution_pool,
+)
 from co_scientist.constants import (
     EVOLVE_MAX_TOKENS_CAP,
     EVOLVE_TOKENS_PER_CONTEXT_HYPOTHESIS,
     EXTENDED_MAX_TOKENS,
     HIGH_TEMPERATURE,
-    PROGRESS_EVOLVE_COMPLETE,
-    PROGRESS_EVOLVE_START,
     scaled_max_tokens,
 )
-from co_scientist.llm import call_llm_json
+from co_scientist.llm import (
+    CompletionSpec,
+    LLMCallOptions,
+    call_llm_json,
+)
 from co_scientist.models import Hypothesis
-from co_scientist.progress import emit_progress
 from co_scientist.state import WorkflowState
 
 logger = logging.getLogger(__name__)
+
+# Shared default operation (frozen/immutable): the enhancement operator with
+# no specialist feedback, used when a caller does not specify one.
+_DEFAULT_EVOLUTION_OPERATION = _EvolutionOperation()
 
 
 def _evolve_token_budget(other_hypotheses_texts: list[str]) -> int:
@@ -127,8 +160,7 @@ async def _call_evolution_llm(
     full_prompt: str,
     schema: dict[str, Any] | None,
     other_hypotheses_texts: list[str],
-    model_name: str,
-    run_id: str | None,
+    context: _EvolutionContext,
     hypothesis_index: int | None,
 ) -> dict[str, Any]:
     """Calls the LLM to evolve a hypothesis from a prepared prompt.
@@ -139,8 +171,7 @@ async def _call_evolution_llm(
         schema: JSON schema for the expected LLM response.
         other_hypotheses_texts: Sampled subset of other hypotheses (max
             15), used only to size the token budget.
-        model_name: LLM model to use.
-        run_id: Optional run ID for saving prompts.
+        context: Run-level evolution context (model name, run id).
         hypothesis_index: Optional index for naming saved prompts.
 
     Returns:
@@ -150,176 +181,73 @@ async def _call_evolution_llm(
     prompt_name = _evolve_prompt_name(hypothesis_index)
     return await call_llm_json(
         prompt=full_prompt,
-        model_name=model_name,
-        max_tokens=evolve_max_tokens,
-        temperature=HIGH_TEMPERATURE,
-        json_schema=schema,
-        max_attempts=7,  # increase retries for evolution (critical node)
-        run_id=run_id,
-        prompt_name=prompt_name,
-        prompt_metadata={
-            "hypothesis_index": hypothesis_index,
-            "prompt_length_chars": len(full_prompt),
-            "context_hypotheses_count": len(other_hypotheses_texts),
-        },
+        spec=CompletionSpec(
+            model_name=context.model_name,
+            max_tokens=evolve_max_tokens,
+            temperature=HIGH_TEMPERATURE,
+            json_schema=schema,
+        ),
+        max_attempts=7,
+        options=LLMCallOptions(
+            prompt_name=prompt_name,
+            prompt_metadata={
+                "hypothesis_index": hypothesis_index,
+                "prompt_length_chars": len(full_prompt),
+                "context_hypotheses_count": len(other_hypotheses_texts),
+            },
+        ),
     )
 
 
 async def evolve_single_hypothesis(
     hypothesis: Hypothesis,
     other_hypotheses_texts: list[str],
-    meta_review: dict[str, Any],
-    model_name: str,
-    removed_duplicates: list[str],
-    supervisor_guidance: dict[str, Any] | None = None,
-    articles_with_reasoning: str | None = None,
-    run_id: str | None = None,
+    context: _EvolutionContext,
     hypothesis_index: int | None = None,
-    tool_registry: Any | None = None,
-    run_setup_guidance: str | None = None,
-    run_focus_guidance: str | None = None,
-    creation_iteration: int | None = None,
-    operator: EvolutionOperator = EvolutionOperator.ENHANCEMENT,
-    specialist_feedback: str = "",
+    operation: _EvolutionOperation = _DEFAULT_EVOLUTION_OPERATION,
 ) -> tuple[Hypothesis | None, dict[str, Any] | None]:
     """Evolve a single hypothesis into a new child with sampled context.
 
-    Returns ``(child, detail)`` on acceptance, else ``(None, None)``.
+    ``context`` bundles the run/round-invariant inputs (model, meta-review,
+    removed duplicates, guidance) and ``operation`` the per-hypothesis
+    operator and specialist feedback. Returns ``(child, detail)`` on
+    acceptance, else ``(None, None)``.
     """
     response = await _evolve_llm_response(
-        hypothesis=hypothesis,
-        other_hypotheses_texts=other_hypotheses_texts,
-        meta_review=meta_review,
-        model_name=model_name,
-        removed_duplicates=removed_duplicates,
-        supervisor_guidance=supervisor_guidance,
-        articles_with_reasoning=articles_with_reasoning,
-        run_id=run_id,
-        hypothesis_index=hypothesis_index,
-        tool_registry=tool_registry,
-        run_setup_guidance=run_setup_guidance,
-        run_focus_guidance=run_focus_guidance,
-        operator=operator,
-        specialist_feedback=specialist_feedback,
+        hypothesis,
+        other_hypotheses_texts,
+        context,
+        hypothesis_index,
+        operation,
     )
     return _apply_evolution_result(
-        hypothesis, response, other_hypotheses_texts, creation_iteration
+        hypothesis,
+        response,
+        other_hypotheses_texts,
+        context.creation_iteration,
     )
 
 
 async def _evolve_llm_response(
     hypothesis: Hypothesis,
     other_hypotheses_texts: list[str],
-    meta_review: dict[str, Any],
-    model_name: str,
-    removed_duplicates: list[str],
-    supervisor_guidance: dict[str, Any] | None,
-    articles_with_reasoning: str | None,
-    run_id: str | None,
+    context: _EvolutionContext,
     hypothesis_index: int | None,
-    tool_registry: Any | None,
-    run_setup_guidance: str | None,
-    run_focus_guidance: str | None,
-    operator: EvolutionOperator,
-    specialist_feedback: str,
+    operation: _EvolutionOperation,
 ) -> dict[str, Any]:
     """Builds the prompt, calls the evolution LLM, tags the operator used."""
-    _log_meta_review_debug(meta_review)
+    _log_meta_review_debug(context.meta_review)
     full_prompt, schema = _build_evolution_prompt(
-        hypothesis=hypothesis,
-        other_hypotheses_texts=other_hypotheses_texts,
-        meta_review=meta_review,
-        removed_duplicates=removed_duplicates,
-        supervisor_guidance=supervisor_guidance,
-        articles_with_reasoning=articles_with_reasoning,
-        tool_registry=tool_registry,
-        run_setup_guidance=run_setup_guidance,
-        run_focus_guidance=run_focus_guidance,
-        operator=operator,
-        specialist_feedback=specialist_feedback,
+        hypothesis, other_hypotheses_texts, context, operation
     )
     response = await _call_evolution_llm(
-        full_prompt=full_prompt,
-        schema=schema,
-        other_hypotheses_texts=other_hypotheses_texts,
-        model_name=model_name,
-        run_id=run_id,
-        hypothesis_index=hypothesis_index,
+        full_prompt,
+        schema,
+        other_hypotheses_texts,
+        context,
+        hypothesis_index,
     )
-    return {**response, "_evolution_operator": operator.value}
-
-
-def _select_evolution_pool(
-    state: WorkflowState,
-    hypotheses: list[Hypothesis],
-) -> list[Hypothesis]:
-    """Selects the top-k hypotheses to evolve.
-
-    Args:
-        state: Current workflow state.
-        hypotheses: Hypothesis pool entering evolution; assumed already
-            sorted by descending Elo rating (set by ranking_node).
-
-    Returns:
-        The top_k hypotheses to evolve. ``len(top_k)`` is the real attempt
-        count (which may be below the configured maximum when fewer
-        hypotheses are available), so callers report progress off it.
-    """
-    evolution_max_count = state.get("evolution_max_count", 10)
-
-    # hypotheses arrives already sorted by descending Elo rating (set by
-    # ranking_node's return), so a plain slice selects the top performers
-    # without needing to re-sort here.
-    return hypotheses[:evolution_max_count]
-
-
-async def _emit_evolution_start(
-    state: WorkflowState, actual_count: int
-) -> None:
-    """Logs and emits the start-of-phase progress for this evolution round."""
-    logger.info("Evolving top %s hypotheses", actual_count)
-
-    await emit_progress(
-        state,
-        "evolve_start",
-        f"Evolving top {actual_count} hypotheses...",
-        PROGRESS_EVOLVE_START,
-    )
-
-    logger.info(
-        "Evolving %s hypotheses with strategic context sampling "
-        "(max 15 context hypotheses per evolution)",
-        actual_count,
-    )
-
-
-async def _prepare_evolution_round(
-    state: WorkflowState,
-    hypotheses: list[Hypothesis],
-) -> tuple[list[Hypothesis], list[str], dict[str, Any] | None]:
-    """Selects the evolution pool and emits the start-of-phase progress.
-
-    Args:
-        state: Current workflow state.
-        hypotheses: Hypothesis pool entering evolution; assumed already
-            sorted by descending Elo rating (set by ranking_node).
-
-    Returns:
-        Tuple of (top_k hypotheses to evolve, flattened previously removed
-        duplicate texts, supervisor guidance for the evolution phase).
-    """
-    top_k = _select_evolution_pool(state, hypotheses)
-    await _emit_evolution_start(state, len(top_k))
-
-    # Flatten proximity.py's removed_duplicates dicts down to bare text;
-    # used below to steer evolution away from recreating hypotheses that
-    # were already pruned as duplicates in an earlier iteration.
-    removed_duplicates = [
-        dup.get("text", "") for dup in state.get("removed_duplicates", [])
-    ]
-    supervisor_guidance = state.get("supervisor_guidance")
-
-    return top_k, removed_duplicates, supervisor_guidance
+    return {**response, "_evolution_operator": operation.operator.value}
 
 
 def _build_single_evolution_task(
@@ -327,11 +255,13 @@ def _build_single_evolution_task(
     i: int,
     hyp: Hypothesis,
     top_k: list[Hypothesis],
-    removed_duplicates: list[str],
-    supervisor_guidance: dict[str, Any] | None,
-    creation_iteration: int,
+    context: _EvolutionContext,
 ) -> Coroutine[Any, Any, tuple[Hypothesis | None, dict[str, Any] | None]]:
     """Builds the evolve_single_hypothesis coroutine for one pool member."""
+    operation = _EvolutionOperation(
+        operator=select_operator(i, context.creation_iteration or 0),
+        specialist_feedback=_specialist_feedback_for(state, hyp),
+    )
     return evolve_single_hypothesis(
         hypothesis=hyp,
         # Context is sampled from top_k (the peers also being evolved this
@@ -342,19 +272,29 @@ def _build_single_evolution_task(
             exclude_hypothesis=hyp,
             max_context=15,  # cap at 15 for fixed token budget
         ),
-        meta_review=state.get("meta_review", {}),
+        context=context,
+        hypothesis_index=i,
+        operation=operation,
+    )
+
+
+def _build_evolution_context(
+    state: WorkflowState,
+    removed_duplicates: list[str],
+    supervisor_guidance: dict[str, Any] | None,
+) -> _EvolutionContext:
+    """Bundles this evolution round's run-invariant inputs from state."""
+    return _EvolutionContext(
         model_name=state["model_name"],
+        meta_review=state.get("meta_review", {}),
         removed_duplicates=removed_duplicates,
+        creation_iteration=state.get("current_iteration", 0),
         supervisor_guidance=supervisor_guidance,
         articles_with_reasoning=state.get("articles_with_reasoning"),
         run_id=state.get("run_id"),
-        hypothesis_index=i,
         tool_registry=state.get("tool_registry"),
         run_setup_guidance=state.get("run_setup_guidance"),
         run_focus_guidance=state.get("run_focus_guidance"),
-        creation_iteration=creation_iteration,
-        operator=select_operator(i, creation_iteration),
-        specialist_feedback=_specialist_feedback_for(state, hyp),
     )
 
 
@@ -380,135 +320,13 @@ def _build_evolution_tasks(
         List of evolve_single_hypothesis coroutines, one per hypothesis in
         top_k, ready to be awaited via asyncio.gather.
     """
-    creation_iteration = state.get("current_iteration", 0)
+    context = _build_evolution_context(
+        state, removed_duplicates, supervisor_guidance
+    )
     return [
-        _build_single_evolution_task(
-            state,
-            i,
-            hyp,
-            top_k,
-            removed_duplicates,
-            supervisor_guidance,
-            creation_iteration,
-        )
+        _build_single_evolution_task(state, i, hyp, top_k, context)
         for i, hyp in enumerate(top_k)
     ]
-
-
-def _debates_for(
-    state: WorkflowState, hypothesis: Hypothesis
-) -> list[dict[str, Any]]:
-    """Build the bounded debate-transcript slice for this hypothesis."""
-    return [
-        {
-            "debate_id": item.get("debate_id"),
-            "transcript": str(item.get("transcript") or "")[-2500:],
-        }
-        for item in state.get("debate_transcripts") or []
-        if item.get("hypothesis_text") == hypothesis.text
-    ][-2:]
-
-
-def _tournament_matches_for(
-    state: WorkflowState, hypothesis: Hypothesis
-) -> list[dict[str, Any]]:
-    """Build this hypothesis's tournament-matchup outcomes."""
-    matches = []
-    for item in state.get("tournament_matchups", []):
-        side_a = item.get("hypothesis_a_id") == hypothesis.id
-        side_b = item.get("hypothesis_b_id") == hypothesis.id
-        if not side_a and not side_b:
-            continue
-        matches.append(
-            {
-                "outcome": (
-                    "won" if item.get("winner_id") == hypothesis.id else "lost"
-                ),
-                "reasoning": item.get("reasoning") or item.get("reason"),
-                "confidence": item.get("confidence"),
-            }
-        )
-    return matches
-
-
-def _proximity_neighbors_for(
-    state: WorkflowState, hypothesis: Hypothesis
-) -> list[dict[str, Any]]:
-    """Build this hypothesis's proximity-graph neighbor list."""
-    neighbors = []
-    for edge in (state.get("proximity_graph") or {}).get("edges", []):
-        if edge.get("source") == hypothesis.id:
-            neighbor = edge.get("target")
-        elif edge.get("target") == hypothesis.id:
-            neighbor = edge.get("source")
-        else:
-            continue
-        neighbors.append(
-            {
-                "hypothesis_id": neighbor,
-                "similarity": edge.get("similarity"),
-                "cluster_id": edge.get("cluster_id"),
-            }
-        )
-    return neighbors
-
-
-def _specialist_feedback_for(
-    state: WorkflowState, hypothesis: Hypothesis
-) -> str:
-    """Build a bounded, hypothesis-specific feedback ledger for evolution."""
-    verification = {
-        "verdict": hypothesis.deep_verification_verdict,
-        "probes": hypothesis.deep_verification_probes,
-    }
-    ledger = {
-        "claim_evidence_gate": hypothesis.enrichments.get("claim_gate") or {},
-        "debates": _debates_for(state, hypothesis),
-        "tournament": _tournament_matches_for(state, hypothesis)[-8:],
-        "proximity_neighbors": _proximity_neighbors_for(state, hypothesis)[:8],
-        "deep_verification": verification,
-    }
-    return json.dumps(ledger, indent=2)[:8000]
-
-
-async def _finalize_evolve_result(
-    state: WorkflowState,
-    children: list[Hypothesis],
-    evolution_details: list[dict[str, Any]],
-    attempt_count: int,
-) -> dict[str, Any]:
-    """Appends the evolution children and builds the evolve_node state delta.
-
-    Also emits the completion progress event for the evolution phase.
-
-    Args:
-        state: Current workflow state.
-        children: New immutable children produced by this round's evolution.
-        evolution_details: Evolution detail entries, one per created child.
-        attempt_count: Number of parents evolution attempted this round.
-
-    Returns:
-        The evolve_node state delta dictionary.
-    """
-    # Children are ADDED to the pool; parents and every other hypothesis stay
-    # active so both compete in the next tournament (paper invariant). The
-    # pool no longer shrinks to the evolved subset.
-    logger.info(
-        "Evolution produced %s new children from %s attempts",
-        len(children),
-        attempt_count,
-    )
-
-    # Emit progress
-    await emit_progress(
-        state,
-        "evolve_complete",
-        f"Evolved {len(children)} new child hypotheses",
-        PROGRESS_EVOLVE_COMPLETE,
-        evolved_count=len(children),
-    )
-
-    return _build_evolve_state_delta(children, evolution_details, attempt_count)
 
 
 async def evolve_node(state: WorkflowState) -> dict[str, Any]:

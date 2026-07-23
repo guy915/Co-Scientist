@@ -1,5 +1,6 @@
 """Prompt builders for novelty analysis and validation synthesis."""
 
+from dataclasses import dataclass
 from typing import Any
 
 from co_scientist.prompts._common import _format_authors, _format_year
@@ -200,71 +201,64 @@ def _resolve_validation_tool_instructions(tool_registry: Any | None) -> str:
     return build_tool_instructions(tool_ids, tool_registry)
 
 
+@dataclass(frozen=True)
+class ValidationSynthesisRequest:
+    """Inputs for the Phase 2 validation-with-tools synthesis prompt.
+
+    Attributes:
+        research_goal: The research goal.
+        hypotheses_with_analyses: Draft hypotheses with novelty analyses.
+        articles: Article objects supplying citation metadata.
+        articles_with_reasoning: Literature review synthesis text.
+        max_iterations: Max tool iterations for the agent.
+        tool_registry: ToolRegistry for dynamic tool instructions.
+        reference_list: Citation reference list of `[C*]` keys.
+        already_validated_texts: Hypothesis texts already validated (retry
+            path only). Injected as a diversity constraint so the model
+            avoids duplicate territory.
+    """
+
+    research_goal: str
+    hypotheses_with_analyses: list[dict[str, Any]]
+    articles: list[Any] | None = None
+    articles_with_reasoning: str | None = None
+    max_iterations: int = 8
+    tool_registry: Any | None = None
+    reference_list: str = ""
+    already_validated_texts: list[str] | None = None
+
+
 def _build_validation_synthesis_prompt_variables(
-    research_goal: str,
-    hypotheses_with_analyses: list[dict[str, Any]],
-    articles: list[Any] | None,
-    articles_with_reasoning: str | None,
-    reference_list: str,
-    max_iterations: int,
-    tool_instructions: str,
-    already_validated_texts: list[str] | None,
+    req: ValidationSynthesisRequest,
 ) -> dict[str, Any]:
-    """Build the Phase 2 validation-with-tools prompt template variables."""
+    """Build the Phase 2 validation-with-tools prompt template variables.
+
+    Args:
+        req: The resolved validation-synthesis request.
+
+    Returns:
+        Dict of template variables for the validation-synthesis prompt.
+    """
     return {
-        "research_goal": research_goal,
+        "research_goal": req.research_goal,
         "hypotheses_with_analyses": _format_hypotheses_with_novelty_analyses(
-            hypotheses_with_analyses
+            req.hypotheses_with_analyses
         ),
-        "hypotheses_count": len(hypotheses_with_analyses),
-        "articles_metadata": format_articles_metadata(articles or []),
-        "articles_with_reasoning": articles_with_reasoning
+        "hypotheses_count": len(req.hypotheses_with_analyses),
+        "articles_metadata": format_articles_metadata(req.articles or []),
+        "articles_with_reasoning": req.articles_with_reasoning
         or "no literature review summary available.",
         "citation_reference_section": _build_citation_reference_section(
-            reference_list or ""
+            req.reference_list or ""
         ),
-        "max_iterations": max_iterations,
-        "tool_instructions": tool_instructions,
+        "max_iterations": req.max_iterations,
+        "tool_instructions": _resolve_validation_tool_instructions(
+            req.tool_registry
+        ),
         "already_validated_context": _build_already_validated_context(
-            already_validated_texts
+            req.already_validated_texts
         ),
     }
-
-
-def _assemble_validation_synthesis_prompt_with_tools(
-    research_goal: str,
-    hypotheses_with_analyses: list[dict[str, Any]],
-    articles: list[Any] | None,
-    articles_with_reasoning: str | None,
-    max_iterations: int,
-    tool_registry: Any | None,
-    reference_list: str,
-    already_validated_texts: list[str] | None,
-) -> tuple[str, dict[str, Any] | None]:
-    """Resolve tool instructions, build variables, and render the prompt.
-
-    Mirrors the parameters of get_validation_synthesis_prompt_with_tools
-    (which forwards them here unchanged); see that function's docstring
-    for descriptions.
-    """
-    tool_instructions = _resolve_validation_tool_instructions(tool_registry)
-
-    variables = _build_validation_synthesis_prompt_variables(
-        research_goal=research_goal,
-        hypotheses_with_analyses=hypotheses_with_analyses,
-        articles=articles,
-        articles_with_reasoning=articles_with_reasoning,
-        reference_list=reference_list,
-        max_iterations=max_iterations,
-        tool_instructions=tool_instructions,
-        already_validated_texts=already_validated_texts,
-    )
-
-    return _build_prompt(
-        "hypothesis_validation_synthesis_with_tools",
-        variables,
-        tool_registry=tool_registry,
-    )
 
 
 # Renders prompts/hypothesis_validation_synthesis_with_tools.md for the
@@ -272,14 +266,7 @@ def _assemble_validation_synthesis_prompt_with_tools(
 # tool_instructions is built from the "validation" workflow's tool list so
 # the agent knows which MCP search tools it may call while pivoting.
 def get_validation_synthesis_prompt_with_tools(
-    research_goal: str,
-    hypotheses_with_analyses: list[dict[str, Any]],
-    articles: list[Any] | None = None,
-    articles_with_reasoning: str | None = None,
-    max_iterations: int = 8,
-    tool_registry: Any | None = None,
-    reference_list: str = "",
-    already_validated_texts: list[str] | None = None,
+    req: ValidationSynthesisRequest,
 ) -> tuple[str, dict[str, Any] | None]:
     """Get prompt for validation synthesis with tool access.
 
@@ -287,24 +274,14 @@ def get_validation_synthesis_prompt_with_tools(
     additional papers when deciding to pivot hypotheses.
 
     Args:
-        research_goal: The research goal
-        hypotheses_with_analyses: List of draft hypotheses with novelty analyses
-        articles: Optional list of Article objects for citation metadata
-        articles_with_reasoning: Literature review synthesis
-        max_iterations: Max tool iterations for the agent
-        tool_registry: Optional ToolRegistry for dynamic tool instructions
-        reference_list: Optional citation reference list of `[C*]` keys
-        already_validated_texts: Hypothesis texts already validated
-            (retry path only). Injected as a diversity constraint so the
-            model avoids duplicate territory.
+        req: The resolved validation-synthesis request; its fields are
+            documented on ValidationSynthesisRequest.
+
+    Returns:
+        Tuple of (rendered prompt string, JSON schema dict or None).
     """
-    return _assemble_validation_synthesis_prompt_with_tools(
-        research_goal,
-        hypotheses_with_analyses,
-        articles,
-        articles_with_reasoning,
-        max_iterations,
-        tool_registry,
-        reference_list,
-        already_validated_texts,
+    return _build_prompt(
+        "hypothesis_validation_synthesis_with_tools",
+        _build_validation_synthesis_prompt_variables(req),
+        tool_registry=req.tool_registry,
     )

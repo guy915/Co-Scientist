@@ -12,16 +12,23 @@ from co_scientist.constants import (
     RESEARCH_OVERVIEW_TOP_K,
     THINKING_MAX_TOKENS,
 )
-from co_scientist.llm import call_llm_json
+from co_scientist.llm import (
+    CompletionSpec,
+    call_llm_json,
+)
 from co_scientist.models import (
     Article,
     Hypothesis,
+    MetricDeltas,
     create_metrics_update,
     phase_message,
     rank_by_elo,
 )
 from co_scientist.progress import emit_progress
-from co_scientist.prompts import get_research_overview_prompt
+from co_scientist.prompts import (
+    PromptRunContext,
+    get_research_overview_prompt,
+)
 from co_scientist.state import WorkflowState
 
 logger = logging.getLogger(__name__)
@@ -134,10 +141,12 @@ async def _synthesize_research_overview(
         hypotheses_summary=summary,
         contact_candidates=_format_contact_candidates(contact_candidates),
         evidence_corpus=_format_evidence_corpus(evidence_corpus),
-        meta_review=state.get("meta_review"),
-        tool_registry=state.get("tool_registry"),
-        run_setup_guidance=state.get("run_setup_guidance"),
-        run_focus_guidance=state.get("run_focus_guidance"),
+        context=PromptRunContext(
+            meta_review=state.get("meta_review"),
+            tool_registry=state.get("tool_registry"),
+            run_setup_guidance=state.get("run_setup_guidance"),
+            run_focus_guidance=state.get("run_focus_guidance"),
+        ),
     )
     response = await _call_research_overview_llm(state, prompt, schema)
     return _format_research_overview_response(
@@ -151,10 +160,12 @@ async def _call_research_overview_llm(
     """Calls the supervisor model to synthesize the research overview."""
     return await call_llm_json(
         prompt=prompt,
-        model_name=state["supervisor_model_name"],
-        max_tokens=THINKING_MAX_TOKENS,
-        temperature=MEDIUM_TEMPERATURE,
-        json_schema=schema,
+        spec=CompletionSpec(
+            model_name=state["supervisor_model_name"],
+            max_tokens=THINKING_MAX_TOKENS,
+            temperature=MEDIUM_TEMPERATURE,
+            json_schema=schema,
+        ),
     )
 
 
@@ -399,7 +410,7 @@ def _build_research_overview_result(
     """
     # Only the delta (one LLM call) is passed here; merge_metrics (models.py)
     # adds it to the existing cumulative totals in state.
-    metrics = create_metrics_update(llm_calls_delta=1)
+    metrics = create_metrics_update(deltas=MetricDeltas(llm_calls=1))
     # research_overview has no reducer annotation in state.py, so this is a
     # plain overwrite -- appropriate since this node runs once, terminally.
     return {

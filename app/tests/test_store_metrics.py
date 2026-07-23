@@ -17,7 +17,11 @@ _METRICS = {
 
 def _make_run(db_path: str) -> str:
     run = store.create_run(
-        "Metrics goal", "default", "mock", {}, db_path=db_path
+        "Metrics goal",
+        "default",
+        "mock",
+        {},
+        store.RunCreateOptions(db_path=db_path),
     )
     return run.id
 

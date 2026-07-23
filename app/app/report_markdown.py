@@ -8,8 +8,57 @@ depends only on the data passed in, never on the store or the safety gate.
 
 from __future__ import annotations
 
+import dataclasses
 from typing import Any
 
+# The research-overview/NIH-aims/contacts renderers moved verbatim to
+# ``report_markdown_overview``; every moved name is re-exported so this
+# module's namespace keeps resolving.
+from app.report_markdown_overview import (
+    _has_aims_content as _has_aims_content,
+)
+from app.report_markdown_overview import (
+    _has_overview_content as _has_overview_content,
+)
+from app.report_markdown_overview import (
+    _render_aims_list as _render_aims_list,
+)
+from app.report_markdown_overview import (
+    _render_contact_entry as _render_contact_entry,
+)
+from app.report_markdown_overview import (
+    _render_contact_evidence_line as _render_contact_evidence_line,
+)
+from app.report_markdown_overview import (
+    _render_directions_list as _render_directions_list,
+)
+from app.report_markdown_overview import (
+    _render_experiments_list as _render_experiments_list,
+)
+from app.report_markdown_overview import (
+    _render_impact as _render_impact,
+)
+from app.report_markdown_overview import (
+    _render_nih_aim as _render_nih_aim,
+)
+from app.report_markdown_overview import (
+    _render_nih_aims_section as _render_nih_aims_section,
+)
+from app.report_markdown_overview import (
+    _render_optional_paragraph as _render_optional_paragraph,
+)
+from app.report_markdown_overview import (
+    _render_overview_section as _render_overview_section,
+)
+from app.report_markdown_overview import (
+    _render_research_contacts_section as _render_research_contacts_section,
+)
+from app.report_markdown_overview import (
+    _render_research_direction as _render_research_direction,
+)
+from app.report_markdown_overview import (
+    render_research_overview_markdown as render_research_overview_markdown,
+)
 from app.text_utils import coalesce, hypothesis_title
 
 
@@ -58,243 +107,61 @@ def format_deep_verification_critique(
     return summary, critique
 
 
-def _render_optional_paragraph(text: str | None) -> list[str]:
-    """Render a single trailing-blank-line paragraph, or nothing when empty."""
-    return [f"{text}\n"] if text else []
+@dataclasses.dataclass(frozen=True)
+class ReportPayloadInputs:
+    """Everything the canonical report payload is assembled from.
+
+    One bundle rather than fifteen parameters: the run's identity, its row
+    counts, and each synthesized section travel together from the store
+    reads in ``report_render`` all the way into the persisted payload.
+    """
+
+    research_goal: str
+    run_mode: str
+    provider: str
+    leaderboard: list[dict[str, Any]]
+    hypothesis_count: int
+    evidence_count: int
+    match_count: int
+    citation_summary: dict[str, int] | None = None
+    meta_review: dict[str, Any] | None = None
+    research_overview: dict[str, Any] | None = None
+    knowledge_base: list[dict[str, Any]] | None = None
+    agent_insights: dict[str, Any] | None = None
+    idea_buckets: dict[str, list[dict[str, Any]]] | None = None
+    claim_evidence: list[dict[str, Any]] | None = None
+    execution_time: float | None = None
 
 
-def _render_experiments_list(experiments: list[Any]) -> list[str]:
-    """Render the 'Suggested experiments' bullet list, or nothing when empty."""
-    if not experiments:
-        return []
-    return (
-        ["Suggested experiments:\n"]
-        + [f"- {experiment}" for experiment in experiments]
-        + [""]
-    )
-
-
-def _render_research_direction(direction: dict[str, Any]) -> list[str]:
-    """Render one research-direction entry, or nothing when not a dict."""
-    if not isinstance(direction, dict):
-        return []
-    lines = [f"### {direction.get('title', '')}\n"]
-    lines += _render_optional_paragraph(direction.get("importance", ""))
-    lines += _render_experiments_list(
-        direction.get("suggested_experiments") or []
-    )
-    return lines
-
-
-def _has_overview_content(summary: str | None, directions: list[Any]) -> bool:
-    """Return whether the overview section has any renderable content."""
-    return bool(summary or directions)
-
-
-def _render_directions_list(directions: list[Any]) -> list[str]:
-    """Render each research-direction entry in sequence."""
-    lines: list[str] = []
-    for direction in directions:
-        lines += _render_research_direction(direction)
-    return lines
-
-
-def _render_overview_section(ov: dict[str, Any]) -> list[str]:
-    """Render the 'Research Overview' section, or nothing when data absent."""
-    if not isinstance(ov, dict):
-        return []
-    summary = ov.get("summary")
-    directions = ov.get("research_directions") or []
-    if not _has_overview_content(summary, directions):
-        return []
-    lines = ["\n## Research Overview\n"]
-    lines += _render_optional_paragraph(summary)
-    return lines + _render_directions_list(directions)
-
-
-def _render_nih_aim(aim: dict[str, Any]) -> list[str]:
-    """Render one NIH aim entry, or nothing when not a dict."""
-    if not isinstance(aim, dict):
-        return []
-    lines = [f"### {aim.get('aim', '')}\n"]
-    rationale = aim.get("rationale", "")
-    if rationale:
-        lines.append(f"**Rationale:** {rationale}\n")
-    approach = aim.get("approach", "")
-    if approach:
-        lines.append(f"**Approach:** {approach}\n")
-    return lines
-
-
-def _has_aims_content(
-    introduction: str | None, aims: list[Any], impact: str | None
-) -> bool:
-    """Return whether the NIH aims section has any renderable content."""
-    return bool(introduction or aims or impact)
-
-
-def _render_aims_list(aims: list[Any]) -> list[str]:
-    """Render each NIH aim entry in sequence."""
-    lines: list[str] = []
-    for aim in aims:
-        lines += _render_nih_aim(aim)
-    return lines
-
-
-def _render_impact(impact: str | None) -> list[str]:
-    """Render the 'Impact' subsection, or nothing when absent."""
-    return ["### Impact\n", f"{impact}\n"] if impact else []
-
-
-def _render_nih_aims_section(aims_section: dict[str, Any]) -> list[str]:
-    """Render the 'NIH Specific Aims' section, or nothing when data absent."""
-    if not isinstance(aims_section, dict):
-        return []
-    introduction = aims_section.get("introduction")
-    aims = aims_section.get("aims") or []
-    impact = aims_section.get("impact")
-    if not _has_aims_content(introduction, aims, impact):
-        return []
-    lines = ["\n## NIH Specific Aims\n"]
-    lines += _render_optional_paragraph(introduction)
-    lines += _render_aims_list(aims)
-    lines += _render_impact(impact)
-    return lines
-
-
-def render_research_overview_markdown(overview: dict[str, Any]) -> list[str]:
-    """Render the research overview + NIH Specific Aims as markdown lines.
+def build_report_payload(inputs: ReportPayloadInputs) -> dict[str, Any]:
+    """Assemble the canonical report payload from its bundled inputs.
 
     Args:
-        overview: The engine ``research_overview`` payload, shaped as
-            ``{"overview": {...}, "nih_specific_aims": {...}}``. May be empty
-            or carry empty sub-dicts for runs without hypotheses.
+        inputs: The run identity, row counts, and synthesized sections.
 
     Returns:
-        A list of markdown lines. Empty when no renderable content exists, so
-        callers never emit bare section headers.
+        The payload dict persisted as the run's report. ``execution_time``
+        is present only when the caller supplied one.
     """
-    # The isinstance guard here (and inside each section renderer) is
-    # defensive: this payload can originate from LLM-produced structured
-    # output (engine path), which is schema-validated but still worth
-    # guarding defensively against a malformed or missing sub-shape rather
-    # than raising here.
-    if not isinstance(overview, dict):
-        return []
-    lines = _render_overview_section(overview.get("overview") or {})
-    lines += _render_nih_aims_section(overview.get("nih_specific_aims") or {})
-    lines += _render_research_contacts_section(
-        overview.get("research_contacts") or []
-    )
-    return lines
-
-
-def _render_contact_evidence_line(contact: dict[str, Any]) -> list[str]:
-    """Render a contact's source-evidence line, or nothing when unsourced."""
-    title, url = contact.get("source_title"), contact.get("source_url")
-    if not title:
-        return []
-    return [f"Evidence: [{title}]({url})\n" if url else f"Evidence: {title}\n"]
-
-
-def _render_contact_entry(contact: dict[str, Any]) -> list[str]:
-    """Render one research-contact entry, or nothing when unnamed."""
-    if not isinstance(contact, dict) or not contact.get("name"):
-        return []
-    lines = [f"### {contact['name']}\n"]
-    if contact.get("expertise"):
-        lines.append(f"**Relevant expertise:** {contact['expertise']}\n")
-    if contact.get("justification"):
-        lines.append(f"{contact['justification']}\n")
-    lines += _render_contact_evidence_line(contact)
-    return lines
-
-
-def _render_research_contacts_section(contacts: Any) -> list[str]:
-    """Render the 'Research Contacts' section, or nothing when empty."""
-    if not isinstance(contacts, list) or not contacts:
-        return []
-    lines = ["\n## Research Contacts\n"]
-    for contact in contacts:
-        lines += _render_contact_entry(contact)
-    return lines
-
-
-def build_report_payload(
-    *,
-    research_goal: str,
-    run_mode: str,
-    provider: str,
-    leaderboard: list[dict[str, Any]],
-    hypothesis_count: int,
-    evidence_count: int,
-    match_count: int,
-    citation_summary: dict[str, int] | None,
-    meta_review: dict[str, Any] | None,
-    research_overview: dict[str, Any] | None,
-    knowledge_base: list[dict[str, Any]] | None = None,
-    agent_insights: dict[str, Any] | None = None,
-    idea_buckets: dict[str, list[dict[str, Any]]] | None = None,
-    claim_evidence: list[dict[str, Any]] | None = None,
-    execution_time: float | None = None,
-) -> dict[str, Any]:
-    """Assemble the canonical report payload; see ``_report_payload_fields``."""
-    return _report_payload_fields(
-        research_goal,
-        run_mode,
-        provider,
-        leaderboard,
-        hypothesis_count,
-        evidence_count,
-        match_count,
-        citation_summary,
-        meta_review,
-        research_overview,
-        knowledge_base,
-        agent_insights,
-        idea_buckets,
-        claim_evidence,
-        execution_time,
-    )
-
-
-def _report_payload_fields(
-    research_goal: str,
-    run_mode: str,
-    provider: str,
-    leaderboard: list[dict[str, Any]],
-    hypothesis_count: int,
-    evidence_count: int,
-    match_count: int,
-    citation_summary: dict[str, int] | None,
-    meta_review: dict[str, Any] | None,
-    research_overview: dict[str, Any] | None,
-    knowledge_base: list[dict[str, Any]] | None,
-    agent_insights: dict[str, Any] | None,
-    idea_buckets: dict[str, list[dict[str, Any]]] | None,
-    claim_evidence: list[dict[str, Any]] | None,
-    execution_time: float | None,
-) -> dict[str, Any]:
-    """Build every report payload field, including the identity/counts."""
     payload: dict[str, Any] = {
-        "research_goal": research_goal,
-        "run_mode": run_mode,
-        "provider": provider,
-        "hypothesis_count": hypothesis_count,
-        "evidence_count": evidence_count,
-        "match_count": match_count,
-        "leaderboard": leaderboard,
-        "citation_summary": citation_summary or {},
-        "meta_review": meta_review or {},
-        "research_overview": research_overview or {},
-        "knowledge_base": knowledge_base or [],
-        "agent_insights": agent_insights or {},
-        "idea_buckets": idea_buckets
+        "research_goal": inputs.research_goal,
+        "run_mode": inputs.run_mode,
+        "provider": inputs.provider,
+        "hypothesis_count": inputs.hypothesis_count,
+        "evidence_count": inputs.evidence_count,
+        "match_count": inputs.match_count,
+        "leaderboard": inputs.leaderboard,
+        "citation_summary": inputs.citation_summary or {},
+        "meta_review": inputs.meta_review or {},
+        "research_overview": inputs.research_overview or {},
+        "knowledge_base": inputs.knowledge_base or [],
+        "agent_insights": inputs.agent_insights or {},
+        "idea_buckets": inputs.idea_buckets
         or {"high_potential": [], "non_viable": []},
-        "claim_evidence": claim_evidence or [],
+        "claim_evidence": inputs.claim_evidence or [],
     }
-    if execution_time is not None:
-        payload["execution_time"] = execution_time
+    if inputs.execution_time is not None:
+        payload["execution_time"] = inputs.execution_time
     return payload
 
 
@@ -456,33 +323,49 @@ def _render_citation_audit(
     return lines
 
 
-def render_report_markdown(
-    *,
-    research_goal: str,
-    provider: str,
-    top_hypotheses: list[dict[str, Any]],
-    meta_review: dict[str, Any] | None,
-    citation_summary: dict[str, int] | None,
-    research_overview: dict[str, Any] | None,
-    summary: str | None = None,
-    claim_evidence: list[dict[str, Any]] | None = None,
-) -> str:
+@dataclasses.dataclass(frozen=True)
+class ReportMarkdownInputs:
+    """Everything the report markdown document renders from.
+
+    The prose counterpart of :class:`ReportPayloadInputs`: the same run
+    identity plus the already-ranked hypotheses and the sections that have
+    a rendered form.
+    """
+
+    research_goal: str
+    provider: str
+    top_hypotheses: list[dict[str, Any]]
+    meta_review: dict[str, Any] | None = None
+    citation_summary: dict[str, int] | None = None
+    research_overview: dict[str, Any] | None = None
+    summary: str | None = None
+    claim_evidence: list[dict[str, Any]] | None = None
+
+
+def render_report_markdown(inputs: ReportMarkdownInputs) -> str:
     """Render a run's report markdown from one skeleton for every provider.
 
     Sections populate only when their data is present, so a provider that
     omits meta-review, citations, or a research overview simply skips those
     headings rather than emitting empty ones.
 
+    Args:
+        inputs: The run identity, top hypotheses, and rendered sections.
+
     Returns:
         The rendered markdown document.
     """
-    lines = _render_report_header(research_goal, provider, summary)
-    lines += _render_top_hypotheses_markdown(
-        top_hypotheses, claim_evidence or []
+    lines = _render_report_header(
+        inputs.research_goal, inputs.provider, inputs.summary
     )
-    lines += _render_meta_review_markdown(meta_review or {})
-    lines += _render_citation_audit(citation_summary)
-    lines.extend(render_research_overview_markdown(research_overview or {}))
+    lines += _render_top_hypotheses_markdown(
+        inputs.top_hypotheses, inputs.claim_evidence or []
+    )
+    lines += _render_meta_review_markdown(inputs.meta_review or {})
+    lines += _render_citation_audit(inputs.citation_summary)
+    lines.extend(
+        render_research_overview_markdown(inputs.research_overview or {})
+    )
     return "\n".join(lines)
 
 

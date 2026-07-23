@@ -7,26 +7,33 @@ cases), so they live in a non-test module to avoid pytest collecting them.
 
 from __future__ import annotations
 
+import dataclasses
 from types import SimpleNamespace
 from typing import Any
 
 
+@dataclasses.dataclass(frozen=True)
+class InterviewFields:
+    """The structured fields one interview-model response carries."""
+
+    challenge: str = "How can resistant bacteria regain drug susceptibility?"
+    focus: list[str] | None = None
+    preferences: list[str] | None = None
+    title: str | None = None
+    completed: bool = False
+
+
 def _response(
-    message: str,
-    *,
-    challenge: str = "How can resistant bacteria regain drug susceptibility?",
-    focus: list[str] | None = None,
-    preferences: list[str] | None = None,
-    title: str | None = None,
-    completed: bool = False,
+    message: str, fields: InterviewFields | None = None
 ) -> dict[str, Any]:
+    fields = fields or InterviewFields()
     return {
         "assistant_message": message,
-        "research_challenge": challenge,
-        "focus_area": focus or [],
-        "preferences": preferences or [],
-        "title": title,
-        "completed": completed,
+        "research_challenge": fields.challenge,
+        "focus_area": fields.focus or [],
+        "preferences": fields.preferences or [],
+        "title": fields.title,
+        "completed": fields.completed,
     }
 
 

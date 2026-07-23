@@ -57,38 +57,53 @@ def _assert_features_proximity_edge(run_id: str, db_path: str) -> None:
 def _seed_safe_and_unsafe(run: Any, db_path: str) -> tuple[str, str]:
     """Add one safe and one unsafe hypothesis, each with claim evidence."""
     safe_id = store.add_hypothesis(
-        run.id,
-        title="Safe idea",
-        statement="Inhibiting kinase X reduces AML tumor growth via apoptosis.",
+        store.NewHypothesis(
+            run_id=run.id,
+            title="Safe idea",
+            statement=(
+                "Inhibiting kinase X reduces AML tumor growth via apoptosis."
+            ),
+        ),
         db_path=db_path,
     )
     unsafe_id = store.add_hypothesis(
-        run.id,
-        title="Unsafe idea",
-        statement=(
-            "Weaponize the pathogen to enhance transmissibility in humans."
+        store.NewHypothesis(
+            run_id=run.id,
+            title="Unsafe idea",
+            statement=(
+                "Weaponize the pathogen to enhance transmissibility in humans."
+            ),
         ),
         db_path=db_path,
     )
     store.add_claim_evidence(
-        run.id,
-        safe_id,
-        "Inhibiting kinase X reduces AML tumor growth via apoptosis.",
-        "supports",
-        ["A source-supported safe mechanism."],
-        [],
-        "fixture",
-        claim_role="speculative",
+        store.NewClaimEvidence(
+            run_id=run.id,
+            hypothesis_id=safe_id,
+            claim="Inhibiting kinase X reduces AML tumor growth via apoptosis.",
+            label="supports",
+            supporting=["A source-supported safe mechanism."],
+            contradicting=[],
+            assessor="fixture",
+            claim_role="speculative",
+        ),
         db_path=db_path,
     )
     store.add_claim_evidence(
-        run.id,
-        unsafe_id,
-        "Weaponize the pathogen to enhance transmissibility in humans.",
-        "supports",
-        ["A source span is present so the safety gate decides this fixture."],
-        [],
-        "fixture",
+        store.NewClaimEvidence(
+            run_id=run.id,
+            hypothesis_id=unsafe_id,
+            claim=(
+                "Weaponize the pathogen to enhance transmissibility in humans."
+            ),
+            label="supports",
+            supporting=[
+                "A source span is present so the safety gate decides "
+                "this fixture."
+            ],
+            contradicting=[],
+            assessor="fixture",
+        ),
         db_path=db_path,
     )
     return safe_id, unsafe_id
@@ -285,15 +300,17 @@ def test_resumed_finalize_does_not_double_publish(isolated_db: str) -> None:
     def _finalize(resumed: bool) -> list[Any]:
         return _drain(
             report_render.finalize_report(
-                run_id=run.id,
-                research_goal=run.research_goal,
-                run_mode="standard",
-                provider="engine",
-                emit=_emit,
-                execution_time=1.0,
+                run.id,
+                report_render.ReportRequest(
+                    research_goal=run.research_goal,
+                    run_mode="standard",
+                    provider="engine",
+                    execution_time=1.0,
+                    db_path=isolated_db,
+                    **drained.report_inputs,
+                ),
+                _emit,
                 resumed=resumed,
-                db_path=isolated_db,
-                **drained.report_inputs,
             )
         )
 

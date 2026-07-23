@@ -25,12 +25,14 @@ def _seed(
     logger_name: str = "app.seeded",
 ) -> int:
     return store.append_log(
-        level="INFO",
-        levelno=logging.INFO,
-        logger_name=logger_name,
-        message=message,
-        run_id=run_id,
-        client_id=client_id,
+        store.NewLogRecord(
+            level="INFO",
+            levelno=logging.INFO,
+            logger_name=logger_name,
+            message=message,
+            run_id=run_id,
+            client_id=client_id,
+        ),
         db_path=isolated_db,
     )
 
@@ -48,7 +50,9 @@ def test_records_are_scoped_to_the_owning_client(isolated_db: str) -> None:
     _seed(isolated_db, "bob ui record", client_id="bob")
     _seed(isolated_db, "server startup record")
 
-    rows = store.list_logs(scope_client_id="alice", db_path=isolated_db)
+    rows = store.list_logs(
+        filters=store.LogFilters(scope_client_id="alice"), db_path=isolated_db
+    )
     messages = [r["message"] for r in rows]
     # Own run records and own ingested records, nothing else -- not
     # another tenant's, and not un-owned server internals.
@@ -59,7 +63,7 @@ def test_records_are_scoped_to_the_owning_client(isolated_db: str) -> None:
     # Creating the run also logged alice's own lifecycle stage record,
     # so assert the invariant rather than a fixed number.
     assert store.count_logs(
-        scope_client_id="alice", db_path=isolated_db
+        filters=store.LogFilters(scope_client_id="alice"), db_path=isolated_db
     ) == len(rows)
     assert all("bob" not in m for m in messages)
 
@@ -150,10 +154,17 @@ def test_ingested_records_are_stamped_with_the_caller(
         json={"records": [{"message": "alice clicked"}]},
         headers={"X-Client-ID": "alice"},
     )
-    rows = store.list_logs(scope_client_id="alice", db_path=isolated_db)
+    rows = store.list_logs(
+        filters=store.LogFilters(scope_client_id="alice"), db_path=isolated_db
+    )
     assert [r["message"] for r in rows] == ["alice clicked"]
     # And it is not visible to another tenant.
-    assert store.list_logs(scope_client_id="bob", db_path=isolated_db) == []
+    assert (
+        store.list_logs(
+            filters=store.LogFilters(scope_client_id="bob"), db_path=isolated_db
+        )
+        == []
+    )
 
 
 def test_ingestion_strips_control_characters(isolated_db: str) -> None:
@@ -170,7 +181,9 @@ def test_ingestion_strips_control_characters(isolated_db: str) -> None:
         },
         headers={"X-Client-ID": "alice"},
     )
-    row = store.list_logs(scope_client_id="alice", db_path=isolated_db)[0]
+    row = store.list_logs(
+        filters=store.LogFilters(scope_client_id="alice"), db_path=isolated_db
+    )[0]
     # Newlines and tabs would let a submitted message forge extra lines
     # in the CLI's tab-delimited output.
     assert "\n" not in row["message"]

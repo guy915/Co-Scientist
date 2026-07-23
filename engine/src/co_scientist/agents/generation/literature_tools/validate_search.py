@@ -7,6 +7,7 @@ pubmed_search_with_fulltext directly.
 """
 
 import logging
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Optional, cast
 
 from co_scientist.tools.response_parser import ResponseParser, parse_mcp_result
@@ -15,6 +16,24 @@ if TYPE_CHECKING:
     from co_scientist.config import ToolConfig, ToolRegistry
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True)
+class _NoveltySearchContext:
+    """Shared inputs for the validation phase's per-hypothesis searches.
+
+    Attributes:
+        mcp_client: MCP client for tool access.
+        tool_registry: Optional ToolRegistry for config-driven tool
+            selection.
+        shared_slug: Shared corpus slug reused from the draft phase.
+        run_id: Current run id, if any.
+    """
+
+    mcp_client: Any
+    tool_registry: Optional["ToolRegistry"]
+    shared_slug: str
+    run_id: str | None
 
 
 def _find_search_tool(
@@ -107,20 +126,16 @@ def _build_search_canonical_params(
 async def _search_papers_via_tool_config(
     tool_config: "ToolConfig",
     hypothesis_text: str,
-    mcp_client: Any,
+    ctx: _NoveltySearchContext,
     max_papers: int,
-    shared_slug: str,
-    run_id: str | None,
 ) -> dict[str, dict[str, Any]]:
     """Search for papers for a hypothesis using a resolved config tool.
 
     Args:
         tool_config: the resolved search tool config for this workflow.
         hypothesis_text: text of the draft hypothesis being validated.
-        mcp_client: MCP client for tool access.
+        ctx: shared search inputs (client, registry, slug, run id).
         max_papers: maximum number of papers to retrieve.
-        shared_slug: shared corpus slug reused from the draft phase.
-        run_id: current run id, if any.
 
     Returns:
         Papers in the dict format expected by analyze_paper_novelty:
@@ -128,11 +143,11 @@ async def _search_papers_via_tool_config(
         "fulltext": ...}}
     """
     canonical_params = _build_search_canonical_params(
-        hypothesis_text, max_papers, shared_slug, run_id
+        hypothesis_text, max_papers, ctx.shared_slug, ctx.run_id
     )
     mapped_params = tool_config.map_parameters(canonical_params)
 
-    result = await mcp_client.call_tool(
+    result = await ctx.mcp_client.call_tool(
         tool_config.mcp_tool_name, **mapped_params
     )
 
@@ -145,10 +160,8 @@ async def _search_papers_via_tool_config(
 
 async def _search_papers_legacy_fallback(
     hypothesis_text: str,
-    mcp_client: Any,
+    ctx: _NoveltySearchContext,
     max_papers: int,
-    shared_slug: str,
-    run_id: str | None,
 ) -> dict[str, dict[str, Any]]:
     """Search via the legacy pubmed_search_with_fulltext tool directly.
 
@@ -157,20 +170,18 @@ async def _search_papers_legacy_fallback(
 
     Args:
         hypothesis_text: text of the draft hypothesis being validated.
-        mcp_client: MCP client for tool access.
+        ctx: shared search inputs (client, registry, slug, run id).
         max_papers: maximum number of papers to retrieve.
-        shared_slug: shared corpus slug reused from the draft phase.
-        run_id: current run id, if any.
 
     Returns:
         Papers in the dict format expected by analyze_paper_novelty.
     """
-    result = await mcp_client.call_tool(
+    result = await ctx.mcp_client.call_tool(
         "pubmed_search_with_fulltext",
         query=hypothesis_text[:200],
         max_papers=max_papers,
-        slug=shared_slug,
-        run_id=run_id,
+        slug=ctx.shared_slug,
+        run_id=ctx.run_id,
     )
     # Generic fallback normalizer (unlike ResponseParser above, which is
     # driven by the tool's YAML-configured response_format).
@@ -195,11 +206,8 @@ def _skip_search_no_tool_configured() -> dict[str, dict[str, Any]]:
 
 async def _search_papers_for_hypothesis(
     hypothesis_text: str,
-    mcp_client: Any,
-    tool_registry: Optional["ToolRegistry"],
+    ctx: _NoveltySearchContext,
     max_papers: int,
-    shared_slug: str,
-    run_id: str | None,
 ) -> dict[str, dict[str, Any]]:
     """Search for papers related to a hypothesis using config-driven tools.
 
@@ -209,26 +217,26 @@ async def _search_papers_for_hypothesis(
     fallback calling pubmed_search_with_fulltext directly (backwards
     compatibility).
 
+    Args:
+        hypothesis_text: text of the draft hypothesis being validated.
+        ctx: shared search inputs (client, registry, slug, run id).
+        max_papers: maximum number of papers to retrieve.
+
     Returns:
         Papers in the dict format expected by analyze_paper_novelty:
         {paper_id: {"title": ..., "authors": [...], "year": ...,
         "fulltext": ...}}
     """
-    _, tool_config = _find_search_tool(tool_registry)
+    _, tool_config = _find_search_tool(ctx.tool_registry)
 
     if tool_config:
         return await _search_papers_via_tool_config(
-            tool_config,
-            hypothesis_text,
-            mcp_client,
-            max_papers,
-            shared_slug,
-            run_id,
+            tool_config, hypothesis_text, ctx, max_papers
         )
 
-    if tool_registry:
+    if ctx.tool_registry:
         return _skip_search_no_tool_configured()
 
     return await _search_papers_legacy_fallback(
-        hypothesis_text, mcp_client, max_papers, shared_slug, run_id
+        hypothesis_text, ctx, max_papers
     )

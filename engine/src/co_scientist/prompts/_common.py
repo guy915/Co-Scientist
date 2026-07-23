@@ -1,7 +1,62 @@
 """Formatting helpers shared by several prompt-builder modules."""
 
 from collections.abc import Callable
+from dataclasses import dataclass
 from typing import Any
+
+
+@dataclass(frozen=True)
+class PromptRunContext:
+    """Run-scoped context threaded into most node prompts.
+
+    Every field is optional: a builder splices in only the blocks its
+    template declares, and an absent value simply renders nothing. Bundling
+    them keeps the builders' own parameters about the node's subject matter
+    (the goal, the hypotheses, the transcript) rather than the run.
+
+    Attributes:
+        supervisor_guidance: The supervisor's plan, formatted per node by
+            the caller's `_format_supervisor_guidance_for_*` helper.
+        meta_review: Cross-hypothesis meta-review synthesis from the
+            previous iteration; blank on iteration 1.
+        tool_registry: Tool registry supplying the domain-specific prompt
+            customizations; None falls back to the process default.
+        run_setup_guidance: Durable run setup guidance text.
+        run_focus_guidance: Durable run focus guidance text.
+    """
+
+    supervisor_guidance: dict[str, Any] | None = None
+    meta_review: dict[str, Any] | None = None
+    tool_registry: Any | None = None
+    run_setup_guidance: str | None = None
+    run_focus_guidance: str | None = None
+
+
+@dataclass(frozen=True)
+class PromptSections:
+    """Pre-formatted optional context blocks spliced into a prompt.
+
+    Each field is the already-rendered markdown for one shared template
+    placeholder. A None field leaves the placeholder unset, so it renders
+    as the `{{MISSING:...}}` sentinel; an empty string sets it to nothing.
+    The distinction is deliberate and per-template - see `_build_prompt`.
+
+    Attributes:
+        supervisor_guidance: Rendered supervisor-guidance block.
+        meta_review_context: Rendered meta-review context block.
+        run_guidance: Rendered run setup/focus guidance block.
+    """
+
+    supervisor_guidance: str | None = None
+    meta_review_context: str | None = None
+    run_guidance: str | None = None
+
+
+def _run_guidance_section(context: PromptRunContext) -> str:
+    """Render a run context's setup/focus guidance block."""
+    return _format_run_guidance(
+        context.run_setup_guidance, context.run_focus_guidance
+    )
 
 
 def _format_bullet_section(

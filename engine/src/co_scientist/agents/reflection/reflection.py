@@ -1,6 +1,7 @@
 """Reflection node - analyzes hypotheses against literature observations."""
 
 import asyncio
+import dataclasses
 import logging
 from collections.abc import Coroutine
 from typing import Any
@@ -11,36 +12,54 @@ from co_scientist.constants import (
     PROGRESS_REFLECTION_COMPLETE,
     PROGRESS_REFLECTION_START,
 )
-from co_scientist.llm import call_llm_json
+from co_scientist.llm import (
+    CompletionSpec,
+    LLMCallOptions,
+    call_llm_json,
+)
 from co_scientist.models import Hypothesis, phase_message
 from co_scientist.progress import emit_progress
-from co_scientist.prompts import get_reflection_prompt
+from co_scientist.prompts import PromptRunContext, get_reflection_prompt
 from co_scientist.state import WorkflowState
 
 logger = logging.getLogger(__name__)
 
 
+@dataclasses.dataclass(frozen=True)
+class _ReflectionContext:
+    """Batch-invariant context shared by every per-hypothesis reflection."""
+
+    articles_with_reasoning: str
+    model_name: str
+    run_id: str | None = None
+    tool_registry: Any | None = None
+    meta_review: dict[str, Any] | None = None
+
+
+@dataclasses.dataclass(frozen=True)
+class _ReflectionCall:
+    """A prepared reflection prompt plus its pre-fetched INDRA evidence."""
+
+    prompt: str
+    schema: dict[str, Any] | None
+    indra_data: dict[str, Any]
+
+
 async def analyze_single_hypothesis(
     hypothesis: Hypothesis,
-    articles_with_reasoning: str,
-    model_name: str,
     hypothesis_index: int,
     total_count: int,
-    run_id: str | None = None,
-    tool_registry: Any | None = None,
-    meta_review: dict[str, Any] | None = None,
+    context: _ReflectionContext,
 ) -> dict[str, Any] | None:
     """Analyze a single hypothesis against literature observations.
 
     Args:
         hypothesis: hypothesis to analyze
-        articles_with_reasoning: literature review context
-        model_name: llm model to use
         hypothesis_index: index for logging (1-based)
         total_count: total hypotheses count for logging
-        run_id: optional run ID for saving prompts
-        tool_registry: optional ToolRegistry for dynamic tool instructions
-        meta_review: optional cross-iteration meta-review feedback
+        context: batch-invariant context (literature, model, run id, tool
+            registry, meta-review)
+
     Returns:
         dict with classification and reasoning, or None if failed
     """
@@ -48,52 +67,26 @@ async def analyze_single_hypothesis(
         "\n→ analyzing hypothesis %s/%s", hypothesis_index, total_count
     )
     return await _analyze_single_hypothesis_impl(
-        hypothesis,
-        articles_with_reasoning,
-        model_name,
-        hypothesis_index,
-        total_count,
-        run_id,
-        tool_registry,
-        meta_review,
+        hypothesis, hypothesis_index, total_count, context
     )
 
 
 async def _analyze_single_hypothesis_impl(
     hypothesis: Hypothesis,
-    articles_with_reasoning: str,
-    model_name: str,
     hypothesis_index: int,
     total_count: int,
-    run_id: str | None,
-    tool_registry: Any | None,
-    meta_review: dict[str, Any] | None,
+    context: _ReflectionContext,
 ) -> dict[str, Any] | None:
     """Prepares the reflection call and runs it, isolating per-idea failure."""
-    prompt, schema, indra_data = await _prepare_reflection_call(
-        hypothesis,
-        articles_with_reasoning,
-        tool_registry,
-        meta_review,
-        hypothesis_index,
-    )
+    call = await _prepare_reflection_call(hypothesis, context, hypothesis_index)
     return await _run_reflection_llm_or_none(
-        prompt,
-        schema,
-        indra_data,
-        model_name,
-        run_id,
-        hypothesis_index,
-        total_count,
+        call, context, hypothesis_index, total_count
     )
 
 
 async def _run_reflection_llm_or_none(
-    prompt: str,
-    schema: dict[str, Any] | None,
-    indra_data: dict[str, Any],
-    model_name: str,
-    run_id: str | None,
+    call: _ReflectionCall,
+    context: _ReflectionContext,
     hypothesis_index: int,
     total_count: int,
 ) -> dict[str, Any] | None:
@@ -104,9 +97,11 @@ async def _run_reflection_llm_or_none(
     """
     try:
         response = await _call_reflection_llm(
-            prompt, schema, model_name, run_id, hypothesis_index, total_count
+            call, context, hypothesis_index, total_count
         )
-        return _format_reflection_result(response, indra_data, hypothesis_index)
+        return _format_reflection_result(
+            response, call.indra_data, hypothesis_index
+        )
     except Exception as e:
         logger.error(
             "Reflection failed for hypothesis %s: %s", hypothesis_index, e
@@ -116,45 +111,41 @@ async def _run_reflection_llm_or_none(
 
 async def _prepare_reflection_call(
     hypothesis: Hypothesis,
-    articles_with_reasoning: str,
-    tool_registry: Any | None,
-    meta_review: dict[str, Any] | None,
+    context: _ReflectionContext,
     hypothesis_index: int,
-) -> tuple[str, dict[str, Any] | None, dict[str, Any]]:
+) -> _ReflectionCall:
     """Fetches INDRA evidence and builds the reflection prompt for one idea."""
     # Pre-fetch INDRA evidence for this hypothesis (non-critical, skip on
     # failure)
     indra_data = await _fetch_indra_for_hypothesis(
         hypothesis.text,
-        tool_registry,
+        context.tool_registry,
         hypothesis_index,
     )
     # Get reflection prompt (uses formatted text for LLM context)
     prompt, schema = get_reflection_prompt(
-        articles_with_reasoning=articles_with_reasoning,
+        articles_with_reasoning=context.articles_with_reasoning,
         hypothesis_text=hypothesis.text,
-        meta_review=meta_review,
-        tool_registry=tool_registry,
         indra_evidence=indra_data.get("prompt_text", ""),
+        context=PromptRunContext(
+            meta_review=context.meta_review,
+            tool_registry=context.tool_registry,
+        ),
     )
-    return prompt, schema, indra_data
+    return _ReflectionCall(prompt=prompt, schema=schema, indra_data=indra_data)
 
 
 async def _call_reflection_llm(
-    prompt: str,
-    schema: dict[str, Any] | None,
-    model_name: str,
-    run_id: str | None,
+    call: _ReflectionCall,
+    context: _ReflectionContext,
     hypothesis_index: int,
     total_count: int,
 ) -> dict[str, Any]:
     """Calls the LLM with the reflection prompt for one hypothesis.
 
     Args:
-        prompt: Rendered reflection prompt.
-        schema: JSON schema the response must conform to.
-        model_name: LLM model to use.
-        run_id: Optional run ID for saving prompts.
+        call: Prepared reflection prompt and schema.
+        context: Batch-invariant context (model name, run id).
         hypothesis_index: Index for logging (1-based).
         total_count: Total hypotheses count for logging.
 
@@ -162,18 +153,22 @@ async def _call_reflection_llm(
         The raw LLM JSON response.
     """
     return await call_llm_json(
-        prompt=prompt,
-        model_name=model_name,
-        max_tokens=EXTENDED_MAX_TOKENS,
-        temperature=LOW_TEMPERATURE,
-        json_schema=schema,
-        run_id=run_id,
-        prompt_name=f"reflection_{hypothesis_index}",
-        prompt_metadata={
-            "hypothesis_index": hypothesis_index,
-            "total_count": total_count,
-            "prompt_length_chars": len(prompt),
-        },
+        prompt=call.prompt,
+        spec=CompletionSpec(
+            model_name=context.model_name,
+            max_tokens=EXTENDED_MAX_TOKENS,
+            temperature=LOW_TEMPERATURE,
+            json_schema=call.schema,
+        ),
+        options=LLMCallOptions(
+            run_id=context.run_id,
+            prompt_name=f"reflection_{hypothesis_index}",
+            prompt_metadata={
+                "hypothesis_index": hypothesis_index,
+                "total_count": total_count,
+                "prompt_length_chars": len(call.prompt),
+            },
+        ),
     )
 
 
@@ -393,18 +388,19 @@ def _build_analysis_tasks(
     Returns:
         List of analyze_single_hypothesis coroutines, one per hypothesis.
     """
-    tool_registry = state.get("tool_registry")
-    meta_review = state.get("meta_review")
+    context = _ReflectionContext(
+        articles_with_reasoning=articles_with_reasoning,
+        model_name=state["model_name"],
+        run_id=state.get("run_id"),
+        tool_registry=state.get("tool_registry"),
+        meta_review=state.get("meta_review"),
+    )
     return [
         analyze_single_hypothesis(
             hypothesis=hyp,
-            articles_with_reasoning=articles_with_reasoning,
-            model_name=state["model_name"],
             hypothesis_index=i + 1,
             total_count=len(hypotheses),
-            run_id=state.get("run_id"),
-            tool_registry=tool_registry,
-            meta_review=meta_review,
+            context=context,
         )
         for i, hyp in enumerate(hypotheses)
     ]

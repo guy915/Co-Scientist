@@ -44,27 +44,33 @@ def _seed_orchestrator_task(run_id: str, db_path: str) -> tuple[Any, Any]:
     """Seed a claimed orchestrator task plus a low-priority deferred task."""
     store.save_checkpoint(
         run_id,
-        stage="seed",
-        schema_version=1,
-        last_event_seq=0,
-        state={"provider": "engine"},
+        store.NewCheckpoint(
+            stage="seed",
+            schema_version=1,
+            last_event_seq=0,
+            state={"provider": "engine"},
+        ),
         db_path=db_path,
     )
     queued = store.enqueue_task(
-        run_id,
-        "engine.node.orchestrator",
-        {"checkpoint_seq": 1},
-        idempotency_key="orchestrator-priority",
+        store.NewTask(
+            run_id=run_id,
+            task_type="engine.node.orchestrator",
+            inputs={"checkpoint_seq": 1},
+            idempotency_key="orchestrator-priority",
+        ),
         db_path=db_path,
     )
     task = store.claim_task("worker", run_id=run_id, db_path=db_path)
     assert task is not None and task.id == queued.id
     deferred = store.enqueue_task(
-        run_id,
-        "engine.node.reflect",
-        {},
-        idempotency_key="deferred-reflection",
-        priority=10,
+        store.NewTask(
+            run_id=run_id,
+            task_type="engine.node.reflect",
+            inputs={},
+            idempotency_key="deferred-reflection",
+            priority=10,
+        ),
         db_path=db_path,
     )
     return task, deferred
@@ -156,10 +162,12 @@ def _seed_finalize_task(
     ]
     _seed_checkpoint(run_id, state, db_path=db_path)
     task = store.enqueue_task(
-        run_id,
-        engine_tasks.FINALIZE_TASK,
-        {},
-        idempotency_key="finalize",
+        store.NewTask(
+            run_id=run_id,
+            task_type=engine_tasks.FINALIZE_TASK,
+            inputs={},
+            idempotency_key="finalize",
+        ),
         db_path=db_path,
     )
     # Restore builds a real generator otherwise; the fixture generator carries a
@@ -306,10 +314,12 @@ async def test_generic_node_completion_emits_matching_milestone(
     run = store.create_run("Task-level science", "standard", "engine", {})
     checkpoint_seq = _seed_checkpoint(run.id, _task_state(run.id))
     node = store.enqueue_task(
-        run.id,
-        f"{engine_tasks.NODE_TASK_PREFIX}{node_name}",
-        {"checkpoint_seq": checkpoint_seq},
-        idempotency_key=f"milestone-{node_name}",
+        store.NewTask(
+            run_id=run.id,
+            task_type=f"{engine_tasks.NODE_TASK_PREFIX}{node_name}",
+            inputs={"checkpoint_seq": checkpoint_seq},
+            idempotency_key=f"milestone-{node_name}",
+        ),
         db_path=isolated_db,
     )
     leased = store.claim_task("worker", run_id=run.id, db_path=isolated_db)

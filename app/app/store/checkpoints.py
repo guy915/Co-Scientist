@@ -12,18 +12,31 @@ from __future__ import annotations
 
 import json
 import sqlite3
+from dataclasses import dataclass
 from typing import Any
 
 from app.store.db import _now, _use_conn, checkpoint_wal
 
 
+@dataclass(frozen=True)
+class NewCheckpoint:
+    """One checkpoint envelope to persist for a run.
+
+    ``stage`` is the provider's boundary label (e.g. ``"post_ranking"``),
+    ``schema_version`` the version of the envelope shape, and
+    ``last_event_seq`` the last durable event sequence at this boundary
+    (a resumed run assigns new event seqs strictly above it). ``state``
+    is the JSON-serializable envelope itself.
+    """
+
+    stage: str
+    schema_version: int
+    last_event_seq: int
+    state: dict[str, Any]
+
+
 def _insert_checkpoint_row(
-    conn: sqlite3.Connection,
-    run_id: str,
-    stage: str,
-    schema_version: int,
-    last_event_seq: int,
-    state: dict[str, Any],
+    conn: sqlite3.Connection, run_id: str, checkpoint: NewCheckpoint
 ) -> int:
     """Insert one checkpoint row and return its assigned per-run sequence."""
     # Assign the next per-run seq and insert in a single statement (the
@@ -36,10 +49,10 @@ def _insert_checkpoint_row(
         (
             run_id,
             run_id,
-            stage,
-            schema_version,
-            last_event_seq,
-            json.dumps(state),
+            checkpoint.stage,
+            checkpoint.schema_version,
+            checkpoint.last_event_seq,
+            json.dumps(checkpoint.state),
             _now(),
         ),
     ).fetchone()
@@ -71,11 +84,8 @@ def _prune_older_checkpoints(
 
 def save_checkpoint(
     run_id: str,
+    checkpoint: NewCheckpoint,
     *,
-    stage: str,
-    schema_version: int,
-    last_event_seq: int,
-    state: dict[str, Any],
     db_path: str | None = None,
     conn: sqlite3.Connection | None = None,
 ) -> int:
@@ -83,11 +93,7 @@ def save_checkpoint(
 
     Args:
         run_id: Identifier of the run being checkpointed.
-        stage: Provider stage/boundary label (e.g. ``"post_ranking"``).
-        schema_version: Version of the checkpoint envelope shape.
-        last_event_seq: The last durable event sequence at this boundary; a
-            resumed run assigns new event seqs strictly above it.
-        state: The JSON-serializable checkpoint envelope.
+        checkpoint: The envelope to persist (see :class:`NewCheckpoint`).
         db_path: Optional override for the SQLite database path.
         conn: Optional open connection to reuse.
 
@@ -95,9 +101,7 @@ def save_checkpoint(
         The newly assigned per-run checkpoint sequence number.
     """
     with _use_conn(conn, db_path) as conn:
-        seq = _insert_checkpoint_row(
-            conn, run_id, stage, schema_version, last_event_seq, state
-        )
+        seq = _insert_checkpoint_row(conn, run_id, checkpoint)
         _prune_older_checkpoints(conn, run_id, seq)
     return seq
 

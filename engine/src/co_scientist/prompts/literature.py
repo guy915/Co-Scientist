@@ -1,5 +1,6 @@
 """Prompt builders for the literature-review node."""
 
+from dataclasses import dataclass
 from typing import Any
 
 from co_scientist.prompts._common import (
@@ -11,24 +12,44 @@ from co_scientist.prompts._common import (
 from co_scientist.prompts.loading import load_prompt
 
 
+@dataclass(frozen=True)
+class LiteratureQueryInputs:
+    """The user-supplied run inputs that steer query generation.
+
+    Attributes:
+        preferences: Free-text user preferences, if any.
+        attributes: Desired hypothesis attributes.
+        user_literature: Seed literature supplied by the user.
+        user_hypotheses: Seed hypotheses supplied by the user.
+    """
+
+    preferences: str | None = None
+    attributes: list[str] | None = None
+    user_literature: list[str] | None = None
+    user_hypotheses: list[str] | None = None
+
+
 def _format_query_generation_variables(
-    research_goal: str,
-    preferences: str | None,
-    attributes: list[str] | None,
-    user_literature: list[str] | None,
-    user_hypotheses: list[str] | None,
+    research_goal: str, inputs: LiteratureQueryInputs
 ) -> dict[str, Any]:
     """Build the shared template variables for query-generation prompts.
 
     Identical across the PubMed-specific and source-aware query-generation
     getters below, so it is defined once here.
+
+    Args:
+        research_goal: The research goal the queries must explore.
+        inputs: The user-supplied run inputs steering query generation.
+
+    Returns:
+        Dict of template variables for a query-generation prompt.
     """
     return {
         "research_goal": research_goal,
-        "preferences": preferences or "None provided",
-        "attributes": _format_csv_list(attributes),
-        "user_literature": _format_bullet_list(user_literature),
-        "user_hypotheses": _format_bullet_list(user_hypotheses),
+        "preferences": inputs.preferences or "None provided",
+        "attributes": _format_csv_list(inputs.attributes),
+        "user_literature": _format_bullet_list(inputs.user_literature),
+        "user_hypotheses": _format_bullet_list(inputs.user_hypotheses),
     }
 
 
@@ -36,21 +57,21 @@ def _format_query_generation_variables(
 # goes through the source-aware getter below, which dispatches to the same
 # template when source_type is "pubmed".
 def get_literature_review_query_generation_pubmed_prompt(
-    research_goal: str,
-    preferences: str | None = None,
-    attributes: list[str] | None = None,
-    user_literature: list[str] | None = None,
-    user_hypotheses: list[str] | None = None,
+    research_goal: str, inputs: LiteratureQueryInputs | None = None
 ) -> str:
-    """Get the PubMed query generation prompt."""
+    """Get the PubMed query generation prompt.
+
+    Args:
+        research_goal: The research goal the queries must explore.
+        inputs: The user-supplied run inputs steering query generation.
+
+    Returns:
+        Formatted prompt string.
+    """
     return load_prompt(
         "literature_review_query_generation_pubmed",
         _format_query_generation_variables(
-            research_goal,
-            preferences,
-            attributes,
-            user_literature,
-            user_hypotheses,
+            research_goal, inputs or LiteratureQueryInputs()
         ),
     )
 
@@ -76,10 +97,7 @@ def _select_query_generation_template(source_type: str) -> str:
 def get_literature_review_query_generation_prompt(
     research_goal: str,
     source_type: str = "academic",
-    preferences: str | None = None,
-    attributes: list[str] | None = None,
-    user_literature: list[str] | None = None,
-    user_hypotheses: list[str] | None = None,
+    inputs: LiteratureQueryInputs | None = None,
 ) -> str:
     """Get source-aware query generation prompt.
 
@@ -89,10 +107,7 @@ def get_literature_review_query_generation_prompt(
     Args:
         research_goal: The research goal
         source_type: Type of literature source (from ToolConfig.source_type)
-        preferences: Optional user preferences
-        attributes: Optional user attributes
-        user_literature: Optional user-provided literature
-        user_hypotheses: Optional user-provided hypotheses
+        inputs: The user-supplied run inputs steering query generation.
 
     Returns:
         Formatted prompt string
@@ -101,11 +116,7 @@ def get_literature_review_query_generation_prompt(
     return load_prompt(
         template_name,
         _format_query_generation_variables(
-            research_goal,
-            preferences,
-            attributes,
-            user_literature,
-            user_hypotheses,
+            research_goal, inputs or LiteratureQueryInputs()
         ),
     )
 

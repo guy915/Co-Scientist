@@ -26,8 +26,9 @@ def _run_offline_workflow(goal: str) -> tuple[str, list[dict[str, Any]]]:
             run.id,
             run.research_goal,
             {"tier": "express"},
-            force_provider="engine",
-            sleep_seconds=0,
+            engine_adapter.WorkflowOptions(
+                force_provider="engine", sleep_seconds=0
+            ),
         )
     )
     return run.id, events

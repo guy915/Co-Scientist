@@ -14,19 +14,31 @@ from tests._engine_tasks_helpers import _seed_checkpoint, _task_state
 
 def test_append_and_list_messages(isolated_db: str) -> None:
     store.create_run(
-        "rg", "standard", "mock", {}, client_id="c1", db_path=isolated_db
+        "rg",
+        "standard",
+        "mock",
+        {},
+        store.RunCreateOptions(client_id="c1", db_path=isolated_db),
     )
     runs = store.list_runs(client_id="c1", db_path=isolated_db)
     run_id = runs[0].id
 
     store.append_message(
-        run_id, "user", "focus on cytokines", "steering", db_path=isolated_db
+        store.NewMessage(
+            run_id=run_id,
+            sender="user",
+            content="focus on cytokines",
+            kind="steering",
+        ),
+        db_path=isolated_db,
     )
     store.append_message(
-        run_id,
-        "system",
-        "Research plan ready",
-        "milestone",
+        store.NewMessage(
+            run_id=run_id,
+            sender="system",
+            content="Research plan ready",
+            kind="milestone",
+        ),
         db_path=isolated_db,
     )
 
@@ -40,18 +52,34 @@ def test_append_and_list_messages(isolated_db: str) -> None:
 
 def test_get_pending_steering(isolated_db: str) -> None:
     store.create_run(
-        "rg", "standard", "mock", {}, client_id="c1", db_path=isolated_db
+        "rg",
+        "standard",
+        "mock",
+        {},
+        store.RunCreateOptions(client_id="c1", db_path=isolated_db),
     )
     run_id = store.list_runs(client_id="c1", db_path=isolated_db)[0].id
 
     store.append_message(
-        run_id, "user", "steer A", "steering", db_path=isolated_db
+        store.NewMessage(
+            run_id=run_id, sender="user", content="steer A", kind="steering"
+        ),
+        db_path=isolated_db,
     )
     store.append_message(
-        run_id, "system", "milestone msg", "milestone", db_path=isolated_db
+        store.NewMessage(
+            run_id=run_id,
+            sender="system",
+            content="milestone msg",
+            kind="milestone",
+        ),
+        db_path=isolated_db,
     )
     store.append_message(
-        run_id, "user", "steer B", "steering", db_path=isolated_db
+        store.NewMessage(
+            run_id=run_id, sender="user", content="steer B", kind="steering"
+        ),
+        db_path=isolated_db,
     )
 
     pending = store.get_pending_steering(run_id, db_path=isolated_db)
@@ -62,15 +90,25 @@ def test_get_pending_steering(isolated_db: str) -> None:
 
 def test_mark_steering_applied(isolated_db: str) -> None:
     store.create_run(
-        "rg", "standard", "mock", {}, client_id="c1", db_path=isolated_db
+        "rg",
+        "standard",
+        "mock",
+        {},
+        store.RunCreateOptions(client_id="c1", db_path=isolated_db),
     )
     run_id = store.list_runs(client_id="c1", db_path=isolated_db)[0].id
 
     store.append_message(
-        run_id, "user", "steer A", "steering", db_path=isolated_db
+        store.NewMessage(
+            run_id=run_id, sender="user", content="steer A", kind="steering"
+        ),
+        db_path=isolated_db,
     )
     store.append_message(
-        run_id, "user", "steer B", "steering", db_path=isolated_db
+        store.NewMessage(
+            run_id=run_id, sender="user", content="steer B", kind="steering"
+        ),
+        db_path=isolated_db,
     )
 
     pending = store.get_pending_steering(run_id, db_path=isolated_db)
@@ -95,9 +133,21 @@ def test_queued_steering_flags_engine_pending_steering(
     """
     from app.engine_adapter import _build_engine_opts
 
-    run = store.create_run("rg", "standard", "engine", {}, db_path=isolated_db)
+    run = store.create_run(
+        "rg",
+        "standard",
+        "engine",
+        {},
+        store.RunCreateOptions(db_path=isolated_db),
+    )
     store.append_message(
-        run.id, "user", "focus on kinase X", "steering", db_path=isolated_db
+        store.NewMessage(
+            run_id=run.id,
+            sender="user",
+            content="focus on kinase X",
+            kind="steering",
+        ),
+        db_path=isolated_db,
     )
 
     opts = _build_engine_opts(run.config, run.id, isolated_db)
@@ -109,7 +159,13 @@ def test_queued_steering_flags_engine_pending_steering(
 def test_no_steering_leaves_pending_flag_unset(isolated_db: str) -> None:
     from app.engine_adapter import _build_engine_opts
 
-    run = store.create_run("rg", "standard", "engine", {}, db_path=isolated_db)
+    run = store.create_run(
+        "rg",
+        "standard",
+        "engine",
+        {},
+        store.RunCreateOptions(db_path=isolated_db),
+    )
     opts = _build_engine_opts(run.config, run.id, isolated_db)
     assert "pending_steering" not in opts
 
@@ -119,13 +175,19 @@ def test_engine_opts_bind_private_attachment_context(isolated_db: str) -> None:
     from app.engine_adapter import _build_engine_opts
 
     run = store.create_run(
-        "kinase AML", "standard", "engine", {}, db_path=isolated_db
+        "kinase AML",
+        "standard",
+        "engine",
+        {},
+        store.RunCreateOptions(db_path=isolated_db),
     )
     store.add_evidence(
-        run.id,
-        "Private kinase result",
-        source="attachment",
-        abstract="Kinase X inhibition reduced AML growth in donor samples.",
+        store.NewEvidence(
+            run_id=run.id,
+            title="Private kinase result",
+            source="attachment",
+            abstract="Kinase X inhibition reduced AML growth in donor samples.",
+        ),
         db_path=isolated_db,
     )
 
@@ -139,12 +201,19 @@ def test_engine_opts_bind_private_attachment_context(isolated_db: str) -> None:
 
 def test_message_to_dict(isolated_db: str) -> None:
     store.create_run(
-        "rg", "standard", "mock", {}, client_id="c1", db_path=isolated_db
+        "rg",
+        "standard",
+        "mock",
+        {},
+        store.RunCreateOptions(client_id="c1", db_path=isolated_db),
     )
     run_id = store.list_runs(client_id="c1", db_path=isolated_db)[0].id
 
     msg = store.append_message(
-        run_id, "user", "hello", "steering", db_path=isolated_db
+        store.NewMessage(
+            run_id=run_id, sender="user", content="hello", kind="steering"
+        ),
+        db_path=isolated_db,
     )
     d = msg.to_dict()
     assert d["sender"] == "user"
@@ -194,8 +263,7 @@ def test_steering_reopens_completed_engine_run(isolated_db: str) -> None:
         "standard",
         "engine",
         {},
-        client_id="test-client",
-        db_path=isolated_db,
+        store.RunCreateOptions(client_id="test-client", db_path=isolated_db),
     )
     state = {
         **_task_state(run.id),
@@ -304,17 +372,16 @@ def test_milestone_messages_generated_by_engine_stream(
         "express",
         "engine",
         {"tier": "express"},
-        client_id="test-client",
-        db_path=isolated_db,
+        store.RunCreateOptions(client_id="test-client", db_path=isolated_db),
     )
     _drain(
         engine_adapter.run_workflow(
             run.id,
             run.research_goal,
             {"tier": "express"},
-            force_provider="engine",
-            db_path=isolated_db,
-            sleep_seconds=0,
+            engine_adapter.WorkflowOptions(
+                force_provider="engine", db_path=isolated_db, sleep_seconds=0
+            ),
         )
     )
 

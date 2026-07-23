@@ -25,10 +25,13 @@ from tests._llm_wrapper_fakes import (
 
 def test_thinking_enabled_by_default_for_deepseek() -> None:
     """Every DeepSeek call thinks unless a call site opts out."""
-    from co_scientist.llm_request import _build_completion_args
+    from co_scientist.llm_request import (
+        CompletionShape,
+        _build_completion_args,
+    )
 
     args = _build_completion_args(
-        "prompt", "deepseek/deepseek-v4-flash", 100, 0.5, False, None
+        "prompt", "deepseek/deepseek-v4-flash", 100, 0.5, CompletionShape()
     )
 
     assert args["extra_body"] == {"thinking": {"type": "enabled"}}
@@ -41,16 +44,17 @@ def test_thinking_disabled_drops_reasoning_effort() -> None:
     ``reasoning_effort`` must not survive the opt-out: it would ask the
     provider to size a reasoning budget for a call that does not reason.
     """
-    from co_scientist.llm_request import _build_completion_args
+    from co_scientist.llm_request import (
+        CompletionShape,
+        _build_completion_args,
+    )
 
     args = _build_completion_args(
         "prompt",
         "deepseek/deepseek-v4-flash",
         100,
         0.5,
-        False,
-        None,
-        enable_thinking=False,
+        CompletionShape(enable_thinking=False),
     )
 
     assert args["extra_body"] == {"thinking": {"type": "disabled"}}
@@ -65,10 +69,13 @@ def test_dashscope_deepseek_uses_enable_thinking_flag() -> None:
     would silently disable reasoning. It also has no ``reasoning_effort``
     tiers.
     """
-    from co_scientist.llm_request import _build_completion_args
+    from co_scientist.llm_request import (
+        CompletionShape,
+        _build_completion_args,
+    )
 
     args = _build_completion_args(
-        "prompt", "dashscope/deepseek-v4-flash", 100, 0.5, False, None
+        "prompt", "dashscope/deepseek-v4-flash", 100, 0.5, CompletionShape()
     )
 
     assert args["extra_body"] == {"enable_thinking": True}
@@ -77,16 +84,17 @@ def test_dashscope_deepseek_uses_enable_thinking_flag() -> None:
 
 def test_dashscope_deepseek_thinking_opt_out() -> None:
     """The thinking opt-out maps to enable_thinking=False on DashScope."""
-    from co_scientist.llm_request import _build_completion_args
+    from co_scientist.llm_request import (
+        CompletionShape,
+        _build_completion_args,
+    )
 
     args = _build_completion_args(
         "prompt",
         "dashscope/deepseek-v4-pro",
         100,
         0.5,
-        False,
-        None,
-        enable_thinking=False,
+        CompletionShape(enable_thinking=False),
     )
 
     assert args["extra_body"] == {"enable_thinking": False}
@@ -95,10 +103,13 @@ def test_dashscope_deepseek_thinking_opt_out() -> None:
 
 def test_thinking_params_absent_for_non_deepseek_models() -> None:
     """The thinking params are DeepSeek-specific and never sent elsewhere."""
-    from co_scientist.llm_request import _build_completion_args
+    from co_scientist.llm_request import (
+        CompletionShape,
+        _build_completion_args,
+    )
 
     args = _build_completion_args(
-        "prompt", "gemini/gemini-2.5-flash", 100, 0.5, False, None
+        "prompt", "gemini/gemini-2.5-flash", 100, 0.5, CompletionShape()
     )
 
     assert "extra_body" not in args
@@ -116,7 +127,12 @@ async def test_ranking_matchup_opts_out_of_thinking(
     """
     import litellm
 
-    from co_scientist.agents.ranking.ranking import _call_matchup_judge
+    from co_scientist.agents.ranking.ranking import (
+        _call_matchup_judge,
+        _DebateContext,
+    )
+    from co_scientist.agents.ranking.ranking_debate import _MatchupPrompt
+    from tests._state import make_hypothesis
 
     seen: dict[str, Any] = {}
 
@@ -127,15 +143,14 @@ async def test_ranking_matchup_opts_out_of_thinking(
     monkeypatch.setattr(litellm, "acompletion", fake_acompletion)
     _disable_cache(monkeypatch)
 
-    await _call_matchup_judge(
-        "compare A and B",
-        None,
+    mp = _MatchupPrompt("compare A and B", None, None, None)
+    ctx = _DebateContext(
+        make_hypothesis(text="a"),
+        make_hypothesis(text="b"),
+        "goal",
         "deepseek/deepseek-v4-flash",
-        None,
-        None,
-        None,
-        None,
     )
+    await _call_matchup_judge(mp, ctx)
 
     assert seen["extra_body"] == {"thinking": {"type": "disabled"}}
     assert "reasoning_effort" not in seen

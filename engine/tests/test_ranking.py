@@ -272,7 +272,7 @@ async def test_each_round_selects_from_committed_current_elo(
     state = make_state(hypotheses=hypotheses, tournament_pairs=2)
 
     await ranking._run_tournament_matchups(
-        state, hypotheses, 2, None, None, None, None, None
+        state, hypotheses, 2, ranking._TournamentGuidance()
     )
 
     assert observed_elos[0] == (1200, 1200)
@@ -391,12 +391,19 @@ def test_matchup_judging_survives_more_than_one_event_loop(
 
     monkeypatch.setattr(ranking_debate, "call_llm_json", fake_call_llm_json)
 
+    hyp_a = make_hypothesis(text="a")
+    hyp_b = make_hypothesis(text="b")
+
     async def judge_a_full_wave() -> None:
         """Force real contention so the semaphore has to wait."""
+        mp = ranking_debate._MatchupPrompt("prompt", None, None, None)
         await asyncio.gather(
             *(
                 ranking._call_matchup_judge(
-                    "prompt", None, "model", None, index, None, None
+                    mp,
+                    ranking_debate._DebateContext(
+                        hyp_a, hyp_b, "goal", "model", matchup_index=index
+                    ),
                 )
                 # More waiters than permits, so acquisition must block.
                 for index in range(MAX_CONCURRENT_LLM_CALLS * 2)

@@ -15,6 +15,7 @@ from co_scientist.prompts._common import (
 )
 from co_scientist.prompts.generation_debate import (
     _DEBATE_FINAL_TURN_INSTRUCTIONS,
+    DebatePromptRequest,
     _build_debate_literature_variables,
     _build_debate_prompt_variables,
     _format_debate_attributes,
@@ -25,6 +26,7 @@ from co_scientist.prompts.generation_debate import (
     get_debate_generation_prompt,
 )
 from co_scientist.prompts.generation_draft import (
+    DraftPromptRequest,
     _build_draft_prompt_variables,
     _resolve_draft_tool_instructions,
     get_draft_prompt_with_tools,
@@ -48,6 +50,7 @@ from co_scientist.prompts.generation_tools import (
     build_tool_instructions,
 )
 from co_scientist.prompts.generation_validation import (
+    ValidationSynthesisRequest,
     _build_already_validated_context,
     _build_validation_synthesis_prompt_variables,
     _format_hypotheses_with_novelty_analyses,
@@ -68,6 +71,9 @@ from co_scientist.prompts.loading import (
 __all__ = [
     "_DEBATE_FINAL_TURN_INSTRUCTIONS",
     "Any",
+    "DebatePromptRequest",
+    "DraftPromptRequest",
+    "ValidationSynthesisRequest",
     "_build_already_validated_context",
     "_build_citation_reference_section",
     "_build_debate_literature_variables",

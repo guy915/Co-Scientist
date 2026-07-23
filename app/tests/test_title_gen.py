@@ -34,12 +34,11 @@ def test_clean_title_rejects_empty_or_overlong(raw: str) -> None:
 
 def test_set_run_title_persists_and_serializes(isolated_db: str) -> None:
     run = store.create_run(
-        research_goal="Map senescence escape mechanisms",
-        profile="default",
-        provider="mock",
-        config={},
-        client_id="c1",
-        db_path=isolated_db,
+        "Map senescence escape mechanisms",
+        "default",
+        "mock",
+        {},
+        store.RunCreateOptions(client_id="c1", db_path=isolated_db),
     )
     # Created without a title; the API shape carries it as None.
     assert run.title is None

@@ -9,11 +9,46 @@ original module namespace keeps resolving.
 from __future__ import annotations
 
 import sqlite3
+from dataclasses import dataclass
 from typing import Any
 
 from app import store
 from app.citations import CitationRecord, classify_citation
 from app.report_render import format_deep_verification_critique
+
+
+@dataclass(frozen=True)
+class _CitationSink:
+    """The drain's citation lookups, mutated in place as rows are written.
+
+    Attributes:
+        ev_id_by_title: Evidence id per source title; a citation may add its
+            own source on the fly.
+        abstract_by_title: Abstract per retrieved source title, used to
+            classify a citation against the paper it cites.
+        citation_summary: Running per-state citation counts.
+    """
+
+    ev_id_by_title: dict[str, str]
+    abstract_by_title: dict[str, str]
+    citation_summary: dict[str, int]
+
+
+@dataclass(frozen=True)
+class _CitationTarget:
+    """The hypothesis row a citation attaches to, inside one transaction.
+
+    Attributes:
+        run_id: Run the citation belongs to.
+        hyp_id: Persisted hypothesis row the citation attaches to.
+        grounding: Claim text the citation is matched against.
+        conn: Open connection of the caller's transaction.
+    """
+
+    run_id: str
+    hyp_id: str
+    grounding: str
+    conn: sqlite3.Connection
 
 
 def _score_or_none(value: Any) -> float | None:
@@ -28,15 +63,19 @@ def _persist_engine_review_rows(
     for rv in h.get("reviews") or []:
         scores = rv.get("scores", {})
         store.add_review(
-            run_id=run_id,
-            hypothesis_id=hyp_id,
-            reviewer_agent="review",
-            summary=rv.get("review_summary", ""),
-            critique=rv.get("constructive_feedback", ""),
-            novelty=_score_or_none(scores.get("novelty", 0)),
-            plausibility=_score_or_none(scores.get("scientific_soundness", 0)),
-            testability=_score_or_none(scores.get("testability", 0)),
-            overall=_score_or_none(rv.get("overall_score", 0)),
+            store.NewReview(
+                run_id=run_id,
+                hypothesis_id=hyp_id,
+                reviewer_agent="review",
+                summary=rv.get("review_summary", ""),
+                critique=rv.get("constructive_feedback", ""),
+                novelty=_score_or_none(scores.get("novelty", 0)),
+                plausibility=_score_or_none(
+                    scores.get("scientific_soundness", 0)
+                ),
+                testability=_score_or_none(scores.get("testability", 0)),
+                overall=_score_or_none(rv.get("overall_score", 0)),
+            ),
             conn=conn,
         )
 
@@ -55,11 +94,13 @@ def _persist_deep_verification_review(
         probes, h.get("deep_verification_verdict")
     )
     store.add_review(
-        run_id=run_id,
-        hypothesis_id=hyp_id,
-        reviewer_agent="deep_verification",
-        summary=summary,
-        critique=critique,
+        store.NewReview(
+            run_id=run_id,
+            hypothesis_id=hyp_id,
+            reviewer_agent="deep_verification",
+            summary=summary,
+            critique=critique,
+        ),
         conn=conn,
     )
 
@@ -79,25 +120,36 @@ def _ensure_citation_evidence_id(
     run_id: str,
     cite_title: str,
     cite_info: dict[str, Any],
-    cite_url: str,
     ev_id_by_title: dict[str, str],
     conn: sqlite3.Connection,
 ) -> str:
     """Return the evidence id for a cited source, adding it on the fly.
 
     Mutates `ev_id_by_title` in place when a new evidence row is added.
+
+    Args:
+        run_id: Run the cited source belongs to.
+        cite_title: Title the source is keyed by.
+        cite_info: The engine's raw citation entry.
+        ev_id_by_title: Evidence id per source title, updated in place.
+        conn: Open connection of the caller's transaction.
+
+    Returns:
+        The evidence id for the cited source.
     """
     cite_ev_id = ev_id_by_title.get(cite_title)
     if cite_ev_id is None:
         cite_ev_id = store.add_evidence(
-            run_id,
-            cite_title,
-            source=cite_info.get("type", "engine"),
-            url=cite_url,
-            authors=cite_info.get("authors") or [],
-            year=cite_info.get("year"),
-            abstract="",
-            available=True,
+            store.NewEvidence(
+                run_id=run_id,
+                title=cite_title,
+                source=cite_info.get("type", "engine"),
+                url=_citation_url(cite_info),
+                authors=cite_info.get("authors") or [],
+                year=cite_info.get("year"),
+                abstract="",
+                available=True,
+            ),
             conn=conn,
         )
         ev_id_by_title[cite_title] = cite_ev_id
@@ -133,71 +185,84 @@ def _citation_available(cite_info: dict[str, Any], cite_url: str) -> bool:
 
 
 def _persist_one_citation(
-    run_id: str,
-    hyp_id: str,
+    target: _CitationTarget,
     cite_key: str,
     cite_info: dict[str, Any],
-    grounding: str,
-    ev_id_by_title: dict[str, str],
-    abstract_by_title: dict[str, str],
-    citation_summary: dict[str, int],
-    conn: sqlite3.Connection,
+    sink: _CitationSink,
 ) -> None:
     """Persist one hypothesis citation row, classifying and tallying it.
 
     Routes the citation through the shared classifier (the same path the
     mock uses) rather than hardcoding a state, so the four-state citation UI
-    reflects real runs. `grounding` is the claim the citation supports; it is
-    matched against the cited paper's abstract (when the source was
-    retrieved), and a source with no resolvable URL (e.g. a knowledge-graph
-    statement) falls out as "unavailable".
+    reflects real runs. The target's grounding is the claim the citation
+    supports; it is matched against the cited paper's abstract (when the
+    source was retrieved), and a source with no resolvable URL (e.g. a
+    knowledge-graph statement) falls out as "unavailable".
 
-    Mutates `ev_id_by_title` (a citation may add evidence for its source on
-    the fly) and `citation_summary` (running citation-state counts) in place.
+    Mutates the sink's `ev_id_by_title` (a citation may add evidence for its
+    source on the fly) and `citation_summary` (running citation-state
+    counts) in place.
+
+    Args:
+        target: The hypothesis row, its claim text, and the transaction.
+        cite_key: The engine's key for this citation.
+        cite_info: The engine's raw citation entry.
+        sink: The drain's citation lookups, updated in place.
     """
     cite_title = cite_info.get("title", cite_key)
     cite_url = _citation_url(cite_info)
     cite_ev_id = _ensure_citation_evidence_id(
-        run_id, cite_title, cite_info, cite_url, ev_id_by_title, conn
+        target.run_id,
+        cite_title,
+        cite_info,
+        sink.ev_id_by_title,
+        target.conn,
     )
     claim = f"[{cite_key}] cited in hypothesis"
     state = classify_citation(
         CitationRecord(
             url=cite_url,
-            abstract=abstract_by_title.get(cite_title, ""),
-            claim=grounding,
+            abstract=sink.abstract_by_title.get(cite_title, ""),
+            claim=target.grounding,
             available=_citation_available(cite_info, cite_url),
         )
     )
-    citation_summary[state] += 1
-    store.add_citation(run_id, hyp_id, cite_ev_id, claim, state, conn=conn)
+    sink.citation_summary[state] += 1
+    store.add_citation(
+        store.NewCitation(
+            run_id=target.run_id,
+            hypothesis_id=target.hyp_id,
+            evidence_id=cite_ev_id,
+            claim=claim,
+            state=state,
+        ),
+        conn=target.conn,
+    )
 
 
 def _persist_engine_citations(
     run_id: str,
     hyp_id: str,
     h: dict[str, Any],
-    ev_id_by_title: dict[str, str],
-    abstract_by_title: dict[str, str],
-    citation_summary: dict[str, int],
+    sink: _CitationSink,
     conn: sqlite3.Connection,
 ) -> None:
     """Persist a hypothesis's citations, classifying each via the shared path.
 
-    Mutates `ev_id_by_title` (a citation may add evidence for its source on
-    the fly) and `citation_summary` (running citation-state counts) in place;
-    see `_persist_one_citation` for the per-citation classification rules.
+    Mutates the sink's `ev_id_by_title` (a citation may add evidence for its
+    source on the fly) and `citation_summary` (running citation-state
+    counts) in place; see `_persist_one_citation` for the per-citation
+    classification rules.
+
+    Args:
+        run_id: Run the hypothesis belongs to.
+        hyp_id: Persisted hypothesis row the citations attach to.
+        h: The engine's raw hypothesis payload.
+        sink: The drain's citation lookups, updated in place.
+        conn: Open connection of the caller's transaction.
     """
-    grounding = _hypothesis_grounding_text(h)
+    target = _CitationTarget(
+        run_id, hyp_id, _hypothesis_grounding_text(h), conn
+    )
     for cite_key, cite_info in _citation_map(h).items():
-        _persist_one_citation(
-            run_id,
-            hyp_id,
-            cite_key,
-            cite_info,
-            grounding,
-            ev_id_by_title,
-            abstract_by_title,
-            citation_summary,
-            conn,
-        )
+        _persist_one_citation(target, cite_key, cite_info, sink)

@@ -7,14 +7,36 @@ state into the store and emits the report through the shared finalize path.
 
 from __future__ import annotations
 
-import asyncio
 import logging
 import time
 from collections.abc import AsyncIterator, Awaitable, Callable
-from typing import Any, NamedTuple, cast
+from typing import Any, cast
 
 from app import store
-from app.engine_adapter.drain import _persist_final_state
+
+# The dispatch value objects and the post-stream drain/report stage moved
+# verbatim to sibling modules; every moved name is re-exported so this
+# module's namespace (the seam tests and callers import against) keeps
+# resolving.
+from app.engine_adapter.engine_stream_context import (
+    _EngineRunInputs as _EngineRunInputs,
+)
+from app.engine_adapter.engine_stream_context import (
+    _EngineRunRequest as _EngineRunRequest,
+)
+from app.engine_adapter.engine_stream_context import (
+    _EngineStreamControls as _EngineStreamControls,
+)
+from app.engine_adapter.engine_stream_report import (
+    _drain_and_stage_events as _drain_and_stage_events,
+)
+from app.engine_adapter.engine_stream_report import (
+    _new_engine_final_state,
+    _persist_and_report,
+)
+from app.engine_adapter.engine_stream_report import (
+    _persist_run_metrics as _persist_run_metrics,
+)
 from app.engine_adapter.events import (
     _canonical_engine_payload,
     _canonical_event_type,
@@ -22,7 +44,7 @@ from app.engine_adapter.events import (
 )
 from app.engine_adapter.opts import _build_engine_opts, _build_generator
 from app.engine_adapter.provider import _import_hypothesis_generator
-from app.report_render import EmitFn, emit_cancel_or_pause, finalize_report
+from app.report_render import EmitFn, emit_cancel_or_pause
 from app.store import RunStatus
 
 logger = logging.getLogger(__name__)
@@ -62,31 +84,16 @@ def _make_engine_checkpoint_callback(
         )
         store.save_checkpoint(
             run_id,
-            stage=f"engine:{node_name}",
-            schema_version=CHECKPOINT_VERSION,
-            last_event_seq=envelope["last_event_seq"],
-            state={"provider": _ENGINE_CHECKPOINT_PROVIDER, **envelope},
+            store.NewCheckpoint(
+                stage=f"engine:{node_name}",
+                schema_version=CHECKPOINT_VERSION,
+                last_event_seq=envelope["last_event_seq"],
+                state={"provider": _ENGINE_CHECKPOINT_PROVIDER, **envelope},
+            ),
             db_path=db_path,
         )
 
     return _checkpoint
-
-
-class _EngineRunInputs(NamedTuple):
-    """One engine dispatch's fixed identity: what to generate and how.
-
-    Bundles the parameters that describe a single engine run (as opposed to
-    execution controls like cancellation/db_path/emit), so the streaming and
-    persist-and-report stages can each pull only the fields they need
-    without every intermediate function re-declaring the full parameter
-    list.
-    """
-
-    generator: Any
-    research_goal: str
-    run_id: str
-    run_mode: str
-    initial_opts: dict[str, Any] | None
 
 
 def is_engine_checkpoint(checkpoint: dict[str, Any] | None) -> bool:
@@ -150,6 +157,8 @@ def _fresh_engine_node_stream(
 
     Streams from the goal, checkpointing the full state after each node.
     """
+    from co_scientist import RunCallbacks
+
     return cast(
         "AsyncIterator[tuple[str, dict[str, Any]]]",
         run.generator.generate_hypotheses(
@@ -157,7 +166,7 @@ def _fresh_engine_node_stream(
             stream=True,
             run_id=run.run_id,
             opts=run.initial_opts,
-            checkpoint_callback=checkpoint_callback,
+            callbacks=RunCallbacks(checkpoint=checkpoint_callback),
         ),
     )
 
@@ -206,11 +215,7 @@ def _engine_node_stream(
 async def _stream_engine_nodes(
     run: _EngineRunInputs,
     final_state: dict[str, Any],
-    *,
-    cancelled: asyncio.Event | None,
-    db_path: str | None,
-    emit: EmitFn,
-    resume: bool = False,
+    controls: _EngineStreamControls,
 ) -> AsyncIterator[dict[str, Any]]:
     """Stream the engine's per-node events, updating `final_state` in place.
 
@@ -221,10 +226,20 @@ async def _stream_engine_nodes(
     On cancellation, yields a final "cancelled" status event and returns
     early; the caller checks `cancelled.is_set()` once this generator is
     exhausted to distinguish that from a natural finish.
+
+    Args:
+        run: The engine dispatch's generator, goal, and run identity.
+        final_state: Accumulator updated in place from each snapshot.
+        controls: Cancellation, db path, event sink, and resume flag.
+
+    Yields:
+        Each streamed node event, in canonical vocabulary.
     """
+    db_path, emit = controls.db_path, controls.emit
+    cancelled = controls.cancelled
     checkpoint_callback = _make_engine_checkpoint_callback(run.run_id, db_path)
     async for node_name, state in _engine_node_stream(
-        run, checkpoint_callback, resume=resume
+        run, checkpoint_callback, resume=controls.resume
     ):
         if cancelled and cancelled.is_set():
             yield await emit_cancel_or_pause(run.run_id, db_path, emit)
@@ -237,143 +252,34 @@ async def _stream_engine_nodes(
         )
 
 
-def _new_engine_final_state() -> dict[str, Any]:
-    """Return an empty accumulator for a streamed engine run's final state."""
-    return {
-        "hypotheses": [],
-        "articles": [],
-        "tournament_matchups": [],
-        "meta_review": {},
-        "research_overview": {},
-        "proximity_graph": {},
-        "metrics": {},
-    }
-
-
-def _persist_run_metrics(
-    run_id: str,
-    metrics: dict[str, Any] | None,
-    execution_time: float,
-    db_path: str | None,
-) -> None:
-    """Persist the run's final ExecutionMetrics dict from streamed state.
-
-    The engine's streamed metrics carry per-node deltas already merged by
-    the engine; ``total_time`` is filled from the adapter's own wall clock
-    when the stream did not measure one (it only does on the non-streaming
-    path).
-
-    Args:
-        run_id: Identifier of the run the metrics belong to.
-        metrics: The last streamed cumulative metrics dict, if any.
-        execution_time: Wall-clock seconds the adapter measured.
-        db_path: Optional override for the SQLite database path.
-    """
-    persisted = dict(metrics or {})
-    if not persisted.get("total_time"):
-        persisted["total_time"] = round(execution_time, 3)
-    store.save_run_metrics(run_id, persisted, db_path=db_path)
-
-
-async def _drain_and_stage_events(
-    run_id: str,
-    final_state: dict[str, Any],
-    db_path: str | None,
-    emit: EmitFn,
-) -> tuple[Any, list[dict[str, Any]]]:
-    """Drain `final_state` into the store, emitting the post-drain stage events.
-
-    Emits the ``safety.hypothesis``, ``citation.grounding``, and
-    ``citation_audit`` stage events from counts the drain already computed,
-    so the engine path carries the same per-stage fidelity the mock's
-    scripted stages do.
-
-    Returns:
-        A tuple of (drain result, the stage events emitted, in order).
-    """
-    drained = _persist_final_state(
-        run_id=run_id,
-        final_state=final_state,
-        db_path=db_path,
-    )
-    events = [
-        await emit("safety.hypothesis", drained.safety_counts),
-        await emit("citation.grounding", drained.grounding_counts),
-        await emit(
-            "citation_audit", dict(drained.report_inputs["citation_summary"])
-        ),
-    ]
-    return drained, events
-
-
-async def _persist_and_report(
-    run: _EngineRunInputs,
-    final_state: dict[str, Any],
-    *,
-    start: float,
-    db_path: str | None,
-    emit: EmitFn,
-) -> AsyncIterator[dict[str, Any]]:
-    """Drain `final_state` into the store, then build and emit the report.
-
-    Builds, screens, persists, and emits the report through the shared
-    finalize path (final safety gate included), so the engine is gated and
-    reported on exactly the same terms as the mock.
-    """
-    drained, stage_events = await _drain_and_stage_events(
-        run.run_id, final_state, db_path, emit
-    )
-    for event in stage_events:
-        yield event
-    _persist_run_metrics(
-        run.run_id,
-        final_state.get("metrics"),
-        execution_time=time.time() - start,
-        db_path=db_path,
-    )
-    async for event in finalize_report(
-        run_id=run.run_id,
-        research_goal=run.research_goal,
-        run_mode=run.run_mode,
-        provider="engine",
-        emit=emit,
-        execution_time=time.time() - start,
-        db_path=db_path,
-        **drained.report_inputs,
-    ):
-        yield event
-
-
 async def _run_engine_and_report(
     run: _EngineRunInputs,
+    controls: _EngineStreamControls,
     *,
     start: float,
-    cancelled: asyncio.Event | None,
-    db_path: str | None,
-    emit: EmitFn,
-    resume: bool = False,
 ) -> AsyncIterator[dict[str, Any]]:
     """Stream the engine's nodes, then drain final state and emit the report.
 
     Yields every streamed event. On cancellation, `_stream_engine_nodes` has
     already emitted the terminal "cancelled" status event, so this returns
     early and skips draining/reporting.
+
+    Args:
+        run: The engine dispatch's generator, goal, and run identity.
+        controls: Cancellation, db path, event sink, and resume flag.
+        start: Wall-clock start of the dispatch, for execution time.
+
+    Yields:
+        Every streamed node event, then the drain and report events.
     """
     final_state = _new_engine_final_state()
-    async for event in _stream_engine_nodes(
-        run,
-        final_state,
-        cancelled=cancelled,
-        db_path=db_path,
-        emit=emit,
-        resume=resume,
-    ):
+    async for event in _stream_engine_nodes(run, final_state, controls):
         yield event
-    if cancelled and cancelled.is_set():
+    if controls.cancelled and controls.cancelled.is_set():
         return
 
     async for event in _persist_and_report(
-        run, final_state, start=start, db_path=db_path, emit=emit
+        run, final_state, controls, start=start
     ):
         yield event
 
@@ -404,40 +310,42 @@ async def _emit_engine_failure(
 
 async def _run_engine_provider(
     generator_cls: Any,
-    research_goal: str,
-    run_id: str,
-    run_mode: str,
-    cfg: dict[str, Any],
-    *,
-    cancelled: asyncio.Event | None,
-    db_path: str | None,
-    emit: EmitFn,
-    resume: bool = False,
+    request: _EngineRunRequest,
+    controls: _EngineStreamControls,
 ) -> AsyncIterator[dict[str, Any]]:
     """Run the real engine end to end: stream nodes, drain state, report.
 
     Persists the running status, then delegates streaming/draining/reporting
     to `_run_engine_and_report`. On any exception, marks the run failed and
     yields a terminal "failed" status event.
+
+    Args:
+        generator_cls: The resolved ``HypothesisGenerator`` class.
+        request: The run's goal, identity, tier, and resolved config.
+        controls: Cancellation, db path, event sink, and resume flag.
+
+    Yields:
+        Every event the dispatch produces, ending in a terminal status.
     """
+    db_path, emit = controls.db_path, controls.emit
+    run_id = request.run_id
     yield await _emit_engine_running(run_id, db_path, emit)
 
-    initial_opts = _build_engine_opts(cfg, run_id, db_path)
+    initial_opts = _build_engine_opts(request.cfg, run_id, db_path)
     run_row = store.get_run(run_id, db_path=db_path)
     offline = run_row is not None and store.run_used_offline(run_row)
-    generator = _build_generator(generator_cls, cfg, offline=offline)
+    generator = _build_generator(generator_cls, request.cfg, offline=offline)
     run = _EngineRunInputs(
-        generator, research_goal, run_id, run_mode, initial_opts
+        generator,
+        request.research_goal,
+        run_id,
+        request.run_mode,
+        initial_opts,
     )
 
     try:
         async for event in _run_engine_and_report(
-            run,
-            start=time.time(),
-            cancelled=cancelled,
-            db_path=db_path,
-            emit=emit,
-            resume=resume,
+            run, controls, start=time.time()
         ):
             yield event
     except Exception as e:
@@ -445,32 +353,27 @@ async def _run_engine_provider(
 
 
 def _real_engine_stream(
-    research_goal: str,
-    run_id: str,
-    run_mode: str,
-    cfg: dict[str, Any],
-    *,
-    cancelled: asyncio.Event | None,
-    db_path: str | None,
-    sleep_seconds: float,
-    emit: EmitFn,
-    resume: bool = False,
+    request: _EngineRunRequest,
+    controls: _EngineStreamControls,
 ) -> AsyncIterator[dict[str, Any]]:
-    """Return the real-engine event stream, bridging it into our event log."""
+    """Return the real-engine event stream, bridging it into our event log.
+
+    Args:
+        request: The run's goal, identity, tier, and resolved config.
+        controls: Cancellation, db path, event sink, and resume flag.
+
+    Returns:
+        The dispatch's event stream.
+
+    Raises:
+        RuntimeError: When the engine is unavailable. Raised here, before
+            the async generator is entered, so a missing engine fails the
+            call rather than the first iteration.
+    """
     generator_cls = _import_hypothesis_generator()
     if generator_cls is None:
         raise RuntimeError(
             "real engine is unavailable; refusing to substitute mock science"
         )
 
-    return _run_engine_provider(
-        generator_cls,
-        research_goal,
-        run_id,
-        run_mode,
-        cfg,
-        cancelled=cancelled,
-        db_path=db_path,
-        emit=emit,
-        resume=resume,
-    )
+    return _run_engine_provider(generator_cls, request, controls)

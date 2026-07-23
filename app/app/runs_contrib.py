@@ -49,11 +49,13 @@ def _persist_manual_hypothesis(
     persisted safety_status and any blocking outcome is audited identically.
     """
     hyp_id = store.add_hypothesis(
-        run_id,
-        title=str(hyp["title"]),
-        statement=str(hyp["statement"]),
-        created_by_agent=human_input.SCIENTIST_MANUAL_ORIGIN,
-        author=author,
+        store.NewHypothesis(
+            run_id=run_id,
+            title=str(hyp["title"]),
+            statement=str(hyp["statement"]),
+            created_by_agent=human_input.SCIENTIST_MANUAL_ORIGIN,
+            author=author,
+        )
     )
     screen_hypotheses(run_id, store.list_hypotheses(run_id))
     return hyp_id
@@ -64,12 +66,16 @@ def _notify_manual_hypothesis(
 ) -> ScientificTask | None:
     """Steer the run with the new hypothesis and audit the contribution."""
     message = store.append_message(
-        run_id,
-        author,
-        "Scientist-contributed hypothesis to evaluate in subsequent work: "
-        f"{statement}",
-        "steering",
-        meta={"kind": "manual_hypothesis", "hypothesis_id": hyp_id},
+        store.NewMessage(
+            run_id=run_id,
+            sender=author,
+            content=(
+                "Scientist-contributed hypothesis to evaluate in "
+                f"subsequent work: {statement}"
+            ),
+            kind="steering",
+            meta={"kind": "manual_hypothesis", "hypothesis_id": hyp_id},
+        )
     )
     continuation = engine_tasks.enqueue_scientist_continuation(
         run_id, message.id
@@ -145,19 +151,28 @@ def _persist_and_notify_human_review(
 ) -> ScientificTask | None:
     """Persist the review, steer the run, and audit the contribution."""
     store.add_review(
-        run_id,
-        hypothesis_id=review.hypothesis_id,
-        reviewer_agent="scientist",
-        summary=f"Scientist verdict: {review.verdict} (by {review.author})",
-        critique=review.critique,
+        store.NewReview(
+            run_id=run_id,
+            hypothesis_id=review.hypothesis_id,
+            reviewer_agent="scientist",
+            summary=f"Scientist verdict: {review.verdict} (by {review.author})",
+            critique=review.critique,
+        )
     )
     message = store.append_message(
-        run_id,
-        author,
-        "Scientist review of hypothesis "
-        f"{review.hypothesis_id}: verdict={review.verdict}; {review.critique}",
-        "steering",
-        meta={"kind": "human_review", "hypothesis_id": review.hypothesis_id},
+        store.NewMessage(
+            run_id=run_id,
+            sender=author,
+            content=(
+                f"Scientist review of hypothesis {review.hypothesis_id}: "
+                f"verdict={review.verdict}; {review.critique}"
+            ),
+            kind="steering",
+            meta={
+                "kind": "human_review",
+                "hypothesis_id": review.hypothesis_id,
+            },
+        )
     )
     continuation = engine_tasks.enqueue_scientist_continuation(
         run_id, message.id
@@ -215,17 +230,24 @@ async def add_attachment(
             status_code=422, detail="consent is required to index a document"
         )
     ev_id = store.add_evidence(
-        run_id,
-        req.title,
-        source=run_corpus.ATTACHMENT_SOURCE,
-        abstract=req.text,
+        store.NewEvidence(
+            run_id=run_id,
+            title=req.title,
+            source=run_corpus.ATTACHMENT_SOURCE,
+            abstract=req.text,
+        )
     )
     message = store.append_message(
-        run_id,
-        "scientist",
-        f"Use the private research document '{req.title}' in subsequent work.",
-        "steering",
-        meta={"kind": "attachment", "evidence_id": ev_id},
+        store.NewMessage(
+            run_id=run_id,
+            sender="scientist",
+            content=(
+                f"Use the private research document '{req.title}' "
+                "in subsequent work."
+            ),
+            kind="steering",
+            meta={"kind": "attachment", "evidence_id": ev_id},
+        )
     )
     continuation = engine_tasks.enqueue_scientist_continuation(
         run_id, message.id
@@ -258,23 +280,27 @@ def _persist_and_notify_upload(
 ) -> tuple[str, ScientificTask | None]:
     """Persist the extracted document as evidence and steer the run with it."""
     evidence_id = store.add_evidence(
-        run_id,
-        title,
-        source=run_corpus.ATTACHMENT_SOURCE,
-        abstract=extracted.text,
-        mime_type=extracted.mime_type,
-        sha256=extracted.sha256,
-        byte_size=extracted.byte_size,
-        document_version=extracted.sha256,
-        extraction_tool=extracted.extraction_tool,
+        store.NewEvidence(
+            run_id=run_id,
+            title=title,
+            source=run_corpus.ATTACHMENT_SOURCE,
+            abstract=extracted.text,
+            mime_type=extracted.mime_type,
+            sha256=extracted.sha256,
+            byte_size=extracted.byte_size,
+            document_version=extracted.sha256,
+            extraction_tool=extracted.extraction_tool,
+        )
     )
     message = store.append_message(
-        run_id,
-        uploader,
-        "Use the uploaded private research document "
-        f"'{title}' in subsequent work.",
-        "steering",
-        meta={"kind": "attachment", "evidence_id": evidence_id},
+        store.NewMessage(
+            run_id=run_id,
+            sender=uploader,
+            content="Use the uploaded private research document "
+            f"'{title}' in subsequent work.",
+            kind="steering",
+            meta={"kind": "attachment", "evidence_id": evidence_id},
+        )
     )
     continuation = engine_tasks.enqueue_scientist_continuation(
         run_id, message.id

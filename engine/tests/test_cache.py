@@ -11,13 +11,14 @@ global singletons, so the global factories never touch the repo's real
 ``.coscientist_cache`` directory.
 """
 
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
 import pytest
 
 from co_scientist import cache
-from co_scientist.cache import LLMCache, NodeCache
+from co_scientist.cache import LLMCache, LLMCacheRequest, NodeCache
 
 
 @pytest.fixture(autouse=True)
@@ -40,12 +41,12 @@ def _isolate_cache(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 # A reusable request/response pair for the LLM cache.
-_REQUEST: dict[str, Any] = {
-    "prompt": "explain mitochondria",
-    "model_name": "test-model",
-    "temperature": 0.3,
-    "max_tokens": 100,
-}
+_REQUEST = LLMCacheRequest(
+    prompt="explain mitochondria",
+    model_name="test-model",
+    temperature=0.3,
+    max_tokens=100,
+)
 _RESPONSE: dict[str, Any] = {"content": "the powerhouse of the cell"}
 
 # --- LLMCache: key derivation ----------------------------------------------
@@ -54,8 +55,8 @@ _RESPONSE: dict[str, Any] = {"content": "the powerhouse of the cell"}
 def test_key_stable_for_same_inputs(tmp_path: Path) -> None:
     """The same request parameters always derive the same cache key."""
     cache_obj = LLMCache(cache_dir=str(tmp_path), enabled=True)
-    key_a = cache_obj._generate_cache_key(**_REQUEST)
-    key_b = cache_obj._generate_cache_key(**_REQUEST)
+    key_a = cache_obj._generate_cache_key(_REQUEST)
+    key_b = cache_obj._generate_cache_key(_REQUEST)
     assert key_a == key_b
     # SHA256 hex digest.
     assert len(key_a) == 64
@@ -64,12 +65,12 @@ def test_key_stable_for_same_inputs(tmp_path: Path) -> None:
 def test_key_differs_for_different_inputs(tmp_path: Path) -> None:
     """Changing any request parameter changes the derived cache key."""
     cache_obj = LLMCache(cache_dir=str(tmp_path), enabled=True)
-    base = cache_obj._generate_cache_key(**_REQUEST)
+    base = cache_obj._generate_cache_key(_REQUEST)
     other_prompt = cache_obj._generate_cache_key(
-        **{**_REQUEST, "prompt": "different prompt"}
+        replace(_REQUEST, prompt="different prompt")
     )
     other_temp = cache_obj._generate_cache_key(
-        **{**_REQUEST, "temperature": 0.9}
+        replace(_REQUEST, temperature=0.9)
     )
     assert base != other_prompt
     assert base != other_temp
@@ -79,11 +80,13 @@ def test_key_differs_for_different_inputs(tmp_path: Path) -> None:
 def test_key_changes_with_optional_params(tmp_path: Path) -> None:
     """Optional params (tools/json_schema/force_json) participate in the key."""
     cache_obj = LLMCache(cache_dir=str(tmp_path), enabled=True)
-    base = cache_obj._generate_cache_key(**_REQUEST)
+    base = cache_obj._generate_cache_key(_REQUEST)
     with_tools = cache_obj._generate_cache_key(
-        **_REQUEST, tools=[{"name": "search"}]
+        replace(_REQUEST, tools=[{"name": "search"}])
     )
-    with_force_json = cache_obj._generate_cache_key(**_REQUEST, force_json=True)
+    with_force_json = cache_obj._generate_cache_key(
+        replace(_REQUEST, force_json=True)
+    )
     assert base != with_tools
     assert base != with_force_json
 
@@ -94,22 +97,22 @@ def test_key_changes_with_optional_params(tmp_path: Path) -> None:
 def test_roundtrip_hit(tmp_path: Path) -> None:
     """A value that was set is returned on a subsequent get (cache hit)."""
     cache_obj = LLMCache(cache_dir=str(tmp_path), enabled=True)
-    assert cache_obj.get(**_REQUEST) is None  # cold: miss
-    cache_obj.set(**_REQUEST, response=_RESPONSE)
-    assert cache_obj.get(**_REQUEST) == _RESPONSE
+    assert cache_obj.get(_REQUEST) is None  # cold: miss
+    cache_obj.set(_REQUEST, _RESPONSE)
+    assert cache_obj.get(_REQUEST) == _RESPONSE
 
 
 def test_different_key_is_a_miss(tmp_path: Path) -> None:
     """A request with different parameters misses even after a set."""
     cache_obj = LLMCache(cache_dir=str(tmp_path), enabled=True)
-    cache_obj.set(**_REQUEST, response=_RESPONSE)
-    assert cache_obj.get(**{**_REQUEST, "prompt": "unrelated"}) is None
+    cache_obj.set(_REQUEST, _RESPONSE)
+    assert cache_obj.get(replace(_REQUEST, prompt="unrelated")) is None
 
 
 def test_set_writes_file_under_cache_dir(tmp_path: Path) -> None:
     """``set`` persists exactly one ``.json`` file inside the cache dir."""
     cache_obj = LLMCache(cache_dir=str(tmp_path), enabled=True)
-    cache_obj.set(**_REQUEST, response=_RESPONSE)
+    cache_obj.set(_REQUEST, _RESPONSE)
     json_files = list(tmp_path.glob("*.json"))
     assert len(json_files) == 1
 
@@ -120,8 +123,8 @@ def test_set_writes_file_under_cache_dir(tmp_path: Path) -> None:
 def test_disabled_get_always_misses(tmp_path: Path) -> None:
     """When disabled, ``set`` is a no-op and ``get`` always misses."""
     cache_obj = LLMCache(cache_dir=str(tmp_path), enabled=False)
-    cache_obj.set(**_REQUEST, response=_RESPONSE)
-    assert cache_obj.get(**_REQUEST) is None
+    cache_obj.set(_REQUEST, _RESPONSE)
+    assert cache_obj.get(_REQUEST) is None
     # No files written, and the dir is not even created when disabled.
     assert not tmp_path.exists() or list(tmp_path.glob("*.json")) == []
 
@@ -141,8 +144,8 @@ def test_stats_reflect_entries_and_clear_empties(tmp_path: Path) -> None:
     cache_obj = LLMCache(cache_dir=str(tmp_path), enabled=True)
     assert cache_obj.get_stats()["cache_files"] == 0
 
-    cache_obj.set(**_REQUEST, response=_RESPONSE)
-    cache_obj.set(**{**_REQUEST, "prompt": "second"}, response=_RESPONSE)
+    cache_obj.set(_REQUEST, _RESPONSE)
+    cache_obj.set(replace(_REQUEST, prompt="second"), _RESPONSE)
 
     stats = cache_obj.get_stats()
     assert stats["enabled"] is True
@@ -230,7 +233,7 @@ def test_scoped_cache_override_resets_even_on_exception() -> None:
 def test_module_level_stats_and_clear(tmp_path: Path) -> None:
     """``get_cache_stats``/``clear_cache`` operate on the global LLM cache."""
     cache_obj = cache.get_cache()
-    cache_obj.set(**_REQUEST, response=_RESPONSE)
+    cache_obj.set(_REQUEST, _RESPONSE)
 
     stats = cache.get_cache_stats()
     assert stats["cache_files"] == 1

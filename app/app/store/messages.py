@@ -9,67 +9,73 @@ from __future__ import annotations
 
 import json
 import sqlite3
+from dataclasses import dataclass
 from typing import Any
 
 from app.store.db import _now, _use_conn, connect
 from app.store.models import MessageRow, _row_to_message
 
 
+@dataclass(frozen=True)
+class NewMessage:
+    """One chat message to append to a run.
+
+    ``kind`` distinguishes 'steering' from 'qa'; ``meta`` is optional
+    structured metadata persisted as JSON (e.g. the cited sources for a
+    Q&A answer) so it survives reloads and restarts.
+    """
+
+    run_id: str
+    sender: str
+    content: str
+    kind: str
+    meta: dict[str, Any] | None = None
+
+
 def _insert_message_row(
-    conn: sqlite3.Connection,
-    run_id: str,
-    sender: str,
-    content: str,
-    kind: str,
-    now: float,
-    meta_json: str | None,
+    conn: sqlite3.Connection, message: NewMessage, now: float
 ) -> int:
     """Insert a message row on an open connection and return its id."""
+    meta = message.meta
     cur = conn.execute(
         "INSERT INTO messages (run_id, sender, content, kind, "
         "created_at, applied, meta_json) VALUES (?,?,?,?,?,0,?)",
-        (run_id, sender, content, kind, now, meta_json),
+        (
+            message.run_id,
+            message.sender,
+            message.content,
+            message.kind,
+            now,
+            json.dumps(meta) if meta is not None else None,
+        ),
     )
     return cur.lastrowid or 0
 
 
 def append_message(
-    run_id: str,
-    sender: str,
-    content: str,
-    kind: str,
-    db_path: str | None = None,
-    meta: dict[str, Any] | None = None,
+    message: NewMessage, db_path: str | None = None
 ) -> MessageRow:
     """Append a message to a run and return the stored row.
 
     Args:
-        run_id: Identifier of the run the message belongs to.
-        sender: Identifier of the message sender.
-        content: Message body text.
-        kind: Message kind, e.g. 'steering'.
+        message: The message to append (see :class:`NewMessage`).
         db_path: Optional override for the SQLite database path.
-        meta: Optional structured metadata persisted as JSON (e.g. the cited
-            sources for a Q&A answer) so it survives reloads and restarts.
 
     Returns:
         The newly inserted message as a MessageRow.
     """
     now = _now()
-    meta_json = json.dumps(meta) if meta is not None else None
     with connect(db_path) as conn:
-        msg_id = _insert_message_row(
-            conn, run_id, sender, content, kind, now, meta_json
-        )
+        msg_id = _insert_message_row(conn, message, now)
     return MessageRow(
         id=msg_id,
-        run_id=run_id,
-        sender=sender,
-        content=content,
-        kind=kind,
+        run_id=message.run_id,
+        sender=message.sender,
+        content=message.content,
+        kind=message.kind,
         created_at=now,
         applied=False,
-        meta=meta,
+        meta=message.meta,
     )
 
 

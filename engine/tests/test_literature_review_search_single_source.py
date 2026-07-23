@@ -9,7 +9,6 @@ from co_scientist.agents.generation.literature_review.search_support import (
     SearchConfig,
 )
 from co_scientist.mcp_client import MCPToolClient
-from co_scientist.state import WorkflowState
 
 # Two queries' worth of pubmed results: query 2 repeats query 1's "Shared
 # paper" (case-insensitively) and adds a retracted entry, so dedup and the
@@ -86,10 +85,12 @@ async def test_single_source_overfetches_dedupes_ranks_and_caps(
 
     papers, source_map = await search._phase2_collect_papers_single_source(
         ["expanded one", "expanded two"],
-        "slug",
-        cast(WorkflowState, {"run_id": "run-1"}),
         config,
-        cast(MCPToolClient, object()),
+        search._SearchRunContext(
+            slug="slug",
+            run_id="run-1",
+            mcp_client=cast(MCPToolClient, object()),
+        ),
     )
 
     assert observed == {

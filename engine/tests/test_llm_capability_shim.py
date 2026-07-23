@@ -25,6 +25,7 @@ import pytest
 from jsonschema.exceptions import ValidationError
 
 from co_scientist.llm import (
+    CompletionSpec,
     _supports_json_schema_response_format,
     call_llm,
     call_llm_json,
@@ -293,7 +294,10 @@ async def test_call_llm_downgrades_request_for_unsupported_model(
     _patch_registry(monkeypatch, supported=False)
     captured = _capture_acompletion(monkeypatch, [_completion("{}")])
 
-    await call_llm("a prompt", "test-model", json_schema=_NESTED_SCHEMA)
+    await call_llm(
+        "a prompt",
+        CompletionSpec(model_name="test-model", json_schema=_NESTED_SCHEMA),
+    )
 
     assert captured[0]["response_format"] == {"type": "json_object"}
     expected_content = (
@@ -317,7 +321,10 @@ async def test_call_llm_keeps_json_schema_for_supported_model(
     _patch_registry(monkeypatch, supported=True)
     captured = _capture_acompletion(monkeypatch, [_completion("{}")])
 
-    await call_llm("a prompt", "test-model", json_schema=_NESTED_SCHEMA)
+    await call_llm(
+        "a prompt",
+        CompletionSpec(model_name="test-model", json_schema=_NESTED_SCHEMA),
+    )
 
     assert captured[0]["response_format"] == {
         "type": "json_schema",
@@ -335,7 +342,10 @@ async def test_call_llm_downgrade_unwraps_nested_schema_key(
     captured = _capture_acompletion(monkeypatch, [_completion("{}")])
     flat_schema: dict[str, Any] = {"type": "object", "properties": {}}
 
-    await call_llm("a prompt", "test-model", json_schema=flat_schema)
+    await call_llm(
+        "a prompt",
+        CompletionSpec(model_name="test-model", json_schema=flat_schema),
+    )
 
     content = captured[0]["messages"][0]["content"]
     assert content.endswith(json.dumps(flat_schema, indent=2))
@@ -360,7 +370,9 @@ async def test_call_llm_json_backfills_before_validation_on_downgrade(
     )
 
     result = await call_llm_json(
-        "a prompt", "test-model", json_schema=_NESTED_SCHEMA, max_attempts=2
+        "a prompt",
+        CompletionSpec(model_name="test-model", json_schema=_NESTED_SCHEMA),
+        max_attempts=2,
     )
 
     assert result == {
@@ -386,5 +398,7 @@ async def test_call_llm_json_no_backfill_for_supported_model(
 
     with pytest.raises(ValidationError):
         await call_llm_json(
-            "a prompt", "test-model", json_schema=_NESTED_SCHEMA, max_attempts=2
+            "a prompt",
+            CompletionSpec(model_name="test-model", json_schema=_NESTED_SCHEMA),
+            max_attempts=2,
         )

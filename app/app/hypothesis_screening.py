@@ -90,16 +90,16 @@ def _apply_redaction(
     if isinstance(hyp, dict):
         hyp.update(changed)
     store.add_safety_decision(
-        run_id,
-        stage="hypothesis",
-        decision="redact",
-        reason=(
-            f"hypothesis {hyp['id']}: {review.outcome.value} "
-            f"({review.reason}); redacted {sorted(changed)}"
+        store.NewSafetyDecision(
+            run_id=run_id,
+            stage="hypothesis",
+            decision="redact",
+            reason=f"hypothesis {hyp['id']}: {review.outcome.value} "
+            f"({review.reason}); redacted {sorted(changed)}",
+            matches=list(review.matches),
         ),
-        matches=list(review.matches),
-        conn=conn,
         db_path=db_path,
+        conn=conn,
     )
     logger.warning(
         "Redacted detail fields of hypothesis %s: %s",
@@ -136,15 +136,17 @@ def record_hypothesis_block(
         db_path: Optional override for the SQLite database path.
     """
     store.add_safety_decision(
-        run_id,
-        stage="hypothesis",
-        decision="block",
-        reason=(
-            f"hypothesis {hyp_id}: {review.outcome.value} ({review.reason})"
+        store.NewSafetyDecision(
+            run_id=run_id,
+            stage="hypothesis",
+            decision="block",
+            reason=(
+                f"hypothesis {hyp_id}: {review.outcome.value} ({review.reason})"
+            ),
+            matches=list(review.matches),
         ),
-        matches=list(review.matches),
-        conn=conn,
         db_path=db_path,
+        conn=conn,
     )
 
 
@@ -232,7 +234,10 @@ def _screen_one_hypothesis(
         return hyp_id, prior, False
     review = review_hypothesis_safety(hypothesis_text(hyp))
     store.update_hypothesis_state(
-        hyp_id, safety_status=review.outcome.value, conn=conn, db_path=db_path
+        hyp_id,
+        store.HypothesisStateChanges(safety_status=review.outcome.value),
+        db_path=db_path,
+        conn=conn,
     )
     if review.outcome in _REDACTING_OUTCOMES:
         _apply_redaction(run_id, hyp, review, conn=conn, db_path=db_path)

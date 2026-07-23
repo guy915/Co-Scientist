@@ -119,12 +119,29 @@ def merge_metrics(
     return merged
 
 
+@dataclass(frozen=True)
+class MetricDeltas:
+    """The additive per-node counters one metrics update contributes.
+
+    Each field is a delta the ``merge_metrics`` reducer adds to the
+    cumulative run total, not an absolute value.
+
+    Attributes:
+        reviews: Reviews produced by this node.
+        tournaments: Tournament rounds run by this node.
+        evolutions: Evolutions produced by this node.
+        llm_calls: LLM calls made by this node.
+    """
+
+    reviews: int = 0
+    tournaments: int = 0
+    evolutions: int = 0
+    llm_calls: int = 0
+
+
 def create_metrics_update(
     hypothesis_count: int | None = None,
-    reviews_count_delta: int = 0,
-    tournaments_count_delta: int = 0,
-    evolutions_count_delta: int = 0,
-    llm_calls_delta: int = 0,
+    deltas: MetricDeltas | None = None,
     total_time: float | None = None,
     phase_times: dict[str, float] | None = None,
 ) -> ExecutionMetrics:
@@ -136,24 +153,23 @@ def create_metrics_update(
     Args:
         hypothesis_count: new total hypothesis count
             (replaces via max(), not adds)
-        reviews_count_delta: number of reviews to add (delta only)
-        tournaments_count_delta: number of tournaments to add (delta only)
-        evolutions_count_delta: number of evolutions to add (delta only)
-        llm_calls_delta: number of llm calls to add (delta only)
+        deltas: additive per-node counters (reviews/tournaments/
+            evolutions/llm_calls); defaults to all-zero.
         total_time: new total time (only set if > 0)
         phase_times: new phase times dict (merged with existing)
 
     Returns:
         new ExecutionMetrics object with ONLY deltas
     """
+    d = deltas if deltas is not None else MetricDeltas()
     return ExecutionMetrics(
         hypothesis_count=hypothesis_count
         if hypothesis_count is not None
         else 0,
-        reviews_count=reviews_count_delta,
-        tournaments_count=tournaments_count_delta,
-        evolutions_count=evolutions_count_delta,
-        llm_calls=llm_calls_delta,
+        reviews_count=d.reviews,
+        tournaments_count=d.tournaments,
+        evolutions_count=d.evolutions,
+        llm_calls=d.llm_calls,
         total_time=total_time if total_time is not None else 0.0,
         phase_times=phase_times if phase_times is not None else {},
     )

@@ -23,6 +23,10 @@ with no mocking.
 """
 
 from co_scientist.prompts import (
+    DebatePromptRequest,
+    DraftPromptRequest,
+    LiteratureQueryInputs,
+    ValidationSynthesisRequest,
     format_articles_metadata,
     get_debate_generation_prompt,
     get_deep_verification_prompt,
@@ -45,10 +49,12 @@ from tests._state import make_article
 def test_debate_generation_non_final_turn_has_no_schema() -> None:
     """A non-final debate turn returns a conversational prompt, schema None."""
     prompt, schema = get_debate_generation_prompt(
-        research_goal="design a self-healing polymer",
-        hypotheses_count=3,
-        transcript="Expert 1: ... Expert 2: ...",
-        is_final_turn=False,
+        DebatePromptRequest(
+            research_goal="design a self-healing polymer",
+            hypotheses_count=3,
+            transcript="Expert 1: ... Expert 2: ...",
+            is_final_turn=False,
+        )
     )
     assert isinstance(prompt, str)
     assert "design a self-healing polymer" in prompt
@@ -60,10 +66,12 @@ def test_debate_generation_non_final_turn_has_no_schema() -> None:
 def test_debate_generation_final_turn_appends_json_block_and_schema() -> None:
     """The final turn appends JSON output instructions and returns a schema."""
     prompt, schema = get_debate_generation_prompt(
-        research_goal="design a self-healing polymer",
-        hypotheses_count=1,
-        transcript="prior discussion",
-        is_final_turn=True,
+        DebatePromptRequest(
+            research_goal="design a self-healing polymer",
+            hypotheses_count=1,
+            transcript="prior discussion",
+            is_final_turn=True,
+        )
     )
     assert "FINAL TURN" in prompt
     assert "literature_grounding" in prompt
@@ -83,9 +91,11 @@ def test_draft_prompt_with_tools_interpolates_goal_count_articles() -> None:
         used_in_analysis=True,
     )
     prompt, schema = get_draft_prompt_with_tools(
-        research_goal="map neuroinflammatory cascades",
-        hypotheses_count=4,
-        articles=[article],
+        DraftPromptRequest(
+            research_goal="map neuroinflammatory cascades",
+            hypotheses_count=4,
+            articles=[article],
+        )
     )
     assert "map neuroinflammatory cascades" in prompt
     assert "4" in prompt
@@ -143,7 +153,9 @@ def test_pubmed_query_prompt_interpolates_goal_and_lists() -> None:
     """The PubMed query prompt embeds the goal and provided literature."""
     prompt = get_literature_review_query_generation_pubmed_prompt(
         research_goal="find biomarkers for sepsis",
-        user_literature=["Smith 2020 sepsis review"],
+        inputs=LiteratureQueryInputs(
+            user_literature=["Smith 2020 sepsis review"]
+        ),
     )
     assert isinstance(prompt, str)
     assert "find biomarkers for sepsis" in prompt
@@ -209,7 +221,9 @@ def test_source_aware_query_prompt_selects_template_by_source_type() -> None:
         prompt = get_literature_review_query_generation_prompt(
             research_goal="find biomarkers for sepsis",
             source_type=source_type,
-            user_literature=["Smith 2020 sepsis review"],
+            inputs=LiteratureQueryInputs(
+                user_literature=["Smith 2020 sepsis review"]
+            ),
         )
         assert isinstance(prompt, str)
         assert prompt
@@ -293,18 +307,20 @@ def test_validation_synthesis_prompt_renders_drafts_no_schema() -> None:
 def test_validation_synthesis_with_tools_returns_schema() -> None:
     """The tools variant embeds drafts and returns a non-None schema."""
     prompt, schema = get_validation_synthesis_prompt_with_tools(
-        research_goal="reduce tumor metastasis",
-        hypotheses_with_analyses=[
-            {
-                "draft": {
-                    "text": "block CXCR4 signaling",
-                    "gap_reasoning": "under-studied",
-                    "literature_sources": "[C1]",
-                },
-                "novelty_analyses": [],
-            }
-        ],
-        max_iterations=5,
+        ValidationSynthesisRequest(
+            research_goal="reduce tumor metastasis",
+            hypotheses_with_analyses=[
+                {
+                    "draft": {
+                        "text": "block CXCR4 signaling",
+                        "gap_reasoning": "under-studied",
+                        "literature_sources": "[C1]",
+                    },
+                    "novelty_analyses": [],
+                }
+            ],
+            max_iterations=5,
+        )
     )
     assert isinstance(prompt, str)
     assert "reduce tumor metastasis" in prompt

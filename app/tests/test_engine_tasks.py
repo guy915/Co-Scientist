@@ -1,8 +1,8 @@
 """Durable node-level engine task execution and checkpoint commit tests.
 
 Core executor coverage: scientist-input merge, bootstrap, node dispatch,
-in-flight pause, and the PARITY-pinned pre-ranking-gate and ranking-match
-cases. Sibling ``test_engine_tasks_*.py`` files hold the gate, fan-out,
+in-flight pause, and the PARITY-pinned ranking-match case. Sibling
+``test_engine_tasks_*.py`` files hold the pre-ranking-gate, gate, fan-out,
 ranking-tournament, and dispatch clusters.
 """
 
@@ -74,19 +74,23 @@ def test_scientist_inputs_merge_into_engine_state_once(
     """Manual ideas and reviews become typed inputs to later specialists."""
     run = store.create_run("Scientist loop", "standard", "engine", {})
     hypothesis_id = store.add_hypothesis(
-        run.id,
-        title="Scientist idea",
-        statement="A scientist-proposed mechanism",
-        created_by_agent="scientist_manual",
-        author="researcher",
+        store.NewHypothesis(
+            run_id=run.id,
+            title="Scientist idea",
+            statement="A scientist-proposed mechanism",
+            created_by_agent="scientist_manual",
+            author="researcher",
+        ),
         db_path=isolated_db,
     )
     store.add_review(
-        run.id,
-        hypothesis_id,
-        "scientist",
-        "Scientist verdict: oppose (by researcher)",
-        "The proposed control cannot distinguish the mechanism.",
+        store.NewReview(
+            run_id=run.id,
+            hypothesis_id=hypothesis_id,
+            reviewer_agent="scientist",
+            summary="Scientist verdict: oppose (by researcher)",
+            critique="The proposed control cannot distinguish the mechanism.",
+        ),
         db_path=isolated_db,
     )
     state = _task_state(run.id)
@@ -125,97 +129,6 @@ def test_scientist_input_reopens_completed_engine_run(isolated_db: str) -> None:
     assert task.priority == 100
     reopened = store.get_run(run.id, db_path=isolated_db)
     assert reopened is not None and reopened.status == "queued"
-
-
-@pytest.mark.asyncio
-async def test_pre_ranking_gate_keeps_unsupported_ideas_rankable() -> None:
-    """Unsupported (but non-contradicted) ideas stay rankable.
-
-    Under the rank-and-publish policy the pre-ranking gate only withholds
-    contradicted or unsafe ideas; a merely-unsupported idea stays viable (it is
-    later published and badged "unverified") rather than being quarantined.
-    """
-    supported = Hypothesis(
-        text="Astrocyte lactate accelerates synaptic ATP recovery."
-    )
-    unsupported = Hypothesis(
-        text="We hypothesize a fictional kinase may alter neuronal aging.",
-        literature_grounding=(
-            "A fictional kinase completely reverses neuronal aging."
-        ),
-    )
-    for hypothesis in (supported, unsupported):
-        hypothesis.review_disposition = "viable"
-    state = {
-        "hypotheses": [supported, unsupported],
-        "articles": [
-            Article(
-                title="Astrocyte energetics",
-                abstract=(
-                    "Astrocyte lactate accelerates synaptic ATP recovery."
-                ),
-                source_id="PMID-1",
-            )
-        ],
-    }
-
-    await engine_tasks._apply_pre_ranking_evidence_gate(state)
-
-    assert supported.review_disposition == "viable"
-    assert supported.enrichments["claim_gate"]["decision"] == "allow"
-    assert unsupported.review_disposition == "viable"
-    assert unsupported.enrichments["claim_gate"]["decision"] == "allow"
-
-
-@pytest.mark.asyncio
-async def test_pre_ranking_gate_records_support_when_evidence_arrives() -> None:
-    """A rankable idea's claim graduates to supported once evidence arrives."""
-    hypothesis = Hypothesis(
-        text="Astrocyte lactate accelerates synaptic ATP recovery.",
-        literature_grounding=(
-            "Astrocyte lactate accelerates synaptic ATP recovery."
-        ),
-    )
-    hypothesis.review_disposition = "viable"
-    state: dict[str, Any] = {"hypotheses": [hypothesis], "articles": []}
-    await engine_tasks._apply_pre_ranking_evidence_gate(state)
-    # No evidence yet, but a merely-unsupported idea still ranks.
-    assert hypothesis.review_disposition == "viable"
-
-    state["articles"] = [
-        Article(
-            title="Synaptic energetics",
-            abstract="Astrocyte lactate accelerates synaptic ATP recovery.",
-        )
-    ]
-    await engine_tasks._apply_pre_ranking_evidence_gate(state)
-
-    assert hypothesis.review_disposition == "viable"
-    assert hypothesis.enrichments["claim_gate"]["decision"] == "allow"
-
-
-def test_evidence_blocked_idea_is_excluded_from_ranking() -> None:
-    """A claim-gated idea must not enter the decisive Elo tournament.
-
-    The pre-ranking gate marks an unsupported idea ``evidence_blocked``; the
-    ranking scheduler must then leave it out of the tournament, not merely drop
-    it at publish time, so its unsupported claim never shifts other ideas' Elo.
-    """
-    supported = Hypothesis(text="Supported idea.")
-    supported.review_disposition = "viable"
-    blocked = Hypothesis(text="Unsupported idea.")
-    blocked.review_disposition = "evidence_blocked"
-    undermined = Hypothesis(text="Undermined idea.")
-    undermined.review_disposition = "viable"
-    undermined.deep_verification_verdict = "undermined"
-
-    eligible = engine_tasks._ranking_eligible(
-        {"hypotheses": [supported, blocked, undermined]}
-    )
-
-    assert supported in eligible
-    assert blocked not in eligible
-    assert undermined not in eligible
 
 
 @pytest.mark.asyncio
@@ -264,8 +177,7 @@ async def test_bootstrap_never_escalates_an_offline_backed_run(
         "standard",
         "engine",
         {},
-        llm_backend="offline",
-        db_path=isolated_db,
+        store.RunCreateOptions(llm_backend="offline", db_path=isolated_db),
     )
     engine_tasks.enqueue_bootstrap(run.id, db_path=isolated_db)
     leased = store.claim_task("worker", run_id=run.id, db_path=isolated_db)
@@ -344,10 +256,12 @@ def _seed_ranking_state(run_id: str, db_path: str) -> tuple[Any, _Generator]:
     )
     checkpoint_seq = _seed_checkpoint(run_id, state)
     node = store.enqueue_task(
-        run_id,
-        f"{engine_tasks.NODE_TASK_PREFIX}ranking",
-        {"checkpoint_seq": checkpoint_seq},
-        idempotency_key="ranking-node",
+        store.NewTask(
+            run_id=run_id,
+            task_type=f"{engine_tasks.NODE_TASK_PREFIX}ranking",
+            inputs={"checkpoint_seq": checkpoint_seq},
+            idempotency_key="ranking-node",
+        ),
         db_path=db_path,
     )
     return node, _Generator(state)

@@ -38,4 +38,5 @@ from app.engine_adapter.tools import (
 from app.engine_adapter.tools import (
     validate_tools_config as validate_tools_config,
 )
+from app.engine_adapter.workflow import WorkflowOptions as WorkflowOptions
 from app.engine_adapter.workflow import run_workflow as run_workflow

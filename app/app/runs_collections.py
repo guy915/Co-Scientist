@@ -10,14 +10,14 @@ payload/Markdown reads.
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Annotated, Any
 
 from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import PlainTextResponse
 
 from app import store
 from app.auth import client_id
-from app.logs_api import logs_payload
+from app.logs_api import RunLogQuery, logs_payload
 from app.runs_models import SafetyAdjudicationRequest
 from app.runs_support import _require_run, _run_or_404
 from app.store import RunStatus
@@ -149,11 +149,7 @@ async def get_metrics(run_id: str) -> dict[str, Any]:
 @router.get("/{run_id}/logs")
 async def get_run_logs(
     run_id: str,
-    after_id: int = Query(0, ge=0),
-    limit: int = Query(200, ge=1, le=1000),
-    min_level: str | None = None,
-    q: str | None = None,
-    verbose: bool = False,
+    query: Annotated[RunLogQuery, Query()],
 ) -> dict[str, Any]:
     """Return the run's persisted application log records, oldest-first.
 
@@ -161,14 +157,7 @@ async def get_run_logs(
     with ``run_id`` fixed to this run.
     """
     _require_run(run_id)
-    return logs_payload(
-        after_id=after_id,
-        limit=limit,
-        min_level=min_level,
-        run_id=run_id,
-        q=q,
-        verbose=verbose,
-    )
+    return logs_payload(query.for_run(run_id))
 
 
 @router.get("/{run_id}/claim-evidence")

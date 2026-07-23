@@ -12,6 +12,7 @@ import functools
 import json
 import logging
 import warnings
+from dataclasses import dataclass
 from typing import Any, cast
 
 import litellm
@@ -340,11 +341,9 @@ def _apply_response_format(
 ) -> None:
     """Sets the response_format for a completion call, in place.
 
-    When a schema is given, prefers the model's native json_schema response
-    format; models that reject it fall back to the json_object
-    provider-capability shim, which also rewrites "messages" to restate the
-    schema as prompt text. Without a schema, force_json requests plain
-    json_object mode.
+    With a schema, defers to ``_apply_schema_response_format`` (native
+    json_schema, or the json_object shim). Without one, force_json requests
+    plain json_object mode.
 
     Args:
         completion_args: The in-progress completion kwargs dict; mutated in
@@ -420,14 +419,28 @@ def _apply_thinking_args(
         )
 
 
+@dataclass(frozen=True)
+class CompletionShape:
+    """How one completion's response is shaped and reasoned about.
+
+    Attributes:
+        force_json: Try to force JSON mode (model support varies).
+        json_schema: Schema constraining the response format, if any.
+        enable_thinking: Whether DeepSeek thinking mode is requested; False
+            opts a high-frequency call site out of the reasoning spend.
+    """
+
+    force_json: bool = False
+    json_schema: dict[str, Any] | None = None
+    enable_thinking: bool = True
+
+
 def _build_completion_args(
     prompt: str,
     model_name: str,
     max_tokens: int,
     temperature: float,
-    force_json: bool,
-    json_schema: dict[str, Any] | None,
-    enable_thinking: bool = True,
+    shape: CompletionShape,
 ) -> dict[str, Any]:
     """Builds the keyword arguments for a ``litellm.acompletion`` call.
 
@@ -436,10 +449,7 @@ def _build_completion_args(
         model_name: Model name in litellm format.
         max_tokens: Maximum tokens in response.
         temperature: Sampling temperature.
-        force_json: If True, try to force JSON mode (model support varies).
-        json_schema: Optional JSON schema to constrain the response format.
-        enable_thinking: Whether DeepSeek thinking mode is requested; False
-            opts a high-frequency call site out of the reasoning spend.
+        shape: Response-format and thinking-mode selection for this call.
 
     Returns:
         Keyword arguments ready to pass to ``litellm.acompletion``.
@@ -449,10 +459,10 @@ def _build_completion_args(
     )
 
     _apply_response_format(
-        completion_args, prompt, model_name, force_json, json_schema
+        completion_args, prompt, model_name, shape.force_json, shape.json_schema
     )
 
-    _apply_thinking_args(completion_args, model_name, enable_thinking)
+    _apply_thinking_args(completion_args, model_name, shape.enable_thinking)
 
     return completion_args
 

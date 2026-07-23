@@ -233,7 +233,7 @@ async def test_cancel_mid_run_leaves_consistent_terminal_state(
         "express",
         "engine",
         {"tier": "express"},
-        db_path=isolated_db,
+        store.RunCreateOptions(db_path=isolated_db),
     )
 
     cancelled = asyncio.Event()
@@ -242,10 +242,12 @@ async def test_cancel_mid_run_leaves_consistent_terminal_state(
         run.id,
         run.research_goal,
         {"tier": "express"},
-        force_provider="engine",
-        db_path=isolated_db,
-        cancelled=cancelled,
-        sleep_seconds=0.05,
+        engine_adapter.WorkflowOptions(
+            force_provider="engine",
+            db_path=isolated_db,
+            cancelled=cancelled,
+            sleep_seconds=0.05,
+        ),
     ):
         seen.append(event)
         # Cancel once the first tournament round has genuinely landed, so this

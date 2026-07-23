@@ -10,6 +10,7 @@ monkeypatchable on the validate module namespace.
 import asyncio
 import logging
 from collections.abc import Awaitable, Callable
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, NamedTuple, Optional
 
 from co_scientist.agents.generation.citations import (
@@ -28,7 +29,10 @@ from co_scientist.constants import (
 from co_scientist.exceptions import ResponseParseError
 from co_scientist.llm_json import attempt_json_repair, extract_response_json
 from co_scientist.models import GenerationMethod, Hypothesis
-from co_scientist.prompts import get_validation_synthesis_prompt_with_tools
+from co_scientist.prompts import (
+    ValidationSynthesisRequest,
+    get_validation_synthesis_prompt_with_tools,
+)
 from co_scientist.state import WorkflowState
 from co_scientist.tools.provider import MCPToolProvider
 
@@ -62,6 +66,30 @@ class _SynthesisContext(NamedTuple):
     reference_index: Any | None
     provider: MCPToolProvider
     openai_tools: list[Any]
+
+
+class _SynthesisCallInputs(NamedTuple):
+    """Prompt and token budget assembled for one synthesis batch call."""
+
+    prompt: str
+    max_tokens: int
+
+
+@dataclass(frozen=True)
+class _SynthesisRetryState:
+    """Accumulators and caller shared across individual synthesis retries.
+
+    Attributes:
+        all_validated_hypotheses: Validated hypothesis dicts accumulated so
+            far; successful retries are appended here in place.
+        accumulated_texts: Hypothesis texts validated so far; extended in
+            place so subsequent retries in the same pass see this context.
+        call_synthesis: The synthesis callable to invoke per hypothesis.
+    """
+
+    all_validated_hypotheses: list[dict[str, Any]]
+    accumulated_texts: list[str]
+    call_synthesis: _SynthesisCaller
 
 
 def _setup_validation_tool_provider(
@@ -130,7 +158,7 @@ def _build_synthesis_call_inputs(
     batch_label: str,
     already_validated_texts: list[str] | None,
     ctx: _SynthesisContext,
-) -> tuple[str, int]:
+) -> _SynthesisCallInputs:
     """Build the synthesis prompt and its token budget for one batch.
 
     Args:
@@ -141,23 +169,25 @@ def _build_synthesis_call_inputs(
         ctx: shared per-call synthesis state.
 
     Returns:
-        Tuple of (synthesis_prompt, synthesis_max_tokens).
+        The (prompt, max_tokens) inputs for this batch's synthesis call.
     """
     ref_text = ctx.reference_index.text if ctx.reference_index else ""
     synthesis_prompt, _ = get_validation_synthesis_prompt_with_tools(
-        research_goal=ctx.research_goal,
-        hypotheses_with_analyses=batch,
-        articles=ctx.state.get("articles"),
-        articles_with_reasoning=ctx.state.get("articles_with_reasoning"),
-        max_iterations=ctx.max_iterations,
-        tool_registry=ctx.tool_registry,
-        reference_list=ref_text,
-        already_validated_texts=already_validated_texts,
+        ValidationSynthesisRequest(
+            research_goal=ctx.research_goal,
+            hypotheses_with_analyses=batch,
+            articles=ctx.state.get("articles"),
+            articles_with_reasoning=ctx.state.get("articles_with_reasoning"),
+            max_iterations=ctx.max_iterations,
+            tool_registry=ctx.tool_registry,
+            reference_list=ref_text,
+            already_validated_texts=already_validated_texts,
+        )
     )
 
     synthesis_max_tokens = _compute_synthesis_max_tokens(batch, batch_label)
 
-    return synthesis_prompt, synthesis_max_tokens
+    return _SynthesisCallInputs(synthesis_prompt, synthesis_max_tokens)
 
 
 def _log_synthesis_tool_call_summary(
@@ -320,9 +350,7 @@ async def _retry_one_hypothesis(
     batch_idx: int,
     hyp_idx: int,
     hyp_data: dict[str, Any],
-    accumulated_texts: list[str],
-    all_validated_hypotheses: list[dict[str, Any]],
-    call_synthesis: _SynthesisCaller,
+    retry_state: _SynthesisRetryState,
 ) -> None:
     """Retry a single hypothesis from a failed batch, best-effort.
 
@@ -334,16 +362,16 @@ async def _retry_one_hypothesis(
             label and error logging.
         hyp_idx: 0-based index of this hypothesis within its failed batch.
         hyp_data: the hypothesis dict to retry.
-        accumulated_texts: hypothesis texts validated so far; extended in
-            place on success.
-        all_validated_hypotheses: validated hypothesis dicts accumulated so
-            far; extended in place on success.
-        call_synthesis: the synthesis callable to invoke per hypothesis.
+        retry_state: shared retry accumulators and synthesis callable;
+            its lists are extended in place on success.
     """
     label = f"{batch_idx + 1}_retry_{hyp_idx + 1}"
+    accumulated_texts = retry_state.accumulated_texts
     context = accumulated_texts if accumulated_texts else None
     try:
-        single_result = await call_synthesis([hyp_data], label, context)
+        single_result = await retry_state.call_synthesis(
+            [hyp_data], label, context
+        )
     except Exception as e:
         logger.error(
             "Individual retry failed for batch %s, hypothesis %s: %s",
@@ -354,7 +382,9 @@ async def _retry_one_hypothesis(
         return
 
     _accumulate_retry_result(
-        single_result, all_validated_hypotheses, accumulated_texts
+        single_result,
+        retry_state.all_validated_hypotheses,
+        accumulated_texts,
     )
 
 
@@ -375,22 +405,21 @@ async def _retry_failed_synthesis_batches(
             far; successful retries are appended here in place.
         call_synthesis: the synthesis callable to invoke per hypothesis.
     """
-    # Seed context with texts from successful batches
-    accumulated_texts: list[str] = [
-        h.get("hypothesis", "")
-        for h in all_validated_hypotheses
-        if h.get("hypothesis")
-    ]
+    retry_state = _SynthesisRetryState(
+        all_validated_hypotheses=all_validated_hypotheses,
+        # Seed context with texts from successful batches
+        accumulated_texts=[
+            h.get("hypothesis", "")
+            for h in all_validated_hypotheses
+            if h.get("hypothesis")
+        ],
+        call_synthesis=call_synthesis,
+    )
 
     for batch_idx, failed_batch in failed_batches:
         for hyp_idx, hyp_data in enumerate(failed_batch):
             await _retry_one_hypothesis(
-                batch_idx,
-                hyp_idx,
-                hyp_data,
-                accumulated_texts,
-                all_validated_hypotheses,
-                call_synthesis,
+                batch_idx, hyp_idx, hyp_data, retry_state
             )
 
 

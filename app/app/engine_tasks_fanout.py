@@ -1,14 +1,14 @@
-"""Durable fan-out scheduling and item execution.
+"""Durable fan-out scheduling for review, verification, and reflection.
 
-Split from ``app.engine_tasks``, which re-exports every name here; the
-aggregates that commit fan-out results live in
-``app.engine_tasks_fanout_aggregates`` and are re-exported below.
+Split from ``app.engine_tasks``, which re-exports every name here. The
+generation fan-out lives in ``app.engine_tasks_fanout_generation``, the
+per-item executors in ``app.engine_tasks_fanout_items``, and the
+aggregates that commit fan-out results in
+``app.engine_tasks_fanout_aggregates``; all are re-exported below.
 """
 
 from __future__ import annotations
 
-import asyncio
-import dataclasses
 import sqlite3
 from collections.abc import Sequence
 from typing import Any
@@ -26,17 +26,61 @@ from app.engine_tasks_fanout_aggregates import (
 from app.engine_tasks_fanout_aggregates import (
     execute_verification_aggregate as execute_verification_aggregate,
 )
+from app.engine_tasks_fanout_generation import (
+    _enqueue_generation_aggregate_task as _enqueue_generation_aggregate_task,
+)
+from app.engine_tasks_fanout_generation import (
+    _enqueue_generation_fanout as _enqueue_generation_fanout,
+)
+from app.engine_tasks_fanout_generation import (
+    _enqueue_generation_strategy_tasks as _enqueue_generation_strategy_tasks,
+)
+from app.engine_tasks_fanout_generation import (
+    _generation_task_specs as _generation_task_specs,
+)
+from app.engine_tasks_fanout_generation import (
+    _run_generation_strategy as _run_generation_strategy,
+)
+from app.engine_tasks_fanout_generation import (
+    _save_generation_plan_checkpoint as _save_generation_plan_checkpoint,
+)
+from app.engine_tasks_fanout_generation import (
+    execute_generation_strategy as execute_generation_strategy,
+)
+from app.engine_tasks_fanout_items import (
+    _hypothesis_for_item as _hypothesis_for_item,
+)
+from app.engine_tasks_fanout_items import (
+    _run_observation_reflection as _run_observation_reflection,
+)
+from app.engine_tasks_fanout_items import (
+    execute_mature_reflection_item as execute_mature_reflection_item,
+)
+from app.engine_tasks_fanout_items import (
+    execute_review_item as execute_review_item,
+)
+from app.engine_tasks_fanout_items import (
+    execute_verification_item as execute_verification_item,
+)
 from app.engine_tasks_support import (
-    _CHECKPOINT_PROVIDER,
-    GENERATION_AGGREGATE_TASK,
-    GENERATION_STRATEGY_TASK,
+    _CHECKPOINT_PROVIDER as _CHECKPOINT_PROVIDER,
+)
+from app.engine_tasks_support import (
+    GENERATION_AGGREGATE_TASK as GENERATION_AGGREGATE_TASK,
+)
+from app.engine_tasks_support import (
+    GENERATION_STRATEGY_TASK as GENERATION_STRATEGY_TASK,
+)
+from app.engine_tasks_support import (
     MATURE_REFLECTION_AGGREGATE_TASK,
     MATURE_REFLECTION_ITEM_TASK,
     REVIEW_AGGREGATE_TASK,
     REVIEW_ITEM_TASK,
     VERIFICATION_AGGREGATE_TASK,
     VERIFICATION_ITEM_TASK,
-    _restore_item_checkpoint,
+)
+from app.engine_tasks_support import (
+    _restore_item_checkpoint as _restore_item_checkpoint,
 )
 from app.store import ScientificTask
 
@@ -50,20 +94,22 @@ def _enqueue_review_item_tasks(
     """Enqueue one review-item task per unreviewed hypothesis."""
     return [
         store.enqueue_task(
-            task.run_id,
-            REVIEW_ITEM_TASK,
-            {
-                "checkpoint_seq": checkpoint_seq,
-                "hypothesis_id": hypothesis.id,
-                "hypothesis_index": index,
-            },
-            idempotency_key=f"review:item:{checkpoint_seq}:{hypothesis.id}",
-            priority=85,
-            dependencies=(task.id,),
-            provenance={
-                "scheduled_by": task.task_type,
-                "specialist": "reflection.initial",
-            },
+            store.NewTask(
+                run_id=task.run_id,
+                task_type=REVIEW_ITEM_TASK,
+                inputs={
+                    "checkpoint_seq": checkpoint_seq,
+                    "hypothesis_id": hypothesis.id,
+                    "hypothesis_index": index,
+                },
+                idempotency_key=f"review:item:{checkpoint_seq}:{hypothesis.id}",
+                priority=85,
+                dependencies=(task.id,),
+                provenance={
+                    "scheduled_by": task.task_type,
+                    "specialist": "reflection.initial",
+                },
+            ),
             conn=conn,
         )
         for index, hypothesis in enumerate(unreviewed)
@@ -78,19 +124,21 @@ def _enqueue_review_aggregate_task(
 ) -> ScientificTask:
     """Enqueue the review aggregate that depends on every review-item task."""
     return store.enqueue_task(
-        task.run_id,
-        REVIEW_AGGREGATE_TASK,
-        {
-            "checkpoint_seq": checkpoint_seq,
-            "item_task_ids": [item.id for item in items],
-        },
-        idempotency_key=f"review:aggregate:{checkpoint_seq}",
-        priority=80,
-        dependencies=tuple(item.id for item in items),
-        provenance={
-            "scheduled_by": task.task_type,
-            "allow_failed_dependencies": True,
-        },
+        store.NewTask(
+            run_id=task.run_id,
+            task_type=REVIEW_AGGREGATE_TASK,
+            inputs={
+                "checkpoint_seq": checkpoint_seq,
+                "item_task_ids": [item.id for item in items],
+            },
+            idempotency_key=f"review:aggregate:{checkpoint_seq}",
+            priority=80,
+            dependencies=tuple(item.id for item in items),
+            provenance={
+                "scheduled_by": task.task_type,
+                "allow_failed_dependencies": True,
+            },
+        ),
         conn=conn,
     )
 
@@ -145,21 +193,21 @@ def _enqueue_verification_item_tasks(
     """Enqueue one deep-verification task per selected hypothesis."""
     return [
         store.enqueue_task(
-            task.run_id,
-            VERIFICATION_ITEM_TASK,
-            {
-                "checkpoint_seq": checkpoint_seq,
-                "hypothesis_id": hypothesis.id,
-            },
-            idempotency_key=(
-                f"verification:item:{checkpoint_seq}:{hypothesis.id}"
+            store.NewTask(
+                run_id=task.run_id,
+                task_type=VERIFICATION_ITEM_TASK,
+                inputs={
+                    "checkpoint_seq": checkpoint_seq,
+                    "hypothesis_id": hypothesis.id,
+                },
+                idempotency_key=f"verification:item:{checkpoint_seq}:{hypothesis.id}",
+                priority=88,
+                dependencies=(task.id,),
+                provenance={
+                    "scheduled_by": task.task_type,
+                    "specialist": "reflection.deep_verification",
+                },
             ),
-            priority=88,
-            dependencies=(task.id,),
-            provenance={
-                "scheduled_by": task.task_type,
-                "specialist": "reflection.deep_verification",
-            },
             conn=conn,
         )
         for hypothesis in selected
@@ -174,19 +222,21 @@ def _enqueue_verification_aggregate_task(
 ) -> ScientificTask:
     """Enqueue the verification aggregate depending on every item task."""
     return store.enqueue_task(
-        task.run_id,
-        VERIFICATION_AGGREGATE_TASK,
-        {
-            "checkpoint_seq": checkpoint_seq,
-            "item_task_ids": [item.id for item in items],
-        },
-        idempotency_key=f"verification:aggregate:{checkpoint_seq}",
-        priority=82,
-        dependencies=tuple(item.id for item in items),
-        provenance={
-            "scheduled_by": task.task_type,
-            "allow_failed_dependencies": True,
-        },
+        store.NewTask(
+            run_id=task.run_id,
+            task_type=VERIFICATION_AGGREGATE_TASK,
+            inputs={
+                "checkpoint_seq": checkpoint_seq,
+                "item_task_ids": [item.id for item in items],
+            },
+            idempotency_key=f"verification:aggregate:{checkpoint_seq}",
+            priority=82,
+            dependencies=tuple(item.id for item in items),
+            provenance={
+                "scheduled_by": task.task_type,
+                "allow_failed_dependencies": True,
+            },
+        ),
         conn=conn,
     )
 
@@ -232,157 +282,6 @@ def _enqueue_verification_fanout(
     }
 
 
-def _generation_task_specs(
-    strategy_counts: dict[str, int],
-) -> list[tuple[str, int, int]]:
-    """Return (strategy, count, index) specs for each strategy's durable tasks.
-
-    Debate strategies get one task per hypothesis so debates run
-    independently; every other strategy gets a single task producing its
-    whole count.
-    """
-    debate_strategies = {"debate_lit", "debate_only"}
-    return [
-        (strategy, 1, index)
-        for strategy, count in strategy_counts.items()
-        if strategy in debate_strategies
-        for index in range(count)
-    ] + [
-        (strategy, count, 0)
-        for strategy, count in strategy_counts.items()
-        if strategy not in debate_strategies and count > 0
-    ]
-
-
-def _save_generation_plan_checkpoint(
-    task: ScientificTask,
-    checkpoint_seq: int,
-    envelope: dict[str, Any],
-    conn: sqlite3.Connection,
-) -> int:
-    """Commit the generation plan checkpoint inside the caller's transaction."""
-    from co_scientist.checkpoint import CHECKPOINT_VERSION
-
-    latest = store.get_latest_checkpoint(task.run_id, conn=conn)
-    latest_seq = int(latest["seq"]) if latest else 0
-    if latest_seq != checkpoint_seq:
-        raise RuntimeError("checkpoint changed during generation planning")
-    return store.save_checkpoint(
-        task.run_id,
-        stage=f"engine_task:{task.id}",
-        schema_version=CHECKPOINT_VERSION,
-        last_event_seq=envelope["last_event_seq"],
-        state={"provider": _CHECKPOINT_PROVIDER, **envelope},
-        conn=conn,
-    )
-
-
-def _enqueue_generation_strategy_tasks(
-    task: ScientificTask,
-    planned_seq: int,
-    task_specs: Sequence[tuple[str, int, int]],
-    literature: Any,
-    reference_index: Any,
-    conn: sqlite3.Connection,
-) -> list[ScientificTask]:
-    """Enqueue one durable task per planned generation strategy."""
-    return [
-        store.enqueue_task(
-            task.run_id,
-            GENERATION_STRATEGY_TASK,
-            {
-                "checkpoint_seq": planned_seq,
-                "strategy": strategy,
-                "count": count,
-                "strategy_index": index,
-                "literature": literature,
-                "reference_text": reference_index.text,
-                "reference_sources": reference_index.sources,
-            },
-            idempotency_key=(
-                f"generation:{strategy}:{planned_seq}:{index}:{count}"
-            ),
-            priority=87,
-            dependencies=(task.id,),
-            provenance={
-                "scheduled_by": task.task_type,
-                "generation_strategy": strategy,
-                "strategy_index": index,
-            },
-            conn=conn,
-        )
-        for strategy, count, index in task_specs
-    ]
-
-
-def _enqueue_generation_aggregate_task(
-    task: ScientificTask,
-    planned_seq: int,
-    items: Sequence[ScientificTask],
-    counts: Any,
-    conn: sqlite3.Connection,
-) -> ScientificTask:
-    """Enqueue the generation aggregate that depends on every strategy task."""
-    return store.enqueue_task(
-        task.run_id,
-        GENERATION_AGGREGATE_TASK,
-        {
-            "checkpoint_seq": planned_seq,
-            "item_task_ids": [item.id for item in items],
-            "counts": dataclasses.asdict(counts),
-        },
-        idempotency_key=f"generation:aggregate:{planned_seq}",
-        priority=81,
-        dependencies=tuple(item.id for item in items),
-        provenance={
-            "scheduled_by": task.task_type,
-            "allow_failed_dependencies": True,
-        },
-        conn=conn,
-    )
-
-
-async def _enqueue_generation_fanout(
-    task: ScientificTask,
-    state: dict[str, Any],
-    checkpoint_seq: int,
-    *,
-    db_path: str | None,
-) -> dict[str, Any]:
-    """Commit generation planning and enqueue each enabled strategy."""
-    from co_scientist.agents.generation.coordinator import _prepare_generation
-    from co_scientist.checkpoint import serialize_workflow_state
-
-    counts, reference_index, literature = await _prepare_generation(state)
-    strategy_counts = {
-        "tools": counts.tools_count,
-        "debate_lit": counts.debate_with_lit_count,
-        "debate_only": counts.debate_only_count,
-        "assumptions": counts.assumptions_count,
-    }
-    task_specs = _generation_task_specs(strategy_counts)
-    envelope = serialize_workflow_state(
-        state,
-        last_event_seq=store.latest_event_seq(task.run_id, db_path=db_path),
-    )
-    with store.transaction(db_path) as conn:
-        planned_seq = _save_generation_plan_checkpoint(
-            task, checkpoint_seq, envelope, conn
-        )
-        items = _enqueue_generation_strategy_tasks(
-            task, planned_seq, task_specs, literature, reference_index, conn
-        )
-        aggregate = _enqueue_generation_aggregate_task(
-            task, planned_seq, items, counts, conn
-        )
-    return {
-        "checkpoint_seq": planned_seq,
-        "fanout_task_ids": [item.id for item in items],
-        "aggregate_task_id": aggregate.id,
-        "node": "generate",
-    }
-
-
 def _maturity_specs(hypothesis: Any, iteration: int) -> list[tuple[str, str]]:
     """Return full/simulation/recurrent specs by enrichment maturity."""
     if "full" not in hypothesis.enrichments:
@@ -417,22 +316,22 @@ def _enqueue_mature_reflection_item_tasks(
     """Enqueue one durable task per maturity-appropriate reflection spec."""
     return [
         store.enqueue_task(
-            task.run_id,
-            MATURE_REFLECTION_ITEM_TASK,
-            {
-                "checkpoint_seq": checkpoint_seq,
-                "hypothesis_id": hypothesis_id,
-                "review_mode": review_mode,
-            },
-            idempotency_key=(
-                f"reflection:{review_mode}:{checkpoint_seq}:{hypothesis_id}"
+            store.NewTask(
+                run_id=task.run_id,
+                task_type=MATURE_REFLECTION_ITEM_TASK,
+                inputs={
+                    "checkpoint_seq": checkpoint_seq,
+                    "hypothesis_id": hypothesis_id,
+                    "review_mode": review_mode,
+                },
+                idempotency_key=f"reflection:{review_mode}:{checkpoint_seq}:{hypothesis_id}",
+                priority=86,
+                dependencies=(task.id,),
+                provenance={
+                    "scheduled_by": task.task_type,
+                    "reflection_mode": review_mode,
+                },
             ),
-            priority=86,
-            dependencies=(task.id,),
-            provenance={
-                "scheduled_by": task.task_type,
-                "reflection_mode": review_mode,
-            },
             conn=conn,
         )
         for hypothesis_id, review_mode in specs
@@ -447,19 +346,21 @@ def _enqueue_mature_reflection_aggregate_task(
 ) -> ScientificTask:
     """Enqueue the reflection aggregate depending on every item task."""
     return store.enqueue_task(
-        task.run_id,
-        MATURE_REFLECTION_AGGREGATE_TASK,
-        {
-            "checkpoint_seq": checkpoint_seq,
-            "item_task_ids": [item.id for item in items],
-        },
-        idempotency_key=f"reflection:aggregate:{checkpoint_seq}",
-        priority=80,
-        dependencies=tuple(item.id for item in items),
-        provenance={
-            "scheduled_by": task.task_type,
-            "allow_failed_dependencies": True,
-        },
+        store.NewTask(
+            run_id=task.run_id,
+            task_type=MATURE_REFLECTION_AGGREGATE_TASK,
+            inputs={
+                "checkpoint_seq": checkpoint_seq,
+                "item_task_ids": [item.id for item in items],
+            },
+            idempotency_key=f"reflection:aggregate:{checkpoint_seq}",
+            priority=80,
+            dependencies=tuple(item.id for item in items),
+            provenance={
+                "scheduled_by": task.task_type,
+                "allow_failed_dependencies": True,
+            },
+        ),
         conn=conn,
     )
 
@@ -498,195 +399,4 @@ def _enqueue_mature_reflection_fanout(
         "fanout_task_ids": [item.id for item in items],
         "aggregate_task_id": aggregate.id,
         "node": "comprehensive_reflection",
-    }
-
-
-def _hypothesis_for_item(
-    task: ScientificTask, state: dict[str, Any]
-) -> tuple[str, Any]:
-    """Resolve the item task's target hypothesis from restored state."""
-    hypothesis_id = str(task.inputs["hypothesis_id"])
-    hypothesis = next(
-        (item for item in state["hypotheses"] if item.id == hypothesis_id),
-        None,
-    )
-    if hypothesis is None:
-        raise ValueError(
-            f"hypothesis {hypothesis_id} is absent from checkpoint"
-        )
-    return hypothesis_id, hypothesis
-
-
-async def execute_review_item(
-    task: ScientificTask, *, db_path: str | None = None
-) -> dict[str, Any]:
-    """Review one hypothesis without mutating the shared workflow checkpoint."""
-    from co_scientist.agents.reflection.review import review_single_hypothesis
-
-    state, expected_seq = _restore_item_checkpoint(
-        task, db_path, superseded="review item"
-    )
-    hypothesis_id, hypothesis = _hypothesis_for_item(task, state)
-    review = await review_single_hypothesis(
-        hypothesis_text=hypothesis.text,
-        research_goal=state["research_goal"],
-        model_name=state["model_name"],
-        supervisor_guidance=state.get("supervisor_guidance"),
-        meta_review=state.get("meta_review"),
-        run_id=state.get("run_id"),
-        hypothesis_index=int(task.inputs["hypothesis_index"]),
-        tool_registry=state.get("tool_registry"),
-        run_setup_guidance=state.get("run_setup_guidance"),
-        run_focus_guidance=state.get("run_focus_guidance"),
-    )
-    return {
-        "hypothesis_id": hypothesis_id,
-        "review": dataclasses.asdict(review),
-        "checkpoint_seq": expected_seq,
-    }
-
-
-async def execute_verification_item(
-    task: ScientificTask, *, db_path: str | None = None
-) -> dict[str, Any]:
-    """Deep-verify one hypothesis without mutating the workflow checkpoint."""
-    from co_scientist.agents.reflection.deep_verification import (
-        _verification_evidence_context,
-        _verify_one,
-    )
-
-    state, expected_seq = _restore_item_checkpoint(
-        task, db_path, superseded="verification item"
-    )
-    hypothesis_id, hypothesis = _hypothesis_for_item(task, state)
-    result = await _verify_one(
-        hypothesis,
-        state["research_goal"],
-        state["model_name"],
-        asyncio.Semaphore(1),
-        state.get("tool_registry"),
-        _verification_evidence_context(state),
-        state,
-    )
-    if result is None:
-        raise RuntimeError(f"deep verification failed for {hypothesis_id}")
-    return {
-        "hypothesis_id": hypothesis_id,
-        "verification": result,
-        "checkpoint_seq": expected_seq,
-    }
-
-
-async def _run_generation_strategy(
-    state: dict[str, Any],
-    strategy: str,
-    count: int,
-    reference_index: Any,
-    literature_raw: Any,
-) -> tuple[list[Any], list[dict[str, Any]]]:
-    """Execute one generation strategy and return its hypotheses/transcripts."""
-    from co_scientist.agents.generation.assumptions import (
-        generate_with_assumptions,
-    )
-    from co_scientist.agents.generation.citations import ReferenceIndex
-    from co_scientist.agents.generation.debate import generate_with_debate
-    from co_scientist.agents.generation.literature_tools import (
-        generate_with_tools,
-    )
-
-    if strategy == "tools":
-        return await generate_with_tools(state, count, reference_index), []
-    if strategy in {"debate_lit", "debate_only"}:
-        literature = literature_raw if strategy == "debate_lit" else None
-        debate_reference = (
-            reference_index
-            if strategy == "debate_lit"
-            else ReferenceIndex(text="", sources={})
-        )
-        hypotheses, transcripts = await generate_with_debate(
-            state=state,
-            count=count,
-            articles_with_reasoning=literature,
-            reference_index=debate_reference,
-        )
-        return hypotheses, transcripts
-    if strategy == "assumptions":
-        return await generate_with_assumptions(state, count), []
-    raise ValueError(f"unsupported generation strategy: {strategy}")
-
-
-async def execute_generation_strategy(
-    task: ScientificTask, *, db_path: str | None = None
-) -> dict[str, Any]:
-    """Execute one generation strategy against a read-only plan checkpoint."""
-    from co_scientist.agents.generation.citations import ReferenceIndex
-
-    state, expected_seq = _restore_item_checkpoint(
-        task, db_path, superseded="generation strategy"
-    )
-    strategy = str(task.inputs["strategy"])
-    count = int(task.inputs["count"])
-    reference_index = ReferenceIndex(
-        text=str(task.inputs.get("reference_text") or ""),
-        sources=dict(task.inputs.get("reference_sources") or {}),
-    )
-    hypotheses, transcripts = await _run_generation_strategy(
-        state, strategy, count, reference_index, task.inputs.get("literature")
-    )
-    return {
-        "strategy": strategy,
-        "hypotheses": [hypothesis.to_dict() for hypothesis in hypotheses],
-        "transcripts": transcripts,
-        "checkpoint_seq": expected_seq,
-    }
-
-
-async def _run_observation_reflection(
-    state: dict[str, Any], hypothesis: Any
-) -> Any:
-    """Run the observation-mode reflection against retrieved literature."""
-    from co_scientist.agents.reflection.reflection import (
-        analyze_single_hypothesis,
-    )
-
-    literature = state.get("articles_with_reasoning")
-    if not literature:
-        raise RuntimeError("observation review has no literature context")
-    return await analyze_single_hypothesis(
-        hypothesis=hypothesis,
-        articles_with_reasoning=literature,
-        model_name=state["model_name"],
-        hypothesis_index=1,
-        total_count=1,
-        run_id=state.get("run_id"),
-        tool_registry=state.get("tool_registry"),
-        meta_review=state.get("meta_review"),
-    )
-
-
-async def execute_mature_reflection_item(
-    task: ScientificTask, *, db_path: str | None = None
-) -> dict[str, Any]:
-    """Execute one disclosed mature Reflection mode for one hypothesis."""
-    from co_scientist.agents.reflection.comprehensive_reflection import (
-        _run_review,
-    )
-    from co_scientist.agents.reflection.review_types import ReviewType
-
-    state, expected_seq = _restore_item_checkpoint(
-        task, db_path, superseded="mature reflection"
-    )
-    hypothesis_id, hypothesis = _hypothesis_for_item(task, state)
-    mode = ReviewType(str(task.inputs["review_mode"]))
-    if mode is ReviewType.OBSERVATION:
-        result = await _run_observation_reflection(state, hypothesis)
-    else:
-        _, result = await _run_review(state, hypothesis, mode)
-    if result is None:
-        raise RuntimeError(f"{mode.value} review failed for {hypothesis_id}")
-    return {
-        "hypothesis_id": hypothesis_id,
-        "review_mode": mode.value,
-        "review": result,
-        "checkpoint_seq": expected_seq,
     }

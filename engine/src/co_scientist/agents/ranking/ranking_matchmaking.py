@@ -55,19 +55,30 @@ class MatchmakingWeights:
     min_coverage: int = 1
 
 
+@dataclasses.dataclass(frozen=True)
+class _PairingState:
+    """Build-invariant scoring inputs threaded through every selection.
+
+    ``coverage`` (per-hypothesis match counts) is mutated in place across a
+    build as pairings are committed; ``rng`` carries deterministic RNG
+    state. ``elo_lo``/``elo_hi`` bound the fixed candidate list, so they are
+    computed once and reused for rank normalization.
+    """
+
+    coverage: dict[str, int]
+    weights: MatchmakingWeights
+    rng: random.Random
+    elo_lo: int
+    elo_hi: int
+
+
 def _elo_range(candidates: list[MatchCandidate]) -> tuple[int, int]:
     """Return the (min, max) Elo across candidates for rank normalization."""
     elos = [c.elo for c in candidates]
     return min(elos), max(elos)
 
 
-def _priority(
-    candidate: MatchCandidate,
-    coverage: dict[str, int],
-    elo_lo: int,
-    elo_hi: int,
-    weights: MatchmakingWeights,
-) -> float:
+def _priority(candidate: MatchCandidate, state: _PairingState) -> float:
     """Score a candidate's selection priority from recency, rank, coverage.
 
     Higher is more likely to be picked. Recency rewards fewer prior matches
@@ -75,14 +86,14 @@ def _priority(
     (leaders need discrimination); coverage rewards under-played hypotheses.
     """
     recency = 1.0 / (1.0 + candidate.matches)
-    span = (elo_hi - elo_lo) or 1
-    rank = (candidate.elo - elo_lo) / span
-    played = coverage.get(candidate.id, 0)
+    span = (state.elo_hi - state.elo_lo) or 1
+    rank = (candidate.elo - state.elo_lo) / span
+    played = state.coverage.get(candidate.id, 0)
     low_coverage = 1.0 / (1.0 + played)
     return (
-        weights.recency * recency
-        + weights.rank * rank
-        + weights.coverage * low_coverage
+        state.weights.recency * recency
+        + state.weights.rank * rank
+        + state.weights.coverage * low_coverage
     )
 
 
@@ -104,9 +115,7 @@ def _weighted_choice(
 
 def _select_primary(
     candidates: list[MatchCandidate],
-    coverage: dict[str, int],
-    weights: MatchmakingWeights,
-    rng: random.Random,
+    state: _PairingState,
 ) -> MatchCandidate:
     """Select the first side of a match.
 
@@ -115,14 +124,13 @@ def _select_primary(
     weighted by the recency/rank/coverage priority.
     """
     undercovered = [
-        c for c in candidates if coverage.get(c.id, 0) < weights.min_coverage
+        c
+        for c in candidates
+        if state.coverage.get(c.id, 0) < state.weights.min_coverage
     ]
     pool = undercovered or candidates
-    elo_lo, elo_hi = _elo_range(candidates)
-    scored = [
-        (c, _priority(c, coverage, elo_lo, elo_hi, weights)) for c in pool
-    ]
-    return _weighted_choice(scored, rng)
+    scored = [(c, _priority(c, state)) for c in pool]
+    return _weighted_choice(scored, state.rng)
 
 
 def _is_eligible_partner(
@@ -143,27 +151,22 @@ def _is_eligible_partner(
 def _partner_score(
     candidate: MatchCandidate,
     primary: MatchCandidate,
-    coverage: dict[str, int],
-    elo_lo: int,
-    elo_hi: int,
-    weights: MatchmakingWeights,
+    state: _PairingState,
 ) -> float:
     """Score candidate as a partner, with a same-cluster similarity bonus."""
-    score = _priority(candidate, coverage, elo_lo, elo_hi, weights)
+    score = _priority(candidate, state)
     same_cluster = (
         primary.cluster_id is not None
         and candidate.cluster_id == primary.cluster_id
     )
-    return score + weights.similarity_bonus if same_cluster else score
+    return score + state.weights.similarity_bonus if same_cluster else score
 
 
 def _select_partner(
     primary: MatchCandidate,
     candidates: list[MatchCandidate],
-    coverage: dict[str, int],
     recent_pairs: set[frozenset[str]],
-    weights: MatchmakingWeights,
-    rng: random.Random,
+    state: _PairingState,
 ) -> MatchCandidate | None:
     """Select the second side of a match for ``primary``.
 
@@ -172,25 +175,22 @@ def _select_partner(
     proximity cluster get a similarity bonus so similar hypotheses are more
     likely compared. Returns None if no valid partner remains.
     """
-    elo_lo, elo_hi = _elo_range(candidates)
     scored = [
-        (c, _partner_score(c, primary, coverage, elo_lo, elo_hi, weights))
+        (c, _partner_score(c, primary, state))
         for c in candidates
         if _is_eligible_partner(c, primary, recent_pairs)
     ]
     if not scored:
         return None
-    return _weighted_choice(scored, rng)
+    return _weighted_choice(scored, state.rng)
 
 
 def _select_round_partner(
     primary: MatchCandidate,
     candidates: list[MatchCandidate],
-    coverage: dict[str, int],
     recent_pairs: set[frozenset[str]],
     prev_pair: frozenset[str] | None,
-    weights: MatchmakingWeights,
-    rng: random.Random,
+    state: _PairingState,
 ) -> MatchCandidate | None:
     """Selects a partner for ``primary``, relaxing forbidden pairs as needed.
 
@@ -203,9 +203,7 @@ def _select_round_partner(
         {prev_pair} if prev_pair is not None else set()
     )
     for forbidden in (recent_pairs | prev_only, prev_only, set()):
-        partner = _select_partner(
-            primary, candidates, coverage, forbidden, weights, rng
-        )
+        partner = _select_partner(primary, candidates, forbidden, state)
         if partner is not None:
             return partner
     return None
@@ -213,11 +211,9 @@ def _select_round_partner(
 
 def _schedule_one_pairing(
     candidates: list[MatchCandidate],
-    coverage: dict[str, int],
     recent_pairs: set[frozenset[str]],
     prev_pair: frozenset[str] | None,
-    weights: MatchmakingWeights,
-    rng: random.Random,
+    state: _PairingState,
 ) -> tuple[str, str] | None:
     """Selects and commits one pairing, updating coverage and recency.
 
@@ -225,14 +221,14 @@ def _schedule_one_pairing(
         The scheduled ``(primary_id, partner_id)`` pair, or None if no
         valid partner exists for the round's chosen primary.
     """
-    primary = _select_primary(candidates, coverage, weights, rng)
+    primary = _select_primary(candidates, state)
     partner = _select_round_partner(
-        primary, candidates, coverage, recent_pairs, prev_pair, weights, rng
+        primary, candidates, recent_pairs, prev_pair, state
     )
     if partner is None:
         return None
-    coverage[primary.id] += 1
-    coverage[partner.id] += 1
+    state.coverage[primary.id] += 1
+    state.coverage[partner.id] += 1
     recent_pairs.add(frozenset({primary.id, partner.id}))
     return primary.id, partner.id
 
@@ -241,13 +237,19 @@ def _init_pairing_state(
     candidates: list[MatchCandidate],
     seed: int,
     weights: MatchmakingWeights | None,
-) -> tuple[MatchmakingWeights, random.Random, dict[str, int], int]:
-    """Initializes RNG, per-hypothesis coverage, and the max-pairs bound."""
-    resolved_weights = weights or MatchmakingWeights()
-    rng = random.Random(seed)
+) -> tuple[_PairingState, int]:
+    """Initializes the build-invariant pairing state and max-pairs bound."""
     coverage = {c.id: c.matches for c in candidates}
+    elo_lo, elo_hi = _elo_range(candidates)
+    state = _PairingState(
+        coverage=coverage,
+        weights=weights or MatchmakingWeights(),
+        rng=random.Random(seed),
+        elo_lo=elo_lo,
+        elo_hi=elo_hi,
+    )
     max_pairs = len(candidates) * (len(candidates) - 1) // 2
-    return resolved_weights, rng, coverage, max_pairs
+    return state, max_pairs
 
 
 def _reset_if_exhausted(
@@ -288,18 +290,14 @@ def build_weighted_pairings(
     """
     if len(candidates) < 2:
         return []
-    weights, rng, coverage, max_pairs = _init_pairing_state(
-        candidates, seed, weights
-    )
+    state, max_pairs = _init_pairing_state(candidates, seed, weights)
 
     pairings: list[tuple[str, str]] = []
     recent_pairs: set[frozenset[str]] = set()
     prev_pair: frozenset[str] | None = None
     for _ in range(rounds):
         recent_pairs = _reset_if_exhausted(recent_pairs, prev_pair, max_pairs)
-        pair = _schedule_one_pairing(
-            candidates, coverage, recent_pairs, prev_pair, weights, rng
-        )
+        pair = _schedule_one_pairing(candidates, recent_pairs, prev_pair, state)
         if pair is None:
             continue
         pairings.append(pair)

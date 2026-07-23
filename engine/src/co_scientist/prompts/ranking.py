@@ -1,25 +1,56 @@
 """Prompt builders for the ranking/tournament and proximity nodes."""
 
+from dataclasses import dataclass
 from typing import Any
 
 from co_scientist.prompts._common import (
+    PromptRunContext,
+    PromptSections,
     _format_bullet_section,
     _format_meta_review_context,
-    _format_run_guidance,
+    _run_guidance_section,
 )
 from co_scientist.prompts.loading import _build_prompt
 
 
+@dataclass(frozen=True)
+class RankingSide:
+    """One side of a pairwise tournament match.
+
+    Bundles every per-hypothesis signal the ranking prompt aggregates, so
+    the builder takes two symmetric sides instead of eight interleaved
+    ``*_a``/``*_b`` parameters.
+
+    Attributes:
+        text: The hypothesis text being compared.
+        review: This hypothesis's review scores, if it has been reviewed.
+        reflection_notes: This hypothesis's reflection notes, if any.
+        deep_verification: This hypothesis's deep-verification result
+            (``probes`` and ``verdict``), blank before the first pass.
+    """
+
+    text: str
+    review: dict[str, Any] | None = None
+    reflection_notes: str | None = None
+    deep_verification: dict[str, Any] | None = None
+
+
 def _build_ranking_deep_verification_variables(
-    deep_verification_a: dict[str, Any] | None,
-    deep_verification_b: dict[str, Any] | None,
+    side_a: RankingSide, side_b: RankingSide
 ) -> dict[str, Any]:
     """Build the deep-verification template variables for ranking prompts.
 
     Blank before the first deep_verification pass has run on the leaders.
+
+    Args:
+        side_a: The "A" side of the match.
+        side_b: The "B" side of the match.
+
+    Returns:
+        Dict of the two deep-verification template variables.
     """
-    dv_a = deep_verification_a or {}
-    dv_b = deep_verification_b or {}
+    dv_a = side_a.deep_verification or {}
+    dv_b = side_b.deep_verification or {}
     return {
         "hypothesis_a_deep_verification": _format_deep_verification_context(
             dv_a.get("probes"), dv_a.get("verdict"), "A"
@@ -31,41 +62,31 @@ def _build_ranking_deep_verification_variables(
 
 
 def _build_ranking_prompt_variables(
-    research_goal: str,
-    hypothesis_a: str,
-    hypothesis_b: str,
-    review_a: dict[str, Any] | None,
-    review_b: dict[str, Any] | None,
-    reflection_notes_a: str | None,
-    reflection_notes_b: str | None,
-    deep_verification_a: dict[str, Any] | None,
-    deep_verification_b: dict[str, Any] | None,
+    research_goal: str, side_a: RankingSide, side_b: RankingSide
 ) -> dict[str, Any]:
     """Build the template variables for the ranking comparison prompt.
 
-    Args are documented on get_ranking_prompt, which forwards them here
-    unchanged.
+    Args:
+        research_goal: The run's research goal.
+        side_a: The "A" side of the match.
+        side_b: The "B" side of the match.
 
     Returns:
         Dict of template variables for the ranking prompt.
     """
     variables = {
         "research_goal": research_goal,
-        "hypothesis_a": hypothesis_a,
-        "hypothesis_b": hypothesis_b,
-        "review_context": _format_review_context(review_a, review_b),
+        "hypothesis_a": side_a.text,
+        "hypothesis_b": side_b.text,
+        "review_context": _format_review_context(side_a.review, side_b.review),
         "hypothesis_a_reflection_notes": (
-            reflection_notes_a or "No reflection notes available."
+            side_a.reflection_notes or "No reflection notes available."
         ),
         "hypothesis_b_reflection_notes": (
-            reflection_notes_b or "No reflection notes available."
+            side_b.reflection_notes or "No reflection notes available."
         ),
     }
-    variables.update(
-        _build_ranking_deep_verification_variables(
-            deep_verification_a, deep_verification_b
-        )
-    )
+    variables.update(_build_ranking_deep_verification_variables(side_a, side_b))
     return variables
 
 
@@ -76,43 +97,34 @@ def _build_ranking_prompt_variables(
 # verification probes.
 def get_ranking_prompt(
     research_goal: str,
-    hypothesis_a: str,
-    hypothesis_b: str,
-    supervisor_guidance: dict[str, Any] | None = None,
-    review_a: dict[str, Any] | None = None,
-    review_b: dict[str, Any] | None = None,
-    reflection_notes_a: str | None = None,
-    reflection_notes_b: str | None = None,
-    deep_verification_a: dict[str, Any] | None = None,
-    deep_verification_b: dict[str, Any] | None = None,
-    meta_review: dict[str, Any] | None = None,
-    tool_registry: Any | None = None,
-    run_setup_guidance: str | None = None,
-    run_focus_guidance: str | None = None,
+    side_a: RankingSide,
+    side_b: RankingSide,
+    context: PromptRunContext | None = None,
 ) -> tuple[str, dict[str, Any] | None]:
-    """Get the ranking (and tournament) comparison prompt and schema."""
-    variables = _build_ranking_prompt_variables(
-        research_goal=research_goal,
-        hypothesis_a=hypothesis_a,
-        hypothesis_b=hypothesis_b,
-        review_a=review_a,
-        review_b=review_b,
-        reflection_notes_a=reflection_notes_a,
-        reflection_notes_b=reflection_notes_b,
-        deep_verification_a=deep_verification_a,
-        deep_verification_b=deep_verification_b,
-    )
+    """Get the ranking (and tournament) comparison prompt and schema.
+
+    Args:
+        research_goal: The run's research goal.
+        side_a: The "A" side of the match.
+        side_b: The "B" side of the match.
+        context: Run-scoped prompt context (supervisor guidance,
+            meta-review, tool registry, run setup/focus guidance).
+
+    Returns:
+        Tuple of (rendered prompt string, JSON schema dict or None).
+    """
+    ctx = context or PromptRunContext()
     return _build_prompt(
         "ranking",
-        variables,
-        supervisor_guidance=_format_supervisor_guidance_for_ranking(
-            supervisor_guidance
+        _build_ranking_prompt_variables(research_goal, side_a, side_b),
+        sections=PromptSections(
+            supervisor_guidance=_format_supervisor_guidance_for_ranking(
+                ctx.supervisor_guidance
+            ),
+            meta_review_context=_format_meta_review_context(ctx.meta_review),
+            run_guidance=_run_guidance_section(ctx),
         ),
-        meta_review_context=_format_meta_review_context(meta_review),
-        run_guidance=_format_run_guidance(
-            run_setup_guidance, run_focus_guidance
-        ),
-        tool_registry=tool_registry,
+        tool_registry=ctx.tool_registry,
     )
 
 
@@ -133,8 +145,10 @@ def get_proximity_prompt(
                 indent=2,
             )
         },
-        supervisor_guidance=_format_supervisor_guidance_for_proximity(
-            supervisor_guidance
+        sections=PromptSections(
+            supervisor_guidance=_format_supervisor_guidance_for_proximity(
+                supervisor_guidance
+            )
         ),
         include_domain=False,
     )

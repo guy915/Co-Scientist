@@ -144,17 +144,34 @@ class GateResult:
     speculative_claims: tuple[str, ...] = ()
 
 
+@dataclasses.dataclass(frozen=True)
+class _ClaimPartition:
+    """One hypothesis's claims, split by what the gate does with each.
+
+    Attributes:
+        contradicted: Claims the evidence contradicts.
+        unsupported: Claims the evidence neither supports nor contradicts.
+        speculative: The ``unsupported`` claims presented as speculation.
+        blocking_unsupported: The ``unsupported`` claims not covered by
+            ``speculative``, which is what actually blocks.
+    """
+
+    contradicted: tuple[str, ...]
+    unsupported: tuple[str, ...]
+    speculative: tuple[str, ...]
+    blocking_unsupported: tuple[str, ...]
+
+
 def _classify_gate_claims(
     assessments: list[ClaimAssessment],
     *,
     allow_speculative: bool,
     explicitly_speculative_claims: Collection[str],
-) -> tuple[tuple[str, ...], tuple[str, ...], tuple[str, ...], tuple[str, ...]]:
+) -> _ClaimPartition:
     """Split claims into contradicted, unsupported, speculative, and blocking.
 
-    Returns a ``(contradicted, unsupported, speculative, blocking_unsupported)``
-    tuple, where ``blocking_unsupported`` is the subset of ``unsupported`` not
-    covered by ``speculative``.
+    Returns:
+        The :class:`_ClaimPartition` the gate's rules are applied to.
     """
     contradicted = tuple(
         a.claim for a in assessments if a.label is EntailmentLabel.CONTRADICTS
@@ -172,7 +189,12 @@ def _classify_gate_claims(
     blocking_unsupported = tuple(
         claim for claim in unsupported if claim not in speculative_lookup
     )
-    return contradicted, unsupported, speculative, blocking_unsupported
+    return _ClaimPartition(
+        contradicted=contradicted,
+        unsupported=unsupported,
+        speculative=speculative,
+        blocking_unsupported=blocking_unsupported,
+    )
 
 
 def _blocks_for_missing_support(
@@ -213,32 +235,30 @@ def _gate_block_reason(
 
 def _decide_gate(
     assessments: list[ClaimAssessment],
-    contradicted: tuple[str, ...],
-    unsupported: tuple[str, ...],
-    speculative: tuple[str, ...],
-    blocking_unsupported: tuple[str, ...],
+    partition: _ClaimPartition,
     *,
     require_supported_claim: bool,
 ) -> GateResult:
     """Apply the gate's blocking rules, in priority order, to the claims."""
+    claims = (
+        partition.contradicted,
+        partition.unsupported,
+        partition.speculative,
+    )
     reason = _gate_block_reason(
         assessments,
-        contradicted,
-        blocking_unsupported,
+        partition.contradicted,
+        partition.blocking_unsupported,
         require_supported_claim=require_supported_claim,
     )
     if reason is not None:
-        return GateResult(
-            GateDecision.BLOCK, reason, contradicted, unsupported, speculative
-        )
+        return GateResult(GateDecision.BLOCK, reason, *claims)
     allow_reason = "all fundamental claims supported"
-    if unsupported:
+    if partition.unsupported:
         allow_reason = (
             "categorical claims supported; novel claims labeled speculative"
         )
-    return GateResult(
-        GateDecision.ALLOW, allow_reason, contradicted, unsupported, speculative
-    )
+    return GateResult(GateDecision.ALLOW, allow_reason, *claims)
 
 
 def publication_gate(
@@ -269,13 +289,13 @@ def publication_gate(
     Returns:
         The :class:`GateResult`.
     """
-    classified = _classify_gate_claims(
+    partition = _classify_gate_claims(
         assessments,
         allow_speculative=allow_speculative,
         explicitly_speculative_claims=explicitly_speculative_claims,
     )
     return _decide_gate(
         assessments,
-        *classified,
+        partition,
         require_supported_claim=require_supported_claim,
     )

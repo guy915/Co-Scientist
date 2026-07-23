@@ -67,12 +67,11 @@ def test_seed_demo_runs_is_idempotent_when_reports_exist(
 def test_seed_demo_runs_reseeds_run_missing_report(isolated_db: str) -> None:
     goal = seed._DEMO_GOALS[0]
     run = store.create_run(
-        research_goal=goal,
-        profile="default",
-        provider="mock",
-        config={},
-        client_id=DEMO_CLIENT_ID,
-        db_path=isolated_db,
+        goal,
+        "default",
+        "mock",
+        {},
+        store.RunCreateOptions(client_id=DEMO_CLIENT_ID, db_path=isolated_db),
     )
     assert store.read_report_markdown(run.id, db_path=isolated_db) is None
 
@@ -133,7 +132,13 @@ def test_seed_demo_run_creates_new_run_when_none_given(
 def test_has_readable_report_reflects_report_presence(
     isolated_db: str,
 ) -> None:
-    run = store.create_run("goal", "default", "mock", {}, db_path=isolated_db)
+    run = store.create_run(
+        "goal",
+        "default",
+        "mock",
+        {},
+        store.RunCreateOptions(db_path=isolated_db),
+    )
     assert seed._has_readable_report(run, isolated_db) is False
 
     store.save_report(run.id, {"k": "v"}, "# md", db_path=isolated_db)

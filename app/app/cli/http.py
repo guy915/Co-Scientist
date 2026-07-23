@@ -10,6 +10,7 @@ benefit to an async client, and ``httpx.Client`` streams SSE responses fine.
 from __future__ import annotations
 
 import contextlib
+import dataclasses
 import json
 import sys
 import time
@@ -92,6 +93,26 @@ def _raise_for_status(response: httpx.Response) -> None:
     )
 
 
+@dataclasses.dataclass(frozen=True)
+class ApiClientOptions:
+    """Transport and diagnostics knobs for one :class:`ApiClient`.
+
+    Attributes:
+        timeout: Per-request timeout in seconds (streams read without one).
+        retry_wait: Seconds to sleep between GET retry attempts.
+        verbose: When true, log every request's method, path, status, and
+            elapsed time to stderr (stdout stays parseable output only).
+        transport: Optional httpx transport, used by tests to route requests
+            at a stub (e.g. ``httpx.MockTransport``) instead of the network;
+            production leaves it unset.
+    """
+
+    timeout: float = 30.0
+    retry_wait: float = 0.5
+    verbose: bool = False
+    transport: httpx.BaseTransport | None = None
+
+
 class ApiClient:
     """Synchronous httpx wrapper bound to one API base URL and client id.
 
@@ -117,10 +138,7 @@ class ApiClient:
         client_id: str | None = None,
         logs_token: str | None = None,
         *,
-        timeout: float = 30.0,
-        retry_wait: float = 0.5,
-        verbose: bool = False,
-        transport: httpx.BaseTransport | None = None,
+        options: ApiClientOptions | None = None,
     ) -> None:
         """Bind the client to ``base_url`` with an optional ``client_id``.
 
@@ -131,22 +149,18 @@ class ApiClient:
             logs_token: Optional ``X-Logs-Token`` value, granting the
                 app-wide log view when the API is not reached over
                 loopback (Docker, or a remote deployment).
-            timeout: Per-request timeout in seconds (streams read without one).
-            retry_wait: Seconds to sleep between GET retry attempts.
-            verbose: When true, log every request's method, path, status, and
-                elapsed time to stderr (stdout stays parseable output only).
-            transport: Optional httpx transport, used by tests to route
-                requests at a stub (e.g. ``httpx.MockTransport``) instead of
-                the network; production leaves it unset.
+            options: Transport and diagnostics knobs; the defaults of
+                :class:`ApiClientOptions` when omitted.
         """
+        options = options or ApiClientOptions()
         if "://" not in base_url:
             base_url = f"http://{base_url}"
         self.base_url = base_url.rstrip("/")
         self._headers = self._build_headers(client_id, logs_token)
-        self._timeout = timeout
-        self._retry_wait = retry_wait
-        self._verbose = verbose
-        self._transport = transport
+        self._timeout = options.timeout
+        self._retry_wait = options.retry_wait
+        self._verbose = options.verbose
+        self._transport = options.transport
         self._http_client: httpx.Client | None = None
 
     def _log(self, message: str) -> None:

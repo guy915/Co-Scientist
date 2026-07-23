@@ -9,10 +9,22 @@ from co_scientist.constants import (
     PROGRESS_SUPERVISOR_COMPLETE,
     PROGRESS_SUPERVISOR_START,
 )
-from co_scientist.llm import call_llm_json
-from co_scientist.models import create_metrics_update, phase_message
+from co_scientist.llm import (
+    CompletionSpec,
+    LLMCallOptions,
+    call_llm_json,
+)
+from co_scientist.models import (
+    MetricDeltas,
+    create_metrics_update,
+    phase_message,
+)
 from co_scientist.progress import emit_progress
-from co_scientist.prompts import get_supervisor_prompt
+from co_scientist.prompts import (
+    PromptRunContext,
+    SupervisorPromptInputs,
+    get_supervisor_prompt,
+)
 from co_scientist.state import WorkflowState
 
 logger = logging.getLogger(__name__)
@@ -52,7 +64,7 @@ async def _announce_supervisor_start(
     This is the first node in the graph, so this also marks the start of
     the entire workflow from the UI's perspective.
     """
-    research_goal = prompt_context["research_goal"]
+    research_goal = prompt_context["inputs"].research_goal
     logger.info(
         "Supervisor analyzing research goal: %s...", research_goal[:100]
     )
@@ -113,15 +125,19 @@ async def _call_supervisor_llm(
     """
     return await call_llm_json(
         prompt=prompt,
-        model_name=state["supervisor_model_name"],
-        max_tokens=EXTENDED_MAX_TOKENS,
-        temperature=MEDIUM_TEMPERATURE,
-        json_schema=schema,
-        run_id=state.get("run_id"),
-        prompt_name="supervisor",
-        prompt_metadata={
-            "prompt_length_chars": len(prompt),
-        },
+        spec=CompletionSpec(
+            model_name=state["supervisor_model_name"],
+            max_tokens=EXTENDED_MAX_TOKENS,
+            temperature=MEDIUM_TEMPERATURE,
+            json_schema=schema,
+        ),
+        options=LLMCallOptions(
+            run_id=state.get("run_id"),
+            prompt_name="supervisor",
+            prompt_metadata={
+                "prompt_length_chars": len(prompt),
+            },
+        ),
     )
 
 
@@ -141,7 +157,7 @@ def _build_supervisor_result(
     """
     # Update metrics (deltas only, merge_metrics will add to existing state)
     # This node makes exactly one LLM call, so the delta is always 1.
-    metrics = create_metrics_update(llm_calls_delta=1)
+    metrics = create_metrics_update(deltas=MetricDeltas(llm_calls=1))
 
     return {
         "supervisor_guidance": supervisor_guidance,
@@ -173,21 +189,25 @@ def _extract_supervisor_context(state: WorkflowState) -> dict[str, Any]:
         get_supervisor_prompt.
     """
     return {
-        "research_goal": state["research_goal"],
-        "preferences": state.get("preferences"),
-        "attributes": state.get("attributes"),
-        "constraints": state.get("constraints"),
-        "user_hypotheses": state.get("starting_hypotheses"),
-        "user_literature": state.get("literature"),
-        "initial_hypotheses_count": state.get("initial_hypotheses_count"),
-        "max_iterations": state.get("max_iterations"),
-        "evolution_max_count": state.get("evolution_max_count"),
-        "mcp_available": bool(state.get("mcp_available", False)),
-        "pubmed_available": bool(state.get("pubmed_available", False)),
-        "tool_registry": state.get("tool_registry"),
-        "criteria": state.get("criteria"),
-        "run_setup_guidance": state.get("run_setup_guidance"),
-        "run_focus_guidance": state.get("run_focus_guidance"),
+        "inputs": SupervisorPromptInputs(
+            research_goal=state["research_goal"],
+            preferences=state.get("preferences"),
+            attributes=state.get("attributes"),
+            constraints=state.get("constraints"),
+            criteria=state.get("criteria"),
+            user_hypotheses=state.get("starting_hypotheses"),
+            user_literature=state.get("literature"),
+            initial_hypotheses_count=state.get("initial_hypotheses_count"),
+            max_iterations=state.get("max_iterations"),
+            evolution_max_count=state.get("evolution_max_count"),
+            mcp_available=bool(state.get("mcp_available", False)),
+            pubmed_available=bool(state.get("pubmed_available", False)),
+        ),
+        "context": PromptRunContext(
+            tool_registry=state.get("tool_registry"),
+            run_setup_guidance=state.get("run_setup_guidance"),
+            run_focus_guidance=state.get("run_focus_guidance"),
+        ),
     }
 
 

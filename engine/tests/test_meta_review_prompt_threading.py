@@ -9,6 +9,8 @@ distinctive critique and assert it is present.
 """
 
 from co_scientist.prompts import (
+    DebatePromptRequest,
+    PromptRunContext,
     get_debate_generation_prompt,
     get_reflection_prompt,
     get_review_batch_prompt,
@@ -38,10 +40,12 @@ def _assert_critique_present(prompt: str) -> None:
 def test_generation_debate_prompt_includes_meta_review() -> None:
     """The Generation (debate) prompt carries the meta-review critique."""
     prompt, _ = get_debate_generation_prompt(
-        research_goal="Find a synthetic-lethal target",
-        hypotheses_count=3,
-        transcript="",
-        meta_review=_META_REVIEW,
+        DebatePromptRequest(
+            research_goal="Find a synthetic-lethal target",
+            hypotheses_count=3,
+            transcript="",
+            context=PromptRunContext(meta_review=_META_REVIEW),
+        )
     )
     _assert_critique_present(prompt)
 
@@ -51,7 +55,7 @@ def test_reflection_prompt_includes_meta_review() -> None:
     prompt, _ = get_reflection_prompt(
         articles_with_reasoning="Some prior work.",
         hypothesis_text="Inhibiting X reduces Y.",
-        meta_review=_META_REVIEW,
+        context=PromptRunContext(meta_review=_META_REVIEW),
     )
     _assert_critique_present(prompt)
 
@@ -61,7 +65,7 @@ def test_review_prompt_includes_meta_review() -> None:
     prompt, _ = get_review_prompt(
         research_goal="Find a synthetic-lethal target",
         hypothesis_text="Inhibiting X reduces Y.",
-        meta_review=_META_REVIEW,
+        context=PromptRunContext(meta_review=_META_REVIEW),
     )
     _assert_critique_present(prompt)
 
@@ -71,7 +75,7 @@ def test_review_batch_prompt_includes_meta_review() -> None:
     prompt, _ = get_review_batch_prompt(
         research_goal="Find a synthetic-lethal target",
         hypotheses_list="1. Inhibiting X reduces Y.\n2. Blocking Z helps.",
-        meta_review=_META_REVIEW,
+        context=PromptRunContext(meta_review=_META_REVIEW),
     )
     _assert_critique_present(prompt)
 
@@ -81,6 +85,6 @@ def test_empty_meta_review_adds_no_context_section() -> None:
     prompt, _ = get_review_prompt(
         research_goal="Find a synthetic-lethal target",
         hypothesis_text="Inhibiting X reduces Y.",
-        meta_review=None,
+        context=PromptRunContext(meta_review=None),
     )
     assert "Meta-Review Context" not in prompt

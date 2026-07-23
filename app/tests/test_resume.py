@@ -20,40 +20,60 @@ from tests._client import make_client as _client
 def _seed_agent_artifacts(run_id: str) -> str:
     """Persist agent-authored hypothesis + review + retrieved evidence."""
     agent_id = store.add_hypothesis(
-        run_id,
-        title="Agent idea",
-        statement="An agent-generated hypothesis.",
-        created_by_agent="generation",
+        store.NewHypothesis(
+            run_id=run_id,
+            title="Agent idea",
+            statement="An agent-generated hypothesis.",
+            created_by_agent="generation",
+        )
     )
     store.add_review(
-        run_id,
-        hypothesis_id=agent_id,
-        reviewer_agent="reflection",
-        summary="agent review",
-        critique="agent critique",
+        store.NewReview(
+            run_id=run_id,
+            hypothesis_id=agent_id,
+            reviewer_agent="reflection",
+            summary="agent review",
+            critique="agent critique",
+        )
     )
-    store.add_evidence(run_id, "Retrieved paper", source="pubmed", abstract="x")
+    store.add_evidence(
+        store.NewEvidence(
+            run_id=run_id,
+            title="Retrieved paper",
+            source="pubmed",
+            abstract="x",
+        )
+    )
     return agent_id
 
 
 def _seed_scientist_artifacts(run_id: str) -> str:
     """Persist scientist hypothesis + human review + an attachment."""
     manual_id = store.add_hypothesis(
-        run_id,
-        title="Human idea",
-        statement="A scientist-authored hypothesis.",
-        created_by_agent="scientist_manual",
-        author="dr-who",
+        store.NewHypothesis(
+            run_id=run_id,
+            title="Human idea",
+            statement="A scientist-authored hypothesis.",
+            created_by_agent="scientist_manual",
+            author="dr-who",
+        )
     )
     store.add_review(
-        run_id,
-        hypothesis_id=manual_id,
-        reviewer_agent="scientist",
-        summary="human review",
-        critique="looks promising",
+        store.NewReview(
+            run_id=run_id,
+            hypothesis_id=manual_id,
+            reviewer_agent="scientist",
+            summary="human review",
+            critique="looks promising",
+        )
     )
     store.add_evidence(
-        run_id, "Attached doc", source="attachment", abstract="notes"
+        store.NewEvidence(
+            run_id=run_id,
+            title="Attached doc",
+            source="attachment",
+            abstract="notes",
+        )
     )
     return manual_id
 
@@ -83,26 +103,48 @@ def test_publication_replay_preserves_task_history_and_scientist_input(
     """Finalizer cleanup removes drain rows without erasing durable history."""
     run = store.create_run("Publication replay", "express", "engine", {})
     manual_id = store.add_hypothesis(
-        run.id,
-        title="Human idea",
-        statement="Scientist idea",
-        created_by_agent="scientist_manual",
+        store.NewHypothesis(
+            run_id=run.id,
+            title="Human idea",
+            statement="Scientist idea",
+            created_by_agent="scientist_manual",
+        )
     )
     store.add_hypothesis(
-        run.id,
-        title="Agent idea",
-        statement="Agent idea",
-        created_by_agent="generation",
+        store.NewHypothesis(
+            run_id=run.id,
+            title="Agent idea",
+            statement="Agent idea",
+            created_by_agent="generation",
+        )
     )
-    store.add_evidence(run.id, "Private", source="attachment", abstract="x")
-    store.add_evidence(run.id, "Paper", source="pubmed", abstract="y")
+    store.add_evidence(
+        store.NewEvidence(
+            run_id=run.id, title="Private", source="attachment", abstract="x"
+        )
+    )
+    store.add_evidence(
+        store.NewEvidence(
+            run_id=run.id, title="Paper", source="pubmed", abstract="y"
+        )
+    )
     store.append_event(run.id, "scientific_task", {"task": "ranking"})
-    store.add_safety_decision(run.id, "intake", "allow", "", [])
+    store.add_safety_decision(
+        store.NewSafetyDecision(
+            run_id=run.id,
+            stage="intake",
+            decision="allow",
+            reason="",
+            matches=[],
+        )
+    )
     store.enqueue_task(
-        run.id,
-        "engine.finalize",
-        {},
-        idempotency_key="finalize-test",
+        store.NewTask(
+            run_id=run.id,
+            task_type="engine.finalize",
+            inputs={},
+            idempotency_key="finalize-test",
+        ),
         db_path=isolated_db,
     )
 
@@ -135,10 +177,9 @@ def test_resume_reassigns_event_seqs_above_last_checkpoint(
     # A checkpoint records the high-water mark, then a resume clears events.
     store.save_checkpoint(
         run.id,
-        stage="pause",
-        schema_version=1,
-        last_event_seq=high_water,
-        state={},
+        store.NewCheckpoint(
+            stage="pause", schema_version=1, last_event_seq=high_water, state={}
+        ),
     )
     store.clear_run_derived_data(run.id)
     assert store.list_events(run.id) == []

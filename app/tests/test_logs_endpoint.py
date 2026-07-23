@@ -17,11 +17,13 @@ def _seed(
     run_id: str | None = None,
 ) -> int:
     return store.append_log(
-        level=level,
-        levelno=levelno,
-        logger_name="app.seeded",
-        message=message,
-        run_id=run_id,
+        store.NewLogRecord(
+            level=level,
+            levelno=levelno,
+            logger_name="app.seeded",
+            message=message,
+            run_id=run_id,
+        ),
         db_path=isolated_db,
     )
 
@@ -35,10 +37,12 @@ def _seed_from(
     levelno: int = logging.INFO,
 ) -> int:
     return store.append_log(
-        level=level,
-        levelno=levelno,
-        logger_name=logger_name,
-        message=message,
+        store.NewLogRecord(
+            level=level,
+            levelno=levelno,
+            logger_name=logger_name,
+            message=message,
+        ),
         db_path=isolated_db,
     )
 

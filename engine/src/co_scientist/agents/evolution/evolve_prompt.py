@@ -1,5 +1,6 @@
 """Prompt assembly and meta-review logging for the Evolve node."""
 
+import dataclasses
 import json
 import logging
 from typing import Any
@@ -17,6 +18,37 @@ from co_scientist.prompts import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+@dataclasses.dataclass(frozen=True)
+class _EvolutionContext:
+    """Run/round-invariant inputs threaded through one evolution round.
+
+    Bundles the model, prior-round signals (meta-review, removed
+    duplicates), and the guidance/tool context every evolved hypothesis
+    shares. ``creation_iteration``, ``model_name``, and ``run_id`` are
+    unused by prompt assembly but ride along so the LLM call and child
+    construction can read them from the same context.
+    """
+
+    model_name: str
+    meta_review: dict[str, Any]
+    removed_duplicates: list[str]
+    creation_iteration: int | None = None
+    supervisor_guidance: dict[str, Any] | None = None
+    articles_with_reasoning: str | None = None
+    run_id: str | None = None
+    tool_registry: Any | None = None
+    run_setup_guidance: str | None = None
+    run_focus_guidance: str | None = None
+
+
+@dataclasses.dataclass(frozen=True)
+class _EvolutionOperation:
+    """The per-hypothesis evolution operator and its specialist feedback."""
+
+    operator: EvolutionOperator = EvolutionOperator.ENHANCEMENT
+    specialist_feedback: str = ""
 
 
 def _log_debug_items(
@@ -252,20 +284,15 @@ def _format_diversity_instruction(
 
 def _build_evolution_variables(
     hypothesis: Hypothesis,
-    meta_review: dict[str, Any],
-    supervisor_guidance: dict[str, Any] | None,
-    articles_with_reasoning: str | None,
-    tool_registry: Any | None,
-    run_setup_guidance: str | None,
-    run_focus_guidance: str | None,
-    specialist_feedback: str = "",
+    context: _EvolutionContext,
+    operation: _EvolutionOperation,
 ) -> dict[str, Any]:
     """Builds the template variables for the "evolution" prompt.
 
     Unlike most nodes, evolve has no dedicated get_evolution_prompt()
     wrapper in prompts.py, so this helper pulls in the normally-internal
     run-guidance/domain helpers itself to build the same variables those
-    wrappers assemble. All parameters feed the identically-named "evolution"
+    wrappers assemble. All fields feed the identically-named "evolution"
     prompt template variables (specialist_feedback and articles_with_reasoning
     fall back to a placeholder / empty string when unset).
 
@@ -273,16 +300,16 @@ def _build_evolution_variables(
         Template variables for the "evolution" prompt.
     """
     variables = _base_evolution_variables(
-        hypothesis, meta_review, supervisor_guidance
+        hypothesis, context.meta_review, context.supervisor_guidance
     )
     variables["run_guidance"] = _format_run_guidance(
-        run_setup_guidance, run_focus_guidance
+        context.run_setup_guidance, context.run_focus_guidance
     )
-    variables["articles_with_reasoning"] = articles_with_reasoning or ""
+    variables["articles_with_reasoning"] = context.articles_with_reasoning or ""
     variables["specialist_feedback"] = (
-        specialist_feedback or "No prior specialist feedback."
+        operation.specialist_feedback or "No prior specialist feedback."
     )
-    variables.update(_get_domain_variables(tool_registry))
+    variables.update(_get_domain_variables(context.tool_registry))
     return variables
 
 
@@ -316,15 +343,8 @@ def _format_operator_section(operator: EvolutionOperator) -> str:
 def _build_evolution_prompt(
     hypothesis: Hypothesis,
     other_hypotheses_texts: list[str],
-    meta_review: dict[str, Any],
-    removed_duplicates: list[str],
-    supervisor_guidance: dict[str, Any] | None,
-    articles_with_reasoning: str | None,
-    tool_registry: Any | None,
-    run_setup_guidance: str | None,
-    run_focus_guidance: str | None,
-    operator: EvolutionOperator = EvolutionOperator.ENHANCEMENT,
-    specialist_feedback: str = "",
+    context: _EvolutionContext,
+    operation: _EvolutionOperation,
 ) -> tuple[str, dict[str, Any] | None]:
     """Assembles the full evolution prompt (and schema) for one hypothesis.
 
@@ -332,23 +352,14 @@ def _build_evolution_prompt(
         Tuple of (full prompt text with diversity instruction appended,
         JSON schema for the expected LLM response).
     """
-    variables = _build_evolution_variables(
-        hypothesis=hypothesis,
-        meta_review=meta_review,
-        supervisor_guidance=supervisor_guidance,
-        articles_with_reasoning=articles_with_reasoning,
-        tool_registry=tool_registry,
-        run_setup_guidance=run_setup_guidance,
-        run_focus_guidance=run_focus_guidance,
-        specialist_feedback=specialist_feedback,
-    )
+    variables = _build_evolution_variables(hypothesis, context, operation)
     prompt, schema = load_prompt_with_schema("evolution", variables)
 
     full_prompt = (
         prompt
-        + _format_operator_section(operator)
+        + _format_operator_section(operation.operator)
         + _format_diversity_instruction(
-            other_hypotheses_texts, removed_duplicates
+            other_hypotheses_texts, context.removed_duplicates
         )
     )
     return full_prompt, schema

@@ -18,7 +18,11 @@ from collections.abc import Iterator
 from contextvars import ContextVar
 from typing import Any
 
-from co_scientist.cache_llm import LLMCache, NullCache
+from co_scientist.cache_llm import (
+    LLMCache,
+    LLMCacheRequest,
+    NullCache,
+)
 from co_scientist.cache_nodes import NodeCache
 from co_scientist.cache_storage import _cache_dir_stats as _cache_dir_stats
 from co_scientist.cache_storage import (
@@ -44,6 +48,7 @@ logger = logging.getLogger(__name__)
 
 __all__ = [
     "LLMCache",
+    "LLMCacheRequest",
     "NodeCache",
     "NullCache",
     "cache_enabled_override",

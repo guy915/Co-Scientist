@@ -3,10 +3,23 @@
 from typing import Any
 
 from co_scientist.prompts._common import (
+    PromptRunContext,
+    PromptSections,
     _format_meta_review_context,
-    _format_run_guidance,
+    _run_guidance_section,
 )
 from co_scientist.prompts.loading import _build_prompt
+
+
+def _review_sections(context: PromptRunContext) -> PromptSections:
+    """Build the shared context blocks for the two review prompts."""
+    return PromptSections(
+        supervisor_guidance=_format_supervisor_guidance_for_review(
+            context.supervisor_guidance
+        ),
+        meta_review_context=_format_meta_review_context(context.meta_review),
+        run_guidance=_run_guidance_section(context),
+    )
 
 
 # Renders prompts/review.md for the single-hypothesis review path in
@@ -14,24 +27,25 @@ from co_scientist.prompts.loading import _build_prompt
 def get_review_prompt(
     research_goal: str,
     hypothesis_text: str,
-    supervisor_guidance: dict[str, Any] | None = None,
-    meta_review: dict[str, Any] | None = None,
-    tool_registry: Any | None = None,
-    run_setup_guidance: str | None = None,
-    run_focus_guidance: str | None = None,
+    context: PromptRunContext | None = None,
 ) -> tuple[str, dict[str, Any] | None]:
-    """Get the hypothesis review prompt and schema."""
+    """Get the hypothesis review prompt and schema.
+
+    Args:
+        research_goal: The run's research goal.
+        hypothesis_text: The hypothesis under review.
+        context: Run-scoped prompt context (supervisor guidance,
+            meta-review, tool registry, run setup/focus guidance).
+
+    Returns:
+        Tuple of (rendered prompt string, JSON schema dict or None).
+    """
+    ctx = context or PromptRunContext()
     return _build_prompt(
         "review",
         {"research_goal": research_goal, "hypothesis_text": hypothesis_text},
-        supervisor_guidance=_format_supervisor_guidance_for_review(
-            supervisor_guidance
-        ),
-        meta_review_context=_format_meta_review_context(meta_review),
-        run_guidance=_format_run_guidance(
-            run_setup_guidance, run_focus_guidance
-        ),
-        tool_registry=tool_registry,
+        sections=_review_sections(ctx),
+        tool_registry=ctx.tool_registry,
     )
 
 
@@ -44,7 +58,11 @@ def get_deep_verification_prompt(
     tool_registry: Any | None = None,
     evidence_context: str = "No retrieved evidence available.",
 ) -> tuple[str, dict[str, Any] | None]:
-    """Get the deep-verification (probing questions) prompt and schema."""
+    """Get the deep-verification (probing questions) prompt and schema.
+
+    Takes ``tool_registry`` directly rather than a ``PromptRunContext``:
+    it uses no other field of that bundle, by design (see above).
+    """
     return _build_prompt(
         "deep_verification",
         {
@@ -62,24 +80,25 @@ def get_deep_verification_prompt(
 def get_review_batch_prompt(
     research_goal: str,
     hypotheses_list: str,
-    supervisor_guidance: dict[str, Any] | None = None,
-    meta_review: dict[str, Any] | None = None,
-    tool_registry: Any | None = None,
-    run_setup_guidance: str | None = None,
-    run_focus_guidance: str | None = None,
+    context: PromptRunContext | None = None,
 ) -> tuple[str, dict[str, Any] | None]:
-    """Get the comparative batch hypothesis review prompt and schema."""
+    """Get the comparative batch hypothesis review prompt and schema.
+
+    Args:
+        research_goal: The run's research goal.
+        hypotheses_list: Pre-formatted block listing the batch's hypotheses.
+        context: Run-scoped prompt context (supervisor guidance,
+            meta-review, tool registry, run setup/focus guidance).
+
+    Returns:
+        Tuple of (rendered prompt string, JSON schema dict or None).
+    """
+    ctx = context or PromptRunContext()
     return _build_prompt(
         "review_batch",
         {"research_goal": research_goal, "hypotheses_list": hypotheses_list},
-        supervisor_guidance=_format_supervisor_guidance_for_review(
-            supervisor_guidance
-        ),
-        meta_review_context=_format_meta_review_context(meta_review),
-        run_guidance=_format_run_guidance(
-            run_setup_guidance, run_focus_guidance
-        ),
-        tool_registry=tool_registry,
+        sections=_review_sections(ctx),
+        tool_registry=ctx.tool_registry,
     )
 
 
@@ -217,11 +236,22 @@ def _format_supervisor_guidance_for_review(
 def get_reflection_prompt(
     articles_with_reasoning: str,
     hypothesis_text: str,
-    meta_review: dict[str, Any] | None = None,
-    tool_registry: Any | None = None,
     indra_evidence: str = "",
+    context: PromptRunContext | None = None,
 ) -> tuple[str, dict[str, Any] | None]:
-    """Get the reflection observations prompt and schema."""
+    """Get the reflection observations prompt and schema.
+
+    Args:
+        articles_with_reasoning: The literature-review synthesis text.
+        hypothesis_text: The hypothesis being reflected on.
+        indra_evidence: Optional knowledge-graph enrichment text.
+        context: Run-scoped prompt context; only the meta-review and tool
+            registry reach this prompt.
+
+    Returns:
+        Tuple of (rendered prompt string, JSON schema dict or None).
+    """
+    ctx = context or PromptRunContext()
     return _build_prompt(
         "reflection_observations",
         {
@@ -229,6 +259,8 @@ def get_reflection_prompt(
             "hypothesis": hypothesis_text,
             "indra_evidence": indra_evidence,
         },
-        meta_review_context=_format_meta_review_context(meta_review),
-        tool_registry=tool_registry,
+        sections=PromptSections(
+            meta_review_context=_format_meta_review_context(ctx.meta_review)
+        ),
+        tool_registry=ctx.tool_registry,
     )

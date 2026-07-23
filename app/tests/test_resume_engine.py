@@ -56,12 +56,18 @@ def _seed_stale_mock_run(run_id: str) -> str:
     Returns the id of the stale agent-authored hypothesis.
     """
     stale_id = store.add_hypothesis(
-        run_id,
-        title="Stale agent idea",
-        statement="A hypothesis from the retired mock run.",
-        created_by_agent="generation",
+        store.NewHypothesis(
+            run_id=run_id,
+            title="Stale agent idea",
+            statement="A hypothesis from the retired mock run.",
+            created_by_agent="generation",
+        )
     )
-    store.add_evidence(run_id, "Old mock paper", source="pubmed", abstract="x")
+    store.add_evidence(
+        store.NewEvidence(
+            run_id=run_id, title="Old mock paper", source="pubmed", abstract="x"
+        )
+    )
     return stale_id
 
 
@@ -69,15 +75,17 @@ def _save_legacy_mock_checkpoint(run_id: str) -> None:
     """Save a pre-flip mock envelope checkpoint (not engine WorkflowState)."""
     store.save_checkpoint(
         run_id,
-        stage="iteration_1",
-        schema_version=1,
-        last_event_seq=store.latest_event_seq(run_id),
-        state={
-            "provider": "mock",
-            "run_mode": "express",
-            "iteration": 1,
-            "config": {"tier": "express"},
-        },
+        store.NewCheckpoint(
+            stage="iteration_1",
+            schema_version=1,
+            last_event_seq=store.latest_event_seq(run_id),
+            state={
+                "provider": "mock",
+                "run_mode": "express",
+                "iteration": 1,
+                "config": {"tier": "express"},
+            },
+        ),
     )
 
 
@@ -103,10 +111,12 @@ def _assert_rebootstrapped_completed(run_id: str, stale_id: str) -> None:
 def _enqueue_paused_blocking_task(run_id: str, db_path: str) -> None:
     """Enqueue one blocking engine task and leave the run paused."""
     store.enqueue_task(
-        run_id,
-        "engine.test.blocking",
-        {},
-        idempotency_key="blocking:0",
+        store.NewTask(
+            run_id=run_id,
+            task_type="engine.test.blocking",
+            inputs={},
+            idempotency_key="blocking:0",
+        ),
         db_path=db_path,
     )
     store.pause_run_tasks(run_id, db_path=db_path)

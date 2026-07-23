@@ -13,10 +13,14 @@ from co_scientist.constants import (
     PROGRESS_DEEP_VERIFICATION_COMPLETE,
     PROGRESS_DEEP_VERIFICATION_START,
 )
-from co_scientist.llm import call_llm_json
+from co_scientist.llm import (
+    CompletionSpec,
+    call_llm_json,
+)
 from co_scientist.models import (
     Article,
     Hypothesis,
+    MetricDeltas,
     create_metrics_update,
     phase_message,
     rank_by_elo,
@@ -30,6 +34,20 @@ logger = logging.getLogger(__name__)
 
 _MAX_PROBE_QUERIES = 3
 _MAX_PROBE_SOURCES = 6
+
+
+@dataclasses.dataclass(frozen=True)
+class _VerificationContext:
+    """Batch-invariant inputs shared by every hypothesis verification.
+
+    ``state`` is carried alongside the extracted scalars because probe
+    retrieval reads the full workflow state (search config, MCP client).
+    """
+
+    research_goal: str
+    model_name: str
+    tool_registry: Any | None
+    state: WorkflowState
 
 
 def _probe_queries(result: dict[str, Any]) -> list[str]:
@@ -113,72 +131,58 @@ def _retrieved_evidence_context(articles: list[Article]) -> str:
 
 async def _call_verification(
     hypothesis: Hypothesis,
-    research_goal: str,
-    model_name: str,
-    tool_registry: Any | None,
+    context: _VerificationContext,
     evidence_context: str,
 ) -> dict[str, Any]:
     """Call the verifier once against the supplied evidence snapshot."""
     prompt, schema = get_deep_verification_prompt(
-        research_goal=research_goal,
+        research_goal=context.research_goal,
         hypothesis_text=hypothesis.text,
-        tool_registry=tool_registry,
+        tool_registry=context.tool_registry,
         evidence_context=evidence_context,
     )
     return await call_llm_json(
         prompt=prompt,
-        model_name=model_name,
-        max_tokens=EXTENDED_MAX_TOKENS,
-        temperature=LOW_TEMPERATURE,
-        json_schema=schema,
+        spec=CompletionSpec(
+            model_name=context.model_name,
+            max_tokens=EXTENDED_MAX_TOKENS,
+            temperature=LOW_TEMPERATURE,
+            json_schema=schema,
+        ),
     )
 
 
 async def _verify_one(
     hypothesis: Hypothesis,
-    research_goal: str,
-    model_name: str,
+    context: _VerificationContext,
     semaphore: asyncio.Semaphore,
-    tool_registry: Any | None,
     evidence_context: str,
-    state: WorkflowState,
 ) -> dict[str, Any] | None:
     """Run probing-question deep verification for one hypothesis.
 
     Args:
         hypothesis: The hypothesis to deep-verify.
-        research_goal: The overall research goal for context.
-        model_name: Model name in litellm format.
+        context: Batch-invariant context (research goal, model, tool
+            registry, full workflow state for probe retrieval).
         semaphore: Concurrency limiter shared across verifications.
-        tool_registry: Optional registry for domain-specific prompt variables.
         evidence_context: Bounded analyzed-source excerpts.
-        state: Full state used to execute targeted probe retrieval.
 
     Returns:
         The parsed deep-verification result, or None if the call failed.
     """
     evidence_context = _augment_evidence_context_with_meta_review(
-        evidence_context, state
+        evidence_context, context.state
     )
     return await _verify_within_semaphore(
-        semaphore,
-        hypothesis,
-        research_goal,
-        model_name,
-        tool_registry,
-        evidence_context,
-        state,
+        semaphore, hypothesis, context, evidence_context
     )
 
 
 async def _verify_within_semaphore(
     semaphore: asyncio.Semaphore,
     hypothesis: Hypothesis,
-    research_goal: str,
-    model_name: str,
-    tool_registry: Any | None,
+    context: _VerificationContext,
     evidence_context: str,
-    state: WorkflowState,
 ) -> dict[str, Any] | None:
     """Runs verification bounded by the shared semaphore, isolating failure.
 
@@ -189,12 +193,7 @@ async def _verify_within_semaphore(
     async with semaphore:
         try:
             return await _verify_with_probes(
-                hypothesis,
-                research_goal,
-                model_name,
-                tool_registry,
-                evidence_context,
-                state,
+                hypothesis, context, evidence_context
             )
         except Exception as e:
             logger.error("Deep verification failed: %s", e)
@@ -223,18 +222,15 @@ def _augment_evidence_context_with_meta_review(
 
 async def _verify_with_probes(
     hypothesis: Hypothesis,
-    research_goal: str,
-    model_name: str,
-    tool_registry: Any | None,
+    context: _VerificationContext,
     evidence_context: str,
-    state: WorkflowState,
 ) -> dict[str, Any]:
     """Runs the initial verification call, then a targeted probe retry."""
-    initial = await _call_verification(
-        hypothesis, research_goal, model_name, tool_registry, evidence_context
-    )
+    initial = await _call_verification(hypothesis, context, evidence_context)
     queries = _probe_queries(initial)
-    articles, retrieval_errors = await _retrieve_probe_evidence(state, queries)
+    articles, retrieval_errors = await _retrieve_probe_evidence(
+        context.state, queries
+    )
     if not articles:
         initial["retrieval_queries"] = queries
         initial["retrieval_errors"] = retrieval_errors
@@ -244,9 +240,7 @@ async def _verify_with_probes(
     targeted_context = _retrieved_evidence_context(articles)
     result = await _call_verification(
         hypothesis,
-        research_goal,
-        model_name,
-        tool_registry,
+        context,
         f"{evidence_context}\n\nTargeted probe evidence:\n{targeted_context}",
     )
     result["retrieval_queries"] = queries
@@ -391,7 +385,7 @@ def _deep_verification_result(
 ) -> dict[str, Any]:
     """Builds the deep_verification_node state delta after a batch runs."""
     logger.info("Deep verification complete: %s hypotheses", verified_count)
-    metrics = create_metrics_update(llm_calls_delta=llm_calls)
+    metrics = create_metrics_update(deltas=MetricDeltas(llm_calls=llm_calls))
     return {
         "hypotheses": hypotheses,
         "articles": articles,
@@ -457,17 +451,15 @@ async def _gather_verification_results(
     in-flight LLM calls across the whole batch.
     """
     semaphore = asyncio.Semaphore(MAX_CONCURRENT_LLM_CALLS)
+    context = _VerificationContext(
+        research_goal=state["research_goal"],
+        model_name=state["model_name"],
+        tool_registry=tool_registry,
+        state=state,
+    )
     return await asyncio.gather(
         *[
-            _verify_one(
-                h,
-                state["research_goal"],
-                state["model_name"],
-                semaphore,
-                tool_registry,
-                evidence_context,
-                state,
-            )
+            _verify_one(h, context, semaphore, evidence_context)
             for h in to_verify
         ]
     )

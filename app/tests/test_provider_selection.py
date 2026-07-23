@@ -16,7 +16,11 @@ import sys
 import pytest
 
 from app.engine_adapter import provider
-from app.engine_adapter.engine_stream import _real_engine_stream
+from app.engine_adapter.engine_stream import (
+    _EngineRunRequest,
+    _EngineStreamControls,
+    _real_engine_stream,
+)
 
 
 def test_dashscope_key_counts_as_provider_credential(
@@ -117,14 +121,8 @@ def test_missing_engine_never_substitutes_mock_science(
 
     with pytest.raises(RuntimeError, match="refusing to substitute mock"):
         _real_engine_stream(
-            "goal",
-            "run-id",
-            "standard",
-            {},
-            cancelled=None,
-            db_path=None,
-            sleep_seconds=0,
-            emit=_emit,
+            _EngineRunRequest("goal", "run-id", "standard", {}),
+            _EngineStreamControls(cancelled=None, db_path=None, emit=_emit),
         )
 
 

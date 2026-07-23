@@ -134,20 +134,24 @@ async def test_review_aggregate_is_ready_after_isolated_child_failure(
     """An allowed failed dependency does not permanently strand aggregation."""
     run = store.create_run("Task-level science", "standard", "engine", {})
     failed = store.enqueue_task(
-        run.id,
-        engine_tasks.REVIEW_ITEM_TASK,
-        {},
-        idempotency_key="failed-child",
-        max_attempts=1,
+        store.NewTask(
+            run_id=run.id,
+            task_type=engine_tasks.REVIEW_ITEM_TASK,
+            inputs={},
+            idempotency_key="failed-child",
+            max_attempts=1,
+        ),
         db_path=isolated_db,
     )
     aggregate = store.enqueue_task(
-        run.id,
-        engine_tasks.REVIEW_AGGREGATE_TASK,
-        {},
-        idempotency_key="aggregate",
-        dependencies=(failed.id,),
-        provenance={"allow_failed_dependencies": True},
+        store.NewTask(
+            run_id=run.id,
+            task_type=engine_tasks.REVIEW_AGGREGATE_TASK,
+            inputs={},
+            idempotency_key="aggregate",
+            dependencies=(failed.id,),
+            provenance={"allow_failed_dependencies": True},
+        ),
         db_path=isolated_db,
     )
     leased = store.claim_task("child", run_id=run.id, db_path=isolated_db)
@@ -171,10 +175,12 @@ async def test_verification_fanout_materializes_one_task_per_top_candidate(
     """Verification becomes multiple globally claimable specialist tasks."""
     run = store.create_run("Task-level science", "standard", "engine", {})
     parent = store.enqueue_task(
-        run.id,
-        f"{engine_tasks.NODE_TASK_PREFIX}deep_verification",
-        {"checkpoint_seq": 4},
-        idempotency_key="verification-parent",
+        store.NewTask(
+            run_id=run.id,
+            task_type=f"{engine_tasks.NODE_TASK_PREFIX}deep_verification",
+            inputs={"checkpoint_seq": 4},
+            idempotency_key="verification-parent",
+        ),
         db_path=isolated_db,
     )
     leased = store.claim_task("parent", run_id=run.id, db_path=isolated_db)
@@ -227,10 +233,12 @@ async def _advance_verification_node(
     ]
     checkpoint_seq = _seed_checkpoint(run_id, state)
     node = store.enqueue_task(
-        run_id,
-        f"{engine_tasks.NODE_TASK_PREFIX}deep_verification",
-        {"checkpoint_seq": checkpoint_seq},
-        idempotency_key="verification-node",
+        store.NewTask(
+            run_id=run_id,
+            task_type=f"{engine_tasks.NODE_TASK_PREFIX}deep_verification",
+            inputs={"checkpoint_seq": checkpoint_seq},
+            idempotency_key="verification-node",
+        ),
         db_path=db_path,
     )
     _patch_generator(monkeypatch, _Generator(state), restore=True)

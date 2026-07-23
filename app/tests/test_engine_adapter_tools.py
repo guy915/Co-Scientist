@@ -67,7 +67,7 @@ def test_build_generator_forwards_configured_tools_config(
     """A configured tools_config reaches HypothesisGenerator."""
     monkeypatch.setattr(settings, "tools_config", _INDRA_CONFIG)
     _build_generator(_FakeGenerator, _cfg())
-    assert _FakeGenerator.last_kwargs["tools_config"] == _INDRA_CONFIG
+    assert _FakeGenerator.last_kwargs["options"].tools_config == _INDRA_CONFIG
 
 
 def test_build_generator_forwards_none_tools_config(
@@ -76,7 +76,7 @@ def test_build_generator_forwards_none_tools_config(
     """An unset tools_config forwards None (engine uses its defaults)."""
     monkeypatch.setattr(settings, "tools_config", None)
     _build_generator(_FakeGenerator, _cfg())
-    assert _FakeGenerator.last_kwargs["tools_config"] is None
+    assert _FakeGenerator.last_kwargs["options"].tools_config is None
 
 
 def test_build_generator_withholds_corpus_tools_by_audience(
@@ -94,19 +94,19 @@ def test_build_generator_withholds_corpus_tools_by_audience(
     cfg = _cfg()
     cfg["audience"] = "sbi_ucd"
     _build_generator(_FakeGenerator, cfg)
-    assert _FakeGenerator.last_kwargs["disable_tools"] == []
+    assert _FakeGenerator.last_kwargs["options"].disable_tools == []
 
     for other in ("google", "general", ""):
         cfg = _cfg()
         cfg["audience"] = other
         _build_generator(_FakeGenerator, cfg)
-        assert _FakeGenerator.last_kwargs["disable_tools"] == [
+        assert _FakeGenerator.last_kwargs["options"].disable_tools == [
             "paper_corpus_fetch",
         ]
 
     # A run config with no audience key at all must not open the corpus.
     _build_generator(_FakeGenerator, _cfg())
-    assert _FakeGenerator.last_kwargs["disable_tools"] == [
+    assert _FakeGenerator.last_kwargs["options"].disable_tools == [
         "paper_corpus_fetch",
     ]
 
@@ -114,7 +114,7 @@ def test_build_generator_withholds_corpus_tools_by_audience(
 def test_build_generator_forwards_run_elo_k_factor() -> None:
     """The persisted run K-factor governs real-engine Elo updates."""
     _build_generator(_FakeGenerator, _cfg())
-    assert _FakeGenerator.last_kwargs["elo_k_factor"] == 36
+    assert _FakeGenerator.last_kwargs["options"].elo_k_factor == 36
 
 
 # --- offline cache scoping ---------------------------------------------
@@ -137,7 +137,7 @@ def test_build_generator_offline_disables_cache_without_env_mutation(
     """
     monkeypatch.delenv("COSCIENTIST_CACHE_ENABLED", raising=False)
     _build_generator(_FakeGenerator, _cfg(), offline=True)
-    assert _FakeGenerator.last_kwargs["enable_cache"] is False
+    assert _FakeGenerator.last_kwargs["options"].enable_cache is False
     import os
 
     assert "COSCIENTIST_CACHE_ENABLED" not in os.environ
@@ -221,7 +221,7 @@ def test_build_generator_enables_web_search_by_default() -> None:
     toggles.
     """
     _build_generator(_FakeGenerator, _cfg())
-    assert _FakeGenerator.last_kwargs["disable_tools"] == [
+    assert _FakeGenerator.last_kwargs["options"].disable_tools == [
         "paper_corpus_fetch",
     ]
 
@@ -230,7 +230,7 @@ def test_build_generator_disables_web_search_when_toggled_off() -> None:
     """Turning the connector off disables the engine's web_search tool."""
     cfg = _cfg() | {"enable_web_search": False}
     _build_generator(_FakeGenerator, cfg)
-    assert _FakeGenerator.last_kwargs["disable_tools"] == [
+    assert _FakeGenerator.last_kwargs["options"].disable_tools == [
         "paper_corpus_fetch",
         "web_search",
     ]
@@ -245,7 +245,7 @@ def test_disabling_web_search_keeps_read_url() -> None:
     """
     cfg = _cfg() | {"enable_web_search": False}
     _build_generator(_FakeGenerator, cfg)
-    assert "read_url" not in _FakeGenerator.last_kwargs["disable_tools"]
+    assert "read_url" not in _FakeGenerator.last_kwargs["options"].disable_tools
 
 
 def test_connectors_report_lists_web_search_when_available() -> None:

@@ -6,16 +6,24 @@ import logging
 from typing import Any
 
 from co_scientist.constants import (
-    MEDIUM_TEMPERATURE,
     PROGRESS_META_REVIEW_COMPLETE,
     PROGRESS_META_REVIEW_START,
     THINKING_MAX_TOKENS,
     truncate,
 )
-from co_scientist.llm import call_llm_json
-from co_scientist.models import Hypothesis, create_metrics_update, phase_message
+from co_scientist.llm import (
+    CompletionSpec,
+    LLMCallOptions,
+    call_llm_json,
+)
+from co_scientist.models import (
+    Hypothesis,
+    MetricDeltas,
+    create_metrics_update,
+    phase_message,
+)
 from co_scientist.progress import emit_progress
-from co_scientist.prompts import get_meta_review_prompt
+from co_scientist.prompts import PromptRunContext, get_meta_review_prompt
 from co_scientist.state import WorkflowState
 
 logger = logging.getLogger(__name__)
@@ -124,17 +132,20 @@ async def _call_meta_review_llm(
     """
     return await call_llm_json(
         prompt=prompt,
-        model_name=state["supervisor_model_name"],
-        max_tokens=THINKING_MAX_TOKENS,  # more space to aggregate all reviews
-        temperature=MEDIUM_TEMPERATURE,
-        json_schema=schema,
-        run_id=state.get("run_id"),
-        prompt_name="meta_review",
-        prompt_metadata={
-            "prompt_length_chars": len(prompt),
-            "hypotheses_count": hypotheses_count,
-            "reviews_count": reviews_count,
-        },
+        spec=CompletionSpec(
+            model_name=state["supervisor_model_name"],
+            max_tokens=THINKING_MAX_TOKENS,
+            json_schema=schema,
+        ),
+        options=LLMCallOptions(
+            run_id=state.get("run_id"),
+            prompt_name="meta_review",
+            prompt_metadata={
+                "prompt_length_chars": len(prompt),
+                "hypotheses_count": hypotheses_count,
+                "reviews_count": reviews_count,
+            },
+        ),
     )
 
 
@@ -148,7 +159,7 @@ def _build_meta_review_result(meta_review: dict[str, Any]) -> dict[str, Any]:
         Dict with updated state fields (meta_review, metrics, messages).
     """
     # Update metrics (deltas only, merge_metrics will add to existing state)
-    metrics = create_metrics_update(llm_calls_delta=1)
+    metrics = create_metrics_update(deltas=MetricDeltas(llm_calls=1))
 
     return {
         "meta_review": meta_review,
@@ -196,11 +207,13 @@ def _build_meta_review_prompt_context(
     return {
         "research_goal": state["research_goal"],
         "all_reviews": json.dumps(all_reviews, indent=2),
-        "supervisor_guidance": state.get("supervisor_guidance"),
         "instructions": None,  # for the future
-        "tool_registry": state.get("tool_registry"),
-        "run_setup_guidance": state.get("run_setup_guidance"),
-        "run_focus_guidance": state.get("run_focus_guidance"),
+        "context": PromptRunContext(
+            supervisor_guidance=state.get("supervisor_guidance"),
+            tool_registry=state.get("tool_registry"),
+            run_setup_guidance=state.get("run_setup_guidance"),
+            run_focus_guidance=state.get("run_focus_guidance"),
+        ),
     }
 
 

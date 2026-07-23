@@ -4,14 +4,51 @@ import json
 import logging
 import os
 import traceback
-from time import sleep
-from typing import Any, cast
 from urllib.error import HTTPError, URLError
 
 from Bio import Entrez
 
 from mcp_server.entrez import initialize_entrez
 from mcp_server.models import Article
+
+# Re-export the relocated helpers so their original import paths
+# (``...search_pubmed import _entrez_read``, etc.) keep resolving.
+from .pubmed_entrez import (
+    _entrez_read as _entrez_read,
+)
+from .pubmed_entrez import (
+    _log_entrez_http_error_body as _log_entrez_http_error_body,
+)
+from .pubmed_entrez import (
+    _log_entrez_read_generic_error as _log_entrez_read_generic_error,
+)
+from .pubmed_entrez import (
+    _log_entrez_read_http_error as _log_entrez_read_http_error,
+)
+from .pubmed_entrez import (
+    _log_entrez_read_url_error as _log_entrez_read_url_error,
+)
+from .pubmed_parsing import (
+    _author_full_name as _author_full_name,
+)
+from .pubmed_parsing import (
+    _fetch_pubmed_article as _fetch_pubmed_article,
+)
+from .pubmed_parsing import (
+    _parse_pubmed_abstract as _parse_pubmed_abstract,
+)
+from .pubmed_parsing import (
+    _parse_pubmed_authors as _parse_pubmed_authors,
+)
+from .pubmed_parsing import (
+    _parse_pubmed_doi as _parse_pubmed_doi,
+)
+from .pubmed_parsing import (
+    _parse_pubmed_venue_year as _parse_pubmed_venue_year,
+)
+from .pubmed_parsing import (
+    _pubmed_article_url as _pubmed_article_url,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -132,298 +169,6 @@ def _log_pubmed_canary_generic_error(e: Exception) -> None:
     logger.debug("Entrez.api_key set: %s", bool(Entrez.api_key))
 
     logger.warning("PubMed is unavailable - skipping PubMed literature review")
-
-
-def _entrez_read(handle: Any) -> dict[str, Any]:
-    """Reads an Entrez response handle with rate limiting.
-
-    Args:
-        handle: Open Entrez response handle.
-
-    Returns:
-        Parsed result dict from Entrez.read().
-
-    Raises:
-        HTTPError: On HTTP-level errors from the Entrez API.
-        URLError: On network-level errors.
-    """
-    # NCBI's rate limit is 3 requests/second without an API key; sleeping
-    # before each read keeps this client comfortably under that.
-    sleep(0.25)
-
-    try:
-        results = Entrez.read(handle)
-        handle.close()
-        return cast(dict[str, Any], results)
-    except HTTPError as e:
-        _log_entrez_read_http_error(e)
-        handle.close()
-        raise
-    except URLError as e:
-        _log_entrez_read_url_error(e)
-        handle.close()
-        raise
-    except Exception as e:
-        _log_entrez_read_generic_error(e, handle)
-        handle.close()
-        raise
-
-
-def _log_entrez_http_error_body(e: HTTPError) -> None:
-    """Logs the raw response body off an HTTPError, if still readable.
-
-    Args:
-        e: The HTTPError whose response body should be logged.
-    """
-    try:
-        if hasattr(e, "read"):
-            error_body = e.read()
-            error_text = (
-                error_body.decode("utf-8", errors="ignore")
-                if isinstance(error_body, bytes)
-                else error_body
-            )
-            logger.debug("Error response body: %s", error_text[:1000])
-    except Exception as read_err:
-        logger.debug("Could not read error response body: %s", read_err)
-
-
-def _log_entrez_read_http_error(e: HTTPError) -> None:
-    """Logs full diagnostic detail for an HTTPError from an Entrez read.
-
-    Args:
-        e: The HTTPError raised while reading the Entrez response.
-    """
-    logger.error(
-        "Entrez HTTP error (%s): %s %s", type(e).__name__, e.code, e.reason
-    )
-    if hasattr(e, "url"):
-        logger.debug("Request URL: %s", e.url)
-    if hasattr(e, "headers"):
-        logger.debug("Response headers: %s", dict(e.headers))
-
-    # Try to read error response body from the exception
-    _log_entrez_http_error_body(e)
-
-
-def _log_entrez_read_url_error(e: URLError) -> None:
-    """Logs diagnostic detail for a URLError from an Entrez read.
-
-    Args:
-        e: The URLError raised while reading the Entrez response.
-    """
-    logger.error(
-        "Entrez URL error (%s): %s",
-        type(e).__name__,
-        e.reason if hasattr(e, "reason") else e,
-    )
-    if hasattr(e, "url"):
-        logger.debug("Request URL: %s", e.url)
-
-
-def _log_entrez_read_generic_error(e: Exception, handle: Any) -> None:
-    """Logs diagnostic detail for an unexpected error from an Entrez read.
-
-    Args:
-        e: The exception raised while reading the Entrez response.
-        handle: The Entrez response handle being read, used to capture a
-            raw-response snippet if it is still readable.
-    """
-    logger.error("Entrez read error (%s): %s", type(e).__name__, e)
-
-    # Try to read raw response from handle if possible
-    try:
-        if hasattr(handle, "read"):
-            raw_response = handle.read()
-            if isinstance(raw_response, bytes):
-                raw_response = raw_response.decode("utf-8", errors="ignore")
-            logger.debug(
-                "Raw response from handle (first 1000 chars): %s",
-                raw_response[:1000],
-            )
-    except Exception:
-        pass
-
-    logger.debug("Full traceback:\n%s", traceback.format_exc())
-
-
-def _pubmed_article_url(doi: str | None, paper_id: str) -> str:
-    """Returns the best canonical URL for a PubMed article.
-
-    Args:
-        doi: The article DOI, if known.
-        paper_id: The PubMed id, used as a fallback.
-
-    Returns:
-        The DOI resolver link when a DOI is available, otherwise the
-        PubMed record page.
-    """
-    # Prefer the DOI resolver link when available since it points at the
-    # publisher's copy; fall back to the PubMed record page otherwise.
-    return (
-        f"https://doi.org/{doi}"
-        if doi
-        else f"https://pubmed.ncbi.nlm.nih.gov/{paper_id}/"
-    )
-
-
-def _fetch_pubmed_article(paper_id: str) -> Article:
-    """Fetches and parses metadata for a single PubMed article.
-
-    Args:
-        paper_id: PubMed id to fetch.
-
-    Returns:
-        Article populated from the Entrez efetch response.
-
-    Raises:
-        Exception: Propagated from the Entrez efetch call or from an
-            unexpected response structure; the caller treats any failure
-            as a per-paper skip.
-    """
-    paper_results = _entrez_read(Entrez.efetch(db="pubmed", id=paper_id))
-
-    pubmed_article = paper_results["PubmedArticle"][0]
-    medline = pubmed_article["MedlineCitation"]
-    article_data = medline["Article"]
-
-    title = article_data.get("ArticleTitle", "Unknown")
-    abstract = _parse_pubmed_abstract(article_data)
-    authors = _parse_pubmed_authors(article_data)
-    doi = _parse_pubmed_doi(pubmed_article)
-    venue, year = _parse_pubmed_venue_year(article_data)
-    url = _pubmed_article_url(doi, paper_id)
-
-    return Article(
-        title=title,
-        url=url,
-        authors=authors,
-        year=year,
-        venue=venue,
-        abstract=abstract,
-        source_id=paper_id,
-        source="pubmed",
-    )
-
-
-def _parse_pubmed_abstract(article_data: dict[str, Any]) -> str | None:
-    """Joins a possibly multi-part PubMed abstract into one string.
-
-    PubMed abstracts are sometimes split into multiple labeled sections
-    (e.g. Background/Methods/Results); join them into one string.
-
-    Args:
-        article_data: The Entrez-parsed ``Article`` mapping.
-
-    Returns:
-        The joined abstract text, or None if unavailable/malformed.
-    """
-    try:
-        abstract_parts = article_data.get("Abstract", {}).get(
-            "AbstractText", []
-        )
-        return (
-            " ".join(str(part) for part in abstract_parts)
-            if abstract_parts
-            else None
-        )
-    except (KeyError, TypeError):
-        return None
-
-
-def _author_full_name(author: Any) -> str | None:
-    """Builds one "Forename Lastname" string from an AuthorList entry.
-
-    Args:
-        author: A single entry from the article's AuthorList.
-
-    Returns:
-        "Forename Lastname" if the entry is a dict with both name parts,
-        else None.
-    """
-    if not isinstance(author, dict):
-        return None
-    first_name = author.get("ForeName", "")
-    last_name = author.get("LastName", "")
-    return f"{first_name} {last_name}" if first_name and last_name else None
-
-
-def _parse_pubmed_authors(article_data: dict[str, Any]) -> list[str]:
-    """Builds "Forename Lastname" strings for each author on an article.
-
-    Args:
-        article_data: The Entrez-parsed ``Article`` mapping.
-
-    Returns:
-        List of author display names; entries missing either name part
-        are skipped. Empty list if the author list is unavailable.
-    """
-    authors = []
-    try:
-        author_list = article_data.get("AuthorList", [])
-        for author in author_list:
-            name = _author_full_name(author)
-            if name:
-                authors.append(name)
-    except (KeyError, TypeError):
-        pass
-    return authors
-
-
-def _parse_pubmed_doi(pubmed_article: dict[str, Any]) -> str | None:
-    """Extracts the DOI from a PubmedArticle's ArticleIdList.
-
-    Args:
-        pubmed_article: The Entrez-parsed ``PubmedArticle`` element.
-
-    Returns:
-        The DOI string, or None if not present/malformed.
-    """
-    doi = None
-    try:
-        # ArticleIdList mixes several id types (pubmed, doi, pii, ...);
-        # each entry carries its type as an XML attribute, so filter for
-        # "doi" specifically.
-        article_ids = pubmed_article.get("PubmedData", {}).get(
-            "ArticleIdList", []
-        )
-        for article_id in article_ids:
-            if (
-                hasattr(article_id, "attributes")
-                and article_id.attributes.get("IdType") == "doi"
-            ):
-                doi = str(article_id)
-                break
-    except (KeyError, TypeError, AttributeError):
-        pass
-    return doi
-
-
-def _parse_pubmed_venue_year(
-    article_data: dict[str, Any],
-) -> tuple[str | None, int | None]:
-    """Extracts the journal venue and publication year of an article.
-
-    Args:
-        article_data: The Entrez-parsed ``Article`` mapping.
-
-    Returns:
-        A (venue, year) tuple; either element is None if unavailable or
-        malformed.
-    """
-    venue = None
-    year = None
-    try:
-        journal_info = article_data.get("Journal", {})
-        venue = journal_info.get("Title")
-
-        pub_date = journal_info.get("JournalIssue", {}).get("PubDate", {})
-        year_str = pub_date.get("Year")
-        if year_str:
-            year = int(year_str)
-    except (KeyError, TypeError, ValueError):
-        pass
-    return venue, year
 
 
 def _esearch_pubmed_ids(query: str, max_papers: int) -> list[str]:

@@ -36,7 +36,11 @@ def test_save_report_logs_warning_on_disk_write_failure(
 ) -> None:
     """A disk write failure is logged, but the DB row is still persisted."""
     run = store.create_run(
-        "disk failure goal", "default", "mock", {}, db_path=isolated_db
+        "disk failure goal",
+        "default",
+        "mock",
+        {},
+        store.RunCreateOptions(db_path=isolated_db),
     )
 
     def _boom(self: Path, *args: object, **kwargs: object) -> None:
@@ -61,7 +65,11 @@ def test_read_report_markdown_falls_back_to_disk_when_db_text_missing(
 ) -> None:
     """Rows written before markdown_text existed fall back to the disk file."""
     run = store.create_run(
-        "disk fallback goal", "default", "mock", {}, db_path=isolated_db
+        "disk fallback goal",
+        "default",
+        "mock",
+        {},
+        store.RunCreateOptions(db_path=isolated_db),
     )
     md_file = tmp_path / "on_disk.md"
     md_file.write_text("# From disk", encoding="utf-8")
@@ -79,7 +87,11 @@ def test_read_report_markdown_none_without_db_text_or_path(
 ) -> None:
     """No markdown_text and no markdown_path yields None, not a crash."""
     run = store.create_run(
-        "no source goal", "default", "mock", {}, db_path=isolated_db
+        "no source goal",
+        "default",
+        "mock",
+        {},
+        store.RunCreateOptions(db_path=isolated_db),
     )
     _insert_legacy_report_row(isolated_db, run.id, "report-disk-2", None)
 
@@ -91,7 +103,11 @@ def test_get_latest_report_and_read_markdown_none_without_any_report(
 ) -> None:
     """A run with no report row at all yields None from both readers."""
     run = store.create_run(
-        "no report goal", "default", "mock", {}, db_path=isolated_db
+        "no report goal",
+        "default",
+        "mock",
+        {},
+        store.RunCreateOptions(db_path=isolated_db),
     )
     assert store.get_latest_report(run.id, db_path=isolated_db) is None
     assert store.read_report_markdown(run.id, db_path=isolated_db) is None
@@ -102,7 +118,11 @@ def test_read_report_markdown_none_when_disk_file_missing(
 ) -> None:
     """A markdown_path pointing at a deleted file yields None, not a crash."""
     run = store.create_run(
-        "missing file goal", "default", "mock", {}, db_path=isolated_db
+        "missing file goal",
+        "default",
+        "mock",
+        {},
+        store.RunCreateOptions(db_path=isolated_db),
     )
     missing_path = tmp_path / "does_not_exist.md"
 

@@ -14,7 +14,10 @@ from co_scientist.agents.reflection.deep_verification import (
     _retrieve_probe_evidence,
     merge_retrieved_articles,
 )
-from co_scientist.agents.reflection.reflection import analyze_single_hypothesis
+from co_scientist.agents.reflection.reflection import (
+    _ReflectionContext,
+    analyze_single_hypothesis,
+)
 from co_scientist.agents.reflection.review_types import (
     ReviewType,
     prompt_name_for,
@@ -24,10 +27,15 @@ from co_scientist.constants import (
     EXTENDED_MAX_TOKENS,
     LOW_TEMPERATURE,
 )
-from co_scientist.llm import call_llm_json
+from co_scientist.llm import (
+    CompletionSpec,
+    LLMCallOptions,
+    call_llm_json,
+)
 from co_scientist.models import (
     Article,
     Hypothesis,
+    MetricDeltas,
     create_metrics_update,
     phase_message,
 )
@@ -163,13 +171,17 @@ async def _call_hypothesis_query_llm(
                 research_goal=state["research_goal"],
                 hypothesis=hypothesis.text,
             ),
-            model_name=state["model_name"],
-            max_tokens=DEFAULT_MAX_TOKENS,
-            temperature=LOW_TEMPERATURE,
-            json_schema=LITERATURE_QUERY_SCHEMA,
-            run_id=state.get("run_id"),
-            prompt_name=f"hypothesis_queries_{hypothesis.id}",
-            enable_thinking=False,
+            spec=CompletionSpec(
+                model_name=state["model_name"],
+                max_tokens=DEFAULT_MAX_TOKENS,
+                temperature=LOW_TEMPERATURE,
+                json_schema=LITERATURE_QUERY_SCHEMA,
+            ),
+            options=LLMCallOptions(
+                run_id=state.get("run_id"),
+                prompt_name=f"hypothesis_queries_{hypothesis.id}",
+                enable_thinking=False,
+            ),
         )
     except Exception as exc:
         logger.warning("Query generation failed for %s: %s", hypothesis.id, exc)
@@ -193,12 +205,16 @@ async def _run_review(
     try:
         result = await call_llm_json(
             prompt=prompt,
-            model_name=state["model_name"],
-            max_tokens=EXTENDED_MAX_TOKENS,
-            temperature=LOW_TEMPERATURE,
-            json_schema=schema,
-            run_id=state.get("run_id"),
-            prompt_name=f"reflection_{review_type.value}_{hypothesis.id}",
+            spec=CompletionSpec(
+                model_name=state["model_name"],
+                max_tokens=EXTENDED_MAX_TOKENS,
+                temperature=LOW_TEMPERATURE,
+                json_schema=schema,
+            ),
+            options=LLMCallOptions(
+                run_id=state.get("run_id"),
+                prompt_name=f"reflection_{review_type.value}_{hypothesis.id}",
+            ),
         )
     except Exception as exc:
         logger.error(
@@ -319,17 +335,20 @@ async def _run_missing_observation_reviews(
     pending = [h for h in hypotheses if not h.reflection_notes]
     if not pending:
         return 0
+    context = _ReflectionContext(
+        articles_with_reasoning=literature,
+        model_name=state["model_name"],
+        run_id=state.get("run_id"),
+        tool_registry=state.get("tool_registry"),
+        meta_review=state.get("meta_review"),
+    )
     results = await asyncio.gather(
         *[
             analyze_single_hypothesis(
                 hypothesis=hypothesis,
-                articles_with_reasoning=literature,
-                model_name=state["model_name"],
                 hypothesis_index=index + 1,
                 total_count=len(pending),
-                run_id=state.get("run_id"),
-                tool_registry=state.get("tool_registry"),
-                meta_review=state.get("meta_review"),
+                context=context,
             )
             for index, hypothesis in enumerate(pending)
         ]
@@ -366,7 +385,7 @@ async def comprehensive_reflection_node(state: WorkflowState) -> dict[str, Any]:
     return {
         "hypotheses": hypotheses,
         "articles": state.get("articles") or [],
-        "metrics": create_metrics_update(llm_calls_delta=calls),
+        "metrics": create_metrics_update(deltas=MetricDeltas(llm_calls=calls)),
         "messages": phase_message(
             "reflection",
             f"Completed {calls} full, simulation, or recurrent reviews",

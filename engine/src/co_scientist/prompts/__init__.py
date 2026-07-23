@@ -16,9 +16,15 @@ importing from ``co_scientist.prompts``.
 # the package.
 # Not part of the public API.
 from co_scientist.prompts._common import (
+    PromptRunContext,
+)
+from co_scientist.prompts._common import (
     _format_run_guidance as _format_run_guidance,
 )
 from co_scientist.prompts.generation import (
+    DebatePromptRequest,
+    DraftPromptRequest,
+    ValidationSynthesisRequest,
     build_tool_instructions,
     format_articles_metadata,
     format_attributes,
@@ -32,6 +38,7 @@ from co_scientist.prompts.generation import (
     get_validation_synthesis_prompt_with_tools,
 )
 from co_scientist.prompts.literature import (
+    LiteratureQueryInputs,
     get_hypothesis_query_generation_prompt,
     get_literature_review_paper_analysis_prompt,
     get_literature_review_query_generation_prompt,
@@ -49,11 +56,13 @@ from co_scientist.prompts.loading import (
     substitute_variables,
 )
 from co_scientist.prompts.planning import (
+    SupervisorPromptInputs,
     get_meta_review_prompt,
     get_research_overview_prompt,
     get_supervisor_prompt,
 )
 from co_scientist.prompts.ranking import (
+    RankingSide,
     get_proximity_prompt,
     get_ranking_prompt,
 )
@@ -65,6 +74,13 @@ from co_scientist.prompts.review import (
 )
 
 __all__ = [
+    "DebatePromptRequest",
+    "DraftPromptRequest",
+    "LiteratureQueryInputs",
+    "PromptRunContext",
+    "RankingSide",
+    "SupervisorPromptInputs",
+    "ValidationSynthesisRequest",
     "build_tool_instructions",
     "format_articles_metadata",
     "format_attributes",

@@ -7,6 +7,7 @@ verbatim from the original single ``test_engine_tasks.py``.
 
 import asyncio
 import time
+from dataclasses import dataclass
 from typing import Any
 
 import pytest
@@ -49,10 +50,12 @@ def _seed_checkpoint(
     envelope = serialize_workflow_state(state, last_event_seq=0)
     return store.save_checkpoint(
         run_id,
-        stage=stage,
-        schema_version=CHECKPOINT_VERSION,
-        last_event_seq=0,
-        state={"provider": "engine", **envelope},
+        store.NewCheckpoint(
+            stage=stage,
+            schema_version=CHECKPOINT_VERSION,
+            last_event_seq=0,
+            state={"provider": "engine", **envelope},
+        ),
         db_path=db_path,
     )
 
@@ -68,15 +71,16 @@ class _Generator:
 
 
 async def _deterministic_screen(
-    _run_id: str, _stage: str, text: str, *_: Any, **__: Any
+    _run_id: str, subject: Any, *_: Any, **__: Any
 ) -> Any:
     """Stand in for the intake escalation with its deterministic verdict.
 
-    Matches ``screen_with_escalation``'s signature (run id, stage, then the
-    screened text) and returns what that wrapper returns for any run these
-    tests create: the deterministic decision, with no contextual model call.
+    Matches ``screen_with_escalation``'s signature (run id, then the
+    ``ScreenSubject``) and returns what that wrapper returns for any run
+    these tests create: the deterministic decision, with no contextual
+    model call.
     """
-    return screen_intake(text)
+    return screen_intake(subject.text)
 
 
 def _patch_generator(
@@ -144,29 +148,43 @@ def _viable_hypotheses(count: int) -> list[Hypothesis]:
     return hypotheses
 
 
+@dataclass(frozen=True)
+class _RankingSeed:
+    """The shape of one seeded ranking-node fixture.
+
+    Attributes:
+        hypothesis_count: Reviewed-viable hypotheses to seed.
+        tournament_pairs: Tournament pair budget put into state.
+        idempotency_key: Key the queued ranking node task is enqueued under.
+    """
+
+    hypothesis_count: int
+    tournament_pairs: int
+    idempotency_key: str
+
+
 def _seed_ranking_node(
     run_id: str,
     monkeypatch: pytest.MonkeyPatch,
-    *,
-    hypothesis_count: int,
-    tournament_pairs: int,
-    idempotency_key: str,
+    seed: _RankingSeed,
     db_path: str,
 ) -> None:
     """Seed a checkpoint + queued ranking node task and route the generator."""
     state = _task_state(run_id)
     state.update(
         {
-            "hypotheses": _viable_hypotheses(hypothesis_count),
-            "tournament_pairs": tournament_pairs,
+            "hypotheses": _viable_hypotheses(seed.hypothesis_count),
+            "tournament_pairs": seed.tournament_pairs,
         }
     )
     checkpoint_seq = _seed_checkpoint(run_id, state)
     store.enqueue_task(
-        run_id,
-        f"{engine_tasks.NODE_TASK_PREFIX}ranking",
-        {"checkpoint_seq": checkpoint_seq},
-        idempotency_key=idempotency_key,
+        store.NewTask(
+            run_id=run_id,
+            task_type=f"{engine_tasks.NODE_TASK_PREFIX}ranking",
+            inputs={"checkpoint_seq": checkpoint_seq},
+            idempotency_key=seed.idempotency_key,
+        ),
         db_path=db_path,
     )
     _patch_generator(monkeypatch, _Generator(state), restore=True)

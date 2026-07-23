@@ -235,13 +235,15 @@ class _StoreWriteHandler(logging.Handler):
         """Persist one record, pruning every ``_PRUNE_EVERY`` writes."""
         try:
             store.append_log(
-                level=record.levelname,
-                levelno=record.levelno,
-                logger_name=record.name,
-                message=record.getMessage(),
-                run_id=getattr(record, "run_id", None),
-                exc_text=record.exc_text,
-                created_at=record.created,
+                store.NewLogRecord(
+                    level=record.levelname,
+                    levelno=record.levelno,
+                    logger_name=record.name,
+                    message=record.getMessage(),
+                    run_id=getattr(record, "run_id", None),
+                    exc_text=record.exc_text,
+                    created_at=record.created,
+                )
             )
             self._writes += 1
             if self._writes % _PRUNE_EVERY == 0:

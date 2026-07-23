@@ -5,7 +5,7 @@ from __future__ import annotations
 import httpx
 import pytest
 
-from app.cli.http import ApiClient, CliError
+from app.cli.http import ApiClient, ApiClientOptions, CliError
 
 
 def _client(handler: object, **kwargs: object) -> ApiClient:
@@ -13,7 +13,7 @@ def _client(handler: object, **kwargs: object) -> ApiClient:
     transport = httpx.MockTransport(handler)  # type: ignore[arg-type]
     return ApiClient(
         "http://api.test",
-        transport=transport,
+        options=ApiClientOptions(transport=transport),
         **kwargs,  # type: ignore[arg-type]
     )
 

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import dataclasses
 from collections.abc import Callable
 from typing import Any
 
@@ -122,32 +123,61 @@ def clean_string_list(values: list[str] | None = None) -> list[str]:
     return [value.strip() for value in values or [] if value.strip()]
 
 
+@dataclasses.dataclass(frozen=True)
+class PlanningLists:
+    """The user-authored planning lists a run's setup block is built from.
+
+    All three are optional: a caller that omits one (a direct API call, a
+    seeded demo) gets the client-independent baseline instead.
+
+    Attributes:
+        requirements: What the run's hypotheses must satisfy.
+        attributes: The qualities a good hypothesis should show.
+        criteria: The axes hypotheses are judged on.
+    """
+
+    requirements: list[str] | None = None
+    attributes: list[str] | None = None
+    criteria: list[str] | None = None
+
+
 def setup_config(
     *,
     research_goal: str,
-    requirements: list[str] | None = None,
-    attributes: list[str] | None = None,
-    criteria: list[str] | None = None,
+    lists: PlanningLists | None = None,
     focus: str | None = None,
     tier: str | None = None,
     audience_context: str = "",
 ) -> dict[str, Any]:
     """Build the durable setup block persisted inside run config JSON.
 
-    Callers that omit requirements/attributes/criteria (a direct API call, a
-    seeded demo) fall back to the client-independent planning baseline so the
-    engine always receives guidance regardless of which client created the run.
-    A non-empty audience_context is stored so setup_guidance can surface it to
+    Callers that omit the planning lists (a direct API call, a seeded demo)
+    fall back to the client-independent planning baseline so the engine
+    always receives guidance regardless of which client created the run. A
+    non-empty audience_context is stored so setup_guidance can surface it to
     the planning and generation agents.
+
+    Args:
+        research_goal: The run's research goal.
+        lists: The user-authored requirements/attributes/criteria.
+        focus: Requested research focus; normalized, defaulting to balanced.
+        tier: Requested run tier; normalized, defaulting to standard.
+        audience_context: The audience's injected context, stored only when
+            non-empty.
+
+    Returns:
+        The setup block persisted inside the run's config JSON.
     """
+    lists = lists or PlanningLists()
     # `or` also covers lists that become empty after cleaning, so a caller
     # sending only blank strings still gets the baseline defaults.
     setup: dict[str, Any] = {
         "goal": research_goal.strip(),
-        "requirements": clean_string_list(requirements)
+        "requirements": clean_string_list(lists.requirements)
         or list(DEFAULT_REQUIREMENTS),
-        "attributes": clean_string_list(attributes) or list(DEFAULT_ATTRIBUTES),
-        "criteria": clean_string_list(criteria) or list(DEFAULT_CRITERIA),
+        "attributes": clean_string_list(lists.attributes)
+        or list(DEFAULT_ATTRIBUTES),
+        "criteria": clean_string_list(lists.criteria) or list(DEFAULT_CRITERIA),
         "focus": normalize_run_focus(focus),
         "tier": normalize_run_tier(tier),
     }

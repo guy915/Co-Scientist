@@ -7,7 +7,12 @@ These cover three canonical-fidelity behaviors:
 - Deep-verification probes are consumed by the ranking prompt.
 """
 
-from co_scientist.prompts import get_ranking_prompt, get_reflection_prompt
+from co_scientist.prompts import (
+    PromptRunContext,
+    RankingSide,
+    get_ranking_prompt,
+    get_reflection_prompt,
+)
 
 _META = {
     "common_weaknesses": ["ignores blood-brain-barrier permeability"],
@@ -27,7 +32,9 @@ _PROBES = [
 def test_reflection_prompt_includes_meta_review_when_present() -> None:
     """The reflection prompt surfaces meta-review feedback when present."""
     prompt, _ = get_reflection_prompt(
-        articles_with_reasoning="lit", hypothesis_text="H", meta_review=_META
+        articles_with_reasoning="lit",
+        hypothesis_text="H",
+        context=PromptRunContext(meta_review=_META),
     )
     assert "blood-brain-barrier" in prompt
 
@@ -35,7 +42,9 @@ def test_reflection_prompt_includes_meta_review_when_present() -> None:
 def test_reflection_prompt_omits_meta_review_when_empty() -> None:
     """The reflection prompt omits meta-review feedback when absent."""
     prompt, _ = get_reflection_prompt(
-        articles_with_reasoning="lit", hypothesis_text="H", meta_review=None
+        articles_with_reasoning="lit",
+        hypothesis_text="H",
+        context=PromptRunContext(meta_review=None),
     )
     assert "blood-brain-barrier" not in prompt
 
@@ -43,7 +52,10 @@ def test_reflection_prompt_omits_meta_review_when_empty() -> None:
 def test_ranking_prompt_includes_meta_review_when_present() -> None:
     """The ranking prompt surfaces meta-review feedback when present."""
     prompt, _ = get_ranking_prompt(
-        research_goal="g", hypothesis_a="A", hypothesis_b="B", meta_review=_META
+        research_goal="g",
+        side_a=RankingSide(text="A"),
+        side_b=RankingSide(text="B"),
+        context=PromptRunContext(meta_review=_META),
     )
     assert "blood-brain-barrier" in prompt
 
@@ -51,7 +63,10 @@ def test_ranking_prompt_includes_meta_review_when_present() -> None:
 def test_ranking_prompt_omits_meta_review_when_empty() -> None:
     """The ranking prompt has no meta-review section when feedback is absent."""
     prompt, _ = get_ranking_prompt(
-        research_goal="g", hypothesis_a="A", hypothesis_b="B", meta_review=None
+        research_goal="g",
+        side_a=RankingSide(text="A"),
+        side_b=RankingSide(text="B"),
+        context=PromptRunContext(meta_review=None),
     )
     assert "Meta-Review Context" not in prompt
 
@@ -64,7 +79,10 @@ def test_ranking_prompt_empty_optional_slots_are_byte_clean() -> None:
     sha256 cache keys) are unchanged.
     """
     prompt, _ = get_ranking_prompt(
-        research_goal="g", hypothesis_a="A", hypothesis_b="B", meta_review=None
+        research_goal="g",
+        side_a=RankingSide(text="A"),
+        side_b=RankingSide(text="B"),
+        context=PromptRunContext(meta_review=None),
     )
     assert "No reflection notes available.\n\n## Output Format" in prompt
     assert "\n\n\n## Output Format" not in prompt
@@ -74,12 +92,11 @@ def test_ranking_prompt_includes_deep_verification_when_present() -> None:
     """Deep-verification probes and verdict appear in the ranking prompt."""
     prompt, _ = get_ranking_prompt(
         research_goal="g",
-        hypothesis_a="A",
-        hypothesis_b="B",
-        deep_verification_a={
-            "probes": _PROBES,
-            "verdict": "weakened",
-        },
+        side_a=RankingSide(
+            text="A",
+            deep_verification={"probes": _PROBES, "verdict": "weakened"},
+        ),
+        side_b=RankingSide(text="B"),
     )
     assert "Deep Verification" in prompt
     assert "weakened" in prompt
@@ -90,6 +107,8 @@ def test_ranking_prompt_includes_deep_verification_when_present() -> None:
 def test_ranking_prompt_omits_deep_verification_when_empty() -> None:
     """The ranking prompt has no deep-verification section when none exists."""
     prompt, _ = get_ranking_prompt(
-        research_goal="g", hypothesis_a="A", hypothesis_b="B"
+        research_goal="g",
+        side_a=RankingSide(text="A"),
+        side_b=RankingSide(text="B"),
     )
     assert "Deep Verification" not in prompt

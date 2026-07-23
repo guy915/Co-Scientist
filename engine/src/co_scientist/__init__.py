@@ -22,7 +22,9 @@ Example usage:
     >>>
     >>> result = await generator.generate_hypotheses(
     ...     research_goal="Develop novel approaches for early cancer detection",
-    ...     progress_callback=lambda phase, data: print(f"{phase}: {data}")
+    ...     callbacks=RunCallbacks(
+    ...         progress=lambda phase, data: print(f"{phase}: {data}")
+    ...     ),
     ... )
     >>>
     >>> for hyp in result["hypotheses"]:
@@ -36,7 +38,11 @@ from co_scientist.cache import (
     get_node_cache_stats,
 )
 from co_scientist.config import ToolRegistry, get_tool_registry
-from co_scientist.generator import HypothesisGenerator
+from co_scientist.generator import (
+    GeneratorOptions,
+    HypothesisGenerator,
+    RunCallbacks,
+)
 from co_scientist.models import ExecutionMetrics, Hypothesis, HypothesisReview
 from co_scientist.state import WorkflowState
 
@@ -45,9 +51,11 @@ from co_scientist.state import WorkflowState
 __version__ = "0.2.0"
 __all__ = [
     "ExecutionMetrics",
+    "GeneratorOptions",
     "Hypothesis",
     "HypothesisGenerator",
     "HypothesisReview",
+    "RunCallbacks",
     "ToolRegistry",
     "WorkflowState",
     "clear_cache",

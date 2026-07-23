@@ -21,22 +21,21 @@ from co_scientist.agents.generation import debate
 from co_scientist.agents.generation.debate import (
     generate_with_debate,
 )
-from co_scientist.cache import NullCache, get_cache
-from co_scientist.llm import call_llm_json
+from co_scientist.cache import LLMCacheRequest, NullCache, get_cache
+from co_scientist.llm import (
+    CompletionSpec,
+    LLMCallOptions,
+    call_llm_json,
+)
 from tests._state import make_state
 
 
-async def _fresh_call_llm(
-    prompt: str,
-    model_name: str,
-    max_tokens: int = 4000,
-    temperature: float = 0.7,
-    force_json: bool = False,
-    json_schema: Any = None,
-    use_cache: bool = True,
-    enable_thinking: bool = True,
-) -> str:
-    """Stand-in ``call_llm`` that always returns a fresh (uncached) response."""
+async def _fresh_call_llm(*_a: Any, **_k: Any) -> str:
+    """Stand-in ``call_llm`` that always returns a fresh (uncached) response.
+
+    Accepts whatever ``call_llm_json`` passes through, like the other two
+    doubles in this module; the response never depends on the arguments.
+    """
     return json.dumps({"hypotheses": [{"hypothesis": "FRESH"}]})
 
 
@@ -45,11 +44,13 @@ def _run_json_call(schema: Any, *, use_cache: bool) -> dict[str, Any]:
     return asyncio.run(
         call_llm_json(
             "P",
-            "m",
-            max_tokens=100,
-            temperature=0.7,
-            json_schema=schema,
-            use_cache=use_cache,
+            CompletionSpec(
+                model_name="m",
+                max_tokens=100,
+                temperature=0.7,
+                json_schema=schema,
+            ),
+            options=LLMCallOptions(use_cache=use_cache),
         )
     )
 
@@ -58,8 +59,9 @@ def test_null_cache_is_noop() -> None:
     cache = NullCache()
     assert cache.get("anything", "m", 0.7, 100) is None
     # set is a no-op that must not raise or store anything.
-    cache.set("anything", "m", 0.7, 100, {"x": 1})
-    assert cache.get("anything", "m", 0.7, 100) is None
+    request = LLMCacheRequest("anything", "m", 0.7, 100)
+    cache.set(request, {"x": 1})
+    assert cache.get(request) is None
 
 
 def test_call_llm_json_bypasses_warm_cache_when_disabled(
@@ -73,12 +75,8 @@ def test_call_llm_json_bypasses_warm_cache_when_disabled(
 
     schema = {"name": "x"}
     get_cache().set(
-        "P",
-        "m",
-        0.7,
-        100,
+        LLMCacheRequest("P", "m", 0.7, 100, json_schema=schema),
         {"hypotheses": [{"hypothesis": "CACHED"}]},
-        json_schema=schema,
     )
     monkeypatch.setattr(llm_mod, "call_llm", _fresh_call_llm)
 
@@ -92,10 +90,10 @@ def test_call_llm_json_bypasses_warm_cache_when_disabled(
 
 
 async def _fake_debate_call_llm(
-    *_a: Any, use_cache: bool = True, **_k: Any
+    *_a: Any, options: Any = None, **_k: Any
 ) -> str:
     # Debate turns must also bypass the cache.
-    assert use_cache is False
+    assert options is not None and options.use_cache is False
     return "turn"
 
 
@@ -108,8 +106,9 @@ def _make_fake_debate_call_llm_json(counter: dict[str, int]) -> Any:
     """
 
     async def fake_call_llm_json(
-        *_a: Any, use_cache: bool = True, **_k: Any
+        *_a: Any, options: Any = None, **_k: Any
     ) -> dict[str, Any]:
+        use_cache = options.use_cache if options is not None else True
         if use_cache:
             text = "CACHED-IDENTICAL"  # warm-cache collapse (regression)
         else:
@@ -139,7 +138,7 @@ def test_parallel_debates_stay_distinct_with_warm_cache(
     monkeypatch.setattr(
         debate,
         "get_debate_generation_prompt",
-        lambda **_: ("prompt", {"name": "x"}),
+        lambda *_a, **_k: ("prompt", {"name": "x"}),
     )
     monkeypatch.setattr(debate, "call_llm", _fake_debate_call_llm)
     monkeypatch.setattr(

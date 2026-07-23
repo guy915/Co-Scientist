@@ -17,7 +17,11 @@ from co_scientist.agents.generation.citations import (
     hypothesis_from_llm_output,
 )
 from co_scientist.constants import EXTENDED_MAX_TOKENS, MEDIUM_TEMPERATURE
-from co_scientist.llm import call_llm_json
+from co_scientist.llm import (
+    CompletionSpec,
+    LLMCallOptions,
+    call_llm_json,
+)
 from co_scientist.models import GenerationMethod, Hypothesis
 from co_scientist.prompts._common import _format_meta_review_context
 from co_scientist.prompts.generation_formatting import (
@@ -108,12 +112,16 @@ async def generate_with_assumptions(
     )
     response = await call_llm_json(
         prompt,
-        state["model_name"],
-        max_tokens=EXTENDED_MAX_TOKENS,
-        temperature=MEDIUM_TEMPERATURE,
-        json_schema=schema,
-        run_id=state.get("run_id"),
-        prompt_name="generation_assumptions",
+        spec=CompletionSpec(
+            model_name=state["model_name"],
+            max_tokens=EXTENDED_MAX_TOKENS,
+            temperature=MEDIUM_TEMPERATURE,
+            json_schema=schema,
+        ),
+        options=LLMCallOptions(
+            run_id=state.get("run_id"),
+            prompt_name="generation_assumptions",
+        ),
     )
     raw: list[dict[str, Any]] = response.get("hypotheses", [])
     hypotheses = [

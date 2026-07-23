@@ -11,13 +11,56 @@ import socket
 import time
 import uuid
 from collections.abc import Sequence
+from dataclasses import dataclass
 from typing import Any
 
-from app import engine_adapter, engine_tasks, store
+from app import engine_tasks, store
 from app.config import settings
 from app.logging_setup import run_log_context
 from app.notifications import deliver_completion_notification
-from app.store import RunStatus, ScientificTask
+from app.store import ScientificTask
+
+# Run-level enqueue and the legacy in-process workflow task moved verbatim
+# to ``task_worker_enqueue``; every moved name is re-exported so this
+# module's namespace keeps resolving.
+from app.task_worker_enqueue import (
+    _DatabaseStopSignal as _DatabaseStopSignal,
+)
+from app.task_worker_enqueue import (
+    _enqueue_resume_task as _enqueue_resume_task,
+)
+from app.task_worker_enqueue import (
+    _execute_workflow_task as _execute_workflow_task,
+)
+from app.task_worker_enqueue import (
+    enqueue_run_workflow as enqueue_run_workflow,
+)
+
+# The failure taxonomy and outcome recorders moved verbatim to
+# ``task_worker_outcomes``; every moved name is re-exported so this module's
+# namespace (the seam tests and callers patch/import against) keeps
+# resolving.
+from app.task_worker_outcomes import (
+    UnsupportedTaskError as UnsupportedTaskError,
+)
+from app.task_worker_outcomes import (
+    _complete_superseded_task as _complete_superseded_task,
+)
+from app.task_worker_outcomes import (
+    _fail_retryable_task as _fail_retryable_task,
+)
+from app.task_worker_outcomes import (
+    _fail_unsupported_task as _fail_unsupported_task,
+)
+from app.task_worker_outcomes import (
+    _handle_task_failure as _handle_task_failure,
+)
+from app.task_worker_outcomes import (
+    _LeaseLostError as _LeaseLostError,
+)
+from app.task_worker_outcomes import (
+    _record_success as _record_success,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -25,128 +68,33 @@ _WORKFLOW_TASK = "run.workflow"
 _EMAIL_TASK = "notification.email"
 
 
-class _LeaseLostError(RuntimeError):
-    """Signals that durable ownership ended while task code was running."""
+@dataclass(frozen=True)
+class _HeartbeatSignals:
+    """The two events one task's lease heartbeat rides on.
 
-
-class UnsupportedTaskError(ValueError):
-    """A task type no worker knows how to execute.
-
-    The one genuinely permanent failure a worker can hit: retrying cannot
-    teach it a task type it has no branch for. Everything else reaching the
-    worker boundary -- above all a provider returning empty content, which
-    the engine signals with a bare ValueError -- is transient and must keep
-    its retry budget. Subclasses ValueError so existing callers that catch
-    ValueError still see it.
+    Attributes:
+        stop: Set by the executor once the task settles, ending renewal.
+        lease_lost: Set by the heartbeat when a renewal finds the lease is
+            no longer owned, so the executor stops the revoked task.
     """
 
-
-class _DatabaseStopSignal:
-    """Event-compatible stop signal backed by durable run status."""
-
-    def __init__(self, run_id: str, db_path: str | None) -> None:
-        self._run_id = run_id
-        self._db_path = db_path
-
-    def is_set(self) -> bool:
-        """Return whether the run was durably cancelled or paused."""
-        run = store.get_run(self._run_id, db_path=self._db_path)
-        return bool(
-            run
-            and run.status
-            in {RunStatus.CANCELLED.value, RunStatus.PAUSED.value}
-        )
+    stop: asyncio.Event
+    lease_lost: asyncio.Event
 
 
-def _enqueue_resume_task(
-    run_id: str,
-    checkpoint: dict[str, Any],
-    db_path: str | None,
-) -> ScientificTask:
-    """Re-enqueue the task a checkpoint recorded as its own resume point."""
-    checkpoint_seq = int(checkpoint["seq"])
-    recorded_successor = checkpoint["state"].get("resume_successor")
-    task_type = str(recorded_successor or "") or (
-        f"{engine_tasks.NODE_TASK_PREFIX}orchestrator"
-    )
-    idempotency_key = f"{task_type}:{checkpoint_seq}"
-    # Revive first, then enqueue. The key names the boundary the run
-    # stopped at, and it cannot change while the run makes no progress --
-    # so if that task already died, the enqueue below is a no-op against
-    # the existing row and the run would be wedged forever, announcing a
-    # resume it never performs. Reviving is a no-op unless there is a dead
-    # task under this key.
-    if store.revive_task_for_retry(run_id, idempotency_key, db_path=db_path):
-        logger.info(
-            "Resume revived a dead %s task for run %s", task_type, run_id
-        )
-    return store.enqueue_task(
-        run_id,
-        task_type,
-        {"checkpoint_seq": checkpoint_seq},
-        idempotency_key=idempotency_key,
-        priority=100,
-        provenance={"scheduled_by": "resume"},
-        db_path=db_path,
-    )
+@dataclass(frozen=True)
+class WorkerPolicy:
+    """Timing knobs a worker cohort applies to the tasks it leases.
 
+    Attributes:
+        db_path: Optional override for the SQLite database path.
+        poll_seconds: Idle sleep between claim attempts.
+        lease_seconds: Lease duration each claim and renewal writes.
+    """
 
-def enqueue_run_workflow(
-    run_id: str,
-    *,
-    force_provider: str | None = None,
-    resume: bool = False,
-    db_path: str | None = None,
-) -> ScientificTask:
-    """Enqueue one idempotent workflow attempt for a run."""
-    if resume and store.resume_run_tasks(run_id, db_path=db_path):
-        resumed = [
-            task
-            for task in store.list_tasks(run_id, db_path=db_path)
-            if task.status == "queued" and task.task_type.startswith("engine.")
-        ]
-        if resumed:
-            return resumed[0]
-    checkpoint = store.get_latest_checkpoint(run_id, db_path=db_path)
-    if resume and checkpoint:
-        return _enqueue_resume_task(run_id, checkpoint, db_path)
-    return engine_tasks.enqueue_bootstrap(run_id, db_path=db_path)
-
-
-async def _execute_workflow_task(
-    task: ScientificTask, *, db_path: str | None = None
-) -> dict[str, str]:
-    """Execute a leased workflow task from durable run state."""
-    run = store.get_run(task.run_id, db_path=db_path)
-    if run is None:
-        raise RuntimeError(f"run {task.run_id} no longer exists")
-    resume = bool(task.inputs.get("resume"))
-    provider = task.inputs.get("force_provider")
-    force_provider = str(provider) if provider else None
-    with run_log_context(run.id):
-        stop_signal = _DatabaseStopSignal(run.id, db_path)
-        async for _event in engine_adapter.run_workflow(
-            run_id=run.id,
-            research_goal=run.research_goal,
-            config=run.config,
-            force_provider=force_provider,
-            resume=resume,
-            cancelled=stop_signal,  # type: ignore[arg-type]
-            # This legacy "run.workflow" task type predates the node-level
-            # durable executor (engine_tasks.py) that now drives real engine
-            # runs; historically it ran unpaced because the boundary emitter
-            # ignored sleep_seconds for the engine path. Pin it explicitly so
-            # unifying that pacing (see workflow.py) does not newly slow this
-            # path down.
-            sleep_seconds=0.0,
-        ):
-            pass
-    final = store.get_run(run.id, db_path=db_path)
-    if final is None:
-        raise RuntimeError(f"run {run.id} disappeared during execution")
-    if final.status == RunStatus.FAILED.value:
-        raise RuntimeError(final.error or "workflow failed")
-    return {"run_id": run.id, "status": final.status}
+    db_path: str | None = None
+    poll_seconds: float = 0.05
+    lease_seconds: float = 300.0
 
 
 async def _execute_task_payload(
@@ -200,80 +148,6 @@ async def _execute_until_lease_lost(
             await ownership
 
 
-def _complete_superseded_task(
-    task: ScientificTask, worker_id: str, exc: Exception, db_path: str | None
-) -> None:
-    """Record a superseded task as a successful idempotent outcome.
-
-    Competing durable branches can finish after another branch advances the
-    checkpoint. Obsolescence is a successful idempotent outcome, not a
-    scientific failure, and must not consume the retry budget.
-    """
-    result = {"superseded": True, "reason": str(exc)}
-    if not store.complete_task(task.id, worker_id, result, db_path=db_path):
-        logger.warning("Task %s lost its lease while superseded", task.id)
-    else:
-        logger.info("Task %s superseded by a newer checkpoint", task.id)
-
-
-def _fail_unsupported_task(
-    task: ScientificTask, worker_id: str, exc: Exception, db_path: str | None
-) -> None:
-    """Permanently fail a task type no worker branch can execute.
-
-    The only failure retrying cannot fix. Everything else reaching the
-    worker boundary -- notably a provider returning empty content, which the
-    engine raises as a bare ValueError -- falls through to the retryable
-    branch instead.
-    """
-    store.fail_task(
-        task.id, worker_id, str(exc), retryable=False, db_path=db_path
-    )
-    logger.error("Task %s rejected: %s", task.id, exc)
-
-
-def _fail_retryable_task(
-    task: ScientificTask, worker_id: str, exc: Exception, db_path: str | None
-) -> None:
-    """Fail one task while preserving its retry budget.
-
-    Worker boundary isolates one task failure from the rest of the cohort.
-    """
-    store.fail_task(
-        task.id, worker_id, str(exc), retryable=True, db_path=db_path
-    )
-    logger.exception("Task %s failed", task.id)
-
-
-def _handle_task_failure(
-    task: ScientificTask, worker_id: str, exc: Exception, db_path: str | None
-) -> None:
-    """Classify one task failure and record its outcome accordingly.
-
-    Preserves the original except-clause priority exactly: a superseded
-    checkpoint is a successful idempotent outcome, an unsupported task type
-    is the one permanent failure, and everything else keeps its retry
-    budget.
-    """
-    if isinstance(exc, engine_tasks.SupersededTaskError):
-        _complete_superseded_task(task, worker_id, exc, db_path)
-    elif isinstance(exc, UnsupportedTaskError):
-        _fail_unsupported_task(task, worker_id, exc, db_path)
-    else:
-        _fail_retryable_task(task, worker_id, exc, db_path)
-
-
-def _record_success(
-    task: ScientificTask,
-    worker_id: str,
-    result: dict[str, Any],
-    db_path: str | None,
-) -> None:
-    """Persist a task's result if this worker still owns its lease."""
-    if not store.complete_task(task.id, worker_id, result, db_path=db_path):
-        logger.warning("Task %s lost its lease before completion", task.id)
-
-
 async def _execute_and_record(
     task: ScientificTask,
     worker_id: str,
@@ -314,8 +188,7 @@ async def _run_claimed_task(
         _heartbeat_lease(
             task,
             worker_id,
-            stop_heartbeat,
-            lease_lost,
+            _HeartbeatSignals(stop=stop_heartbeat, lease_lost=lease_lost),
             db_path=db_path,
             lease_seconds=lease_seconds,
         )
@@ -371,10 +244,7 @@ async def run_run_until_idle(
 async def _cohort_worker_step(
     run_id: str,
     worker_id: str,
-    *,
-    db_path: str | None,
-    lease_seconds: float,
-    poll_seconds: float,
+    policy: WorkerPolicy,
 ) -> bool:
     """Run one poll/claim/idle cycle for a cohort worker.
 
@@ -389,15 +259,25 @@ async def _cohort_worker_step(
     late-stage run's task table to compute one boolean is work that grows
     as the run does.
 
-    Returns whether the worker should keep polling.
+    Args:
+        run_id: Run whose queue this cohort member drains.
+        worker_id: This cohort member's identity.
+        policy: Database path and the poll/lease timings.
+
+    Returns:
+        Whether the worker should keep polling.
     """
+    db_path = policy.db_path
     claimable, active_lease = store.cohort_poll(run_id, db_path=db_path)
     if claimable and await run_once(
-        worker_id, run_id=run_id, db_path=db_path, lease_seconds=lease_seconds
+        worker_id,
+        run_id=run_id,
+        db_path=db_path,
+        lease_seconds=policy.lease_seconds,
     ):
         return True
     if claimable or active_lease:
-        await asyncio.sleep(poll_seconds)
+        await asyncio.sleep(policy.poll_seconds)
         return True
     return False
 
@@ -407,11 +287,20 @@ async def run_run_worker_pool(
     worker_prefix: str,
     *,
     worker_count: int | None = None,
-    db_path: str | None = None,
-    poll_seconds: float = 0.05,
-    lease_seconds: float = 300.0,
+    policy: WorkerPolicy | None = None,
 ) -> None:
-    """Consume one run with a bounded cohort that survives dynamic fan-out."""
+    """Consume one run with a bounded cohort that survives dynamic fan-out.
+
+    Args:
+        run_id: Run whose queue the cohort drains.
+        worker_prefix: Prefix each cohort member's worker id is built from.
+        worker_count: Cohort size; defaults to ``worker_pool_size``.
+        policy: Database path and the poll/lease timings.
+
+    Raises:
+        ValueError: When ``worker_count`` is not positive.
+    """
+    policy = policy or WorkerPolicy()
     if worker_count is None:
         worker_count = settings.worker_pool_size
     if worker_count < 1:
@@ -420,13 +309,7 @@ async def run_run_worker_pool(
     async def _worker(index: int) -> None:
         """Poll and claim work for one cohort member until idle-exit."""
         worker_id = f"{worker_prefix}:{index}"
-        while await _cohort_worker_step(
-            run_id,
-            worker_id,
-            db_path=db_path,
-            lease_seconds=lease_seconds,
-            poll_seconds=poll_seconds,
-        ):
+        while await _cohort_worker_step(run_id, worker_id, policy):
             continue
 
     await asyncio.gather(*(_worker(index) for index in range(worker_count)))
@@ -440,13 +323,21 @@ def run_run_worker_pool_sync(run_id: str, worker_prefix: str) -> None:
 async def _heartbeat_lease(
     task: ScientificTask,
     worker_id: str,
-    stop: asyncio.Event,
-    lease_lost: asyncio.Event,
+    signals: _HeartbeatSignals,
     *,
     db_path: str | None,
     lease_seconds: float,
 ) -> None:
-    """Renew periodically until execution finishes or ownership is lost."""
+    """Renew periodically until execution finishes or ownership is lost.
+
+    Args:
+        task: The leased task whose lease is being renewed.
+        worker_id: Identity that must still own the lease.
+        signals: The stop and lease-lost events this heartbeat waits on
+            and sets.
+        db_path: Optional override for the SQLite database path.
+        lease_seconds: Lease duration each renewal writes.
+    """
     # Two different cadences. Wake at least once a second so explicit
     # cancellation interrupts expensive provider calls promptly even when
     # production leases are long -- but that check is an in-memory event.
@@ -460,7 +351,7 @@ async def _heartbeat_lease(
     due = time.monotonic() + renew_every
     while True:
         try:
-            await asyncio.wait_for(stop.wait(), timeout=interval)
+            await asyncio.wait_for(signals.stop.wait(), timeout=interval)
             return
         except TimeoutError:
             if time.monotonic() < due:
@@ -475,7 +366,7 @@ async def _heartbeat_lease(
                 logger.warning(
                     "Task %s lease heartbeat lost ownership", task.id
                 )
-                lease_lost.set()
+                signals.lease_lost.set()
                 return
 
 

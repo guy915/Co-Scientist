@@ -1,5 +1,6 @@
 """Applying evolution LLM responses and building the evolve state delta."""
 
+import dataclasses
 import logging
 from typing import Any
 
@@ -11,6 +12,7 @@ from co_scientist.constants import (
 from co_scientist.models import (
     Hypothesis,
     HypothesisOrigin,
+    MetricDeltas,
     create_metrics_update,
     phase_message,
 )
@@ -19,9 +21,19 @@ from co_scientist.state import AppendHypotheses
 logger = logging.getLogger(__name__)
 
 
+@dataclasses.dataclass(frozen=True)
+class _RefinedFields:
+    """The refined content an evolution LLM response yields for a child."""
+
+    refined_text: str
+    explanation: str | None
+    experiment: str | None
+    refinement_summary: str
+
+
 def _extract_evolution_fields(
     hypothesis: Hypothesis, response: dict[str, Any]
-) -> tuple[str, str | None, str | None, str]:
+) -> _RefinedFields:
     """Extracts the refined fields from an evolution LLM response.
 
     Args:
@@ -30,8 +42,7 @@ def _extract_evolution_fields(
         response: Parsed JSON response from the evolution LLM call.
 
     Returns:
-        Tuple of (refined_text, explanation, experiment,
-        refinement_summary).
+        The refined text, explanation, experiment, and refinement summary.
     """
     # Prefer the canonical "hypothesis" key; fall back to the legacy
     # "refined_hypothesis_text" name, and finally to the pre-evolution text
@@ -39,19 +50,19 @@ def _extract_evolution_fields(
     refined_text = response.get("hypothesis") or response.get(
         "refined_hypothesis_text", hypothesis.text
     )
-    explanation = response.get("explanation", hypothesis.explanation)
-    experiment = response.get("experiment", hypothesis.experiment)
-    refinement_summary = response.get(
-        "refinement_summary", "no refinement summary provided"
+    return _RefinedFields(
+        refined_text=refined_text,
+        explanation=response.get("explanation", hypothesis.explanation),
+        experiment=response.get("experiment", hypothesis.experiment),
+        refinement_summary=response.get(
+            "refinement_summary", "no refinement summary provided"
+        ),
     )
-    return refined_text, explanation, experiment, refinement_summary
 
 
 def _build_evolution_child(
     parent: Hypothesis,
-    refined_text: str,
-    explanation: str | None,
-    experiment: str | None,
+    fields: _RefinedFields,
     creation_iteration: int | None,
 ) -> Hypothesis:
     """Construct an immutable evolution child from an accepted refinement.
@@ -67,14 +78,14 @@ def _build_evolution_child(
         A new child ``Hypothesis`` linked to ``parent``.
     """
     return Hypothesis(
-        text=refined_text,
+        text=fields.refined_text,
         parent_id=parent.id,
         generation=parent.generation + 1,
         origin=HypothesisOrigin.EVOLUTION,
         creation_iteration=creation_iteration,
         category=parent.category,
-        explanation=explanation,
-        experiment=experiment,
+        explanation=fields.explanation,
+        experiment=fields.experiment,
         # Inherit grounding context, but not competition state.
         literature_grounding=parent.literature_grounding,
         citation_map=dict(parent.citation_map),
@@ -92,8 +103,7 @@ def _build_evolution_child(
 def _build_evolution_detail(
     hypothesis: Hypothesis,
     child: Hypothesis,
-    refined_text: str,
-    refinement_summary: str,
+    fields: _RefinedFields,
 ) -> dict[str, Any]:
     """Builds the evolution_detail record for an accepted refinement.
 
@@ -105,18 +115,15 @@ def _build_evolution_detail(
         "parent_id": hypothesis.id,
         "child_id": child.id,
         "original": hypothesis.text,
-        "evolved": refined_text,
-        "rationale": refinement_summary,
+        "evolved": fields.refined_text,
+        "rationale": fields.refinement_summary,
         "operator": "enhancement",
     }
 
 
 def _apply_refined_hypothesis(
     hypothesis: Hypothesis,
-    refined_text: str,
-    explanation: str | None,
-    experiment: str | None,
-    refinement_summary: str,
+    fields: _RefinedFields,
     max_similarity: float,
     creation_iteration: int | None = None,
 ) -> tuple[Hypothesis, dict[str, Any]]:
@@ -128,13 +135,7 @@ def _apply_refined_hypothesis(
     Returns:
         The new child hypothesis, and its evolution detail.
     """
-    child = _build_evolution_child(
-        hypothesis,
-        refined_text,
-        explanation,
-        experiment,
-        creation_iteration,
-    )
+    child = _build_evolution_child(hypothesis, fields, creation_iteration)
 
     logger.debug(
         "evolved hypothesis into child %s (max similarity: %.2f)",
@@ -142,9 +143,7 @@ def _apply_refined_hypothesis(
         max_similarity,
     )
 
-    evolution_detail = _build_evolution_detail(
-        hypothesis, child, refined_text, refinement_summary
-    )
+    evolution_detail = _build_evolution_detail(hypothesis, child, fields)
     return child, evolution_detail
 
 
@@ -206,24 +205,16 @@ def _apply_evolution_result(
         A ``(child, detail)`` pair on acceptance, or ``(None, None)`` when the
         refinement is rejected (no child created).
     """
-    refined_text, explanation, experiment, refinement_summary = (
-        _extract_evolution_fields(hypothesis, response)
-    )
-    if _rejected_as_unchanged(hypothesis, refined_text):
+    fields = _extract_evolution_fields(hypothesis, response)
+    if _rejected_as_unchanged(hypothesis, fields.refined_text):
         return None, None
     max_similarity = _near_duplicate_similarity(
-        hypothesis, refined_text, other_hypotheses_texts
+        hypothesis, fields.refined_text, other_hypotheses_texts
     )
     if max_similarity is None:
         return None, None
     child, detail = _apply_refined_hypothesis(
-        hypothesis,
-        refined_text,
-        explanation,
-        experiment,
-        refinement_summary,
-        max_similarity,
-        creation_iteration,
+        hypothesis, fields, max_similarity, creation_iteration
     )
     detail["operator"] = str(
         response.get("_evolution_operator") or "enhancement"
@@ -276,8 +267,7 @@ def _build_evolve_state_delta(
     # llm_calls counts every attempt (one LLM call per parent, regardless of
     # accept/reject); evolutions_count counts children actually created.
     metrics = create_metrics_update(
-        llm_calls_delta=attempt_count,
-        evolutions_count_delta=len(children),
+        deltas=MetricDeltas(llm_calls=attempt_count, evolutions=len(children))
     )
     logger.debug(
         "evolve node creating metrics delta: children=%s, llm_calls=%s",

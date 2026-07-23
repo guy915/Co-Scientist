@@ -13,8 +13,7 @@ def _run_with_report(isolated_db: str) -> str:
         "standard",
         "mock",
         {},
-        client_id="owner-a",
-        db_path=isolated_db,
+        store.RunCreateOptions(client_id="owner-a", db_path=isolated_db),
     )
     store.save_report(
         run.id,

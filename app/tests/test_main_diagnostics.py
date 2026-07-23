@@ -42,17 +42,23 @@ _INDRA_CONFIG = str(
 def _seed_interrupted_engine_run(isolated_db: str) -> str:
     """Persist a RUNNING engine run with a checkpoint (a crash's leavings)."""
     interrupted = store.create_run(
-        "interrupted goal", "default", "engine", {}, db_path=isolated_db
+        "interrupted goal",
+        "default",
+        "engine",
+        {},
+        store.RunCreateOptions(db_path=isolated_db),
     )
     store.update_run_status(
         interrupted.id, store.RunStatus.RUNNING, db_path=isolated_db
     )
     store.save_checkpoint(
         interrupted.id,
-        stage="engine_task:test",
-        schema_version=1,
-        last_event_seq=0,
-        state={"provider": "engine", "state": {"hypotheses": []}},
+        store.NewCheckpoint(
+            stage="engine_task:test",
+            schema_version=1,
+            last_event_seq=0,
+            state={"provider": "engine", "state": {"hypotheses": []}},
+        ),
         db_path=isolated_db,
     )
     return interrupted.id
@@ -103,7 +109,11 @@ def test_lifespan_reconciles_interrupted_runs_and_seeds_demo_data(
     import app.main as main_module
 
     interrupted = store.create_run(
-        "interrupted goal", "default", "mock", {}, db_path=isolated_db
+        "interrupted goal",
+        "default",
+        "mock",
+        {},
+        store.RunCreateOptions(db_path=isolated_db),
     )
     store.update_run_status(
         interrupted.id, store.RunStatus.RUNNING, db_path=isolated_db

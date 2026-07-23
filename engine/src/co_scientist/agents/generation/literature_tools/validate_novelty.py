@@ -9,17 +9,16 @@ monkeypatchable on the validate module namespace.
 import asyncio
 import logging
 from collections.abc import Awaitable, Callable
-from typing import TYPE_CHECKING, Any, Optional
+from dataclasses import dataclass
+from typing import Any
 
 from co_scientist.agents.generation.literature_tools.validate_search import (
+    _NoveltySearchContext,
     _search_papers_for_hypothesis,
 )
 from co_scientist.constants import GENERATE_LIT_TOOL_MAX_PAPERS
 from co_scientist.prompts import get_hypothesis_novelty_analysis_prompt
 from co_scientist.state import WorkflowState
-
-if TYPE_CHECKING:
-    from co_scientist.config import ToolRegistry
 
 logger = logging.getLogger(__name__)
 
@@ -30,6 +29,21 @@ _PaperAnalyzer = Callable[
     [str, int, str, dict[str, Any], str],
     Awaitable[dict[str, Any] | None],
 ]
+
+
+@dataclass(frozen=True)
+class _NoveltyStageContext:
+    """Shared inputs for the Stage 1 novelty-analysis fan-out.
+
+    Attributes:
+        model_name: Model to use for the novelty-analysis LLM calls.
+        search: Shared search inputs (client, registry, slug, run id).
+        analyze_paper: Per-paper novelty analyzer from validate.py.
+    """
+
+    model_name: str
+    search: _NoveltySearchContext
+    analyze_paper: _PaperAnalyzer
 
 
 def _build_novelty_analysis_prompt(
@@ -128,21 +142,14 @@ async def _run_parallel_novelty_analyses(
 async def _search_papers_for_draft(
     hypothesis_text: str,
     idx: int,
-    mcp_client: Any,
-    tool_registry: Optional["ToolRegistry"],
-    shared_slug: str,
-    run_id: str | None,
+    search_ctx: _NoveltySearchContext,
 ) -> dict[str, dict[str, Any]]:
     """Search for papers related to one draft, degrading to empty on error.
 
     Args:
         hypothesis_text: text of the draft hypothesis being validated.
         idx: 1-based index of this draft within the batch, for logging.
-        mcp_client: MCP client for tool access.
-        tool_registry: optional ToolRegistry for config-driven tool
-            selection.
-        shared_slug: shared corpus slug reused from the draft phase.
-        run_id: current run id, if any.
+        search_ctx: shared search inputs (client, registry, slug, run id).
 
     Returns:
         Papers in the dict format expected by analyze_paper_novelty, or
@@ -150,12 +157,9 @@ async def _search_papers_for_draft(
     """
     try:
         papers = await _search_papers_for_hypothesis(
-            hypothesis_text=hypothesis_text,
-            mcp_client=mcp_client,
-            tool_registry=tool_registry,
+            hypothesis_text,
+            search_ctx,
             max_papers=GENERATE_LIT_TOOL_MAX_PAPERS,
-            shared_slug=shared_slug,
-            run_id=run_id,
         )
         logger.info("Found %s papers for hypothesis %s", len(papers), idx)
         return papers
@@ -168,12 +172,7 @@ async def _gather_hypothesis_novelty_analyses(
     idx: int,
     total: int,
     draft: dict[str, str],
-    model_name: str,
-    mcp_client: Any,
-    tool_registry: Optional["ToolRegistry"],
-    shared_slug: str,
-    run_id: str | None,
-    analyze_paper: _PaperAnalyzer,
+    ctx: _NoveltyStageContext,
 ) -> dict[str, Any]:
     """Search literature and run per-paper novelty analysis for one draft.
 
@@ -181,12 +180,7 @@ async def _gather_hypothesis_novelty_analyses(
         idx: 1-based index of this draft within the batch, for logging.
         total: total number of drafts being processed, for logging.
         draft: draft dict from Phase 1 (keyed "hypothesis" or "text").
-        model_name: model to use for the novelty-analysis LLM calls.
-        mcp_client: MCP client for tool access.
-        tool_registry: optional ToolRegistry for tool selection.
-        shared_slug: shared corpus slug reused from the draft phase.
-        run_id: current run id, if any.
-        analyze_paper: per-paper novelty analyzer from validate.py.
+        ctx: shared Stage 1 inputs (model, search inputs, analyzer).
 
     Returns:
         Dict with "draft" and "novelty_analyses" keys.
@@ -196,11 +190,9 @@ async def _gather_hypothesis_novelty_analyses(
     logger.info(
         "Analyzing hypothesis %s/%s: %s...", idx, total, hypothesis_text[:80]
     )
-    papers = await _search_papers_for_draft(
-        hypothesis_text, idx, mcp_client, tool_registry, shared_slug, run_id
-    )
+    papers = await _search_papers_for_draft(hypothesis_text, idx, ctx.search)
     novelty_analyses = await _run_parallel_novelty_analyses(
-        hypothesis_text, idx, papers, model_name, analyze_paper
+        hypothesis_text, idx, papers, ctx.model_name, ctx.analyze_paper
     )
 
     return {"draft": draft, "novelty_analyses": novelty_analyses}
@@ -209,10 +201,7 @@ async def _gather_hypothesis_novelty_analyses(
 async def _run_novelty_analysis_stage(
     draft_hypotheses: list[dict[str, str]],
     state: WorkflowState,
-    mcp_client: Any,
-    tool_registry: Optional["ToolRegistry"],
-    shared_slug: str,
-    run_id: str | None,
+    search_ctx: _NoveltySearchContext,
     analyze_paper: _PaperAnalyzer,
 ) -> list[dict[str, Any]]:
     """Run Stage 1 per-hypothesis novelty analysis for every draft.
@@ -220,29 +209,20 @@ async def _run_novelty_analysis_stage(
     Args:
         draft_hypotheses: list of draft dicts from Phase 1.
         state: current workflow state (used for the novelty-analysis model).
-        mcp_client: MCP client for tool access.
-        tool_registry: optional ToolRegistry for config-driven tool
-            selection.
-        shared_slug: shared corpus slug reused from the draft phase.
-        run_id: current run id, if any.
+        search_ctx: shared search inputs (client, registry, slug, run id).
         analyze_paper: per-paper novelty analyzer from validate.py.
 
     Returns:
         List of dicts with "draft" and "novelty_analyses" keys, one per
         draft hypothesis, ready for synthesis.
     """
+    ctx = _NoveltyStageContext(
+        model_name=state["model_name"],
+        search=search_ctx,
+        analyze_paper=analyze_paper,
+    )
     total_drafts = len(draft_hypotheses)
     return [
-        await _gather_hypothesis_novelty_analyses(
-            idx,
-            total_drafts,
-            draft,
-            state["model_name"],
-            mcp_client,
-            tool_registry,
-            shared_slug,
-            run_id,
-            analyze_paper,
-        )
+        await _gather_hypothesis_novelty_analyses(idx, total_drafts, draft, ctx)
         for idx, draft in enumerate(draft_hypotheses, 1)
     ]

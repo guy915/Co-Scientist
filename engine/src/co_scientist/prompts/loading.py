@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any
 
 from co_scientist.config.registry import parse_bool_env
+from co_scientist.prompts._common import PromptSections
 from co_scientist.schemas import get_schema_for_prompt
 
 logger = logging.getLogger(__name__)
@@ -267,9 +268,7 @@ def _build_prompt(
     prompt_name: str,
     base_variables: dict[str, Any],
     *,
-    supervisor_guidance: str | None = None,
-    meta_review_context: str | None = None,
-    run_guidance: str | None = None,
+    sections: PromptSections | None = None,
     tool_registry: Any | None = None,
     include_domain: bool = True,
 ) -> tuple[str, dict[str, Any] | None]:
@@ -288,16 +287,26 @@ def _build_prompt(
     forward to ``_get_domain_variables``) for prompts that never inject
     them (e.g. proximity).
 
+    Args:
+        prompt_name: Template file stem under ``templates/``.
+        base_variables: The template variables the calling builder owns.
+        sections: Pre-formatted shared context blocks; omitted fields stay
+            unset, as documented on ``PromptSections``.
+        tool_registry: Tool registry used to resolve the ``domain_*``
+            variables.
+        include_domain: Whether to inject the ``domain_*`` variables.
+
     Returns:
         Tuple of (rendered prompt string, JSON schema dict or ``None``).
     """
+    blocks = sections or PromptSections()
     variables: dict[str, Any] = dict(base_variables)
-    if supervisor_guidance is not None:
-        variables["supervisor_guidance"] = supervisor_guidance
-    if meta_review_context is not None:
-        variables["meta_review_context"] = meta_review_context
-    if run_guidance is not None:
-        variables["run_guidance"] = run_guidance
+    if blocks.supervisor_guidance is not None:
+        variables["supervisor_guidance"] = blocks.supervisor_guidance
+    if blocks.meta_review_context is not None:
+        variables["meta_review_context"] = blocks.meta_review_context
+    if blocks.run_guidance is not None:
+        variables["run_guidance"] = blocks.run_guidance
     if include_domain:
         variables.update(_get_domain_variables(tool_registry))
     return load_prompt_with_schema(prompt_name, variables)

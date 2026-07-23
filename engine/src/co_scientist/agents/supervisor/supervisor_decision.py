@@ -7,7 +7,11 @@ import logging
 from typing import Any
 
 from co_scientist.constants import MEDIUM_TEMPERATURE
-from co_scientist.llm import call_llm_json
+from co_scientist.llm import (
+    CompletionSpec,
+    LLMCallOptions,
+    call_llm_json,
+)
 from co_scientist.scheduling import (
     Budget,
     SchedulerStats,
@@ -241,17 +245,17 @@ async def _call_supervisor_planner(
     """Calls the Supervisor model and validates its proposed allocation."""
     response = await call_llm_json(
         prompt=_planning_prompt(state, stats, budget),
-        model_name=state["supervisor_model_name"],
-        # The routing output is small, but DeepSeek thinking spends
-        # reasoning tokens against this budget first; 800 risked an empty
-        # answer, so give reasoning + decision headroom.
-        max_tokens=3000,
-        temperature=MEDIUM_TEMPERATURE,
-        json_schema=_DECISION_SCHEMA,
-        use_cache=False,
-        run_id=state.get("run_id"),
-        prompt_name="supervisor_allocation",
-        prompt_metadata={"iteration": stats.iteration},
+        spec=CompletionSpec(
+            model_name=state["supervisor_model_name"],
+            temperature=MEDIUM_TEMPERATURE,
+            json_schema=_DECISION_SCHEMA,
+        ),
+        options=LLMCallOptions(
+            use_cache=False,
+            run_id=state.get("run_id"),
+            prompt_name="supervisor_allocation",
+            prompt_metadata={"iteration": stats.iteration},
+        ),
     )
     proposed = SupervisorDecision(
         next_task=TaskType(str(response["next_task"])),

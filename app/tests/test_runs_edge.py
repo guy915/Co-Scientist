@@ -134,10 +134,12 @@ def test_cancel_restart_survivor_marks_it_cancelled() -> None:
     # RUNNING with no in-process handle registered.
     store.update_run_status(rid, RunStatus.RUNNING)
     queued = store.enqueue_task(
-        rid,
-        "engine.node.ranking",
-        {},
-        idempotency_key="cancel-api-task",
+        store.NewTask(
+            run_id=rid,
+            task_type="engine.node.ranking",
+            inputs={},
+            idempotency_key="cancel-api-task",
+        )
     )
 
     res = c.post(f"/api/runs/{rid}/cancel")
@@ -254,24 +256,25 @@ def test_active_run_counts_committed_checkpoint_artifacts(
         "standard",
         "engine",
         {},
-        client_id="live-owner",
-        db_path=isolated_db,
+        store.RunCreateOptions(client_id="live-owner", db_path=isolated_db),
     )
     store.update_run_status(
         run.id, store.RunStatus.RUNNING, db_path=isolated_db
     )
     store.save_checkpoint(
         run.id,
-        stage="engine_task:test",
-        schema_version=1,
-        last_event_seq=0,
-        state={
-            "provider": "engine",
-            "state": {
-                "hypotheses": [{"id": "h1"}, {"id": "h2"}],
-                "articles": [{"id": "a1"}],
+        store.NewCheckpoint(
+            stage="engine_task:test",
+            schema_version=1,
+            last_event_seq=0,
+            state={
+                "provider": "engine",
+                "state": {
+                    "hypotheses": [{"id": "h1"}, {"id": "h2"}],
+                    "articles": [{"id": "a1"}],
+                },
             },
-        },
+        ),
         db_path=isolated_db,
     )
 

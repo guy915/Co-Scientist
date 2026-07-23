@@ -22,7 +22,10 @@ from co_scientist import llm_request, offline_llm
 from co_scientist.agents.supervisor.supervisor_decision import (
     _DECISION_SCHEMA,
 )
-from co_scientist.generator import HypothesisGenerator
+from co_scientist.generator import (
+    GeneratorOptions,
+    HypothesisGenerator,
+)
 from co_scientist.schemas.generation import GENERATION_SCHEMA
 from co_scientist.schemas.ranking import RANKING_SCHEMA
 from co_scientist.schemas.review import REVIEW_BATCH_SCHEMA
@@ -310,8 +313,10 @@ def _offline_generator() -> HypothesisGenerator:
         max_iterations=1,
         initial_hypotheses_count=2,
         evolution_max_count=2,
-        tournament_pairs=2,
-        enable_cache=False,
+        options=GeneratorOptions(
+            tournament_pairs=2,
+            enable_cache=False,
+        ),
     )
 
 

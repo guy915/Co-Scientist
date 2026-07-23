@@ -62,10 +62,12 @@ async def _advance_generation_node(
     )
     checkpoint_seq = _seed_checkpoint(run_id, state)
     node = store.enqueue_task(
-        run_id,
-        f"{engine_tasks.NODE_TASK_PREFIX}generate",
-        {"checkpoint_seq": checkpoint_seq},
-        idempotency_key="generation-node",
+        store.NewTask(
+            run_id=run_id,
+            task_type=f"{engine_tasks.NODE_TASK_PREFIX}generate",
+            inputs={"checkpoint_seq": checkpoint_seq},
+            idempotency_key="generation-node",
+        ),
         db_path=db_path,
     )
     _patch_generator(monkeypatch, _Generator(state), restore=True)
@@ -195,10 +197,12 @@ async def _advance_mature_reflection_node(
     )
     checkpoint_seq = _seed_checkpoint(run_id, state)
     node = store.enqueue_task(
-        run_id,
-        f"{engine_tasks.NODE_TASK_PREFIX}comprehensive_reflection",
-        {"checkpoint_seq": checkpoint_seq},
-        idempotency_key="mature-reflection-node",
+        store.NewTask(
+            run_id=run_id,
+            task_type=f"{engine_tasks.NODE_TASK_PREFIX}comprehensive_reflection",
+            inputs={"checkpoint_seq": checkpoint_seq},
+            idempotency_key="mature-reflection-node",
+        ),
         db_path=db_path,
     )
     _patch_generator(monkeypatch, _Generator(state), restore=True)

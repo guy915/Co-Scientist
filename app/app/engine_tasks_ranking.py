@@ -3,18 +3,45 @@
 Schedules the ranking chain from a committed checkpoint, judges bounded
 waves of Elo matchups (one durable task per wave), and finalizes the
 tournament back into orchestration. Split from ``app.engine_tasks``,
-which re-exports these names for compatibility.
+which re-exports these names for compatibility. Wave construction and
+judging moved on to ``app.engine_tasks_ranking_wave``; every moved name is
+re-exported below so this module's namespace keeps resolving.
 """
 
 from __future__ import annotations
 
-import asyncio
 from typing import Any
 
+from app.engine_tasks_context import ExactSuccessor, TaskCommit
+from app.engine_tasks_ranking_wave import (
+    RANKING_WAVE_SIZE as RANKING_WAVE_SIZE,
+)
+from app.engine_tasks_ranking_wave import (
+    _advance_ranking_wave,
+    _prepare_ranking_wave,
+    _WavePlan,
+    _WaveResult,
+)
+from app.engine_tasks_ranking_wave import (
+    _apply_wave_elo as _apply_wave_elo,
+)
+from app.engine_tasks_ranking_wave import (
+    _judge_one_matchup as _judge_one_matchup,
+)
+from app.engine_tasks_ranking_wave import (
+    _judge_wave_matchups as _judge_wave_matchups,
+)
+from app.engine_tasks_ranking_wave import (
+    _ranking_wave as _ranking_wave,
+)
+from app.engine_tasks_ranking_wave import (
+    _WaveJudgeContext as _WaveJudgeContext,
+)
 from app.engine_tasks_support import (
     RANKING_FINALIZE_TASK,
     RANKING_MATCH_TASK,
     RANKING_PROGRESS_EVERY,
+    NodeCompletion,
     _emit_node_completion,
     _generator_for_restore,
     _replay_or_supersede,
@@ -59,18 +86,18 @@ async def _schedule_ranking_chain(
     rounds, *_ = await _prepare_ranking_round(state, eligible)
     state["pending_ranking_matchups"] = []
     committed_seq, successor_id = _save_state_and_enqueue_exact(
-        task,
+        TaskCommit(task, checkpoint_seq, db_path),
         state,
-        RANKING_MATCH_TASK,
-        {
-            "round_index": 0,
-            "tournament_rounds": rounds,
-            "total_llm_calls": 0,
-            "previous_pair": [],
-        },
-        idempotency_key="ranking:match:{checkpoint_seq}:0",
-        expected_checkpoint_seq=checkpoint_seq,
-        db_path=db_path,
+        ExactSuccessor(
+            task_type=RANKING_MATCH_TASK,
+            inputs={
+                "round_index": 0,
+                "tournament_rounds": rounds,
+                "total_llm_calls": 0,
+                "previous_pair": [],
+            },
+            idempotency_key="ranking:match:{checkpoint_seq}:0",
+        ),
     )
     return {
         "checkpoint_seq": committed_seq,
@@ -78,44 +105,6 @@ async def _schedule_ranking_chain(
         "tournament_rounds": rounds,
         "node": "ranking",
     }
-
-
-# How many matchups one durable task judges concurrently. Bounded so a wave
-# still commits a checkpoint often enough to be a useful resume point, and so
-# the pool's Elo ratings re-adapt between waves rather than drifting across a
-# whole round judged from one stale snapshot.
-RANKING_WAVE_SIZE = 5
-
-
-def _ranking_wave(
-    candidates: list[Any],
-    previous_pair: frozenset[str],
-    index: int,
-    rounds: int,
-) -> list[Any]:
-    """Return the distinct matchups this task should judge concurrently.
-
-    Skips the pair the previous wave ended on (the existing rematch guard) and
-    never repeats a pair inside one wave, since every pairing in a wave is
-    drawn from the same Elo snapshot and would otherwise be judged twice.
-    Never runs past the round budget.
-    """
-    remaining = max(0, rounds - index)
-    wave: list[Any] = []
-    seen: set[frozenset[str]] = {previous_pair} if previous_pair else set()
-    for pair in candidates:
-        if len(wave) >= min(RANKING_WAVE_SIZE, remaining):
-            break
-        key = frozenset({pair[0].id, pair[1].id})
-        if key in seen:
-            continue
-        seen.add(key)
-        wave.append(pair)
-    if not wave and candidates and remaining:
-        # Every candidate was a repeat; judging the best one again still makes
-        # progress and matches the previous one-per-task fallback.
-        wave.append(candidates[0])
-    return wave
 
 
 def _restore_ranking_state(
@@ -134,141 +123,6 @@ def _restore_ranking_state(
         checkpoint["state"], tool_registry=generator.tool_registry
     )
     return None, state, current_seq
-
-
-def _prepare_ranking_wave(
-    task: ScientificTask,
-    state: dict[str, Any],
-    eligible: list[Any],
-    index: int,
-    rounds: int,
-) -> list[Any]:
-    """Build this task's wave of distinct matchups to judge concurrently.
-
-    Enough pairings are drawn to fill a wave, plus one for the rematch guard
-    to skip. The streaming path asks for three because it then picks exactly
-    one; the durable path inherited that number when it started judging
-    waves, which silently capped every wave at three no matter how many
-    rounds remained. A short wave is not lost work, it is another sequential
-    durable task: the ultra run spent about two hours across 178 of them.
-
-    A matchup is three debate turns of real model work (~45s), so
-    one-per-task ran a 128-match round at a concurrency of one -- about 94
-    minutes of wall clock for ~20 minutes of work. Judging a wave instead
-    draws every pairing in it from the same Elo snapshot, which is the cost
-    of the parallelism: adaptation happens at wave boundaries rather than
-    after every single match.
-    """
-    from co_scientist.agents.ranking.ranking import _build_tournament_pairings
-
-    candidates = _build_tournament_pairings(
-        eligible,
-        min(RANKING_WAVE_SIZE + 1, rounds),
-        state["research_goal"],
-        int(state.get("current_iteration", 0)) * 10_000 + index,
-    )
-    previous_pair = frozenset(
-        str(item) for item in task.inputs["previous_pair"]
-    )
-    return _ranking_wave(candidates, previous_pair, index, rounds)
-
-
-async def _judge_one_matchup(
-    pair: tuple[Any, Any],
-    offset: int,
-    index: int,
-    state: dict[str, Any],
-    context: tuple[Any, Any, Any, Any, Any],
-    debate_turns: int,
-) -> tuple[str, dict[str, Any]]:
-    """Judge one matchup of a wave against the wave's shared context."""
-    from co_scientist.agents.ranking.ranking import judge_matchup
-
-    guidance, registry, meta_review, setup, focus = context
-    judgement: tuple[str, dict[str, Any]] = await judge_matchup(
-        pair[0],
-        pair[1],
-        state["research_goal"],
-        state["model_name"],
-        guidance,
-        run_id=state.get("run_id"),
-        matchup_index=index + offset,
-        tool_registry=registry,
-        meta_review=meta_review,
-        run_setup_guidance=setup,
-        run_focus_guidance=focus,
-        debate_turns=debate_turns,
-    )
-    return judgement
-
-
-async def _judge_wave_matchups(
-    wave: list[Any],
-    state: dict[str, Any],
-    eligible: list[Any],
-    index: int,
-) -> tuple[list[tuple[str, dict[str, Any]]], list[int]]:
-    """Judge one wave of matchups concurrently against a shared Elo snapshot.
-
-    The engine's ranking semaphore bounds the real fan-out; gather only
-    offers it more than one call to bound.
-    """
-    from co_scientist.agents.ranking.ranking import (
-        _gather_tournament_context,
-        _matchup_debate_turns,
-        _median_elo,
-    )
-
-    context = _gather_tournament_context(state)
-    median = _median_elo(eligible)
-    depths = [_matchup_debate_turns(pair[0], pair[1], median) for pair in wave]
-    judged = await asyncio.gather(
-        *(
-            _judge_one_matchup(
-                pair, offset, index, state, context, depths[offset]
-            )
-            for offset, pair in enumerate(wave)
-        )
-    )
-    return list(judged), depths
-
-
-def _apply_wave_elo(
-    wave: list[Any],
-    judged: list[tuple[str, dict[str, Any]]],
-    depths: list[int],
-    state: dict[str, Any],
-) -> tuple[list[dict[str, Any]], int, list[str]]:
-    """Apply a judged wave's Elo updates in wave order.
-
-    Elo is applied in wave order so the committed result is independent of
-    the order the concurrent judgements happened to return in.
-    """
-    from co_scientist.agents.ranking.ranking import (
-        _apply_matchup_elo,
-        _build_matchup_detail,
-    )
-    from co_scientist.constants import ELO_K_FACTOR
-
-    k_factor = int(state.get("elo_k_factor") or ELO_K_FACTOR)
-    details: list[dict[str, Any]] = []
-    total_calls = 0
-    last_pair: list[str] = []
-    for offset, (pair, (winner, response)) in enumerate(
-        zip(wave, judged, strict=True)
-    ):
-        hypothesis_a, hypothesis_b = pair
-        outcome = _apply_matchup_elo(
-            hypothesis_a, hypothesis_b, winner, k_factor=k_factor
-        )
-        details.append(
-            _build_matchup_detail(
-                hypothesis_a, hypothesis_b, winner, response, outcome
-            )
-        )
-        total_calls += depths[offset]
-        last_pair = [hypothesis_a.id, hypothesis_b.id]
-    return details, total_calls, last_pair
 
 
 def _ranking_match_successor(
@@ -292,13 +146,10 @@ def _ranking_match_successor(
 
 
 async def _emit_ranking_wave_progress(
-    task: ScientificTask,
-    wave: list[Any],
-    index: int,
+    commit: TaskCommit,
+    plan: _WavePlan,
     next_index: int,
-    rounds: int,
     committed_seq: int,
-    db_path: str | None,
 ) -> None:
     """Emit a tournament-progress milestone when a wave crosses a cadence.
 
@@ -313,13 +164,20 @@ async def _emit_ranking_wave_progress(
     only ever worked because the stride and the cadence happened to line up.
     The message names the boundary rather than the index, so the feed reads
     as an even cadence whatever the stride.
+
+    Args:
+        commit: The leased task, its expected checkpoint seq, and db path.
+        plan: The wave just judged and its position in the round.
+        next_index: Round index the next task resumes at.
+        committed_seq: Checkpoint sequence the wave's commit produced.
     """
+    rounds = plan.rounds
     milestone = (next_index // RANKING_PROGRESS_EVERY) * RANKING_PROGRESS_EVERY
-    crossed = index // RANKING_PROGRESS_EVERY != (
+    crossed = plan.index // RANKING_PROGRESS_EVERY != (
         next_index // RANKING_PROGRESS_EVERY
     )
-    if wave and next_index < rounds and crossed:
-        emit = make_emitter(task.run_id, db_path=db_path)
+    if plan.wave and next_index < rounds and crossed:
+        emit = make_emitter(commit.task.run_id, db_path=commit.db_path)
         await emit(
             "scientific_task",
             {
@@ -332,68 +190,46 @@ async def _emit_ranking_wave_progress(
         )
 
 
-async def _advance_ranking_wave(
-    wave: list[Any],
-    state: dict[str, Any],
-    eligible: list[Any],
-    index: int,
-    rounds: int,
-    details: list[dict[str, Any]],
-    total_calls: int,
-) -> tuple[list[dict[str, Any]], int, int, list[str]]:
-    """Judge a wave (if any) and fold its results into the running totals."""
-    if not wave:
-        return details, total_calls, rounds, []
-    judged, depths = await _judge_wave_matchups(wave, state, eligible, index)
-    new_details, calls_delta, last_pair = _apply_wave_elo(
-        wave, judged, depths, state
-    )
-    return (
-        details + new_details,
-        total_calls + calls_delta,
-        index + len(wave),
-        last_pair,
-    )
-
-
 async def _commit_ranking_match(
-    task: ScientificTask,
+    commit: TaskCommit,
     state: dict[str, Any],
-    wave: list[Any],
-    index: int,
-    next_index: int,
-    rounds: int,
-    total_calls: int,
-    last_pair: list[str],
-    details: list[dict[str, Any]],
-    current_seq: int,
-    db_path: str | None,
+    plan: _WavePlan,
+    result: _WaveResult,
 ) -> dict[str, Any]:
-    """Checkpoint the wave's result, schedule its successor, and report."""
+    """Checkpoint the wave's result, schedule its successor, and report.
+
+    Args:
+        commit: The leased task, its expected checkpoint seq, and db path.
+        state: Workflow state carrying the wave's committed matchups.
+        plan: The wave just judged and its position in the round.
+        result: The tournament totals after folding the wave in.
+
+    Returns:
+        The task result: committed checkpoint, successor, and match tally.
+    """
+    next_index = result.next_index
     successor_type, successor_inputs = _ranking_match_successor(
-        next_index, rounds, total_calls, last_pair
+        next_index, plan.rounds, result.total_calls, result.last_pair
     )
     committed_seq, successor_id = _save_state_and_enqueue_exact(
-        task,
+        commit,
         state,
-        successor_type,
-        successor_inputs,
-        idempotency_key=(
-            f"ranking:match:{{checkpoint_seq}}:{next_index}"
-            if successor_type == RANKING_MATCH_TASK
-            else "ranking:finalize:{checkpoint_seq}"
+        ExactSuccessor(
+            task_type=successor_type,
+            inputs=successor_inputs,
+            idempotency_key=(
+                f"ranking:match:{{checkpoint_seq}}:{next_index}"
+                if successor_type == RANKING_MATCH_TASK
+                else "ranking:finalize:{checkpoint_seq}"
+            ),
         ),
-        expected_checkpoint_seq=current_seq,
-        db_path=db_path,
     )
-    await _emit_ranking_wave_progress(
-        task, wave, index, next_index, rounds, committed_seq, db_path
-    )
+    await _emit_ranking_wave_progress(commit, plan, next_index, committed_seq)
     return {
         "checkpoint_seq": committed_seq,
         "successor_task_id": successor_id,
-        "round_index": index,
-        "matches_committed": len(details),
+        "round_index": plan.index,
+        "matches_committed": len(result.details),
     }
 
 
@@ -409,29 +245,21 @@ async def execute_ranking_match(
     eligible = _ranking_eligible(state)
     index = int(task.inputs["round_index"])
     rounds = int(task.inputs["tournament_rounds"])
-    wave = _prepare_ranking_wave(task, state, eligible, index, rounds)
-    details, total_calls, next_index, last_pair = await _advance_ranking_wave(
-        wave,
+    plan = _prepare_ranking_wave(task, state, eligible, index, rounds)
+    result = await _advance_ranking_wave(
+        plan,
         state,
         eligible,
-        index,
-        rounds,
-        list(state.get("pending_ranking_matchups") or []),
-        int(task.inputs["total_llm_calls"]),
+        _WaveResult(
+            details=list(state.get("pending_ranking_matchups") or []),
+            total_calls=int(task.inputs["total_llm_calls"]),
+            next_index=index,
+            last_pair=[],
+        ),
     )
-    state["pending_ranking_matchups"] = details
+    state["pending_ranking_matchups"] = result.details
     return await _commit_ranking_match(
-        task,
-        state,
-        wave,
-        index,
-        next_index,
-        rounds,
-        total_calls,
-        last_pair,
-        details,
-        current_seq,
-        db_path,
+        TaskCommit(task, current_seq, db_path), state, plan, result
     )
 
 
@@ -452,10 +280,8 @@ async def _commit_ranking_finalize(
     )
     await _emit_node_completion(
         task.run_id,
-        "ranking",
-        "orchestrator",
+        NodeCompletion("ranking", "orchestrator", checkpoint_seq),
         committed,
-        checkpoint_seq,
         db_path,
     )
     return {

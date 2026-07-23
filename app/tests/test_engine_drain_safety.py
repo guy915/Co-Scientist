@@ -21,21 +21,27 @@ def _seed_gate_split(run: Any, db_path: str) -> tuple[str, str, str]:
     ``contradicts`` edge; the unsupported idea deliberately gets no edge at all.
     """
     supported_id = store.add_hypothesis(
-        run.id,
-        title="Supported",
-        statement="Kinase X inhibition drives AML apoptosis.",
+        store.NewHypothesis(
+            run_id=run.id,
+            title="Supported",
+            statement="Kinase X inhibition drives AML apoptosis.",
+        ),
         db_path=db_path,
     )
     unsupported_id = store.add_hypothesis(
-        run.id,
-        title="Unsupported",
-        statement="A novel latent mechanism without any evidence yet.",
+        store.NewHypothesis(
+            run_id=run.id,
+            title="Unsupported",
+            statement="A novel latent mechanism without any evidence yet.",
+        ),
         db_path=db_path,
     )
     contradicted_id = store.add_hypothesis(
-        run.id,
-        title="Contradicted",
-        statement="Drug Y single-handedly cures the disease.",
+        store.NewHypothesis(
+            run_id=run.id,
+            title="Contradicted",
+            statement="Drug Y single-handedly cures the disease.",
+        ),
         db_path=db_path,
     )
     _add_gate_split_edges(run, supported_id, contradicted_id, db_path)
@@ -47,23 +53,27 @@ def _add_gate_split_edges(
 ) -> None:
     """Add a supports edge for the supported id, contradicts for the other."""
     store.add_claim_evidence(
-        run.id,
-        supported_id,
-        "Kinase X inhibition drives AML apoptosis.",
-        "supports",
-        ["A supporting source span."],
-        [],
-        "fixture",
+        store.NewClaimEvidence(
+            run_id=run.id,
+            hypothesis_id=supported_id,
+            claim="Kinase X inhibition drives AML apoptosis.",
+            label="supports",
+            supporting=["A supporting source span."],
+            contradicting=[],
+            assessor="fixture",
+        ),
         db_path=db_path,
     )
     store.add_claim_evidence(
-        run.id,
-        contradicted_id,
-        "Drug Y single-handedly cures the disease.",
-        "contradicts",
-        [],
-        ["A source span refuting the claim."],
-        "fixture",
+        store.NewClaimEvidence(
+            run_id=run.id,
+            hypothesis_id=contradicted_id,
+            claim="Drug Y single-handedly cures the disease.",
+            label="contradicts",
+            supporting=[],
+            contradicting=["A source span refuting the claim."],
+            assessor="fixture",
+        ),
         db_path=db_path,
     )
 
@@ -108,7 +118,10 @@ def _assert_demo_run_badges_nothing(db_path: str) -> None:
     """A run with no claim-evidence at all badges nothing (demo exemption)."""
     demo = store.create_run("demo", "standard", "mock", {})
     store.add_hypothesis(
-        demo.id, title="Demo", statement="Demo idea.", db_path=db_path
+        store.NewHypothesis(
+            run_id=demo.id, title="Demo", statement="Demo idea."
+        ),
+        db_path=db_path,
     )
     assert report_render._unverified_hypothesis_ids(demo.id, db_path) == set()
 

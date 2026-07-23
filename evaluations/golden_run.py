@@ -276,7 +276,13 @@ def run() -> dict[str, Any]:
 
     from app import store
 
-    run_row = store.create_run(_GOAL, "standard", "engine", {}, db_path=db_path)
+    run_row = store.create_run(
+        _GOAL,
+        "standard",
+        "engine",
+        {},
+        store.RunCreateOptions(db_path=db_path),
+    )
     events = asyncio.run(_drive_run(run_row.id, db_path))
     collected = _collect(run_row.id, db_path)
     assessment = _assess(collected, tool_calls)

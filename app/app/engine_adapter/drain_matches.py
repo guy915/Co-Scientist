@@ -70,17 +70,19 @@ def _persist_engine_matches(
             continue
         winner_id, loser_id = sides
         store.add_match(
-            run_id=run_id,
-            iteration=0,
-            winner_id=winner_id,
-            loser_id=loser_id,
-            winner_before=int(m.get("winner_elo_before", INITIAL_ELO)),
-            winner_after=int(m.get("winner_elo_after", INITIAL_ELO)),
-            loser_before=int(m.get("loser_elo_before", INITIAL_ELO)),
-            loser_after=int(m.get("loser_elo_after", INITIAL_ELO)),
-            rationale=m.get("reasoning", ""),
-            tier=m.get("tier") or None,
-            debate_turns=int(m.get("debate_turns", 1)),
+            store.NewMatch(
+                run_id=run_id,
+                iteration=0,
+                winner_id=winner_id,
+                loser_id=loser_id,
+                winner_before=int(m.get("winner_elo_before", INITIAL_ELO)),
+                winner_after=int(m.get("winner_elo_after", INITIAL_ELO)),
+                loser_before=int(m.get("loser_elo_before", INITIAL_ELO)),
+                loser_after=int(m.get("loser_elo_after", INITIAL_ELO)),
+                rationale=m.get("reasoning", ""),
+                tier=m.get("tier") or None,
+                debate_turns=int(m.get("debate_turns", 1)),
+            ),
             conn=conn,
         )
 
@@ -99,15 +101,17 @@ def _persist_engine_proximity(
         if not source or not target:
             continue
         store.add_proximity_edge(
-            run_id,
-            source,
-            target,
-            float(edge.get("similarity", 0.0)),
-            degree=edge.get("degree"),
-            cluster_id=edge.get("cluster_id"),
-            method=meta.get("method"),
-            version=meta.get("version"),
-            model=meta.get("model"),
-            updated_at=meta.get("updated_at"),
+            store.NewProximityEdge(
+                run_id=run_id,
+                source_hypothesis_id=source,
+                target_hypothesis_id=target,
+                similarity=float(edge.get("similarity", 0.0)),
+                degree=edge.get("degree"),
+                cluster_id=edge.get("cluster_id"),
+                method=meta.get("method"),
+                version=meta.get("version"),
+                model=meta.get("model"),
+                updated_at=meta.get("updated_at"),
+            ),
             conn=conn,
         )
