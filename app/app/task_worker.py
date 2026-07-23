@@ -20,17 +20,10 @@ from app.logging_setup import run_log_context
 from app.notifications import deliver_completion_notification
 from app.store import ScientificTask
 
-# Run-level enqueue and the legacy in-process workflow task moved verbatim
-# to ``task_worker_enqueue``; every moved name is re-exported so this
-# module's namespace keeps resolving.
-from app.task_worker_enqueue import (
-    _DatabaseStopSignal as _DatabaseStopSignal,
-)
+# Run-level enqueue moved verbatim to ``task_worker_enqueue``; every moved
+# name is re-exported so this module's namespace keeps resolving.
 from app.task_worker_enqueue import (
     _enqueue_resume_task as _enqueue_resume_task,
-)
-from app.task_worker_enqueue import (
-    _execute_workflow_task as _execute_workflow_task,
 )
 from app.task_worker_enqueue import (
     enqueue_run_workflow as enqueue_run_workflow,
@@ -64,7 +57,6 @@ from app.task_worker_outcomes import (
 
 logger = logging.getLogger(__name__)
 
-_WORKFLOW_TASK = "run.workflow"
 _EMAIL_TASK = "notification.email"
 
 
@@ -103,8 +95,6 @@ async def _execute_task_payload(
     """Execute one leased task without committing its durable outcome."""
     if task.task_type.startswith("engine."):
         return await engine_tasks.execute_engine_task(task, db_path=db_path)
-    if task.task_type == _WORKFLOW_TASK:
-        return await _execute_workflow_task(task, db_path=db_path)
     if task.task_type == _EMAIL_TASK:
         return await deliver_completion_notification(task.inputs)
     raise UnsupportedTaskError(f"unsupported task type: {task.task_type}")

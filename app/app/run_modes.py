@@ -414,8 +414,8 @@ def resolved_run_config(
     base.setdefault("k_factor", DEFAULT_K_FACTOR)
     base.setdefault("enable_literature_review", True)
     # "offline" | "real" | None; None means "let offline_mode() decide at run
-    # time" (see run_workflow), so a plain dict without this key still reads
-    # correctly.
+    # time" (resolved by sync_engine_llm_backend on the durable bootstrap), so
+    # a plain dict without this key still reads correctly.
     base.setdefault("llm_backend", None)
     # Web search is on by default, matching the literature stack. It is a
     # no-op unless the MCP server actually offers the tool.

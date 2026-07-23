@@ -14,8 +14,9 @@ never returns until the whole run has finished. It instead uses
 ``httpx.AsyncClient`` over ``ASGITransport`` on a single event loop, driving
 the run as a concurrent ``asyncio`` task and polling the store (which is
 synchronous but process-local, so writes are visible the instant they commit)
-to know when to act. The cancellation scenario drives the streaming engine
-surface directly for a reliable paced mid-run window (see its own note).
+to know when to act. The API cancel endpoint's own contract (a draft/
+restart-survivor cancel, and the terminal event replay) is covered in
+``test_runs_edge.py``.
 """
 
 from __future__ import annotations
@@ -120,18 +121,6 @@ async def _drive_replay_then_live_run(
     return run_id, events_resp, start_resp, events_at_open
 
 
-def _assert_cancelled_everywhere(run_id: str, db_path: str) -> None:
-    """The terminal cancelled state is consistent across every surface."""
-    from app.store import RunStatus
-
-    final = store.get_run(run_id, db_path=db_path)
-    assert final is not None and final.status == RunStatus.CANCELLED.value
-    stored = store.list_events(run_id, db_path=db_path)
-    assert stored[-1]["type"] == "status"
-    assert stored[-1]["payload"]["status"] == "cancelled"
-    assert store.get_latest_report(run_id, db_path=db_path) is None
-
-
 # ---------------------------------------------------------------------------
 # Full run: creation -> start -> completion, event log cross-checked via the
 # store AND the HTTP API.
@@ -206,62 +195,6 @@ async def test_sse_stream_replay_then_live_matches_full_event_log(
     # (verified directly, without this end-to-end request's buffering, in
     # test_runs_events.py's ``_stream_live_tail`` unit tests).
     assert len(non_terminal) > events_at_open
-
-
-# ---------------------------------------------------------------------------
-# Cancellation mid-run: a cancel issued once the tournament has genuinely
-# started must leave a consistent terminal state everywhere.
-#
-# Driven on the streaming engine surface (``run_workflow`` directly) rather
-# than through the API's durable node executor: the durable path runs unpaced
-# node-to-node, so at the offline express envelope a mid-run cancel races the
-# run to completion and cannot land reliably. The streaming path honors the
-# cooperative cancel event between paced node events, which is exactly the
-# mid-run window this test needs. The API cancel endpoint's own contract (a
-# draft/restart-survivor cancel, and the terminal event replay) is covered in
-# test_runs_edge.py.
-# ---------------------------------------------------------------------------
-
-
-async def test_cancel_mid_run_leaves_consistent_terminal_state(
-    isolated_db: str,
-) -> None:
-    from app import engine_adapter
-
-    run = store.create_run(
-        "Integration flow: cancel mid-run consistency",
-        "express",
-        "engine",
-        {"tier": "express"},
-        store.RunCreateOptions(db_path=isolated_db),
-    )
-
-    cancelled = asyncio.Event()
-    seen: list[dict[str, Any]] = []
-    async for event in engine_adapter.run_workflow(
-        run.id,
-        run.research_goal,
-        {"tier": "express"},
-        engine_adapter.WorkflowOptions(
-            force_provider="engine",
-            db_path=isolated_db,
-            cancelled=cancelled,
-            sleep_seconds=0.05,
-        ),
-    ):
-        seen.append(event)
-        # Cancel once the first tournament round has genuinely landed, so this
-        # is a real mid-run cancel rather than a pre-generation abort.
-        if event["type"] == "ranking" and not cancelled.is_set():
-            cancelled.set()
-
-    # The stream emitted a terminal cancelled status and stopped there.
-    assert seen[-1]["type"] == "status"
-    assert seen[-1]["payload"].get("status") == "cancelled"
-
-    # The terminal state is consistent everywhere: run row cancelled, the last
-    # persisted event is the cancelled status, and no report was published.
-    _assert_cancelled_everywhere(run.id, isolated_db)
 
 
 def test_completion_notification_is_opt_in_and_durable(

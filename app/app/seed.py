@@ -8,10 +8,11 @@ offline deterministic backend (no LLM provider required, no API spend).
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from typing import Any
 
-from app import engine_adapter, store
+from app import store, task_worker
 from app.run_modes import resolved_run_config, setup_config
 from app.store import DEMO_CLIENT_ID, RunRow
 
@@ -83,12 +84,40 @@ def _ensure_demo_run_row(
     )
 
 
+def _drive_demo_run(run_id: str, db_path: str | None) -> None:
+    """Drain one demo run's durable task chain to completion.
+
+    Runs a bounded worker cohort on its own event loop, exactly as the
+    embedded API worker does for a real ``POST /start`` (see
+    ``runs_lifecycle._enqueue_workflow_and_maybe_launch_worker``). The cohort
+    returns once the run has no ready task left -- i.e. once it has reached a
+    terminal state and persisted its report -- so the caller can rely on the
+    demo run being complete when this returns.
+    """
+    policy = task_worker.WorkerPolicy(db_path=db_path)
+    asyncio.run(
+        task_worker.run_run_worker_pool(
+            run_id,
+            f"demo-seed:{run_id[:8]}",
+            policy=policy,
+        )
+    )
+
+
 async def _seed_demo_run(
     goal: str,
     run: RunRow | None,
     db_path: str | None,
 ) -> None:
     """Create (if needed) and drive the offline-backed engine for one demo goal.
+
+    The run is delivered through the same durable task queue a real
+    ``POST /start`` uses: the bootstrap task is enqueued and a bounded worker
+    cohort drains the resulting ``engine.*`` task chain. The run row's
+    ``llm_backend="offline"`` (set in ``_ensure_demo_run_row``) pins the
+    deterministic offline router regardless of whether a real LLM key is
+    configured, so startup never spends API budget and demo content stays
+    reproducible while still exercising the actual agent pipeline.
 
     Args:
         goal: The demo research goal to seed.
@@ -97,24 +126,11 @@ async def _seed_demo_run(
     """
     config = _build_demo_run_config(goal)
     run = _ensure_demo_run_row(goal, run, config, db_path)
-    # force_provider="engine" runs demo seeding through the real engine
-    # graph; the "llm_backend": "offline" override above pins it to the
-    # deterministic offline router regardless of whether a real LLM key is
-    # configured, so startup never spends API budget and demo content stays
-    # reproducible while still exercising the actual agent pipeline.
-    # sleep_seconds=0.0 skips the boundary emitter's pacing so seeding
-    # finishes immediately rather than over several seconds.
-    async for _ in engine_adapter.run_workflow(
-        run.id,
-        goal,
-        config,
-        engine_adapter.WorkflowOptions(
-            db_path=db_path,
-            sleep_seconds=0.0,
-            force_provider="engine",
-        ),
-    ):
-        pass  # events are persisted as a side effect; drain and drop.
+    task_worker.enqueue_run_workflow(run.id, db_path=db_path)
+    # Run the cohort on its own loop/thread (mirroring the embedded worker)
+    # and await it, so seeding blocks until the run is complete rather than
+    # racing startup.
+    await asyncio.to_thread(_drive_demo_run, run.id, db_path)
     logger.info("Seeded demo run %s (%.60s…)", run.id[:8], goal)
 
 

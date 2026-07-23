@@ -7,7 +7,7 @@ from typing import Any
 
 import pytest
 
-from app import engine_adapter, engine_tasks, store, task_worker
+from app import engine_tasks, store, task_worker
 from tests._client import make_client
 
 
@@ -42,24 +42,25 @@ def test_engine_start_queues_durable_work(
 async def test_worker_executes_and_commits_once(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A leased workflow commits one terminal result."""
+    """A leased engine task commits one terminal result, then work is done."""
     run = store.create_run("worker goal", "standard", "engine", {})
     task = store.enqueue_task(
         store.NewTask(
             run_id=run.id,
-            task_type="run.workflow",
+            task_type="engine.test.commit",
             inputs={},
-            idempotency_key="legacy-workflow",
+            idempotency_key="commit-once",
         ),
         db_path=isolated_db,
     )
 
-    async def _workflow(*_args: Any, **_kwargs: Any) -> Any:
+    async def _execute(
+        _task: store.ScientificTask, *, db_path: str | None = None
+    ) -> dict[str, str]:
         store.update_run_status(run.id, store.RunStatus.COMPLETED)
-        if False:
-            yield None
+        return {"run_id": run.id, "status": "completed"}
 
-    monkeypatch.setattr(engine_adapter, "run_workflow", _workflow)
+    monkeypatch.setattr(engine_tasks, "execute_engine_task", _execute)
     assert await task_worker.run_once("worker-a", db_path=isolated_db)
     saved = store.get_task(task.id, db_path=isolated_db)
     assert saved is not None

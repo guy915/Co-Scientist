@@ -1,28 +1,28 @@
 """End-to-end proof of the offline-backed real-engine path.
 
-Task 2 adds a working engine+offline backend alongside the mock without
-making it the default. This suite drives a ``force_provider="engine"`` run
-whose generator is built against the deterministic offline router (the REAL
-``HypothesisGenerator``, not a fake stub) and proves it completes with a
-persisted report, records ``llm_backend == "offline"``, and never reaches a
-real provider -- every LLM call is answered by ``offline_acompletion``.
+This suite drives an offline-backed run through the durable node executor (the
+surface ``/start`` uses) whose generator is built against the deterministic
+offline router (the REAL ``HypothesisGenerator``, not a fake stub) and proves
+it completes with a persisted report, records ``llm_backend == "offline"``, and
+never reaches a real provider -- every LLM call is answered by
+``offline_acompletion``.
 
 The recording-stub / router-isolation pattern mirrors the engine's own
-``tests/test_offline_llm.py`` end-to-end test, re-homed at the app's shared
-``run_workflow`` boundary.
+``tests/test_offline_llm.py`` end-to-end test, re-homed on the app's durable
+run path.
 """
 
 from __future__ import annotations
 
+import asyncio
 from typing import Any
 
 import litellm
 import pytest
 from co_scientist import llm_request, offline_llm
 
-from app import engine_adapter, store
+from app import store, task_worker
 from app.store import RunStatus
-from tests._client import drain as _drain
 
 
 @pytest.fixture(autouse=True)
@@ -92,17 +92,17 @@ def _persist_offline_run(isolated_db: str) -> tuple[Any, dict[str, Any]]:
 def _drive_offline_engine(
     run: Any, config: dict[str, Any], isolated_db: str
 ) -> list[dict[str, Any]]:
-    """Drive the persisted run on the engine; return its emitted events."""
-    return _drain(
-        engine_adapter.run_workflow(
+    """Drive the persisted run through the durable path; return its events."""
+    _ = config  # the run row already carries the resolved config
+    task_worker.enqueue_run_workflow(run.id, db_path=isolated_db)
+    asyncio.run(
+        task_worker.run_run_worker_pool(
             run.id,
-            run.research_goal,
-            config,
-            engine_adapter.WorkflowOptions(
-                force_provider="engine", db_path=isolated_db, sleep_seconds=0
-            ),
+            "offline-e2e-test",
+            policy=task_worker.WorkerPolicy(db_path=isolated_db),
         )
     )
+    return store.list_events(run.id, db_path=isolated_db)
 
 
 def test_offline_engine_run_completes_without_a_real_call(

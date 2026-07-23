@@ -10,7 +10,7 @@ from typing import Any
 
 import pytest
 
-from app import engine_adapter, engine_tasks, store, task_worker
+from app import engine_tasks, store, task_worker
 
 
 def _enqueue_test_tasks(
@@ -88,21 +88,22 @@ async def test_worker_heartbeats_long_workflow_lease(
     store.enqueue_task(
         store.NewTask(
             run_id=run.id,
-            task_type="run.workflow",
+            task_type="engine.test.long",
             inputs={},
-            idempotency_key="legacy-long-workflow",
+            idempotency_key="long-engine-task",
         ),
         db_path=isolated_db,
     )
     release = asyncio.Event()
 
-    async def _workflow(*_args: Any, **_kwargs: Any) -> Any:
+    async def _execute(
+        _task: store.ScientificTask, *, db_path: str | None = None
+    ) -> dict[str, bool]:
         await release.wait()
         store.update_run_status(run.id, store.RunStatus.COMPLETED)
-        if False:
-            yield None
+        return {"completed": True}
 
-    monkeypatch.setattr(engine_adapter, "run_workflow", _workflow)
+    monkeypatch.setattr(engine_tasks, "execute_engine_task", _execute)
     running = asyncio.create_task(
         task_worker.run_once(
             "worker-a", db_path=isolated_db, lease_seconds=0.06
@@ -396,5 +397,6 @@ def test_idle_wait_does_not_decode_every_task(
 
     monkeypatch.setattr(store, "list_tasks", _counting_list)
 
-    assert store.has_active_lease(run.id, db_path=isolated_db) is False
+    claimable, active = store.cohort_poll(run.id, db_path=isolated_db)
+    assert claimable is True and active is False
     assert calls == 0

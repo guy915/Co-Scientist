@@ -16,11 +16,6 @@ import sys
 import pytest
 
 from app.engine_adapter import provider
-from app.engine_adapter.engine_stream import (
-    _EngineRunRequest,
-    _EngineStreamControls,
-    _real_engine_stream,
-)
 
 
 def test_dashscope_key_counts_as_provider_credential(
@@ -102,28 +97,6 @@ def test_offline_mode(
         monkeypatch.setenv("COSCIENTIST_FORCE_MOCK", force_mock)
     monkeypatch.setattr(provider, "_has_provider_key", lambda: has_key)
     assert provider.offline_mode() is expected
-
-
-def test_missing_engine_never_substitutes_mock_science(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """A run resolved as real fails loudly if its engine disappears."""
-
-    async def _emit(
-        _kind: str, _payload: dict[str, object]
-    ) -> dict[str, object]:
-        return {}
-
-    monkeypatch.setattr(
-        "app.engine_adapter.engine_stream._import_hypothesis_generator",
-        lambda: None,
-    )
-
-    with pytest.raises(RuntimeError, match="refusing to substitute mock"):
-        _real_engine_stream(
-            _EngineRunRequest("goal", "run-id", "standard", {}),
-            _EngineStreamControls(cancelled=None, db_path=None, emit=_emit),
-        )
 
 
 def test_missing_engine_src_gets_added_to_syspath_on_import(

@@ -33,7 +33,6 @@ from app.store.tasks_probes import (
     _has_claimable_task as _has_claimable_task,
 )
 from app.store.tasks_probes import cohort_poll as cohort_poll
-from app.store.tasks_probes import has_active_lease as has_active_lease
 
 
 @dataclasses.dataclass(frozen=True)
@@ -229,9 +228,11 @@ def task_progress(
 ) -> dict[str, Any]:
     """Summarize monotonic execution progress from committed durable tasks."""
     tasks = list_tasks(run_id, db_path=db_path, conn=conn)
-    # A single workflow lease is only a durable process boundary, not a
-    # disclosed scientific work budget. Treat it as indeterminate until the
-    # supervisor has materialized independently countable specialist tasks.
+    # Nothing enqueues the legacy "run.workflow" task type any more, but rows
+    # of that type may still exist in production databases created before the
+    # node-level durable executor. Such a lease is only a process boundary,
+    # not a disclosed scientific work budget, so drop it from the count to
+    # keep progress determinate for any run that still carries one.
     scientific_tasks = [
         task for task in tasks if task.task_type != "run.workflow"
     ]

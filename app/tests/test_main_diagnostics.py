@@ -281,7 +281,15 @@ def test_startup_does_not_block_on_run_recovery(
         resumed.set()
         await asyncio.sleep(30)
 
+    async def _no_seed(db_path: str | None = None) -> None:
+        # Demo seeding drives real offline runs at startup (covered by
+        # ``test_lifespan_reconciles_interrupted_runs_and_seeds_demo_data``);
+        # stub it here so this test measures only recovery scheduling latency,
+        # not seed compute, which would otherwise dominate the startup budget.
+        return None
+
     monkeypatch.setattr(runs_module, "resume_interrupted_runs", slow_resume)
+    monkeypatch.setattr(main_module, "seed_demo_runs", _no_seed)
     _seed_interrupted_engine_run(isolated_db)
 
     started = time.monotonic()

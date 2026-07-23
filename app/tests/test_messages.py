@@ -354,34 +354,37 @@ def test_steering_messages_applied_after_run(isolated_db: str) -> None:
     assert steering[0]["applied"] is True
 
 
-def test_milestone_messages_generated_by_engine_stream(
+def test_milestone_messages_generated_by_durable_run(
     isolated_db: str,
 ) -> None:
-    """The engine stream surfaces node milestones as system chat messages.
+    """The durable run surfaces node milestones as system chat messages.
 
-    Milestones are emitted on the streaming engine path (the surface the demo
-    seeder and resume worker drive), not the durable node executor the API's
-    ``/start`` uses. Drive that path directly and assert the milestone
-    side-messages land, each authored by ``system``.
+    Every durable node commit emits the same milestone side-messages the
+    frontend shows (via ``append_node_milestone``). Drive a run through the
+    durable node executor (the surface ``/start`` uses) and assert the
+    milestone messages land, each authored by ``system``.
     """
-    from app import engine_adapter
-    from tests._client import drain as _drain
+    import asyncio
+
+    from app import task_worker
 
     run = store.create_run(
         "test milestone generation",
         "express",
         "engine",
         {"tier": "express"},
-        store.RunCreateOptions(client_id="test-client", db_path=isolated_db),
+        store.RunCreateOptions(
+            client_id="test-client",
+            llm_backend="offline",
+            db_path=isolated_db,
+        ),
     )
-    _drain(
-        engine_adapter.run_workflow(
+    task_worker.enqueue_run_workflow(run.id, db_path=isolated_db)
+    asyncio.run(
+        task_worker.run_run_worker_pool(
             run.id,
-            run.research_goal,
-            {"tier": "express"},
-            engine_adapter.WorkflowOptions(
-                force_provider="engine", db_path=isolated_db, sleep_seconds=0
-            ),
+            "milestone-test",
+            policy=task_worker.WorkerPolicy(db_path=isolated_db),
         )
     )
 
