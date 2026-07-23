@@ -28,6 +28,14 @@ const ALL_IDEAS_CLASSES = 'cosci-all-ideas h-full p-0 max-[720px]:h-auto';
 
 type RunDetailData = ReturnType<typeof useRunDetailData>;
 
+// The page grid: an active run collapses the tab-nav row out of the template
+// since ActiveRunView replaces the tabbed body entirely.
+function reportPageClasses(active: boolean): string {
+  return active
+    ? `${REPORT_PAGE_CLASSES} grid-rows-[3.75rem_minmax(0,1fr)]`
+    : REPORT_PAGE_CLASSES;
+}
+
 /**
  * Renders the Co-Scientist goal report surface from the reference footage.
  */
@@ -40,9 +48,7 @@ export function RunDetail() {
   if (!id) return null;
 
   const active = isActiveStatus(data.run?.status);
-  const pageClasses = active
-    ? `${REPORT_PAGE_CLASSES} grid-rows-[3.75rem_minmax(0,1fr)]`
-    : REPORT_PAGE_CLASSES;
+  const pageClasses = reportPageClasses(active);
   return (
     <div className={pageClasses}>
       <ReportTitlebar title={data.title} />

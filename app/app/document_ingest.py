@@ -81,6 +81,48 @@ def _extract_by_type(data: bytes, normalized_type: str) -> tuple[str, str]:
     )
 
 
+def _extract_csv_document(decoded: str) -> tuple[str, str]:
+    """Render decoded CSV text as a header-plus-rows table summary.
+
+    Raises:
+        ValueError: If the CSV text could not be parsed.
+    """
+    try:
+        rows = list(csv.reader(io.StringIO(decoded)))
+    except csv.Error as exc:
+        raise ValueError("CSV document could not be parsed") from exc
+    if not rows:
+        return "", "csv-table-v1"
+    width = max(len(row) for row in rows)
+    header = rows[0]
+    lines = [
+        f"[Table 1 rows={len(rows) - 1} columns={width}]",
+        "Header: " + " | ".join(header),
+    ]
+    lines.extend(
+        f"Row {index}: " + " | ".join(row)
+        for index, row in enumerate(rows[1:], start=1)
+    )
+    return "\n".join(lines), "csv-table-v1"
+
+
+def _extract_json_document(decoded: str) -> tuple[str, str]:
+    """Render decoded JSON text as pretty-printed structured content.
+
+    Raises:
+        ValueError: If the JSON text could not be parsed.
+    """
+    try:
+        payload = json.loads(decoded)
+    except json.JSONDecodeError as exc:
+        raise ValueError("JSON document could not be parsed") from exc
+    return (
+        "[Structured JSON]\n"
+        + json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True),
+        "json-structure-v1",
+    )
+
+
 def _extract_text_document(data: bytes, mime_type: str) -> tuple[str, str]:
     """Decode text while preserving CSV tables and JSON structure."""
     try:
@@ -88,33 +130,9 @@ def _extract_text_document(data: bytes, mime_type: str) -> tuple[str, str]:
     except UnicodeDecodeError as exc:
         raise ValueError("text document must be UTF-8") from exc
     if mime_type == "text/csv":
-        try:
-            rows = list(csv.reader(io.StringIO(decoded)))
-        except csv.Error as exc:
-            raise ValueError("CSV document could not be parsed") from exc
-        if not rows:
-            return "", "csv-table-v1"
-        width = max(len(row) for row in rows)
-        header = rows[0]
-        lines = [
-            f"[Table 1 rows={len(rows) - 1} columns={width}]",
-            "Header: " + " | ".join(header),
-        ]
-        lines.extend(
-            f"Row {index}: " + " | ".join(row)
-            for index, row in enumerate(rows[1:], start=1)
-        )
-        return "\n".join(lines), "csv-table-v1"
+        return _extract_csv_document(decoded)
     if mime_type == "application/json":
-        try:
-            payload = json.loads(decoded)
-        except json.JSONDecodeError as exc:
-            raise ValueError("JSON document could not be parsed") from exc
-        return (
-            "[Structured JSON]\n"
-            + json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True),
-            "json-structure-v1",
-        )
+        return _extract_json_document(decoded)
     return decoded, "utf8-decoder-v1"
 
 

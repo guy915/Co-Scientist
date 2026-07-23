@@ -1,5 +1,10 @@
 import {expect, it} from 'vitest';
-import {LEGEND_WIDTH, computeLayout} from './proposals_layout';
+import {
+  LEGEND_WIDTH,
+  computeLayout,
+  type Layout,
+  type Point,
+} from './proposals_layout';
 
 // A spread of shapes: wide desktop, laptop, short-and-wide, narrow, and the
 // sizes a zoomed-in page reports (zooming shrinks the viewport in CSS px).
@@ -103,6 +108,42 @@ it('scales every length by the same factor', () => {
   );
 });
 
+// Whether `path` passes within the node box centered at `at`.
+function pathHitsNode(
+  path: string,
+  at: Point,
+  halfWidth: number,
+  halfHeight: number,
+): boolean {
+  return sample(path).some(
+    point =>
+      Math.abs(point.x - at.x) < halfWidth &&
+      Math.abs(point.y - at.y) < halfHeight,
+  );
+}
+
+// Whether `id` is one of `edge`'s own endpoints.
+function isEdgeEndpoint(edge: {from: string; to: string}, id: string) {
+  return id === edge.from || id === edge.to;
+}
+
+// Every "edge routed through an unrelated node" offense in a layout, as
+// `from->to through id` descriptions.
+function unrelatedNodeOffenders(layout: Layout): string[] {
+  const halfWidth = layout.node.width / 2;
+  const halfHeight = layout.node.height / 2;
+  const offenders: string[] = [];
+  for (const {edge, path} of layout.edges) {
+    for (const [id, at] of Object.entries(layout.positions)) {
+      if (isEdgeEndpoint(edge, id)) continue;
+      if (pathHitsNode(path, at, halfWidth, halfHeight)) {
+        offenders.push(`${edge.from}->${edge.to} through ${id}`);
+      }
+    }
+  }
+  return offenders;
+}
+
 // A graph this dense cannot route every edge around every node with a
 // single bend: an edge between two clusters has to cross whatever sits
 // between them. Straight lines put 9 edges through unrelated nodes at
@@ -111,55 +152,49 @@ it('scales every length by the same factor', () => {
 it.each(STAGES.slice(0, 3))(
   'rarely runs an edge through an unrelated node at $width',
   stage => {
-    const layout = computeLayout(stage);
-    const halfWidth = layout.node.width / 2;
-    const halfHeight = layout.node.height / 2;
-    const offenders: string[] = [];
-    for (const {edge, path} of layout.edges) {
-      for (const [id, at] of Object.entries(layout.positions)) {
-        if (id === edge.from || id === edge.to) continue;
-        const inside = sample(path).some(
-          point =>
-            Math.abs(point.x - at.x) < halfWidth &&
-            Math.abs(point.y - at.y) < halfHeight,
-        );
-        if (inside) offenders.push(`${edge.from}->${edge.to} through ${id}`);
-      }
-    }
+    const offenders = unrelatedNodeOffenders(computeLayout(stage));
     expect(offenders.length).toBeLessThanOrEqual(6);
   },
 );
+
+// Number of sample points on `route` within 6px of some point on `other` —
+// a high count means the two edges run alongside each other rather than
+// merely crossing.
+function closePointCount(route: Point[], other: Point[]): number {
+  let close = 0;
+  for (const point of route) {
+    if (other.some(o => Math.hypot(point.x - o.x, point.y - o.y) < 6)) {
+      close++;
+    }
+  }
+  return close;
+}
+
+// Every pair of edges that run alongside each other rather than merely
+// crossing, as `from->to with from->to` descriptions.
+function overlappingEdgePairs(layout: Layout): string[] {
+  const routes = layout.edges.map(entry => sample(entry.path));
+  const pairs: string[] = [];
+  for (let i = 0; i < routes.length; i++) {
+    for (let j = i + 1; j < routes.length; j++) {
+      // A crossing touches at one sample; travelling alongside touches at
+      // several.
+      if (closePointCount(routes[i], routes[j]) <= 3) continue;
+      pairs.push(
+        `${layout.edges[i].edge.from}->${layout.edges[i].edge.to} with ` +
+          `${layout.edges[j].edge.from}->${layout.edges[j].edge.to}`,
+      );
+    }
+  }
+  return pairs;
+}
 
 // Two edges crossing reads fine; two travelling side by side reads as one
 // edge, which is the thing worth ruling out.
 it.each(STAGES.slice(0, 3))(
   'keeps edges from running together at $width',
   stage => {
-    const layout = computeLayout(stage);
-    const routes = layout.edges.map(entry => sample(entry.path));
-    const pairs: string[] = [];
-    for (let i = 0; i < routes.length; i++) {
-      for (let j = i + 1; j < routes.length; j++) {
-        let close = 0;
-        for (const point of routes[i]) {
-          if (
-            routes[j].some(
-              other => Math.hypot(point.x - other.x, point.y - other.y) < 6,
-            )
-          ) {
-            close++;
-          }
-        }
-        // A crossing touches at one sample; travelling alongside touches at
-        // several.
-        if (close > 3) {
-          pairs.push(
-            `${layout.edges[i].edge.from}->${layout.edges[i].edge.to} with ` +
-              `${layout.edges[j].edge.from}->${layout.edges[j].edge.to}`,
-          );
-        }
-      }
-    }
+    const pairs = overlappingEdgePairs(computeLayout(stage));
     expect(pairs).toEqual([]);
   },
 );

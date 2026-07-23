@@ -245,6 +245,35 @@ def _fail_retryable_task(
     logger.exception("Task %s failed", task.id)
 
 
+def _handle_task_failure(
+    task: ScientificTask, worker_id: str, exc: Exception, db_path: str | None
+) -> None:
+    """Classify one task failure and record its outcome accordingly.
+
+    Preserves the original except-clause priority exactly: a superseded
+    checkpoint is a successful idempotent outcome, an unsupported task type
+    is the one permanent failure, and everything else keeps its retry
+    budget.
+    """
+    if isinstance(exc, engine_tasks.SupersededTaskError):
+        _complete_superseded_task(task, worker_id, exc, db_path)
+    elif isinstance(exc, UnsupportedTaskError):
+        _fail_unsupported_task(task, worker_id, exc, db_path)
+    else:
+        _fail_retryable_task(task, worker_id, exc, db_path)
+
+
+def _record_success(
+    task: ScientificTask,
+    worker_id: str,
+    result: dict[str, Any],
+    db_path: str | None,
+) -> None:
+    """Persist a task's result if this worker still owns its lease."""
+    if not store.complete_task(task.id, worker_id, result, db_path=db_path):
+        logger.warning("Task %s lost its lease before completion", task.id)
+
+
 async def _execute_and_record(
     task: ScientificTask,
     worker_id: str,
@@ -264,15 +293,11 @@ async def _execute_and_record(
         # The durable row already records cancellation, pause, or competing
         # ownership; the revoked worker must not overwrite that outcome.
         logger.info("Task %s stopped after lease revocation", task.id)
-    except engine_tasks.SupersededTaskError as exc:
-        _complete_superseded_task(task, worker_id, exc, db_path)
-    except UnsupportedTaskError as exc:
-        _fail_unsupported_task(task, worker_id, exc, db_path)
+        return
     except Exception as exc:  # Worker boundary isolates one task failure.
-        _fail_retryable_task(task, worker_id, exc, db_path)
-    else:
-        if not store.complete_task(task.id, worker_id, result, db_path=db_path):
-            logger.warning("Task %s lost its lease before completion", task.id)
+        _handle_task_failure(task, worker_id, exc, db_path)
+        return
+    _record_success(task, worker_id, result, db_path)
 
 
 async def _run_claimed_task(

@@ -191,10 +191,26 @@ function visibleConnectors(
   );
 }
 
-// One connector row's derived checked/toggle/icon state: the web-search and
-// Lab papers rows each drive their own independent toggle, while every other
-// (literature) connector shares the single pubmed/literature-retrieval
-// toggle, since the engine enables that stack as one unit.
+// The toggle handler for one connector row: web-search and Lab papers each
+// drive their own independent toggle, while every other (literature)
+// connector shares the single pubmed/literature-retrieval toggle, since the
+// engine enables that stack as one unit.
+function toggleHandlerFor(
+  connector: Connector,
+  toggles: ConnectorToggleProps,
+): () => void {
+  if (connector.id === WEB_SEARCH_CONNECTOR_ID) {
+    return () => toggles.onWebSearchEnabledChange?.(!toggles.webSearchEnabled);
+  }
+  if (connector.id === PAPER_CORPUS_CONNECTOR_ID) {
+    return () =>
+      toggles.onPaperCorpusEnabledChange?.(!toggles.paperCorpusEnabled);
+  }
+  return () => toggles.onPubmedEnabledChange?.(!toggles.pubmedEnabled);
+}
+
+// One connector row's derived checked/toggle/icon state; see
+// toggleHandlerFor for why web-search and Lab papers stand apart.
 function connectorRowState(
   connector: Connector,
   toggles: ConnectorToggleProps,
@@ -206,18 +222,12 @@ function connectorRowState(
     : isPaperCorpus
       ? toggles.paperCorpusEnabled
       : toggles.pubmedEnabled;
-  const toggle = () =>
-    isWebSearch
-      ? toggles.onWebSearchEnabledChange?.(!toggles.webSearchEnabled)
-      : isPaperCorpus
-        ? toggles.onPaperCorpusEnabledChange?.(!toggles.paperCorpusEnabled)
-        : toggles.onPubmedEnabledChange?.(!toggles.pubmedEnabled);
   const iconName: IconName = isWebSearch
     ? 'search'
     : isPaperCorpus
       ? 'science'
       : 'article';
-  return {checked, toggle, iconName};
+  return {checked, toggle: toggleHandlerFor(connector, toggles), iconName};
 }
 
 // One row in the connectors menu: an icon, the connector's display name, and

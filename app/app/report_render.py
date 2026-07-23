@@ -265,14 +265,31 @@ async def _finalize_report_pipeline(
         yield event
     if blocked:
         return
+    async for event in _gate_readiness_and_publish(
+        run_id, req, emit, payload, markdown
+    ):
+        yield event
 
+
+async def _gate_readiness_and_publish(
+    run_id: str,
+    req: _ReportBuildArgs,
+    emit: EmitFn,
+    payload: dict[str, Any],
+    markdown: str,
+) -> AsyncIterator[dict[str, Any]]:
+    """Block an empty leaderboard, or publish the report otherwise.
+
+    Split out of ``_finalize_report_pipeline`` to keep each step's branching
+    independently readable; order matches the shared contract documented on
+    ``finalize_report``.
+    """
     if _readiness_blocked(payload, req.provider, run_id, db_path=req.db_path):
         async for event in _block_for_empty_leaderboard(
             run_id, req.provider, emit, db_path=req.db_path
         ):
             yield event
         return
-
     async for event in _publish_report(
         run_id, req.research_goal, payload, markdown, emit, db_path=req.db_path
     ):

@@ -110,7 +110,8 @@ export function isActiveStatus(status: RunStatus | undefined): boolean {
  * top-level research goal. Returns '' when the run is not yet loaded.
  */
 export function runGoal(run: Run | null | undefined): string {
-  return run?.config.setup?.goal ?? run?.research_goal ?? '';
+  if (!run) return '';
+  return run.config.setup?.goal ?? run.research_goal ?? '';
 }
 
 /**

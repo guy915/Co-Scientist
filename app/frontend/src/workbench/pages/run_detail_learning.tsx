@@ -1,5 +1,5 @@
 import {useMemo, useState} from 'react';
-import {type Evidence, type Report} from '@/api/runs';
+import {type Evidence, type KnowledgeBaseTopic, type Report} from '@/api/runs';
 import {Icon} from '@/components/icon';
 import {splitAbstractSections} from '@/lib/format_abstract';
 import {renderInlineHtml} from '@/lib/sanitize_html';
@@ -364,6 +364,36 @@ interface LearningSectionItem {
   referenceIds: string[];
 }
 
+function topicToSection(topic: KnowledgeBaseTopic): LearningSectionItem {
+  return {
+    id: topic.id,
+    title: topic.title,
+    summary: topic.summary,
+    detail: topic.detail,
+    uncertainty: topic.uncertainty,
+    referenceIds: topic.reference_ids,
+  };
+}
+
+// The persisted Knowledge Base, if the report has synthesized one, else null
+// so the caller falls back to the live evidence list.
+function knowledgeBaseTopics(
+  report: Report | null,
+): LearningSectionItem[] | null {
+  const topics = report?.payload.knowledge_base;
+  return topics && topics.length ? topics.map(topicToSection) : null;
+}
+
+// The research goal to reference in generated copy, defaulted when the run
+// has not recorded one yet.
+function resolveFallbackGoal(goal: string): string {
+  return (
+    goal ||
+    'the biological mechanisms and experimental systems relevant to this ' +
+      'research goal'
+  );
+}
+
 // Builds up to three display sections (title/summary/detail) from the run's
 // evidence. When no evidence has been gathered yet (early in a run), a single
 // placeholder item is used instead so the tab still shows meaningful copy
@@ -373,21 +403,9 @@ function learningSections(
   evidence: Evidence[],
   report: Report | null,
 ): LearningSectionItem[] {
-  const persistedTopics = report?.payload.knowledge_base || [];
-  if (persistedTopics.length) {
-    return persistedTopics.map(topic => ({
-      id: topic.id,
-      title: topic.title,
-      summary: topic.summary,
-      detail: topic.detail,
-      uncertainty: topic.uncertainty,
-      referenceIds: topic.reference_ids,
-    }));
-  }
-  const fallbackGoal =
-    goal ||
-    'the biological mechanisms and experimental systems relevant to this ' +
-      'research goal';
+  const persistedTopics = knowledgeBaseTopics(report);
+  if (persistedTopics) return persistedTopics;
+  const fallbackGoal = resolveFallbackGoal(goal);
   if (!evidence.length) return [placeholderSection(fallbackGoal)];
   return evidence
     .slice(0, 3)

@@ -152,16 +152,28 @@ export function ResearchOverviewView({
   );
 }
 
-function SummaryStats({payload}: {payload: ReportPayload | undefined}) {
-  if (!payload) return null;
-  const highPotential = payload.idea_buckets?.high_potential.length ?? 0;
-  const nonViable = payload.idea_buckets?.non_viable.length ?? 0;
-  const stats = [
+// One idea-bucket's entry count, defaulted to 0 when the report has no
+// bucket breakdown yet.
+function bucketCount(
+  payload: ReportPayload,
+  key: 'high_potential' | 'non_viable',
+): number {
+  return payload.idea_buckets?.[key].length ?? 0;
+}
+
+function reportStats(payload: ReportPayload): (readonly [string, number])[] {
+  const highPotential = bucketCount(payload, 'high_potential');
+  return [
     ['High Potential', highPotential],
-    ['Non-Viable', nonViable],
+    ['Non-Viable', bucketCount(payload, 'non_viable')],
     ['Verified ideas', highPotential],
     ['Sources Analyzed', payload.evidence_count ?? 0],
   ] as const;
+}
+
+function SummaryStats({payload}: {payload: ReportPayload | undefined}) {
+  if (!payload) return null;
+  const stats = reportStats(payload);
   return (
     <dl className={STAT_GRID_CLASSES}>
       {stats.map(([label, value]) => (

@@ -175,6 +175,42 @@ def _classify_gate_claims(
     return contradicted, unsupported, speculative, blocking_unsupported
 
 
+def _blocks_for_missing_support(
+    assessments: list[ClaimAssessment], *, require_supported_claim: bool
+) -> bool:
+    """Whether the gate blocks for lacking any evidence-supported claim."""
+    if not require_supported_claim:
+        return False
+    return not any(a.label is EntailmentLabel.SUPPORTS for a in assessments)
+
+
+def _gate_block_reason(
+    assessments: list[ClaimAssessment],
+    contradicted: tuple[str, ...],
+    blocking_unsupported: tuple[str, ...],
+    *,
+    require_supported_claim: bool,
+) -> str | None:
+    """Return the reason to block, in priority order, or None to allow.
+
+    Priority order: a contradicted fundamental claim blocks first, then a
+    hypothesis with no assessable claims at all, then (when required) a
+    hypothesis with no supported claim of any kind, then any categorical
+    claim left unsupported once speculative claims are set aside.
+    """
+    if contradicted:
+        return f"{len(contradicted)} fundamental claim(s) contradicted"
+    if not assessments:
+        return "no atomic claims could be assessed"
+    if _blocks_for_missing_support(
+        assessments, require_supported_claim=require_supported_claim
+    ):
+        return "no evidence-supported contextual claim"
+    if blocking_unsupported:
+        return f"{len(blocking_unsupported)} categorical claim(s) lack support"
+    return None
+
+
 def _decide_gate(
     assessments: list[ClaimAssessment],
     contradicted: tuple[str, ...],
@@ -185,35 +221,23 @@ def _decide_gate(
     require_supported_claim: bool,
 ) -> GateResult:
     """Apply the gate's blocking rules, in priority order, to the claims."""
-
-    def _result(decision: GateDecision, reason: str) -> GateResult:
+    reason = _gate_block_reason(
+        assessments,
+        contradicted,
+        blocking_unsupported,
+        require_supported_claim=require_supported_claim,
+    )
+    if reason is not None:
         return GateResult(
-            decision, reason, contradicted, unsupported, speculative
+            GateDecision.BLOCK, reason, contradicted, unsupported, speculative
         )
-
-    if contradicted:
-        return _result(
-            GateDecision.BLOCK,
-            f"{len(contradicted)} fundamental claim(s) contradicted",
+    allow_reason = "all fundamental claims supported"
+    if unsupported:
+        allow_reason = (
+            "categorical claims supported; novel claims labeled speculative"
         )
-    if not assessments:
-        return _result(GateDecision.BLOCK, "no atomic claims could be assessed")
-    if require_supported_claim and not any(
-        a.label is EntailmentLabel.SUPPORTS for a in assessments
-    ):
-        return _result(
-            GateDecision.BLOCK, "no evidence-supported contextual claim"
-        )
-    if blocking_unsupported:
-        return _result(
-            GateDecision.BLOCK,
-            f"{len(blocking_unsupported)} categorical claim(s) lack support",
-        )
-    return _result(
-        GateDecision.ALLOW,
-        "all fundamental claims supported"
-        if not unsupported
-        else "categorical claims supported; novel claims labeled speculative",
+    return GateResult(
+        GateDecision.ALLOW, allow_reason, contradicted, unsupported, speculative
     )
 
 

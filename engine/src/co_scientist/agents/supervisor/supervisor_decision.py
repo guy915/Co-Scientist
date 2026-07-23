@@ -102,26 +102,49 @@ def _hard_stop(
     )
 
 
+def _budget_exceeded(limit: float | None, value: float) -> bool:
+    """Return whether an optional budget ceiling has been reached or passed."""
+    return limit is not None and value >= limit
+
+
+# Ordered (triggered, reason, message) checks for _hard_stop_reason: the
+# first true entry wins, matching the original if/elif precedence exactly.
+def _hard_stop_checks(
+    stats: SchedulerStats, budget: Budget
+) -> tuple[tuple[bool, TerminationReason, str], ...]:
+    """Build the ordered hard-stop predicates for these stats/budget."""
+    return (
+        (stats.cancelled, TerminationReason.CANCELLED, "run cancelled"),
+        (
+            stats.safety_blocked,
+            TerminationReason.SAFETY,
+            "safety block halted the run",
+        ),
+        (
+            _budget_exceeded(budget.max_llm_calls, stats.llm_calls),
+            TerminationReason.BUDGET,
+            "LLM-call budget exhausted",
+        ),
+        (
+            _budget_exceeded(budget.max_tasks, stats.tasks_run),
+            TerminationReason.MAX_TASKS,
+            "task budget exhausted",
+        ),
+        (
+            _budget_exceeded(budget.max_wall_clock_s, stats.elapsed_s),
+            TerminationReason.WALL_CLOCK,
+            "wall-clock budget exhausted",
+        ),
+    )
+
+
 def _hard_stop_reason(
     stats: SchedulerStats, budget: Budget
 ) -> tuple[TerminationReason, str] | None:
     """Return the code-enforced termination reason, if any, for these stats."""
-    if stats.cancelled:
-        return TerminationReason.CANCELLED, "run cancelled"
-    if stats.safety_blocked:
-        return TerminationReason.SAFETY, "safety block halted the run"
-    if (
-        budget.max_llm_calls is not None
-        and stats.llm_calls >= budget.max_llm_calls
-    ):
-        return TerminationReason.BUDGET, "LLM-call budget exhausted"
-    if budget.max_tasks is not None and stats.tasks_run >= budget.max_tasks:
-        return TerminationReason.MAX_TASKS, "task budget exhausted"
-    if (
-        budget.max_wall_clock_s is not None
-        and stats.elapsed_s >= budget.max_wall_clock_s
-    ):
-        return TerminationReason.WALL_CLOCK, "wall-clock budget exhausted"
+    for triggered, reason, message in _hard_stop_checks(stats, budget):
+        if triggered:
+            return reason, message
     return None
 
 

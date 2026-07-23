@@ -11,7 +11,7 @@ lets a redirect walk straight past the check.
 import ipaddress
 import logging
 import socket
-from urllib.parse import urlparse
+from urllib.parse import ParseResult, urlparse
 
 logger = logging.getLogger(__name__)
 
@@ -86,6 +86,70 @@ def _is_blocked_address(
     )
 
 
+def _check_scheme(parsed: ParseResult) -> None:
+    """Rejects any scheme other than http(s).
+
+    Args:
+        parsed: The parsed URL.
+
+    Raises:
+        UrlNotFetchableError: If the scheme is not http or https.
+    """
+    if parsed.scheme not in _ALLOWED_SCHEMES:
+        raise UrlNotFetchableError(
+            f"scheme not allowed: {parsed.scheme or 'none'}"
+        )
+
+
+def _check_host_present(parsed: ParseResult) -> str:
+    """Rejects a URL with no host, otherwise returns the host.
+
+    Args:
+        parsed: The parsed URL.
+
+    Returns:
+        The URL's hostname.
+
+    Raises:
+        UrlNotFetchableError: If the URL has no host.
+    """
+    hostname = parsed.hostname
+    if not hostname:
+        raise UrlNotFetchableError("URL has no host")
+    return hostname
+
+
+def _check_not_metadata_host(hostname: str) -> None:
+    """Rejects a known cloud instance-metadata hostname.
+
+    Args:
+        hostname: Host portion of the URL under test.
+
+    Raises:
+        UrlNotFetchableError: If the host is a known metadata endpoint.
+    """
+    if hostname.lower() in _METADATA_HOSTS:
+        raise UrlNotFetchableError(f"host not allowed: {hostname}")
+
+
+def _check_resolved_addresses(hostname: str) -> None:
+    """Rejects a host that resolves to any non-public address.
+
+    Args:
+        hostname: Host portion of the URL under test.
+
+    Raises:
+        UrlNotFetchableError: If the hostname does not resolve, or any
+            resolved address is loopback, private, link-local, reserved,
+            multicast, or unspecified.
+    """
+    for address in _resolved_addresses(hostname):
+        if _is_blocked_address(address):
+            raise UrlNotFetchableError(
+                f"host resolves to a non-public address: {hostname}"
+            )
+
+
 def check_fetchable(url: str) -> None:
     """Screens a URL, raising if it must not be fetched.
 
@@ -98,18 +162,7 @@ def check_fetchable(url: str) -> None:
             non-public address.
     """
     parsed = urlparse(url)
-    if parsed.scheme not in _ALLOWED_SCHEMES:
-        raise UrlNotFetchableError(
-            f"scheme not allowed: {parsed.scheme or 'none'}"
-        )
-    hostname = parsed.hostname
-    if not hostname:
-        raise UrlNotFetchableError("URL has no host")
-    if hostname.lower() in _METADATA_HOSTS:
-        raise UrlNotFetchableError(f"host not allowed: {hostname}")
-
-    for address in _resolved_addresses(hostname):
-        if _is_blocked_address(address):
-            raise UrlNotFetchableError(
-                f"host resolves to a non-public address: {hostname}"
-            )
+    _check_scheme(parsed)
+    hostname = _check_host_present(parsed)
+    _check_not_metadata_host(hostname)
+    _check_resolved_addresses(hostname)

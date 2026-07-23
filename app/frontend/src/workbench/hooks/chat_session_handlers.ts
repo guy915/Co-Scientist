@@ -85,6 +85,26 @@ function beginComposerTurn(deps: SubmitComposerDeps): string | null {
   return text;
 }
 
+// Advances the durable interview by one turn: continues it when one is
+// already in progress, else starts a fresh one for the current audience.
+function startInterviewTurn(
+  deps: Pick<SubmitComposerDeps, 'interview' | 'audience'>,
+  text: string,
+  onReasoning: (fragment: string) => void,
+): Promise<Interview> {
+  if (deps.interview) {
+    return addInterviewTurn(deps.interview.id, text, onReasoning);
+  }
+  return createInterview(text, onReasoning, deps.audience ?? undefined);
+}
+
+// User-facing message for a failed interview turn.
+function describeSubmitError(error: unknown): string {
+  return error instanceof Error
+    ? error.message
+    : 'The Agent could not continue the interview.';
+}
+
 // Composer submit advances the durable Agent interview. The browser never
 // derives scientific setup fields from keywords; only the persisted model
 // response can complete the setup and produce a runnable specification.
@@ -101,17 +121,11 @@ async function submitComposerMessage(deps: SubmitComposerDeps): Promise<void> {
   const onReasoning = (fragment: string) =>
     deps.setAgentReasoning(current => current + fragment);
   try {
-    const updated = deps.interview
-      ? await addInterviewTurn(deps.interview.id, text, onReasoning)
-      : await createInterview(text, onReasoning, deps.audience ?? undefined);
+    const updated = await startInterviewTurn(deps, text, onReasoning);
     deps.setInterview(updated);
     applyAgentTurn(updated, sentAt, deps);
   } catch (error) {
-    deps.setError(
-      error instanceof Error
-        ? error.message
-        : 'The Agent could not continue the interview.',
-    );
+    deps.setError(describeSubmitError(error));
   } finally {
     deps.setIsStarting(false);
     deps.setIsAwaitingAgent(false);

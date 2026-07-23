@@ -1,6 +1,6 @@
 import {type ReactNode, useEffect, useState} from 'react';
 import {useParams} from 'react-router-dom';
-import {getSharedGoalReport, type SharedGoalReport} from '@/api/runs';
+import {getSharedGoalReport, type Run, type SharedGoalReport} from '@/api/runs';
 
 const PAGE_CLASSES =
   'mx-auto mb-24 grid w-[min(60rem,calc(100%-2rem))] gap-10 py-10 ' +
@@ -30,6 +30,16 @@ function useSharedReport(token: string) {
   return {shared, error};
 }
 
+// The report headline: the model-generated title, else the raw goal.
+function reportHeadline(run: Run): string {
+  return run.title || run.research_goal;
+}
+
+// The Run Specifications label for the run's mode.
+function runTypeLabel(run: Run): string {
+  return run.run_mode === 'advanced' ? 'Advanced Run' : 'Standard Run';
+}
+
 /** Read-only public Goal Report rendered exclusively through a share token. */
 export function SharedGoalReportPage() {
   const {token = ''} = useParams<{token: string}>();
@@ -43,7 +53,7 @@ export function SharedGoalReportPage() {
     <main className={PAGE_CLASSES}>
       <header>
         <p className="text-sm text-cosci-muted">Public Goal Report</p>
-        <h1 className="mt-2 text-3xl">{run.title || run.research_goal}</h1>
+        <h1 className="mt-2 text-3xl">{reportHeadline(run)}</h1>
         <p className="mt-3">{run.research_goal}</p>
       </header>
       <SharedReportSections shared={shared} />
@@ -52,8 +62,7 @@ export function SharedGoalReportPage() {
           <strong>Research Challenge:</strong> {run.research_goal}
         </p>
         <p>
-          <strong>Run type:</strong>{' '}
-          {run.run_mode === 'advanced' ? 'Advanced Run' : 'Standard Run'}
+          <strong>Run type:</strong> {runTypeLabel(run)}
         </p>
       </ReportSection>
     </main>

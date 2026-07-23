@@ -40,32 +40,59 @@ export function originLabel(createdByAgent: string): string {
   }
 }
 
+// Per-label tallies backing claimEvidenceSummary's one-line count.
+interface ClaimCounts {
+  supports: number;
+  contradicts: number;
+  categoricalUnsupported: number;
+  speculative: number;
+}
+
+// Which tally a single claim belongs in.
+function claimCountKey(c: ClaimEvidenceRow): keyof ClaimCounts {
+  if (c.label === 'supports') return 'supports';
+  if (c.label === 'contradicts') return 'contradicts';
+  if (c.claim_role === 'speculative') return 'speculative';
+  return 'categoricalUnsupported';
+}
+
+function tallyClaimCounts(claims: ClaimEvidenceRow[]): ClaimCounts {
+  const counts: ClaimCounts = {
+    supports: 0,
+    contradicts: 0,
+    categoricalUnsupported: 0,
+    speculative: 0,
+  };
+  for (const c of claims) counts[claimCountKey(c)]++;
+  return counts;
+}
+
+// Tally keys in the order claimEvidenceSummary reports them.
+const CLAIM_COUNT_LABELS: readonly {
+  key: keyof ClaimCounts;
+  suffix: string;
+}[] = [
+  {key: 'supports', suffix: 'supported'},
+  {key: 'contradicts', suffix: 'contradicted'},
+  {key: 'categoricalUnsupported', suffix: 'unsupported categorical'},
+  {key: 'speculative', suffix: 'speculative'},
+];
+
+function describeClaimCounts(total: number, counts: ClaimCounts): string {
+  const parts = [`${total} claim(s) assessed`];
+  for (const {key, suffix} of CLAIM_COUNT_LABELS) {
+    if (counts[key]) parts.push(`${counts[key]} ${suffix}`);
+  }
+  return parts.join(', ');
+}
+
 // Summarizes a hypothesis's claim-evidence edges as a one-line count by label
 // (the claim-level grounding graph, Milestone 5), or null when none exist.
 export function claimEvidenceSummary(
   claims: ClaimEvidenceRow[],
 ): string | null {
   if (!claims.length) return null;
-  const counts = {
-    supports: 0,
-    contradicts: 0,
-    categoricalUnsupported: 0,
-    speculative: 0,
-  };
-  for (const c of claims) {
-    if (c.label === 'supports') counts.supports++;
-    else if (c.label === 'contradicts') counts.contradicts++;
-    else if (c.claim_role === 'speculative') counts.speculative++;
-    else counts.categoricalUnsupported++;
-  }
-  const parts = [`${claims.length} claim(s) assessed`];
-  if (counts.supports) parts.push(`${counts.supports} supported`);
-  if (counts.contradicts) parts.push(`${counts.contradicts} contradicted`);
-  if (counts.categoricalUnsupported) {
-    parts.push(`${counts.categoricalUnsupported} unsupported categorical`);
-  }
-  if (counts.speculative) parts.push(`${counts.speculative} speculative`);
-  return parts.join(', ');
+  return describeClaimCounts(claims.length, tallyClaimCounts(claims));
 }
 
 // A support span normalized for display: the exact quote plus (when known) a

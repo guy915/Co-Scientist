@@ -1,6 +1,8 @@
 """Research-overview node - terminal synthesis into a roadmap + NIH aims."""
 
+import itertools
 import logging
+from collections.abc import Iterator
 from typing import Any
 
 from co_scientist.constants import (
@@ -233,6 +235,55 @@ def _format_contact_candidates(
     )
 
 
+def _valid_candidate_id(raw: Any, seen: set[str]) -> str | None:
+    """Return raw's candidate id if it is an unseen, well-formed reference.
+
+    Args:
+        raw: One raw contact entry from the model response.
+        seen: Candidate ids already accepted in this validation pass.
+
+    Returns:
+        The candidate id, or None if raw is malformed or already used.
+    """
+    if not isinstance(raw, dict):
+        return None
+    candidate_id = raw.get("candidate_id")
+    if not isinstance(candidate_id, str) or candidate_id in seen:
+        return None
+    return candidate_id
+
+
+def _matching_candidate(
+    candidate_id: str,
+    raw: dict[str, Any],
+    candidates: dict[str, dict[str, Any]],
+) -> dict[str, Any] | None:
+    """Return the verified candidate if raw's name matches it exactly."""
+    candidate = candidates.get(candidate_id)
+    if candidate is None:
+        return None
+    if raw.get("name") != candidate["name"]:
+        return None
+    return candidate
+
+
+def _iter_matching_contacts(
+    raw_contacts: list[Any],
+    candidates: dict[str, dict[str, Any]],
+) -> Iterator[tuple[dict[str, Any], dict[str, Any]]]:
+    """Yield (raw, candidate) for each unseen exact candidate match."""
+    seen: set[str] = set()
+    for raw in raw_contacts:
+        candidate_id = _valid_candidate_id(raw, seen)
+        if candidate_id is None:
+            continue
+        candidate = _matching_candidate(candidate_id, raw, candidates)
+        if candidate is None:
+            continue
+        seen.add(candidate_id)
+        yield raw, candidate
+
+
 def _validate_research_contacts(
     raw_contacts: Any,
     candidates: dict[str, dict[str, Any]],
@@ -240,33 +291,17 @@ def _validate_research_contacts(
     """Keep only exact candidate matches and attach immutable provenance."""
     if not isinstance(raw_contacts, list):
         return []
-    accepted: list[dict[str, Any]] = []
-    seen: set[str] = set()
-    for raw in raw_contacts:
-        if not isinstance(raw, dict):
-            continue
-        candidate_id_value = raw.get("candidate_id")
-        if not isinstance(candidate_id_value, str):
-            continue
-        candidate_id = candidate_id_value
-        candidate = candidates.get(candidate_id)
-        if (
-            candidate is None
-            or raw.get("name") != candidate["name"]
-            or candidate_id in seen
-        ):
-            continue
-        accepted.append(
-            {
-                **candidate,
-                "expertise": str(raw.get("expertise") or "").strip(),
-                "justification": str(raw.get("justification") or "").strip(),
-            }
-        )
-        seen.add(candidate_id)
-        if len(accepted) == 5:
-            break
-    return accepted
+    matches = itertools.islice(
+        _iter_matching_contacts(raw_contacts, candidates), 5
+    )
+    return [
+        {
+            **candidate,
+            "expertise": str(raw.get("expertise") or "").strip(),
+            "justification": str(raw.get("justification") or "").strip(),
+        }
+        for raw, candidate in matches
+    ]
 
 
 def _build_evidence_corpus(
@@ -301,6 +336,30 @@ def _format_evidence_corpus(corpus: dict[str, dict[str, Any]]) -> str:
     )
 
 
+def _topic_evidence_ids(
+    raw: Any, corpus: dict[str, dict[str, Any]]
+) -> list[str] | None:
+    """Return a raw topic's grounded evidence ids, or None if ungrounded.
+
+    Args:
+        raw: One raw knowledge-base topic from the model response.
+        corpus: The bounded evidence corpus topics may cite.
+
+    Returns:
+        The subset of cited ids present in corpus, or None if raw is
+        malformed or cites no valid evidence.
+    """
+    if not isinstance(raw, dict):
+        return None
+    raw_ids = raw.get("evidence_ids")
+    if not isinstance(raw_ids, list):
+        return None
+    evidence_ids = [
+        item for item in raw_ids if isinstance(item, str) and item in corpus
+    ]
+    return evidence_ids or None
+
+
 def _validate_knowledge_base(
     raw_topics: Any,
     corpus: dict[str, dict[str, Any]],
@@ -310,15 +369,8 @@ def _validate_knowledge_base(
         return []
     topics: list[dict[str, Any]] = []
     for index, raw in enumerate(raw_topics[:8]):
-        if not isinstance(raw, dict):
-            continue
-        raw_ids = raw.get("evidence_ids")
-        if not isinstance(raw_ids, list):
-            continue
-        evidence_ids = [
-            item for item in raw_ids if isinstance(item, str) and item in corpus
-        ]
-        if not evidence_ids:
+        evidence_ids = _topic_evidence_ids(raw, corpus)
+        if evidence_ids is None:
             continue
         topics.append(
             {

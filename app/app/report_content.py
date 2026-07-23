@@ -63,6 +63,44 @@ def _knowledge_base_topics(
     return topics
 
 
+def _topic_reference_ids(
+    raw: dict[str, Any], evidence_id_by_title: dict[str, str]
+) -> list[str]:
+    """Resolve a synthesized topic's cited titles to evidence ids."""
+    references = raw.get("references") or []
+    return sorted(
+        {
+            evidence_id_by_title.get(str(ref.get("title") or ""), "")
+            for ref in references
+            if isinstance(ref, dict)
+        }
+        - {""}
+    )
+
+
+def _synthesized_topic_from_raw(
+    raw: Any, evidence_id_by_title: dict[str, str], fallback_index: int
+) -> dict[str, Any] | None:
+    """Build one synthesized topic, or ``None`` when unusable.
+
+    A topic is unusable when it is not a dict, or none of its cited titles
+    resolve to a durable evidence id.
+    """
+    if not isinstance(raw, dict):
+        return None
+    reference_ids = _topic_reference_ids(raw, evidence_id_by_title)
+    if not reference_ids:
+        return None
+    return {
+        "id": str(raw.get("id") or f"topic-{fallback_index}"),
+        "title": str(raw.get("title") or "Technical topic"),
+        "summary": str(raw.get("summary") or ""),
+        "detail": str(raw.get("detail") or ""),
+        "uncertainty": str(raw.get("uncertainty") or ""),
+        "reference_ids": reference_ids,
+    }
+
+
 def _synthesized_knowledge_base_topics(
     research_overview: dict[str, Any] | None,
     evidence: list[dict[str, Any]],
@@ -79,29 +117,11 @@ def _synthesized_knowledge_base_topics(
     }
     topics: list[dict[str, Any]] = []
     for raw in raw_topics:
-        if not isinstance(raw, dict):
-            continue
-        references = raw.get("references") or []
-        reference_ids = sorted(
-            {
-                evidence_id_by_title.get(str(ref.get("title") or ""), "")
-                for ref in references
-                if isinstance(ref, dict)
-            }
-            - {""}
+        topic = _synthesized_topic_from_raw(
+            raw, evidence_id_by_title, len(topics) + 1
         )
-        if not reference_ids:
-            continue
-        topics.append(
-            {
-                "id": str(raw.get("id") or f"topic-{len(topics) + 1}"),
-                "title": str(raw.get("title") or "Technical topic"),
-                "summary": str(raw.get("summary") or ""),
-                "detail": str(raw.get("detail") or ""),
-                "uncertainty": str(raw.get("uncertainty") or ""),
-                "reference_ids": reference_ids,
-            }
-        )
+        if topic is not None:
+            topics.append(topic)
     return topics
 
 
@@ -229,6 +249,38 @@ def _idea_buckets(
     }
 
 
+def _enrich_claim_span(
+    raw_span: Any, sources: dict[str, dict[str, Any]]
+) -> Any:
+    """Attach source title/source/url metadata to one claim span.
+
+    Non-dict spans are returned unchanged.
+    """
+    if not isinstance(raw_span, dict):
+        return raw_span
+    span = dict(raw_span)
+    source = sources.get(str(span.get("evidence_id") or ""), {})
+    span["source_title"] = str(
+        span.get("source_title") or source.get("title") or ""
+    )
+    span["source"] = str(span.get("source") or source.get("source") or "")
+    span["url"] = str(span.get("url") or source.get("url") or "")
+    return span
+
+
+def _enrich_claim_edge(
+    edge: dict[str, Any], sources: dict[str, dict[str, Any]]
+) -> dict[str, Any]:
+    """Enrich one claim edge's supporting/contradicting spans."""
+    enriched = dict(edge)
+    for key in ("supporting", "contradicting"):
+        enriched[key] = [
+            _enrich_claim_span(raw_span, sources)
+            for raw_span in edge.get(key) or []
+        ]
+    return enriched
+
+
 def _released_claim_evidence(
     hypotheses: list[dict[str, Any]],
     claim_edges: list[dict[str, Any]],
@@ -241,30 +293,11 @@ def _released_claim_evidence(
     sources = {
         str(item.get("id") or ""): item for item in evidence if item.get("id")
     }
-    released: list[dict[str, Any]] = []
-    for edge in claim_edges:
-        if str(edge.get("hypothesis_id") or "") not in released_ids:
-            continue
-        enriched = dict(edge)
-        for key in ("supporting", "contradicting"):
-            spans: list[Any] = []
-            for raw_span in edge.get(key) or []:
-                if not isinstance(raw_span, dict):
-                    spans.append(raw_span)
-                    continue
-                span = dict(raw_span)
-                source = sources.get(str(span.get("evidence_id") or ""), {})
-                span["source_title"] = str(
-                    span.get("source_title") or source.get("title") or ""
-                )
-                span["source"] = str(
-                    span.get("source") or source.get("source") or ""
-                )
-                span["url"] = str(span.get("url") or source.get("url") or "")
-                spans.append(span)
-            enriched[key] = spans
-        released.append(enriched)
-    return released
+    return [
+        _enrich_claim_edge(edge, sources)
+        for edge in claim_edges
+        if str(edge.get("hypothesis_id") or "") in released_ids
+    ]
 
 
 def _contradicted_hypothesis_ids(

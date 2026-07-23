@@ -29,17 +29,26 @@ interface ActiveRunViewProps {
   ideaCount: number;
 }
 
+// The determinate progress fraction, only once it is both reported and
+// meaningfully positive (a zero or negative fraction can't project a rate).
+function meaningfulFraction(run: RunWithSummary): number | null {
+  const progress = run.execution_progress;
+  if (!progress?.determinate) return null;
+  const fraction = progress.fraction;
+  if (!fraction || fraction <= 0) return null;
+  return fraction;
+}
+
 // Estimated seconds left, from the determinate progress fraction; null while
 // the estimate is not yet meaningful.
 function estimateRemainingSeconds(
   run: RunWithSummary,
   nowSeconds: number,
 ): number | null {
+  const fraction = meaningfulFraction(run);
+  if (fraction === null) return null;
   const elapsedSeconds = Math.max(0, Math.round(nowSeconds - run.created_at));
-  const fraction = run.execution_progress?.fraction;
-  return run.execution_progress?.determinate && fraction && fraction > 0
-    ? Math.max(0, Math.round((elapsedSeconds * (1 - fraction)) / fraction))
-    : null;
+  return Math.max(0, Math.round((elapsedSeconds * (1 - fraction)) / fraction));
 }
 
 // The headline metrics row: time remaining, sources, and idea count.
@@ -248,12 +257,21 @@ const ACTIVITY_META: Record<string, ActivityMeta> = {
   safety: SAFETY_META,
 };
 
+// A payload field as a string, falling back to '' when it is absent.
+function payloadFieldOrEmpty(value: unknown): string {
+  return String(value ?? '');
+}
+
 // The phase a step represents. scientific_task events carry the engine node in
 // payload.task and lifecycle events carry it in payload.event; other kinds
 // (e.g. safety.intake) are named by their own dotted type.
 function activityPhase(event: StreamEvent): string {
-  if (event.type === 'scientific_task') return String(event.payload.task ?? '');
-  if (event.type === 'lifecycle') return String(event.payload.event ?? '');
+  if (event.type === 'scientific_task') {
+    return payloadFieldOrEmpty(event.payload.task);
+  }
+  if (event.type === 'lifecycle') {
+    return payloadFieldOrEmpty(event.payload.event);
+  }
   return event.type.split('.')[0] ?? event.type;
 }
 

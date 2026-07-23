@@ -139,6 +139,44 @@ export function jsonRequest(
 }
 
 /**
+ * Resolves to the response's readable body once it is confirmed live, or
+ * throws a descriptive error for a non-OK or bodyless response.
+ */
+async function getSseBody(
+  res: Response,
+  errorPrefix?: string,
+): Promise<ReadableStream<Uint8Array>> {
+  if (res.ok && res.body) return res.body;
+  forgetSessionIfUnauthorized(res);
+  const text = await res.text().catch(() => res.statusText);
+  throw new Error(
+    responseErrorMessage(res.status, res.statusText, text, errorPrefix),
+  );
+}
+
+/** Extracts the `data: ...` payload from one raw SSE frame, if present. */
+function parseSseFrameData(frame: string): string | undefined {
+  return frame
+    .split('\n')
+    .find(line => line.startsWith('data: '))
+    ?.slice(6);
+}
+
+/**
+ * Splits newly buffered text into complete `\n\n`-terminated frames plus
+ * whatever trailing partial frame remains buffered until its terminator
+ * arrives.
+ */
+function splitSseFrames(pending: string): {
+  frames: string[];
+  rest: string;
+} {
+  const frames = pending.split('\n\n');
+  const rest = frames.pop() || '';
+  return {frames, rest};
+}
+
+/**
  * Yields each `data:` payload of an SSE response body as it arrives.
  *
  * @param res A streaming response; a non-OK status throws before any frame.
@@ -148,27 +186,17 @@ export async function* readSseFrames<T>(
   res: Response,
   errorPrefix?: string,
 ): AsyncGenerator<T> {
-  if (!res.ok || !res.body) {
-    forgetSessionIfUnauthorized(res);
-    const text = await res.text().catch(() => res.statusText);
-    throw new Error(
-      responseErrorMessage(res.status, res.statusText, text, errorPrefix),
-    );
-  }
-  const reader = res.body.getReader();
+  const body = await getSseBody(res, errorPrefix);
+  const reader = body.getReader();
   const decoder = new TextDecoder();
   let pending = '';
   for (;;) {
     const {done, value} = await reader.read();
     pending += decoder.decode(value, {stream: !done});
-    const frames = pending.split('\n\n');
-    // A trailing partial frame stays buffered until its terminator arrives.
-    pending = frames.pop() || '';
+    const {frames, rest} = splitSseFrames(pending);
+    pending = rest;
     for (const frame of frames) {
-      const data = frame
-        .split('\n')
-        .find(line => line.startsWith('data: '))
-        ?.slice(6);
+      const data = parseSseFrameData(frame);
       if (data) yield JSON.parse(data) as T;
     }
     if (done) break;

@@ -75,37 +75,63 @@ def apply_task_update(
     return merged  # type: ignore[return-value]
 
 
+def _route_after_supervisor(state: WorkflowState) -> str:
+    """Route to literature review when MCP is available, else generate."""
+    return "literature_review" if state.get("mcp_available") else "generate"
+
+
+def _route_after_generate(state: WorkflowState) -> str:
+    """Route to reflection when MCP is available, else straight to review."""
+    return "reflection" if state.get("mcp_available") else "review"
+
+
+def _route_after_orchestrator(state: WorkflowState) -> str:
+    """Resolve the orchestrator's chosen next task to a task node name."""
+    return _ORCHESTRATOR_ROUTES.get(
+        state.get("next_task") or "terminate", "research_overview"
+    )
+
+
+# Successor for each completed node: a fixed task name, ``None`` for the
+# terminal node, or a resolver called with the committed state when the
+# successor depends on live state (MCP availability, orchestrator choice).
+_NEXT_TASK_ROUTES: dict[
+    str, str | None | Callable[[WorkflowState], str | None]
+] = {
+    "supervisor": _route_after_supervisor,
+    "literature_review": "generate",
+    "generate": _route_after_generate,
+    "reflection": "review",
+    "review": "comprehensive_reflection",
+    "comprehensive_reflection": "safety_screen",
+    "safety_screen": "deep_verification",
+    "deep_verification": "ranking",
+    "ranking": "orchestrator",
+    "proximity": "orchestrator",
+    "meta_review": "evolve",
+    "evolve": "review",
+    "orchestrator": _route_after_orchestrator,
+    "research_overview": None,
+}
+
+
 def next_task_type(completed: str, state: WorkflowState) -> str | None:
-    """Return the next specialist task after one committed node."""
-    if completed == "supervisor":
-        return "literature_review" if state.get("mcp_available") else "generate"
-    if completed == "literature_review":
-        return "generate"
-    if completed == "generate":
-        return "reflection" if state.get("mcp_available") else "review"
-    if completed == "reflection":
-        return "review"
-    if completed == "review":
-        return "comprehensive_reflection"
-    if completed == "comprehensive_reflection":
-        return "safety_screen"
-    if completed == "safety_screen":
-        return "deep_verification"
-    if completed == "deep_verification":
-        return "ranking"
-    if completed == "ranking" or completed == "proximity":
-        return "orchestrator"
-    if completed == "meta_review":
-        return "evolve"
-    if completed == "evolve":
-        return "review"
-    if completed == "orchestrator":
-        return _ORCHESTRATOR_ROUTES.get(
-            state.get("next_task") or "terminate", "research_overview"
-        )
-    if completed == "research_overview":
-        return None
-    raise ValueError(f"unsupported completed task node: {completed}")
+    """Return the next specialist task after one committed node.
+
+    Args:
+        completed: The task node that just committed.
+        state: The workflow state after that node's update was applied.
+
+    Returns:
+        The next task node's name, or None once the workflow is terminal.
+
+    Raises:
+        ValueError: If ``completed`` is not a recognized task node.
+    """
+    if completed not in _NEXT_TASK_ROUTES:
+        raise ValueError(f"unsupported completed task node: {completed}")
+    route = _NEXT_TASK_ROUTES[completed]
+    return route(state) if callable(route) else route
 
 
 async def execute_task_node(

@@ -283,16 +283,30 @@ class ToolRegistry:
         """
         if not self._config:
             return
+        self._disable_configured_tools(self._config)
+        self._disable_sources_with_disabled_tools(self._config)
 
+    def _disable_configured_tools(self, config: ToolsConfig) -> None:
+        """Flip ``enabled`` off for every explicitly disabled tool.
+
+        Args:
+            config: The loaded tools configuration to mutate in place.
+        """
         for tool_id in self._disabled_tools:
-            tool = self._config.get_tool(tool_id)
+            tool = config.get_tool(tool_id)
             if tool:
                 tool.enabled = False
                 logger.debug("disabled tool: %s", tool_id)
 
-        for workflow in self._config.workflows.values():
+    def _disable_sources_with_disabled_tools(self, config: ToolsConfig) -> None:
+        """Flip off any search source whose backing tool is off or missing.
+
+        Args:
+            config: The loaded tools configuration to mutate in place.
+        """
+        for workflow in config.workflows.values():
             for source in workflow.search_sources:
-                tool = self._config.get_tool(source.tool)
+                tool = config.get_tool(source.tool)
                 if source.enabled and (tool is None or not tool.enabled):
                     source.enabled = False
                     logger.debug("disabled search source: %s", source.tool)

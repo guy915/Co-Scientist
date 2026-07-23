@@ -7,6 +7,7 @@ import {
   edges,
   leadsFrom,
   nodeById,
+  type Edge,
   type EdgeKind,
   type ProposalNode,
 } from './proposals_data';
@@ -43,6 +44,22 @@ function phraseFor(kind: EdgeKind, subjectIsSource: boolean): string {
   return INBOUND_PHRASE[kind] ?? definition.phrase;
 }
 
+// One edge translated into `id`'s point of view, or null when the edge does
+// not touch `id`.
+function relationFor(edge: Edge, id: string): Relation | null {
+  const subjectIsSource = edge.from === id;
+  if (!subjectIsSource && edge.to !== id) return null;
+  const otherId = subjectIsSource ? edge.to : edge.from;
+  const other = nodeById.get(otherId);
+  if (!other) return null;
+  return {
+    other,
+    kind: edge.kind,
+    note: edge.note,
+    phrase: phraseFor(edge.kind, subjectIsSource),
+  };
+}
+
 /**
  * Every relationship touching `id`, phrased from that node's point of view
  * and grouped by kind in legend order.
@@ -52,20 +69,9 @@ function phraseFor(kind: EdgeKind, subjectIsSource: boolean): string {
  */
 export function relationsOf(id: string): Relation[] {
   const order = EDGE_KINDS.map(entry => entry.kind);
-  const relations: Relation[] = [];
-  for (const edge of edges) {
-    const subjectIsSource = edge.from === id;
-    if (!subjectIsSource && edge.to !== id) continue;
-    const otherId = subjectIsSource ? edge.to : edge.from;
-    const other = nodeById.get(otherId);
-    if (!other) continue;
-    relations.push({
-      other,
-      kind: edge.kind,
-      note: edge.note,
-      phrase: phraseFor(edge.kind, subjectIsSource),
-    });
-  }
+  const relations = edges
+    .map(edge => relationFor(edge, id))
+    .filter((relation): relation is Relation => relation !== null);
   return relations.sort(
     (a, b) => order.indexOf(a.kind) - order.indexOf(b.kind),
   );

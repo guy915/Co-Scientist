@@ -89,20 +89,49 @@ class ExpertReviewValidationError(Exception):
     """Raised when an imported rating violates the schema."""
 
 
-def _parse_one_rating(raw: dict[str, Any]) -> ExpertRating:
-    """Validate one raw rating dict, failing closed on any violation."""
-    rater_id = str(raw.get("rater_id") or "")
-    item_id = str(raw.get("item_id") or "")
-    if not rater_id:
-        raise ExpertReviewValidationError("missing rater_id")
-    if not item_id:
-        raise ExpertReviewValidationError("missing item_id")
+def _validate_axes(raw: dict[str, Any]) -> None:
+    """Validate that every rating axis is an integer in 1-5.
+
+    Args:
+        raw: One raw rating dict.
+
+    Raises:
+        ExpertReviewValidationError: If any axis is missing or out of
+            range.
+    """
     for axis in RATING_AXES:
         value = raw.get(axis)
         if not isinstance(value, int) or not 1 <= value <= 5:
             raise ExpertReviewValidationError(
                 f"{axis} must be an integer in 1-5, got {value!r}"
             )
+
+
+def _validate_ids(raw: dict[str, Any]) -> tuple[str, str]:
+    """Validate the rater and item identifiers, failing closed.
+
+    Args:
+        raw: One raw rating dict.
+
+    Returns:
+        The validated (rater_id, item_id) pair.
+
+    Raises:
+        ExpertReviewValidationError: If either identifier is missing.
+    """
+    rater_id = str(raw.get("rater_id") or "")
+    item_id = str(raw.get("item_id") or "")
+    if not rater_id:
+        raise ExpertReviewValidationError("missing rater_id")
+    if not item_id:
+        raise ExpertReviewValidationError("missing item_id")
+    return rater_id, item_id
+
+
+def _parse_one_rating(raw: dict[str, Any]) -> ExpertRating:
+    """Validate one raw rating dict, failing closed on any violation."""
+    rater_id, item_id = _validate_ids(raw)
+    _validate_axes(raw)
     rank = raw.get("preference_rank")
     if not isinstance(rank, int) or rank < 1:
         raise ExpertReviewValidationError(

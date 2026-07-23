@@ -146,6 +146,33 @@ function taskPhaseKey(taskType: string): string {
   return first === 'node' || first === 'fanout' ? second : first;
 }
 
+// A status that alone determines the phase, bypassing the task/stage signals
+// entirely: queued runs have not reached any phase yet, and synthesizing runs
+// have finished every phase but 'completed' hasn't landed.
+function statusPhaseOverride(status: Run['status']): number | null {
+  if (status === 'queued') return 1;
+  if (status === 'synthesizing') return 4;
+  return null;
+}
+
+// The engine provider's signal: the phase of the durable task currently
+// leased, or null when there is none or its type is unmapped. An unmapped
+// task type and a deliberately phase-less one (orchestrator) both mean "no
+// signal", so both normalize to null.
+function taskPhaseFor(run: Run): number | null {
+  const activeTask = run.execution_progress?.active_task;
+  if (!activeTask) return null;
+  return TASK_PHASE[taskPhaseKey(activeTask)] ?? null;
+}
+
+// The mock provider's signal: the phase of the run's most recent reported
+// stage event, or null when there is none or it maps to no phase.
+function stagePhaseFor(run: Run): number | null {
+  const stage = run.latest_stage;
+  if (!stage) return null;
+  return STAGE_PHASE[stage] ?? null;
+}
+
 /**
  * Derives the 1-based phase (1-4) a live run is currently working in, reading
  * whichever real progress signal its provider reports: the engine provider
@@ -163,15 +190,9 @@ function taskPhaseKey(taskType: string): string {
  *   the caller showing the last phase actually observed.
  */
 export function homeRunStepIndex(run: Run): number | null {
-  if (run.status === 'queued') return 1;
-  if (run.status === 'synthesizing') return 4;
-  // An unmapped task type and a deliberately phase-less one (orchestrator)
-  // both mean "no signal", so both normalize to null.
-  const activeTask = run.execution_progress?.active_task;
-  const taskPhase = activeTask
-    ? (TASK_PHASE[taskPhaseKey(activeTask)] ?? null)
-    : null;
+  const override = statusPhaseOverride(run.status);
+  if (override !== null) return override;
+  const taskPhase = taskPhaseFor(run);
   if (taskPhase !== null) return taskPhase;
-  const stage = run.latest_stage;
-  return (stage ? STAGE_PHASE[stage] : null) ?? null;
+  return stagePhaseFor(run);
 }

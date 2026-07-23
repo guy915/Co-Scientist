@@ -85,41 +85,86 @@ function RunStepItem({icon, label}: {icon: IconName; label: string}) {
  * only when the Supervisor has committed a durable task budget; otherwise the
  * bar remains explicitly indeterminate.
  */
-// The progress bar itself: determinate width when a fraction is known,
-// otherwise an indeterminate pulse.
-function ProgressBar({percentage}: {percentage: number | null}) {
+// The indeterminate pulse variant, shown while no fraction is known yet.
+function IndeterminateProgressBar() {
   return (
     <div
       className="mt-2 h-1.5 overflow-hidden rounded-full bg-cosci-hover"
       role="progressbar"
       aria-label="Scientific task completion"
-      aria-valuemin={percentage === null ? undefined : 0}
-      aria-valuemax={percentage === null ? undefined : 100}
-      aria-valuenow={percentage ?? undefined}
+    >
+      <div className="h-full w-1/3 animate-pulse rounded-full bg-cosci-blue-strong" />
+    </div>
+  );
+}
+
+// The determinate width variant, shown once a real fraction is known.
+function DeterminateProgressBar({percentage}: {percentage: number}) {
+  return (
+    <div
+      className="mt-2 h-1.5 overflow-hidden rounded-full bg-cosci-hover"
+      role="progressbar"
+      aria-label="Scientific task completion"
+      aria-valuemin={0}
+      aria-valuemax={100}
+      aria-valuenow={percentage}
     >
       <div
-        className={
-          percentage === null
-            ? 'h-full w-1/3 animate-pulse rounded-full bg-cosci-blue-strong'
-            : 'h-full rounded-full bg-cosci-blue-strong transition-[width]'
-        }
-        style={percentage === null ? undefined : {width: `${percentage}%`}}
+        className="h-full rounded-full bg-cosci-blue-strong transition-[width]"
+        style={{width: `${percentage}%`}}
       />
     </div>
   );
 }
 
-export function RunExecutionProgress({run}: {run: Run}) {
+// The progress bar itself: determinate width when a fraction is known,
+// otherwise an indeterminate pulse.
+function ProgressBar({percentage}: {percentage: number | null}) {
+  return percentage === null ? (
+    <IndeterminateProgressBar />
+  ) : (
+    <DeterminateProgressBar percentage={percentage} />
+  );
+}
+
+// The active-task label: the humanized durable task when the engine provider
+// reports one, else the humanized stage when the mock provider reports one,
+// else a neutral placeholder while neither signal has arrived yet.
+function activeTaskLabel(run: Run): string {
+  const activeTask = run.execution_progress?.active_task;
+  if (activeTask) return humanizeTask(activeTask);
+  if (run.latest_stage) return humanizeTask(run.latest_stage);
+  return 'Waiting for Supervisor allocation';
+}
+
+// The completion percentage, only once the Supervisor has committed a real,
+// non-zero fraction; null (indeterminate) otherwise.
+function executionPercentage(run: Run): number | null {
   const progress = run.execution_progress;
-  const activeTask = progress?.active_task
-    ? humanizeTask(progress.active_task)
-    : run.latest_stage
-      ? humanizeTask(run.latest_stage)
-      : 'Waiting for Supervisor allocation';
-  const percentage =
-    progress?.determinate && progress.fraction !== null
-      ? Math.round(progress.fraction * 100)
-      : null;
+  if (!progress?.determinate || progress.fraction === null) return null;
+  return Math.round(progress.fraction * 100);
+}
+
+// Committed-task counts for the "N of M complete" line, only while the
+// Supervisor's progress is determinate.
+function committedTaskCounts(run: Run): {
+  completed: number;
+  total: number;
+  queued: number;
+} | null {
+  const progress = run.execution_progress;
+  if (!progress?.determinate) return null;
+  return {
+    completed: progress.completed_tasks,
+    total: progress.total_tasks,
+    queued: progress.queued_tasks,
+  };
+}
+
+export function RunExecutionProgress({run}: {run: Run}) {
+  const activeTask = activeTaskLabel(run);
+  const percentage = executionPercentage(run);
+  const counts = committedTaskCounts(run);
 
   return (
     <section className="mt-4" aria-label="Run execution progress">
@@ -130,10 +175,10 @@ export function RunExecutionProgress({run}: {run: Run}) {
         </span>
       </div>
       <ProgressBar percentage={percentage} />
-      {progress?.determinate ? (
+      {counts ? (
         <p className="mt-2 text-xs text-cosci-muted">
-          {progress.completed_tasks} of {progress.total_tasks} committed tasks
-          complete · {progress.queued_tasks} queued
+          {counts.completed} of {counts.total} committed tasks complete ·{' '}
+          {counts.queued} queued
         </p>
       ) : null}
     </section>

@@ -13,14 +13,9 @@ import {
 import {LABEL_WRAP_CHARS, type Layout} from './proposals_layout';
 import {neighborsOf} from './proposals_relations';
 
-/**
- * Splits a label across at most two lines, breaking at the space nearest the
- * middle. SVG text does not wrap, so the break is computed rather than left
- * to the renderer.
- */
-function labelLines(label: string): string[] {
-  if (label.length <= LABEL_WRAP_CHARS) return [label];
-  const middle = Math.floor(label.length / 2);
+// The index of the space in `label` nearest to `middle`, or -1 when the
+// label has no space to break on.
+function nearestSpaceIndex(label: string, middle: number): number {
   let breakAt = -1;
   for (let i = 0; i < label.length; i++) {
     if (label[i] !== ' ') continue;
@@ -28,6 +23,17 @@ function labelLines(label: string): string[] {
       breakAt = i;
     }
   }
+  return breakAt;
+}
+
+/**
+ * Splits a label across at most two lines, breaking at the space nearest the
+ * middle. SVG text does not wrap, so the break is computed rather than left
+ * to the renderer.
+ */
+function labelLines(label: string): string[] {
+  if (label.length <= LABEL_WRAP_CHARS) return [label];
+  const breakAt = nearestSpaceIndex(label, Math.floor(label.length / 2));
   if (breakAt === -1) return [label];
   return [label.slice(0, breakAt), label.slice(breakAt + 1)];
 }
@@ -53,17 +59,35 @@ function inSelectedCluster(state: HighlightState, id: string): boolean {
   return node ? state.selectedClusters.has(node.cluster) : false;
 }
 
+// A node's class while a focus is active: itself lit as the focus, its
+// neighbors linked, everything else dimmed.
+function focusedNodeClass(node: ProposalNode, state: HighlightState): string {
+  if (node.id === state.focusId) return ' is-focus';
+  return state.lit?.has(node.id) ? ' is-linked' : ' is-dim';
+}
+
+// A node's class from the standing category legend alone (no focus active).
+function clusterDimClass(state: HighlightState, cluster: ClusterId): string {
+  return state.clusterFilter && !state.selectedClusters.has(cluster)
+    ? ' is-dim'
+    : '';
+}
+
 // Hovering takes precedence over the category legend: one is a momentary
 // question about a single node, the other a standing filter.
 function nodeStateClass(node: ProposalNode, state: HighlightState): string {
-  if (state.focusId) {
-    if (node.id === state.focusId) return ' is-focus';
-    return state.lit?.has(node.id) ? ' is-linked' : ' is-dim';
-  }
-  if (state.clusterFilter && !state.selectedClusters.has(node.cluster)) {
-    return ' is-dim';
-  }
-  return '';
+  if (state.focusId) return focusedNodeClass(node, state);
+  return clusterDimClass(state, node.cluster);
+}
+
+// Whether an edge is dimmed by the standing category legend: neither of its
+// endpoints falls in a selected cluster.
+function edgeClusterDim(state: HighlightState, edge: Edge): boolean {
+  return (
+    state.clusterFilter &&
+    !inSelectedCluster(state, edge.from) &&
+    !inSelectedCluster(state, edge.to)
+  );
 }
 
 // Only what the focused node leads to: an incoming arrow is a statement
@@ -73,14 +97,7 @@ function edgeStateClass(edge: Edge, state: HighlightState): string {
   if (state.focusId) {
     return leadsFrom(edge, state.focusId) ? ' is-lit' : ' is-dim';
   }
-  if (
-    state.clusterFilter &&
-    !inSelectedCluster(state, edge.from) &&
-    !inSelectedCluster(state, edge.to)
-  ) {
-    return ' is-dim';
-  }
-  return '';
+  return edgeClusterDim(state, edge) ? ' is-dim' : '';
 }
 
 function GraphHulls({layout}: {layout: Layout}) {

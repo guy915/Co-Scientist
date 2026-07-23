@@ -189,6 +189,14 @@ def render_research_overview_markdown(overview: dict[str, Any]) -> list[str]:
     return lines
 
 
+def _render_contact_evidence_line(contact: dict[str, Any]) -> list[str]:
+    """Render a contact's source-evidence line, or nothing when unsourced."""
+    title, url = contact.get("source_title"), contact.get("source_url")
+    if not title:
+        return []
+    return [f"Evidence: [{title}]({url})\n" if url else f"Evidence: {title}\n"]
+
+
 def _render_contact_entry(contact: dict[str, Any]) -> list[str]:
     """Render one research-contact entry, or nothing when unnamed."""
     if not isinstance(contact, dict) or not contact.get("name"):
@@ -198,12 +206,7 @@ def _render_contact_entry(contact: dict[str, Any]) -> list[str]:
         lines.append(f"**Relevant expertise:** {contact['expertise']}\n")
     if contact.get("justification"):
         lines.append(f"{contact['justification']}\n")
-    source_title = contact.get("source_title")
-    source_url = contact.get("source_url")
-    if source_title and source_url:
-        lines.append(f"Evidence: [{source_title}]({source_url})\n")
-    elif source_title:
-        lines.append(f"Evidence: {source_title}\n")
+    lines += _render_contact_evidence_line(contact)
     return lines
 
 

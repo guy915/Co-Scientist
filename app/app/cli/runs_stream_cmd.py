@@ -71,6 +71,49 @@ WAIT_EXIT_CODES = {
 }
 
 
+def _wait_deadline(max_wait: float | None) -> float | None:
+    """Return the monotonic deadline ``max_wait`` seconds out, if any."""
+    if max_wait is None:
+        return None
+    return time.monotonic() + max_wait
+
+
+def _wait_deadline_expired(deadline: float | None) -> bool:
+    """Return whether a ``_wait_deadline`` result has now passed."""
+    return deadline is not None and time.monotonic() >= deadline
+
+
+def _note_wait_status(
+    run_id: str, status: str, last_status: str | None, as_json: bool
+) -> str:
+    """Print a status-change line in text mode; return the new status.
+
+    Args:
+        run_id: The run being polled, used in the printed line.
+        status: The status just observed.
+        last_status: The status last observed, or None initially.
+        as_json: Whether ``--json`` was requested (suppresses the line).
+
+    Returns:
+        ``status``, to become the caller's new ``last_status``.
+    """
+    if status != last_status and not as_json:
+        print(f"{run_id}\t{status}", flush=True)
+    return status
+
+
+def _wait_exit_code(
+    status: str, body: dict[str, Any], as_json: bool
+) -> int | None:
+    """Return the run's exit code once its status is terminal, else None."""
+    exit_code = WAIT_EXIT_CODES.get(status)
+    if exit_code is None:
+        return None
+    if as_json:
+        emit_json(body)
+    return exit_code
+
+
 def handle_wait(args: argparse.Namespace, client: ApiClient) -> int:
     """Poll a run until it settles and exit with a status-specific code.
 
@@ -83,23 +126,18 @@ def handle_wait(args: argparse.Namespace, client: ApiClient) -> int:
     interval: float = args.interval
     max_wait: float | None = args.max_wait
     as_json: bool = args.json
-    deadline = None if max_wait is None else time.monotonic() + max_wait
+    deadline = _wait_deadline(max_wait)
     last_status: str | None = None
     while True:
         body = expect_object(
             client.request_json("GET", _run_path(run_id)), _run_path(run_id)
         )
         status = str(body.get("status") or "")
-        if status != last_status:
-            last_status = status
-            if not as_json:
-                print(f"{run_id}\t{status}", flush=True)
-        exit_code = WAIT_EXIT_CODES.get(status)
+        last_status = _note_wait_status(run_id, status, last_status, as_json)
+        exit_code = _wait_exit_code(status, body, as_json)
         if exit_code is not None:
-            if as_json:
-                emit_json(body)
             return exit_code
-        if deadline is not None and time.monotonic() >= deadline:
+        if _wait_deadline_expired(deadline):
             raise CliError(
                 f"run {run_id} still '{status or 'unknown'}' after {max_wait}s",
                 exit_code=124,
@@ -174,6 +212,53 @@ def _consume_watch_connection(
     return False
 
 
+def _consume_watch_attempt(
+    client: ApiClient,
+    run_id: str,
+    as_json: bool,
+    progress: _WatchProgress,
+) -> tuple[bool, ApiUnreachableError | None]:
+    """Run one watch connection attempt.
+
+    Returns:
+        A ``(terminal, error)`` pair: ``terminal`` is True once the
+        stream's synthetic ``_terminal`` frame has been printed, and
+        ``error`` holds the connection failure when the attempt raised
+        ``ApiUnreachableError`` instead of closing cleanly.
+    """
+    try:
+        terminal = _consume_watch_connection(client, run_id, as_json, progress)
+    except ApiUnreachableError as exc:
+        return False, exc
+    return terminal, None
+
+
+def _enforce_watch_reconnect_budget(
+    failures: int, run_id: str, last_error: ApiUnreachableError | None
+) -> None:
+    """Raise once the watch reconnect budget is exhausted.
+
+    Args:
+        failures: Consecutive unproductive connection attempts so far.
+        run_id: The run being watched, used in the fallback message.
+        last_error: The most recent connection failure, if any, raised
+            in preference to a generic message.
+
+    Raises:
+        ApiUnreachableError: If the last attempt failed to connect.
+        CliError: If attempts closed cleanly but never reached a
+            terminal status.
+    """
+    if failures <= WATCH_RECONNECT_ATTEMPTS:
+        return
+    if last_error is not None:
+        raise last_error
+    raise CliError(
+        f"event stream for run {run_id} kept closing without "
+        "reaching a terminal status"
+    )
+
+
 def handle_watch(args: argparse.Namespace, client: ApiClient) -> int:
     """Tail a run's event stream, one line per event, exit on terminal.
 
@@ -192,22 +277,13 @@ def handle_watch(args: argparse.Namespace, client: ApiClient) -> int:
     try:
         while True:
             progress.progressed = False
-            try:
-                if _consume_watch_connection(client, run_id, as_json, progress):
-                    return 0
-                last_error = None
-            except ApiUnreachableError as exc:
-                last_error = exc
-            if progress.progressed:
-                failures = 0
-            failures += 1
-            if failures > WATCH_RECONNECT_ATTEMPTS:
-                if last_error is not None:
-                    raise last_error
-                raise CliError(
-                    f"event stream for run {run_id} kept closing without "
-                    "reaching a terminal status"
-                )
+            terminal, last_error = _consume_watch_attempt(
+                client, run_id, as_json, progress
+            )
+            if terminal:
+                return 0
+            failures = 1 if progress.progressed else failures + 1
+            _enforce_watch_reconnect_budget(failures, run_id, last_error)
             time.sleep(WATCH_RECONNECT_WAIT)
     except KeyboardInterrupt:
         return 130
@@ -231,27 +307,40 @@ class _AskState:
     saw_error: bool = False
 
 
-def _handle_ask_event(
-    event: dict[str, Any], as_json: bool, state: _AskState
-) -> None:
-    """Apply one SSE frame from the ask stream to stdout/stderr and state."""
-    if as_json:
-        print(json.dumps(event, ensure_ascii=False))
-        state.saw_error = state.saw_error or event.get("type") == "error"
-        return
+def _handle_ask_event_json(event: dict[str, Any], state: _AskState) -> None:
+    """Echo one ask-stream SSE frame as JSON and track error state."""
+    print(json.dumps(event, ensure_ascii=False))
+    if event.get("type") == "error":
+        state.saw_error = True
+
+
+def _handle_ask_event_text(event: dict[str, Any], state: _AskState) -> None:
+    """Apply one ask-stream SSE frame to stdout/stderr in text mode."""
     etype = event.get("type")
     if etype == "chunk":
         sys.stdout.write(str(event.get("content", "")))
         sys.stdout.flush()
         state.wrote_chunk = True
-    elif etype in ("done", "error"):
-        # Terminate the streamed answer line only if we wrote one.
-        if state.wrote_chunk:
-            sys.stdout.write("\n")
-            sys.stdout.flush()
-        if etype == "error":
-            print(str(event.get("message", "")), file=sys.stderr)
-            state.saw_error = True
+        return
+    if etype not in ("done", "error"):
+        return
+    # Terminate the streamed answer line only if we wrote one.
+    if state.wrote_chunk:
+        sys.stdout.write("\n")
+        sys.stdout.flush()
+    if etype == "error":
+        print(str(event.get("message", "")), file=sys.stderr)
+        state.saw_error = True
+
+
+def _handle_ask_event(
+    event: dict[str, Any], as_json: bool, state: _AskState
+) -> None:
+    """Apply one SSE frame from the ask stream to stdout/stderr and state."""
+    if as_json:
+        _handle_ask_event_json(event, state)
+    else:
+        _handle_ask_event_text(event, state)
 
 
 def handle_ask(args: argparse.Namespace, client: ApiClient) -> int:

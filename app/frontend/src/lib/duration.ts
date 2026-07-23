@@ -1,6 +1,19 @@
 const HOUR_SECONDS = 3600; // threshold above which durations render in hours
 const MINUTE_SECONDS = 60;
 
+/** Renders `value` with its unit, pluralized. */
+function pluralize(value: number, unit: string): string {
+  return `${value} ${unit}${value === 1 ? '' : 's'}`;
+}
+
+/** Whether a duration should render as the "< 1 minute" placeholder. */
+function isSubMinute(
+  seconds: number,
+  options?: {subMinute?: boolean},
+): boolean {
+  return Boolean(options?.subMinute) && seconds < MINUTE_SECONDS;
+}
+
 /**
  * Formats a duration in seconds as a rounded human phrase, e.g. "3 hours" or
  * "12 minutes". Durations of at least one hour render in hours; shorter ones
@@ -16,12 +29,9 @@ export function formatDurationPhrase(
   options?: {subMinute?: boolean},
 ): string {
   if (seconds >= HOUR_SECONDS) {
-    const hours = Math.round(seconds / HOUR_SECONDS);
-    return `${hours} hour${hours === 1 ? '' : 's'}`;
+    return pluralize(Math.round(seconds / HOUR_SECONDS), 'hour');
   }
-  if (options?.subMinute && seconds < MINUTE_SECONDS) {
-    return '< 1 minute';
-  }
+  if (isSubMinute(seconds, options)) return '< 1 minute';
   const minutes = Math.max(1, Math.round(seconds / MINUTE_SECONDS));
-  return `${minutes} minute${minutes === 1 ? '' : 's'}`;
+  return pluralize(minutes, 'minute');
 }

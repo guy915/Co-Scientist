@@ -383,6 +383,17 @@ async def _enqueue_generation_fanout(
     }
 
 
+def _maturity_specs(hypothesis: Any, iteration: int) -> list[tuple[str, str]]:
+    """Return full/simulation/recurrent specs by enrichment maturity."""
+    if "full" not in hypothesis.enrichments:
+        return [(hypothesis.id, "full"), (hypothesis.id, "simulation")]
+    if iteration > int(
+        hypothesis.enrichments.get("recurrent_review_iteration", -1)
+    ):
+        return [(hypothesis.id, "recurrent")]
+    return []
+
+
 def _mature_reflection_specs(state: dict[str, Any]) -> list[tuple[str, str]]:
     """Return (hypothesis_id, review_mode) specs for reflection by maturity."""
     iteration = int(state.get("current_iteration", 0))
@@ -393,14 +404,7 @@ def _mature_reflection_specs(state: dict[str, Any]) -> list[tuple[str, str]]:
             continue
         if literature and not hypothesis.reflection_notes:
             specs.append((hypothesis.id, "observation"))
-        if "full" not in hypothesis.enrichments:
-            specs.extend(
-                ((hypothesis.id, "full"), (hypothesis.id, "simulation"))
-            )
-        elif iteration > int(
-            hypothesis.enrichments.get("recurrent_review_iteration", -1)
-        ):
-            specs.append((hypothesis.id, "recurrent"))
+        specs += _maturity_specs(hypothesis, iteration)
     return specs
 
 

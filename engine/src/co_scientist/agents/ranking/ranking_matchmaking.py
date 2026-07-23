@@ -125,6 +125,38 @@ def _select_primary(
     return _weighted_choice(scored, rng)
 
 
+def _is_eligible_partner(
+    candidate: MatchCandidate,
+    primary: MatchCandidate,
+    recent_pairs: set[frozenset[str]],
+) -> bool:
+    """Return whether candidate may pair with primary this round.
+
+    Excludes ``primary`` itself and any pair already scheduled this round
+    set (no self-matches, no immediate duplicate rematches).
+    """
+    if candidate.id == primary.id:
+        return False
+    return frozenset({primary.id, candidate.id}) not in recent_pairs
+
+
+def _partner_score(
+    candidate: MatchCandidate,
+    primary: MatchCandidate,
+    coverage: dict[str, int],
+    elo_lo: int,
+    elo_hi: int,
+    weights: MatchmakingWeights,
+) -> float:
+    """Score candidate as a partner, with a same-cluster similarity bonus."""
+    score = _priority(candidate, coverage, elo_lo, elo_hi, weights)
+    same_cluster = (
+        primary.cluster_id is not None
+        and candidate.cluster_id == primary.cluster_id
+    )
+    return score + weights.similarity_bonus if same_cluster else score
+
+
 def _select_partner(
     primary: MatchCandidate,
     candidates: list[MatchCandidate],
@@ -141,19 +173,11 @@ def _select_partner(
     likely compared. Returns None if no valid partner remains.
     """
     elo_lo, elo_hi = _elo_range(candidates)
-    scored: list[tuple[MatchCandidate, float]] = []
-    for c in candidates:
-        if c.id == primary.id:
-            continue
-        if frozenset({primary.id, c.id}) in recent_pairs:
-            continue
-        score = _priority(c, coverage, elo_lo, elo_hi, weights)
-        if (
-            primary.cluster_id is not None
-            and c.cluster_id == primary.cluster_id
-        ):
-            score += weights.similarity_bonus
-        scored.append((c, score))
+    scored = [
+        (c, _partner_score(c, primary, coverage, elo_lo, elo_hi, weights))
+        for c in candidates
+        if _is_eligible_partner(c, primary, recent_pairs)
+    ]
     if not scored:
         return None
     return _weighted_choice(scored, rng)

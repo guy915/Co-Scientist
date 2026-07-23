@@ -85,6 +85,44 @@ def _extract(body: Any, after_id: int) -> tuple[list[dict[str, Any]], int]:
     return rows, max(after_id, cursor)
 
 
+def _handle_clear(client: ApiClient, as_json: bool) -> int:
+    """Delete every persisted log record and report the outcome."""
+    body = client.request_json("DELETE", "/api/logs")
+    if as_json:
+        emit_json(body)
+    else:
+        deleted = body.get("deleted", "") if isinstance(body, dict) else ""
+        print(f"deleted\t{deleted}")
+    return 0
+
+
+def _print_log_rows(rows: list[dict[str, Any]], as_json: bool) -> None:
+    """Print one line per row, as JSON or the tab-delimited text format."""
+    for row in rows:
+        if as_json:
+            print(json.dumps(row, ensure_ascii=False), flush=True)
+        else:
+            print(format_log_line(row), flush=True)
+
+
+def _poll_logs(args: argparse.Namespace, client: ApiClient) -> int:
+    """Poll ``/api/logs`` once, or repeatedly while ``--follow`` is set."""
+    follow: bool = args.follow
+    interval: float = args.interval
+    as_json: bool = args.json
+    after_id: int = args.after_id
+    while True:
+        body = client.request_json("GET", _logs_path(args, after_id))
+        if as_json and not follow:
+            emit_json(body)
+            return 0
+        rows, after_id = _extract(body, after_id)
+        _print_log_rows(rows, as_json)
+        if not follow:
+            return 0
+        time.sleep(interval)
+
+
 def handle_logs(args: argparse.Namespace, client: ApiClient) -> int:
     """Print persisted log records; with ``--follow`` keep tailing.
 
@@ -94,31 +132,8 @@ def handle_logs(args: argparse.Namespace, client: ApiClient) -> int:
     reading. Ctrl-C ends a follow with exit code 130.
     """
     if args.clear:
-        body = client.request_json("DELETE", "/api/logs")
-        if args.json:
-            emit_json(body)
-        else:
-            deleted = body.get("deleted", "") if isinstance(body, dict) else ""
-            print(f"deleted\t{deleted}")
-        return 0
-    follow: bool = args.follow
-    interval: float = args.interval
-    as_json: bool = args.json
-    after_id: int = args.after_id
+        return _handle_clear(client, args.json)
     try:
-        while True:
-            body = client.request_json("GET", _logs_path(args, after_id))
-            if as_json and not follow:
-                emit_json(body)
-                return 0
-            rows, after_id = _extract(body, after_id)
-            for row in rows:
-                if as_json:
-                    print(json.dumps(row, ensure_ascii=False), flush=True)
-                else:
-                    print(format_log_line(row), flush=True)
-            if not follow:
-                return 0
-            time.sleep(interval)
+        return _poll_logs(args, client)
     except KeyboardInterrupt:
         return 130

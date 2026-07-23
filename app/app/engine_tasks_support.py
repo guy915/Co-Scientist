@@ -194,31 +194,38 @@ def _save_state_and_enqueue(
     return checkpoint_seq, successor_task.id
 
 
+def _apply_single_queue_action(
+    task_id: str,
+    action: dict[str, Any],
+    conn: sqlite3.Connection,
+) -> None:
+    """Apply one bounded queue mutation the Supervisor requested."""
+    reason = str(action.get("reason") or "Supervisor queue update")
+    kind = action.get("action")
+    if kind == "cancel":
+        store.cancel_task(task_id, reason=reason, conn=conn)
+        return
+    if kind == "retry":
+        store.retry_task(task_id, reason=reason, conn=conn)
+        return
+    priority = action.get("priority")
+    if kind == "reprioritize" and priority is not None:
+        store.reprioritize_task(
+            task_id, int(priority), reason=reason, conn=conn
+        )
+
+
 def _apply_supervisor_queue_actions(
     run_id: str,
     actions: list[dict[str, Any]],
     conn: sqlite3.Connection,
 ) -> None:
     """Apply bounded same-run queue mutations inside the checkpoint commit."""
-    tasks = {task.id: task for task in store.list_tasks(run_id, conn=conn)}
+    known_ids = {task.id for task in store.list_tasks(run_id, conn=conn)}
     for action in actions[:8]:
         task_id = str(action.get("task_id") or "")
-        target = tasks.get(task_id)
-        if target is None:
-            continue
-        reason = str(action.get("reason") or "Supervisor queue update")
-        kind = action.get("action")
-        if kind == "reprioritize" and action.get("priority") is not None:
-            store.reprioritize_task(
-                task_id,
-                int(action["priority"]),
-                reason=reason,
-                conn=conn,
-            )
-        elif kind == "cancel":
-            store.cancel_task(task_id, reason=reason, conn=conn)
-        elif kind == "retry":
-            store.retry_task(task_id, reason=reason, conn=conn)
+        if task_id in known_ids:
+            _apply_single_queue_action(task_id, action, conn)
 
 
 def _durable_queue_snapshot(

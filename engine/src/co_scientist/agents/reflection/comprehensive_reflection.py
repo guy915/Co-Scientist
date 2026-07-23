@@ -252,26 +252,31 @@ def _build_review_prompt(
     return prompt, schema
 
 
-async def _review_hypothesis(
-    state: WorkflowState, hypothesis: Hypothesis
-) -> int:
-    """Apply maturity-appropriate reviews to one viable hypothesis."""
-    iteration = int(state.get("current_iteration", 0))
-    reviews: list[ReviewType] = []
+def _reviews_needed(hypothesis: Hypothesis, iteration: int) -> list[ReviewType]:
+    """Return the maturity-appropriate reviews due for one hypothesis.
+
+    A hypothesis with no full review yet gets full + simulation; one
+    already reviewed gets a recurrent review only if a later iteration
+    has not yet been recorded.
+    """
     if ReviewType.FULL.value not in hypothesis.enrichments:
-        reviews.extend((ReviewType.FULL, ReviewType.SIMULATION))
-    elif iteration > int(
-        hypothesis.enrichments.get("recurrent_review_iteration", -1)
-    ):
-        reviews.append(ReviewType.RECURRENT)
-    if not reviews:
-        return 0
-    results = await asyncio.gather(
-        *[
-            _run_review(state, hypothesis, review_type)
-            for review_type in reviews
-        ]
-    )
+        return [ReviewType.FULL, ReviewType.SIMULATION]
+    recorded = int(hypothesis.enrichments.get("recurrent_review_iteration", -1))
+    if iteration > recorded:
+        return [ReviewType.RECURRENT]
+    return []
+
+
+def _apply_review_results(
+    hypothesis: Hypothesis,
+    iteration: int,
+    results: list[tuple[ReviewType, dict[str, Any] | None]],
+) -> int:
+    """Store each successful review result on the hypothesis's enrichments.
+
+    Returns:
+        The number of results that were not None.
+    """
     successful = 0
     for review_type, result in results:
         if result is None:
@@ -280,6 +285,24 @@ async def _review_hypothesis(
         if review_type is ReviewType.RECURRENT:
             hypothesis.enrichments["recurrent_review_iteration"] = iteration
         successful += 1
+    return successful
+
+
+async def _review_hypothesis(
+    state: WorkflowState, hypothesis: Hypothesis
+) -> int:
+    """Apply maturity-appropriate reviews to one viable hypothesis."""
+    iteration = int(state.get("current_iteration", 0))
+    reviews = _reviews_needed(hypothesis, iteration)
+    if not reviews:
+        return 0
+    results = await asyncio.gather(
+        *[
+            _run_review(state, hypothesis, review_type)
+            for review_type in reviews
+        ]
+    )
+    successful = _apply_review_results(hypothesis, iteration, results)
     state["articles"] = merge_retrieved_articles(
         state.get("articles"), [result for _, result in results]
     )

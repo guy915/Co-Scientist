@@ -283,40 +283,57 @@ def _prose(node, out: list[str]) -> None:
             out.append(child.tail)
 
 
+def _prose_text(node) -> str:
+    """Collapse a node's rendered prose into one whitespace-joined line."""
+    parts: list[str] = []
+    _prose(node, parts)
+    return " ".join("".join(parts).split())
+
+
+def _walk_section(child, depth: int, chunks: list[str]) -> None:
+    """Emit a section's heading (if any), then recurse into its body."""
+    title_el = next((gc for gc in child if _local(gc.tag) == "title"), None)
+    if title_el is not None:
+        heading = _prose_text(title_el)
+        if heading:
+            hashes = "#" * min(depth + 2, 6)
+            chunks.append(f"\n{hashes} {heading}\n")
+    _walk_body(child, depth + 1, chunks)
+
+
+def _append_paragraph(child, chunks: list[str]) -> None:
+    """Append a paragraph's collapsed prose when long enough to matter."""
+    para = _prose_text(child)
+    if len(para) > 40:
+        chunks.append(para)
+
+
+def _walk_body_child(child, depth: int, chunks: list[str]) -> None:
+    """Route a child node to section/paragraph handling, or recurse past it."""
+    name = _local(child.tag)
+    if name in _DROP_TAGS:
+        return
+    if name == "sec":
+        _walk_section(child, depth, chunks)
+    elif name == "p":
+        _append_paragraph(child, chunks)
+    else:
+        _walk_body(child, depth, chunks)
+
+
+def _walk_body(node, depth: int, chunks: list[str]) -> None:
+    """Recursively collect heading and paragraph prose from a JATS tree."""
+    for child in node:
+        _walk_body_child(child, depth, chunks)
+
+
 def extract_pmc_body(root) -> str:
     """Pull section-titled prose out of a JATS full-text article."""
     body = next((el for el in root.iter() if _local(el.tag) == "body"), None)
     if body is None:
         return ""
     chunks: list[str] = []
-
-    def walk(node, depth: int) -> None:
-        for child in node:
-            name = _local(child.tag)
-            if name in _DROP_TAGS:
-                continue
-            if name == "sec":
-                title_el = next(
-                    (gc for gc in child if _local(gc.tag) == "title"), None
-                )
-                if title_el is not None:
-                    parts: list[str] = []
-                    _prose(title_el, parts)
-                    heading = " ".join("".join(parts).split())
-                    if heading:
-                        hashes = "#" * min(depth + 2, 6)
-                        chunks.append(f"\n{hashes} {heading}\n")
-                walk(child, depth + 1)
-            elif name == "p":
-                parts = []
-                _prose(child, parts)
-                para = " ".join("".join(parts).split())
-                if len(para) > 40:
-                    chunks.append(para)
-            else:
-                walk(child, depth)
-
-    walk(body, 0)
+    _walk_body(body, 0, chunks)
     return re.sub(r"\n{3,}", "\n\n", "\n\n".join(chunks)).strip()
 
 

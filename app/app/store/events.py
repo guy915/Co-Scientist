@@ -31,17 +31,22 @@ _STAGE_MAX_CHARS = 200
 _STAGE_VALUE_MAX_CHARS = 60
 
 
+def _summarize_string_value(key: str, value: str) -> str | None:
+    """Render a string payload entry compactly, or None to omit it."""
+    text = " ".join(value.split())
+    if not text:
+        return None
+    if len(text) > _STAGE_VALUE_MAX_CHARS:
+        text = text[:_STAGE_VALUE_MAX_CHARS] + "..."
+    return f"{key}={text}"
+
+
 def _summarize_value(key: str, value: Any) -> str | None:
     """Render one payload entry compactly, or None to omit it."""
     if isinstance(value, (bool, int, float)):
         return f"{key}={value}"
     if isinstance(value, str):
-        text = " ".join(value.split())
-        if not text:
-            return None
-        if len(text) > _STAGE_VALUE_MAX_CHARS:
-            text = text[:_STAGE_VALUE_MAX_CHARS] + "..."
-        return f"{key}={text}"
+        return _summarize_string_value(key, value)
     if isinstance(value, (list, dict)):
         # Size, never contents: payloads carry whole hypothesis and
         # match collections.

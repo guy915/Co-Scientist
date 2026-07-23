@@ -18,6 +18,27 @@ type InterviewFrame =
   | {type: 'error'; detail: string};
 
 /**
+ * Applies one streamed interview frame to the in-progress interview: relays
+ * reasoning fragments, adopts a completed interview snapshot, or throws on
+ * an error frame. Returns the interview unchanged for a reasoning frame.
+ */
+function applyInterviewFrame(
+  frame: InterviewFrame,
+  interview: Interview | undefined,
+  onReasoning?: (fragment: string) => void,
+): Interview | undefined {
+  switch (frame.type) {
+    case 'reasoning':
+      onReasoning?.(frame.content);
+      return interview;
+    case 'interview':
+      return frame.interview;
+    case 'error':
+      throw new Error(frame.detail);
+  }
+}
+
+/**
  * Runs one streamed interview turn, relaying the model's live reasoning.
  *
  * The turn streams so the chain of thought can be shown while the Agent is
@@ -36,9 +57,7 @@ async function streamInterviewTurn(
   const res = await fetch(`${API_BASE_URL}${path}`, jsonRequest(body, true));
   let interview: Interview | undefined;
   for await (const frame of readSseFrames<InterviewFrame>(res)) {
-    if (frame.type === 'reasoning') onReasoning?.(frame.content);
-    else if (frame.type === 'interview') interview = frame.interview;
-    else if (frame.type === 'error') throw new Error(frame.detail);
+    interview = applyInterviewFrame(frame, interview, onReasoning);
   }
   if (!interview) {
     throw new Error('The Agent could not continue the interview.');

@@ -353,6 +353,43 @@ def _best_sentence(claim: str, text: str) -> str:
     return max(sentences, key=lambda s: _lexical_score(claim, s))
 
 
+def _classify_passage(
+    claim: str, passage: EvidencePassage, support_threshold: float
+) -> tuple[str, tuple[str, str]] | None:
+    """Classify one passage as contradicting, supporting, or neither.
+
+    Only locates the best sentence for passages that actually qualify;
+    sentence splitting is wasted work for the rest.
+
+    Returns:
+        A ``(kind, (evidence_id, quote))`` pair where ``kind`` is
+        ``"contradicts"`` or ``"supports"``, or ``None`` when the passage
+        clears neither bar.
+    """
+    score = _lexical_score(claim, passage.text)
+    lowered = passage.text.lower()
+    has_marker = any(m in lowered for m in _CONTRADICTION_MARKERS)
+    if has_marker and score >= support_threshold / 2:
+        quote = _best_sentence(claim, passage.text)
+        return "contradicts", (passage.evidence_id, quote)
+    if score >= support_threshold:
+        quote = _best_sentence(claim, passage.text)
+        return "supports", (passage.evidence_id, quote)
+    return None
+
+
+def _entailment_label(
+    supporting: Sequence[tuple[str, str]],
+    contradicting: Sequence[tuple[str, str]],
+) -> EntailmentLabel:
+    """Pick the overall label for a claim: contradiction dominates support."""
+    if contradicting:
+        return EntailmentLabel.CONTRADICTS
+    if supporting:
+        return EntailmentLabel.SUPPORTS
+    return EntailmentLabel.INSUFFICIENT
+
+
 def deterministic_assessor(
     claim: str,
     passages: Sequence[EvidencePassage],
@@ -370,26 +407,17 @@ def deterministic_assessor(
     supporting: list[tuple[str, str]] = []
     contradicting: list[tuple[str, str]] = []
     for passage in passages:
-        score = _lexical_score(claim, passage.text)
-        lowered = passage.text.lower()
-        has_marker = any(m in lowered for m in _CONTRADICTION_MARKERS)
-        # Only locate the best sentence for passages that actually qualify;
-        # sentence splitting is wasted work for the rest.
-        if has_marker and score >= support_threshold / 2:
-            quote = _best_sentence(claim, passage.text)
-            contradicting.append((passage.evidence_id, quote))
-        elif score >= support_threshold:
-            quote = _best_sentence(claim, passage.text)
-            supporting.append((passage.evidence_id, quote))
+        classified = _classify_passage(claim, passage, support_threshold)
+        if classified is None:
+            continue
+        kind, entry = classified
+        if kind == "contradicts":
+            contradicting.append(entry)
+        else:
+            supporting.append(entry)
 
-    if contradicting:
-        label = EntailmentLabel.CONTRADICTS
-    elif supporting:
-        label = EntailmentLabel.SUPPORTS
-    else:
-        label = EntailmentLabel.INSUFFICIENT
     return AssessorDraft(
-        label=label,
+        label=_entailment_label(supporting, contradicting),
         supporting=tuple(supporting),
         contradicting=tuple(contradicting),
     )

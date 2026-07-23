@@ -209,6 +209,14 @@ function RecentCardMeta({run}: {run: Run}) {
   );
 }
 
+// The card's title text: the model-generated title, else a clause of the
+// research goal, else a placeholder for a goal with none.
+function recentCardTitle(run: Run): string {
+  return (
+    run.title || firstSentenceClause(run.research_goal) || 'Untitled session'
+  );
+}
+
 function RecentRunCard({run, topScore}: {run: Run; topScore: number | null}) {
   // The run's real top hypotheses by Elo, served on the run-list payload
   // (`top_hypotheses`). Empty for a run that produced none (e.g. failed).
@@ -227,11 +235,7 @@ function RecentRunCard({run, topScore}: {run: Run; topScore: number | null}) {
         <RecentCardMeta run={run} />
         <TruncatedLabel
           className={RECENT_TITLE_CLASSES}
-          text={
-            run.title ||
-            firstSentenceClause(run.research_goal) ||
-            'Untitled session'
-          }
+          text={recentCardTitle(run)}
           lines={2}
         />
 

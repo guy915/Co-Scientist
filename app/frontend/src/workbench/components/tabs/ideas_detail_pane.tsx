@@ -347,6 +347,31 @@ function HypothesisProvenanceContent({
   );
 }
 
+// "Outcome" line of the match summary: the match tier, when known.
+function MatchOutcomeLine({tier}: {tier: string | null | undefined}) {
+  if (!tier) return null;
+  return (
+    <p>
+      <strong>Outcome:</strong> <span className="capitalize">{tier}</span>
+    </p>
+  );
+}
+
+// "Debate depth" line of the match summary, shown only once a match exists.
+function MatchDebateDepthLine({
+  latestMatch,
+}: {
+  latestMatch: MatchRow | undefined;
+}) {
+  if (!latestMatch) return null;
+  return (
+    <p>
+      <strong>Debate depth:</strong>{' '}
+      {debateDepthLabel(latestMatch.debate_turns)}
+    </p>
+  );
+}
+
 // "Match summary" section body: the optional outcome line, the debate depth,
 // plus the rationale (or its placeholder). Props-only (no hooks).
 function MatchSummaryContent({
@@ -356,18 +381,8 @@ function MatchSummaryContent({
 }) {
   return (
     <>
-      {latestMatch?.tier && (
-        <p>
-          <strong>Outcome:</strong>{' '}
-          <span className="capitalize">{latestMatch.tier}</span>
-        </p>
-      )}
-      {latestMatch && (
-        <p>
-          <strong>Debate depth:</strong>{' '}
-          {debateDepthLabel(latestMatch.debate_turns)}
-        </p>
-      )}
+      <MatchOutcomeLine tier={latestMatch?.tier} />
+      <MatchDebateDepthLine latestMatch={latestMatch} />
       <p>{latestMatch?.rationale || 'No match rationale is available yet.'}</p>
     </>
   );

@@ -39,6 +39,24 @@ export function smoothScrollToSection(
   return true;
 }
 
+/** A caller-named scroll pane, when the target sits inside one. */
+function findPreferredContainer(
+  target: HTMLElement,
+  preferredSelector?: string,
+): HTMLElement | null {
+  return preferredSelector
+    ? target.closest<HTMLElement>(preferredSelector)
+    : null;
+}
+
+/** Whether an element both allows vertical scrolling and actually overflows. */
+function isScrollableOverflow(el: HTMLElement): boolean {
+  const {overflowY} = getComputedStyle(el);
+  return (
+    /(auto|scroll|overlay)/.test(overflowY) && el.scrollHeight > el.clientHeight
+  );
+}
+
 /**
  * Finds the ancestor element that actually scrolls the target: a
  * caller-named scroll pane when one matches, otherwise the nearest ancestor
@@ -49,22 +67,14 @@ function findScrollContainer(
   preferredSelector?: string,
 ): HTMLElement | null {
   // Caller-named scroll panes take priority over generic detection.
-  const preferred = preferredSelector
-    ? target.closest<HTMLElement>(preferredSelector)
-    : null;
+  const preferred = findPreferredContainer(target, preferredSelector);
   if (preferred) return preferred;
 
   // Generic fallback: walk up until an ancestor both allows vertical
   // scrolling and actually overflows.
   let current = target.parentElement;
   while (current) {
-    const {overflowY} = getComputedStyle(current);
-    if (
-      /(auto|scroll|overlay)/.test(overflowY) &&
-      current.scrollHeight > current.clientHeight
-    ) {
-      return current;
-    }
+    if (isScrollableOverflow(current)) return current;
     current = current.parentElement;
   }
   return null;

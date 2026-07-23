@@ -123,6 +123,28 @@ def _looks_like_citation(line: str) -> bool:
     return bool(_CITATION_LINE.match(line) and _YEAR.search(line))
 
 
+def _citation_flags(lines: list[str]) -> list[bool]:
+    """Per-line whether each stripped line looks like a citation entry."""
+    return [_looks_like_citation(line.strip()) for line in lines]
+
+
+def _walk_back_to_bibliography_start(flags: list[bool], start: int) -> int:
+    """Walk backwards from a proven citation window to its real start.
+
+    The window proves a bibliography is here, but its first entries may
+    have wrapped and diluted every earlier window. Walk back over the
+    continuation lines to the entry the list actually starts on.
+    """
+    cut, gap, index = start, 0, start - 1
+    while index >= 0 and gap <= _CITATION_MAX_GAP:
+        if flags[index]:
+            cut, gap = index, 0
+        else:
+            gap += 1
+        index -= 1
+    return cut
+
+
 def _bibliography_start(lines: list[str]) -> int:
     """Index where an unheaded bibliography begins, or len(lines).
 
@@ -130,24 +152,14 @@ def _bibliography_start(lines: list[str]) -> int:
     single numbered line proves nothing -- a methods list looks the same --
     but seven in twelve is a reference list.
     """
-    flags = [_looks_like_citation(line.strip()) for line in lines]
+    flags = _citation_flags(lines)
     for start in range(len(lines)):
         if not flags[start]:
             continue
         window = flags[start : start + _CITATION_WINDOW]
         if sum(window) < _CITATION_MIN_HITS:
             continue
-        # The window proves a bibliography is here, but its first entries may
-        # have wrapped and diluted every earlier window. Walk back over the
-        # continuation lines to the entry the list actually starts on.
-        cut, gap, index = start, 0, start - 1
-        while index >= 0 and gap <= _CITATION_MAX_GAP:
-            if flags[index]:
-                cut, gap = index, 0
-            else:
-                gap += 1
-            index -= 1
-        return cut
+        return _walk_back_to_bibliography_start(flags, start)
     return len(lines)
 
 

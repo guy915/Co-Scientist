@@ -15,6 +15,7 @@ monkeypatch surface.
 from __future__ import annotations
 
 import time
+from collections.abc import Awaitable, Callable
 from typing import Any
 
 from app import store
@@ -370,6 +371,14 @@ def _pause_node_task_if_requested(
     }
 
 
+# Node types with a synchronous fan-out enqueue helper (see below).
+_SYNC_FANOUT_HANDLERS: dict[str, Callable[..., dict[str, Any]]] = {
+    "review": _enqueue_review_fanout,
+    "comprehensive_reflection": _enqueue_mature_reflection_fanout,
+    "deep_verification": _enqueue_verification_fanout,
+}
+
+
 async def _dispatch_node_fanout(
     task: ScientificTask,
     state: dict[str, Any],
@@ -385,18 +394,8 @@ async def _dispatch_node_fanout(
     tournament -- it still runs the gate, but falls through to inline
     execution rather than fanning out).
     """
-    if node_name == "review":
-        return _enqueue_review_fanout(task, state, current_seq, db_path=db_path)
     if node_name == "generate":
         return await _enqueue_generation_fanout(
-            task, state, current_seq, db_path=db_path
-        )
-    if node_name == "comprehensive_reflection":
-        return _enqueue_mature_reflection_fanout(
-            task, state, current_seq, db_path=db_path
-        )
-    if node_name == "deep_verification":
-        return _enqueue_verification_fanout(
             task, state, current_seq, db_path=db_path
         )
     if node_name == "ranking":
@@ -404,7 +403,10 @@ async def _dispatch_node_fanout(
         return await _schedule_ranking_chain(
             task, state, current_seq, db_path=db_path
         )
-    return None
+    handler = _SYNC_FANOUT_HANDLERS.get(node_name)
+    if handler is None:
+        return None
+    return handler(task, state, current_seq, db_path=db_path)
 
 
 async def _commit_node_result(
@@ -448,6 +450,16 @@ async def _commit_node_result(
     }
 
 
+def _require_active_run(
+    task: ScientificTask, db_path: str | None, *, stage: str
+) -> store.RunRow:
+    """Return the task's run, or raise if deleted/cancelled (shared guard)."""
+    run = store.get_run(task.run_id, db_path=db_path)
+    if run is None or run.status == RunStatus.CANCELLED.value:
+        raise RuntimeError(f"run cancelled {stage}")
+    return run
+
+
 async def execute_node_task(
     task: ScientificTask, *, db_path: str | None = None
 ) -> dict[str, Any]:
@@ -455,9 +467,7 @@ async def execute_node_task(
     from co_scientist.task_runtime import execute_task_node
 
     checkpoint, current_seq = _latest_task_checkpoint(task, db_path)
-    run = store.get_run(task.run_id, db_path=db_path)
-    if run is None or run.status == RunStatus.CANCELLED.value:
-        raise RuntimeError("run cancelled before specialist execution")
+    run = _require_active_run(task, db_path, stage="before specialist run")
     replay = _check_node_task_checkpoint(task, checkpoint, current_seq)
     if replay is not None:
         return replay
@@ -481,9 +491,7 @@ async def execute_node_task(
         return fanout
 
     committed, successor = await execute_task_node(node_name, state)
-    run = store.get_run(task.run_id, db_path=db_path)
-    if run is None or run.status == RunStatus.CANCELLED.value:
-        raise RuntimeError("run cancelled during specialist execution")
+    run = _require_active_run(task, db_path, stage="during specialist run")
     return await _commit_node_result(
         task, run, node_name, committed, successor, current_seq, db_path
     )
@@ -596,34 +604,30 @@ async def execute_finalize(
     return {"run_id": run.id, "status": final.status if final else "missing"}
 
 
+# Non-node task types, by exact match (node/unrecognized: see below).
+_ENGINE_TASK_DISPATCH: dict[str, Callable[..., Awaitable[dict[str, Any]]]] = {
+    BOOTSTRAP_TASK: execute_bootstrap,
+    REVIEW_ITEM_TASK: execute_review_item,
+    REVIEW_AGGREGATE_TASK: execute_review_aggregate,
+    VERIFICATION_ITEM_TASK: execute_verification_item,
+    VERIFICATION_AGGREGATE_TASK: execute_verification_aggregate,
+    RANKING_MATCH_TASK: execute_ranking_match,
+    RANKING_FINALIZE_TASK: execute_ranking_finalize,
+    GENERATION_STRATEGY_TASK: execute_generation_strategy,
+    GENERATION_AGGREGATE_TASK: execute_generation_aggregate,
+    MATURE_REFLECTION_ITEM_TASK: execute_mature_reflection_item,
+    MATURE_REFLECTION_AGGREGATE_TASK: execute_mature_reflection_aggregate,
+    FINALIZE_TASK: execute_finalize,
+}
+
+
 async def execute_engine_task(
     task: ScientificTask, *, db_path: str | None = None
 ) -> dict[str, Any]:
     """Dispatch one leased engine task without executing unrelated nodes."""
-    if task.task_type == BOOTSTRAP_TASK:
-        return await execute_bootstrap(task, db_path=db_path)
-    if task.task_type == REVIEW_ITEM_TASK:
-        return await execute_review_item(task, db_path=db_path)
-    if task.task_type == REVIEW_AGGREGATE_TASK:
-        return await execute_review_aggregate(task, db_path=db_path)
-    if task.task_type == VERIFICATION_ITEM_TASK:
-        return await execute_verification_item(task, db_path=db_path)
-    if task.task_type == VERIFICATION_AGGREGATE_TASK:
-        return await execute_verification_aggregate(task, db_path=db_path)
-    if task.task_type == RANKING_MATCH_TASK:
-        return await execute_ranking_match(task, db_path=db_path)
-    if task.task_type == RANKING_FINALIZE_TASK:
-        return await execute_ranking_finalize(task, db_path=db_path)
-    if task.task_type == GENERATION_STRATEGY_TASK:
-        return await execute_generation_strategy(task, db_path=db_path)
-    if task.task_type == GENERATION_AGGREGATE_TASK:
-        return await execute_generation_aggregate(task, db_path=db_path)
-    if task.task_type == MATURE_REFLECTION_ITEM_TASK:
-        return await execute_mature_reflection_item(task, db_path=db_path)
-    if task.task_type == MATURE_REFLECTION_AGGREGATE_TASK:
-        return await execute_mature_reflection_aggregate(task, db_path=db_path)
+    handler = _ENGINE_TASK_DISPATCH.get(task.task_type)
+    if handler is not None:
+        return await handler(task, db_path=db_path)
     if task.task_type.startswith(NODE_TASK_PREFIX):
         return await execute_node_task(task, db_path=db_path)
-    if task.task_type == FINALIZE_TASK:
-        return await execute_finalize(task, db_path=db_path)
     raise ValueError(f"unsupported engine task: {task.task_type}")

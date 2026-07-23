@@ -32,12 +32,39 @@ function goalDetailsLists(setup: RunWithSummary['config']['setup']): {
   };
 }
 
-// The interview-contract fields: goal, lists, title, and run options.
-function SpecFields({run}: {run: RunWithSummary | null}) {
-  const goal = runGoal(run) || 'Loading...';
+// The run-option display labels SpecFields needs: title, tier, and focus,
+// each defaulted for a run that has not set one.
+function specRunLabels(run: RunWithSummary | null): {
+  title: string;
+  tier: string;
+  focus: string;
+} {
+  return {
+    title: run?.title || 'Optional',
+    tier: runOptionLabel(TIER_OPTIONS, run?.config.tier, 'Standard'),
+    focus: runOptionLabel(FOCUS_OPTIONS, run?.config.focus, 'Balance'),
+  };
+}
+
+// Every display value SpecFields needs, resolved up front so the component
+// itself does no defaulting or lookup of its own.
+function specDisplayValues(run: RunWithSummary | null) {
   const {requirements, attributes, criteria} = goalDetailsLists(
     run?.config.setup,
   );
+  return {
+    goal: runGoal(run) || 'Loading...',
+    requirements,
+    attributes,
+    criteria,
+    ...specRunLabels(run),
+  };
+}
+
+// The interview-contract fields: goal, lists, title, and run options.
+function SpecFields({run}: {run: RunWithSummary | null}) {
+  const {goal, requirements, attributes, criteria, title, tier, focus} =
+    specDisplayValues(run);
   return (
     <>
       <p>
@@ -46,15 +73,13 @@ function SpecFields({run}: {run: RunWithSummary | null}) {
       <ReportList title="Focus Area" values={attributes} />
       <ReportList title="Preferences" values={requirements} />
       <p>
-        <strong>Title:</strong> {run?.title || 'Optional'}
+        <strong>Title:</strong> {title}
       </p>
       <p>
-        <strong>Run type:</strong>{' '}
-        {runOptionLabel(TIER_OPTIONS, run?.config.tier, 'Standard')}
+        <strong>Run type:</strong> {tier}
       </p>
       <p>
-        <strong>Focus:</strong>{' '}
-        {runOptionLabel(FOCUS_OPTIONS, run?.config.focus, 'Balance')}
+        <strong>Focus:</strong> {focus}
       </p>
       {criteria.length > 0 && (
         <p>
@@ -103,6 +128,10 @@ interface UploadCallbacks {
   onChanged: () => void;
 }
 
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
 // Uploads the chosen file into the run's private corpus, reporting progress
 // and outcome through the given callbacks.
 async function uploadCorpusFile(
@@ -122,7 +151,7 @@ async function uploadCorpusFile(
     );
     callbacks.onChanged();
   } catch (error) {
-    callbacks.setStatus(error instanceof Error ? error.message : String(error));
+    callbacks.setStatus(errorMessage(error));
   } finally {
     callbacks.setBusy(false);
   }
@@ -196,6 +225,18 @@ function ResolveButtons({busy, onResolve}: ResolveProps) {
   );
 }
 
+// Display values derived from a safety decision: the defaulted category,
+// policy version, and assessor labels, plus whether it still needs a human
+// resolution.
+function decisionDisplayValues(decision: SafetyDecision) {
+  return {
+    category: decision.category || decision.decision,
+    policyVersion: decision.policy_version || 'legacy',
+    assessor: decision.assessor || 'deterministic',
+    needsResolution: decision.requires_review && !decision.resolution,
+  };
+}
+
 // One safety decision: what was flagged, under which policy, and — when it
 // still needs human review — the approve/reject controls.
 function SafetyDecisionItem({
@@ -203,18 +244,18 @@ function SafetyDecisionItem({
   busy,
   onResolve,
 }: ResolveProps & {decision: SafetyDecision}) {
+  const {category, policyVersion, assessor, needsResolution} =
+    decisionDisplayValues(decision);
   return (
     <div className="mb-5">
       <p>
-        <strong>{decision.stage}:</strong>{' '}
-        {decision.category || decision.decision} — {decision.reason}
+        <strong>{decision.stage}:</strong> {category} — {decision.reason}
       </p>
       <p className="text-sm text-cosci-muted">
-        Policy {decision.policy_version || 'legacy'} ·{' '}
-        {decision.assessor || 'deterministic'}
+        Policy {policyVersion} · {assessor}
       </p>
       {decision.resolution ? <p>Resolution: {decision.resolution}</p> : null}
-      {decision.requires_review && !decision.resolution ? (
+      {needsResolution ? (
         <ResolveButtons busy={busy} onResolve={onResolve} />
       ) : null}
     </div>

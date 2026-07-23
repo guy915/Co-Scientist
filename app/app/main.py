@@ -21,6 +21,7 @@ load_dotenv()
 
 from app import engine_adapter, store
 from app.auth import (
+    Principal,
     auth_required,
     principal_for_request,
 )
@@ -369,6 +370,55 @@ app.add_middleware(
 )
 
 
+def _auth_gate_response(
+    request: Request, principal: Principal | None, public_api: bool
+) -> Response | None:
+    """Return a 401 response when auth is required but missing.
+
+    Args:
+        request: The incoming HTTP request.
+        principal: The resolved principal, if any.
+        public_api: Whether the path is one of the exempt public routes.
+
+    Returns:
+        A 401 JSONResponse, or None to let the request continue.
+    """
+    if (
+        auth_required()
+        and request.url.path.startswith("/api/")
+        and not public_api
+        and principal is None
+    ):
+        return JSONResponse(
+            {"detail": "researcher access required"}, status_code=401
+        )
+    return None
+
+
+def _run_ownership_response(
+    request: Request, principal: Principal | None
+) -> Response | None:
+    """Return a 404 response when the request targets another's run.
+
+    Non-owned runs are hidden as 404 rather than 403, and demo-owned runs
+    are exempt, matching the ownership contract documented on the
+    middleware itself.
+    """
+    parts = request.url.path.strip("/").split("/")
+    if len(parts) < 3 or parts[:2] != ["api", "runs"]:
+        return None
+    run_id = parts[2]
+    if run_id == "demo":
+        return None
+    run = store.get_run(run_id)
+    if run is None or run.client_id == store.DEMO_CLIENT_ID:
+        return None
+    client_id = principal.subject if principal else ""
+    if client_id == run.client_id:
+        return None
+    return JSONResponse({"detail": "run not found"}, status_code=404)
+
+
 @app.middleware("http")
 async def enforce_run_ownership(request: Request, call_next: Any) -> Response:
     """Authenticate private API calls and hide runs from non-owners."""
@@ -381,26 +431,12 @@ async def enforce_run_ownership(request: Request, call_next: Any) -> Response:
         "/api/shared/"
     )
     principal = principal_for_request(request)
-    if (
-        auth_required()
-        and path.startswith("/api/")
-        and not public_api
-        and principal is None
-    ):
-        return JSONResponse(
-            {"detail": "researcher access required"}, status_code=401
-        )
-    parts = request.url.path.strip("/").split("/")
-    if len(parts) >= 3 and parts[:2] == ["api", "runs"]:
-        run_id = parts[2]
-        if run_id != "demo":
-            run = store.get_run(run_id)
-            if run is not None and run.client_id != store.DEMO_CLIENT_ID:
-                client_id = principal.subject if principal else ""
-                if client_id != run.client_id:
-                    return JSONResponse(
-                        {"detail": "run not found"}, status_code=404
-                    )
+    auth_response = _auth_gate_response(request, principal, public_api)
+    if auth_response is not None:
+        return auth_response
+    ownership_response = _run_ownership_response(request, principal)
+    if ownership_response is not None:
+        return ownership_response
     return cast(Response, await call_next(request))
 
 

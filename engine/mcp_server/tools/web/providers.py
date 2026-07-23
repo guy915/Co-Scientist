@@ -297,6 +297,46 @@ _PROVIDERS: dict[str, tuple[SearchFn, str]] = {
 _AUTODETECT_ORDER = ("brave", "tavily")
 
 
+def _resolve_requested_provider(requested: str) -> tuple[str, SearchFn] | None:
+    """Resolves an explicit ``WEB_SEARCH_PROVIDER`` request.
+
+    Args:
+        requested: The lowercased, stripped value of the env var.
+
+    Returns:
+        A (provider name, search function) pair when the requested
+        provider is known and its key is configured, otherwise None (with
+        a warning logged explaining why).
+    """
+    entry = _PROVIDERS.get(requested)
+    if entry is None:
+        logger.warning(
+            "Unknown WEB_SEARCH_PROVIDER %r, falling back to autodetect",
+            requested,
+        )
+        return None
+    if os.environ.get(entry[1]):
+        return requested, entry[0]
+    logger.warning(
+        "WEB_SEARCH_PROVIDER=%s but %s is not set", requested, entry[1]
+    )
+    return None
+
+
+def _autodetect_provider() -> tuple[str, SearchFn] | None:
+    """Picks the first autodetect-order provider with a key configured.
+
+    Returns:
+        A (provider name, search function) pair, or None if no provider
+        in ``_AUTODETECT_ORDER`` has its key set.
+    """
+    for name in _AUTODETECT_ORDER:
+        search_fn, key_var = _PROVIDERS[name]
+        if os.environ.get(key_var):
+            return name, search_fn
+    return None
+
+
 def resolve_provider() -> tuple[str, SearchFn] | None:
     """Selects the configured web-search provider.
 
@@ -312,21 +352,8 @@ def resolve_provider() -> tuple[str, SearchFn] | None:
     """
     requested = os.environ.get("WEB_SEARCH_PROVIDER", "").strip().lower()
     if requested:
-        entry = _PROVIDERS.get(requested)
-        if entry is None:
-            logger.warning(
-                "Unknown WEB_SEARCH_PROVIDER %r, falling back to autodetect",
-                requested,
-            )
-        elif os.environ.get(entry[1]):
-            return requested, entry[0]
-        else:
-            logger.warning(
-                "WEB_SEARCH_PROVIDER=%s but %s is not set", requested, entry[1]
-            )
+        result = _resolve_requested_provider(requested)
+        if result is not None:
+            return result
 
-    for name in _AUTODETECT_ORDER:
-        search_fn, key_var = _PROVIDERS[name]
-        if os.environ.get(key_var):
-            return name, search_fn
-    return None
+    return _autodetect_provider()
