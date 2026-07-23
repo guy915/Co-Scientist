@@ -10,9 +10,14 @@ services:
     environment:
       # override or set additional environment variables
       - COSCIENTIST_MCP_PORT=8888
+      # The group's own papers, read by the fetch_paper tool. Mounted below
+      # rather than baked in: the corpus lives at the repo root, outside this
+      # service's build context. Without this the tool silently returns {}.
+      - SBI_CORPUS_DIR=/app/corpus/sbi_ucd
     volumes:
       # persist paper cache
       - ./mcp_server/paper_cache:/app/mcp_server/paper_cache
+      - ../corpus:/app/corpus:ro
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "python", "-c", "import httpx; httpx.get('http://localhost:8888', timeout=5.0)"]

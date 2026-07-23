@@ -1,4 +1,4 @@
-.PHONY: help setup start dev-api dev-ui dev-all dev-mcp preflight ensure-deps open-when-ready test test-app test-engine test-all parity eval-smoke e2e lint typecheck build clean stop reset-db
+.PHONY: help setup start dev-api dev-ui dev-all dev-mcp preflight ensure-deps open-when-ready test test-app test-engine test-mcp test-all parity eval-smoke e2e lint typecheck build clean stop reset-db
 
 ROOT := $(shell pwd)
 ENGINE := $(ROOT)/engine
@@ -27,7 +27,8 @@ help:
 	@echo "  make test         Run viewer backend pytest suite"
 	@echo "  make test-app     Run viewer backend pytest suite"
 	@echo "  make test-engine  Run engine pytest suite"
-	@echo "  make test-all     Run backend pytest suites (engine + app) + parity gate"
+	@echo "  make test-mcp     Run reference MCP server pytest + mypy (needs Python 3.12)"
+	@echo "  make test-all     Run backend pytest suites (engine + app + MCP server) + parity gate"
 	@echo "  make e2e          Run the browser end-to-end suite (headless, isolated stack)"
 	@echo "  make parity       Check the docs/PARITY.md evidence gate + its tests"
 	@echo "  make eval-smoke   Run the offline evaluation smoke suite (no LLM, no network)"
@@ -184,9 +185,32 @@ test-app:
 test-engine:
 	@cd "$(ENGINE)" && "$(PY)" -m pytest -q
 
+# Reference MCP server suite. It pins Python 3.12, so it runs from the
+# dedicated $(MCP_VENV) that `make dev-mcp` also uses (created on demand).
+# pytest runs from $(ENGINE) because the mcp_server editable install exposes
+# no import map — the package resolves as a plain directory package, exactly
+# how CI's mcp-server job runs it. mypy runs from mcp_server/ where its
+# strict config lives (mypy is not in the [dev] extra, so it is installed
+# alongside).
+test-mcp:
+	@command -v python3.12 >/dev/null 2>&1 || test -x "$(MCP_VENV)/bin/python" || \
+		{ echo ">> python3.12 not found — the reference MCP server pins Python 3.12"; exit 1; }
+	@if ! test -x "$(MCP_VENV)/bin/python"; then \
+		echo ">> Creating MCP venv at $(MCP_VENV) (Python 3.12)"; \
+		python3.12 -m venv "$(MCP_VENV)"; \
+	fi
+	@if ! "$(MCP_VENV)/bin/python" -c "import pytest, mypy, fastmcp" >/dev/null 2>&1; then \
+		echo ">> Installing reference MCP server (dev extras + mypy)"; \
+		"$(MCP_VENV)/bin/python" -m pip install -q --upgrade pip >/dev/null; \
+		"$(MCP_VENV)/bin/python" -m pip install -q -e "$(ENGINE)/mcp_server[dev]" mypy; \
+	fi
+	@cd "$(ENGINE)" && "$(MCP_VENV)/bin/python" -m pytest mcp_server/tests -q
+	@cd "$(ENGINE)/mcp_server" && "$(MCP_VENV)/bin/python" -m mypy .
+
 test-all:
 	@$(MAKE) test-engine
 	@$(MAKE) test-app
+	@$(MAKE) test-mcp
 	@$(MAKE) parity
 
 # Browser-level end-to-end suite (Playwright). Self-contained: it installs the
