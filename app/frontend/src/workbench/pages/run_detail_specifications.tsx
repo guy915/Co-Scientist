@@ -13,6 +13,10 @@ import {
   ReportList,
 } from './run_detail_document';
 
+const UPLOAD_LABEL_CLASSES =
+  'mt-3 inline-flex cursor-pointer rounded-full border border-cosci-border ' +
+  'px-4 py-2 text-sm hover:bg-cosci-hover';
+
 // Requirements/attributes/criteria captured in a run's durable setup config,
 // each defaulted to an empty list when the run has no setup yet.
 function goalDetailsLists(setup: RunWithSummary['config']['setup']): {
@@ -144,7 +148,7 @@ function PrivateCorpusUpload({
         Upload a PDF or UTF-8 text, Markdown, CSV, or JSON document. It remains
         scoped to this run and is indexed for subsequent scientific tasks.
       </p>
-      <label className="mt-3 inline-flex cursor-pointer rounded-full border border-cosci-border px-4 py-2 text-sm hover:bg-cosci-hover">
+      <label className={UPLOAD_LABEL_CLASSES}>
         {busy ? 'Indexing…' : 'Upload document'}
         <input
           type="file"

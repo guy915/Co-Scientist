@@ -167,7 +167,7 @@ def _import_hypothesis_generator() -> Any | None:
         # The engine is an optional runtime dependency; when absent this
         # import fails and the app falls back to the mock provider.
         from co_scientist import (
-            HypothesisGenerator,  # type: ignore[import-not-found, unused-ignore]
+            HypothesisGenerator,
         )
 
         return HypothesisGenerator

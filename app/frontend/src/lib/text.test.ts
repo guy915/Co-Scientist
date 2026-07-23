@@ -16,7 +16,8 @@ describe('conciseTitle', () => {
 
   it('truncates a long goal on a word boundary with an ellipsis', () => {
     const out = conciseTitle(
-      'Identify novel mechanisms of selective autophagy in aging neural tissue.',
+      'Identify novel mechanisms of selective autophagy in aging neural ' +
+        'tissue.',
     );
     expect(out.endsWith('…')).toBe(true);
     expect(out.length).toBeLessThanOrEqual(53);

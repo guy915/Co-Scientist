@@ -90,7 +90,8 @@ it('shows the generated session title in sidebar chats', async () => {
     {
       ...runFixture(
         'run-titled',
-        'Generate testable hypotheses for ferroptosis in pancreatic cancer cells.',
+        'Generate testable hypotheses for ferroptosis in pancreatic cancer ' +
+          'cells.',
       ),
       title: 'Ferroptosis in pancreatic cancer',
     },

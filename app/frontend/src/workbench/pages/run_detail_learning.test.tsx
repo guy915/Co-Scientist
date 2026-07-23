@@ -11,7 +11,8 @@ const evidence = [
     authors: ['A. Researcher', 'B. Scientist'],
     year: 2025,
     abstract:
-      'BACKGROUND: Cold stress changes glucose homeostasis. METHODS: Cells were profiled with mitochondrial assays.',
+      'BACKGROUND: Cold stress changes glucose homeostasis. METHODS: Cells ' +
+      'were profiled with mitochondrial assays.',
     available: true,
   },
   {
@@ -27,7 +28,7 @@ const evidence = [
 ];
 
 describe('LearningView', () => {
-  it('renders learning sections, expanded detail, and searchable references', () => {
+  it('renders learning sections, detail, and searchable refs', () => {
     render(
       <LearningView
         goal="Investigate glucose homeostasis under cold stress."

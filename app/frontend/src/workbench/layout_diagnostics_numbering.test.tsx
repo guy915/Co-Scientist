@@ -8,7 +8,7 @@ import {
 
 beforeEach(() => installLayoutMocks());
 
-it('renumbers shown records consecutively, ignoring store id gaps', async () => {
+it('renumbers shown records consecutively, ignoring id gaps', async () => {
   // Store ids are global and include filtered-out noise, so a
   // filtered view has holes (#12, #13, #30, #31) that read as failed
   // renders. The panel numbers what it shows instead.
@@ -40,7 +40,7 @@ it('renumbers shown records consecutively, ignoring store id gaps', async () => 
   expect(logsApiMock.getAppLogs).toHaveBeenCalledWith(0, 100);
 });
 
-it('numbers a capped window by position in the whole filtered stream', async () => {
+it('numbers a capped window by position in the stream', async () => {
   // 250 records match the filter but only the newest 100 are fetched:
   // those are records 151..250, not 1..100.
   const logs = Array.from({length: 100}, (_, index) => ({

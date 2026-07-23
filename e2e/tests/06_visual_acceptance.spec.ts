@@ -9,7 +9,7 @@ function assetPath(name: string): string {
   return fileURLToPath(new URL(`../test-results/${name}`, import.meta.url));
 }
 
-test('faithful home renders at the required desktop viewport', async ({page}) => {
+test('home renders at the required desktop viewport', async ({page}) => {
   await page.setViewportSize({width: 1440, height: 720});
   await page.goto('/');
 
@@ -31,7 +31,7 @@ test('faithful home renders at the required desktop viewport', async ({page}) =>
   });
 });
 
-test('faithful home renders at the required mobile viewport', async ({page}) => {
+test('home renders at the required mobile viewport', async ({page}) => {
   await page.setViewportSize({width: 390, height: 780});
   await page.goto('/');
 
@@ -50,13 +50,15 @@ test('faithful home renders at the required mobile viewport', async ({page}) => 
   });
 });
 
-test('Goal Report renders at the required desktop viewport', async ({page, api}) => {
+test('Goal Report renders at the desktop viewport', async ({page, api}) => {
   const {id} = await api.createRun({
     research_goal: 'Visual acceptance goal report',
     tier: 'standard',
   });
   await api.startRun(id);
-  await expect.poll(async () => (await api.getRun(id)).status).toBe('completed');
+  await expect
+    .poll(async () => (await api.getRun(id)).status)
+    .toBe('completed');
   await page.setViewportSize({width: 1440, height: 720});
   await page.goto(`/runs/${id}/ideas`);
 
@@ -82,7 +84,9 @@ test('Goal Report remains reachable at the required mobile viewport', async ({
     tier: 'standard',
   });
   await api.startRun(id);
-  await expect.poll(async () => (await api.getRun(id)).status).toBe('completed');
+  await expect
+    .poll(async () => (await api.getRun(id)).status)
+    .toBe('completed');
   await page.setViewportSize({width: 390, height: 780});
   await page.goto(`/runs/${id}/ideas`);
 

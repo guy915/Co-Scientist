@@ -25,7 +25,7 @@ afterEach(() => {
   window.removeEventListener(APP_LOGS_CHANGED_EVENT, listener);
 });
 
-it('announces a successful post so open panels refresh immediately', async () => {
+it('announces a successful post so open panels refresh', async () => {
   runsApiMock.fetchJson.mockResolvedValue({added: 1, last_id: 5});
 
   await postAppLogs([{message: 'clicked something'}]);

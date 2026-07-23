@@ -253,7 +253,7 @@ it('renders tournament stats and the most recent matching match', () => {
   ).not.toBeInTheDocument();
 });
 
-it('falls back to placeholder copy when there is no review, match, mechanism, or effect data', () => {
+it('falls back to placeholder copy when there is no data', () => {
   const hypothesis = makeHypothesis({
     id: 'h1',
     mechanism: null,
@@ -306,7 +306,7 @@ it('renders a link for every rail section', () => {
   ).not.toBeInTheDocument();
 });
 
-it('prevents default and delegates to smoothScrollToSection when the target exists', async () => {
+it('delegates to smoothScrollToSection when the target exists', async () => {
   const {smoothScrollToSection} = await import('@/lib/smooth_scroll');
   vi.mocked(smoothScrollToSection).mockReturnValue(true);
   render(<SectionsRail />);
@@ -324,7 +324,7 @@ it('prevents default and delegates to smoothScrollToSection when the target exis
   expect(notPrevented).toBe(false);
 });
 
-it('falls through to default navigation when no scroll target is found', async () => {
+it('falls through to default navigation with no scroll target', async () => {
   const {smoothScrollToSection} = await import('@/lib/smooth_scroll');
   vi.mocked(smoothScrollToSection).mockReturnValue(false);
   render(<SectionsRail />);
@@ -336,7 +336,7 @@ it('falls through to default navigation when no scroll target is found', async (
 });
 
 describe('HypothesisDetail claim-evidence provenance', () => {
-  it('renders each grounded claim with its exact quote and a source link', () => {
+  it('renders each grounded claim with its quote and source link', () => {
     renderClaimDetail(groundedClaimEvidence());
 
     // The exact supporting quote is shown...

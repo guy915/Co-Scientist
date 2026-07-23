@@ -99,7 +99,8 @@ export const HOME_TOAST_CLASSES =
 
 export const HOME_TOAST_ACTION_CLASSES =
   'cursor-pointer border-0 bg-transparent p-0 font-[inherit] text-[0.92rem] ' +
-  'font-medium text-cosci-toast-action focus-visible:outline-none focus-visible:underline';
+  'font-medium text-cosci-toast-action focus-visible:outline-none ' +
+  'focus-visible:underline';
 
 // Composer shell: the bordered pill container itself.
 export const COMPOSER_BASE_CLASSES =

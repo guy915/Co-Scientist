@@ -56,7 +56,7 @@ it('shows a formatted elapsed duration for a longer-running active run', () => {
   expect(formatHomeRunTimeChip(run)).toBe('Time elapsed: 5 minutes');
 });
 
-it('shows the raw capitalized status for a non-active, non-completed run', () => {
+it('shows the raw capitalized status for an in-between run', () => {
   const statuses: RunStatus[] = ['draft', 'failed', 'cancelled', 'blocked'];
   for (const status of statuses) {
     const run = makeRun({status});
@@ -75,7 +75,7 @@ describe('homeRunScore', () => {
     expect(homeRunScore(makeRun({id: 'unscored'}), {})).toBeNull();
   });
 
-  it('returns the recorded score for a completed run, distinguishing an explicit null', () => {
+  it('returns the recorded score, distinguishing an explicit null', () => {
     expect(homeRunScore(makeRun({id: 'r1'}), {r1: 1620})).toBe(1620);
     expect(homeRunScore(makeRun({id: 'r1'}), {r1: null})).toBeNull();
   });

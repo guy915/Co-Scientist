@@ -37,7 +37,7 @@ it('shows composer file and connector source controls', async () => {
   ).not.toBeInTheDocument();
 });
 
-it('lists the web search connector reported by /status, on by default', async () => {
+it('lists the web search connector from /status, on by default', async () => {
   stubStatusConnectors();
   renderWorkspace();
 
@@ -52,7 +52,7 @@ it('lists the web search connector reported by /status, on by default', async ()
   ).toHaveAttribute('aria-checked', 'true');
 });
 
-it('omits the web search connector when /status does not report it', async () => {
+it('omits the web search connector when /status omits it', async () => {
   // The MCP server only advertises its web search tool when a provider key
   // is configured, so a deployment without one must not offer the row.
   stubStatusConnectors([{id: 'pubmed', display: 'PubMed'}]);

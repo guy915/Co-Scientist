@@ -2,6 +2,10 @@ import {type ReactNode, useEffect, useState} from 'react';
 import {useParams} from 'react-router-dom';
 import {getSharedGoalReport, type SharedGoalReport} from '@/api/runs';
 
+const PAGE_CLASSES =
+  'mx-auto mb-24 grid w-[min(60rem,calc(100%-2rem))] gap-10 py-10 ' +
+  'text-cosci-fg';
+
 // Loads the shared report for a token, tracking load errors.
 function useSharedReport(token: string) {
   const [shared, setShared] = useState<SharedGoalReport | null>(null);
@@ -36,7 +40,7 @@ export function SharedGoalReportPage() {
   if (!shared) return <main aria-busy="true">Loading shared Goal Report…</main>;
   const {run} = shared;
   return (
-    <main className="mx-auto mb-24 grid w-[min(60rem,calc(100%-2rem))] gap-10 py-10 text-cosci-fg">
+    <main className={PAGE_CLASSES}>
       <header>
         <p className="text-sm text-cosci-muted">Public Goal Report</p>
         <h1 className="mt-2 text-3xl">{run.title || run.research_goal}</h1>

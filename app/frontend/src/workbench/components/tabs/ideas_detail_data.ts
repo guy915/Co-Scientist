@@ -107,7 +107,10 @@ export function tournamentSummaryText(hypothesis: Hypothesis): string {
   const totalMatches = hypothesis.win_count + hypothesis.loss_count;
   if (!totalMatches) return 'No tournament matches have been recorded yet.';
   const winRate = Math.round((hypothesis.win_count / totalMatches) * 100);
-  return `${hypothesis.win_count} wins and ${hypothesis.loss_count} losses across ${totalMatches} pairwise matches (${winRate}% win rate).`;
+  return (
+    `${hypothesis.win_count} wins and ${hypothesis.loss_count} losses ` +
+    `across ${totalMatches} pairwise matches (${winRate}% win rate).`
+  );
 }
 
 // Human-readable debate-depth label. 1 = single-turn comparison; anything

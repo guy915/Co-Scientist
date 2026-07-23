@@ -24,7 +24,7 @@ it('invokes on the trailing edge after the delay', () => {
   expect(fn).toHaveBeenCalledOnce();
 });
 
-it('collapses a burst of calls into one invocation with the latest args', () => {
+it('collapses a burst of calls into one with the latest args', () => {
   const fn = vi.fn<(value: string) => void>();
   const {result} = renderHook(() => useDebouncedCallback(fn, 500));
 

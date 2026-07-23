@@ -63,7 +63,9 @@ export function makeFullSpecificAims(): ResearchOverview['nih_specific_aims'] {
   };
 }
 
-export function makeFullResearchContacts(): ResearchOverview['research_contacts'] {
+type ResearchContacts = ResearchOverview['research_contacts'];
+
+export function makeFullResearchContacts(): ResearchContacts {
   return [
     {
       candidate_id: 'author-1-1',

@@ -5,12 +5,14 @@ import {expect, test} from '../support/fixtures';
 //
 // A seeded demo run is used for stable, fully-synthesized content: the test
 // opens it from the home recents list and walks every tab.
-test('run detail tabs render hypotheses, Elo scores, and report content', async ({
+test('run detail tabs render hypotheses, Elo, and report content', async ({
   page,
   api,
 }) => {
   const demos = await api.listDemoRuns();
-  const demo = demos.find(run => /staphylococcus aureus/i.test(run.research_goal));
+  const demo = demos.find(run =>
+    /staphylococcus aureus/i.test(run.research_goal),
+  );
   expect(demo).toBeTruthy();
   await page.goto(`/runs/${demo!.id}/specifications`);
 
@@ -42,5 +44,7 @@ test('run detail tabs render hypotheses, Elo scores, and report content', async 
   await expect(
     page.getByRole('heading', {name: /winning ideas/i}),
   ).toBeVisible();
-  await expect(page.getByText(/tournament matches have been recorded/i)).toBeVisible();
+  await expect(
+    page.getByText(/tournament matches have been recorded/i),
+  ).toBeVisible();
 });

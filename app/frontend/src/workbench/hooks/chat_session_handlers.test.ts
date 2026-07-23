@@ -8,7 +8,7 @@ vi.mock('@/api/runs', async importOriginal => {
   return {...actual, createInterview: vi.fn(), addInterviewTurn: vi.fn()};
 });
 
-test('starts a model-driven interview without deriving a local draft', async () => {
+test('starts a model-driven interview with no local draft', async () => {
   const interview = makeInterview();
   vi.mocked(createInterview).mockResolvedValue(interview);
   const deps = makeDeps({input: 'Study liver fibrosis'});

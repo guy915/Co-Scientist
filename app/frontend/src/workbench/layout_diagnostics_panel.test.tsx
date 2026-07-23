@@ -92,7 +92,7 @@ it('loads persisted backend logs into the diagnostics popover', async () => {
   expect(screen.getByText(/workflow exploded/)).toBeInTheDocument();
 });
 
-it('renders the message as plain text with the level in the meta row', async () => {
+it('renders the message as plain text with a level meta row', async () => {
   logsApiMock.getAppLogs.mockResolvedValue({
     logs: [
       logRecord(1, {message: 'a long message that must wrap freely'}),

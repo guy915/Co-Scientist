@@ -38,7 +38,7 @@ test('handleRetryDraftSpec is a no-op without a staged draft', () => {
   expect(deps.stageDraftSpec).not.toHaveBeenCalled();
 });
 
-test('handleCancelDraftSpec resets state and shows a cancellation toast', () => {
+test('handleCancelDraftSpec resets state and shows a cancel toast', () => {
   const deps = makeDeps({draft: {spec: makeSpec(), createdAt: 1}});
   const handlers = buildChatHandlers(deps);
 

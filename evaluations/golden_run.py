@@ -113,12 +113,9 @@ def _install_tool_call_counter() -> dict[str, int]:
         counts[name] = counts.get(name, 0) + 1
         return await orig_exec(self, tool_call)
 
-    mcp_client.MCPToolClient.call_tool = (  # type: ignore[method-assign]
-        _counted_call
-    )
-    mcp_client.MCPToolClient.execute_tool_call = (  # type: ignore[method-assign]
-        _counted_exec
-    )
+    client = mcp_client.MCPToolClient
+    client.call_tool = _counted_call  # type: ignore[method-assign]
+    client.execute_tool_call = _counted_exec  # type: ignore[method-assign]
     return counts
 
 

@@ -144,7 +144,8 @@ function formatStartedSessionResponse(session: StartedSession): string {
     'Your session has been started and Co-Scientist has started research.',
     '',
     '## Status',
-    'You can view and interact with your session at any time, but note that it might take a few minutes for the first ideas to be ready to view.',
+    'You can view and interact with your session at any time, but note that ' +
+      'it might take a few minutes for the first ideas to be ready to view.',
     '',
     '* **Type:** Research session',
     '* **Action:** Open the session details when you want to inspect progress.',

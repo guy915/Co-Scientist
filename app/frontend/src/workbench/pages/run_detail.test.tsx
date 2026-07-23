@@ -69,7 +69,7 @@ beforeEach(() => {
   vi.mocked(runsApi.getSafety).mockResolvedValue([]);
 });
 
-it('shows truthful live metrics and activity instead of report controls', async () => {
+it('shows live metrics and activity instead of report controls', async () => {
   vi.mocked(runsApi.getRun).mockResolvedValue({
     ...makeRun('Study pathway X'),
     status: 'running',

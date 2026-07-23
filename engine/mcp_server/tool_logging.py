@@ -119,7 +119,8 @@ def _wrap_async(fn: Callable[..., Any], name: str) -> Callable[..., Any]:
         _log_success(name, described, result, started)
         return result
 
-    async_wrapper.__signature__ = inspect.signature(fn)  # type: ignore[attr-defined]
+    signature = inspect.signature(fn)
+    async_wrapper.__signature__ = signature  # type: ignore[attr-defined]
     return async_wrapper
 
 
@@ -146,7 +147,8 @@ def _wrap_sync(fn: Callable[..., Any], name: str) -> Callable[..., Any]:
         _log_success(name, described, result, started)
         return result
 
-    sync_wrapper.__signature__ = inspect.signature(fn)  # type: ignore[attr-defined]
+    signature = inspect.signature(fn)
+    sync_wrapper.__signature__ = signature  # type: ignore[attr-defined]
     return sync_wrapper
 
 

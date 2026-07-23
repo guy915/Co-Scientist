@@ -193,7 +193,7 @@ it('resets state and reopens when runId changes', async () => {
   expect(second.url).toContain('/api/runs/run-2/events');
 });
 
-it('drops the unflushed buffer on runId change (no cross-run leak)', async () => {
+it('drops the unflushed buffer on runId change (no leak)', async () => {
   const {result, rerender} = renderHook(
     ({id}: {id: string | null}) => useRunStream(id),
     {initialProps: {id: 'run-1' as string | null}},

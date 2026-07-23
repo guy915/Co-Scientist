@@ -70,7 +70,8 @@ export const TIER_OPTIONS: RunTierOption[] = [
     id: 'ultra',
     label: 'Ultra',
     description:
-      'Most compute-intensive, using the largest models for cutting-edge insights.',
+      'Most compute-intensive, using the largest models for cutting-edge ' +
+      'insights.',
   },
 ];
 
@@ -83,25 +84,29 @@ export const FOCUS_OPTIONS: RunFocusOption[] = [
     id: 'prefer_evidence',
     label: 'Prefer evidence',
     description:
-      'Prioritizes well-established methods and data for high-confidence, incremental advances.',
+      'Prioritizes well-established methods and data for high-confidence, ' +
+      'incremental advances.',
   },
   {
     id: 'balance',
     label: 'Balance',
     description:
-      'A mix of established techniques and novel approaches for a comprehensive strategy.',
+      'A mix of established techniques and novel approaches for a ' +
+      'comprehensive strategy.',
   },
   {
     id: 'prefer_novelty',
     label: 'Prefer novelty',
     description:
-      'Favors unconventional ideas and exploratory methods for creative, higher-risk solutions.',
+      'Favors unconventional ideas and exploratory methods for creative, ' +
+      'higher-risk solutions.',
   },
   {
     id: 'breakthrough',
     label: 'Breakthrough',
     description:
-      'Focuses on high-risk, high-reward strategies with the potential for paradigm shifts.',
+      'Focuses on high-risk, high-reward strategies with the potential for ' +
+      'paradigm shifts.',
   },
 ];
 

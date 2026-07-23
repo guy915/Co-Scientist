@@ -386,7 +386,8 @@ function learningSections(
   }
   const fallbackGoal =
     goal ||
-    'the biological mechanisms and experimental systems relevant to this research goal';
+    'the biological mechanisms and experimental systems relevant to this ' +
+      'research goal';
   if (!evidence.length) return [placeholderSection(fallbackGoal)];
   return evidence
     .slice(0, 3)
@@ -401,7 +402,9 @@ function placeholderSection(fallbackGoal: string): LearningSectionItem {
     title: 'Knowledge synthesis unavailable',
     summary:
       'No evidence-backed technical topics have been synthesized for this run.',
-    detail: `The run must retrieve and verify evidence before it can build a Knowledge Base for ${fallbackGoal}.`,
+    detail:
+      'The run must retrieve and verify evidence before it can ' +
+      `build a Knowledge Base for ${fallbackGoal}.`,
     referenceIds: [],
   };
 }
@@ -416,13 +419,19 @@ function evidenceSection(
     title: learningTitle(item.title, index),
     summary:
       item.abstract ||
-      `This section summarizes the concepts, protocols, and methodological constraints Co-Scientist learned while studying ${fallbackGoal}.`,
+      'This section summarizes the concepts, protocols, and ' +
+        'methodological constraints Co-Scientist learned while ' +
+        `studying ${fallbackGoal}.`,
     // Detail expands on the summary with source attribution when available,
     // otherwise a generic note tying the item back to the research goal.
     detail:
       item.source && item.year
-        ? `Source context: ${item.source}, ${item.year}. Co-Scientist keeps this learning available for downstream hypothesis generation, ranking, and synthesis.`
-        : `Co-Scientist keeps this learning available for downstream hypothesis generation, ranking, and synthesis for ${fallbackGoal}.`,
+        ? `Source context: ${item.source}, ${item.year}. Co-Scientist ` +
+          'keeps this learning available for downstream hypothesis ' +
+          'generation, ranking, and synthesis.'
+        : 'Co-Scientist keeps this learning available for downstream ' +
+          'hypothesis generation, ranking, and synthesis for ' +
+          `${fallbackGoal}.`,
     referenceIds: [item.id],
   };
 }

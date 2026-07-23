@@ -163,7 +163,7 @@ async def _probe_literature_stack() -> tuple[
         The ``(mcp, pubmed, web_search)`` probe outcomes.
     """
     try:
-        from co_scientist.mcp_client import (  # type: ignore[import-not-found, unused-ignore]
+        from co_scientist.mcp_client import (
             check_mcp_available,
             check_pubmed_available_via_mcp,
             check_tool_available,

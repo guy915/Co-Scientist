@@ -51,7 +51,7 @@ it('renders the specific aims and research contacts', () => {
   ).toHaveAttribute('href', 'https://pubmed.ncbi.nlm.nih.gov/123/');
 });
 
-it('renders the leaderboard of winning ideas and the closing stats line', () => {
+it('renders the winning-ideas leaderboard and closing stats', () => {
   renderFullReport();
 
   expect(
@@ -62,7 +62,11 @@ it('renders the leaderboard of winning ideas and the closing stats line', () => 
 
   expect(
     screen.getByText(
-      /A total of 2 ideas were explored over 3 hours with the highest Elo rating of 1735 points and a total of 3 matches were played\./,
+      new RegExp(
+        'A total of 2 ideas were explored over 3 hours with the highest ' +
+          'Elo rating of 1735 points and a total of 3 matches were ' +
+          'played\\.',
+      ),
     ),
   ).toBeInTheDocument();
 });

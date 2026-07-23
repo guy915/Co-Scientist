@@ -13,7 +13,7 @@ import {expect, test} from '../support/fixtures';
 // Determinism: the run is sized large (extra iterations and hypotheses) so it
 // stays active long enough to catch running and to land a cooperative cancel
 // at an iteration checkpoint well before it could finish.
-test('cancels a running fixture without contaminating faithful history', async ({
+test('cancels a running fixture without contaminating history', async ({
   page,
   api,
 }) => {

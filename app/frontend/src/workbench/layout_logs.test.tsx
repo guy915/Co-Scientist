@@ -67,7 +67,7 @@ it('refreshes the badge when the api announces a log change', async () => {
   ).toBeInTheDocument();
 });
 
-it('keeps the badge fresh in the background while the popover is closed', async () => {
+it('keeps the badge fresh while the popover is closed', async () => {
   vi.useFakeTimers();
   try {
     renderLayout();

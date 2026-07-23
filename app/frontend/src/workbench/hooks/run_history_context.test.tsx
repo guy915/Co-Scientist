@@ -65,7 +65,7 @@ it('stops refreshing once no run is executing', async () => {
   expect(loadMock).toHaveBeenCalledTimes(1);
 });
 
-it('stops refreshing after the executing run reaches a terminal status', async () => {
+it('stops refreshing once the run reaches a terminal status', async () => {
   loadMock.mockResolvedValue([makeRun({status: 'running'})]);
   renderProvider();
   await waitFor(() => expect(loadMock).toHaveBeenCalledTimes(1));

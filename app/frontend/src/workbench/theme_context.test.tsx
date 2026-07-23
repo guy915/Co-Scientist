@@ -76,7 +76,7 @@ afterEach(() => {
   localStorage.removeItem(STORAGE_KEY);
 });
 
-it('defaults to system mode resolving to dark when matchMedia is unavailable', async () => {
+it('defaults to system mode, dark when matchMedia is absent', async () => {
   vi.stubGlobal('matchMedia', undefined);
   const {result} = renderHook(() => useTheme(), {wrapper});
   await flushThemeTransition();
@@ -87,7 +87,7 @@ it('defaults to system mode resolving to dark when matchMedia is unavailable', a
   expect(document.documentElement.classList.contains('dark')).toBe(true);
 });
 
-it('honors a stored explicit light preference over the system scheme', async () => {
+it('honors a stored light preference over the system scheme', async () => {
   localStorage.setItem(STORAGE_KEY, 'light');
   installFakeMatchMedia(true); // system says dark; explicit pref should win
   const {result} = renderHook(() => useTheme(), {wrapper});
@@ -126,7 +126,7 @@ it('resolves system mode live against OS scheme changes', async () => {
   expect(document.documentElement.dataset.theme).toBe('light');
 });
 
-it('subscribes via the legacy addListener/removeListener API when addEventListener is absent', async () => {
+it('subscribes via the legacy addListener API when needed', async () => {
   const mql = installFakeMatchMedia(false, 'legacy');
   const {result, unmount} = renderHook(() => useTheme(), {wrapper});
   await flushThemeTransition();
@@ -170,7 +170,7 @@ it('toggle flips between light and dark', async () => {
   expect(result.current.mode).toBe('light');
 });
 
-it('toggle from system mode resolves to dark, leaving system behind', async () => {
+it('toggle from system mode resolves to dark', async () => {
   installFakeMatchMedia(false); // system currently resolves to light
   const {result} = renderHook(() => useTheme(), {wrapper});
   await flushThemeTransition();
@@ -183,7 +183,7 @@ it('toggle from system mode resolves to dark, leaving system behind', async () =
   expect(result.current.resolvedMode).toBe('dark');
 });
 
-it('lifts the theme-switching transition freeze after the theme is applied', async () => {
+it('lifts the transition freeze after the theme is applied', async () => {
   installFakeMatchMedia(false);
   renderHook(() => useTheme(), {wrapper});
   await flushThemeTransition();

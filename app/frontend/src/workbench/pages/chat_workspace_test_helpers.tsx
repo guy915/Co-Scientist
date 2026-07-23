@@ -206,7 +206,9 @@ export function installChatWorkspaceMocks() {
       id: 'demo-ferroptosis',
       is_demo: true,
       research_goal:
-        'What are the key molecular regulators of ferroptosis in pancreatic cancer cells, and how might their modulation enhance chemotherapy sensitivity?',
+        'What are the key molecular regulators of ferroptosis in pancreatic ' +
+        'cancer cells, and how might their modulation enhance chemotherapy ' +
+        'sensitivity?',
     }),
   ]);
   apiMock.listRuns.mockResolvedValue([]);

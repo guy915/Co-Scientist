@@ -12,7 +12,7 @@ beforeEach(() => {
   installChatWorkspaceMocks();
 });
 
-it('shows the Lab papers connector for the sbi_ucd audience, on by default', async () => {
+it('shows the Lab papers connector for sbi_ucd, on by default', async () => {
   stubStatusConnectors(CORPUS_CONNECTORS);
   renderWorkspaceAs('sbi_ucd');
 
@@ -24,7 +24,7 @@ it('shows the Lab papers connector for the sbi_ucd audience, on by default', asy
   expect(labPapers).toHaveAttribute('aria-checked', 'true');
 });
 
-it('hides the Lab papers connector for a non-sbi audience even when advertised', async () => {
+it('hides the Lab papers connector for a non-sbi audience', async () => {
   stubStatusConnectors(CORPUS_CONNECTORS);
   renderWorkspace();
 

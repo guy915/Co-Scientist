@@ -17,6 +17,10 @@ import {
   StartedSessionCard,
 } from './chat_timeline_cards';
 
+const EVENT_DETAIL_CLASSES =
+  'mt-2 max-h-24 overflow-y-auto border-l-2 border-th-border pl-3 text-xs ' +
+  'leading-relaxed whitespace-pre-wrap text-th-muted-fg';
+
 /**
  * One renderable entry in the chat timeline.
  *
@@ -118,7 +122,7 @@ function AgentThinking({reasoning}: {reasoning: string}) {
           ref={trailRef}
           // Capped and scrollable: reasoning can outrun the viewport, and it
           // must never push the composer or the arriving reply off screen.
-          className="mt-2 max-h-24 overflow-y-auto border-l-2 border-th-border pl-3 text-xs leading-relaxed whitespace-pre-wrap text-th-muted-fg"
+          className={EVENT_DETAIL_CLASSES}
         >
           {reasoning}
         </div>

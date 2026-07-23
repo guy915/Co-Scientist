@@ -121,7 +121,8 @@ export function installLayoutMocks() {
   apiMock.listDemoRuns.mockResolvedValue([
     runFixture(
       'demo-ferroptosis',
-      'Generate testable hypotheses for ferroptosis in pancreatic cancer cells.',
+      'Generate testable hypotheses for ferroptosis in pancreatic cancer ' +
+        'cells.',
     ),
   ]);
   apiMock.getRunEvents.mockReset();

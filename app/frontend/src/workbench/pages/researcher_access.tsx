@@ -3,6 +3,15 @@ import {useNavigate} from 'react-router-dom';
 import {exchangeAccessCode} from '@/api/runs';
 import {setAccessToken} from '@/lib/client_id';
 
+const CODE_INPUT_CLASSES =
+  'rounded-xl border border-cosci-border bg-transparent px-4 py-3';
+const SUBMIT_BUTTON_CLASSES =
+  'w-fit rounded-full bg-cosci-primary px-5 py-3 text-cosci-on-primary ' +
+  'disabled:opacity-50';
+const PAGE_CLASSES =
+  'mx-auto grid min-h-full w-[min(100%_-_2rem,34rem)] content-center gap-6 ' +
+  'py-12';
+
 // The static heading/blurb above the access-code form.
 function AccessIntro() {
   return (
@@ -39,7 +48,7 @@ function AccessForm({
         <span>Access code</span>
         <input
           autoComplete="one-time-code"
-          className="rounded-xl border border-cosci-border bg-transparent px-4 py-3"
+          className={CODE_INPUT_CLASSES}
           onChange={event => onCodeChange(event.currentTarget.value)}
           required
           type="password"
@@ -48,7 +57,7 @@ function AccessForm({
       </label>
       {error ? <p role="alert">{error}</p> : null}
       <button
-        className="w-fit rounded-full bg-cosci-primary px-5 py-3 text-cosci-on-primary disabled:opacity-50"
+        className={SUBMIT_BUTTON_CLASSES}
         disabled={busy || !code}
         type="submit"
       >
@@ -81,7 +90,7 @@ export function ResearcherAccessPage() {
   }
 
   return (
-    <main className="mx-auto grid min-h-full w-[min(100%_-_2rem,34rem)] content-center gap-6 py-12">
+    <main className={PAGE_CLASSES}>
       <AccessIntro />
       <AccessForm
         code={code}

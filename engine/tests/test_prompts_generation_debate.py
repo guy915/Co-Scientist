@@ -49,7 +49,10 @@ def test_supervisor_guidance_none_returns_empty() -> None:
 
 def test_supervisor_guidance_non_dict_returns_empty() -> None:
     """A non-dict supervisor_guidance yields an empty guidance section."""
-    assert _format_supervisor_guidance_for_debate("not a dict") == ""  # type: ignore[arg-type]
+    guidance = _format_supervisor_guidance_for_debate(
+        "not a dict"  # type: ignore[arg-type]
+    )
+    assert guidance == ""
 
 
 def test_supervisor_guidance_populated_dict_with_no_relevant_keys() -> None:

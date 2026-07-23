@@ -22,7 +22,7 @@ afterEach(() => {
   Reflect.deleteProperty(HTMLElement.prototype, 'scrollHeight');
 });
 
-test('toggles expand/collapse synchronously under prefers-reduced-motion', () => {
+test('toggles expand/collapse under prefers-reduced-motion', () => {
   vi.stubGlobal(
     'matchMedia',
     vi.fn().mockReturnValue({matches: true}) as unknown as (
@@ -55,7 +55,7 @@ test('toggles expand/collapse synchronously under prefers-reduced-motion', () =>
   expect(textSpan.className).toContain('whitespace-normal');
 });
 
-test('animates expand/collapse via requestAnimationFrame otherwise, settling on transition end', () => {
+test('animates expand/collapse, settling on transition end', () => {
   vi.stubGlobal('matchMedia', undefined);
   vi.stubGlobal('requestAnimationFrame', (cb: FrameRequestCallback) => {
     cb(0);

@@ -97,11 +97,12 @@ it('finds a .cosci-report-scroll ancestor and applies the offset', () => {
   });
 });
 
-it('walks up to a generic scrollable ancestor when no preferred pane exists', () => {
+it('walks up to a scrollable ancestor with no preferred pane', () => {
   const outer = document.createElement('div');
   const scrollable = document.createElement('div');
   scrollable.style.overflowY = 'auto';
-  const inert = document.createElement('div'); // overflow visible, must be skipped
+  // Overflow is visible, so this ancestor must be skipped.
+  const inert = document.createElement('div');
   const target = document.createElement('div');
   target.id = 'section-3';
 
@@ -122,7 +123,7 @@ it('walks up to a generic scrollable ancestor when no preferred pane exists', ()
   );
 });
 
-it('skips an ancestor with scrollable overflow-y that does not actually overflow', () => {
+it('skips an overflow-y ancestor that does not actually overflow', () => {
   const scrollableButNotOverflowing = document.createElement('div');
   scrollableButNotOverflowing.style.overflowY = 'scroll';
   // scrollHeight === clientHeight (both default 0 in jsdom): not overflowing.

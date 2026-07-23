@@ -59,7 +59,7 @@ describe('SystemStatusIndicator', () => {
     apiMock.getSystemStatus.mockReset();
   });
 
-  it('shows the Offline mode chip when /status reports the offline backend', async () => {
+  it('shows the Offline mode chip when /status reports offline', async () => {
     apiMock.getSystemStatus.mockResolvedValue(statusFixture());
 
     render(<SystemStatusIndicator />);

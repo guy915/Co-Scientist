@@ -86,7 +86,7 @@ it('renders nothing once the turn resolves', () => {
   expect(screen.queryByText('stale thought')).toBeNull();
 });
 
-it('wires each bubble to the edit/copy/retry handlers for its own message', () => {
+it('wires each bubble to its own edit/copy/retry handlers', () => {
   const args = baseArgs({
     messages: [
       makeMessage({id: 'u1', role: 'user', content: 'A question'}),
@@ -127,7 +127,7 @@ it('persists completion-notification opt-in and address in the draft', () => {
   expect(enableUpdater(draft)?.spec.notifyOnCompletion).toBe(true);
 });
 
-it('wires the focus/tier/edit/retry/cancel/start actions to the session handlers', async () => {
+it('wires composer and spec actions to the session handlers', async () => {
   const spec = makeSpec();
   const draft: SpecStage = {spec, createdAt: 5};
   const args = baseArgs({draft});
@@ -171,7 +171,7 @@ it('renders nothing when there is no staged draft', () => {
   expect(items).toHaveLength(0);
 });
 
-it('renders read-only with edit/retry and inert tier/cancel/start no-ops', () => {
+it('renders read-only with edit/retry and inert no-ops', () => {
   const spec = makeSpec({goal: 'Confirmed goal'});
   const args = baseArgs({confirmed: {spec, createdAt: 9}});
   const items = buildTimelineItems(args);
@@ -212,7 +212,7 @@ const startedSession: StartedSession = {
   at: 100,
 };
 
-it('wires open/retry/new-topic to navigate/setStartedSession/resetWorkspace', () => {
+it('wires open/retry/new-topic to their session handlers', () => {
   const args = baseArgs({startedSession});
   const items = buildTimelineItems(args);
   expect(items).toHaveLength(1);

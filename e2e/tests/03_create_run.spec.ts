@@ -2,7 +2,8 @@ import {type Page} from '@playwright/test';
 import {expect, test} from '../support/fixtures';
 
 const GOAL =
-  'What molecular checkpoints govern ferroptosis escape in glioblastoma stem cells?';
+  'What molecular checkpoints govern ferroptosis escape in ' +
+  'glioblastoma stem cells?';
 
 // Fill the composer with the research goal, attach a private pilot-result file,
 // and submit to kick off the model-driven interview.

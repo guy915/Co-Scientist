@@ -6,7 +6,7 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-test('renders an assistant message with the response action row and no collapse affordance', () => {
+test('renders an assistant message with the response action row', () => {
   const {onRetry} = renderBubble({
     role: 'assistant',
     content: 'A short reply.',
@@ -22,7 +22,7 @@ test('renders an assistant message with the response action row and no collapse 
   expect(onRetry).toHaveBeenCalledOnce();
 });
 
-test('renders a short user message with the request action row and no collapse affordance', () => {
+test('renders a short user message with the request action row', () => {
   renderBubble({role: 'user', content: 'Short question?'});
   expect(screen.getByLabelText('Edit prompt')).toBeInTheDocument();
   expect(screen.getByLabelText('Copy prompt')).toBeInTheDocument();

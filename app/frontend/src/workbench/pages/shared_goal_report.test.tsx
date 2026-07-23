@@ -48,7 +48,7 @@ function buildSharedReport() {
 }
 
 describe('SharedGoalReportPage', () => {
-  it('renders the four read-only report sections from a capability', async () => {
+  it('renders the four read-only report sections', async () => {
     vi.mocked(getSharedGoalReport).mockResolvedValue(
       buildSharedReport() as never,
     );

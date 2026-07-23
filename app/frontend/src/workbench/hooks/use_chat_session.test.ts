@@ -70,7 +70,7 @@ it('starts empty with no conversation', () => {
   expect(result.current.messages).toHaveLength(0);
 });
 
-it('submitting a goal stages a draft spec and logs the user message', async () => {
+it('submitting a goal stages a draft spec and logs it', async () => {
   const {result} = renderSession();
 
   act(() => result.current.setInput('How is liver fibrosis reversed?'));
@@ -155,7 +155,7 @@ it('editing a message loads it into the composer and focuses it', () => {
   expect(deps.focusComposer).toHaveBeenCalledOnce();
 });
 
-it('starting a run creates it, records the session, and reloads history', async () => {
+it('starting a run creates it and reloads history', async () => {
   vi.mocked(runsApi.createRun).mockResolvedValue({
     id: 'run-xyz',
   } as Awaited<ReturnType<typeof runsApi.createRun>>);

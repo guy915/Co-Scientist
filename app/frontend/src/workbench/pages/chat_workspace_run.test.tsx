@@ -104,7 +104,7 @@ async function startRunFromSpec() {
   });
 }
 
-it('shows request and response action controls in the chat transcript', async () => {
+it('shows request and response controls in the transcript', async () => {
   const spies = installClipboardAndDownloadSpies();
 
   renderWorkspace();

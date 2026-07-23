@@ -9,7 +9,7 @@ vi.mock('@/api/runs', async importOriginal => {
   return {...actual, createInterview: vi.fn(), addInterviewTurn: vi.fn()};
 });
 
-test('handleRetryMessage re-appends the message content as a fresh assistant bubble', () => {
+test('handleRetryMessage re-appends content as a new bubble', () => {
   const deps = makeDeps();
   const handlers = buildChatHandlers(deps);
 
@@ -26,7 +26,7 @@ test('handleRetryMessage re-appends the message content as a fresh assistant bub
   expect(next[0]).toMatchObject({role: 'assistant', content: 'Reply text'});
 });
 
-test('handleCopyRequest copies the prompt, and its toast action starts a new chat prefilled with it', async () => {
+test('handleCopyRequest copies the prompt and toasts a new chat', async () => {
   const writeText = vi.fn().mockResolvedValue(undefined);
   Object.defineProperty(navigator, 'clipboard', {
     configurable: true,
@@ -57,7 +57,7 @@ test('handleCopyRequest copies the prompt, and its toast action starts a new cha
   expect(deps.focusComposer).toHaveBeenCalledOnce();
 });
 
-test('handleEditMessage loads the message into the composer and focuses it', () => {
+test('handleEditMessage loads the message into the composer', () => {
   const deps = makeDeps();
   const handlers = buildChatHandlers(deps);
 

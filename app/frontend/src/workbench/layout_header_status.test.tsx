@@ -16,7 +16,7 @@ it('does not show an overflow menu on run routes', () => {
   expect(screen.queryByRole('button', {name: 'More options'})).toBeNull();
 });
 
-it('shows the offline-mode status chip when /status reports the offline backend', async () => {
+it('shows the offline-mode chip when /status reports offline', async () => {
   systemApiMock.getSystemStatus.mockResolvedValue({
     mock_mode: true,
     llm_backend: 'offline',

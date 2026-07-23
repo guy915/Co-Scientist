@@ -85,7 +85,7 @@ it('does not jump to the end while the user is scrolled up', async () => {
   expect(list.scrollTop).toBe(100);
 });
 
-it('keeps following the newest record at the window cap when pinned', async () => {
+it('keeps following the newest record at the window cap', async () => {
   logsApiMock.getAppLogs.mockResolvedValue({
     logs: [logRecord(1), logRecord(2)],
     last_id: 2,

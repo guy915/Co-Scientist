@@ -10,6 +10,8 @@ from __future__ import annotations
 
 import logging
 
+import pytest
+
 from app import store
 from tests._client import make_client
 
@@ -83,10 +85,10 @@ def test_clear_can_be_scoped_to_one_client(isolated_db: str) -> None:
 # --------------------------------------------------------------------------
 
 
-def _admin_token(monkeypatch: object, token: str) -> None:
+def _admin_token(monkeypatch: pytest.MonkeyPatch, token: str) -> None:
     from app.config import settings
 
-    monkeypatch.setattr(settings, "logs_admin_token", token)  # type: ignore[attr-defined]
+    monkeypatch.setattr(settings, "logs_admin_token", token)
 
 
 def test_remote_read_is_scoped_to_the_caller(isolated_db: str) -> None:
@@ -109,7 +111,7 @@ def test_remote_read_without_identity_sees_nothing(isolated_db: str) -> None:
 
 
 def test_admin_token_grants_the_app_wide_view(
-    isolated_db: str, monkeypatch: object
+    isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     _admin_token(monkeypatch, "s3cret")
     _seed(isolated_db, "alice ui record", client_id="alice")

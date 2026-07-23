@@ -231,7 +231,7 @@ export async function askRunQuestion(
   return answer;
 }
 
-/** Queue scientist guidance for incorporation at the next safe task boundary. */
+/** Queue scientist guidance for the next safe task boundary. */
 export function sendRunSteering(
   id: string,
   content: string,

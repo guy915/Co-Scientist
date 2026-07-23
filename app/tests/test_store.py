@@ -73,7 +73,9 @@ def test_list_runs_reports_top_hypotheses_by_elo(db: str) -> None:
     assert by_goal["top-hyps"].top_hypotheses == ["High", "Mid", "Low"]
     assert by_goal["no-hyps"].top_hypotheses == []
     # A single-run read does not carry the list enrichment.
-    assert store.get_run(run.id).top_hypotheses is None  # type: ignore[union-attr]
+    single = store.get_run(run.id)
+    assert single is not None
+    assert single.top_hypotheses is None
 
 
 def test_list_runs_caps_top_hypotheses_at_three(db: str) -> None:
@@ -105,7 +107,9 @@ def test_list_runs_reports_latest_pipeline_stage(db: str) -> None:
     assert by_goal["staged"].latest_stage == "ranking"
     assert by_goal["unstaged"].latest_stage is None
     # A single-run read does not carry the list enrichment.
-    assert store.get_run(run.id).latest_stage is None  # type: ignore[union-attr]
+    single = store.get_run(run.id)
+    assert single is not None
+    assert single.latest_stage is None
 
 
 def test_hypothesis_state_decoupled_from_hypothesis_row(db: str) -> None:

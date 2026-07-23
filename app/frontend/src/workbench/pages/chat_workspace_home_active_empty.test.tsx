@@ -11,7 +11,7 @@ beforeEach(() => {
   installChatWorkspaceMocks();
 });
 
-it('shows active recents with the run step flow on the real phase', async () => {
+it('shows active recents with the run step flow', async () => {
   apiMock.listDemoRuns.mockResolvedValue([]);
   apiMock.listRuns.mockResolvedValue([
     minimalRun({

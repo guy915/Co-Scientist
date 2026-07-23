@@ -52,7 +52,8 @@ const FAQ: {question: string; answer: string}[] = [
     question: 'How do I start a run?',
     answer:
       'From the home screen, describe your research goal in the composer and ' +
-      'send it. Co-Scientist confirms the setup, then the agents generate and ' +
+      'send it. Co-Scientist confirms the setup, then the agents generate ' +
+      'and ' +
       'evaluate ideas. Follow progress and results in the run view.',
   },
   {

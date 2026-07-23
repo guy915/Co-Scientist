@@ -67,7 +67,8 @@ export const USER_BUBBLE_CLASSES =
 const USER_BUBBLE_TEXT_BASE_CLASSES =
   'reference-user-bubble-text min-w-0 break-words';
 
-export const USER_BUBBLE_TEXT_CLASSES = `${USER_BUBBLE_TEXT_BASE_CLASSES} whitespace-pre-wrap`;
+export const USER_BUBBLE_TEXT_CLASSES =
+  USER_BUBBLE_TEXT_BASE_CLASSES + ' whitespace-pre-wrap';
 
 // A long request collapses to four lines and animates open/closed through an
 // inline max-height that React drives. The collapsed state clips at the
@@ -90,7 +91,8 @@ export const USER_BUBBLE_TEXT_OPEN_CLASSES = 'block whitespace-pre-wrap';
 // and would be invisible.
 export const USER_COLLAPSE_BUTTON_CLASSES =
   'reference-user-collapse size-8 shrink-0 grid cursor-pointer ' +
-  'place-items-center rounded-full border-0 bg-transparent p-0 text-[1.25rem] ' +
+  'place-items-center rounded-full border-0 bg-transparent p-0 ' +
+  'text-[1.25rem] ' +
   'text-cosci-muted hover:bg-cosci-user-bubble-hover hover:text-cosci-fg ' +
   'focus-visible:bg-cosci-user-bubble-hover focus-visible:text-cosci-fg';
 
@@ -138,7 +140,8 @@ export const PLAN_TITLE_CLASSES =
   'm-0 text-[2rem] leading-[1.2] font-normal tracking-normal text-cosci-fg ' +
   'max-[720px]:text-[clamp(1.5rem,6.8vw,2rem)]';
 
-export const PLAN_EDIT_BUTTON_CLASSES = `reference-plan-edit size-[2.1rem] ${MUTED_ICON_BUTTON}`;
+export const PLAN_EDIT_BUTTON_CLASSES =
+  'reference-plan-edit size-[2.1rem] ' + MUTED_ICON_BUTTON;
 
 export const PLAN_EDIT_ICON_CLASSES = 'text-[1.55rem] text-current';
 
@@ -182,7 +185,8 @@ export const OPTION_GRID_CLASSES =
   'grid grid-cols-2 gap-[0.85rem] max-[720px]:grid-cols-1';
 
 export const OPTION_CARD_BASE_CLASSES =
-  'reference-option-card relative grid min-h-[4.75rem] grid-cols-[1.6rem_minmax(0,1fr)] ' +
+  'reference-option-card relative grid min-h-[4.75rem] ' +
+  'grid-cols-[1.6rem_minmax(0,1fr)] ' +
   'content-start gap-x-[0.8rem] rounded-[0.65rem] border border-transparent ' +
   'bg-cosci-option-bg px-[0.95rem] py-[0.85rem] text-cosci-fg ' +
   'hover:bg-cosci-option-hover-bg ' +

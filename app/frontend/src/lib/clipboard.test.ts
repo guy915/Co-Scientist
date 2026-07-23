@@ -25,7 +25,7 @@ it('uses the async Clipboard API when available', async () => {
   expect(execCommand).not.toHaveBeenCalled();
 });
 
-it('falls back to execCommand when navigator.clipboard is unavailable', async () => {
+it('falls back to execCommand when the clipboard API is absent', async () => {
   Reflect.deleteProperty(navigator, 'clipboard');
   const execCommand = vi.fn().mockReturnValue(true);
   Object.defineProperty(document, 'execCommand', {
@@ -58,7 +58,7 @@ it('falls back to execCommand when the Clipboard API rejects', async () => {
   expect(execCommand).toHaveBeenCalledWith('copy');
 });
 
-it('builds a readonly, offscreen textarea holding the given text during the fallback', async () => {
+it('builds a readonly, offscreen textarea during the fallback', async () => {
   Reflect.deleteProperty(navigator, 'clipboard');
   let capturedValue = '';
   let capturedReadonly: string | null = null;
@@ -78,7 +78,7 @@ it('builds a readonly, offscreen textarea holding the given text during the fall
   expect(capturedReadonly).toBe('');
 });
 
-it('never throws when both the Clipboard API and execCommand are unavailable', async () => {
+it('never throws when clipboard API and execCommand are absent', async () => {
   Reflect.deleteProperty(navigator, 'clipboard');
   Object.defineProperty(document, 'execCommand', {
     value: () => {

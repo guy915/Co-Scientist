@@ -60,7 +60,8 @@ def test_seed_demo_runs_is_idempotent_when_reports_exist(
     for run in after_runs:
         report = store.get_latest_report(run.id, db_path=isolated_db)
         assert report is not None
-        assert report["created_at"] == before[run.id]["created_at"]  # type: ignore[index]
+        seeded_at = before[run.id]["created_at"]  # type: ignore[index]
+        assert report["created_at"] == seeded_at
 
 
 def test_seed_demo_runs_reseeds_run_missing_report(isolated_db: str) -> None:

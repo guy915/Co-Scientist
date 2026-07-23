@@ -20,6 +20,9 @@ import {
   ReportDocument,
 } from './run_detail_document';
 
+const STAT_GRID_CLASSES =
+  'grid grid-cols-4 gap-3 max-[900px]:grid-cols-2 max-[520px]:grid-cols-1';
+
 const REPORT_LEAD_STAT_CLASSES =
   'cosci-overview-lead-stat mt-1 mb-4 text-cosci-fg';
 
@@ -160,7 +163,7 @@ function SummaryStats({payload}: {payload: ReportPayload | undefined}) {
     ['Sources Analyzed', payload.evidence_count ?? 0],
   ] as const;
   return (
-    <dl className="grid grid-cols-4 gap-3 max-[900px]:grid-cols-2 max-[520px]:grid-cols-1">
+    <dl className={STAT_GRID_CLASSES}>
       {stats.map(([label, value]) => (
         <div key={label} className="rounded-md bg-cosci-panel p-4">
           <dt className="text-sm text-cosci-muted">{label}</dt>
@@ -347,7 +350,8 @@ function TournamentSummarySection({matches}: {matches: MatchRow[]}) {
       <h3 className={REPORT_H3_CLASSES}>Tournament summary</h3>
       <p>
         {matches.length
-          ? `${matches.length} tournament matches have been recorded for this run.`
+          ? `${matches.length} tournament matches have been recorded ` +
+            'for this run.'
           : 'Tournament matches appear here once ranking begins.'}
       </p>
     </section>
@@ -393,7 +397,8 @@ function researchOverviewLeadStat({
       ? ` with the highest Elo rating of ${highestElo} points`
       : '',
     matchCount > 0
-      ? ` and a total of ${matchCount} ${pluralPhrase(matchCount, 'match was', 'matches were')} played`
+      ? ` and a total of ${matchCount} ` +
+        `${pluralPhrase(matchCount, 'match was', 'matches were')} played`
       : '',
   ];
   const ideaLabel = pluralPhrase(ideaCount, 'idea was', 'ideas were');

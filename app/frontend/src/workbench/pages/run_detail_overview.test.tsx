@@ -5,7 +5,7 @@ import {makeHypothesis, makeMatch} from '@/test_fixtures';
 import {ResearchOverviewView} from './run_detail_overview';
 import {makeRun} from './run_detail_overview_test_support';
 
-it('falls back to live hypotheses/matches when there is no persisted report yet', async () => {
+it('falls back to live data when there is no persisted report', async () => {
   const hypotheses: Hypothesis[] = [
     makeHypothesis({id: 'h1', title: 'Top idea', elo_rating: 1700}),
   ];
@@ -20,7 +20,8 @@ it('falls back to live hypotheses/matches when there is no persisted report yet'
 
   expect(
     screen.getByText(
-      'The research overview appears after Co-Scientist finishes the final synthesis step.',
+      'The research overview appears after Co-Scientist finishes the final ' +
+        'synthesis step.',
     ),
   ).toBeInTheDocument();
   expect(screen.getByText('Top idea')).toBeInTheDocument();
@@ -29,7 +30,7 @@ it('falls back to live hypotheses/matches when there is no persisted report yet'
   ).toBeInTheDocument();
 });
 
-it('shows the pre-synthesis placeholders for research directions/specific aims/tournament with no data', () => {
+it('shows the pre-synthesis placeholders when there is no data', () => {
   render(
     <ResearchOverviewView
       run={makeRun()}

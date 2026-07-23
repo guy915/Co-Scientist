@@ -19,7 +19,9 @@ const STATE_DIR = runStateDir();
 // an isolated on-disk store. Startup seeds three mock demo runs before the
 // port answers /health, so allow a generous boot window.
 const backendServer = {
-  command: `${VENV_PYTHON} -m uvicorn app.main:app --host 127.0.0.1 --port ${API_PORT}`,
+  command:
+    `${VENV_PYTHON} -m uvicorn app.main:app ` +
+    `--host 127.0.0.1 --port ${API_PORT}`,
   cwd: APP_DIR,
   url: `${API_URL}/health`,
   timeout: 120_000,

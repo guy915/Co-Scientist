@@ -44,6 +44,9 @@ import {
   responseActions,
 } from './chat_timeline_message_actions';
 
+const GOAL_EDITOR_CLASSES =
+  'mt-3 w-full rounded-xl border border-cosci-border bg-transparent p-3';
+
 // Props for RunSpecCard, named at module level per the destructured prop
 // signature otherwise pushing the component past the line cap.
 //
@@ -272,7 +275,7 @@ function CompletionNotification({
           required
           disabled={disabled}
           aria-label="Completion notification email"
-          className="mt-3 w-full rounded-xl border border-cosci-border bg-transparent p-3"
+          className={GOAL_EDITOR_CLASSES}
           value={spec.completionEmail || ''}
           onChange={event => onChange(true, event.currentTarget.value)}
         />

@@ -104,7 +104,7 @@ it('shows and adjudicates held safety decisions', async () => {
   );
 });
 
-it('refetches on a coalesced batch that ends in status but carries data', async () => {
+it('refetches on a coalesced batch ending in status with data', async () => {
   const getRun = vi.mocked(runsApi.getRun);
   // A fresh element each render — passing the same reference makes React
   // bail out of re-rendering, so the mutated stream would never be re-read.

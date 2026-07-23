@@ -83,7 +83,7 @@ it('shows the run goal as the report heading', async () => {
   ).toBeInTheDocument();
 });
 
-it('leads the overview with a combined stat sentence and winning ideas', async () => {
+it('leads the overview with a stat sentence and winning ideas', async () => {
   const created = 1_700_000_000;
   vi.mocked(runsApi.getRun).mockResolvedValue(
     makeRun('Study pathway X', {
@@ -106,7 +106,11 @@ it('leads the overview with a combined stat sentence and winning ideas', async (
 
   expect(
     await screen.findByText(
-      /A total of 2 ideas were explored over 3 hours with the highest Elo rating of 1735 points and a total of 3 matches were played\./,
+      new RegExp(
+        'A total of 2 ideas were explored over 3 hours with the highest ' +
+          'Elo rating of 1735 points and a total of 3 matches were ' +
+          'played\\.',
+      ),
     ),
   ).toBeInTheDocument();
   expect(
@@ -126,7 +130,8 @@ it('omits stat clauses whose data is unavailable', async () => {
 
   const stat = await screen.findByText(/A total of 1 idea was explored/);
   expect(stat).toHaveTextContent(
-    'A total of 1 idea was explored with the highest Elo rating of 1500 points.',
+    'A total of 1 idea was explored with the highest Elo rating of 1500 ' +
+      'points.',
   );
   expect(stat.textContent).not.toContain('over');
   expect(stat.textContent).not.toContain('matches');

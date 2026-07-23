@@ -118,7 +118,8 @@ export const SBI_SUGGESTIONS: readonly {
       'A novel resistance mechanism to MAPK-pathway inhibition in cancer.\n\n' +
       'Develop a mechanistic hypothesis for how tumor cells acquire ' +
       'resistance to a MEK or ERK inhibitor through signalling-network ' +
-      'rewiring. Explain the pathway-level mechanism and a phospho-signalling ' +
+      'rewiring. Explain the pathway-level mechanism and a ' +
+      'phospho-signalling ' +
       'readout that would detect it.\n\n' +
       'Prioritize hypotheses testable with proteomic and perturbation ' +
       'assays common to a systems-biology lab.',

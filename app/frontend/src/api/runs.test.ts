@@ -94,7 +94,7 @@ describe('status predicates', () => {
 });
 
 describe('createRun', () => {
-  it('POSTs to /api/runs with a JSON body and the client-id header', async () => {
+  it('POSTs to /api/runs with a JSON body and client-id header', async () => {
     const run = {id: 'r1', research_goal: 'g'};
     fetchMock().mockResolvedValue(jsonResponse(run));
 
@@ -139,7 +139,7 @@ describe('listRuns', () => {
     await expect(listRuns()).rejects.toThrow('403 denied');
   });
 
-  it('does not silently replace network failures with offline sample runs', async () => {
+  it('does not replace network failures with offline sample runs', async () => {
     fetchMock().mockRejectedValue(new TypeError('Failed to fetch'));
     await expect(listRuns()).rejects.toThrow('Failed to fetch');
   });
@@ -155,7 +155,7 @@ describe('listRuns', () => {
 });
 
 describe('loadRunHistory', () => {
-  it('does not request or expose demonstration runs when demos are excluded', async () => {
+  it('does not request demo runs when demos are excluded', async () => {
     fetchMock().mockResolvedValueOnce(
       jsonResponse({
         runs: [
@@ -188,7 +188,7 @@ describe('loadRunHistory', () => {
 });
 
 describe('getRun', () => {
-  it('GETs /api/runs/:id with the ownership header and returns the run', async () => {
+  it('GETs /api/runs/:id with the ownership header', async () => {
     const run = {id: 'r7', summary: {events: 1}};
     fetchMock().mockResolvedValue(jsonResponse(run));
 
@@ -209,7 +209,7 @@ describe('getRun', () => {
 });
 
 describe('startRun', () => {
-  it('POSTs to /api/runs/:id/start with provider and ownership data', async () => {
+  it('POSTs to /api/runs/:id/start with provider and owner data', async () => {
     fetchMock().mockResolvedValue(jsonResponse({id: 'r1', status: 'queued'}));
 
     const result = await startRun('r1', {force_provider: 'engine'});
@@ -226,7 +226,7 @@ describe('startRun', () => {
     expect(result).toEqual({id: 'r1', status: 'queued'});
   });
 
-  it('defaults the body to an empty object when no override is given', async () => {
+  it('defaults the body to an empty object with no override', async () => {
     fetchMock().mockResolvedValue(jsonResponse({id: 'r1', status: 'queued'}));
 
     await startRun('r1');
@@ -293,7 +293,7 @@ describe('collection fetchers unwrap their keyed payload', () => {
 });
 
 describe('listDemoRuns', () => {
-  it('GETs /api/runs/demo without a client-id header and unwraps .runs', async () => {
+  it('GETs /api/runs/demo with no client-id and unwraps .runs', async () => {
     const runs = [{id: 'demo-1'}];
     fetchMock().mockResolvedValue(jsonResponse({runs}));
 
@@ -311,7 +311,7 @@ describe('listDemoRuns', () => {
   });
 });
 
-it('merges owned and demo runs, de-duplicated by id and sorted newest first', async () => {
+it('merges owned and demo runs, de-duped and sorted newest first', async () => {
   fetchMock().mockImplementation((url: string) => {
     if (url.includes('/demo')) {
       // Demo runs are appended after owned runs, so a shared id here wins
@@ -336,7 +336,7 @@ it('merges owned and demo runs, de-duplicated by id and sorted newest first', as
   expect(result.find(run => run.id === 'shared')?.updated_at).toBe(99);
 });
 
-it('degrades a failing demo source to an empty list without blocking owned runs', async () => {
+it('degrades a failing demo source without blocking owned runs', async () => {
   fetchMock().mockImplementation((url: string) => {
     if (url.includes('/demo')) {
       return Promise.reject(new TypeError('Failed to fetch'));
@@ -351,7 +351,7 @@ it('degrades a failing demo source to an empty list without blocking owned runs'
   expect(result).toEqual([{id: 'owned', updated_at: 10}]);
 });
 
-it('degrades a failing owned-runs source to an empty list without blocking demo runs', async () => {
+it('degrades a failing owned source without blocking demo runs', async () => {
   fetchMock().mockImplementation((url: string) => {
     if (url.includes('/demo')) {
       return Promise.resolve(
@@ -399,7 +399,7 @@ describe('runGoal', () => {
     expect(runGoal(run)).toBe('Setup goal');
   });
 
-  it('falls back to the top-level research goal when no setup goal is set', () => {
+  it('falls back to the top-level goal with no setup goal', () => {
     const run = {
       config: {},
       research_goal: 'Top-level goal',
@@ -419,7 +419,7 @@ describe('error message formatting', () => {
     await expect(getRun('r1')).rejects.toThrow('API unavailable');
   });
 
-  it('falls back to statusText when reading the error body itself fails', async () => {
+  it('falls back to statusText when reading the error body fails', async () => {
     const response = {
       ok: false,
       status: 502,
@@ -484,7 +484,7 @@ describe('expired researcher session', () => {
     expect(getAccessToken()).toBe('good-token');
   });
 
-  it('clears a stored access token when a streaming request returns 401', async () => {
+  it('clears a stored token when a streaming request returns 401', async () => {
     // createInterview runs on the home page before any run exists, so its
     // streaming path is the one a stale session hits first; a 401 there must
     // clear the token too, not just the plain-JSON calls.

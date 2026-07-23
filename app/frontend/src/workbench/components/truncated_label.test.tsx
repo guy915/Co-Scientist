@@ -126,7 +126,7 @@ it('renders text unchanged when it fits within the container', async () => {
   expect(container.querySelector('span')!.textContent).toBe('short label');
 });
 
-it('truncates on a word boundary and appends an ellipsis when text overflows', async () => {
+it('truncates on a word boundary and appends an ellipsis', async () => {
   const text = 'abc def ghi jkl mno pqr stu vwx yz1 234';
   const {container} = render(<TruncatedLabel text={text} />);
   await flushNextFrame();
@@ -159,7 +159,7 @@ it('measures against height (not width) when lines > 1', async () => {
   expect(result).not.toBe(text);
 });
 
-it('re-fits when the ResizeObserver reports a container size change', async () => {
+it('re-fits when the ResizeObserver reports a size change', async () => {
   const text = 'alpha beta gamma delta';
   const {container} = render(<TruncatedLabel text={text} />);
   const span = container.querySelector('span')!;
@@ -251,7 +251,7 @@ it('re-fits when the text prop changes', async () => {
   expect(span.textContent).toBe('abc def ghi jkl mno…');
 });
 
-it('registers a ResizeObserver and visibilitychange listener on mount, and cleans up on unmount', async () => {
+it('registers observers on mount and cleans them up on unmount', async () => {
   const removeEventListenerSpy = vi.spyOn(document, 'removeEventListener');
   const cancelSpy = vi.spyOn(window, 'cancelAnimationFrame');
   const {unmount} = render(<TruncatedLabel text="hello" />);

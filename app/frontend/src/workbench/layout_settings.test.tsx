@@ -25,7 +25,7 @@ it('opens the settings menu and dismisses on outside click', async () => {
   expect(screen.queryByRole('menuitem', {name: 'Appearance'})).toBeNull();
 });
 
-it('opens the Settings dialog from the menu and switches sections', async () => {
+it('opens the Settings dialog and switches sections', async () => {
   renderLayout();
 
   fireEvent.click(screen.getByRole('button', {name: 'Settings'}));
