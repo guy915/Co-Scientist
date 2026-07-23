@@ -118,3 +118,40 @@ async def test_produces_overview_and_aims(
     assert topics[0]["title"] == "Epigenetic control of fibrosis"
     assert topics[0]["references"][0]["title"] == "Fibrosis mechanisms"
     assert "Unsupported topic" not in str(topics)
+
+
+def test_evidence_corpus_interleaves_sources() -> None:
+    """The corpus head samples every source, not one source's top cluster.
+
+    Articles arrive best-first (search results are ranked by retrieval score),
+    which clusters each source's top papers together at the front. Feeding that
+    order to the synthesis LLM makes it over-cite the first few references, so
+    the corpus is round-robined across sources before it is numbered: the first
+    N entries (N = source count) must cover all N sources.
+    """
+    articles = [
+        make_article(title="P1", source="pubmed", used_in_analysis=True),
+        make_article(title="P2", source="pubmed", used_in_analysis=True),
+        make_article(title="P3", source="pubmed", used_in_analysis=True),
+        make_article(title="O1", source="openalex", used_in_analysis=True),
+        make_article(title="O2", source="openalex", used_in_analysis=True),
+        make_article(title="C1", source="sbi_corpus", used_in_analysis=True),
+    ]
+
+    corpus = ro._build_evidence_corpus(articles)
+    ordered = list(corpus.values())
+
+    # Ids are contiguous in presentation order.
+    assert [entry["evidence_id"] for entry in ordered] == [
+        f"evidence-{i + 1}" for i in range(6)
+    ]
+    # The head (first three, one per source) covers every source rather than
+    # three pubmed papers in a row.
+    assert {entry["source"] for entry in ordered[:3]} == {
+        "pubmed",
+        "openalex",
+        "sbi_corpus",
+    }
+    # Best-first order is preserved within each source.
+    pubmed_titles = [e["title"] for e in ordered if e["source"] == "pubmed"]
+    assert pubmed_titles == ["P1", "P2", "P3"]
