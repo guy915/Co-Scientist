@@ -1,6 +1,11 @@
-import {screen} from '@testing-library/react';
+import {render, screen} from '@testing-library/react';
 import {expect, it} from 'vitest';
-import {renderFullReport} from './run_detail_overview_test_support';
+import {ResearchOverviewView} from './run_detail_overview';
+import {
+  makeReport,
+  makeRun,
+  renderFullReport,
+} from './run_detail_overview_test_support';
 
 it('renders the synthesized summary and idea buckets from the report', () => {
   renderFullReport();
@@ -29,6 +34,101 @@ it('renders the research directions with their suggested experiments', () => {
   expect(
     screen.getByText('Direction two (no experiments)'),
   ).toBeInTheDocument();
+});
+
+it('flattens malformed research directions instead of showing raw JSON', () => {
+  // In production the model emits these fields in json_object mode with no
+  // schema enforcement, so a string field can arrive as serialized JSON or an
+  // object. The section must render readable text, never raw JSON.
+  const report = makeReport({
+    research_overview: {
+      overview: {
+        summary: 'A synthesized summary of the research.',
+        research_directions: [
+          {
+            title: 'Targeting the stringent response',
+            importance:
+              '{"significance": "Guards against tolerance", "gap": "None"}',
+            suggested_experiments: [
+              {experiment: 'Delete relA', rationale: 'test tolerance'},
+              '["Assay A", "Assay B"]',
+            ],
+          },
+        ],
+      },
+    },
+  } as unknown as Parameters<typeof makeReport>[0]);
+
+  render(
+    <ResearchOverviewView
+      run={makeRun()}
+      report={report}
+      hypotheses={[]}
+      matches={[]}
+    />,
+  );
+
+  expect(
+    screen.getByText('Targeting the stringent response'),
+  ).toBeInTheDocument();
+  expect(
+    screen.getByText('Guards against tolerance - None'),
+  ).toBeInTheDocument();
+  expect(screen.getByText('Delete relA - test tolerance')).toBeInTheDocument();
+  // The JSON-array-string experiment is parsed into individual items.
+  expect(screen.queryByText('["Assay A", "Assay B"]')).not.toBeInTheDocument();
+  // No raw JSON braces leak into the rendered output.
+  expect(document.body.textContent).not.toContain('{"significance"');
+  expect(document.body.textContent).not.toContain('"experiment"');
+});
+
+it('flattens malformed aims and contacts instead of showing raw JSON', () => {
+  const report = makeReport({
+    research_overview: {
+      nih_specific_aims: {
+        introduction: '{"context": "Targets tolerance", "scope": "in vitro"}',
+        aims: [
+          {
+            aim: 'Aim 1: Delete relA',
+            rationale: {why: 'Guards against artefacts'},
+            approach: 'Static and flow-cell assays.',
+          },
+        ],
+        impact: 'Converts the lead hypothesis into a program.',
+      },
+      research_contacts: [
+        {
+          candidate_id: 'author-1-1',
+          name: 'Ada Researcher',
+          expertise: '{"field": "Biofilm metabolism"}',
+          justification: 'Authored an analyzed paper.',
+          source_title: 'A biofilm study',
+          source_url: 'https://example.org/paper',
+          source: 'pubmed',
+        },
+      ],
+    },
+  } as unknown as Parameters<typeof makeReport>[0]);
+
+  render(
+    <ResearchOverviewView
+      run={makeRun()}
+      report={report}
+      hypotheses={[]}
+      matches={[]}
+    />,
+  );
+
+  expect(screen.getByText('Targets tolerance - in vitro')).toBeInTheDocument();
+  expect(screen.getByText('Guards against artefacts')).toBeInTheDocument();
+  expect(screen.getByText('Biofilm metabolism')).toBeInTheDocument();
+  expect(document.body.textContent).not.toContain('{"context"');
+  expect(document.body.textContent).not.toContain('{"field"');
+  expect(document.body.textContent).not.toContain('{"why"');
+  // The source link keeps its real URL.
+  expect(
+    screen.getByRole('link', {name: 'Evidence: A biofilm study'}),
+  ).toHaveAttribute('href', 'https://example.org/paper');
 });
 
 it('renders the specific aims and research contacts', () => {

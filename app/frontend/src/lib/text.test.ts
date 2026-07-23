@@ -1,5 +1,5 @@
 import {describe, it, expect} from 'vitest';
-import {conciseTitle} from './text';
+import {conciseTitle, readableText, readableTextList} from './text';
 
 describe('conciseTitle', () => {
   it('returns a short goal unchanged', () => {
@@ -29,5 +29,67 @@ describe('conciseTitle', () => {
   it('falls back for empty input', () => {
     expect(conciseTitle('')).toBe('Untitled session');
     expect(conciseTitle('   ')).toBe('Untitled session');
+  });
+});
+
+describe('readableText', () => {
+  it('passes a well-formed string through unchanged', () => {
+    expect(readableText('Guards against assay-specific artefacts.')).toBe(
+      'Guards against assay-specific artefacts.',
+    );
+  });
+
+  it('flattens a JSON-string field into plain text', () => {
+    const raw =
+      '{"significance": "Confirms the core assumption", "gap": "None"}';
+    expect(readableText(raw)).toBe('Confirms the core assumption - None');
+  });
+
+  it('flattens an object field into plain text', () => {
+    expect(
+      readableText({significance: 'Blocks a redundant pathway', priority: 3}),
+    ).toBe('Blocks a redundant pathway - 3');
+  });
+
+  it('returns an empty string for nullish input', () => {
+    expect(readableText(null)).toBe('');
+    expect(readableText(undefined)).toBe('');
+  });
+
+  it('leaves a string with a stray brace but invalid JSON intact', () => {
+    expect(readableText('Targets {RelA} to resensitize cells')).toBe(
+      'Targets {RelA} to resensitize cells',
+    );
+  });
+});
+
+describe('readableTextList', () => {
+  it('keeps a normal list of strings', () => {
+    expect(
+      readableTextList(['Run a perturbation series.', 'Quantify it.']),
+    ).toEqual(['Run a perturbation series.', 'Quantify it.']);
+  });
+
+  it('flattens list items that are objects', () => {
+    expect(
+      readableTextList([
+        {experiment: 'Delete relA', rationale: 'test tolerance'},
+      ]),
+    ).toEqual(['Delete relA - test tolerance']);
+  });
+
+  it('parses a JSON-array string into items', () => {
+    expect(readableTextList('["Assay A", "Assay B"]')).toEqual([
+      'Assay A',
+      'Assay B',
+    ]);
+  });
+
+  it('treats a plain string as a single item and nullish as empty', () => {
+    expect(readableTextList('Just one experiment')).toEqual([
+      'Just one experiment',
+    ]);
+    expect(readableTextList(null)).toEqual([]);
+    expect(readableTextList(undefined)).toEqual([]);
   });
 });

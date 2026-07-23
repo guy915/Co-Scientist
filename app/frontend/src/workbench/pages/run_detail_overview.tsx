@@ -10,6 +10,7 @@ import {
 } from '@/api/runs';
 import {formatDurationPhrase} from '@/lib/duration';
 import {sortByEloDesc} from '@/lib/hypotheses';
+import {readableText, readableTextList} from '@/lib/text';
 import {
   REPORT_H3_CLASSES,
   REPORT_H4_CLASSES,
@@ -202,9 +203,9 @@ function ResearchContactsSection({
       </p>
       {contacts.map(contact => (
         <div key={contact.candidate_id}>
-          <h4 className={REPORT_H4_CLASSES}>{contact.name}</h4>
-          <p>{contact.expertise}</p>
-          <p>{contact.justification}</p>
+          <h4 className={REPORT_H4_CLASSES}>{readableText(contact.name)}</h4>
+          <p>{readableText(contact.expertise)}</p>
+          <p>{readableText(contact.justification)}</p>
           {contact.source_url ? (
             <a
               className="text-th-primary underline"
@@ -212,10 +213,10 @@ function ResearchContactsSection({
               rel="noreferrer"
               target="_blank"
             >
-              Evidence: {contact.source_title}
+              Evidence: {readableText(contact.source_title)}
             </a>
           ) : (
-            <p>Evidence: {contact.source_title}</p>
+            <p>Evidence: {readableText(contact.source_title)}</p>
           )}
         </div>
       ))}
@@ -259,7 +260,7 @@ function AgentInsightsSection({
 
 // Overview summary sentence, or the pre-synthesis placeholder.
 function OverviewSummary({overview}: {overview: ResearchOverview | undefined}) {
-  const summary = overview?.overview?.summary;
+  const summary = readableText(overview?.overview?.summary);
   if (summary) return <p>{summary}</p>;
   return (
     <p>
@@ -269,6 +270,40 @@ function OverviewSummary({overview}: {overview: ResearchOverview | undefined}) {
   );
 }
 
+interface DirectionEntry {
+  title: string;
+  importance: string;
+  experiments: string[];
+}
+
+// Coerce one raw research-direction into readable fields, tolerating the
+// json_object-mode malformations (a string field arriving as an object, or as
+// serialized JSON) that would otherwise render as raw JSON.
+function toDirectionEntry(raw: unknown): DirectionEntry {
+  const record = isRecordLike(raw) ? raw : {};
+  return {
+    title: readableText(record.title),
+    importance: readableText(record.importance),
+    experiments: readableTextList(record.suggested_experiments),
+  };
+}
+
+function isRecordLike(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
+// Normalize the overview's research directions into renderable entries,
+// dropping any that carry no content after coercion.
+function directionEntries(
+  overview: ResearchOverview | undefined,
+): DirectionEntry[] {
+  const raw = overview?.overview?.research_directions as unknown;
+  const list = Array.isArray(raw) ? raw : [];
+  return list
+    .map(toDirectionEntry)
+    .filter(e => e.title || e.importance || e.experiments.length);
+}
+
 // "Research directions" section of the research-overview report; renders
 // nothing until the report has research directions.
 function ResearchDirectionsSection({
@@ -276,19 +311,19 @@ function ResearchDirectionsSection({
 }: {
   overview: ResearchOverview | undefined;
 }) {
-  const directions = overview?.overview?.research_directions;
-  if (!directions?.length) return null;
+  const directions = directionEntries(overview);
+  if (!directions.length) return null;
   return (
     <section className={REPORT_SECTION_CLASSES}>
       <h3 className={REPORT_H3_CLASSES}>Research directions</h3>
-      {directions.map(direction => (
-        <div key={direction.title}>
+      {directions.map((direction, index) => (
+        <div key={direction.title || index}>
           <h4 className={REPORT_H4_CLASSES}>{direction.title}</h4>
-          <p>{direction.importance}</p>
-          {direction.suggested_experiments.length ? (
+          {direction.importance ? <p>{direction.importance}</p> : null}
+          {direction.experiments.length ? (
             <ul className={REPORT_LIST_CLASSES}>
-              {direction.suggested_experiments.map(experiment => (
-                <li key={experiment}>{experiment}</li>
+              {direction.experiments.map((experiment, i) => (
+                <li key={`${experiment}-${i}`}>{experiment}</li>
               ))}
             </ul>
           ) : null}
@@ -317,16 +352,28 @@ function SpecificAimsSection({
   return (
     <section className={REPORT_SECTION_CLASSES}>
       <h3 className={REPORT_H3_CLASSES}>Specific aims</h3>
-      <OptionalParagraph text={specificAims.introduction} />
-      {specificAims.aims.map(aim => (
-        <div key={aim.aim}>
-          <h4 className={REPORT_H4_CLASSES}>{aim.aim}</h4>
-          <p>{aim.rationale}</p>
-          <p>{aim.approach}</p>
-        </div>
+      <OptionalParagraph text={readableText(specificAims.introduction)} />
+      {specificAims.aims.map((aim, index) => (
+        <SpecificAim key={index} aim={aim} />
       ))}
-      <OptionalParagraph text={specificAims.impact} />
+      <OptionalParagraph text={readableText(specificAims.impact)} />
     </section>
+  );
+}
+
+// One specific-aim entry, coercing each field so a malformed (object or
+// JSON-string) value renders as readable text rather than raw JSON.
+function SpecificAim({aim}: {aim: unknown}) {
+  const record = isRecordLike(aim) ? aim : {};
+  const title = readableText(record.aim);
+  const rationale = readableText(record.rationale);
+  const approach = readableText(record.approach);
+  return (
+    <div>
+      <h4 className={REPORT_H4_CLASSES}>{title}</h4>
+      {rationale ? <p>{rationale}</p> : null}
+      {approach ? <p>{approach}</p> : null}
+    </div>
   );
 }
 
