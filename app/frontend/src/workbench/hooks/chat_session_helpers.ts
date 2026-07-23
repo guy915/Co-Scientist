@@ -58,3 +58,22 @@ export function appendChatMessage(
   ]);
   return createdAt;
 }
+
+/**
+ * Wraps a ref holding the latest `HandlerDeps` bag in an object whose
+ * enumerable getters delegate to `ref.current`. buildChatHandlers can then be
+ * called ONCE (stable handler identities across renders) while every handler
+ * — including spreads like `{...handlerDeps}` — still reads the current
+ * render's state at call time. The key set is fixed by the initial bag, which
+ * is fine: HandlerDeps is a closed interface.
+ */
+export function liveHandlerDeps<T extends object>(ref: {current: T}): T {
+  const live = {} as T;
+  for (const key of Object.keys(ref.current) as (keyof T)[]) {
+    Object.defineProperty(live, key, {
+      enumerable: true,
+      get: () => ref.current[key],
+    });
+  }
+  return live;
+}

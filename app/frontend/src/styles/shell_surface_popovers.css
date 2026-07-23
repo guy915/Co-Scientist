@@ -218,16 +218,11 @@
   bottom: 1.5rem;
   left: 50%;
   border-radius: 0.5rem;
-  background: #1f1f1f;
-  color: #fff;
+  background: var(--cosci-settings-toast-bg);
+  color: var(--cosci-settings-toast-fg);
   font-size: 0.875rem;
   padding: 0.85rem 1.5rem;
   transform: translateX(-50%);
-}
-
-:root[data-theme='dark'] .ucs-settings-toast {
-  background: #e3e3e3;
-  color: #1f1f1f;
 }
 
 /* One sidebar treatment for every route — the chat rail must look

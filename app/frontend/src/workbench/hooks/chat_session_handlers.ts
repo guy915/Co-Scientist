@@ -259,19 +259,26 @@ function retryDraftSpec(
  * directly over the one or two deps it needs. Takes no hooks itself (plain
  * function, not a sub-hook), so it can be called unconditionally from anywhere
  * in useChatSession's body.
+ *
+ * Every handler reads `handlerDeps` properties at CALL time, never at build
+ * time: useChatSession passes a live view over a ref (see liveHandlerDeps),
+ * so the handler set is built once with stable identities while still seeing
+ * the current render's state. Do not destructure the bag up front.
  */
 export function buildChatHandlers(handlerDeps: HandlerDeps) {
-  const {setInput, setMessages, focusComposer, draft, stageDraftSpec} =
-    handlerDeps;
-
   return {
     handleRetryMessage: (message: ChatEntry) =>
-      retryAssistantMessage(message, setMessages),
+      retryAssistantMessage(message, handlerDeps.setMessages),
     handleEditMessage: (message: ChatEntry) =>
-      loadMessageIntoComposer(message, setInput, focusComposer),
+      loadMessageIntoComposer(
+        message,
+        handlerDeps.setInput,
+        handlerDeps.focusComposer,
+      ),
     handleCopyRequest: (message: ChatEntry) =>
       copyMessagePrompt({message, ...handlerDeps}),
-    handleRetryDraftSpec: () => retryDraftSpec(draft, stageDraftSpec),
+    handleRetryDraftSpec: () =>
+      retryDraftSpec(handlerDeps.draft, handlerDeps.stageDraftSpec),
     handleCancelDraftSpec: () => cancelDraftSpec(handlerDeps),
     handleEditPlan: (spec: InferredRunSpec) => editPlan({spec, ...handlerDeps}),
     handleSubmit: (e: FormEvent<HTMLFormElement>, files: File[] = []) =>

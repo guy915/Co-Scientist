@@ -46,13 +46,8 @@
   gap: 0.3rem;
   border: 1px solid var(--cosci-border);
   border-radius: 9999px;
-  background: #f8fafd;
+  background: var(--cosci-settings-segment-bg);
   padding: 0.18rem;
-}
-
-:root[data-theme='dark'] .ucs-theme-segment {
-  border-color: var(--cosci-border);
-  background: #1b1b1b;
 }
 
 .ucs-theme-button {
@@ -250,12 +245,8 @@
 
 .ucs-settings-card {
   border-radius: 1rem;
-  background: #f8fafd;
+  background: var(--cosci-settings-card-bg);
   padding: 1.25rem 1.4rem 1.4rem;
-}
-
-:root[data-theme='dark'] .ucs-settings-card {
-  background: #1e1f20;
 }
 
 .ucs-settings-card-title {

@@ -106,7 +106,7 @@ export const FEEDBACK_CATEGORIES: readonly {
 ];
 
 // DRAFT: SBI/UCD-tailored home suggestions. Same shape as the default
-// SUGGESTIONS in chat_home_stage.tsx.
+// SUGGESTIONS in pages/chat_home_suggestions.ts.
 export const SBI_SUGGESTIONS: readonly {
   preview: string;
   prompt: string;

@@ -1,5 +1,5 @@
-import {PublicLinkButton} from './public_link_button';
-import {Seo} from './seo';
+import {Link} from 'react-router-dom';
+import {NoIndex} from './no_index';
 
 const NOT_FOUND_SECTION_CLASSES =
   'mx-auto min-h-[70vh] w-[min(100%_-_3rem,76rem)] py-[clamp(5rem,12vw,9rem)]';
@@ -12,6 +12,17 @@ const NOT_FOUND_TITLE_CLASSES =
 const NOT_FOUND_ACTIONS_CLASSES =
   'mt-8 flex flex-wrap gap-3 max-sm:grid max-sm:grid-cols-1';
 
+// MD3 filled-button look on the router <Link> home CTA: pill radius, primary
+// tonal colors via --md-sys-color-* vars, full-width below the sm breakpoint.
+const HOME_LINK_CLASSES =
+  'inline-flex min-h-12 items-center justify-center rounded-full border ' +
+  'border-transparent bg-[var(--md-sys-color-primary)] px-[1.35rem] ' +
+  'py-[0.72rem] text-sm font-semibold leading-none ' +
+  'text-[var(--md-sys-color-on-primary)] no-underline hover:opacity-90 ' +
+  'max-sm:w-full focus-visible:outline-2 ' +
+  'focus-visible:outline-offset-[3px] ' +
+  'focus-visible:outline-[var(--md-sys-color-primary)]';
+
 /**
  * Renders the 404 page shown for unmatched routes.
  *
@@ -21,11 +32,7 @@ const NOT_FOUND_ACTIONS_CLASSES =
 export function NotFoundPage() {
   return (
     <>
-      <Seo
-        title="Page Not Found - Co-Scientist"
-        description="The page you requested does not exist."
-        robots="noindex, nofollow"
-      />
+      <NoIndex title="Page Not Found" />
       <section className={NOT_FOUND_SECTION_CLASSES}>
         <p className={NOT_FOUND_EYEBROW_CLASSES}>404</p>
         <h1 className={NOT_FOUND_TITLE_CLASSES}>Page not found</h1>
@@ -33,7 +40,9 @@ export function NotFoundPage() {
           The page you requested does not exist.
         </p>
         <div className={NOT_FOUND_ACTIONS_CLASSES}>
-          <PublicLinkButton to="/">Return home</PublicLinkButton>
+          <Link className={HOME_LINK_CLASSES} to="/">
+            Return home
+          </Link>
         </div>
       </section>
     </>

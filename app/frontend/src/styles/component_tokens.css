@@ -121,6 +121,30 @@
   --cosci-reference-open-hover-bg: var(--cosci-hover);
   --cosci-reference-open-hover-border: var(--cosci-muted);
 
+  /* Global scrollbar thumb (index.css). Bespoke grey ramp — the dark
+     values don't line up with any existing neutral token pair. */
+  --cosci-scrollbar-thumb: #bdc1c6;
+  --cosci-scrollbar-thumb-hover: #747775;
+
+  /* Tooltips — an inverse surface like the center toast: bg/fg alias the
+     toast pair, and the border is the neutral border inverted (dark-mode
+     border shade while the app is light, and vice versa). */
+  --cosci-tooltip-border: #444746;
+  --cosci-tooltip-bg: var(--cosci-toast-bg);
+  --cosci-tooltip-fg: var(--cosci-toast-fg);
+
+  /* Settings dialog surfaces: the theme segment track and the section
+     cards share a light tint but diverge in dark. */
+  --cosci-settings-segment-bg: #f8fafd;
+  --cosci-settings-card-bg: #f8fafd;
+
+  /* Settings save toast — near-black snackbar, inverted in dark. */
+  --cosci-settings-toast-bg: #1f1f1f;
+  --cosci-settings-toast-fg: #fff;
+
+  /* Run-step "done" check — MD3 green in light, brand mint in dark. */
+  --cosci-run-step-done: #1e8e3e;
+
   /* Proposals relationship graph (/proposals). Cluster hues: `scaling`
      takes the app's own teal; the rest are chosen to stay distinguishable
      from it and from each other at node size. Relationship colors are
@@ -185,6 +209,19 @@
   --cosci-user-bubble-bg: #282a2c;
   --cosci-user-bubble-hover: #34363a;
   --cosci-setup-doc-bg: #333537;
+
+  --cosci-scrollbar-thumb: #444746;
+  --cosci-scrollbar-thumb-hover: #8e918f;
+
+  --cosci-tooltip-border: #c4c7c5;
+
+  --cosci-settings-segment-bg: #1b1b1b;
+  --cosci-settings-card-bg: #1e1f20;
+
+  --cosci-settings-toast-bg: #e3e3e3;
+  --cosci-settings-toast-fg: #1f1f1f;
+
+  --cosci-run-step-done: var(--cosci-green);
 
   --proposal-scaling: #68d0c0;
   --proposal-evaluation: #e0a75c;

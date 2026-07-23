@@ -3,8 +3,8 @@ import {render, waitFor} from '@testing-library/react';
 import {NoIndex} from './no_index';
 
 describe('NoIndex', () => {
-  // NoIndex renders nothing directly; it drives document head metadata via the
-  // Seo effect, so assert on the document rather than the DOM tree.
+  // NoIndex renders nothing directly; it drives document head metadata via
+  // its effect, so assert on the document rather than the DOM tree.
   it('sets the document title to the page name plus the site', async () => {
     render(<NoIndex title="Settings" />);
     await waitFor(() => expect(document.title).toBe('Settings - Co-Scientist'));

@@ -278,22 +278,12 @@ body {
 *::-webkit-scrollbar-thumb {
   border: 3px solid transparent;
   border-radius: 9999px;
-  background: #bdc1c6;
+  background: var(--cosci-scrollbar-thumb);
   background-clip: padding-box;
 }
 
 *::-webkit-scrollbar-thumb:hover {
-  background: #747775;
-  background-clip: padding-box;
-}
-
-:root[data-theme='dark'] *::-webkit-scrollbar-thumb {
-  background: #444746;
-  background-clip: padding-box;
-}
-
-:root[data-theme='dark'] *::-webkit-scrollbar-thumb:hover {
-  background: #8e918f;
+  background: var(--cosci-scrollbar-thumb-hover);
   background-clip: padding-box;
 }
 

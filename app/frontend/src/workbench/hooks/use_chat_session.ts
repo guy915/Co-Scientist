@@ -1,5 +1,7 @@
+import {useLayoutEffect, useMemo, useRef} from 'react';
 import {useComposerLog, useRunSpecLifecycle} from './chat_session_state';
 import {buildChatHandlers, toHandlerDeps} from './chat_session_handlers';
+import {liveHandlerDeps} from './chat_session_helpers';
 import {type ChatSessionDeps} from './chat_session_types';
 
 /**
@@ -24,7 +26,21 @@ export function useChatSession(deps: ChatSessionDeps) {
     Boolean(lifecycle.confirmed) ||
     Boolean(lifecycle.startedSession);
 
-  const handlers = buildChatHandlers(toHandlerDeps(lifecycle, composer, deps));
+  // Handlers are built ONCE: the deps bag is re-assembled each render into a
+  // ref (committed in a layout effect so aborted renders never leak into it),
+  // and buildChatHandlers reads through a live getter view over that ref at
+  // call time. Handler identities therefore stay stable across renders —
+  // including the high-frequency ones from streamed agent reasoning — without
+  // any handler seeing stale state.
+  const handlerDepsBag = toHandlerDeps(lifecycle, composer, deps);
+  const handlerDepsRef = useRef(handlerDepsBag);
+  useLayoutEffect(() => {
+    handlerDepsRef.current = handlerDepsBag;
+  });
+  const handlers = useMemo(
+    () => buildChatHandlers(liveHandlerDeps(handlerDepsRef)),
+    [],
+  );
 
   // Exposed surface: raw state + setters for the view to render the
   // timeline, and the handler set that encodes every legal transition.
