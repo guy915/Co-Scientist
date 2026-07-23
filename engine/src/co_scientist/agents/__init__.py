@@ -24,10 +24,16 @@ runs as the ``review`` -> ``comprehensive_reflection`` -> ``deep_verification``
 sequence, each independently resumable). The node implementations live in these
 agent packages; the **key strings** each node registers under are persisted in
 the durable task queue and checkpoints, so they are deliberately preserved (this
-was a file move, not a key rename). ``co_scientist.nodes`` keeps thin re-export
-shims at the old import paths. The full node->agent mapping is ``NODE_TO_AGENT``
-below, and the rationale lives in ``engine/docs/ARCHITECTURE.md``.
+was a file move, not a key rename). ``NODE_REGISTRY`` below is the single
+source of truth for those key strings: the workflow graph registers its nodes
+from it, ``task_runtime.TASK_NODES`` derives from it, and ``NODE_TO_AGENT``
+projects it down to the node->agent grouping. The rationale lives in
+``engine/docs/ARCHITECTURE.md``.
 """
+
+from collections.abc import Awaitable, Callable
+from dataclasses import dataclass
+from typing import Any
 
 from co_scientist.agents import (
     evolution,
@@ -39,29 +45,64 @@ from co_scientist.agents import (
     safety,
     supervisor,
 )
+from co_scientist.state import WorkflowState
 
-# The durable graph-node key -> owning agent. The keys are the exact strings
-# registered in generator.graph and persisted as ``engine.node.<key>`` durable
-# tasks; this dict is the single source of truth for the node->agent grouping.
+# A durable graph node's implementation: one async state-transform callable.
+NodeCallable = Callable[[WorkflowState], Awaitable[dict[str, Any]]]
+
+
+@dataclass(frozen=True)
+class NodeSpec:
+    """One durable graph node: its owning agent and its callable.
+
+    Attributes:
+        agent: The agent (package under ``co_scientist.agents``) that owns
+            the node.
+        node: The async node callable registered under the node's key.
+    """
+
+    agent: str
+    node: NodeCallable
+
+
+# The single source of truth for the durable graph-node keys. Each key is the
+# exact string registered on the LangGraph workflow and persisted as an
+# ``engine.node.<key>`` durable task, so the keys must never change value.
+NODE_REGISTRY: dict[str, NodeSpec] = {
+    "supervisor": NodeSpec("supervisor", supervisor.supervisor_node),
+    "orchestrator": NodeSpec("supervisor", supervisor.orchestrator_node),
+    "generate": NodeSpec("generation", generation.generate_node),
+    "literature_review": NodeSpec(
+        "generation", generation.literature_review_node
+    ),
+    "review": NodeSpec("reflection", reflection.review_node),
+    "reflection": NodeSpec("reflection", reflection.reflection_node),
+    "comprehensive_reflection": NodeSpec(
+        "reflection", reflection.comprehensive_reflection_node
+    ),
+    "deep_verification": NodeSpec(
+        "reflection", reflection.deep_verification_node
+    ),
+    "ranking": NodeSpec("ranking", ranking.ranking_node),
+    "evolve": NodeSpec("evolution", evolution.evolve_node),
+    "proximity": NodeSpec("proximity", proximity.proximity_node),
+    "meta_review": NodeSpec("meta_review", meta_review.meta_review_node),
+    "research_overview": NodeSpec(
+        "meta_review", meta_review.research_overview_node
+    ),
+    "safety_screen": NodeSpec("safety", safety.safety_screen_node),
+}
+
+# The durable graph-node key -> owning agent, projected from NODE_REGISTRY.
 NODE_TO_AGENT: dict[str, str] = {
-    "supervisor": "supervisor",
-    "orchestrator": "supervisor",
-    "generate": "generation",
-    "literature_review": "generation",
-    "review": "reflection",
-    "reflection": "reflection",
-    "comprehensive_reflection": "reflection",
-    "deep_verification": "reflection",
-    "ranking": "ranking",
-    "evolve": "evolution",
-    "proximity": "proximity",
-    "meta_review": "meta_review",
-    "research_overview": "meta_review",
-    "safety_screen": "safety",
+    key: spec.agent for key, spec in NODE_REGISTRY.items()
 }
 
 __all__ = [
+    "NODE_REGISTRY",
     "NODE_TO_AGENT",
+    "NodeCallable",
+    "NodeSpec",
     "evolution",
     "generation",
     "meta_review",

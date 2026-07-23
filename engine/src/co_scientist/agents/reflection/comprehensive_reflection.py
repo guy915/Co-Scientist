@@ -25,6 +25,7 @@ from co_scientist.agents.reflection.review_types import (
 from co_scientist.constants import (
     DEFAULT_MAX_TOKENS,
     EXTENDED_MAX_TOKENS,
+    LITERATURE_REVIEW_MAX_QUERIES,
     LOW_TEMPERATURE,
 )
 from co_scientist.llm import (
@@ -51,8 +52,8 @@ from co_scientist.state import WorkflowState
 logger = logging.getLogger(__name__)
 
 # Bounds the searches (and downstream paper fan-out) per reviewed hypothesis,
-# mirroring the literature-review node's own cap.
-_MAX_HYPOTHESIS_QUERIES = 3
+# sharing the literature-review node's own Phase 1 cap.
+_MAX_HYPOTHESIS_QUERIES = LITERATURE_REVIEW_MAX_QUERIES
 
 
 def _prompt_variables(

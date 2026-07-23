@@ -69,15 +69,17 @@ class McpAvailabilityMixin:
             return self._mcp_available, self._pubmed_available
 
         from co_scientist.mcp_client import (
+            check_literature_source_available,
             check_mcp_available,
-            check_pubmed_available_via_mcp,
         )
 
         # Probe concurrently: the checks are independent and each opens its own
         # MCP round trip.
         mcp_available, pubmed_available = await asyncio.gather(
             check_mcp_available(tool_registry=self._tool_registry),
-            check_pubmed_available_via_mcp(tool_registry=self._tool_registry),
+            check_literature_source_available(
+                tool_registry=self._tool_registry
+            ),
         )
         self._mcp_available = mcp_available
         self._pubmed_available = pubmed_available

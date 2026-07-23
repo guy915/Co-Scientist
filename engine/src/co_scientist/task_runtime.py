@@ -14,43 +14,17 @@ from typing import Any, cast
 
 from langgraph.graph import add_messages
 
+from co_scientist.agents import NODE_REGISTRY
 from co_scientist.generator.graph import _TASK_ROUTES as _ORCHESTRATOR_ROUTES
 from co_scientist.models import merge_metrics
-from co_scientist.nodes.comprehensive_reflection import (
-    comprehensive_reflection_node,
-)
-from co_scientist.nodes.deep_verification import deep_verification_node
-from co_scientist.nodes.evolve import evolve_node
-from co_scientist.nodes.generate import generate_node
-from co_scientist.nodes.literature_review import literature_review_node
-from co_scientist.nodes.meta_review import meta_review_node
-from co_scientist.nodes.orchestrator import orchestrator_node
-from co_scientist.nodes.proximity import proximity_node
-from co_scientist.nodes.ranking import ranking_node
-from co_scientist.nodes.reflection import reflection_node
-from co_scientist.nodes.research_overview import research_overview_node
-from co_scientist.nodes.review import review_node
-from co_scientist.nodes.safety_screen import safety_screen_node
-from co_scientist.nodes.supervisor import supervisor_node
 from co_scientist.state import WorkflowState, deduplicate_hypotheses
 
 TaskNode = Callable[[WorkflowState], Awaitable[dict[str, Any]]]
 
+# Task-name -> node callable, derived from the canonical node registry so the
+# durable task runtime can never drift from the graph's registered nodes.
 TASK_NODES: dict[str, TaskNode] = {
-    "supervisor": supervisor_node,
-    "literature_review": literature_review_node,
-    "generate": generate_node,
-    "reflection": reflection_node,
-    "review": review_node,
-    "comprehensive_reflection": comprehensive_reflection_node,
-    "safety_screen": safety_screen_node,
-    "deep_verification": deep_verification_node,
-    "ranking": ranking_node,
-    "orchestrator": orchestrator_node,
-    "meta_review": meta_review_node,
-    "evolve": evolve_node,
-    "proximity": proximity_node,
-    "research_overview": research_overview_node,
+    key: spec.node for key, spec in NODE_REGISTRY.items()
 }
 
 

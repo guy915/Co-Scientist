@@ -146,7 +146,7 @@ Log only specific parts of Co-Scientist:
 import logging
 
 # Only log from the generate node
-logging.getLogger("co_scientist.nodes.generate").setLevel(logging.DEBUG)
+logging.getLogger("co_scientist.agents.generation.generate").setLevel(logging.DEBUG)
 
 # Only log MCP client activity
 logging.getLogger("co_scientist.mcp_client").setLevel(logging.DEBUG)

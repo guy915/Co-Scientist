@@ -50,13 +50,15 @@ from state_helpers import (
     truncate,
 )
 
+from co_scientist.agents.generation.literature_review import (
+    literature_review_node,
+)
 from co_scientist.constants import LITERATURE_REVIEW_FAILED
 from co_scientist.mcp_client import (
     check_mcp_available,
     check_pubmed_available_via_mcp,
 )
 from co_scientist.models import Article
-from co_scientist.nodes.literature_review import literature_review_node
 
 
 async def _gather_prereqs() -> tuple[list[str], list[str], bool, bool]:

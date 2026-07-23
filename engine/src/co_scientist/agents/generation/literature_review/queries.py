@@ -19,6 +19,7 @@ from co_scientist.agents.generation.literature_review.outcomes import (
 from co_scientist.constants import (
     DEFAULT_MAX_TOKENS,
     HIGH_TEMPERATURE,
+    LITERATURE_REVIEW_MAX_QUERIES,
 )
 from co_scientist.llm import (
     CompletionSpec,
@@ -187,11 +188,10 @@ async def _phase1_generate_queries(
         logger.warning("No queries generated, using research goal")
         queries = [state["research_goal"]]
 
-    # Limit to 3 queries max
     # Bounds the number of parallel search calls (and downstream
     # papers-per-query fan-out) regardless of how many queries either
     # generator returned.
-    queries = queries[:3]
+    queries = queries[:LITERATURE_REVIEW_MAX_QUERIES]
 
     logger.info("Generated %s search queries", len(queries))
     for i, q in enumerate(queries, 1):

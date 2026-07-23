@@ -6,30 +6,14 @@ routing decisions that drive the iteration cycle.
 """
 
 import logging
-from typing import Any
+from typing import Any, cast
 
 from langgraph.graph import END, START, StateGraph
 from langgraph.graph.state import CompiledStateGraph
 
-from co_scientist.nodes.comprehensive_reflection import (
-    comprehensive_reflection_node,
-)
-from co_scientist.nodes.deep_verification import deep_verification_node
-from co_scientist.nodes.evolve import evolve_node
-
-# Node callables, one per LangGraph node; see _add_workflow_nodes below for
-# how they are wired into the workflow graph.
-from co_scientist.nodes.generate import generate_node
-from co_scientist.nodes.literature_review import literature_review_node
-from co_scientist.nodes.meta_review import meta_review_node
-from co_scientist.nodes.orchestrator import orchestrator_node
-from co_scientist.nodes.proximity import proximity_node
-from co_scientist.nodes.ranking import ranking_node
-from co_scientist.nodes.reflection import reflection_node
-from co_scientist.nodes.research_overview import research_overview_node
-from co_scientist.nodes.review import review_node
-from co_scientist.nodes.safety_screen import safety_screen_node
-from co_scientist.nodes.supervisor import supervisor_node
+# The canonical durable node key -> (agent, callable) registry; see
+# _add_workflow_nodes below for how it is wired into the workflow graph.
+from co_scientist.agents import NODE_REGISTRY
 from co_scientist.state import WorkflowState
 
 logger = logging.getLogger(__name__)
@@ -82,32 +66,26 @@ def _route_next_task(state: WorkflowState) -> str:
     return node
 
 
+# Nodes only registered when the MCP-backed literature-review path is on.
+_MCP_GATED_NODES = frozenset({"literature_review", "reflection"})
+
+
 def _add_workflow_nodes(
     workflow: _WorkflowBuilder, enable_literature_review_node: bool
 ) -> None:
-    """Registers every workflow node on the graph.
+    """Registers every workflow node on the graph from NODE_REGISTRY.
 
     Args:
         workflow: The graph under construction; mutated in place.
         enable_literature_review_node: Whether to include the literature
             review and reflection nodes (requires MCP server).
     """
-    workflow.add_node("supervisor", supervisor_node)
-    workflow.add_node("generate", generate_node)
-    workflow.add_node("review", review_node)
-    workflow.add_node("comprehensive_reflection", comprehensive_reflection_node)
-    workflow.add_node("safety_screen", safety_screen_node)
-    workflow.add_node("ranking", ranking_node)
-    workflow.add_node("deep_verification", deep_verification_node)
-    workflow.add_node("orchestrator", orchestrator_node)
-    workflow.add_node("meta_review", meta_review_node)
-    workflow.add_node("evolve", evolve_node)
-    workflow.add_node("proximity", proximity_node)
-    workflow.add_node("research_overview", research_overview_node)
-
-    if enable_literature_review_node:
-        workflow.add_node("literature_review", literature_review_node)
-        workflow.add_node("reflection", reflection_node)
+    for key, spec in NODE_REGISTRY.items():
+        if key in _MCP_GATED_NODES and not enable_literature_review_node:
+            continue
+        # cast: langgraph's add_node overloads reject the general async
+        # callable alias, though every registered node satisfies them.
+        workflow.add_node(key, cast(Any, spec.node))
 
 
 def _add_entry_edge(workflow: _WorkflowBuilder) -> None:

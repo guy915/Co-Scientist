@@ -24,9 +24,11 @@ from state_helpers import (
     render_hypotheses_table,
 )
 
+from co_scientist.agents.generation.generate import generate_node
+from co_scientist.agents.generation.literature_review import (
+    literature_review_node,
+)
 from co_scientist.models import Hypothesis
-from co_scientist.nodes.generate import generate_node
-from co_scientist.nodes.literature_review import literature_review_node
 
 console = Console()
 

@@ -17,7 +17,7 @@ from state_helpers import (
     make_base_state,
 )
 
-from co_scientist.nodes.supervisor import supervisor_node
+from co_scientist.agents.supervisor.supervisor import supervisor_node
 
 console = Console()
 

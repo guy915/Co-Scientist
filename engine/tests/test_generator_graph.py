@@ -13,6 +13,17 @@ from co_scientist.scheduling import ALLOWED_LOOP_TASKS, TaskType
 from tests._state import make_state
 
 
+def test_task_routes_reconcile_with_allowed_loop_tasks() -> None:
+    """The routing table and the scheduler's dispatchable set stay in sync.
+
+    ``scheduling.policy.ALLOWED_LOOP_TASKS`` and ``graph._TASK_ROUTES`` each
+    carry a "keep in sync" comment pointing at the other; this pins the
+    invariant programmatically: the routing table's keys are exactly the task
+    values the scheduler may dispatch at the loop point.
+    """
+    assert {task.value for task in ALLOWED_LOOP_TASKS} == set(_TASK_ROUTES)
+
+
 def test_routes_each_task_type_to_its_node() -> None:
     """Every task the orchestrator can emit maps to a real entry node."""
     for task in ALLOWED_LOOP_TASKS:

@@ -158,18 +158,6 @@ async def check_literature_source_available(
     )
 
 
-# Backwards compatibility alias
-# Still the entry point generator.py calls (and tests monkeypatch) for the
-# PubMed-specific availability probe, despite the name predating the
-# generic multi-source check_literature_source_available it wraps.
-async def check_pubmed_available_via_mcp(
-    server_url: str | None = None,
-    tool_registry: Optional["ToolRegistry"] = None,
-) -> bool:
-    """Deprecated: use check_literature_source_available instead."""
-    return await check_literature_source_available(server_url, tool_registry)
-
-
 async def check_tool_available(
     tool_name: str,
     server_url: str | None = None,

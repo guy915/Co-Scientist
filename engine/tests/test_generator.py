@@ -62,7 +62,7 @@ def _stub_mcp(monkeypatch: pytest.MonkeyPatch, *, available: bool) -> None:
         return available
 
     monkeypatch.setattr(mcp_client, "check_mcp_available", fake)
-    monkeypatch.setattr(mcp_client, "check_pubmed_available_via_mcp", fake)
+    monkeypatch.setattr(mcp_client, "check_literature_source_available", fake)
 
 
 # --- Construction / configuration -------------------------------------------

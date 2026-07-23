@@ -1,8 +1,8 @@
 """Tests for MCP availability checks, global caching and the registry path.
 
 Covers ``check_mcp_available``, ``check_literature_source_available``, the
-deprecated ``check_pubmed_available_via_mcp`` alias, the ``get_mcp_client``
-global cache, and the config-driven multi-server (``ToolRegistry``) path.
+``get_mcp_client`` global cache, and the config-driven multi-server
+(``ToolRegistry``) path.
 Construction and the ``MCPToolClient`` instance API are covered in
 ``test_mcp_client_core``.
 
@@ -16,7 +16,6 @@ from co_scientist.mcp_client import (
     MCPToolClient,
     check_literature_source_available,
     check_mcp_available,
-    check_pubmed_available_via_mcp,
     get_mcp_client,
     reset_mcp_client,
 )
@@ -121,31 +120,6 @@ async def test_literature_source_false_on_connection_error(
     _patch_mcp_seam.error = RuntimeError("down")
     assert (
         await check_literature_source_available(server_url="http://x.test/mcp")
-        is False
-    )
-
-
-# --- check_pubmed_available_via_mcp (thin alias) ----------------------------
-
-
-async def test_pubmed_alias_delegates_true(
-    _patch_mcp_seam: type[FakeMultiServerMCPClient],
-) -> None:
-    """The deprecated alias returns True when the source is available."""
-    _patch_mcp_seam.tools = [string_tool("check_pubmed_available", "true")]
-    assert (
-        await check_pubmed_available_via_mcp(server_url="http://x.test/mcp")
-        is True
-    )
-
-
-async def test_pubmed_alias_delegates_false(
-    _patch_mcp_seam: type[FakeMultiServerMCPClient],
-) -> None:
-    """The deprecated alias returns False when the source is unavailable."""
-    _patch_mcp_seam.error = ConnectionError("boom")
-    assert (
-        await check_pubmed_available_via_mcp(server_url="http://x.test/mcp")
         is False
     )
 

@@ -103,7 +103,7 @@ def make_supervisor_state(
     """
     import asyncio
 
-    from co_scientist.nodes.supervisor import (
+    from co_scientist.agents.supervisor.supervisor import (
         supervisor_node,
     )
 
@@ -140,11 +140,11 @@ def make_literature_state(
     """
     import asyncio
 
+    from co_scientist.agents.generation.literature_review import (
+        literature_review_node,
+    )
     from co_scientist.models import (
         Article,
-    )
-    from co_scientist.nodes.literature_review import (
-        literature_review_node,
     )
 
     base = make_base_state(research_goal, model_name)

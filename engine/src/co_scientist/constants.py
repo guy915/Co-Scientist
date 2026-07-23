@@ -171,6 +171,14 @@ LITERATURE_REVIEW_PAPERS_COUNT_DEV: Final = 4
 LITERATURE_REVIEW_RECENCY_YEARS: Final = 7
 """filter papers to last N years for better relevance (0 = no filter)"""
 
+LITERATURE_REVIEW_MAX_QUERIES: Final = 3
+"""Maximum search queries per literature pass.
+
+Shared by the literature-review node's Phase 1 query cap and comprehensive
+reflection's per-hypothesis query cap so both fan-outs stay bounded
+identically.
+"""
+
 # Generate node literature tool usage parameters
 # The next two functions size the tool-calling agent's iteration budget for
 # the two-phase (draft, then validate) generation-with-literature-tools flow

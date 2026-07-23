@@ -17,6 +17,15 @@ servers:
 
 # Tool Definitions
 # Organized by category: search_tools, read_tools, utility_tools
+#
+# Deliberately omitted: the reference MCP server also registers 8 INDRA CoGex
+# knowledge-graph tools -- query_gene_disease_network, query_gene_codependents,
+# query_drug_info, query_clinical_trials, query_pathways, query_causal_subnetwork,
+# query_mechanistic_statements, run_enrichment_analysis -- that this default
+# config does not declare, so they are unreachable by default. Enabling one
+# means declaring it here with a matching mcp_tool_name (and adding it to the
+# relevant workflow / draft_generation whitelist); config/examples/indra_hfpef.yaml
+# is a complete worked example that wires all eight in.
 tools:
   search_tools:
     # The research group's own papers, held as sanitized full text on the MCP

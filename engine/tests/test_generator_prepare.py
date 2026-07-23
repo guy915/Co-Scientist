@@ -30,7 +30,7 @@ def _stub_mcp(monkeypatch: pytest.MonkeyPatch, *, available: bool) -> None:
         return available
 
     monkeypatch.setattr(mcp_client, "check_mcp_available", fake)
-    monkeypatch.setattr(mcp_client, "check_pubmed_available_via_mcp", fake)
+    monkeypatch.setattr(mcp_client, "check_literature_source_available", fake)
 
 
 async def test_prepare_generation_populates_core_config(
@@ -173,7 +173,9 @@ async def test_mcp_availability_cached_per_instance(
         return True
 
     monkeypatch.setattr(mcp_client, "check_mcp_available", counting)
-    monkeypatch.setattr(mcp_client, "check_pubmed_available_via_mcp", counting)
+    monkeypatch.setattr(
+        mcp_client, "check_literature_source_available", counting
+    )
 
     gen = HypothesisGenerator()
     await gen._prepare_generation("goal")
@@ -193,7 +195,9 @@ async def test_explicit_disable_skips_mcp_probe(
         raise AssertionError("MCP probe should not be called")
 
     monkeypatch.setattr(mcp_client, "check_mcp_available", explode)
-    monkeypatch.setattr(mcp_client, "check_pubmed_available_via_mcp", explode)
+    monkeypatch.setattr(
+        mcp_client, "check_literature_source_available", explode
+    )
 
     gen = HypothesisGenerator()
     state = await gen._prepare_generation(

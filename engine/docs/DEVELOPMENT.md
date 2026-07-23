@@ -32,7 +32,6 @@ engine/
 │       │   ├── meta_review/    # meta_review.py, research_overview.py
 │       │   ├── proximity/      # proximity.py (dedup)
 │       │   └── safety/         # safety_screen.py (cross-cutting screen)
-│       ├── nodes/              # Thin re-export shims at the pre-reorg paths
 │       ├── scheduling/         # Deterministic orchestrator scheduling policy
 │       ├── progress.py         # Shared progress-event emission for agent nodes
 │       └── prompts/            # Prompt builders grouped by consumer node
@@ -100,9 +99,7 @@ async def node_name(state: WorkflowState) -> Dict[str, Any]:
 ### 1. Create Node File
 
 Create the node inside the agent package that owns it, e.g.
-`src/co_scientist/agents/my_agent/my_node.py` (the `nodes/` package holds
-only back-compat re-export shims — new nodes do not go there; add a shim
-only if an old import path must keep working):
+`src/co_scientist/agents/my_agent/my_node.py`:
 
 ```python
 from typing import Dict, Any

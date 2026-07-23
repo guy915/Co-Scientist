@@ -9,6 +9,7 @@ Runs the real compiled LangGraph workflow end-to-end with only the LLM
 layer faked (same approach as test_system_generation.py).
 """
 
+from dataclasses import replace
 from typing import Any
 
 import pytest
@@ -53,8 +54,8 @@ def _make_unsafe_hypothesis() -> Hypothesis:
 
 def _inject_unsafe(monkeypatch: pytest.MonkeyPatch) -> None:
     """Wrap generate_node so every generation appends the unsafe hypothesis."""
+    from co_scientist import agents
     from co_scientist.agents.generation import generate as gen_module
-    from co_scientist.generator import graph as graph_module
 
     original_generate_node = gen_module.generate_node
 
@@ -69,7 +70,16 @@ def _inject_unsafe(monkeypatch: pytest.MonkeyPatch) -> None:
         return result
 
     monkeypatch.setattr(gen_module, "generate_node", _generate_with_unsafe)
-    monkeypatch.setattr(graph_module, "generate_node", _generate_with_unsafe)
+    # The compiled graph registers nodes from NODE_REGISTRY, so the injected
+    # generate node must replace the registry's "generate" spec.
+    patched = replace(
+        agents.NODE_REGISTRY["generate"], node=_generate_with_unsafe
+    )
+    patched_registry = {**agents.NODE_REGISTRY, "generate": patched}
+    monkeypatch.setattr(agents, "NODE_REGISTRY", patched_registry)
+    monkeypatch.setattr(
+        "co_scientist.generator.graph.NODE_REGISTRY", patched_registry
+    )
 
 
 async def _collect_events(
