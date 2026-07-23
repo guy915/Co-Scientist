@@ -17,6 +17,7 @@ select = [
     "UP",  # pyupgrade
     "B",   # flake8-bugbear
     "A",   # flake8-builtins
+    "C90", # mccabe (cyclomatic complexity)
     "C4",  # flake8-comprehensions
     "SIM", # flake8-simplify
     "RUF", # ruff-specific
@@ -27,6 +28,11 @@ ignore = [
     # ...", "Fetches rows ..."), which the imperative-mood check rejects.
     "D401",
 ]
+
+[tool.ruff.lint.mccabe]
+# Every function in this package sits at or below this ceiling. Branch-heavy
+# dispatchers belong in a lookup table, not an if/elif chain.
+max-complexity = 5
 
 [tool.ruff.lint.isort]
 known-first-party = ["evaluations"]

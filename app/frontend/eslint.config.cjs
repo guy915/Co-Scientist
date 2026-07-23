@@ -32,10 +32,13 @@ module.exports = defineConfig([
   },
   ...require('gts'),
   // Layer typescript-eslint strict + stylistic (non-type-checked) on top of
-  // the gts baseline for application sources.
+  // the gts baseline for application sources. The complexity ceiling matches
+  // the one ruff enforces on the Python side: branch-heavy dispatchers belong
+  // in a lookup table, not an if/else chain.
   {
     files: ['src/**/*.ts', 'src/**/*.tsx'],
     extends: [tseslint.configs.strict, tseslint.configs.stylistic],
+    rules: {complexity: ['error', 5]},
   },
   // Test files and test infrastructure: non-null assertions on queried DOM
   // nodes (e.g. `input.closest('form')!`) are idiomatic test shorthand — a
