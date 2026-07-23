@@ -209,15 +209,17 @@ def clear_run_derived_data(
     (steering/Q&A history), and the scientist's contributions (manual
     hypotheses, human reviews, attachments) are kept, so a resumed run
     reconstructs identical agent artifacts from the same seed without
-    duplicating rows or events and without discarding human input. A kept
-    human review of a deleted agent hypothesis may reference a re-derived (new)
-    hypothesis id; retaining the scientist's words beats deleting them.
+    duplicating rows or events and without discarding human input. One
+    exception: a human review of a deleted *agent* hypothesis is removed with
+    it -- ``foreign_keys`` is now enforced on every store connection, so a
+    review row cannot outlive the hypothesis it references (its FK is
+    ``ON DELETE CASCADE``).
 
-    Every child table is deleted explicitly rather than via ``ON DELETE
-    CASCADE``: the SQLite ``foreign_keys`` pragma is per-connection and is only
-    enabled on the one-time schema-init connection, so later connections do not
-    enforce cascades. Relying on the cascade would leave stale reviews/
-    citations/claim_evidence rows behind after a resume.
+    Every child table is still deleted explicitly even though the enforced
+    cascades would remove most of these rows on their own: the explicit
+    deletes are redundant-but-harmless, cover rows a cascade would miss
+    (e.g. reviews of *surviving* scientist hypotheses written by agents),
+    and document exactly which derived rows a resume reconstructs.
 
     Args:
         run_id: Identifier of the run whose derived data to clear.

@@ -90,6 +90,11 @@ def _open_raw_connection(db_path: str) -> sqlite3.Connection:
     # nothing; only an OS-level failure can cost the most recent
     # transactions, which a run reconstructs from its checkpoint anyway.
     conn.execute("PRAGMA synchronous=NORMAL")
+    # foreign_keys is per-connection (never sticky in the file), so it must be
+    # enabled on every connection this factory hands out for the schema's
+    # ON DELETE CASCADE clauses to be enforced at all. Without it, deleting a
+    # parent row silently strands its children.
+    conn.execute("PRAGMA foreign_keys=ON")
     return conn
 
 
@@ -169,14 +174,12 @@ def _init_schema(conn: sqlite3.Connection) -> None:
     conn.executescript(_SCHEMA)
     conn.execute("PRAGMA journal_mode=WAL")  # Readers do not block writers.
     # NOTE: foreign_keys is a PER-CONNECTION pragma (unlike WAL, which is
-    # sticky in the file). It is enabled here only on the one-time schema-init
-    # connection, so the schema's `ON DELETE CASCADE` clauses are NOT enforced
-    # on the ordinary connections `connect()` hands out afterwards. Any delete
-    # of a parent row on a normal connection must remove its children
-    # explicitly (see store/runs.py::clear_run_derived_data). Migrations that
-    # delete parent rows run here, on this connection, so their cascades do
-    # fire.
-    conn.execute("PRAGMA foreign_keys=ON")
+    # sticky in the file). `_open_raw_connection` enables it on every
+    # connection, so the schema's `ON DELETE CASCADE` clauses are enforced
+    # everywhere, including here. The explicit child deletes in
+    # store/runs_views.py (clear_run_derived_data and friends) are retained
+    # deliberately: they are redundant-but-harmless under enforced cascades
+    # and document exactly which derived rows a resume reconstructs.
     _run_migrations(conn)
 
 

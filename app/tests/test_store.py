@@ -11,6 +11,7 @@ import os
 import pytest
 
 from app import store
+from app.citations import CitationState
 
 
 @pytest.fixture
@@ -321,3 +322,64 @@ def test_connections_pair_wal_with_normal_synchronous(db: str) -> None:
         # 0=OFF, 1=NORMAL, 2=FULL. Per-connection, so it must be set by
         # connect() rather than once at schema init.
         assert conn.execute("PRAGMA synchronous").fetchone()[0] == 1
+
+
+def test_connections_enforce_foreign_keys(db: str) -> None:
+    """Every connection must enforce FKs, not just the schema-init one.
+
+    foreign_keys is per-connection, so setting it only during schema init
+    left every ordinary connection with FKs OFF and the schema's ON DELETE
+    CASCADE clauses never fired.
+    """
+    with store.connect() as conn:
+        assert conn.execute("PRAGMA foreign_keys").fetchone()[0] == 1
+
+
+def _seed_cascade_children(run_id: str) -> None:
+    """Populate one row in each FK-linked child table of a run."""
+    hid = store.add_hypothesis(
+        store.NewHypothesis(
+            run_id=run_id,
+            title="t",
+            statement="s",
+            created_by_agent="generation",
+        )
+    )
+    eid = store.add_evidence(
+        store.NewEvidence(run_id=run_id, title="paper", source="pubmed")
+    )
+    store.add_review(
+        store.NewReview(
+            run_id=run_id,
+            hypothesis_id=hid,
+            reviewer_agent="reflection",
+            summary="sum",
+            critique="crit",
+        )
+    )
+    store.add_citation(
+        store.NewCitation(
+            run_id=run_id,
+            hypothesis_id=hid,
+            evidence_id=eid,
+            claim="c",
+            state=CitationState.VERIFIED,
+        )
+    )
+    store.append_event(run_id, "log", {"i": 0})
+
+
+def test_deleting_a_run_cascades_to_child_rows(db: str) -> None:
+    """ON DELETE CASCADE removes child rows without any manual cleanup."""
+    run = store.create_run("cascade", "standard", "mock", {})
+    _seed_cascade_children(run.id)
+
+    # Delete the parent directly -- no manual child cleanup on this path.
+    with store.connect() as conn:
+        conn.execute("DELETE FROM runs WHERE id=?", (run.id,))
+
+    assert store.list_hypotheses(run.id) == []
+    assert store.list_evidence(run.id) == []
+    assert store.list_reviews(run.id) == []
+    assert store.list_citations(run.id) == []
+    assert store.list_events(run.id) == []

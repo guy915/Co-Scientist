@@ -236,10 +236,11 @@ def test_ground_records_claim_evidence_round_trip(isolated_db: str) -> None:
     holding old rows keeps decoding cleanly.
     """
     run = store.create_run("grounding goal", "standard", "mock", {})
+    hyp_id = _add(run.id, "Supported", _SUPPORTED, isolated_db)
     store.add_claim_evidence(
         store.NewClaimEvidence(
             run_id=run.id,
-            hypothesis_id="hyp-1",
+            hypothesis_id=hyp_id,
             claim="A supported claim about a mechanism.",
             label="supports",
             supporting=["Supporting passage one.", "Supporting passage two."],
@@ -373,6 +374,7 @@ def test_ground_with_llm_assessor_persists_provenance(
 def test_ground_records_provenance_spans_round_trip(isolated_db: str) -> None:
     """A provenance-stamped support span round-trips through the store."""
     run = store.create_run("grounding goal", "standard", "mock", {})
+    hyp_id = _add(run.id, "Supported", _SUPPORTED, isolated_db)
     span = {
         "evidence_id": "ev-9",
         "quote": "reduces tumor growth",
@@ -384,7 +386,7 @@ def test_ground_records_provenance_spans_round_trip(isolated_db: str) -> None:
     store.add_claim_evidence(
         store.NewClaimEvidence(
             run_id=run.id,
-            hypothesis_id="hyp-1",
+            hypothesis_id=hyp_id,
             claim="A supported claim.",
             label="supports",
             supporting=[span],

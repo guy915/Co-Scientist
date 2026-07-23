@@ -14,31 +14,6 @@ from __future__ import annotations
 
 from app.store.db import _now, connect
 
-
-def has_active_lease(run_id: str, db_path: str | None = None) -> bool:
-    """Return whether any of a run's tasks is currently leased.
-
-    Answers the cohort's idle question -- "is anyone still working?" -- with
-    a single existence check. Listing and decoding every row of the run's
-    task table to compute the same boolean costs more the further a run
-    gets, and every idle worker asks twenty times a second.
-
-    Args:
-        run_id: Identifier of the run whose cohort is waiting.
-        db_path: Optional override for the SQLite database path.
-
-    Returns:
-        True when at least one task of the run is leased.
-    """
-    with connect(db_path) as conn:
-        row = conn.execute(
-            "SELECT 1 FROM scientific_tasks WHERE run_id=? AND status='leased'"
-            " LIMIT 1",
-            (run_id,),
-        ).fetchone()
-    return row is not None
-
-
 # The liveness invariant shared by the advisory probes and the claim's
 # rescue UPDATE: an expired lease with retry budget left is claimable
 # again. One fragment, interpolated everywhere it applies, so a probe can
