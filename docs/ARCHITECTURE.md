@@ -120,8 +120,8 @@ This means a hard refresh, a backend restart, or a new browser session all produ
 
 ## Why this shape
 
--   Original engine LangGraph workflow is preserved —
-    `engine_adapter.run_workflow` always calls the engine, translating event
+-   Original engine LangGraph workflow is preserved — every run drives the
+    engine through the durable task queue (`engine_tasks`), translating event
     names; only the LLM backend underneath (offline or real) varies with
     configuration.
 -   FastAPI single-file app is preserved; the new router is mounted alongside

@@ -1,5 +1,13 @@
 # syntax=docker/dockerfile:1
 # Build from repo root: docker build -f Dockerfile.mcp .
+#
+# Sibling: engine/mcp_server/Dockerfile (local/compose). The two are
+# deliberately divergent -- this one (Railway) builds from the repo root so it
+# can COPY the corpus in and set SBI_CORPUS_DIR, and binds IPv6 (`--host ::`)
+# with an [::1] healthcheck for Railway's IPv6 private network. The engine-local
+# file builds from engine/, ships no corpus, and binds 0.0.0.0. A change to the
+# server install, bind host, or healthcheck here usually needs a mirrored change
+# there.
 FROM python:3.12-slim
 
 WORKDIR /app

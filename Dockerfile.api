@@ -1,5 +1,12 @@
 # syntax=docker/dockerfile:1
 # Build from repo root: docker build -f Dockerfile.api .
+#
+# Sibling: app/docker/Dockerfile.api (docker-compose). The two are deliberately
+# divergent -- this one (Railway) bakes the engine source and the corpus into
+# the image at build time, while the compose file installs the engine at
+# startup from a mounted checkout (entrypoint.sh) and mounts the corpus. A
+# change to app deps, corpus handling, or the run command here usually needs a
+# mirrored change there.
 FROM python:3.12-slim
 
 WORKDIR /app

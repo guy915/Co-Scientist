@@ -1,4 +1,11 @@
 # syntax=docker/dockerfile:1
+#
+# Sibling: repo-root Dockerfile.api (Railway). The two are deliberately
+# divergent -- this one (docker-compose) installs the engine at startup from a
+# mounted checkout via entrypoint.sh and mounts the corpus as a volume, while
+# the Railway file bakes both the engine source and the corpus into the image
+# at build time. A change to app deps, corpus handling, or the run command here
+# usually needs a mirrored change there.
 FROM python:3.12-slim
 
 WORKDIR /app

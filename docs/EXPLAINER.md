@@ -241,11 +241,11 @@ sequenceDiagram
   A->>S: insert run (status=draft)
   U->>A: POST /api/runs/{id}/start
   A->>S: run.status = queued → running
-  A->>E: engine_adapter.run_workflow(run, overrides)
+  A->>S: enqueue engine.bootstrap (durable task queue)
   E->>M: check_mcp_available (lazy, cached)
-  loop LangGraph astream
-    E-->>A: (node_name, state_delta) per node
-    A->>S: append run_events (seq, type, payload)
+  loop worker cohort drains engine.* tasks
+    E-->>A: node/fan-out/match result per task boundary
+    A->>S: append run_events (seq, type, payload) + checkpoint
     A-->>U: SSE: /api/runs/{id}/events (replay from ?after=, then tail)
   end
   E-->>A: research_overview (top-10 by Elo + NIH Specific Aims)

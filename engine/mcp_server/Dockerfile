@@ -1,4 +1,11 @@
-# mcp server dockerfile
+# mcp server dockerfile (local/compose build from engine/)
+#
+# Sibling: repo-root Dockerfile.mcp (Railway). The two are deliberately
+# divergent -- this one builds from engine/, ships no corpus, and binds
+# 0.0.0.0, while the Railway file builds from the repo root so it can COPY the
+# corpus in and set SBI_CORPUS_DIR, and binds IPv6 (`--host ::`) with an [::1]
+# healthcheck for Railway's IPv6 private network. A change to the server
+# install, bind host, or healthcheck here usually needs a mirrored change there.
 FROM python:3.12-slim
 
 # set working directory
