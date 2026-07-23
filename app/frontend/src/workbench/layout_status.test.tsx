@@ -18,7 +18,6 @@ function statusFixture(overrides: Partial<SystemStatus> = {}): SystemStatus {
     },
     mcp_server_url: '',
     provider: 'engine',
-    mock_mode: true,
     llm_backend: 'offline',
     has_provider_key: false,
     engine_importable: true,
@@ -46,10 +45,7 @@ describe('buildSystemStatusChip', () => {
   it('renders nothing while loading or on a live model backend', () => {
     expect(buildSystemStatusChip(null, false)).toBeNull();
     expect(
-      buildSystemStatusChip(
-        statusFixture({mock_mode: false, llm_backend: 'real'}),
-        false,
-      ),
+      buildSystemStatusChip(statusFixture({llm_backend: 'real'}), false),
     ).toBeNull();
   });
 });
@@ -81,7 +77,7 @@ describe('SystemStatusIndicator', () => {
 
   it('renders nothing for a healthy live model backend', async () => {
     apiMock.getSystemStatus.mockResolvedValue(
-      statusFixture({mock_mode: false, llm_backend: 'real'}),
+      statusFixture({llm_backend: 'real'}),
     );
 
     render(<SystemStatusIndicator />);

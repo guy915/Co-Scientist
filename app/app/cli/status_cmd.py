@@ -29,7 +29,7 @@ def handle_status(args: argparse.Namespace, client: ApiClient) -> int:
         ("version", health.get("version")),
         ("model", health.get("model_name")),
         ("provider", status.get("provider")),
-        ("mock_mode", status.get("mock_mode")),
+        ("llm_backend", status.get("llm_backend")),
         ("has_provider_key", status.get("has_provider_key")),
         ("engine_importable", status.get("engine_importable")),
         ("mcp_available", status.get("mcp_available")),

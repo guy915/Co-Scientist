@@ -86,11 +86,10 @@ def test_status_reports_offline_backend() -> None:
     res = client.get("/status")
     assert res.status_code == 200
     data = res.json()
-    # Every run is the engine provider now; the keyless test process runs the
-    # deterministic offline backend, and ``mock_mode`` is the deprecated mirror.
+    # Every run is the engine provider now; the keyless test process runs
+    # the deterministic offline backend.
     assert data["provider"] == "engine"
     assert data["llm_backend"] == "offline"
-    assert data["mock_mode"] is True
     assert set(data["probes"]) == {"mcp", "pubmed", "web_search"}
 
 

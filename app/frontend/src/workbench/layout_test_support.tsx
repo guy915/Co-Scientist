@@ -137,7 +137,6 @@ export function installLayoutMocks() {
   // pre-existing header assertions are unaffected.
   systemApiMock.getSystemStatus.mockReset();
   systemApiMock.getSystemStatus.mockResolvedValue({
-    mock_mode: false,
     llm_backend: 'real',
     provider: 'engine',
     model_name: 'test/model',

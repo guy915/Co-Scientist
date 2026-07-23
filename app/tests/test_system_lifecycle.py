@@ -47,7 +47,6 @@ def _assert_diagnostics(client: TestClient) -> None:
     status_body = status.json()
     assert status_body["provider"] == "engine"
     assert status_body["llm_backend"] == "offline"
-    assert status_body["mock_mode"] is True
 
 
 def _create_and_complete(client: TestClient, goal: str) -> str:

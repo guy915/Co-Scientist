@@ -229,8 +229,6 @@ def test_status_endpoint_includes_provider_and_backend() -> None:
     data = res.json()
     assert data["provider"] == "engine"
     assert data["llm_backend"] == "offline"
-    # Deprecated mirror of the offline backend, retained for older clients.
-    assert data["mock_mode"] is True
 
 
 def test_run_get_includes_summary_counts() -> None:

@@ -79,7 +79,7 @@ def test_derive_health_status_degraded_when_key_but_no_engine(
     assert status == DEGRADED
 
 
-def test_derive_health_status_healthy_in_pure_mock_mode(
+def test_derive_health_status_healthy_in_pure_offline_mode(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """No key and no engine is the normal offline mock setup, not degraded."""

@@ -111,13 +111,6 @@ class SystemStatusResponse(BaseModel):
     provider: str = Field(
         "engine", description="active workflow provider (always 'engine')"
     )
-    mock_mode: bool = Field(
-        False,
-        description=(
-            "deprecated mirror of the offline backend, kept for older "
-            "clients; true when running the deterministic offline backend"
-        ),
-    )
     llm_backend: str = Field(
         "real",
         description="active LLM backend: 'offline' (deterministic) | 'real'",
@@ -240,7 +233,7 @@ def _build_status_payload(
             web_search_available=web_search.available,
             paper_corpus_available=bool(paper_corpus.load_catalog()),
         ),
-        # provider/mock_mode/model_name/etc. from engine_adapter.system_status
+        # provider/llm_backend/model_name/etc. from engine_adapter.system_status
         **adapter_status,
     }
 

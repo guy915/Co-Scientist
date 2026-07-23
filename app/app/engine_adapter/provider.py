@@ -141,11 +141,6 @@ def system_status() -> dict[str, Any]:
 
     return {
         "provider": provider,
-        # Deprecated mirror of the offline/real split, kept for older clients
-        # that still read it; prefer ``llm_backend``. Now that every run is on
-        # the engine, this tracks the LLM backend rather than a retired mock
-        # provider: an offline-backed process reports ``True``.
-        "mock_mode": offline_mode(),
         "llm_backend": "offline" if offline_mode() else "real",
         "has_provider_key": has_key,
         "engine_importable": engine,

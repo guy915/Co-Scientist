@@ -13,7 +13,6 @@ const STATUS: SystemStatus = {
   },
   mcp_server_url: 'http://localhost:8888/mcp',
   provider: 'engine',
-  mock_mode: true,
   llm_backend: 'offline',
   has_provider_key: false,
   engine_importable: true,
@@ -50,7 +49,7 @@ describe('getSystemStatus', () => {
     const status = await getSystemStatus();
 
     expect(mock.mock.calls[0][0]).toBe('/status');
-    expect(status.mock_mode).toBe(true);
+    expect(status.llm_backend).toBe('offline');
     expect(status.probes.pubmed.state).toBe('error');
   });
 
