@@ -43,14 +43,18 @@ export function originLabel(createdByAgent: string): string {
 // Per-label tallies backing claimEvidenceSummary's one-line count.
 interface ClaimCounts {
   supports: number;
+  partial: number;
   contradicts: number;
   categoricalUnsupported: number;
   speculative: number;
 }
 
-// Which tally a single claim belongs in.
+// Which tally a single claim belongs in. A "partial" (near-miss) verdict is a
+// support tier of its own: relevant, consistent evidence short of full
+// entailment.
 function claimCountKey(c: ClaimEvidenceRow): keyof ClaimCounts {
   if (c.label === 'supports') return 'supports';
+  if (c.label === 'partial') return 'partial';
   if (c.label === 'contradicts') return 'contradicts';
   if (c.claim_role === 'speculative') return 'speculative';
   return 'categoricalUnsupported';
@@ -59,6 +63,7 @@ function claimCountKey(c: ClaimEvidenceRow): keyof ClaimCounts {
 function tallyClaimCounts(claims: ClaimEvidenceRow[]): ClaimCounts {
   const counts: ClaimCounts = {
     supports: 0,
+    partial: 0,
     contradicts: 0,
     categoricalUnsupported: 0,
     speculative: 0,
@@ -73,6 +78,7 @@ const CLAIM_COUNT_LABELS: readonly {
   suffix: string;
 }[] = [
   {key: 'supports', suffix: 'supported'},
+  {key: 'partial', suffix: 'partially supported'},
   {key: 'contradicts', suffix: 'contradicted'},
   {key: 'categoricalUnsupported', suffix: 'unsupported categorical'},
   {key: 'speculative', suffix: 'speculative'},

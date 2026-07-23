@@ -228,15 +228,21 @@ function HypothesisDescriptionContent({hypothesis}: {hypothesis: Hypothesis}) {
 // so a reader can read the exact quote that grounds the verdict and open its
 // source (Milestone 5 / P0.5). Insufficient claims remain visible even though
 // they have no source span, with their categorical/speculative role explicit.
+// A "partial" verdict is a near-miss support tier: relevant, consistent
+// evidence short of full entailment, cited from the same supporting spans.
+function claimVerdictText(claim: ClaimEvidenceRow): string {
+  if (claim.label === 'partial') return 'partial support';
+  if (claim.label === 'insufficient') {
+    return claim.claim_role === 'speculative'
+      ? 'Speculative — evidence insufficient'
+      : 'Unsupported categorical claim';
+  }
+  return claim.label;
+}
+
 function ClaimVerdictLabel({claim}: {claim: ClaimEvidenceRow}) {
   return (
-    <span className="capitalize font-medium">
-      {claim.label === 'insufficient'
-        ? claim.claim_role === 'speculative'
-          ? 'Speculative — evidence insufficient'
-          : 'Unsupported categorical claim'
-        : claim.label}
-    </span>
+    <span className="capitalize font-medium">{claimVerdictText(claim)}</span>
   );
 }
 

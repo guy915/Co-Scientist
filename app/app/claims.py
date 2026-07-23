@@ -212,6 +212,18 @@ _CONCEPT_ALIASES = {
 # fallback assessor (never the meaning of "verified" for the LLM assessor).
 _SUPPORT_LEXICAL_THRESHOLD = 0.18
 
+# Lexical band below full support: a passage clearing this but not the support
+# threshold is a near-miss -> PARTIAL. Deterministic-fallback only; the LLM
+# assessor decides partial from meaning, not overlap. Kept at half the support
+# threshold so a passage must still be clearly on-topic to earn partial.
+_PARTIAL_LEXICAL_THRESHOLD = 0.09
+
+# A partial verdict also requires at least this many shared concept tokens. A
+# single shared token is topical coincidence (a passage naming the claim's
+# subject but bearing on nothing it asserts), which the LLM prompt likewise
+# rules out; a near-miss must overlap on two distinct concepts.
+_PARTIAL_MIN_SHARED_TOKENS = 2
+
 _ASSESSOR_DETERMINISTIC = "deterministic-v1"
 
 # Retrieve at most this many passages per claim before assessing (claim-
@@ -354,17 +366,21 @@ def _best_sentence(claim: str, text: str) -> str:
 
 
 def _classify_passage(
-    claim: str, passage: EvidencePassage, support_threshold: float
+    claim: str,
+    passage: EvidencePassage,
+    support_threshold: float,
+    partial_threshold: float,
 ) -> tuple[str, tuple[str, str]] | None:
-    """Classify one passage as contradicting, supporting, or neither.
+    """Classify one passage as contradicting, supporting, partial, or neither.
 
     Only locates the best sentence for passages that actually qualify;
     sentence splitting is wasted work for the rest.
 
     Returns:
         A ``(kind, (evidence_id, quote))`` pair where ``kind`` is
-        ``"contradicts"`` or ``"supports"``, or ``None`` when the passage
-        clears neither bar.
+        ``"contradicts"``, ``"supports"``, or ``"partial"`` (a near-miss that
+        clears ``partial_threshold`` but not ``support_threshold``), or
+        ``None`` when the passage clears none of the bars.
     """
     score = _lexical_score(claim, passage.text)
     lowered = passage.text.lower()
@@ -375,18 +391,30 @@ def _classify_passage(
     if score >= support_threshold:
         quote = _best_sentence(claim, passage.text)
         return "supports", (passage.evidence_id, quote)
+    shared = len(_tokens(claim) & _tokens(passage.text))
+    if score >= partial_threshold and shared >= _PARTIAL_MIN_SHARED_TOKENS:
+        quote = _best_sentence(claim, passage.text)
+        return "partial", (passage.evidence_id, quote)
     return None
 
 
 def _entailment_label(
     supporting: Sequence[tuple[str, str]],
+    partial: Sequence[tuple[str, str]],
     contradicting: Sequence[tuple[str, str]],
 ) -> EntailmentLabel:
-    """Pick the overall label for a claim: contradiction dominates support."""
+    """Pick the overall label for a claim.
+
+    Precedence: a contradiction dominates any support; failing that, full
+    support beats a partial (near-miss) match; a partial-only claim is
+    PARTIAL; nothing relevant is INSUFFICIENT.
+    """
     if contradicting:
         return EntailmentLabel.CONTRADICTS
     if supporting:
         return EntailmentLabel.SUPPORTS
+    if partial:
+        return EntailmentLabel.PARTIAL
     return EntailmentLabel.INSUFFICIENT
 
 
@@ -395,30 +423,40 @@ def deterministic_assessor(
     passages: Sequence[EvidencePassage],
     *,
     support_threshold: float = _SUPPORT_LEXICAL_THRESHOLD,
+    partial_threshold: float = _PARTIAL_LEXICAL_THRESHOLD,
 ) -> AssessorDraft:
     """Offline entailment stand-in: lexical support + a contradiction lexicon.
 
     Contradiction dominates: a related passage carrying a negation marker
     contradicts the claim regardless of other support. Otherwise a passage
-    clearing the lexical support threshold supports it; nothing sufficient is
-    INSUFFICIENT. Cites the single best-overlapping sentence of each relevant
-    passage as the quote, so ``assess_claim`` can locate an exact span.
+    clearing the lexical support threshold supports it; one clearing only the
+    (lower) partial threshold is a near-miss (PARTIAL); nothing sufficient is
+    INSUFFICIENT. Partial passages are still cited as supporting spans -- the
+    difference from full support is the label, not the provenance -- so the
+    badge and report can locate the exact passage behind a partial verdict.
+    Cites the single best-overlapping sentence of each relevant passage as the
+    quote, so ``assess_claim`` can locate an exact span.
     """
     supporting: list[tuple[str, str]] = []
+    partial: list[tuple[str, str]] = []
     contradicting: list[tuple[str, str]] = []
     for passage in passages:
-        classified = _classify_passage(claim, passage, support_threshold)
+        classified = _classify_passage(
+            claim, passage, support_threshold, partial_threshold
+        )
         if classified is None:
             continue
         kind, entry = classified
         if kind == "contradicts":
             contradicting.append(entry)
-        else:
+        elif kind == "supports":
             supporting.append(entry)
+        else:
+            partial.append(entry)
 
     return AssessorDraft(
-        label=_entailment_label(supporting, contradicting),
-        supporting=tuple(supporting),
+        label=_entailment_label(supporting, partial, contradicting),
+        supporting=tuple(supporting) + tuple(partial),
         contradicting=tuple(contradicting),
     )
 
@@ -472,10 +510,13 @@ def _downgrade_unproven_label(
 ) -> EntailmentLabel:
     """Downgrade a verdict lacking a locatable span to INSUFFICIENT.
 
-    Anti-hallucination provenance guard: a SUPPORTS/CONTRADICTS verdict must
-    be backed by at least one locatable span, else it is unproven.
+    Anti-hallucination provenance guard: a SUPPORTS/PARTIAL/CONTRADICTS verdict
+    must be backed by at least one locatable span, else it is unproven. A
+    PARTIAL claim cites its near-miss passage as a supporting span, so it is
+    guarded against the same ``supporting`` list as SUPPORTS.
     """
-    if (label is EntailmentLabel.SUPPORTS and not supporting) or (
+    supporting_labels = (EntailmentLabel.SUPPORTS, EntailmentLabel.PARTIAL)
+    if (label in supporting_labels and not supporting) or (
         label is EntailmentLabel.CONTRADICTS and not contradicting
     ):
         return EntailmentLabel.INSUFFICIENT

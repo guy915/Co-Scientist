@@ -96,6 +96,62 @@ def test_contradiction_dominates_over_support() -> None:
     assert result.is_fundamental_failure
 
 
+def test_midband_overlap_is_partial_support_with_located_span() -> None:
+    """A near-miss passage (on-topic, not entailing) is PARTIAL, not INSUFF.
+
+    Its span is still cited as supporting evidence, so a reader can open the
+    exact passage behind the partial verdict and the badge can credit it.
+    """
+    claim = "Inhibiting kinase X reduces tumor growth in AML cells."
+    passage = EvidencePassage(
+        evidence_id="ev-1",
+        text="Kinase enzymes regulate cellular growth under diverse "
+        "metabolic conditions across many organisms.",
+        source="pubmed",
+        url="https://example.org/1",
+    )
+    result = assess_claim(claim, [passage])
+    assert result.label is EntailmentLabel.PARTIAL
+    assert len(result.supporting_passages) == 1
+    span = result.supporting_passages[0]
+    assert passage.text[span.start : span.end] == span.quote
+
+
+def test_full_support_beats_a_partial_near_miss() -> None:
+    """A fully-entailing passage wins SUPPORTS even alongside a partial one."""
+    claim = "Inhibiting kinase X reduces tumor growth in AML cells."
+    passages = as_passages(
+        [
+            "Kinase enzymes regulate cellular growth under diverse "
+            "metabolic conditions across many organisms.",
+            "Kinase X inhibition reduces tumor growth across several AML "
+            "cells.",
+        ]
+    )
+    result = assess_claim(claim, passages)
+    assert result.label is EntailmentLabel.SUPPORTS
+
+
+def test_partial_without_locatable_span_downgraded() -> None:
+    """A PARTIAL verdict whose cited quote is absent becomes INSUFFICIENT."""
+
+    def _fabricating_assessor(
+        claim: str, passages: list[EvidencePassage]
+    ) -> AssessorDraft:
+        return AssessorDraft(
+            label=EntailmentLabel.PARTIAL,
+            supporting=(("ev-1", "a quote that is nowhere in the passage"),),
+        )
+
+    result = assess_claim(
+        "Kinase X inhibition reduces tumor growth.",
+        [EvidencePassage(evidence_id="ev-1", text="Unrelated passage text.")],
+        assessor=_fabricating_assessor,  # type: ignore[arg-type]
+    )
+    assert result.label is EntailmentLabel.INSUFFICIENT
+    assert result.supporting_passages == ()
+
+
 # --- Claim-specific retrieval -----------------------------------------------
 
 
@@ -334,6 +390,27 @@ def test_gate_allows_supported_hypothesis() -> None:
         )
     ]
     result = publication_gate(assessments)
+    assert result.decision is GateDecision.ALLOW
+
+
+def test_gate_counts_partial_as_a_supported_claim() -> None:
+    """A partial (near-miss) claim satisfies the require-supported-claim gate.
+
+    Partial evidence is relevant and consistent, so it does not leave the
+    hypothesis wholly unsupported -- the gate must not block it even when a
+    supported claim is required.
+    """
+    partial = assess_claim(
+        "Inhibiting kinase X reduces tumor growth in AML cells.",
+        as_passages(
+            [
+                "Kinase enzymes regulate cellular growth under diverse "
+                "metabolic conditions across many organisms."
+            ]
+        ),
+    )
+    assert partial.label is EntailmentLabel.PARTIAL
+    result = publication_gate([partial], require_supported_claim=True)
     assert result.decision is GateDecision.ALLOW
 
 

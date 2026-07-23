@@ -228,6 +228,8 @@ def _claim_status(edge: dict[str, Any]) -> str:
     role = str(edge.get("claim_role") or "categorical")
     if label == "supports":
         return "Supported"
+    if label == "partial":
+        return "Partially supported"
     if label == "contradicts":
         return "Contradicted"
     if role == "speculative":
