@@ -52,9 +52,12 @@ const backendServer = {
 // The Vite dev server, pointed straight at the isolated backend via
 // VITE_API_BASE_URL. Going direct (rather than through Vite's proxy) keeps the
 // SSE event stream browser->backend with no proxy in the path, which is the
-// most reliable arrangement for long-lived streaming responses. The backend's
-// CORS allowlist is wildcard by default, so the cross-origin fetch/EventSource
-// calls are permitted.
+// most reliable arrangement for long-lived streaming responses. ALLOWED_ORIGINS
+// is set to this exact UI origin on the backend above (not wildcard): the
+// backend only defaults to a wildcard allowlist when ALLOWED_ORIGINS is unset,
+// and a wildcard withholds Allow-Origin once credentials are enabled, so the
+// explicit origin is what lets these cross-origin fetch/EventSource calls
+// through.
 const frontendServer = {
   command: `bunx vite --port ${UI_PORT} --strictPort --host 127.0.0.1`,
   cwd: FRONTEND_DIR,

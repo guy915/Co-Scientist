@@ -31,6 +31,12 @@ Individual pieces: `make dev-api`, `make dev-ui`, `make dev-mcp`.
 - **Demo data:** seeded on API startup; no LLM/keys needed to view it. Demo
   runs are **not** in `/api/runs` (that's owned runs, empty for a fresh
   client) — they come from `/api/runs/demo`, which the home page uses.
+- **CLI (`cosci`):** the operator CLI drives the API over HTTP. It reads
+  `COSCIENTIST_API_URL` (default `http://localhost:8008`),
+  `COSCIENTIST_CLIENT_ID` (the `X-Client-ID` runs are scoped by — keep it
+  consistent), `COSCIENTIST_LOGS_TOKEN` (matches `LOGS_ADMIN_TOKEN` for the
+  app-wide log view), and `COSCIENTIST_TIMEOUT` — each also has an equivalent
+  flag (`--api-url`/`--client-id`/`--logs-token`/`--timeout`).
 - **MCP / PubMed:** the server lives at `engine/mcp_server/` (a flat package,
   run from `engine/` so `mcp_server.server:app` resolves). `make dev-mcp`
   creates a 3.12 venv and starts it. PubMed needs a contact email —

@@ -26,7 +26,10 @@ class Settings(BaseSettings):
 
     # Server Configuration
     host: str = "0.0.0.0"  # bind address; 0.0.0.0 for container/dev use
-    port: int = 8000
+    # Only consumed by the `python -m app.main` entry point below; `make dev`,
+    # Docker, and the e2e harness all pass --port explicitly. 8008 matches the
+    # port everything else in the repo uses (make start, docker-compose).
+    port: int = 8008
     debug: bool = False  # also raises app/co_scientist loggers to DEBUG
 
     # MCP Server Configuration (optional, for literature review tools)
