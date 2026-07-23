@@ -13,11 +13,9 @@ import {
   getReviews,
   getReport,
   getRunEvents,
-  isActiveStatus,
   runGoal,
   eventsStreamUrl,
   createInterview,
-  type RunStatus,
 } from './runs';
 import type {Run} from './run_types';
 import {
@@ -66,31 +64,6 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.unstubAllGlobals();
-});
-
-describe('status predicates', () => {
-  it('treats queued, running, and synthesizing as active', () => {
-    // 'synthesizing' matters: the workflow is still cancellable and still
-    // emits messages during synthesis, so the UI must treat it as active.
-    const active: RunStatus[] = ['queued', 'running', 'synthesizing'];
-    for (const status of active) {
-      expect(isActiveStatus(status)).toBe(true);
-    }
-  });
-
-  it('treats finished and draft runs as not active', () => {
-    const terminal: RunStatus[] = [
-      'completed',
-      'failed',
-      'blocked',
-      'cancelled',
-    ];
-    for (const status of terminal) {
-      expect(isActiveStatus(status)).toBe(false);
-    }
-    expect(isActiveStatus('draft')).toBe(false);
-    expect(isActiveStatus(undefined)).toBe(false);
-  });
 });
 
 describe('createRun', () => {

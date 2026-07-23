@@ -105,6 +105,28 @@ export function isActiveStatus(status: RunStatus | undefined): boolean {
   return Boolean(status && ACTIVE_STATUSES.includes(status));
 }
 
+/** Statuses for a run that has settled and will run no further tasks. */
+const TERMINAL_STATUSES: readonly RunStatus[] = [
+  'completed',
+  'failed',
+  'blocked',
+  'cancelled',
+];
+
+/**
+ * Whether a run has reached a terminal state.
+ *
+ * Distinct from `!isActiveStatus`: a `draft` run is neither active nor
+ * terminal — it has not started, so new documents it is given will still be
+ * indexed once it runs.
+ *
+ * @param status The run status (may be undefined before load).
+ * @returns True if the run has settled and will run no further tasks.
+ */
+export function isTerminalStatus(status: RunStatus | undefined): boolean {
+  return Boolean(status && TERMINAL_STATUSES.includes(status));
+}
+
 /**
  * The run's effective goal: the durable setup goal when set, else the
  * top-level research goal. Returns '' when the run is not yet loaded.

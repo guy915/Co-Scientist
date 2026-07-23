@@ -3,6 +3,7 @@ import {
   type RunWithSummary,
   type SafetyDecision,
   adjudicateSafety,
+  isTerminalStatus,
   runGoal,
   uploadRunDocument,
 } from '@/api/runs';
@@ -113,7 +114,9 @@ export function RunSpecificationsView({
         decisions={safety}
         onChanged={onSafetyChanged}
       />
-      <PrivateCorpusUpload runId={run?.id} onChanged={onSafetyChanged} />
+      {run && !isTerminalStatus(run.status) && (
+        <PrivateCorpusUpload runId={run.id} onChanged={onSafetyChanged} />
+      )}
     </ReportDocument>
   );
 }
@@ -225,34 +228,30 @@ function ResolveButtons({busy, onResolve}: ResolveProps) {
   );
 }
 
-// Display values derived from a safety decision: the defaulted category,
-// policy version, and assessor labels, plus whether it still needs a human
-// resolution.
+// Display values derived from a safety decision: the human-readable category
+// when one was assigned, plus whether it still needs a human resolution. The
+// policy version and assessor are decision-internal plumbing and are not
+// surfaced here.
 function decisionDisplayValues(decision: SafetyDecision) {
   return {
-    category: decision.category || decision.decision,
-    policyVersion: decision.policy_version || 'legacy',
-    assessor: decision.assessor || 'deterministic',
+    category: decision.category,
     needsResolution: decision.requires_review && !decision.resolution,
   };
 }
 
-// One safety decision: what was flagged, under which policy, and — when it
-// still needs human review — the approve/reject controls.
+// One safety decision: what was flagged and — when it still needs human
+// review — the approve/reject controls.
 function SafetyDecisionItem({
   decision,
   busy,
   onResolve,
 }: ResolveProps & {decision: SafetyDecision}) {
-  const {category, policyVersion, assessor, needsResolution} =
-    decisionDisplayValues(decision);
+  const {category, needsResolution} = decisionDisplayValues(decision);
   return (
     <div className="mb-5">
       <p>
-        <strong>{decision.stage}:</strong> {category} — {decision.reason}
-      </p>
-      <p className="text-sm text-cosci-muted">
-        Policy {policyVersion} · {assessor}
+        <strong>{decision.stage}:</strong>{' '}
+        {category ? `${category} — ${decision.reason}` : decision.reason}
       </p>
       {decision.resolution ? <p>Resolution: {decision.resolution}</p> : null}
       {needsResolution ? (
