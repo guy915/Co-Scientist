@@ -22,6 +22,7 @@ select = [
     "SIM", # flake8-simplify
     "RUF", # ruff-specific
     "D",   # pydocstyle
+    "PLR0913", # too-many-arguments
 ]
 ignore = [
     # Google-style docstrings use descriptive-mood summaries ("Returns the

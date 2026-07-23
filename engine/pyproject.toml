@@ -73,6 +73,7 @@ select = [
     "SIM", # flake8-simplify
     "RUF", # ruff-specific
     "D",   # pydocstyle
+    "PLR0913", # too-many-arguments
 ]
 ignore = [
     # Google-style docstrings use descriptive-mood summaries ("Returns the
@@ -101,6 +102,20 @@ convention = "google"
 # those env vars (e.g. ENTREZ_EMAIL) at import time, so the config import and
 # the logging setup it configures must run first.
 "mcp_server/server.py" = ["E402"]
+
+# --- PLR0913 (max 5 arguments) exemption ---
+# One permanent kind. Everything else in this package is at or below the
+# ceiling; past five arguments, group the cohesive ones into a frozen
+# dataclass (see CompletionSpec, GeneratorOptions, PromptRunContext,
+# _SearchRunContext for the pattern).
+#
+# FastMCP derives each tool's advertised parameter schema from its
+# signature, so a registered tool's arguments ARE its wire contract and
+# cannot be bundled without changing what agents see. Only the two modules
+# whose registered tool exceeds five arguments are listed; their private
+# helpers were refactored normally and stay under the ceiling.
+"mcp_server/tools/indra_cogex/enrichment.py" = ["PLR0913"]
+"mcp_server/tools/indra_cogex/statements.py" = ["PLR0913"]
 
 [tool.mypy]
 python_version = "3.10"

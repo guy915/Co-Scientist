@@ -92,6 +92,13 @@ select = [
     "SIM", # flake8-simplify
     "RUF", # ruff-specific
     "D",   # pydocstyle
+    # Past five arguments, group the cohesive ones into a frozen dataclass
+    # (see store.NewEvidence, ReportRequest, QaRunContext for the pattern).
+    # This package needs no exemptions: a route handler whose query params
+    # would breach the ceiling takes a Pydantic query model instead
+    # (`Annotated[LogQuery, Query()]` in logs_api.py), which leaves the
+    # query-string names, defaults, and OpenAPI schema unchanged.
+    "PLR0913", # too-many-arguments
 ]
 ignore = [
     # Google-style docstrings use descriptive-mood summaries ("Returns the

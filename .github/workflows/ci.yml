@@ -81,6 +81,7 @@ jobs:
               - 'docs/PARITY.md'
               - 'app/**'
               - 'engine/**'
+              - 'e2e/**'
               - '.github/workflows/ci.yml'
             e2e:
               # The browser suite drives the full stack, so any backend,
