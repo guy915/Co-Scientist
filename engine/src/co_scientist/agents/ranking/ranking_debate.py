@@ -46,8 +46,9 @@ from co_scientist.agents.ranking.ranking_debate_turns import (
 from co_scientist.agents.ranking.ranking_results import _extract_reasoning
 from co_scientist.constants import (
     LOW_TEMPERATURE,
-    MAX_CONCURRENT_LLM_CALLS,
     MULTI_TURN_DEBATE_TURNS,
+    RANKING_WAVE_MIN_SIZE,
+    RANKING_WAVE_SIZE,
     SINGLE_TURN_DEBATE_TURNS,
     THINKING_MAX_TOKENS,
 )
@@ -78,12 +79,37 @@ _ranking_semaphores: weakref.WeakKeyDictionary[
 ] = weakref.WeakKeyDictionary()
 
 
+def effective_ranking_wave_size() -> int:
+    """Return the width the next ranking wave should use.
+
+    Full width until the provider starts pushing back, then the floor. A
+    wave wider than the provider will serve does not finish sooner: the
+    surplus calls spend their time asleep in jittered backoff, and the
+    burst is what provoked the throttling to begin with.
+
+    The step down is one-way within a process. Throttling is a property of
+    the account and the moment, not of one wave, so widening again on the
+    next quiet wave would just re-provoke it.
+    """
+    from co_scientist.llm_json_retry import rate_limited_attempt_count
+
+    if rate_limited_attempt_count():
+        return RANKING_WAVE_MIN_SIZE
+    return RANKING_WAVE_SIZE
+
+
 def _get_ranking_semaphore() -> asyncio.Semaphore:
-    """Return the running loop's judge-concurrency bound, creating it once."""
+    """Return the running loop's judge-concurrency bound, creating it once.
+
+    Sized to the wave rather than to MAX_CONCURRENT_LLM_CALLS: the wave is
+    the unit of work a single durable task judges, and a semaphore narrower
+    than it would quietly serialize the wave into batches, spending the
+    task's wall time without any of the parallelism the wave exists for.
+    """
     loop = asyncio.get_running_loop()
     semaphore = _ranking_semaphores.get(loop)
     if semaphore is None:
-        semaphore = asyncio.Semaphore(MAX_CONCURRENT_LLM_CALLS)
+        semaphore = asyncio.Semaphore(RANKING_WAVE_SIZE)
         _ranking_semaphores[loop] = semaphore
     return semaphore
 

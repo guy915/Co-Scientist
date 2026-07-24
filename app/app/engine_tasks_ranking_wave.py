@@ -13,13 +13,30 @@ import asyncio
 from dataclasses import dataclass
 from typing import Any
 
+# Re-exported so ``app.engine_tasks.RANKING_WAVE_SIZE`` keeps resolving. The
+# engine owns the number: it also sizes the judge semaphore, and the two
+# must agree or the wave serializes inside the task.
+from co_scientist.constants import (
+    RANKING_WAVE_SIZE as RANKING_WAVE_SIZE,
+)
+
 from app.store import ScientificTask
 
-# How many matchups one durable task judges concurrently. Bounded so a wave
-# still commits a checkpoint often enough to be a useful resume point, and so
-# the pool's Elo ratings re-adapt between waves rather than drifting across a
-# whole round judged from one stale snapshot.
-RANKING_WAVE_SIZE = 5
+
+def _wave_size() -> int:
+    """Return the width the next wave should use.
+
+    Read from the engine rather than declared here so the wave and the
+    judge semaphore that bounds it cannot drift apart. A semaphore narrower
+    than the wave silently serializes it into batches, which looks like a
+    wide wave that is inexplicably slow; the engine owns both numbers and
+    steps them down together when the provider throttles.
+    """
+    from co_scientist.agents.ranking.ranking_debate import (
+        effective_ranking_wave_size,
+    )
+
+    return int(effective_ranking_wave_size())
 
 
 @dataclass(frozen=True)
@@ -74,6 +91,7 @@ def _ranking_wave(
     previous_pair: frozenset[str],
     index: int,
     rounds: int,
+    wave_size: int,
 ) -> list[Any]:
     """Return the distinct matchups this task should judge concurrently.
 
@@ -86,7 +104,7 @@ def _ranking_wave(
     wave: list[Any] = []
     seen: set[frozenset[str]] = {previous_pair} if previous_pair else set()
     for pair in candidates:
-        if len(wave) >= min(RANKING_WAVE_SIZE, remaining):
+        if len(wave) >= min(wave_size, remaining):
             break
         key = frozenset({pair[0].id, pair[1].id})
         if key in seen:
@@ -110,18 +128,17 @@ def _prepare_ranking_wave(
     """Build this task's wave of distinct matchups to judge concurrently.
 
     Enough pairings are drawn to fill a wave, plus one for the rematch guard
-    to skip. The streaming path asks for three because it then picks exactly
-    one; the durable path inherited that number when it started judging
-    waves, which silently capped every wave at three no matter how many
-    rounds remained. A short wave is not lost work, it is another sequential
-    durable task: the ultra run spent about two hours across 178 of them.
+    to skip. A short wave is not lost work, it is another sequential durable
+    task: the ultra run spent about two hours across 178 of them.
 
     A matchup is three debate turns of real model work (~45s), so
     one-per-task ran a 128-match round at a concurrency of one -- about 94
     minutes of wall clock for ~20 minutes of work. Judging a wave instead
     draws every pairing in it from the same Elo snapshot, which is the cost
     of the parallelism: adaptation happens at wave boundaries rather than
-    after every single match.
+    after every single match. At the current width a standard tier's
+    12-match pass is one wave and an ultra tier's 32 is three, so the
+    snapshot a matchup is judged against is at most one pass stale.
 
     Args:
         task: The leased ranking-match task.
@@ -135,9 +152,10 @@ def _prepare_ranking_wave(
     """
     from co_scientist.agents.ranking.ranking import _build_tournament_pairings
 
+    wave_size = _wave_size()
     candidates = _build_tournament_pairings(
         eligible,
-        min(RANKING_WAVE_SIZE + 1, rounds),
+        min(wave_size + 1, rounds),
         state["research_goal"],
         int(state.get("current_iteration", 0)) * 10_000 + index,
     )
@@ -145,7 +163,7 @@ def _prepare_ranking_wave(
         str(item) for item in task.inputs["previous_pair"]
     )
     return _WavePlan(
-        wave=_ranking_wave(candidates, previous_pair, index, rounds),
+        wave=_ranking_wave(candidates, previous_pair, index, rounds, wave_size),
         index=index,
         rounds=rounds,
     )

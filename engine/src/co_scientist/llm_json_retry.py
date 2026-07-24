@@ -36,6 +36,20 @@ logger = logging.getLogger(__name__)
 _RATE_LIMIT_BACKOFF_BASE_SECONDS = 2.0
 
 
+# Count of throttled attempts observed in this process. Read by callers
+# that size their own fan-out (see agents/ranking/ranking_debate.py) so a
+# provider that is pushing back can shrink the next wave instead of having
+# every extra call spend its time asleep in backoff. A plain counter, not
+# an asyncio primitive, so it is safe to share across the worker cohort's
+# several event loops.
+_rate_limited_attempts = 0
+
+
+def rate_limited_attempt_count() -> int:
+    """Return how many throttled attempts this process has backed off from."""
+    return _rate_limited_attempts
+
+
 def _is_rate_limited(error: Exception) -> bool:
     """Return whether a provider error is a throttling response.
 
@@ -425,6 +439,8 @@ async def _handle_json_call_failure(
         # corrective feedback and should go out at once -- throttling is
         # answered by waiting. Retrying a throttled call immediately feeds
         # the burst that caused it.
+        global _rate_limited_attempts
+        _rate_limited_attempts += 1
         delay = _rate_limit_backoff_seconds(attempt.number)
         logger.warning(
             "Rate limited on attempt %s; waiting %.1fs before retrying",

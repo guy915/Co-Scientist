@@ -88,6 +88,30 @@ individual reviews.
 MAX_CONCURRENT_LLM_CALLS: Final = 5
 """Maximum concurrent LLM API calls to avoid rate limits."""
 
+RANKING_WAVE_SIZE: Final = 12
+"""Matchups one durable ranking task judges concurrently.
+
+Ranking gets its own bound rather than sharing MAX_CONCURRENT_LLM_CALLS
+because its fan-out is the tournament's whole shape, not an incidental
+batch. A wave is judged inside a single durable task, so widening it adds
+no task leases and no SQLite writes -- it only decides how many matchups
+share one Elo snapshot.
+
+Sized so a standard tier's 12-match pass fits in one wave and an ultra
+tier's 32 fits in three. The cost is adaptation: every pairing in a wave
+is drawn from the same snapshot, so ratings re-adapt at wave boundaries
+rather than after each match. That trade is why this is not simply
+unbounded.
+"""
+
+RANKING_WAVE_MIN_SIZE: Final = 3
+"""Width ranking falls back to once the provider starts throttling.
+
+A wave wider than the provider will serve does not run faster; the extra
+calls spend their time asleep in backoff, and the burst is what provoked
+the throttling in the first place.
+"""
+
 # Workflow defaults
 DEFAULT_MAX_ITERATIONS: Final = 1
 """Default number of refinement iterations."""

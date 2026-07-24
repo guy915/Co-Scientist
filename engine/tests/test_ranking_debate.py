@@ -134,3 +134,44 @@ async def test_single_turn_alternates_presentation_order_across_matchups(
         orders.append(response["debate_transcript"][0]["presentation_order"])
 
     assert orders == ["ab", "ba", "ab", "ba"]
+
+
+async def test_judge_semaphore_admits_a_whole_wave() -> None:
+    """The judge bound must not be narrower than the wave it bounds.
+
+    One durable task judges a whole wave concurrently. A semaphore smaller
+    than the wave silently splits it into batches, so the task spends the
+    wall time of several sequential rounds while still looking like one
+    wide wave -- the exact serialization the wave exists to remove.
+    """
+    from co_scientist.constants import RANKING_WAVE_SIZE
+
+    semaphore = ranking_debate._get_ranking_semaphore()
+
+    admitted = 0
+    for _ in range(RANKING_WAVE_SIZE):
+        if semaphore.locked():
+            break
+        await semaphore.acquire()
+        admitted += 1
+
+    assert admitted == RANKING_WAVE_SIZE
+
+
+def test_wave_narrows_once_the_provider_throttles(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A throttled provider gets a narrower wave, not more parallel waiting.
+
+    Beyond what the provider will serve, extra calls do not finish sooner --
+    they sleep in jittered backoff, and the burst is what provoked the
+    throttling to begin with.
+    """
+    from co_scientist import llm_json_retry
+    from co_scientist.constants import RANKING_WAVE_MIN_SIZE, RANKING_WAVE_SIZE
+
+    monkeypatch.setattr(llm_json_retry, "_rate_limited_attempts", 0)
+    assert ranking_debate.effective_ranking_wave_size() == RANKING_WAVE_SIZE
+
+    monkeypatch.setattr(llm_json_retry, "_rate_limited_attempts", 1)
+    assert ranking_debate.effective_ranking_wave_size() == RANKING_WAVE_MIN_SIZE
