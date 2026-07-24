@@ -98,24 +98,15 @@ def claim_fingerprint(
     ).hexdigest()
 
 
-def claims_fingerprint(
-    records: Sequence[ClaimRecord],
-    passages: Sequence[Any],
-    assessor_id: str,
-) -> str:
-    """Hash a whole hypothesis's claim inputs, for the gate's own cache.
+def combined_fingerprint(claim_fingerprints: Sequence[str]) -> str:
+    """Fold per-claim digests into one whole-hypothesis digest.
 
-    Built from the per-claim digests so the two levels cannot disagree
-    about what counts as a change.
+    Takes the digests rather than recomputing them: each one costs a
+    retrieval pass over the whole pool, and the gate needs both levels for
+    every claim it plans.
     """
     return hashlib.sha256(
-        json.dumps(
-            [
-                claim_fingerprint(record, passages, assessor_id)
-                for record in records
-            ],
-            separators=(",", ":"),
-        ).encode()
+        json.dumps(list(claim_fingerprints), separators=(",", ":")).encode()
     ).hexdigest()
 
 

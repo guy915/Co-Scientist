@@ -128,6 +128,20 @@ def _entailment_messages(
     ]
 
 
+# Entailment judgements issued in this process. This assessor calls
+# litellm directly rather than going through the engine's ``call_llm``, so
+# nothing folded these into a run's metrics -- and grounding issues one per
+# extracted claim per hypothesis, which is hundreds of calls in a real run.
+# The tier's ``max_llm_calls`` is a runaway backstop, and it was blind to
+# the single largest source of calls the app makes.
+_entailment_calls = 0
+
+
+def entailment_call_count() -> int:
+    """Return how many entailment judgements this process has issued."""
+    return _entailment_calls
+
+
 def _call_llm_entailment(
     model: str,
     claim: str,
@@ -139,6 +153,8 @@ def _call_llm_entailment(
     Returns None (and logs a warning) on any provider failure, so the caller
     can fall back to the deterministic assessor.
     """
+    global _entailment_calls
+    _entailment_calls += 1
     try:
         import litellm
 

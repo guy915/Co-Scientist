@@ -145,13 +145,13 @@ def _harvest_hypothesis_claims(
     return ordered_claims, claim_roles
 
 
-def _gate_input_fingerprint(
+def _per_claim_fingerprints(
     assessor_id: str,
     ordered_claims: Sequence[str],
     claim_roles: Mapping[str, str],
     passages: Sequence[Any],
-) -> str:
-    """Hash one hypothesis's claims and the evidence each one retrieves.
+) -> dict[str, str]:
+    """Fingerprint each claim against only the evidence it retrieves.
 
     Scoped per claim rather than over the whole pool. ``assess_claim``
     shows the assessor only the top-k passages it retrieves for that claim,
@@ -159,23 +159,12 @@ def _gate_input_fingerprint(
     it meant any new article anywhere invalidated every hypothesis's cached
     gate decision, and a run that keeps retrieving evidence never reused
     one.
+
+    Computed once per hypothesis and reused for both the whole-hypothesis
+    digest and the per-claim records the drain matches against: each digest
+    costs its own retrieval pass over the pool, so deriving one level from
+    the other rather than recomputing matters at a few hundred claims.
     """
-    from app.claim_freshness import ClaimRecord, claims_fingerprint
-
-    return claims_fingerprint(
-        [ClaimRecord(claim, claim_roles[claim]) for claim in ordered_claims],
-        passages,
-        assessor_id,
-    )
-
-
-def _per_claim_fingerprints(
-    assessor_id: str,
-    ordered_claims: Sequence[str],
-    claim_roles: Mapping[str, str],
-    passages: Sequence[Any],
-) -> dict[str, str]:
-    """Fingerprint each claim on its own, for the drain to match against."""
     from app.claim_freshness import ClaimRecord, claim_fingerprint
 
     return {
@@ -205,9 +194,14 @@ def _plan_hypothesis_gate(
         or hypothesis.review_disposition
         or "viable"
     )
+    from app.claim_freshness import combined_fingerprint
+
     ordered_claims, claim_roles = _harvest_hypothesis_claims(hypothesis)
-    input_fingerprint = _gate_input_fingerprint(
+    claim_fingerprints = _per_claim_fingerprints(
         assessor_id, ordered_claims, claim_roles, passages
+    )
+    input_fingerprint = combined_fingerprint(
+        [claim_fingerprints[claim] for claim in ordered_claims]
     )
     if gate_history.get("input_fingerprint") == input_fingerprint:
         if gate_history.get("decision") == GateDecision.BLOCK.value:
@@ -220,9 +214,7 @@ def _plan_hypothesis_gate(
         claims=tuple(ordered_claims),
         roles=claim_roles,
         fingerprint=input_fingerprint,
-        claim_fingerprints=_per_claim_fingerprints(
-            assessor_id, ordered_claims, claim_roles, passages
-        ),
+        claim_fingerprints=claim_fingerprints,
         prior_disposition=prior_disposition,
     )
 
@@ -317,6 +309,38 @@ async def _apply_pre_ranking_evidence_gate(state: dict[str, Any]) -> None:
         if plan is not None:
             plans.append(plan)
 
+    before = _entailment_calls_so_far()
     assessed = await _assess_gate_claims(plans, passages, assessor, assessor_id)
     for plan, assessments in zip(plans, assessed, strict=True):
         _apply_gate_verdict(plan, assessments, assessor_id)
+    _charge_entailment_calls(state, _entailment_calls_so_far() - before)
+
+
+def _entailment_calls_so_far() -> int:
+    """Return the process-wide entailment judgement count."""
+    from app.claim_verifier import entailment_call_count
+
+    return entailment_call_count()
+
+
+def _charge_entailment_calls(state: dict[str, Any], calls: int) -> None:
+    """Fold this gate pass's entailment calls into the run's LLM budget.
+
+    The entailment assessor calls the provider directly rather than through
+    the engine's ``call_llm``, so these never reached a run's metrics --
+    and grounding issues one per extracted claim per hypothesis, hundreds
+    in a real run. The tier's ``max_llm_calls`` exists as a runaway
+    backstop, and it was blind to the largest single source of calls.
+
+    Counted from a process-wide total, so a delta rather than an absolute:
+    several runs share the process, and only this pass's share is this
+    run's to pay.
+    """
+    if calls <= 0:
+        return
+    from co_scientist.models import MetricDeltas, create_metrics_update
+    from co_scientist.models_metrics import merge_metrics
+
+    delta = create_metrics_update(deltas=MetricDeltas(llm_calls=calls))
+    existing = state.get("metrics")
+    state["metrics"] = merge_metrics(existing, delta) if existing else delta

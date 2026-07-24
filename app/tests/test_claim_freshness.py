@@ -189,3 +189,36 @@ def test_no_gate_record_assesses_everything() -> None:
     )
 
     assert sorted(seen) == sorted([_CLAIM, _OTHER])
+
+
+def test_entailment_calls_are_charged_to_the_run_budget() -> None:
+    """Grounding's provider calls must count against max_llm_calls.
+
+    The entailment assessor calls the provider directly rather than through
+    the engine's call_llm, so these never reached a run's metrics -- and
+    grounding issues one per extracted claim per hypothesis, hundreds in a
+    real run. The tier's budget is a runaway backstop; it was blind to the
+    largest single source of calls the app makes.
+    """
+    from co_scientist.models import ExecutionMetrics
+
+    from app import engine_tasks_gate
+
+    state: dict[str, Any] = {"metrics": ExecutionMetrics(llm_calls=7)}
+
+    engine_tasks_gate._charge_entailment_calls(state, 25)
+
+    assert state["metrics"].llm_calls == 32
+
+
+def test_a_gate_pass_that_made_no_calls_charges_nothing() -> None:
+    """A fully-reused gate pass must not inflate the budget."""
+    from co_scientist.models import ExecutionMetrics
+
+    from app import engine_tasks_gate
+
+    state: dict[str, Any] = {"metrics": ExecutionMetrics(llm_calls=7)}
+
+    engine_tasks_gate._charge_entailment_calls(state, 0)
+
+    assert state["metrics"].llm_calls == 7
