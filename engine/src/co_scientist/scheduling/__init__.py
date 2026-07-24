@@ -22,6 +22,7 @@ from co_scientist.scheduling.models import (
 from co_scientist.scheduling.policy import (
     ALLOWED_LOOP_TASKS,
     decide_next_task,
+    required_transition,
     validate_decision,
 )
 
@@ -35,5 +36,6 @@ __all__ = [
     "TaskType",
     "TerminationReason",
     "decide_next_task",
+    "required_transition",
     "validate_decision",
 ]

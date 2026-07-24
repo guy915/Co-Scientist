@@ -19,6 +19,7 @@ from co_scientist.scheduling import (
     TaskType,
     TerminationReason,
     decide_next_task,
+    required_transition,
     validate_decision,
 )
 from co_scientist.state import WorkflowState
@@ -199,16 +200,40 @@ def _repeats_without_iteration_progress(
     )
 
 
+def _needs_queue_adjudication(state: WorkflowState) -> bool:
+    """Return whether a failed durable task needs a model queue action.
+
+    A failed durable task is not revived by anything automatic: the retry
+    budget is spent, resume only requeues *paused* rows, and the Supervisor's
+    ``queue_actions`` are the sole route back. Skipping the planning call
+    while one is pending would strand it for the rest of the run, so a
+    failed row makes even a forced transition worth the round-trip.
+    """
+    return any(
+        str(entry.get("status")) == "failed"
+        for entry in state.get("durable_task_queue") or ()
+    )
+
+
 async def choose_supervisor_task(
     state: WorkflowState,
     stats: SchedulerStats,
     budget: Budget,
 ) -> tuple[SupervisorDecision, str]:
-    """Choose the next productive task through the Supervisor model.
+    """Choose the next productive task, consulting the model only if needed.
 
     Hard cancellation, safety, and compute limits are enforced before the
     model call. A malformed or unavailable planning call falls back to the
     existing deterministic policy and records that provenance explicitly.
+
+    Most loop points do not present a choice. The disclosed scheduler's
+    steps 1-10 are required transitions -- review an unreviewed backlog,
+    grow a pool too small to rank, refresh stale proximity, stop on a spent
+    budget -- and the guards below would overrule a model that disagreed
+    with them anyway. Spending an uncached planning round-trip to be told
+    what the code already decided costs the run real wall-clock time on its
+    serial spine, so a forced transition returns immediately and the model
+    is consulted only for the open generation-vs-evolution judgement.
 
     Args:
         state: Current shared workflow state.
@@ -220,13 +245,17 @@ async def choose_supervisor_task(
     """
     # The disclosed scheduler's decision for these stats/budget. Computed once
     # and reused for the hard-stop fall-through, the non-progress fallback, the
-    # post-budget growth guard, and the exception fallback -- decide_next_task
-    # is pure and stats/budget do not change across those uses.
-    baseline = decide_next_task(stats, budget)
+    # post-budget growth guard, and the exception fallback -- the policy is
+    # pure and stats/budget do not change across those uses.
+    forced = required_transition(stats, budget)
+    baseline = forced if forced is not None else decide_next_task(stats, budget)
 
     stop = _hard_stop(stats, budget, baseline)
     if stop is not None:
         return stop, "hard-invariant"
+
+    if forced is not None and not _needs_queue_adjudication(state):
+        return validate_decision(forced, stats), "required-transition"
 
     try:
         validated = await _call_supervisor_planner(state, stats, budget)
