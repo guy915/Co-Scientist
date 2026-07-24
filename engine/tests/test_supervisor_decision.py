@@ -275,6 +275,34 @@ async def test_failed_durable_task_still_consults_the_model(
 
 
 @pytest.mark.asyncio
+async def test_allocation_runs_on_the_worker_model_without_thinking(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The open choice is a classification, not a reasoning problem."""
+    seen: dict[str, Any] = {}
+
+    async def _allocation(**kwargs: Any) -> dict[str, str]:
+        seen.update(kwargs)
+        return {"next_task": "evolve", "reason": "Improve leaders."}
+
+    monkeypatch.setattr(supervisor_decision, "call_llm_json", _allocation)
+    state = _state()
+    stats = SchedulerStats(pool_size=4, reviewed_count=4, iteration=1)
+
+    _, provenance = await supervisor_decision.choose_supervisor_task(
+        state, stats, Budget(max_iterations=4)
+    )
+
+    assert provenance == "model"
+    assert seen["spec"].model_name == state["model_name"]
+    assert seen["spec"].model_name != state["supervisor_model_name"]
+    assert seen["options"].enable_thinking is False
+    # Allocation must never be served from cache: it is a decision about
+    # live state, and identical prompts recur across loop points.
+    assert seen["options"].use_cache is False
+
+
+@pytest.mark.asyncio
 async def test_repeated_maintenance_cannot_stall_iteration_budget(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
