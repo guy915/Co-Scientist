@@ -126,7 +126,7 @@ async def test_evidence_blocked_hypothesis_cannot_enter_tournament(
 async def test_deterministic_winner_updates_elo_and_counts(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The elected winner gains Elo and wins every round; the loser drops."""
+    """The elected winner gains Elo and wins its match; the loser drops."""
     winner = make_hypothesis(text="winner pathway TXT alpha")
     loser = make_hypothesis(text="loser pathway TXT beta")
     state = make_state(hypotheses=[winner, loser])
@@ -134,20 +134,22 @@ async def test_deterministic_winner_updates_elo_and_counts(
 
     result = await ranking_node(state)
 
-    # With two hypotheses the node runs len(hypotheses) == 2 rounds, and the
-    # same hypothesis wins both, so counts accumulate to 2.
+    # Two hypotheses admit exactly one comparison, so the tournament stops
+    # after it however many rounds were allowed. Judging it repeatedly would
+    # ratchet the winner's rating without ever testing it against anything
+    # new -- which is what production was doing.
     assert winner.elo_rating > INITIAL_ELO_RATING
-    assert winner.win_count == 2
+    assert winner.win_count == 1
     assert winner.loss_count == 0
     assert loser.elo_rating < INITIAL_ELO_RATING
-    assert loser.loss_count == 2
+    assert loser.loss_count == 1
     assert loser.win_count == 0
 
     # The winner sorts first by Elo in the returned state.
     assert result["hypotheses"][0] is winner
 
     matchups = result["tournament_matchups"]
-    assert len(matchups) == 2
+    assert len(matchups) == 1
     for matchup in matchups:
         # The recorded winner's after-Elo exceeds its before-Elo every round.
         assert matchup["winner_elo_after"] > matchup["winner_elo_before"]
@@ -175,7 +177,8 @@ async def test_matchups_carry_hypothesis_ids(
     result = await ranking_node(state)
 
     matchups = result["tournament_matchups"]
-    assert len(matchups) == 2
+    # Two hypotheses admit exactly one comparison.
+    assert len(matchups) == 1
     valid_ids = {winner.id, loser.id}
     for matchup in matchups:
         assert matchup["hypothesis_a_id"] in valid_ids
@@ -199,19 +202,24 @@ async def test_malformed_judge_response_uses_position_balanced_fallback(
 
     monkeypatch.setattr(ranking_debate, "call_llm_json", fake)
 
+    # Four hypotheses so the tournament has several distinct comparisons to
+    # make: the balance is only observable across more than one matchup, and
+    # a two-hypothesis pool admits exactly one.
     state = make_state(
         hypotheses=[
-            make_hypothesis(text="first hypothesis TXT"),
-            make_hypothesis(text="second hypothesis TXT"),
-        ]
+            make_hypothesis(text=f"hypothesis {i} TXT") for i in range(4)
+        ],
+        tournament_pairs=4,
     )
     result = await ranking_node(state)
 
     matchups = result["tournament_matchups"]
-    assert len(matchups) == 2
-    assert {matchup["winner_id"] for matchup in matchups} == {
-        hypothesis.id for hypothesis in state["hypotheses"]
-    }
+    assert len(matchups) > 1
+    # Not every fallback verdict may go to the hypothesis in slot A.
+    assert not all(
+        matchup["winner_id"] == matchup["hypothesis_a_id"]
+        for matchup in matchups
+    )
     for matchup in matchups:
         assert matchup["invalid_output_fallback"] is True
         # ranking_node fills missing reasoning/confidence with placeholders.
@@ -222,7 +230,12 @@ async def test_malformed_judge_response_uses_position_balanced_fallback(
 async def test_ranking_honors_tournament_pairs(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Per-run tournament depth controls the number of pairwise matches."""
+    """Per-run tournament depth controls the number of pairwise matches.
+
+    Bounded by the comparisons the pool actually admits: three hypotheses
+    have three distinct pairs, so a request for five stops at three rather
+    than re-judging two of them.
+    """
     hypotheses = [
         make_hypothesis(text="first tournament TXT"),
         make_hypothesis(text="second tournament TXT"),
@@ -241,7 +254,17 @@ async def test_ranking_honors_tournament_pairs(
     state = make_state(hypotheses=hypotheses, tournament_pairs=5)
     result = await ranking_node(state)
 
-    assert len(result["tournament_matchups"]) == 5
+    assert len(result["tournament_matchups"]) == 3
+    # Every one of them a different comparison.
+    assert (
+        len(
+            {
+                frozenset({m["hypothesis_a_id"], m["hypothesis_b_id"]})
+                for m in result["tournament_matchups"]
+            }
+        )
+        == 3
+    )
 
 
 async def test_each_round_selects_from_committed_current_elo(
@@ -413,73 +436,3 @@ def test_matchup_judging_survives_more_than_one_event_loop(
     asyncio.run(judge_a_full_wave())
     # A second task, on a second loop, is the case that broke.
     asyncio.run(judge_a_full_wave())
-
-
-def test_tournament_budget_is_spent_across_the_whole_run() -> None:
-    """tournament_pairs is a run-level allowance, not a per-invocation one.
-
-    The scheduler asks for ranking once per cycle. Charging each invocation
-    the full allowance is how a standard run configured for 12 matches came
-    to judge about 22, every one of them real model work on the serial
-    spine.
-    """
-    from co_scientist.agents.ranking.ranking_lifecycle import (
-        _tournament_round_count,
-    )
-    from co_scientist.models import ExecutionMetrics
-
-    hypotheses = [make_hypothesis(text=f"h{i}") for i in range(4)]
-
-    fresh = make_state(hypotheses=hypotheses, tournament_pairs=12)
-    assert _tournament_round_count(fresh, hypotheses) == 12
-
-    partway = make_state(
-        hypotheses=hypotheses,
-        tournament_pairs=12,
-        metrics=ExecutionMetrics(tournaments_count=9),
-    )
-    assert _tournament_round_count(partway, hypotheses) == 3
-
-    spent = make_state(
-        hypotheses=hypotheses,
-        tournament_pairs=12,
-        metrics=ExecutionMetrics(tournaments_count=12),
-    )
-    assert _tournament_round_count(spent, hypotheses) == 0
-
-
-def test_budget_is_not_refunded_when_dedup_removes_hypotheses() -> None:
-    """Consumed rounds come from run metrics, not from the surviving pool.
-
-    Proximity dedup removes hypotheses and their match tallies with them.
-    Recounting from the pool would hand the run back budget it had already
-    spent every time the pool was cleaned.
-    """
-    from co_scientist.agents.ranking.ranking_lifecycle import (
-        consumed_tournament_rounds,
-    )
-    from co_scientist.models import ExecutionMetrics
-
-    state = make_state(
-        hypotheses=[],
-        tournament_pairs=12,
-        metrics=ExecutionMetrics(tournaments_count=8),
-    )
-
-    assert consumed_tournament_rounds(state) == 8
-
-
-async def test_ranking_node_is_a_no_op_once_the_budget_is_spent() -> None:
-    """A spent budget skips the tournament instead of buying another."""
-    from co_scientist.models import ExecutionMetrics
-
-    hypotheses = [make_hypothesis(text=f"h{i}") for i in range(4)]
-    state = make_state(
-        hypotheses=hypotheses,
-        tournament_pairs=6,
-        metrics=ExecutionMetrics(tournaments_count=6),
-    )
-
-    result = await ranking_node(state)
-
-    assert result == {"hypotheses": hypotheses}

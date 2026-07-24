@@ -86,6 +86,23 @@ class _WaveJudgeContext:
     index: int
 
 
+def _judged_pairs(state: dict[str, Any]) -> set[frozenset[str]]:
+    """Every matchup this tournament has already judged.
+
+    Read from the committed ``pending_ranking_matchups`` rather than carried
+    in task inputs, so it survives a resume and needs no schema change: the
+    details are the durable record of what was judged. A wave that only knew
+    the previous pair would re-offer everything before it.
+    """
+    judged: set[frozenset[str]] = set()
+    for detail in state.get("pending_ranking_matchups") or []:
+        a_id = detail.get("hypothesis_a_id")
+        b_id = detail.get("hypothesis_b_id")
+        if a_id and b_id:
+            judged.add(frozenset({str(a_id), str(b_id)}))
+    return judged
+
+
 def _ranking_wave(
     candidates: list[Any],
     previous_pair: frozenset[str],
@@ -99,6 +116,15 @@ def _ranking_wave(
     never repeats a pair inside one wave, since every pairing in a wave is
     drawn from the same Elo snapshot and would otherwise be judged twice.
     Never runs past the round budget.
+
+    Returns empty when the tournament has no comparison left to make, which
+    ends it. This used to fall back to judging ``candidates[0]`` again on the
+    grounds that a repeat still made progress. It does not: re-judging one
+    pair moves the winner's rating without testing it against anything new.
+    A pool with two rankable ideas has exactly one comparison, and every
+    production run spent its whole tournament replaying it -- six matches,
+    one pair, the winner reported at 1259 as though it had beaten six
+    opponents.
     """
     remaining = max(0, rounds - index)
     wave: list[Any] = []
@@ -111,10 +137,6 @@ def _ranking_wave(
             continue
         seen.add(key)
         wave.append(pair)
-    if not wave and candidates and remaining:
-        # Every candidate was a repeat; judging the best one again still makes
-        # progress and matches the previous one-per-task fallback.
-        wave.append(candidates[0])
     return wave
 
 
@@ -158,6 +180,7 @@ def _prepare_ranking_wave(
         min(wave_size + 1, rounds),
         state["research_goal"],
         int(state.get("current_iteration", 0)) * 10_000 + index,
+        judged=_judged_pairs(state),
     )
     previous_pair = frozenset(
         str(item) for item in task.inputs["previous_pair"]

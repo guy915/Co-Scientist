@@ -13,6 +13,12 @@ while preventing self-matches, immediate duplicate rematches, and starvation
 (every hypothesis reaches a configured minimum match coverage before extra
 discriminating matches are scheduled).
 
+Every matchup within one build is distinct. A build selects all of its
+pairings from a single Elo snapshot, so re-scheduling a pair it has already
+chosen cannot discriminate between those two hypotheses -- it replays one
+comparison and ratchets the winner's rating for it. Rematches across ranking
+cycles remain available, since each cycle re-pairs against updated ratings.
+
 The core :func:`build_weighted_pairings` is a pure function of a candidate list
 and a seed, so the biases and coverage guarantees are unit-testable and a fixed
 seed replays identically (Google leaves the exact weights unspecified; the
@@ -174,14 +180,25 @@ def _select_partner(
     (no self-matches, no immediate duplicate rematches). Partners in the same
     proximity cluster get a similarity bonus so similar hypotheses are more
     likely compared. Returns None if no valid partner remains.
+
+    Under-covered candidates are preferred, exactly as in ``_select_primary``.
+    Applying the floor to only one side of the match made coverage a tendency
+    rather than a guarantee: a build with enough rounds to pair everyone could
+    still spend one on an already-covered partner and leave a hypothesis
+    unmatched, which then reports its starting rating as a tournament result.
     """
-    scored = [
-        (c, _partner_score(c, primary, state))
-        for c in candidates
-        if _is_eligible_partner(c, primary, recent_pairs)
+    eligible = [
+        c for c in candidates if _is_eligible_partner(c, primary, recent_pairs)
     ]
-    if not scored:
+    if not eligible:
         return None
+    undercovered = [
+        c
+        for c in eligible
+        if state.coverage.get(c.id, 0) < state.weights.min_coverage
+    ]
+    pool = undercovered or eligible
+    scored = [(c, _partner_score(c, primary, state)) for c in pool]
     return _weighted_choice(scored, state.rng)
 
 
@@ -194,19 +211,32 @@ def _select_round_partner(
 ) -> MatchCandidate | None:
     """Selects a partner for ``primary``, relaxing forbidden pairs as needed.
 
-    Fallback ladder: avoid all recent pairs, then only the immediately
-    previous pair (so no back-to-back rematch), then — only when even
-    that leaves no partner (a two-hypothesis pool) — allow any non-self
-    partner so the tournament can still rematch.
+    Pairs already scheduled in this build are never reoffered, and the
+    immediately previous pair is forbidden on top of that so no matchup
+    repeats back to back. There is deliberately no rung that relaxes into
+    an already-scheduled pair: the build chooses every matchup from one Elo
+    snapshot, so a repeat replays a comparison instead of making one.
+
+    Returns None when ``primary`` has already faced every other candidate,
+    leaving the caller free to try a different primary.
     """
     prev_only: set[frozenset[str]] = (
         {prev_pair} if prev_pair is not None else set()
     )
-    for forbidden in (recent_pairs | prev_only, prev_only, set()):
-        partner = _select_partner(primary, candidates, forbidden, state)
-        if partner is not None:
-            return partner
-    return None
+    return _select_partner(primary, candidates, recent_pairs | prev_only, state)
+
+
+def _commit_pairing(
+    primary: MatchCandidate,
+    partner: MatchCandidate,
+    recent_pairs: set[frozenset[str]],
+    state: _PairingState,
+) -> tuple[str, str]:
+    """Records a chosen pairing against coverage and the scheduled set."""
+    state.coverage[primary.id] += 1
+    state.coverage[partner.id] += 1
+    recent_pairs.add(frozenset({primary.id, partner.id}))
+    return primary.id, partner.id
 
 
 def _schedule_one_pairing(
@@ -215,22 +245,42 @@ def _schedule_one_pairing(
     prev_pair: frozenset[str] | None,
     state: _PairingState,
 ) -> tuple[str, str] | None:
-    """Selects and commits one pairing, updating coverage and recency.
+    """Selects and commits one not-yet-scheduled pairing.
+
+    Retries with a freshly drawn primary when the first pick has already
+    faced every other candidate, so one exhausted hypothesis cannot end a
+    build while unplayed pairs remain elsewhere in the pool.
 
     Returns:
-        The scheduled ``(primary_id, partner_id)`` pair, or None if no
-        valid partner exists for the round's chosen primary.
+        The scheduled ``(primary_id, partner_id)`` pair, or None once every
+        distinct pair in the pool has been scheduled.
     """
-    primary = _select_primary(candidates, state)
-    partner = _select_round_partner(
-        primary, candidates, recent_pairs, prev_pair, state
-    )
-    if partner is None:
-        return None
-    state.coverage[primary.id] += 1
-    state.coverage[partner.id] += 1
-    recent_pairs.add(frozenset({primary.id, partner.id}))
-    return primary.id, partner.id
+    for _ in range(len(candidates)):
+        primary = _select_primary(candidates, state)
+        partner = _select_round_partner(
+            primary, candidates, recent_pairs, prev_pair, state
+        )
+        if partner is not None:
+            return _commit_pairing(primary, partner, recent_pairs, state)
+    return _any_unscheduled_pairing(candidates, recent_pairs, state)
+
+
+def _any_unscheduled_pairing(
+    candidates: list[MatchCandidate],
+    recent_pairs: set[frozenset[str]],
+    state: _PairingState,
+) -> tuple[str, str] | None:
+    """Deterministic sweep for any pair this build has not scheduled.
+
+    The weighted draw above is random, so on a pool where most pairs are
+    already used it can miss the few that remain. This makes exhaustion a
+    fact about the pool rather than an artifact of sampling luck.
+    """
+    for i, primary in enumerate(candidates):
+        for partner in candidates[i + 1 :]:
+            if frozenset({primary.id, partner.id}) not in recent_pairs:
+                return _commit_pairing(primary, partner, recent_pairs, state)
+    return None
 
 
 def _init_pairing_state(
@@ -252,54 +302,58 @@ def _init_pairing_state(
     return state, max_pairs
 
 
-def _reset_if_exhausted(
-    recent_pairs: set[frozenset[str]],
-    prev_pair: frozenset[str] | None,
-    max_pairs: int,
-) -> set[frozenset[str]]:
-    """Resets the recent-pairs window once every valid pair has been used.
-
-    A long tournament on a small pool can still schedule rematches without
-    starving -- it just avoids back-to-back repeats. The immediately
-    previous pair is always forbidden (even across a reset) so no pair
-    repeats twice in a row.
-    """
-    if len(recent_pairs) >= max_pairs:
-        return {prev_pair} if prev_pair is not None else set()
-    return recent_pairs
-
-
 def build_weighted_pairings(
     candidates: list[MatchCandidate],
     rounds: int,
     seed: int,
     weights: MatchmakingWeights | None = None,
+    exclude: set[frozenset[str]] | None = None,
 ) -> list[tuple[str, str]]:
-    """Build ``rounds`` weighted, deterministic pairwise matchups.
+    """Build up to ``rounds`` weighted, deterministic pairwise matchups.
+
+    Every matchup in one build is distinct, and ``exclude`` extends that
+    across builds: a caller judging one round at a time passes the pairs it
+    has already judged, and gets back only comparisons it has not made yet.
+
+    Repeating a pair cannot discriminate between those two hypotheses -- it
+    replays one comparison and ratchets the winner's rating for it.
+    Production ran whole tournaments this way: a pool left with two rankable
+    ideas judged the same pair six times and reported the winner at 1259 as
+    though it had beaten six opponents.
+
+    The count is therefore capped at the distinct pairs still available,
+    which for n candidates is n*(n-1)/2 less the excluded ones -- a
+    two-candidate pool yields one match however many rounds are requested,
+    and none once that match has been judged. Rematches across ranking
+    cycles stay available and meaningful, because each cycle re-pairs
+    against updated ratings.
 
     Args:
         candidates: The hypotheses eligible for pairing (reduced form).
-        rounds: Number of matchups to schedule.
+        rounds: Maximum number of matchups to schedule.
         seed: Deterministic RNG seed (identical seed → identical schedule).
         weights: Optional pairing weights (documented clone defaults used
             when omitted).
+        exclude: Pairs already judged, as ``frozenset`` of the two ids.
+            Never offered again by this build.
 
     Returns:
-        A list of ``(primary_id, partner_id)`` pairs. Empty when fewer than
-        two candidates exist (no valid pairing).
+        A list of distinct ``(primary_id, partner_id)`` pairs, at most
+        ``rounds`` long and excluding ``exclude``. Empty when fewer than two
+        candidates exist or every pair is already excluded.
     """
     if len(candidates) < 2:
         return []
-    state, max_pairs = _init_pairing_state(candidates, seed, weights)
+    state, all_pairs = _init_pairing_state(candidates, seed, weights)
+    recent_pairs: set[frozenset[str]] = set(exclude or ())
+    max_pairs = all_pairs - len(recent_pairs)
 
     pairings: list[tuple[str, str]] = []
-    recent_pairs: set[frozenset[str]] = set()
     prev_pair: frozenset[str] | None = None
-    for _ in range(rounds):
-        recent_pairs = _reset_if_exhausted(recent_pairs, prev_pair, max_pairs)
+    for _ in range(min(rounds, max_pairs)):
         pair = _schedule_one_pairing(candidates, recent_pairs, prev_pair, state)
         if pair is None:
-            continue
+            break
         pairings.append(pair)
         prev_pair = frozenset(pair)
 

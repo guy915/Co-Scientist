@@ -136,8 +136,16 @@ def _task_events(
     ]
 
 
-def _viable_hypotheses(count: int) -> list[Hypothesis]:
-    """Build ``count`` reviewed-viable hypotheses for a tournament fixture."""
+def _viable_hypotheses(count: int, played: bool = False) -> list[Hypothesis]:
+    """Build ``count`` reviewed-viable hypotheses for a tournament fixture.
+
+    Args:
+        count: How many hypotheses to build.
+        played: Give each one a match record. The tournament round count
+            owes a first match to any rankable hypothesis that has never
+            played, so a fixture exercising budget exhaustion has to say
+            that its pool already has.
+    """
     text = "Mechanism {i} accelerates ATP recovery."
     hypotheses = [
         Hypothesis(text=text.format(i=i), literature_grounding=text.format(i=i))
@@ -145,6 +153,9 @@ def _viable_hypotheses(count: int) -> list[Hypothesis]:
     ]
     for hypothesis in hypotheses:
         hypothesis.review_disposition = "viable"
+        if played:
+            hypothesis.win_count = 1
+            hypothesis.loss_count = 1
     return hypotheses
 
 
@@ -158,12 +169,15 @@ class _RankingSeed:
         idempotency_key: Key the queued ranking node task is enqueued under.
         consumed_rounds: Matches the run has already charged against the
             budget, as the accumulated run metric records them.
+        played: Seed the pool as having already been matched, so the
+            coverage floor is satisfied and the budget alone decides.
     """
 
     hypothesis_count: int
     tournament_pairs: int
     idempotency_key: str
     consumed_rounds: int = 0
+    played: bool = False
 
 
 def _seed_ranking_node(
@@ -176,7 +190,9 @@ def _seed_ranking_node(
     state = _task_state(run_id)
     state.update(
         {
-            "hypotheses": _viable_hypotheses(seed.hypothesis_count),
+            "hypotheses": _viable_hypotheses(
+                seed.hypothesis_count, played=seed.played
+            ),
             "tournament_pairs": seed.tournament_pairs,
             "metrics": ExecutionMetrics(tournaments_count=seed.consumed_rounds),
         }

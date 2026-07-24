@@ -82,6 +82,31 @@ def consumed_tournament_rounds(state: WorkflowState) -> int:
     return max(0, int(getattr(metrics, "tournaments_count", 0) or 0))
 
 
+def _coverage_floor(hypotheses: list[Hypothesis]) -> int:
+    """Rounds needed so every never-matched rankable idea gets one match.
+
+    A hypothesis that leaves a run unmatched still reports the starting Elo
+    of 1200, which is indistinguishable in the report from a rating earned
+    against opponents. The budget is therefore a ceiling on discrimination,
+    not on coverage: it may decide how much a run refines its ordering, but
+    never that an idea is ranked without playing.
+
+    Counted over rankable hypotheses only. Quarantined and undermined ideas
+    are excluded from the tournament by design, so counting them would hold
+    the floor permanently above zero and loop the orchestrator on ranking
+    forever. Bounded by the distinct pairs the pool admits for the same
+    reason -- a floor the pool cannot satisfy never falls.
+    """
+    rankable = [h for h in hypotheses if h.is_rankable()]
+    if len(rankable) < 2:
+        return 0
+    unmatched = sum(1 for h in rankable if h.total_matches == 0)
+    if not unmatched:
+        return 0
+    max_pairs = len(rankable) * (len(rankable) - 1) // 2
+    return min((unmatched + 1) // 2, max_pairs)
+
+
 def _tournament_round_count(
     state: WorkflowState, hypotheses: list[Hypothesis]
 ) -> int:
@@ -97,11 +122,28 @@ def _tournament_round_count(
     for 12 matches judged about 22, and an ultra run far more. Each match
     is real model work on the run's serial spine.
 
+    The budget never suppresses a hypothesis's first match: a spent budget
+    still yields enough rounds to cover ideas that have never played, since
+    an unmatched idea would otherwise report its starting rating as a
+    tournament result.
+
     Returns:
-        Matches still affordable this run; zero once the budget is spent.
+        Matches still affordable this run, or the coverage floor if that is
+        larger; zero once the budget is spent and every rankable hypothesis
+        has played.
     """
     budget = max(1, int(state.get("tournament_pairs") or len(hypotheses)))
     remaining = max(0, budget - consumed_tournament_rounds(state))
+    floor = _coverage_floor(hypotheses)
+    if floor > remaining:
+        logger.info(
+            "Tournament budget spent (%s of %s), but %s round(s) still owed "
+            "to hypotheses that have never been matched",
+            remaining,
+            budget,
+            floor,
+        )
+        return floor
     logger.info(
         "Tournament budget: %s of %s rounds remaining", remaining, budget
     )

@@ -1,0 +1,150 @@
+"""Tests for the tournament round budget and its coverage floor.
+
+``tournament_pairs`` is a whole-run allowance rather than a per-invocation
+one, and it bounds how far a run refines its ordering -- never whether a
+hypothesis is rated at all. These cover both halves: the budget arithmetic
+across a run, and the coverage floor that outranks it so no rankable idea
+finishes a run reporting the starting Elo it never played for.
+
+Split from ``test_ranking.py`` to keep that file under the line ceiling.
+"""
+
+from co_scientist.agents.ranking.ranking import ranking_node
+from tests._state import make_hypothesis, make_state
+
+
+def test_tournament_budget_is_spent_across_the_whole_run() -> None:
+    """tournament_pairs is a run-level allowance, not a per-invocation one.
+
+    The scheduler asks for ranking once per cycle. Charging each invocation
+    the full allowance is how a standard run configured for 12 matches came
+    to judge about 22, every one of them real model work on the serial
+    spine.
+
+    Every hypothesis here has already played, so the coverage floor is zero
+    and the budget arithmetic is what remains. The floor's precedence over
+    the budget is pinned separately below.
+    """
+    from co_scientist.agents.ranking.ranking_lifecycle import (
+        _tournament_round_count,
+    )
+    from co_scientist.models import ExecutionMetrics
+
+    hypotheses = [
+        make_hypothesis(text=f"h{i}", win_count=1, loss_count=1)
+        for i in range(4)
+    ]
+
+    fresh = make_state(hypotheses=hypotheses, tournament_pairs=12)
+    assert _tournament_round_count(fresh, hypotheses) == 12
+
+    partway = make_state(
+        hypotheses=hypotheses,
+        tournament_pairs=12,
+        metrics=ExecutionMetrics(tournaments_count=9),
+    )
+    assert _tournament_round_count(partway, hypotheses) == 3
+
+    spent = make_state(
+        hypotheses=hypotheses,
+        tournament_pairs=12,
+        metrics=ExecutionMetrics(tournaments_count=12),
+    )
+    assert _tournament_round_count(spent, hypotheses) == 0
+
+
+def test_budget_is_not_refunded_when_dedup_removes_hypotheses() -> None:
+    """Consumed rounds come from run metrics, not from the surviving pool.
+
+    Proximity dedup removes hypotheses and their match tallies with them.
+    Recounting from the pool would hand the run back budget it had already
+    spent every time the pool was cleaned.
+    """
+    from co_scientist.agents.ranking.ranking_lifecycle import (
+        consumed_tournament_rounds,
+    )
+    from co_scientist.models import ExecutionMetrics
+
+    state = make_state(
+        hypotheses=[],
+        tournament_pairs=12,
+        metrics=ExecutionMetrics(tournaments_count=8),
+    )
+
+    assert consumed_tournament_rounds(state) == 8
+
+
+async def test_ranking_node_is_a_no_op_once_the_budget_is_spent() -> None:
+    """A spent budget skips the tournament instead of buying another.
+
+    Every hypothesis has already played, so nothing is owed a first match.
+    """
+    from co_scientist.models import ExecutionMetrics
+
+    hypotheses = [
+        make_hypothesis(text=f"h{i}", win_count=1, loss_count=1)
+        for i in range(4)
+    ]
+    state = make_state(
+        hypotheses=hypotheses,
+        tournament_pairs=6,
+        metrics=ExecutionMetrics(tournaments_count=6),
+    )
+
+    result = await ranking_node(state)
+
+    assert result == {"hypotheses": hypotheses}
+
+
+def test_spent_budget_still_owes_a_first_match_to_unplayed_ideas() -> None:
+    """Coverage outranks the budget: no idea is rated without playing.
+
+    tournament_pairs bounds how far a run refines its ordering. It must not
+    decide that a hypothesis is reported at the starting Elo of 1200, which
+    in the report is indistinguishable from a rating earned in matches.
+    """
+    from co_scientist.agents.ranking.ranking_lifecycle import (
+        _tournament_round_count,
+    )
+    from co_scientist.models import ExecutionMetrics
+
+    played = [
+        make_hypothesis(text=f"old{i}", win_count=1, loss_count=1)
+        for i in range(2)
+    ]
+    unplayed = [make_hypothesis(text=f"new{i}") for i in range(3)]
+    spent = make_state(
+        hypotheses=played + unplayed,
+        tournament_pairs=6,
+        metrics=ExecutionMetrics(tournaments_count=6),
+    )
+
+    # Three unplayed ideas need ceil(3/2) = 2 rounds to all get a match.
+    assert _tournament_round_count(spent, played + unplayed) == 2
+
+
+def test_unrankable_ideas_do_not_hold_the_coverage_floor_open() -> None:
+    """Quarantined ideas can never be matched, so they cannot owe a match.
+
+    Counting them would keep the floor permanently above zero and loop the
+    orchestrator on ranking for the rest of the run.
+    """
+    from co_scientist.agents.ranking.ranking_lifecycle import (
+        _tournament_round_count,
+    )
+    from co_scientist.models import ExecutionMetrics
+
+    hypotheses = [
+        make_hypothesis(text="played", win_count=1, loss_count=1),
+        make_hypothesis(text="blocked", review_disposition="evidence_blocked"),
+        make_hypothesis(
+            text="undermined", deep_verification_verdict="undermined"
+        ),
+    ]
+    spent = make_state(
+        hypotheses=hypotheses,
+        tournament_pairs=6,
+        metrics=ExecutionMetrics(tournaments_count=6),
+    )
+
+    assert _tournament_round_count(spent, hypotheses) == 0

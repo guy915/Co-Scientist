@@ -118,6 +118,7 @@ def _build_tournament_pairings(
     tournament_rounds: int,
     research_goal: str,
     current_iteration: int,
+    judged: set[frozenset[str]] | None = None,
 ) -> list[tuple[Hypothesis, Hypothesis]]:
     """Builds deterministic weighted pairwise matchups for one tournament.
 
@@ -136,16 +137,22 @@ def _build_tournament_pairings(
         tournament_rounds: Number of pairings to generate.
         research_goal: Research goal, used to seed the deterministic RNG.
         current_iteration: Current workflow iteration, used to seed the RNG.
+        judged: Pairs this tournament has already judged. Never offered
+            again, so a tournament runs out of comparisons rather than
+            replaying one.
 
     Returns:
-        List of (hypothesis_a, hypothesis_b) pairings, one per round.
+        List of (hypothesis_a, hypothesis_b) pairings, one per round; empty
+        once every distinct pair has been judged.
     """
     seed_string = f"{research_goal}_{current_iteration}"
     seed = int(hashlib.md5(seed_string.encode()).hexdigest()[:8], 16)
 
     by_id = {h.id: h for h in hypotheses}
     candidates = _build_match_candidates(hypotheses)
-    id_pairs = build_weighted_pairings(candidates, tournament_rounds, seed)
+    id_pairs = build_weighted_pairings(
+        candidates, tournament_rounds, seed, exclude=judged
+    )
     return [(by_id[a], by_id[b]) for a, b in id_pairs]
 
 
@@ -186,27 +193,28 @@ def _build_tournament_context(
 def _select_next_pairing(
     ctx: _TournamentContext,
     index: int,
-    previous_pair: frozenset[str] | None,
+    judged: set[frozenset[str]],
 ) -> tuple[Hypothesis, Hypothesis] | None:
-    """Selects one round's pairing, avoiding an immediate repeat of the last.
+    """Selects one round's pairing from comparisons not yet made.
 
     A distinct deterministic seed plus updated in-memory Elo/match counts
     makes each selection depend on every committed earlier outcome.
+
+    Returns None once every distinct pair has been judged, which ends the
+    tournament. This used to fall back to the first candidate when the only
+    ones on offer had already been judged, so a pool with a single available
+    pair re-judged it for every remaining round: production tournaments ran
+    six and twelve rounds on one matchup, ratcheting the winner's rating
+    with each replay and reporting it as a rating earned across opponents.
     """
     candidates = _build_tournament_pairings(
         ctx.hypotheses,
         min(3, ctx.tournament_rounds),
         ctx.research_goal,
         ctx.current_iteration * 10_000 + index,
+        judged=judged,
     )
-    return next(
-        (
-            item
-            for item in candidates
-            if frozenset({item[0].id, item[1].id}) != previous_pair
-        ),
-        candidates[0] if candidates else None,
-    )
+    return candidates[0] if candidates else None
 
 
 async def _judge_and_commit_matchup(
@@ -249,18 +257,18 @@ async def _judge_and_commit_matchup(
 async def _run_one_round(
     state: WorkflowState,
     index: int,
-    previous_pair: frozenset[str] | None,
+    judged: set[frozenset[str]],
     ctx: _TournamentContext,
 ) -> tuple[dict[str, Any] | None, int, frozenset[str] | None]:
     """Selects, judges, and commits one tournament round.
 
     Returns:
-        Tuple of (matchup detail, or None if no pairing remained; debate
-        depth used; and the pair just committed, for repeat-avoidance).
+        Tuple of (matchup detail, or None if no unjudged pairing remained;
+        debate depth used; and the pair just committed).
     """
-    pairing = _select_next_pairing(ctx, index, previous_pair)
+    pairing = _select_next_pairing(ctx, index, judged)
     if pairing is None:
-        return None, 0, previous_pair
+        return None, 0, None
     hyp_a, hyp_b = pairing
     detail, depth = await _judge_and_commit_matchup(
         state, hyp_a, hyp_b, index, ctx
@@ -276,16 +284,23 @@ async def _execute_tournament_rounds(
     Commits each outcome before selecting the next pairing (see
     ``_run_one_round``), so matchmaking observes current ratings rather
     than a stale snapshot.
+
+    Stops early once every distinct pair has been judged: a tournament with
+    more rounds than the pool has comparisons has nothing left to learn, and
+    spending the remainder re-judging pairs inflates the winner's rating
+    without evidence.
     """
     details: list[dict[str, Any]] = []
     total_llm_calls = 0
-    previous_pair: frozenset[str] | None = None
+    judged: set[frozenset[str]] = set()
     for index in range(tournament_rounds):
-        detail, depth, previous_pair = await _run_one_round(
-            state, index, previous_pair, ctx
+        detail, depth, committed = await _run_one_round(
+            state, index, judged, ctx
         )
         if detail is None:
             break
+        if committed is not None:
+            judged.add(committed)
         details.append(detail)
         total_llm_calls += depth
     return details, total_llm_calls

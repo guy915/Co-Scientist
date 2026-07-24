@@ -169,6 +169,10 @@ async def test_spent_budget_schedules_no_tournament(
     the run already judged. The scheduler asks for ranking once per cycle,
     so this is the ordinary case late in a run, and the symptom was a
     completed run reporting zero matches after judging a full round.
+
+    The pool is seeded as already played: a spent budget still owes a first
+    match to any hypothesis that has never had one, so only a fully covered
+    pool isolates the budget behaviour under test.
     """
     run = store.create_run("Spent budget", "standard", "engine", {})
     _seed_ranking_node(
@@ -179,6 +183,7 @@ async def test_spent_budget_schedules_no_tournament(
             tournament_pairs=6,
             idempotency_key="spent-budget-ranking-node",
             consumed_rounds=6,
+            played=True,
         ),
         isolated_db,
     )
@@ -197,7 +202,11 @@ async def test_spent_budget_schedules_no_tournament(
 async def test_partial_budget_schedules_only_what_is_left(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Remaining budget, not the tier's full allowance, sizes the pass."""
+    """Remaining budget, not the tier's full allowance, sizes the pass.
+
+    The pool has already played, so no first match is owed and the
+    remaining budget is the only thing sizing the pass.
+    """
     run = store.create_run("Partial budget", "standard", "engine", {})
     _seed_ranking_node(
         run.id,
@@ -207,6 +216,7 @@ async def test_partial_budget_schedules_only_what_is_left(
             tournament_pairs=12,
             idempotency_key="partial-budget-ranking-node",
             consumed_rounds=9,
+            played=True,
         ),
         isolated_db,
     )
