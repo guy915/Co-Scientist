@@ -194,9 +194,14 @@ def deepseek_thinking_extra_body(
     supervisor-routing call is bumped to a thinking-safe budget). Non-DeepSeek
     models get an empty dict.
 
-    Thinking is on for every node except the ranking tournament, which opts out
-    via ``enabled=False``: its pairwise matchups run O(n^2) times per cycle, so
-    reasoning there dominates run latency (see ``agents/ranking/ranking.py``).
+    Thinking is on for every node except two, both of which opt out via
+    ``enabled=False`` because their latency lands on the run's critical path
+    without buying a better answer. The ranking tournament's pairwise
+    matchups run O(n^2) times per cycle, so reasoning there dominates run
+    latency (see ``agents/ranking/ranking.py``). Supervisor allocation runs
+    once per loop point on the serial spine, and what reaches the model is a
+    choice between two named tasks over statistics the prompt states
+    outright (see ``agents/supervisor/supervisor_decision.py``).
 
     DashScope (Alibaba Cloud) serves the same DeepSeek models behind its
     OpenAI-compatible endpoint but controls thinking with a different knob:
