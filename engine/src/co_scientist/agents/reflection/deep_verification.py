@@ -2,6 +2,8 @@
 
 import asyncio
 import dataclasses
+import hashlib
+import json
 import logging
 from typing import Any
 
@@ -34,6 +36,12 @@ logger = logging.getLogger(__name__)
 
 _MAX_PROBE_QUERIES = 3
 _MAX_PROBE_SOURCES = 6
+
+# Bump whenever the deep-verification prompt or schema changes in a way that
+# would produce a different answer to the same question. Verifications
+# carrying an older version are re-run rather than trusted, since the stored
+# probes were produced by a prompt this code no longer sends.
+DEEP_VERIFICATION_PROMPT_VERSION = 1
 
 
 @dataclasses.dataclass(frozen=True)
@@ -250,25 +258,88 @@ async def _verify_with_probes(
     return result
 
 
+def _cited_evidence_identities(hypothesis: Hypothesis) -> list[str]:
+    """Return stable identities for the evidence a hypothesis cites.
+
+    Only cited sources count. The evidence context handed to the verifier
+    is assembled run-wide, so hashing all of it would make any new article
+    anywhere invalidate every hypothesis's fingerprint and re-verify the
+    whole leaderboard for evidence that never mentioned it.
+    """
+    identities = set()
+    for key, source in (hypothesis.citation_map or {}).items():
+        source = source if isinstance(source, dict) else {}
+        identity = (
+            source.get("source_id")
+            or source.get("doi")
+            or source.get("url")
+            or source.get("title")
+            or key
+        )
+        identities.add(str(identity))
+    return sorted(identities)
+
+
+def verification_fingerprint(hypothesis: Hypothesis, model_name: str) -> str:
+    """Digest the inputs a deep verification would be produced from.
+
+    Covers the hypothesis text, the verifier model, the prompt version, and
+    the evidence the hypothesis cites. Two verifications with the same
+    fingerprint would be asked the same question against the same material,
+    so the stored answer still holds and the call can be skipped.
+
+    Args:
+        hypothesis: The hypothesis that would be verified.
+        model_name: Verifier model the call would run on.
+
+    Returns:
+        A hex digest to compare against the hypothesis's stored value.
+    """
+    payload = json.dumps(
+        {
+            "prompt_version": DEEP_VERIFICATION_PROMPT_VERSION,
+            "model": model_name,
+            "text": " ".join((hypothesis.text or "").split()),
+            "evidence": _cited_evidence_identities(hypothesis),
+        },
+        sort_keys=True,
+    )
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
 def _select_hypotheses_to_verify(
     hypotheses: list[Hypothesis],
+    model_name: str,
 ) -> list[Hypothesis]:
-    """Picks the current Elo leaders that still need deep verification.
+    """Picks the current Elo leaders whose verification is stale or missing.
 
-    Use the shared Elo ranking policy to pick the current leaders, then
-    only re-verify those without existing probes: a hypothesis keeps its
-    probes/verdict across iterations unless evolve.py rewrote its text
-    (which clears them), so this is naturally idempotent/incremental.
+    A leader is re-verified when the inputs behind its stored probes have
+    changed -- its text was rewritten, the verifier model or prompt moved,
+    or evidence it cites arrived -- and skipped when they have not. A newly
+    promoted leader has no stored fingerprint at all, so it is always
+    verified.
+
+    This replaces testing whether probes exist. That proxy could not tell a
+    stale verification from a current one: a hypothesis kept whatever
+    verdict it was first given for the rest of the run, even after the
+    evidence under it changed, and only evolution rewriting its text
+    cleared it.
 
     Args:
         hypotheses: The full hypothesis pool.
+        model_name: Verifier model the batch would run on.
 
     Returns:
-        Top-k-by-Elo hypotheses that lack deep-verification probes.
+        Top-k-by-Elo hypotheses needing verification, in rank order.
     """
     ranked = rank_by_elo(hypotheses)
     top_k = ranked[:DEEP_VERIFICATION_TOP_K]
-    return [h for h in top_k if not h.deep_verification_probes]
+    return [
+        hypothesis
+        for hypothesis in top_k
+        if hypothesis.deep_verification_fingerprint
+        != verification_fingerprint(hypothesis, model_name)
+    ]
 
 
 def _verification_evidence_context(state: WorkflowState) -> str:
@@ -290,17 +361,26 @@ def _verification_evidence_context(state: WorkflowState) -> str:
 
 
 def _apply_verification_results(
-    to_verify: list[Hypothesis], results: list[dict[str, Any] | None]
+    to_verify: list[Hypothesis],
+    results: list[dict[str, Any] | None],
+    model_name: str,
 ) -> int:
     """Applies deep-verification results onto their hypotheses in place.
 
     A None result (call failed, see _verify_one) is silently skipped,
-    leaving that hypothesis's prior probes/verdict (typically empty, since
-    it was selected for verification) unchanged rather than raising.
+    leaving that hypothesis's prior probes/verdict unchanged rather than
+    raising -- and crucially leaving its fingerprint unchanged too, so the
+    next cycle retries it instead of recording a failure as current.
+
+    The fingerprint is recomputed here rather than reused from selection:
+    probe retrieval can add citations mid-verification, and storing the
+    pre-call value would mark the hypothesis current against inputs the
+    stored answer was not actually produced from.
 
     Args:
         to_verify: Hypotheses that were sent for verification.
         results: Per-hypothesis results, aligned with to_verify.
+        model_name: Verifier model the batch ran on.
 
     Returns:
         Count of hypotheses whose probes/verdict were updated.
@@ -310,6 +390,9 @@ def _apply_verification_results(
         if result:
             hypothesis.deep_verification_probes = result.get("probes", [])
             hypothesis.deep_verification_verdict = result.get("verdict")
+            hypothesis.deep_verification_fingerprint = verification_fingerprint(
+                hypothesis, model_name
+            )
             verified_count += 1
     return verified_count
 
@@ -359,15 +442,21 @@ async def deep_verification_node(state: WorkflowState) -> dict[str, Any]:
     if not hypotheses:
         return {}
 
-    to_verify = _select_hypotheses_to_verify(hypotheses)
+    to_verify = _select_hypotheses_to_verify(hypotheses, state["model_name"])
 
-    # Edge case: the whole top-k is already verified (no evolution touched
-    # any of them since last time). Skip the LLM calls and return an empty
-    # delta -- no hypotheses/metrics/messages changes needed.
+    # The whole top-k is current: every leader's stored verification was
+    # produced from the inputs it still has. Skip the LLM calls and return
+    # an empty delta -- no hypotheses/metrics/messages changes needed.
     if not to_verify:
         logger.info(
-            "Deep verification: top-%s already verified, skipping",
+            "Deep verification: top-%s unchanged since verification, reusing",
             DEEP_VERIFICATION_TOP_K,
+        )
+        await emit_progress(
+            state,
+            "deep_verification_complete",
+            f"Reused deep verification for top {DEEP_VERIFICATION_TOP_K}",
+            PROGRESS_DEEP_VERIFICATION_COMPLETE,
         )
         return {}
 
@@ -471,7 +560,9 @@ def _finalize_verification_batch(
     state: WorkflowState,
 ) -> tuple[int, int]:
     """Applies results, merges retrieved articles, and tallies LLM calls."""
-    verified_count = _apply_verification_results(to_verify, results)
+    verified_count = _apply_verification_results(
+        to_verify, results, state["model_name"]
+    )
     state["articles"] = merge_retrieved_articles(state.get("articles"), results)
     llm_calls = sum(
         int(result.get("verification_llm_calls", 1))

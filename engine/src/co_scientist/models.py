@@ -191,6 +191,15 @@ class Hypothesis:
     reflection_notes: str | None = None
     deep_verification_probes: list[dict[str, Any]] = field(default_factory=list)
     deep_verification_verdict: str | None = None
+    # Digest of the inputs the stored probes/verdict were produced from --
+    # hypothesis text, verifier model, prompt version, and the evidence this
+    # hypothesis actually cites. Deep verification re-runs only when it
+    # changes, so unrelated evidence arriving elsewhere in the run does not
+    # invalidate a verification that could not have used it. Compared, never
+    # interpreted; see agents/reflection/deep_verification.py.
+    deep_verification_fingerprint: str | None = field(
+        default=None, compare=False
+    )
     # Initial peer-review gate used to keep flawed/non-novel ideas out of Elo.
     review_disposition: str | None = field(default=None, compare=False)
     # 'debate' or 'literature_tools'
@@ -262,6 +271,9 @@ class Hypothesis:
             "reflection_notes": self.reflection_notes,
             "deep_verification_probes": self.deep_verification_probes,
             "deep_verification_verdict": self.deep_verification_verdict,
+            "deep_verification_fingerprint": (
+                self.deep_verification_fingerprint
+            ),
             "review_disposition": self.review_disposition,
             "safety_status": self.safety_status,
             "generation_method": _generation_method_value(

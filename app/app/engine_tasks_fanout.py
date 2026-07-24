@@ -270,7 +270,9 @@ def _enqueue_verification_fanout(
         _select_hypotheses_to_verify,
     )
 
-    selected = _select_hypotheses_to_verify(state["hypotheses"])
+    selected = _select_hypotheses_to_verify(
+        state["hypotheses"], state["model_name"]
+    )
     items, aggregate = _create_verification_fanout_tasks(
         task, selected, checkpoint_seq, db_path
     )

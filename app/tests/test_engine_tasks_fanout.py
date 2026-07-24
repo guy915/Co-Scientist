@@ -306,6 +306,32 @@ def _assert_verification_committed(run_id: str, db_path: str) -> None:
     assert verification_events[0]["payload"]["successor"] == "ranking"
 
 
+def _assert_fingerprints_survive_the_checkpoint(
+    run_id: str, db_path: str
+) -> None:
+    """Every committed verification records what it was produced from.
+
+    The durable path is the only one production takes, so a fingerprint
+    missing here means no leader is ever recognized as current and deep
+    verification re-runs on every cycle for the life of the run. It has to
+    survive the checkpoint round-trip to be worth anything on resume.
+    """
+    from co_scientist.agents.reflection.deep_verification import (
+        verification_fingerprint,
+    )
+    from co_scientist.models import Hypothesis
+
+    latest = store.get_latest_checkpoint(run_id, db_path=db_path)
+    assert latest is not None
+    state = latest["state"]["state"]
+    for payload in state["hypotheses"]:
+        # Round-tripped through the checkpoint, not the in-memory object.
+        hypothesis = Hypothesis.from_dict(payload)
+        assert hypothesis.deep_verification_fingerprint == (
+            verification_fingerprint(hypothesis, state["model_name"])
+        )
+
+
 @pytest.mark.asyncio
 async def test_verification_children_commit_through_single_aggregator(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
@@ -320,3 +346,4 @@ async def test_verification_children_commit_through_single_aggregator(
     await _run_verification_children_and_aggregate(run.id, isolated_db)
 
     _assert_verification_committed(run.id, isolated_db)
+    _assert_fingerprints_survive_the_checkpoint(run.id, isolated_db)

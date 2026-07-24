@@ -38,6 +38,7 @@ _HYPOTHESIS_DICT_KEYS = {
     "reflection_notes",
     "deep_verification_probes",
     "deep_verification_verdict",
+    "deep_verification_fingerprint",
     "review_disposition",
     "safety_status",
     "generation_method",

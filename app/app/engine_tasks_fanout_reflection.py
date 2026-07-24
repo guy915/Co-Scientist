@@ -219,18 +219,30 @@ def _apply_verification_items(
     by_id: dict[str, Any],
     item_task_ids: Sequence[Any],
     db_path: str | None,
+    model_name: str,
 ) -> _AppliedItems:
     """Apply each completed verification item to its hypothesis.
+
+    Records the verification fingerprint alongside the probes, which is what
+    lets the next cycle skip a leader whose inputs have not moved. This is
+    the production path -- the in-process node is only reached by the
+    library -- so omitting it here would leave every leader unfingerprinted
+    and re-verified on every cycle for the life of the run.
 
     Args:
         by_id: The run's hypotheses, keyed by id.
         item_task_ids: Ids of the family's per-item tasks.
         db_path: Optional override for the SQLite database path.
+        model_name: Verifier model the items ran on.
 
     Returns:
         The applied/failed tally, the calls each item reported, and the
         raw per-item verifications.
     """
+    from co_scientist.agents.reflection.deep_verification import (
+        verification_fingerprint,
+    )
+
     successful = 0
     failed = 0
     llm_calls = 0
@@ -245,6 +257,9 @@ def _apply_verification_items(
         verification_results.append(verification)
         hypothesis.deep_verification_probes = verification.get("probes", [])
         hypothesis.deep_verification_verdict = verification.get("verdict")
+        hypothesis.deep_verification_fingerprint = verification_fingerprint(
+            hypothesis, model_name
+        )
         hypothesis.enrichments["deep_verification"] = verification
         llm_calls += int(verification.get("verification_llm_calls", 1))
         successful += 1
@@ -334,7 +349,10 @@ async def execute_verification_aggregate(
     )
     by_id = {hypothesis.id: hypothesis for hypothesis in state["hypotheses"]}
     items = _apply_verification_items(
-        by_id, task.inputs.get("item_task_ids", []), db_path
+        by_id,
+        task.inputs.get("item_task_ids", []),
+        db_path,
+        state["model_name"],
     )
     return await _commit_verification_aggregate(
         TaskCommit(task, current_seq, db_path), state, items
