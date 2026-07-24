@@ -5,8 +5,8 @@ request params: DeepSeek's native API takes a ``thinking`` object plus
 ``reasoning_effort``, while the same models on Alibaba Cloud DashScope
 take ``enable_thinking`` (bool) and are sent no effort tier. Getting the
 format wrong is silent -- the two APIs disagree on the default, so the
-wrong shape leaves reasoning to chance rather than erroring. Only the
-thinking variant has call sites today; the opt-out remains as a seam.
+wrong shape leaves reasoning to chance rather than erroring. Titling is
+the one caller of the opt-out; everything else thinks.
 """
 
 from __future__ import annotations

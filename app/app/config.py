@@ -188,14 +188,13 @@ def _is_dashscope(model_name: str) -> bool:
 def deepseek_non_thinking_extra_body(model_name: str) -> dict[str, object]:
     """Return an ``extra_body`` that disables DeepSeek V4 thinking mode.
 
-    The seam for opting a call site out of thinking; every app call uses the
-    thinking variant below, so nothing calls this today. Note what an opt-out
-    buys back beyond latency: a non-thinking call spends its whole token
-    budget on the answer, which is why the two call sites that formerly used
-    this -- title generation and claim verification -- could run on budgets
-    sized to their output alone. Reinstating it anywhere means revisiting
-    that call's ``max_tokens`` in the same edit. Non-DeepSeek models get an
-    empty dict.
+    Used by one call site: title generation, a 3-6 word extraction whose
+    ``max_tokens=24`` a reasoning spend would consume entirely, returning an
+    empty completion and leaving the run untitled. That coupling runs both
+    ways -- a non-thinking call spends its whole budget on the answer, so
+    opting any call site in or out of thinking means revisiting its
+    ``max_tokens`` in the same edit. Every other app call uses the thinking
+    variant below. Non-DeepSeek models get an empty dict.
 
     Args:
         model_name: Model name in litellm format.
@@ -228,9 +227,9 @@ def deepseek_thinking_kwargs(model_name: str) -> dict[str, object]:
     matches the provider default that bug changes nothing here. Sending it
     anyway means the intent is recorded and the call is already correct when
     the fix lands. Spread into a completion call
-    (``**deepseek_thinking_kwargs``). Used by every app call: interview,
-    Q&A, safety, titling, and claim verification. Non-DeepSeek models get an
-    empty dict.
+    (``**deepseek_thinking_kwargs``). Used by every app call except titling:
+    interview, Q&A, safety, and claim verification. Non-DeepSeek models get
+    an empty dict.
 
     Args:
         model_name: Model name in litellm format.
