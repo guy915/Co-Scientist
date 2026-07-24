@@ -112,6 +112,24 @@ it('buffers a replay burst and flushes it on the next tick', async () => {
   );
 });
 
+it('drops replayed events so a reconnect cannot duplicate the timeline', async () => {
+  // EventSource reconnects transparently and the backend replays from
+  // seq=0, so the same seqs arrive twice on one connection. Without seq
+  // dedup the timeline doubles and slice(-N) surfaces the oldest steps as
+  // the newest; here the second pass must be a no-op.
+  const {result} = renderHook(() => useRunStream('run-1'));
+  const es = FakeEventSource.last();
+
+  await emit(es, {seq: 1, type: 'a', payload: {}});
+  await emit(es, {seq: 2, type: 'b', payload: {}});
+  // The reconnect replay: seq 1 and 2 again, then a genuinely new event.
+  await emit(es, {seq: 1, type: 'a', payload: {}});
+  await emit(es, {seq: 2, type: 'b', payload: {}});
+  await emit(es, {seq: 3, type: 'c', payload: {}});
+
+  expect(result.current.events.map(e => e.seq)).toEqual([1, 2, 3]);
+});
+
 describe('terminal events', () => {
   it('marks terminal and closes the stream on a _terminal event', async () => {
     const {result} = renderHook(() => useRunStream('run-1'));

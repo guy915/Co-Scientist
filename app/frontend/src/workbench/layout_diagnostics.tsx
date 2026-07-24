@@ -85,14 +85,20 @@ const DIAGNOSTIC_ERROR_CHIP_CLASSES =
   'text-[0.7rem] font-semibold whitespace-nowrap ' +
   'text-cosci-logs-danger-fg';
 
+// Never scrolls sideways: long unbroken tokens (dotted logger names, URLs)
+// are contained by the grid tracks and the wrapping code block, so the only
+// axis that can scroll is vertical.
 const DIAGNOSTIC_LIST_CLASSES =
-  'ucs-diagnostic-list grid min-h-0 gap-2 overflow-auto px-4 pt-3 pb-4';
+  'ucs-diagnostic-list grid min-h-0 gap-2 overflow-x-hidden overflow-y-auto ' +
+  'px-4 pt-3 pb-4';
 
-const DIAGNOSTIC_ENTRY_CLASSES = 'ucs-diagnostic-entry grid gap-1';
+const DIAGNOSTIC_ENTRY_CLASSES = 'ucs-diagnostic-entry grid min-w-0 gap-1';
 
+// The last (stage) track is minmax(0,auto) rather than auto so a long logger
+// name shrinks and truncates instead of widening the grid past the panel.
 const DIAGNOSTIC_ENTRY_META_CLASSES =
-  'ucs-diagnostic-entry-meta grid ' +
-  'grid-cols-[auto_auto_auto_minmax(0,1fr)_auto] ' +
+  'ucs-diagnostic-entry-meta grid min-w-0 ' +
+  'grid-cols-[auto_auto_auto_minmax(0,1fr)_minmax(0,auto)] ' +
   'items-center gap-2 text-[0.72rem] font-semibold ' +
   'text-cosci-logs-meta ' +
   'max-[720px]:grid-cols-[auto_auto_auto_minmax(0,1fr)]';
@@ -100,7 +106,7 @@ const DIAGNOSTIC_ENTRY_META_CLASSES =
 const DIAGNOSTIC_ENTRY_RUN_CLASSES = 'truncate';
 
 const DIAGNOSTIC_ENTRY_STAGE_CLASSES =
-  'max-[720px]:col-start-2 max-[720px]:col-end-[-1]';
+  'min-w-0 truncate max-[720px]:col-start-2 max-[720px]:col-end-[-1]';
 
 // Payload blocks grow with their content: text wraps (including long
 // unbroken tokens) and nothing scrolls inside an entry.

@@ -29,6 +29,13 @@ function createEventBatcher(
 ) {
   let buffer: StreamEvent[] = [];
   let flushTimer = 0;
+  // Seqs already accepted, so a replayed event is dropped instead of
+  // re-appended. EventSource reconnects transparently and the backend
+  // always replays from seq=0, so without this a dropped connection
+  // re-queues the whole timeline at the end of `events`; `slice(-10)`
+  // then surfaces the run's oldest steps as if they were the newest,
+  // and the duplicate `seq`s collide as React keys.
+  const seen = new Set<number>();
 
   const flush = () => {
     flushTimer = 0;
@@ -39,9 +46,11 @@ function createEventBatcher(
   };
 
   return {
-    // Queues an event; schedules at most one flush at a time (0 means no
-    // timer pending).
+    // Queues an event unless its seq was already accepted; schedules at
+    // most one flush at a time (0 means no timer pending).
     push(ev: StreamEvent) {
+      if (seen.has(ev.seq)) return;
+      seen.add(ev.seq);
       buffer.push(ev);
       if (flushTimer === 0) flushTimer = window.setTimeout(flush, 0);
     },

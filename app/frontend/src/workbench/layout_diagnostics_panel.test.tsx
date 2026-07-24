@@ -92,6 +92,33 @@ it('loads persisted backend logs into the diagnostics popover', async () => {
   expect(screen.getByText(/workflow exploded/)).toBeInTheDocument();
 });
 
+it('never scrolls sideways, even with a long logger name', async () => {
+  // A long dotted logger name in the stage column used to widen the meta
+  // grid past the panel and add a horizontal scrollbar. The list clips the
+  // x-axis and the stage cell truncates, so only the y-axis can scroll.
+  logsApiMock.getAppLogs.mockResolvedValue({
+    logs: [
+      logRecord(1, {
+        logger:
+          'co_scientist.agents.generation.literature_review.search_support',
+        message: 'a very long line that would otherwise widen the panel body',
+      }),
+    ],
+    last_id: 1,
+    total: 1,
+  });
+  const {container} = renderLayout();
+
+  fireEvent.click(await screen.findByRole('button', {name: /Logs 1/i}));
+  await screen.findByText(/widen the panel body/);
+
+  const list = container.querySelector('.ucs-diagnostic-list');
+  expect(list?.className).toContain('overflow-x-hidden');
+  expect(list?.className).not.toContain('overflow-auto');
+  const stage = container.querySelector('.ucs-diagnostic-entry-meta strong');
+  expect(stage?.className).toContain('truncate');
+});
+
 it('renders the message as plain text with a level meta row', async () => {
   logsApiMock.getAppLogs.mockResolvedValue({
     logs: [
