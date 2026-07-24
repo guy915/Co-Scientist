@@ -9,7 +9,81 @@ its namespace keeps resolving.
 
 from __future__ import annotations
 
+import json
 from typing import Any
+
+
+def _readable_text(value: Any) -> str:
+    """Flatten a possibly-malformed field into readable plain text.
+
+    Research-overview fields come from the model in json_object mode with no
+    server-side schema enforcement, so a field the schema declares a string
+    can arrive as a dict, or as a string that is itself serialized JSON.
+    Emitting that verbatim leaks raw JSON into the report. This flattens a
+    JSON-looking string, a dict, or a list into human-readable text, and
+    passes a well-formed string through unchanged.
+    """
+    if isinstance(value, str):
+        return _readable_from_string(value)
+    if isinstance(value, list):
+        return _join_readable(value, " ")
+    if isinstance(value, dict):
+        return _join_readable(list(value.values()), " - ")
+    return "" if value is None else str(value)
+
+
+def _readable_from_string(value: str) -> str:
+    """Parse and flatten a JSON-looking string; else return it unchanged."""
+    trimmed = value.strip()
+    if not _is_json_like(trimmed):
+        return value
+    try:
+        return _readable_text(json.loads(trimmed))
+    except (ValueError, TypeError):
+        return value
+
+
+def _is_json_like(text: str) -> bool:
+    """Whether the string looks like a serialized JSON object or array."""
+    return (text.startswith("{") and text.endswith("}")) or (
+        text.startswith("[") and text.endswith("]")
+    )
+
+
+def _join_readable(values: list[Any], separator: str) -> str:
+    """Flatten each value to text, drop the empties, and join them."""
+    return separator.join(
+        text for text in (_readable_text(item) for item in values) if text
+    )
+
+
+def _readable_text_list(value: Any) -> list[str]:
+    """Flatten a possibly-malformed list field into readable strings.
+
+    Tolerates a JSON-encoded string, a lone dict, or a list whose items are
+    dicts or serialized JSON, mirroring ``_readable_text``.
+    """
+    if isinstance(value, str):
+        return _list_from_string(value)
+    if isinstance(value, list):
+        return [text for text in map(_readable_text, value) if text]
+    if isinstance(value, dict):
+        text = _readable_text(value)
+        return [text] if text else []
+    return []
+
+
+def _list_from_string(value: str) -> list[str]:
+    """Parse a JSON-array string into readable items; else a single line."""
+    trimmed = value.strip()
+    if not trimmed:
+        return []
+    if not _is_json_like(trimmed):
+        return [trimmed]
+    try:
+        return _readable_text_list(json.loads(trimmed))
+    except (ValueError, TypeError):
+        return [trimmed]
 
 
 def _render_optional_paragraph(text: str | None) -> list[str]:
@@ -19,11 +93,12 @@ def _render_optional_paragraph(text: str | None) -> list[str]:
 
 def _render_experiments_list(experiments: list[Any]) -> list[str]:
     """Render the 'Suggested experiments' bullet list, or nothing when empty."""
-    if not experiments:
+    items = _readable_text_list(experiments)
+    if not items:
         return []
     return (
         ["Suggested experiments:\n"]
-        + [f"- {experiment}" for experiment in experiments]
+        + [f"- {experiment}" for experiment in items]
         + [""]
     )
 
@@ -32,8 +107,10 @@ def _render_research_direction(direction: dict[str, Any]) -> list[str]:
     """Render one research-direction entry, or nothing when not a dict."""
     if not isinstance(direction, dict):
         return []
-    lines = [f"### {direction.get('title', '')}\n"]
-    lines += _render_optional_paragraph(direction.get("importance", ""))
+    lines = [f"### {_readable_text(direction.get('title', ''))}\n"]
+    lines += _render_optional_paragraph(
+        _readable_text(direction.get("importance", ""))
+    )
     lines += _render_experiments_list(
         direction.get("suggested_experiments") or []
     )
@@ -57,7 +134,7 @@ def _render_overview_section(ov: dict[str, Any]) -> list[str]:
     """Render the 'Research Overview' section, or nothing when data absent."""
     if not isinstance(ov, dict):
         return []
-    summary = ov.get("summary")
+    summary = _readable_text(ov.get("summary"))
     directions = ov.get("research_directions") or []
     if not _has_overview_content(summary, directions):
         return []
@@ -70,11 +147,11 @@ def _render_nih_aim(aim: dict[str, Any]) -> list[str]:
     """Render one NIH aim entry, or nothing when not a dict."""
     if not isinstance(aim, dict):
         return []
-    lines = [f"### {aim.get('aim', '')}\n"]
-    rationale = aim.get("rationale", "")
+    lines = [f"### {_readable_text(aim.get('aim', ''))}\n"]
+    rationale = _readable_text(aim.get("rationale", ""))
     if rationale:
         lines.append(f"**Rationale:** {rationale}\n")
-    approach = aim.get("approach", "")
+    approach = _readable_text(aim.get("approach", ""))
     if approach:
         lines.append(f"**Approach:** {approach}\n")
     return lines
@@ -104,9 +181,9 @@ def _render_nih_aims_section(aims_section: dict[str, Any]) -> list[str]:
     """Render the 'NIH Specific Aims' section, or nothing when data absent."""
     if not isinstance(aims_section, dict):
         return []
-    introduction = aims_section.get("introduction")
+    introduction = _readable_text(aims_section.get("introduction"))
     aims = aims_section.get("aims") or []
-    impact = aims_section.get("impact")
+    impact = _readable_text(aims_section.get("impact"))
     if not _has_aims_content(introduction, aims, impact):
         return []
     lines = ["\n## NIH Specific Aims\n"]
@@ -145,7 +222,8 @@ def render_research_overview_markdown(overview: dict[str, Any]) -> list[str]:
 
 def _render_contact_evidence_line(contact: dict[str, Any]) -> list[str]:
     """Render a contact's source-evidence line, or nothing when unsourced."""
-    title, url = contact.get("source_title"), contact.get("source_url")
+    title = _readable_text(contact.get("source_title"))
+    url = contact.get("source_url")
     if not title:
         return []
     return [f"Evidence: [{title}]({url})\n" if url else f"Evidence: {title}\n"]
@@ -155,11 +233,13 @@ def _render_contact_entry(contact: dict[str, Any]) -> list[str]:
     """Render one research-contact entry, or nothing when unnamed."""
     if not isinstance(contact, dict) or not contact.get("name"):
         return []
-    lines = [f"### {contact['name']}\n"]
-    if contact.get("expertise"):
-        lines.append(f"**Relevant expertise:** {contact['expertise']}\n")
-    if contact.get("justification"):
-        lines.append(f"{contact['justification']}\n")
+    lines = [f"### {_readable_text(contact['name'])}\n"]
+    expertise = _readable_text(contact.get("expertise"))
+    if expertise:
+        lines.append(f"**Relevant expertise:** {expertise}\n")
+    justification = _readable_text(contact.get("justification"))
+    if justification:
+        lines.append(f"{justification}\n")
     lines += _render_contact_evidence_line(contact)
     return lines
 

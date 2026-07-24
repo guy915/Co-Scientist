@@ -36,6 +36,81 @@ export function firstSentenceClause(text: string): string {
 }
 
 /**
+ * Coerce a possibly-malformed structured-output field into readable text.
+ *
+ * Research-overview fields are produced by the model in json_object mode with
+ * no server-side schema enforcement, so a field the schema declares a string
+ * can arrive as an object, or as a string that is itself serialized JSON.
+ * Rendering that verbatim leaks raw JSON into the UI. This flattens any of
+ * those shapes into human-readable text: a JSON-looking string is parsed and
+ * flattened, an object is rendered as its values joined by an em dash, and a
+ * well-formed string passes through unchanged.
+ */
+export function readableText(value: unknown): string {
+  if (typeof value === 'string') return readableFromString(value);
+  if (Array.isArray(value)) return joinReadable(value, ' ');
+  if (isRecord(value)) return joinReadable(Object.values(value), ' - ');
+  return primitiveText(value);
+}
+
+/**
+ * Coerce a possibly-malformed list field (e.g. `suggested_experiments`) into
+ * an array of readable strings, tolerating a JSON-encoded string, a lone
+ * object, or a list whose items are objects or serialized JSON.
+ */
+export function readableTextList(value: unknown): string[] {
+  if (typeof value === 'string') return listFromString(value);
+  if (Array.isArray(value)) return mapReadable(value);
+  if (isRecord(value)) return mapReadable([value]);
+  return [];
+}
+
+function readableFromString(value: string): string {
+  const trimmed = value.trim();
+  if (!isJsonLike(trimmed)) return value;
+  try {
+    return readableText(JSON.parse(trimmed));
+  } catch {
+    return value;
+  }
+}
+
+function listFromString(value: string): string[] {
+  const trimmed = value.trim();
+  if (!trimmed) return [];
+  if (!isJsonLike(trimmed)) return [trimmed];
+  try {
+    return readableTextList(JSON.parse(trimmed));
+  } catch {
+    return [trimmed];
+  }
+}
+
+function isJsonLike(text: string): boolean {
+  return (
+    (text.startsWith('{') && text.endsWith('}')) ||
+    (text.startsWith('[') && text.endsWith(']'))
+  );
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
+function joinReadable(values: unknown[], separator: string): string {
+  return values.map(readableText).filter(Boolean).join(separator);
+}
+
+function mapReadable(values: unknown[]): string[] {
+  return values.map(readableText).filter(Boolean);
+}
+
+function primitiveText(value: unknown): string {
+  if (value === null || value === undefined) return '';
+  return String(value);
+}
+
+/**
  * Truncates `text` on a word boundary and always ends in a bare ellipsis
  * ("word…"): drops the partial trailing word and any dangling very short
  * word, and never leaves a trailing space or separator before the ellipsis.
