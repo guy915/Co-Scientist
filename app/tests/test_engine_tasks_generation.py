@@ -5,6 +5,7 @@ aggregate.
 """
 
 import asyncio
+import itertools
 from typing import Any
 
 import pytest
@@ -24,16 +25,31 @@ from tests._engine_tasks_helpers import (
     _task_state,
 )
 
+# Hypothesis-sized generation items this fixture's counts fan out to: six
+# debate hypotheses plus two assumptions hypotheses, one task each.
+_GENERATION_ITEM_COUNT = 8
+
+# Per-strategy call counters. Each durable task calls its generator with an
+# identical prompt, and production relies on uncached sampling to explore a
+# different idea each time; the counter models that. Returning fixed text
+# instead would make every task produce the same hypothesis, which the
+# state reducer dedupes on append -- so the fan-out would look correct
+# while the run committed one hypothesis instead of eight.
+_call_counts: dict[str, "itertools.count[int]"] = {
+    "debate": itertools.count(),
+    "assumptions": itertools.count(),
+}
+
 
 async def _fake_debate(
     **kwargs: Any,
 ) -> tuple[list[Hypothesis], list[dict[str, Any]]]:
     hypotheses = [
         Hypothesis(
-            text=f"debate-{index}",
+            text=f"debate-{next(_call_counts['debate'])}",
             generation_method=GenerationMethod.DEBATE,
         )
-        for index in range(int(kwargs["count"]))
+        for _ in range(int(kwargs["count"]))
     ]
     return hypotheses, [{"strategy": "debate"}]
 
@@ -41,10 +57,10 @@ async def _fake_debate(
 async def _fake_assumptions(_state: Any, count: int) -> list[Hypothesis]:
     return [
         Hypothesis(
-            text=f"assumption-{index}",
+            text=f"assumption-{next(_call_counts['assumptions'])}",
             generation_method=GenerationMethod.ASSUMPTIONS,
         )
-        for index in range(count)
+        for _ in range(count)
     ]
 
 
@@ -82,17 +98,19 @@ async def _advance_generation_node(
     leased = store.claim_task("planner", run_id=run_id, db_path=db_path)
     assert leased is not None and leased.id == node.id
     planned = await engine_tasks.execute_node_task(leased, db_path=db_path)
-    assert len(planned["fanout_task_ids"]) == 7
+    # One task per hypothesis for every strategy, so the cohort gets
+    # uniform items: 6 debate + 2 assumptions, not 6 debate + 1 batched.
+    assert len(planned["fanout_task_ids"]) == _GENERATION_ITEM_COUNT
     assert store.complete_task(leased.id, "planner", planned, db_path=db_path)
 
 
 async def _run_generation_strategies_and_aggregate(
     run_id: str, db_path: str
 ) -> None:
-    """Lease the seven strategy tasks and commit one aggregate."""
+    """Lease every hypothesis-sized strategy task and commit one aggregate."""
     strategies = [
         store.claim_task(f"strategy-{index}", run_id=run_id, db_path=db_path)
-        for index in range(7)
+        for index in range(_GENERATION_ITEM_COUNT)
     ]
     assert all(item is not None for item in strategies)
     assert all(
@@ -119,7 +137,7 @@ async def _run_generation_strategies_and_aggregate(
     aggregated = await engine_tasks.execute_generation_aggregate(
         aggregate, db_path=db_path
     )
-    assert aggregated["hypotheses_generated"] == 8
+    assert aggregated["hypotheses_generated"] == _GENERATION_ITEM_COUNT
     assert store.complete_task(
         aggregate.id, "aggregate", aggregated, db_path=db_path
     )
@@ -137,7 +155,7 @@ def _assert_generation_committed(run_id: str, db_path: str) -> None:
     }
     assert methods == {GenerationMethod.DEBATE, GenerationMethod.ASSUMPTIONS}
     assert _milestones(run_id, db_path=db_path) == [
-        "3 hypotheses generated (initial)"
+        f"{_GENERATION_ITEM_COUNT} hypotheses generated (initial)"
     ]
     generate_events = _task_events(run_id, "generate", db_path=db_path)
     assert len(generate_events) == 1

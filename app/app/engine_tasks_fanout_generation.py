@@ -42,20 +42,27 @@ def _generation_task_specs(
 ) -> list[tuple[str, int, int]]:
     """Return (strategy, count, index) specs for each strategy's durable tasks.
 
-    Debate strategies get one task per hypothesis so debates run
-    independently; every other strategy gets a single task producing its
-    whole count.
+    Every strategy gets one task per hypothesis. Debate always worked this
+    way; tools and assumptions used to take a single task for their whole
+    count, which made the fan-out lopsided -- a standard run offered the
+    eight-worker cohort about five items, one of them several times the
+    size of the rest, so the wave could not finish until that one did.
+
+    Splitting them costs tokens rather than saving them: the tools drafting
+    call produces its whole count in one response, so N tasks means N
+    drafting calls where there was one, and each drafts without sight of
+    its siblings. Uniform items are what lets the cohort actually fill,
+    and proximity dedup already exists for the near-duplicates temperature
+    alone may not separate. Re-measure the strategy's share before deciding
+    whether its internal draft/validate loops need trimming too.
+
+    Order is stable: strategies in ``strategy_counts`` order, then index
+    ascending, so the aggregate combines the same way every run.
     """
-    debate_strategies = {"debate_lit", "debate_only"}
     return [
         (strategy, 1, index)
         for strategy, count in strategy_counts.items()
-        if strategy in debate_strategies
         for index in range(count)
-    ] + [
-        (strategy, count, 0)
-        for strategy, count in strategy_counts.items()
-        if strategy not in debate_strategies and count > 0
     ]
 
 
