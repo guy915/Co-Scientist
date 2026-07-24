@@ -21,6 +21,9 @@ from co_scientist.agents.generation.literature_review.helpers import (
 from co_scientist.agents.generation.literature_review.outcomes import (
     _describe_exc,
 )
+from co_scientist.agents.generation.literature_review.query_broadening import (
+    broadened_queries,
+)
 from co_scientist.constants import LITERATURE_REVIEW_RECENCY_YEARS
 from co_scientist.mcp_client import MCPToolClient
 from co_scientist.tools.response_parser import parse_mcp_result
@@ -146,6 +149,46 @@ async def _search_source_for_query(
     failed query is swallowed here (not raised) so other queries/sources
     still complete; the caller aggregates ctx.errors to distinguish "zero
     results" from "search broke".
+
+    A query that comes back empty is retried in progressively broader form
+    (see ``query_broadening``). Back ends AND every term, so an over-specific
+    query returns nothing and is indistinguishable downstream from a topic
+    with no literature -- which is how runs ended up assessing their claims
+    against a pool that never covered them. Broadening stops at the first
+    form that returns anything; an errored query is not broadened, since the
+    query was not what failed.
+    """
+    for attempt_query in broadened_queries(query):
+        normalized = await _attempt_source_query(
+            attempt_query, ctx, tool_config, src_name, papers_per_query
+        )
+        if normalized is None:
+            return {}
+        if normalized:
+            if attempt_query != query:
+                logger.info(
+                    "Broadened %s query %r to %r after no results",
+                    src_name,
+                    query,
+                    attempt_query,
+                )
+            return _tag_source_name(normalized, src_name)
+    return {}
+
+
+async def _attempt_source_query(
+    query: str,
+    ctx: _SearchRunContext,
+    tool_config: "ToolConfig",
+    src_name: str,
+    papers_per_query: int,
+) -> dict[str, dict[str, Any]] | None:
+    """Run one query against one source.
+
+    Returns:
+        The normalized results (possibly empty), or None when the search
+        itself failed -- which the caller must not treat as "no results",
+        since retrying a broader form would fail the same way.
     """
     try:
         tool_params = _build_query_tool_params(
@@ -156,9 +199,7 @@ async def _search_source_for_query(
             tool_config.mcp_tool_name,
             tool_params,
         )
-        normalized = normalize_search_response(result_data, tool_config)
-        return _tag_source_name(normalized, src_name)
-
+        return normalize_search_response(result_data, tool_config)
     except Exception as e:
         # A failed query for this source is swallowed here (not raised) so
         # other queries/sources still complete; the caller aggregates
@@ -167,7 +208,7 @@ async def _search_source_for_query(
         logger.error("Query failed for %s: %s", src_name, detail)
         if ctx.errors is not None:
             ctx.errors.append(f"{src_name}: {detail}")
-        return {}
+        return None
 
 
 async def _run_single_source_queries(
