@@ -12,8 +12,6 @@ from __future__ import annotations
 import asyncio
 import dataclasses
 import functools
-import hashlib
-import json
 from collections.abc import Mapping, Sequence
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any
@@ -34,6 +32,7 @@ class _GatePlan:
     claims: tuple[str, ...]
     roles: Mapping[str, str]
     fingerprint: str
+    claim_fingerprints: Mapping[str, str]
     prior_disposition: str
 
 
@@ -152,29 +151,39 @@ def _gate_input_fingerprint(
     claim_roles: Mapping[str, str],
     passages: Sequence[Any],
 ) -> str:
-    """Hash one hypothesis's claims and the evidence pool assessed against."""
-    return hashlib.sha256(
-        json.dumps(
-            {
-                "assessor": assessor_id,
-                "claims": [
-                    [claim, claim_roles[claim]] for claim in ordered_claims
-                ],
-                "passages": [
-                    {
-                        "evidence_id": passage.evidence_id,
-                        "text": passage.text,
-                        "source": passage.source,
-                        "url": passage.url,
-                    }
-                    for passage in passages
-                ],
-            },
-            ensure_ascii=False,
-            separators=(",", ":"),
-            sort_keys=True,
-        ).encode()
-    ).hexdigest()
+    """Hash one hypothesis's claims and the evidence each one retrieves.
+
+    Scoped per claim rather than over the whole pool. ``assess_claim``
+    shows the assessor only the top-k passages it retrieves for that claim,
+    so the rest of the pool cannot change the verdict -- but hashing all of
+    it meant any new article anywhere invalidated every hypothesis's cached
+    gate decision, and a run that keeps retrieving evidence never reused
+    one.
+    """
+    from app.claim_freshness import ClaimRecord, claims_fingerprint
+
+    return claims_fingerprint(
+        [ClaimRecord(claim, claim_roles[claim]) for claim in ordered_claims],
+        passages,
+        assessor_id,
+    )
+
+
+def _per_claim_fingerprints(
+    assessor_id: str,
+    ordered_claims: Sequence[str],
+    claim_roles: Mapping[str, str],
+    passages: Sequence[Any],
+) -> dict[str, str]:
+    """Fingerprint each claim on its own, for the drain to match against."""
+    from app.claim_freshness import ClaimRecord, claim_fingerprint
+
+    return {
+        claim: claim_fingerprint(
+            ClaimRecord(claim, claim_roles[claim]), passages, assessor_id
+        )
+        for claim in ordered_claims
+    }
 
 
 def _plan_hypothesis_gate(
@@ -211,6 +220,9 @@ def _plan_hypothesis_gate(
         claims=tuple(ordered_claims),
         roles=claim_roles,
         fingerprint=input_fingerprint,
+        claim_fingerprints=_per_claim_fingerprints(
+            assessor_id, ordered_claims, claim_roles, passages
+        ),
         prior_disposition=prior_disposition,
     )
 
@@ -234,6 +246,10 @@ def _record_gate_enrichment(
             {
                 "claim": assessment.claim,
                 "role": plan_roles[assessment.claim],
+                # Per claim, not just per hypothesis: the drain assesses a
+                # subset of these claims against a later evidence pool, and
+                # reuses each verdict whose own inputs still match.
+                "fingerprint": plan.claim_fingerprints[assessment.claim],
                 "label": assessment.label.value,
                 "supporting_passages": [
                     span.to_dict() for span in assessment.supporting_passages
