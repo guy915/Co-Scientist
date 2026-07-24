@@ -164,6 +164,7 @@ def assess_hypothesis_claims(
     *,
     assessor: Assessor = deterministic_assessor,
     assessor_id: str = "deterministic-v1",
+    reuse: Mapping[str, Mapping[str, ClaimAssessment]] | None = None,
 ) -> list[tuple[str, list[tuple[ClaimAssessment, str]]]]:
     """Assess every hypothesis's claims against the evidence pool.
 
@@ -180,22 +181,89 @@ def assess_hypothesis_claims(
             against.
         assessor: The entailment assessor (deterministic by default).
         assessor_id: Provenance id recorded on each persisted edge.
+        reuse: Per hypothesis id, verdicts already produced for these same
+            inputs, keyed by claim fingerprint. Matching claims skip the
+            assessor; everything else is assessed as usual.
 
     Returns:
         Per hypothesis id, its ``(assessment, role)`` pairs, in input order.
     """
     candidates = [p for p in passages if p.text]
     per_hypothesis = _per_hypothesis_claim_records(hyps)
+    plans = [
+        _plan_claim_group(hyp_id, records, candidates, assessor_id, reuse or {})
+        for hyp_id, records in per_hypothesis
+    ]
     grouped = assess_claim_groups(
-        [
-            [claim for claim, _role in records]
-            for _id, records in per_hypothesis
-        ],
+        [plan.to_assess for plan in plans],
         candidates,
         assessor=assessor,
         assessor_id=assessor_id,
     )
-    return _zip_hypothesis_assessments(per_hypothesis, grouped)
+    return [
+        (plan.hypothesis_id, plan.merge(assessed))
+        for plan, assessed in zip(plans, grouped, strict=True)
+    ]
+
+
+@dataclasses.dataclass(frozen=True)
+class _ClaimGroupPlan:
+    """One hypothesis's claims, split into reused verdicts and pending work.
+
+    Attributes:
+        hypothesis_id: The hypothesis these claims belong to.
+        records: Its claims and roles, in the order results must come back.
+        reused: Verdicts carried over, keyed by claim text.
+        to_assess: The claims that still need the assessor, in order.
+    """
+
+    hypothesis_id: str
+    records: list[tuple[str, str]]
+    reused: dict[str, ClaimAssessment]
+    to_assess: list[str]
+
+    def merge(
+        self, assessed: Sequence[ClaimAssessment]
+    ) -> list[tuple[ClaimAssessment, str]]:
+        """Interleave freshly assessed claims back into the original order.
+
+        Order is the caller's contract -- persistence and the publication
+        gate both walk these positionally -- so reuse must not reorder a
+        hypothesis's claims.
+        """
+        pending = iter(assessed)
+        return [
+            (self.reused.get(claim) or next(pending), role)
+            for claim, role in self.records
+        ]
+
+
+def _plan_claim_group(
+    hypothesis_id: str,
+    records: list[tuple[str, str]],
+    candidates: Sequence[EvidencePassage],
+    assessor_id: str,
+    reuse: Mapping[str, Mapping[str, ClaimAssessment]],
+) -> _ClaimGroupPlan:
+    """Split one hypothesis's claims into reusable verdicts and pending work."""
+    from app.claim_freshness import ClaimRecord, claim_fingerprint
+
+    available = reuse.get(hypothesis_id) or {}
+    reused: dict[str, ClaimAssessment] = {}
+    if available:
+        for claim, role in records:
+            fingerprint = claim_fingerprint(
+                ClaimRecord(claim, role), candidates, assessor_id
+            )
+            match = available.get(fingerprint)
+            if match is not None:
+                reused[claim] = match
+    return _ClaimGroupPlan(
+        hypothesis_id=hypothesis_id,
+        records=records,
+        reused=reused,
+        to_assess=[claim for claim, _role in records if claim not in reused],
+    )
 
 
 def _per_hypothesis_claim_records(

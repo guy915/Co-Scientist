@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import logging
 import sqlite3
+from collections.abc import Mapping
 from typing import Any, NamedTuple
 
 from app import store
@@ -284,10 +285,27 @@ def _prepare_final_state_inputs(
 def _assess_claims(
     grounding_candidates: list[dict[str, Any]],
     passages: list[EvidencePassage],
+    gate_records: Mapping[str, Mapping[str, Any]] | None = None,
 ) -> Any:
     """Assess each hypothesis claim against retrieved evidence passages.
 
+    Claims the pre-ranking gate already assessed against the same evidence
+    are reused rather than re-derived. The gate assesses a strict superset
+    of these claims (it reads the hypothesis's experiment field too) with
+    the same roles on the overlap, and a claim's verdict depends only on
+    itself and the passages it retrieves -- so a per-claim match is enough
+    to carry the verdict across.
+
     Must run outside any transaction -- see ``_persist_final_state``.
+
+    Args:
+        grounding_candidates: Persisted hypotheses not already rejected.
+        passages: The run's evidence passages.
+        gate_records: Per store-id, the hypothesis's stored ``claim_gate``
+            enrichment; omitted means assess everything.
+
+    Returns:
+        Per hypothesis id, its ``(assessment, role)`` pairs in claim order.
     """
     assessor, assessor_id = build_assessor(
         settings.claim_assessor,
@@ -298,7 +316,41 @@ def _assess_claims(
         passages,
         assessor=assessor,
         assessor_id=assessor_id,
+        reuse=_reusable_by_hypothesis(gate_records or {}),
     )
+
+
+def _gate_records_by_store_id(
+    inputs: _FinalStateInputs,
+    store_id_by_engine_id: Mapping[str, str],
+) -> dict[str, Mapping[str, Any]]:
+    """Map each persisted hypothesis to the gate verdict recorded for it.
+
+    The gate's verdicts live on the engine hypothesis's enrichments, but
+    the drain assesses the persisted rows, so the two have to be joined by
+    the engine-to-store id map the persistence pass just built.
+    """
+    records: dict[str, Mapping[str, Any]] = {}
+    for hypothesis in inputs.hyps_parents_first:
+        engine_id = str(hypothesis.get("id") or "")
+        store_id = store_id_by_engine_id.get(engine_id)
+        gate = (hypothesis.get("enrichments") or {}).get("claim_gate")
+        if store_id and isinstance(gate, Mapping):
+            records[store_id] = gate
+    return records
+
+
+def _reusable_by_hypothesis(
+    gate_records: Mapping[str, Mapping[str, Any]],
+) -> dict[str, dict[str, Any]]:
+    """Index every hypothesis's reusable gate verdicts by fingerprint."""
+    from app.claim_freshness import reusable_assessments
+
+    indexed = {
+        store_id: reusable_assessments(record)
+        for store_id, record in gate_records.items()
+    }
+    return {key: value for key, value in indexed.items() if value}
 
 
 def _persist_evidence_hypotheses_and_screen(
@@ -382,7 +434,11 @@ def _persist_final_state(
             run_id, inputs, citation_summary, store_id_by_engine_id, db_path
         )
     )
-    assessed = _assess_claims(grounding_candidates, passages)
+    assessed = _assess_claims(
+        grounding_candidates,
+        passages,
+        _gate_records_by_store_id(inputs, store_id_by_engine_id),
+    )
     grounding_result = _persist_grounding_matches_proximity_txn(
         run_id, assessed, inputs, store_id_by_engine_id, db_path
     )
