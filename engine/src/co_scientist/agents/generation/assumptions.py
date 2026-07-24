@@ -119,6 +119,14 @@ async def generate_with_assumptions(
             json_schema=schema,
         ),
         options=LLMCallOptions(
+            # Never cached, matching the debate and tool-drafting strategies.
+            # Generation fans out one durable task per hypothesis, so several
+            # tasks issue this call with an identical prompt and rely on
+            # sampling to explore different ideas. A cache hit would serve
+            # them all the same hypothesis, and the state reducer dedupes on
+            # append -- so the run would quietly commit one hypothesis where
+            # the tier asked for several, with nothing failing to show it.
+            use_cache=False,
             run_id=state.get("run_id"),
             prompt_name="generation_assumptions",
         ),

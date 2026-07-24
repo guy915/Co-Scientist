@@ -91,3 +91,32 @@ async def test_assumptions_grounds_in_supplied_literature(
     # The generated hypothesis's citation key resolves against the sources.
     assert result[0].citation_map
     assert "C1" in result[0].citation_map
+
+
+async def test_assumptions_generation_is_never_cached(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Independent generation tasks must not be served one shared answer.
+
+    Generation fans out one durable task per hypothesis, so several tasks
+    issue this call with an identical prompt and rely on sampling to
+    explore different ideas. A cache hit would hand them all the same
+    hypothesis, which the state reducer then dedupes on append -- the run
+    commits one hypothesis where the tier asked for several, and nothing
+    fails to reveal it.
+    """
+    from co_scientist.agents.generation import assumptions as assumptions_mod
+
+    captured: dict[str, Any] = {}
+
+    async def _fake_call_llm_json(_prompt: str, *_a: Any, **kwargs: Any) -> Any:
+        captured["options"] = kwargs["options"]
+        return _one_hypothesis_payload()
+
+    monkeypatch.setattr(assumptions_mod, "call_llm_json", _fake_call_llm_json)
+
+    await assumptions_mod.generate_with_assumptions(
+        make_state(research_goal="A goal", model_name="fake-model"), 1
+    )
+
+    assert captured["options"].use_cache is False
