@@ -177,17 +177,33 @@ async def _run_single_source_queries(
     src_name: str,
     papers_per_query: int,
 ) -> dict[str, dict[str, Any]]:
-    """Runs every query against one source sequentially and merges results.
+    """Runs every query against one source concurrently and merges results.
 
-    Queries run sequentially (not gathered) within a single source, so this
-    source's total time is proportional to its query count; the caller
-    instead parallelizes across sources.
+    A source's queries are independent round-trips to the same tool, so
+    awaiting them one at a time made the source cost the sum of its queries
+    when it need only cost the slowest. Phase 2 sits on the run's serial
+    spine, and the caller only parallelizes *across* sources, so that sum
+    was paid in full on every literature review.
+
+    Query generation asks for 2-4 queries, which bounds this at four calls
+    in flight per source -- comfortably inside the indexes' rate limits and
+    not worth a semaphore.
+
+    Results are merged in query order rather than completion order:
+    ``asyncio.gather`` returns in input order, so a paper found by several
+    queries keeps the same winning metadata it had when the loop was
+    sequential, and selection downstream stays deterministic.
     """
-    source_results: dict[str, dict[str, Any]] = {}
-    for query in queries:
-        normalized = await _search_source_for_query(
-            query, ctx, tool_config, src_name, papers_per_query
+    per_query = await asyncio.gather(
+        *(
+            _search_source_for_query(
+                query, ctx, tool_config, src_name, papers_per_query
+            )
+            for query in queries
         )
+    )
+    source_results: dict[str, dict[str, Any]] = {}
+    for normalized in per_query:
         source_results.update(normalized)
     return source_results
 
@@ -271,9 +287,9 @@ async def _search_all_sources(
 ) -> list[tuple[str, dict[str, dict[str, Any]]]]:
     """Searches all enabled sources in parallel.
 
-    Each _search_single_source call runs its own queries sequentially, so
-    overall latency is bounded by the slowest source rather than the sum of
-    all sources' query times.
+    Each _search_single_source call also runs its own queries concurrently,
+    so overall latency is bounded by the single slowest query anywhere
+    rather than by any source's query count.
 
     Args:
         enabled_sources: Search sources enabled by the workflow config.
