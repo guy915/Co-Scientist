@@ -76,3 +76,32 @@ async def test_execute_task_node_runs_only_named_specialist(
     assert calls == ["review"]
     assert committed["current_iteration"] == 7
     assert successor == "comprehensive_reflection"
+
+
+def test_durable_path_accumulates_tournament_matchups() -> None:
+    """The durable runtime mirrors reducers by hand, so this can drift.
+
+    ``tournament_matchups`` was annotated on WorkflowState but missing from
+    the runtime's table, and the durable path is the only path production
+    runs -- so each tournament's matchups overwrote the previous cycle's.
+    """
+    from co_scientist.task_runtime import apply_task_update
+
+    state = make_state(
+        hypotheses=[],
+        tournament_matchups=[{"hypothesis_a_id": "a", "hypothesis_b_id": "b"}],
+    )
+
+    merged = apply_task_update(
+        state,
+        {
+            "tournament_matchups": [
+                {"hypothesis_a_id": "c", "hypothesis_b_id": "d"}
+            ]
+        },
+    )
+
+    assert [m["hypothesis_a_id"] for m in merged["tournament_matchups"]] == [
+        "a",
+        "c",
+    ]

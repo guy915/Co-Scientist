@@ -147,3 +147,59 @@ def test_evolved_child_appends_without_replacing_parent() -> None:
     # Parent object is unchanged (same text).
     surviving_parent = next(h for h in result if h.id == parent.id)
     assert surviving_parent.text == "A hypothesis about kinase X"
+
+
+def _matchup(
+    a_id: str, b_id: str, winner_before: int = 1200, loser_before: int = 1200
+) -> dict[str, object]:
+    """One judged matchup detail, reduced to the fields identity uses."""
+    return {
+        "hypothesis_a_id": a_id,
+        "hypothesis_b_id": b_id,
+        "winner_elo_before": winner_before,
+        "loser_elo_before": loser_before,
+    }
+
+
+def test_matchups_from_later_tournaments_do_not_erase_earlier_ones() -> None:
+    """Ranking runs once per cycle and returns only what it just judged.
+
+    Under last-write-wins each tournament erased the record of the ones
+    before it, so a multi-cycle run persisted a single cycle of Elo history.
+    """
+    from co_scientist.state import accumulate_matchups
+
+    first = [_matchup("a", "b")]
+    second = [_matchup("c", "d")]
+
+    combined = accumulate_matchups(first, second)
+
+    assert combined == [_matchup("a", "b"), _matchup("c", "d")]
+
+
+def test_replaying_a_committed_tournament_does_not_double_count() -> None:
+    """A resumed ranking task must not commit its matches a second time."""
+    from co_scientist.state import accumulate_matchups
+
+    judged = [_matchup("a", "b"), _matchup("c", "d")]
+
+    assert accumulate_matchups(judged, list(judged)) == judged
+
+
+def test_a_genuine_rematch_at_new_ratings_is_kept() -> None:
+    """A later cycle re-pairs against updated ratings, which is real work."""
+    from co_scientist.state import accumulate_matchups
+
+    first = [_matchup("a", "b", winner_before=1200, loser_before=1200)]
+    rematch = [_matchup("a", "b", winner_before=1224, loser_before=1176)]
+
+    assert len(accumulate_matchups(first, rematch)) == 2
+
+
+def test_an_empty_ranking_update_never_wipes_the_history() -> None:
+    """A tournament that judged nothing must not clear what came before."""
+    from co_scientist.state import accumulate_matchups
+
+    existing = [_matchup("a", "b")]
+
+    assert accumulate_matchups(existing, []) == existing

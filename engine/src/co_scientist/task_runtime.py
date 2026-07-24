@@ -17,7 +17,11 @@ from langgraph.graph import add_messages
 from co_scientist.agents import NODE_REGISTRY
 from co_scientist.generator.graph import _TASK_ROUTES as _ORCHESTRATOR_ROUTES
 from co_scientist.models import merge_metrics
-from co_scientist.state import WorkflowState, deduplicate_hypotheses
+from co_scientist.state import (
+    WorkflowState,
+    accumulate_matchups,
+    deduplicate_hypotheses,
+)
 
 TaskNode = Callable[[WorkflowState], Awaitable[dict[str, Any]]]
 
@@ -31,22 +35,47 @@ TASK_NODES: dict[str, TaskNode] = {
 def apply_task_update(
     state: WorkflowState, update: dict[str, Any]
 ) -> WorkflowState:
-    """Apply one node result with the reducers declared by WorkflowState."""
+    """Apply one node result with the reducers declared by WorkflowState.
+
+    This is a hand-written mirror of the ``Annotated[T, reducer]`` channels
+    on ``WorkflowState``, not a reading of them: the durable path never
+    invokes the graph, so LangGraph never applies them here. Every channel
+    absent from the table below silently falls through to last-write-wins.
+
+    **Adding a reducer to WorkflowState means adding it here too.**
+    ``tournament_matchups`` was annotated on the state but missing from this
+    table, so on the durable path -- the only path production runs -- each
+    tournament's matchups overwrote the previous cycle's instead of
+    accumulating, and every run persisted a single cycle of Elo history.
+    """
     merged: dict[str, Any] = dict(state)
     for key, value in update.items():
-        if key == "hypotheses":
-            merged[key] = deduplicate_hypotheses(
-                state.get("hypotheses", []), value
-            )
-        elif key == "metrics":
-            merged[key] = merge_metrics(state["metrics"], value)
-        elif key == "messages":
-            merged[key] = add_messages(
-                cast(Any, state.get("messages", [])), cast(Any, value)
-            )
-        else:
+        reducer = _CHANNEL_REDUCERS.get(key)
+        if reducer is None:
             merged[key] = value
+            continue
+        merged[key] = reducer(state.get(key), value)
     return merged  # type: ignore[return-value]
+
+
+def _reduce_messages(existing: Any, value: Any) -> Any:
+    """Apply LangGraph's id-based message append with the runtime's casts."""
+    return add_messages(cast(Any, existing or []), cast(Any, value))
+
+
+# The reducer for each Annotated channel on WorkflowState. Kept as a table
+# rather than a branch chain so the set of mirrored channels is one readable
+# list to diff against the state definition -- see apply_task_update.
+_CHANNEL_REDUCERS: dict[str, Callable[[Any, Any], Any]] = {
+    "hypotheses": lambda existing, value: deduplicate_hypotheses(
+        existing or [], value
+    ),
+    "metrics": merge_metrics,
+    "messages": _reduce_messages,
+    "tournament_matchups": lambda existing, value: accumulate_matchups(
+        existing or [], value
+    ),
+}
 
 
 def _route_after_supervisor(state: WorkflowState) -> str:
