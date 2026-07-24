@@ -126,6 +126,61 @@ def _assert_demo_run_badges_nothing(db_path: str) -> None:
     assert report_render._unverified_hypothesis_ids(demo.id, db_path) == set()
 
 
+def test_partial_edge_clears_the_unverified_badge(isolated_db: str) -> None:
+    """A hypothesis whose best evidence is PARTIAL is not badged unverified.
+
+    A partial (near-miss) verdict means relevant, consistent evidence was
+    found, so it clears the badge exactly as a ``supports`` edge does -- the
+    fix for the flood of "Unverified" ideas whose claims only ever landed on
+    ``insufficient``.
+    """
+    run = store.create_run("partial badge", "standard", "engine", {})
+    partial_id = store.add_hypothesis(
+        store.NewHypothesis(
+            run_id=run.id,
+            title="Partially supported",
+            statement="Kinase X modulation influences AML growth.",
+        ),
+        db_path=isolated_db,
+    )
+    insufficient_id = store.add_hypothesis(
+        store.NewHypothesis(
+            run_id=run.id,
+            title="Insufficient",
+            statement="An entirely unevidenced conjecture.",
+        ),
+        db_path=isolated_db,
+    )
+    store.add_claim_evidence(
+        store.NewClaimEvidence(
+            run_id=run.id,
+            hypothesis_id=partial_id,
+            claim="Kinase X modulation influences AML growth.",
+            label="partial",
+            supporting=["A near-miss source span."],
+            contradicting=[],
+            assessor="fixture",
+        ),
+        db_path=isolated_db,
+    )
+    store.add_claim_evidence(
+        store.NewClaimEvidence(
+            run_id=run.id,
+            hypothesis_id=insufficient_id,
+            claim="An entirely unevidenced conjecture.",
+            label="insufficient",
+            supporting=[],
+            contradicting=[],
+            assessor="fixture",
+        ),
+        db_path=isolated_db,
+    )
+
+    unverified = report_render._unverified_hypothesis_ids(run.id, isolated_db)
+    # The partial idea clears the badge; only the insufficient one is flagged.
+    assert unverified == {insufficient_id}
+
+
 def _screening_hypothesis(hyp_id: str, text: str) -> dict[str, Any]:
     """A minimal engine hypothesis carrying every field the drain reads."""
     return {

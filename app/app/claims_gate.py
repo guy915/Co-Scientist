@@ -22,9 +22,20 @@ from collections.abc import Callable, Collection
 
 
 class EntailmentLabel(str, enum.Enum):
-    """Structured claim-vs-evidence verdict (not a lexical-overlap bucket)."""
+    """Structured claim-vs-evidence verdict (not a lexical-overlap bucket).
+
+    ``PARTIAL`` is a middle support tier: the evidence bears on the claim and
+    is consistent with it but stops short of full entailment (a near-miss). It
+    counts as support for publication and the "Unverified" badge -- it means
+    "we found relevant, consistent evidence", not "we found nothing" -- while
+    staying distinct from ``SUPPORTS`` so a reader can tell full entailment
+    from a partial match. Precedence when a claim draws several verdicts is
+    contradicts > supports > partial > insufficient (see ``_entailment_label``
+    in :mod:`app.claims`).
+    """
 
     SUPPORTS = "supports"
+    PARTIAL = "partial"
     CONTRADICTS = "contradicts"
     INSUFFICIENT = "insufficient"
 
@@ -197,13 +208,21 @@ def _classify_gate_claims(
     )
 
 
+_SUPPORTING_LABELS = (EntailmentLabel.SUPPORTS, EntailmentLabel.PARTIAL)
+
+
 def _blocks_for_missing_support(
     assessments: list[ClaimAssessment], *, require_supported_claim: bool
 ) -> bool:
-    """Whether the gate blocks for lacking any evidence-supported claim."""
+    """Whether the gate blocks for lacking any evidence-supported claim.
+
+    A ``PARTIAL`` verdict counts as support here (as it does for the badge):
+    the claim has relevant, consistent evidence, so it does not leave the
+    hypothesis wholly unsupported.
+    """
     if not require_supported_claim:
         return False
-    return not any(a.label is EntailmentLabel.SUPPORTS for a in assessments)
+    return not any(a.label in _SUPPORTING_LABELS for a in assessments)
 
 
 def _gate_block_reason(

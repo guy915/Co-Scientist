@@ -30,7 +30,7 @@ def _knowledge_base_topics(
     """Build named technical topics from released hypotheses and claim links."""
     references_by_hypothesis: dict[str, list[str]] = {}
     for edge in claim_edges:
-        if edge.get("label") != "supports":
+        if edge.get("label") not in ("supports", "partial"):
             continue
         hypothesis_id = str(edge.get("hypothesis_id") or "")
         evidence_id = str(edge.get("evidence_id") or "")
@@ -160,10 +160,15 @@ def _agent_insights(
 def _claim_edge_reasons(
     claim_edges: list[dict[str, Any]],
 ) -> dict[str, set[str]]:
-    """Map hypothesis id -> reasons its claims were not fully supported."""
+    """Map hypothesis id -> reasons its claims were not fully supported.
+
+    A ``partial`` edge clears the reason like ``supports`` does: it credits
+    relevant, consistent evidence, so it does not add an "unsupported" note
+    that would contradict the hypothesis clearing the "Unverified" badge.
+    """
     edge_reasons: dict[str, set[str]] = {}
     for edge in claim_edges:
-        if edge.get("label") == "supports" or (
+        if edge.get("label") in ("supports", "partial") or (
             edge.get("label") == "insufficient"
             and edge.get("claim_role") == "speculative"
         ):
@@ -334,9 +339,11 @@ def _unverified_hypothesis_ids(
     """Ids of published hypotheses that lack an evidence-supported claim.
 
     A hypothesis is "verified" once at least one of its claims has a
-    ``supports`` evidence edge. Under the rank-and-publish policy the rest are
-    still ranked and published, but flagged "Unverified" in the report and the
-    idea list rather than blocking the run.
+    ``supports`` or ``partial`` evidence edge -- a partial (near-miss) verdict
+    still means relevant, consistent evidence was found, so it clears the
+    badge. Under the rank-and-publish policy the rest are still ranked and
+    published, but flagged "Unverified" in the report and the idea list rather
+    than blocking the run.
 
     When a run has no claim-evidence edges at all -- claim grounding never ran,
     as for mock demo runs -- none of its ideas were assessed, so none is
@@ -352,7 +359,7 @@ def _unverified_hypothesis_ids(
     supported = {
         str(edge["hypothesis_id"])
         for edge in edges
-        if edge.get("label") == "supports"
+        if edge.get("label") in ("supports", "partial")
     }
     rows = (
         hyps

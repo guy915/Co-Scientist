@@ -10,6 +10,7 @@ from Bio import Entrez
 
 from mcp_server.entrez import initialize_entrez
 from mcp_server.models import Article
+from mcp_server.pubmed_query import search_with_relaxation
 
 # Re-export the relocated helpers so their original import paths
 # (``...search_pubmed import _entrez_read``, etc.) keep resolving.
@@ -174,6 +175,11 @@ def _log_pubmed_canary_generic_error(e: Exception) -> None:
 def _esearch_pubmed_ids(query: str, max_papers: int) -> list[str]:
     """Resolves a PubMed query to a list of article ids.
 
+    PubMed ANDs every untagged term, so a distilled multi-term query collapses
+    toward zero hits; the query is issued down a relaxation ladder (OR the
+    terms once the exact query is too thin) so it returns candidates to ground
+    against rather than nothing.
+
     Args:
         query: Search query for PubMed.
         max_papers: Maximum number of ids to return.
@@ -181,11 +187,15 @@ def _esearch_pubmed_ids(query: str, max_papers: int) -> list[str]:
     Returns:
         The list of PubMed ids matching the query (possibly empty).
     """
-    results = _entrez_read(
-        Entrez.esearch(db="pubmed", term=query, retmax=max_papers)
-    )
-    id_list: list[str] = results.get("IdList", [])
-    return id_list
+
+    def _esearch(term: str, retmax: int, _recency_years: int) -> list[str]:
+        results = _entrez_read(
+            Entrez.esearch(db="pubmed", term=term, retmax=retmax)
+        )
+        id_list: list[str] = results.get("IdList", [])
+        return id_list
+
+    return search_with_relaxation(query, max_papers, 0, _esearch)
 
 
 def search_pubmed(query: str, max_papers: int = 10) -> str:

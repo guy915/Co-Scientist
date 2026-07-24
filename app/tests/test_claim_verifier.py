@@ -81,6 +81,30 @@ def test_valid_supports_verdict_locates_span(
     )
 
 
+def test_partial_verdict_locates_span(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A partial verdict citing a real quote yields a located support span."""
+    _install(
+        monkeypatch,
+        _fake_completion(
+            '{"label": "partial", "supporting": '
+            '[{"evidence_id": "ev-1", "quote": "reduces tumor growth"}], '
+            '"contradicting": []}'
+        ),
+    )
+    assessor, assessor_id = make_llm_assessor("deepseek/deepseek-chat")
+    result = assess_claim(
+        "Kinase X inhibition halts tumor growth entirely.",
+        [_PASSAGE],
+        assessor=assessor,
+        assessor_id=assessor_id,
+    )
+    assert result.label is EntailmentLabel.PARTIAL
+    span = result.supporting_passages[0]
+    assert _PASSAGE.text[span.start : span.end] == span.quote
+
+
 def test_hallucinated_quote_downgraded(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

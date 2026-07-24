@@ -8,6 +8,7 @@ from typing import Any
 from Bio import Entrez
 
 from mcp_server.entrez import initialize_entrez
+from mcp_server.pubmed_query import search_with_relaxation
 
 logger = logging.getLogger(__name__)
 
@@ -220,10 +221,34 @@ class _EntrezClient:
             "pmc_full_text_id": self._fetch_pmc_fulltext_id(paper_id, doi),
         }
 
+    def _esearch_ids(
+        self, query: str, retmax: int, recency_years: int
+    ) -> list[str]:
+        """Runs one esearch attempt and returns its ids (empty if none)."""
+        search_params: dict[str, Any] = {
+            "db": "pubmed",
+            "term": query,
+            "retmax": retmax,
+            "sort": "pub_date",
+        }
+        _apply_recency_filter(search_params, recency_years)
+        logger.debug("searching pubmed with sort=pub_date (most recent first)")
+        results = self.entrez_read(Entrez.esearch(**search_params))
+        # esearch's IdList is empty (not absent) when nothing matches, so the
+        # truthiness check also covers that case, not just a missing key.
+        if id_list := results.get("IdList", None):
+            return [str(paper_id) for paper_id in id_list]
+        return []
+
     def pubmed_search_ids(
         self, query: str, retmax: int = 10, recency_years: int = 0
     ) -> list[str]:
         """Searches PubMed and returns matching paper IDs.
+
+        PubMed ANDs every untagged term, so a distilled multi-term query
+        collapses toward zero hits; the search is issued down a relaxation
+        ladder (drop the recency window, then OR the terms) so a starved query
+        still returns candidates to ground against rather than an empty pool.
 
         Args:
             query: PubMed boolean query.
@@ -233,20 +258,9 @@ class _EntrezClient:
         Returns:
             List of PubMed IDs sorted by publication date (most recent first).
         """
-        search_params: dict[str, Any] = {
-            "db": "pubmed",
-            "term": query,
-            "retmax": retmax,
-            "sort": "pub_date",
-        }
-        _apply_recency_filter(search_params, recency_years)
-
-        logger.debug("searching pubmed with sort=pub_date (most recent first)")
-        results = self.entrez_read(Entrez.esearch(**search_params))
-        # esearch's IdList is empty (not absent) when nothing matches, so
-        # the truthiness check also covers that case, not just a missing
-        # key.
-        if id_list := results.get("IdList", None):
-            return [str(paper_id) for paper_id in id_list]
-        logger.warning("No results found for query: %s", query)
-        return []
+        ids = search_with_relaxation(
+            query, retmax, recency_years, self._esearch_ids
+        )
+        if not ids:
+            logger.warning("No results found for query: %s", query)
+        return ids
