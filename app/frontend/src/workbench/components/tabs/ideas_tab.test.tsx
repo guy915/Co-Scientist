@@ -95,3 +95,18 @@ it('renders reference detail sections without the legacy detail link', () => {
   expect(screen.getByText('Needs a control arm.')).toBeInTheDocument();
   expect(screen.queryByText('Full legacy detail')).not.toBeInTheDocument();
 });
+
+it('labels an idea with no matches "Unranked" rather than showing 1200', () => {
+  // 1200 is where every hypothesis starts, so printing it for an idea the
+  // tournament never reached reads as a rating it earned. Ideas the evidence
+  // gate quarantines never enter the tournament at all.
+  render(
+    <IdeasTab
+      hypotheses={[makeHypothesis({id: 'unplayed', title: 'Never matched'})]}
+      reviews={[]}
+    />,
+  );
+
+  expect(screen.getByText('Unranked')).toBeInTheDocument();
+  expect(screen.queryByText(/Elo rating/)).not.toBeInTheDocument();
+});

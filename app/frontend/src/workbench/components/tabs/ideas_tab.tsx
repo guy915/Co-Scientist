@@ -253,6 +253,11 @@ function ideaRowClassName(selected: boolean): string {
 // A single row in the ranked hypothesis list: rank badge, Elo chip, title,
 // and a truncated statement preview.
 // The rank/Elo/unverified chip row heading one idea in the list.
+//
+// An idea with no matches shows "Unranked" rather than its rating. Elo 1200
+// is where every hypothesis starts, so printing it for an idea that never
+// played reads as a result it earned -- and ideas the evidence gate
+// quarantines never enter the tournament at all.
 function IdeaRankHead({
   rank,
   hypothesis,
@@ -264,7 +269,9 @@ function IdeaRankHead({
     <span className={IDEA_RANK_HEAD_CLASSES}>
       <span className={`idea-rank-number ${IDEA_CHIP_CLASSES}`}>{rank}</span>
       <span className={IDEA_ELO_CHIP_CLASSES}>
-        Elo rating: {hypothesis.elo_rating}
+        {hypothesis.win_count + hypothesis.loss_count > 0
+          ? `Elo rating: ${hypothesis.elo_rating}`
+          : 'Unranked'}
       </span>
       {hypothesis.unverified ? (
         <span className={IDEA_UNVERIFIED_CHIP_CLASSES}>

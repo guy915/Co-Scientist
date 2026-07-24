@@ -59,13 +59,26 @@ def live_leaderboard(
         cap: Maximum number of standings to include.
 
     Returns:
-        A list of ``{rank, id, title, elo, wins, losses}`` dicts, Elo-sorted.
+        A list of ``{rank, id, title, elo, wins, losses}`` dicts, ordered with
+        played hypotheses first and each group by descending Elo.
     """
-    # Descending Elo sort; falsy ratings (0/None) fall back to INITIAL_ELO
-    # rather than sorting an unranked hypothesis to the very top.
+
+    def _played(h: dict[str, Any]) -> int:
+        return int(h.get("win_count") or 0) + int(h.get("loss_count") or 0)
+
+    # Hypotheses that played at least one match rank above those that did
+    # not, whatever the ratings say. Every hypothesis starts at INITIAL_ELO,
+    # so a pure Elo sort puts an idea that never entered the tournament above
+    # one that entered and lost: a run led its standings with six unplayed
+    # ideas at 1200 and buried the real runner-up at 1136 beneath them.
+    # Falsy ratings (0/None) still fall back to INITIAL_ELO rather than
+    # sorting to the very bottom.
     ordered = sorted(
         hyps,
-        key=lambda h: -int(h.get("elo_rating", INITIAL_ELO) or INITIAL_ELO),
+        key=lambda h: (
+            0 if _played(h) else 1,
+            -int(h.get("elo_rating", INITIAL_ELO) or INITIAL_ELO),
+        ),
     )
     return [
         _leaderboard_row(rank, h)
