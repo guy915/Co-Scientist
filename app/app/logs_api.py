@@ -112,6 +112,14 @@ def _check_ingest_rate(scope: str) -> None:
 # show them. The capture side separately refuses to persist a narrower set
 # of pure third-party per-call chatter, which nothing can ask for -- see
 # logging_setup.UNPERSISTED_LOGGERS.
+#
+# The whole ``co_scientist`` engine namespace is hidden because its
+# per-call INFO (per-source literature searches, per-agent tool init,
+# per-match ranking) runs into the hundreds within minutes of one run and
+# buried the readable stream. The run's narrative is not lost: every stage
+# is mirrored into the ``app.run_stage`` logger (~21 records per run, not
+# under this prefix, so it stays visible), and any engine WARNING+ still
+# surfaces. ``verbose=1`` restores the raw per-call lines.
 NOISE_LOGGERS: tuple[str, ...] = (
     "uvicorn.access",
     "ui.interaction",
@@ -120,9 +128,9 @@ NOISE_LOGGERS: tuple[str, ...] = (
     "httpcore",
     "urllib3",
     "litellm",
-    # Availability probes repeat on every /status poll; their WARNINGs
-    # (e.g. "MCP server unavailable") still surface.
-    "co_scientist.mcp_client",
+    # The engine's per-call chatter, incl. its own availability probes
+    # (co_scientist.mcp_client) whose WARNINGs still surface.
+    "co_scientist",
 )
 
 

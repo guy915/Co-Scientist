@@ -128,16 +128,32 @@ def test_logs_endpoint_hides_noise_by_default(isolated_db: str) -> None:
     _seed_from(
         isolated_db, "co_scientist.mcp_client", "initializing MCP client"
     )
+    # The engine's per-call INFO (hundreds per run) is hidden, but a real
+    # engine WARNING still surfaces.
+    _seed_from(
+        isolated_db,
+        "co_scientist.agents.generation.literature_review.search",
+        "Source pubmed: collected 3 papers",
+    )
+    _seed_from(
+        isolated_db,
+        "co_scientist.agents.generation",
+        "generation degraded to LLM-only",
+        level="WARNING",
+        levelno=logging.WARNING,
+    )
     client = make_operator_client()
 
     # Default: high-volume chatter (HTTP access, clicks, navigation,
-    # dependency loggers) is hidden below WARNING; errors always show.
+    # dependency loggers, engine per-call INFO) is hidden below WARNING;
+    # warnings and errors always show.
     body = client.get("/api/logs").json()
     assert [row["message"] for row in body["logs"]] == [
         "run started",
         "request blew up",
+        "generation degraded to LLM-only",
     ]
-    assert body["total"] == 2
+    assert body["total"] == 3
 
     # verbose=1 opts back into the full stream.
     body = client.get("/api/logs", params={"verbose": "1"}).json()
@@ -146,8 +162,10 @@ def test_logs_endpoint_hides_noise_by_default(isolated_db: str) -> None:
         "GET /status 200",
         "request blew up",
         "initializing MCP client",
+        "Source pubmed: collected 3 papers",
+        "generation degraded to LLM-only",
     ]
-    assert body["total"] == 4
+    assert body["total"] == 6
 
 
 def test_logs_endpoint_rejects_unknown_level(isolated_db: str) -> None:
