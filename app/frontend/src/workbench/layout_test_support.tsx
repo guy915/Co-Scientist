@@ -4,6 +4,7 @@ import {vi} from 'vitest';
 import type {Run} from '@/api/runs';
 import {makeRun} from '@/test_fixtures';
 import {AudienceProvider} from './audience_context';
+import {resetSessionBaselineForTest} from './layout_diagnostics_state';
 import {RunHistoryProvider} from './hooks/run_history_context';
 import {Layout} from './layout';
 import {ThemeProvider} from './theme_context';
@@ -113,6 +114,9 @@ export function runFixture(id: string, goal: string) {
  * Layout suite. Call from each suite's `beforeEach`.
  */
 export function installLayoutMocks() {
+  // Each suite is a fresh "page session", so the diagnostics panel's
+  // module-level session baseline must not carry over between tests.
+  resetSessionBaselineForTest();
   window.localStorage.clear();
   window.localStorage.setItem('cosci-theme', 'dark');
   document.documentElement.dataset.theme = '';
@@ -129,6 +133,16 @@ export function installLayoutMocks() {
   apiMock.getRunEvents.mockResolvedValue([]);
   logsApiMock.getAppLogs.mockReset();
   logsApiMock.getAppLogs.mockResolvedValue({logs: [], last_id: 0, total: 0});
+  // The panel captures a session baseline on its first load and shows only
+  // records added after it (so a refresh/reopen starts clean). This first
+  // response establishes an empty baseline (id 0, total 0), so a suite's
+  // own `mockResolvedValue` records — all with ids above 0 — are treated as
+  // this-session records and rendered, matching the pre-baseline behavior.
+  logsApiMock.getAppLogs.mockResolvedValueOnce({
+    logs: [],
+    last_id: 0,
+    total: 0,
+  });
   logsApiMock.postAppLogs.mockReset();
   logsApiMock.postAppLogs.mockResolvedValue({added: 1, last_id: 1});
   logsApiMock.deleteAppLogs.mockReset();

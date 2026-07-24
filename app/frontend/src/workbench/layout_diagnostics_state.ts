@@ -27,40 +27,70 @@ interface AppliedLogState {
   withEntries: boolean;
 }
 
-// True when `payload` is already reflected in `applied` for the current
-// open state.
-function isAlreadyApplied(
-  applied: AppliedLogState | null,
-  payload: AppLogsPayload,
-  open: boolean,
-): boolean {
-  return (
-    applied !== null &&
-    applied.lastId === payload.last_id &&
-    applied.total === payload.total &&
-    (applied.withEntries || !open)
-  );
+// Where this page session began in the durable, app-wide log. The panel
+// shows only records added after this point, so a page refresh or a fresh
+// open of the site starts on a clean panel instead of the whole retained
+// history. Both are captured on the first load of the session and reset
+// only by a full page load (this module being re-evaluated) — i.e.
+// exactly a refresh or reopen.
+//
+//   - `sessionBaselineId`: the log's high-water id at session start; a
+//     record is "this session" only when its id is above it.
+//   - `sessionBaselineTotal`: the visible-record count at session start.
+//     The server's `total` ignores the `after_id` window (it counts the
+//     whole visible set), so subtracting this snapshot yields the exact
+//     count of records added this session — which drives the badge and
+//     the "#N" numbering without a second count query.
+let sessionBaselineId: number | null = null;
+let sessionBaselineTotal = 0;
+
+// Clears the captured session baseline. For tests, which drive many
+// independent "page sessions" through one module instance.
+export function resetSessionBaselineForTest(): void {
+  sessionBaselineId = null;
+  sessionBaselineTotal = 0;
+}
+
+// The id to page from: everything at or below the session baseline is
+// pre-session and never fetched. Null until the first load establishes it.
+export function sessionAfterId(): number {
+  return sessionBaselineId ?? 0;
+}
+
+// Captures the session baseline from the first payload to arrive, and
+// re-captures it after a full clear restarts ids below the baseline
+// (which would otherwise hide everything forever). Called before the load
+// effect's disposed/latest guards on purpose: the baseline is a
+// session-global snapshot, and letting a disposed mount load fall through
+// without recording it would let a later load capture a baseline that
+// already includes this session's own records.
+function ensureSessionBaseline(payload: AppLogsPayload): void {
+  if (sessionBaselineId === null || payload.last_id < sessionBaselineId) {
+    sessionBaselineId = payload.last_id;
+    sessionBaselineTotal = payload.total;
+  }
 }
 
 // Builds the next applied-state marker and displayed logs from a fresh
-// payload. The open-state request already asks for PANEL_LIMIT records,
-// but the cap is enforced here too: whatever the payload size, the panel
-// shows at most the newest PANEL_LIMIT. Numbers backwards from the stream
-// total so the newest row is always `total`: a capped window shows
-// 151..250, not 1..100.
+// payload, scoped to this page session.
+//
+// Only records added after the baseline are shown, so the establishing
+// load (whose records all predate the baseline) naturally shows nothing —
+// no special case needed. The request already pages from the baseline,
+// and the cap is re-enforced here so the panel shows at most the newest
+// PANEL_LIMIT. Numbers backwards from the session total so the newest row
+// is always `total` (a capped window shows 151..250, not 1..100).
 function buildLoadedLogs(
   payload: AppLogsPayload,
   open: boolean,
 ): {applied: AppliedLogState; logs: PersistedAppLogs} {
-  const shown = open ? payload.logs.slice(-PANEL_LIMIT) : [];
-  const total = Math.max(payload.total, shown.length);
+  const baselineId = sessionBaselineId ?? payload.last_id;
+  const session = payload.logs.filter(record => record.id > baselineId);
+  const total = Math.max(0, payload.total - sessionBaselineTotal);
+  const shown = open ? session.slice(-PANEL_LIMIT) : [];
   const first = total - shown.length + 1;
   return {
-    applied: {
-      lastId: payload.last_id,
-      total: payload.total,
-      withEntries: open,
-    },
+    applied: {lastId: payload.last_id, total, withEntries: open},
     logs: {
       entries: shown.map((record, index) =>
         buildAppLogEntry(record, first + index),
@@ -70,15 +100,30 @@ function buildLoadedLogs(
   };
 }
 
-// Fetches the app-wide persisted log: on mount (so the badge count is
-// real), whenever `version` bumps (Clear changed the store), whenever
-// the api layer announces a change (a click or error was just
-// persisted), and on a steady background poll — popover open or not, so
-// the badge never depends on opening the panel. While the popover is
-// closed only the badge is needed, so those loads fetch a single record
-// (the response still carries `total` and `last_id`); opening re-runs
-// the effect with a full-window load. The same fetch runs on every
-// route, so navigating never changes what the panel shows.
+// True when `next` is already reflected in `applied` for the current open
+// state, so a background poll of an unchanged session never re-renders.
+function isAlreadyApplied(
+  applied: AppliedLogState | null,
+  next: AppliedLogState,
+  open: boolean,
+): boolean {
+  return (
+    applied !== null &&
+    applied.lastId === next.lastId &&
+    applied.total === next.total &&
+    (applied.withEntries || !open)
+  );
+}
+
+// Fetches this page session's slice of the app-wide persisted log: on
+// mount (so the badge count is real), whenever `version` bumps (Clear
+// changed the store), whenever the api layer announces a change (a click
+// or error was just persisted), and on a steady background poll — popover
+// open or not, so the badge never depends on opening the panel. Every
+// load pages from the session baseline, so pre-session history is never
+// fetched however deep the retained log is; the session count stays cheap
+// to keep current whether the panel is open or closed. The same fetch
+// runs on every route, so navigating never changes what the panel shows.
 // Wires `load` to run once immediately, on a steady background poll (a
 // hidden tab loads nothing; foregrounding runs one immediate catch-up load
 // rather than waiting out the interval), and whenever the api layer
@@ -115,11 +160,18 @@ export function usePersistedAppLogs(
     let latestRequest = 0;
     const load = () => {
       const request = ++latestRequest;
-      getAppLogs(0, open ? PANEL_LIMIT : 1)
+      // Always page the newest PANEL_LIMIT of the session (from the
+      // baseline), so the badge count is right whether the panel is open
+      // or closed; only display entries are gated on `open`.
+      getAppLogs(sessionAfterId(), PANEL_LIMIT)
         .then(payload => {
+          // Record the baseline before the guards: a disposed mount load
+          // must still anchor the session, or a later load anchors it to a
+          // payload that already contains this session's records.
+          ensureSessionBaseline(payload);
           if (disposed || request !== latestRequest) return;
-          if (isAlreadyApplied(appliedRef.current, payload, open)) return;
           const {applied, logs: nextLogs} = buildLoadedLogs(payload, open);
+          if (isAlreadyApplied(appliedRef.current, applied, open)) return;
           appliedRef.current = applied;
           setLogs(nextLogs);
         })
