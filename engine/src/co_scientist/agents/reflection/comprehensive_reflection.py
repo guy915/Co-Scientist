@@ -5,8 +5,11 @@ without passing through the initial reflection node.
 """
 
 import asyncio
+import dataclasses
+import hashlib
 import json
 import logging
+import weakref
 from dataclasses import asdict
 from typing import Any
 
@@ -195,11 +198,8 @@ async def _run_review(
     review_type: ReviewType,
 ) -> tuple[ReviewType, dict[str, Any] | None]:
     """Execute one independently meaningful Reflection review call."""
-    (
-        retrieval_queries,
-        targeted_articles,
-        retrieval_errors,
-    ) = await _retrieve_review_evidence(state, hypothesis, review_type)
+    evidence = await _review_evidence_for(state, hypothesis, review_type)
+    targeted_articles = evidence.articles
     prompt, schema = _build_review_prompt(
         state, hypothesis, review_type, targeted_articles
     )
@@ -222,27 +222,109 @@ async def _run_review(
             "%s review failed for %s: %s", review_type.value, hypothesis.id, exc
         )
         return review_type, None
-    result["retrieval_queries"] = retrieval_queries
-    result["retrieval_errors"] = retrieval_errors
+    result["retrieval_queries"] = evidence.queries
+    result["retrieval_errors"] = evidence.errors
+    # Each review persists the evidence it was given, so the shared
+    # retrieval survives the checkpoint through both of their results
+    # rather than depending on the in-process cache outliving the task.
     result["retrieved_articles"] = [
         article.to_dict() for article in targeted_articles
     ]
     return review_type, result
 
 
-async def _retrieve_review_evidence(
-    state: WorkflowState, hypothesis: Hypothesis, review_type: ReviewType
-) -> tuple[list[str], list[Article], list[str]]:
-    """Retrieves targeted literature evidence for full/simulation reviews.
+# In-flight targeted retrievals, one map per event loop.
+#
+# The full and simulation reviews of a hypothesis ask the same question of
+# the same literature: queries are formulated from the hypothesis text and
+# the research goal, neither of which differs by review mode. Run
+# independently they cost two query-generation calls and two rounds of
+# searches for one hypothesis, all of it on the run's critical path.
+#
+# Keyed by loop because the durable worker runs each task on its own thread
+# with its own loop, and the shared task below is an asyncio object bound to
+# whichever loop created it. Weakly held so a finished cohort's loop does
+# not keep its retrievals alive.
+_review_evidence_flights: weakref.WeakKeyDictionary[
+    asyncio.AbstractEventLoop, dict[str, "asyncio.Task[_ReviewEvidence]"]
+] = weakref.WeakKeyDictionary()
 
-    Recurrent reviews reuse the accumulated tournament context instead of
-    re-searching, so this returns empty lists for any other review type.
+
+@dataclasses.dataclass(frozen=True)
+class _ReviewEvidence:
+    """One hypothesis's targeted literature evidence for its reviews.
+
+    Attributes:
+        queries: The keyword searches formulated for this hypothesis.
+        articles: Sources the searches returned, bounded by the probe cap.
+        errors: Per-source retrieval failures, kept so a review can tell
+            "found nothing" from "search broke".
     """
-    if review_type not in {ReviewType.FULL, ReviewType.SIMULATION}:
-        return [], [], []
+
+    queries: list[str]
+    articles: list[Article]
+    errors: list[str]
+
+
+def _evidence_key(state: WorkflowState, hypothesis: Hypothesis) -> str:
+    """Return the sharing key for one hypothesis's targeted retrieval.
+
+    Includes the text, not just the id: evolution rewrites a hypothesis in
+    place, and evidence retrieved for the claim it used to make does not
+    answer the one it makes now.
+    """
+    text = " ".join((hypothesis.text or "").split())
+    digest = hashlib.sha256(text.encode("utf-8")).hexdigest()[:16]
+    return f"{state.get('run_id')}:{hypothesis.id}:{digest}"
+
+
+async def _shared_review_evidence(
+    state: WorkflowState, hypothesis: Hypothesis
+) -> _ReviewEvidence:
+    """Retrieve this hypothesis's targeted evidence once, sharing the result.
+
+    Concurrent callers await one shared task rather than each starting a
+    retrieval: the full and simulation reviews of a hypothesis are gathered
+    together, so a plain check-then-fill cache would let both find it empty
+    and stampede, which is the case that costs the duplicate work.
+
+    A failed retrieval is evicted rather than cached, so a retry gets a
+    fresh attempt instead of inheriting the failure.
+    """
+    loop = asyncio.get_running_loop()
+    flights = _review_evidence_flights.setdefault(loop, {})
+    key = _evidence_key(state, hypothesis)
+    flight = flights.get(key)
+    if flight is None:
+        flight = loop.create_task(_retrieve_review_evidence(state, hypothesis))
+        flights[key] = flight
+    try:
+        return await flight
+    except Exception:
+        flights.pop(key, None)
+        raise
+
+
+async def _retrieve_review_evidence(
+    state: WorkflowState, hypothesis: Hypothesis
+) -> _ReviewEvidence:
+    """Formulate queries for one hypothesis and run their searches."""
     queries = await _hypothesis_search_queries(state, hypothesis)
     articles, errors = await _retrieve_probe_evidence(state, queries)
-    return queries, articles, errors
+    return _ReviewEvidence(queries, articles, errors)
+
+
+async def _review_evidence_for(
+    state: WorkflowState, hypothesis: Hypothesis, review_type: ReviewType
+) -> _ReviewEvidence:
+    """Return targeted evidence for the review types that search.
+
+    Recurrent reviews reuse the accumulated tournament context instead of
+    re-searching, so they get nothing here.
+    """
+    if review_type not in {ReviewType.FULL, ReviewType.SIMULATION}:
+        return _ReviewEvidence([], [], [])
+    return await _shared_review_evidence(state, hypothesis)
 
 
 def _build_review_prompt(

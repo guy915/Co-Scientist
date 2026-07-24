@@ -1,5 +1,6 @@
 """Tests for the full Reflection review cascade."""
 
+import asyncio
 from unittest.mock import AsyncMock
 
 import pytest
@@ -161,3 +162,70 @@ async def test_query_generation_is_skipped_without_a_search_backend(
     assert result["retrieval_queries"] == []
     # The review call only -- no query-generation call was spent.
     assert call.await_count == 1
+
+
+async def test_full_and_simulation_share_one_targeted_retrieval(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """One hypothesis costs one query-generation call and one retrieval.
+
+    Both reviews ask the same question of the same literature: queries come
+    from the hypothesis text and the research goal, neither of which varies
+    by review mode. Run independently they paid for it twice, on the run's
+    critical path.
+    """
+    query_calls = 0
+    retrievals = 0
+
+    async def _queries(
+        _state: object, _hypothesis: object
+    ) -> dict[str, object]:
+        nonlocal query_calls
+        query_calls += 1
+        # Yield, so a stampeding second caller has the chance to start its
+        # own retrieval before this one records a result to share.
+        await asyncio.sleep(0)
+        return {"queries": ["targeted query"]}
+
+    async def _retrieve(
+        _state: object, _queries: list[str]
+    ) -> tuple[list[Article], list[str]]:
+        nonlocal retrievals
+        retrievals += 1
+        await asyncio.sleep(0)
+        return [_validation_article()], []
+
+    monkeypatch.setattr(cr, "_call_hypothesis_query_llm", _queries)
+    monkeypatch.setattr(cr, "_retrieve_probe_evidence", _retrieve)
+    monkeypatch.setattr(
+        cr,
+        "call_llm_json",
+        AsyncMock(return_value={"assessment": "ok", "score": 4}),
+    )
+
+    hypothesis = make_hypothesis(text="a mechanism worth reviewing")
+    state = make_state(hypotheses=[hypothesis], mcp_available=True)
+
+    reviewed = await cr._review_hypothesis(state, hypothesis)
+
+    assert reviewed == 2
+    assert query_calls == 1
+    assert retrievals == 1
+    # Both reviews persist the shared evidence, so it survives the
+    # checkpoint without depending on the in-process cache.
+    for mode in (ReviewType.FULL, ReviewType.SIMULATION):
+        stored = hypothesis.enrichments[mode.value]["retrieved_articles"]
+        assert [item["source_id"] for item in stored] == ["validation-1"]
+
+
+async def test_rewritten_hypothesis_does_not_reuse_stale_evidence(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Evolution rewrites a hypothesis; old evidence no longer answers it."""
+    hypothesis = make_hypothesis(text="original claim")
+    state = make_state(hypotheses=[hypothesis], mcp_available=True)
+
+    before = cr._evidence_key(state, hypothesis)
+    hypothesis.text = "a materially different claim"
+
+    assert cr._evidence_key(state, hypothesis) != before
