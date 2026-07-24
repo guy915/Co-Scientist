@@ -315,14 +315,47 @@ def _validate_research_contacts(
     ]
 
 
+def _interleave_by_source(articles: list[Article]) -> list[Article]:
+    """Round-robin analyzed articles across their source.
+
+    Search results reach this node ranked best-first by retrieval score, which
+    clusters each source's top papers at the front of the list. Presenting that
+    order to the synthesis LLM makes it over-cite the first few references and
+    ignore the tail, so the knowledge base ends up drawn from one source's top
+    hits. Interleaving one paper per source at a time keeps best-first order
+    within each source while ensuring the head of the corpus samples the full
+    breadth of retrieved evidence rather than a single leading cluster.
+
+    Args:
+        articles: Analyzed articles in their incoming best-first order.
+
+    Returns:
+        The same articles reordered round-robin across ``source``.
+    """
+    groups: dict[str, list[Article]] = {}
+    for article in articles:
+        groups.setdefault(article.source, []).append(article)
+    interleaved: list[Article] = []
+    for row in itertools.zip_longest(*groups.values()):
+        interleaved.extend(article for article in row if article is not None)
+    return interleaved
+
+
 def _build_evidence_corpus(
     articles: list[Article] | None,
 ) -> dict[str, dict[str, Any]]:
-    """Build the terminal synthesis corpus from articles actually analyzed."""
+    """Build the terminal synthesis corpus from articles actually analyzed.
+
+    Evidence ids are assigned by presentation order (contiguous
+    ``evidence-1..N``) over the source-interleaved list; downstream consumers
+    treat the id as an opaque handle and the app re-resolves cited topics by
+    title, so the numbering carries no rank meaning.
+    """
+    analyzed = [
+        article for article in (articles or []) if article.used_in_analysis
+    ]
     corpus: dict[str, dict[str, Any]] = {}
-    for index, article in enumerate(articles or []):
-        if not article.used_in_analysis:
-            continue
+    for index, article in enumerate(_interleave_by_source(analyzed)):
         evidence_id = f"evidence-{index + 1}"
         corpus[evidence_id] = {
             "evidence_id": evidence_id,
