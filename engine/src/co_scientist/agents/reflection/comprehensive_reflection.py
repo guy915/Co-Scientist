@@ -165,9 +165,8 @@ async def _call_hypothesis_query_llm(
 ) -> dict[str, Any] | None:
     """Calls the LLM to generate keyword queries for one hypothesis.
 
-    Mechanical extraction of terms already present in the hypothesis, run
-    once per reviewed hypothesis; reasoning adds nothing here and this is a
-    high-frequency call, so thinking is disabled. Returns None on failure.
+    Runs once per reviewed hypothesis, with thinking on as everywhere
+    else. Returns None on failure.
     """
     try:
         return await call_llm_json(
@@ -184,7 +183,6 @@ async def _call_hypothesis_query_llm(
             options=LLMCallOptions(
                 run_id=state.get("run_id"),
                 prompt_name=f"hypothesis_queries_{hypothesis.id}",
-                enable_thinking=False,
             ),
         )
     except Exception as exc:

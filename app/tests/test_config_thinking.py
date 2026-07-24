@@ -1,12 +1,12 @@
 """Tests for the DeepSeek thinking-mode helpers in ``app.config``.
 
-The two helpers translate the app's thinking/non-thinking split into
-provider-specific request params: DeepSeek's native API takes a
-``thinking`` object plus ``reasoning_effort``, while the same models on
-Alibaba Cloud DashScope take ``enable_thinking`` (bool) and reject the
-rest. Getting the DashScope format wrong is silent: thinking defaults
-off there, so the native format would quietly strip reasoning from
-every substantive call.
+The two helpers translate the thinking toggle into provider-specific
+request params: DeepSeek's native API takes a ``thinking`` object plus
+``reasoning_effort``, while the same models on Alibaba Cloud DashScope
+take ``enable_thinking`` (bool) and are sent no effort tier. Getting the
+format wrong is silent -- the two APIs disagree on the default, so the
+wrong shape leaves reasoning to chance rather than erroring. Only the
+thinking variant has call sites today; the opt-out remains as a seam.
 """
 
 from __future__ import annotations
@@ -23,7 +23,7 @@ def test_thinking_kwargs_native_deepseek() -> None:
 
     assert kwargs == {
         "extra_body": {"thinking": {"type": "enabled"}},
-        "reasoning_effort": "low",
+        "reasoning_effort": "high",
     }
 
 

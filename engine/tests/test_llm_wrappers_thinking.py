@@ -3,8 +3,9 @@
 Split from ``test_llm_wrappers.py``: covers how
 ``co_scientist.llm_request._build_completion_args`` maps the thinking
 opt-in/opt-out onto DeepSeek's native ``thinking`` object, DashScope's
-``enable_thinking`` boolean, and ``reasoning_effort`` -- plus the one
-engine node (the tournament matchup judge) that opts out end to end.
+``enable_thinking`` boolean, and ``reasoning_effort``. Every engine node
+thinks; the opt-out cases below cover the seam itself, which no call site
+uses today.
 """
 
 from types import SimpleNamespace
@@ -35,7 +36,7 @@ def test_thinking_enabled_by_default_for_deepseek() -> None:
     )
 
     assert args["extra_body"] == {"thinking": {"type": "enabled"}}
-    assert args["reasoning_effort"] == "low"
+    assert args["reasoning_effort"] == "high"
 
 
 def test_thinking_disabled_drops_reasoning_effort() -> None:
@@ -65,9 +66,10 @@ def test_dashscope_deepseek_uses_enable_thinking_flag() -> None:
     """DeepSeek-on-DashScope thinks via the provider's own boolean knob.
 
     DashScope's compatible-mode endpoint ignores DeepSeek's native
-    ``thinking`` object and defaults thinking OFF, so the native format
-    would silently disable reasoning. It also has no ``reasoning_effort``
-    tiers.
+    ``thinking`` object, so the native format would leave thinking to the
+    provider's default rather than requesting it. ``reasoning_effort`` is
+    omitted on this route: Model Studio accepts it, but the only value
+    wanted is its default.
     """
     from co_scientist.llm_request import (
         CompletionShape,
@@ -116,14 +118,16 @@ def test_thinking_params_absent_for_non_deepseek_models() -> None:
     assert "reasoning_effort" not in args
 
 
-async def test_ranking_matchup_opts_out_of_thinking(
+async def test_ranking_matchup_thinks(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The O(n^2) tournament judge is the one engine node that skips thinking.
+    """The O(n^2) tournament judge reasons, like every other engine node.
 
     Asserted at the litellm seam through the real ``call_llm_json`` ->
-    ``call_llm`` chain, so the opt-out is verified end to end rather than at
-    the ranking call site alone.
+    ``call_llm`` chain, so what the provider actually receives is verified
+    end to end rather than at the ranking call site alone. This is the
+    run's highest-volume call, so a silent regression to a non-thinking
+    judge would be a large quality change with no other symptom.
     """
     import litellm
 
@@ -152,5 +156,5 @@ async def test_ranking_matchup_opts_out_of_thinking(
     )
     await _call_matchup_judge(mp, ctx)
 
-    assert seen["extra_body"] == {"thinking": {"type": "disabled"}}
-    assert "reasoning_effort" not in seen
+    assert seen["extra_body"] == {"thinking": {"type": "enabled"}}
+    assert seen["reasoning_effort"] == "high"

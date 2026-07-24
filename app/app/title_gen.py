@@ -13,13 +13,22 @@ import asyncio
 import logging
 from typing import Any
 
-from app.config import deepseek_non_thinking_extra_body, settings
+from app.config import deepseek_thinking_kwargs, settings
 
 logger = logging.getLogger(__name__)
 
 # Bound the generation so a slow/hung model never blocks a run's title
-# indefinitely; on timeout the caller keeps the goal-clause fallback.
-_TITLE_TIMEOUT_SECONDS = 15.0
+# indefinitely; on timeout the caller keeps the goal-clause fallback. Sized
+# for a reasoning round-trip: the title call thinks, so the old 15s ceiling
+# would have expired into the fallback on most calls.
+_TITLE_TIMEOUT_SECONDS = 30.0
+
+# The title itself is a handful of tokens, but reasoning tokens are drawn
+# from the same budget and are emitted first. A budget sized to the answer
+# alone (the former 24) is spent entirely on the chain of thought, leaving
+# an empty completion, so the ceiling covers the reasoning too. _clean_title
+# discards an over-long reply, so a generous cap costs nothing in output.
+_TITLE_MAX_TOKENS = 1024
 
 # Guard against a model that ignores the brevity instruction and returns a
 # paragraph; a title longer than this is discarded in favor of the fallback.
@@ -66,10 +75,8 @@ async def _request_title_completion(goal: str) -> Any:
                 {"role": "user", "content": goal},
             ],
             temperature=0.3,
-            max_tokens=24,
-            extra_body=deepseek_non_thinking_extra_body(
-                settings.effective_chat_model
-            ),
+            max_tokens=_TITLE_MAX_TOKENS,
+            **deepseek_thinking_kwargs(settings.effective_chat_model),
         ),
         timeout=_TITLE_TIMEOUT_SECONDS,
     )

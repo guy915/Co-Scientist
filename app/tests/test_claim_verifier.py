@@ -179,13 +179,15 @@ def test_no_passages_is_insufficient_without_calling_llm(
     assert draft.label is EntailmentLabel.INSUFFICIENT
 
 
-def test_verdict_call_opts_out_of_thinking(
+def test_verdict_call_thinks(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Grounding runs this judge per claim, so it skips the reasoning spend.
+    """The entailment judge reasons, like every other app call.
 
-    The app-side counterpart to the engine's ranking-tournament opt-out; every
-    other substantive app call still thinks.
+    Thinking is requested explicitly rather than left to the provider: the
+    native DeepSeek API defaults it on, DashScope defaults it off, so an
+    omitted field would mean a judge that reasons locally and silently stops
+    reasoning in production.
     """
     seen: dict[str, Any] = {}
 
@@ -203,5 +205,5 @@ def test_verdict_call_opts_out_of_thinking(
     assessor, _ = make_llm_assessor("deepseek/deepseek-v4-flash")
     assessor("some claim", [_PASSAGE])
 
-    assert seen["extra_body"] == {"thinking": {"type": "disabled"}}
-    assert "reasoning_effort" not in seen
+    assert seen["extra_body"] == {"thinking": {"type": "enabled"}}
+    assert seen["reasoning_effort"] == "high"

@@ -144,13 +144,14 @@ async def _invoke_matchup_judge_call(
     prompt_name: str,
     metadata: dict[str, Any],
 ) -> dict[str, Any]:
-    """Calls the judge LLM with the tournament's reduced-thinking settings.
+    """Calls the judge LLM for one matchup.
 
-    The only engine node that opts out of thinking: the tournament runs one
-    matchup per hypothesis pair, so these calls scale O(n^2) per cycle and
-    their reasoning spend dominates run latency. The prompt already asks
-    for an explicit rationale, so the comparison stays reasoned in the
-    answer itself.
+    Thinking is on, as everywhere else. This is the run's highest-volume
+    call -- one matchup per hypothesis pair, scaling O(n^2) per cycle -- so
+    it is also where reasoning costs the most wall-clock time; the budget
+    below is ``THINKING_MAX_TOKENS`` precisely because the chain of thought
+    is drawn from it. The prompt's per-criterion rationale is now the
+    reasoning made legible for display, not a substitute for it.
     """
     return await call_llm_json(
         prompt=mp.prompt,
@@ -164,7 +165,6 @@ async def _invoke_matchup_judge_call(
             run_id=ctx.run_id,
             prompt_name=prompt_name,
             prompt_metadata=metadata,
-            enable_thinking=False,
         ),
     )
 

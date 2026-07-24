@@ -194,14 +194,13 @@ def deepseek_thinking_extra_body(
     supervisor-routing call is bumped to a thinking-safe budget). Non-DeepSeek
     models get an empty dict.
 
-    Thinking is on for every node except two, both of which opt out via
-    ``enabled=False`` because their latency lands on the run's critical path
-    without buying a better answer. The ranking tournament's pairwise
-    matchups run O(n^2) times per cycle, so reasoning there dominates run
-    latency (see ``agents/ranking/ranking.py``). Supervisor allocation runs
-    once per loop point on the serial spine, and what reaches the model is a
-    choice between two named tasks over statistics the prompt states
-    outright (see ``agents/supervisor/supervisor_decision.py``).
+    Thinking is on for every node. ``enabled=False`` remains the seam for
+    opting a call site out; nothing uses it today. Any future opt-out is a
+    latency decision, and the two call sites where it would pay are the
+    ranking tournament's pairwise matchups, which run O(n^2) times per cycle
+    (``agents/ranking/ranking_debate.py``), and supervisor allocation, which
+    runs once per loop point on the run's serial spine where nothing else is
+    executing (``agents/supervisor/supervisor_decision.py``).
 
     DashScope (Alibaba Cloud) serves the same DeepSeek models behind its
     OpenAI-compatible endpoint but controls thinking with a different knob:
@@ -229,26 +228,37 @@ def deepseek_thinking_extra_body(
 def reasoning_effort_args(
     model_name: str, *, enabled: bool = True
 ) -> dict[str, Any]:
-    """Kwargs selecting the lightest reasoning tier, when supported.
+    """Kwargs selecting the reasoning tier, when supported.
 
-    The lightest tier that still thinks, to bound the latency and token
-    cost of reasoning on every call. Empty for models without a thinking
-    mode, when thinking is disabled for the call, and on DashScope, whose
-    compatible-mode endpoint does not support ``reasoning_effort``.
+    ``high`` is the floor, not a high setting. DeepSeek implements exactly
+    two tiers, ``high`` and ``max``, and accepts OpenAI's lower names
+    (``low``, ``medium``) as aliases onto ``high`` -- the parameter and its
+    vocabulary are OpenAI's, and DeepSeek only supports the top of that
+    ladder. There is no cheaper way to think than this; the rung below is
+    ``enabled=False``. ``high`` is also DeepSeek's default once thinking is
+    on, so this field is belt-and-braces: litellm 1.80.x strips
+    ``reasoning_effort`` from the body outright (BerriAI/litellm#27439), and
+    since the value equals the default, that bug is inert. Sending it keeps
+    the intent explicit and the call correct once the fix lands.
+
+    Empty for models without a thinking mode, when thinking is disabled for
+    the call, and on DashScope -- Model Studio does accept the parameter
+    (``high``/``max``, default ``high``), but the only value wanted there is
+    that default.
 
     Args:
         model_name: Model name in litellm format.
         enabled: Whether thinking mode is requested for this call.
 
     Returns:
-        ``{"reasoning_effort": "low"}`` when the tier applies, else ``{}``.
+        ``{"reasoning_effort": "high"}`` when the tier applies, else ``{}``.
     """
     if (
         enabled
         and deepseek_thinking_extra_body(model_name)
         and not _is_dashscope(model_name)
     ):
-        return {"reasoning_effort": "low"}
+        return {"reasoning_effort": "high"}
     return {}
 
 

@@ -275,10 +275,10 @@ async def test_failed_durable_task_still_consults_the_model(
 
 
 @pytest.mark.asyncio
-async def test_allocation_runs_on_the_worker_model_without_thinking(
+async def test_allocation_runs_on_the_worker_model_with_thinking(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The open choice is a classification, not a reasoning problem."""
+    """Allocation reasons, on the worker model, uncached."""
     seen: dict[str, Any] = {}
 
     async def _allocation(**kwargs: Any) -> dict[str, str]:
@@ -296,7 +296,7 @@ async def test_allocation_runs_on_the_worker_model_without_thinking(
     assert provenance == "model"
     assert seen["spec"].model_name == state["model_name"]
     assert seen["spec"].model_name != state["supervisor_model_name"]
-    assert seen["options"].enable_thinking is False
+    assert seen["options"].enable_thinking is True
     # Allocation must never be served from cache: it is a decision about
     # live state, and identical prompts recur across loop points.
     assert seen["options"].use_cache is False

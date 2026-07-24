@@ -273,15 +273,13 @@ async def _call_supervisor_planner(
 ) -> SupervisorDecision:
     """Calls the allocation model and validates its proposed allocation.
 
-    Runs on the worker model with thinking off. What reaches this call is
-    no longer open-ended planning: the required transitions are already
-    settled in code, leaving a choice between two named tasks over
-    statistics the prompt states outright, plus optional queue actions on a
-    listed set of task ids. That is a classification against supplied
-    numbers rather than a reasoning problem, and every answer is bounded by
-    ``validate_decision`` and the guards around it. The reasoning tier's
-    latency lands squarely on the run's serial spine, so it is spent where
-    it changes an answer instead of on every loop point.
+    Runs on the worker model with thinking on. Note where this call sits:
+    the required transitions are already settled in code, so what reaches
+    the model is the open generation-vs-evolution judgement, and the whole
+    cohort waits on the answer -- this is the run's serial spine, where
+    latency is added wall-clock time rather than time overlapped with other
+    work. Every answer stays bounded by ``validate_decision`` and the guards
+    around it.
     """
     response = await call_llm_json(
         prompt=_planning_prompt(state, stats, budget),
@@ -295,7 +293,6 @@ async def _call_supervisor_planner(
             run_id=state.get("run_id"),
             prompt_name="supervisor_allocation",
             prompt_metadata={"iteration": stats.iteration},
-            enable_thinking=False,
         ),
     )
     proposed = SupervisorDecision(

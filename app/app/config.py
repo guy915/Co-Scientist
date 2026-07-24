@@ -175,9 +175,12 @@ def _is_dashscope(model_name: str) -> bool:
     """Whether ``model_name`` routes through Alibaba Cloud DashScope.
 
     DashScope serves the same DeepSeek V4 tiers behind its OpenAI-compatible
-    endpoint but controls thinking with ``enable_thinking`` (bool, default
-    off) instead of DeepSeek's native ``thinking`` object, and does not
-    support ``reasoning_effort``.
+    endpoint but controls thinking with ``enable_thinking`` (bool) instead of
+    DeepSeek's native ``thinking`` object, so the toggle has to be written
+    differently per route. Model Studio does accept ``reasoning_effort``
+    (``high``/``max``, defaulting to ``high``); it is left off the DashScope
+    route because the only value we want there is that default, so sending it
+    would add a per-provider difference that buys nothing.
     """
     return model_name.lower().startswith("dashscope/")
 
@@ -185,17 +188,14 @@ def _is_dashscope(model_name: str) -> bool:
 def deepseek_non_thinking_extra_body(model_name: str) -> dict[str, object]:
     """Return an ``extra_body`` that disables DeepSeek V4 thinking mode.
 
-    Reserved for the two call sites where reasoning does not earn its cost:
-
-    - Title generation, a three-word extraction with ``max_tokens=24`` that a
-      reasoning spend would leave empty.
-    - Claim verification (``claim_verifier.py``), which runs once per claim per
-      hypothesis; it is the app-side high-frequency counterpart to the engine's
-      ranking tournament, and its verdict is a lookup against supplied passages
-      rather than an open-ended judgment.
-
-    Every other app call uses the thinking variant below. Non-DeepSeek models
-    get an empty dict.
+    The seam for opting a call site out of thinking; every app call uses the
+    thinking variant below, so nothing calls this today. Note what an opt-out
+    buys back beyond latency: a non-thinking call spends its whole token
+    budget on the answer, which is why the two call sites that formerly used
+    this -- title generation and claim verification -- could run on budgets
+    sized to their output alone. Reinstating it anywhere means revisiting
+    that call's ``max_tokens`` in the same edit. Non-DeepSeek models get an
+    empty dict.
 
     Args:
         model_name: Model name in litellm format.
@@ -218,21 +218,27 @@ def deepseek_thinking_kwargs(model_name: str) -> dict[str, object]:
     ``reasoning_content`` and never fold it into ``content``, so structured
     parsing survives as long as ``max_tokens`` leaves room for the answer after
     the reasoning spend (the interview and claim-verifier budgets are sized for
-    that). ``reasoning_effort='low'`` is the lightest reasoning tier that still
-    thinks, chosen to bound the added latency and token cost of reasoning on
-    every call. Spread into a completion call (``**deepseek_thinking_kwargs``).
-    Used by every substantive app call (interview, Q&A, safety); titling and
-    claim verification keep the non-thinking variant above. Non-DeepSeek models
-    get an empty dict.
+    that). ``reasoning_effort='high'`` is the *floor*, not a high setting:
+    DeepSeek implements only ``high`` and ``max`` and accepts OpenAI's lower
+    names as aliases onto ``high``, so there is no cheaper tier than this
+    short of switching thinking off. It is also DeepSeek's own default once
+    thinking is enabled, which makes the field belt-and-braces rather than
+    load-bearing -- litellm 1.80.x drops ``reasoning_effort`` from the
+    request body entirely (BerriAI/litellm#27439), and because the value
+    matches the provider default that bug changes nothing here. Sending it
+    anyway means the intent is recorded and the call is already correct when
+    the fix lands. Spread into a completion call
+    (``**deepseek_thinking_kwargs``). Used by every app call: interview,
+    Q&A, safety, titling, and claim verification. Non-DeepSeek models get an
+    empty dict.
 
     Args:
         model_name: Model name in litellm format.
 
     Returns:
         ``{"extra_body": {"thinking": {"type": "enabled"}}, "reasoning_effort":
-        "low"}`` for DeepSeek models, ``{"extra_body": {"enable_thinking":
-        True}}`` for DeepSeek-on-DashScope (which has no reasoning_effort
-        tiers), else ``{}``.
+        "high"}`` for DeepSeek models, ``{"extra_body": {"enable_thinking":
+        True}}`` for DeepSeek-on-DashScope, else ``{}``.
     """
     if not _is_deepseek(model_name):
         return {}
@@ -240,5 +246,5 @@ def deepseek_thinking_kwargs(model_name: str) -> dict[str, object]:
         return {"extra_body": {"enable_thinking": True}}
     return {
         "extra_body": {"thinking": {"type": "enabled"}},
-        "reasoning_effort": "low",
+        "reasoning_effort": "high",
     }

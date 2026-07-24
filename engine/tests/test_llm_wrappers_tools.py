@@ -171,7 +171,7 @@ async def test_tool_loop_applies_provider_quirks(
         CompletionSpec(model_name="deepseek/deepseek-v4-pro"),
         ToolLoop(tools=_SEARCH_TOOL, executor=_raising_tool_executor),
     )
-    assert captured["reasoning_effort"] == "low"
+    assert captured["reasoning_effort"] == "high"
 
 
 def test_message_to_history_preserves_reasoning_content() -> None:
