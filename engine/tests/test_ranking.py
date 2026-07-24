@@ -413,3 +413,73 @@ def test_matchup_judging_survives_more_than_one_event_loop(
     asyncio.run(judge_a_full_wave())
     # A second task, on a second loop, is the case that broke.
     asyncio.run(judge_a_full_wave())
+
+
+def test_tournament_budget_is_spent_across_the_whole_run() -> None:
+    """tournament_pairs is a run-level allowance, not a per-invocation one.
+
+    The scheduler asks for ranking once per cycle. Charging each invocation
+    the full allowance is how a standard run configured for 12 matches came
+    to judge about 22, every one of them real model work on the serial
+    spine.
+    """
+    from co_scientist.agents.ranking.ranking_lifecycle import (
+        _tournament_round_count,
+    )
+    from co_scientist.models import ExecutionMetrics
+
+    hypotheses = [make_hypothesis(text=f"h{i}") for i in range(4)]
+
+    fresh = make_state(hypotheses=hypotheses, tournament_pairs=12)
+    assert _tournament_round_count(fresh, hypotheses) == 12
+
+    partway = make_state(
+        hypotheses=hypotheses,
+        tournament_pairs=12,
+        metrics=ExecutionMetrics(tournaments_count=9),
+    )
+    assert _tournament_round_count(partway, hypotheses) == 3
+
+    spent = make_state(
+        hypotheses=hypotheses,
+        tournament_pairs=12,
+        metrics=ExecutionMetrics(tournaments_count=12),
+    )
+    assert _tournament_round_count(spent, hypotheses) == 0
+
+
+def test_budget_is_not_refunded_when_dedup_removes_hypotheses() -> None:
+    """Consumed rounds come from run metrics, not from the surviving pool.
+
+    Proximity dedup removes hypotheses and their match tallies with them.
+    Recounting from the pool would hand the run back budget it had already
+    spent every time the pool was cleaned.
+    """
+    from co_scientist.agents.ranking.ranking_lifecycle import (
+        consumed_tournament_rounds,
+    )
+    from co_scientist.models import ExecutionMetrics
+
+    state = make_state(
+        hypotheses=[],
+        tournament_pairs=12,
+        metrics=ExecutionMetrics(tournaments_count=8),
+    )
+
+    assert consumed_tournament_rounds(state) == 8
+
+
+async def test_ranking_node_is_a_no_op_once_the_budget_is_spent() -> None:
+    """A spent budget skips the tournament instead of buying another."""
+    from co_scientist.models import ExecutionMetrics
+
+    hypotheses = [make_hypothesis(text=f"h{i}") for i in range(4)]
+    state = make_state(
+        hypotheses=hypotheses,
+        tournament_pairs=6,
+        metrics=ExecutionMetrics(tournaments_count=6),
+    )
+
+    result = await ranking_node(state)
+
+    assert result == {"hypotheses": hypotheses}

@@ -320,3 +320,27 @@ def _terminate_decision() -> SupervisorDecision:
         terminate=True,
         termination_reason=TerminationReason.CONVERGED,
     )
+
+
+def test_spent_tournament_budget_stops_asking_to_rank() -> None:
+    """An exhausted budget must not be scheduled against forever.
+
+    Coverage is a property of the pool and can sit below its threshold
+    permanently. Once the run's tournament budget is spent, ranking can no
+    longer move it, so a scheduler blind to the budget would request a task
+    that returns immediately, every cycle, for the rest of the run.
+    """
+    stats = _healthy_stats(match_coverage=0.0, tournament_rounds_remaining=0)
+
+    decision = decide_next_task(stats, _BUDGET, min_match_coverage=1.0)
+
+    assert decision.next_task is not TaskType.RANK
+
+
+def test_remaining_tournament_budget_still_ranks() -> None:
+    """Low coverage with budget left is still answered by ranking."""
+    stats = _healthy_stats(match_coverage=0.0, tournament_rounds_remaining=4)
+
+    decision = decide_next_task(stats, _BUDGET, min_match_coverage=1.0)
+
+    assert decision.next_task is TaskType.RANK

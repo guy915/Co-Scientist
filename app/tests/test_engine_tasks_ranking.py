@@ -156,3 +156,62 @@ def test_progress_cadence_survives_a_stride_that_skips_boundaries() -> None:
     assert reports(1, every - 1) is None
     # A stride spanning several boundaries reports the newest reached.
     assert reports(0, every * 3 + 1) == every * 3
+
+
+@pytest.mark.asyncio
+async def test_spent_budget_schedules_no_tournament(
+    isolated_db: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A run out of tournament budget must not open another tournament.
+
+    Not merely wasted work: entering a tournament clears
+    ``pending_ranking_matchups``, so an empty one overwrites the matches
+    the run already judged. The scheduler asks for ranking once per cycle,
+    so this is the ordinary case late in a run, and the symptom was a
+    completed run reporting zero matches after judging a full round.
+    """
+    run = store.create_run("Spent budget", "standard", "engine", {})
+    _seed_ranking_node(
+        run.id,
+        monkeypatch,
+        _RankingSeed(
+            hypothesis_count=8,
+            tournament_pairs=6,
+            idempotency_key="spent-budget-ranking-node",
+            consumed_rounds=6,
+        ),
+        isolated_db,
+    )
+    _install_plain_fake_judge(monkeypatch)
+
+    scheduled = await _run_ranking_node(run.id, isolated_db)
+
+    assert scheduled.get("tournament_rounds") is None
+    # The node still advances the run; it just opens no tournament.
+    successor = store.claim_task("w", run_id=run.id, db_path=isolated_db)
+    assert successor is not None
+    assert successor.task_type != engine_tasks.RANKING_MATCH_TASK
+
+
+@pytest.mark.asyncio
+async def test_partial_budget_schedules_only_what_is_left(
+    isolated_db: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Remaining budget, not the tier's full allowance, sizes the pass."""
+    run = store.create_run("Partial budget", "standard", "engine", {})
+    _seed_ranking_node(
+        run.id,
+        monkeypatch,
+        _RankingSeed(
+            hypothesis_count=8,
+            tournament_pairs=12,
+            idempotency_key="partial-budget-ranking-node",
+            consumed_rounds=9,
+        ),
+        isolated_db,
+    )
+    _install_plain_fake_judge(monkeypatch)
+
+    scheduled = await _run_ranking_node(run.id, isolated_db)
+
+    assert int(scheduled["tournament_rounds"]) == 3

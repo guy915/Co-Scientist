@@ -109,6 +109,14 @@ class SchedulerStats:
     # than minimum so the gate is reachable by a bounded tournament.
     total_matches: int = 0
     match_coverage: float = 0.0
+    # Matches the run's tournament budget can still afford. The coverage
+    # check must see this: coverage is a property of the pool and can sit
+    # below its threshold forever, so once the budget is spent a scheduler
+    # blind to it would request ranking every cycle and get a no-op back.
+    # None means the caller did not compute a budget, which must read as
+    # "unbounded" -- a numeric default would make every stats object built
+    # without this field look exhausted and silently stop ranking.
+    tournament_rounds_remaining: int | None = None
     # Proximity refresh: pool grew (generate/evolve added rows) since the last
     # proximity pass, so clustering/matchmaking should be refreshed.
     pool_grew_since_proximity: bool = False

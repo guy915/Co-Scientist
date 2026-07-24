@@ -379,4 +379,11 @@ async def ranking_node(state: WorkflowState) -> dict[str, Any]:
         logger.warning("Need at least 2 hypotheses for tournament")
         return {"hypotheses": hypotheses}
 
+    # tournament_pairs is a whole-run budget. The scheduler asks for ranking
+    # once per cycle, so without this the run would keep buying another full
+    # tournament every cycle for the life of the run.
+    if _tournament_round_count(state, hypotheses) < 1:
+        logger.info("Tournament budget spent for this run; skipping")
+        return {"hypotheses": hypotheses}
+
     return await _run_tournament(state, hypotheses, eligible)

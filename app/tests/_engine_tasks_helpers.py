@@ -156,11 +156,14 @@ class _RankingSeed:
         hypothesis_count: Reviewed-viable hypotheses to seed.
         tournament_pairs: Tournament pair budget put into state.
         idempotency_key: Key the queued ranking node task is enqueued under.
+        consumed_rounds: Matches the run has already charged against the
+            budget, as the accumulated run metric records them.
     """
 
     hypothesis_count: int
     tournament_pairs: int
     idempotency_key: str
+    consumed_rounds: int = 0
 
 
 def _seed_ranking_node(
@@ -175,6 +178,7 @@ def _seed_ranking_node(
         {
             "hypotheses": _viable_hypotheses(seed.hypothesis_count),
             "tournament_pairs": seed.tournament_pairs,
+            "metrics": ExecutionMetrics(tournaments_count=seed.consumed_rounds),
         }
     )
     checkpoint_seq = _seed_checkpoint(run_id, state)

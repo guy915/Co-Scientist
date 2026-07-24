@@ -18,6 +18,9 @@ import logging
 import time
 from typing import Any
 
+from co_scientist.agents.ranking.ranking_lifecycle import (
+    _tournament_round_count,
+)
 from co_scientist.agents.supervisor.supervisor_decision import (
     WORK_TASKS,
     choose_supervisor_task,
@@ -212,6 +215,9 @@ def _build_scheduler_stats(
         rankable_count=scalars.rankable_count,
         total_matches=scalars.total_matches,
         match_coverage=scalars.avg_coverage,
+        tournament_rounds_remaining=_tournament_round_count(
+            state, state.get("hypotheses") or []
+        ),
         pool_grew_since_proximity=(
             pool_size > int(book.get("pool_at_last_proximity", pool_size))
         ),

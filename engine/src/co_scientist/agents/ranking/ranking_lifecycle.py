@@ -69,21 +69,43 @@ def _sort_hypotheses_for_tournament(hypotheses: list[Hypothesis]) -> None:
     )
 
 
+def consumed_tournament_rounds(state: WorkflowState) -> int:
+    """Return how many tournament matches this run has already judged.
+
+    Read from the run's accumulated metrics rather than recounted from the
+    pool. A hypothesis carries its own match tally, but proximity dedup
+    removes hypotheses and their tallies with them, so a recount would fall
+    as the pool was cleaned and hand the run back budget it had already
+    spent. The metric only ever accumulates.
+    """
+    metrics = state.get("metrics")
+    return max(0, int(getattr(metrics, "tournaments_count", 0) or 0))
+
+
 def _tournament_round_count(
     state: WorkflowState, hypotheses: list[Hypothesis]
 ) -> int:
-    """Resolves the tier-configured tournament round count.
+    """Resolves the run's *remaining* tournament round allowance.
 
-    tournament_pairs is normally set upstream from the run-tier config
-    (e.g. 6/12/20/32 pairs for express/default/extended/ultra); the
-    "or len(hypotheses)" fallback only applies if it is missing/zero
-    (e.g. ad-hoc/test state).
+    tournament_pairs is a whole-run budget, not a per-invocation one. It is
+    set upstream from the run-tier config (6/12/20/32 pairs for
+    express/default/extended/ultra); the "or len(hypotheses)" fallback only
+    applies if it is missing/zero (e.g. ad-hoc/test state).
+
+    It used to be spent in full by every ranking invocation, and the
+    scheduler runs ranking once per cycle -- so a standard run configured
+    for 12 matches judged about 22, and an ultra run far more. Each match
+    is real model work on the run's serial spine.
+
+    Returns:
+        Matches still affordable this run; zero once the budget is spent.
     """
-    tournament_rounds = max(
-        1, int(state.get("tournament_pairs") or len(hypotheses))
+    budget = max(1, int(state.get("tournament_pairs") or len(hypotheses)))
+    remaining = max(0, budget - consumed_tournament_rounds(state))
+    logger.info(
+        "Tournament budget: %s of %s rounds remaining", remaining, budget
     )
-    logger.info("Running %s tournament rounds", tournament_rounds)
-    return tournament_rounds
+    return remaining
 
 
 async def _prepare_ranking_round(

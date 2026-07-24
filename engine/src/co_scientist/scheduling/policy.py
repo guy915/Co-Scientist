@@ -236,7 +236,15 @@ def _check_tournament_coverage(
     nothing to rank and demanding coverage would loop the orchestrator
     forever (a pool of evidence-gate-rejected ideas can never accrue
     matches).
+
+    The run's tournament budget is the same kind of guard. Coverage is a
+    property of the pool and may never reach its threshold, so once the
+    budget is spent ranking can no longer move it -- asking again would
+    schedule a task that returns immediately, forever.
     """
+    remaining = stats.tournament_rounds_remaining
+    if remaining is not None and remaining < 1:
+        return None
     if stats.rankable_count >= 2 and stats.match_coverage < min_match_coverage:
         return SupervisorDecision(
             next_task=TaskType.RANK,

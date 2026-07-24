@@ -79,9 +79,19 @@ async def _schedule_ranking_chain(
 ) -> dict[str, Any] | None:
     """Prepare a tournament and schedule its first sequential match task."""
     from co_scientist.agents.ranking.ranking import _prepare_ranking_round
+    from co_scientist.agents.ranking.ranking_lifecycle import (
+        _tournament_round_count,
+    )
 
     eligible = _ranking_eligible(state)
     if len(eligible) < 2:
+        return None
+    # tournament_pairs is a whole-run budget and the scheduler asks for
+    # ranking once per cycle, so this is the common case late in a run.
+    # Scheduling anyway would not merely waste a task: the tournament
+    # clears pending_ranking_matchups on entry, so an empty one overwrites
+    # the matches the run already judged.
+    if _tournament_round_count(state, state["hypotheses"]) < 1:
         return None
     rounds, *_ = await _prepare_ranking_round(state, eligible)
     state["pending_ranking_matchups"] = []
