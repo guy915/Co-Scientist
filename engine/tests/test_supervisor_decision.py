@@ -340,3 +340,41 @@ async def test_repeated_maintenance_cannot_stall_iteration_budget(
 
     assert decision.next_task is TaskType.EVOLVE
     assert provenance == "hard-invariant"
+
+
+def test_hard_stop_yields_to_owed_coverage_but_not_to_cancellation() -> None:
+    """_hard_stop defers budget stops when coverage remains, but not cancels.
+
+    _hard_stop runs after required_transition, so without this the RANK the
+    policy just chose is overridden and the feature never reaches a run.
+    """
+    from co_scientist.agents.supervisor.supervisor_decision import _hard_stop
+    from co_scientist.scheduling import (
+        Budget,
+        SchedulerStats,
+        SupervisorDecision,
+        TaskType,
+    )
+
+    budget = Budget(max_iterations=5, max_llm_calls=10)
+    settling = SupervisorDecision(next_task=TaskType.RANK, reason="settle")
+    stats = SchedulerStats(
+        pool_size=6,
+        rankable_count=6,
+        unmatched_rankable_count=2,
+        llm_calls=99,
+    )
+
+    assert _hard_stop(stats, budget, settling) is None
+
+    cancelled = SchedulerStats(
+        pool_size=6,
+        rankable_count=6,
+        unmatched_rankable_count=2,
+        llm_calls=99,
+        cancelled=True,
+    )
+    stop = _hard_stop(cancelled, budget, settling)
+
+    assert stop is not None
+    assert stop.next_task is TaskType.TERMINATE

@@ -39,6 +39,15 @@ _PRODUCTIVE_TASKS = (
 # iteration bookkeeping and the post-budget growth guard here agree on the set.
 WORK_TASKS = frozenset({TaskType.GENERATE, TaskType.EVOLVE})
 
+# Stops no amount of owed tournament coverage may defer. The operator asked
+# the run to stop, or the content is unsafe; more work is wrong either way.
+# The budget family defers instead, because a hypothesis stranded without any
+# tournament result is a worse outcome than a bounded overshoot of a ceiling
+# that exists to catch runaways.
+_IMMEDIATE_STOP_REASONS = frozenset(
+    {TerminationReason.CANCELLED, TerminationReason.SAFETY}
+)
+
 _DECISION_SCHEMA: dict[str, Any] = {
     "name": "supervisor_allocation",
     "schema": {
@@ -99,6 +108,14 @@ def _hard_stop(
         # scheduler predicates after required review/ranking/proximity work.
         return baseline if baseline.terminate else None
     termination_reason, message = reason
+    settles_coverage = (
+        baseline.next_task is TaskType.RANK
+        and stats.unmatched_rankable_count > 0
+    )
+    if settles_coverage and termination_reason not in _IMMEDIATE_STOP_REASONS:
+        # Defer to the scheduler's owed-coverage round. Bounded by the
+        # settlement allowance, so this cannot postpone the stop forever.
+        return None
     return SupervisorDecision(
         next_task=TaskType.TERMINATE,
         reason=message,
