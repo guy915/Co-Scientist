@@ -1,22 +1,17 @@
-import {
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type Dispatch,
-  type ReactNode,
-  type SetStateAction,
-} from 'react';
+import {useEffect, useMemo, useRef, useState, type ReactNode} from 'react';
 import {deleteAppLogs} from '@/api/logs';
 import {Icon, type IconName} from '@/components/icon';
 import {copyText} from '@/lib/clipboard';
 import {joinClasses} from './classes';
 import {
-  COPY_LIMIT,
   summarizeDiagnosticEntries,
   type DiagnosticCounts,
   type DiagnosticLogEntry,
 } from './layout_diagnostics_data';
+import {
+  browserExportContext,
+  formatDiagnosticExport,
+} from './layout_diagnostics_export';
 import {
   useDiagnosticIngest,
   useNavigationLog,
@@ -162,7 +157,8 @@ function LogsTriggerButton({
  * route, numbered by the store's consecutive ids. In-page diagnostic
  * events and route navigations are shipped to that log via the ingestion
  * endpoint, Clear deletes the persisted log (server-side), and Copy
- * serializes only the newest {@link COPY_LIMIT} entries.
+ * exports a context preamble plus the newest entries (see
+ * layout_diagnostics_export).
  *
  * @param props.open Whether the popover is shown; owned by the parent shell
  *   so it stays mutually exclusive with the Settings popover.
@@ -176,17 +172,74 @@ interface DiagnosticsControlProps {
   renderPopover: (children: ReactNode, className: string) => ReactNode;
 }
 
-// Builds the Copy/Clear handlers for the popover: Copy serializes the
-// newest COPY_LIMIT entries to the clipboard, Clear deletes the persisted
-// log server-side. Both flip local UI state the caller owns.
-function makeDiagnosticActions(
-  entries: DiagnosticLogEntry[],
-  setCopied: Dispatch<SetStateAction<boolean>>,
-  bumpVersion: () => void,
-) {
+// How long the Copy button reads "Copied" before returning to "Copy".
+// Long enough to register as confirmation, short enough that the control
+// never looks stuck — a second copy must not have to guess whether the
+// label is stale.
+const COPIED_RESET_MS = 2_000;
+
+// Owns the transient "Copied" label: set it on a successful copy, and let
+// it expire on its own. The timer is cancelled on unmount and before each
+// re-set, so a rapid second copy restarts the window rather than being
+// cleared by the first one's pending timeout.
+function useCopiedFlag() {
+  const [copied, setCopied] = useState(false);
+  const timerRef = useRef<number | null>(null);
+
+  function cancel() {
+    if (timerRef.current !== null) window.clearTimeout(timerRef.current);
+    timerRef.current = null;
+  }
+
+  useEffect(() => cancel, []);
+
+  return {
+    copied,
+    markCopied() {
+      cancel();
+      setCopied(true);
+      timerRef.current = window.setTimeout(
+        () => setCopied(false),
+        COPIED_RESET_MS,
+      );
+    },
+    resetCopied() {
+      cancel();
+      setCopied(false);
+    },
+  };
+}
+
+// Everything the Copy/Clear handlers act on, bundled so the builder stays
+// within the shared argument ceiling.
+interface DiagnosticActionDeps {
+  entries: DiagnosticLogEntry[];
+  total: number;
+  counts: DiagnosticCounts;
+  copiedFlag: ReturnType<typeof useCopiedFlag>;
+  bumpVersion: () => void;
+}
+
+// Builds the Copy/Clear handlers for the popover: Copy writes the export
+// (context preamble + newest entries) to the clipboard, Clear deletes the
+// persisted log server-side. Both flip local UI state the caller owns.
+function makeDiagnosticActions({
+  entries,
+  total,
+  counts,
+  copiedFlag,
+  bumpVersion,
+}: DiagnosticActionDeps) {
   async function onCopy() {
-    await copyText(JSON.stringify(entries.slice(-COPY_LIMIT), null, 2));
-    setCopied(true);
+    await copyText(
+      formatDiagnosticExport({
+        entries,
+        total,
+        counts,
+        context: browserExportContext(),
+      }),
+    );
+    copiedFlag.markCopied();
   }
 
   async function onClear() {
@@ -195,7 +248,7 @@ function makeDiagnosticActions(
     } catch {
       // Unreachable API: leave the list as-is; the next poll re-syncs.
     }
-    setCopied(false);
+    copiedFlag.resetCopied();
     bumpVersion();
   }
 
@@ -211,18 +264,20 @@ export function DiagnosticsControl({
   // so the fetch effect re-runs immediately instead of waiting for a poll.
   const [version, setVersion] = useState(0);
   const bumpVersion = () => setVersion(current => current + 1);
-  const [copied, setCopied] = useState(false); // Copy button shows "Copied"
+  const copiedFlag = useCopiedFlag(); // Copy button shows "Copied"
   useDiagnosticIngest(bumpVersion);
   useNavigationLog(bumpVersion);
   const {entries, total} = usePersistedAppLogs(version, open);
   // Memoized on the entries array, which only changes when a load applies
   // — closed-state badge polls never pay for the tallies.
   const counts = useMemo(() => summarizeDiagnosticEntries(entries), [entries]);
-  const {onCopy, onClear} = makeDiagnosticActions(
+  const {onCopy, onClear} = makeDiagnosticActions({
     entries,
-    setCopied,
+    total,
+    counts,
+    copiedFlag,
     bumpVersion,
-  );
+  });
 
   return (
     <>
@@ -232,7 +287,7 @@ export function DiagnosticsControl({
           <DiagnosticLogsPanel
             entries={entries}
             total={total}
-            copied={copied}
+            copied={copiedFlag.copied}
             counts={counts}
             onClear={() => void onClear()}
             onCopy={() => void onCopy()}

@@ -134,8 +134,20 @@ export function installUiInteractionLogging(): () => void {
  *
  * @returns A function that removes the listeners again.
  */
+// Browser notices that arrive as window "error" events without anything
+// having failed. A ResizeObserver whose callback changes layout makes the
+// browser announce an undelivered-notification loop this way: it carries
+// no error object, no file and no line, and the layout still settles.
+// Persisting them costs an ERROR row each — they arrive many per second,
+// and the panel shows a fixed newest-100 window, so a burst evicts the
+// records someone opened the panel to read. A callback that genuinely
+// throws still surfaces: that arrives as its own exception with a stack,
+// which this pattern does not match.
+const BENIGN_ERROR_PATTERN = /^(Uncaught )?ResizeObserver loop /;
+
 export function installUiErrorLogging(): () => void {
   function onError(event: ErrorEvent) {
+    if (BENIGN_ERROR_PATTERN.test(event.message)) return;
     const where = event.filename
       ? ` (${event.filename}:${event.lineno ?? 0})`
       : '';

@@ -56,7 +56,20 @@ function scheduleFits(fit: () => void, el: HTMLSpanElement): () => void {
   void document.fonts?.ready.then(() => {
     if (!cancelled) fit();
   });
-  const observer = new ResizeObserver(fit);
+  // The re-fit is deferred to the next frame rather than run inside the
+  // observer callback: fit() rewrites the observed node's own text, so a
+  // synchronous call resizes an element in the middle of the delivery it
+  // was triggered by. The browser reports that as an uncaught
+  // "ResizeObserver loop completed with undelivered notifications" error,
+  // which the UI error logger then persists — dozens of ERROR rows a
+  // second on any list of truncated labels. Deferring keeps the write out
+  // of the observation cycle, and fit() is idempotent for a given width,
+  // so the next frame settles instead of oscillating.
+  let queued = 0;
+  const observer = new ResizeObserver(() => {
+    cancelAnimationFrame(queued);
+    queued = requestAnimationFrame(fit);
+  });
   observer.observe(el);
   const onVisible = () => {
     if (!document.hidden) fit();
@@ -65,6 +78,7 @@ function scheduleFits(fit: () => void, el: HTMLSpanElement): () => void {
   return () => {
     cancelled = true;
     cancelAnimationFrame(raf);
+    cancelAnimationFrame(queued);
     observer.disconnect();
     document.removeEventListener('visibilitychange', onVisible);
   };

@@ -170,6 +170,11 @@ it('re-fits when the ResizeObserver reports a size change', async () => {
   const instance = FakeResizeObserver.instances.at(-1)!;
   act(() => instance.trigger());
 
+  // The re-fit lands on the next frame, not inside the observer callback:
+  // rewriting the observed node's text from within the delivery is what
+  // makes the browser report a ResizeObserver loop as an uncaught error.
+  expect(span.textContent).not.toBe(text);
+  await flushNextFrame();
   expect(span.textContent).toBe(text);
 });
 

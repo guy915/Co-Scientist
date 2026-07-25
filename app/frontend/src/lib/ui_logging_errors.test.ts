@@ -30,6 +30,21 @@ it('persists uncaught errors', () => {
   uninstall();
 });
 
+it('ignores the browser ResizeObserver loop notice', () => {
+  const uninstall = installUiErrorLogging();
+  window.dispatchEvent(
+    new ErrorEvent('error', {
+      message: 'ResizeObserver loop completed with undelivered notifications.',
+    }),
+  );
+
+  // Nothing failed: the layout settles, the notice carries no error and no
+  // location, and it arrives many times a second — persisting it evicts
+  // the records the panel's fixed window was opened to show.
+  expect(logsApiMock.postAppLogs).not.toHaveBeenCalled();
+  uninstall();
+});
+
 it('persists unhandled promise rejections', () => {
   const uninstall = installUiErrorLogging();
   const event = new Event('unhandledrejection') as Event & {
