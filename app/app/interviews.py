@@ -15,7 +15,7 @@ from pydantic import BaseModel, Field
 from app import store
 from app.audience import AUDIENCE_PATTERN
 from app.auth import client_id
-from app.config import deepseek_thinking_kwargs
+from app.config import deepseek_thinking_kwargs, thinking_safe_max_tokens
 from app.interviews_prompts import (
     _RESPONSE_SCHEMA as _RESPONSE_SCHEMA,
 )
@@ -108,9 +108,11 @@ async def _stream_interview_content(
         response_format=response_format,
         temperature=0.3,
         # Thinking spends reasoning tokens against this budget before the
-        # four-field answer; 1.5k sufficed for short transcripts, 3k leaves
-        # headroom for longer interviews.
-        max_tokens=3_000,
+        # four-field answer, so the floor covers the reasoning and 3k is
+        # what remains for the answer -- ample for four short fields.
+        # Sizing this for the answer alone is what leaves a run untitled
+        # and an interview turn blank; see thinking_safe_max_tokens.
+        max_tokens=thinking_safe_max_tokens(model, 3_000),
         stream=True,
         **deepseek_thinking_kwargs(model),
     )

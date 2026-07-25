@@ -215,9 +215,12 @@ def deepseek_thinking_kwargs(model_name: str) -> dict[str, object]:
 
     DeepSeek V4 (pro/flash) return chain-of-thought separately as
     ``reasoning_content`` and never fold it into ``content``, so structured
-    parsing survives as long as ``max_tokens`` leaves room for the answer after
-    the reasoning spend (the interview and claim-verifier budgets are sized for
-    that). ``reasoning_effort='high'`` is the *floor*, not a high setting:
+    parsing survives as long as ``max_tokens`` leaves room for the answer
+    after the reasoning spend. Call sites do not size for that themselves --
+    the interview and claim-verifier budgets were answer-sized and had to be
+    lifted -- so pass the budget through ``thinking_safe_max_tokens`` below
+    wherever these kwargs are spread. ``reasoning_effort='high'`` is the
+    *floor*, not a high setting:
     DeepSeek implements only ``high`` and ``max`` and accepts OpenAI's lower
     names as aliases onto ``high``, so there is no cheaper tier than this
     short of switching thinking off. It is also DeepSeek's own default once
@@ -247,3 +250,38 @@ def deepseek_thinking_kwargs(model_name: str) -> dict[str, object]:
         "extra_body": {"thinking": {"type": "enabled"}},
         "reasoning_effort": "high",
     }
+
+
+THINKING_FLOOR_MAX_TOKENS = 18_000
+"""Smallest total budget an app-side thinking call may be sent with.
+
+The provider counts reasoning against ``max_tokens`` alongside the answer,
+so a budget sized for the answer alone lets a long chain of thought consume
+the whole allowance: the call returns ``finish_reason="length"`` with empty
+content, is billed in full, and is retried. The engine hit exactly this on
+every node whose budget predated thinking being switched on
+(``co_scientist.constants.THINKING_FLOOR_MAX_TOKENS``, which this mirrors);
+the app's calls bypass that layer by invoking ``litellm.acompletion``
+directly, so they need the floor applied at their own call sites.
+
+A ceiling is not a spend -- raising it costs nothing on calls that answer
+briefly, and only removes the failure mode on the ones that reason at
+length.
+"""
+
+
+def thinking_safe_max_tokens(model_name: str, answer_tokens: int) -> int:
+    """Return a ``max_tokens`` that leaves room to reason and then answer.
+
+    Args:
+        model_name: Model name in litellm format.
+        answer_tokens: Budget the call site wants for the answer itself.
+
+    Returns:
+        ``answer_tokens`` for models without a thinking mode, else at least
+        ``THINKING_FLOOR_MAX_TOKENS``. Only ever raises, so a call site that
+        already asked for more keeps its own number.
+    """
+    if not _is_deepseek(model_name):
+        return answer_tokens
+    return max(answer_tokens, THINKING_FLOOR_MAX_TOKENS)

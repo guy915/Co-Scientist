@@ -56,3 +56,38 @@ def test_non_thinking_body_dashscope_deepseek() -> None:
 def test_non_thinking_body_empty_for_other_models() -> None:
     """Non-DeepSeek models carry no thinking params at all."""
     assert deepseek_non_thinking_extra_body("gpt-4o-mini") == {}
+
+
+# --- thinking token floor ----------------------------------------------------
+
+
+def test_thinking_floor_raises_an_answer_sized_budget() -> None:
+    """A DeepSeek budget sized for the answer alone is lifted to the floor.
+
+    The provider counts reasoning against ``max_tokens``, so an answer-sized
+    budget lets a long chain of thought return empty content -- billed in
+    full, and for the claim verifier indistinguishable from "the LLM
+    assessor never wins".
+    """
+    from app.config import THINKING_FLOOR_MAX_TOKENS, thinking_safe_max_tokens
+
+    assert (
+        thinking_safe_max_tokens("dashscope/deepseek-v4-flash", 3_000)
+        == THINKING_FLOOR_MAX_TOKENS
+    )
+
+
+def test_thinking_floor_never_lowers_a_larger_budget() -> None:
+    """The floor only raises; a call site asking for more keeps its number."""
+    from app.config import THINKING_FLOOR_MAX_TOKENS, thinking_safe_max_tokens
+
+    above = THINKING_FLOOR_MAX_TOKENS + 5_000
+
+    assert thinking_safe_max_tokens("deepseek/deepseek-v4-pro", above) == above
+
+
+def test_thinking_floor_leaves_non_deepseek_budgets_alone() -> None:
+    """Models without a thinking mode spend the whole budget on the answer."""
+    from app.config import thinking_safe_max_tokens
+
+    assert thinking_safe_max_tokens("gemini/gemini-2.5-flash", 3_000) == 3_000
