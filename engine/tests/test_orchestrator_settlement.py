@@ -74,9 +74,13 @@ def test_first_settlement_initialises_and_spends_one_round() -> None:
 
 
 def test_allowance_is_bounded_by_distinct_pairs() -> None:
-    # Two rankable ideas admit exactly one pairing, however many are
-    # unmatched, so the allowance can never exceed it.
-    stats = _settlement_stats(rankable_count=2, unmatched_rankable_count=2)
+    # Two rankable ideas admit exactly one pairing. The allowance formula
+    # takes min(half-count, max_pairs): with 4 unmatched, half-count is 2
+    # but max_pairs is 1, so the cap applies. This state (2 rankable, 4
+    # unmatched) cannot exist in a real pool but is legal as plain dataclass
+    # fields; it forces the discriminator: without the max_pairs term, the
+    # allowance would be 2 instead of 1.
+    stats = _settlement_stats(rankable_count=2, unmatched_rankable_count=4)
 
     book = _next_bookkeeping(_init_bookkeeping([]), stats, _RANK)
 
