@@ -79,6 +79,7 @@ export const nodes: ProposalNode[] = [
       'accumulation of support. No role in the coalition has killing a ' +
       'hypothesis as its objective.',
     origin: 'extension',
+    featured: true,
   },
   {
     id: 'granular-scoring',
@@ -184,6 +185,7 @@ export const nodes: ProposalNode[] = [
       "a collaborator who cannot see the lab's own results is reasoning " +
       'about a different project than the one being run.',
     origin: 'extension',
+    featured: true,
   },
   {
     id: 'persistent-kb',
@@ -196,6 +198,7 @@ export const nodes: ProposalNode[] = [
       'A run performs a broad literature review and then discards it. The ' +
       'next run on an adjacent topic starts from nothing.',
     origin: 'extension',
+    featured: true,
   },
   {
     id: 'transitivity',

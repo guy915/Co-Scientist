@@ -159,6 +159,9 @@
   --proposal-compensates: #b06a12;
   --proposal-tension: #c0392b;
   --proposal-edge: #8b8f8d;
+  /* Featured-node star. Deliberately outside the cluster/relationship hue
+     families above, so it reads as "picked out" against any of them. */
+  --proposal-featured: #c9970c;
 }
 
 :root[data-theme='dark'] {
@@ -233,4 +236,5 @@
   --proposal-compensates: #e8a95a;
   --proposal-tension: #f08279;
   --proposal-edge: #6b6f6e;
+  --proposal-featured: #ffcf3d;
 }

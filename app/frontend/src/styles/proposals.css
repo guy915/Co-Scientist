@@ -345,6 +345,19 @@
   fill: var(--cosci-menu-bg);
 }
 
+.proposals-node-star {
+  fill: var(--proposal-featured);
+  font-size: 0.9em;
+  pointer-events: none;
+}
+
+/* Mirrors the label's hover/focus inversion so the star stays legible once
+   the node fills with its cluster color. */
+.proposals-node:hover .proposals-node-star,
+.proposals-node.is-focus .proposals-node-star {
+  fill: var(--cosci-menu-bg);
+}
+
 .proposals-node.is-selected rect {
   stroke-width: calc(3px * var(--proposals-stroke-scale));
 }

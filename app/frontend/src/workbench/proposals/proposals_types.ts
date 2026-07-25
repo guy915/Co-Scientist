@@ -33,6 +33,8 @@ export interface ProposalNode {
    * something the paper has no analogue for ('extension').
    */
   origin: 'critique' | 'extension';
+  /** Marked with a star in the graph as one of a small hand-picked set. */
+  featured?: boolean;
 }
 
 export interface Edge {

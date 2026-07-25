@@ -162,6 +162,21 @@ function GraphEdges({
   );
 }
 
+// A star in the node's top-right corner, marking one of the small
+// hand-picked set of featured proposals.
+function NodeStar({layout}: {layout: Layout}) {
+  return (
+    <text
+      className="proposals-node-star"
+      x={layout.node.width / 2 - 14 * layout.scale}
+      y={-layout.node.height / 2 + 18 * layout.scale}
+      textAnchor="middle"
+    >
+      ★
+    </text>
+  );
+}
+
 function NodeLabel({node, layout}: {node: ProposalNode; layout: Layout}) {
   const lines = LABEL_LINES[node.id];
   return (
@@ -191,7 +206,8 @@ function GraphNode(props: GraphNodeProps) {
     <g
       className={
         `proposals-node is-${node.cluster}${nodeStateClass(node, state)}` +
-        (selected ? ' is-selected' : '')
+        (selected ? ' is-selected' : '') +
+        (node.featured ? ' is-featured' : '')
       }
       transform={`translate(${position.x}, ${position.y})`}
       role="button"
@@ -220,6 +236,7 @@ function GraphNode(props: GraphNodeProps) {
         rx={12 * layout.scale}
       />
       <NodeLabel node={node} layout={layout} />
+      {node.featured && <NodeStar layout={layout} />}
     </g>
   );
 }
