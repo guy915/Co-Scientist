@@ -60,29 +60,6 @@ LONG_MAX_TOKENS: Final = 10000
 THINKING_MAX_TOKENS: Final = 18000
 """Max tokens for extended thinking + long responses."""
 
-PROXIMITY_TEXT_CHARS: Final = 1000
-"""Per-hypothesis text budget in the proximity clustering prompt.
-
-Proximity is the one node that sends the entire pool in a single call, so
-its prompt grows with the pool while every other node's stays flat: a
-37-hypothesis pass measured 13,369 prompt tokens, and the model then spent
-its whole reasoning budget re-transcribing each hypothesis before clustering
-anything. Cost and latency there are quadratic in the wrong direction --
-pool size times a per-hypothesis transcription.
-
-Full text is not what the clustering judgement needs. These hypotheses open
-with the mechanism (metabolite, target, pathway, cell type) and close with a
-testable-prediction paragraph that is near-identical boilerplate across the
-pool; the discriminating content is at the front. Cutting the tail leaves
-the similarity call reading the part it actually reasons over.
-
-The floor on this value is set elsewhere: both cluster-member fallback
-matchers key on the first 100 characters (``_MATCH_PREFIX_CHARS`` in
-proximity_graph, the ``by_prefix`` map in proximity_dedup), so a budget
-anywhere near that would start resolving distinct hypotheses to each other.
-1000 leaves an order of magnitude of headroom over that constraint.
-"""
-
 THINKING_FLOOR_MAX_TOKENS: Final = THINKING_MAX_TOKENS
 """Smallest total budget any thinking-enabled call may be sent with.
 

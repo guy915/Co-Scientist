@@ -18,7 +18,6 @@ from co_scientist.constants import (
     LOW_TEMPERATURE,
     PROGRESS_PROXIMITY_COMPLETE,
     PROGRESS_PROXIMITY_START,
-    PROXIMITY_TEXT_CHARS,
 )
 from co_scientist.llm import (
     CompletionSpec,
@@ -38,36 +37,6 @@ from co_scientist.state import WorkflowState
 logger = logging.getLogger(__name__)
 
 
-def _clip_for_clustering(text: str) -> str:
-    """Trims one hypothesis to its clustering-relevant head.
-
-    Cuts on a sentence boundary where there is one in the last quarter of
-    the budget, so the model reads whole claims rather than a clause severed
-    mid-argument, and falls back to a word boundary otherwise. The ellipsis
-    is load-bearing: without it a clipped hypothesis reads as a genuinely
-    terser claim than its neighbours, which is exactly the difference this
-    node is being asked to judge.
-
-    Args:
-        text: Full hypothesis text.
-
-    Returns:
-        The text unchanged when within budget, else its clipped head.
-    """
-    if len(text) <= PROXIMITY_TEXT_CHARS:
-        return text
-
-    head = text[:PROXIMITY_TEXT_CHARS]
-    floor = int(PROXIMITY_TEXT_CHARS * 0.75)
-
-    sentence_end = max(head.rfind(". "), head.rfind(".\n"))
-    if sentence_end >= floor:
-        return head[: sentence_end + 1] + " [...]"
-
-    word_end = head.rfind(" ")
-    return (head[:word_end] if word_end >= floor else head) + " [...]"
-
-
 def _prepare_hypotheses_for_analysis(
     hypotheses: list[Hypothesis],
 ) -> list[dict[str, Any]]:
@@ -78,10 +47,18 @@ def _prepare_hypotheses_for_analysis(
     Hypothesis objects is done by text prefix, not this index (see
     _assign_cluster_ids).
 
-    Text is clipped to PROXIMITY_TEXT_CHARS: this is the only node that puts
-    the whole pool in one prompt, so its cost scales with the pool where
-    every other node's is flat. Clipping the tail is safe for the fallback
-    matchers, which key on the first 100 characters.
+    Text is sent whole, deliberately. This is the only node that puts the
+    entire pool in one prompt, so it is the obvious place to economise by
+    truncating -- and the wrong one. Three of the six dimensions the prompt
+    weighs (methodology, assumptions, applications) are argued in a
+    hypothesis's tail, so a head-only payload hides exactly the differences
+    that separate two neighbours, and this node's verdict deletes work:
+    a false "high" drops a hypothesis that was actually distinct, silently.
+    The saving was never worth it either -- the pool costs a few thousand
+    input tokens against a call whose spend is dominated by reasoning
+    output, which is where the budget failures here have always come from
+    (see THINKING_FLOOR_MAX_TOKENS). Fix an over-long prompt by chunking the
+    pool, never by narrowing what each comparison gets to see.
 
     Args:
         hypotheses: All hypotheses being analyzed for proximity.
@@ -91,7 +68,7 @@ def _prepare_hypotheses_for_analysis(
     """
     return [
         {
-            "text": _clip_for_clustering(hyp.text),
+            "text": hyp.text,
             "score": hyp.score,
             "elo_rating": hyp.elo_rating,
             "index": i,
