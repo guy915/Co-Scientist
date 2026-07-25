@@ -43,6 +43,7 @@ export type {
   LegacyRunProfile,
   MatchRow,
   ProximityEdge,
+  RecommendedDirection,
   Report,
   ReportPayload,
   ReportShare,

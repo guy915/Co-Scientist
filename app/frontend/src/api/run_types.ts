@@ -328,12 +328,25 @@ export interface KnowledgeBaseTopic {
   reference_ids: string[];
 }
 
-/** Run-wide findings and explicit scientific uncertainty. */
+/** One meta-review recommendation: where to focus, what to do, and why. */
+export interface RecommendedDirection {
+  focus_area: string;
+  recommendation: string;
+  justification: string;
+}
+
+/**
+ * Run-wide findings and explicit scientific uncertainty.
+ *
+ * `recommended_directions` admits a bare string because report payloads are
+ * persisted: reports written before recommendations kept their three fields
+ * hold one flattened string per entry, and those reports still render.
+ */
 export interface AgentInsights {
   key_findings: string[];
   uncertainties: string[];
   contradictions: string[];
-  recommended_directions: string[];
+  recommended_directions: (RecommendedDirection | string)[];
   next_experiments: string[];
 }
 
