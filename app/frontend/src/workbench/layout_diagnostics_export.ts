@@ -112,7 +112,7 @@ function statisticsSection(counts: DiagnosticCounts): string[] {
   return [
     '=== STATISTICS (loaded window) ===',
     `Errors: ${counts.errorCount}`,
-    `Success: ${counts.successCount}`,
+    `Warnings: ${counts.warningCount}`,
     `Info: ${counts.infoCount}`,
     // Named as the panel's chip is: "Server" counts as one source here.
     `Runs: ${counts.runCount}`,
@@ -128,7 +128,8 @@ function legendSection(): string[] {
     'id      - persisted store row id; what `cosci logs` and after_id',
     '          cursors speak. Gapped wherever hidden noise consumed ids.',
     'number  - position in the filtered stream, shown as "#N" in the panel.',
-    'level   - ERROR covers WARNING and above; everything else is info.',
+    'level   - error is ERROR/CRITICAL (40+), warning is WARNING (30),',
+    '          info is everything below. levelName carries the exact name.',
     'run     - "Run <first 8 chars>", or "Server" when no run owns it.',
     'stage   - the emitting logger (app.run_stage, ui.error, uvicorn, ...).',
     'excText - formatted traceback, when the record carried one.',

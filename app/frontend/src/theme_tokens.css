@@ -138,6 +138,8 @@
   --color-cosci-logs-code-fg: var(--cosci-logs-code-fg);
   --color-cosci-logs-danger-bg: var(--cosci-logs-danger-bg);
   --color-cosci-logs-danger-fg: var(--cosci-logs-danger-fg);
+  --color-cosci-logs-warn-bg: var(--cosci-logs-warn-bg);
+  --color-cosci-logs-warn-fg: var(--cosci-logs-warn-fg);
   --color-cosci-reference-open-border: var(--cosci-reference-open-border);
   --color-cosci-reference-open-fg: var(--cosci-reference-open-fg);
   --color-cosci-reference-open-hover-bg: var(--cosci-reference-open-hover-bg);

@@ -3,6 +3,7 @@ import {deleteAppLogs} from '@/api/logs';
 import {Icon, type IconName} from '@/components/icon';
 import {copyText} from '@/lib/clipboard';
 import {joinClasses} from './classes';
+import {DiagnosticChips} from './layout_diagnostics_chips';
 import {
   summarizeDiagnosticEntries,
   type DiagnosticCounts,
@@ -66,19 +67,6 @@ const DIAGNOSTIC_ACTION_BUTTON_CLASSES =
   'whitespace-nowrap text-cosci-logs-action-fg ' +
   'hover:bg-cosci-logs-action-hover ' +
   'focus-visible:bg-cosci-logs-action-hover';
-
-const DIAGNOSTIC_CHIPS_CLASSES =
-  'ucs-diagnostic-chips flex flex-wrap gap-[0.45rem]';
-
-const DIAGNOSTIC_CHIP_CLASSES =
-  'rounded-full bg-cosci-logs-accent-bg px-2 py-[0.15rem] ' +
-  'text-[0.7rem] font-semibold whitespace-nowrap ' +
-  'text-cosci-logs-accent-fg';
-
-const DIAGNOSTIC_ERROR_CHIP_CLASSES =
-  'rounded-full bg-cosci-logs-danger-bg px-2 py-[0.15rem] ' +
-  'text-[0.7rem] font-semibold whitespace-nowrap ' +
-  'text-cosci-logs-danger-fg';
 
 // Never scrolls sideways: long unbroken tokens (dotted logger names, URLs)
 // are contained by the grid tracks and the wrapping code block, so the only
@@ -439,29 +427,6 @@ function DiagnosticLogsHeader({
   );
 }
 
-// [label, count, chip class] rows for the summary chips; the Errors chip
-// switches to the danger styling only when there is at least one error.
-// The Total chip is the size of the filtered stream, which is also the
-// newest row's number; the per-level chips tally the shown window.
-function buildDiagnosticChips(
-  total: number,
-  counts: DiagnosticCounts,
-): [string, number, string][] {
-  return [
-    ['Total', total, DIAGNOSTIC_CHIP_CLASSES],
-    [
-      'Errors',
-      counts.errorCount,
-      counts.errorCount
-        ? DIAGNOSTIC_ERROR_CHIP_CLASSES
-        : DIAGNOSTIC_CHIP_CLASSES,
-    ],
-    ['Success', counts.successCount, DIAGNOSTIC_CHIP_CLASSES],
-    ['Info', counts.infoCount, DIAGNOSTIC_CHIP_CLASSES],
-    ['Runs', counts.runCount, DIAGNOSTIC_CHIP_CLASSES],
-  ];
-}
-
 // Presentational body of the popover: the header (title + Clear/Copy
 // actions), summary count chips, and the scrolling entry list. All state
 // stays in DiagnosticsControl; this only renders what it is handed.
@@ -480,19 +445,11 @@ function DiagnosticLogsPanel({
   onClear: () => void;
   onCopy: () => void;
 }) {
-  const chips = buildDiagnosticChips(total, counts);
-
   return (
     <>
       <DiagnosticLogsHeader copied={copied} onClear={onClear} onCopy={onCopy} />
       <div className={DIAGNOSTIC_INTRO_CLASSES}>
-        <div className={DIAGNOSTIC_CHIPS_CLASSES}>
-          {chips.map(([label, count, className]) => (
-            <span key={label} className={className}>
-              {label} {count}
-            </span>
-          ))}
-        </div>
+        <DiagnosticChips total={total} counts={counts} />
       </div>
       <DiagnosticLogList entries={entries} />
     </>

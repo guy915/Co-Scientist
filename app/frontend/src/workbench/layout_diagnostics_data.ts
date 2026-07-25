@@ -1,6 +1,6 @@
 import type {AppLogRecord, ClientLogRecord} from '@/api/logs';
 
-export type DiagnosticLogLevel = 'info' | 'success' | 'error';
+export type DiagnosticLogLevel = 'info' | 'warning' | 'error';
 
 // One rendered row in the Logs panel. Every entry comes from the single
 // persisted app-wide log (the backend's app_logs table): backend records
@@ -73,6 +73,13 @@ function formatDiagnosticTime(date = new Date()): string {
   return DIAGNOSTIC_TIME_FMT.format(date);
 }
 
+// The event detail arrives from an untyped CustomEvent, so an
+// unrecognized level is treated as info rather than forwarded to the
+// ingestion endpoint (which would map it to info anyway, silently).
+function clientLevel(level: DiagnosticLogLevel | undefined): string {
+  return level === 'error' || level === 'warning' ? level : 'info';
+}
+
 // Converts a raw diagnostic-event detail into the record shape the
 // ingestion endpoint accepts. The payload rides inside the message so the
 // persisted line stays greppable from the CLI too.
@@ -85,16 +92,19 @@ export function detailToClientRecord(
     : '';
   return {
     message: `${detail.stage}${suffix}`,
-    level: detail.level === 'error' ? 'error' : 'info',
+    level: clientLevel(detail.level),
     logger: 'session',
     ...(detail.runId ? {run_id: detail.runId} : {}),
   };
 }
 
-// WARNING and above read as errors; DEBUG/INFO as info. Backend records
-// have no "success" notion.
+// The three bands the chips tally, keyed off Python's numeric levels:
+// ERROR and CRITICAL (40+) are errors, WARNING (30) stands on its own,
+// DEBUG/INFO below it are info. The split matches the level name each row
+// already prints, so a chip and the rows behind it always agree.
 function appLogLevel(record: AppLogRecord): DiagnosticLogLevel {
-  return record.levelno >= 30 ? 'error' : 'info';
+  if (record.levelno >= 40) return 'error';
+  return record.levelno >= 30 ? 'warning' : 'info';
 }
 
 // Maps one persisted app_logs record into a rendered log entry. Records
@@ -125,7 +135,7 @@ export function buildAppLogEntry(
 // the summary chips in DiagnosticLogsPanel.
 export interface DiagnosticCounts {
   errorCount: number;
-  successCount: number;
+  warningCount: number;
   infoCount: number;
   runCount: number;
 }
@@ -135,7 +145,7 @@ export function summarizeDiagnosticEntries(
 ): DiagnosticCounts {
   return {
     errorCount: entries.filter(entry => entry.level === 'error').length,
-    successCount: entries.filter(entry => entry.level === 'success').length,
+    warningCount: entries.filter(entry => entry.level === 'warning').length,
     infoCount: entries.filter(entry => entry.level === 'info').length,
     runCount: new Set(entries.map(({run}) => run).filter(Boolean)).size,
   };

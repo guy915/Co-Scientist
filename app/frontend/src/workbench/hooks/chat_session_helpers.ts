@@ -24,7 +24,9 @@ export function emitDiagnosticEvent({
    * anything goal-derived here would publish research content.
    */
   runId?: string;
-  level?: 'info' | 'success' | 'error';
+  // The persisted log has no "success" band — the levels are Python's, so
+  // an emitted success was only ever stored (and counted) as info.
+  level?: 'info' | 'warning' | 'error';
   payload?: Record<string, unknown>;
 }) {
   window.dispatchEvent(

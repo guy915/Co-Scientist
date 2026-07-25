@@ -81,7 +81,6 @@ async function startDraftRun(
     emitDiagnosticEvent({
       stage: 'LIFECYCLE',
       runId: session.id,
-      level: 'success',
       payload: {event: 'start_queued', run_id: session.id},
     });
   } catch (err) {

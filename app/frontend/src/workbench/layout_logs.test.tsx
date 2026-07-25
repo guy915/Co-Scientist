@@ -22,6 +22,7 @@ it('opens the logs popover and dismisses on outside click', async () => {
   expect(screen.queryByText('All runs')).toBeNull();
   expect(screen.getByText('Total 0')).toBeInTheDocument();
   expect(screen.getByText('Errors 0')).toBeInTheDocument();
+  expect(screen.getByText('Warnings 0')).toBeInTheDocument();
   expect(screen.getByText('Info 0')).toBeInTheDocument();
   expect(screen.getByText('No diagnostic events loaded.')).toBeInTheDocument();
   const diagnosticActions = document.querySelector('.ucs-diagnostic-actions');

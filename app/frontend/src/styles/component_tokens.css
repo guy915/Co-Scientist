@@ -18,6 +18,12 @@
   --cosci-danger-border: #b3261e;
   --cosci-danger-fg: #b3261e;
 
+  /* Caution. One step down from danger in both hue and urgency, so a
+     warning count next to an error count is legible as the lesser of the
+     two rather than as a second alarm. */
+  --cosci-warning-bg: #fef7e0;
+  --cosci-warning-fg: #8f5a00;
+
   /* Attachment cards. The extension badge keeps one mid-grey in both themes
      (white label text stays legible on it either way). */
   --cosci-attach-bg: #f0f4f9;
@@ -69,6 +75,8 @@
   --cosci-logs-code-fg: var(--cosci-text);
   --cosci-logs-danger-bg: var(--cosci-danger-bg);
   --cosci-logs-danger-fg: var(--cosci-danger-fg);
+  --cosci-logs-warn-bg: var(--cosci-warning-bg);
+  --cosci-logs-warn-fg: var(--cosci-warning-fg);
 
   /* Radio option cards */
   --cosci-option-bg: #fff;
@@ -168,6 +176,9 @@
   --cosci-danger-bg: #3c1715;
   --cosci-danger-border: #5b2b2b;
   --cosci-danger-fg: #ffb4aa;
+
+  --cosci-warning-bg: #3a2c12;
+  --cosci-warning-fg: #ffdfa0;
 
   --cosci-attach-bg: #333537;
   --cosci-attach-fg: #fff;

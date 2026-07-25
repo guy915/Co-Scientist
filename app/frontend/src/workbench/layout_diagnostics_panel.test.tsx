@@ -68,9 +68,15 @@ it('loads persisted backend logs into the diagnostics popover', async () => {
         message: 'run started',
         run_id: 'run-12345678',
       }),
+      logRecord(5, {
+        level: 'WARNING',
+        levelno: 30,
+        logger: 'app.diagnostics',
+        message: 'mcp probe unreachable',
+      }),
     ],
-    last_id: 4,
-    total: 2,
+    last_id: 5,
+    total: 3,
   });
   renderLayout('/');
 
@@ -82,10 +88,14 @@ it('loads persisted backend logs into the diagnostics popover', async () => {
   expect(await screen.findByText('app.engine_adapter:')).toBeInTheDocument();
   expect(screen.getByText(/workflow exploded/)).toBeInTheDocument();
   // Records with no run id are attributed to the server itself.
-  expect(screen.getByText('Server')).toBeInTheDocument();
+  expect(screen.getAllByText('Server')).toHaveLength(2);
   expect(screen.getByText('Run run-1234')).toBeInTheDocument();
-  // ERROR-level records count into the Errors chip.
+  // The chips split the levels the way the rows print them: WARNING is its
+  // own band, not folded into Errors, so a run that only warned does not
+  // read as a run that failed.
   expect(screen.getByText('Errors 1')).toBeInTheDocument();
+  expect(screen.getByText('Warnings 1')).toBeInTheDocument();
+  expect(screen.getByText('Info 1')).toBeInTheDocument();
 
   // Clear drops only session entries; persisted backend logs remain.
   fireEvent.click(screen.getByRole('button', {name: 'Clear'}));
