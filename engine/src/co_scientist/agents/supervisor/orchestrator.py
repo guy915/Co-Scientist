@@ -35,6 +35,7 @@ from co_scientist.scheduling import (
     TaskRecord,
     TaskStatus,
     TaskType,
+    policy,
 )
 from co_scientist.state import WorkflowState
 
@@ -104,8 +105,9 @@ def _init_bookkeeping(hypotheses: list[Hypothesis]) -> dict[str, Any]:
         "pool_at_last_proximity": pool_size,
         "pool_at_last_decision": pool_size,
         "last_work_task": TaskType.GENERATE.value,
-        # None until the first settlement round: the override may fire, and
+        # None until a settlement episode opens: the override may fire, and
         # the allowance is sized from the backlog observed at that moment.
+        # Both fields return to None whenever the backlog clears.
         "settlement_allowance": None,
         "unmatched_at_last_settlement": None,
     }
@@ -273,16 +275,19 @@ def _is_settlement_rank(
 ) -> bool:
     """Return whether this decision is a ranking round that settles coverage.
 
-    Identified from the decision and the stats that produced it rather than
-    signalled by the policy, which stays a pure function. A ranking round
-    chosen while hypotheses are unmatched draws on the allowance whichever
-    check selected it -- charging every such round keeps the counter
-    monotonically decreasing on every path, which is what the termination
-    bound rests on.
+    Re-derived by running the policy's own owed-coverage check against the
+    same stats rather than inferred from ``next_task``: a RANK is a
+    settlement round only when that check asked for one. Inferring it from
+    "RANK while anything is unmatched" charged ordinary calibration ranking
+    to the allowance, which drained an episode before it began.
+
+    The check is a pure function of ``stats`` with no I/O, so re-running it
+    is exact and cheap, and the policy stays free of any settlement state of
+    its own.
     """
     return (
         decision.next_task is TaskType.RANK
-        and stats.unmatched_rankable_count > 0
+        and policy._check_owed_coverage(stats) is not None
     )
 
 
@@ -299,6 +304,41 @@ def _initial_settlement_allowance(stats: SchedulerStats) -> int:
     return min((stats.unmatched_rankable_count + 1) // 2, max_pairs)
 
 
+def _settled_allowance(
+    book: dict[str, Any],
+    stats: SchedulerStats,
+    decision: SupervisorDecision,
+) -> tuple[int | None, int | None]:
+    """Return the (allowance, last-unmatched) pair for the next decision.
+
+    The allowance is scoped to a *settlement episode*, not to the run. An
+    episode opens on the first round the owed-coverage check requests and
+    closes when the backlog reaches zero, at which point both fields return
+    to None so a later backlog re-arms from what it actually owes.
+
+    Within an episode the counter is initialised once, is charged on every
+    settlement round whether or not the round helped, floors at zero, and is
+    never increased -- so an episode fires finitely often. A new episode can
+    open only after the backlog reached zero, which is to say only after
+    settlement succeeded, so the run still reaches a terminal decision.
+    """
+    if _is_settlement_rank(stats, decision):
+        allowance = book.get("settlement_allowance")
+        if allowance is None:
+            allowance = _initial_settlement_allowance(stats)
+        return (
+            max(0, int(allowance) - 1),
+            stats.unmatched_rankable_count,
+        )
+    if stats.unmatched_rankable_count == 0:
+        # Episode over: nothing is owed, so the counter re-arms.
+        return None, None
+    return (
+        book.get("settlement_allowance"),
+        book.get("unmatched_at_last_settlement"),
+    )
+
+
 def _next_bookkeeping(
     book: dict[str, Any],
     stats: SchedulerStats,
@@ -307,9 +347,11 @@ def _next_bookkeeping(
     """Compute the bookkeeping to carry into the next decision.
 
     Updates the rank-stability counter and previous top Elo, resets the
-    proximity anchor after a proximity task, and remembers the pool size and
-    the last *work* task (generate/evolve) so the next decision can measure
-    yield and break ties.
+    proximity anchor after a proximity task, remembers the pool size and the
+    last *work* task (generate/evolve) so the next decision can measure yield
+    and break ties, and advances the settlement-episode allowance that bounds
+    how long owed tournament coverage may override a budget ceiling (see
+    :func:`_settled_allowance`).
     """
     updated = dict(book)
     updated["prev_top_elo"] = stats.top_elo
@@ -319,15 +361,9 @@ def _next_bookkeeping(
         updated["pool_at_last_proximity"] = stats.pool_size
     if decision.next_task in (TaskType.GENERATE, TaskType.EVOLVE):
         updated["last_work_task"] = decision.next_task.value
-    if _is_settlement_rank(stats, decision):
-        allowance = updated.get("settlement_allowance")
-        if allowance is None:
-            allowance = _initial_settlement_allowance(stats)
-        # Charged whether or not the round helps, and never replenished, so
-        # the override can only fire finitely many times regardless of what
-        # ranking does or how the pool changes underneath it.
-        updated["settlement_allowance"] = max(0, int(allowance) - 1)
-        updated["unmatched_at_last_settlement"] = stats.unmatched_rankable_count
+    allowance, last_unmatched = _settled_allowance(book, stats, decision)
+    updated["settlement_allowance"] = allowance
+    updated["unmatched_at_last_settlement"] = last_unmatched
     return updated
 
 
