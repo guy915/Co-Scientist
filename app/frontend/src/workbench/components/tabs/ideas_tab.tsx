@@ -1,6 +1,6 @@
 import {useMemo, useState} from 'react';
 import type {ClaimEvidenceRow, Hypothesis, MatchRow, Review} from '@/api/runs';
-import {sortByEloDesc} from '@/lib/hypotheses';
+import {ratingLabel, sortByEloDesc} from '@/lib/hypotheses';
 import {Icon} from '@/components/icon';
 import {useIsMobile} from '../../hooks/use_is_mobile';
 import {TruncatedLabel} from '../truncated_label';
@@ -254,10 +254,11 @@ function ideaRowClassName(selected: boolean): string {
 // and a truncated statement preview.
 // The rank/Elo/unverified chip row heading one idea in the list.
 //
-// An idea with no matches shows "Unranked" rather than its rating. Elo 1200
-// is where every hypothesis starts, so printing it for an idea that never
-// played reads as a result it earned -- and ideas the evidence gate
-// quarantines never enter the tournament at all.
+// An idea with no matches shows why it has no rating rather than the rating
+// itself. Elo 1200 is where every hypothesis starts, so printing it for an
+// idea that never played reads as a result it earned; and "Ruled out" and
+// "Not compared" are different enough facts that one shared label for both
+// misleads (see ratingLabel).
 function IdeaRankHead({
   rank,
   hypothesis,
@@ -268,11 +269,7 @@ function IdeaRankHead({
   return (
     <span className={IDEA_RANK_HEAD_CLASSES}>
       <span className={`idea-rank-number ${IDEA_CHIP_CLASSES}`}>{rank}</span>
-      <span className={IDEA_ELO_CHIP_CLASSES}>
-        {hypothesis.win_count + hypothesis.loss_count > 0
-          ? `Elo rating: ${hypothesis.elo_rating}`
-          : 'Unranked'}
-      </span>
+      <span className={IDEA_ELO_CHIP_CLASSES}>{ratingLabel(hypothesis)}</span>
       {hypothesis.unverified ? (
         <span className={IDEA_UNVERIFIED_CHIP_CLASSES}>
           <Icon aria-hidden="true" name="warning" />

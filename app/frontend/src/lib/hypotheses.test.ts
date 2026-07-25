@@ -2,7 +2,7 @@ import {expect, it} from 'vitest';
 
 import {makeHypothesis} from '@/test_fixtures';
 
-import {sortByEloDesc} from './hypotheses';
+import {ratingLabel, sortByEloDesc} from './hypotheses';
 
 it('orders played hypotheses by descending Elo', () => {
   const ranked = sortByEloDesc([
@@ -37,4 +37,34 @@ it('does not mutate the input array', () => {
   sortByEloDesc(input);
 
   expect(input.map(h => h.id)).toEqual(['a', 'b']);
+});
+
+it('reports the earned rating for an idea that played', () => {
+  expect(
+    ratingLabel(
+      makeHypothesis({elo_rating: 1268, win_count: 2, loss_count: 1}),
+    ),
+  ).toBe('Elo rating: 1268');
+});
+
+it('says "Ruled out" for an unplayed idea the run rejected', () => {
+  // Reviews and the evidence gate withhold contradicted, inaccurate, and
+  // non-novel ideas from the tournament, persisted as status "rejected".
+  expect(ratingLabel(makeHypothesis({status: 'rejected'}))).toBe('Ruled out');
+});
+
+it('says "Not compared" for an unplayed idea still in good standing', () => {
+  // Typically created in the run's final wave, after the last comparisons.
+  expect(ratingLabel(makeHypothesis({status: 'active'}))).toBe('Not compared');
+  expect(ratingLabel(makeHypothesis({status: null}))).toBe('Not compared');
+});
+
+it('keeps the rating of a played idea that was later ruled out', () => {
+  // Deep verification can undermine an idea after it competed; the matches
+  // it played are real results and stay visible.
+  expect(
+    ratingLabel(
+      makeHypothesis({elo_rating: 1240, win_count: 1, status: 'rejected'}),
+    ),
+  ).toBe('Elo rating: 1240');
 });

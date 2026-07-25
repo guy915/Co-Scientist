@@ -96,10 +96,9 @@ it('renders reference detail sections without the legacy detail link', () => {
   expect(screen.queryByText('Full legacy detail')).not.toBeInTheDocument();
 });
 
-it('labels an idea with no matches "Unranked" rather than showing 1200', () => {
+it('labels an idea with no matches by reason rather than showing 1200', () => {
   // 1200 is where every hypothesis starts, so printing it for an idea the
-  // tournament never reached reads as a rating it earned. Ideas the evidence
-  // gate quarantines never enter the tournament at all.
+  // tournament never reached reads as a rating it earned.
   render(
     <IdeasTab
       hypotheses={[makeHypothesis({id: 'unplayed', title: 'Never matched'})]}
@@ -107,6 +106,49 @@ it('labels an idea with no matches "Unranked" rather than showing 1200', () => {
     />,
   );
 
-  expect(screen.getByText('Unranked')).toBeInTheDocument();
+  expect(screen.getByText('Not compared')).toBeInTheDocument();
   expect(screen.queryByText(/Elo rating/)).not.toBeInTheDocument();
+});
+
+it('distinguishes a ruled-out idea from one that never got its turn', () => {
+  // Both have no rating, for unrelated reasons: one was withheld from the
+  // tournament on the merits, the other simply never played. A single shared
+  // label read as "we ran out of time" for ideas that were actually rejected.
+  render(
+    <IdeasTab
+      hypotheses={[
+        makeHypothesis({
+          id: 'blocked',
+          title: 'Contradicted',
+          status: 'rejected',
+        }),
+        makeHypothesis({id: 'late', title: 'Made too late'}),
+      ]}
+      reviews={[]}
+    />,
+  );
+
+  expect(screen.getByText('Ruled out')).toBeInTheDocument();
+  expect(screen.getByText('Not compared')).toBeInTheDocument();
+});
+
+it('shows a rating for a ruled-out idea that did play before exclusion', () => {
+  // Exclusion can follow matches (deep verification undermines an idea after
+  // it competed). The score it earned is real and stays visible.
+  render(
+    <IdeasTab
+      hypotheses={[
+        makeHypothesis({
+          id: 'played-then-blocked',
+          elo_rating: 1240,
+          win_count: 1,
+          status: 'rejected',
+        }),
+      ]}
+      reviews={[]}
+    />,
+  );
+
+  expect(screen.getByText('Elo rating: 1240')).toBeInTheDocument();
+  expect(screen.queryByText('Ruled out')).not.toBeInTheDocument();
 });

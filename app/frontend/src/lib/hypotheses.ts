@@ -22,3 +22,27 @@ export function sortByEloDesc(hypotheses: Hypothesis[]): Hypothesis[] {
     return b.elo_rating - a.elo_rating;
   });
 }
+
+/**
+ * Returns the rating chip text for one idea: its score, or why it has none.
+ *
+ * An idea only earns a rating by being compared against other ideas, so an
+ * idea with no matches has no score to show. There are two unrelated reasons
+ * for that, and a single "Unranked" label conflated them:
+ *
+ * - The tournament excludes ideas the reviews or the evidence gate ruled out
+ *   (contradicted, inaccurate, or not novel), which the backend records as
+ *   status "rejected". This is by far the common case, and the reader needs
+ *   to know the idea was withheld on the merits rather than skipped.
+ * - Everything else never got its turn — typically created in the run's last
+ *   wave, after the final round of comparisons.
+ *
+ * @param hypothesis The idea to label.
+ * @returns Chip text: the Elo rating, "Ruled out", or "Not compared".
+ */
+export function ratingLabel(hypothesis: Hypothesis): string {
+  if (hypothesis.win_count + hypothesis.loss_count > 0) {
+    return `Elo rating: ${hypothesis.elo_rating}`;
+  }
+  return hypothesis.status === 'rejected' ? 'Ruled out' : 'Not compared';
+}
