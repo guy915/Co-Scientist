@@ -9,6 +9,11 @@ import {
   REPORT_SECTION_CLASSES,
   ReportDocument,
 } from './run_detail_document';
+import {
+  ReferencesBlock,
+  referenceNumbers,
+  resolveCitations,
+} from './run_detail_learning_references';
 
 const REPORT_INLINE_ACTION_CLASSES =
   'cosci-inline-action mt-4 inline-flex cursor-pointer items-center ' +
@@ -16,38 +21,6 @@ const REPORT_INLINE_ACTION_CLASSES =
   'text-cosci-fg';
 
 const REPORT_INLINE_ACTION_ICON_CLASSES = 'text-base';
-
-const REFERENCE_SEARCH_CLASSES =
-  'cosci-reference-search mb-[1.4rem] flex w-[min(100%,44rem)] items-center ' +
-  'gap-3 border-b border-cosci-border px-0 py-[0.45rem] text-cosci-muted';
-
-const REFERENCE_SEARCH_ICON_CLASSES = 'text-base';
-
-const REFERENCE_SEARCH_INPUT_CLASSES =
-  'min-w-0 flex-1 border-0 bg-transparent font-[inherit] text-[0.86rem] ' +
-  'text-cosci-fg outline-0 placeholder:text-cosci-muted';
-
-const REFERENCE_LIST_CLASSES = 'm-0 grid list-none gap-0 p-0';
-
-const REFERENCE_LIST_ITEM_CLASSES =
-  'grid min-h-[3.8rem] grid-cols-[2.2rem_minmax(0,1fr)_auto] items-center ' +
-  'gap-[0.8rem] border-b border-cosci-border text-[0.86rem] ' +
-  'max-[720px]:grid-cols-[2rem_minmax(0,1fr)]';
-
-const REFERENCE_LIST_INDEX_CLASSES = 'text-cosci-muted';
-
-const REFERENCE_LIST_TITLE_CLASSES = 'font-medium leading-[1.35]';
-
-const REFERENCE_LIST_LINK_CLASSES =
-  'reference-open-pill inline-flex items-center gap-[0.35rem] rounded-full ' +
-  'border border-cosci-reference-open-border bg-transparent px-[0.7rem] ' +
-  'py-[0.3rem] text-[0.78rem] font-medium text-cosci-reference-open-fg ' +
-  'no-underline transition-colors ' +
-  'hover:border-cosci-reference-open-hover-border ' +
-  'hover:bg-cosci-reference-open-hover-bg max-[720px]:col-start-2 ' +
-  'max-[720px]:w-fit';
-
-const REFERENCE_LIST_LINK_ICON_CLASSES = 'text-base';
 
 // State and derived data behind the "Learning" tab: the synthesized sections
 // (see learningSections), the query-filtered reference list, and the
@@ -64,6 +37,12 @@ function useLearningViewState(
   const sections = useMemo(
     () => learningSections(goal, evidence, report),
     [goal, evidence, report],
+  );
+  // Built from the unfiltered evidence so searching the reference list never
+  // renumbers a citation out from under the reader.
+  const referenceNumberById = useMemo(
+    () => referenceNumbers(evidence),
+    [evidence],
   );
   // Case-insensitive substring match across title, source, and authors.
   const filteredReferences = useMemo(() => {
@@ -84,6 +63,7 @@ function useLearningViewState(
   return {
     sections,
     filteredReferences,
+    referenceNumberById,
     query,
     setQuery,
     expandedSectionIds,
@@ -111,6 +91,7 @@ export function LearningView({
   const {
     sections,
     filteredReferences,
+    referenceNumberById,
     query,
     setQuery,
     expandedSectionIds,
@@ -125,10 +106,12 @@ export function LearningView({
           section={section}
           expanded={expandedSectionIds.includes(section.id)}
           onToggle={() => toggleSection(section.id)}
+          referenceNumberById={referenceNumberById}
         />
       ))}
       <ReferencesBlock
         evidence={filteredReferences}
+        referenceNumberById={referenceNumberById}
         query={query}
         onQueryChange={setQuery}
       />
@@ -142,11 +125,14 @@ function LearningSectionDetailsBlock({
   detail,
   uncertainty,
   referenceIds,
+  referenceNumberById,
 }: {
   detail: string;
   uncertainty?: string;
   referenceIds: string[];
+  referenceNumberById: Map<string, number>;
 }) {
+  const citations = resolveCitations(referenceIds, referenceNumberById);
   return (
     <>
       <h4 className={REPORT_H4_CLASSES}>Details</h4>
@@ -161,13 +147,13 @@ function LearningSectionDetailsBlock({
           {uncertainty}
         </p>
       ) : null}
-      {referenceIds.length ? (
+      {citations.length ? (
         <p>
           <strong>Supporting references: </strong>
-          {referenceIds.map((id, index) => (
-            <span key={id}>
+          {citations.map((citation, index) => (
+            <span key={citation.id}>
               {index ? ', ' : ''}
-              <a href={`#reference-${id}`}>[{index + 1}]</a>
+              <a href={`#reference-${citation.id}`}>[{citation.number}]</a>
             </span>
           ))}
         </p>
@@ -207,10 +193,12 @@ function LearningSectionBlock({
   section,
   expanded,
   onToggle,
+  referenceNumberById,
 }: {
   section: LearningSectionItem;
   expanded: boolean;
   onToggle: () => void;
+  referenceNumberById: Map<string, number>;
 }) {
   return (
     <section id={section.id} className={REPORT_SECTION_CLASSES}>
@@ -229,6 +217,7 @@ function LearningSectionBlock({
           detail={section.detail}
           uncertainty={section.uncertainty}
           referenceIds={section.referenceIds}
+          referenceNumberById={referenceNumberById}
         />
       )}
       <LearningSectionToggle expanded={expanded} onToggle={onToggle} />
@@ -254,102 +243,6 @@ function AbstractBody({text}: {text: string}) {
         );
       })}
     </>
-  );
-}
-
-// Search box plus numbered reference list. `evidence` is expected to already
-// be filtered by the caller's query; this component only renders it and
-// reports query changes back up via onQueryChange (controlled input).
-function ReferencesBlock({
-  evidence,
-  query,
-  onQueryChange,
-}: {
-  evidence: Evidence[];
-  query: string;
-  onQueryChange: (value: string) => void;
-}) {
-  return (
-    <section className={`${REPORT_SECTION_CLASSES} cosci-reference-list`}>
-      <h3 className={REPORT_H3_CLASSES}>References</h3>
-      <ReferenceSearchBox query={query} onQueryChange={onQueryChange} />
-      <ReferenceList evidence={evidence} />
-    </section>
-  );
-}
-
-// Controlled search input above the reference list.
-function ReferenceSearchBox({
-  query,
-  onQueryChange,
-}: {
-  query: string;
-  onQueryChange: (value: string) => void;
-}) {
-  return (
-    <label className={REFERENCE_SEARCH_CLASSES}>
-      <Icon
-        className={REFERENCE_SEARCH_ICON_CLASSES}
-        aria-hidden="true"
-        name="search"
-      />
-      <input
-        className={REFERENCE_SEARCH_INPUT_CLASSES}
-        value={query}
-        onChange={event => onQueryChange(event.currentTarget.value)}
-        placeholder="Search references"
-        aria-label="Search references"
-      />
-    </label>
-  );
-}
-
-// Numbered reference list, or a single placeholder row when nothing matches
-// the current search.
-function ReferenceList({evidence}: {evidence: Evidence[]}) {
-  return (
-    <ol className={REFERENCE_LIST_CLASSES}>
-      {evidence.length ? (
-        evidence.map((item, index) => (
-          <ReferenceListItem key={item.id} item={item} index={index} />
-        ))
-      ) : (
-        <li className={REFERENCE_LIST_ITEM_CLASSES}>
-          <span className={REFERENCE_LIST_INDEX_CLASSES}>[0]</span>
-          <strong className={REFERENCE_LIST_TITLE_CLASSES}>
-            No references match the current search.
-          </strong>
-        </li>
-      )}
-    </ol>
-  );
-}
-
-// One numbered reference row: title plus an optional "Open" link.
-function ReferenceListItem({item, index}: {item: Evidence; index: number}) {
-  return (
-    <li id={`reference-${item.id}`} className={REFERENCE_LIST_ITEM_CLASSES}>
-      <span className={REFERENCE_LIST_INDEX_CLASSES}>[{index + 1}]</span>
-      <strong
-        className={REFERENCE_LIST_TITLE_CLASSES}
-        dangerouslySetInnerHTML={{__html: renderInlineHtml(item.title)}}
-      />
-      {item.url ? (
-        <a
-          className={REFERENCE_LIST_LINK_CLASSES}
-          href={item.url}
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Icon
-            className={REFERENCE_LIST_LINK_ICON_CLASSES}
-            aria-hidden="true"
-            name="open_in_new"
-          />
-          Open
-        </a>
-      ) : null}
-    </li>
   );
 }
 
