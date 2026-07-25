@@ -103,7 +103,9 @@ For every turn ensure you include your thought / debate / criticism context alon
 * Prioritize the generation of a high-quality {{attributes}} hypothesis.
 
 Termination condition:
-When sufficient discussion has transpired (typically 3-5 conversational turns, with a maximum of 10 turns) and all relevant questions and points have been thoroughly addressed and clarified, conclude the process by writing "HYPOTHESIS" (in all capital letters) followed by a concise and self-contained exposition of the finalized idea.
+This discourse is deliberately short: you have at most {{discussion_turns}} conversational turns before the finalized hypothesis is required. Make each one count — raise your strongest objection and resolve it within the same turn rather than deferring it to a later one, and do not spend a turn restating agreement.
+
+As soon as the relevant questions and points have been thoroughly addressed and clarified, conclude the process by writing "HYPOTHESIS" (in all capital letters) followed by a concise and self-contained exposition of the finalized idea. Concluding early is expected when the panel has genuinely converged; padding the discussion to fill the remaining turns is not.
 
 #BEGIN TRANSCRIPT#
 {{transcript}}

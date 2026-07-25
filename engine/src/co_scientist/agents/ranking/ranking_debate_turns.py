@@ -181,6 +181,23 @@ def _build_turn_prompt(
     return turn_prompt
 
 
+def _majority_decided(votes: list[str], turns: int) -> bool:
+    """True once no remaining turn can change the majority verdict.
+
+    A debate's winner is the majority of its turn votes, so a side holding
+    more than half of the budgeted turns has already won and the turns left
+    are pure latency: they cannot flip the verdict, only restate it. This
+    matters most in the case it fires on -- turns alternate A/B presentation
+    order, so two agreeing turns agreed from *opposite* orders, which is the
+    position-bias-free evidence the third turn exists to supply.
+
+    A split (one vote each) is not decided, so the tie-breaking turn still
+    runs. Single-turn comparisons are decided by their only turn.
+    """
+    needed = turns // 2 + 1
+    return votes.count("a") >= needed or votes.count("b") >= needed
+
+
 def _resolve_turn_winner(
     response: dict[str, Any], swapped: bool, fallback: str
 ) -> tuple[str, bool]:
@@ -197,10 +214,17 @@ def _finalize_debate_response(
     response: dict[str, Any],
     votes: list[str],
     run: _DebateRun,
-    turns: int,
     model_name: str,
 ) -> str:
-    """Determines the debate's overall winner and attaches provenance fields."""
+    """Determines the debate's overall winner and attaches provenance fields.
+
+    ``debate_turns`` records the turns actually judged rather than the depth
+    the matchup was budgeted, since a decided majority stops the debate
+    early (see ``_majority_decided``). It is persisted as provenance and
+    metered as the matchup's LLM spend, so reporting the budget would
+    overstate both.
+    """
+    turns = len(votes)
     winner = "a" if votes.count("a") > votes.count("b") else "b"
     if votes.count("a") == votes.count("b"):
         winner = run.fallback

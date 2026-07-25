@@ -3,6 +3,7 @@
 from dataclasses import dataclass, field
 from typing import Any
 
+from co_scientist.constants import DEBATE_MAX_TURNS
 from co_scientist.prompts._common import (
     PromptRunContext,
     _format_meta_review_context,
@@ -240,11 +241,28 @@ class DebatePromptRequest:
     context: PromptRunContext = field(default_factory=PromptRunContext)
 
 
+def _discussion_turn_budget() -> int:
+    """Return how many conversational turns a debate gets before synthesis.
+
+    Derived from ``DEBATE_MAX_TURNS`` rather than written into the template,
+    because the panel paces itself against whatever number it is told. The
+    templates used to state "typically 3-5 conversational turns" as prose
+    while the loop ran a fixed five, and the two then drifted independently
+    -- a stale figure here reads as a real instruction to the model, so it
+    has to be single-sourced from the constant the loop actually enforces.
+
+    The last turn is the schema-constrained synthesis, so the discussion
+    budget is one short of the ceiling.
+    """
+    return max(1, DEBATE_MAX_TURNS - 1)
+
+
 def _build_debate_base_variables(req: DebatePromptRequest) -> dict[str, Any]:
     """Build the goal/transcript/preferences core of the debate variables."""
     return {
         "goal": req.research_goal,
         "hypotheses_count": req.hypotheses_count,
+        "discussion_turns": _discussion_turn_budget(),
         "transcript": req.transcript or "",
         "preferences": req.preferences
         or "Novel, testable, scientifically sound, specific, and diverse"

@@ -284,6 +284,13 @@ def _apply_wave_elo(
 
     Elo is applied in wave order so the committed result is independent of
     the order the concurrent judgements happened to return in.
+
+    ``depths`` is what each matchup was *budgeted*; a debate that reached a
+    decided majority early spends fewer turns than that, and reports the
+    turns it actually judged on the response. Metering the budget instead
+    would charge the run's LLM allowance for calls it never made, and
+    ``max_llm_calls`` is a termination bound -- over-counting it shortens
+    runs for no reason.
     """
     from co_scientist.agents.ranking.ranking import (
         _apply_matchup_elo,
@@ -307,7 +314,7 @@ def _apply_wave_elo(
                 hypothesis_a, hypothesis_b, winner, response, outcome
             )
         )
-        total_calls += depths[offset]
+        total_calls += int(response.get("debate_turns", depths[offset]))
         last_pair = [hypothesis_a.id, hypothesis_b.id]
     return details, total_calls, last_pair
 

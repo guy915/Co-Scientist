@@ -251,7 +251,10 @@ async def _judge_and_commit_matchup(
         k_factor=int(state.get("elo_k_factor") or ELO_K_FACTOR),
     )
     detail = _build_matchup_detail(hyp_a, hyp_b, winner, response, outcome)
-    return detail, depth
+    # The turns actually judged, not the depth budgeted: a debate whose
+    # majority is decided early stops short of its budget, and this number
+    # is metered against the run's LLM allowance.
+    return detail, int(response.get("debate_turns", depth))
 
 
 async def _run_one_round(

@@ -35,6 +35,9 @@ from co_scientist.agents.ranking.ranking_debate_turns import (
     _finalize_debate_response as _finalize_debate_response,
 )
 from co_scientist.agents.ranking.ranking_debate_turns import (
+    _majority_decided as _majority_decided,
+)
+from co_scientist.agents.ranking.ranking_debate_turns import (
     _MatchupPrompt as _MatchupPrompt,
 )
 from co_scientist.agents.ranking.ranking_debate_turns import (
@@ -240,11 +243,18 @@ async def _run_debate_turns(
     base: _MatchupPrompt,
     fallback: str,
 ) -> tuple[list[str], _DebateRun, dict[str, Any]]:
-    """Runs every debate turn, alternating A/B presentation order.
+    """Runs debate turns until the majority is decided, alternating order.
 
     Folds the matchup index into the starting presentation order so a
     single-turn (lower-ranked) comparison does not always present
     hypothesis A first (see ``_execute_debate_turn``).
+
+    Turns are strictly serial -- each one re-examines the transcript so far
+    -- so this loop is the deepest part of the run's critical path, and
+    ranking is its highest-volume stage. It therefore stops as soon as
+    ``_majority_decided`` holds: the remaining turns cannot change the
+    verdict, and at the default depth of three that retires a full third of
+    the judge calls whenever the first two turns agree.
 
     Returns:
         Tuple of (votes, debate run with the accumulated transcript, final
@@ -262,6 +272,8 @@ async def _run_debate_turns(
         winner, entry, response = await _execute_debate_turn(ctx, turn, run)
         votes.append(winner)
         run.transcript.append(entry)
+        if _majority_decided(votes, turns):
+            break
     return votes, run, response
 
 
@@ -286,9 +298,7 @@ async def judge_matchup(
         ctx.hypothesis_a, ctx.hypothesis_b, ctx.matchup_index
     )
     votes, run, response = await _run_debate_turns(ctx, turns, base, fallback)
-    winner = _finalize_debate_response(
-        response, votes, run, turns, ctx.model_name
-    )
+    winner = _finalize_debate_response(response, votes, run, ctx.model_name)
     return winner, response
 
 

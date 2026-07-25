@@ -49,7 +49,9 @@ General guidelines:
 * Prioritize the generation of a high-quality {{attributes}} hypothesis.
 
 Termination condition:
-When sufficient discussion has transpired, conclude by writing "HYPOTHESIS" followed by a self-contained domain-expert proposal covering mechanism, rationale, test, falsification criteria, limitations, and alternatives.
+This discourse is deliberately short: you have at most {{discussion_turns}} conversational turns before the finalized hypothesis is required. Make each one count — raise your strongest objection and resolve it within the same turn rather than deferring it, and do not spend a turn restating agreement.
+
+As soon as sufficient discussion has transpired, conclude by writing "HYPOTHESIS" followed by a self-contained domain-expert proposal covering mechanism, rationale, test, falsification criteria, limitations, and alternatives. Concluding early is expected when the panel has genuinely converged.
 
 #BEGIN TRANSCRIPT#
 {{transcript}}

@@ -12,6 +12,7 @@ import pytest
 
 from co_scientist.agents.ranking import ranking_debate
 from co_scientist.agents.ranking.ranking_debate import (
+    _balanced_invalid_fallback,
     _DebateContext,
     _matchup_debate_turns,
     _median_elo,
@@ -75,8 +76,12 @@ def _stub_turn_counter(monkeypatch: pytest.MonkeyPatch) -> list[int]:
 async def test_multi_turn_debate_runs_multiple_calls_and_persists_transcript(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A multi-turn debate makes one LLM call per turn and records each."""
-    calls = _stub_turn_counter(monkeypatch)
+    """A multi-turn debate makes one LLM call per turn and records each.
+
+    The scripted raw winners flip with the presentation order, so both turns
+    vote for the same hypothesis and the verdict is unanimous.
+    """
+    calls = _stub_fixed_winners(monkeypatch, ["a", "b"])
     a = make_hypothesis(text="alpha hypothesis")
     b = make_hypothesis(text="beta hypothesis")
 
@@ -90,11 +95,108 @@ async def test_multi_turn_debate_runs_multiple_calls_and_persists_transcript(
     assert response["debate_turns"] == MULTI_TURN_DEBATE_TURNS
     transcript = response["debate_transcript"]
     assert len(transcript) == MULTI_TURN_DEBATE_TURNS
-    assert [t["turn"] for t in transcript] == [1, 2, 3]
-    assert [t["presentation_order"] for t in transcript] == ["ab", "ba", "ab"]
-    assert response["consensus_votes"] == ["a", "b", "a"]
+    assert [t["turn"] for t in transcript] == [1, 2]
+    # Opposite presentation orders, so the agreement is position-bias-free.
+    assert [t["presentation_order"] for t in transcript] == ["ab", "ba"]
+    assert response["consensus_votes"] == ["a", "a"]
     assert response["position_balanced"] is True
     assert response["judge_model"] == "fake/model"
+
+
+def _stub_fixed_winners(
+    monkeypatch: pytest.MonkeyPatch, raw_winners: list[str]
+) -> list[int]:
+    """Patch call_llm_json to return a scripted raw winner per turn."""
+    calls: list[int] = []
+
+    async def fake(**_: Any) -> dict[str, Any]:
+        raw = raw_winners[len(calls)]
+        calls.append(1)
+        return {
+            "winner": raw,
+            "decision_summary": f"turn {len(calls)} reasoning",
+            "confidence_level": "High",
+        }
+
+    monkeypatch.setattr(ranking_debate, "call_llm_json", fake)
+    return calls
+
+
+async def test_agreeing_turns_end_the_debate_before_its_budget(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Two turns that agree decide the majority, so the third never runs.
+
+    Turn 2 is presented in the opposite A/B order, so a raw "b" there is a
+    vote for the same hypothesis turn 1 raw-picked as "a". The verdict is
+    settled and the budgeted third call is skipped.
+    """
+    calls = _stub_fixed_winners(monkeypatch, ["a", "b", "a"])
+    ctx = _DebateContext(
+        make_hypothesis(text="alpha"),
+        make_hypothesis(text="beta"),
+        "goal",
+        "fake/model",
+    )
+
+    winner, response = await judge_matchup(
+        ctx, debate_turns=MULTI_TURN_DEBATE_TURNS
+    )
+
+    assert winner == "a"
+    assert len(calls) == 2
+    assert response["consensus_votes"] == ["a", "a"]
+    # Provenance and the LLM meter report the turns judged, not the budget.
+    assert response["debate_turns"] == 2
+    assert len(response["debate_transcript"]) == 2
+    # Two turns still alternated presentation order, so the verdict is
+    # position-balanced despite stopping early.
+    assert response["position_balanced"] is True
+
+
+async def test_split_turns_still_run_the_tiebreaker(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A one-all split is undecided, so a deeper budget is spent in full.
+
+    Depth is passed explicitly rather than read from
+    ``MULTI_TURN_DEBATE_TURNS``: this pins the majority rule itself, which
+    must hold at whatever depth the tournament is configured for.
+    """
+    calls = _stub_fixed_winners(monkeypatch, ["a", "a", "a"])
+    ctx = _DebateContext(
+        make_hypothesis(text="alpha"),
+        make_hypothesis(text="beta"),
+        "goal",
+        "fake/model",
+    )
+
+    _, response = await judge_matchup(ctx, debate_turns=3)
+
+    assert len(calls) == 3
+    assert response["consensus_votes"] == ["a", "b", "a"]
+    assert response["debate_turns"] == 3
+
+
+async def test_a_split_at_the_configured_depth_falls_back_balanced(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """At an even depth a tie resolves through the balanced fallback.
+
+    This is what the third turn used to settle. The fallback is stable for a
+    given pair and alternates with the matchup index, so a tie costs the
+    tournament nothing systematic in either hypothesis's favour.
+    """
+    _stub_fixed_winners(monkeypatch, ["a", "a"])
+    alpha = make_hypothesis(text="alpha")
+    beta = make_hypothesis(text="beta")
+    ctx = _DebateContext(alpha, beta, "goal", "fake/model")
+
+    winner, response = await judge_matchup(ctx, debate_turns=2)
+
+    # Turn 2 is presented swapped, so a raw "a" both times is a one-all split.
+    assert response["consensus_votes"] == ["a", "b"]
+    assert winner == _balanced_invalid_fallback(alpha, beta, None)
 
 
 async def test_single_turn_debate_runs_one_call(

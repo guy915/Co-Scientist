@@ -171,7 +171,7 @@ flowchart LR
   MIX -.-> Tools
 
   subgraph Debate [generate_with_debate — debate.py]
-    T["count parallel multi-turn debates<br/>(DEBATE_MAX_TURNS=5) + diversity angles"]
+    T["count parallel multi-turn debates<br/>(DEBATE_MAX_TURNS=3) + diversity angles"]
     F["final JSON turn → 1 hypothesis each"]
     T --> F
   end
@@ -299,7 +299,7 @@ The implementation-defined values (see [`docs/FIDELITY.md`](FIDELITY.md) for the
 | `DEFAULT_MAX_ITERATIONS` | `1` | `constants.py:63` |
 | `DEFAULT_INITIAL_HYPOTHESES_COUNT` | `5` | `constants.py:73` |
 | `DEFAULT_EVOLUTION_MAX_COUNT` | `3` | `constants.py:76` |
-| `DEBATE_MIN_TURNS` / `DEBATE_MAX_TURNS` | `3` / `5` | `constants.py:67-71` |
+| `DEBATE_MAX_TURNS` | `3` (ceiling; a converged panel stops sooner) | `constants.py:120` |
 | `DEEP_VERIFICATION_TOP_K` | `3` | `constants.py:80` |
 | `RESEARCH_OVERVIEW_TOP_K` | `10` | `constants.py:84` |
 | `DUPLICATE_SIMILARITY_THRESHOLD` | `0.95` (evolve anti-dup guard) | `constants.py:88` |

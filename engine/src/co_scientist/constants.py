@@ -32,10 +32,26 @@ ELO_K_FACTOR: Final = 24
 # Debate depth for a tournament matchup (paper invariant SSR §4, §12): top-
 # ranked comparisons use a multi-turn scientific debate, lower-ranked ones a
 # single-turn comparison. A matchup is "top-ranked" when at least one
-# hypothesis is at or above the pool's median Elo. The 3-turn depth is a
-# documented clone choice (Google specifies "multi-turn" but not the count).
-MULTI_TURN_DEBATE_TURNS: Final = 3
-"""Number of debate turns for a top-ranked matchup (clone-defined)."""
+# hypothesis is at or above the pool's median Elo. The depth is a documented
+# clone choice (Google specifies "multi-turn" but not the count).
+MULTI_TURN_DEBATE_TURNS: Final = 2
+"""Number of debate turns for a top-ranked matchup (clone-defined).
+
+Sets the tournament's wall clock outright. Turns are serial -- each re-reads
+the transcript so far -- while the matchups of a wave are judged
+concurrently, so a wave costs this many call latencies no matter how wide it
+is. Ranking is the run's highest-volume LLM stage, which makes this the
+single most expensive number in the pipeline.
+
+Lowered from three. Two is the smallest depth that still spends real
+test-time compute *and* keeps the position-bias guard intact: the turns
+present the pair in opposite A/B orders, so a two-turn agreement is a
+verdict both orderings reached independently, which is the property the
+depth exists to buy. What the third turn added was a tiebreak; a split now
+resolves through the identity-stable balanced fallback in
+``_balanced_invalid_fallback`` instead, which alternates across matchups and
+so does not bias the tournament in either hypothesis's favour.
+"""
 
 SINGLE_TURN_DEBATE_TURNS: Final = 1
 """Number of turns for a lower-ranked (single-turn) matchup."""
@@ -117,10 +133,26 @@ DEFAULT_MAX_ITERATIONS: Final = 1
 """Default number of refinement iterations."""
 
 # Debate generation parameters
-# Generation via multi-turn expert debate (nodes/generation/debate.py) stops
-# after this many turns if the model does not converge earlier.
-DEBATE_MAX_TURNS: Final = 5
-"""Default number of debate turns (can be up to 10)."""
+DEBATE_MAX_TURNS: Final = 3
+"""Ceiling on debate turns; a converged panel stops before reaching it.
+
+The prompt asks the panel to declare convergence by writing "HYPOTHESIS",
+and ``debate._debate_converged`` reads that signal, so this bounds a debate
+that never agrees rather than sizing every debate.
+
+This is the deepest serial chain in a run and therefore sets the generation
+stage's wall clock outright. Turns cannot overlap -- each one is handed the
+previous turn's reply as its transcript -- so the stage costs this many
+call latencies however many debates run at once, and however many workers
+the cohort has. Widening concurrency cannot touch it; only the ceiling can.
+
+Lowered from five. The non-final turns are undifferentiated: they share one
+prompt and one instruction set, so a turn is another round of the same
+argument rather than a distinct stage, and the prompt's own termination
+condition puts convergence at "typically 3-5 conversational turns". Two
+rounds of discussion followed by the schema-constrained synthesis keeps the
+panel's disagreement and drops the tail it spends restating agreement.
+"""
 
 DEFAULT_INITIAL_HYPOTHESES_COUNT: Final = 5
 """Default number of initial hypotheses to generate."""

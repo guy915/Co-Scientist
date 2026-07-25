@@ -11,6 +11,7 @@ here for compatibility.
 
 import asyncio
 import logging
+import re
 from collections.abc import Coroutine
 from dataclasses import dataclass
 from typing import Any
@@ -287,24 +288,52 @@ def _build_debate_context(
     )
 
 
+# The debate prompt's stated termination condition: a panel that has
+# resolved its disagreement concludes by writing "HYPOTHESIS" in capitals
+# before the finalized idea (generation_debate_and_literature.md, and the
+# "typically 3-5 conversational turns" it expects that to take).
+_DEBATE_TERMINATOR = re.compile(r"\bHYPOTHESIS\b")
+
+
+def _debate_converged(response_text: str) -> bool:
+    """True when a free-form turn declared the debate concluded.
+
+    The termination condition has always been in the prompt and the turn
+    loop only ever honoured its budget, so a panel that agreed at turn two
+    still paid for every remaining turn. Debate turns are strictly serial
+    and generation is the deepest serial chain in a run, which makes them
+    among the most expensive calls it makes.
+
+    Matched case-sensitively as a whole word. The sentinel is the all-caps
+    token the prompt reserves for it; discussing "the hypothesis" is the
+    ordinary content of every turn and must not end the debate.
+    """
+    return bool(_DEBATE_TERMINATOR.search(response_text))
+
+
 async def _run_debate_turns(
     state: WorkflowState,
     ctx: _DebateContext,
     num_turns: int,
 ) -> tuple[Hypothesis, str]:
-    """Run every turn of one debate, returning its hypothesis and transcript.
+    """Run one debate's turns, returning its hypothesis and transcript.
 
     Earlier turns produce free-form dialogue that accumulates into the
     transcript, giving each later prompt the full debate history so far.
     Only the final turn is structured JSON, parsed into the Hypothesis.
+
+    ``num_turns`` is a ceiling, not a quota: a turn that signals
+    convergence (see ``_debate_converged``) makes the next turn the final
+    structured one, so the panel still synthesizes but stops arguing.
 
     Raises:
         GenerationError: if the loop exits without hitting the final turn;
             unreachable normally, guards a misconfigured num_turns <= 0.
     """
     transcript = ""
+    converged = False
     for turn in range(1, num_turns + 1):
-        is_final = turn == num_turns
+        is_final = turn == num_turns or converged
         prompt, schema = _build_debate_turn_prompt(
             state, ctx, transcript, is_final
         )
@@ -317,6 +346,7 @@ async def _run_debate_turns(
 
         response_text = await _run_intermediate_debate_turn(state, prompt)
         transcript += f"\n\nTurn {turn}:\n{response_text}"
+        converged = _debate_converged(response_text)
 
     raise GenerationError(f"{ctx.debate_label} ended without final turn")
 
