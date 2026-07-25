@@ -104,6 +104,10 @@ def _init_bookkeeping(hypotheses: list[Hypothesis]) -> dict[str, Any]:
         "pool_at_last_proximity": pool_size,
         "pool_at_last_decision": pool_size,
         "last_work_task": TaskType.GENERATE.value,
+        # None until the first settlement round: the override may fire, and
+        # the allowance is sized from the backlog observed at that moment.
+        "settlement_allowance": None,
+        "unmatched_at_last_settlement": None,
     }
 
 
@@ -264,6 +268,37 @@ def _task_type_or_none(value: Any) -> TaskType | None:
     return TaskType(value)
 
 
+def _is_settlement_rank(
+    stats: SchedulerStats, decision: SupervisorDecision
+) -> bool:
+    """Return whether this decision is a ranking round that settles coverage.
+
+    Identified from the decision and the stats that produced it rather than
+    signalled by the policy, which stays a pure function. A ranking round
+    chosen while hypotheses are unmatched draws on the allowance whichever
+    check selected it -- charging every such round keeps the counter
+    monotonically decreasing on every path, which is what the termination
+    bound rests on.
+    """
+    return (
+        decision.next_task is TaskType.RANK
+        and stats.unmatched_rankable_count > 0
+    )
+
+
+def _initial_settlement_allowance(stats: SchedulerStats) -> int:
+    """Return the most settlement rounds that could ever be useful.
+
+    One round covers at most two unmatched hypotheses, and the pool admits
+    only so many distinct pairings, so the allowance is the smaller of the
+    two. Mirrors ``ranking_lifecycle._coverage_floor``, which bounds the
+    rounds an individual tournament schedules for the same reason.
+    """
+    rankable = stats.rankable_count
+    max_pairs = rankable * (rankable - 1) // 2
+    return min((stats.unmatched_rankable_count + 1) // 2, max_pairs)
+
+
 def _next_bookkeeping(
     book: dict[str, Any],
     stats: SchedulerStats,
@@ -284,6 +319,15 @@ def _next_bookkeeping(
         updated["pool_at_last_proximity"] = stats.pool_size
     if decision.next_task in (TaskType.GENERATE, TaskType.EVOLVE):
         updated["last_work_task"] = decision.next_task.value
+    if _is_settlement_rank(stats, decision):
+        allowance = updated.get("settlement_allowance")
+        if allowance is None:
+            allowance = _initial_settlement_allowance(stats)
+        # Charged whether or not the round helps, and never replenished, so
+        # the override can only fire finitely many times regardless of what
+        # ranking does or how the pool changes underneath it.
+        updated["settlement_allowance"] = max(0, int(allowance) - 1)
+        updated["unmatched_at_last_settlement"] = stats.unmatched_rankable_count
     return updated
 
 

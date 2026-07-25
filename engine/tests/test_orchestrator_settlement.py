@@ -6,8 +6,13 @@ refilling the allowance that bounds how long the scheduler may override a
 budget ceiling to finish owed tournament rounds.
 """
 
-from co_scientist.agents.supervisor.orchestrator import _rankable_coverage
+from co_scientist.agents.supervisor.orchestrator import (
+    _init_bookkeeping,
+    _next_bookkeeping,
+    _rankable_coverage,
+)
 from co_scientist.models import Hypothesis
+from co_scientist.scheduling import SchedulerStats, SupervisorDecision, TaskType
 
 
 def _hyp(hyp_id: str, wins: int = 0, losses: int = 0) -> Hypothesis:
@@ -43,3 +48,72 @@ def test_rankable_coverage_ignores_unrankable_hypotheses() -> None:
 
     assert rankable == 1
     assert unmatched == 0
+
+
+def _settlement_stats(**overrides: object) -> SchedulerStats:
+    """Stats for a pool mid-settlement, with overridable allowance state."""
+    base: dict[str, object] = {
+        "pool_size": 6,
+        "rankable_count": 6,
+        "unmatched_rankable_count": 4,
+    }
+    base.update(overrides)
+    return SchedulerStats(**base)  # type: ignore[arg-type]
+
+
+_RANK = SupervisorDecision(next_task=TaskType.RANK, reason="settle")
+
+
+def test_first_settlement_initialises_and_spends_one_round() -> None:
+    # Four unmatched ideas need at most two rounds (two per pairing); the
+    # first firing spends one of them.
+    book = _next_bookkeeping(_init_bookkeeping([]), _settlement_stats(), _RANK)
+
+    assert book["settlement_allowance"] == 1
+    assert book["unmatched_at_last_settlement"] == 4
+
+
+def test_allowance_is_bounded_by_distinct_pairs() -> None:
+    # Two rankable ideas admit exactly one pairing, however many are
+    # unmatched, so the allowance can never exceed it.
+    stats = _settlement_stats(rankable_count=2, unmatched_rankable_count=2)
+
+    book = _next_bookkeeping(_init_bookkeeping([]), stats, _RANK)
+
+    assert book["settlement_allowance"] == 0
+
+
+def test_allowance_decrements_and_never_refills() -> None:
+    # New hypotheses arriving mid-settlement must not hand the run more
+    # rounds: a refillable counter would not bound anything.
+    book = {
+        "settlement_allowance": 3,
+        "unmatched_at_last_settlement": 2,
+        "pool_at_last_decision": 6,
+    }
+
+    updated = _next_bookkeeping(
+        book, _settlement_stats(unmatched_rankable_count=99), _RANK
+    )
+
+    assert updated["settlement_allowance"] == 2
+
+
+def test_allowance_floors_at_zero() -> None:
+    book = {"settlement_allowance": 0, "unmatched_at_last_settlement": 1}
+
+    updated = _next_bookkeeping(book, _settlement_stats(), _RANK)
+
+    assert updated["settlement_allowance"] == 0
+
+
+def test_non_settlement_rank_leaves_the_allowance_alone() -> None:
+    # A ranking round requested for ordinary calibration, with nothing owed,
+    # must not consume settlement budget.
+    book = _init_bookkeeping([])
+
+    updated = _next_bookkeeping(
+        book, _settlement_stats(unmatched_rankable_count=0), _RANK
+    )
+
+    assert updated.get("settlement_allowance") is None
