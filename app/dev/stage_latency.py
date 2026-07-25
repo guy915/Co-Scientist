@@ -36,9 +36,23 @@ Baseline, seven most recent completed runs as of 2026-07-24 (commit
 Two properties of that baseline shape the work queued behind it. Idle time
 is ~0, so there is no queue latency to reclaim -- every second is inside a
 task. And ``solo_s`` equals ``wall_share_s`` for every stage, meaning no two
-stage kinds ever overlap: the run is a strictly serial spine, and widening
-the worker cohort cannot shorten it. Latency has to come out of the stages
-themselves.
+stage kinds ever overlap: the run executes as a strictly serial spine.
+
+That second property is an observation about how the pipeline is *wired*,
+not a law about how it must be. Several stages read only a hypothesis's
+text and write disjoint fields, so they are chained without a data
+dependency forcing it. Whether unchaining them would actually pay is what
+the occupancy report answers:
+
+    python -m dev.stage_latency --tier standard --limit 7 --cohort-size 8
+
+``free`` is the mean worker slots a stage left unused. A stage with several
+free slots can host an independent stage alongside it for nothing -- the
+cohort was going to idle anyway. A stage reported as ``saturated`` cannot:
+overlapping it only requeues the same work behind the same eight workers,
+and its latency has to come from a wider cohort or a shorter chain. Read
+this table before proposing either fix; the two readings prescribe opposite
+work and the wall-share table alone cannot tell them apart.
 """
 
 from __future__ import annotations
@@ -56,6 +70,7 @@ from typing import Any
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from dev.stage_latency_analysis import (  # noqa: E402
+    DEFAULT_COHORT_SIZE,
     RunProfile,
     StageStats,
     load_spans,
@@ -63,6 +78,23 @@ from dev.stage_latency_analysis import (  # noqa: E402
     profile_run,
     run_tier,
 )
+
+
+def _configured_cohort_size() -> int:
+    """Return the app's worker_pool_size, or the module default.
+
+    Read from the live setting rather than assumed, so the occupancy report
+    compares against the ceiling the runs were actually executed under. A
+    report that measured 8 concurrent tasks against a wrongly assumed
+    ceiling of 12 would read as comfortable headroom when the cohort was in
+    fact saturated -- the exact conclusion this report exists to get right.
+    """
+    try:
+        from app.config import settings
+
+        return int(settings.worker_pool_size)
+    except Exception:
+        return DEFAULT_COHORT_SIZE
 
 # The plan's first-wave goal: a cohort must come in at or below this
 # fraction of the baseline mean to count as a win.
@@ -130,7 +162,11 @@ def _profiles_for(
         if args.tier and tier != args.tier:
             continue
         profile = profile_run(
-            row["id"], tier, row["status"], spans.get(row["id"], [])
+            row["id"],
+            tier,
+            row["status"],
+            spans.get(row["id"], []),
+            cohort_size=args.cohort_size,
         )
         if profile is not None:
             profiles.append(profile)
@@ -211,7 +247,45 @@ def _cohort(
             sum(s.worker_s for s in p.stages) for p in profiles
         ),
         "stages": [stage.to_dict() for stage in _merge_stages(profiles)],
+        "occupancy": _merge_occupancy(profiles),
         "runs": [profile.to_dict() for profile in profiles],
+    }
+
+
+def _merge_occupancy(profiles: Sequence[RunProfile]) -> dict[str, Any]:
+    """Aggregate per-run occupancy into one cohort-wide summary.
+
+    Per-stage figures are averaged over the runs that actually ran that
+    stage, not over the whole cohort: a stage absent from a run contributes
+    no occupancy observation, and counting it as zero would report an
+    always-saturated stage as having headroom.
+    """
+    if not profiles:
+        return {}
+    by_stage: dict[str, list[Any]] = {}
+    for profile in profiles:
+        for stage in profile.occupancy.stages:
+            by_stage.setdefault(stage.task_type, []).append(stage)
+    stages = [
+        {
+            "task_type": task_type,
+            "mean_concurrency": _mean(s.mean_concurrency for s in observed),
+            "peak_concurrency": max(s.peak_concurrency for s in observed),
+            "saturated_s": _mean(s.saturated_s for s in observed),
+            "headroom": _mean(s.headroom for s in observed),
+        }
+        for task_type, observed in by_stage.items()
+    ]
+    return {
+        "cohort_size": profiles[0].occupancy.cohort_size,
+        "mean_concurrency": _mean(
+            p.occupancy.mean_concurrency for p in profiles
+        ),
+        "peak_concurrency": max(
+            p.occupancy.peak_concurrency for p in profiles
+        ),
+        "mean_saturated_s": _mean(p.occupancy.saturated_s for p in profiles),
+        "stages": sorted(stages, key=lambda s: -float(s["headroom"])),
     }
 
 
@@ -270,6 +344,39 @@ def _print_stages(cohort: dict[str, Any]) -> None:
             f"{_fmt(stage['solo_s']):>9}"
             f"{_fmt(stage['p50_s']):>8}"
             f"{_fmt(stage['p95_s']):>8}"
+        )
+
+
+def _print_occupancy(cohort: dict[str, Any]) -> None:
+    """Print worker-cohort utilization, most idle slots first.
+
+    ``conc`` is every task in flight while the stage ran, not just its own,
+    since that is what decides whether an independent stage could have run
+    alongside it. A stage with wide headroom is a candidate for overlapping
+    with one it does not depend on; a stage that is mostly saturated is not,
+    and needs a wider cohort or a shorter chain instead.
+    """
+    occ = cohort.get("occupancy")
+    if not occ:
+        return
+    size = occ["cohort_size"]
+    print()
+    print(
+        f"worker occupancy (cohort {size}):  "
+        f"mean {occ['mean_concurrency']:.1f} in flight  "
+        f"peak {occ['peak_concurrency']}  "
+        f"saturated {_fmt(occ['mean_saturated_s'])}/run"
+    )
+    print(
+        f"{'stage':<42}{'conc':>7}{'peak':>6}{'free':>7}{'saturated':>11}"
+    )
+    for stage in occ["stages"]:
+        print(
+            f"{stage['task_type']:<42}"
+            f"{stage['mean_concurrency']:>7.1f}"
+            f"{stage['peak_concurrency']:>6}"
+            f"{stage['headroom']:>7.1f}"
+            f"{_fmt(stage['saturated_s']):>11}"
         )
 
 
@@ -340,6 +447,12 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--save", help="Write the cohort JSON here.")
     parser.add_argument("--compare-to", help="Baseline cohort JSON to diff.")
     parser.add_argument("--json", action="store_true", help="Emit JSON only.")
+    parser.add_argument(
+        "--cohort-size",
+        type=int,
+        default=_configured_cohort_size(),
+        help="Worker slots per run the occupancy report measures against.",
+    )
     return parser
 
 
@@ -360,6 +473,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         _print_header(cohort)
         if profiles:
             _print_stages(cohort)
+            _print_occupancy(cohort)
             _print_widths(profiles)
         if args.compare_to:
             _print_comparison(cohort, args.compare_to)

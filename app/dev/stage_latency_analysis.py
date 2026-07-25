@@ -39,6 +39,13 @@ Splitting a segment between *kinds* rather than between *tasks* is
 deliberate: the question is which stage the run is blocked on, not how many
 workers were busy. Attributing per task would rank a 12-wide fan-out above
 the single orchestrator call it is waiting behind purely for being wide.
+
+How many workers were busy is a real question too, though, and this sweep
+cannot answer it -- which is what ``stage_latency_occupancy`` adds, and
+what this module re-exports as ``occupancy``. Knowing a stage's wall share
+says what to attack; knowing its *headroom* says how. The two readings
+prescribe opposite work, so measure before choosing between them; that
+module's docstring records the reasoning.
 """
 
 from __future__ import annotations
@@ -47,8 +54,30 @@ import dataclasses
 import json
 import sqlite3
 from collections import defaultdict
-from collections.abc import Iterable, Iterator, Sequence
+from collections.abc import Iterable, Sequence
 from typing import Any
+
+# The span/segment primitives and the occupancy analysis live in the
+# sibling module; re-exported here so this module stays the single import
+# for the whole report and existing callers keep resolving.
+from dev.stage_latency_occupancy import (
+    DEFAULT_COHORT_SIZE as DEFAULT_COHORT_SIZE,
+)
+from dev.stage_latency_occupancy import (
+    RunOccupancy as RunOccupancy,
+)
+from dev.stage_latency_occupancy import (
+    StageOccupancy as StageOccupancy,
+)
+from dev.stage_latency_occupancy import (
+    TaskSpan as TaskSpan,
+)
+from dev.stage_latency_occupancy import (
+    occupancy as occupancy,
+)
+from dev.stage_latency_occupancy import (
+    _segments,
+)
 
 # Task types that are pure bookkeeping around a fan-out wave rather than
 # scientific work. They are still reported, but are named here so a reader
@@ -58,26 +87,6 @@ AGGREGATE_SUFFIX = ".aggregate"
 # Terminal states worth measuring. A cancelled or failed task's span says
 # nothing about how long that stage takes when it works.
 _MEASURED_STATUS = "completed"
-
-
-@dataclasses.dataclass(frozen=True)
-class TaskSpan:
-    """One durable task's occupancy of wall-clock time.
-
-    Attributes:
-        task_type: Durable task type, e.g. ``engine.node.generate``.
-        started_at: Epoch seconds the worker began the task.
-        completed_at: Epoch seconds the worker finished it.
-    """
-
-    task_type: str
-    started_at: float
-    completed_at: float
-
-    @property
-    def duration_s(self) -> float:
-        """Return the span's length in seconds, never negative."""
-        return max(0.0, self.completed_at - self.started_at)
 
 
 @dataclasses.dataclass(frozen=True)
@@ -122,6 +131,7 @@ class RunProfile:
         task_count: Number of measured task spans.
         stages: Per-stage statistics, widest wall share first.
         items_per_invocation: Fan-out width per parent stage invocation.
+        occupancy: Worker-cohort utilization, overall and per stage.
     """
 
     run_id: str
@@ -134,11 +144,13 @@ class RunProfile:
     task_count: int
     stages: tuple[StageStats, ...]
     items_per_invocation: dict[str, float]
+    occupancy: RunOccupancy
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize for cohort JSON."""
         data = dataclasses.asdict(self)
         data["stages"] = [stage.to_dict() for stage in self.stages]
+        data["occupancy"] = self.occupancy.to_dict()
         return data
 
 
@@ -163,35 +175,6 @@ def percentile(values: Sequence[float], fraction: float) -> float:
     return ordered[rank - 1]
 
 
-def _boundaries(spans: Sequence[TaskSpan]) -> list[float]:
-    """Return the sorted distinct instants at which occupancy can change."""
-    points: set[float] = set()
-    for span in spans:
-        points.add(span.started_at)
-        points.add(span.completed_at)
-    return sorted(points)
-
-
-def _segments(
-    spans: Sequence[TaskSpan],
-) -> Iterator[tuple[float, float, set[str]]]:
-    """Yield elementary ``(start, end, active_types)`` segments.
-
-    Between two consecutive boundary instants the set of running tasks
-    cannot change, so each segment can be attributed as a unit.
-    """
-    points = _boundaries(spans)
-    for start, end in zip(points, points[1:]):
-        if end <= start:
-            continue
-        active = {
-            span.task_type
-            for span in spans
-            if span.started_at <= start and span.completed_at > start
-        }
-        yield start, end, active
-
-
 @dataclasses.dataclass
 class _Attribution:
     """Mutable accumulator for one run's sweep."""
@@ -213,9 +196,10 @@ def _sweep(spans: Sequence[TaskSpan]) -> _Attribution:
     the worker cohort's width.
     """
     acc = _Attribution()
-    for start, end, active in _segments(spans):
-        if not active:
+    for start, end, running in _segments(spans):
+        if not running:
             continue
+        active = {span.task_type for span in running}
         length = end - start
         acc.active_s += length
         share = length / len(active)
@@ -281,6 +265,7 @@ def profile_run(
     tier: str,
     status: str,
     spans: Sequence[TaskSpan],
+    cohort_size: int = DEFAULT_COHORT_SIZE,
 ) -> RunProfile | None:
     """Build one run's critical-path profile, or None when unmeasurable.
 
@@ -289,6 +274,7 @@ def profile_run(
         tier: Run tier recorded on the run row.
         status: Terminal run status.
         spans: The run's completed task spans.
+        cohort_size: Worker slots the run had available, for occupancy.
 
     Returns:
         The profile, or None when the run has no measurable spans.
@@ -310,6 +296,7 @@ def profile_run(
         task_count=len(spans),
         stages=_stage_stats(spans, acc),
         items_per_invocation=_fanout_width(spans),
+        occupancy=occupancy(spans, cohort_size),
     )
 
 

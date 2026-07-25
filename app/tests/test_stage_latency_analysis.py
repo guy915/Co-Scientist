@@ -14,8 +14,10 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(__file__))))
 
 from dev.stage_latency_analysis import (
     RunProfile,
+    StageOccupancy,
     StageStats,
     TaskSpan,
+    occupancy,
     percentile,
     profile_run,
 )
@@ -24,6 +26,13 @@ from dev.stage_latency_analysis import (
 def _stages(profile: RunProfile) -> dict[str, StageStats]:
     """Index a profile's stage stats by task type."""
     return {stage.task_type: stage for stage in profile.stages}
+
+
+def _occupancy_stages(
+    spans: list[TaskSpan], size: int
+) -> dict[str, StageOccupancy]:
+    """Index a span set's per-stage occupancy by task type."""
+    return {stage.task_type: stage for stage in occupancy(spans, size).stages}
 
 
 def test_concurrent_items_are_not_summed() -> None:
@@ -110,6 +119,67 @@ def test_ranking_width_counts_matches_per_finalize() -> None:
 
     assert profile is not None
     assert profile.items_per_invocation["engine.ranking"] == 12.0
+
+
+def test_headroom_reports_the_slots_a_stage_left_unused() -> None:
+    """A 3-wide stage on an 8-slot cohort reports five free slots."""
+    spans = [
+        TaskSpan("engine.fanout.verification.item", 0.0, 10.0) for _ in range(3)
+    ]
+
+    stage = _occupancy_stages(spans, 8)["engine.fanout.verification.item"]
+
+    assert stage.mean_concurrency == 3.0
+    assert stage.peak_concurrency == 3
+    assert stage.headroom == 5.0
+    assert stage.saturated_s == 0.0
+
+
+def test_a_stage_at_the_ceiling_reports_no_headroom() -> None:
+    """A stage filling the cohort is saturated for its whole duration.
+
+    This is the reading that rules *out* overlapping a stage with an
+    independent one: there is no slot for the other stage to run in, so
+    overlapping would only requeue the same work.
+    """
+    spans = [TaskSpan("engine.fanout.review.item", 0.0, 10.0) for _ in range(8)]
+
+    stage = _occupancy_stages(spans, 8)["engine.fanout.review.item"]
+
+    assert stage.mean_concurrency == 8.0
+    assert stage.headroom == 0.0
+    assert stage.saturated_s == 10.0
+
+
+def test_occupancy_counts_every_task_in_flight_not_just_the_stage_s() -> None:
+    """A stage's concurrency includes work from other stages beside it.
+
+    The question occupancy answers is whether the cohort had a free slot,
+    which depends on everything running -- so a narrow stage sharing the
+    cohort with a wide one must not read as having the cohort to itself.
+    """
+    spans = [TaskSpan("engine.node.orchestrator", 0.0, 10.0)]
+    spans += [
+        TaskSpan("engine.fanout.review.item", 0.0, 10.0) for _ in range(7)
+    ]
+
+    stages = _occupancy_stages(spans, 8)
+
+    assert stages["engine.node.orchestrator"].mean_concurrency == 8.0
+    assert stages["engine.node.orchestrator"].headroom == 0.0
+
+
+def test_occupancy_is_time_weighted_across_changing_width() -> None:
+    """Concurrency is weighted by duration, not averaged over segments."""
+    spans = [
+        TaskSpan("engine.fanout.review.item", 0.0, 90.0),
+        TaskSpan("engine.fanout.review.item", 0.0, 10.0),
+    ]
+
+    stage = _occupancy_stages(spans, 8)["engine.fanout.review.item"]
+
+    # 10s at width 2 and 80s at width 1 -> (20 + 80) / 90.
+    assert round(stage.mean_concurrency, 3) == round(100.0 / 90.0, 3)
 
 
 def test_profile_run_rejects_an_unmeasurable_run() -> None:
