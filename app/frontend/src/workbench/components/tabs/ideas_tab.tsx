@@ -256,8 +256,8 @@ function ideaRowClassName(selected: boolean): string {
 //
 // An idea with no matches shows why it has no rating rather than the rating
 // itself. Elo 1200 is where every hypothesis starts, so printing it for an
-// idea that never played reads as a result it earned; and "Ruled out" and
-// "Not compared" are different enough facts that one shared label for both
+// idea that never played reads as a result it earned; and "Disqualified" and
+// "Unranked" are different enough facts that one shared label for both
 // misleads (see ratingLabel).
 function IdeaRankHead({
   rank,

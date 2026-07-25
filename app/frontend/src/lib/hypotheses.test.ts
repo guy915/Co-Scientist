@@ -47,16 +47,18 @@ it('reports the earned rating for an idea that played', () => {
   ).toBe('Elo rating: 1268');
 });
 
-it('says "Ruled out" for an unplayed idea the run rejected', () => {
+it('says "Disqualified" for an unplayed idea the run rejected', () => {
   // Reviews and the evidence gate withhold contradicted, inaccurate, and
   // non-novel ideas from the tournament, persisted as status "rejected".
-  expect(ratingLabel(makeHypothesis({status: 'rejected'}))).toBe('Ruled out');
+  expect(ratingLabel(makeHypothesis({status: 'rejected'}))).toBe(
+    'Disqualified',
+  );
 });
 
-it('says "Not compared" for an unplayed idea still in good standing', () => {
+it('says "Unranked" for an unplayed idea still in good standing', () => {
   // Typically created in the run's final wave, after the last comparisons.
-  expect(ratingLabel(makeHypothesis({status: 'active'}))).toBe('Not compared');
-  expect(ratingLabel(makeHypothesis({status: null}))).toBe('Not compared');
+  expect(ratingLabel(makeHypothesis({status: 'active'}))).toBe('Unranked');
+  expect(ratingLabel(makeHypothesis({status: null}))).toBe('Unranked');
 });
 
 it('keeps the rating of a played idea that was later ruled out', () => {

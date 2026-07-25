@@ -106,11 +106,11 @@ it('labels an idea with no matches by reason rather than showing 1200', () => {
     />,
   );
 
-  expect(screen.getByText('Not compared')).toBeInTheDocument();
+  expect(screen.getByText('Unranked')).toBeInTheDocument();
   expect(screen.queryByText(/Elo rating/)).not.toBeInTheDocument();
 });
 
-it('distinguishes a ruled-out idea from one that never got its turn', () => {
+it('distinguishes a disqualified idea from one that never got its turn', () => {
   // Both have no rating, for unrelated reasons: one was withheld from the
   // tournament on the merits, the other simply never played. A single shared
   // label read as "we ran out of time" for ideas that were actually rejected.
@@ -128,11 +128,11 @@ it('distinguishes a ruled-out idea from one that never got its turn', () => {
     />,
   );
 
-  expect(screen.getByText('Ruled out')).toBeInTheDocument();
-  expect(screen.getByText('Not compared')).toBeInTheDocument();
+  expect(screen.getByText('Disqualified')).toBeInTheDocument();
+  expect(screen.getByText('Unranked')).toBeInTheDocument();
 });
 
-it('shows a rating for a ruled-out idea that did play before exclusion', () => {
+it('shows a rating for a disqualified idea that did play before exclusion', () => {
   // Exclusion can follow matches (deep verification undermines an idea after
   // it competed). The score it earned is real and stays visible.
   render(
@@ -150,5 +150,5 @@ it('shows a rating for a ruled-out idea that did play before exclusion', () => {
   );
 
   expect(screen.getByText('Elo rating: 1240')).toBeInTheDocument();
-  expect(screen.queryByText('Ruled out')).not.toBeInTheDocument();
+  expect(screen.queryByText('Disqualified')).not.toBeInTheDocument();
 });
