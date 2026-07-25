@@ -12,7 +12,14 @@ from co_scientist.agents.supervisor.orchestrator import (
     _rankable_coverage,
 )
 from co_scientist.models import Hypothesis
-from co_scientist.scheduling import SchedulerStats, SupervisorDecision, TaskType
+from co_scientist.scheduling import (
+    Budget,
+    SchedulerStats,
+    SupervisorDecision,
+    TaskType,
+    TerminationReason,
+    decide_next_task,
+)
 
 
 def _hyp(hyp_id: str, wins: int = 0, losses: int = 0) -> Hypothesis:
@@ -121,3 +128,91 @@ def test_non_settlement_rank_leaves_the_allowance_alone() -> None:
     )
 
     assert updated.get("settlement_allowance") is None
+
+
+def test_settlement_terminates_while_the_backlog_still_shrinks() -> None:
+    # The load-bearing case. The backlog falls by one every round, so the
+    # stall guard never fires and cannot be what stops this -- only the
+    # allowance can. A pool of 8 with 8 unmatched is granted 4 rounds, which
+    # runs out long before a backlog shrinking one at a time reaches zero.
+    #
+    # The loop cap is a test failsafe, not the mechanism under test: 50 is
+    # far above the largest allowance this pool could be granted.
+    budget = Budget(max_iterations=5, max_llm_calls=10)
+    book = _init_bookkeeping([])
+    backlog = 8
+    decision = None
+    rounds = 0
+
+    for _ in range(50):
+        stats = SchedulerStats(
+            pool_size=8,
+            reviewed_count=8,
+            rankable_count=8,
+            unmatched_rankable_count=backlog,
+            llm_calls=999,
+            settlement_allowance=book.get("settlement_allowance"),
+            unmatched_at_last_settlement=book.get(
+                "unmatched_at_last_settlement"
+            ),
+        )
+        decision = decide_next_task(stats, budget)
+        if decision.terminate:
+            break
+        book = _next_bookkeeping(book, stats, decision)
+        backlog -= 1
+        rounds += 1
+
+    assert decision is not None
+    assert decision.terminate
+    assert decision.termination_reason is TerminationReason.BUDGET
+    # Stopped on the allowance (4 rounds), with work still outstanding.
+    assert rounds == 4
+    assert backlog > 0
+
+
+def test_settlement_terminates_when_ranking_never_helps() -> None:
+    # The stall guard's own case: a round that changes nothing must not be
+    # repeated. Terminates faster than the allowance alone would.
+    budget = Budget(max_iterations=5, max_llm_calls=10)
+    book = _init_bookkeeping([])
+    decision = None
+
+    for _ in range(50):
+        stats = SchedulerStats(
+            pool_size=8,
+            reviewed_count=8,
+            rankable_count=8,
+            unmatched_rankable_count=8,
+            llm_calls=999,
+            settlement_allowance=book.get("settlement_allowance"),
+            unmatched_at_last_settlement=book.get(
+                "unmatched_at_last_settlement"
+            ),
+        )
+        decision = decide_next_task(stats, budget)
+        if decision.terminate:
+            break
+        book = _next_bookkeeping(book, stats, decision)
+
+    assert decision is not None
+    assert decision.terminate
+
+
+def test_settlement_allowance_is_monotonically_decreasing() -> None:
+    # The termination proof rests on this and nothing else: the counter
+    # never increases, on any path, whatever the pool does.
+    book = _init_bookkeeping([])
+    seen: list[int] = []
+
+    for unmatched in (8, 8, 12, 3, 40):
+        stats = _settlement_stats(
+            rankable_count=8,
+            unmatched_rankable_count=unmatched,
+            settlement_allowance=book.get("settlement_allowance"),
+        )
+        book = _next_bookkeeping(book, stats, _RANK)
+        seen.append(int(book["settlement_allowance"]))
+
+    assert seen == sorted(seen, reverse=True)
+    assert seen[-1] == 0
