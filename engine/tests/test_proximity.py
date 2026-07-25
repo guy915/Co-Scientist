@@ -242,3 +242,65 @@ async def test_cluster_members_still_match_by_text_without_index(
 
     assert len(result["hypotheses"]) == 1
     assert result["hypotheses"][0].elo_rating == 1400
+
+
+# --- Prompt payload clipping -------------------------------------------------
+
+
+def test_short_hypotheses_are_sent_whole() -> None:
+    """A hypothesis inside the budget reaches the prompt untouched."""
+    from co_scientist.agents.proximity.proximity import (
+        _prepare_hypotheses_for_analysis,
+    )
+
+    text = "alpha pathway drives tumor growth"
+    payload = _prepare_hypotheses_for_analysis([make_hypothesis(text=text)])
+
+    assert payload[0]["text"] == text
+
+
+def test_long_hypotheses_are_clipped_with_an_elision_marker() -> None:
+    """Over-budget text is cut and marked, not silently shortened.
+
+    An unmarked clip reads as a genuinely terser claim, which is the exact
+    distinction the clustering call is being asked to judge.
+    """
+    from co_scientist.agents.proximity.proximity import (
+        _prepare_hypotheses_for_analysis,
+    )
+    from co_scientist.constants import PROXIMITY_TEXT_CHARS
+
+    long_text = "word " * (PROXIMITY_TEXT_CHARS // 2)
+    payload = _prepare_hypotheses_for_analysis(
+        [make_hypothesis(text=long_text)]
+    )
+
+    clipped = payload[0]["text"]
+    assert clipped.endswith(" [...]")
+    assert len(clipped) <= PROXIMITY_TEXT_CHARS + len(" [...]")
+
+
+def test_clipping_prefers_a_sentence_boundary() -> None:
+    """The cut lands on a full stop when one is near the budget."""
+    from co_scientist.agents.proximity.proximity import _clip_for_clustering
+    from co_scientist.constants import PROXIMITY_TEXT_CHARS
+
+    # A sentence ending just inside the budget, then a long run-on tail.
+    head = "x" * (PROXIMITY_TEXT_CHARS - 20) + ". "
+    clipped = _clip_for_clustering(head + "y" * 500)
+
+    assert clipped == head[:-1] + " [...]"
+
+
+def test_clipping_preserves_the_fallback_match_prefix() -> None:
+    """The first 100 chars survive, so prefix-based member matching still works.
+
+    Both fallback matchers (``_MATCH_PREFIX_CHARS`` in proximity_graph and
+    the ``by_prefix`` map in proximity_dedup) key on that window; a clip that
+    disturbed it would silently stop resolving cluster members.
+    """
+    from co_scientist.agents.proximity.proximity import _clip_for_clustering
+
+    text = "distinctive opening clause " + ("filler " * 400)
+
+    assert _clip_for_clustering(text)[:100] == text[:100]

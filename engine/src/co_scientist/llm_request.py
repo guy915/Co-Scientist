@@ -294,7 +294,18 @@ def _inject_schema_into_prompt(prompt: str, json_schema: dict[str, Any]) -> str:
 
     Downgrading to the json_object response format loses the server-side
     schema constraint, so the schema is restated as prompt text to keep the
-    model aware of the required structure.
+    model aware of the required structure. With no server-side enforcement
+    the wording is the only constraint there is, so it spells out the two
+    ways models actually break this contract in production, both of which
+    surface as ``additionalProperties`` validation failures and cost a full
+    retry each:
+
+    1. Returning the schema itself -- an object carrying ``type`` and
+       ``properties`` -- because "match this schema" reads as "echo this"
+       once a schema is the last thing in the context.
+    2. Adding a plausible-sounding field the schema does not declare
+       (``cross_agent_feedback_used`` and friends), because nothing in the
+       instruction said the property list was closed.
 
     Args:
         prompt: The original user prompt.
@@ -308,7 +319,12 @@ def _inject_schema_into_prompt(prompt: str, json_schema: dict[str, Any]) -> str:
     return (
         prompt + "\n\n---\nRESPOND WITH VALID JSON ONLY. "
         "Your output MUST strictly match this JSON schema "
-        "(all required fields must be present):\n" + schema_str
+        "(all required fields must be present):\n" + schema_str + "\n\n"
+        "Output a JSON object that CONFORMS TO the schema above -- the "
+        "actual data. Do NOT output the schema itself: your response must "
+        'not contain "type", "properties", or "required" keys unless the '
+        "schema declares them as data fields. Use only the property names "
+        "the schema lists; any field it does not declare will be rejected."
     )
 
 
