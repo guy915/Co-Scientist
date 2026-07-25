@@ -88,6 +88,21 @@ _DECISION_SCHEMA: dict[str, Any] = {
 }
 
 
+def _owed_coverage_is_affordable(stats: SchedulerStats) -> bool:
+    """Return whether owed tournament coverage may still defer a stop.
+
+    Read from the allowance state on ``stats`` rather than inferred from the
+    scheduler's baseline task. The baseline is only a proxy: on the
+    queue-adjudication path the model may be consulted and return a task
+    other than RANK, which charges nothing, so a baseline-derived deferral
+    was not bounded by anything. The allowance itself is.
+    """
+    allowance = stats.settlement_allowance
+    return stats.unmatched_rankable_count > 0 and (
+        allowance is None or allowance > 0
+    )
+
+
 def _hard_stop(
     stats: SchedulerStats,
     budget: Budget,
@@ -96,7 +111,9 @@ def _hard_stop(
     """Return a code-enforced stop that no model allocation may bypass.
 
     Args:
-        stats: Live statistics derived from workflow state.
+        stats: Live statistics derived from workflow state, including the
+            settlement-allowance state that decides whether a budget stop
+            may be deferred for owed tournament coverage.
         budget: The run's hard compute limits.
         baseline: The disclosed scheduler's decision for these same
             stats/budget, reused for the satisfied-completion/convergence
@@ -108,13 +125,14 @@ def _hard_stop(
         # scheduler predicates after required review/ranking/proximity work.
         return baseline if baseline.terminate else None
     termination_reason, message = reason
-    settles_coverage = (
-        baseline.next_task is TaskType.RANK
-        and stats.unmatched_rankable_count > 0
-    )
-    if settles_coverage and termination_reason not in _IMMEDIATE_STOP_REASONS:
-        # Defer to the scheduler's owed-coverage round. Bounded by the
-        # settlement allowance, so this cannot postpone the stop forever.
+    if (
+        _owed_coverage_is_affordable(stats)
+        and termination_reason not in _IMMEDIATE_STOP_REASONS
+    ):
+        # Defer to the scheduler's owed-coverage round. Held to the same
+        # settlement allowance the scheduler spends, which is charged per
+        # settlement round and never refilled inside an episode, so the
+        # deferral cannot postpone the stop forever.
         return None
     return SupervisorDecision(
         next_task=TaskType.TERMINATE,
