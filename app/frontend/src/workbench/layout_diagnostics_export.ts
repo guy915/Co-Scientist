@@ -29,7 +29,7 @@ export interface DiagnosticExportContext {
 // under the shared argument ceiling.
 export interface DiagnosticExport {
   entries: DiagnosticLogEntry[];
-  /** Records added this page session; the panel's own Total chip. */
+  /** Records added this browsing session; the panel's Total chip. */
   total: number;
   counts: DiagnosticCounts;
   context?: DiagnosticExportContext;
@@ -45,8 +45,9 @@ function aboutSection(): string[] {
     'durable, app-wide log: backend records from the API, the durable task',
     'workers and the co_scientist engine, one compact stage record per run',
     'event, and frontend records this browser posted. It is scoped to this',
-    'page session (anything logged before the page loaded is excluded) and',
-    'to what this caller may see. Share the whole export when reporting a',
+    'browsing session (records that predate it are excluded; a tab reload',
+    'keeps the session, closing the tab ends it) and to what this caller',
+    'may see. Share the whole export when reporting a',
     'problem — the preamble below is the context a reader would otherwise',
     'have to guess at.',
     '',

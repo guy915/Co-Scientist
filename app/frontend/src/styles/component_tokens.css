@@ -18,11 +18,11 @@
   --cosci-danger-border: #b3261e;
   --cosci-danger-fg: #b3261e;
 
-  /* Caution. One step down from danger in both hue and urgency, so a
-     warning count next to an error count is legible as the lesser of the
-     two rather than as a second alarm. */
-  --cosci-warning-bg: #fef7e0;
-  --cosci-warning-fg: #8f5a00;
+  /* Caution. Orange: far enough around the wheel from the danger red to
+     be told apart at chip size and at a glance, close enough to still
+     read as the lesser of the two rather than as a separate category. */
+  --cosci-warning-bg: #ffedd7;
+  --cosci-warning-fg: #9a3412;
 
   /* Attachment cards. The extension badge keeps one mid-grey in both themes
      (white label text stays legible on it either way). */
@@ -177,8 +177,8 @@
   --cosci-danger-border: #5b2b2b;
   --cosci-danger-fg: #ffb4aa;
 
-  --cosci-warning-bg: #3a2c12;
-  --cosci-warning-fg: #ffdfa0;
+  --cosci-warning-bg: #3a2113;
+  --cosci-warning-fg: #ffb787;
 
   --cosci-attach-bg: #333537;
   --cosci-attach-fg: #fff;

@@ -27,37 +27,76 @@ interface AppliedLogState {
   withEntries: boolean;
 }
 
-// Where this page session began in the durable, app-wide log. The panel
-// shows only records added after this point, so a page refresh or a fresh
-// open of the site starts on a clean panel instead of the whole retained
-// history. Both are captured on the first load of the session and reset
-// only by a full page load (this module being re-evaluated) — i.e.
-// exactly a refresh or reopen.
+// Where this browsing session began in the durable, app-wide log. The
+// panel shows only records added after this point, so opening the site
+// starts on a clean panel instead of the whole retained history.
 //
-//   - `sessionBaselineId`: the log's high-water id at session start; a
-//     record is "this session" only when its id is above it.
-//   - `sessionBaselineTotal`: the visible-record count at session start.
+//   - `id`: the log's high-water id at session start; a record is "this
+//     session" only when its id is above it.
+//   - `total`: the visible-record count at session start.
 //     The server's `total` ignores the `after_id` window (it counts the
 //     whole visible set), so subtracting this snapshot yields the exact
 //     count of records added this session — which drives the badge and
 //     the "#N" numbering without a second count query.
-let sessionBaselineId: number | null = null;
-let sessionBaselineTotal = 0;
+//
+// The baseline lives in sessionStorage, not in this module's memory,
+// because the two events look identical to a module-scoped variable but
+// mean opposite things to a reader: closing the tab (or the browser) ends
+// the session and should start clean, while reloading the tab is the
+// reflex for "did that just get logged?" and must not throw the log away.
+// sessionStorage draws exactly that line — it survives a reload of this
+// tab and dies with it — and it is per-tab, so two tabs keep their own
+// views of the same durable log.
+const BASELINE_KEY = 'cosci-logs-session-baseline';
+
+interface SessionBaseline {
+  id: number;
+  total: number;
+}
+
+// Storage can be unavailable or full (private modes, quota); the baseline
+// is a convenience, never a reason to break the panel, so every access
+// degrades to this process's memory.
+let memoryBaseline: SessionBaseline | null = null;
+
+function readBaseline(): SessionBaseline | null {
+  try {
+    const raw = window.sessionStorage.getItem(BASELINE_KEY);
+    if (raw) return JSON.parse(raw) as SessionBaseline;
+  } catch {
+    // Unreadable storage: fall back to the in-memory copy.
+  }
+  return memoryBaseline;
+}
+
+function writeBaseline(baseline: SessionBaseline): void {
+  memoryBaseline = baseline;
+  try {
+    window.sessionStorage.setItem(BASELINE_KEY, JSON.stringify(baseline));
+  } catch {
+    // Unwritable storage: the in-memory copy still holds for this load.
+  }
+}
 
 // Clears the captured session baseline. For tests, which drive many
 // independent "page sessions" through one module instance.
 export function resetSessionBaselineForTest(): void {
-  sessionBaselineId = null;
-  sessionBaselineTotal = 0;
+  memoryBaseline = null;
+  try {
+    window.sessionStorage.removeItem(BASELINE_KEY);
+  } catch {
+    // Nothing to clear.
+  }
 }
 
 // The id to page from: everything at or below the session baseline is
-// pre-session and never fetched. Null until the first load establishes it.
+// pre-session and never fetched. Zero until the first load of a session
+// establishes it.
 export function sessionAfterId(): number {
-  return sessionBaselineId ?? 0;
+  return readBaseline()?.id ?? 0;
 }
 
-// Captures the session baseline from the first payload to arrive, and
+// Captures the session baseline from the first payload of a session, and
 // re-captures it after a full clear restarts ids below the baseline
 // (which would otherwise hide everything forever). Called before the load
 // effect's disposed/latest guards on purpose: the baseline is a
@@ -65,14 +104,14 @@ export function sessionAfterId(): number {
 // without recording it would let a later load capture a baseline that
 // already includes this session's own records.
 function ensureSessionBaseline(payload: AppLogsPayload): void {
-  if (sessionBaselineId === null || payload.last_id < sessionBaselineId) {
-    sessionBaselineId = payload.last_id;
-    sessionBaselineTotal = payload.total;
+  const baseline = readBaseline();
+  if (baseline === null || payload.last_id < baseline.id) {
+    writeBaseline({id: payload.last_id, total: payload.total});
   }
 }
 
 // Builds the next applied-state marker and displayed logs from a fresh
-// payload, scoped to this page session.
+// payload, scoped to this browsing session.
 //
 // Only records added after the baseline are shown, so the establishing
 // load (whose records all predate the baseline) naturally shows nothing —
@@ -84,9 +123,9 @@ function buildLoadedLogs(
   payload: AppLogsPayload,
   open: boolean,
 ): {applied: AppliedLogState; logs: PersistedAppLogs} {
-  const baselineId = sessionBaselineId ?? payload.last_id;
-  const session = payload.logs.filter(record => record.id > baselineId);
-  const total = Math.max(0, payload.total - sessionBaselineTotal);
+  const baseline = readBaseline() ?? {id: payload.last_id, total: 0};
+  const session = payload.logs.filter(record => record.id > baseline.id);
+  const total = Math.max(0, payload.total - baseline.total);
   const shown = open ? session.slice(-PANEL_LIMIT) : [];
   const first = total - shown.length + 1;
   return {
@@ -115,7 +154,7 @@ function isAlreadyApplied(
   );
 }
 
-// Fetches this page session's slice of the app-wide persisted log: on
+// Fetches this browsing session's slice of the app-wide persisted log: on
 // mount (so the badge count is real), whenever `version` bumps (Clear
 // changed the store), whenever the api layer announces a change (a click
 // or error was just persisted), and on a steady background poll — popover

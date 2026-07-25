@@ -114,8 +114,8 @@ export function runFixture(id: string, goal: string) {
  * Layout suite. Call from each suite's `beforeEach`.
  */
 export function installLayoutMocks() {
-  // Each suite is a fresh "page session", so the diagnostics panel's
-  // module-level session baseline must not carry over between tests.
+  // Each suite is a fresh browsing session, so the diagnostics panel's
+  // stored session baseline must not carry over between tests.
   resetSessionBaselineForTest();
   window.localStorage.clear();
   window.localStorage.setItem('cosci-theme', 'dark');

@@ -49,7 +49,7 @@ function buildDiagnosticChips(
 /**
  * Renders the popover's summary chips.
  *
- * @param props.total Records added this page session.
+ * @param props.total Records added this browsing session.
  * @param props.counts Per-level tallies over the loaded window.
  */
 export function DiagnosticChips({
