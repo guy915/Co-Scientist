@@ -91,3 +91,57 @@ def test_thinking_floor_leaves_non_deepseek_budgets_alone() -> None:
     from app.config import thinking_safe_max_tokens
 
     assert thinking_safe_max_tokens("gemini/gemini-2.5-flash", 3_000) == 3_000
+
+
+# --- thinking timeout floor --------------------------------------------------
+
+
+def test_thinking_timeout_floor_raises_an_answer_sized_deadline() -> None:
+    """A deadline sized for the answer alone is lifted to the floor.
+
+    Funding the chain of thought without extending the clock only moves the
+    failure: the call is cut off mid-reasoning instead of returning empty,
+    and both land in the same silent fallback.
+    """
+    from app.config import THINKING_FLOOR_TIMEOUT_SECONDS, thinking_safe_timeout
+
+    assert (
+        thinking_safe_timeout("dashscope/deepseek-v4-flash", 20.0)
+        == THINKING_FLOOR_TIMEOUT_SECONDS
+    )
+
+
+def test_thinking_timeout_floor_never_lowers_a_longer_deadline() -> None:
+    """The floor only raises; a call site allowing more keeps its number."""
+    from app.config import THINKING_FLOOR_TIMEOUT_SECONDS, thinking_safe_timeout
+
+    above = THINKING_FLOOR_TIMEOUT_SECONDS + 120.0
+
+    assert thinking_safe_timeout("deepseek/deepseek-v4-pro", above) == above
+
+
+def test_thinking_timeout_floor_leaves_non_deepseek_deadlines_alone() -> None:
+    """Models without a thinking mode keep their own, tighter deadline."""
+    from app.config import thinking_safe_timeout
+
+    assert thinking_safe_timeout("gemini/gemini-2.5-flash", 20.0) == 20.0
+
+
+def test_thinking_timeout_floor_admits_the_token_floor() -> None:
+    """The clock must allow the token budget it is paired with to arrive.
+
+    The two ceilings are one setting in two places. Pinning the relationship
+    here is what stops a later tightening of the deadline from silently
+    re-breaking every call the token floor was raised to fix.
+    """
+    from app.config import (
+        THINKING_FLOOR_MAX_TOKENS,
+        THINKING_FLOOR_TIMEOUT_SECONDS,
+    )
+
+    pessimistic_tokens_per_second = 75.0
+
+    assert (
+        THINKING_FLOOR_MAX_TOKENS / pessimistic_tokens_per_second
+        <= THINKING_FLOOR_TIMEOUT_SECONDS
+    )

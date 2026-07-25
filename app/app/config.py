@@ -285,3 +285,42 @@ def thinking_safe_max_tokens(model_name: str, answer_tokens: int) -> int:
     if not _is_deepseek(model_name):
         return answer_tokens
     return max(answer_tokens, THINKING_FLOOR_MAX_TOKENS)
+
+
+THINKING_FLOOR_TIMEOUT_SECONDS = 240.0
+"""Smallest wall clock an app-side thinking call may be given.
+
+The token budget and the clock are one setting in two places: funding a
+chain of thought without extending the deadline just moves the failure from
+a truncated answer to an abandoned one, and both land in the same silent
+fallback. ``THINKING_FLOOR_MAX_TOKENS`` admits 18k tokens, so the clock has
+to admit 18k tokens arriving -- 240s is that budget at a deliberately
+pessimistic 75 tok/s, well under what the provider sustains in practice.
+
+A long deadline is only acceptable where nobody is watching a blank screen
+for the length of it. The safety and claim-verifier calls are background
+durable tasks, and the interview relays its chain of thought to the
+scientist as it arrives. Q&A is the weak case: it streams, so a stalled
+provider is still caught quickly, but it forwards only answer deltas, so a
+long reasoning pass does read as a quiet chat. Before applying this floor
+to another call site, check which of those three it is -- a blocking
+request that shows the caller nothing until it returns needs a different
+answer than a bigger number here.
+"""
+
+
+def thinking_safe_timeout(model_name: str, answer_seconds: float) -> float:
+    """Return a timeout that lets a funded chain of thought finish arriving.
+
+    Args:
+        model_name: Model name in litellm format.
+        answer_seconds: Deadline the call site wants for the answer itself.
+
+    Returns:
+        ``answer_seconds`` for models without a thinking mode, else at least
+        ``THINKING_FLOOR_TIMEOUT_SECONDS``. Only ever raises, so a call site
+        that already allowed more keeps its own number.
+    """
+    if not _is_deepseek(model_name):
+        return answer_seconds
+    return max(answer_seconds, THINKING_FLOOR_TIMEOUT_SECONDS)

@@ -15,7 +15,11 @@ from pydantic import BaseModel, Field
 from app import store
 from app.audience import AUDIENCE_PATTERN
 from app.auth import client_id
-from app.config import deepseek_thinking_kwargs, thinking_safe_max_tokens
+from app.config import (
+    THINKING_FLOOR_TIMEOUT_SECONDS,
+    deepseek_thinking_kwargs,
+    thinking_safe_max_tokens,
+)
 from app.interviews_prompts import (
     _RESPONSE_SCHEMA as _RESPONSE_SCHEMA,
 )
@@ -43,6 +47,7 @@ from app.interviews_prompts import (
 from app.interviews_prompts import (
     _system_prompt as _system_prompt,
 )
+from app.llm_stream import stream_chunks
 from app.qa import sse_frame
 
 # Receives each chain-of-thought fragment as the model emits it.
@@ -51,7 +56,16 @@ ReasoningSink = Callable[[str], Awaitable[None]]
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/interviews", tags=["interviews"])
 
-_INTERVIEW_TIMEOUT_SECONDS = 45.0
+# Silence, not duration, is what marks an interview turn as lost. The turn
+# streams and its chain of thought is relayed to the scientist as it arrives,
+# so a long reasoning pass is visible progress, not a blank wait -- while a
+# provider that has stopped answering goes quiet immediately. Bounding the
+# total instead is what made a funded chain of thought fail the turn on the
+# clock right after it stopped failing on the token budget.
+_INTERVIEW_STALL_SECONDS = 45.0
+# Derived so the clock cannot drift below the token budget it has to admit,
+# plus room for the prompt round-trip either side of the reasoning.
+_INTERVIEW_TOTAL_SECONDS = THINKING_FLOOR_TIMEOUT_SECONDS + 60.0
 
 
 class CreateInterviewRequest(BaseModel):
@@ -113,6 +127,9 @@ async def _stream_interview_content(
         # Sizing this for the answer alone is what leaves a run untitled
         # and an interview turn blank; see thinking_safe_max_tokens.
         max_tokens=thinking_safe_max_tokens(model, 3_000),
+        # Bounds establishing the stream; once chunks flow, stream_chunks
+        # below owns the clock.
+        timeout=_INTERVIEW_TOTAL_SECONDS,
         stream=True,
         **deepseek_thinking_kwargs(model),
     )
@@ -124,7 +141,11 @@ async def _collect_stream_content(
 ) -> str:
     """Drain a streaming completion, relaying reasoning, into answer text."""
     content: list[str] = []
-    async for chunk in response:
+    async for chunk in stream_chunks(
+        response,
+        stall_seconds=_INTERVIEW_STALL_SECONDS,
+        total_seconds=_INTERVIEW_TOTAL_SECONDS,
+    ):
         if not chunk.choices:
             continue
         delta = chunk.choices[0].delta
@@ -155,10 +176,7 @@ async def _call_interview_model(
             ``_advance`` converts into the deterministic fallback turn.
     """
     try:
-        content = await asyncio.wait_for(
-            _stream_interview_content(interview, on_reasoning),
-            timeout=_INTERVIEW_TIMEOUT_SECONDS,
-        )
+        content = await _stream_interview_content(interview, on_reasoning)
         parsed = json.loads(content)
         if not isinstance(parsed, dict):
             raise ValueError("interview response must be a JSON object")

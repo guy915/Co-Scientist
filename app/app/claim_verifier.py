@@ -35,7 +35,11 @@ from app.claims import (
     EvidencePassage,
     deterministic_assessor,
 )
-from app.config import deepseek_thinking_kwargs, thinking_safe_max_tokens
+from app.config import (
+    deepseek_thinking_kwargs,
+    thinking_safe_max_tokens,
+    thinking_safe_timeout,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -65,6 +69,9 @@ _SYSTEM_PROMPT = (
 # ceiling and the same clock, and every overrun here is silent: the caller
 # falls back to the deterministic assessor, so an under-sized budget reads
 # as "the LLM assessor is configured but never wins" rather than as an error.
+# The two ceilings therefore have to move together -- funding the reasoning
+# and then cutting it off at the old deadline just relabels the failure --
+# so thinking_safe_timeout raises this the way its sibling raises the tokens.
 _DEFAULT_TIMEOUT_SECONDS = 90.0
 # A ceiling, not a reservation: the verdict JSON is short, and the generous cap
 # only matters for an unusually long quote. The chain of thought is not funded
@@ -171,7 +178,7 @@ def _call_llm_entailment(
             messages=_entailment_messages(claim, passages),
             temperature=0,
             max_tokens=thinking_safe_max_tokens(model, _MAX_TOKENS),
-            timeout=timeout,
+            timeout=thinking_safe_timeout(model, timeout),
             response_format={"type": "json_object"},
             **deepseek_thinking_kwargs(model),
         )
