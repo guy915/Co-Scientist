@@ -141,6 +141,17 @@ _SCHEMA_PROMPT_SUFFIX = (
     "(all required fields must be present):\n"
 )
 
+# Follows the schema. Nothing enforces the schema server-side on this route,
+# so this wording is the whole constraint; see _inject_schema_into_prompt.
+_SCHEMA_PROMPT_TRAILER = (
+    "\n\n"
+    "Output a JSON object that CONFORMS TO the schema above -- the "
+    "actual data. Do NOT output the schema itself: your response must "
+    'not contain "type", "properties", or "required" keys unless the '
+    "schema declares them as data fields. Use only the property names "
+    "the schema lists; any field it does not declare will be rejected."
+)
+
 # --- downgrade decision ------------------------------------------------------
 
 
@@ -304,6 +315,7 @@ async def test_call_llm_downgrades_request_for_unsupported_model(
         "a prompt"
         + _SCHEMA_PROMPT_SUFFIX
         + json.dumps(_NESTED_SCHEMA["schema"], indent=2)
+        + _SCHEMA_PROMPT_TRAILER
     )
     assert captured[0]["messages"] == [
         {
@@ -311,6 +323,56 @@ async def test_call_llm_downgrades_request_for_unsupported_model(
             "content": expected_content,
         }
     ]
+
+
+async def test_downgraded_prompt_forbids_echoing_the_schema(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The shim tells the model to emit data, not the schema it was shown.
+
+    Both production failures on this route were ``additionalProperties``
+    violations: a response carrying the schema's own ``type``/``properties``
+    keys, and a response inventing an undeclared field. Nothing rejects
+    either server-side once json_schema has been downgraded to json_object,
+    so the instruction is the only thing standing between them and a
+    wasted retry.
+    """
+    _disable_cache(monkeypatch)
+    _patch_registry(monkeypatch, supported=False)
+    captured = _capture_acompletion(monkeypatch, [_completion("{}")])
+
+    await call_llm(
+        "a prompt",
+        CompletionSpec(model_name="test-model", json_schema=_NESTED_SCHEMA),
+    )
+
+    content = captured[0]["messages"][0]["content"]
+    assert "Do NOT output the schema itself" in content
+    assert "any field it does not declare will be rejected" in content
+
+
+async def test_schema_instructions_absent_for_supported_models(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A json_schema-capable model has the constraint enforced, not narrated.
+
+    The prompt stays clean there: the provider rejects a non-conforming
+    response outright, so restating the rules would only spend tokens.
+    """
+    _disable_cache(monkeypatch)
+    _patch_registry(monkeypatch, supported=True)
+    captured = _capture_acompletion(monkeypatch, [_completion("{}")])
+
+    await call_llm(
+        "a prompt",
+        CompletionSpec(model_name="test-model", json_schema=_NESTED_SCHEMA),
+    )
+
+    assert (
+        "messages" not in captured[0]
+        or "Do NOT output the schema"
+        not in (captured[0]["messages"][0]["content"])
+    )
 
 
 async def test_call_llm_keeps_json_schema_for_supported_model(
@@ -348,7 +410,7 @@ async def test_call_llm_downgrade_unwraps_nested_schema_key(
     )
 
     content = captured[0]["messages"][0]["content"]
-    assert content.endswith(json.dumps(flat_schema, indent=2))
+    assert json.dumps(flat_schema, indent=2) in content
 
 
 # --- call_llm_json back-fill wiring -------------------------------------------

@@ -8,6 +8,7 @@ responses.
 """
 
 import asyncio
+import contextlib
 import functools
 import json
 import logging
@@ -19,6 +20,7 @@ import litellm
 
 from co_scientist import prompts
 from co_scientist.config.env_vars import parse_timeout_env
+from co_scientist.constants import THINKING_FLOOR_MAX_TOKENS
 from co_scientist.exceptions import LLMTimeoutError
 
 logger = logging.getLogger(__name__)
@@ -188,11 +190,11 @@ def deepseek_thinking_extra_body(
     DeepSeek V4 (pro/flash) are reasoning models: the chain of thought is
     returned separately as ``reasoning_content`` and never mixed into
     ``content``, so structured/JSON parsing is unaffected as long as the
-    ``max_tokens`` budget leaves room for the answer after the reasoning spend.
-    Every engine node's budget is sized for that (the big generation/review/
-    ranking calls already carry ``THINKING_MAX_TOKENS``; the one tight
-    supervisor-routing call is bumped to a thinking-safe budget). Non-DeepSeek
-    models get an empty dict.
+    ``max_tokens`` budget leaves room for the answer after the reasoning
+    spend. Budgets are not sized for that per node -- most predate thinking
+    being switched on everywhere -- so ``_apply_thinking_args`` raises any
+    thinking call to ``THINKING_FLOOR_MAX_TOKENS``. Non-DeepSeek models get
+    an empty dict.
 
     Thinking is on for every node. ``enabled=False`` remains the seam for
     opting a call site out; nothing uses it today. Any future opt-out is a
@@ -292,7 +294,18 @@ def _inject_schema_into_prompt(prompt: str, json_schema: dict[str, Any]) -> str:
 
     Downgrading to the json_object response format loses the server-side
     schema constraint, so the schema is restated as prompt text to keep the
-    model aware of the required structure.
+    model aware of the required structure. With no server-side enforcement
+    the wording is the only constraint there is, so it spells out the two
+    ways models actually break this contract in production, both of which
+    surface as ``additionalProperties`` validation failures and cost a full
+    retry each:
+
+    1. Returning the schema itself -- an object carrying ``type`` and
+       ``properties`` -- because "match this schema" reads as "echo this"
+       once a schema is the last thing in the context.
+    2. Adding a plausible-sounding field the schema does not declare
+       (``cross_agent_feedback_used`` and friends), because nothing in the
+       instruction said the property list was closed.
 
     Args:
         prompt: The original user prompt.
@@ -306,7 +319,12 @@ def _inject_schema_into_prompt(prompt: str, json_schema: dict[str, Any]) -> str:
     return (
         prompt + "\n\n---\nRESPOND WITH VALID JSON ONLY. "
         "Your output MUST strictly match this JSON schema "
-        "(all required fields must be present):\n" + schema_str
+        "(all required fields must be present):\n" + schema_str + "\n\n"
+        "Output a JSON object that CONFORMS TO the schema above -- the "
+        "actual data. Do NOT output the schema itself: your response must "
+        'not contain "type", "properties", or "required" keys unless the '
+        "schema declares them as data fields. Use only the property names "
+        "the schema lists; any field it does not declare will be rejected."
     )
 
 
@@ -419,18 +437,33 @@ def _apply_thinking_args(
 ) -> None:
     """Sets the DeepSeek thinking-mode kwargs on a completion call, in place.
 
+    Also lifts ``max_tokens`` to ``THINKING_FLOOR_MAX_TOKENS`` when the call
+    will actually think, because the budget has to cover the chain of thought
+    as well as the answer -- see that constant for why an answer-sized budget
+    silently turns into an empty response. Applied here rather than at the
+    call sites so a node cannot be added later with a budget that predates
+    thinking; the floor only ever raises, so a node that sized itself above
+    it keeps its own number.
+
     Args:
         completion_args: The in-progress completion kwargs dict; mutated in
-            place with "extra_body" and reasoning-effort args when thinking
-            applies to this model.
+            place with "extra_body", reasoning-effort args, and a raised
+            "max_tokens" when thinking applies to this model.
         model_name: Model name in litellm format.
         enable_thinking: Whether DeepSeek thinking mode is requested.
     """
     thinking = deepseek_thinking_extra_body(model_name, enabled=enable_thinking)
-    if thinking:
-        completion_args["extra_body"] = thinking
-        completion_args.update(
-            reasoning_effort_args(model_name, enabled=enable_thinking)
+    if not thinking:
+        return
+
+    completion_args["extra_body"] = thinking
+    completion_args.update(
+        reasoning_effort_args(model_name, enabled=enable_thinking)
+    )
+
+    if enable_thinking:
+        completion_args["max_tokens"] = max(
+            completion_args["max_tokens"], THINKING_FLOOR_MAX_TOKENS
         )
 
 
@@ -482,6 +515,48 @@ def _build_completion_args(
     return completion_args
 
 
+def _empty_content_diagnosis(response: Any) -> str:
+    """Summarizes, in one short line, why a completion carried no content.
+
+    The response object itself is deliberately never logged. On a reasoning
+    model it embeds the entire chain of thought twice -- once as
+    ``message.reasoning_content`` and again under
+    ``provider_specific_fields`` -- so a single record runs to tens of
+    kilobytes, floods the persisted log, and pushes the run's own narrative
+    out of the fixed newest-N window the Logs panel shows. None of that text
+    diagnoses anything the fields below do not: ``finish_reason="length"``
+    with ``reasoning_tokens`` sitting at the call's ``max_tokens`` says the
+    chain of thought spent the whole budget and left nothing for the answer.
+
+    Every field is read defensively -- this runs on an already-failing
+    response, and a diagnostic that raises would replace a useful error with
+    an ``AttributeError`` from the logging path.
+
+    Args:
+        response: The raw response returned by ``litellm.acompletion``.
+
+    Returns:
+        A compact ``key=value`` summary of the finish reason and token spend.
+    """
+    parts: list[str] = []
+
+    with contextlib.suppress(Exception):
+        parts.append(f"finish_reason={response.choices[0].finish_reason}")
+
+    usage = getattr(response, "usage", None)
+    for field in ("prompt_tokens", "completion_tokens"):
+        value = getattr(usage, field, None)
+        if value is not None:
+            parts.append(f"{field}={value}")
+
+    details = getattr(usage, "completion_tokens_details", None)
+    reasoning = getattr(details, "reasoning_tokens", None)
+    if reasoning is not None:
+        parts.append(f"reasoning_tokens={reasoning}")
+
+    return ", ".join(parts) if parts else "no usage reported"
+
+
 def _extract_completion_content(response: Any, model_name: str) -> str:
     """Extracts and validates the text content of a completion response.
 
@@ -500,7 +575,9 @@ def _extract_completion_content(response: Any, model_name: str) -> str:
 
     if content is None or not content.strip():
         logger.error(
-            "LLM returned None or empty content. Response: %s", response
+            "LLM returned None or empty content. Model: %s (%s)",
+            model_name,
+            _empty_content_diagnosis(response),
         )
         raise ValueError(
             f"LLM returned None or empty content. Model: {model_name}"

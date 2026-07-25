@@ -118,6 +118,86 @@ def test_thinking_params_absent_for_non_deepseek_models() -> None:
     assert "reasoning_effort" not in args
 
 
+# --- Thinking token floor ----------------------------------------------------
+
+
+def test_thinking_call_raised_to_the_token_floor() -> None:
+    """A thinking call never goes out on an answer-sized budget.
+
+    ``max_tokens`` bounds reasoning plus answer, so a budget sized before
+    thinking was switched on lets the chain of thought consume the whole
+    allowance and return empty content -- billed in full, then retried.
+    """
+    from co_scientist.constants import THINKING_FLOOR_MAX_TOKENS
+    from co_scientist.llm_request import (
+        CompletionShape,
+        _build_completion_args,
+    )
+
+    args = _build_completion_args(
+        "prompt", "dashscope/deepseek-v4-flash", 4000, 0.5, CompletionShape()
+    )
+
+    assert args["max_tokens"] == THINKING_FLOOR_MAX_TOKENS
+
+
+def test_token_floor_never_lowers_a_larger_budget() -> None:
+    """The floor only raises: a node that sized itself higher keeps its own.
+
+    The scaled batch budgets (review, evolution) already exceed the floor,
+    and clamping them down to it would truncate the answers they were sized
+    for -- the exact failure this floor exists to prevent.
+    """
+    from co_scientist.constants import THINKING_FLOOR_MAX_TOKENS
+    from co_scientist.llm_request import (
+        CompletionShape,
+        _build_completion_args,
+    )
+
+    above_floor = THINKING_FLOOR_MAX_TOKENS + 6000
+    args = _build_completion_args(
+        "prompt",
+        "dashscope/deepseek-v4-flash",
+        above_floor,
+        0.5,
+        CompletionShape(),
+    )
+
+    assert args["max_tokens"] == above_floor
+
+
+def test_token_floor_not_applied_when_thinking_is_off() -> None:
+    """A non-thinking call keeps its budget; there is no reasoning to fund."""
+    from co_scientist.llm_request import (
+        CompletionShape,
+        _build_completion_args,
+    )
+
+    args = _build_completion_args(
+        "prompt",
+        "dashscope/deepseek-v4-flash",
+        4000,
+        0.5,
+        CompletionShape(enable_thinking=False),
+    )
+
+    assert args["max_tokens"] == 4000
+
+
+def test_token_floor_not_applied_to_non_thinking_models() -> None:
+    """Models without a thinking mode spend the budget on the answer alone."""
+    from co_scientist.llm_request import (
+        CompletionShape,
+        _build_completion_args,
+    )
+
+    args = _build_completion_args(
+        "prompt", "gemini/gemini-2.5-flash", 4000, 0.5, CompletionShape()
+    )
+
+    assert args["max_tokens"] == 4000
+
+
 async def test_ranking_matchup_thinks(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

@@ -17,12 +17,26 @@ from collections.abc import AsyncGenerator
 from typing import Any
 
 from app import store
-from app.config import deepseek_thinking_kwargs, settings
+from app.config import (
+    THINKING_FLOOR_TIMEOUT_SECONDS,
+    deepseek_thinking_kwargs,
+    settings,
+    thinking_safe_max_tokens,
+)
+from app.llm_stream import stream_chunks
 from app.qa_manifest import QaRunContext as QaRunContext
 from app.qa_manifest import build_evidence_manifest as build_evidence_manifest
 from app.qa_manifest import build_system_prompt as build_system_prompt
 
 logger = logging.getLogger(__name__)
+
+# A grounded answer cites passages and stays short; the ceiling is here so
+# the reasoning is funded from its own headroom rather than the answer's.
+_ANSWER_MAX_TOKENS = 4_000
+# The answer streams into the chat as it is written, so silence is the only
+# thing that distinguishes a dead provider from a thorough one.
+_QA_STALL_SECONDS = 45.0
+_QA_TOTAL_SECONDS = THINKING_FLOOR_TIMEOUT_SECONDS + 60.0
 
 
 def sse_frame(event: dict[str, Any]) -> str:
@@ -181,10 +195,19 @@ async def _stream_llm_deltas(
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": question},
         ],
+        # Sending no budget takes the provider's default, which thinking can
+        # exhaust before the first answer delta -- the stream then ends
+        # clean and empty and the scientist gets a blank reply, not an error.
+        max_tokens=thinking_safe_max_tokens(model, _ANSWER_MAX_TOKENS),
+        timeout=_QA_TOTAL_SECONDS,
         stream=True,
         **deepseek_thinking_kwargs(model),
     )
-    async for chunk in response:
+    async for chunk in stream_chunks(
+        response,
+        stall_seconds=_QA_STALL_SECONDS,
+        total_seconds=_QA_TOTAL_SECONDS,
+    ):
         delta = (chunk.choices[0].delta.content or "") if chunk.choices else ""
         if delta:
             yield delta

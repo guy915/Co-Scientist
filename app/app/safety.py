@@ -20,7 +20,12 @@ from typing import Any
 from co_scientist.safety import POLICY_VERSION, review_content_safety
 
 from app import store
-from app.config import deepseek_thinking_kwargs, settings
+from app.config import (
+    deepseek_thinking_kwargs,
+    settings,
+    thinking_safe_max_tokens,
+    thinking_safe_timeout,
+)
 from app.store import RunStatus
 
 logger = logging.getLogger(__name__)
@@ -159,12 +164,21 @@ async def _call_semantic_safety_model(
     """Call the semantic safety model and return its parsed JSON response."""
     import litellm
 
+    # Sending no max_tokens was not "unbounded" -- it took the provider's
+    # own default, small enough for thinking to exhaust before the verdict
+    # is written. That failure is silent all the way to the outcome: empty
+    # content parses to {}, {} carries no category, and a missing category
+    # is "uncertain", which is hold-plus-human-review. Runs would park for
+    # adjudication on a truncated call rather than on their content. The
+    # 20s clock could not fund the reasoning either; both gates run inside
+    # durable tasks, so neither ceiling is blocking a request.
     response = await litellm.acompletion(
         model=model,
         messages=[{"role": "user", "content": _semantic_prompt(text, stage)}],
         response_format={"type": "json_object"},
         temperature=0,
-        timeout=20,
+        max_tokens=thinking_safe_max_tokens(model, 1_000),
+        timeout=thinking_safe_timeout(model, 20),
         **deepseek_thinking_kwargs(model),
     )
     content = response.choices[0].message.content or "{}"

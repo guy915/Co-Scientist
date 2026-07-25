@@ -242,3 +242,47 @@ async def test_cluster_members_still_match_by_text_without_index(
 
     assert len(result["hypotheses"]) == 1
     assert result["hypotheses"][0].elo_rating == 1400
+
+
+# --- Prompt payload clipping -------------------------------------------------
+
+
+def test_short_hypotheses_are_sent_whole() -> None:
+    """A hypothesis inside the budget reaches the prompt untouched."""
+    from co_scientist.agents.proximity.proximity import (
+        _prepare_hypotheses_for_analysis,
+    )
+
+    text = "alpha pathway drives tumor growth"
+    payload = _prepare_hypotheses_for_analysis([make_hypothesis(text=text)])
+
+    assert payload[0]["text"] == text
+
+
+def test_long_hypotheses_are_sent_whole() -> None:
+    """The clustering payload is never truncated, however long the text.
+
+    Proximity is the tempting place to economise -- it is the only node that
+    puts the whole pool in one prompt -- and the wrong one. Its verdict
+    deletes work, and the differences that spare a hypothesis from a "high"
+    are argued in the tail: methodology, assumptions, applications. A head
+    that reads identically to a neighbour's is not evidence the two are
+    duplicates. Truncation here was tried and reverted; this pins it out.
+    """
+    from co_scientist.agents.proximity.proximity import (
+        _prepare_hypotheses_for_analysis,
+    )
+
+    # Two hypotheses that agree for a long opening and diverge only at the
+    # end -- the case a head-only payload silently collapses into one.
+    shared_opening = "The alpha pathway drives tumor growth. " * 60
+    first = shared_opening + "We propose testing this by CRISPR knockout."
+    second = shared_opening + "We propose testing this by serum proteomics."
+
+    payload = _prepare_hypotheses_for_analysis(
+        [make_hypothesis(text=first), make_hypothesis(text=second)]
+    )
+
+    assert payload[0]["text"] == first
+    assert payload[1]["text"] == second
+    assert payload[0]["text"] != payload[1]["text"]

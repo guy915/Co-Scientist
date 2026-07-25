@@ -47,6 +47,19 @@ def _prepare_hypotheses_for_analysis(
     Hypothesis objects is done by text prefix, not this index (see
     _assign_cluster_ids).
 
+    Text is sent whole, deliberately. This is the only node that puts the
+    entire pool in one prompt, so it is the obvious place to economise by
+    truncating -- and the wrong one. Three of the six dimensions the prompt
+    weighs (methodology, assumptions, applications) are argued in a
+    hypothesis's tail, so a head-only payload hides exactly the differences
+    that separate two neighbours, and this node's verdict deletes work:
+    a false "high" drops a hypothesis that was actually distinct, silently.
+    The saving was never worth it either -- the pool costs a few thousand
+    input tokens against a call whose spend is dominated by reasoning
+    output, which is where the budget failures here have always come from
+    (see THINKING_FLOOR_MAX_TOKENS). Fix an over-long prompt by chunking the
+    pool, never by narrowing what each comparison gets to see.
+
     Args:
         hypotheses: All hypotheses being analyzed for proximity.
 
