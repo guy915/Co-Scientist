@@ -261,6 +261,14 @@ function SafetyDecisionItem({
   );
 }
 
+// The verdict of the final screen, which is what the audit reads as: one
+// per-run row appended after every hypothesis has been gated. Decisions
+// arrive oldest-first, so the last matching row is the current one.
+function finalDecision(decisions: SafetyDecision[]) {
+  const finals = decisions.filter(d => d.stage === 'final');
+  return finals.length ? finals[finals.length - 1] : null;
+}
+
 function SafetyReviewSection({
   runId,
   decisions,
@@ -271,7 +279,15 @@ function SafetyReviewSection({
   onChanged: () => void;
 }) {
   const [busy, setBusy] = useState<number | null>(null);
-  if (!decisions.length) return null;
+  // The audit is dominated by routine per-hypothesis claim-gate rows that say
+  // nothing about the run as a whole, so only the final verdict is shown.
+  // Decisions a human must adjudicate are the exception: they carry the
+  // approve/reject controls, and hiding them would strand the review.
+  const summary = finalDecision(decisions);
+  const reviewable = decisions.filter(
+    d => d.requires_review && d.id !== summary?.id,
+  );
+  if (!summary && !reviewable.length) return null;
 
   async function resolve(
     decision: SafetyDecision,
@@ -290,7 +306,8 @@ function SafetyReviewSection({
   return (
     <section className="mt-8 border-t border-cosci-border pt-5">
       <h3 className={REPORT_H3_CLASSES}>Safety audit</h3>
-      {decisions.map(decision => (
+      {summary ? <p className="mb-5">{summary.reason}</p> : null}
+      {reviewable.map(decision => (
         <SafetyDecisionItem
           key={decision.id}
           decision={decision}

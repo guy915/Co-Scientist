@@ -2,6 +2,7 @@ import {fireEvent, render, screen, waitFor} from '@testing-library/react';
 import {MemoryRouter, Route, Routes} from 'react-router-dom';
 import {beforeEach, expect, it, vi} from 'vitest';
 import * as runsApi from '@/api/runs';
+import type {SafetyDecision} from '@/api/runs';
 import {RunDetail} from './run_detail';
 import {makeRun, renderAt} from './run_detail_test_support';
 
@@ -102,6 +103,44 @@ it('shows and adjudicates held safety decisions', async () => {
       'approved',
     ),
   );
+});
+
+// A decision as the API returns it, with only the fields the audit reads.
+function decision(fields: Partial<SafetyDecision> & {id: number}) {
+  return {
+    stage: 'claim_gate',
+    decision: 'block',
+    reason: `hypothesis ${fields.id}: 2 categorical claim(s) lack support`,
+    matches: [],
+    risk_domains: [],
+    requires_review: false,
+    resolution: null,
+    ...fields,
+  } as SafetyDecision;
+}
+
+it('shows only the final verdict, not the per-hypothesis gate rows', async () => {
+  vi.mocked(runsApi.getSafety).mockResolvedValue([
+    decision({id: 1, stage: 'intake', decision: 'allow', reason: 'Intake ok.'}),
+    decision({id: 2}),
+    decision({id: 3}),
+    decision({
+      id: 4,
+      stage: 'final',
+      decision: 'allow',
+      reason: 'Legitimate biomedical inquiry.',
+    }),
+  ]);
+  renderAt('/runs/run-1/specifications');
+
+  await screen.findByRole('heading', {name: 'Safety audit'});
+  expect(
+    screen.getByText('Legitimate biomedical inquiry.'),
+  ).toBeInTheDocument();
+  expect(screen.queryByText(/Intake ok\./)).toBeNull();
+  expect(screen.queryByText(/lack support/)).toBeNull();
+  // The stage prefix goes with them -- the paragraph stands alone.
+  expect(screen.queryByText('final:')).toBeNull();
 });
 
 it('refetches on a coalesced batch ending in status with data', async () => {
