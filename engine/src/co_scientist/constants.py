@@ -60,6 +60,28 @@ LONG_MAX_TOKENS: Final = 10000
 THINKING_MAX_TOKENS: Final = 18000
 """Max tokens for extended thinking + long responses."""
 
+THINKING_FLOOR_MAX_TOKENS: Final = THINKING_MAX_TOKENS
+"""Smallest total budget any thinking-enabled call may be sent with.
+
+On the providers this engine uses, ``max_tokens`` bounds reasoning *plus*
+answer, not the answer alone -- the chain of thought is billed and counted
+against the same allowance even though it is returned in a separate field.
+A budget sized for the answer therefore lets a long chain of thought consume
+the entire allowance, and the call returns ``finish_reason="length"`` with
+empty content: paid for in full, worth nothing, and retried four more times
+by ``call_llm_json``.
+
+The floor is set to ``THINKING_MAX_TOKENS`` because that is the budget the
+three nodes that were sized for thinking from the start (ranking debate,
+meta-review, research overview) already run against in production, so
+raising every other thinking call to it introduces no value this deployment
+has not already proven. It is a floor rather than a per-call reserve added
+on top precisely to avoid pushing the already-generous scaled batch caps
+(``REVIEW_BATCH_MAX_TOKENS_CAP`` and friends) into untested territory: a
+call whose budget already exceeds the floor is left exactly as its node
+sized it.
+"""
+
 # Temperature settings
 LOW_TEMPERATURE: Final = 0.3
 """Low temperature for consistent, deterministic responses (ranking)."""
