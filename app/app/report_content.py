@@ -1,9 +1,10 @@
 """Report content derivation split out of ``report_render``.
 
 Holds the pure data-shaping helpers the report builder composes: knowledge-
-base topic builders, agent-insight and idea-bucket derivation, claim-evidence
-enrichment, and the exclusion filters (contradicted/unverified/unsafe). The
-finalize path -- ``_build_report_content`` and ``finalize_report`` -- stays in
+base topic builders, agent-insight and idea-bucket derivation, and claim-
+evidence enrichment. The exclusion filters (contradicted/unverified/unsafe)
+live in ``report_content_gates`` and are re-exported here. The finalize path
+-- ``_build_report_content`` and ``finalize_report`` -- stays in
 ``report_render``, which re-exports every name here so callers keep a single
 ``app.report_render`` import surface.
 """
@@ -13,12 +14,25 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from app import store
-from app.hypothesis_safety import (
-    is_blocking_status,
-    review_hypothesis_safety,
+from app.hypothesis_safety import is_blocking_status
+from app.report_content_gates import (
+    _contradicted_hypothesis_ids as _contradicted_hypothesis_ids,
 )
-from app.hypothesis_screening import record_hypothesis_block
+from app.report_content_gates import (
+    _exclude_unsafe_hypotheses as _exclude_unsafe_hypotheses,
+)
+from app.report_content_gates import (
+    _hypothesis_passes_safety_gate as _hypothesis_passes_safety_gate,
+)
+
+# Re-exported so ``app.report_content`` keeps every name it exposed before
+# the gates split; the redundant-alias form does not fit in 80 columns.
+from app.report_content_gates import (  # noqa: F401
+    _legacy_hypothesis_passes_safety_gate,
+)
+from app.report_content_gates import (
+    _unverified_hypothesis_ids as _unverified_hypothesis_ids,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -351,154 +365,3 @@ def _released_claim_evidence(
         for edge in claim_edges
         if str(edge.get("hypothesis_id") or "") in released_ids
     ]
-
-
-def _contradicted_hypothesis_ids(
-    run_id: str,
-    db_path: str | None,
-    claim_edges: list[dict[str, Any]] | None = None,
-) -> set[str]:
-    """Ids of hypotheses with a claim the evidence contradicts.
-
-    Contradicted ideas have evidence *against* them, so the rank-and-publish
-    policy withholds them from the report entirely -- unlike merely-unsupported
-    ideas, which are published with an "Unverified" badge.
-
-    ``claim_edges`` may be passed to reuse an already-fetched edge list;
-    when omitted it is queried from the store.
-    """
-    edges = (
-        claim_edges
-        if claim_edges is not None
-        else store.list_claim_evidence(run_id, db_path=db_path)
-    )
-    return {
-        str(edge["hypothesis_id"])
-        for edge in edges
-        if edge.get("label") == "contradicts"
-    }
-
-
-def _unverified_hypothesis_ids(
-    run_id: str,
-    db_path: str | None,
-    hyps: list[dict[str, Any]] | None = None,
-) -> set[str]:
-    """Ids of published hypotheses that lack an evidence-supported claim.
-
-    A hypothesis is "verified" once at least one of its claims has a
-    ``supports`` or ``partial`` evidence edge -- a partial (near-miss) verdict
-    still means relevant, consistent evidence was found, so it clears the
-    badge. Under the rank-and-publish policy the rest are still ranked and
-    published, but flagged "Unverified" in the report and the idea list rather
-    than blocking the run.
-
-    When a run has no claim-evidence edges at all -- claim grounding never ran,
-    as for mock demo runs -- none of its ideas were assessed, so none is
-    reported unverified (the badge means "assessed and unsupported", not
-    "not yet assessed").
-
-    ``hyps`` may be passed to reuse an already-fetched hypothesis list;
-    when omitted it is queried from the store.
-    """
-    edges = store.list_claim_evidence(run_id, db_path=db_path)
-    if not edges:
-        return set()
-    supported = {
-        str(edge["hypothesis_id"])
-        for edge in edges
-        if edge.get("label") in ("supports", "partial")
-    }
-    rows = (
-        hyps
-        if hyps is not None
-        else store.list_hypotheses(run_id, db_path=db_path)
-    )
-    all_hypothesis_ids = {str(hypothesis.get("id")) for hypothesis in rows}
-    return all_hypothesis_ids - supported
-
-
-def _exclude_unsafe_hypotheses(
-    run_id: str,
-    hyps: list[dict[str, Any]],
-    db_path: str | None,
-    claim_edges: list[dict[str, Any]] | None = None,
-) -> list[dict[str, Any]]:
-    """Drop hypotheses a safety review or the publication gate blocks.
-
-    Milestone 5/6/M9 wiring: a hypothesis whose safety review is prohibited/
-    ethical/uncertain (SSR §1, §10) or whose claims are contradicted by the
-    evidence (the publication gate, SSR §7) must not appear in the final
-    report's leaderboard or top ideas. The pre-tournament screen and claim
-    grounding already persisted each hypothesis's ``safety_status`` and
-    claim-evidence graph and recorded their audit rows, so the common path just
-    honors those. A legacy row with no persisted safety status (older runs) is
-    re-reviewed and audited here as a fallback. Benign hypotheses pass through
-    unchanged.
-
-    Args:
-        run_id: The run whose report is being built.
-        hyps: The run's hypotheses (store rows with a ``statement`` and,
-            normally, a persisted ``safety_status``).
-        db_path: Optional override for the SQLite database path.
-        claim_edges: Pre-fetched claim-evidence edges to reuse; queried from
-            the store when omitted.
-
-    Returns:
-        The hypotheses safe to synthesize, in the original order.
-    """
-    contradicted = _contradicted_hypothesis_ids(run_id, db_path, claim_edges)
-    return [
-        hyp
-        for hyp in hyps
-        if _hypothesis_passes_safety_gate(run_id, hyp, contradicted, db_path)
-    ]
-
-
-def _hypothesis_passes_safety_gate(
-    run_id: str,
-    hyp: dict[str, Any],
-    contradicted: set[str],
-    db_path: str | None,
-) -> bool:
-    """Return whether one hypothesis clears the contradiction/safety gate."""
-    if hyp.get("status") == "rejected":
-        return False
-    # Contradicted ideas have evidence against them and are withheld
-    # entirely; merely-unsupported ideas are published with an "Unverified"
-    # badge (see _unverified_hypothesis_ids), not excluded here.
-    if str(hyp.get("id")) in contradicted:
-        logger.warning(
-            "Excluding hypothesis %s from synthesis: contradicted claim",
-            hyp.get("id"),
-        )
-        return False
-    status = hyp.get("safety_status")
-    # Common path: the screen already decided; honor the persisted status
-    # without re-reviewing or double-recording the audit row.
-    if status and status != "pending":
-        if is_blocking_status(str(status)):
-            logger.warning(
-                "Excluding hypothesis %s from synthesis: %s",
-                hyp.get("id"),
-                status,
-            )
-            return False
-        return True
-    return _legacy_hypothesis_passes_safety_gate(run_id, hyp, db_path)
-
-
-def _legacy_hypothesis_passes_safety_gate(
-    run_id: str, hyp: dict[str, Any], db_path: str | None
-) -> bool:
-    """Re-review and audit a row the pre-tournament screen never touched."""
-    review = review_hypothesis_safety(str(hyp.get("statement") or ""))
-    if not review.blocks_tournament:
-        return True
-    record_hypothesis_block(run_id, hyp.get("id"), review, db_path=db_path)
-    logger.warning(
-        "Excluding hypothesis %s from synthesis: %s",
-        hyp.get("id"),
-        review.outcome.value,
-    )
-    return False

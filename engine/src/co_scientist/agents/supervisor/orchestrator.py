@@ -9,34 +9,81 @@ sets ``next_task`` for the graph's conditional edge to route on.
 The decision must happen in a node, not a LangGraph edge function: edge
 functions can only read state and return a name, so they cannot record the
 reason or emit the event the milestone requires.
+
+The observable statistics live in ``orchestrator_stats`` and the carried
+bookkeeping (including the settlement allowance) in
+``orchestrator_bookkeeping``; both are re-exported here for compatibility.
 """
 
 from __future__ import annotations
 
 import dataclasses
 import logging
-import time
+import time as time
 from typing import Any
 
 from co_scientist.agents.ranking.ranking_lifecycle import (
-    _tournament_round_count,
+    _tournament_round_count as _tournament_round_count,
+)
+from co_scientist.agents.supervisor.orchestrator_bookkeeping import (
+    _init_bookkeeping as _init_bookkeeping,
+)
+from co_scientist.agents.supervisor.orchestrator_bookkeeping import (
+    _initial_settlement_allowance as _initial_settlement_allowance,
+)
+from co_scientist.agents.supervisor.orchestrator_bookkeeping import (
+    _is_settlement_rank as _is_settlement_rank,
+)
+from co_scientist.agents.supervisor.orchestrator_bookkeeping import (
+    _next_bookkeeping as _next_bookkeeping,
+)
+from co_scientist.agents.supervisor.orchestrator_bookkeeping import (
+    _settled_allowance as _settled_allowance,
+)
+from co_scientist.agents.supervisor.orchestrator_stats import (
+    _build_scheduler_stats as _build_scheduler_stats,
+)
+from co_scientist.agents.supervisor.orchestrator_stats import (
+    _compute_stats as _compute_stats,
+)
+from co_scientist.agents.supervisor.orchestrator_stats import (
+    _default_budget as _default_budget,
+)
+from co_scientist.agents.supervisor.orchestrator_stats import (
+    _rank_stable_cycles as _rank_stable_cycles,
+)
+from co_scientist.agents.supervisor.orchestrator_stats import (
+    _rankable_coverage as _rankable_coverage,
+)
+from co_scientist.agents.supervisor.orchestrator_stats import (
+    _scheduler_scalars as _scheduler_scalars,
+)
+from co_scientist.agents.supervisor.orchestrator_stats import (
+    _StatsScalars as _StatsScalars,
+)
+from co_scientist.agents.supervisor.orchestrator_stats import (
+    _task_type_or_none as _task_type_or_none,
+)
+from co_scientist.agents.supervisor.orchestrator_stats import (
+    _yields as _yields,
 )
 from co_scientist.agents.supervisor.supervisor_decision import (
     WORK_TASKS,
     choose_supervisor_task,
 )
-from co_scientist.constants import INITIAL_ELO_RATING
-from co_scientist.models import Hypothesis, phase_message
+from co_scientist.constants import INITIAL_ELO_RATING as INITIAL_ELO_RATING
+from co_scientist.models import Hypothesis as Hypothesis
+from co_scientist.models import phase_message
 from co_scientist.progress import emit_progress
+from co_scientist.scheduling import Budget as Budget
 from co_scientist.scheduling import (
-    Budget,
     SchedulerStats,
     SupervisorDecision,
     TaskRecord,
     TaskStatus,
-    TaskType,
-    policy,
 )
+from co_scientist.scheduling import TaskType as TaskType
+from co_scientist.scheduling import policy as policy
 from co_scientist.state import WorkflowState
 
 logger = logging.getLogger(__name__)
@@ -48,23 +95,6 @@ _PROGRESS_ORCHESTRATOR = 80
 
 
 @dataclasses.dataclass(frozen=True)
-class _StatsScalars:
-    """The observable scalars derived from state for one scheduler decision."""
-
-    pool_size: int
-    reviewed: int
-    rankable_count: int
-    total_matches: int
-    avg_coverage: float
-    unmatched_rankable_count: int
-    top_elo: int
-    llm_calls: int
-    gen_yield: float
-    evo_yield: float
-    elapsed_s: float
-
-
-@dataclasses.dataclass(frozen=True)
 class _DecisionOutcome:
     """One scheduling decision plus its derived recording fields."""
 
@@ -73,298 +103,6 @@ class _DecisionOutcome:
     iteration: int
     observable_reason: str
     termination_reason_value: str | None
-
-
-def _default_budget(state: WorkflowState) -> Budget:
-    """Return the run's compute budget, or one derived from max_iterations.
-
-    A run may configure a full budget via ``state["budget"]``; otherwise the
-    only ceiling is the existing ``max_iterations`` satisfied-completion cap.
-    """
-    raw = state.get("budget")
-    if raw:
-        return Budget.from_dict(raw)
-    return Budget(max_iterations=state.get("max_iterations", 0))
-
-
-def _init_bookkeeping(hypotheses: list[Hypothesis]) -> dict[str, Any]:
-    """Seed orchestrator bookkeeping on the first loop-point decision.
-
-    Anchors the pool sizes to the post-initial-generation pool so the first
-    decision sees no proximity backlog and a yield tie — which, with the last
-    work task treated as the initial GENERATE, evolves the leaders first
-    (matching the established first-iteration behavior) before later cycles
-    alternate into generation.
-    """
-    pool_size = len(hypotheses)
-    return {
-        # Sentinel so the first decision's Elo comparison never counts as
-        # "stable" (there is no prior cycle to be stable against).
-        "prev_top_elo": None,
-        "rank_stable_cycles": 0,
-        "pool_at_last_proximity": pool_size,
-        "pool_at_last_decision": pool_size,
-        "last_work_task": TaskType.GENERATE.value,
-        # None until a settlement episode opens: the override may fire, and
-        # the allowance is sized from the backlog observed at that moment.
-        # Both fields return to None whenever the backlog clears.
-        "settlement_allowance": None,
-        "unmatched_at_last_settlement": None,
-    }
-
-
-def _yields(pool_size: int, book: dict[str, Any]) -> tuple[float, float]:
-    """Return (generation_yield, evolution_yield) from the pool delta.
-
-    The delta since the previous decision is attributed to whichever work task
-    ran last: new rows after a GENERATE are generation yield, appended children
-    after an EVOLVE are evolution yield. A yield is a simple count of net new
-    hypotheses (0 when the last task was maintenance such as proximity).
-    """
-    delta = max(
-        0, pool_size - int(book.get("pool_at_last_decision", pool_size))
-    )
-    last = book.get("last_work_task")
-    if last == TaskType.GENERATE.value:
-        return float(delta), 0.0
-    if last == TaskType.EVOLVE.value:
-        return 0.0, float(delta)
-    return 0.0, 0.0
-
-
-def _rank_stable_cycles(
-    top_elo: int, total_matches: int, book: dict[str, Any]
-) -> int:
-    """Return the updated count of consecutive stable-leaderboard cycles.
-
-    Stability requires at least one match to have been played (an untouched
-    initial pool is not "converged") and the top Elo to be unchanged from the
-    previous decision. The seeded ``prev_top_elo`` of None (first decision) is
-    never stable — there is no prior cycle to compare against.
-    """
-    prev = book.get("prev_top_elo")
-    prior = int(book.get("rank_stable_cycles", 0))
-    if total_matches > 0 and prev is not None and top_elo == int(prev):
-        return prior + 1
-    return 0
-
-
-def _compute_stats(
-    state: WorkflowState, book: dict[str, Any]
-) -> SchedulerStats:
-    """Derive the scheduler's observable statistics from workflow state.
-
-    Args:
-        state: Current workflow state.
-        book: Orchestrator bookkeeping from before this decision.
-
-    Returns:
-        The statistics the deterministic policy reads.
-    """
-    hyps: list[Hypothesis] = state["hypotheses"]
-    pool_size = len(hyps)
-    rankable_count, avg_coverage, unmatched = _rankable_coverage(hyps)
-    llm_calls, gen_yield, evo_yield, elapsed_s = _scheduler_scalars(
-        state, book, pool_size
-    )
-    scalars = _StatsScalars(
-        pool_size=pool_size,
-        reviewed=sum(1 for h in hyps if h.reviews),
-        rankable_count=rankable_count,
-        total_matches=sum(h.total_matches for h in hyps),
-        avg_coverage=avg_coverage,
-        unmatched_rankable_count=unmatched,
-        top_elo=max((h.elo_rating for h in hyps), default=INITIAL_ELO_RATING),
-        llm_calls=llm_calls,
-        gen_yield=gen_yield,
-        evo_yield=evo_yield,
-        elapsed_s=elapsed_s,
-    )
-    return _build_scheduler_stats(state, book, scalars)
-
-
-def _rankable_coverage(
-    hyps: list[Hypothesis],
-) -> tuple[int, float, int]:
-    """Return (rankable_count, average coverage, unmatched count).
-
-    Coverage is measured over the rankable pool only. An un-rankable idea
-    (undermined or review/evidence-gate rejected) can never accrue matches,
-    so counting it in the denominator would hold average coverage below the
-    gate forever and loop the orchestrator on ranking.
-
-    The unmatched count is reported separately because the average cannot
-    represent it: a pool can clear its average threshold while individual
-    hypotheses have never been matched at all.
-
-    Args:
-        hyps: The full hypothesis pool.
-
-    Returns:
-        The rankable count, their average match coverage, and how many of
-        them have never been matched.
-    """
-    rankable = [h for h in hyps if h.is_rankable()]
-    rankable_count = len(rankable)
-    rankable_matches = sum(h.total_matches for h in rankable)
-    avg_coverage = rankable_matches / rankable_count if rankable_count else 0.0
-    unmatched = sum(1 for h in rankable if h.total_matches == 0)
-    return rankable_count, avg_coverage, unmatched
-
-
-def _scheduler_scalars(
-    state: WorkflowState, book: dict[str, Any], pool_size: int
-) -> tuple[int, float, float, float]:
-    """Return (llm_calls, generation_yield, evolution_yield, elapsed_s)."""
-    metrics = state.get("metrics")
-    llm_calls = metrics.llm_calls if metrics is not None else 0
-    gen_yield, evo_yield = _yields(pool_size, book)
-    start = state.get("start_time") or time.time()
-    return llm_calls, gen_yield, evo_yield, time.time() - start
-
-
-def _build_scheduler_stats(
-    state: WorkflowState,
-    book: dict[str, Any],
-    scalars: _StatsScalars,
-) -> SchedulerStats:
-    """Assembles the SchedulerStats value object from computed scalars."""
-    pool_size = scalars.pool_size
-    return SchedulerStats(
-        pool_size=pool_size,
-        reviewed_count=scalars.reviewed,
-        unreviewed_count=pool_size - scalars.reviewed,
-        rankable_count=scalars.rankable_count,
-        total_matches=scalars.total_matches,
-        match_coverage=scalars.avg_coverage,
-        unmatched_rankable_count=scalars.unmatched_rankable_count,
-        settlement_allowance=book.get("settlement_allowance"),
-        unmatched_at_last_settlement=book.get("unmatched_at_last_settlement"),
-        tournament_rounds_remaining=_tournament_round_count(
-            state, state.get("hypotheses") or []
-        ),
-        pool_grew_since_proximity=(
-            pool_size > int(book.get("pool_at_last_proximity", pool_size))
-        ),
-        top_elo=scalars.top_elo,
-        rank_stable_cycles=_rank_stable_cycles(
-            scalars.top_elo, scalars.total_matches, book
-        ),
-        generation_yield=scalars.gen_yield,
-        evolution_yield=scalars.evo_yield,
-        iteration=state.get("current_iteration", 0),
-        last_work_task=_task_type_or_none(book.get("last_work_task")),
-        llm_calls=scalars.llm_calls,
-        tasks_run=len(state.get("task_history", [])),
-        elapsed_s=scalars.elapsed_s,
-        pending_steering=bool(state.get("pending_steering")),
-        cancelled=bool(state.get("cancel_requested")),
-        safety_blocked=bool(state.get("safety_blocked")),
-    )
-
-
-def _task_type_or_none(value: Any) -> TaskType | None:
-    """Coerce a stored task-type string back to its enum, or None."""
-    if value is None:
-        return None
-    return TaskType(value)
-
-
-def _is_settlement_rank(
-    stats: SchedulerStats, decision: SupervisorDecision
-) -> bool:
-    """Return whether this decision is a ranking round that settles coverage.
-
-    Re-derived by running the policy's own owed-coverage check against the
-    same stats rather than inferred from ``next_task``: a RANK is a
-    settlement round only when that check asked for one. Inferring it from
-    "RANK while anything is unmatched" charged ordinary calibration ranking
-    to the allowance, which drained an episode before it began.
-
-    The check is a pure function of ``stats`` with no I/O, so re-running it
-    is exact and cheap, and the policy stays free of any settlement state of
-    its own.
-    """
-    return (
-        decision.next_task is TaskType.RANK
-        and policy._check_owed_coverage(stats) is not None
-    )
-
-
-def _initial_settlement_allowance(stats: SchedulerStats) -> int:
-    """Return the most settlement rounds that could ever be useful.
-
-    One round covers at most two unmatched hypotheses, and the pool admits
-    only so many distinct pairings, so the allowance is the smaller of the
-    two. Mirrors ``ranking_lifecycle._coverage_floor``, which bounds the
-    rounds an individual tournament schedules for the same reason.
-    """
-    rankable = stats.rankable_count
-    max_pairs = rankable * (rankable - 1) // 2
-    return min((stats.unmatched_rankable_count + 1) // 2, max_pairs)
-
-
-def _settled_allowance(
-    book: dict[str, Any],
-    stats: SchedulerStats,
-    decision: SupervisorDecision,
-) -> tuple[int | None, int | None]:
-    """Return the (allowance, last-unmatched) pair for the next decision.
-
-    The allowance is scoped to a *settlement episode*, not to the run. An
-    episode opens on the first round the owed-coverage check requests and
-    closes when the backlog reaches zero, at which point both fields return
-    to None so a later backlog re-arms from what it actually owes.
-
-    Within an episode the counter is initialised once, is charged on every
-    settlement round whether or not the round helped, floors at zero, and is
-    never increased -- so an episode fires finitely often. A new episode can
-    open only after the backlog reached zero, which is to say only after
-    settlement succeeded, so the run still reaches a terminal decision.
-    """
-    if _is_settlement_rank(stats, decision):
-        allowance = book.get("settlement_allowance")
-        if allowance is None:
-            allowance = _initial_settlement_allowance(stats)
-        return (
-            max(0, int(allowance) - 1),
-            stats.unmatched_rankable_count,
-        )
-    if stats.unmatched_rankable_count == 0:
-        # Episode over: nothing is owed, so the counter re-arms.
-        return None, None
-    return (
-        book.get("settlement_allowance"),
-        book.get("unmatched_at_last_settlement"),
-    )
-
-
-def _next_bookkeeping(
-    book: dict[str, Any],
-    stats: SchedulerStats,
-    decision: SupervisorDecision,
-) -> dict[str, Any]:
-    """Compute the bookkeeping to carry into the next decision.
-
-    Updates the rank-stability counter and previous top Elo, resets the
-    proximity anchor after a proximity task, remembers the pool size and the
-    last *work* task (generate/evolve) so the next decision can measure yield
-    and break ties, and advances the settlement-episode allowance that bounds
-    how long owed tournament coverage may override a budget ceiling (see
-    :func:`_settled_allowance`).
-    """
-    updated = dict(book)
-    updated["prev_top_elo"] = stats.top_elo
-    updated["rank_stable_cycles"] = stats.rank_stable_cycles
-    updated["pool_at_last_decision"] = stats.pool_size
-    if decision.next_task is TaskType.PROXIMITY:
-        updated["pool_at_last_proximity"] = stats.pool_size
-    if decision.next_task in (TaskType.GENERATE, TaskType.EVOLVE):
-        updated["last_work_task"] = decision.next_task.value
-    allowance, last_unmatched = _settled_allowance(book, stats, decision)
-    updated["settlement_allowance"] = allowance
-    updated["unmatched_at_last_settlement"] = last_unmatched
-    return updated
 
 
 def _appended_task_record(

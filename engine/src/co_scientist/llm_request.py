@@ -5,23 +5,53 @@ wrappers in ``co_scientist.llm``: response-format selection (including the
 json_object provider-capability shim), temperature clamping, prompt
 debug-artifact saving, and extraction of the text content from completion
 responses.
+
+Two pieces live in sibling modules and are re-exported here so this
+module's namespace stays the one every caller and test speaks to:
+thinking/reasoning argument shaping (``co_scientist.llm_thinking``) and
+response-content extraction (``co_scientist.llm_response``).
 """
 
 import asyncio
-import contextlib
 import functools
 import json
 import logging
 import warnings
 from dataclasses import dataclass
-from typing import Any, cast
+from typing import Any
 
 import litellm
 
 from co_scientist import prompts
 from co_scientist.config.env_vars import parse_timeout_env
-from co_scientist.constants import THINKING_FLOOR_MAX_TOKENS
+
+# Re-exported: the thinking token floor moved out with _apply_thinking_args,
+# but it was importable from this module before the split.
+from co_scientist.constants import (
+    THINKING_FLOOR_MAX_TOKENS as THINKING_FLOOR_MAX_TOKENS,
+)
 from co_scientist.exceptions import LLMTimeoutError
+from co_scientist.llm_response import (
+    _empty_content_diagnosis as _empty_content_diagnosis,
+)
+from co_scientist.llm_response import (
+    _extract_completion_content as _extract_completion_content,
+)
+from co_scientist.llm_thinking import (
+    _JSON_OBJECT_ONLY_MODEL_FAMILIES as _JSON_OBJECT_ONLY_MODEL_FAMILIES,
+)
+from co_scientist.llm_thinking import (
+    _apply_thinking_args as _apply_thinking_args,
+)
+from co_scientist.llm_thinking import (
+    _is_dashscope as _is_dashscope,
+)
+from co_scientist.llm_thinking import (
+    deepseek_thinking_extra_body as deepseek_thinking_extra_body,
+)
+from co_scientist.llm_thinking import (
+    reasoning_effort_args as reasoning_effort_args,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -159,109 +189,6 @@ def _clamp_temperature(model_name: str, temperature: float) -> float:
         )
         return 1.0
     return temperature
-
-
-# Provider-capability shim: some providers reject
-# response_format={"type": "json_schema", ...} outright (DeepSeek returns an
-# invalid-request error). For those models every schema'd call is downgraded,
-# per call, to {"type": "json_object"} with the schema restated as prompt
-# text, and missing required fields are back-filled with empty defaults
-# before schema validation (json_object mode has no server-side schema
-# enforcement, so nested required fields are routinely omitted). Models that
-# support json_schema are untouched.
-#
-# Families listed here are checked BEFORE litellm's capability registry:
-# litellm's cost map marks deepseek/* as supporting response schema, but the
-# DeepSeek API only accepts json_object, so the registry alone cannot be
-# trusted for these providers.
-_JSON_OBJECT_ONLY_MODEL_FAMILIES: tuple[str, ...] = ("deepseek",)
-
-
-def _is_dashscope(model_name: str) -> bool:
-    """Whether ``model_name`` routes through Alibaba Cloud DashScope."""
-    return model_name.lower().startswith("dashscope/")
-
-
-def deepseek_thinking_extra_body(
-    model_name: str, *, enabled: bool = True
-) -> dict[str, Any]:
-    """Return an ``extra_body`` selecting DeepSeek V4 thinking mode.
-
-    DeepSeek V4 (pro/flash) are reasoning models: the chain of thought is
-    returned separately as ``reasoning_content`` and never mixed into
-    ``content``, so structured/JSON parsing is unaffected as long as the
-    ``max_tokens`` budget leaves room for the answer after the reasoning
-    spend. Budgets are not sized for that per node -- most predate thinking
-    being switched on everywhere -- so ``_apply_thinking_args`` raises any
-    thinking call to ``THINKING_FLOOR_MAX_TOKENS``. Non-DeepSeek models get
-    an empty dict.
-
-    Thinking is on for every node. ``enabled=False`` remains the seam for
-    opting a call site out; nothing uses it today. Any future opt-out is a
-    latency decision, and the two call sites where it would pay are the
-    ranking tournament's pairwise matchups, which run O(n^2) times per cycle
-    (``agents/ranking/ranking_debate.py``), and supervisor allocation, which
-    runs once per loop point on the run's serial spine where nothing else is
-    executing (``agents/supervisor/supervisor_decision.py``).
-
-    DashScope (Alibaba Cloud) serves the same DeepSeek models behind its
-    OpenAI-compatible endpoint but controls thinking with a different knob:
-    ``enable_thinking`` (bool), with thinking OFF by default. The explicit
-    field below covers both providers' defaults.
-
-    Args:
-        model_name: Model name in litellm format.
-        enabled: Whether to request thinking mode. False explicitly disables
-            it, which is not the same as omitting the field -- the API's own
-            default is enabled.
-
-    Returns:
-        ``{"thinking": {"type": "enabled"|"disabled"}}`` for DeepSeek models,
-        ``{"enable_thinking": bool}`` for DeepSeek-on-DashScope, else ``{}``.
-    """
-    lowered = model_name.lower()
-    if any(family in lowered for family in _JSON_OBJECT_ONLY_MODEL_FAMILIES):
-        if _is_dashscope(model_name):
-            return {"enable_thinking": enabled}
-        return {"thinking": {"type": "enabled" if enabled else "disabled"}}
-    return {}
-
-
-def reasoning_effort_args(
-    model_name: str, *, enabled: bool = True
-) -> dict[str, Any]:
-    """Kwargs selecting the reasoning tier, when supported.
-
-    ``high`` is the floor, not a high setting. DeepSeek implements exactly
-    two tiers, ``high`` and ``max``, and accepts OpenAI's lower names
-    (``low``, ``medium``) as aliases onto ``high`` -- the parameter and its
-    vocabulary are OpenAI's, and DeepSeek only supports the top of that
-    ladder. There is no cheaper way to think than this; the rung below is
-    ``enabled=False``. ``high`` is also DeepSeek's default once thinking is
-    on, so this field is belt-and-braces: litellm 1.80.x strips
-    ``reasoning_effort`` from the body outright (BerriAI/litellm#27439), and
-    since the value equals the default, that bug is inert. Sending it keeps
-    the intent explicit and the call correct once the fix lands.
-
-    Empty for models without a thinking mode, when thinking is disabled for
-    the call, and on DashScope -- Model Studio does accept the parameter
-    (``high``/``max``, default ``high``), but the only value wanted there is
-    that default.
-
-    Args:
-        model_name: Model name in litellm format.
-        enabled: Whether thinking mode is requested for this call.
-
-    Returns:
-        ``{"reasoning_effort": "high"}`` when the tier applies, else ``{}``.
-    """
-    if (
-        enabled
-        and deepseek_thinking_extra_body(model_name)
-        and not _is_dashscope(model_name)
-    ):
-        return {"reasoning_effort": "high"}
-    return {}
 
 
 @functools.cache
@@ -432,41 +359,6 @@ def _base_completion_args(
     return completion_args
 
 
-def _apply_thinking_args(
-    completion_args: dict[str, Any], model_name: str, enable_thinking: bool
-) -> None:
-    """Sets the DeepSeek thinking-mode kwargs on a completion call, in place.
-
-    Also lifts ``max_tokens`` to ``THINKING_FLOOR_MAX_TOKENS`` when the call
-    will actually think, because the budget has to cover the chain of thought
-    as well as the answer -- see that constant for why an answer-sized budget
-    silently turns into an empty response. Applied here rather than at the
-    call sites so a node cannot be added later with a budget that predates
-    thinking; the floor only ever raises, so a node that sized itself above
-    it keeps its own number.
-
-    Args:
-        completion_args: The in-progress completion kwargs dict; mutated in
-            place with "extra_body", reasoning-effort args, and a raised
-            "max_tokens" when thinking applies to this model.
-        model_name: Model name in litellm format.
-        enable_thinking: Whether DeepSeek thinking mode is requested.
-    """
-    thinking = deepseek_thinking_extra_body(model_name, enabled=enable_thinking)
-    if not thinking:
-        return
-
-    completion_args["extra_body"] = thinking
-    completion_args.update(
-        reasoning_effort_args(model_name, enabled=enable_thinking)
-    )
-
-    if enable_thinking:
-        completion_args["max_tokens"] = max(
-            completion_args["max_tokens"], THINKING_FLOOR_MAX_TOKENS
-        )
-
-
 @dataclass(frozen=True)
 class CompletionShape:
     """How one completion's response is shaped and reasoned about.
@@ -513,74 +405,3 @@ def _build_completion_args(
     _apply_thinking_args(completion_args, model_name, shape.enable_thinking)
 
     return completion_args
-
-
-def _empty_content_diagnosis(response: Any) -> str:
-    """Summarizes, in one short line, why a completion carried no content.
-
-    The response object itself is deliberately never logged. On a reasoning
-    model it embeds the entire chain of thought twice -- once as
-    ``message.reasoning_content`` and again under
-    ``provider_specific_fields`` -- so a single record runs to tens of
-    kilobytes, floods the persisted log, and pushes the run's own narrative
-    out of the fixed newest-N window the Logs panel shows. None of that text
-    diagnoses anything the fields below do not: ``finish_reason="length"``
-    with ``reasoning_tokens`` sitting at the call's ``max_tokens`` says the
-    chain of thought spent the whole budget and left nothing for the answer.
-
-    Every field is read defensively -- this runs on an already-failing
-    response, and a diagnostic that raises would replace a useful error with
-    an ``AttributeError`` from the logging path.
-
-    Args:
-        response: The raw response returned by ``litellm.acompletion``.
-
-    Returns:
-        A compact ``key=value`` summary of the finish reason and token spend.
-    """
-    parts: list[str] = []
-
-    with contextlib.suppress(Exception):
-        parts.append(f"finish_reason={response.choices[0].finish_reason}")
-
-    usage = getattr(response, "usage", None)
-    for field in ("prompt_tokens", "completion_tokens"):
-        value = getattr(usage, field, None)
-        if value is not None:
-            parts.append(f"{field}={value}")
-
-    details = getattr(usage, "completion_tokens_details", None)
-    reasoning = getattr(details, "reasoning_tokens", None)
-    if reasoning is not None:
-        parts.append(f"reasoning_tokens={reasoning}")
-
-    return ", ".join(parts) if parts else "no usage reported"
-
-
-def _extract_completion_content(response: Any, model_name: str) -> str:
-    """Extracts and validates the text content of a completion response.
-
-    Args:
-        response: The raw response returned by ``litellm.acompletion``.
-        model_name: Model name in litellm format, included in the error
-            message when the response has no content.
-
-    Returns:
-        The non-empty response content.
-
-    Raises:
-        ValueError: If the response has no non-whitespace content.
-    """
-    content = response.choices[0].message.content
-
-    if content is None or not content.strip():
-        logger.error(
-            "LLM returned None or empty content. Model: %s (%s)",
-            model_name,
-            _empty_content_diagnosis(response),
-        )
-        raise ValueError(
-            f"LLM returned None or empty content. Model: {model_name}"
-        )
-
-    return cast(str, content)
