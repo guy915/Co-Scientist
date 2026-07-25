@@ -147,6 +147,33 @@ def _derive_hypothesis_identity(h: dict[str, Any]) -> _HypIdentity:
     return _HypIdentity(text, title, generation, agent, engine_id, parent_id)
 
 
+BLOCKING_REVIEW_DISPOSITIONS = frozenset(
+    {
+        "inaccurate",
+        "non_novel",
+        "inaccurate_and_non_novel",
+        "duplicate",
+        "evidence_blocked",
+    }
+)
+
+
+def _is_rejected(h: dict[str, Any]) -> bool:
+    """Return whether a hypothesis was excluded from the tournament on merit.
+
+    Mirrors the engine's ``Hypothesis.is_rankable``: a blocking review
+    disposition *or* a deep-verification verdict of "undermined" keeps an
+    idea out of the tournament. Both must map to ``rejected``, because the
+    UI reads this status to distinguish "Disqualified" from "Unranked" — an
+    undermined idea recorded as active shows as merely unranked, which is
+    exactly the conflation the status is there to remove.
+    """
+    return (
+        h.get("review_disposition") in BLOCKING_REVIEW_DISPOSITIONS
+        or h.get("deep_verification_verdict") == "undermined"
+    )
+
+
 def _persist_hypothesis_state(
     hyp_id: str, h: dict[str, Any], conn: sqlite3.Connection
 ) -> None:
@@ -158,16 +185,7 @@ def _persist_hypothesis_state(
             win_delta=int(h.get("win_count", 0)),
             loss_delta=int(h.get("loss_count", 0)),
             novelty=_score_or_none(h.get("score", 0)),
-            status="rejected"
-            if h.get("review_disposition")
-            in {
-                "inaccurate",
-                "non_novel",
-                "inaccurate_and_non_novel",
-                "duplicate",
-                "evidence_blocked",
-            }
-            else "active",
+            status="rejected" if _is_rejected(h) else "active",
         ),
         conn=conn,
     )

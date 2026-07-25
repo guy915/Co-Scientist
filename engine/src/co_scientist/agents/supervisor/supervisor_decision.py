@@ -39,6 +39,15 @@ _PRODUCTIVE_TASKS = (
 # iteration bookkeeping and the post-budget growth guard here agree on the set.
 WORK_TASKS = frozenset({TaskType.GENERATE, TaskType.EVOLVE})
 
+# Stops no amount of owed tournament coverage may defer. The operator asked
+# the run to stop, or the content is unsafe; more work is wrong either way.
+# The budget family defers instead, because a hypothesis stranded without any
+# tournament result is a worse outcome than a bounded overshoot of a ceiling
+# that exists to catch runaways.
+_IMMEDIATE_STOP_REASONS = frozenset(
+    {TerminationReason.CANCELLED, TerminationReason.SAFETY}
+)
+
 _DECISION_SCHEMA: dict[str, Any] = {
     "name": "supervisor_allocation",
     "schema": {
@@ -79,6 +88,21 @@ _DECISION_SCHEMA: dict[str, Any] = {
 }
 
 
+def _owed_coverage_is_affordable(stats: SchedulerStats) -> bool:
+    """Return whether owed tournament coverage may still defer a stop.
+
+    Read from the allowance state on ``stats`` rather than inferred from the
+    scheduler's baseline task. The baseline is only a proxy: on the
+    queue-adjudication path the model may be consulted and return a task
+    other than RANK, which charges nothing, so a baseline-derived deferral
+    was not bounded by anything. The allowance itself is.
+    """
+    allowance = stats.settlement_allowance
+    return stats.unmatched_rankable_count > 0 and (
+        allowance is None or allowance > 0
+    )
+
+
 def _hard_stop(
     stats: SchedulerStats,
     budget: Budget,
@@ -87,7 +111,9 @@ def _hard_stop(
     """Return a code-enforced stop that no model allocation may bypass.
 
     Args:
-        stats: Live statistics derived from workflow state.
+        stats: Live statistics derived from workflow state, including the
+            settlement-allowance state that decides whether a budget stop
+            may be deferred for owed tournament coverage.
         budget: The run's hard compute limits.
         baseline: The disclosed scheduler's decision for these same
             stats/budget, reused for the satisfied-completion/convergence
@@ -99,6 +125,15 @@ def _hard_stop(
         # scheduler predicates after required review/ranking/proximity work.
         return baseline if baseline.terminate else None
     termination_reason, message = reason
+    if (
+        _owed_coverage_is_affordable(stats)
+        and termination_reason not in _IMMEDIATE_STOP_REASONS
+    ):
+        # Defer to the scheduler's owed-coverage round. Held to the same
+        # settlement allowance the scheduler spends, which is charged per
+        # settlement round and never refilled inside an episode, so the
+        # deferral cannot postpone the stop forever.
+        return None
     return SupervisorDecision(
         next_task=TaskType.TERMINATE,
         reason=message,

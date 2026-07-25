@@ -35,6 +35,7 @@ from co_scientist.scheduling import (
     TaskRecord,
     TaskStatus,
     TaskType,
+    policy,
 )
 from co_scientist.state import WorkflowState
 
@@ -55,6 +56,7 @@ class _StatsScalars:
     rankable_count: int
     total_matches: int
     avg_coverage: float
+    unmatched_rankable_count: int
     top_elo: int
     llm_calls: int
     gen_yield: float
@@ -103,6 +105,11 @@ def _init_bookkeeping(hypotheses: list[Hypothesis]) -> dict[str, Any]:
         "pool_at_last_proximity": pool_size,
         "pool_at_last_decision": pool_size,
         "last_work_task": TaskType.GENERATE.value,
+        # None until a settlement episode opens: the override may fire, and
+        # the allowance is sized from the backlog observed at that moment.
+        # Both fields return to None whenever the backlog clears.
+        "settlement_allowance": None,
+        "unmatched_at_last_settlement": None,
     }
 
 
@@ -156,7 +163,7 @@ def _compute_stats(
     """
     hyps: list[Hypothesis] = state["hypotheses"]
     pool_size = len(hyps)
-    rankable_count, avg_coverage = _rankable_coverage(hyps)
+    rankable_count, avg_coverage, unmatched = _rankable_coverage(hyps)
     llm_calls, gen_yield, evo_yield, elapsed_s = _scheduler_scalars(
         state, book, pool_size
     )
@@ -166,6 +173,7 @@ def _compute_stats(
         rankable_count=rankable_count,
         total_matches=sum(h.total_matches for h in hyps),
         avg_coverage=avg_coverage,
+        unmatched_rankable_count=unmatched,
         top_elo=max((h.elo_rating for h in hyps), default=INITIAL_ELO_RATING),
         llm_calls=llm_calls,
         gen_yield=gen_yield,
@@ -175,19 +183,33 @@ def _compute_stats(
     return _build_scheduler_stats(state, book, scalars)
 
 
-def _rankable_coverage(hyps: list[Hypothesis]) -> tuple[int, float]:
-    """Return (rankable_count, average_match_coverage) over the rankable pool.
+def _rankable_coverage(
+    hyps: list[Hypothesis],
+) -> tuple[int, float, int]:
+    """Return (rankable_count, average coverage, unmatched count).
 
     Coverage is measured over the rankable pool only. An un-rankable idea
     (undermined or review/evidence-gate rejected) can never accrue matches,
     so counting it in the denominator would hold average coverage below the
-    gate forever and loop the orchestrator on ranking (see SchedulerStats).
+    gate forever and loop the orchestrator on ranking.
+
+    The unmatched count is reported separately because the average cannot
+    represent it: a pool can clear its average threshold while individual
+    hypotheses have never been matched at all.
+
+    Args:
+        hyps: The full hypothesis pool.
+
+    Returns:
+        The rankable count, their average match coverage, and how many of
+        them have never been matched.
     """
     rankable = [h for h in hyps if h.is_rankable()]
     rankable_count = len(rankable)
     rankable_matches = sum(h.total_matches for h in rankable)
     avg_coverage = rankable_matches / rankable_count if rankable_count else 0.0
-    return rankable_count, avg_coverage
+    unmatched = sum(1 for h in rankable if h.total_matches == 0)
+    return rankable_count, avg_coverage, unmatched
 
 
 def _scheduler_scalars(
@@ -215,6 +237,9 @@ def _build_scheduler_stats(
         rankable_count=scalars.rankable_count,
         total_matches=scalars.total_matches,
         match_coverage=scalars.avg_coverage,
+        unmatched_rankable_count=scalars.unmatched_rankable_count,
+        settlement_allowance=book.get("settlement_allowance"),
+        unmatched_at_last_settlement=book.get("unmatched_at_last_settlement"),
         tournament_rounds_remaining=_tournament_round_count(
             state, state.get("hypotheses") or []
         ),
@@ -245,6 +270,75 @@ def _task_type_or_none(value: Any) -> TaskType | None:
     return TaskType(value)
 
 
+def _is_settlement_rank(
+    stats: SchedulerStats, decision: SupervisorDecision
+) -> bool:
+    """Return whether this decision is a ranking round that settles coverage.
+
+    Re-derived by running the policy's own owed-coverage check against the
+    same stats rather than inferred from ``next_task``: a RANK is a
+    settlement round only when that check asked for one. Inferring it from
+    "RANK while anything is unmatched" charged ordinary calibration ranking
+    to the allowance, which drained an episode before it began.
+
+    The check is a pure function of ``stats`` with no I/O, so re-running it
+    is exact and cheap, and the policy stays free of any settlement state of
+    its own.
+    """
+    return (
+        decision.next_task is TaskType.RANK
+        and policy._check_owed_coverage(stats) is not None
+    )
+
+
+def _initial_settlement_allowance(stats: SchedulerStats) -> int:
+    """Return the most settlement rounds that could ever be useful.
+
+    One round covers at most two unmatched hypotheses, and the pool admits
+    only so many distinct pairings, so the allowance is the smaller of the
+    two. Mirrors ``ranking_lifecycle._coverage_floor``, which bounds the
+    rounds an individual tournament schedules for the same reason.
+    """
+    rankable = stats.rankable_count
+    max_pairs = rankable * (rankable - 1) // 2
+    return min((stats.unmatched_rankable_count + 1) // 2, max_pairs)
+
+
+def _settled_allowance(
+    book: dict[str, Any],
+    stats: SchedulerStats,
+    decision: SupervisorDecision,
+) -> tuple[int | None, int | None]:
+    """Return the (allowance, last-unmatched) pair for the next decision.
+
+    The allowance is scoped to a *settlement episode*, not to the run. An
+    episode opens on the first round the owed-coverage check requests and
+    closes when the backlog reaches zero, at which point both fields return
+    to None so a later backlog re-arms from what it actually owes.
+
+    Within an episode the counter is initialised once, is charged on every
+    settlement round whether or not the round helped, floors at zero, and is
+    never increased -- so an episode fires finitely often. A new episode can
+    open only after the backlog reached zero, which is to say only after
+    settlement succeeded, so the run still reaches a terminal decision.
+    """
+    if _is_settlement_rank(stats, decision):
+        allowance = book.get("settlement_allowance")
+        if allowance is None:
+            allowance = _initial_settlement_allowance(stats)
+        return (
+            max(0, int(allowance) - 1),
+            stats.unmatched_rankable_count,
+        )
+    if stats.unmatched_rankable_count == 0:
+        # Episode over: nothing is owed, so the counter re-arms.
+        return None, None
+    return (
+        book.get("settlement_allowance"),
+        book.get("unmatched_at_last_settlement"),
+    )
+
+
 def _next_bookkeeping(
     book: dict[str, Any],
     stats: SchedulerStats,
@@ -253,9 +347,11 @@ def _next_bookkeeping(
     """Compute the bookkeeping to carry into the next decision.
 
     Updates the rank-stability counter and previous top Elo, resets the
-    proximity anchor after a proximity task, and remembers the pool size and
-    the last *work* task (generate/evolve) so the next decision can measure
-    yield and break ties.
+    proximity anchor after a proximity task, remembers the pool size and the
+    last *work* task (generate/evolve) so the next decision can measure yield
+    and break ties, and advances the settlement-episode allowance that bounds
+    how long owed tournament coverage may override a budget ceiling (see
+    :func:`_settled_allowance`).
     """
     updated = dict(book)
     updated["prev_top_elo"] = stats.top_elo
@@ -265,6 +361,9 @@ def _next_bookkeeping(
         updated["pool_at_last_proximity"] = stats.pool_size
     if decision.next_task in (TaskType.GENERATE, TaskType.EVOLVE):
         updated["last_work_task"] = decision.next_task.value
+    allowance, last_unmatched = _settled_allowance(book, stats, decision)
+    updated["settlement_allowance"] = allowance
+    updated["unmatched_at_last_settlement"] = last_unmatched
     return updated
 
 

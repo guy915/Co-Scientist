@@ -344,3 +344,145 @@ def test_remaining_tournament_budget_still_ranks() -> None:
     decision = decide_next_task(stats, _BUDGET, min_match_coverage=1.0)
 
     assert decision.next_task is TaskType.RANK
+
+
+# --- Owed tournament coverage -----------------------------------------------
+
+
+def test_uncompared_idea_ranks_despite_healthy_average() -> None:
+    # An average cannot see an individual zero: 2 ideas at 2 matches each
+    # averages 1.33 across 3 and clears the 1.0 threshold while one idea has
+    # never played. The per-hypothesis check is what catches it.
+    stats = _healthy_stats(
+        rankable_count=3, match_coverage=1.33, unmatched_rankable_count=1
+    )
+
+    decision = decide_next_task(stats, _BUDGET)
+
+    assert decision.next_task is TaskType.RANK
+
+
+def test_owed_coverage_outranks_budget_termination() -> None:
+    # A spent budget must not strand an idea that never played. The ceiling
+    # is a runaway backstop, and the allowance bounds the overshoot.
+    stats = _healthy_stats(
+        rankable_count=3, unmatched_rankable_count=1, llm_calls=1000
+    )
+
+    decision = decide_next_task(stats, _BUDGET)
+
+    assert decision.next_task is TaskType.RANK
+
+
+def test_cancellation_outranks_owed_coverage() -> None:
+    # The operator asked the run to stop; further tournament work is wrong.
+    stats = _healthy_stats(
+        rankable_count=3, unmatched_rankable_count=1, cancelled=True
+    )
+
+    decision = decide_next_task(stats, _BUDGET)
+
+    assert decision.next_task is TaskType.TERMINATE
+    assert decision.termination_reason is TerminationReason.CANCELLED
+
+
+def test_safety_block_outranks_owed_coverage() -> None:
+    stats = _healthy_stats(
+        rankable_count=3, unmatched_rankable_count=1, safety_blocked=True
+    )
+
+    decision = decide_next_task(stats, _BUDGET)
+
+    assert decision.next_task is TaskType.TERMINATE
+    assert decision.termination_reason is TerminationReason.SAFETY
+
+
+def test_steering_outranks_owed_coverage() -> None:
+    # orchestrator_node clears pending_steering on the cycle it observes it,
+    # so a settlement round taken on that cycle would mark the scientist's
+    # message applied with nothing scheduled to incorporate it. Owed coverage
+    # sits above the budget ceilings, so this places steering above them too:
+    # a pending message buys one cycle on an exhausted budget, by design.
+    stats = _healthy_stats(
+        rankable_count=3,
+        unmatched_rankable_count=2,
+        pending_steering=True,
+        llm_calls=1000,
+    )
+
+    decision = decide_next_task(stats, _BUDGET)
+
+    assert decision.next_task is TaskType.GENERATE
+    assert "steering" in decision.reason
+
+
+def test_spent_allowance_stops_overriding_the_budget() -> None:
+    # The allowance is what bounds the override. At zero the check is inert
+    # even though an idea is still uncompared, so the run can stop.
+    stats = _healthy_stats(
+        rankable_count=3,
+        unmatched_rankable_count=1,
+        settlement_allowance=0,
+        llm_calls=1000,
+    )
+
+    decision = decide_next_task(stats, _BUDGET)
+
+    assert decision.next_task is TaskType.TERMINATE
+    assert decision.termination_reason is TerminationReason.BUDGET
+
+
+def test_stalled_settlement_stops_overriding_the_budget() -> None:
+    # A round that did not reduce the backlog will not reduce it next time
+    # either; spending the rest of the allowance on it wastes real debates.
+    stats = _healthy_stats(
+        rankable_count=3,
+        unmatched_rankable_count=2,
+        settlement_allowance=5,
+        unmatched_at_last_settlement=2,
+        llm_calls=1000,
+    )
+
+    decision = decide_next_task(stats, _BUDGET)
+
+    assert decision.next_task is TaskType.TERMINATE
+
+
+def test_settlement_continues_while_backlog_shrinks() -> None:
+    stats = _healthy_stats(
+        rankable_count=3,
+        unmatched_rankable_count=1,
+        settlement_allowance=5,
+        unmatched_at_last_settlement=3,
+        llm_calls=1000,
+    )
+
+    decision = decide_next_task(stats, _BUDGET)
+
+    assert decision.next_task is TaskType.RANK
+
+
+def test_single_rankable_hypothesis_never_settles() -> None:
+    # Nothing to pair against, so demanding coverage could never be met.
+    stats = _healthy_stats(
+        pool_size=1,
+        rankable_count=1,
+        unmatched_rankable_count=1,
+        llm_calls=1000,
+    )
+
+    decision = decide_next_task(stats, _BUDGET)
+
+    assert decision.next_task is not TaskType.RANK
+
+
+def test_fully_compared_pool_is_unaffected() -> None:
+    # Regression guard: with nothing owed, the budget ceiling still stops.
+    stats = _healthy_stats(
+        rankable_count=3, unmatched_rankable_count=0, llm_calls=1000
+    )
+
+    decision = decide_next_task(stats, _BUDGET)
+
+    assert decision.next_task is TaskType.TERMINATE
+    assert decision.termination_reason is TerminationReason.BUDGET

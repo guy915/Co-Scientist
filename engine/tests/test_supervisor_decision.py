@@ -340,3 +340,87 @@ async def test_repeated_maintenance_cannot_stall_iteration_budget(
 
     assert decision.next_task is TaskType.EVOLVE
     assert provenance == "hard-invariant"
+
+
+def test_hard_stop_yields_to_owed_coverage_but_not_to_cancellation() -> None:
+    """_hard_stop defers budget stops when coverage remains, but not cancels.
+
+    _hard_stop runs after required_transition, so without this the RANK the
+    policy just chose is overridden and the feature never reaches a run.
+    """
+    from co_scientist.agents.supervisor.supervisor_decision import _hard_stop
+    from co_scientist.scheduling import (
+        Budget,
+        SchedulerStats,
+        SupervisorDecision,
+        TaskType,
+    )
+
+    budget = Budget(max_iterations=5, max_llm_calls=10)
+    settling = SupervisorDecision(next_task=TaskType.RANK, reason="settle")
+    stats = SchedulerStats(
+        pool_size=6,
+        rankable_count=6,
+        unmatched_rankable_count=2,
+        llm_calls=99,
+    )
+
+    assert _hard_stop(stats, budget, settling) is None
+
+    cancelled = SchedulerStats(
+        pool_size=6,
+        rankable_count=6,
+        unmatched_rankable_count=2,
+        llm_calls=99,
+        cancelled=True,
+    )
+    stop = _hard_stop(cancelled, budget, settling)
+
+    assert stop is not None
+    assert stop.next_task is TaskType.TERMINATE
+
+
+def test_hard_stop_deferral_reads_the_allowance_not_the_baseline() -> None:
+    """The deferral is bounded by the allowance on any baseline task.
+
+    _needs_queue_adjudication can route past the forced decision, and the
+    model may then answer with a task other than RANK -- which charges
+    nothing, so a baseline-derived deferral had no bound on that path.
+    """
+    from co_scientist.agents.supervisor.supervisor_decision import _hard_stop
+    from co_scientist.scheduling import (
+        Budget,
+        SchedulerStats,
+        SupervisorDecision,
+        TaskType,
+        TerminationReason,
+    )
+
+    budget = Budget(max_iterations=5, max_llm_calls=10)
+    reflecting = SupervisorDecision(
+        next_task=TaskType.REFLECT, reason="review backlog"
+    )
+    owed = SchedulerStats(
+        pool_size=6,
+        rankable_count=6,
+        unmatched_rankable_count=2,
+        llm_calls=99,
+    )
+
+    assert _hard_stop(owed, budget, reflecting) is None
+
+    spent = SchedulerStats(
+        pool_size=6,
+        rankable_count=6,
+        unmatched_rankable_count=2,
+        settlement_allowance=0,
+        llm_calls=99,
+    )
+    stop = _hard_stop(
+        spent,
+        budget,
+        SupervisorDecision(next_task=TaskType.RANK, reason="settle"),
+    )
+
+    assert stop is not None
+    assert stop.termination_reason is TerminationReason.BUDGET
