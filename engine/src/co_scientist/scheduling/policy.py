@@ -152,6 +152,50 @@ def _check_stop_signals(stats: SchedulerStats) -> SupervisorDecision | None:
     return None
 
 
+def _check_owed_coverage(
+    stats: SchedulerStats,
+) -> SupervisorDecision | None:
+    """Step 2: settle hypotheses that have never entered the tournament.
+
+    Ranked above the budget ceilings and below the cancel/safety stops. A
+    hypothesis that leaves a run unmatched has no tournament result at all,
+    which is a worse outcome than a small, bounded overshoot of a ceiling
+    that exists to catch runaways rather than to meter work. Cancellation
+    and safety blocks still win outright: the operator asked to stop, or the
+    content is unsafe, and more work is wrong in both cases.
+
+    Per-hypothesis rather than the average used by
+    :func:`_check_tournament_coverage`, which cannot represent this state:
+    35 hypotheses at two matches each averages 1.46 across 48 and clears a
+    1.0 threshold while 13 have never been matched once.
+
+    Bounded by ``settlement_allowance``, which strictly decreases and is
+    never refilled, so this check fires finitely many times and the run
+    always reaches a terminal decision. That bound is structural -- it does
+    not assume ranking makes progress, that pairings remain, or that the
+    pool holds still. The stall test below is a cost optimisation on top of
+    it, not the thing that makes the loop safe.
+    """
+    if stats.unmatched_rankable_count < 1:
+        return None
+    # Nothing to pair against: demanding coverage could never be satisfied.
+    if stats.rankable_count < 2:
+        return None
+    allowance = stats.settlement_allowance
+    if allowance is not None and allowance < 1:
+        return None
+    previous = stats.unmatched_at_last_settlement
+    if previous is not None and stats.unmatched_rankable_count >= previous:
+        return None
+    return SupervisorDecision(
+        next_task=TaskType.RANK,
+        reason=(
+            f"{stats.unmatched_rankable_count} hypothesis(es) have no "
+            "tournament matches; settle coverage before terminating"
+        ),
+    )
+
+
 def _check_retry(stats: SchedulerStats) -> SupervisorDecision | None:
     """Step 3: retry a failed task before scheduling new work."""
     if stats.last_task_failed is not None and stats.retries_remaining > 0:
@@ -309,9 +353,10 @@ def _ordered_checks(
     convergence_cycles: int,
     min_cycles_before_convergence: int,
 ) -> tuple[Callable[[], SupervisorDecision | None], ...]:
-    """Builds the precedence-ordered scheduling checks (steps 1-10)."""
+    """Builds the precedence-ordered scheduling checks (steps 1-11)."""
     return (
         lambda: _check_stop_signals(stats),
+        lambda: _check_owed_coverage(stats),
         lambda: _budget_termination(stats, budget),
         lambda: _check_retry(stats),
         lambda: _check_steering(stats),
@@ -334,9 +379,9 @@ def required_transition(
     convergence_cycles: int = CONVERGENCE_CYCLES_DEFAULT,
     min_cycles_before_convergence: int = MIN_CYCLES_BEFORE_CONVERGENCE_DEFAULT,
 ) -> SupervisorDecision | None:
-    """Return the forced decision when one of steps 1-10 fires, else None.
+    """Return the forced decision when one of steps 1-11 fires, else None.
 
-    Separates the two halves of :func:`decide_next_task`. Steps 1-10 are
+    Separates the two halves of :func:`decide_next_task`. Steps 1-11 are
     *required* transitions: an unreviewed backlog must be reviewed, a pool
     of one cannot hold a tournament, a spent budget must stop. There is no
     latitude in them, so an advisory model has nothing to contribute and
@@ -373,7 +418,7 @@ def decide_next_task(
     """Choose the next task (or terminate) from observable state.
 
     The precedence, highest first, is exactly ``_ordered_checks``'s steps 1-
-    10 (see each check's docstring), and finally the generation-vs-evolution
+    11 (see each check's docstring), and finally the generation-vs-evolution
     choice. ``min_match_coverage``, ``convergence_cycles``, and
     ``min_cycles_before_convergence`` are clone defaults where Google does
     not publish a predicate.
