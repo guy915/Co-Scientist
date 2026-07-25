@@ -397,6 +397,25 @@ def test_safety_block_outranks_owed_coverage() -> None:
     assert decision.termination_reason is TerminationReason.SAFETY
 
 
+def test_steering_outranks_owed_coverage() -> None:
+    # orchestrator_node clears pending_steering on the cycle it observes it,
+    # so a settlement round taken on that cycle would mark the scientist's
+    # message applied with nothing scheduled to incorporate it. Owed coverage
+    # sits above the budget ceilings, so this places steering above them too:
+    # a pending message buys one cycle on an exhausted budget, by design.
+    stats = _healthy_stats(
+        rankable_count=3,
+        unmatched_rankable_count=2,
+        pending_steering=True,
+        llm_calls=1000,
+    )
+
+    decision = decide_next_task(stats, _BUDGET)
+
+    assert decision.next_task is TaskType.GENERATE
+    assert "steering" in decision.reason
+
+
 def test_spent_allowance_stops_overriding_the_budget() -> None:
     # The allowance is what bounds the override. At zero the check is inert
     # even though an idea is still uncompared, so the run can stop.

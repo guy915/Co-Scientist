@@ -155,26 +155,31 @@ def _check_stop_signals(stats: SchedulerStats) -> SupervisorDecision | None:
 def _check_owed_coverage(
     stats: SchedulerStats,
 ) -> SupervisorDecision | None:
-    """Step 2: settle hypotheses that have never entered the tournament.
+    """Step 3: settle hypotheses that have never entered the tournament.
 
-    Ranked above the budget ceilings and below the cancel/safety stops. A
-    hypothesis that leaves a run unmatched has no tournament result at all,
-    which is a worse outcome than a small, bounded overshoot of a ceiling
-    that exists to catch runaways rather than to meter work. Cancellation
-    and safety blocks still win outright: the operator asked to stop, or the
-    content is unsafe, and more work is wrong in both cases.
+    Ranked above the budget ceilings and below the cancel/safety stops and
+    scientist steering. A hypothesis that leaves a run unmatched has no
+    tournament result at all, which is a worse outcome than a small,
+    bounded overshoot of a ceiling that exists to catch runaways rather
+    than to meter work. Cancellation and safety blocks still win outright:
+    the operator asked to stop, or the content is unsafe, and more work is
+    wrong in both cases. Steering wins because the orchestrator consumes a
+    steering message on the cycle it observes it, so losing that cycle to
+    ranking would drop the scientist's message entirely.
 
     Per-hypothesis rather than the average used by
     :func:`_check_tournament_coverage`, which cannot represent this state:
     35 hypotheses at two matches each averages 1.46 across 48 and clears a
     1.0 threshold while 13 have never been matched once.
 
-    Bounded by ``settlement_allowance``, which strictly decreases and is
-    never refilled, so this check fires finitely many times and the run
-    always reaches a terminal decision. That bound is structural -- it does
-    not assume ranking makes progress, that pairings remain, or that the
-    pool holds still. The stall test below is a cost optimisation on top of
-    it, not the thing that makes the loop safe.
+    Bounded by ``settlement_allowance``, which is scoped to a settlement
+    *episode*: within one it strictly decreases and is never refilled, so an
+    episode fires finitely many times, and a new episode can begin only once
+    the backlog reached zero -- that is, only once settlement succeeded. The
+    run therefore always reaches a terminal decision. That bound is
+    structural: it does not assume ranking makes progress, that pairings
+    remain, or that the pool holds still. The stall test below is a cost
+    optimisation on top of it, not the thing that makes the loop safe.
     """
     if stats.unmatched_rankable_count < 1:
         return None
@@ -197,7 +202,7 @@ def _check_owed_coverage(
 
 
 def _check_retry(stats: SchedulerStats) -> SupervisorDecision | None:
-    """Step 3: retry a failed task before scheduling new work."""
+    """Step 4: retry a failed task before scheduling new work."""
     if stats.last_task_failed is not None and stats.retries_remaining > 0:
         return SupervisorDecision(
             next_task=stats.last_task_failed,
@@ -210,11 +215,20 @@ def _check_retry(stats: SchedulerStats) -> SupervisorDecision | None:
 
 
 def _check_steering(stats: SchedulerStats) -> SupervisorDecision | None:
-    """Step 4: user steering is a high-priority request to explore anew.
+    """Step 2: user steering is a high-priority request to explore anew.
 
     Carries the same priority as ``_correct_for_steering``: a scientist's
     steering must outrank queued work whether it was reached by the
     scheduler directly or by correcting a model allocation away from it.
+
+    Above :func:`_check_owed_coverage` because ``orchestrator_node`` clears
+    ``pending_steering`` on the cycle it observes it: a message that loses
+    its cycle to a settlement round is marked applied with no work scheduled
+    to incorporate it, so it is dropped outright. Owed coverage must in turn
+    stay above the budget ceilings, so this placement also puts steering
+    above them -- a pending message buys one cycle on an exhausted budget.
+    That is intended: the scientist asked for it explicitly, and steering is
+    one-shot, so it cannot repeat.
     """
     if stats.pending_steering:
         return SupervisorDecision(
@@ -356,10 +370,10 @@ def _ordered_checks(
     """Builds the precedence-ordered scheduling checks (steps 1-11)."""
     return (
         lambda: _check_stop_signals(stats),
+        lambda: _check_steering(stats),
         lambda: _check_owed_coverage(stats),
         lambda: _budget_termination(stats, budget),
         lambda: _check_retry(stats),
-        lambda: _check_steering(stats),
         lambda: _check_review_backlog(stats),
         lambda: _check_pool_size(stats, budget),
         lambda: _check_tournament_coverage(stats, min_match_coverage),
