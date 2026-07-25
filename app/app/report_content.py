@@ -23,6 +23,21 @@ from app.hypothesis_screening import record_hypothesis_block
 logger = logging.getLogger(__name__)
 
 
+def _claim_evidence_ids(edge: dict[str, Any]) -> list[str]:
+    """Evidence ids cited by one claim edge's supporting passages.
+
+    A stored edge carries its provenance inside the ``supporting`` span
+    objects (``{evidence_id, quote, ...}``), never as a flat ``evidence_id``
+    column -- reading one off the edge itself silently yields nothing.
+    """
+    ids: list[str] = []
+    for span in edge.get("supporting") or []:
+        raw = span.get("evidence_id") if isinstance(span, dict) else None
+        if raw:
+            ids.append(str(raw))
+    return ids
+
+
 def _knowledge_base_topics(
     hypotheses: list[dict[str, Any]],
     claim_edges: list[dict[str, Any]],
@@ -33,11 +48,9 @@ def _knowledge_base_topics(
         if edge.get("label") not in ("supports", "partial"):
             continue
         hypothesis_id = str(edge.get("hypothesis_id") or "")
-        evidence_id = str(edge.get("evidence_id") or "")
-        if evidence_id:
-            references_by_hypothesis.setdefault(hypothesis_id, []).append(
-                evidence_id
-            )
+        references_by_hypothesis.setdefault(hypothesis_id, []).extend(
+            _claim_evidence_ids(edge)
+        )
     topics: list[dict[str, Any]] = []
     for hypothesis in hypotheses[:8]:
         hypothesis_id = str(hypothesis.get("id") or "")
@@ -125,6 +138,44 @@ def _synthesized_knowledge_base_topics(
     return topics
 
 
+def _contradicted_claims(claim_edges: list[dict[str, Any]]) -> list[str]:
+    """Readable claim text for every edge the evidence contradicts.
+
+    Textless edges are dropped rather than emitted blank: the Goal Report
+    shows a section header whenever the list is non-empty, so a blank entry
+    renders as a heading with nothing beneath it.
+    """
+    claims: list[str] = []
+    for edge in claim_edges:
+        if edge.get("label") != "contradicts":
+            continue
+        claim = str(edge.get("claim") or "").strip()
+        if claim:
+            claims.append(claim)
+    return claims
+
+
+def _recommended_direction(raw: Any) -> dict[str, Any]:
+    """Normalize one meta-review strategic recommendation into named fields.
+
+    The meta-review schema makes each recommendation an object of focus area,
+    recommendation, and justification; stringifying it renders a raw object
+    repr in the report. A bare string (from a provider that ignored the
+    schema) becomes the recommendation with empty siblings.
+    """
+    if not isinstance(raw, dict):
+        return {
+            "focus_area": "",
+            "recommendation": raw,
+            "justification": "",
+        }
+    return {
+        "focus_area": raw.get("focus_area") or "",
+        "recommendation": raw.get("recommendation") or "",
+        "justification": raw.get("justification") or "",
+    }
+
+
 def _agent_insights(
     hypotheses: list[dict[str, Any]],
     claim_edges: list[dict[str, Any]],
@@ -141,13 +192,10 @@ def _agent_insights(
         "uncertainties": [
             str(item) for item in meta.get("common_weaknesses", [])
         ],
-        "contradictions": [
-            str(edge.get("claim_text") or edge.get("claim_id") or "")
-            for edge in claim_edges
-            if edge.get("label") == "contradicts"
-        ],
+        "contradictions": _contradicted_claims(claim_edges),
         "recommended_directions": [
-            str(item) for item in meta.get("strategic_recommendations", [])
+            _recommended_direction(item)
+            for item in meta.get("strategic_recommendations", [])
         ],
         "next_experiments": [
             str(hypothesis.get("experimental_context") or "")

@@ -15,21 +15,39 @@ def _hypothesis(identifier: str, title: str) -> dict[str, object]:
     }
 
 
+def _edge(
+    hypothesis_id: str,
+    claim: str,
+    label: str,
+    evidence_ids: tuple[str, ...] = (),
+) -> dict[str, object]:
+    """Build one edge in the shape ``store.list_claim_evidence`` returns.
+
+    The column names matter: the report derives contradiction text from
+    ``claim`` and evidence ids from the ``supporting`` passage spans, so a
+    fixture inventing flatter keys hides real key drift.
+    """
+    return {
+        "hypothesis_id": hypothesis_id,
+        "claim": claim,
+        "label": label,
+        "claim_role": "categorical",
+        "supporting": [
+            {"evidence_id": evidence_id, "quote": "A cited passage."}
+            for evidence_id in evidence_ids
+        ],
+        "contradicting": [],
+        "assessor": "llm",
+    }
+
+
 def test_goal_report_sections_preserve_claim_grounding() -> None:
     """Topics, insights, and idea buckets retain evidence-release decisions."""
     released = _hypothesis("h1", "Feedback control")
     rejected = _hypothesis("h2", "Unsupported bypass")
     edges = [
-        {
-            "hypothesis_id": "h1",
-            "evidence_id": "ev1",
-            "label": "supports",
-        },
-        {
-            "hypothesis_id": "h2",
-            "claim_text": "The bypass is constitutively active.",
-            "label": "contradicts",
-        },
+        _edge("h1", "Feedback is rate-limiting.", "supports", ("ev1",)),
+        _edge("h2", "The bypass is constitutively active.", "contradicts"),
     ]
 
     topics = report_render._knowledge_base_topics([released], edges)
@@ -69,20 +87,63 @@ def test_idea_buckets_explain_a_review_rejected_idea_as_deduplicated() -> None:
     deduped["status"] = "rejected"
     # A speculative/insufficient edge is not a publication blocker, so it yields
     # no exclusion reason -- the rejection must be explained by the status.
-    edges = [
-        {
-            "hypothesis_id": "h2",
-            "evidence_id": "ev1",
-            "label": "insufficient",
-            "claim_role": "speculative",
-        }
-    ]
+    edges = [_edge("h2", "A speculative claim.", "insufficient", ("ev1",))]
+    edges[0]["claim_role"] = "speculative"
     buckets = report_render._idea_buckets(
         [released], [released, deduped], edges
     )
     reason = buckets["non_viable"][0]["reason"].lower()
     assert "review" in reason or "duplicate" in reason
     assert "release gate" not in reason
+
+
+def test_contradictions_carry_claim_text_and_never_blank_entries() -> None:
+    """Every contradiction is readable text, so no empty bullet is emitted.
+
+    A blank entry is worse than an absent one: the section header renders on
+    list length alone, so blanks produce a heading with nothing under it.
+    """
+    hypothesis = _hypothesis("h1", "Feedback control")
+    edges = [
+        _edge("h1", "The bypass is constitutively active.", "contradicts"),
+        _edge("h1", "", "contradicts"),
+        _edge("h1", "Feedback is rate-limiting.", "supports"),
+    ]
+
+    insights = report_render._agent_insights([hypothesis], edges, {})
+
+    assert insights["contradictions"] == [
+        "The bypass is constitutively active."
+    ]
+
+
+def test_recommended_directions_keep_their_three_named_fields() -> None:
+    """Structured recommendations survive as fields, not stringified objects."""
+    meta = {
+        "strategic_recommendations": [
+            {
+                "focus_area": "Receptor pharmacology",
+                "recommendation": "Measure binding directly.",
+                "justification": "The affinity is unproven.",
+            },
+            "A bare string recommendation.",
+        ]
+    }
+
+    insights = report_render._agent_insights([], [], meta)
+
+    assert insights["recommended_directions"] == [
+        {
+            "focus_area": "Receptor pharmacology",
+            "recommendation": "Measure binding directly.",
+            "justification": "The affinity is unproven.",
+        },
+        {
+            "focus_area": "",
+            "recommendation": "A bare string recommendation.",
+            "justification": "",
+        },
+    ]
 
 
 def test_synthesized_topics_map_only_to_persisted_evidence() -> None:
