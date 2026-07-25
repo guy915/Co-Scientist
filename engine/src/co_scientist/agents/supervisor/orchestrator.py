@@ -55,6 +55,7 @@ class _StatsScalars:
     rankable_count: int
     total_matches: int
     avg_coverage: float
+    unmatched_rankable_count: int
     top_elo: int
     llm_calls: int
     gen_yield: float
@@ -156,7 +157,7 @@ def _compute_stats(
     """
     hyps: list[Hypothesis] = state["hypotheses"]
     pool_size = len(hyps)
-    rankable_count, avg_coverage = _rankable_coverage(hyps)
+    rankable_count, avg_coverage, unmatched = _rankable_coverage(hyps)
     llm_calls, gen_yield, evo_yield, elapsed_s = _scheduler_scalars(
         state, book, pool_size
     )
@@ -166,6 +167,7 @@ def _compute_stats(
         rankable_count=rankable_count,
         total_matches=sum(h.total_matches for h in hyps),
         avg_coverage=avg_coverage,
+        unmatched_rankable_count=unmatched,
         top_elo=max((h.elo_rating for h in hyps), default=INITIAL_ELO_RATING),
         llm_calls=llm_calls,
         gen_yield=gen_yield,
@@ -175,19 +177,33 @@ def _compute_stats(
     return _build_scheduler_stats(state, book, scalars)
 
 
-def _rankable_coverage(hyps: list[Hypothesis]) -> tuple[int, float]:
-    """Return (rankable_count, average_match_coverage) over the rankable pool.
+def _rankable_coverage(
+    hyps: list[Hypothesis],
+) -> tuple[int, float, int]:
+    """Return (rankable_count, average coverage, unmatched count).
 
     Coverage is measured over the rankable pool only. An un-rankable idea
     (undermined or review/evidence-gate rejected) can never accrue matches,
     so counting it in the denominator would hold average coverage below the
-    gate forever and loop the orchestrator on ranking (see SchedulerStats).
+    gate forever and loop the orchestrator on ranking.
+
+    The unmatched count is reported separately because the average cannot
+    represent it: a pool can clear its average threshold while individual
+    hypotheses have never been matched at all.
+
+    Args:
+        hyps: The full hypothesis pool.
+
+    Returns:
+        The rankable count, their average match coverage, and how many of
+        them have never been matched.
     """
     rankable = [h for h in hyps if h.is_rankable()]
     rankable_count = len(rankable)
     rankable_matches = sum(h.total_matches for h in rankable)
     avg_coverage = rankable_matches / rankable_count if rankable_count else 0.0
-    return rankable_count, avg_coverage
+    unmatched = sum(1 for h in rankable if h.total_matches == 0)
+    return rankable_count, avg_coverage, unmatched
 
 
 def _scheduler_scalars(
@@ -215,6 +231,9 @@ def _build_scheduler_stats(
         rankable_count=scalars.rankable_count,
         total_matches=scalars.total_matches,
         match_coverage=scalars.avg_coverage,
+        unmatched_rankable_count=scalars.unmatched_rankable_count,
+        settlement_allowance=book.get("settlement_allowance"),
+        unmatched_at_last_settlement=book.get("unmatched_at_last_settlement"),
         tournament_rounds_remaining=_tournament_round_count(
             state, state.get("hypotheses") or []
         ),

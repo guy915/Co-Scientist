@@ -104,6 +104,22 @@ class SchedulerStats:
     # un-rankable ideas cannot hold average coverage below the threshold and
     # loop the orchestrator on ranking.
     rankable_count: int = 0
+    # Rankable hypotheses with zero tournament matches. Tracked alongside the
+    # average below because an average cannot see them: 35 ideas at two
+    # matches each averages 1.46 across 48 and clears a 1.0 threshold while
+    # 13 have never played once. The average gates ordering refinement; this
+    # gates whether anyone has been left out entirely.
+    unmatched_rankable_count: int = 0
+    # Remaining tournament rounds the scheduler may spend overriding a budget
+    # ceiling to settle owed coverage. None means the override has not fired
+    # yet and may; 0 means the allowance is spent and it never fires again.
+    # Strictly decreasing and never refilled, which is what bounds the
+    # override rather than any assumption that ranking makes progress.
+    settlement_allowance: int | None = None
+    # Unmatched count observed at the previous settlement round, or None if
+    # there was none. Lets the scheduler stop early when a round changed
+    # nothing. A cost optimisation only -- termination rests on the allowance.
+    unmatched_at_last_settlement: int | None = None
     # Tournament coverage: average tournament participations per RANKABLE
     # hypothesis (sum of their match counts / rankable_count). Average rather
     # than minimum so the gate is reachable by a bounded tournament.
