@@ -53,10 +53,19 @@ causes are addressed by its position and its predicate.
 
 ```
 1. _check_stop_signals          (cancel, safety)      unchanged, still wins
-2. _check_owed_coverage         NEW
-3. _budget_termination
-4. ...                                                unchanged
+2. _check_steering              moved up from step 5
+3. _check_owed_coverage         NEW
+4. _budget_termination
+5. ...                                                unchanged
 ```
+
+`_check_steering` is moved above the new check because `orchestrator_node`
+clears `pending_steering` on the cycle it observes it: a message that loses
+its cycle to a settlement round is marked applied with no work scheduled to
+incorporate it, and is silently dropped. Since owed coverage must stay above
+`_budget_termination`, this also places steering above the budget ceilings —
+a pending message buys one cycle on an exhausted budget. That is intended:
+the scientist asked for it explicitly, and steering is one-shot.
 
 The new check returns `RANK` when **any** rankable hypothesis has zero matches.
 Being per-hypothesis rather than an average fixes A; sitting above
@@ -85,18 +94,30 @@ property; the new check replaces reachability with a variant argument.
 ### The settlement allowance
 
 A counter in the orchestrator bookkeeping (`orchestrator_state`, already
-checkpointed and restored on resume):
+checkpointed and restored on resume), scoped to a **settlement episode**
+rather than to the run. An episode opens on the first round the check itself
+requests and closes when the uncompared count reaches zero.
 
-- **Initialised once**, on the check's first firing, to
+- **Initialised once per episode**, on the check's first firing, to
   `min(ceil(unmatched / 2), max_pairs)` where `max_pairs` is
   `rankable_count * (rankable_count - 1) / 2` — the same bound
   `_coverage_floor` already computes, being the most rounds that could ever be
   useful.
 - **Decremented by one on every firing**, whether or not the round reduced the
   uncompared count.
-- **Never increased and never re-initialised** for the life of the run: not
-  when hypotheses are added mid-settlement, not on resume from a checkpoint.
-- At zero the check is permanently inert.
+- **Never increased within an episode**: not when hypotheses are added
+  mid-settlement, not on resume from a checkpoint.
+- At zero the check is inert for the rest of the episode.
+- **Re-armed only by success.** When the uncompared count reaches zero, the
+  allowance and the stall reference both reset to `None`, so a later wave of
+  hypotheses is sized from what it actually owes.
+
+Run-scoping the counter instead was the original wording here, and it made
+the feature inert: an early cycle with a single briefly-unmatched idea sized
+the allowance to 1 and spent it, after which the check could never fire again
+— including for the 13-unmatched wave that motivated the design. The same
+wording stranded the stall reference at that early episode's count, so a
+larger later backlog read as a stall.
 
 The policy does not mutate the counter. `required_transition` and
 `decide_next_task` are documented as pure functions of `SchedulerStats` and
@@ -108,13 +129,17 @@ decision is made. It identifies a settlement `RANK` by the condition that
 produced it (`stats.unmatched_rankable_count > 0` and the decision is `RANK`),
 which is derivable from what it already receives.
 
-**Termination guarantee.** The allowance is a natural number that strictly
-decreases on every firing and is never increased. It therefore fires finitely
-many times, and the run reaches a terminal decision.
+**Termination guarantee.** Within an episode the allowance is a natural number
+that strictly decreases on every firing and is never increased, so an episode
+fires finitely many times. A new episode can open only after the uncompared
+count reached zero — that is, only after settlement actually succeeded — so
+re-arming cannot produce an unbounded sequence of firings either. The run
+reaches a terminal decision.
 
 The guarantee is structural. It does not depend on ranking making progress, on
 matchmaking covering any particular hypothesis, on distinct pairs remaining, or
-on the pool holding still. Nothing outside the counter can feed the counter.
+on the pool holding still. Nothing outside the counter can feed the counter,
+and only an emptied backlog can re-arm it.
 
 ### Stall detection (optimisation, not safety)
 
@@ -155,9 +180,13 @@ and checkpoints, so no new persistence surface is introduced.
    any) reduced the uncompared count. It reads these from `stats` and mutates
    nothing.
 4. Otherwise the run proceeds to budget termination and the rest unchanged.
-5. `_next_bookkeeping` recognises a settlement `RANK`, initialises the
-   allowance if this was the first firing, decrements it, and records the
-   uncompared count observed at this firing.
+5. `_next_bookkeeping` recognises a settlement `RANK` by re-running
+   `_check_owed_coverage` against the same stats (it is pure, so this is
+   exact and cheap) and confirming the decision taken was `RANK`. It
+   initialises the allowance if this was the episode's first firing,
+   decrements it, and records the uncompared count observed at this firing.
+   When the uncompared count is zero it clears both fields instead, closing
+   the episode.
 
 ## Error handling and edge cases
 
@@ -165,8 +194,9 @@ and checkpoints, so no new persistence surface is introduced.
 - **All distinct pairs exhausted**: ranking returns no matches, stall detection
   fires after one round, allowance guarantees the stop regardless.
 - **Hypotheses added mid-settlement** (scientist input, late continuation):
-  allowance does not refill; they may end Unranked, which is correct and
-  labelled.
+  the allowance does not refill inside the episode; they may end Unranked,
+  which is correct and labelled. Once the backlog does reach zero the episode
+  closes, and a wave arriving after that is settled on its own allowance.
 - **Crash and resume**: allowance restores from the checkpoint at its decremented
   value. A resumed run cannot refill it.
 - **Ranking task fails and exhausts retries**: unchanged behaviour — nothing
