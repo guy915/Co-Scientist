@@ -239,6 +239,11 @@ def _collect_review_summaries(
     Every review is retained in chronological order, plus current tournament
     standing and verification status, so recurring critiques remain visible.
 
+    Indices are 1-based. The model quotes them straight back into the
+    strategic recommendations a scientist reads ("Fluspirilene (Hypothesis
+    1)"), so this number is user-facing prose, not an internal offset, and a
+    0-based one reads as an off-by-one to everyone outside the code.
+
     Args:
         hypotheses: hypotheses to summarize.
 
@@ -247,7 +252,7 @@ def _collect_review_summaries(
         (hypotheses with no reviews are skipped).
     """
     all_reviews = []
-    for i, hyp in enumerate(hypotheses):
+    for i, hyp in enumerate(hypotheses, start=1):
         if not hyp.reviews:
             continue
 
@@ -267,7 +272,11 @@ def _collect_review_summaries(
 def _collect_debate_records(
     matchups: list[dict[str, Any]],
 ) -> list[dict[str, Any]]:
-    """Return every tournament debate and its full turn transcript."""
+    """Return every tournament debate and its full turn transcript.
+
+    ``match_index`` is 1-based for the same reason ``hypothesis_index`` is:
+    the model may cite a match number in prose a scientist reads.
+    """
     return [
         {
             "record_type": "ranking_debate",
@@ -283,7 +292,7 @@ def _collect_debate_records(
             "debate_turns": matchup.get("debate_turns", 1),
             "debate_transcript": matchup.get("debate_transcript", []),
         }
-        for index, matchup in enumerate(matchups)
+        for index, matchup in enumerate(matchups, start=1)
     ]
 
 

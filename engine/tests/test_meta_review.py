@@ -183,6 +183,23 @@ def test_review_collection_keeps_complete_history() -> None:
     ]
 
 
+def test_review_collection_numbers_hypotheses_from_one() -> None:
+    """The index the model quotes back to a scientist starts at 1.
+
+    Meta-review's recommendations name ideas by this number ("Fluspirilene
+    (Hypothesis 1)"), so it is user-facing prose rather than an offset, and
+    a 0-based one published an off-by-one in the report.
+    """
+    hypotheses = [
+        make_hypothesis(text=f"hyp {i}", reviews=[_make_review()])
+        for i in range(3)
+    ]
+
+    records = _collect_review_summaries(hypotheses)
+
+    assert [record["hypothesis_index"] for record in records] == [1, 2, 3]
+
+
 def test_feedback_collection_keeps_full_debate_transcript() -> None:
     """Every ranking debate turn reaches Meta-review unchanged."""
     transcript = [

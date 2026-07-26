@@ -68,5 +68,6 @@ Provide your meta-review analysis in JSON format.
 - Do NOT use LaTeX commands (e.g., use 'τ' not '\tau', use '≥' not '\geq')
 - Avoid decorative formatting, repeated special characters, or fancy text styling
 - Prefer concise plain text when it communicates the idea equally well
+- When you refer to a specific hypothesis, use its `hypothesis_index` verbatim (these are numbered from 1) and name its subject, e.g. "Fluspirilene (Hypothesis 1)". Never renumber them and never count from 0 — a scientist reads these labels.
 
 Response:
