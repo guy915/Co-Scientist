@@ -5,6 +5,10 @@ curated, illustrative fixtures with realistic run artifacts; ad-hoc seed
 calls retain the real offline-engine fallback used by tests and developers.
 """
 
+# The curated payload below is reader-facing scientific prose; keeping each
+# source-backed statement intact makes the fixture auditable.
+# ruff: noqa: E501, C901
+
 from __future__ import annotations
 
 import asyncio
@@ -14,9 +18,15 @@ from typing import Any
 
 from app import store, task_worker
 from app.citations import CitationState
-from app.demo_seed_data import DEMO_SCENARIOS, DEMO_SEED_VERSION, DemoScenario
+from app.demo_seed_data import (
+    DEMO_SCENARIOS,
+    DEMO_SEED_VERSION,
+    DemoScenario,
+    scenario_evidence,
+    scenario_hypotheses,
+)
 from app.report_render import ReportRequest, _build_report_content
-from app.run_modes import resolved_run_config, setup_config
+from app.run_modes import PlanningLists, resolved_run_config, setup_config
 from app.store import DEMO_CLIENT_ID, RunRow
 
 logger = logging.getLogger(__name__)
@@ -43,15 +53,60 @@ def _build_demo_run_config(goal: str) -> dict[str, Any]:
     The marker allows deployed instances to replace an older thin demo with
     the current curated artifact bundle exactly once.
     """
+    scenario = DEMO_SCENARIOS.get(goal)
     config = resolved_run_config(
         {
-            "setup": setup_config(research_goal=goal, tier=_DEMO_TIER),
+            "setup": setup_config(
+                research_goal=goal,
+                tier="standard",
+                focus="balance",
+                lists=_scenario_planning_lists(scenario),
+            ),
             "enable_literature_review": False,
             "llm_backend": "offline",
         }
     )
     config["demo_seed_version"] = DEMO_SEED_VERSION
     return config
+
+
+def _scenario_planning_lists(scenario: DemoScenario | None) -> PlanningLists:
+    """Return the goal detail fields shown for a curated demo run."""
+    if scenario is None:
+        return PlanningLists()
+    if "Biofilms" in scenario.title:
+        return PlanningLists(
+            requirements=[
+                "Separate phenotypic antibiotic tolerance from stable resistance.",
+                "Use mature biofilms, clinical-isolate replication, and matched planktonic controls.",
+                "Advance only mechanisms with a measurable perturbation, rescue, and kill-curve readout.",
+            ],
+            attributes=[
+                "Spatially resolved", "Mechanistically discriminating", "Preclinical and falsifiable"
+            ],
+            criteria=["Causal specificity", "Biofilm relevance", "Experimental tractability", "Safety"],
+        )
+    if "Circuit" in scenario.title:
+        return PlanningLists(
+            requirements=[
+                "Resolve developmental timing rather than treating adolescence as a single window.",
+                "Measure circuit, cellular, and behavioral outcomes in the same experimental framework.",
+                "Include sex, subregion, locomotor, and stress controls before assigning a flexibility phenotype.",
+            ],
+            attributes=[
+                "Longitudinal", "Cell-type specific", "Behaviorally anchored"
+            ],
+            criteria=["Temporal specificity", "Circuit-to-behavior link", "Causal perturbation", "Replicability"],
+        )
+    return PlanningLists(
+        requirements=[
+            "Treat every proposed combination as a preclinical, biomarker-stratified hypothesis.",
+            "Distinguish ferroptosis from apoptosis and other death pathways with orthogonal rescue controls.",
+            "Validate a locked prediction in independent cell-line and organoid models before translation.",
+        ],
+        attributes=["Mechanistically explicit", "Biomarker-guided", "Experiment-ready"],
+        criteria=["Pathway specificity", "Model generalizability", "Combination rationale", "Safety"],
+    )
 
 
 def _ensure_demo_run_row(
@@ -107,12 +162,131 @@ def _scenario_report_is_current(run: RunRow, db_path: str | None) -> bool:
     )
 
 
+def _curated_research_overview(
+    scenario: DemoScenario,
+    evidence: tuple[Any, ...],
+    hypotheses: tuple[Any, ...],
+) -> dict[str, Any]:
+    """Build the complete terminal synthesis shape used by real runs."""
+    top = hypotheses[:3]
+    directions = [
+        {
+            "title": item.title,
+            "importance": item.mechanism,
+            "suggested_experiments": [
+                item.experiment,
+                "Repeat the discriminating condition in an independent model set with a prespecified rescue criterion.",
+            ],
+        }
+        for item in top
+    ]
+    aims = [
+        {
+            "aim": f"Aim {index}: Test {item.title}",
+            "rationale": item.statement,
+            "approach": item.experiment,
+        }
+        for index, item in enumerate(top, start=1)
+    ]
+    knowledge_base = [
+        {
+            "title": item.title,
+            "summary": item.mechanism,
+            "detail": item.experiment,
+            "uncertainty": item.review,
+            "references": [
+                {"title": evidence[item.evidence_index].title},
+                {"title": evidence[(item.evidence_index + 1) % len(evidence)].title},
+            ],
+        }
+        for item in hypotheses[:6]
+    ]
+    contacts = [
+        {
+            "candidate_id": f"demo-contact-{index + 1}",
+            "name": evidence_item.authors[0].replace(" et al.", ""),
+            "expertise": (
+                "Author of a source analyzed in this demonstration; their paper "
+                "is relevant to the experimental and mechanistic question."
+            ),
+            "justification": (
+                "This suggestion is derived only from the authorship metadata of "
+                "a source in the run and is not a recommendation or contact claim."
+            ),
+            "source_id": f"demo-evidence-{index + 1}",
+            "source_title": evidence_item.title,
+            "source_url": evidence_item.url,
+            "source": "pubmed",
+        }
+        for index, evidence_item in enumerate(evidence[:3])
+    ]
+    return {
+        "overview": {
+            "summary": (
+                f"{scenario.meta_review} The ranked program deliberately keeps "
+                "competing mechanisms separate, then uses perturbation, rescue, "
+                "and independent-model replication to decide which should advance."
+            ),
+            "research_directions": directions,
+        },
+        "nih_specific_aims": {
+            "introduction": (
+                "This curated demonstration models a grant-style synthesis: the "
+                "central gap is not whether the broad phenomenon exists, but which "
+                "specific causal mechanism is both measurable and falsifiable."
+            ),
+            "aims": aims,
+            "impact": (
+                "The intended output is a reproducible decision framework for "
+                "prioritizing a preclinical mechanism. It is illustrative only and "
+                "does not establish a clinical intervention."
+            ),
+        },
+        "research_contacts": contacts,
+        "knowledge_base": knowledge_base,
+    }
+
+
+def _curated_meta_review(scenario: DemoScenario) -> dict[str, Any]:
+    """Create a full meta-review payload rather than a one-line summary."""
+    return {
+        "summary": scenario.meta_review,
+        "common_strengths": [
+            "The highest-ranked ideas name a specific mediator, perturbation, readout, and falsification criterion.",
+            "The program preserves multiple causal explanations instead of collapsing to one generic mechanism.",
+        ],
+        "common_weaknesses": [
+            "The cited literature is contextual support, not direct proof of each proposed causal chain.",
+            "Model-system effects and generic stress responses must be separated from the nominated mechanism.",
+            "Every promising result needs an independent replication set before it is used for prioritization.",
+        ],
+        "emerging_themes": [
+            "Time-resolved state measurements are more discriminating than a single terminal viability readout.",
+            "Biomarker or state stratification can prevent an average effect from being mistaken for a universal mechanism.",
+        ],
+        "strategic_recommendations": [
+            {
+                "focus_area": "Causal inference",
+                "recommendation": "Pair each perturbation with a rescue and an orthogonal assay before advancing it in the ranking.",
+                "justification": "A correlated marker or single readout cannot establish the proposed mechanism.",
+            },
+            {
+                "focus_area": "Replication",
+                "recommendation": "Reserve an independent model set for a locked confirmatory experiment.",
+                "justification": "The demo intentionally mirrors a real run's need to test generalizability.",
+            },
+        ],
+    }
+
+
 def _seed_curated_scenario(
     run: RunRow, scenario: DemoScenario, db_path: str | None
 ) -> None:
     """Replace one demo's derived rows with a complete illustrative scenario."""
     store.clear_run_derived_data(run.id, db_path=db_path)
     store.set_run_title(run.id, scenario.title, db_path=db_path)
+    evidence_items = scenario_evidence(scenario)
+    hypothesis_items = scenario_hypotheses(scenario)
     evidence_ids = [
         store.add_evidence(
             store.NewEvidence(
@@ -126,50 +300,71 @@ def _seed_curated_scenario(
             ),
             db_path=db_path,
         )
-        for item in scenario.evidence
+        for item in evidence_items
     ]
     hypothesis_ids: list[str] = []
-    for item in scenario.hypotheses:
+    for index, item in enumerate(hypothesis_items):
+        parent_id = hypothesis_ids[index - 9] if index >= 9 else None
         hyp_id = store.add_hypothesis(
             store.NewHypothesis(
                 run_id=run.id,
                 title=item.title,
                 statement=item.statement,
-                category="Curated proposal",
+                parent_id=parent_id,
+                generation=1 if parent_id else 0,
+                category=("Evolved proposal" if parent_id else "Generated proposal"),
                 mechanism=item.mechanism,
                 expected_effect=item.expected_effect,
                 experimental_context=item.experiment,
+                created_by_agent="evolve" if parent_id else "generation",
             ),
             db_path=db_path,
         )
         hypothesis_ids.append(hyp_id)
+        elo = 1460 - index * 13
         store.update_hypothesis_state(
             hyp_id,
             store.HypothesisStateChanges(
-                elo_rating=item.elo,
-                novelty=0.72,
+                elo_rating=elo,
+                novelty=round(0.86 - index * 0.015, 2),
                 safety_status="allow",
                 status="active",
             ),
             db_path=db_path,
         )
-        evidence = scenario.evidence[item.evidence_index]
+        evidence = evidence_items[item.evidence_index]
         evidence_id = evidence_ids[item.evidence_index]
         claim = item.statement
-        store.add_review(
-            store.NewReview(
-                run_id=run.id,
-                hypothesis_id=hyp_id,
-                reviewer_agent="reflection",
-                summary="Curated review: testable exploratory proposal.",
-                critique=item.review,
-                novelty=0.72,
-                plausibility=0.7,
-                testability=0.82,
-                overall=0.75,
+        for reviewer, summary, critique in (
+            (
+                "reflection",
+                "Mechanistic review: a falsifiable proposal with an explicit test.",
+                item.review,
             ),
-            db_path=db_path,
-        )
+            (
+                "deep_verification",
+                "Verification review: advance only if the rescue and orthogonal readout agree.",
+                (
+                    "Probe the proposed mediator with a perturbation, an independent "
+                    "readout, and a matched control that could falsify the causal chain. "
+                    + item.review
+                ),
+            ),
+        ):
+            store.add_review(
+                store.NewReview(
+                    run_id=run.id,
+                    hypothesis_id=hyp_id,
+                    reviewer_agent=reviewer,
+                    summary=summary,
+                    critique=critique,
+                    novelty=round(0.83 - index * 0.012, 2),
+                    plausibility=round(0.84 - index * 0.01, 2),
+                    testability=round(0.9 - index * 0.012, 2),
+                    overall=round(0.86 - index * 0.012, 2),
+                ),
+                db_path=db_path,
+            )
         store.add_citation(
             store.NewCitation(
                 run_id=run.id,
@@ -196,19 +391,21 @@ def _seed_curated_scenario(
                     }
                 ],
                 contradicting=[],
-                assessor="curated-demo-v2",
+                assessor="curated-demo-v3",
             ),
             db_path=db_path,
         )
-    for index, (winner, loser) in enumerate(
-        itertools.pairwise(hypothesis_ids), start=1
-    ):
-        winner_elo = scenario.hypotheses[index - 1].elo
-        loser_elo = scenario.hypotheses[index].elo
+    matchups = list(itertools.pairwise(range(len(hypothesis_ids))))
+    matchups.extend((index, index + 9) for index in range(9))
+    for iteration, (winner_index, loser_index) in enumerate(matchups, start=1):
+        winner = hypothesis_ids[winner_index]
+        loser = hypothesis_ids[loser_index]
+        winner_elo = 1460 - winner_index * 13
+        loser_elo = 1460 - loser_index * 13
         store.add_match(
             store.NewMatch(
                 run_id=run.id,
-                iteration=index,
+                iteration=iteration,
                 winner_id=winner,
                 loser_id=loser,
                 winner_before=winner_elo - 12,
@@ -216,12 +413,22 @@ def _seed_curated_scenario(
                 loser_before=loser_elo + 12,
                 loser_after=loser_elo,
                 rationale=(
-                    "The winner has a more discriminating experiment and a "
-                    "clearer interpretation path."
+                    "The winner paired a more specific causal perturbation with "
+                    "a clearer falsification and replication path."
                 ),
-                tier="clear",
-                debate_turns=2,
+                tier="clear" if iteration % 3 else "narrow",
+                debate_turns=2 if iteration % 4 else 3,
             ),
+            db_path=db_path,
+        )
+        store.update_hypothesis_state(
+            winner,
+            store.HypothesisStateChanges(win_delta=1),
+            db_path=db_path,
+        )
+        store.update_hypothesis_state(
+            loser,
+            store.HypothesisStateChanges(loss_delta=1),
             db_path=db_path,
         )
     if len(hypothesis_ids) > 1:
@@ -238,20 +445,10 @@ def _seed_curated_scenario(
             ),
             db_path=db_path,
         )
-    overview = {
-        "overview": {
-            "summary": scenario.meta_review,
-            "research_directions": [
-                {
-                    "title": "Next discriminating experiment",
-                    "importance": scenario.direction,
-                    "suggested_experiments": [
-                        item.experiment for item in scenario.hypotheses[:2]
-                    ],
-                }
-            ],
-        }
-    }
+    overview = _curated_research_overview(
+        scenario, evidence_items, hypothesis_items
+    )
+    meta_review = _curated_meta_review(scenario)
     built = _build_report_content(
         run.id,
         ReportRequest(
@@ -259,16 +456,10 @@ def _seed_curated_scenario(
             run_mode=run.profile,
             provider=run.provider,
             citation_summary={"partial": len(hypothesis_ids)},
-            meta_review={
-                "summary": scenario.meta_review,
-                "common_strengths": ["Specific perturbations and controls."],
-                "common_weaknesses": [
-                    "Illustrative proposals need independent validation."
-                ],
-                "emerging_themes": ["Biomarker-guided mechanism testing."],
-            },
+            meta_review=meta_review,
             research_overview=overview,
             summary=scenario.summary,
+            execution_time=1020.0,
             db_path=db_path,
         ),
     )
@@ -283,13 +474,36 @@ def _seed_curated_scenario(
         ("supervisor.plan", {"summary": "Curated demo plan prepared."}),
         ("literature_review", {"evidence_count": len(evidence_ids)}),
         ("generate", {"hypothesis_count": len(hypothesis_ids)}),
-        ("reflection", {"review_count": len(hypothesis_ids)}),
-        ("ranking", {"match_count": len(hypothesis_ids) - 1}),
+        ("reflection", {"review_count": len(hypothesis_ids) * 2}),
+        ("ranking", {"match_count": len(matchups)}),
+        ("evolve", {"hypothesis_count": len(hypothesis_ids) // 2}),
+        ("meta_review", {"summary": meta_review["summary"]}),
+        ("research_overview", {"knowledge_topics": 6}),
         ("report", {"hypothesis_count": len(hypothesis_ids)}),
         ("status", {"status": "completed"}),
     ):
         store.append_event(run.id, event_type, event_payload, db_path=db_path)
     store.update_run_status(run.id, store.RunStatus.COMPLETED, db_path=db_path)
+    store.set_run_timing(run.id, 1020.0, db_path=db_path)
+    store.save_run_metrics(
+        run.id,
+        {
+            "total_time": 1020.0,
+            "hypothesis_count": len(hypothesis_ids),
+            "reviews_count": len(hypothesis_ids) * 2,
+            "tournaments_count": len(matchups),
+            "evolutions_count": len(hypothesis_ids) // 2,
+            "llm_calls": 86,
+            "phase_times": {
+                "literature_review": 188.0,
+                "generate": 224.0,
+                "reflection": 276.0,
+                "ranking": 174.0,
+                "research_overview": 158.0,
+            },
+        },
+        db_path=db_path,
+    )
 
 
 async def _seed_demo_run(

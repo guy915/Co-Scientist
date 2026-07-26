@@ -37,14 +37,26 @@ def test_seed_demo_runs_creates_three_runs_with_reports(
         assert store.run_used_offline(run)
         md = store.read_report_markdown(run.id, db_path=isolated_db)
         assert md is not None and "Research Report" in md
-        assert len(store.list_hypotheses(run.id, db_path=isolated_db)) == 3
-        assert len(store.list_evidence(run.id, db_path=isolated_db)) == 2
-        assert len(store.list_reviews(run.id, db_path=isolated_db)) == 3
-        assert len(store.list_matches(run.id, db_path=isolated_db)) == 2
+        hypotheses = store.list_hypotheses(run.id, db_path=isolated_db)
+        assert len(hypotheses) == 18
+        assert len(store.list_evidence(run.id, db_path=isolated_db)) == 6
+        assert len(store.list_reviews(run.id, db_path=isolated_db)) == 36
+        assert len(store.list_matches(run.id, db_path=isolated_db)) == 26
+        # Every example idea has a tournament record; none is shown unranked.
+        assert all(
+            hypothesis["win_count"] + hypothesis["loss_count"]
+            for hypothesis in hypotheses
+        )
         assert "Curated demonstration only" in md
         report = store.get_latest_report(run.id, db_path=isolated_db)
         assert report is not None
         assert report["payload"]["demo_seed_version"] == DEMO_SEED_VERSION
+        assert len(report["payload"]["knowledge_base"]) == 6
+        overview = report["payload"]["research_overview"]
+        aims = overview["nih_specific_aims"]["aims"]
+        assert len(aims) == 3
+        metrics = store.get_run_metrics(run.id, db_path=isolated_db)
+        assert metrics is not None and metrics["total_time"] == 1020.0
 
 
 def test_seed_demo_runs_is_idempotent_when_reports_exist(

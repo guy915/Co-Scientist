@@ -386,6 +386,27 @@ def update_run_status(
         )
 
 
+def set_run_timing(
+    run_id: str,
+    duration_seconds: float,
+    db_path: str | None = None,
+) -> None:
+    """Set a completed run's synthetic start and finish times.
+
+    Curated demos are reconstructed at startup, including ones created by an
+    older release. Resetting both endpoints prevents the elapsed-time UI from
+    treating the period between releases as compute time.
+    """
+    completed_at = _now()
+    created_at = completed_at - max(duration_seconds, 1.0)
+    with connect(db_path) as conn:
+        conn.execute(
+            "UPDATE runs SET created_at=?, updated_at=?, completed_at=? "
+            "WHERE id=?",
+            (created_at, completed_at, completed_at, run_id),
+        )
+
+
 def summary_counts(
     run_id: str,
     db_path: str | None = None,
