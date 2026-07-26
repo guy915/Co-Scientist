@@ -55,6 +55,95 @@ def test_initial_review_gate_classifies_accuracy_and_novelty_failures() -> None:
     ]
 
 
+def _review(soundness: int | None, novelty: int | None) -> HypothesisReview:
+    """Build a review carrying only the two scores the gate reads."""
+    scores: dict[str, int] = {}
+    if soundness is not None:
+        scores["scientific_soundness"] = soundness
+    if novelty is not None:
+        scores["novelty"] = novelty
+    return HypothesisReview(
+        review_summary="summary",
+        scores=scores,
+        safety_ethical_concerns="none",
+        detailed_feedback={},
+        constructive_feedback="feedback",
+        overall_score=5,
+    )
+
+
+@pytest.mark.parametrize(
+    ("soundness", "novelty", "expected"),
+    [
+        (2, 8, "inaccurate"),
+        (8, 2, "non_novel"),
+        (3, 8, "needs_revision"),
+        (8, 4, "needs_revision"),
+        (5, 5, "viable"),
+    ],
+    ids=[
+        "not_viable_soundness_blocks",
+        "not_viable_novelty_blocks",
+        "rework_soundness_still_ranks",
+        "rework_novelty_still_ranks",
+        "moderate_is_viable",
+    ],
+)
+def test_only_the_non_viable_band_blocks_the_tournament(
+    soundness: int, novelty: int, expected: str
+) -> None:
+    """The gate follows the review prompt's own 1-10 rubric.
+
+    The prompt calls 1-2 "fundamentally flawed, not viable" and 3-4 "major
+    deficiencies, needs substantial rework" -- a revise signal, not a
+    discard signal. Blocking at <= 3 swept the rework band into permanent
+    disqualification, and since the batch prompt *requires* the model to
+    spread scores across the pool, a low scorer is manufactured on every
+    run whatever the absolute quality.
+    """
+    hypothesis = make_hypothesis(text="idea")
+
+    review._apply_initial_review_gate(
+        [hypothesis], [_review(soundness, novelty)]
+    )
+
+    assert hypothesis.review_disposition == expected
+
+
+def test_needs_revision_still_enters_the_tournament() -> None:
+    """The rework band ranks and publishes; only the non-viable band does not.
+
+    The disposition is never revisited, so a blocked idea is excluded from
+    ranking for the rest of the run -- and the surviving pool is what
+    evolution breeds from, so an over-eager gate collapses the run's
+    diversity as well as its leaderboard.
+    """
+    weak = make_hypothesis(text="weak")
+    unsound = make_hypothesis(text="unsound")
+
+    review._apply_initial_review_gate(
+        [weak, unsound], [_review(3, 3), _review(1, 1)]
+    )
+
+    assert weak.is_rankable()
+    assert not unsound.is_rankable()
+
+
+def test_a_missing_score_does_not_disqualify_the_idea() -> None:
+    """An absent score is a review defect; the idea should not pay for it.
+
+    Production routes structured output through a provider in json_object
+    mode, which does not enforce the schema, so a criterion can simply be
+    missing. Defaulting to 0 read that as the worst possible score.
+    """
+    hypothesis = make_hypothesis(text="idea")
+
+    review._apply_initial_review_gate([hypothesis], [_review(None, 8)])
+
+    assert hypothesis.review_disposition == "viable"
+    assert hypothesis.is_rankable()
+
+
 def _stub_llm(
     monkeypatch: pytest.MonkeyPatch, response: dict[str, Any]
 ) -> None:

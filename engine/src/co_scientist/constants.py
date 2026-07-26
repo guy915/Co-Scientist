@@ -120,6 +120,34 @@ COMPARATIVE_BATCH_THRESHOLD: Final = 5
 individual reviews.
 """
 
+# Initial review gate bands.
+# These mirror the 1-10 rubric the review prompts hand the model
+# (prompts/templates/review.md, review_batch.md) rather than setting a
+# separate policy, so the gate and the scores it reads mean the same thing:
+#   1-2   fundamentally flawed, not viable
+#   3-4   major deficiencies, needs substantial rework
+#   5-6   moderate quality, significant room for improvement
+#   7-10  good to outstanding
+# Only the first band blocks. The batch prompt also *requires* the model to
+# spread scores across the pool ("they should receive DIFFERENT scores"), so
+# a relative low scorer is manufactured on every run whatever the absolute
+# quality -- which is exactly why the blocking band has to be the one the
+# rubric calls non-viable, not merely the bottom of the distribution.
+NOT_VIABLE_SCORE: Final = 2
+"""At or below this, an idea is barred from the tournament entirely."""
+
+NEEDS_REVISION_SCORE: Final = 4
+"""At or below this (but above NOT_VIABLE_SCORE), an idea still ranks and
+publishes; it is only held back from the deep-review cascade.
+"""
+
+_NEUTRAL_SCORE: Final = 5
+"""Stand-in for a score the review omitted, at the bottom of "moderate".
+
+Deliberately not 0: a missing key is a defect in the review, and reading it
+as the worst possible score silently disqualified the idea.
+"""
+
 # Concurrency limits
 # Shared semaphore bound for ranking, deep-verification, and generation
 # coordinator fan-out so parallel LLM calls do not trip provider rate limits.

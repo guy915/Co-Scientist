@@ -43,8 +43,11 @@ from co_scientist.agents.reflection.review_helpers import (
     _validate_reviews as _validate_reviews,
 )
 from co_scientist.constants import (
+    _NEUTRAL_SCORE,
     EXTENDED_MAX_TOKENS,
     HIGH_TEMPERATURE,
+    NEEDS_REVISION_SCORE,
+    NOT_VIABLE_SCORE,
     PROGRESS_REVIEW_COMPLETE,
     PROGRESS_REVIEW_START,
 )
@@ -67,23 +70,63 @@ from co_scientist.state import WorkflowState
 logger = logging.getLogger(__name__)
 
 
+def _gate_score(review: HypothesisReview, criterion: str) -> int:
+    """One review score, defaulting to neutral rather than to the floor.
+
+    A missing key used to read as 0 and disqualify the idea outright.
+    Nothing guarantees the key is there: the schema marks every criterion
+    required, but production routes structured output through a provider in
+    json_object mode, which does not enforce a schema. An absent score is a
+    review defect, and the idea should not pay for it.
+    """
+    value = review.scores.get(criterion)
+    return _NEUTRAL_SCORE if value is None else int(value)
+
+
+def _disposition_for(soundness: int, novelty: int) -> str:
+    """Map one review's two gate scores onto a disposition."""
+    inaccurate = soundness <= NOT_VIABLE_SCORE
+    non_novel = novelty <= NOT_VIABLE_SCORE
+    if inaccurate and non_novel:
+        return "inaccurate_and_non_novel"
+    if inaccurate:
+        return "inaccurate"
+    if non_novel:
+        return "non_novel"
+    if min(soundness, novelty) <= NEEDS_REVISION_SCORE:
+        return "needs_revision"
+    return "viable"
+
+
 def _apply_initial_review_gate(
     hypotheses: list[Hypothesis], reviews: list[HypothesisReview]
 ) -> None:
-    """Classify ideas that fail Google's early accuracy/novelty screen."""
+    """Classify ideas against the review prompt's own quality bands.
+
+    The thresholds are the rubric the prompt hands the model, not a
+    separate policy: only its "fundamentally flawed, not viable" band
+    blocks. The gate previously blocked at <= 3, which caught the whole
+    "major deficiencies, needs substantial rework" band as well -- a revise
+    signal read as a discard signal.
+
+    That is expensive twice over, because the disposition is never
+    revisited. A blocked idea is barred from the Elo tournament, so it
+    reads as "Disqualified" for the rest of the run, and it is skipped by
+    comprehensive reflection. Worse, the surviving pool is what evolution
+    breeds from: one production run blocked 20 of 22 ideas, leaving a
+    tournament of two, an Elo ordering built from four matches, and an
+    evolution pool that kept re-deriving the same drug.
+
+    Ideas in the rework band are marked ``needs_revision``: rankable and
+    publishable, so the tournament decides their fate on the evidence, but
+    still excluded from the deep-review cascade so the run does not spend
+    its budget on its weakest ideas.
+    """
     for hypothesis, review in zip(hypotheses, reviews, strict=True):
-        soundness = review.scores.get("scientific_soundness", 0)
-        novelty = review.scores.get("novelty", 0)
-        inaccurate = soundness <= 3
-        non_novel = novelty <= 3
-        if inaccurate and non_novel:
-            hypothesis.review_disposition = "inaccurate_and_non_novel"
-        elif inaccurate:
-            hypothesis.review_disposition = "inaccurate"
-        elif non_novel:
-            hypothesis.review_disposition = "non_novel"
-        else:
-            hypothesis.review_disposition = "viable"
+        hypothesis.review_disposition = _disposition_for(
+            _gate_score(review, "scientific_soundness"),
+            _gate_score(review, "novelty"),
+        )
 
 
 async def review_single_hypothesis(

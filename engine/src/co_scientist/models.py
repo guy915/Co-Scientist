@@ -109,6 +109,13 @@ def _reviews_to_dicts(
 # initial peer-review gate (inaccurate / non-novel) and the pre-ranking
 # evidence gate (evidence_blocked). Shared by ranking and the scheduler so
 # tournament-coverage accounting matches tournament eligibility.
+#
+# Note what is deliberately absent: "needs_revision" and "duplicate". A
+# weak-but-not-fatal idea still competes and publishes -- the tournament,
+# not a single early review, decides its standing (see
+# agents/reflection/review.py::_apply_initial_review_gate). A duplicate is
+# archived by proximity rather than judged, so it is excluded through its
+# own path and reported as a duplicate, not as a failed idea.
 BLOCKING_REVIEW_DISPOSITIONS = frozenset(
     {
         "inaccurate",
