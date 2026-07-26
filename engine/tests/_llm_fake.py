@@ -73,8 +73,12 @@ from co_scientist.offline_llm import (
 _counter = itertools.count(1)
 
 
-def _next_leaf() -> str:
+def _next_leaf(_field: str = "") -> str:
     """Returns the next process-wide-unique fake string leaf.
+
+    Takes (and ignores) the property name ``_fill_schema`` now passes: the
+    runtime router varies its prose by field, but tests want short,
+    obviously-fake, globally unique values instead.
 
     Returns:
         ``"stub-<n>"`` for the next value of the shared ``_counter``.

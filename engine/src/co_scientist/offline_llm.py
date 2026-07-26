@@ -21,13 +21,17 @@ deterministic traversal order of ``_fill_schema`` means identical inputs
 draw the same sequence of random values (so the response is
 byte-identical), while each leaf is also tagged with its 1-based position
 within the response (so string leaves stay unique within one response even
-when the word-bank draw repeats, which matters because
+when a draw repeats, which matters because
 ``co_scientist.state.deduplicate_hypotheses`` collapses hypotheses with
-equal normalized text). Leaf text itself is drawn from a small
-pseudo-scientific phrase bank (ported from the retired mock workflow's
-content vocabulary) rather than a bare hex digest, so offline runs --
-including the production site's demo runs -- render human-presentable
-prose instead of ``offline-<hash>`` placeholders.
+equal normalized text).
+
+What a leaf *says* is ``offline_content``'s job: it varies the sentence by
+the property being filled and grounds it in the prompt's research goal, so
+offline runs -- including the production site's demo runs -- read as the
+kind of output the product makes rather than as interchangeable filler.
+The property name is threaded down through ``_fill_schema`` for that
+reason; before, every field from a title to a reviewer's critique received
+the same shape of sentence.
 
 ``_fill_schema`` takes the leaf-value generator as a plain callable rather
 than baking in either strategy, so ``tests/_llm_fake.py`` can share this
@@ -48,66 +52,12 @@ from collections.abc import Callable
 from typing import Any
 
 from co_scientist import llm_request
+from co_scientist.offline_content import leaf_text, subject_terms
 
 logger = logging.getLogger(__name__)
 
 OFFLINE_MODEL_PREFIX = "offline/"
 DEFAULT_OFFLINE_MODEL = f"{OFFLINE_MODEL_PREFIX}deterministic"
-
-# Word banks for `_leaf_text`, ported from the retired mock workflow's
-# content vocabulary (formerly `app/app/mock_workflow_seeds.py`). Parallel
-# in spirit to that module's `_HYPOTHESIS_ANGLES`/`_HYPOTHESIS_TARGETS`, but
-# generic rather than hypothesis-specific: `_fill_schema` calls the leaf
-# generator once per string leaf across every schema (titles, mechanisms,
-# review prose, ranking rationale, ...) with no knowledge of which property
-# it is filling, so the phrase these combine into must read plausibly in
-# any of those slots.
-_PROSE_ANGLES: list[str] = [
-    "modulating regulatory feedback in",
-    "rerouting metabolic flux through",
-    "perturbing transcriptional control of",
-    "stabilizing a transient intermediate in",
-    "decoupling co-expression in",
-    "enforcing temporal restriction on",
-    "exploiting allosteric switching in",
-    "leveraging cross-pathway interference in",
-]
-_PROSE_TARGETS: list[str] = [
-    "the proposed mechanism",
-    "the dominant pathway",
-    "the upstream regulator",
-    "the rate-limiting step",
-    "the downstream effector",
-    "the bottleneck enzyme",
-    "the canonical signalling module",
-]
-
-
-def _leaf_text(rng: random.Random, ordinal: int) -> str:
-    """Builds one deterministic, human-presentable pseudo-scientific leaf.
-
-    Args:
-        rng: The per-call seeded RNG (see ``_seed_for``); each call draws
-            one angle and one target from it, advancing the shared
-            sequence so a later leaf in the same response reads
-            differently.
-        ordinal: 1-based position of this leaf within the current
-            response. Appended as a bracketed index (in the style of an
-            inline citation marker) so leaves stay unique within one
-            response even on the rare word-bank collision -- the same
-            role the mock workflow's per-index title numbering played.
-
-    Returns:
-        A short pseudo-scientific sentence fragment suitable for any
-        free-text schema field (title, statement, mechanism, review
-        prose, ranking rationale, ...).
-    """
-    angle = _PROSE_ANGLES[rng.randrange(len(_PROSE_ANGLES))]
-    target = rng.choice(_PROSE_TARGETS)
-    return (
-        f"{angle.capitalize()} {target}, yielding a measurable effect "
-        f"distinct from current consensus [{ordinal}]"
-    )
 
 
 def is_offline_model(model_name: str) -> bool:
@@ -158,20 +108,25 @@ _SCALAR_DEFAULTS: dict[str, Any] = {
 
 def _fill_schema(
     schema: dict[str, Any],
-    leaf_fn: Callable[[], Any],
+    leaf_fn: Callable[[str], Any],
     array_lengths: dict[str, int] | None = None,
+    field: str = "",
 ) -> Any:
     """Builds a minimal value satisfying one JSON-schema node.
 
     Args:
         schema: A JSON Schema fragment (object, array, or scalar).
-        leaf_fn: Zero-argument callable returning the next string-leaf
-            value; called once per string leaf encountered. Callers choose
-            the uniqueness strategy (a seeded RNG for the runtime router, a
-            process-global counter for the test fake).
+        leaf_fn: Callable taking the property name being filled and
+            returning the next string-leaf value; called once per string
+            leaf encountered. Callers choose the uniqueness strategy (a
+            seeded RNG for the runtime router, a process-global counter for
+            the test fake).
         array_lengths: Optional property-name -> item-count map (see
             ``_ARRAY_LENGTH_HINTS``); an array property whose name is a key
             here is filled to that length instead of the default one item.
+        field: Name of the property this node is filling, passed to
+            ``leaf_fn`` so a leaf can read as the field it lands in.
+            Empty at the schema root.
 
     Returns:
         A value satisfying ``schema``: object properties filled
@@ -189,18 +144,18 @@ def _fill_schema(
         return _fill_object(schema, leaf_fn, array_lengths)
 
     if schema_type == "array":
-        return _fill_array(schema, 1, leaf_fn, array_lengths)
+        return _fill_array(schema, 1, leaf_fn, array_lengths, field)
 
     if schema_type in _SCALAR_DEFAULTS:
         return _SCALAR_DEFAULTS[schema_type]
 
     # string, or any type this filler does not special-case.
-    return leaf_fn()
+    return leaf_fn(field)
 
 
 def _fill_object(
     schema: dict[str, Any],
-    leaf_fn: Callable[[], Any],
+    leaf_fn: Callable[[str], Any],
     array_lengths: dict[str, int],
 ) -> dict[str, Any]:
     """Fills every required (or, if unspecified, every declared) property.
@@ -227,7 +182,7 @@ def _fill_object(
 def _fill_property(
     name: str,
     schema: dict[str, Any],
-    leaf_fn: Callable[[], Any],
+    leaf_fn: Callable[[str], Any],
     array_lengths: dict[str, int],
 ) -> Any:
     """Fills one object property, honoring an array-length hint by name.
@@ -243,15 +198,18 @@ def _fill_property(
         The filled property value.
     """
     if schema.get("type") == "array" and name in array_lengths:
-        return _fill_array(schema, array_lengths[name], leaf_fn, array_lengths)
-    return _fill_schema(schema, leaf_fn, array_lengths)
+        return _fill_array(
+            schema, array_lengths[name], leaf_fn, array_lengths, name
+        )
+    return _fill_schema(schema, leaf_fn, array_lengths, name)
 
 
 def _fill_array(
     schema: dict[str, Any],
     count: int,
-    leaf_fn: Callable[[], Any],
+    leaf_fn: Callable[[str], Any],
     array_lengths: dict[str, int],
+    field: str = "",
 ) -> list[Any]:
     """Fills an array schema with ``count`` (at least one) filled items.
 
@@ -262,13 +220,15 @@ def _fill_array(
             value (see ``_fill_schema``).
         array_lengths: Property-name -> item-count map, threaded into each
             item's fill so length hints apply at any nesting depth.
+        field: Name of the array property, passed down so an item reads as
+            the field it belongs to.
 
     Returns:
         A list of ``max(count, 1)`` filled items.
     """
     item_schema = schema.get("items", {"type": "string"})
     return [
-        _fill_schema(item_schema, leaf_fn, array_lengths)
+        _fill_schema(item_schema, leaf_fn, array_lengths, field)
         for _ in range(max(count, 1))
     ]
 
@@ -381,9 +341,10 @@ def _schema_response(
 
     rng = random.Random(_seed_for(model, prompt, schema_name))
     ordinals = itertools.count(1)
+    terms = subject_terms(prompt)
 
-    def leaf_fn() -> str:
-        return _leaf_text(rng, next(ordinals))
+    def leaf_fn(field: str) -> str:
+        return leaf_text(rng, next(ordinals), field, terms)
 
     schema = json_schema["schema"]
     length_hint = _ARRAY_LENGTH_HINTS.get(schema_name)
@@ -422,7 +383,7 @@ async def offline_acompletion(**completion_args: Any) -> Any:
         return _build_response("{}")
 
     rng = random.Random(_seed_for(model, prompt, ""))
-    return _build_response(_leaf_text(rng, 1))
+    return _build_response(leaf_text(rng, 1, "", subject_terms(prompt)))
 
 
 _installed = False
