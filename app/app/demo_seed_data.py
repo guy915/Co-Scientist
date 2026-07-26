@@ -48,11 +48,14 @@ class DemoScenario:
     summary: str
     meta_review: str
     direction: str
+    duration_seconds: float
+    elo_ceiling: int
+    elo_step: int
     evidence: tuple[DemoEvidence, ...]
     hypotheses: tuple[DemoHypothesis, ...]
 
 
-DEMO_SEED_VERSION = 3
+DEMO_SEED_VERSION = 4
 
 DEMO_SCENARIOS: dict[str, DemoScenario] = {
     "What mechanisms drive antibiotic resistance in Staphylococcus aureus "
@@ -73,6 +76,9 @@ DEMO_SCENARIOS: dict[str, DemoScenario] = {
             "Separate growth-rate effects from biofilm-specific tolerance by "
             "pairing viability, matrix, and antibiotic-kill measurements."
         ),
+        duration_seconds=4342.0,
+        elo_ceiling=1386,
+        elo_step=15,
         evidence=(
             DemoEvidence(
                 title=(
@@ -199,6 +205,9 @@ DEMO_SCENARIOS: dict[str, DemoScenario] = {
             "and rule-shift behavior rather than treating adolescence as one "
             "uniform developmental window."
         ),
+        duration_seconds=7715.0,
+        elo_ceiling=1337,
+        elo_step=14,
         evidence=(
             DemoEvidence(
                 title="Microglial Pruning of Synapses in the Prefrontal Cortex During Adolescence",
@@ -318,6 +327,9 @@ DEMO_SCENARIOS: dict[str, DemoScenario] = {
             "response, rather than assuming all pancreatic tumors share the "
             "same vulnerability."
         ),
+        duration_seconds=5688.0,
+        elo_ceiling=1392,
+        elo_step=16,
         evidence=(
             DemoEvidence(
                 title="CPEB1 Controls NRF2 Proteostasis and Ferroptosis Susceptibility in Pancreatic Cancer",

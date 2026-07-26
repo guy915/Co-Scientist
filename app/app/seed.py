@@ -80,9 +80,16 @@ def _scenario_planning_lists(scenario: DemoScenario | None) -> PlanningLists:
                 "Separate phenotypic antibiotic tolerance from stable resistance.",
                 "Use mature biofilms, clinical-isolate replication, and matched planktonic controls.",
                 "Advance only mechanisms with a measurable perturbation, rescue, and kill-curve readout.",
+                "Measure matrix permeability and cellular physiology in the same intact-biofilm experiment.",
+                "Distinguish transient persister recovery from stable small-colony or resistance lineages.",
+                "Do not infer clinical treatment benefit from the preclinical demonstration.",
             ],
             attributes=[
-                "Spatially resolved", "Mechanistically discriminating", "Preclinical and falsifiable"
+                "Spatially resolved",
+                "Mechanistically discriminating",
+                "Preclinical and falsifiable",
+                "Strain-aware",
+                "Replication-ready",
             ],
             criteria=["Causal specificity", "Biofilm relevance", "Experimental tractability", "Safety"],
         )
@@ -92,9 +99,16 @@ def _scenario_planning_lists(scenario: DemoScenario | None) -> PlanningLists:
                 "Resolve developmental timing rather than treating adolescence as a single window.",
                 "Measure circuit, cellular, and behavioral outcomes in the same experimental framework.",
                 "Include sex, subregion, locomotor, and stress controls before assigning a flexibility phenotype.",
+                "Separate total synapse number from selective refinement of activity-defined synapses.",
+                "Use temporally restricted perturbations and an age-matched adult control condition.",
+                "Treat the model as developmental neuroscience, not a clinical disease mechanism.",
             ],
             attributes=[
-                "Longitudinal", "Cell-type specific", "Behaviorally anchored"
+                "Longitudinal",
+                "Cell-type specific",
+                "Behaviorally anchored",
+                "Window-specific",
+                "Multimodal",
             ],
             criteria=["Temporal specificity", "Circuit-to-behavior link", "Causal perturbation", "Replicability"],
         )
@@ -103,8 +117,17 @@ def _scenario_planning_lists(scenario: DemoScenario | None) -> PlanningLists:
             "Treat every proposed combination as a preclinical, biomarker-stratified hypothesis.",
             "Distinguish ferroptosis from apoptosis and other death pathways with orthogonal rescue controls.",
             "Validate a locked prediction in independent cell-line and organoid models before translation.",
+            "Measure lipid peroxidation, redox state, and clonogenic survival on a time-resolved schedule.",
+            "Test target engagement and a genetic rescue before interpreting a drug combination as pathway-specific.",
+            "Do not infer patient benefit or recommend treatment from the demonstration data.",
         ],
-        attributes=["Mechanistically explicit", "Biomarker-guided", "Experiment-ready"],
+        attributes=[
+            "Mechanistically explicit",
+            "Biomarker-guided",
+            "Experiment-ready",
+            "Death-pathway resolved",
+            "Preclinical only",
+        ],
         criteria=["Pathway specificity", "Model generalizability", "Combination rationale", "Safety"],
     )
 
@@ -321,7 +344,7 @@ def _seed_curated_scenario(
             db_path=db_path,
         )
         hypothesis_ids.append(hyp_id)
-        elo = 1460 - index * 13
+        elo = scenario.elo_ceiling - index * scenario.elo_step
         store.update_hypothesis_state(
             hyp_id,
             store.HypothesisStateChanges(
@@ -400,8 +423,8 @@ def _seed_curated_scenario(
     for iteration, (winner_index, loser_index) in enumerate(matchups, start=1):
         winner = hypothesis_ids[winner_index]
         loser = hypothesis_ids[loser_index]
-        winner_elo = 1460 - winner_index * 13
-        loser_elo = 1460 - loser_index * 13
+        winner_elo = scenario.elo_ceiling - winner_index * scenario.elo_step
+        loser_elo = scenario.elo_ceiling - loser_index * scenario.elo_step
         store.add_match(
             store.NewMatch(
                 run_id=run.id,
@@ -459,7 +482,7 @@ def _seed_curated_scenario(
             meta_review=meta_review,
             research_overview=overview,
             summary=scenario.summary,
-            execution_time=1020.0,
+            execution_time=scenario.duration_seconds,
             db_path=db_path,
         ),
     )
@@ -484,22 +507,22 @@ def _seed_curated_scenario(
     ):
         store.append_event(run.id, event_type, event_payload, db_path=db_path)
     store.update_run_status(run.id, store.RunStatus.COMPLETED, db_path=db_path)
-    store.set_run_timing(run.id, 1020.0, db_path=db_path)
+    store.set_run_timing(run.id, scenario.duration_seconds, db_path=db_path)
     store.save_run_metrics(
         run.id,
         {
-            "total_time": 1020.0,
+            "total_time": scenario.duration_seconds,
             "hypothesis_count": len(hypothesis_ids),
             "reviews_count": len(hypothesis_ids) * 2,
             "tournaments_count": len(matchups),
             "evolutions_count": len(hypothesis_ids) // 2,
             "llm_calls": 86,
             "phase_times": {
-                "literature_review": 188.0,
-                "generate": 224.0,
-                "reflection": 276.0,
-                "ranking": 174.0,
-                "research_overview": 158.0,
+                "literature_review": round(scenario.duration_seconds * 0.18, 1),
+                "generate": round(scenario.duration_seconds * 0.24, 1),
+                "reflection": round(scenario.duration_seconds * 0.27, 1),
+                "ranking": round(scenario.duration_seconds * 0.17, 1),
+                "research_overview": round(scenario.duration_seconds * 0.14, 1),
             },
         },
         db_path=db_path,

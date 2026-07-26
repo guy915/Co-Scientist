@@ -13,7 +13,7 @@ import logging
 import pytest
 
 from app import seed, store
-from app.demo_seed_data import DEMO_SEED_VERSION
+from app.demo_seed_data import DEMO_SCENARIOS, DEMO_SEED_VERSION
 from app.store import DEMO_CLIENT_ID, RunRow
 
 
@@ -56,7 +56,12 @@ def test_seed_demo_runs_creates_three_runs_with_reports(
         aims = overview["nih_specific_aims"]["aims"]
         assert len(aims) == 3
         metrics = store.get_run_metrics(run.id, db_path=isolated_db)
-        assert metrics is not None and metrics["total_time"] == 1020.0
+        scenario = DEMO_SCENARIOS[run.research_goal]
+        assert metrics is not None
+        assert metrics["total_time"] == scenario.duration_seconds
+        assert max(hypothesis["elo_rating"] for hypothesis in hypotheses) == (
+            scenario.elo_ceiling
+        )
 
 
 def test_seed_demo_runs_is_idempotent_when_reports_exist(
