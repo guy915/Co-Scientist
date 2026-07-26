@@ -254,7 +254,6 @@ def _build_single_evolution_task(
     state: WorkflowState,
     i: int,
     hyp: Hypothesis,
-    top_k: list[Hypothesis],
     context: _EvolutionContext,
 ) -> Coroutine[Any, Any, tuple[Hypothesis | None, dict[str, Any] | None]]:
     """Builds the evolve_single_hypothesis coroutine for one pool member."""
@@ -264,11 +263,21 @@ def _build_single_evolution_task(
     )
     return evolve_single_hypothesis(
         hypothesis=hyp,
-        # Context is sampled from top_k (the peers also being evolved this
-        # round), not the full hypothesis pool, so the diversity check is
-        # scoped to the leaders a new child could resemble.
+        # Sampled from the whole pool, not just the top_k being evolved this
+        # round. These texts are the near-duplicate *rejection* set (see
+        # _apply_evolution_result), so anything missing from them is
+        # something a child is free to re-derive: scoping to top_k left the
+        # guard blind to most of the run's ideas, and a child duplicating
+        # one of them passed here only for proximity to archive it later.
+        # A run that ends with a dozen near-identical ideas has usually
+        # been through exactly that.
+        #
+        # It also makes sample_context_hypotheses do the job it was written
+        # for. Against top_k the pool never exceeded max_context, so the
+        # top-5-by-Elo-plus-random sampling never ran and the cap never
+        # bound; against the full pool it does both.
         other_hypotheses_texts=sample_context_hypotheses(
-            all_hypotheses=top_k,
+            all_hypotheses=state["hypotheses"],
             exclude_hypothesis=hyp,
             max_context=15,  # cap at 15 for fixed token budget
         ),
@@ -324,7 +333,7 @@ def _build_evolution_tasks(
         state, removed_duplicates, supervisor_guidance
     )
     return [
-        _build_single_evolution_task(state, i, hyp, top_k, context)
+        _build_single_evolution_task(state, i, hyp, context)
         for i, hyp in enumerate(top_k)
     ]
 

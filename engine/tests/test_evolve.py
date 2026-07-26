@@ -389,3 +389,30 @@ async def test_unchanged_response_records_no_child_or_detail(
     assert _children(result) == []
     assert result["evolution_details"] == []
     assert original.text == "osmotic gradient drives water flux"
+
+
+async def test_duplicate_guard_sees_ideas_outside_the_evolution_pool(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A child duplicating any pool member is rejected, not just a top-k one.
+
+    ``other_hypotheses_texts`` is the near-duplicate rejection set (see
+    ``_apply_evolution_result``), so anything absent from it is something a
+    child may freely re-derive. Scoping it to the hypotheses being evolved
+    this round left the guard blind to the rest of the pool: the child
+    passed here and proximity archived it afterwards, which is how a run
+    ends up showing a dozen near-identical ideas.
+    """
+    outsider_text = "rapamycin suppresses mtor signaling downstream"
+    # Ranks below the cap, so it is never itself evolved -- but the child
+    # below reproduces it verbatim.
+    hypotheses = [
+        make_hypothesis(text="parent idea about oxidative stress"),
+        make_hypothesis(text=outsider_text),
+    ]
+    state = make_state(hypotheses=hypotheses, evolution_max_count=1)
+    _stub_llm(monkeypatch, _RAPAMYCIN_RESPONSE)
+
+    result = await evolve_node(state)
+
+    assert _children(result) == []
