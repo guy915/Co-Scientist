@@ -55,7 +55,7 @@ class DemoScenario:
     hypotheses: tuple[DemoHypothesis, ...]
 
 
-DEMO_SEED_VERSION = 4
+DEMO_SEED_VERSION = 5
 
 DEMO_SCENARIOS: dict[str, DemoScenario] = {
     "What mechanisms drive antibiotic resistance in Staphylococcus aureus "
@@ -76,7 +76,7 @@ DEMO_SCENARIOS: dict[str, DemoScenario] = {
             "Separate growth-rate effects from biofilm-specific tolerance by "
             "pairing viability, matrix, and antibiotic-kill measurements."
         ),
-        duration_seconds=4342.0,
+        duration_seconds=1628.0,
         elo_ceiling=1386,
         elo_step=15,
         evidence=(
@@ -205,7 +205,7 @@ DEMO_SCENARIOS: dict[str, DemoScenario] = {
             "and rule-shift behavior rather than treating adolescence as one "
             "uniform developmental window."
         ),
-        duration_seconds=7715.0,
+        duration_seconds=2314.0,
         elo_ceiling=1337,
         elo_step=14,
         evidence=(
@@ -327,7 +327,7 @@ DEMO_SCENARIOS: dict[str, DemoScenario] = {
             "response, rather than assuming all pancreatic tumors share the "
             "same vulnerability."
         ),
-        duration_seconds=5688.0,
+        duration_seconds=2047.0,
         elo_ceiling=1392,
         elo_step=16,
         evidence=(
