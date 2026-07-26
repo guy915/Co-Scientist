@@ -170,13 +170,15 @@ def _screen_and_collect_grounding_inputs(
         A tuple of (screening result, evidence passages, grounding
         candidates -- persisted hypotheses not already rejected).
     """
+    from app.report_content_gates import EXCLUDED_HYPOTHESIS_STATUSES
+
     persisted = store.list_hypotheses(run_id, conn=conn)
     screening_result = screen_hypotheses(run_id, persisted, conn=conn)
     passages = evidence_passages(run_id, conn=conn)
     grounding_candidates = [
         hypothesis
         for hypothesis in persisted
-        if hypothesis.get("status") != "rejected"
+        if hypothesis.get("status") not in EXCLUDED_HYPOTHESIS_STATUSES
     ]
     return screening_result, passages, grounding_candidates
 

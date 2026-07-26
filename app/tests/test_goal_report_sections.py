@@ -117,6 +117,32 @@ def test_idea_buckets_explain_a_review_rejected_idea_as_deduplicated() -> None:
     assert "release gate" not in reason
 
 
+def test_a_duplicate_and_a_rejected_idea_get_different_reasons() -> None:
+    """Deduplication and review rejection are different facts, reported apart.
+
+    Both leave the ranked report, but a duplicate was never judged -- a
+    higher-ranked idea simply says the same thing. One shared sentence told
+    a scientist their idea had failed peer review when it had only been
+    folded into another.
+    """
+    released = _hypothesis("h1", "Feedback control")
+    deduped = _hypothesis("h2", "Near-duplicate idea")
+    deduped["status"] = "duplicate"
+    rejected = _hypothesis("h3", "Unsound idea")
+    rejected["status"] = "rejected"
+
+    buckets = report_render._idea_buckets(
+        [released], [released, deduped, rejected], []
+    )
+
+    reasons = {
+        entry["id"]: entry["reason"] for entry in buckets["non_viable"]
+    }
+    assert "higher-ranked" in reasons["h2"]
+    assert "review" in reasons["h3"].lower()
+    assert reasons["h2"] != reasons["h3"]
+
+
 def test_contradictions_carry_claim_text_and_never_blank_entries() -> None:
     """Every contradiction is readable text, so no empty bullet is emitted.
 

@@ -21,6 +21,11 @@ from app.hypothesis_screening import record_hypothesis_block
 
 logger = logging.getLogger(__name__)
 
+# Hypothesis statuses that keep an idea out of the ranked report. Everything
+# else -- including ideas the initial review flagged as needing revision --
+# ranks and publishes.
+EXCLUDED_HYPOTHESIS_STATUSES = frozenset({"rejected", "duplicate"})
+
 
 def _contradicted_hypothesis_ids(
     run_id: str,
@@ -158,7 +163,10 @@ def _hypothesis_passes_safety_gate(
     db_path: str | None,
 ) -> bool:
     """Return whether one hypothesis clears the contradiction/safety gate."""
-    if hyp.get("status") == "rejected":
+    # "duplicate" is excluded for the same reason as "rejected" (it is
+    # redundant with a higher-ranked idea) but for a different reason than
+    # "rejected" means; see _non_viable_reasons, which reports them apart.
+    if hyp.get("status") in EXCLUDED_HYPOTHESIS_STATUSES:
         return False
     # Contradicted ideas have evidence against them and are withheld
     # entirely; merely-unsupported ideas are published with an "Unverified"

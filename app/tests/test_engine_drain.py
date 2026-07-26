@@ -217,10 +217,16 @@ def test_drain_drops_orphaned_parent_reference(isolated_db: str) -> None:
     assert hyps[0]["generation"] == 1
 
 
-def test_drain_preserves_proximity_pruned_parent_as_non_viable(
+def test_drain_preserves_proximity_pruned_parent_as_a_duplicate(
     isolated_db: str,
 ) -> None:
-    """A full duplicate archive retains lineage outside active synthesis."""
+    """A duplicate archive retains lineage and is marked as a duplicate.
+
+    Not "rejected": nothing judged this idea, a higher-ranked one simply
+    said the same thing. Recording both outcomes as "rejected" made the UI
+    label a deduplicated idea "Disqualified", which reads as a verdict on
+    the science -- one run showed twenty ideas that way.
+    """
     state = _archived_parent_state()
     run = store.create_run("kinase archive goal", "standard", "engine", {})
 
@@ -232,7 +238,7 @@ def test_drain_preserves_proximity_pruned_parent_as_non_viable(
         hypothesis["id"]: hypothesis
         for hypothesis in store.list_hypotheses(run.id, db_path=isolated_db)
     }
-    assert by_id["parent-1"]["status"] == "rejected"
+    assert by_id["parent-1"]["status"] == "duplicate"
     assert by_id["child-1"]["parent_id"] == "parent-1"
     [match] = store.list_matches(run.id, db_path=isolated_db)
     assert match["winner_id"] == "child-1"

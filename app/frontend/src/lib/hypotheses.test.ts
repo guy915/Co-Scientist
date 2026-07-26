@@ -55,6 +55,13 @@ it('says "Disqualified" for an unplayed idea the run rejected', () => {
   );
 });
 
+it('says "Duplicate" for an idea folded into a higher-ranked one', () => {
+  // Not "Disqualified": proximity archived it as redundant, so nothing
+  // judged the science. Sharing one label told a scientist their ideas had
+  // failed peer review when most had simply been deduplicated.
+  expect(ratingLabel(makeHypothesis({status: 'duplicate'}))).toBe('Duplicate');
+});
+
 it('says "Unranked" for an unplayed idea still in good standing', () => {
   // Typically created in the run's final wave, after the last comparisons.
   expect(ratingLabel(makeHypothesis({status: 'active'}))).toBe('Unranked');

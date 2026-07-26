@@ -152,26 +152,46 @@ BLOCKING_REVIEW_DISPOSITIONS = frozenset(
         "inaccurate",
         "non_novel",
         "inaccurate_and_non_novel",
-        "duplicate",
         "evidence_blocked",
     }
 )
 
+# Excluded from the ranked report, but not by a judgement on the idea: a
+# duplicate is archived by proximity because a higher-ranked idea already
+# says the same thing. Kept apart from BLOCKING_REVIEW_DISPOSITIONS so the
+# two reach the reader as different words -- lumping them told a scientist
+# their ideas had been rejected on the merits when most had simply been
+# deduplicated. One run showed twenty "Disqualified" ideas on that basis.
+DEDUPLICATED_REVIEW_DISPOSITION = "duplicate"
 
-def _is_rejected(h: dict[str, Any]) -> bool:
-    """Return whether a hypothesis was excluded from the tournament on merit.
 
-    Mirrors the engine's ``Hypothesis.is_rankable``: a blocking review
-    disposition *or* a deep-verification verdict of "undermined" keeps an
-    idea out of the tournament. Both must map to ``rejected``, because the
-    UI reads this status to distinguish "Disqualified" from "Unranked" — an
-    undermined idea recorded as active shows as merely unranked, which is
-    exactly the conflation the status is there to remove.
+def _hypothesis_status(h: dict[str, Any]) -> str:
+    """Return the persisted status for a drained hypothesis.
+
+    Three outcomes the UI must be able to tell apart:
+
+    - ``rejected``: excluded from the tournament on merit. Mirrors the
+      engine's ``Hypothesis.is_rankable`` -- a blocking review disposition
+      *or* a deep-verification verdict of "undermined". An undermined idea
+      recorded as active would show as merely unranked, which is exactly
+      the conflation this status exists to remove.
+    - ``duplicate``: archived by proximity as redundant, not judged.
+    - ``active``: everything else, including ideas the initial review
+      flagged as needing revision -- those still rank and publish.
     """
-    return (
+    if h.get("review_disposition") == DEDUPLICATED_REVIEW_DISPOSITION:
+        return "duplicate"
+    if (
         h.get("review_disposition") in BLOCKING_REVIEW_DISPOSITIONS
         or h.get("deep_verification_verdict") == "undermined"
-    )
+    ):
+        return "rejected"
+    return "active"
+
+
+def _is_rejected(h: dict[str, Any]) -> bool:
+    """Return whether a hypothesis was excluded from the tournament."""
+    return _hypothesis_status(h) != "active"
 
 
 def _persist_hypothesis_state(
@@ -185,7 +205,7 @@ def _persist_hypothesis_state(
             win_delta=int(h.get("win_count", 0)),
             loss_delta=int(h.get("loss_count", 0)),
             novelty=_score_or_none(h.get("score", 0)),
-            status="rejected" if _is_rejected(h) else "active",
+            status=_hypothesis_status(h),
         ),
         conn=conn,
     )

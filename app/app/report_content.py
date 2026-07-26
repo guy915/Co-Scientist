@@ -276,13 +276,23 @@ def _non_viable_reasons(
     if is_blocking_status(str(hypothesis.get("safety_status") or "")):
         reasons.append("The scientific safety review blocked this idea.")
     # Under rank-and-publish an idea only leaves the ranked report when it
-    # is contradicted (an edge reason above), blocked by safety, or set
-    # aside during review/deduplication -- never for being merely
-    # unsupported (those are published and badged "Unverified").
-    if not reasons and hypothesis.get("status") == "rejected":
+    # is contradicted (an edge reason above), blocked by safety, set aside
+    # during review, or deduplicated -- never for being merely unsupported
+    # (those are published and badged "Unverified") and never for scoring
+    # weakly (those rank and publish as "needs_revision").
+    #
+    # Review rejection and deduplication are reported apart. Merging them
+    # told a scientist their idea had failed peer review when it had only
+    # been folded into a higher-ranked idea saying the same thing.
+    if reasons:
+        return reasons
+    if hypothesis.get("status") == "duplicate":
         reasons.append(
-            "Set aside during review as inaccurate, non-novel, or a "
-            "near-duplicate of a higher-ranked idea."
+            "Folded into a higher-ranked idea that makes the same proposal."
+        )
+    elif hypothesis.get("status") == "rejected":
+        reasons.append(
+            "Set aside during review as scientifically unsound or not novel."
         )
     return reasons
 
