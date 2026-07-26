@@ -180,10 +180,20 @@ async def test_search_source_for_query_retries_malformed_transport_result(
     assert len(client.calls) == 2
 
 
-async def test_search_source_for_query_error_appends_message_and_empties() -> (
-    None
-):
+async def test_search_source_for_query_error_appends_message_and_empties(
+    monkeypatch: Any,
+) -> None:
     """A raised exception is swallowed, described, and appended to errors."""
+
+    async def no_delay(_: float) -> None:
+        """Skip the production backoff in this deterministic test."""
+
+    # This test is about the outcome of exhausting the retry budget, not
+    # about how long exhausting it takes.
+    monkeypatch.setattr(
+        "co_scientist.agents.generation.literature_review.search.asyncio.sleep",
+        no_delay,
+    )
     tool_config = _tool_config()
     client = FakeCallToolClient(error=ConnectionError("boom"))
     errors: list[str] = []
@@ -198,7 +208,9 @@ async def test_search_source_for_query_error_appends_message_and_empties() -> (
 
     assert result == {}
     assert errors == ["pubmed: ConnectionError: boom"]
-    assert len(client.calls) == 2
+    # Read from the constant: the retry budget is tuned against upstream
+    # behavior, and a hardcoded copy here turns tuning it into a test break.
+    assert len(client.calls) == search._SEARCH_ATTEMPTS
 
 
 # =============================================================================

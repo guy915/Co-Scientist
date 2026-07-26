@@ -10,6 +10,10 @@ from typing import Any
 
 from co_scientist.config.schema import ToolConfig
 from co_scientist.models import Article
+
+# The transport-level decode step moved to a sibling module; re-exported so
+# the import path every caller already uses keeps resolving.
+from co_scientist.tools.mcp_result import parse_mcp_result as parse_mcp_result
 from co_scientist.tools.response_parser_transforms import apply_transform
 
 logger = logging.getLogger(__name__)
@@ -451,24 +455,3 @@ class ResponseParser:
             return self._navigate_path(item, field_expr)
 
         return item.get(field_expr)
-
-
-def parse_mcp_result(result: Any) -> Any:
-    """Decodes a raw MCP tool result that may arrive as a JSON string.
-
-    MCP tools return either already-decoded Python data or a JSON-encoded
-    string depending on transport. This is the canonical decode step; callers
-    keep their own handling of malformed JSON.
-
-    Args:
-        result: Raw MCP tool result.
-
-    Returns:
-        The decoded object for JSON strings, otherwise the value unchanged.
-
-    Raises:
-        json.JSONDecodeError: If result is a string that is not valid JSON.
-    """
-    if isinstance(result, str):
-        return json.loads(result)
-    return result

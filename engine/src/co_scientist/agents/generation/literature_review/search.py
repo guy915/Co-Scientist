@@ -24,17 +24,26 @@ from co_scientist.agents.generation.literature_review.outcomes import (
 from co_scientist.agents.generation.literature_review.query_broadening import (
     broadened_queries,
 )
+
+# The transient-failure retry moved to a sibling module; every name is
+# re-exported so this module's namespace (which callers and tests patch
+# against) keeps resolving.
+from co_scientist.agents.generation.literature_review.search_retry import (
+    _SEARCH_ATTEMPTS as _SEARCH_ATTEMPTS,
+)
+from co_scientist.agents.generation.literature_review.search_retry import (
+    _call_search_tool as _call_search_tool,
+)
+from co_scientist.agents.generation.literature_review.search_retry import (
+    _search_retry_delay as _search_retry_delay,
+)
 from co_scientist.constants import LITERATURE_REVIEW_RECENCY_YEARS
 from co_scientist.mcp_client import MCPToolClient
-from co_scientist.tools.response_parser import parse_mcp_result
 
 if TYPE_CHECKING:
     from co_scientist.config import SearchSourceConfig, ToolConfig, ToolRegistry
 
 logger = logging.getLogger(__name__)
-
-_SEARCH_ATTEMPTS = 2
-_SEARCH_RETRY_DELAY_SECONDS = 0.25
 
 
 @dataclass(frozen=True)
@@ -52,45 +61,6 @@ class _SearchRunContext:
     run_id: str
     mcp_client: MCPToolClient
     errors: list[str] | None = None
-
-
-async def _call_search_tool(
-    mcp_client: MCPToolClient,
-    tool_name: str,
-    tool_params: dict[str, Any],
-) -> Any:
-    """Call and decode one search result with a bounded transient retry.
-
-    MCP transports can occasionally return a non-JSON status body while a
-    server session is reconnecting or an upstream index is rate-limiting.
-    Retrying the complete tool invocation once avoids silently discarding an
-    otherwise healthy evidence source. The final exception remains visible to
-    the caller so existing per-source diagnostics still record hard failures.
-
-    Args:
-        mcp_client: Initialized MCP client containing the search tool.
-        tool_name: MCP search tool name.
-        tool_params: Source-specific invocation arguments.
-
-    Returns:
-        Decoded search response.
-
-    Raises:
-        Exception: The final call or decoding failure after retries.
-    """
-    for attempt in range(1, _SEARCH_ATTEMPTS + 1):
-        try:
-            result = await mcp_client.call_tool(tool_name, **tool_params)
-            return parse_mcp_result(result)
-        except Exception:
-            if attempt == _SEARCH_ATTEMPTS:
-                raise
-            logger.warning(
-                "Search call to %s failed transiently; retrying", tool_name
-            )
-            await asyncio.sleep(_SEARCH_RETRY_DELAY_SECONDS)
-
-    raise AssertionError("search retry loop exited without a result")
 
 
 def _build_query_tool_params(
