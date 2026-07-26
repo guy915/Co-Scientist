@@ -1,5 +1,5 @@
 // The Logs popover's summary chip row: Total, the three level bands, and
-// the number of distinct sources in the loaded window. Split out of
+// the number of distinct real runs in the loaded window. Split out of
 // layout_diagnostics.tsx to keep that module under the file-length
 // ceiling; it is presentational only and owns no state.
 import {type DiagnosticCounts} from './layout_diagnostics_data';

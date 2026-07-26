@@ -30,6 +30,10 @@ export interface DiagnosticLogEntry {
   payload: Record<string, unknown>;
 }
 
+// Server-owned records appear alongside run records, but they must not make
+// the summary's Runs chip imply that a research run produced the record.
+export const SERVER_LOG_SOURCE = 'Server';
+
 // How many of the newest entries the Copy action serializes.
 export const COPY_LIMIT = 50;
 
@@ -117,7 +121,7 @@ export function buildAppLogEntry(
     id: record.id,
     number,
     time: formatDiagnosticTime(new Date(record.created_at * 1000)),
-    run: record.run_id ? `Run ${record.run_id.slice(0, 8)}` : 'Server',
+    run: record.run_id ? `Run ${record.run_id.slice(0, 8)}` : SERVER_LOG_SOURCE,
     stage: record.logger,
     level: appLogLevel(record),
     levelName: record.level,
@@ -147,6 +151,10 @@ export function summarizeDiagnosticEntries(
     errorCount: entries.filter(entry => entry.level === 'error').length,
     warningCount: entries.filter(entry => entry.level === 'warning').length,
     infoCount: entries.filter(entry => entry.level === 'info').length,
-    runCount: new Set(entries.map(({run}) => run).filter(Boolean)).size,
+    // Only run-owned records contribute here. Server records remain visible
+    // and explicitly labelled in the list, rather than masquerading as runs.
+    runCount: new Set(
+      entries.map(({run}) => run).filter(run => run !== SERVER_LOG_SOURCE),
+    ).size,
   };
 }

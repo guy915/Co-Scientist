@@ -115,7 +115,7 @@ function statisticsSection(counts: DiagnosticCounts): string[] {
     `Errors: ${counts.errorCount}`,
     `Warnings: ${counts.warningCount}`,
     `Info: ${counts.infoCount}`,
-    // Named as the panel's chip is: "Server" counts as one source here.
+    // Server records stay in the export, but this is strictly a real-run count.
     `Runs: ${counts.runCount}`,
     '',
   ];
@@ -132,6 +132,7 @@ function legendSection(): string[] {
     'level   - error is ERROR/CRITICAL (40+), warning is WARNING (30),',
     '          info is everything below. levelName carries the exact name.',
     'run     - "Run <first 8 chars>", or "Server" when no run owns it.',
+    '          The Runs statistic counts only distinct run-owned records.',
     'stage   - the emitting logger (app.run_stage, ui.error, uvicorn, ...).',
     'excText - formatted traceback, when the record carried one.',
     '',

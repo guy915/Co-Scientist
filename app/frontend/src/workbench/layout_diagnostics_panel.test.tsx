@@ -96,6 +96,9 @@ it('loads persisted backend logs into the diagnostics popover', async () => {
   expect(screen.getByText('Errors 1')).toBeInTheDocument();
   expect(screen.getByText('Warnings 1')).toBeInTheDocument();
   expect(screen.getByText('Info 1')).toBeInTheDocument();
+  // The two server records remain in the list, but the Runs chip reflects
+  // only the one record that belongs to a real research run.
+  expect(screen.getByText('Runs 1')).toBeInTheDocument();
 
   // Clear drops only session entries; persisted backend logs remain.
   fireEvent.click(screen.getByRole('button', {name: 'Clear'}));
