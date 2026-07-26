@@ -73,15 +73,30 @@ def _content_tokens(text: str) -> frozenset[str]:
 
 
 def _token_overlap(claim: str, abstract: str) -> float:
-    """Lower-bound semantic match: jaccard over lower-cased word tokens."""
+    """How much of the claim's vocabulary the source actually states.
+
+    Coverage (intersection over the *claim's* tokens), not Jaccard. The two
+    texts are deliberately asymmetric -- a one-sentence claim against a
+    whole abstract -- and Jaccard divides by the union, which the longer
+    side dominates. That caps the score near ``len(claim) / len(abstract)``
+    however perfectly the source supports the claim: an abstract quoting the
+    claim verbatim scored 0.18, below the 0.35 "verified" line, and a
+    relevant abstract paraphrasing it scored 0.078, below the 0.10 "partial"
+    line. Both upper states were unreachable, so every citation in a real
+    run classified "unsupported" (one production run: 0 verified, 0 partial,
+    47 unsupported) and the citation audit reported nothing but failure.
+
+    Coverage asks the question the four states are actually about -- what
+    fraction of what the claim asserts appears in the cited source -- and is
+    invariant to how much else the abstract discusses.
+    """
     if not claim or not abstract:
         return 0.0
     a = _content_tokens(claim)
     b = _content_tokens(abstract)
     if not a or not b:
         return 0.0
-    # Jaccard similarity: intersection over union of the two token sets.
-    return len(a & b) / len(a | b)
+    return len(a & b) / len(a)
 
 
 def classify_citation(record: CitationRecord) -> CitationState:
@@ -89,17 +104,21 @@ def classify_citation(record: CitationRecord) -> CitationState:
 
     Rules:
     - No URL or `available=False` → unavailable.
-    - Token overlap with claim >= 0.35 → verified.
-    - Overlap >= 0.10 → partial.
+    - Claim coverage in the abstract >= 0.60 → verified.
+    - Coverage >= 0.30 → partial.
     - Otherwise → unsupported.
+
+    The thresholds are stated against coverage (see `_token_overlap`);
+    porting the old Jaccard numbers across would have kept both upper states
+    unreachable in practice.
     """
     # Availability is checked first so an unresolved source short-circuits
     # before spending a token-overlap computation on it.
     if not record.available or not record.url:
         return CitationState.UNAVAILABLE
     overlap = _token_overlap(record.claim, record.abstract)
-    if overlap >= 0.35:
+    if overlap >= 0.60:
         return CitationState.VERIFIED
-    if overlap >= 0.10:
+    if overlap >= 0.30:
         return CitationState.PARTIAL
     return CitationState.UNSUPPORTED
