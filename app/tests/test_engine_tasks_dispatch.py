@@ -190,12 +190,17 @@ def _assert_post_drain_counts(by_type: dict[str, Any]) -> None:
         "blocked": 0,
         "eligible": 1,
     }
+    # "assessed" and "grounded" are distinct: a blocked hypothesis was still
+    # assessed, so reporting the assessed total as "grounded" double-counts
+    # every block.
     assert set(by_type["citation.grounding"]) == {
+        "assessed",
         "grounded",
         "blocked",
         "eligible",
     }
     assert by_type["citation.grounding"] == {
+        "assessed": 1,
         "grounded": 1,
         "blocked": 0,
         "eligible": 1,

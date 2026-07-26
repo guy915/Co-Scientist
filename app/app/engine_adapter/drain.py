@@ -236,8 +236,17 @@ def _build_drain_result(
                 screening_result.screened_count - screening_result.blocked_count
             ),
         },
+        # "assessed", not "grounded": reason_by_id carries a gate reason for
+        # every hypothesis put through the gate, blocked ones included, so
+        # publishing it as "grounded" made a run where both candidates were
+        # blocked read "grounded=2 blocked=2" -- four hypotheses' worth of
+        # outcome for two hypotheses, with the blocked ones counted twice.
         grounding_counts={
-            "grounded": len(grounding_result.reason_by_id),
+            "assessed": len(grounding_result.reason_by_id),
+            "grounded": (
+                len(grounding_result.reason_by_id)
+                - grounding_result.blocked_count
+            ),
             "blocked": grounding_result.blocked_count,
             "eligible": (
                 len(grounding_candidates) - grounding_result.blocked_count
