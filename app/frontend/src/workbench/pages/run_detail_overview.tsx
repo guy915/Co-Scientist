@@ -51,7 +51,12 @@ function overviewReportStats(
   return {
     overview: payload.research_overview,
     leaderboard: payload.leaderboard,
-    ideaCount: payload.hypothesis_count ?? hypotheses.length,
+    // Every idea explored, not the released subset. `hypothesis_count` is
+    // the post-gate count, so reading it here made a run that explored 22
+    // ideas and released 2 announce "A total of 2 ideas were explored"
+    // above its own list of 22. Reports predating the field fall back to
+    // the live rows, which are also the full set.
+    ideaCount: payload.idea_count ?? hypotheses.length,
     matchCount: payload.match_count ?? matches.length,
   };
 }
@@ -162,12 +167,16 @@ function bucketCount(
   return payload.idea_buckets?.[key].length ?? 0;
 }
 
+// "Verified ideas" is the count of released ideas with an evidence-supported
+// claim — the same fact the per-idea "Unverified" badge shows, so the two
+// come from one server-side derivation. It used to repeat the High Potential
+// count, which made it a duplicate of the tile beside it and let a run report
+// two verified ideas while badging every idea in the list unverified.
 function reportStats(payload: ReportPayload): (readonly [string, number])[] {
-  const highPotential = bucketCount(payload, 'high_potential');
   return [
-    ['High Potential', highPotential],
+    ['High Potential', bucketCount(payload, 'high_potential')],
     ['Non-Viable', bucketCount(payload, 'non_viable')],
-    ['Verified ideas', highPotential],
+    ['Verified ideas', payload.verified_count ?? 0],
     ['Sources Analyzed', payload.evidence_count ?? 0],
   ] as const;
 }

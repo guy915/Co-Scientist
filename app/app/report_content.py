@@ -33,6 +33,9 @@ from app.report_content_gates import (  # noqa: F401
 from app.report_content_gates import (
     _unverified_hypothesis_ids as _unverified_hypothesis_ids,
 )
+from app.report_content_gates import (
+    _verified_hypothesis_count as _verified_hypothesis_count,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -244,7 +247,14 @@ def _claim_edge_reasons(
 def _high_potential_bucket(
     safe_hypotheses: list[dict[str, Any]],
 ) -> list[dict[str, Any]]:
-    """Build the 'high_potential' idea bucket from the top safe hypotheses."""
+    """Build the 'high_potential' idea bucket from the safe hypotheses.
+
+    Every released idea, not the top few. The two buckets are a partition of
+    the run's ideas -- ``non_viable`` is defined as everything *not* in this
+    one -- and the UI shows both as counts side by side, so capping this
+    half made the pair stop summing to the run's idea count as soon as a run
+    released more than five ideas.
+    """
     return [
         {
             "id": str(hypothesis.get("id")),
@@ -253,7 +263,7 @@ def _high_potential_bucket(
                 "Released by safety and evidence gates and ranked by Elo."
             ),
         }
-        for hypothesis in safe_hypotheses[:5]
+        for hypothesis in safe_hypotheses
     ]
 
 

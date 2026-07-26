@@ -73,6 +73,26 @@ def test_goal_report_sections_preserve_claim_grounding() -> None:
     assert "Evidence verification" in buckets["non_viable"][0]["reason"]
 
 
+def test_idea_buckets_partition_every_idea() -> None:
+    """The two buckets cover the run's ideas exactly once, at any size.
+
+    The UI shows both as counts side by side, so they have to sum to the
+    run's idea count. ``non_viable`` is defined as everything not released,
+    and ``high_potential`` used to be capped at the top five -- which held
+    only until a run released a sixth idea, then quietly lost the rest.
+    """
+    released = [_hypothesis(f"h{i}", f"Released {i}") for i in range(7)]
+    excluded = [_hypothesis("x1", "Excluded")]
+
+    buckets = report_render._idea_buckets(released, released + excluded, [])
+
+    assert len(buckets["high_potential"]) == 7
+    assert len(buckets["non_viable"]) == 1
+    assert {entry["id"] for entry in buckets["high_potential"]} | {
+        entry["id"] for entry in buckets["non_viable"]
+    } == {hyp["id"] for hyp in released + excluded}
+
+
 def test_idea_buckets_explain_a_review_rejected_idea_as_deduplicated() -> None:
     """A review/dedup-rejected idea gets an accurate reason, not "release gate".
 

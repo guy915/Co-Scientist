@@ -87,6 +87,33 @@ def _unverified_hypothesis_ids(
     return all_hypothesis_ids - supported
 
 
+def _verified_hypothesis_count(
+    hyps: list[dict[str, Any]],
+    claim_edges: list[dict[str, Any]],
+) -> int:
+    """How many of the published ideas carry an evidence-supported claim.
+
+    The exact complement of :func:`_unverified_hypothesis_ids` over the
+    published set, and deliberately derived from the same ``supports``/
+    ``partial`` rule: the report's "Verified ideas" tile and the per-idea
+    "Unverified" badge are the same fact shown twice, so they must not be
+    computed two ways. The tile used to be handed the *high potential*
+    count instead, which made it a duplicate of the tile beside it and let
+    a run report two verified ideas while badging every idea unverified.
+
+    A run with no claim edges at all was never assessed, so nothing is
+    badged unverified and, symmetrically, nothing counts as verified.
+    """
+    if not claim_edges:
+        return 0
+    supported = {
+        str(edge["hypothesis_id"])
+        for edge in claim_edges
+        if edge.get("label") in ("supports", "partial")
+    }
+    return sum(1 for hyp in hyps if str(hyp.get("id")) in supported)
+
+
 def _exclude_unsafe_hypotheses(
     run_id: str,
     hyps: list[dict[str, Any]],

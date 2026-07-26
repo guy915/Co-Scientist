@@ -40,6 +40,9 @@ from app.report_content import (
 from app.report_content import (
     _unverified_hypothesis_ids as _unverified_hypothesis_ids,
 )
+from app.report_content import (
+    _verified_hypothesis_count as _verified_hypothesis_count,
+)
 from app.report_events import EmitFn as EmitFn
 from app.report_events import article_stub as article_stub
 from app.report_events import emit_cancel_or_pause as emit_cancel_or_pause
@@ -197,6 +200,8 @@ def _assemble_report_payload(
             provider=req.provider,
             leaderboard=live_leaderboard(hyps),
             hypothesis_count=len(hyps),
+            idea_count=len(all_hyps),
+            verified_count=_verified_hypothesis_count(hyps, claim_edges),
             evidence_count=data.counts["evidence"],
             match_count=data.counts["matches"],
             citation_summary=req.citation_summary,

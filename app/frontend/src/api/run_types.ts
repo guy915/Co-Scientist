@@ -300,7 +300,12 @@ export interface ReportPayload {
   research_goal: string;
   run_mode?: RunMode;
   provider: string;
+  /** Ideas released by the safety and contradiction gates. */
   hypothesis_count?: number;
+  /** Every idea the run explored, released or not. */
+  idea_count?: number;
+  /** Released ideas carrying an evidence-supported claim. */
+  verified_count?: number;
   evidence_count?: number;
   match_count?: number;
   // counts by classification, e.g. verified/partial/unsupported/unavailable

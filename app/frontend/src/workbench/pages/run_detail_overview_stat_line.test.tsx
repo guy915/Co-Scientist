@@ -30,7 +30,7 @@ it('omits intro/impact paragraphs when a specific aim lacks them', () => {
 
 it('omits the duration clause on a zero or negative delta', () => {
   const report = makeReport({
-    hypothesis_count: 1,
+    idea_count: 1,
     leaderboard: [{id: 'h1', title: 'Only idea', elo: 1500}],
   });
   render(
@@ -46,7 +46,7 @@ it('omits the duration clause on a zero or negative delta', () => {
 });
 
 it('omits the duration and Elo clauses when no data is present', () => {
-  const report = makeReport({hypothesis_count: 1, leaderboard: []});
+  const report = makeReport({idea_count: 1, leaderboard: []});
   render(
     <ResearchOverviewView
       run={null}
@@ -57,4 +57,55 @@ it('omits the duration and Elo clauses when no data is present', () => {
   );
   const stat = screen.getByText(/A total of 1 idea was explored/);
   expect(stat.textContent).toBe('A total of 1 idea was explored.');
+});
+
+it('counts every idea explored, not just the released ones', () => {
+  // A run that explores 22 ideas and releases 2 announced "A total of 2
+  // ideas were explored" directly above its own list of 22, because the
+  // lead stat read the post-gate count.
+  const report = makeReport({
+    idea_count: 22,
+    hypothesis_count: 2,
+    leaderboard: [],
+  });
+  render(
+    <ResearchOverviewView
+      run={null}
+      report={report}
+      hypotheses={[]}
+      matches={[]}
+    />,
+  );
+  expect(
+    screen.getByText('A total of 22 ideas were explored.'),
+  ).toBeInTheDocument();
+});
+
+it('reports verified ideas separately from high-potential ones', () => {
+  // The tile repeated the High Potential count, so a run could claim two
+  // verified ideas while every idea in the list carried an "Unverified"
+  // badge. It is now the server's count of ideas with a supported claim.
+  const report = makeReport({
+    verified_count: 0,
+    idea_buckets: {
+      high_potential: [
+        {id: 'h1', title: 'Released one', reason: 'Released.'},
+        {id: 'h2', title: 'Released two', reason: 'Released.'},
+      ],
+      non_viable: [],
+    },
+  });
+  render(
+    <ResearchOverviewView
+      run={null}
+      report={report}
+      hypotheses={[]}
+      matches={[]}
+    />,
+  );
+  const tile = screen.getByText('Verified ideas').closest('div');
+  expect(tile?.textContent).toBe('Verified ideas0');
+  expect(screen.getByText('High Potential').closest('div')?.textContent).toBe(
+    'High Potential2',
+  );
 });

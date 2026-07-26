@@ -163,7 +163,7 @@ it('renders the winning-ideas leaderboard and closing stats', () => {
   expect(
     screen.getByText(
       new RegExp(
-        'A total of 2 ideas were explored over 3 hours with the highest ' +
+        'A total of 5 ideas were explored over 3 hours with the highest ' +
           'Elo rating of 1735 points and a total of 3 matches were ' +
           'played\\.',
       ),

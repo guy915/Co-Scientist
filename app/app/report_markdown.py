@@ -120,7 +120,17 @@ class ReportPayloadInputs:
     run_mode: str
     provider: str
     leaderboard: list[dict[str, Any]]
+    # Published ideas -- what survived the safety and contradiction gates.
     hypothesis_count: int
+    # Every idea the run explored, gated or not. Distinct from
+    # ``hypothesis_count`` on purpose: a run that explores 22 ideas and
+    # publishes 2 has to be able to say both, and reporting the published
+    # count as the explored one told readers "2 ideas were explored" beside
+    # a list of 22.
+    idea_count: int
+    # Published ideas with an evidence-supported claim (see
+    # ``_verified_hypothesis_count``).
+    verified_count: int
     evidence_count: int
     match_count: int
     citation_summary: dict[str, int] | None = None
@@ -148,6 +158,8 @@ def build_report_payload(inputs: ReportPayloadInputs) -> dict[str, Any]:
         "run_mode": inputs.run_mode,
         "provider": inputs.provider,
         "hypothesis_count": inputs.hypothesis_count,
+        "idea_count": inputs.idea_count,
+        "verified_count": inputs.verified_count,
         "evidence_count": inputs.evidence_count,
         "match_count": inputs.match_count,
         "leaderboard": inputs.leaderboard,
