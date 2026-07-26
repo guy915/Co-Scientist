@@ -13,7 +13,11 @@ import logging
 import pytest
 
 from app import seed, store
-from app.demo_seed_data import DEMO_SCENARIOS, DEMO_SEED_VERSION
+from app.demo_seed_data import (
+    DEMO_SCENARIOS,
+    DEMO_SEED_VERSION,
+    scenario_hypotheses,
+)
 from app.store import DEMO_CLIENT_ID, RunRow
 
 
@@ -37,11 +41,18 @@ def test_seed_demo_runs_creates_three_runs_with_reports(
         assert store.run_used_offline(run)
         md = store.read_report_markdown(run.id, db_path=isolated_db)
         assert md is not None and "Research Report" in md
+        scenario = DEMO_SCENARIOS[run.research_goal]
+        expected_ideas = len(scenario_hypotheses(scenario))
         hypotheses = store.list_hypotheses(run.id, db_path=isolated_db)
-        assert len(hypotheses) == 18
+        assert len(hypotheses) == expected_ideas
         assert len(store.list_evidence(run.id, db_path=isolated_db)) == 6
-        assert len(store.list_reviews(run.id, db_path=isolated_db)) == 36
-        assert len(store.list_matches(run.id, db_path=isolated_db)) == 26
+        assert (
+            len(store.list_reviews(run.id, db_path=isolated_db))
+            == expected_ideas * 2
+        )
+        assert len(store.list_matches(run.id, db_path=isolated_db)) == (
+            expected_ideas - 1 + expected_ideas // 2
+        )
         # Every example idea has a tournament record; none is shown unranked.
         assert all(
             hypothesis["win_count"] + hypothesis["loss_count"]
@@ -56,12 +67,16 @@ def test_seed_demo_runs_creates_three_runs_with_reports(
         aims = overview["nih_specific_aims"]["aims"]
         assert len(aims) == 3
         metrics = store.get_run_metrics(run.id, db_path=isolated_db)
-        scenario = DEMO_SCENARIOS[run.research_goal]
         assert metrics is not None
         assert metrics["total_time"] == scenario.duration_seconds
         assert max(hypothesis["elo_rating"] for hypothesis in hypotheses) == (
             scenario.elo_ceiling
         )
+
+    assert sorted(
+        len(scenario_hypotheses(scenario))
+        for scenario in DEMO_SCENARIOS.values()
+    ) == [15, 19, 21]
 
 
 def test_seed_demo_runs_is_idempotent_when_reports_exist(

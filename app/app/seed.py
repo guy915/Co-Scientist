@@ -315,6 +315,11 @@ def _seed_curated_scenario(
     store.set_run_title(run.id, scenario.title, db_path=db_path)
     evidence_items = scenario_evidence(scenario)
     hypothesis_items = scenario_hypotheses(scenario)
+    initial_count = (
+        len(hypothesis_items)
+        - scenario.evolution_count
+        - scenario.second_pass_count
+    )
     evidence_ids = [
         store.add_evidence(
             store.NewEvidence(
@@ -332,14 +337,22 @@ def _seed_curated_scenario(
     ]
     hypothesis_ids: list[str] = []
     for index, item in enumerate(hypothesis_items):
-        parent_id = hypothesis_ids[index - 9] if index >= 9 else None
+        if index < initial_count:
+            parent_id = None
+            generation = 0
+        elif index < initial_count + scenario.evolution_count:
+            parent_id = hypothesis_ids[index - initial_count]
+            generation = 1
+        else:
+            parent_id = hypothesis_ids[index - scenario.evolution_count]
+            generation = 2
         hyp_id = store.add_hypothesis(
             store.NewHypothesis(
                 run_id=run.id,
                 title=item.title,
                 statement=item.statement,
                 parent_id=parent_id,
-                generation=1 if parent_id else 0,
+                generation=generation,
                 category=("Evolved proposal" if parent_id else "Generated proposal"),
                 mechanism=item.mechanism,
                 expected_effect=item.expected_effect,
@@ -424,7 +437,11 @@ def _seed_curated_scenario(
             db_path=db_path,
         )
     matchups = list(itertools.pairwise(range(len(hypothesis_ids))))
-    matchups.extend((index, index + 9) for index in range(9))
+    half = len(hypothesis_ids) // 2
+    matchups.extend(
+        (index, index + half)
+        for index in range(min(half, len(hypothesis_ids) - half))
+    )
     for iteration, (winner_index, loser_index) in enumerate(matchups, start=1):
         winner = hypothesis_ids[winner_index]
         loser = hypothesis_ids[loser_index]
@@ -501,10 +518,13 @@ def _seed_curated_scenario(
     for event_type, event_payload in (
         ("supervisor.plan", {"summary": "Curated demo plan prepared."}),
         ("literature_review", {"evidence_count": len(evidence_ids)}),
-        ("generate", {"hypothesis_count": len(hypothesis_ids)}),
+        ("generate", {"hypothesis_count": initial_count}),
         ("reflection", {"review_count": len(hypothesis_ids) * 2}),
         ("ranking", {"match_count": len(matchups)}),
-        ("evolve", {"hypothesis_count": len(hypothesis_ids) // 2}),
+        (
+            "evolve",
+            {"hypothesis_count": len(hypothesis_ids) - initial_count},
+        ),
         ("meta_review", {"summary": meta_review["summary"]}),
         ("research_overview", {"knowledge_topics": 6}),
         ("report", {"hypothesis_count": len(hypothesis_ids)}),
@@ -520,7 +540,7 @@ def _seed_curated_scenario(
             "hypothesis_count": len(hypothesis_ids),
             "reviews_count": len(hypothesis_ids) * 2,
             "tournaments_count": len(matchups),
-            "evolutions_count": len(hypothesis_ids) // 2,
+            "evolutions_count": len(hypothesis_ids) - initial_count,
             "llm_calls": 86,
             "phase_times": {
                 "literature_review": round(scenario.duration_seconds * 0.18, 1),

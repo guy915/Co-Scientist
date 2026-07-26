@@ -51,11 +51,13 @@ class DemoScenario:
     duration_seconds: float
     elo_ceiling: int
     elo_step: int
+    evolution_count: int
+    second_pass_count: int
     evidence: tuple[DemoEvidence, ...]
     hypotheses: tuple[DemoHypothesis, ...]
 
 
-DEMO_SEED_VERSION = 6
+DEMO_SEED_VERSION = 7
 
 DEMO_SCENARIOS: dict[str, DemoScenario] = {
     "What mechanisms drive antibiotic resistance in Staphylococcus aureus "
@@ -79,6 +81,8 @@ DEMO_SCENARIOS: dict[str, DemoScenario] = {
         duration_seconds=1628.0,
         elo_ceiling=1386,
         elo_step=15,
+        evolution_count=6,
+        second_pass_count=0,
         evidence=(
             DemoEvidence(
                 title=(
@@ -208,6 +212,8 @@ DEMO_SCENARIOS: dict[str, DemoScenario] = {
         duration_seconds=2314.0,
         elo_ceiling=1337,
         elo_step=14,
+        evolution_count=9,
+        second_pass_count=1,
         evidence=(
             DemoEvidence(
                 title="Microglial Pruning of Synapses in the Prefrontal Cortex During Adolescence",
@@ -330,6 +336,8 @@ DEMO_SCENARIOS: dict[str, DemoScenario] = {
         duration_seconds=2047.0,
         elo_ceiling=1392,
         elo_step=16,
+        evolution_count=9,
+        second_pass_count=3,
         evidence=(
             DemoEvidence(
                 title="CPEB1 Controls NRF2 Proteostasis and Ferroptosis Susceptibility in Pancreatic Cancer",
@@ -680,10 +688,50 @@ def _evolved_hypothesis(source: DemoHypothesis) -> DemoHypothesis:
     )
 
 
+def _second_pass_hypothesis(source: DemoHypothesis) -> DemoHypothesis:
+    """Create a validation-focused iteration for only the strongest ideas."""
+    source_title = source.title.removeprefix("Refined: ")
+    return DemoHypothesis(
+        title=f"Validation-ready: {source_title}",
+        statement=(
+            f"{source.statement} This second-pass variant narrows the claim to "
+            "a prespecified population or state and advances only if the effect "
+            "replicates under blinded analysis in an independent model set."
+        ),
+        mechanism=(
+            f"{source.mechanism} The additional pass prioritizes a decisive "
+            "necessity-and-rescue test over another broad exploratory screen."
+        ),
+        expected_effect=(
+            f"{source.expected_effect} The result is considered actionable only "
+            "when the predeclared replication and rescue thresholds are met."
+        ),
+        experiment=(
+            f"{source.experiment} Lock the analysis plan, randomize the "
+            "validation cohort, and report the result alongside the original "
+            "discovery cohort rather than pooling them."
+        ),
+        review=(
+            f"{source.review} This pass deliberately trades breadth for a more "
+            "credible validation decision."
+        ),
+        elo=1200,
+        evidence_index=source.evidence_index,
+    )
+
+
 def scenario_hypotheses(scenario: DemoScenario) -> tuple[DemoHypothesis, ...]:
-    """Return an 18-idea, two-generation hypothesis set for a demo run."""
+    """Return a scenario-specific multi-generation hypothesis set."""
     first_wave = scenario.hypotheses + tuple(
         _proposal_hypothesis(item)
         for item in _PROPOSALS[scenario_key(scenario)]
     )
-    return first_wave + tuple(_evolved_hypothesis(item) for item in first_wave)
+    evolved = tuple(
+        _evolved_hypothesis(item)
+        for item in first_wave[: scenario.evolution_count]
+    )
+    second_pass = tuple(
+        _second_pass_hypothesis(item)
+        for item in evolved[: scenario.second_pass_count]
+    )
+    return first_wave + evolved + second_pass
