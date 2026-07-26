@@ -55,7 +55,7 @@ class DemoScenario:
     hypotheses: tuple[DemoHypothesis, ...]
 
 
-DEMO_SEED_VERSION = 5
+DEMO_SEED_VERSION = 6
 
 DEMO_SCENARIOS: dict[str, DemoScenario] = {
     "What mechanisms drive antibiotic resistance in Staphylococcus aureus "

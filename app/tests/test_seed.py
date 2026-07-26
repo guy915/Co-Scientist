@@ -129,6 +129,32 @@ def test_seed_demo_runs_replaces_legacy_demo_content(isolated_db: str) -> None:
     assert "Curated demonstration only" in report["markdown_text"]
 
 
+def test_seed_demo_runs_backfills_goal_detail_config(isolated_db: str) -> None:
+    """A current report cannot leave an old demo row's details empty."""
+    goal = seed._DEMO_GOALS[0]
+    run = store.create_run(
+        goal,
+        "standard",
+        "engine",
+        {},
+        store.RunCreateOptions(client_id=DEMO_CLIENT_ID, db_path=isolated_db),
+    )
+    store.save_report(
+        run.id,
+        {"demo_seed_version": DEMO_SEED_VERSION},
+        "# Current-looking report",
+        db_path=isolated_db,
+    )
+
+    _seed(isolated_db)
+
+    upgraded = store.get_run(run.id, db_path=isolated_db)
+    assert upgraded is not None
+    setup = upgraded.config["setup"]
+    assert len(setup["requirements"]) == 6
+    assert len(setup["attributes"]) == 5
+
+
 def test_seed_demo_run_failure_is_swallowed(
     isolated_db: str,
     monkeypatch: pytest.MonkeyPatch,

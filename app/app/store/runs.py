@@ -268,6 +268,22 @@ def set_run_title(run_id: str, title: str, db_path: str | None = None) -> None:
         conn.execute("UPDATE runs SET title = ? WHERE id = ?", (title, run_id))
 
 
+def set_run_config(
+    run_id: str, config: dict[str, Any], db_path: str | None = None
+) -> None:
+    """Replace one run's persisted configuration.
+
+    Startup fixtures use this when a new fixture revision adds displayable
+    setup fields. Existing demo rows must receive the same configuration as a
+    newly created row; otherwise their Goal Details retain the old empty data.
+    """
+    with connect(db_path) as conn:
+        conn.execute(
+            "UPDATE runs SET config_json=?, updated_at=? WHERE id=?",
+            (json.dumps(config), _now(), run_id),
+        )
+
+
 def get_run(
     run_id: str,
     db_path: str | None = None,

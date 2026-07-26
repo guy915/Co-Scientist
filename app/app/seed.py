@@ -179,9 +179,14 @@ def _drive_demo_run(run_id: str, db_path: str | None) -> None:
 def _scenario_report_is_current(run: RunRow, db_path: str | None) -> bool:
     """Return whether a curated scenario has the current artifact revision."""
     report = store.get_latest_report(run.id, db_path=db_path)
+    setup = run.config.get("setup") if isinstance(run.config, dict) else None
     return bool(
         report
         and report["payload"].get("demo_seed_version") == DEMO_SEED_VERSION
+        and run.config.get("demo_seed_version") == DEMO_SEED_VERSION
+        and isinstance(setup, dict)
+        and setup.get("requirements")
+        and setup.get("attributes")
     )
 
 
@@ -549,6 +554,9 @@ async def _seed_demo_run(
     run = _ensure_demo_run_row(goal, run, config, db_path)
     scenario = DEMO_SCENARIOS.get(goal)
     if scenario is not None:
+        # Re-seeded demos may predate the setup fields shown in Goal Details.
+        # Keep their row configuration in sync with newly created demo rows.
+        store.set_run_config(run.id, config, db_path=db_path)
         _seed_curated_scenario(run, scenario, db_path)
         logger.info("Seeded curated demo run %s (%.60s…)", run.id[:8], goal)
         return
