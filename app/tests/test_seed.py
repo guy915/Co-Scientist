@@ -13,6 +13,7 @@ import logging
 import pytest
 
 from app import seed, store
+from app.demo_seed_data import DEMO_SEED_VERSION
 from app.store import DEMO_CLIENT_ID, RunRow
 
 
@@ -30,16 +31,20 @@ def test_seed_demo_runs_creates_three_runs_with_reports(
     goals = {r.research_goal for r in runs}
     assert goals == set(seed._DEMO_GOALS)
     for run in runs:
-        # Each demo run is driven end-to-end through the real engine graph
-        # pinned to the offline backend, so it must reach a terminal completed
-        # state, persist llm_backend="offline" (so run_used_offline reports it,
-        # which suppresses "unverified" badging), and carry a readable report.
+        # Each default demo is a complete browseable, offline-backed example.
         assert run.status == "completed"
         assert run.llm_backend == "offline"
         assert store.run_used_offline(run)
         md = store.read_report_markdown(run.id, db_path=isolated_db)
         assert md is not None and "Research Report" in md
-        assert store.list_hypotheses(run.id, db_path=isolated_db)
+        assert len(store.list_hypotheses(run.id, db_path=isolated_db)) == 3
+        assert len(store.list_evidence(run.id, db_path=isolated_db)) == 2
+        assert len(store.list_reviews(run.id, db_path=isolated_db)) == 3
+        assert len(store.list_matches(run.id, db_path=isolated_db)) == 2
+        assert "Curated demonstration only" in md
+        report = store.get_latest_report(run.id, db_path=isolated_db)
+        assert report is not None
+        assert report["payload"]["demo_seed_version"] == DEMO_SEED_VERSION
 
 
 def test_seed_demo_runs_is_idempotent_when_reports_exist(
@@ -85,6 +90,26 @@ def test_seed_demo_runs_reseeds_run_missing_report(isolated_db: str) -> None:
     assert (
         store.read_report_markdown(reseeded.id, db_path=isolated_db) is not None
     )
+
+
+def test_seed_demo_runs_replaces_legacy_demo_content(isolated_db: str) -> None:
+    """An older persisted report is upgraded to the curated scenario."""
+    goal = seed._DEMO_GOALS[0]
+    run = store.create_run(
+        goal,
+        "express",
+        "engine",
+        {},
+        store.RunCreateOptions(client_id=DEMO_CLIENT_ID, db_path=isolated_db),
+    )
+    store.save_report(run.id, {"legacy": True}, "# Legacy", db_path=isolated_db)
+
+    _seed(isolated_db)
+
+    report = store.get_latest_report(run.id, db_path=isolated_db)
+    assert report is not None
+    assert report["payload"]["demo_seed_version"] == DEMO_SEED_VERSION
+    assert "Curated demonstration only" in report["markdown_text"]
 
 
 def test_seed_demo_run_failure_is_swallowed(
