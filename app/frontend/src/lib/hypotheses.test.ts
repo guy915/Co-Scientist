@@ -2,7 +2,7 @@ import {expect, it} from 'vitest';
 
 import {makeHypothesis} from '@/test_fixtures';
 
-import {ratingLabel, sortByEloDesc} from './hypotheses';
+import {presentedHypotheses, ratingLabel, sortByEloDesc} from './hypotheses';
 
 it('orders played hypotheses by descending Elo', () => {
   const ranked = sortByEloDesc([
@@ -47,19 +47,18 @@ it('reports the earned rating for an idea that played', () => {
   ).toBe('Elo rating: 1268');
 });
 
-it('says "Disqualified" for an unplayed idea the run rejected', () => {
-  // Reviews and the evidence gate withhold contradicted, inaccurate, and
-  // non-novel ideas from the tournament, persisted as status "rejected".
-  expect(ratingLabel(makeHypothesis({status: 'rejected'}))).toBe(
-    'Disqualified',
-  );
-});
+it('drops the ideas a run withdrew from the presented list', () => {
+  // Both are excluded from the Goal Report too: "rejected" was ruled out on
+  // the merits, "duplicate" was folded into a higher-ranked idea making the
+  // same proposal. Neither is a result, so neither belongs in a ranking.
+  const kept = makeHypothesis({id: 'kept'});
+  const presented = presentedHypotheses([
+    kept,
+    makeHypothesis({id: 'a', status: 'rejected'}),
+    makeHypothesis({id: 'b', status: 'duplicate'}),
+  ]);
 
-it('says "Duplicate" for an idea folded into a higher-ranked one', () => {
-  // Not "Disqualified": proximity archived it as redundant, so nothing
-  // judged the science. Sharing one label told a scientist their ideas had
-  // failed peer review when most had simply been deduplicated.
-  expect(ratingLabel(makeHypothesis({status: 'duplicate'}))).toBe('Duplicate');
+  expect(presented).toEqual([kept]);
 });
 
 it('says "Unranked" for an unplayed idea still in good standing', () => {

@@ -36,6 +36,28 @@ export function firstSentenceClause(text: string): string {
 }
 
 /**
+ * Capitalizes a listed term's first letter, where doing so is safe.
+ *
+ * The four setup fields are written by the model, which capitalizes its
+ * preference sentences and leaves focus-area noun phrases lowercase, so the
+ * two lists in the same specification card disagreed about their own house
+ * style ("Prioritize mechanistic novelty" above "gut-brain axis").
+ *
+ * Only a first *word* that is entirely lowercase ASCII is touched. Scientific
+ * terms make the naive version wrong in two directions a reader would notice:
+ * "α-synuclein aggregation" must not become "Α-synuclein" (that is a Greek
+ * capital alpha, and journals set the prefix lowercase), and "mRNA stability"
+ * must not become "MRNA stability". Both are left exactly as the model wrote
+ * them, which is also how they should be set.
+ */
+export function capitalizeTerm(term: string): string {
+  const text = term.trim();
+  const firstWord = text.split(/\s/, 1)[0] ?? '';
+  if (!/^[a-z][a-z-]*$/.test(firstWord)) return text;
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
+/**
  * Coerce a possibly-malformed structured-output field into readable text.
  *
  * Research-overview fields are produced by the model in json_object mode with

@@ -1,5 +1,10 @@
 import {describe, it, expect} from 'vitest';
-import {conciseTitle, readableText, readableTextList} from './text';
+import {
+  capitalizeTerm,
+  conciseTitle,
+  readableText,
+  readableTextList,
+} from './text';
 
 describe('conciseTitle', () => {
   it('returns a short goal unchanged', () => {
@@ -91,5 +96,33 @@ describe('readableTextList', () => {
     ]);
     expect(readableTextList(null)).toEqual([]);
     expect(readableTextList(undefined)).toEqual([]);
+  });
+});
+
+describe('capitalizeTerm', () => {
+  it('capitalizes a lowercase noun phrase', () => {
+    // The model capitalizes its preference sentences and leaves focus-area
+    // terms lowercase, so the two lists in one specification card disagreed
+    // about their own house style.
+    expect(capitalizeTerm('gut-brain axis')).toBe('Gut-brain axis');
+  });
+
+  it('leaves a Greek-letter prefix alone', () => {
+    // Uppercasing it yields a Greek capital alpha, which is a different
+    // character and not how the term is set anywhere in the literature.
+    expect(capitalizeTerm('α-synuclein aggregation')).toBe(
+      'α-synuclein aggregation',
+    );
+  });
+
+  it('leaves an intentionally mixed-case term alone', () => {
+    expect(capitalizeTerm('mRNA stability')).toBe('mRNA stability');
+    expect(capitalizeTerm('pH-dependent binding')).toBe('pH-dependent binding');
+  });
+
+  it('leaves an already-capitalized sentence unchanged', () => {
+    expect(capitalizeTerm('Prioritize mechanistic novelty.')).toBe(
+      'Prioritize mechanistic novelty.',
+    );
   });
 });

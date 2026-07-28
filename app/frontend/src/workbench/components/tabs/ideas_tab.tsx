@@ -1,7 +1,11 @@
 import {useMemo} from 'react';
 import {Link, useSearchParams} from 'react-router-dom';
 import type {ClaimEvidenceRow, Hypothesis, MatchRow, Review} from '@/api/runs';
-import {ratingLabel, sortByEloDesc} from '@/lib/hypotheses';
+import {
+  presentedHypotheses,
+  ratingLabel,
+  sortByEloDesc,
+} from '@/lib/hypotheses';
 import {Icon} from '@/components/icon';
 import {useIsMobile} from '../../hooks/use_is_mobile';
 import {TruncatedLabel} from '../truncated_label';
@@ -114,13 +118,31 @@ function useIdeaSelection(hypotheses: Hypothesis[], isMobile: boolean) {
   // mobile master-detail view reopens on the list.
   const [params] = useSearchParams();
   const selectedId = params.get('idea');
-  const sorted = useMemo(() => sortByEloDesc(hypotheses), [hypotheses]);
+  // Filtered before sorting, so a withdrawn idea can be neither listed nor
+  // resolved as the default selection.
+  const sorted = useMemo(
+    () => sortByEloDesc(presentedHypotheses(hypotheses)),
+    [hypotheses],
+  );
   const selected = useMemo(
     () => resolveSelectedHypothesis(sorted, selectedId, isMobile),
     [sorted, selectedId, isMobile],
   );
 
   return {sorted, selected};
+}
+
+// Two different empty states: nothing generated yet, versus everything
+// generated having been deduplicated or ruled out. Reporting the second as
+// the first would read as a run that produced nothing at all.
+function emptyIdeasNote(exploredCount: number): string {
+  if (!exploredCount) {
+    return 'Hypotheses appear here once the generation node runs.';
+  }
+  return (
+    'Every idea this run explored was ruled out or folded into another. ' +
+    'Nothing was put forward.'
+  );
 }
 
 /**
@@ -142,12 +164,8 @@ export function IdeasTab({
   const isMobile = useIsMobile();
   const {sorted, selected} = useIdeaSelection(hypotheses, isMobile);
 
-  if (!hypotheses.length) {
-    return (
-      <EmptyState>
-        Hypotheses appear here once the generation node runs.
-      </EmptyState>
-    );
+  if (!sorted.length) {
+    return <EmptyState>{emptyIdeasNote(hypotheses.length)}</EmptyState>;
   }
 
   // Both views share the exact same prop shape, so the layout choice is just

@@ -173,45 +173,46 @@ it('labels an idea with no matches by reason rather than showing 1200', () => {
   expect(screen.queryByText(/Elo rating/)).not.toBeInTheDocument();
 });
 
-it('distinguishes a disqualified idea from one that never got its turn', () => {
-  // Both have no rating, for unrelated reasons: one was withheld from the
-  // tournament on the merits, the other simply never played. A single shared
-  // label read as "we ran out of time" for ideas that were actually rejected.
+it('leaves withdrawn ideas out of the list entirely', () => {
+  // The Goal Report already excludes both, so listing them here made the two
+  // surfaces disagree, and it padded a ranking with entries that were
+  // explicitly not ranked. The run's "ideas explored" count still covers them.
   renderIdeas(
     <IdeasTab
       hypotheses={[
+        makeHypothesis({id: 'kept', title: 'Still standing', win_count: 1}),
         makeHypothesis({
-          id: 'blocked',
-          title: 'Contradicted',
+          id: 'rejected',
+          title: 'Ruled out on the merits',
           status: 'rejected',
         }),
-        makeHypothesis({id: 'late', title: 'Made too late'}),
+        makeHypothesis({
+          id: 'duplicate',
+          title: 'Folded into another',
+          status: 'duplicate',
+        }),
       ]}
       reviews={[]}
     />,
   );
 
-  expect(screen.getByText('Disqualified')).toBeInTheDocument();
-  expect(screen.getByText('Unranked')).toBeInTheDocument();
+  // The surviving idea heads the list and fills the detail pane beside it.
+  expect(screen.getAllByText('Still standing').length).toBeGreaterThan(0);
+  expect(screen.queryByText('Ruled out on the merits')).toBeNull();
+  expect(screen.queryByText('Folded into another')).toBeNull();
 });
 
-it('shows a rating for a disqualified idea that did play before exclusion', () => {
-  // Exclusion can follow matches (deep verification undermines an idea after
-  // it competed). The score it earned is real and stays visible.
+it('says so when every idea a run explored was withdrawn', () => {
+  // Distinct from "nothing generated yet": reporting the second as the first
+  // reads as a run that produced nothing at all.
   renderIdeas(
     <IdeasTab
-      hypotheses={[
-        makeHypothesis({
-          id: 'played-then-blocked',
-          elo_rating: 1240,
-          win_count: 1,
-          status: 'rejected',
-        }),
-      ]}
+      hypotheses={[makeHypothesis({id: 'gone', status: 'duplicate'})]}
       reviews={[]}
     />,
   );
 
-  expect(screen.getByText('Elo rating: 1240')).toBeInTheDocument();
-  expect(screen.queryByText('Disqualified')).not.toBeInTheDocument();
+  expect(
+    screen.getByText(/was ruled out or folded into another/),
+  ).toBeVisible();
 });

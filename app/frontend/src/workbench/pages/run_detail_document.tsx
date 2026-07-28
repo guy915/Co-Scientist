@@ -1,4 +1,5 @@
 import {type ReactNode} from 'react';
+import {capitalizeTerm} from '@/lib/text';
 import {joinClasses} from '../classes';
 
 // Shared Tailwind class-name constants and layout primitives for the
@@ -70,7 +71,7 @@ export function ReportList({title, values}: {title: string; values: string[]}) {
       <h4 className={REPORT_H4_CLASSES}>{title}:</h4>
       <ul className={REPORT_LIST_CLASSES}>
         {values.map(value => (
-          <li key={value}>{value}</li>
+          <li key={value}>{capitalizeTerm(value)}</li>
         ))}
       </ul>
     </section>
