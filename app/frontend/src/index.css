@@ -169,13 +169,16 @@
 }
 
 /* Run-detail tabs already use ::after for the selected underline, so their MD3
-   state layer rides on ::before (which paints beneath the label + icon). */
-.reference-report-tabs button {
+   state layer rides on ::before (which paints beneath the label + icon).
+   Keyed on the tab's own class, not on `button`: the tabs became anchors when
+   they were made real links, and an element-typed selector silently dropped
+   every hover and focus state the moment the markup changed. */
+.reference-report-tab {
   position: relative;
   transition: color 120ms cubic-bezier(0.2, 0, 0, 1);
 }
 
-.reference-report-tabs button::before {
+.reference-report-tab::before {
   content: '';
   position: absolute;
   inset: 0.3rem 0.6rem;
@@ -186,17 +189,17 @@
   pointer-events: none;
 }
 
-.reference-report-tabs button:hover::before {
+.reference-report-tab:hover::before {
   opacity: 0.06;
 }
 
-.reference-report-tabs button:focus-visible::before {
+.reference-report-tab:focus-visible::before {
   opacity: 0.1;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .reference-report-tabs button,
-  .reference-report-tabs button::before {
+  .reference-report-tab,
+  .reference-report-tab::before {
     transition: none;
   }
 }

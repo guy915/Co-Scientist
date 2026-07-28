@@ -40,11 +40,14 @@ const REPORT_TABS_CLASSES =
 
 // The tabs are anchors (so a middle/cmd-click opens the tab in a new browser
 // tab), hence the explicit no-underline: everything else here matches the
-// buttons they replaced.
+// buttons they replaced. `reference-report-tab` is the hook the hover/focus
+// state layer in index.css keys on -- it must stay on whatever element the
+// tab is rendered as.
 const REPORT_TAB_BUTTON_BASE_CLASSES =
-  'relative grid min-w-0 cursor-pointer content-center justify-items-center ' +
-  'gap-[0.35rem] border-0 bg-transparent font-[inherit] text-sm ' +
-  'no-underline max-[720px]:gap-[0.2rem] max-[720px]:text-[0.68rem]';
+  'reference-report-tab relative grid min-w-0 cursor-pointer content-center ' +
+  'justify-items-center gap-[0.35rem] border-0 bg-transparent ' +
+  'font-[inherit] text-sm no-underline max-[720px]:gap-[0.2rem] ' +
+  'max-[720px]:text-[0.68rem]';
 
 const REPORT_TAB_SELECTED_CLASSES =
   'text-cosci-blue after:absolute after:right-[1.1rem] after:bottom-0 ' +
