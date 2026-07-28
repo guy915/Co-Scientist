@@ -121,7 +121,12 @@ function ActivityLog({
     <section aria-label="Activity log">
       <div className="flex items-center gap-2.5">
         <LivePulse />
-        <h3 className="text-base font-medium">Live activity</h3>
+        {/* `my-0`: an <h3>'s 1em user-agent block margin does not collapse
+            inside this flex row, so it survived as 16px of padding above
+            the heading. The section's own gap already spaces the cards
+            from this log, and that extra 16px landed on one side of them
+            only — 44px of white below the cards against 27px above. */}
+        <h3 className="my-0 text-base font-medium">Live activity</h3>
       </div>
       {activity.length ? (
         <ol className="mt-5">

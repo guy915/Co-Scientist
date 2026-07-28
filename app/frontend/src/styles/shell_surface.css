@@ -120,17 +120,19 @@
   margin-top: 0;
 }
 
-.ucs-nav-items--open {
-  gap: 0.85rem;
-  margin-top: 1.4rem;
-}
+/* The Menu toggle operates the rail itself; New chat is the first of the
+   navigation actions, so it starts a group rather than continuing the
+   list. The separation has to sit on the item, not on the <nav> wrapping
+   it: that wrapper is display:contents (above), which removes its box, so
+   its own gap and margin never reached the page -- the rules that used to
+   stand here declared a 1.4rem separation that has never once rendered.
 
-.ucs-nav-items--collapsed {
-  width: 100%;
-  align-items: center;
-  justify-items: center;
-  gap: 0.74rem;
-  margin-top: 0.74rem;
+   Both rail states carry it identically, keeping the rule that every icon
+   holds its Y position when the rail collapses (shell_surface_responsive
+   .css). It adds to the group gap rather than replacing it. */
+.ucs-nav-items--open > :first-child,
+.ucs-nav-items--collapsed > :first-child {
+  margin-top: 0.5rem;
 }
 
 .ucs-nav-bottom {
