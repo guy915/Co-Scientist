@@ -114,6 +114,10 @@ class Settings(BaseSettings):
     smtp_password: str = ""
     smtp_from_email: str = ""
     public_app_url: str = "http://localhost:5173"
+    # Where the Logs panel's Report button sends a diagnostic export. The
+    # recipient is fixed server-side and never taken from the request, so
+    # the endpoint cannot be pointed at a third party.
+    log_report_email: str = "guybarel2006@gmail.com"
 
     # Researcher access. ``required`` rejects unauthenticated private API
     # requests; ``compatibility`` retains browser-local IDs for local demos.

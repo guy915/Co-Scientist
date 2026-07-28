@@ -41,6 +41,19 @@ def _send_smtp(recipient: str, subject: str, body: str) -> None:
         smtp.send_message(message)
 
 
+async def deliver_email(recipient: str, subject: str, body: str) -> None:
+    """Send one message off the event loop.
+
+    ``smtplib`` is blocking and this server's event loop also drives runs,
+    so the send goes to a thread rather than stalling every other request
+    for the length of an SMTP conversation.
+
+    Raises:
+        RuntimeError: When no SMTP transport is configured.
+    """
+    await asyncio.to_thread(_send_smtp, recipient, subject, body)
+
+
 async def deliver_completion_notification(
     inputs: dict[str, Any],
 ) -> dict[str, str]:
@@ -49,8 +62,7 @@ async def deliver_completion_notification(
     run_id = str(inputs["run_id"])
     title = str(inputs.get("title") or "Goal Report")
     report_url = f"{settings.public_app_url.rstrip('/')}/runs/{run_id}/ideas"
-    await asyncio.to_thread(
-        _send_smtp,
+    await deliver_email(
         recipient,
         f"Your Co-Scientist Goal Report is ready: {title}",
         f"Your Goal Report is complete.\n\nOpen it: {report_url}\n",

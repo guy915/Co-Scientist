@@ -27,6 +27,9 @@ from app import store
 from app.auth import client_id
 from app.config import settings
 from app.logging_setup import level_to_number
+from app.notifications import deliver_email, email_notifications_configured
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["logs"])
 
@@ -34,6 +37,11 @@ router = APIRouter(tags=["logs"])
 # small enough that the open endpoint cannot be used to flood the table.
 MAX_CLIENT_BATCH = 50
 MAX_CLIENT_MESSAGE_CHARS = 2000
+
+# Ceiling on one emailed diagnostic export. The panel exports its newest
+# fifty entries plus a preamble, which lands far below this; the cap is
+# here so the endpoint cannot be turned into a mail relay for bulk text.
+MAX_REPORT_CHARS = 100_000
 
 # Hosts whose requests are treated as operator access without a token:
 # a local CLI/agent session is already inside the trust boundary.
@@ -76,13 +84,29 @@ def _sanitize(text: str) -> str:
     return "".join(ch if ch.isprintable() else " " for ch in text).strip()
 
 
-# Sliding-window ingest counters, keyed by client scope.
+# Sliding-window counters, keyed by client scope. Ingestion and reporting
+# keep separate buckets: one is a background stream of UI records, the other
+# a deliberate click that sends mail, and a budget sized for the first would
+# be no ceiling at all on the second.
 _ingest_hits: dict[str, list[float]] = {}
+_report_hits: dict[str, list[float]] = {}
+
+# Reports per client per minute. One click is one report; anything beyond a
+# handful is a mistake or an attempt to flood the operator's inbox.
+REPORTS_PER_MINUTE = 5
 
 
-def _check_ingest_rate(scope: str) -> None:
-    """Raise 429 once a client exceeds the per-minute ingest ceiling."""
-    limit = settings.logs_ingest_per_minute
+def _check_rate(
+    hits_by_scope: dict[str, list[float]],
+    scope: str,
+    limit: int,
+    detail: str,
+) -> None:
+    """Raise 429 once a client exceeds a per-minute ceiling.
+
+    Raises:
+        HTTPException: 429 when this scope has spent its budget.
+    """
     if limit <= 0:
         return
     now = time.monotonic()
@@ -90,18 +114,30 @@ def _check_ingest_rate(scope: str) -> None:
     # not accumulate in this process-lifetime map.
     for stale in [
         key
-        for key, times in _ingest_hits.items()
+        for key, times in hits_by_scope.items()
         if key != scope and (not times or now - times[-1] >= 60.0)
     ]:
-        del _ingest_hits[stale]
-    hits = [t for t in _ingest_hits.get(scope, []) if now - t < 60.0]
+        del hits_by_scope[stale]
+    hits = [t for t in hits_by_scope.get(scope, []) if now - t < 60.0]
+    hits_by_scope[scope] = hits
     if len(hits) >= limit:
-        _ingest_hits[scope] = hits
-        raise HTTPException(
-            status_code=429, detail="log ingestion rate exceeded"
-        )
+        raise HTTPException(status_code=429, detail=detail)
     hits.append(now)
-    _ingest_hits[scope] = hits
+
+
+def _check_ingest_rate(scope: str) -> None:
+    """Raise 429 once a client exceeds the per-minute ingest ceiling."""
+    _check_rate(
+        _ingest_hits,
+        scope,
+        settings.logs_ingest_per_minute,
+        "log ingestion rate exceeded",
+    )
+
+
+def _check_report_rate(scope: str) -> None:
+    """Raise 429 once a client exceeds the per-minute report ceiling."""
+    _check_rate(_report_hits, scope, REPORTS_PER_MINUTE, "report rate exceeded")
 
 
 # High-volume logger prefixes hidden from the default view (below
@@ -315,6 +351,75 @@ async def post_logs(batch: ClientLogBatch, request: Request) -> dict[str, Any]:
             )
         last_id = store.latest_log_id(conn=conn)
     return {"added": len(batch.records), "last_id": last_id}
+
+
+class LogReportRequest(BaseModel):
+    """One diagnostic export a scientist chose to send to the operator."""
+
+    report: str = Field(min_length=1, max_length=MAX_REPORT_CHARS)
+
+
+def _report_subject(request: Request) -> str:
+    """Subject line for one report, built entirely server-side.
+
+    Nothing from the request body reaches the headers: the recipient is a
+    setting and the subject is assembled here, so a submitted report is only
+    ever a message body and cannot inject headers of its own.
+    """
+    return (
+        "Co-Scientist diagnostic report "
+        f"({client_id(request) or 'unidentified client'})"
+    )
+
+
+@router.post("/api/logs/report", status_code=202)
+async def report_logs(
+    req: LogReportRequest, request: Request
+) -> dict[str, Any]:
+    """Email one diagnostic export to the configured operator address.
+
+    The Logs panel's Copy button already produces a self-describing export
+    (context preamble, tallies, field legend, newest entries); this sends
+    that same document rather than a link, so a report arrives complete
+    even from a browser the operator can never reach.
+
+    The export is submitted rather than rebuilt from the caller's scoped
+    logs on purpose: the panel's view is anchored to the browsing session
+    and renumbered for display, so re-deriving it server-side would report
+    something subtly different from what the scientist was looking at when
+    they decided to report it.
+
+    Open to any caller, like log ingestion, because a browser in trouble
+    has to be able to say so. The blast radius is bounded on every side:
+    the recipient is fixed in configuration, the body is capped, and each
+    client gets its own small per-minute budget.
+
+    Raises:
+        HTTPException: 503 when no SMTP transport (or no recipient) is
+            configured, so an undeliverable report fails visibly at the
+            button instead of vanishing; 502 when the send itself fails.
+    """
+    owner = client_id(request) or "anonymous"
+    _check_report_rate(owner)
+    recipient = settings.log_report_email
+    if not (recipient and email_notifications_configured()):
+        raise HTTPException(
+            status_code=503, detail="email delivery is not configured"
+        )
+    try:
+        await deliver_email(recipient, _report_subject(request), req.report)
+    except Exception as exc:
+        logger.warning("Diagnostic report could not be sent: %s", exc)
+        raise HTTPException(
+            status_code=502, detail="the report could not be sent"
+        ) from exc
+    # The body is not echoed into the log: it is a copy of the log.
+    logger.info(
+        "Diagnostic report sent to the operator (%s chars) from %s",
+        len(req.report),
+        owner,
+    )
+    return {"status": "sent", "chars": len(req.report)}
 
 
 @router.delete("/api/logs")

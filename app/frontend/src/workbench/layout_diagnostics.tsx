@@ -1,6 +1,6 @@
 import {useEffect, useMemo, useRef, useState, type ReactNode} from 'react';
 import {deleteAppLogs} from '@/api/logs';
-import {Icon, type IconName} from '@/components/icon';
+import {Icon} from '@/components/icon';
 import {copyText} from '@/lib/clipboard';
 import {joinClasses} from './classes';
 import {DiagnosticChips} from './layout_diagnostics_chips';
@@ -13,11 +13,14 @@ import {
   browserExportContext,
   formatDiagnosticExport,
 } from './layout_diagnostics_export';
+import {DiagnosticLogsHeader} from './layout_diagnostics_header';
+import {useLogReport, type ReportStatus} from './layout_diagnostics_report';
 import {
   useDiagnosticIngest,
   useNavigationLog,
   usePersistedAppLogs,
 } from './layout_diagnostics_state';
+import {useSystemStatus} from './hooks/system_status_context';
 import {headerControlButtonClasses} from './layout_primitives';
 import {tooltipClassNames} from './tooltip';
 
@@ -46,27 +49,8 @@ const LOGS_COUNT_CLASSES =
   'rounded-full bg-cosci-logs-count-bg px-[0.42rem] text-[0.72rem] ' +
   'leading-none whitespace-nowrap';
 
-const DIAGNOSTIC_HEADER_CLASSES =
-  'ucs-diagnostic-header flex items-center justify-between gap-3 border-b ' +
-  'border-cosci-logs-border px-4 py-3 ' +
-  'max-[720px]:flex-col max-[720px]:items-start';
-
 const DIAGNOSTIC_INTRO_CLASSES =
   'ucs-diagnostic-intro border-b border-cosci-logs-border px-4 py-3';
-
-const DIAGNOSTIC_TITLE_CLASSES =
-  'm-0 text-base font-semibold leading-tight text-cosci-logs-heading';
-
-const DIAGNOSTIC_ACTIONS_CLASSES =
-  'ucs-diagnostic-actions flex flex-nowrap gap-[0.45rem]';
-
-const DIAGNOSTIC_ACTION_BUTTON_CLASSES =
-  'inline-flex min-h-8 cursor-pointer items-center gap-[0.3rem] rounded-full ' +
-  'border border-cosci-logs-action-border ' +
-  'bg-cosci-logs-action-bg px-[0.75rem] text-[0.82rem] font-semibold ' +
-  'whitespace-nowrap text-cosci-logs-action-fg ' +
-  'hover:bg-cosci-logs-action-hover ' +
-  'focus-visible:bg-cosci-logs-action-hover';
 
 // Never scrolls sideways: long unbroken tokens (dotted logger names, URLs)
 // are contained by the grid tracks and the wrapping code block, so the only
@@ -253,6 +237,8 @@ export function DiagnosticsControl({
   const [version, setVersion] = useState(0);
   const bumpVersion = () => setVersion(current => current + 1);
   const copiedFlag = useCopiedFlag(); // Copy button shows "Copied"
+  const report = useLogReport(); // Report button shows how the send went
+  const {status} = useSystemStatus();
   useDiagnosticIngest(bumpVersion);
   useNavigationLog(bumpVersion);
   const {entries, total} = usePersistedAppLogs(version, open);
@@ -277,8 +263,11 @@ export function DiagnosticsControl({
             total={total}
             copied={copiedFlag.copied}
             counts={counts}
+            reportStatus={report.status}
+            canReport={status?.email_notifications_available ?? false}
             onClear={() => void onClear()}
             onCopy={() => void onCopy()}
+            onReport={() => void report.send({entries, total, counts})}
           />,
           LOGS_POPOVER_CLASSES,
         )}
@@ -358,75 +347,6 @@ function DiagnosticLogList({entries}: {entries: DiagnosticLogEntry[]}) {
   );
 }
 
-// One Clear/Copy button in the header's actions row.
-function DiagnosticActionButton({
-  icon,
-  label,
-  onClick,
-}: {
-  icon: IconName;
-  label: string;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      className={DIAGNOSTIC_ACTION_BUTTON_CLASSES}
-      onClick={onClick}
-    >
-      <Icon aria-hidden="true" className="text-base" name={icon} />
-      <span>{label}</span>
-    </button>
-  );
-}
-
-// One entry in the header's actions row.
-interface DiagnosticAction {
-  id: string;
-  icon: IconName;
-  label: string;
-  onClick: () => void;
-}
-
-// Popover header: the "Diagnostic Logs" title plus the Clear/Copy actions.
-function DiagnosticLogsHeader({
-  copied,
-  onClear,
-  onCopy,
-}: {
-  copied: boolean;
-  onClear: () => void;
-  onCopy: () => void;
-}) {
-  const actions: DiagnosticAction[] = [
-    {id: 'clear', icon: 'refresh', label: 'Clear', onClick: onClear},
-    {
-      id: 'copy',
-      icon: 'content_copy',
-      label: copied ? 'Copied' : 'Copy',
-      onClick: onCopy,
-    },
-  ];
-
-  return (
-    <div className={DIAGNOSTIC_HEADER_CLASSES}>
-      <div className="ucs-diagnostic-title">
-        <h2 className={DIAGNOSTIC_TITLE_CLASSES}>Diagnostic Logs</h2>
-      </div>
-      <div className={DIAGNOSTIC_ACTIONS_CLASSES}>
-        {actions.map(({id, icon, label, onClick}) => (
-          <DiagnosticActionButton
-            key={id}
-            icon={icon}
-            label={label}
-            onClick={onClick}
-          />
-        ))}
-      </div>
-    </div>
-  );
-}
-
 // Presentational body of the popover: the header (title + Clear/Copy
 // actions), summary count chips, and the scrolling entry list. All state
 // stays in DiagnosticsControl; this only renders what it is handed.
@@ -435,19 +355,32 @@ function DiagnosticLogsPanel({
   total,
   copied,
   counts,
+  reportStatus,
+  canReport,
   onClear,
   onCopy,
+  onReport,
 }: {
   entries: DiagnosticLogEntry[];
   total: number;
   copied: boolean;
   counts: DiagnosticCounts;
+  reportStatus: ReportStatus;
+  canReport: boolean;
   onClear: () => void;
   onCopy: () => void;
+  onReport: () => void;
 }) {
   return (
     <>
-      <DiagnosticLogsHeader copied={copied} onClear={onClear} onCopy={onCopy} />
+      <DiagnosticLogsHeader
+        copied={copied}
+        reportStatus={reportStatus}
+        canReport={canReport}
+        onClear={onClear}
+        onCopy={onCopy}
+        onReport={onReport}
+      />
       <div className={DIAGNOSTIC_INTRO_CLASSES}>
         <DiagnosticChips total={total} counts={counts} />
       </div>

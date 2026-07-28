@@ -52,6 +52,7 @@ const logsApiMock = vi.hoisted(() => ({
   getAppLogs: vi.fn(),
   postAppLogs: vi.fn(),
   deleteAppLogs: vi.fn(),
+  reportAppLogs: vi.fn(),
 }));
 
 // Spread the real module so pure helpers (isActiveStatus, ...) stay real and
@@ -195,6 +196,8 @@ export function installLayoutMocks() {
   logsApiMock.postAppLogs.mockResolvedValue({added: 1, last_id: 1});
   logsApiMock.deleteAppLogs.mockReset();
   logsApiMock.deleteAppLogs.mockResolvedValue({deleted: 0});
+  logsApiMock.reportAppLogs.mockReset();
+  logsApiMock.reportAppLogs.mockResolvedValue({status: 'sent', chars: 100});
   // Engine mode by default so the header status chip stays hidden and
   // pre-existing header assertions are unaffected.
   systemApiMock.getSystemStatus.mockReset();

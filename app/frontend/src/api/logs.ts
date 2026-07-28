@@ -97,6 +97,27 @@ export async function postAppLogs(
 }
 
 /**
+ * Emails one diagnostic export to the operator address configured on the
+ * server.
+ *
+ * The whole document is sent rather than a pointer to it: the panel's view
+ * is anchored to this browsing session, so a link would not reproduce what
+ * the scientist was looking at when they decided to report it.
+ *
+ * Throws when the server has no SMTP transport (503) or the send fails
+ * (502), so the button can say so instead of implying a report went out.
+ */
+export function reportAppLogs(
+  report: string,
+): Promise<{status: string; chars: number}> {
+  return fetchJson('/api/logs/report', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json', ...clientHeaders()},
+    body: JSON.stringify({report}),
+  });
+}
+
+/**
  * Deletes persisted log records and returns the deleted count. Operators
  * (loopback callers) clear the whole log; every other caller clears only
  * its own records.

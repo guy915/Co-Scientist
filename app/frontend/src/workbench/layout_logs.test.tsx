@@ -31,7 +31,15 @@ it('opens the logs popover and dismisses on outside click', async () => {
     Array.from(diagnosticActions!.querySelectorAll('button')).map(button =>
       button.querySelector('span')?.textContent?.trim(),
     ),
-  ).toEqual(['Clear', 'Copy']);
+  ).toEqual(['Clear', 'Copy', 'Report']);
+  // Report is present but inert until the server can send mail, and says so
+  // rather than leaving the scientist to discover it by clicking.
+  const report = screen.getByRole('button', {name: /Report/});
+  expect(report).toBeDisabled();
+  expect(report).toHaveAttribute(
+    'data-tooltip',
+    'Email delivery is not configured on this server',
+  );
 
   fireEvent.pointerDown(screen.getByText('Workspace content'));
   expect(screen.queryByText('Diagnostic Logs')).toBeNull();
