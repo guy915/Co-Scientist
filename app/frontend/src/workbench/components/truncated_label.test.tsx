@@ -110,6 +110,15 @@ async function flushNextFrame() {
   });
 }
 
+// Fits are enqueued and run together one microtask later (see
+// truncated_label_fit), so a trigger that is itself synchronous still needs
+// the queue drained before the label's text reflects it.
+async function flushFitBatch() {
+  await act(async () => {
+    await Promise.resolve();
+  });
+}
+
 beforeEach(() => {
   containerWidth = 20;
   containerHeight = 10;
@@ -217,6 +226,7 @@ it('re-fits when the tab becomes visible again', async () => {
   act(() => {
     document.dispatchEvent(new Event('visibilitychange'));
   });
+  await flushFitBatch();
 
   expect(span.textContent).toBe(text);
 });
@@ -236,6 +246,7 @@ it('does not re-fit on visibilitychange while the tab is hidden', async () => {
   act(() => {
     document.dispatchEvent(new Event('visibilitychange'));
   });
+  await flushFitBatch();
   expect(span.textContent).toBe(truncated); // unchanged: tab still hidden
 
   Object.defineProperty(document, 'hidden', {
@@ -254,6 +265,46 @@ it('re-fits when the text prop changes', async () => {
   rerender(<TruncatedLabel text={longText} />);
   await flushNextFrame();
   expect(span.textContent).toBe('abc def ghi jkl mno…');
+});
+
+it('measures labels mounted together in lockstep, not one at a time', async () => {
+  // Each measurement forces the browser to flush layout, so fitting labels
+  // one after another pays a layout pass per probe: the ideas tab's 42 labels
+  // cost ~127 of them, which was two ~390ms blocking tasks and the whole of
+  // its "slow to open". Batched, every label writes its round-N candidate
+  // before any of them is measured, so a round costs one pass for the page.
+  //
+  // The read order is what distinguishes the two: sequential fitting reads
+  // one label repeatedly until it is done, lockstep visits each once per
+  // round.
+  const readers: string[] = [];
+  const original = Object.getOwnPropertyDescriptor(
+    HTMLElement.prototype,
+    'scrollWidth',
+  )!;
+  Object.defineProperty(HTMLElement.prototype, 'scrollWidth', {
+    configurable: true,
+    get(this: HTMLElement) {
+      readers.push(this.className);
+      return (this.textContent ?? '').length;
+    },
+  });
+
+  const text = 'abc def ghi jkl mno pqr stu vwx yz1 234';
+  render(
+    <>
+      <TruncatedLabel text={text} className="first" />
+      <TruncatedLabel text={text} className="second" />
+      <TruncatedLabel text={text} className="third" />
+    </>,
+  );
+  await flushNextFrame();
+  Object.defineProperty(HTMLElement.prototype, 'scrollWidth', original);
+
+  // Every label is measured before any is measured twice.
+  expect(new Set(readers.slice(0, 3))).toEqual(
+    new Set(['first', 'second', 'third']),
+  );
 });
 
 it('registers observers on mount and cleans them up on unmount', async () => {

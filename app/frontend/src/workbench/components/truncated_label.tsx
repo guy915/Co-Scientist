@@ -1,48 +1,8 @@
 import type {RefObject} from 'react';
 import {useLayoutEffect, useRef} from 'react';
+import {requestFit} from './truncated_label_fit';
 
-// True when the node's content no longer fits its box on the axis being
-// tested for the current `lines` setting (a 1px slack absorbs subpixel
-// rounding so borderline fits don't falsely register as overflow).
-function overflows(node: HTMLSpanElement, lines: number): boolean {
-  return lines > 1
-    ? node.scrollHeight > node.clientHeight + 1
-    : node.scrollWidth > node.clientWidth + 1;
-}
-
-// Rewrites `node.textContent` to `text`, or if that overflows, to the
-// longest word-truncated "word…" prefix of `text` that fits. Binary-searches
-// the word count. Every probe forces a synchronous reflow (write textContent,
-// read scroll size), so the search must be O(log words), not one word at a
-// time — long labels in long lists (the ideas rank list) otherwise stack
-// hundreds of reflows into a single commit and stall tab switches for ~a
-// second.
-function fitTruncatedText(
-  node: HTMLSpanElement,
-  text: string,
-  lines: number,
-): void {
-  node.textContent = text;
-  if (!overflows(node, lines)) return;
-  const words = text.split(/\s+/).filter(Boolean);
-  let lo = 1;
-  let hi = words.length - 1;
-  let best = 0;
-  while (lo <= hi) {
-    const mid = (lo + hi) >> 1;
-    node.textContent = `${words.slice(0, mid).join(' ')}…`;
-    if (overflows(node, lines)) {
-      hi = mid - 1;
-    } else {
-      best = mid;
-      lo = mid + 1;
-    }
-  }
-  // best === 0: even the first word alone is too wide — clip it.
-  node.textContent = `${words.slice(0, Math.max(best, 1)).join(' ')}…`;
-}
-
-// Schedules `fit` synchronously, again on the next animation frame (the
+// Schedules `fit` immediately, again on the next animation frame (the
 // first paint can measure before the rail's flex/grid layout has settled),
 // once more after web fonts load (which changes text metrics), on any
 // resize of `el`, and again whenever a backgrounded tab foregrounds (rAF and
@@ -84,12 +44,17 @@ function scheduleFits(fit: () => void, el: HTMLSpanElement): () => void {
   };
 }
 
-// Keeps `ref`'s span fitted to `text` (see fitTruncatedText) across every
+// Keeps `ref`'s span fitted to `text` (see truncated_label_fit) across every
 // event that can change what fits: mount, next-frame layout settle, web-font
 // load, container resize, and tab foregrounding. Extracted verbatim from the
 // component so TruncatedLabel itself stays a thin render — the
 // scheduling/timing in scheduleFits is deliberate (see its comments) and
 // must not change.
+//
+// Each of those triggers only *enqueues* the fit; the measurement itself runs
+// in a batch a microtask later (still before paint), so every label mounted or
+// resized together shares one set of layout flushes instead of forcing its
+// own. See truncated_label_fit for why that matters.
 function useTruncatedFit(
   ref: RefObject<HTMLSpanElement | null>,
   text: string,
@@ -102,7 +67,7 @@ function useTruncatedFit(
     function fit() {
       const node = ref.current;
       if (!node) return;
-      fitTruncatedText(node, text, lines);
+      requestFit(node, text, lines);
     }
 
     return scheduleFits(fit, el);
