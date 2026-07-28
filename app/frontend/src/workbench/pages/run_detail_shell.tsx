@@ -98,12 +98,30 @@ export function useTabNavigation(id: string | undefined, activeTab: TabName) {
   return {ideasViewKey, onTabChange};
 }
 
-/** Titlebar: back link plus the run's (possibly domain-overridden) title. */
-export function ReportTitlebar({title}: {title: string}) {
+/**
+ * Titlebar: back link plus the run's (possibly domain-overridden) title.
+ *
+ * @param title The run's display title.
+ * @param chatId The conversation this run was started from, when the rail
+ *   knows of one. The rail sends such a session straight to its run, so
+ *   this arrow is what keeps the transcript reachable; without a chat it
+ *   falls back to the workspace, as it always did.
+ */
+export function ReportTitlebar({
+  title,
+  chatId,
+}: {
+  title: string;
+  chatId?: string;
+}) {
   return (
     <header className={REPORT_TITLEBAR_CLASSES}>
       <div className={REPORT_TITLE_LEFT_CLASSES}>
-        <Link to="/" className={REPORT_BACK_CLASSES} aria-label="Back">
+        <Link
+          to={chatId ? `/chats/${chatId}` : '/'}
+          className={REPORT_BACK_CLASSES}
+          aria-label={chatId ? 'Back to conversation' : 'Back'}
+        >
           <Icon aria-hidden="true" name="arrow_back" />
         </Link>
         <h1 className={REPORT_TITLE_CLASSES}>

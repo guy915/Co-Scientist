@@ -5,6 +5,7 @@ import {conciseTitle} from '@/lib/text';
 import {TruncatedLabel} from './components/truncated_label';
 import {useFittingRows} from './hooks/use_fitting_rows';
 import {useOverflowing} from './hooks/use_overflowing';
+import {tabPath} from './run_tabs';
 import {tooltipClassNames} from './tooltip';
 
 const SIDE_HEADING_CLASSES = 'ucs-side-heading';
@@ -44,10 +45,23 @@ function isActiveChat(chat: ChatSummary, rail: ChatRailData): boolean {
   return Boolean(chat.run_id) && chat.run_id === rail.activeRunId;
 }
 
-// One row in the "Chats" list: the chat's generated title (falling back to a
-// concise clause of the scientist's challenge), linked to the conversation
-// itself rather than to its run -- a chat exists, and is worth reopening,
-// from its first turn onwards whether or not it ever started one.
+/**
+ * Where a chat row leads: the stage its session has actually reached.
+ *
+ * A session that has started a run has moved past its conversation, so the
+ * row opens the run -- which is the live progress view while it executes
+ * and the report once it lands, chosen by the run page itself. Reopening
+ * the transcript instead put every session, running or long finished, back
+ * at the same settled prompt and made the rail read as a list of drafts.
+ * Only a chat that never started a run opens the conversation, and the
+ * run's own back arrow returns there (see ReportTitlebar).
+ */
+function chatPath(chat: ChatSummary): string {
+  return chat.run_id ? tabPath(chat.run_id, undefined) : `/chats/${chat.id}`;
+}
+
+// One row in the "Chats" list: the chat's generated title, falling back to a
+// concise clause of the scientist's challenge.
 function ChatHistoryLink({
   chat,
   isActive,
@@ -58,7 +72,7 @@ function ChatHistoryLink({
   return (
     <Link
       data-fitting-row=""
-      to={`/chats/${chat.id}`}
+      to={chatPath(chat)}
       className={tooltipClassNames({
         className: isActive
           ? `${CHAT_HISTORY_LINK_CLASSES} ${CHAT_HISTORY_LINK_ACTIVE_CLASSES}`

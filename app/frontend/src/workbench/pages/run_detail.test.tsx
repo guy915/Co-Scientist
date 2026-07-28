@@ -51,6 +51,7 @@ vi.mock('@/api/runs', async importActual => {
       resolution: 'approved',
     }),
     getCitations: vi.fn().mockResolvedValue([]),
+    listInterviews: vi.fn().mockResolvedValue([]),
     getReport: vi.fn().mockResolvedValue(null),
     sendRunSteering: vi
       .fn()
@@ -67,6 +68,39 @@ beforeEach(() => {
   vi.mocked(runsApi.getMatches).mockResolvedValue([]);
   vi.mocked(runsApi.getReport).mockResolvedValue(null);
   vi.mocked(runsApi.getSafety).mockResolvedValue([]);
+  vi.mocked(runsApi.listInterviews).mockResolvedValue([]);
+});
+
+it('sends the back arrow to the conversation this run came from', async () => {
+  vi.mocked(runsApi.listInterviews).mockResolvedValue([
+    {
+      id: 'chat-7',
+      title: 'Pathway X',
+      challenge: 'Study pathway X',
+      status: 'completed',
+      run_id: 'run-1',
+      created_at: 1,
+      updated_at: 2,
+    },
+  ]);
+
+  renderAt('/runs/run-1/details');
+
+  // The rail sends a started session straight to its run, so this arrow is
+  // the only way back to the transcript — it must not land on an empty
+  // workspace, which is where every run used to send it.
+  expect(
+    await screen.findByRole('link', {name: 'Back to conversation'}),
+  ).toHaveAttribute('href', '/chats/chat-7');
+});
+
+it('falls back to the workspace when no conversation started the run', async () => {
+  renderAt('/runs/run-1/details');
+
+  expect(await screen.findByRole('link', {name: 'Back'})).toHaveAttribute(
+    'href',
+    '/',
+  );
 });
 
 it('shows live metrics and activity instead of report controls', async () => {

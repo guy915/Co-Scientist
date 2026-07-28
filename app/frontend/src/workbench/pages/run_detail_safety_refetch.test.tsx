@@ -3,6 +3,7 @@ import {MemoryRouter, Route, Routes} from 'react-router-dom';
 import {beforeEach, expect, it, vi} from 'vitest';
 import * as runsApi from '@/api/runs';
 import type {SafetyDecision} from '@/api/runs';
+import {ChatHistoryProvider} from '@/workbench/hooks/chat_history_context';
 import {RunHistoryProvider} from '@/workbench/hooks/run_history_context';
 import {RunDetail} from './run_detail';
 import {makeRun, renderAt} from './run_detail_test_support';
@@ -153,10 +154,12 @@ it('refetches on a coalesced batch ending in status with data', async () => {
   const makeUi = () => (
     <MemoryRouter initialEntries={['/runs/run-1/specifications']}>
       <RunHistoryProvider>
-        <Routes>
-          <Route path="/runs/:id" element={<RunDetail />} />
-          <Route path="/runs/:id/:tab" element={<RunDetail />} />
-        </Routes>
+        <ChatHistoryProvider>
+          <Routes>
+            <Route path="/runs/:id" element={<RunDetail />} />
+            <Route path="/runs/:id/:tab" element={<RunDetail />} />
+          </Routes>
+        </ChatHistoryProvider>
       </RunHistoryProvider>
     </MemoryRouter>
   );

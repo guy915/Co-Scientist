@@ -1,5 +1,6 @@
 import {useParams} from 'react-router-dom';
 import {isActiveStatus, type RunStatus, runGoal} from '@/api/runs';
+import {useChatHistoryContext} from '@/workbench/hooks/chat_history_context';
 import {useRunHistoryContext} from '@/workbench/hooks/run_history_context';
 import {IdeasTab} from '../components/tabs/ideas_tab';
 import {ActiveRunView} from './run_detail_active';
@@ -72,13 +73,17 @@ export function RunDetail() {
   const {ideasViewKey, onTabChange} = useTabNavigation(id, activeTab);
   const data = useRunDetailData(id);
   const activity = useRunActivity(id, data);
+  // The conversation this run came from, so the titlebar's back arrow
+  // returns to it rather than to an empty workspace.
+  const {chats} = useChatHistoryContext();
 
   if (!id) return null;
 
   const showTabs = activity === 'inactive';
+  const chatId = chats.find(chat => chat.run_id === id)?.id;
   return (
     <div className={reportPageClasses(showTabs)}>
-      <ReportTitlebar title={data.title} />
+      <ReportTitlebar title={data.title} chatId={chatId} />
 
       {showTabs && (
         <ReportTabNav activeTab={activeTab} onTabChange={onTabChange} />

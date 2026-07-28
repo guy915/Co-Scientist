@@ -1,6 +1,7 @@
 import {render, screen} from '@testing-library/react';
 import {MemoryRouter, Route, Routes, useLocation} from 'react-router-dom';
 import type {RunWithSummary} from '@/api/runs';
+import {ChatHistoryProvider} from '@/workbench/hooks/chat_history_context';
 import {RunHistoryProvider} from '@/workbench/hooks/run_history_context';
 import {RunDetail} from './run_detail';
 
@@ -30,18 +31,21 @@ export function LocationDisplay() {
 }
 
 // RunDetail seeds a run's activity from the shared run history (so a running
-// run does not flash the report chrome), so the provider is part of its
-// harness. Its own fetch degrades to an empty list, which is the "history
-// says nothing about this run" case.
+// run does not flash the report chrome) and finds the conversation this run
+// came from in the chat history (so its back arrow returns there), so both
+// providers are part of its harness. Each fetch degrades to an empty list,
+// which is the "history says nothing about this run" case.
 export function renderAt(path: string) {
   return render(
     <MemoryRouter initialEntries={[path]}>
       <RunHistoryProvider>
-        <Routes>
-          <Route path="/runs/:id" element={<RunDetail />} />
-          <Route path="/runs/:id/:tab" element={<RunDetail />} />
-        </Routes>
-        <LocationDisplay />
+        <ChatHistoryProvider>
+          <Routes>
+            <Route path="/runs/:id" element={<RunDetail />} />
+            <Route path="/runs/:id/:tab" element={<RunDetail />} />
+          </Routes>
+          <LocationDisplay />
+        </ChatHistoryProvider>
       </RunHistoryProvider>
     </MemoryRouter>,
   );

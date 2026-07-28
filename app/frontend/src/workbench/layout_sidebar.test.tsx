@@ -60,8 +60,7 @@ it('keeps only Co-Scientist navigation and real chat history', async () => {
   expect(screen.getByRole('button', {name: /Logs 0/i})).toBeInTheDocument();
 
   expect(await screen.findByText('Chats')).toBeInTheDocument();
-  // The row links to the conversation, not to the run it may have started:
-  // a chat is reopenable from its first turn onwards.
+  // This chat never started a run, so its row opens the conversation.
   await waitFor(() => {
     expect(screen.getByRole('link', {name: /ferroptosis/i})).toHaveAttribute(
       'href',
@@ -109,6 +108,33 @@ it('shows the generated session title in sidebar chats', async () => {
   // The full research goal still rides along as the hover tooltip.
   expect(chat.getAttribute('data-tooltip')).toMatch(
     /Generate testable hypotheses for ferroptosis/i,
+  );
+});
+
+it('opens a started session at its run, not back at the chat', async () => {
+  apiMock.listInterviews.mockResolvedValue([
+    chatFixture('chat-running', 'Map senolytic clearance in aged tissue.', {
+      title: 'Senolytic clearance',
+      run_id: 'run-senolytic',
+      status: 'completed',
+    }),
+    chatFixture('chat-draft', 'Explore ferroptosis in pancreatic cancer.', {
+      title: 'Ferroptosis draft',
+    }),
+  ]);
+
+  renderLayout();
+
+  // A session that started a run has moved past its conversation, so the
+  // row goes to the run — whose own page picks the live progress view or
+  // the report from the run's status. A session that never started one
+  // still opens the transcript.
+  expect(
+    await screen.findByRole('link', {name: 'Senolytic clearance'}),
+  ).toHaveAttribute('href', '/runs/run-senolytic/details');
+  expect(screen.getByRole('link', {name: 'Ferroptosis draft'})).toHaveAttribute(
+    'href',
+    '/chats/chat-draft',
   );
 });
 

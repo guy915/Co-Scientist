@@ -4,6 +4,7 @@ import {MemoryRouter, Route, Routes, useNavigate} from 'react-router-dom';
 import {beforeEach, expect, it, vi} from 'vitest';
 import * as runsApi from '@/api/runs';
 import type {Run} from '@/api/runs';
+import {ChatHistoryProvider} from '@/workbench/hooks/chat_history_context';
 import {RunHistoryProvider} from '@/workbench/hooks/run_history_context';
 import {RunDetail} from './run_detail';
 import {useRunDetailData} from './run_detail_data';
@@ -54,10 +55,12 @@ function renderRunDetail(path: string, switchTo?: string) {
   return render(
     <MemoryRouter initialEntries={[path]}>
       <RunHistoryProvider>
-        <Routes>
-          <Route path="/runs/:id/:tab" element={<RunDetail />} />
-        </Routes>
-        {switchTo && <RunSwitcher to={switchTo} />}
+        <ChatHistoryProvider>
+          <Routes>
+            <Route path="/runs/:id/:tab" element={<RunDetail />} />
+          </Routes>
+          {switchTo && <RunSwitcher to={switchTo} />}
+        </ChatHistoryProvider>
       </RunHistoryProvider>
     </MemoryRouter>,
   );
