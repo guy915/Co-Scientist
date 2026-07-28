@@ -135,9 +135,7 @@ def test_a_duplicate_and_a_rejected_idea_get_different_reasons() -> None:
         [released], [released, deduped, rejected], []
     )
 
-    reasons = {
-        entry["id"]: entry["reason"] for entry in buckets["non_viable"]
-    }
+    reasons = {entry["id"]: entry["reason"] for entry in buckets["non_viable"]}
     assert "higher-ranked" in reasons["h2"]
     assert "review" in reasons["h3"].lower()
     assert reasons["h2"] != reasons["h3"]

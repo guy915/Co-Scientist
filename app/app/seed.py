@@ -91,7 +91,12 @@ def _scenario_planning_lists(scenario: DemoScenario | None) -> PlanningLists:
                 "Strain-aware",
                 "Replication-ready",
             ],
-            criteria=["Causal specificity", "Biofilm relevance", "Experimental tractability", "Safety"],
+            criteria=[
+                "Causal specificity",
+                "Biofilm relevance",
+                "Experimental tractability",
+                "Safety",
+            ],
         )
     if "Circuit" in scenario.title:
         return PlanningLists(
@@ -110,7 +115,12 @@ def _scenario_planning_lists(scenario: DemoScenario | None) -> PlanningLists:
                 "Window-specific",
                 "Multimodal",
             ],
-            criteria=["Temporal specificity", "Circuit-to-behavior link", "Causal perturbation", "Replicability"],
+            criteria=[
+                "Temporal specificity",
+                "Circuit-to-behavior link",
+                "Causal perturbation",
+                "Replicability",
+            ],
         )
     return PlanningLists(
         requirements=[
@@ -128,7 +138,12 @@ def _scenario_planning_lists(scenario: DemoScenario | None) -> PlanningLists:
             "Death-pathway resolved",
             "Preclinical only",
         ],
-        criteria=["Pathway specificity", "Model generalizability", "Combination rationale", "Safety"],
+        criteria=[
+            "Pathway specificity",
+            "Model generalizability",
+            "Combination rationale",
+            "Safety",
+        ],
     )
 
 
@@ -224,7 +239,11 @@ def _curated_research_overview(
             "uncertainty": item.review,
             "references": [
                 {"title": evidence[item.evidence_index].title},
-                {"title": evidence[(item.evidence_index + 1) % len(evidence)].title},
+                {
+                    "title": evidence[
+                        (item.evidence_index + 1) % len(evidence)
+                    ].title
+                },
             ],
         }
         for item in hypotheses[:6]
@@ -353,7 +372,9 @@ def _seed_curated_scenario(
                 statement=item.statement,
                 parent_id=parent_id,
                 generation=generation,
-                category=("Evolved proposal" if parent_id else "Generated proposal"),
+                category=(
+                    "Evolved proposal" if parent_id else "Generated proposal"
+                ),
                 mechanism=item.mechanism,
                 expected_effect=item.expected_effect,
                 experimental_context=item.experiment,
