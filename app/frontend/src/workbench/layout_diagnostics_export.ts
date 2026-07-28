@@ -115,8 +115,10 @@ function statisticsSection(counts: DiagnosticCounts): string[] {
     `Errors: ${counts.errorCount}`,
     `Warnings: ${counts.warningCount}`,
     `Info: ${counts.infoCount}`,
+    // Named apart from the three above because it counts runs, not
+    // records: those three sum to the window, this one does not join them.
     // Server records stay in the export, but this is strictly a real-run count.
-    `Runs: ${counts.runCount}`,
+    `Distinct runs: ${counts.runCount}`,
     '',
   ];
 }

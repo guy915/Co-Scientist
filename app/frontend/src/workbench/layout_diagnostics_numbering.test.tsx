@@ -68,6 +68,41 @@ it('numbers a capped window by position in the stream', async () => {
   const metas = document.querySelectorAll('.ucs-diagnostic-entry-meta');
   expect(metas[0].querySelector('span')?.textContent).toBe('#151');
   expect(metas[99].querySelector('span')?.textContent).toBe('#250');
+
+  // The level bands tally the fetched window, not the whole stream, so a
+  // capped window says so rather than quietly failing to sum to Total.
+  expect(screen.getByText('Total 250')).toBeInTheDocument();
+  expect(screen.getByText('Showing 100')).toBeInTheDocument();
+  expect(screen.getByText('Info 100')).toBeInTheDocument();
+});
+
+it('omits the Showing chip when the bands already sum to the total', async () => {
+  logsApiMock.getAppLogs.mockResolvedValue({
+    logs: [
+      {
+        id: 4,
+        created_at: 1_700_000_000,
+        level: 'WARNING',
+        levelno: 30,
+        logger: 'app.main',
+        message: 'a lone warning',
+        run_id: null,
+        exc_text: null,
+      },
+    ],
+    last_id: 4,
+    total: 1,
+    session_total: 1,
+  });
+  renderLayout();
+
+  fireEvent.click(await screen.findByRole('button', {name: /Logs 1/i}));
+  await screen.findByText(/a lone warning/);
+
+  expect(screen.queryByText(/^Showing /)).toBeNull();
+  // No run owns this record, so the run chip is zero — and reads as "0
+  // runs" rather than as a band that would make the row fail to add up.
+  expect(screen.getByText('0 runs')).toBeInTheDocument();
 });
 
 it('never shows more than the 100 newest records', async () => {

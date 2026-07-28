@@ -382,7 +382,7 @@ function DiagnosticLogsPanel({
         onReport={onReport}
       />
       <div className={DIAGNOSTIC_INTRO_CLASSES}>
-        <DiagnosticChips total={total} counts={counts} />
+        <DiagnosticChips total={total} shown={entries.length} counts={counts} />
       </div>
       <DiagnosticLogList entries={entries} />
     </>
