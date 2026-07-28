@@ -14,7 +14,7 @@ it('opens the detail for a node named in the query string', () => {
 it('closes the detail when the open node is chosen again', async () => {
   const {container} = renderPage('/proposals?node=live-session');
   expect(container.querySelector('.proposals-detail')).toBeInTheDocument();
-  await userEvent.click(screen.getByRole('button', {name: /^Live sessions\./}));
+  await userEvent.click(screen.getByRole('link', {name: /^Live sessions\./}));
   // The panel stays mounted while it slides back out, so dismissal shows
   // up as the leaving state rather than as an immediate unmount.
   expect(
@@ -48,9 +48,7 @@ it('ignores an unknown node in the query string', () => {
 
 it('opens the detail when a node is selected', async () => {
   renderPage();
-  await userEvent.click(
-    screen.getByRole('button', {name: /^Adversary agent\./}),
-  );
+  await userEvent.click(screen.getByRole('link', {name: /^Adversary agent\./}));
   expect(
     await screen.findByLabelText('Adversary agent detail'),
   ).toBeInTheDocument();

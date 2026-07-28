@@ -1,5 +1,4 @@
 import {screen} from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
 import {describe, expect, it} from 'vitest';
 import {edges, nodes} from '../proposals/proposals_data';
 import {renderPage} from './proposals_page_test_support';
@@ -11,7 +10,7 @@ describe('graph rendering', () => {
     // carry its own accessible name.
     for (const node of nodes) {
       expect(
-        screen.getByRole('button', {name: new RegExp(`^${node.label}\\.`)}),
+        screen.getByRole('link', {name: new RegExp(`^${node.label}\\.`)}),
       ).toBeInTheDocument();
     }
   });
@@ -30,19 +29,21 @@ describe('graph rendering', () => {
 describe('keyboard access', () => {
   it('gives every node a keyboard-reachable control', () => {
     const {container} = renderPage();
-    const focusable = container.querySelectorAll(
-      '.proposals-node[tabindex="0"]',
-    );
+    // Each node is an anchor, so it is in the tab order (and openable in a
+    // new browser tab) without a tabindex of its own.
+    const focusable = container.querySelectorAll('a.proposals-node[href]');
     expect(focusable).toHaveLength(nodes.length);
   });
 
-  it('selects a node from the keyboard', async () => {
+  it('focuses a node as a link to its own URL', () => {
+    // Activating a focused link on Enter is the browser's own behavior (and
+    // user-event declines to emulate it for an SVG anchor), so what is left
+    // to pin here is that the focusable control is a real link to the
+    // proposal — the URL whose detail panel the test above renders.
     renderPage();
-    const node = screen.getByRole('button', {name: /^Live sessions\./});
+    const node = screen.getByRole('link', {name: /^Live sessions\./});
     node.focus();
-    await userEvent.keyboard('{Enter}');
-    expect(
-      await screen.findByLabelText('Live sessions detail'),
-    ).toBeInTheDocument();
+    expect(document.activeElement).toBe(node);
+    expect(node).toHaveAttribute('href', '/proposals?node=live-session');
   });
 });

@@ -1,8 +1,8 @@
 import {useCallback, useState} from 'react';
-import {Link, useNavigate} from 'react-router-dom';
+import {Link, useParams} from 'react-router-dom';
 import {Icon, type IconName} from '@/components/icon';
 import {TruncatedLabel} from '../components/truncated_label';
-import {TABS, type TabName} from '../run_tabs';
+import {TABS, tabPath, type TabName} from '../run_tabs';
 
 // Icon and label shown per tab in the nav bar (keyed by TabName so a missing
 // entry is a compile error, not a silent blank tab).
@@ -38,10 +38,13 @@ const REPORT_TABS_CLASSES =
   'reference-report-tabs grid grid-cols-4 border-b border-cosci-border ' +
   'max-[720px]:min-w-0 max-[720px]:overflow-x-hidden';
 
+// The tabs are anchors (so a middle/cmd-click opens the tab in a new browser
+// tab), hence the explicit no-underline: everything else here matches the
+// buttons they replaced.
 const REPORT_TAB_BUTTON_BASE_CLASSES =
   'relative grid min-w-0 cursor-pointer content-center justify-items-center ' +
   'gap-[0.35rem] border-0 bg-transparent font-[inherit] text-sm ' +
-  'max-[720px]:gap-[0.2rem] max-[720px]:text-[0.68rem]';
+  'no-underline max-[720px]:gap-[0.2rem] max-[720px]:text-[0.68rem]';
 
 const REPORT_TAB_SELECTED_CLASSES =
   'text-cosci-blue after:absolute after:right-[1.1rem] after:bottom-0 ' +
@@ -67,13 +70,14 @@ const REPORT_SKELETON_CLASSES =
   'max-[720px]:w-[min(100%_-_1.2rem,100%)] max-[720px]:max-w-none';
 
 /**
- * Tab-switch handling: navigates to the new tab route, and (special case)
- * bumps ideasViewKey when "All Ideas" is re-tapped while already active so
- * IdeasTab remounts and resets its mobile master-detail selection back to
- * the list (that view has no back button of its own — see MobileIdeaView).
+ * Tab-switch side effects. The tabs themselves are links, so the route change
+ * is the browser's (or the router's) job; what is left here is the special
+ * case: bumping ideasViewKey when "All Ideas" is re-tapped while already
+ * active, so IdeasTab remounts and resets its mobile master-detail selection
+ * back to the list (that view has no back button of its own — see
+ * MobileIdeaView).
  */
 export function useTabNavigation(id: string | undefined, activeTab: TabName) {
-  const navigate = useNavigate();
   // Bumped when "All Ideas" is re-tapped, remounting IdeasTab to reset its
   // mobile master-detail selection back to the list.
   const [ideasViewKey, setIdeasViewKey] = useState(0);
@@ -84,11 +88,8 @@ export function useTabNavigation(id: string | undefined, activeTab: TabName) {
       if (nextTab === 'ideas' && activeTab === 'ideas') {
         setIdeasViewKey(key => key + 1);
       }
-      // Always include the tab (details included) so every tab is the same
-      // required-param route — switching tabs never remounts RunDetail.
-      void navigate(`/runs/${id}/${nextTab}`);
     },
-    [id, navigate, activeTab],
+    [id, activeTab],
   );
 
   return {ideasViewKey, onTabChange};
@@ -110,7 +111,11 @@ export function ReportTitlebar({title}: {title: string}) {
   );
 }
 
-/** Tab nav: one button per TABS entry, routed via onTabChange. */
+/**
+ * Tab nav: one link per TABS entry. Each tab is a real href, so a middle- or
+ * cmd-click opens it in a new browser tab like any other link; onTabChange
+ * still fires on a plain click for the ideas-remount side effect.
+ */
 export function ReportTabNav({
   activeTab,
   onTabChange,
@@ -118,12 +123,15 @@ export function ReportTabNav({
   activeTab: TabName;
   onTabChange: (tab: TabName) => void;
 }) {
+  // Read from the route rather than a prop so the nav's own signature (and
+  // its call site) stays as it was.
+  const {id} = useParams<{id: string}>();
   return (
     <nav className={REPORT_TABS_CLASSES} aria-label="Goal report sections">
       {TABS.map(tabName => (
-        <button
+        <Link
           key={tabName}
-          type="button"
+          to={tabPath(id ?? '', tabName)}
           className={reportTabButtonClass(tabName === activeTab)}
           aria-current={tabName === activeTab ? 'page' : undefined}
           onClick={() => onTabChange(tabName)}
@@ -136,13 +144,13 @@ export function ReportTabNav({
           <span className={REPORT_TAB_LABEL_CLASSES}>
             {TAB_META[tabName].label}
           </span>
-        </button>
+        </Link>
       ))}
     </nav>
   );
 }
 
-// Picks the selected vs. unselected tab-button class variant.
+// Picks the selected vs. unselected tab class variant.
 function reportTabButtonClass(selected: boolean): string {
   return `${REPORT_TAB_BUTTON_BASE_CLASSES} ${
     selected ? REPORT_TAB_SELECTED_CLASSES : 'text-cosci-muted'

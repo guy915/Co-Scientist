@@ -31,3 +31,13 @@ export function normalizeTab(tab: string | undefined): TabName {
   if ((TABS as readonly string[]).includes(tab)) return tab as TabName;
   return TAB_ALIASES[tab] ?? 'details';
 }
+
+/**
+ * Builds a run's tab route. Always via normalizeTab, so a link can never
+ * point at an alias (or a typo) that the router would then have to rewrite,
+ * and every tab is the same required-param route — switching tabs is a param
+ * change, not a remount of RunDetail.
+ */
+export function tabPath(id: string, tab: string | undefined): string {
+  return `/runs/${id}/${normalizeTab(tab)}`;
+}

@@ -1,4 +1,5 @@
 import {useMemo} from 'react';
+import {Link} from 'react-router-dom';
 import {ArrowMarker} from './arrow_marker';
 import {
   isDirected,
@@ -199,20 +200,31 @@ interface GraphNodeProps {
   onSelect: (id: string) => void;
 }
 
+// The node's own URL. Choosing the open node again closes it, so the link
+// target is the toggle: the same gesture opens and dismisses.
+function nodeTarget(id: string, selected: boolean): {search: string} {
+  return {search: selected ? '' : `?node=${encodeURIComponent(id)}`};
+}
+
 function GraphNode(props: GraphNodeProps) {
   const {node, layout, state, selected, onActivate, onSelect} = props;
   const position = layout.positions[node.id];
   return (
-    <g
+    // An SVG <a>, so a middle- or cmd-click opens the proposal in a new tab
+    // like any other link. It replaces the focusable <g> outright rather than
+    // nesting inside one, keeping every `.proposals-node` rule (hover, focus
+    // ring, dimming, the layout glide) pointed at a single element; the
+    // position moves to a CSS transform, which the same transition animates.
+    <Link
+      to={nodeTarget(node.id, selected)}
+      replace
       className={
         `proposals-node is-${node.cluster}${nodeStateClass(node, state)}` +
         (selected ? ' is-selected' : '') +
         (node.featured ? ' is-featured' : '')
       }
-      transform={`translate(${position.x}, ${position.y})`}
-      role="button"
-      tabIndex={0}
-      aria-pressed={selected}
+      style={{transform: `translate(${position.x}px, ${position.y}px)`}}
+      aria-current={selected ? 'true' : undefined}
       aria-label={`${node.label}. ${node.summary}`}
       onMouseEnter={() => onActivate(node.id)}
       onMouseLeave={() => onActivate(null)}
@@ -220,13 +232,10 @@ function GraphNode(props: GraphNodeProps) {
       // isolation behavior as the mouse.
       onFocus={() => onActivate(node.id)}
       onBlur={() => onActivate(null)}
+      // The link owns the navigation; this only runs the selection's own
+      // bookkeeping (it holds a dismissed node mounted while the detail
+      // panel slides out), and lands on the same URL.
       onClick={() => onSelect(node.id)}
-      onKeyDown={event => {
-        if (event.key === 'Enter' || event.key === ' ') {
-          event.preventDefault();
-          onSelect(node.id);
-        }
-      }}
     >
       <rect
         x={-layout.node.width / 2}
@@ -237,7 +246,7 @@ function GraphNode(props: GraphNodeProps) {
       />
       <NodeLabel node={node} layout={layout} />
       {node.featured && <NodeStar layout={layout} />}
-    </g>
+    </Link>
   );
 }
 
@@ -328,8 +337,8 @@ export function ProposalsGraph(props: ProposalsGraphProps) {
       height={layout.height}
       role="img"
       aria-label={
-        'Relationship graph of the proposals. Each proposal is a focusable ' +
-        'button that opens its detail panel.'
+        'Relationship graph of the proposals. Each proposal is a link that ' +
+        'opens its detail panel.'
       }
     >
       <GraphDefs layout={layout} />

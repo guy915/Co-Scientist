@@ -1,4 +1,5 @@
-import {useMemo, useState} from 'react';
+import {useMemo} from 'react';
+import {Link, useSearchParams} from 'react-router-dom';
 import type {ClaimEvidenceRow, Hypothesis, MatchRow, Review} from '@/api/runs';
 import {ratingLabel, sortByEloDesc} from '@/lib/hypotheses';
 import {Icon} from '@/components/icon';
@@ -27,10 +28,11 @@ const IDEA_RANK_LIST_CLASSES =
 
 // Single column: the rank + Elo chips sit on a top row (see
 // IDEA_RANK_HEAD_CLASSES) and the title/preview run full width beneath them, so
-// the text is not indented under a rank column.
+// the text is not indented under a rank column. The row is an anchor (each
+// idea has its own ?idea= URL), hence the explicit no-underline.
 const IDEA_RANK_ROW_CLASSES =
   'idea-rank-row grid min-h-[8.9rem] w-full cursor-pointer content-start ' +
-  'gap-[0.5rem] rounded-[10px] ' +
+  'gap-[0.5rem] rounded-[10px] no-underline ' +
   'border border-cosci-idea-row-border bg-cosci-idea-row-bg ' +
   'p-4 text-left text-cosci-idea-row-text transition-colors duration-150 ' +
   'hover:border-cosci-idea-row-hover-border ' +
@@ -93,21 +95,32 @@ function resolveSelectedHypothesis(
   return isMobile ? null : sorted[0];
 }
 
+// The route of one idea: the selection lives in the query string (like the
+// proposals graph's ?node=) so a single idea can be linked to, opened in a
+// new tab, and shared. Only the search part is set, so the link stays on
+// whatever run/tab path it is rendered under.
+function ideaSearch(id: string): {search: string} {
+  return {search: `?idea=${encodeURIComponent(id)}`};
+}
+
 // Elo-ranked hypothesis list plus the currently selected one, keyed off
 // whichever layout (mobile vs. desktop) is active. `sorted` mirrors the
 // research-overview tab's "Winning ideas" ordering via the same
 // sortByEloDesc helper.
 function useIdeaSelection(hypotheses: Hypothesis[], isMobile: boolean) {
-  // Explicitly selected hypothesis id (set by tapping a row); null means "use
-  // the default" - see resolveSelectedHypothesis for what that resolves to.
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  // Explicitly selected hypothesis id (?idea=); absent means "use the
+  // default" - see resolveSelectedHypothesis for what that resolves to. The
+  // tab links carry no search, so leaving the tab drops the param and the
+  // mobile master-detail view reopens on the list.
+  const [params] = useSearchParams();
+  const selectedId = params.get('idea');
   const sorted = useMemo(() => sortByEloDesc(hypotheses), [hypotheses]);
   const selected = useMemo(
     () => resolveSelectedHypothesis(sorted, selectedId, isMobile),
     [sorted, selectedId, isMobile],
   );
 
-  return {sorted, selected, onSelect: setSelectedId};
+  return {sorted, selected};
 }
 
 /**
@@ -127,7 +140,7 @@ export function IdeasTab({
   claimEvidence?: ClaimEvidenceRow[];
 }) {
   const isMobile = useIsMobile();
-  const {sorted, selected, onSelect} = useIdeaSelection(hypotheses, isMobile);
+  const {sorted, selected} = useIdeaSelection(hypotheses, isMobile);
 
   if (!hypotheses.length) {
     return (
@@ -148,7 +161,6 @@ export function IdeasTab({
         reviews={reviews}
         matches={matches}
         claimEvidence={claimEvidence}
-        onSelect={onSelect}
       />
     </div>
   );
@@ -162,19 +174,18 @@ interface IdeaViewProps {
   reviews: Review[];
   matches: MatchRow[];
   claimEvidence: ClaimEvidenceRow[];
-  onSelect: (id: string) => void;
 }
 
 // Master-detail: the list swaps to a single idea on tap. There is no back
-// affordance here — the user returns to the list by tapping the "All Ideas"
-// tab, which remounts this view (see RunDetail's tab handler).
+// affordance here — the browser's own back gesture returns to the list (each
+// idea is a URL), as does re-tapping the "All Ideas" tab, whose link carries
+// no ?idea= param.
 function MobileIdeaView({
   sorted,
   selected,
   reviews,
   matches,
   claimEvidence,
-  onSelect,
 }: IdeaViewProps) {
   return (
     <div className={IDEA_MOBILE_VIEW_CLASSES}>
@@ -196,7 +207,6 @@ function MobileIdeaView({
               rank={index + 1}
               hypothesis={h}
               selected={false}
-              onSelect={() => onSelect(h.id)}
             />
           ))}
         </ol>
@@ -212,7 +222,6 @@ function DesktopIdeaSplit({
   reviews,
   matches,
   claimEvidence,
-  onSelect,
 }: IdeaViewProps) {
   return (
     <div className={IDEA_SPLIT_SHELL_CLASSES}>
@@ -227,7 +236,6 @@ function DesktopIdeaSplit({
               rank={index + 1}
               hypothesis={h}
               selected={h.id === selected?.id}
-              onSelect={() => onSelect(h.id)}
             />
           ))}
         </ol>
@@ -284,19 +292,19 @@ function IdeaListItem({
   rank,
   hypothesis,
   selected,
-  onSelect,
 }: {
   rank: number;
   hypothesis: Hypothesis;
   selected: boolean;
-  onSelect: () => void;
 }) {
   return (
     <li>
-      <button
-        type="button"
+      {/* No `replace`: on mobile the list is the previous entry, so the
+          browser's back gesture returns to it. */}
+      <Link
+        to={ideaSearch(hypothesis.id)}
         className={ideaRowClassName(selected)}
-        onClick={onSelect}
+        aria-current={selected ? 'true' : undefined}
       >
         <IdeaRankHead rank={rank} hypothesis={hypothesis} />
         <TruncatedLabel
@@ -308,7 +316,7 @@ function IdeaListItem({
           text={hypothesis.statement}
           lines={2}
         />
-      </button>
+      </Link>
     </li>
   );
 }
