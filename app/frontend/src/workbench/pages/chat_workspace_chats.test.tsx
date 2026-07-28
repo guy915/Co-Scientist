@@ -76,7 +76,7 @@ it('reopens a chat from its id with the transcript and its thinking', async () =
   ).toBeInTheDocument();
   // The turn's chain of thought is kept with it rather than dropped when the
   // reply lands, so a reopened chat can still show why it asked.
-  expect(screen.getByText('Thoughts')).toBeInTheDocument();
+  expect(screen.getByText('Thinking')).toBeInTheDocument();
   expect(
     screen.getByText('No mechanism named yet, so ask for one.'),
   ).toBeInTheDocument();
