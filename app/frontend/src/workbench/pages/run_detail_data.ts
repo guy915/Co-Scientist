@@ -228,8 +228,20 @@ function useRunCollections() {
 
 function useRunFetch(id: string | undefined) {
   const {applyFetched, reset, ...collections} = useRunCollections();
-  const [error, setError] = useState<string | null>(null);
-  const [loaded, setLoaded] = useState(false);
+  // Which run the settled state describes, rather than a bare loaded flag and
+  // a bare error. The reset below runs in an effect, i.e. after the render
+  // that follows an id change -- so on that render bare values still describe
+  // the *previous* run, and the page paints a frame of the last run's report
+  // (tab nav, ideas and all) before the effect clears them. Matching on the
+  // current id is correct during that render, with no effect ordering to
+  // depend on.
+  const [settled, setSettled] = useState<{
+    id: string;
+    error: string | null;
+  } | null>(null);
+  const current = settled?.id === id ? settled : null;
+  const loaded = current !== null;
+  const error = current?.error ?? null;
   // The run the page is currently showing, so a response can be checked
   // against it after the await (see refresh below).
   const shownId = useRef(id);
@@ -246,8 +258,7 @@ function useRunFetch(id: string | undefined) {
       // it would repopulate the new run's view with the old run's data.
       if (shownId.current !== id) return;
       if (outcome.data) applyFetched(outcome.data);
-      setError(outcome.error);
-      setLoaded(true);
+      setSettled({id, error: outcome.error});
     },
     [id, applyFetched],
   );
@@ -267,8 +278,6 @@ function useRunFetch(id: string | undefined) {
     shownId.current = id;
     resetPending();
     reset();
-    setError(null);
-    setLoaded(false);
     void refresh();
   }, [id, refresh, resetPending, reset]);
 
