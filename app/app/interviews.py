@@ -229,23 +229,47 @@ def _fallback_interview_response(
     }
 
 
+def _reasoning_capture(
+    on_reasoning: ReasoningSink | None,
+) -> tuple[ReasoningSink, list[str]]:
+    """Return a reasoning sink that records fragments while relaying them.
+
+    Returns:
+        A ``(sink, fragments)`` pair; ``fragments`` fills as the model
+        reasons, so the caller can persist the turn's whole chain of
+        thought once the turn resolves.
+    """
+    fragments: list[str] = []
+
+    async def sink(fragment: str) -> None:
+        fragments.append(fragment)
+        if on_reasoning is not None:
+            await on_reasoning(fragment)
+
+    return sink, fragments
+
+
 async def _advance(
     interview_id: str, on_reasoning: ReasoningSink | None = None
 ) -> dict[str, Any]:
     """Run one Agent turn and persist its derivation for later resume.
 
+    The turn's chain of thought is persisted alongside its message: a chat
+    is short, so its own thinking stays in the transcript the next turn is
+    derived from, and a resumed chat shows the reasoning the scientist
+    watched arrive rather than dropping it.
+
     Args:
         interview_id: The interview to advance.
-        on_reasoning: Optional sink for live chain-of-thought fragments. The
-            reasoning is relayed for display only and never persisted, so a
-            resumed interview replays its turns without stale thinking.
+        on_reasoning: Optional sink for live chain-of-thought fragments.
 
     Returns:
         The updated interview row.
     """
     interview = store.get_interview(interview_id)
     assert interview is not None
-    response, used_fallback = await _run_interview_turn(interview, on_reasoning)
+    sink, fragments = _reasoning_capture(on_reasoning)
+    response, used_fallback = await _run_interview_turn(interview, sink)
     fields = _normalized_fields(response)
     message = str(response.get("assistant_message") or "").strip()
     if not message:
@@ -253,7 +277,10 @@ async def _advance(
             status_code=502, detail="Interview Agent returned no message."
         )
     completed = _interview_turn_completed(response, fields, used_fallback)
-    store.append_interview_turn(interview_id, "agent", message)
+    store.append_interview_turn(
+        interview_id,
+        store.NewInterviewTurn("agent", message, "".join(fragments)),
+    )
     store.update_interview(
         interview_id,
         fields,
@@ -374,6 +401,17 @@ async def create_interview(
     return _interview_stream(str(interview["id"]))
 
 
+@router.get("")
+async def list_interviews(request: Request) -> list[dict[str, Any]]:
+    """List the caller's chats, newest first, without their transcripts.
+
+    Scoped to the calling client exactly as ``_owned_interview`` is: a chat
+    carries a scientist's unfinished research goal, so it is never listed
+    across clients.
+    """
+    return store.list_interviews(client_id(request))
+
+
 @router.get("/{interview_id}")
 async def get_interview(interview_id: str, request: Request) -> dict[str, Any]:
     """Resume an owned interview with its full transcript and progress."""
@@ -388,7 +426,9 @@ async def add_interview_turn(
     interview = _owned_interview(interview_id, request)
     if interview["status"] != "active":
         raise HTTPException(status_code=409, detail="interview is not active")
-    store.append_interview_turn(interview_id, "user", body.content)
+    store.append_interview_turn(
+        interview_id, store.NewInterviewTurn("user", body.content)
+    )
     return _interview_stream(interview_id)
 
 

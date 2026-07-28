@@ -48,9 +48,11 @@ from app.store.hypotheses import (
     update_hypothesis_state,
 )
 from app.store.interviews import (
+    NewInterviewTurn,
     append_interview_turn,
     create_interview,
     get_interview,
+    list_interviews,
     update_interview,
 )
 from app.store.logs import (
@@ -169,6 +171,7 @@ __all__ = [
     "NewClaimEvidence",
     "NewEvidence",
     "NewHypothesis",
+    "NewInterviewTurn",
     "NewLogRecord",
     "NewMatch",
     "NewMessage",
@@ -228,6 +231,7 @@ __all__ = [
     "list_evidence",
     "list_feedback",
     "list_hypotheses",
+    "list_interviews",
     "list_logs",
     "list_matches",
     "list_messages",

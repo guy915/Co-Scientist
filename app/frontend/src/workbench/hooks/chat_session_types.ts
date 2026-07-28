@@ -19,11 +19,26 @@ export interface SpecStage {
   // The Agent's closing interview message, shown as the plan card's lead-in so
   // a completed interview reads as one response instead of a bubble + a card.
   intro?: string;
+  // The chain of thought behind that closing message, kept with it so the
+  // completing turn keeps its thinking like every other turn does.
+  reasoning?: string;
+}
+
+/** The Agent's closing turn, as staged onto the plan card. */
+export interface DraftIntro {
+  message?: string;
+  reasoning?: string;
 }
 
 /** View-layer collaborators the session needs but does not own. */
 export interface ChatSessionDeps {
   reloadHistory: () => Promise<void>;
+  /**
+   * Called with the durable chat id the moment a conversation becomes one,
+   * so the page can put it in the URL. Until then a chat has no id to route
+   * to -- the first turn is what creates it.
+   */
+  onChatStarted: (chatId: string) => void;
   focusComposer: () => void;
   setToast: (value: string | ToastState | null) => void;
   pubmedEnabled: boolean;
@@ -80,10 +95,11 @@ export interface HandlerDeps {
   stageDraftSpec: (
     spec: InferredRunSpec,
     createdAt?: number,
-    intro?: string,
+    intro?: DraftIntro,
   ) => void;
   focusComposer: () => void;
   reloadHistory: () => Promise<void>;
+  onChatStarted: (chatId: string) => void;
   pubmedEnabled: boolean;
   webSearchEnabled: boolean;
   paperCorpusEnabled: boolean;

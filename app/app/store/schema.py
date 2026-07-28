@@ -51,6 +51,9 @@ CREATE TABLE IF NOT EXISTS interview_turns (
     interview_id TEXT NOT NULL,
     role TEXT NOT NULL,               -- user | agent
     content TEXT NOT NULL,
+    -- the Agent's chain of thought for this turn; NULL for user turns and
+    -- for models that emit none
+    reasoning TEXT,
     created_at REAL NOT NULL,
     FOREIGN KEY (interview_id) REFERENCES interviews(id) ON DELETE CASCADE
 );

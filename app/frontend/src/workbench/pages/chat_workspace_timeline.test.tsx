@@ -1,6 +1,6 @@
 import type {ReactElement} from 'react';
 import {fireEvent, render, screen} from '@testing-library/react';
-import type {NavigateFunction} from 'react-router-dom';
+import {MemoryRouter, type NavigateFunction} from 'react-router-dom';
 import {expect, it, vi} from 'vitest';
 import {
   buildTimelineItems,
@@ -39,13 +39,14 @@ function baseArgs(
 }
 
 // Renders every item's node so RTL queries see the whole timeline at once.
+// The started-session card links to the run, so a router has to be in scope.
 function renderItems(items: {id: string; node: ReactElement | unknown}[]) {
   return render(
-    <>
+    <MemoryRouter>
       {items.map(item => (
         <div key={item.id}>{item.node as ReactElement}</div>
       ))}
-    </>,
+    </MemoryRouter>,
   );
 }
 
@@ -212,14 +213,20 @@ const startedSession: StartedSession = {
   at: 100,
 };
 
-it('wires open/retry/new-topic to their session handlers', () => {
+it('links to the run and wires retry/new-topic to their handlers', () => {
   const args = baseArgs({startedSession});
   const items = buildTimelineItems(args);
   expect(items).toHaveLength(1);
   renderItems(items);
 
-  fireEvent.click(screen.getByText('View session details'));
-  expect(args.navigate).toHaveBeenCalledWith('/runs/run-9/details');
+  // Both open affordances are links to the run, not click handlers, so a
+  // middle- or cmd-click opens the session in a new browser tab.
+  for (const name of [/Open$/, /View session details/]) {
+    expect(screen.getByRole('link', {name})).toHaveAttribute(
+      'href',
+      '/runs/run-9/details',
+    );
+  }
 
   fireEvent.click(screen.getByLabelText('Retry response'));
   expect(args.setStartedSession).toHaveBeenCalled();

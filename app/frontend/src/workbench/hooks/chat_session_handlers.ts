@@ -1,14 +1,21 @@
 import {type Dispatch, type FormEvent, type SetStateAction} from 'react';
-import {addInterviewTurn, createInterview, type Interview} from '@/api/runs';
+import {
+  addInterviewTurn,
+  createInterview,
+  type Interview,
+  type InterviewTurn,
+} from '@/api/runs';
 import {interviewToRunSpec, type InferredRunSpec} from '../run_spec';
 import {type Audience} from '../audience_context';
 import {copyText} from '@/lib/clipboard';
 import {type ChatEntry} from '../pages/chat_timeline_cards';
 import {type ToastState} from './use_toast';
+import {announceChatsChanged} from './chat_history_context';
 import {appendChatMessage, emitDiagnosticEvent} from './chat_session_helpers';
 import {promoteDraftToRun} from './chat_session_start_run';
 import {
   type ChatSessionDeps,
+  type DraftIntro,
   type HandlerDeps,
   type SpecStage,
 } from './chat_session_types';
@@ -25,6 +32,7 @@ interface SubmitComposerDeps {
   setToast: (value: string | ToastState | null) => void;
   setMessages: Dispatch<SetStateAction<ChatEntry[]>>;
   setInterview: (interview: Interview | null) => void;
+  onChatStarted: (chatId: string) => void;
   setIsStarting: (value: boolean) => void;
   setIsAwaitingAgent: (value: boolean) => void;
   setAgentReasoning: Dispatch<SetStateAction<string>>;
@@ -32,8 +40,14 @@ interface SubmitComposerDeps {
   stageDraftSpec: (
     spec: InferredRunSpec,
     createdAt?: number,
-    intro?: string,
+    intro?: DraftIntro,
   ) => void;
+}
+
+// A stored `null` reasoning and an absent turn mean the same thing here:
+// nothing to show and nothing to keep.
+function turnReasoning(turn: InterviewTurn | undefined): string | undefined {
+  return turn?.reasoning ?? undefined;
 }
 
 // Applies the Agent's reply for one interview turn to the chat log: a
@@ -50,7 +64,10 @@ function applyAgentTurn(
     .find(turn => turn.role === 'agent');
   if (updated.status === 'completed') {
     const spec = interviewToRunSpec(updated);
-    deps.stageDraftSpec(spec, sentAt + 0.002, agentTurn?.content);
+    deps.stageDraftSpec(spec, sentAt + 0.002, {
+      message: agentTurn?.content,
+      reasoning: turnReasoning(agentTurn),
+    });
     emitDiagnosticEvent({
       stage: 'LIFECYCLE',
       payload: {event: 'interview_completed', interview_id: updated.id},
@@ -58,12 +75,12 @@ function applyAgentTurn(
     return;
   }
   if (agentTurn) {
-    appendChatMessage(
-      deps.setMessages,
-      'assistant',
-      agentTurn.content,
-      sentAt + 0.001,
-    );
+    appendChatMessage(deps.setMessages, {
+      role: 'assistant',
+      content: agentTurn.content,
+      reasoning: turnReasoning(agentTurn),
+      createdAt: sentAt + 0.001,
+    });
   }
   emitDiagnosticEvent({
     stage: 'CHAT',
@@ -113,16 +130,25 @@ async function submitComposerMessage(deps: SubmitComposerDeps): Promise<void> {
   const text = beginComposerTurn(deps);
   if (text === null) return;
 
-  const sentAt = appendChatMessage(deps.setMessages, 'user', text);
+  const sentAt = appendChatMessage(deps.setMessages, {
+    role: 'user',
+    content: text,
+  });
   deps.setIsStarting(true);
   deps.setIsAwaitingAgent(true);
   // Each turn shows only its own thinking, so drop the previous turn's.
   deps.setAgentReasoning('');
   const onReasoning = (fragment: string) =>
     deps.setAgentReasoning(current => current + fragment);
+  const isFirstTurn = deps.interview === null;
   try {
     const updated = await startInterviewTurn(deps, text, onReasoning);
     deps.setInterview(updated);
+    // The chat exists server-side from here on: list it in the rail, and on
+    // its first turn put its id in the URL so reloading or reopening it
+    // returns to this conversation rather than a blank workspace.
+    announceChatsChanged();
+    if (isFirstTurn) deps.onChatStarted(updated.id);
     applyAgentTurn(updated, sentAt, deps);
   } catch (error) {
     deps.setError(describeSubmitError(error));
@@ -231,7 +257,11 @@ function retryAssistantMessage(
   message: ChatEntry,
   setMessages: Dispatch<SetStateAction<ChatEntry[]>>,
 ): void {
-  appendChatMessage(setMessages, 'assistant', message.content);
+  appendChatMessage(setMessages, {
+    role: 'assistant',
+    content: message.content,
+    reasoning: message.reasoning,
+  });
 }
 
 // Loads a previous message back into the composer for editing.
@@ -319,6 +349,7 @@ export function toHandlerDeps(
     stageDraftSpec: lifecycle.stageDraftSpec,
     focusComposer: view.focusComposer,
     reloadHistory: view.reloadHistory,
+    onChatStarted: view.onChatStarted,
     pubmedEnabled: view.pubmedEnabled,
     webSearchEnabled: view.webSearchEnabled,
     paperCorpusEnabled: view.paperCorpusEnabled,

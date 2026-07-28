@@ -1,9 +1,10 @@
 import {render} from '@testing-library/react';
-import {MemoryRouter, useLocation} from 'react-router-dom';
+import {MemoryRouter, Route, Routes, useLocation} from 'react-router-dom';
 import {vi} from 'vitest';
 import type {Run} from '@/api/runs';
 import {makeHypothesis, makeRun} from '@/test_fixtures';
 import {AudienceProvider, type Audience} from '../audience_context';
+import {ChatHistoryProvider} from '../hooks/chat_history_context';
 import {RunHistoryProvider} from '../hooks/run_history_context';
 import {ChatWorkspace} from './chat_workspace';
 
@@ -36,7 +37,9 @@ const apiMock = vi.hoisted(() => {
     createInterview: vi.fn(),
     createRun: vi.fn(),
     getHypotheses: vi.fn(),
+    getInterview: vi.fn(),
     listDemoRuns,
+    listInterviews: vi.fn(async () => []),
     listRuns,
     loadRunHistory,
     startRun: vi.fn(),
@@ -56,15 +59,20 @@ export {apiMock};
  *
  * @returns The React Testing Library render result.
  */
-export function renderWorkspace() {
+export function renderWorkspace(path = '/') {
   return render(
-    <MemoryRouter>
+    <MemoryRouter initialEntries={[path]}>
       {/* Declared up front so AudienceGate doesn't open the affiliation
           chooser over the workspace these tests are asserting on. */}
       <AudienceProvider initialAudience="general">
         <RunHistoryProvider>
-          <ChatWorkspace />
-          <LocationProbe />
+          <ChatHistoryProvider>
+            <Routes>
+              <Route path="/" element={<ChatWorkspace />} />
+              <Route path="/chats/:id" element={<ChatWorkspace />} />
+            </Routes>
+            <LocationProbe />
+          </ChatHistoryProvider>
         </RunHistoryProvider>
       </AudienceProvider>
     </MemoryRouter>,
@@ -90,7 +98,9 @@ export function renderWorkspaceAs(audience: Audience) {
     <MemoryRouter>
       <AudienceProvider initialAudience={audience}>
         <RunHistoryProvider>
-          <ChatWorkspace />
+          <ChatHistoryProvider>
+            <ChatWorkspace />
+          </ChatHistoryProvider>
         </RunHistoryProvider>
       </AudienceProvider>
     </MemoryRouter>,
@@ -193,6 +203,7 @@ export function installChatWorkspaceMocks() {
         id: 1,
         role: 'agent',
         content: 'I have enough detail to configure this research run.',
+        reasoning: 'Focus and constraints are both named, so this is ready.',
         created_at: 2,
       },
     ],

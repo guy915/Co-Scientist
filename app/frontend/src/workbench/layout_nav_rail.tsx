@@ -1,17 +1,19 @@
 import {type RefObject} from 'react';
 import {Link} from 'react-router-dom';
-import {type Run} from '@/api/runs';
 import {Icon, type IconName} from '@/components/icon';
-import {conciseTitle} from '@/lib/text';
+import {isModifiedClick} from '@/lib/modified_click';
 import {
   SETTINGS_SECTIONS,
   type SettingsSection,
 } from './components/settings_dialog';
-import {TruncatedLabel} from './components/truncated_label';
-import {useOverflowing} from './hooks/use_overflowing';
+// Re-exported so `ChatRailData` keeps its long-standing import site (the
+// shell reads it from the rail, not from the list module it now lives in).
+import {ChatHistorySidebar, type ChatRailData} from './layout_chat_list';
 import {type ShellPanel} from './layout_hooks';
 import {NAV_ICON_CLASSES, ShellPopover} from './layout_primitives';
 import {tooltipClassNames} from './tooltip';
+
+export type {ChatRailData};
 
 // The constants below pair a CSS class for the "open" rail state with one
 // for the "collapsed"/default state; each pair is selected at render time by
@@ -59,22 +61,6 @@ const SIDE_CONTENT_OPEN_CLASSES = 'ucs-side-content--open';
 
 const SIDE_CONTENT_COLLAPSED_CLASSES = 'ucs-side-content--collapsed';
 
-const SIDE_HEADING_CLASSES = 'ucs-side-heading';
-
-const CHAT_LIST_CLASSES = 'ucs-chat-list';
-
-// Applied only while the list has more chats than the rail can show, since it
-// turns the list into a scroll container (which clips its tooltips).
-const CHAT_LIST_SCROLLABLE_CLASSES = 'ucs-chat-list--scrollable';
-
-const CHAT_HISTORY_LINK_CLASSES = 'ucs-chat-link';
-
-const CHAT_HISTORY_LINK_ACTIVE_CLASSES = 'ucs-chat-link--active';
-
-const CHAT_HISTORY_LABEL_CLASSES = 'ucs-chat-label';
-
-const CHAT_HISTORY_MORE_CLASSES = 'ucs-chat-more';
-
 // Per-region class bundles for the rail's expanded vs collapsed presentation,
 // keyed by the single `navOpen` flag (see NavRail below). Replaces what would
 // otherwise be parallel `navOpen ? ... : ...` ternaries with one lookup.
@@ -113,10 +99,7 @@ interface NavRailTopProps {
   navOpen: boolean;
   toggleNav: () => void;
   startNewChat: () => void;
-  history: Run[];
-  activeRunId: string | undefined;
-  showAllChats: boolean;
-  onToggleShowAllChats: () => void;
+  rail: ChatRailData;
   nav: NavRailVariant;
 }
 
@@ -124,10 +107,7 @@ function NavRailTop({
   navOpen,
   toggleNav,
   startNewChat,
-  history,
-  activeRunId,
-  showAllChats,
-  onToggleShowAllChats,
+  rail,
   nav,
 }: NavRailTopProps) {
   return (
@@ -142,21 +122,13 @@ function NavRailTop({
         onClick={toggleNav}
       />
       <nav id="primary-navigation" className={nav.items}>
-        <NavActionButton
-          label="New chat"
-          icon="edit_square"
+        <NavNewChatLink
           className={nav.item}
           labelClassName={nav.label}
-          onClick={startNewChat}
+          onNewChat={startNewChat}
         />
       </nav>
-      <ChatHistorySidebar
-        navOpen={navOpen}
-        history={history}
-        activeRunId={activeRunId}
-        showAllChats={showAllChats}
-        onToggleShowAllChats={onToggleShowAllChats}
-      />
+      <ChatHistorySidebar sideContentClasses={nav.sideContent} rail={rail} />
     </div>
   );
 }
@@ -170,10 +142,7 @@ function NavRailTop({
  * @param navOpen Whether the rail is expanded (desktop) or open (mobile).
  * @param toggleNav Toggles the rail/drawer.
  * @param startNewChat Resets the chat workspace and navigates home.
- * @param history The recent runs to list in the Chats section.
- * @param activeRunId The run id to highlight as active, if any.
- * @param showAllChats Whether the chat list is expanded past its cap.
- * @param onToggleShowAllChats Toggles the chat-list expansion.
+ * @param rail The chat list, its expansion flag, and what to highlight.
  * @param activePanel The currently open popover, if any.
  * @param onTogglePanel Opens/closes the given popover.
  * @param onOpenSettings Opens the full-screen Settings dialog at a section.
@@ -184,10 +153,7 @@ interface NavRailProps {
   navOpen: boolean;
   toggleNav: () => void;
   startNewChat: () => void;
-  history: Run[];
-  activeRunId: string | undefined;
-  showAllChats: boolean;
-  onToggleShowAllChats: () => void;
+  rail: ChatRailData;
   activePanel: ShellPanel | null;
   onTogglePanel: (panel: ShellPanel) => void;
   onOpenSettings: (section: SettingsSection) => void;
@@ -198,10 +164,7 @@ export function NavRail({
   navOpen,
   toggleNav,
   startNewChat,
-  history,
-  activeRunId,
-  showAllChats,
-  onToggleShowAllChats,
+  rail,
   activePanel,
   onTogglePanel,
   onOpenSettings,
@@ -215,10 +178,7 @@ export function NavRail({
         navOpen={navOpen}
         toggleNav={toggleNav}
         startNewChat={startNewChat}
-        history={history}
-        activeRunId={activeRunId}
-        showAllChats={showAllChats}
-        onToggleShowAllChats={onToggleShowAllChats}
+        rail={rail}
         nav={nav}
       />
       <div className={nav.bottom}>
@@ -231,141 +191,6 @@ export function NavRail({
         />
       </div>
     </aside>
-  );
-}
-
-// One row in the "Chats" list: the run's generated session title (falling
-// back to a concise clause of the goal) linked to its details tab, with a
-// tooltip showing the full research goal and the active run highlighted.
-function ChatHistoryLink({run, isActive}: {run: Run; isActive: boolean}) {
-  return (
-    <Link
-      to={`/runs/${run.id}/details`}
-      className={tooltipClassNames({
-        className: isActive
-          ? `${CHAT_HISTORY_LINK_CLASSES} ${CHAT_HISTORY_LINK_ACTIVE_CLASSES}`
-          : CHAT_HISTORY_LINK_CLASSES,
-        placement: 'right',
-        wrap: true,
-      })}
-      aria-current={isActive ? 'page' : undefined}
-      data-tooltip={run.research_goal}
-    >
-      <TruncatedLabel
-        className={CHAT_HISTORY_LABEL_CLASSES}
-        text={run.title?.trim() || conciseTitle(run.research_goal)}
-      />
-    </Link>
-  );
-}
-
-// The scrollable run list itself, plus the "Show more"/"Show less" toggle
-// when the history exceeds the collapsed cap. Split out of
-// ChatHistorySidebar so the overflow-tracking ref/state (only ever read by
-// this list) stays local to the piece that uses it.
-interface ChatListProps {
-  visibleHistory: Run[];
-  activeRunId: string | undefined;
-  hasExtraChats: boolean;
-  showAllChats: boolean;
-  onToggleShowAllChats: () => void;
-}
-
-// The "Show more"/"Show less" toggle at the bottom of the chat list.
-function ShowMoreChatsButton({
-  showAllChats,
-  onToggle,
-}: {
-  showAllChats: boolean;
-  onToggle: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      className={CHAT_HISTORY_MORE_CLASSES}
-      onClick={onToggle}
-    >
-      {showAllChats ? 'Show less' : 'Show more'}
-      <Icon
-        aria-hidden="true"
-        name={showAllChats ? 'expand_less' : 'expand_more'}
-      />
-    </button>
-  );
-}
-
-function ChatList({
-  visibleHistory,
-  activeRunId,
-  hasExtraChats,
-  showAllChats,
-  onToggleShowAllChats,
-}: ChatListProps) {
-  // Only scroll the list when the rail cannot fit it. A scroll container clips
-  // its content even with no scrollbar showing, which would cut off the
-  // chat-link tooltips escaping to the right.
-  const [chatListRef, chatListOverflows] = useOverflowing<HTMLDivElement>();
-
-  return (
-    <div
-      ref={chatListRef}
-      className={
-        chatListOverflows
-          ? `${CHAT_LIST_CLASSES} ${CHAT_LIST_SCROLLABLE_CLASSES}`
-          : CHAT_LIST_CLASSES
-      }
-    >
-      {visibleHistory.map(run => (
-        <ChatHistoryLink
-          key={run.id}
-          run={run}
-          isActive={run.id === activeRunId}
-        />
-      ))}
-      {hasExtraChats && (
-        <ShowMoreChatsButton
-          showAllChats={showAllChats}
-          onToggle={onToggleShowAllChats}
-        />
-      )}
-    </div>
-  );
-}
-
-// The "Chats" section of the rail: the recent-run list (capped to 10 until
-// expanded) with the active run highlighted.
-interface ChatHistorySidebarProps {
-  navOpen: boolean;
-  history: Run[];
-  activeRunId: string | undefined;
-  showAllChats: boolean;
-  onToggleShowAllChats: () => void;
-}
-
-function ChatHistorySidebar({
-  navOpen,
-  history,
-  activeRunId,
-  showAllChats,
-  onToggleShowAllChats,
-}: ChatHistorySidebarProps) {
-  const sideContentClasses = (
-    navOpen ? NAV_RAIL_VARIANTS.open : NAV_RAIL_VARIANTS.collapsed
-  ).sideContent;
-  const visibleHistory = showAllChats ? history : history.slice(0, 10);
-  const hasExtraChats = history.length > 10;
-
-  return (
-    <div className={sideContentClasses}>
-      <p className={SIDE_HEADING_CLASSES}>Chats</p>
-      <ChatList
-        visibleHistory={visibleHistory}
-        activeRunId={activeRunId}
-        hasExtraChats={hasExtraChats}
-        showAllChats={showAllChats}
-        onToggleShowAllChats={onToggleShowAllChats}
-      />
-    </div>
   );
 }
 
@@ -427,7 +252,41 @@ function RailSettingsControl({
   );
 }
 
-// A single rail action (Menu/hamburger, New chat): an icon plus a label that
+// The rail's "New chat" action. A real link, so Cmd/middle-clicking it opens
+// a fresh workspace in a new tab like every other navigation here; the reset
+// still runs on a plain click, and only on a plain click -- see
+// isModifiedClick.
+function NavNewChatLink({
+  className,
+  labelClassName,
+  onNewChat,
+}: {
+  className: string;
+  labelClassName: string;
+  onNewChat: () => void;
+}) {
+  return (
+    <Link
+      to="/"
+      state={{cosciAction: 'new-chat'}}
+      className={tooltipClassNames({className, placement: 'right'})}
+      aria-label="New chat"
+      data-tooltip="New chat"
+      onClick={event => {
+        if (!isModifiedClick(event)) onNewChat();
+      }}
+    >
+      <Icon
+        aria-hidden="true"
+        className={NAV_ICON_CLASSES}
+        name="edit_square"
+      />
+      <span className={labelClassName}>New chat</span>
+    </Link>
+  );
+}
+
+// A single rail action (Menu/hamburger, Settings): an icon plus a label that
 // is visually collapsed to icon-only via `labelClassName` when the rail is
 // collapsed, with the full label still exposed to assistive tech through
 // aria-label/data-tooltip.

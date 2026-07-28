@@ -25,7 +25,10 @@ it('shows composer file and connector source controls', async () => {
 
   expect(screen.getByRole('menu', {name: 'Connectors'})).toBeInTheDocument();
   expect(screen.getByText('Connectors')).toBeInTheDocument();
-  expect(screen.getByText('PubMed')).toBeInTheDocument();
+  // With no /status answer the menu says so, rather than passing its
+  // fallback off as the deployment's real source list.
+  expect(screen.getByText('Checking available sources…')).toBeInTheDocument();
+  expect(await screen.findByText(/Sources unavailable/)).toBeInTheDocument();
   expect(screen.queryByText('Google Search')).not.toBeInTheDocument();
   expect(screen.queryByText('Drive')).not.toBeInTheDocument();
   expect(screen.queryByText('SharePoint')).not.toBeInTheDocument();

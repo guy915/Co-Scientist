@@ -1,3 +1,4 @@
+import {Link} from 'react-router-dom';
 import {TruncatedLabel} from '../components/truncated_label';
 import {
   STARTED_COPY_CLASSES,
@@ -29,19 +30,21 @@ export interface StartedSession {
  * detail page, and "what next" actions (open details, or start a new topic).
  *
  * @param session The started session (id, title, start timestamp) to display.
- * @param onOpen Handler to navigate to the run's detail page.
+ * @param href Route of the run's detail page. A URL rather than an open
+ *   handler so both affordances below can be real links, which a middle- or
+ *   cmd-click opens in a new browser tab.
  * @param onRetry Handler to re-timestamp/re-surface this card (see its call
  *   site for why: bumping `at` re-sorts it to the current time).
  * @param onNewTopic Handler to reset the workspace and start a fresh topic.
  */
 export function StartedSessionCard({
   session,
-  onOpen,
+  href,
   onRetry,
   onNewTopic,
 }: {
   session: StartedSession;
-  onOpen: () => void;
+  href: string;
   onRetry: () => void;
   onNewTopic: () => void;
 }) {
@@ -61,8 +64,8 @@ export function StartedSessionCard({
           it might take a few minutes for the first ideas to be ready to view.
         </p>
       </div>
-      <SessionLinkCard session={session} onOpen={onOpen} />
-      <SessionNextActions onOpen={onOpen} onNewTopic={onNewTopic} />
+      <SessionLinkCard session={session} href={href} />
+      <SessionNextActions href={href} onNewTopic={onNewTopic} />
       <MessageActionRow
         actions={responseActions(
           onRetry,
@@ -78,17 +81,13 @@ export function StartedSessionCard({
 // (truncated) plus a "Research session" byline and an "Open" affordance.
 function SessionLinkCard({
   session,
-  onOpen,
+  href,
 }: {
   session: StartedSession;
-  onOpen: () => void;
+  href: string;
 }) {
   return (
-    <button
-      type="button"
-      className={STARTED_SESSION_CARD_CLASSES}
-      onClick={onOpen}
-    >
+    <Link to={href} className={`${STARTED_SESSION_CARD_CLASSES} no-underline`}>
       <span className="block min-w-0">
         <strong className={STARTED_SESSION_TITLE_CLASSES}>
           <TruncatedLabel
@@ -99,17 +98,18 @@ function SessionLinkCard({
         <small className={STARTED_SESSION_META_CLASSES}>Research session</small>
       </span>
       <span className={STARTED_OPEN_CLASSES}>Open</span>
-    </button>
+    </Link>
   );
 }
 
 // The "what next" block under a started session: view the session details,
-// or start a fresh topic.
+// or start a fresh topic. The first is a navigation, so it is a link wearing
+// the pill-button styling rather than a button.
 function SessionNextActions({
-  onOpen,
+  href,
   onNewTopic,
 }: {
-  onOpen: () => void;
+  href: string;
   onNewTopic: () => void;
 }) {
   return (
@@ -117,13 +117,12 @@ function SessionNextActions({
       <p className={STARTED_NEXT_COPY_CLASSES}>
         What would you like to do next?
       </p>
-      <button
-        type="button"
-        className={STARTED_NEXT_BUTTON_CLASSES}
-        onClick={onOpen}
+      <Link
+        to={href}
+        className={`${STARTED_NEXT_BUTTON_CLASSES} inline-flex items-center no-underline`}
       >
         View session details
-      </button>
+      </Link>
       <button
         type="button"
         className={STARTED_NEXT_BUTTON_CLASSES}

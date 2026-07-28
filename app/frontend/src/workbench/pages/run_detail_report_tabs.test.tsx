@@ -102,6 +102,27 @@ it('activates the tab named directly in the URL', async () => {
   expect(tab(/Research Overview/)).toHaveAttribute('aria-current', 'page');
 });
 
+it('renders each tab as a link to its canonical route', async () => {
+  // Anchors rather than buttons, so a middle- or cmd-click opens the tab in
+  // a new browser tab.
+  renderAt('/runs/run-1');
+  await screen.findByText('All Ideas');
+  expect(tab(/^Goal Details$/)).toHaveAttribute('href', '/runs/run-1/details');
+  expect(tab(/Learning/)).toHaveAttribute('href', '/runs/run-1/learning');
+  expect(tab(/Research Overview/)).toHaveAttribute(
+    'href',
+    '/runs/run-1/overview',
+  );
+  expect(tab(/All Ideas/)).toHaveAttribute('href', '/runs/run-1/ideas');
+});
+
+it('links to the canonical tab even from an aliased URL', async () => {
+  // "specs" aliases to details; the nav never links back to the alias.
+  renderAt('/runs/run-1/specs');
+  await screen.findByText('All Ideas');
+  expect(tab(/^Goal Details$/)).toHaveAttribute('href', '/runs/run-1/details');
+});
+
 it('navigates when a tab is clicked', async () => {
   renderAt('/runs/run-1');
   await screen.findByText('All Ideas');

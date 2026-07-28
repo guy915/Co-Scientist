@@ -1,6 +1,6 @@
 import {Icon, type IconName} from '@/components/icon';
 import type {SystemStatus} from '@/api/system';
-import {useSystemStatus} from './hooks/use_system_status';
+import {useSystemStatus} from './hooks/system_status_context';
 import {tooltipClassNames} from './tooltip';
 
 const STATUS_CHIP_BASE_CLASSES =

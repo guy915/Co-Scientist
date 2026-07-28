@@ -19,15 +19,25 @@ export interface SystemStatusState {
  * its own availability probes, so this stays cheap. A failed fetch flags
  * the API as unreachable but keeps the last known payload for display.
  *
+ * Consumers should read {@link useSystemStatus} from
+ * `hooks/system_status_context` instead, which shares one poll across the
+ * whole shell; this is the polling engine behind it.
+ *
+ * @param options.enabled Set false to hold the poll (used by the context's
+ *   fallback, which must call this hook unconditionally but only wants it to
+ *   run when no provider is mounted).
  * @returns The latest system status and reachability flag.
  */
-export function useSystemStatus(): SystemStatusState {
+export function usePolledSystemStatus(
+  {enabled}: {enabled: boolean} = {enabled: true},
+): SystemStatusState {
   const [state, setState] = useState<SystemStatusState>({
     status: null,
     unreachable: false,
   });
 
   useEffect(() => {
+    if (!enabled) return;
     let disposed = false;
 
     async function refresh() {
@@ -47,7 +57,7 @@ export function useSystemStatus(): SystemStatusState {
       disposed = true;
       window.clearInterval(timer);
     };
-  }, []);
+  }, [enabled]);
 
   return state;
 }

@@ -11,6 +11,7 @@ import {
   type NavigateFunction,
   useLocation,
   useNavigate,
+  useParams,
 } from 'react-router-dom';
 import {type Run} from '@/api/runs';
 import {conciseTitle} from '@/lib/text';
@@ -19,6 +20,7 @@ import {HEADER_TITLE_EVENT, NEW_CHAT_EVENT} from '../dom_events';
 import {useToast, type ToastState} from '../hooks/use_toast';
 import {useRunHistory} from '../hooks/use_run_history';
 import {useChatSession} from '../hooks/use_chat_session';
+import {useChatRehydration} from '../hooks/use_chat_rehydrate';
 import {type SpecStage} from '../hooks/chat_session_types';
 import {
   HOME_TOAST_ACTION_CLASSES,
@@ -93,12 +95,24 @@ function useWorkspaceSessionBundle(
   const {audience} = useAudience();
   const {toast, setToast} = useToast();
   const {history, homeScores, reloadHistory} = useRunHistory();
+  const navigate = useNavigate();
   // Focuses the composer textarea on the next frame; used both locally and
   // injected into useChatSession.
   const focusComposer = useCallback(focusComposerTextarea, []);
+  // A conversation gets its durable id from its first turn; putting it in the
+  // URL there is what makes reloading (or reopening from the rail) return to
+  // this chat rather than a blank workspace. Replace, not push: the blank
+  // workspace is not a step worth going back to.
+  const onChatStarted = useCallback(
+    (chatId: string) => {
+      void navigate(`/chats/${chatId}`, {replace: true});
+    },
+    [navigate],
+  );
   const session = useChatSession({
     reloadHistory,
     focusComposer,
+    onChatStarted,
     setToast,
     pubmedEnabled: connectors.pubmedEnabled,
     webSearchEnabled: connectors.webSearchEnabled,
@@ -181,6 +195,8 @@ function useWorkspaceLayoutBundle(
  */
 export function ChatWorkspace() {
   const navigate = useNavigate();
+  // Present on /chats/:id, absent on "/" (a chat that has not started yet).
+  const {id: chatId} = useParams<{id?: string}>();
   // Recents list on the home stage is capped by default; this expands it.
   const [showAllRecents, setShowAllRecents] = useState(false);
   const connectors = useConnectorToggles();
@@ -190,6 +206,7 @@ export function ChatWorkspace() {
   // and builds the timeline on top of it.
   const sessionBundle = useWorkspaceSessionBundle(connectors);
   const {session, toast, history, homeScores} = sessionBundle;
+  useChatRehydration(session, chatId);
   const {timelineItems, scrollRef, composerRef} = useWorkspaceLayoutBundle(
     sessionBundle,
     navigate,

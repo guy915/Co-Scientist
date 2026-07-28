@@ -9,7 +9,7 @@ import {type Connector, type SystemStatus} from '@/api/system';
 import {Icon, type IconName} from '@/components/icon';
 import {type Audience, useAudience} from '../audience_context';
 import {joinClasses} from '../classes';
-import {useSystemStatus} from '../hooks/use_system_status';
+import {useSystemStatus} from '../hooks/system_status_context';
 import {tooltipClassNames} from '../tooltip';
 import {
   COMPOSER_FILE_INPUT_CLASSES,
@@ -22,6 +22,7 @@ import {
   CONNECTOR_TOGGLE_ON_CLASSES,
   CONNECTORS_MENU_CLASSES,
   CONNECTORS_MENU_HEADER_CLASSES,
+  CONNECTORS_MENU_NOTE_CLASSES,
   CONNECTORS_MENU_ROW_CLASSES,
 } from './chat_home_classes';
 
@@ -182,7 +183,11 @@ function visibleConnectors(
   status: SystemStatus | null,
   audience: Audience | null,
 ): Connector[] {
-  const advertised = status?.connectors?.length
+  // No answer yet is not the same as an empty answer: the caller renders its
+  // own note for that, rather than this passing off the fallback as the
+  // deployment's real source list.
+  if (status === null) return [];
+  const advertised = status.connectors?.length
     ? status.connectors
     : DEFAULT_CONNECTORS;
   return advertised.filter(
@@ -265,15 +270,56 @@ function ConnectorMenuRow({
   );
 }
 
-// The connectors menu itself: a header plus one ConnectorMenuRow per visible
-// connector. Closed by the outside-mousedown effect in the parent composer
-// (see useConnectorsMenu).
+// A non-row line in the menu: the states that are not a connector list, and
+// must not read as one.
+function ConnectorsNote({text}: {text: string}) {
+  return (
+    <p className={CONNECTORS_MENU_NOTE_CLASSES} role="note">
+      {text}
+    </p>
+  );
+}
+
+// The note shown in place of rows, or nothing when there are rows to show.
+// A menu with no rows and no explanation is the one outcome to avoid: it
+// looks like the list failed to load however it got there.
+function ConnectorsMenuState({
+  status,
+  unreachable,
+  visible,
+}: {
+  status: SystemStatus | null;
+  unreachable: boolean;
+  visible: number;
+}) {
+  if (visible > 0) return null;
+  if (status !== null) {
+    return <ConnectorsNote text="No sources are configured for this run." />;
+  }
+  if (unreachable) {
+    return (
+      <ConnectorsNote text="Sources unavailable — the API is unreachable." />
+    );
+  }
+  return <ConnectorsNote text="Checking available sources…" />;
+}
+
+/**
+ * The connectors menu: a header plus one ConnectorMenuRow per visible
+ * connector. Closed by the outside-mousedown effect in the parent composer
+ * (see useConnectorsMenu).
+ *
+ * The three states are kept apart on purpose. "Still checking" and "could not
+ * check" both used to render the PubMed-only fallback, which is a claim about
+ * the deployment -- a scientist reading it has no way to tell an unreachable
+ * API from a backend that genuinely advertises one source.
+ */
 function ConnectorsMenu({
   connectors: toggles,
 }: {
   connectors: ConnectorToggleProps;
 }) {
-  const {status} = useSystemStatus();
+  const {status, unreachable} = useSystemStatus();
   const {audience} = useAudience();
   const connectors = visibleConnectors(status, audience);
   return (
@@ -285,6 +331,11 @@ function ConnectorsMenu({
       <div className={CONNECTORS_MENU_HEADER_CLASSES}>
         <span>Connectors</span>
       </div>
+      <ConnectorsMenuState
+        status={status}
+        unreachable={unreachable}
+        visible={connectors.length}
+      />
       {connectors.map(connector => (
         <ConnectorMenuRow
           key={connector.id}

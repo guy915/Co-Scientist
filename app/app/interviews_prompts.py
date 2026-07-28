@@ -140,12 +140,23 @@ def _ready(fields: dict[str, Any]) -> bool:
     )
 
 
+def _transcript_turn(turn: dict[str, Any]) -> dict[str, Any]:
+    """Render one transcript turn, carrying its reasoning when stored.
+
+    A chat's turns are few and short, so the Agent's own chain of thought
+    stays in the context it is asked to continue from -- the next question
+    follows from the reasoning as much as from the message it produced.
+    """
+    entry = {"role": turn["role"], "content": turn["content"]}
+    reasoning = str(turn.get("reasoning") or "").strip()
+    if reasoning:
+        entry["reasoning"] = reasoning
+    return entry
+
+
 def _prompt(interview: dict[str, Any]) -> str:
     """Render the persisted transcript and current derivation for the model."""
-    transcript = [
-        {"role": turn["role"], "content": turn["content"]}
-        for turn in interview["turns"]
-    ]
+    transcript = [_transcript_turn(turn) for turn in interview["turns"]]
     context = {
         "current_fields": interview["fields"],
         "transcript": transcript,

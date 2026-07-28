@@ -2,22 +2,21 @@ import {fireEvent, screen, waitFor} from '@testing-library/react';
 import {beforeEach, expect, it} from 'vitest';
 import {
   apiMock,
+  chatFixture,
   installLayoutMocks,
   renderLayout,
-  runFixture,
 } from './layout_test_support';
 
 beforeEach(() => {
   installLayoutMocks();
 });
 
-/** Renders the layout with twelve real runs feeding the sidebar chat list. */
+/** Renders the layout with twelve real chats feeding the sidebar list. */
 function renderTwelveSidebarChats() {
-  apiMock.listDemoRuns.mockResolvedValue([]);
-  apiMock.listRuns.mockResolvedValue(
+  apiMock.listInterviews.mockResolvedValue(
     Array.from({length: 12}, (_, index) =>
-      runFixture(
-        `run-${index + 1}`,
+      chatFixture(
+        `chat-${index + 1}`,
         `Very long sidebar research question ${index + 1}`,
       ),
     ),
@@ -61,14 +60,19 @@ it('keeps only Co-Scientist navigation and real chat history', async () => {
   expect(screen.getByRole('button', {name: /Logs 0/i})).toBeInTheDocument();
 
   expect(await screen.findByText('Chats')).toBeInTheDocument();
+  // The row links to the conversation, not to the run it may have started:
+  // a chat is reopenable from its first turn onwards.
   await waitFor(() => {
     expect(screen.getByRole('link', {name: /ferroptosis/i})).toHaveAttribute(
       'href',
-      '/runs/demo-ferroptosis/details',
+      '/chats/chat-ferroptosis',
     );
   });
 
-  const newChat = screen.getByRole('button', {name: 'New chat'});
+  // A link, not a button: Cmd/middle-clicking it opens a fresh workspace in
+  // a new tab like every other navigation in the rail.
+  const newChat = screen.getByRole('link', {name: 'New chat'});
+  expect(newChat).toHaveAttribute('href', '/');
   expect(newChat).toHaveAttribute('data-tooltip', 'New chat');
   expect(newChat).toHaveClass('ucs-tooltip-anchor');
   expect(newChat).toHaveClass('ucs-tooltip-right');
@@ -85,16 +89,13 @@ it('keeps only Co-Scientist navigation and real chat history', async () => {
 });
 
 it('shows the generated session title in sidebar chats', async () => {
-  apiMock.listDemoRuns.mockResolvedValue([]);
-  apiMock.listRuns.mockResolvedValue([
-    {
-      ...runFixture(
-        'run-titled',
-        'Generate testable hypotheses for ferroptosis in pancreatic cancer ' +
-          'cells.',
-      ),
-      title: 'Ferroptosis in pancreatic cancer',
-    },
+  apiMock.listInterviews.mockResolvedValue([
+    chatFixture(
+      'chat-titled',
+      'Generate testable hypotheses for ferroptosis in pancreatic cancer ' +
+        'cells.',
+      {title: 'Ferroptosis in pancreatic cancer'},
+    ),
   ]);
 
   renderLayout();
@@ -104,14 +105,14 @@ it('shows the generated session title in sidebar chats', async () => {
   const chat = await screen.findByRole('link', {
     name: 'Ferroptosis in pancreatic cancer',
   });
-  expect(chat).toHaveAttribute('href', '/runs/run-titled/details');
+  expect(chat).toHaveAttribute('href', '/chats/chat-titled');
   // The full research goal still rides along as the hover tooltip.
   expect(chat.getAttribute('data-tooltip')).toMatch(
     /Generate testable hypotheses for ferroptosis/i,
   );
 });
 
-it('shows ten sidebar chats before expanding the rest', async () => {
+it('shows the chats that fit before expanding the rest', async () => {
   renderTwelveSidebarChats();
 
   expect(

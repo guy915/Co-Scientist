@@ -1,10 +1,5 @@
 import {type ReactNode} from 'react';
-import {
-  useLocation,
-  useNavigate,
-  type NavigateFunction,
-} from 'react-router-dom';
-import {type Run} from '@/api/runs';
+import {useLocation} from 'react-router-dom';
 import {useAudience} from './audience_context';
 import {joinClasses} from './classes';
 import {AudienceGate} from './components/audience_gate';
@@ -13,7 +8,7 @@ import {NEW_CHAT_EVENT} from './dom_events';
 import {closeDrawerIfMobile} from './hooks/use_is_mobile';
 import {ShellHeader} from './layout_header';
 import {useChatHistory, useHeaderTitle, useLayoutChrome} from './layout_hooks';
-import {NavRail} from './layout_nav_rail';
+import {NavRail, type ChatRailData} from './layout_nav_rail';
 
 // The value returned by useLayoutChrome, threaded through the components
 // below so each only needs the single prop rather than the whole fan-out.
@@ -61,6 +56,7 @@ function pageClassesFor(pathname: string, isRunRoute: boolean): string {
 function deriveRoutePresentation(pathname: string): {
   isRunRoute: boolean;
   activeRunId: string | undefined;
+  activeChatId: string | undefined;
   titleContextKey: string;
   workspaceClasses: string;
   pageClasses: string;
@@ -69,6 +65,11 @@ function deriveRoutePresentation(pathname: string): {
   // The run id embedded in /runs/:id[/:tab], used to persistently highlight the
   // active conversation in the sidebar chat list.
   const activeRunId = isRunRoute ? pathname.split('/')[2] : undefined;
+  // The chat id embedded in /chats/:id, which highlights the rail row
+  // directly rather than through the run a chat may have started.
+  const activeChatId = pathname.startsWith('/chats/')
+    ? pathname.split('/')[2]
+    : undefined;
   // Clear the shell title only when the title-owning context changes: the run
   // id for run routes, else the pathname. Switching tabs within one run keeps
   // the same id, so the run's dispatched title survives (RunDetail stays
@@ -81,6 +82,7 @@ function deriveRoutePresentation(pathname: string): {
   return {
     isRunRoute,
     activeRunId,
+    activeChatId,
     titleContextKey,
     workspaceClasses,
     pageClasses: pageClassesFor(pathname, isRunRoute),
@@ -107,8 +109,11 @@ function shellClassFor(isRunRoute: boolean, navOpen: boolean): string {
 // Builds the "New chat" / product-lockup handler: resets the chat workspace
 // and dismisses the mobile drawer. On desktop the expanded rail is a user
 // preference, so clicking Home or New chat leaves it untouched there.
+//
+// Navigation itself is the link's job now (both controls are anchors, so a
+// Cmd or middle click opens a fresh workspace in a new tab); this only has to
+// do the part a new tab must not inherit.
 function createStartNewChatHandler(
-  navigate: NavigateFunction,
   setNavOpen: (open: boolean) => void,
 ): () => void {
   return () => {
@@ -116,7 +121,6 @@ function createStartNewChatHandler(
     // Lets the chat workspace page (mounted separately) know to reset its own
     // session state; see ChatWorkspace's listener.
     window.dispatchEvent(new Event(NEW_CHAT_EVENT));
-    void navigate('/', {state: {cosciAction: 'new-chat'}});
   };
 }
 
@@ -170,30 +174,17 @@ function ShellOverlays({chrome, affiliationRequired}: ShellOverlaysProps) {
 interface ShellNavProps {
   chrome: LayoutChrome;
   startNewChat: () => void;
-  history: Run[];
-  activeRunId: string | undefined;
-  showAllChats: boolean;
-  onToggleShowAllChats: () => void;
+  rail: ChatRailData;
 }
 
-function ShellNav({
-  chrome,
-  startNewChat,
-  history,
-  activeRunId,
-  showAllChats,
-  onToggleShowAllChats,
-}: ShellNavProps) {
+function ShellNav({chrome, startNewChat, rail}: ShellNavProps) {
   return (
     <>
       <NavRail
         navOpen={chrome.navOpen}
         toggleNav={chrome.toggleNav}
         startNewChat={startNewChat}
-        history={history}
-        activeRunId={activeRunId}
-        showAllChats={showAllChats}
-        onToggleShowAllChats={onToggleShowAllChats}
+        rail={rail}
         activePanel={chrome.activePanel}
         onTogglePanel={chrome.togglePanel}
         onOpenSettings={chrome.openSettings}
@@ -246,33 +237,36 @@ function ShellWorkspace({
 // chrome state (rail/popovers/dialog), the shell root's class, and whether
 // the first-visit affiliation question still gates the Settings dialog.
 function useLayoutState() {
-  const navigate = useNavigate();
   const location = useLocation();
   const {
     isRunRoute,
     activeRunId,
+    activeChatId,
     titleContextKey,
     workspaceClasses,
     pageClasses,
   } = deriveRoutePresentation(location.pathname);
   const headerTitle = useHeaderTitle(titleContextKey);
-  const {history, showAllChats, toggleShowAllChats} = useChatHistory();
+  const {chats, showAllChats, toggleShowAllChats} = useChatHistory();
   const chrome = useLayoutChrome(location.pathname);
   const shellClass = shellClassFor(isRunRoute, chrome.navOpen);
   // Until the first-visit question is answered the Settings dialog is the
   // affiliation chooser and nothing else: locked open on that section, with
   // no way to close it or navigate to another one.
   const affiliationRequired = useAudience().audience === null;
-  const startNewChat = createStartNewChatHandler(navigate, chrome.setNavOpen);
+  const startNewChat = createStartNewChatHandler(chrome.setNavOpen);
 
   return {
     shellClass,
     chrome,
     startNewChat,
-    history,
-    activeRunId,
-    showAllChats,
-    toggleShowAllChats,
+    rail: {
+      chats,
+      activeChatId,
+      activeRunId,
+      showAllChats,
+      onToggleShowAllChats: toggleShowAllChats,
+    },
     headerTitle,
     workspaceClasses,
     pageClasses,
@@ -293,10 +287,7 @@ export function Layout({children}: {children: ReactNode}) {
       <ShellNav
         chrome={state.chrome}
         startNewChat={state.startNewChat}
-        history={state.history}
-        activeRunId={state.activeRunId}
-        showAllChats={state.showAllChats}
-        onToggleShowAllChats={state.toggleShowAllChats}
+        rail={state.rail}
       />
       <ShellWorkspace
         chrome={state.chrome}

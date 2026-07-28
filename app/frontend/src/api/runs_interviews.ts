@@ -2,7 +2,7 @@
 // (`/api/interviews`). Extracted from `./runs`, which re-exports the public
 // functions so callers keep importing them from '@/api/runs'.
 
-import type {Audience, Interview} from './run_types';
+import type {Audience, ChatSummary, Interview} from './run_types';
 import {
   API_BASE_URL,
   clientHeaders,
@@ -95,6 +95,16 @@ export async function addInterviewTurn(
     {content},
     onReasoning,
   );
+}
+
+/**
+ * Lists the caller's chats, newest first, for the sidebar.
+ *
+ * Transcripts are deliberately absent: the list only needs a label and the
+ * run each chat started, and a chat is reopened by id when it is clicked.
+ */
+export async function listInterviews(): Promise<ChatSummary[]> {
+  return fetchJson('/api/interviews', {headers: clientHeaders()});
 }
 
 /** Reloads a durable interview for resume. */

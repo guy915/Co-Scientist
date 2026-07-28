@@ -253,6 +253,12 @@ def _migrate_interview_message_hypothesis_columns(
     # taken per turn: the interview is durable and resumable, and a resumed
     # one must not silently change which context it was conducted under.
     _add_column_if_missing(conn, "interviews", "audience", "TEXT")
+    # The Agent's chain of thought for one interview turn. Persisted rather
+    # than relayed and dropped: a chat is short enough to carry its own
+    # thinking back into the next turn's context, and a resumed chat that
+    # replayed only the answers would ask its follow-up from less than the
+    # scientist can see on screen.
+    _add_column_if_missing(conn, "interview_turns", "reasoning", "TEXT")
     # Structured metadata (e.g. Q&A cited sources) alongside message text.
     _add_column_if_missing(conn, "messages", "meta_json", "TEXT")
     # Short classification label surfaced as a breadcrumb in the viewer.

@@ -203,6 +203,12 @@ export const CONNECTORS_MENU_ROW_CLASSES =
   'bg-transparent px-[0.9rem] py-[0.45rem] text-left font-[inherit] ' +
   'text-[0.9rem] text-inherit focus-visible:outline-none';
 
+// A status line where a connector row would be (still checking, or the API
+// could not be reached): the row's metrics, muted, and not interactive.
+export const CONNECTORS_MENU_NOTE_CLASSES =
+  'reference-connectors-menu-row m-0 grid min-h-[2.6rem] w-full items-center ' +
+  'px-[0.9rem] py-[0.45rem] text-[0.9rem] text-cosci-muted';
+
 // Per-row connector icon and the on/off toggle switch (track + knob),
 // selected between CONNECTOR_TOGGLE_ON_CLASSES / _OFF_CLASSES by state.
 export const CONNECTOR_ICON_CLASSES =

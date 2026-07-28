@@ -3,6 +3,7 @@ import {conciseTitle} from '@/lib/text';
 import {readStoredAudience} from '../audience_context';
 import {RUNS_CHANGED_EVENT} from '../dom_events';
 import {type StartedSession} from '../pages/chat_timeline_cards';
+import {announceChatsChanged} from './chat_history_context';
 import {appendChatMessage, emitDiagnosticEvent} from './chat_session_helpers';
 import {type ExecuteStartDeps, type HandlerDeps} from './chat_session_types';
 
@@ -42,7 +43,10 @@ async function executeStart(deps: ExecuteStartDeps): Promise<StartedSession> {
   // post the request as a user turn, then let the open-session card below be
   // the single response. The card carries its own "session started" copy, so a
   // separate assistant acknowledgment bubble would just double the reply.
-  appendChatMessage(deps.setMessages, 'user', 'Start research');
+  appendChatMessage(deps.setMessages, {
+    role: 'user',
+    content: 'Start research',
+  });
   const created = await createRun(buildCreateRunPayload(deps));
   const session: StartedSession = {
     id: created.id,
@@ -58,9 +62,11 @@ async function executeStart(deps: ExecuteStartDeps): Promise<StartedSession> {
   deps.setPendingAttachments([]);
   deps.setStartedSession(session);
   await deps.reloadHistory();
-  // Tell the shell sidebar (which owns a separate history copy) that a new
-  // run exists, so it appears immediately instead of only after a reload.
+  // Announce both lists: the home cards show the new run, and the rail's chat
+  // row picks up the run it now links to. Both surfaces render outside this
+  // page, so a window event is the channel to them.
   window.dispatchEvent(new Event(RUNS_CHANGED_EVENT));
+  announceChatsChanged();
   return session;
 }
 

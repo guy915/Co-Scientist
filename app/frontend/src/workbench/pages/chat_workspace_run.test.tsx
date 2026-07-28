@@ -211,9 +211,9 @@ it('starts the durable run on confirmation', async () => {
   ).toBeInTheDocument();
   expect(screen.getByRole('button', {name: 'Start research'})).toBeDisabled();
   expect(screen.getByText('Research session')).toBeInTheDocument();
-  expect(screen.getByRole('button', {name: /Open/i})).toBeInTheDocument();
+  expect(screen.getByRole('link', {name: /Open/i})).toBeInTheDocument();
   expect(
-    screen.getByRole('button', {name: 'View session details'}),
+    screen.getByRole('link', {name: 'View session details'}),
   ).toBeInTheDocument();
   expect(
     screen.getByRole('button', {
@@ -230,7 +230,7 @@ it('opens the started run detail from the session card', async () => {
   await driveToRunSpec();
   await startRunFromSpec();
 
-  fireEvent.click(screen.getByRole('button', {name: /Open/i}));
+  fireEvent.click(screen.getByRole('link', {name: /Open/i}));
 
   await waitFor(() => {
     expect(screen.getByTestId('location')).toHaveTextContent(

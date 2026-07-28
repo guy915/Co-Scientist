@@ -16,6 +16,7 @@ import {
   type StartedSession,
   StartedSessionCard,
 } from './chat_timeline_cards';
+import {ThoughtsDisclosure} from './chat_timeline_thoughts';
 
 const EVENT_DETAIL_CLASSES =
   'mt-2 max-h-24 overflow-y-auto border-l-2 border-th-border pl-3 text-xs ' +
@@ -232,6 +233,19 @@ function draftTimelineItems({
 >): TimelineItem[] {
   if (!draft) return [];
   return [
+    // The completing turn's thinking, above the plan it produced -- that turn
+    // has no bubble of its own (its message becomes the card's lead-in), so
+    // without this its reasoning would be the only one silently dropped.
+    ...(draft.reasoning
+      ? [
+          {
+            id: 'draft-spec-thoughts',
+            at: draft.createdAt,
+            order: 49,
+            node: <ThoughtsDisclosure reasoning={draft.reasoning} />,
+          },
+        ]
+      : []),
     {
       id: DRAFT_SPEC_ITEM_ID,
       at: draft.createdAt,
@@ -286,22 +300,18 @@ function confirmedSpecTimelineItems({
   ];
 }
 
-// Terminal timeline entry once the backend run has actually started; opening
-// it navigates to the run detail page, "retry" just bumps its timestamp so
-// it re-sorts to the current time.
+// Terminal timeline entry once the backend run has actually started; the card
+// links to the run detail page (a URL, not a handler, so a middle- or
+// cmd-click opens it in a new tab), "retry" just bumps its timestamp so it
+// re-sorts to the current time.
 function startedTimelineItems({
   startedSession,
   setStartedSession,
-  navigate,
   resetWorkspace,
   focusComposer,
 }: Pick<
   BuildTimelineItemsArgs,
-  | 'startedSession'
-  | 'setStartedSession'
-  | 'navigate'
-  | 'resetWorkspace'
-  | 'focusComposer'
+  'startedSession' | 'setStartedSession' | 'resetWorkspace' | 'focusComposer'
 >): TimelineItem[] {
   if (!startedSession) return [];
   return [
@@ -312,7 +322,7 @@ function startedTimelineItems({
       node: (
         <StartedSessionCard
           session={startedSession}
-          onOpen={() => void navigate(`/runs/${startedSession.id}/details`)}
+          href={`/runs/${startedSession.id}/details`}
           onRetry={() =>
             setStartedSession(current =>
               current ? {...current, at: Date.now() / 1000} : current,

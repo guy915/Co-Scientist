@@ -5,7 +5,7 @@ import {
   type ChatEntry,
   type StartedSession,
 } from '../pages/chat_timeline_cards';
-import {type SpecStage} from './chat_session_types';
+import {type DraftIntro, type SpecStage} from './chat_session_types';
 
 /**
  * Sub-hook owning the spec lifecycle state machine: draftSpec (inferred from
@@ -52,9 +52,14 @@ export function useRunSpecLifecycle() {
   function stageDraftSpec(
     spec: InferredRunSpec,
     createdAt = Date.now() / 1000,
-    intro?: string,
+    intro?: DraftIntro,
   ) {
-    setDraft({spec, createdAt, intro});
+    setDraft({
+      spec,
+      createdAt,
+      intro: intro?.message,
+      reasoning: intro?.reasoning,
+    });
     setConfirmed(null);
     setStartedSession(null);
   }

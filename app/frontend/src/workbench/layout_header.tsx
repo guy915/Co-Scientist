@@ -1,5 +1,7 @@
 import {type ReactNode, type RefObject} from 'react';
+import {Link} from 'react-router-dom';
 import {Icon} from '@/components/icon';
+import {isModifiedClick} from '@/lib/modified_click';
 import {useAudience} from './audience_context';
 import {GoogleLabsIcon} from './components/google_labs_icon';
 import {TruncatedLabel} from './components/truncated_label';
@@ -88,21 +90,27 @@ function HamburgerButton({
 }
 
 // The Co-Scientist wordmark/icon; doubles as a "go home" / new-chat control.
-function ProductLockup({onClick}: {onClick: () => void}) {
+// A link, so it behaves like the home link it looks like under a Cmd or
+// middle click; the session reset runs only on a plain click, which is the
+// only click that navigates this tab (see isModifiedClick).
+function ProductLockup({onNewChat}: {onNewChat: () => void}) {
   return (
-    <button
-      type="button"
+    <Link
+      to="/"
+      state={{cosciAction: 'new-chat'}}
       className={tooltipClassNames({
         className: PRODUCT_LOCKUP_CLASSES,
         placement: 'right',
       })}
       aria-label="Go to Co-Scientist home"
       data-tooltip="Home"
-      onClick={onClick}
+      onClick={event => {
+        if (!isModifiedClick(event)) onNewChat();
+      }}
     >
       <GoogleLabsIcon aria-hidden="true" />
       <span>Co-Scientist</span>
-    </button>
+    </Link>
   );
 }
 
@@ -140,7 +148,7 @@ export function ShellHeader({
   return (
     <header className={HEADER_CLASSES}>
       <HamburgerButton navOpen={navOpen} onClick={toggleNav} />
-      <ProductLockup onClick={startNewChat} />
+      <ProductLockup onNewChat={startNewChat} />
       <div className={HEADER_TITLE_CLASSES}>
         {headerTitle && (
           <TruncatedLabel

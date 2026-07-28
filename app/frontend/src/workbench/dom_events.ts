@@ -16,3 +16,10 @@ export const DIAGNOSTIC_EVENT = 'cosci-diagnostic-event';
 
 /** Signals that the run list changed so run history should reload. */
 export const RUNS_CHANGED_EVENT = 'cosci-runs-changed';
+
+/**
+ * Signals that the chat list changed so the sidebar should reload: a chat is
+ * created by its first turn and gains its run link when one is started, and
+ * both happen inside the routed page rather than in the shell.
+ */
+export const CHATS_CHANGED_EVENT = 'cosci-chats-changed';

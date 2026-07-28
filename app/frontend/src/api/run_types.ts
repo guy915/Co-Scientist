@@ -44,7 +44,27 @@ export interface InterviewTurn {
   id: number;
   role: 'user' | 'agent';
   content: string;
+  /**
+   * The Agent's chain of thought for this turn, when the model produced one.
+   * Persisted rather than shown and dropped, so a reopened chat replays the
+   * thinking the scientist watched arrive.
+   */
+  reasoning: string | null;
   created_at: number;
+}
+
+/**
+ * One entry in the sidebar's chat list: an interview without its transcript,
+ * plus the run it started (null until the scientist starts one).
+ */
+export interface ChatSummary {
+  id: string;
+  title: string | null;
+  challenge: string;
+  status: 'active' | 'completed' | 'cancelled';
+  run_id: string | null;
+  created_at: number;
+  updated_at: number;
 }
 
 /** Durable interview state returned by the backend. */

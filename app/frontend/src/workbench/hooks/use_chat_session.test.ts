@@ -43,6 +43,7 @@ function makeDeps() {
   return {
     reloadHistory: vi.fn().mockResolvedValue(undefined),
     focusComposer: vi.fn(),
+    onChatStarted: vi.fn(),
     setToast: vi.fn(),
     pubmedEnabled: true,
     webSearchEnabled: true,

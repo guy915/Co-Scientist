@@ -4,7 +4,9 @@ import {ErrorBoundary} from '@/components/error_boundary';
 import {NoIndex} from '@/public/no_index';
 import {NotFoundPage} from '@/public/not_found_page';
 import {useGlobalShortcuts} from './hooks/use_global_shortcuts';
+import {ChatHistoryProvider} from './hooks/chat_history_context';
 import {RunHistoryProvider} from './hooks/run_history_context';
+import {SystemStatusProvider} from './hooks/system_status_context';
 import {Layout} from './layout';
 import {ChatWorkspace} from './pages/chat_workspace';
 import {ProposalsPage} from './pages/proposals_page';
@@ -38,6 +40,9 @@ function WorkbenchRoutes() {
       {/* "/" is the chat workspace: the session home where new runs are
           drafted and started. */}
       <Route path="/" element={page('Workspace', <ChatWorkspace />)} />
+      {/* A chat reopened from the rail. Same page as "/", which reads :id
+          and rehydrates the durable interview behind the conversation. */}
+      <Route path="/chats/:id" element={page('Workspace', <ChatWorkspace />)} />
       {/* Legacy entry points from the retired public surface; both now
           land on the chat workspace, which owns run creation. */}
       <Route path="/runs" element={<Navigate to="/" replace />} />
@@ -84,12 +89,16 @@ export function WorkbenchApp() {
     <ErrorBoundary>
       <ThemeProvider>
         <AudienceProvider>
-          <RunHistoryProvider>
-            <Layout>
-              <ShortcutsBridge />
-              <WorkbenchRoutes />
-            </Layout>
-          </RunHistoryProvider>
+          <SystemStatusProvider>
+            <RunHistoryProvider>
+              <ChatHistoryProvider>
+                <Layout>
+                  <ShortcutsBridge />
+                  <WorkbenchRoutes />
+                </Layout>
+              </ChatHistoryProvider>
+            </RunHistoryProvider>
+          </SystemStatusProvider>
         </AudienceProvider>
       </ThemeProvider>
     </ErrorBoundary>

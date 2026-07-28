@@ -36,6 +36,16 @@ export function emitDiagnosticEvent({
   );
 }
 
+/** One appended chat bubble, as its callers describe it. */
+export interface NewChatMessage {
+  role: 'assistant' | 'user';
+  content: string;
+  /** The Agent's chain of thought for this turn, when it produced one. */
+  reasoning?: string;
+  /** Epoch seconds; defaults to now. */
+  createdAt?: number;
+}
+
 /**
  * Appends a chat bubble; timestamps are epoch seconds (matching the API's
  * created_at convention) and returned so callers can order follow-up entries
@@ -45,16 +55,16 @@ export function emitDiagnosticEvent({
  */
 export function appendChatMessage(
   setMessages: Dispatch<SetStateAction<ChatEntry[]>>,
-  role: 'assistant' | 'user',
-  content: string,
-  createdAt = Date.now() / 1000,
+  message: NewChatMessage,
 ): number {
+  const createdAt = message.createdAt ?? Date.now() / 1000;
   setMessages(prev => [
     ...prev,
     {
-      id: makePrefixedId(role),
-      role,
-      content,
+      id: makePrefixedId(message.role),
+      role: message.role,
+      content: message.content,
+      reasoning: message.reasoning,
       created_at: createdAt,
     },
   ]);

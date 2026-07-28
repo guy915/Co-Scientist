@@ -213,6 +213,43 @@ def test_completed_interview_authoritatively_seeds_run_creation(
     assert run_payload["config"]["interview_id"] == interview_id
 
 
+def test_chat_list_is_owner_scoped_and_links_its_run(
+    isolated_db: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The sidebar's chat list carries each chat's run and nobody else's.
+
+    The listing is what makes a chat resumable at all, so it has to appear
+    the moment the first turn lands -- before any run exists -- and then
+    pick up the run id once one is started.
+    """
+    _patch_model_sequence(monkeypatch, _antibiotic_responses())
+    headers = {"X-Client-ID": "scientist-a"}
+    with TestClient(app) as client:
+        interview_id, created, _second, _final = _run_antibiotic_interview(
+            client, headers
+        )
+        assert created.status_code == 200
+        before = client.get("/api/interviews", headers=headers).json()
+        run = client.post(
+            "/api/runs",
+            headers=headers,
+            json={
+                "research_goal": "placeholder",
+                "interview_id": interview_id,
+            },
+        )
+        after = client.get("/api/interviews", headers=headers).json()
+        other = client.get(
+            "/api/interviews", headers={"X-Client-ID": "scientist-b"}
+        ).json()
+
+    assert [chat["id"] for chat in before] == [interview_id]
+    assert before[0]["run_id"] is None
+    assert before[0]["title"] == "Restoring Antibiotic Susceptibility"
+    assert after[0]["run_id"] == run.json()["id"]
+    assert other == []
+
+
 def test_interview_is_owner_scoped_and_requires_completion(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -287,9 +324,10 @@ def test_turn_streams_real_reasoning_before_resolving(
 
     The indicator is only honest if its frames carry the ``reasoning_content``
     the provider actually produced and arrive before the turn resolves, rather
-    than a placeholder spun while a request is in flight. The reasoning must
-    also stay out of the persisted transcript, so a resumed interview does not
-    replay stale thinking as if it were the Agent's message.
+    than a placeholder spun while a request is in flight. The reasoning is
+    persisted on its own column rather than folded into the message, so a
+    resumed chat can show the thinking without it ever reading as the Agent's
+    answer.
     """
     _patch_streaming_litellm(
         monkeypatch,
@@ -310,12 +348,49 @@ def test_turn_streams_real_reasoning_before_resolving(
 
     interview = frames[1]["interview"]
     assert interview["status"] == "active"
-    # Only the answer is persisted; the chain of thought is display-only.
-    assert [
-        turn["content"]
-        for turn in interview["turns"]
-        if turn["role"] == "agent"
-    ] == ["Which mechanism should we prioritize?"]
+    agent_turns = [
+        turn for turn in interview["turns"] if turn["role"] == "agent"
+    ]
+    assert [turn["content"] for turn in agent_turns] == [
+        "Which mechanism should we prioritize?"
+    ]
+    # Kept beside the answer, never inside it.
+    assert [turn["reasoning"] for turn in agent_turns] == [
+        "No mechanism named yet, so ask for one."
+    ]
+
+
+def test_persisted_reasoning_returns_to_the_model_next_turn(
+    isolated_db: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A chat's own thinking stays in the context its next turn builds on.
+
+    Chats are short, so dropping the chain of thought after each answer
+    would ask the Agent to continue from less than the scientist can see on
+    screen. The prompt is asserted directly because nothing else observes
+    what the model was actually handed.
+    """
+    _patch_streaming_litellm(
+        monkeypatch,
+        _response("Which mechanism should we prioritize?"),
+        reasoning="No mechanism named yet, so ask for one.",
+    )
+    headers = {"X-Client-ID": "thinker"}
+
+    with TestClient(app) as client:
+        created = client.post(
+            "/api/interviews",
+            headers=headers,
+            json={"research_challenge": "Study resistance"},
+        )
+        interview_id = _interview_payload(created)["id"]
+        interview = client.get(
+            f"/api/interviews/{interview_id}", headers=headers
+        ).json()
+
+    prompt = json.loads(interviews._prompt(interview))
+    reasoning = [turn.get("reasoning") for turn in prompt["transcript"]]
+    assert "No mechanism named yet, so ask for one." in reasoning
 
 
 def test_interview_completes_when_model_reports_no_preferences(

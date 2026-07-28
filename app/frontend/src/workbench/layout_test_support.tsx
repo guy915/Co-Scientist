@@ -1,10 +1,11 @@
 import {render} from '@testing-library/react';
 import {MemoryRouter} from 'react-router-dom';
 import {vi} from 'vitest';
-import type {Run} from '@/api/runs';
+import type {ChatSummary, Run} from '@/api/runs';
 import {makeRun} from '@/test_fixtures';
 import {AudienceProvider} from './audience_context';
 import {resetSessionBaselineForTest} from './layout_diagnostics_state';
+import {ChatHistoryProvider} from './hooks/chat_history_context';
 import {RunHistoryProvider} from './hooks/run_history_context';
 import {Layout} from './layout';
 import {ThemeProvider} from './theme_context';
@@ -20,6 +21,7 @@ import {ThemeProvider} from './theme_context';
 const apiMock = vi.hoisted(() => {
   const listDemoRuns = vi.fn();
   const listRuns = vi.fn();
+  const listInterviews = vi.fn();
   const getRunEvents = vi.fn();
   // Mirror the real loadRunHistory so tests keep driving history through the
   // listRuns/listDemoRuns mocks, while reusing the real merge policy.
@@ -35,7 +37,13 @@ const apiMock = vi.hoisted(() => {
       run => run.updated_at,
     );
   });
-  return {listDemoRuns, listRuns, getRunEvents, loadRunHistory};
+  return {
+    listDemoRuns,
+    listRuns,
+    listInterviews,
+    getRunEvents,
+    loadRunHistory,
+  };
 });
 
 const systemApiMock = vi.hoisted(() => ({getSystemStatus: vi.fn()}));
@@ -77,11 +85,13 @@ export function renderLayout(path = '/') {
           chooser over the shell these tests are asserting on. */}
       <AudienceProvider initialAudience="general">
         <MemoryRouter initialEntries={[path]}>
-          <RunHistoryProvider>
-            <Layout>
-              <main>Workspace content</main>
-            </Layout>
-          </RunHistoryProvider>
+          <ChatHistoryProvider>
+            <RunHistoryProvider>
+              <Layout>
+                <main>Workspace content</main>
+              </Layout>
+            </RunHistoryProvider>
+          </ChatHistoryProvider>
         </MemoryRouter>
       </AudienceProvider>
     </ThemeProvider>,
@@ -110,6 +120,31 @@ export function runFixture(id: string, goal: string) {
 }
 
 /**
+ * Builds a chat record shaped like the `/api/interviews` list payload.
+ *
+ * @param id Chat (interview) id.
+ * @param challenge The scientist's opening research challenge.
+ * @param overrides Fields to override, e.g. `title` or `run_id`.
+ * @returns A chat summary record.
+ */
+export function chatFixture(
+  id: string,
+  challenge: string,
+  overrides: Partial<ChatSummary> = {},
+): ChatSummary {
+  return {
+    id,
+    title: null,
+    challenge,
+    status: 'active',
+    run_id: null,
+    created_at: 1,
+    updated_at: 2,
+    ...overrides,
+  };
+}
+
+/**
  * Resets globals/mocks and installs the default mock responses shared by every
  * Layout suite. Call from each suite's `beforeEach`.
  */
@@ -122,6 +157,13 @@ export function installLayoutMocks() {
   document.documentElement.dataset.theme = '';
   document.documentElement.classList.remove('dark');
   apiMock.listRuns.mockResolvedValue([]);
+  apiMock.listInterviews.mockResolvedValue([
+    chatFixture(
+      'chat-ferroptosis',
+      'Generate testable hypotheses for ferroptosis in pancreatic cancer ' +
+        'cells.',
+    ),
+  ]);
   apiMock.listDemoRuns.mockResolvedValue([
     runFixture(
       'demo-ferroptosis',
@@ -132,16 +174,22 @@ export function installLayoutMocks() {
   apiMock.getRunEvents.mockReset();
   apiMock.getRunEvents.mockResolvedValue([]);
   logsApiMock.getAppLogs.mockReset();
-  logsApiMock.getAppLogs.mockResolvedValue({logs: [], last_id: 0, total: 0});
+  logsApiMock.getAppLogs.mockResolvedValue({
+    logs: [],
+    last_id: 0,
+    total: 0,
+    session_total: 0,
+  });
   // The panel captures a session baseline on its first load and shows only
   // records added after it (so a refresh/reopen starts clean). This first
-  // response establishes an empty baseline (id 0, total 0), so a suite's
+  // response establishes an empty baseline (id 0), so a suite's
   // own `mockResolvedValue` records — all with ids above 0 — are treated as
   // this-session records and rendered, matching the pre-baseline behavior.
   logsApiMock.getAppLogs.mockResolvedValueOnce({
     logs: [],
     last_id: 0,
     total: 0,
+    session_total: 0,
   });
   logsApiMock.postAppLogs.mockReset();
   logsApiMock.postAppLogs.mockResolvedValue({added: 1, last_id: 1});

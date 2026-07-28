@@ -14,6 +14,7 @@ import {
   requestActions,
   responseActions,
 } from './chat_timeline_message_actions';
+import {ThoughtsDisclosure} from './chat_timeline_thoughts';
 
 /**
  * One rendered chat-timeline message (either the user's or the
@@ -23,6 +24,12 @@ export interface ChatEntry {
   id: string;
   role: 'user' | 'assistant';
   content: string;
+  /**
+   * The Agent's chain of thought for this turn, when the model produced one.
+   * Kept with the message rather than discarded when the reply lands, so the
+   * reasoning stays readable (and stays in the model's own context).
+   */
+  reasoning?: string;
   created_at: number;
 }
 
@@ -87,12 +94,17 @@ export function ChatBubble(props: ChatBubbleProps) {
       isUser={isUser}
       rowClassName={rowClassName}
       bubbleNode={
-        <BubbleText
-          isUser={isUser}
-          bubbleClassName={bubbleClassName}
-          content={message.content}
-          {...bubbleText}
-        />
+        <div className="min-w-0">
+          {/* Above the answer, where the live trail was: the thinking came
+              first, and reading it after the reply reverses the turn. */}
+          <ThoughtsDisclosure reasoning={message.reasoning} />
+          <BubbleText
+            isUser={isUser}
+            bubbleClassName={bubbleClassName}
+            content={message.content}
+            {...bubbleText}
+          />
+        </div>
       }
       actionsNode={
         <ChatBubbleActions

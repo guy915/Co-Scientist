@@ -30,6 +30,7 @@ import {
 export type {
   AgentInsights,
   Audience,
+  ChatSummary,
   ClaimEvidenceRow,
   Evidence,
   Hypothesis,
@@ -68,6 +69,7 @@ export {
   createInterview,
   editInterviewFields,
   getInterview,
+  listInterviews,
 } from './runs_interviews';
 export {
   addScientistHypothesis,

@@ -8,7 +8,7 @@ import {
 } from 'react';
 import {type SettingsSection} from './components/settings_dialog';
 import {HEADER_TITLE_EVENT} from './dom_events';
-import {useRunHistoryContext} from './hooks/run_history_context';
+import {useChatHistoryContext} from './hooks/chat_history_context';
 import {closeDrawerIfMobile} from './hooks/use_is_mobile';
 
 /**
@@ -21,17 +21,19 @@ import {closeDrawerIfMobile} from './hooks/use_is_mobile';
 export type ShellPanel = 'settings' | 'logs' | 'audience';
 
 /**
- * Sidebar chat history: the recent-run list (from the shared
- * {@link useRunHistoryContext}, so it is fetched once and shared with the home
- * recents) plus the local "show more" expansion flag.
+ * Sidebar chat history: the chat list (from the shared
+ * {@link useChatHistoryContext}) plus the local "show more" expansion flag.
+ * Chats, not runs: a conversation belongs in the rail from its first turn,
+ * whether or not it ever becomes a run.
  */
 export function useChatHistory() {
-  const {history} = useRunHistoryContext();
-  // Sidebar chat list is capped to the 10 most recent entries until expanded.
+  const {chats} = useChatHistoryContext();
+  // Collapsed, the list shows as many chats as the rail has room for; see
+  // useFittingRows in layout_nav_rail.
   const [showAllChats, setShowAllChats] = useState(false);
 
   return {
-    history,
+    chats,
     showAllChats,
     toggleShowAllChats: () => setShowAllChats(current => !current),
   };

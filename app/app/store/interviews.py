@@ -106,8 +106,8 @@ def get_interview(
         if row is None:
             return None
         turns = active.execute(
-            "SELECT id, role, content, created_at FROM interview_turns "
-            "WHERE interview_id=? ORDER BY id ASC",
+            "SELECT id, role, content, reasoning, created_at "
+            "FROM interview_turns WHERE interview_id=? ORDER BY id ASC",
             (interview_id,),
         ).fetchall()
     result = dict(row)
@@ -116,21 +116,119 @@ def get_interview(
     return result
 
 
+def _interview_run_ids(
+    conn: sqlite3.Connection, client_id: str
+) -> dict[str, str]:
+    """Map interview id to the run started from it, for one client.
+
+    The link lives in the run's config blob (``config["interview_id"]``,
+    written by ``app.runs_crud``), so it is resolved in Python rather than
+    with json_extract -- one client's runs are a handful of rows, and this
+    keeps the listing free of a JSON1 build dependency.
+    """
+    rows = conn.execute(
+        "SELECT id, config_json FROM runs WHERE client_id=? "
+        "ORDER BY created_at ASC",
+        (client_id,),
+    ).fetchall()
+    links: dict[str, str] = {}
+    for row in rows:
+        try:
+            config = json.loads(row["config_json"])
+        except (TypeError, ValueError):
+            continue
+        interview_id = config.get("interview_id") if config else None
+        if interview_id:
+            links[str(interview_id)] = str(row["id"])
+    return links
+
+
+def _chat_summary(row: sqlite3.Row, run_id: str | None) -> dict[str, Any]:
+    """Build one chat-list entry from an interview row and its run link."""
+    fields = json.loads(row["fields_json"])
+    return {
+        "id": row["id"],
+        "title": str(fields.get("title") or "").strip() or None,
+        "challenge": str(fields.get("research_challenge") or ""),
+        "status": row["status"],
+        "run_id": run_id,
+        "created_at": row["created_at"],
+        "updated_at": row["updated_at"],
+    }
+
+
+def list_interviews(
+    client_id: str,
+    *,
+    limit: int = 200,
+    db_path: str | None = None,
+) -> list[dict[str, Any]]:
+    """Return one client's chats, newest first, without their transcripts.
+
+    Args:
+        client_id: The owning client; rows are never returned across clients.
+        limit: Maximum chats returned.
+        db_path: Optional database override.
+
+    Returns:
+        Chat summaries carrying the run each chat started, when it started
+        one, so the sidebar can link a chat through to its run.
+    """
+    with connect(db_path) as conn:
+        rows = conn.execute(
+            "SELECT id, status, fields_json, created_at, updated_at "
+            "FROM interviews WHERE client_id=? "
+            "ORDER BY updated_at DESC LIMIT ?",
+            (client_id, limit),
+        ).fetchall()
+        links = _interview_run_ids(conn, client_id)
+    return [_chat_summary(row, links.get(str(row["id"]))) for row in rows]
+
+
+@dataclass(frozen=True)
+class NewInterviewTurn:
+    """One turn to append to an interview transcript.
+
+    Attributes:
+        role: ``user`` or ``agent``.
+        content: The turn's visible text.
+        reasoning: The Agent's chain of thought for this turn, when the
+            model emitted one. Stored so a resumed chat replays the thinking
+            it showed and the next turn is derived from it.
+    """
+
+    role: str
+    content: str
+    reasoning: str | None = None
+
+
 def append_interview_turn(
     interview_id: str,
-    role: str,
-    content: str,
+    turn: NewInterviewTurn,
     *,
     db_path: str | None = None,
     conn: sqlite3.Connection | None = None,
 ) -> None:
-    """Append one immutable interview turn."""
+    """Append one immutable interview turn.
+
+    Args:
+        interview_id: The interview the turn belongs to.
+        turn: The role, text, and reasoning to record.
+        db_path: Optional database override.
+        conn: Optional open connection to reuse.
+    """
     now = _now()
     with _use_conn(conn, db_path) as active:
         active.execute(
             "INSERT INTO interview_turns (interview_id, role, content, "
-            "created_at) VALUES (?,?,?,?)",
-            (interview_id, role, content.strip(), now),
+            "reasoning, created_at) VALUES (?,?,?,?,?)",
+            (
+                interview_id,
+                turn.role,
+                turn.content.strip(),
+                turn.reasoning or None,
+                now,
+            ),
         )
         active.execute(
             "UPDATE interviews SET updated_at=? WHERE id=?", (now, interview_id)
