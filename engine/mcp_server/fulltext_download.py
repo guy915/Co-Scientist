@@ -3,11 +3,11 @@
 import logging
 import traceback
 from pathlib import Path
-from time import sleep
 from typing import TYPE_CHECKING, Any, cast
 
 from Bio import Entrez
 
+from mcp_server.entrez_rate_limit import entrez_call
 from mcp_server.pubmed_client import _EntrezClient
 
 if TYPE_CHECKING:
@@ -55,10 +55,13 @@ class _FulltextMixin(_EntrezClient):
         text = []
         cursor = 0
         while True:
-            response = Entrez.efetch(
-                db="pmc", id=pmc_id, retstart=cursor, rettype="xml"
+            response = entrez_call(
+                Entrez.efetch,
+                db="pmc",
+                id=pmc_id,
+                retstart=cursor,
+                rettype="xml",
             )
-            sleep(0.25)
             body = cast(bytes, response.read()).decode("utf-8")
             text.append(body)
             if "[truncated]" in response or "Result too long" in body:

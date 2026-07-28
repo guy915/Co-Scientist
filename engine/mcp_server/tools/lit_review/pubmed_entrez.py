@@ -7,7 +7,6 @@ unexpected errors raised while reading an Entrez response.
 
 import logging
 import traceback
-from time import sleep
 from typing import Any, cast
 from urllib.error import HTTPError, URLError
 
@@ -17,7 +16,12 @@ logger = logging.getLogger(__name__)
 
 
 def _entrez_read(handle: Any) -> dict[str, Any]:
-    """Reads an Entrez response handle with rate limiting.
+    """Reads an open Entrez response handle.
+
+    Rate limiting does not belong here: by the time a handle exists its
+    request has already been sent, so the delay this used to sleep paced
+    nothing. Requests are paced before they go out, in
+    :func:`mcp_server.entrez_rate_limit.entrez_call`.
 
     Args:
         handle: Open Entrez response handle.
@@ -29,10 +33,6 @@ def _entrez_read(handle: Any) -> dict[str, Any]:
         HTTPError: On HTTP-level errors from the Entrez API.
         URLError: On network-level errors.
     """
-    # NCBI's rate limit is 3 requests/second without an API key; sleeping
-    # before each read keeps this client comfortably under that.
-    sleep(0.25)
-
     try:
         results = Entrez.read(handle)
         handle.close()

@@ -9,6 +9,7 @@ from urllib.error import HTTPError, URLError
 from Bio import Entrez
 
 from mcp_server.entrez import initialize_entrez
+from mcp_server.entrez_rate_limit import entrez_call
 from mcp_server.models import Article
 from mcp_server.pubmed_query import search_with_relaxation
 
@@ -87,7 +88,7 @@ def _pubmed_canary_query_succeeds() -> bool:
         # Cheap canary query: "cancer" is guaranteed to have results if
         # PubMed access is working at all.
         test_results = _entrez_read(
-            Entrez.esearch(db="pubmed", term="cancer", retmax=1)
+            entrez_call(Entrez.esearch, db="pubmed", term="cancer", retmax=1)
         )
     except HTTPError as e:
         _log_pubmed_canary_http_error(e)
@@ -190,7 +191,7 @@ def _esearch_pubmed_ids(query: str, max_papers: int) -> list[str]:
 
     def _esearch(term: str, retmax: int, _recency_years: int) -> list[str]:
         results = _entrez_read(
-            Entrez.esearch(db="pubmed", term=term, retmax=retmax)
+            entrez_call(Entrez.esearch, db="pubmed", term=term, retmax=retmax)
         )
         id_list: list[str] = results.get("IdList", [])
         return id_list

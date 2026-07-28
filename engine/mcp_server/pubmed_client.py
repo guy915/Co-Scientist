@@ -2,12 +2,12 @@
 
 import logging
 from pathlib import Path
-from time import sleep
 from typing import Any
 
 from Bio import Entrez
 
 from mcp_server.entrez import initialize_entrez
+from mcp_server.entrez_rate_limit import entrez_call
 from mcp_server.pubmed_query import search_with_relaxation
 
 logger = logging.getLogger(__name__)
@@ -146,10 +146,15 @@ class _EntrezClient:
         self.qualified_path = qualified_path
 
     def entrez_read(self, handle: Any) -> Any:
-        """Reads an Entrez handle with rate-limit delay.
+        """Reads an open Entrez handle.
 
         Entrez.read parses XML into either a dict-like or list-like structure
         depending on the query, so the return type is intentionally opaque.
+
+        Rate limiting does not belong here: by the time a handle exists its
+        request has already been sent, so the delay this used to sleep paced
+        nothing. Requests are paced before they go out, in
+        :func:`mcp_server.entrez_rate_limit.entrez_call`.
 
         Args:
             handle: Open Entrez response handle.
@@ -157,10 +162,6 @@ class _EntrezClient:
         Returns:
             Parsed result from Entrez.read() (dict-like or list-like).
         """
-        # NCBI's documented courtesy limit is at most ~3 requests/second
-        # without an API key; a fixed delay per call is a simple way to
-        # stay under that across many sequential/concurrent calls.
-        sleep(0.25)  # rate limits - recommended by entrez docs
         results = Entrez.read(handle)
         handle.close()
         return results
@@ -182,7 +183,9 @@ class _EntrezClient:
             # (no link, malformed response) just means fulltext is
             # unavailable, not a fatal error for the caller.
             related = self.entrez_read(
-                Entrez.elink(dbfrom="pubmed", db="pmc", id=paper_id)
+                entrez_call(
+                    Entrez.elink, dbfrom="pubmed", db="pmc", id=paper_id
+                )
             )
             return str(related[0]["LinkSetDb"][0]["Link"][0]["Id"])
         except Exception:
@@ -205,7 +208,9 @@ class _EntrezClient:
         """
         # efetch returns a PubmedArticleSet; a single-id request still comes
         # back as a one-element list, hence the [0] below.
-        results = self.entrez_read(Entrez.efetch(db="pubmed", id=paper_id))
+        results = self.entrez_read(
+            entrez_call(Entrez.efetch, db="pubmed", id=paper_id)
+        )
         pubmed_article = results["PubmedArticle"][0]
         citation = pubmed_article["MedlineCitation"]
         article = citation["Article"]
@@ -233,7 +238,7 @@ class _EntrezClient:
         }
         _apply_recency_filter(search_params, recency_years)
         logger.debug("searching pubmed with sort=pub_date (most recent first)")
-        results = self.entrez_read(Entrez.esearch(**search_params))
+        results = self.entrez_read(entrez_call(Entrez.esearch, **search_params))
         # esearch's IdList is empty (not absent) when nothing matches, so the
         # truthiness check also covers that case, not just a missing key.
         if id_list := results.get("IdList", None):
