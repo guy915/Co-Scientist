@@ -30,6 +30,8 @@ from __future__ import annotations
 import dataclasses
 import random
 
+from co_scientist.constants import TOURNAMENT_MIN_MATCHES_PER_HYPOTHESIS
+
 
 @dataclasses.dataclass(frozen=True)
 class MatchCandidate:
@@ -53,19 +55,20 @@ class MatchmakingWeights:
     per-hypothesis match floor reached before extra discriminating matches
     are scheduled.
 
-    ``min_coverage`` is 2 rather than 1 because a rating built from one
-    match is a coin flip, not a measurement: from the flat starting rating
-    a single result has exactly two possible outcomes, so every idea that
-    played once reported one of the same two numbers. Two is the floor at
-    which an idea has a record; the budget in ``ranking_lifecycle`` funds
-    more than that per idea, and the surplus goes to discrimination.
+    ``min_coverage`` is the shared
+    ``TOURNAMENT_MIN_MATCHES_PER_HYPOTHESIS``: a rating built from one match
+    is a coin flip, not a measurement. It is imported rather than spelled
+    again here because the ranking budget's coverage floor has to fund
+    exactly this number -- the two were written independently as 2 and 1,
+    and every idea the budget could not afford played once and landed on one
+    of the two reachable ratings.
     """
 
     recency: float = 1.0
     rank: float = 1.0
     coverage: float = 0.5
     similarity_bonus: float = 2.0
-    min_coverage: int = 2
+    min_coverage: int = TOURNAMENT_MIN_MATCHES_PER_HYPOTHESIS
 
 
 @dataclasses.dataclass(frozen=True)

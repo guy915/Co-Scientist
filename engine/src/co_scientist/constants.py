@@ -60,6 +60,23 @@ ELO_UPSET_MARGIN: Final = 100
 """Pre-match Elo lead by which the loser must have exceeded the winner for a
 judged matchup to be classified an "upset" (see ``ranking.match_tier``)."""
 
+TOURNAMENT_MIN_MATCHES_PER_HYPOTHESIS: Final = 2
+"""Matches every rankable hypothesis is *guaranteed*, budget notwithstanding.
+
+A rating built from one match is a coin flip, not a measurement: from the
+flat 1200 seed a single result has exactly two possible outcomes, so every
+idea that played once reports one of the same two numbers. Two is the floor
+at which an idea has a win-loss record.
+
+This is the number the matchmaker's ``min_coverage`` and the ranking budget's
+coverage floor both mean, and they must not drift: they were 2 and 1
+respectively, so the budget guaranteed one match while the matchmaker was
+trying to buy two. Late-arriving ideas -- everything evolution and the second
+generation wave add -- therefore got exactly one match each, and a production
+run ended with six ideas tied at 1212 and seven at 1188, presented as a
+ranking.
+"""
+
 TOURNAMENT_MATCHES_PER_HYPOTHESIS: Final = 3
 """Matches each rankable hypothesis is budgeted over the whole run.
 

@@ -14,7 +14,10 @@ from typing import Any, NamedTuple
 from co_scientist.agents.ranking.ranking_results import (
     _build_ranking_delta,
 )
-from co_scientist.constants import TOURNAMENT_MATCHES_PER_HYPOTHESIS
+from co_scientist.constants import (
+    TOURNAMENT_MATCHES_PER_HYPOTHESIS,
+    TOURNAMENT_MIN_MATCHES_PER_HYPOTHESIS,
+)
 from co_scientist.models import Hypothesis
 from co_scientist.progress import emit_progress
 from co_scientist.state import WorkflowState
@@ -84,13 +87,21 @@ def consumed_tournament_rounds(state: WorkflowState) -> int:
 
 
 def _coverage_floor(hypotheses: list[Hypothesis]) -> int:
-    """Rounds needed so every never-matched rankable idea gets one match.
+    """Rounds needed to give every rankable idea a win-loss record.
 
     A hypothesis that leaves a run unmatched still reports the starting Elo
     of 1200, which is indistinguishable in the report from a rating earned
     against opponents. The budget is therefore a ceiling on discrimination,
     not on coverage: it may decide how much a run refines its ordering, but
     never that an idea is ranked without playing.
+
+    The floor is ``TOURNAMENT_MIN_MATCHES_PER_HYPOTHESIS`` matches per idea,
+    not one. One match is the same failure in a quieter form: from the flat
+    seed it has exactly two outcomes, so a run whose budget ran out mid-pool
+    reported a dozen ideas tied at the same two numbers. This is the number
+    the matchmaker already tries to reach (``MatchmakingWeights.min_coverage``
+    -- the same constant), and funding less than it asks for is what left the
+    ideas evolution and the later generation waves add on exactly one match.
 
     Counted over rankable hypotheses only. Quarantined and undermined ideas
     are excluded from the tournament by design, so counting them would hold
@@ -101,11 +112,15 @@ def _coverage_floor(hypotheses: list[Hypothesis]) -> int:
     rankable = [h for h in hypotheses if h.is_rankable()]
     if len(rankable) < 2:
         return 0
-    unmatched = sum(1 for h in rankable if h.total_matches == 0)
-    if not unmatched:
+    owed = sum(
+        max(0, TOURNAMENT_MIN_MATCHES_PER_HYPOTHESIS - h.total_matches)
+        for h in rankable
+    )
+    if not owed:
         return 0
     max_pairs = len(rankable) * (len(rankable) - 1) // 2
-    return min((unmatched + 1) // 2, max_pairs)
+    # Each match settles two of the owed slots.
+    return min((owed + 1) // 2, max_pairs)
 
 
 def _tournament_budget(

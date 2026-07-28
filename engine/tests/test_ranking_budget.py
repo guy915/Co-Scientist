@@ -120,12 +120,14 @@ async def test_ranking_node_is_a_no_op_once_the_budget_is_spent() -> None:
     assert result == {"hypotheses": hypotheses}
 
 
-def test_spent_budget_still_owes_a_first_match_to_unplayed_ideas() -> None:
-    """Coverage outranks the budget: no idea is rated without playing.
+def test_spent_budget_still_owes_every_idea_a_win_loss_record() -> None:
+    """Coverage outranks the budget: no idea is rated on a coin flip.
 
     tournament_pairs bounds how far a run refines its ordering. It must not
     decide that a hypothesis is reported at the starting Elo of 1200, which
-    in the report is indistinguishable from a rating earned in matches.
+    in the report is indistinguishable from a rating earned in matches --
+    nor on a single match, which from that flat seed has exactly two
+    possible outcomes and so reports one of two numbers.
     """
     from co_scientist.agents.ranking.ranking_lifecycle import (
         _tournament_round_count,
@@ -143,8 +145,25 @@ def test_spent_budget_still_owes_a_first_match_to_unplayed_ideas() -> None:
         metrics=ExecutionMetrics(tournaments_count=6),
     )
 
-    # Three unplayed ideas need ceil(3/2) = 2 rounds to all get a match.
-    assert _tournament_round_count(spent, played + unplayed) == 2
+    # The two played ideas already have a record; the three unplayed ones owe
+    # two matches each, which is six slots and so ceil(6/2) = 3 rounds.
+    assert _tournament_round_count(spent, played + unplayed) == 3
+
+
+def test_one_match_is_not_enough_coverage_to_close_the_floor() -> None:
+    """An idea on one match is still owed another.
+
+    This is the shape the bug took in production: the floor funded one match
+    per idea while the matchmaker was trying to reach two, so every idea the
+    budget could not afford played exactly once. From the flat 1200 seed that
+    leaves two reachable ratings, and a run reported six ideas at 1212 and
+    seven at 1188 as though that were a ranking.
+    """
+    from co_scientist.agents.ranking.ranking_lifecycle import _coverage_floor
+
+    once = [make_hypothesis(text=f"h{i}", win_count=1) for i in range(4)]
+
+    assert _coverage_floor(once) == 2
 
 
 def test_unrankable_ideas_do_not_hold_the_coverage_floor_open() -> None:
