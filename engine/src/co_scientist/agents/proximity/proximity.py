@@ -154,12 +154,13 @@ def _log_dedup_summary(
         len(removed_duplicates),
     )
 
-    if removed_duplicates:
-        logger.warning(
-            "Removed %s high-similarity duplicates:", len(removed_duplicates)
-        )
-        for dup in removed_duplicates[:3]:  # Log first 3
-            logger.warning("- %s...", dup["text"][:80])
+    # Sampled at debug, not warning: deduplication succeeding is the node
+    # doing its job, the count is already in the summary above, and every drop
+    # is persisted as an archived hypothesis. At warning it wrote four rows per
+    # pass into a log whose readable window is the newest hundred records,
+    # crowding out the run's own narrative with its most routine outcome.
+    for dup in removed_duplicates[:3]:  # Log first 3
+        logger.debug("removed near-duplicate: %s...", dup["text"][:80])
 
 
 @dataclass

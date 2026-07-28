@@ -228,8 +228,32 @@ def persist_grounding(
         reason_by_id[hyp_id] = gate.reason
         if gate.decision is GateDecision.BLOCK:
             blocked.add(hyp_id)
+    _log_gate_outcome(len(blocked), len(reason_by_id))
     return GroundingResult(
         blocked_ids=frozenset(blocked), reason_by_id=reason_by_id
+    )
+
+
+def _log_gate_outcome(blocked_count: int, gated_count: int) -> None:
+    """Log the claim gate's tally for a pass, warning only when it took all.
+
+    A pass that blocks some hypotheses is the gate discriminating; a pass that
+    blocks every one of them is the run reaching publication with nothing
+    grounded, which says more about the evidence the pool was assessed against
+    than about any single hypothesis -- and is the state worth surfacing.
+    """
+    if not gated_count:
+        return
+    if blocked_count == gated_count:
+        logger.warning(
+            "Claim gate blocked all %s hypotheses: none reached publication",
+            gated_count,
+        )
+        return
+    logger.info(
+        "Claim gate: %s of %s hypotheses blocked from publication",
+        blocked_count,
+        gated_count,
     )
 
 
@@ -328,7 +352,13 @@ def _record_blocked_hypothesis(
         db_path=db_path,
         conn=conn,
     )
-    logger.warning(
+    # Info, not warning: quarantining an ungrounded hypothesis is the gate
+    # working, one line per blocked hypothesis is a per-item verdict rather
+    # than a problem report, and the decision is already persisted as a
+    # safety_decision row and counted in the run's citation.grounding event.
+    # The aggregate that *is* worth a warning -- nothing clearing the gate at
+    # all -- is raised once in persist_grounding below.
+    logger.info(
         "Quarantining hypothesis %s from ranking and publication: %s",
         hyp_id,
         gate.reason,
