@@ -1,7 +1,9 @@
-import {useEffect, useMemo, useState} from 'react';
+import {useMemo} from 'react';
 import {type RunWithSummary} from '@/api/runs';
 import {Icon, type IconName} from '@/components/icon';
 import type {StreamEvent} from '@/hooks/use_run_stream';
+import {formatDurationPhrase} from '@/lib/duration';
+import {useNowTick} from '@/workbench/hooks/use_now_tick';
 import {joinClasses} from '../classes';
 import {RunExecutionProgress} from './home_recents_run_steps';
 
@@ -29,46 +31,28 @@ interface ActiveRunViewProps {
   ideaCount: number;
 }
 
-// The determinate progress fraction, only once it is both reported and
-// meaningfully positive (a zero or negative fraction can't project a rate).
-function meaningfulFraction(run: RunWithSummary): number | null {
-  const progress = run.execution_progress;
-  if (!progress?.determinate) return null;
-  const fraction = progress.fraction;
-  if (!fraction || fraction <= 0) return null;
-  return fraction;
+// How long the run has been going, floored at zero to guard against clock
+// skew between the client and the server's created_at. Elapsed time is a
+// measurement rather than a projection, so unlike the estimate it replaced it
+// is honest from the first second of the run.
+function elapsedLabel(run: RunWithSummary, nowSeconds: number): string {
+  const elapsedSeconds = Math.max(0, nowSeconds - run.created_at);
+  return formatDurationPhrase(elapsedSeconds, {subMinute: true});
 }
 
-// Estimated seconds left, from the determinate progress fraction; null while
-// the estimate is not yet meaningful.
-function estimateRemainingSeconds(
-  run: RunWithSummary,
-  nowSeconds: number,
-): number | null {
-  const fraction = meaningfulFraction(run);
-  if (fraction === null) return null;
-  const elapsedSeconds = Math.max(0, Math.round(nowSeconds - run.created_at));
-  return Math.max(0, Math.round((elapsedSeconds * (1 - fraction)) / fraction));
-}
-
-// The headline metrics row: time remaining, sources, and idea count.
+// The headline metrics row: time elapsed, sources, and idea count.
 function RunMetrics({
-  remainingSeconds,
+  elapsed,
   evidenceCount,
   ideaCount,
 }: {
-  remainingSeconds: number | null;
+  elapsed: string;
   evidenceCount: number;
   ideaCount: number;
 }) {
   return (
     <dl className="grid grid-cols-3 gap-3 max-[720px]:grid-cols-1">
-      <RunMetric
-        label="Time remaining"
-        value={
-          remainingSeconds === null ? 'Estimating…' : `${remainingSeconds}s`
-        }
-      />
+      <RunMetric label="Time elapsed" value={elapsed} />
       <RunMetric label="Sources Analyzed" value={String(evidenceCount)} />
       <RunMetric label="Ideas explored" value={String(ideaCount)} />
     </dl>
@@ -81,12 +65,13 @@ export function ActiveRunView({
   evidenceCount,
   ideaCount,
 }: ActiveRunViewProps) {
-  // Ticks so relative timestamps and the elapsed clock stay honest even while
-  // a slow node holds the run without emitting a new event.
-  const nowSeconds = useNowTick(30_000);
-  const remainingSeconds = estimateRemainingSeconds(run, nowSeconds);
-  // Memoized on the events so the 30s clock ticks above don't re-scan the
-  // whole event list just to advance timestamps.
+  // Ticks every second so the elapsed clock advances visibly even while a slow
+  // node holds the run without emitting a new event. The activity log's
+  // relative timestamps ride the same clock.
+  const nowSeconds = useNowTick(1000);
+  const elapsed = elapsedLabel(run, nowSeconds);
+  // Memoized on the events so the per-second clock ticks above don't re-scan
+  // the whole event list just to advance timestamps.
   const activity = useMemo(
     () =>
       events
@@ -104,7 +89,7 @@ export function ActiveRunView({
           <RunExecutionProgress run={run} />
         </div>
         <RunMetrics
-          remainingSeconds={remainingSeconds}
+          elapsed={elapsed}
           evidenceCount={evidenceCount}
           ideaCount={ideaCount}
         />
@@ -303,17 +288,6 @@ function relativeTime(createdAt: number | undefined, now: number): string {
   if (seconds < 5) return 'just now';
   if (seconds < 60) return `${seconds}s ago`;
   return `${Math.round(seconds / 60)}m ago`;
-}
-
-// Re-renders the caller on an interval so time-based UI (relative timestamps,
-// the elapsed clock) advances even when no new events or props arrive.
-function useNowTick(intervalMs: number): number {
-  const [now, setNow] = useState(() => Date.now() / 1000);
-  useEffect(() => {
-    const id = window.setInterval(() => setNow(Date.now() / 1000), intervalMs);
-    return () => window.clearInterval(id);
-  }, [intervalMs]);
-  return now;
 }
 
 // A small sonar dot signalling the feed is live.

@@ -1,5 +1,6 @@
 import {useParams} from 'react-router-dom';
-import {isActiveStatus, runGoal} from '@/api/runs';
+import {isActiveStatus, type RunStatus, runGoal} from '@/api/runs';
+import {useRunHistoryContext} from '@/workbench/hooks/run_history_context';
 import {IdeasTab} from '../components/tabs/ideas_tab';
 import {ActiveRunView} from './run_detail_active';
 import {useRunDetailData} from './run_detail_data';
@@ -28,12 +29,38 @@ const ALL_IDEAS_CLASSES = 'cosci-all-ideas h-full p-0 max-[720px]:h-auto';
 
 type RunDetailData = ReturnType<typeof useRunDetailData>;
 
-// The page grid: an active run collapses the tab-nav row out of the template
-// since ActiveRunView replaces the tabbed body entirely.
-function reportPageClasses(active: boolean): string {
-  return active
-    ? `${REPORT_PAGE_CLASSES} grid-rows-[3.75rem_minmax(0,1fr)]`
-    : REPORT_PAGE_CLASSES;
+// Whether the run is executing. 'unknown' is a real third state: until the
+// run row (or the shell's history) says otherwise, neither the results chrome
+// nor the live view is the right guess.
+type RunActivity = 'active' | 'inactive' | 'unknown';
+
+function activityOf(status: RunStatus | undefined): RunActivity {
+  if (!status) return 'unknown';
+  return isActiveStatus(status) ? 'active' : 'inactive';
+}
+
+// The run's activity, known as early as possible. The fetched row wins once
+// it lands (a row that failed to load counts as settled, so an errored page
+// still offers its tabs). Before that the shell's run-history list already
+// carries the status of every listed run, so a running run opened from the
+// sidebar picks the live view on its very first paint instead of flashing the
+// previous run's report chrome for the length of a fetch.
+function useRunActivity(
+  id: string | undefined,
+  data: RunDetailData,
+): RunActivity {
+  const {history} = useRunHistoryContext();
+  if (data.loaded) return data.run ? activityOf(data.run.status) : 'inactive';
+  return activityOf(history.find(run => run.id === id)?.status);
+}
+
+// The page grid: only a settled, non-active run gets the tab-nav row, since
+// ActiveRunView replaces the tabbed body entirely and an unknown activity has
+// no business painting chrome it may be about to drop.
+function reportPageClasses(showTabs: boolean): string {
+  return showTabs
+    ? REPORT_PAGE_CLASSES
+    : `${REPORT_PAGE_CLASSES} grid-rows-[3.75rem_minmax(0,1fr)]`;
 }
 
 /**
@@ -44,23 +71,23 @@ export function RunDetail() {
   const activeTab = normalizeTab(tab);
   const {ideasViewKey, onTabChange} = useTabNavigation(id, activeTab);
   const data = useRunDetailData(id);
+  const activity = useRunActivity(id, data);
 
   if (!id) return null;
 
-  const active = isActiveStatus(data.run?.status);
-  const pageClasses = reportPageClasses(active);
+  const showTabs = activity === 'inactive';
   return (
-    <div className={pageClasses}>
+    <div className={reportPageClasses(showTabs)}>
       <ReportTitlebar title={data.title} />
 
-      {!active && (
+      {showTabs && (
         <ReportTabNav activeTab={activeTab} onTabChange={onTabChange} />
       )}
 
       <ReportErrorAlert message={data.error} />
 
       <RunDetailBody
-        active={active}
+        active={activity === 'active'}
         activeTab={activeTab}
         ideasViewKey={ideasViewKey}
         data={data}

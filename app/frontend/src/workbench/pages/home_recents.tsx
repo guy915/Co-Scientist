@@ -2,6 +2,7 @@ import {Link} from 'react-router-dom';
 import {isActiveStatus, type Run} from '@/api/runs';
 import {Icon} from '@/components/icon';
 import {firstSentenceClause} from '@/lib/text';
+import {useNowTick} from '@/workbench/hooks/use_now_tick';
 import {GoogleLabsIcon} from '../components/google_labs_icon';
 import {TruncatedLabel} from '../components/truncated_label';
 import {
@@ -195,15 +196,18 @@ function LoadMoreRunsItem({
  * @param run The run to summarize.
  * @param topScore The run's top Elo score, or null if unknown/not completed.
  */
-// The date/time chip row at the top of a recents card.
+// The date/time chip row at the top of a recents card. The clock ticks every
+// second because an active run's chip reports elapsed time, which would
+// otherwise only move when the shared history reloads.
 function RecentCardMeta({run}: {run: Run}) {
+  const nowSeconds = useNowTick(1000);
   return (
     <span className={RECENT_META_CLASSES}>
       <span className={RECENT_META_CHIP_CLASSES}>
         {formatHomeRunDate(run.updated_at)}
       </span>
       <span className={RECENT_META_CHIP_CLASSES}>
-        {formatHomeRunTimeChip(run)}
+        {formatHomeRunTimeChip(run, nowSeconds)}
       </span>
     </span>
   );

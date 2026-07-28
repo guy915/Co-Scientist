@@ -106,6 +106,20 @@ async function fetchRunData(id: string, keys?: ReadonlySet<RunDataKey>) {
   };
 }
 
+// Fetches a run's data, reporting a failure as a message rather than
+// throwing, so the caller can decide whether the response is still wanted
+// before it touches any state.
+async function fetchRunOutcome(id: string, keys?: ReadonlySet<RunDataKey>) {
+  try {
+    return {data: await fetchRunData(id, keys), error: null};
+  } catch (err) {
+    return {
+      data: null,
+      error: err instanceof Error ? err.message : String(err),
+    };
+  }
+}
+
 // Calls `setState` only when `value` was actually fetched (a selective
 // refresh leaves the collections it did not request `undefined`).
 function applyIfFetched<T>(value: T | undefined, setState: (value: T) => void) {
@@ -182,6 +196,22 @@ function useRunCollections() {
     [],
   );
 
+  // Clears every collection back to its empty value. The run-detail route
+  // element is mounted once for /runs/:id/:tab, so an id change is a new run
+  // in the same component instance: without this, the previous run's
+  // hypotheses, report and status keep rendering as if they were this run's
+  // until the new fetch lands.
+  const reset = useCallback(() => {
+    setRun(null);
+    setHypotheses([]);
+    setEvidence([]);
+    setMatches([]);
+    setReviews([]);
+    setClaimEvidence([]);
+    setSafety([]);
+    setReport(null);
+  }, []);
+
   return {
     run,
     hypotheses,
@@ -192,13 +222,17 @@ function useRunCollections() {
     safety,
     report,
     applyFetched,
+    reset,
   };
 }
 
 function useRunFetch(id: string | undefined) {
-  const {applyFetched, ...collections} = useRunCollections();
+  const {applyFetched, reset, ...collections} = useRunCollections();
   const [error, setError] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
+  // The run the page is currently showing, so a response can be checked
+  // against it after the await (see refresh below).
+  const shownId = useRef(id);
 
   // With no key set, everything is refetched (initial load, terminal drain).
   // With one, only the run row plus the named collections are, so a mid-run
@@ -206,14 +240,14 @@ function useRunFetch(id: string | undefined) {
   const refresh = useCallback(
     async (keys?: ReadonlySet<RunDataKey>) => {
       if (!id) return;
-      try {
-        applyFetched(await fetchRunData(id, keys));
-        setError(null);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : String(err));
-      } finally {
-        setLoaded(true);
-      }
+      const outcome = await fetchRunOutcome(id, keys);
+      // Drop a response for a run the page has since navigated away from: the
+      // previous run's in-flight fetch can land after the switch, and applying
+      // it would repopulate the new run's view with the old run's data.
+      if (shownId.current !== id) return;
+      if (outcome.data) applyFetched(outcome.data);
+      setError(outcome.error);
+      setLoaded(true);
     },
     [id, applyFetched],
   );
@@ -226,11 +260,17 @@ function useRunFetch(id: string | undefined) {
     void refresh();
   }, [refresh, cancelPending]);
 
-  // Initial load (and reload when the run id changes) stays immediate.
+  // Initial load (and reload when the run id changes) stays immediate. Only
+  // an id change resets: `refresh` is stable for a given id, so the SSE-driven
+  // partial refetches below never clear what is on screen -- they update it.
   useEffect(() => {
+    shownId.current = id;
     resetPending();
+    reset();
+    setError(null);
+    setLoaded(false);
     void refresh();
-  }, [refresh, resetPending]);
+  }, [id, refresh, resetPending, reset]);
 
   return {...collections, error, loaded, scheduleRefresh, refreshNow};
 }

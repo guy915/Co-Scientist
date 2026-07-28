@@ -3,6 +3,7 @@ import {MemoryRouter, Route, Routes} from 'react-router-dom';
 import {beforeEach, expect, it, vi} from 'vitest';
 import * as runsApi from '@/api/runs';
 import type {SafetyDecision} from '@/api/runs';
+import {RunHistoryProvider} from '@/workbench/hooks/run_history_context';
 import {RunDetail} from './run_detail';
 import {makeRun, renderAt} from './run_detail_test_support';
 
@@ -147,12 +148,16 @@ it('refetches on a coalesced batch ending in status with data', async () => {
   const getRun = vi.mocked(runsApi.getRun);
   // A fresh element each render — passing the same reference makes React
   // bail out of re-rendering, so the mutated stream would never be re-read.
+  // RunDetail seeds a run's activity from the shared run history, so the
+  // provider is part of its harness (see renderAt).
   const makeUi = () => (
     <MemoryRouter initialEntries={['/runs/run-1/specifications']}>
-      <Routes>
-        <Route path="/runs/:id" element={<RunDetail />} />
-        <Route path="/runs/:id/:tab" element={<RunDetail />} />
-      </Routes>
+      <RunHistoryProvider>
+        <Routes>
+          <Route path="/runs/:id" element={<RunDetail />} />
+          <Route path="/runs/:id/:tab" element={<RunDetail />} />
+        </Routes>
+      </RunHistoryProvider>
     </MemoryRouter>
   );
   const {rerender} = render(makeUi());

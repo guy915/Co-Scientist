@@ -80,53 +80,6 @@ function RunStepItem({icon, label}: {icon: IconName; label: string}) {
   );
 }
 
-/**
- * Renders truthful task-queue progress for a live run. A percentage appears
- * only when the Supervisor has committed a durable task budget; otherwise the
- * bar remains explicitly indeterminate.
- */
-// The indeterminate pulse variant, shown while no fraction is known yet.
-function IndeterminateProgressBar() {
-  return (
-    <div
-      className="mt-2 h-1.5 overflow-hidden rounded-full bg-cosci-hover"
-      role="progressbar"
-      aria-label="Scientific task completion"
-    >
-      <div className="h-full w-1/3 animate-pulse rounded-full bg-cosci-blue-strong" />
-    </div>
-  );
-}
-
-// The determinate width variant, shown once a real fraction is known.
-function DeterminateProgressBar({percentage}: {percentage: number}) {
-  return (
-    <div
-      className="mt-2 h-1.5 overflow-hidden rounded-full bg-cosci-hover"
-      role="progressbar"
-      aria-label="Scientific task completion"
-      aria-valuemin={0}
-      aria-valuemax={100}
-      aria-valuenow={percentage}
-    >
-      <div
-        className="h-full rounded-full bg-cosci-blue-strong transition-[width]"
-        style={{width: `${percentage}%`}}
-      />
-    </div>
-  );
-}
-
-// The progress bar itself: determinate width when a fraction is known,
-// otherwise an indeterminate pulse.
-function ProgressBar({percentage}: {percentage: number | null}) {
-  return percentage === null ? (
-    <IndeterminateProgressBar />
-  ) : (
-    <DeterminateProgressBar percentage={percentage} />
-  );
-}
-
 // The active-task label: the humanized durable task when the engine provider
 // reports one, else the humanized stage when the mock provider reports one,
 // else a neutral placeholder while neither signal has arrived yet.
@@ -135,14 +88,6 @@ function activeTaskLabel(run: Run): string {
   if (activeTask) return humanizeTask(activeTask);
   if (run.latest_stage) return humanizeTask(run.latest_stage);
   return 'Waiting for Supervisor allocation';
-}
-
-// The completion percentage, only once the Supervisor has committed a real,
-// non-zero fraction; null (indeterminate) otherwise.
-function executionPercentage(run: Run): number | null {
-  const progress = run.execution_progress;
-  if (!progress?.determinate || progress.fraction === null) return null;
-  return Math.round(progress.fraction * 100);
 }
 
 // Committed-task counts for the "N of M complete" line, only while the
@@ -161,20 +106,22 @@ function committedTaskCounts(run: Run): {
   };
 }
 
+/**
+ * Renders truthful task-queue progress for a live run: what it is working on
+ * now, and how much of the Supervisor's committed task budget is done. Both
+ * are stated in words -- a bar was removed because its fraction is only known
+ * once the budget is committed, so most of a run it read as motion without
+ * information.
+ */
 export function RunExecutionProgress({run}: {run: Run}) {
   const activeTask = activeTaskLabel(run);
-  const percentage = executionPercentage(run);
   const counts = committedTaskCounts(run);
 
   return (
     <section className="mt-4" aria-label="Run execution progress">
-      <div className="flex items-center justify-between gap-3 text-xs">
-        <strong className="font-medium text-cosci-fg">{activeTask}</strong>
-        <span className="text-cosci-muted">
-          {percentage === null ? 'Progress pending' : `${percentage}%`}
-        </span>
-      </div>
-      <ProgressBar percentage={percentage} />
+      <strong className="block text-xs font-medium text-cosci-fg">
+        {activeTask}
+      </strong>
       {counts ? (
         <p className="mt-2 text-xs text-cosci-muted">
           {counts.completed} of {counts.total} committed tasks complete ·{' '}

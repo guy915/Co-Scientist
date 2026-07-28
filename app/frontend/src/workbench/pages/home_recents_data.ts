@@ -38,12 +38,11 @@ function formatHomeRunDuration(run: Run): string {
 }
 
 // Elapsed time since an active run was created, floored at zero to guard
-// against clock skew between client and server timestamps.
-function formatHomeRunElapsed(run: Run): string {
-  const elapsedSeconds = Math.max(
-    0,
-    (run.updated_at || Date.now() / 1000) - run.created_at,
-  );
+// against clock skew between client and server timestamps. Measured against
+// the caller's live clock rather than `updated_at`: that is the last server
+// write, so an executing run's chip sat frozen between history refreshes.
+function formatHomeRunElapsed(run: Run, nowSeconds: number): string {
+  const elapsedSeconds = Math.max(0, nowSeconds - run.created_at);
   return formatDurationPhrase(elapsedSeconds, {subMinute: true});
 }
 
@@ -53,14 +52,17 @@ function formatHomeRunElapsed(run: Run): string {
  * otherwise.
  *
  * @param run The run to describe.
+ * @param nowSeconds The caller's current time in Unix seconds, which an
+ *   active run's elapsed time is measured against (see useNowTick) so the
+ *   chip keeps advancing between history refreshes.
  * @returns The chip text.
  */
-export function formatHomeRunTimeChip(run: Run): string {
+export function formatHomeRunTimeChip(run: Run, nowSeconds: number): string {
   if (run.status === 'completed') {
     return `Total time: ${formatHomeRunDuration(run)}`;
   }
   if (isActiveStatus(run.status)) {
-    return `Time elapsed: ${formatHomeRunElapsed(run)}`;
+    return `Time elapsed: ${formatHomeRunElapsed(run, nowSeconds)}`;
   }
   return `Status: ${formatHomeRunStatus(run)}`;
 }

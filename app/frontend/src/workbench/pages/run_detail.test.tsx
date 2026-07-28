@@ -73,6 +73,7 @@ it('shows live metrics and activity instead of report controls', async () => {
   vi.mocked(runsApi.getRun).mockResolvedValue({
     ...makeRun('Study pathway X'),
     status: 'running',
+    created_at: Date.now() / 1000 - 5,
     execution_progress: {
       determinate: false,
       completed_tasks: 4,
@@ -87,8 +88,10 @@ it('shows live metrics and activity instead of report controls', async () => {
   renderAt('/runs/run-1/specifications');
 
   expect(await screen.findByText('Research in progress')).toBeInTheDocument();
-  expect(screen.getByText('Time remaining')).toBeInTheDocument();
-  expect(screen.getByText('Estimating…')).toBeInTheDocument();
+  // Elapsed time is measured, not projected, so it reads as a real duration
+  // from the first second rather than as an estimate.
+  expect(screen.getByText('Time elapsed')).toBeInTheDocument();
+  expect(screen.getByText('< 1 minute')).toBeInTheDocument();
   expect(screen.getByText('Sources Analyzed')).toBeInTheDocument();
   expect(screen.getByText('Ideas explored')).toBeInTheDocument();
   expect(screen.getByText('Engine Node Generate')).toBeInTheDocument();

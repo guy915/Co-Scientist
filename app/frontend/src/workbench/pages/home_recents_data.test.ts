@@ -15,13 +15,17 @@ describe('formatHomeRunDate', () => {
   });
 });
 
+// The caller's live clock (see useNowTick); only an active run's chip reads
+// it, so the settled cases pass an arbitrary value.
+const NOW = 10_000;
+
 it('shows total time for a completed run with valid timestamps', () => {
   const run = makeRun({
     status: 'completed',
     created_at: 1000,
     completed_at: 1000 + 3600,
   });
-  expect(formatHomeRunTimeChip(run)).toBe('Total time: 1 hour');
+  expect(formatHomeRunTimeChip(run, NOW)).toBe('Total time: 1 hour');
 });
 
 it('reports a sub-minute real span as "< 1 minute" for a completed run', () => {
@@ -32,35 +36,36 @@ it('reports a sub-minute real span as "< 1 minute" for a completed run', () => {
     completed_at: null,
   });
   // Real span is zero (updated_at == created_at), not a fabricated 60s.
-  expect(formatHomeRunTimeChip(run)).toBe('Total time: < 1 minute');
+  expect(formatHomeRunTimeChip(run, NOW)).toBe('Total time: < 1 minute');
 });
 
 it('shows elapsed time under a minute for a freshly started active run', () => {
-  const now = Date.now() / 1000;
   const run = makeRun({
     status: 'running',
-    created_at: now,
-    updated_at: now,
+    created_at: NOW,
+    updated_at: NOW,
     completed_at: null,
   });
-  expect(formatHomeRunTimeChip(run)).toBe('Time elapsed: < 1 minute');
+  expect(formatHomeRunTimeChip(run, NOW)).toBe('Time elapsed: < 1 minute');
 });
 
-it('shows a formatted elapsed duration for a longer-running active run', () => {
+it('measures an active run’s elapsed time against the live clock', () => {
+  // updated_at is 5 minutes behind the clock: it is the last server write,
+  // so reading it would freeze the chip between history refreshes.
   const run = makeRun({
     status: 'synthesizing',
-    created_at: 1000,
-    updated_at: 1000 + 300,
+    created_at: NOW - 300,
+    updated_at: NOW - 300,
     completed_at: null,
   });
-  expect(formatHomeRunTimeChip(run)).toBe('Time elapsed: 5 minutes');
+  expect(formatHomeRunTimeChip(run, NOW)).toBe('Time elapsed: 5 minutes');
 });
 
 it('shows the raw capitalized status for an in-between run', () => {
   const statuses: RunStatus[] = ['draft', 'failed', 'cancelled', 'blocked'];
   for (const status of statuses) {
     const run = makeRun({status});
-    expect(formatHomeRunTimeChip(run)).toBe(
+    expect(formatHomeRunTimeChip(run, NOW)).toBe(
       `Status: ${status.charAt(0).toUpperCase()}${status.slice(1)}`,
     );
   }
