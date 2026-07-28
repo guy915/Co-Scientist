@@ -60,6 +60,24 @@ ELO_UPSET_MARGIN: Final = 100
 """Pre-match Elo lead by which the loser must have exceeded the winner for a
 judged matchup to be classified an "upset" (see ``ranking.match_tier``)."""
 
+TOURNAMENT_MATCHES_PER_HYPOTHESIS: Final = 3
+"""Matches each rankable hypothesis is budgeted over the whole run.
+
+The tournament budget has to scale with the pool, because the pool is not
+fixed: evolution keeps adding ideas after the first ranking cycle. Against a
+flat per-tier ceiling the per-idea coverage therefore collapsed as a run
+progressed -- a production run ended with twelve of its eighteen rankable
+ideas having played exactly one match each, which at ``ELO_K_FACTOR`` from a
+flat 1200 seed leaves exactly two reachable ratings (1212 and 1188). The
+report then showed a dozen ideas tied at two values and presented that as a
+ranking.
+
+Three is the smallest count that gives every idea a win-loss *record* rather
+than a single coin flip, and it costs about one extra ranking wave per tier
+(matchups within a wave are judged concurrently -- see ``RANKING_WAVE_SIZE``),
+not one call per extra match.
+"""
+
 # LLM API parameters
 # These four token budgets are the base values that scaled_max_tokens() below
 # scales up for count-dependent calls (e.g. batch review, evolution); simple

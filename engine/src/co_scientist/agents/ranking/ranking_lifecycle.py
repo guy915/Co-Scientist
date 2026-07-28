@@ -14,6 +14,7 @@ from typing import Any, NamedTuple
 from co_scientist.agents.ranking.ranking_results import (
     _build_ranking_delta,
 )
+from co_scientist.constants import TOURNAMENT_MATCHES_PER_HYPOTHESIS
 from co_scientist.models import Hypothesis
 from co_scientist.progress import emit_progress
 from co_scientist.state import WorkflowState
@@ -107,20 +108,42 @@ def _coverage_floor(hypotheses: list[Hypothesis]) -> int:
     return min((unmatched + 1) // 2, max_pairs)
 
 
+def _tournament_budget(
+    state: WorkflowState, hypotheses: list[Hypothesis]
+) -> int:
+    """Resolves the run's whole-run match budget for the current pool.
+
+    Two numbers bound it, and the larger wins. ``tournament_pairs`` comes
+    from the run-tier config (6/12/20/32 pairs for
+    express/default/extended/ultra); the "or len(hypotheses)" fallback only
+    applies if it is missing/zero (e.g. ad-hoc/test state). On its own that
+    is a *flat* ceiling, and the pool it has to cover is not flat: evolution
+    keeps adding ideas after the first ranking cycle, so the tier number was
+    spent on the ideas that existed first and every idea added later got only
+    the coverage floor's single match. See
+    ``TOURNAMENT_MATCHES_PER_HYPOTHESIS`` for what that did to the ratings.
+
+    The second number therefore scales with the rankable pool, at
+    ``TOURNAMENT_MATCHES_PER_HYPOTHESIS`` matches per idea (each match covers
+    two of them, hence the halving). It is what actually binds on any pool
+    larger than the tier's own idea count.
+    """
+    configured = max(1, int(state.get("tournament_pairs") or len(hypotheses)))
+    rankable = sum(1 for h in hypotheses if h.is_rankable())
+    scaled = (rankable * TOURNAMENT_MATCHES_PER_HYPOTHESIS + 1) // 2
+    return max(configured, scaled)
+
+
 def _tournament_round_count(
     state: WorkflowState, hypotheses: list[Hypothesis]
 ) -> int:
     """Resolves the run's *remaining* tournament round allowance.
 
-    tournament_pairs is a whole-run budget, not a per-invocation one. It is
-    set upstream from the run-tier config (6/12/20/32 pairs for
-    express/default/extended/ultra); the "or len(hypotheses)" fallback only
-    applies if it is missing/zero (e.g. ad-hoc/test state).
-
-    It used to be spent in full by every ranking invocation, and the
-    scheduler runs ranking once per cycle -- so a standard run configured
-    for 12 matches judged about 22, and an ultra run far more. Each match
-    is real model work on the run's serial spine.
+    The budget is a whole-run one, not a per-invocation one: it used to be
+    spent in full by every ranking invocation, and the scheduler runs ranking
+    once per cycle -- so a standard run configured for 12 matches judged
+    about 22, and an ultra run far more. Each match is real model work on the
+    run's serial spine.
 
     The budget never suppresses a hypothesis's first match: a spent budget
     still yields enough rounds to cover ideas that have never played, since
@@ -132,7 +155,7 @@ def _tournament_round_count(
         larger; zero once the budget is spent and every rankable hypothesis
         has played.
     """
-    budget = max(1, int(state.get("tournament_pairs") or len(hypotheses)))
+    budget = _tournament_budget(state, hypotheses)
     remaining = max(0, budget - consumed_tournament_rounds(state))
     floor = _coverage_floor(hypotheses)
     if floor > remaining:

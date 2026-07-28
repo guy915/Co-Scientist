@@ -173,6 +173,11 @@ async def test_spent_budget_schedules_no_tournament(
     The pool is seeded as already played: a spent budget still owes a first
     match to any hypothesis that has never had one, so only a fully covered
     pool isolates the budget behaviour under test.
+
+    Consumed rounds are counted against the *effective* budget, which scales
+    with the pool (``TOURNAMENT_MATCHES_PER_HYPOTHESIS`` matches per idea, two
+    ideas per match) rather than stopping at the tier's own number -- eight
+    rankable ideas here, so twelve.
     """
     run = store.create_run("Spent budget", "standard", "engine", {})
     _seed_ranking_node(
@@ -182,7 +187,7 @@ async def test_spent_budget_schedules_no_tournament(
             hypothesis_count=8,
             tournament_pairs=6,
             idempotency_key="spent-budget-ranking-node",
-            consumed_rounds=6,
+            consumed_rounds=12,
             played=True,
         ),
         isolated_db,

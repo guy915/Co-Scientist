@@ -52,13 +52,20 @@ class MatchmakingWeights:
     partners in the primary's proximity cluster; ``min_coverage`` is the
     per-hypothesis match floor reached before extra discriminating matches
     are scheduled.
+
+    ``min_coverage`` is 2 rather than 1 because a rating built from one
+    match is a coin flip, not a measurement: from the flat starting rating
+    a single result has exactly two possible outcomes, so every idea that
+    played once reported one of the same two numbers. Two is the floor at
+    which an idea has a record; the budget in ``ranking_lifecycle`` funds
+    more than that per idea, and the surplus goes to discrimination.
     """
 
     recency: float = 1.0
     rank: float = 1.0
     coverage: float = 0.5
     similarity_bonus: float = 2.0
-    min_coverage: int = 1
+    min_coverage: int = 2
 
 
 @dataclasses.dataclass(frozen=True)
@@ -119,23 +126,45 @@ def _weighted_choice(
     return scored[-1][0]
 
 
+def _coverage_pool(
+    candidates: list[MatchCandidate],
+    state: _PairingState,
+) -> list[MatchCandidate]:
+    """Narrows a selection pool to the hypotheses owed a match first.
+
+    Coverage is filled one level at a time: of the candidates still below
+    ``min_coverage``, only those with the *fewest* matches so far are
+    offered. Taking the whole below-floor set instead lets a hypothesis play
+    its second match while another has yet to play its first, which loses the
+    guarantee that a build with enough rounds matches everybody.
+
+    Returns the full list once every candidate has reached the floor, at
+    which point the weighted priority decides.
+    """
+    below = [
+        c
+        for c in candidates
+        if state.coverage.get(c.id, 0) < state.weights.min_coverage
+    ]
+    if not below:
+        return candidates
+    fewest = min(state.coverage.get(c.id, 0) for c in below)
+    return [c for c in below if state.coverage.get(c.id, 0) == fewest]
+
+
 def _select_primary(
     candidates: list[MatchCandidate],
     state: _PairingState,
 ) -> MatchCandidate:
     """Select the first side of a match.
 
-    Under-covered hypotheses (below ``min_coverage``) are chosen first to
-    prevent starvation; once every hypothesis is covered, selection is
-    weighted by the recency/rank/coverage priority.
+    Under-covered hypotheses are chosen first to prevent starvation (see
+    ``_coverage_pool``); once every hypothesis has reached the floor,
+    selection is weighted by the recency/rank/coverage priority.
     """
-    undercovered = [
-        c
-        for c in candidates
-        if state.coverage.get(c.id, 0) < state.weights.min_coverage
+    scored = [
+        (c, _priority(c, state)) for c in _coverage_pool(candidates, state)
     ]
-    pool = undercovered or candidates
-    scored = [(c, _priority(c, state)) for c in pool]
     return _weighted_choice(scored, state.rng)
 
 
@@ -192,12 +221,7 @@ def _select_partner(
     ]
     if not eligible:
         return None
-    undercovered = [
-        c
-        for c in eligible
-        if state.coverage.get(c.id, 0) < state.weights.min_coverage
-    ]
-    pool = undercovered or eligible
+    pool = _coverage_pool(eligible, state)
     scored = [(c, _partner_score(c, primary, state)) for c in pool]
     return _weighted_choice(scored, state.rng)
 

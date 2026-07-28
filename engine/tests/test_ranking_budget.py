@@ -53,6 +53,30 @@ def test_tournament_budget_is_spent_across_the_whole_run() -> None:
     assert _tournament_round_count(spent, hypotheses) == 0
 
 
+def test_budget_scales_with_a_pool_the_tier_number_cannot_cover() -> None:
+    """The allowance tracks the pool, which the tier constant does not.
+
+    Evolution keeps adding ideas after the first ranking cycle, so a flat
+    per-tier ceiling is spent on the ideas that existed first and every idea
+    added later gets only the coverage floor's single match. A production run
+    ended with twelve of eighteen rankable ideas on exactly one match, which
+    from the flat starting rating leaves two reachable ratings -- the report
+    showed a dozen ideas tied at 1212 and 1188 and called it a ranking.
+    """
+    from co_scientist.agents.ranking.ranking_lifecycle import (
+        _tournament_round_count,
+    )
+
+    hypotheses = [
+        make_hypothesis(text=f"h{i}", win_count=1, loss_count=1)
+        for i in range(18)
+    ]
+    state = make_state(hypotheses=hypotheses, tournament_pairs=12)
+
+    # 18 rankable ideas at three matches each, two ideas per match.
+    assert _tournament_round_count(state, hypotheses) == 27
+
+
 def test_budget_is_not_refunded_when_dedup_removes_hypotheses() -> None:
     """Consumed rounds come from run metrics, not from the surviving pool.
 
