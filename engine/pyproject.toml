@@ -21,6 +21,13 @@ dependencies = [
     "langgraph~=1.0.6",
     "langchain-core~=1.2.7",
     "langchain-mcp-adapters>=0.2.1",
+    # Pinned below 2.0 because langchain-mcp-adapters asks only for
+    # `mcp>=1.24.0`: mcp 2.0.0 moved `RequestContext` out of
+    # `mcp.shared.context`, which the adapter imports at module scope, so a
+    # fresh resolve took the new major and every import of this package --
+    # hence the whole app -- died on ImportError. Raise this only together
+    # with an adapter release that supports the new major.
+    "mcp>=1.24.0,<2",
     "langsmith~=0.6.2",
     "litellm~=1.80.16",
     "typing-extensions~=4.15.0",
