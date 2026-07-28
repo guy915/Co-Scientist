@@ -7,18 +7,22 @@ export function makeMessage(overrides: Partial<ChatEntry> = {}): ChatEntry {
   return makeSharedMessage({content: 'Hello there', ...overrides});
 }
 
-export function renderBubble(overrides: Partial<ChatEntry> = {}) {
-  const onEdit = vi.fn();
+export function renderBubble(
+  overrides: Partial<ChatEntry> = {},
+  revisable = true,
+) {
+  const onSubmitEdit = vi.fn();
   const onCopyRequest = vi.fn();
   const onRetry = vi.fn();
   const message = makeMessage(overrides);
   const utils = render(
     <ChatBubble
       message={message}
-      onEdit={onEdit}
+      revisable={revisable}
+      onSubmitEdit={onSubmitEdit}
       onCopyRequest={onCopyRequest}
       onRetry={onRetry}
     />,
   );
-  return {...utils, onEdit, onCopyRequest, onRetry, message};
+  return {...utils, onSubmitEdit, onCopyRequest, onRetry, message};
 }

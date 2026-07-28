@@ -432,6 +432,97 @@ async def add_interview_turn(
     return _interview_stream(interview_id)
 
 
+def _require_revisable_turn(
+    interview: dict[str, Any], turn_id: int, role: str
+) -> None:
+    """Check the turn a revision targets, or raise a 4xx explaining why not.
+
+    Raises:
+        HTTPException: 409 when the interview is closed to revision, 404 when
+            the turn is not one of its own, 409 when it is not the kind of
+            turn this revision applies to.
+    """
+    if interview["status"] == "cancelled":
+        raise HTTPException(status_code=409, detail="interview is cancelled")
+    turn = next(
+        (t for t in interview["turns"] if int(t["id"]) == turn_id), None
+    )
+    if turn is None:
+        raise HTTPException(status_code=404, detail="turn not found")
+    if turn["role"] != role:
+        raise HTTPException(
+            status_code=409, detail=f"turn is not a {role} turn"
+        )
+
+
+def _reset_derivation(interview_id: str) -> None:
+    """Re-baseline the four fields after a rewind, and reopen the interview.
+
+    The stored fields are the model's derivation from a transcript that no
+    longer exists, so keeping them would feed the next turn exactly the
+    conclusions the scientist just withdrew. They are cleared back to the
+    opening challenge -- whatever the first surviving user turn says -- and
+    the model re-derives the rest from what remains.
+    """
+    interview = store.get_interview(interview_id)
+    assert interview is not None
+    opening = next((t for t in interview["turns"] if t["role"] == "user"), None)
+    store.update_interview(
+        interview_id,
+        {
+            "research_challenge": str(opening["content"]) if opening else "",
+            "focus_area": [],
+            "preferences": [],
+            "title": None,
+        },
+        "Continue the interview.",
+        completed=False,
+    )
+
+
+@router.put("/{interview_id}/turns/{turn_id}")
+async def edit_interview_turn(
+    interview_id: str,
+    turn_id: int,
+    body: InterviewTurnRequest,
+    request: Request,
+) -> StreamingResponse:
+    """Replace one scientist turn in place and re-answer from there.
+
+    An edited prompt is a correction, not a new question: the turn is
+    rewritten where it stands and the Agent answers it again, rather than the
+    old wording staying in the transcript with the correction appended after
+    it -- which is what makes the two readings of "what did I ask?" disagree.
+    Everything the Agent said after it was derived from the old wording, so
+    it goes with it.
+    """
+    interview = _owned_interview(interview_id, request)
+    _require_revisable_turn(interview, turn_id, "user")
+    store.rewind_interview(interview_id, turn_id)
+    store.append_interview_turn(
+        interview_id, store.NewInterviewTurn("user", body.content)
+    )
+    _reset_derivation(interview_id)
+    return _interview_stream(interview_id)
+
+
+@router.post("/{interview_id}/turns/{turn_id}/retry")
+async def retry_interview_turn(
+    interview_id: str, turn_id: int, request: Request
+) -> StreamingResponse:
+    """Discard one Agent turn and answer the same prompt again.
+
+    Retry has to remove the answer it is replacing. Re-running the model
+    with the rejected turn still in the transcript asks it to continue from
+    the answer rather than to reconsider it.
+    """
+    interview = _owned_interview(interview_id, request)
+    _require_revisable_turn(interview, turn_id, "agent")
+    store.rewind_interview(interview_id, turn_id)
+    _reset_derivation(interview_id)
+    return _interview_stream(interview_id)
+
+
 @router.put("/{interview_id}/fields")
 async def edit_interview_fields(
     interview_id: str, body: InterviewFieldsRequest, request: Request

@@ -1,67 +1,13 @@
 import {useEffect, useRef} from 'react';
-import {
-  getInterview,
-  type ChatSummary,
-  type Interview,
-  type InterviewTurn,
-  type Run,
-} from '@/api/runs';
-import {makePrefixedId} from '@/lib/id';
+import {getInterview, type ChatSummary, type Run} from '@/api/runs';
 import {conciseTitle} from '@/lib/text';
-import {interviewToRunSpec} from '../run_spec';
-import {
-  type ChatEntry,
-  type StartedSession,
-} from '../pages/chat_timeline_cards';
+import {type StartedSession} from '../pages/chat_timeline_cards';
 import {useChatHistoryContext} from './chat_history_context';
 import {useRunHistoryContext} from './run_history_context';
+import {applyInterview} from './chat_session_transcript';
 import {type useChatSession} from './use_chat_session';
 
 type ChatSession = ReturnType<typeof useChatSession>;
-
-// One persisted turn as a timeline bubble. The Agent's reasoning rides along
-// so a reopened chat shows the thinking that produced each answer, exactly as
-// it did while the turn was streaming.
-function turnToEntry(turn: InterviewTurn): ChatEntry {
-  const role = turn.role === 'agent' ? 'assistant' : 'user';
-  return {
-    id: makePrefixedId(role),
-    role,
-    content: turn.content,
-    reasoning: turn.reasoning ?? undefined,
-    created_at: turn.created_at,
-  };
-}
-
-/**
- * Splits a completed interview's transcript the way the live session does:
- * the closing Agent turn becomes the plan card's lead-in rather than a
- * bubble, so a reopened chat reads as one response, not a bubble plus a card.
- */
-function splitTranscript(interview: Interview): {
-  entries: ChatEntry[];
-  closing: InterviewTurn | null;
-} {
-  const turns = [...interview.turns];
-  const last = turns[turns.length - 1];
-  const closing =
-    interview.status === 'completed' && last?.role === 'agent' ? last : null;
-  if (closing) turns.pop();
-  return {entries: turns.map(turnToEntry), closing};
-}
-
-// Replays a loaded interview into the session: its transcript, and (once
-// completed) the plan it derived, staged exactly as the live turn stages it.
-function applyInterview(session: ChatSession, interview: Interview): void {
-  const {entries, closing} = splitTranscript(interview);
-  session.setMessages(entries);
-  session.setInterview(interview);
-  if (!closing) return;
-  session.stageDraftSpec(interviewToRunSpec(interview), closing.created_at, {
-    message: closing.content,
-    reasoning: closing.reasoning ?? undefined,
-  });
-}
 
 // The label a resumed run card carries: the run's own generated title when
 // the run list has it, else a clause of whichever goal text is on hand.

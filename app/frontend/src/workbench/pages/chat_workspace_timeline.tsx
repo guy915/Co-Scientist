@@ -51,7 +51,7 @@ export const CONFIRMED_SPEC_ITEM_ID = 'confirmed-spec';
  */
 export interface BuildTimelineItemsArgs {
   messages: ChatEntry[];
-  handleEditMessage: (message: ChatEntry) => void;
+  handleEditMessage: (message: ChatEntry, content: string) => void;
   handleCopyRequest: (message: ChatEntry) => Promise<void>;
   handleRetryMessage: (message: ChatEntry) => void;
   draft: SpecStage | null;
@@ -66,7 +66,6 @@ export interface BuildTimelineItemsArgs {
   confirmed: SpecStage | null;
   stageDraftSpec: (spec: InferredRunSpec, createdAt?: number) => void;
   startedSession: StartedSession | null;
-  setStartedSession: Dispatch<SetStateAction<StartedSession | null>>;
   navigate: NavigateFunction;
   resetWorkspace: () => void;
   focusComposer: () => void;
@@ -74,15 +73,28 @@ export interface BuildTimelineItemsArgs {
 
 // Each chat message becomes a ChatBubble; `order` preserves message array
 // order as a tiebreaker when timestamps collide.
+//
+// A message is revisable only when it has a durable turn behind it, no turn
+// is already in flight, and the conversation has not been committed to a run:
+// rewinding the interview after that would clear the started card off the
+// timeline while the run it points at kept going.
 function messageTimelineItems({
   messages,
   handleEditMessage,
   handleCopyRequest,
   handleRetryMessage,
+  isAwaitingAgent,
+  startedSession,
 }: Pick<
   BuildTimelineItemsArgs,
-  'messages' | 'handleEditMessage' | 'handleCopyRequest' | 'handleRetryMessage'
+  | 'messages'
+  | 'handleEditMessage'
+  | 'handleCopyRequest'
+  | 'handleRetryMessage'
+  | 'isAwaitingAgent'
+  | 'startedSession'
 >): TimelineItem[] {
+  const revisable = !isAwaitingAgent && !startedSession;
   return messages.map((message, index) => ({
     id: `local-message-${message.id}`,
     at: message.created_at,
@@ -90,7 +102,8 @@ function messageTimelineItems({
     node: (
       <ChatBubble
         message={message}
-        onEdit={() => handleEditMessage(message)}
+        revisable={revisable && message.turnId !== undefined}
+        onSubmitEdit={content => handleEditMessage(message, content)}
         onCopyRequest={() => void handleCopyRequest(message)}
         onRetry={() => handleRetryMessage(message)}
       />
@@ -302,16 +315,15 @@ function confirmedSpecTimelineItems({
 
 // Terminal timeline entry once the backend run has actually started; the card
 // links to the run detail page (a URL, not a handler, so a middle- or
-// cmd-click opens it in a new tab), "retry" just bumps its timestamp so it
-// re-sorts to the current time.
+// cmd-click opens it in a new tab).
 function startedTimelineItems({
   startedSession,
-  setStartedSession,
+  navigate,
   resetWorkspace,
   focusComposer,
 }: Pick<
   BuildTimelineItemsArgs,
-  'startedSession' | 'setStartedSession' | 'resetWorkspace' | 'focusComposer'
+  'startedSession' | 'navigate' | 'resetWorkspace' | 'focusComposer'
 >): TimelineItem[] {
   if (!startedSession) return [];
   return [
@@ -323,13 +335,14 @@ function startedTimelineItems({
         <StartedSessionCard
           session={startedSession}
           href={`/runs/${startedSession.id}/details`}
-          onRetry={() =>
-            setStartedSession(current =>
-              current ? {...current, at: Date.now() / 1000} : current,
-            )
-          }
           onNewTopic={() => {
+            // Leaving /chats/:id is the part that makes this stick. Clearing
+            // the session alone left the finished chat's id in the URL, and
+            // the rehydrator re-attached its run the moment the chat and run
+            // lists next resolved -- the workspace blanked and then put the
+            // same started card straight back, which reads as a dead button.
             resetWorkspace();
+            void navigate('/');
             focusComposer();
           }}
         />

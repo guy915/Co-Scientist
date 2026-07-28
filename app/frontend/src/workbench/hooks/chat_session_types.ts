@@ -22,12 +22,16 @@ export interface SpecStage {
   // The chain of thought behind that closing message, kept with it so the
   // completing turn keeps its thinking like every other turn does.
   reasoning?: string;
+  // The durable interview turn that produced this plan. The card has no
+  // bubble of its own, so this is what its retry addresses.
+  turnId?: number;
 }
 
 /** The Agent's closing turn, as staged onto the plan card. */
 export interface DraftIntro {
   message?: string;
   reasoning?: string;
+  turnId?: number;
 }
 
 /** View-layer collaborators the session needs but does not own. */

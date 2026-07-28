@@ -52,6 +52,7 @@ export function useChatSession(deps: ChatSessionDeps) {
     setInterview: lifecycle.setInterview,
     setDraft: lifecycle.setDraft,
     confirmed: lifecycle.confirmed,
+    setConfirmed: lifecycle.setConfirmed,
     startedSession: lifecycle.startedSession,
     setStartedSession: lifecycle.setStartedSession,
     isStarting: composer.isStarting,

@@ -10,6 +10,15 @@ import type {StartedSession} from './chat_timeline_cards';
 import type {SpecStage} from '../hooks/chat_session_types';
 import {makeMessage, makeSpec} from '@/test_fixtures';
 
+// The plan card's completion-email opt-in is gated on the server actually
+// having an SMTP transport; these tests are about the card, not the probe.
+vi.mock('../hooks/system_status_context', () => ({
+  useSystemStatus: () => ({
+    status: {email_notifications_available: true},
+    unreachable: false,
+  }),
+}));
+
 function baseArgs(
   overrides: Partial<BuildTimelineItemsArgs> = {},
 ): BuildTimelineItemsArgs {
@@ -30,7 +39,6 @@ function baseArgs(
     confirmed: null,
     stageDraftSpec: vi.fn(),
     startedSession: null,
-    setStartedSession: vi.fn(),
     navigate: vi.fn() as unknown as NavigateFunction,
     resetWorkspace: vi.fn(),
     focusComposer: vi.fn(),
@@ -87,19 +95,34 @@ it('renders nothing once the turn resolves', () => {
   expect(screen.queryByText('stale thought')).toBeNull();
 });
 
-it('wires each bubble to its own edit/copy/retry handlers', () => {
-  const args = baseArgs({
+function transcriptArgs(overrides: Partial<BuildTimelineItemsArgs> = {}) {
+  return baseArgs({
     messages: [
-      makeMessage({id: 'u1', role: 'user', content: 'A question'}),
-      makeMessage({id: 'a1', role: 'assistant', content: 'An answer'}),
+      makeMessage({id: 'u1', role: 'user', content: 'A question', turnId: 1}),
+      makeMessage({
+        id: 'a1',
+        role: 'assistant',
+        content: 'An answer',
+        turnId: 2,
+      }),
     ],
+    ...overrides,
   });
-  const items = buildTimelineItems(args);
-  renderItems(items);
+}
 
+it('wires each bubble to its own edit/copy/retry handlers', () => {
+  const args = transcriptArgs();
+  renderItems(buildTimelineItems(args));
+
+  // Editing happens inside the message: the bubble becomes an editor, and
+  // sending from it revises that turn rather than starting another one.
   fireEvent.click(screen.getByLabelText('Edit prompt'));
+  const editor = screen.getByLabelText('Edit prompt');
+  fireEvent.change(editor, {target: {value: 'A better question'}});
+  fireEvent.click(screen.getByLabelText('Send edited prompt'));
   expect(args.handleEditMessage).toHaveBeenCalledWith(
     expect.objectContaining({id: 'u1'}),
+    'A better question',
   );
 
   fireEvent.click(screen.getByLabelText('Copy prompt'));
@@ -111,6 +134,25 @@ it('wires each bubble to its own edit/copy/retry handlers', () => {
   expect(args.handleRetryMessage).toHaveBeenCalledWith(
     expect.objectContaining({id: 'a1'}),
   );
+});
+
+it('offers no revision while a turn is in flight', () => {
+  renderItems(buildTimelineItems(transcriptArgs({isAwaitingAgent: true})));
+
+  expect(screen.queryByLabelText('Edit prompt')).toBeNull();
+  expect(screen.queryByLabelText('Retry response')).toBeNull();
+  // Copy is unaffected: it needs nothing from the server.
+  expect(screen.getByLabelText('Copy prompt')).toBeInTheDocument();
+});
+
+it('offers no revision for a bubble with no durable turn', () => {
+  renderItems(
+    buildTimelineItems(
+      baseArgs({messages: [makeMessage({id: 'u1', role: 'user'})]}),
+    ),
+  );
+
+  expect(screen.queryByLabelText('Edit prompt')).toBeNull();
 });
 
 it('persists completion-notification opt-in and address in the draft', () => {
@@ -213,7 +255,7 @@ const startedSession: StartedSession = {
   at: 100,
 };
 
-it('links to the run and wires retry/new-topic to their handlers', () => {
+it('links to the run and leaves the chat on a new topic', () => {
   const args = baseArgs({startedSession});
   const items = buildTimelineItems(args);
   expect(items).toHaveLength(1);
@@ -228,21 +270,17 @@ it('links to the run and wires retry/new-topic to their handlers', () => {
     );
   }
 
-  fireEvent.click(screen.getByLabelText('Retry response'));
-  expect(args.setStartedSession).toHaveBeenCalled();
-  const updater = vi.mocked(args.setStartedSession).mock
-    .calls[0][0] as unknown as (
-    current: StartedSession | null,
-  ) => StartedSession | null;
-  const updated = updater(startedSession);
-  expect(updated).toMatchObject({id: 'run-9', title: startedSession.title});
-  expect(updated?.at).not.toBe(startedSession.at);
-  expect(updater(null)).toBeNull();
+  // No retry: the run is already started, so there is no response here to
+  // regenerate and the control could only ever appear to do nothing.
+  expect(screen.queryByLabelText('Retry response')).toBeNull();
 
   fireEvent.click(
     screen.getByText('Start a new research goal session on a new topic'),
   );
   expect(args.resetWorkspace).toHaveBeenCalledOnce();
+  // Leaving /chats/:id is what makes the reset stick: staying put lets the
+  // rehydrator re-attach this chat's run and put the card straight back.
+  expect(args.navigate).toHaveBeenCalledWith('/');
   expect(args.focusComposer).toHaveBeenCalledOnce();
 });
 

@@ -14,6 +14,8 @@ vi.mock('@/api/runs', async importActual => {
     createRun: vi.fn(),
     startRun: vi.fn(),
     uploadRunDocument: vi.fn(),
+    editInterviewTurn: vi.fn(),
+    retryInterviewTurn: vi.fn(),
   };
 });
 
@@ -29,7 +31,24 @@ function completedInterview(goal: string) {
       title: 'Liver fibrosis',
     },
     current_question: null,
-    turns: [],
+    // The transcript the session rebuilds itself from: the scientist's
+    // challenge, then the closing turn that becomes the plan card's lead-in.
+    turns: [
+      {
+        id: 1,
+        role: 'user' as const,
+        content: goal,
+        reasoning: null,
+        created_at: 1,
+      },
+      {
+        id: 2,
+        role: 'agent' as const,
+        content: 'The goal is ready.',
+        reasoning: null,
+        created_at: 2,
+      },
+    ],
     created_at: 1,
     updated_at: 2,
     completed_at: 2,
@@ -141,19 +160,33 @@ it('resetSession clears all state', async () => {
   expect(result.current.messages).toHaveLength(0);
 });
 
-it('editing a message loads it into the composer and focuses it', () => {
-  const {result, deps} = renderSession();
-  const message: ChatEntry = {
-    id: 'm1',
-    role: 'user',
-    content: 'Original prompt',
-    created_at: 1,
-  };
+it('editing a message revises it in place, not via the composer', async () => {
+  vi.mocked(runsApi.editInterviewTurn).mockResolvedValue(
+    completedInterview('Revised prompt'),
+  );
+  const {result} = renderSession();
+  act(() => result.current.setInput('Original prompt'));
+  await act(async () => {
+    await result.current.handleSubmit(submitEvent());
+  });
+  const [prompt] = result.current.messages as ChatEntry[];
 
-  act(() => result.current.handleEditMessage(message));
+  await act(async () => {
+    result.current.handleEditMessage(prompt, 'Revised prompt');
+    await Promise.resolve();
+  });
 
-  expect(result.current.input).toBe('Original prompt');
-  expect(deps.focusComposer).toHaveBeenCalledOnce();
+  expect(runsApi.editInterviewTurn).toHaveBeenCalledWith(
+    'interview-1',
+    prompt.turnId,
+    'Revised prompt',
+    expect.any(Function),
+  );
+  // The correction replaces the prompt where it stands; the composer stays
+  // clear for the next thing the scientist wants to say.
+  expect(result.current.messages).toHaveLength(1);
+  expect(result.current.messages[0].content).toBe('Revised prompt');
+  expect(result.current.input).toBe('');
 });
 
 it('starting a run creates it and reloads history', async () => {

@@ -82,10 +82,16 @@ test('stages only a completed persisted interview derivation', async () => {
     }),
     expect.any(Number),
     // The Agent's closing message is folded into the plan card as its intro,
-    // not appended as a separate assistant bubble, and its chain of thought
-    // rides along so the completing turn keeps its thinking too.
-    {message: 'Which mechanisms should I prioritize?', reasoning: undefined},
+    // not appended as a separate assistant bubble; its chain of thought rides
+    // along so the completing turn keeps its thinking, and so does its turn
+    // id, which is what the card's retry re-derives the plan from.
+    {
+      message: 'Which mechanisms should I prioritize?',
+      reasoning: undefined,
+      turnId: 1,
+    },
   );
-  // Only the user's message is logged; the completion reply is the card.
-  expect(deps.setMessages).toHaveBeenCalledTimes(1);
+  // Twice: the optimistic bubble for the prompt just sent, then the rebuild
+  // from the interview the server returned.
+  expect(deps.setMessages).toHaveBeenCalledTimes(2);
 });

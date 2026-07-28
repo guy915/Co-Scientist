@@ -33,19 +33,20 @@ export interface StartedSession {
  * @param href Route of the run's detail page. A URL rather than an open
  *   handler so both affordances below can be real links, which a middle- or
  *   cmd-click opens in a new browser tab.
- * @param onRetry Handler to re-timestamp/re-surface this card (see its call
- *   site for why: bumping `at` re-sorts it to the current time).
  * @param onNewTopic Handler to reset the workspace and start a fresh topic.
+ *
+ * Carries copy/download but no retry: this card reports a run the server has
+ * already started, so there is no response here to regenerate. The control
+ * used to re-sort the card to the current time, which from a click looked
+ * exactly like nothing happening.
  */
 export function StartedSessionCard({
   session,
   href,
-  onRetry,
   onNewTopic,
 }: {
   session: StartedSession;
   href: string;
-  onRetry: () => void;
   onNewTopic: () => void;
 }) {
   const responseText = formatStartedSessionResponse(session);
@@ -68,7 +69,7 @@ export function StartedSessionCard({
       <SessionNextActions href={href} onNewTopic={onNewTopic} />
       <MessageActionRow
         actions={responseActions(
-          onRetry,
+          null,
           responseText,
           'co-scientist-session-started.md',
         )}

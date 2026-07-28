@@ -1,29 +1,65 @@
-import {expect, test, vi} from 'vitest';
+import {beforeEach, expect, test, vi} from 'vitest';
+import {editInterviewTurn, retryInterviewTurn} from '@/api/runs';
 import {buildChatHandlers} from './chat_session_handlers';
-import {makeDeps} from './chat_session_handlers_test_support';
+import {makeDeps, makeInterview} from './chat_session_handlers_test_support';
 import type {ChatEntry} from '../pages/chat_timeline_cards';
 import {makeMessage} from '@/test_fixtures';
 
 vi.mock('@/api/runs', async importOriginal => {
   const actual = await importOriginal<typeof import('@/api/runs')>();
-  return {...actual, createInterview: vi.fn(), addInterviewTurn: vi.fn()};
+  return {
+    ...actual,
+    createInterview: vi.fn(),
+    addInterviewTurn: vi.fn(),
+    editInterviewTurn: vi.fn(),
+    retryInterviewTurn: vi.fn(),
+  };
 });
 
-test('handleRetryMessage re-appends content as a new bubble', () => {
-  const deps = makeDeps();
+beforeEach(() => {
+  vi.clearAllMocks();
+});
+
+// The messages updater a handler passed to setMessages, applied to `prev`.
+function applyMessagesUpdate(
+  setMessages: unknown,
+  prev: ChatEntry[],
+): ChatEntry[] {
+  const updater = vi.mocked(setMessages as (value: unknown) => void).mock
+    .calls[0][0] as unknown as (current: ChatEntry[]) => ChatEntry[];
+  return updater(prev);
+}
+
+test('handleRetryMessage asks the Agent to answer that turn again', () => {
+  const deps = makeDeps({interview: makeInterview()});
+  const handlers = buildChatHandlers(deps);
+  const answer = makeMessage({
+    id: 'm2',
+    role: 'assistant',
+    content: 'Reply text',
+    turnId: 7,
+  });
+
+  handlers.handleRetryMessage(answer);
+
+  expect(retryInterviewTurn).toHaveBeenCalledWith(
+    'interview-1',
+    7,
+    expect.any(Function),
+  );
+  // The rejected answer leaves the transcript rather than being duplicated
+  // below itself, which is what "retry" appeared to do before.
+  expect(applyMessagesUpdate(deps.setMessages, [answer])).toEqual([]);
+});
+
+test('handleRetryMessage does nothing without a durable turn', () => {
+  const deps = makeDeps({interview: makeInterview()});
   const handlers = buildChatHandlers(deps);
 
-  handlers.handleRetryMessage(
-    makeMessage({role: 'assistant', content: 'Reply text'}),
-  );
+  handlers.handleRetryMessage(makeMessage({role: 'assistant'}));
 
-  expect(deps.setMessages).toHaveBeenCalledOnce();
-  const updater = vi.mocked(deps.setMessages).mock.calls[0][0] as unknown as (
-    prev: ChatEntry[],
-  ) => ChatEntry[];
-  const next = updater([]);
-  expect(next).toHaveLength(1);
-  expect(next[0]).toMatchObject({role: 'assistant', content: 'Reply text'});
+  expect(retryInterviewTurn).not.toHaveBeenCalled();
+  expect(deps.setMessages).not.toHaveBeenCalled();
 });
 
 test('handleCopyRequest copies the prompt and toasts a new chat', async () => {
@@ -57,12 +93,34 @@ test('handleCopyRequest copies the prompt and toasts a new chat', async () => {
   expect(deps.focusComposer).toHaveBeenCalledOnce();
 });
 
-test('handleEditMessage loads the message into the composer', () => {
-  const deps = makeDeps();
+test('handleEditMessage replaces the turn in place', () => {
+  const deps = makeDeps({interview: makeInterview()});
+  const handlers = buildChatHandlers(deps);
+  const prompt = makeMessage({content: 'Original prompt', turnId: 3});
+  const answer = makeMessage({id: 'm2', role: 'assistant', turnId: 4});
+
+  handlers.handleEditMessage(prompt, '  Revised prompt  ');
+
+  expect(editInterviewTurn).toHaveBeenCalledWith(
+    'interview-1',
+    3,
+    'Revised prompt',
+    expect.any(Function),
+  );
+  // The edited prompt stays where it was and the answer derived from the old
+  // wording goes; the composer is left alone for the next thing to say.
+  expect(applyMessagesUpdate(deps.setMessages, [prompt, answer])).toEqual([
+    {...prompt, content: 'Revised prompt'},
+  ]);
+  expect(deps.setInput).not.toHaveBeenCalled();
+});
+
+test('handleEditMessage ignores an empty revision', () => {
+  const deps = makeDeps({interview: makeInterview()});
   const handlers = buildChatHandlers(deps);
 
-  handlers.handleEditMessage(makeMessage({content: 'Original prompt'}));
+  handlers.handleEditMessage(makeMessage({turnId: 3}), '   ');
 
-  expect(deps.setInput).toHaveBeenCalledWith('Original prompt');
-  expect(deps.focusComposer).toHaveBeenCalledOnce();
+  expect(editInterviewTurn).not.toHaveBeenCalled();
+  expect(deps.setMessages).not.toHaveBeenCalled();
 });

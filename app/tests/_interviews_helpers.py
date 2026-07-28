@@ -8,8 +8,13 @@ cases), so they live in a non-test module to avoid pytest collecting them.
 from __future__ import annotations
 
 import dataclasses
+import json
 from types import SimpleNamespace
-from typing import Any
+from typing import Any, cast
+
+import pytest
+
+from app import interviews
 
 
 @dataclasses.dataclass(frozen=True)
@@ -35,6 +40,42 @@ def _response(
         "title": fields.title,
         "completed": fields.completed,
     }
+
+
+def _interview_payload(response: Any) -> dict[str, Any]:
+    """Return the interview carried by a streamed turn's terminal frame.
+
+    Args:
+        response: The TestClient response for a streamed interview endpoint.
+
+    Returns:
+        The interview row from the closing ``interview`` frame.
+
+    Raises:
+        AssertionError: If the stream carried no ``interview`` frame, which
+            means the turn errored instead of resolving.
+    """
+    for line in response.text.splitlines():
+        if not line.startswith("data: "):
+            continue
+        event = json.loads(line[len("data: ") :])
+        if event["type"] == "interview":
+            return cast(dict[str, Any], event["interview"])
+    raise AssertionError(f"no interview frame in stream: {response.text!r}")
+
+
+def _patch_model_sequence(
+    monkeypatch: pytest.MonkeyPatch, responses: list[dict[str, Any]]
+) -> None:
+    """Patch the interview model to return each response in turn."""
+    replies = iter(responses)
+
+    async def _model(
+        _interview: dict[str, Any], _on_reasoning: Any = None
+    ) -> dict[str, Any]:
+        return next(replies)
+
+    monkeypatch.setattr(interviews, "_call_interview_model", _model)
 
 
 def _fake_stream(content: str, reasoning: str = "") -> Any:

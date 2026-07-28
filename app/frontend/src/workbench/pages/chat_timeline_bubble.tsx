@@ -1,4 +1,4 @@
-import {type ReactNode} from 'react';
+import {useState, type ReactNode} from 'react';
 import {
   CHAT_BUBBLE_ROW_CLASSES,
   CHAT_BUBBLE_USER_ROW_CLASSES,
@@ -14,6 +14,7 @@ import {
   requestActions,
   responseActions,
 } from './chat_timeline_message_actions';
+import {BubbleEditor} from './chat_timeline_bubble_editor';
 import {ThoughtsDisclosure} from './chat_timeline_thoughts';
 
 /**
@@ -30,6 +31,13 @@ export interface ChatEntry {
    * reasoning stays readable (and stays in the model's own context).
    */
   reasoning?: string;
+  /**
+   * The durable interview turn this bubble renders, when it has one. Absent
+   * for bubbles the browser added on its own (an optimistic turn still in
+   * flight, the "Start research" line), which is exactly the set that cannot
+   * be edited or retried -- there is no server-side turn to replace.
+   */
+  turnId?: number;
   created_at: number;
 }
 
@@ -71,9 +79,15 @@ function BubbleRow({
 // signature otherwise pushing the component past the line cap.
 export interface ChatBubbleProps {
   message: ChatEntry;
-  onEdit: () => void;
+  onSubmitEdit: (content: string) => void;
   onCopyRequest: () => void;
   onRetry: () => void;
+  /**
+   * Whether this message can be edited or retried at all. False for bubbles
+   * with no durable turn behind them, and while the Agent is mid-turn or the
+   * conversation has already been committed to a run.
+   */
+  revisable: boolean;
 }
 
 /**
@@ -81,13 +95,33 @@ export interface ChatBubbleProps {
  * filled, collapsible past four lines with an edit/copy action row) or an
  * assistant response (left-aligned, unstyled, with a retry/copy/download
  * action row). Used as the per-message node inside ChatWorkspace's timeline.
+ *
+ * Editing is owned here rather than by the workspace because a prompt is
+ * revised in place: the bubble swaps itself for an editor, so which message
+ * is being changed is never in question.
  */
 export function ChatBubble(props: ChatBubbleProps) {
-  const {message, onEdit, onCopyRequest, onRetry} = props;
+  const {message, onSubmitEdit, onCopyRequest, onRetry, revisable} = props;
   const isUser = message.role === 'user';
+  const [editing, setEditing] = useState(false);
   const bubbleText = useCollapsibleBubbleText(isUser, message.content);
   const {row: rowClassName, bubble: bubbleClassName} =
     chatBubbleClassNames(isUser);
+
+  if (editing) {
+    return (
+      <div className={rowClassName}>
+        <BubbleEditor
+          initial={message.content}
+          onCancel={() => setEditing(false)}
+          onSubmit={content => {
+            setEditing(false);
+            onSubmitEdit(content);
+          }}
+        />
+      </div>
+    );
+  }
 
   return (
     <BubbleRow
@@ -110,9 +144,9 @@ export function ChatBubble(props: ChatBubbleProps) {
         <ChatBubbleActions
           isUser={isUser}
           message={message}
-          onEdit={onEdit}
+          onEdit={revisable ? () => setEditing(true) : null}
           onCopyRequest={onCopyRequest}
-          onRetry={onRetry}
+          onRetry={revisable ? onRetry : null}
         />
       }
     />
@@ -142,9 +176,9 @@ function ChatBubbleActions({
 }: {
   isUser: boolean;
   message: ChatEntry;
-  onEdit: () => void;
+  onEdit: (() => void) | null;
   onCopyRequest: () => void;
-  onRetry: () => void;
+  onRetry: (() => void) | null;
 }) {
   if (isUser) {
     return (

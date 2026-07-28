@@ -59,6 +59,7 @@ export function useRunSpecLifecycle() {
       createdAt,
       intro: intro?.message,
       reasoning: intro?.reasoning,
+      turnId: intro?.turnId,
     });
     setConfirmed(null);
     setStartedSession(null);

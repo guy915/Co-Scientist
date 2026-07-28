@@ -48,13 +48,19 @@ function applyInterviewFrame(
  * @param path The interview endpoint to post to.
  * @param body The JSON request body.
  * @param onReasoning Receives each chain-of-thought fragment as it arrives.
+ * @param method HTTP method; the revision endpoints replace a turn rather
+ *   than appending one, so one of them is a PUT.
  */
 async function streamInterviewTurn(
   path: string,
   body: unknown,
   onReasoning?: (fragment: string) => void,
+  method = 'POST',
 ): Promise<Interview> {
-  const res = await fetch(`${API_BASE_URL}${path}`, jsonRequest(body, true));
+  const res = await fetch(`${API_BASE_URL}${path}`, {
+    ...jsonRequest(body, true),
+    method,
+  });
   let interview: Interview | undefined;
   for await (const frame of readSseFrames<InterviewFrame>(res)) {
     interview = applyInterviewFrame(frame, interview, onReasoning);
@@ -93,6 +99,40 @@ export async function addInterviewTurn(
   return streamInterviewTurn(
     `/api/interviews/${interviewId}/turns`,
     {content},
+    onReasoning,
+  );
+}
+
+/**
+ * Rewrites one scientist turn in place and re-answers from there.
+ *
+ * The edited prompt replaces the original where it stands; every turn the
+ * Agent derived from the old wording is discarded with it, so the returned
+ * interview is the whole conversation as it now reads.
+ */
+export async function editInterviewTurn(
+  interviewId: string,
+  turnId: number,
+  content: string,
+  onReasoning?: (fragment: string) => void,
+): Promise<Interview> {
+  return streamInterviewTurn(
+    `/api/interviews/${interviewId}/turns/${turnId}`,
+    {content},
+    onReasoning,
+    'PUT',
+  );
+}
+
+/** Discards one Agent turn and answers the same prompt again. */
+export async function retryInterviewTurn(
+  interviewId: string,
+  turnId: number,
+  onReasoning?: (fragment: string) => void,
+): Promise<Interview> {
+  return streamInterviewTurn(
+    `/api/interviews/${interviewId}/turns/${turnId}/retry`,
+    {},
     onReasoning,
   );
 }

@@ -53,6 +53,7 @@ from app.store.interviews import (
     create_interview,
     get_interview,
     list_interviews,
+    rewind_interview,
     update_interview,
 )
 from app.store.logs import (
@@ -257,6 +258,7 @@ __all__ = [
     "retry_task",
     "revive_task_for_retry",
     "revoke_report_share",
+    "rewind_interview",
     "run_exists",
     "run_offline_backed",
     "run_used_offline",

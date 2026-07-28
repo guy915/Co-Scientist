@@ -110,14 +110,23 @@ it('shows request and response controls in the transcript', async () => {
   renderWorkspace();
   submitResearchGoal();
 
-  expect(await screen.findByLabelText('Copy prompt')).toBeInTheDocument();
+  // Wait for the turn to resolve first: the optimistic prompt bubble is
+  // replaced by the durable turn it became, so a node grabbed before then is
+  // detached by the time it is asserted on.
+  expect(
+    await screen.findByRole('heading', {name: 'Research plan'}),
+  ).toBeInTheDocument();
+  expect(screen.getByLabelText('Copy prompt')).toBeInTheDocument();
   expect(screen.getByLabelText('Edit prompt')).toBeInTheDocument();
   expect(screen.getAllByLabelText('Retry response')).not.toHaveLength(0);
   expect(screen.getAllByLabelText('Copy response')).not.toHaveLength(0);
   expect(screen.getAllByLabelText('Download response')).not.toHaveLength(0);
 
+  // Editing opens on the message itself, prefilled, rather than pushing the
+  // prompt back down into the composer.
   fireEvent.click(screen.getByLabelText('Edit prompt'));
-  expect(screen.getByRole('textbox')).toHaveValue(RESEARCH_GOAL);
+  expect(screen.getByLabelText('Edit prompt')).toHaveValue(RESEARCH_GOAL);
+  fireEvent.click(screen.getByLabelText('Cancel edit'));
 
   fireEvent.click(screen.getByLabelText('Copy prompt'));
   await waitFor(() => {

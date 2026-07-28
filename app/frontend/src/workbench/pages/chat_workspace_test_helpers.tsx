@@ -198,9 +198,13 @@ export function installChatWorkspaceMocks() {
       title: 'Cold-stress glucose homeostasis',
     },
     current_question: null,
+    // Both turns, as the server records them: the session rebuilds its
+    // transcript from this payload, and each bubble takes the durable turn
+    // id it can be edited or retried by.
     turns: [
+      {id: 1, role: 'user', content: goal, reasoning: null, created_at: 1},
       {
-        id: 1,
+        id: 2,
         role: 'agent',
         content: 'I have enough detail to configure this research run.',
         reasoning: 'Focus and constraints are both named, so this is ready.',

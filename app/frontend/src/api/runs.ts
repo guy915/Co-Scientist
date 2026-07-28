@@ -68,8 +68,10 @@ export {
   addInterviewTurn,
   createInterview,
   editInterviewFields,
+  editInterviewTurn,
   getInterview,
   listInterviews,
+  retryInterviewTurn,
 } from './runs_interviews';
 export {
   addScientistHypothesis,

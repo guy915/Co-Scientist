@@ -235,6 +235,47 @@ def append_interview_turn(
         )
 
 
+def rewind_interview(
+    interview_id: str,
+    turn_id: int,
+    *,
+    db_path: str | None = None,
+) -> int:
+    """Discard one turn and every turn after it.
+
+    The transcript is otherwise append-only, and stays so for the ordinary
+    path: this exists for the two places a scientist revises the
+    conversation itself rather than adding to it -- editing an earlier
+    prompt, and retrying an answer. Both mean "the conversation did not go
+    this way", so the turns downstream of the edited one were derived from
+    something that no longer exists and cannot be kept.
+
+    The interview's own status is left to the caller, which re-derives the
+    four fields from what remains (see ``interviews._reset_derivation``).
+
+    Args:
+        interview_id: The interview to rewind.
+        turn_id: The first turn to discard; it goes too.
+        db_path: Optional database override.
+
+    Returns:
+        How many turns were discarded; zero when the turn did not belong to
+        this interview.
+    """
+    now = _now()
+    with connect(db_path) as conn:
+        removed = conn.execute(
+            "DELETE FROM interview_turns WHERE interview_id=? AND id>=?",
+            (interview_id, turn_id),
+        ).rowcount
+        if removed:
+            conn.execute(
+                "UPDATE interviews SET updated_at=? WHERE id=?",
+                (now, interview_id),
+            )
+    return int(removed)
+
+
 def update_interview(
     interview_id: str,
     fields: Mapping[str, Any],

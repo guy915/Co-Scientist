@@ -85,18 +85,23 @@ export function MessageActionRow({
 /**
  * Builds the retry/copy/download action set shown under an assistant response.
  *
- * @param onRetry Handler for regenerating the response.
+ * @param onRetry Handler for regenerating the response, or null when this
+ *   response cannot be regenerated. Omitted rather than shown inert: a retry
+ *   control that answers a click with nothing is indistinguishable from one
+ *   that is broken.
  * @param text The response text to copy or download.
  * @param filename Download filename for the response.
- * @returns The three-action array for a MessageActionRow.
+ * @returns The action array for a MessageActionRow.
  */
 export function responseActions(
-  onRetry: () => void,
+  onRetry: (() => void) | null,
   text: string,
   filename: string,
 ): MessageAction[] {
   return [
-    {icon: 'refresh', label: 'Retry response', onClick: onRetry},
+    ...(onRetry
+      ? [{icon: 'refresh' as const, label: 'Retry response', onClick: onRetry}]
+      : []),
     {
       icon: 'content_copy',
       label: 'Copy response',
@@ -113,16 +118,19 @@ export function responseActions(
 /**
  * Builds the edit/copy action set shown under a user request bubble.
  *
- * @param onEdit Handler to re-open the message for editing.
+ * @param onEdit Handler to open the message for editing, or null when this
+ *   prompt has no durable turn behind it to revise.
  * @param onCopyRequest Handler to copy the message's text.
- * @returns The two-action array for a MessageActionRow.
+ * @returns The action array for a MessageActionRow.
  */
 export function requestActions(
-  onEdit: () => void,
+  onEdit: (() => void) | null,
   onCopyRequest: () => void,
 ): MessageAction[] {
   return [
-    {icon: 'edit', label: 'Edit prompt', onClick: onEdit},
+    ...(onEdit
+      ? [{icon: 'edit' as const, label: 'Edit prompt', onClick: onEdit}]
+      : []),
     {icon: 'content_copy', label: 'Copy prompt', onClick: onCopyRequest},
   ];
 }
