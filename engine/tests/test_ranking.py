@@ -8,6 +8,7 @@ node performs, plus the recorded ``tournament_matchups`` it returns. The pure
 Elo math itself is covered separately in ``tests/test_elo.py``.
 """
 
+import logging
 from typing import Any
 
 import pytest
@@ -93,6 +94,32 @@ async def test_fewer_than_two_hypotheses_skips_tournament() -> None:
     assert only.win_count == 0
     assert only.loss_count == 0
     assert only.elo_rating == INITIAL_ELO_RATING
+
+
+async def test_skipped_tournament_names_the_pool_and_the_gates(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """The skip reports the pool it could not rank, and why it could not.
+
+    "Need at least 2 hypotheses" beside a run holding eight ideas read as a
+    miscount rather than as the gates having emptied the pool, which is the
+    one fact that makes it actionable.
+    """
+    kept = make_hypothesis(text="the one survivor TXT alpha")
+    undermined = make_hypothesis(text="undermined idea TXT beta")
+    undermined.deep_verification_verdict = "undermined"
+    rejected = make_hypothesis(text="rejected idea TXT gamma")
+    rejected.review_disposition = "inaccurate"
+    state = make_state(hypotheses=[kept, undermined, rejected])
+
+    with caplog.at_level(logging.WARNING):
+        result = await ranking_node(state)
+
+    assert "tournament_matchups" not in result
+    message = caplog.text
+    assert "1 of 3 hypotheses are rankable" in message
+    assert "1 undermined by deep verification" in message
+    assert "1 rejected in review" in message
 
 
 async def test_empty_hypotheses_skips_tournament() -> None:

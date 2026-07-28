@@ -92,7 +92,7 @@ from co_scientist.agents.ranking.ranking_results import (
 from co_scientist.constants import (
     ELO_K_FACTOR,
 )
-from co_scientist.models import Hypothesis
+from co_scientist.models import BLOCKING_REVIEW_DISPOSITIONS, Hypothesis
 from co_scientist.state import WorkflowState
 
 logger = logging.getLogger(__name__)
@@ -344,10 +344,32 @@ def _filter_eligible_hypotheses(
         hypothesis for hypothesis in hypotheses if hypothesis.is_rankable()
     ]
     logger.info(
-        "Starting ranking tournament with %s hypotheses", len(hypotheses)
+        "Ranking tournament: %s of %s hypotheses are rankable",
+        len(eligible),
+        len(hypotheses),
     )
     _log_reflection_coverage(hypotheses)
     return eligible
+
+
+def _unrankable_reasons(hypotheses: list[Hypothesis]) -> str:
+    """Return why the pool has too few rankable hypotheses to pair up.
+
+    The count alone reads as a contradiction next to a run holding a dozen
+    ideas, so the skip names the gates that removed them instead.
+    """
+    undermined = sum(
+        1 for h in hypotheses if h.deep_verification_verdict == "undermined"
+    )
+    blocked = sum(
+        1
+        for h in hypotheses
+        if h.review_disposition in BLOCKING_REVIEW_DISPOSITIONS
+    )
+    return (
+        f"{undermined} undermined by deep verification, "
+        f"{blocked} rejected in review"
+    )
 
 
 async def _run_tournament(
@@ -392,9 +414,17 @@ async def ranking_node(state: WorkflowState) -> dict[str, Any]:
 
     # Edge case: a tournament requires at least two hypotheses to pair up.
     # With fewer, skip the tournament entirely and pass the list through
-    # unchanged (Elo ratings stay at their prior/initial values).
+    # unchanged (Elo ratings stay at their prior/initial values). The pool
+    # itself is usually far larger than the rankable count, so the message
+    # names both -- "need at least 2" beside a run holding eight ideas
+    # reads as a miscount rather than as the gates having emptied the pool.
     if len(eligible) < 2:
-        logger.warning("Need at least 2 hypotheses for tournament")
+        logger.warning(
+            "Tournament skipped: %s of %s hypotheses are rankable (%s)",
+            len(eligible),
+            len(hypotheses),
+            _unrankable_reasons(hypotheses),
+        )
         return {"hypotheses": hypotheses}
 
     # tournament_pairs is a whole-run budget. The scheduler asks for ranking
