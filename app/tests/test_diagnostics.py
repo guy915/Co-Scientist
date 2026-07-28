@@ -211,3 +211,22 @@ async def test_probe_stack_reports_error_when_engine_unavailable(
         assert result.state == PROBE_ERROR
         assert result.error is not None
         assert "engine unavailable" in result.error
+
+
+def test_diagnostics_probe_imports() -> None:
+    """Every probe helper the stack imports exists in the engine.
+
+    The import above is wrapped in a broad except that degrades to the
+    ``error`` state, so a name the engine does not export fails all three
+    probes at once and looks exactly like an MCP server that is down --
+    which is how a misspelled helper survived unnoticed and left /status
+    reporting the whole literature stack unavailable on every deployment.
+    """
+    from co_scientist import mcp_client
+
+    for name in (
+        "check_literature_source_available",
+        "check_mcp_available",
+        "check_tool_available",
+    ):
+        assert hasattr(mcp_client, name), name

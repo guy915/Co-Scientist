@@ -152,7 +152,11 @@ async def _probe_literature_stack() -> tuple[
 
     The engine is an optional runtime dependency; when its probe helpers
     cannot be imported all probes report the ``error`` state instead of
-    a misleading definitive ``down``.
+    a misleading definitive ``down``. That fallback is load-bearing and it
+    hides a typo well: importing a name the engine does not export failed
+    all three probes at once, on every deployment, which reaches the
+    scientist as a connectors menu with nothing in it. Import names here
+    are checked by ``test_diagnostics_probe_imports``.
 
     Web search is probed by asking the MCP server whether it advertises
     ``search_web``. The server registers that tool only when a provider API
@@ -164,8 +168,8 @@ async def _probe_literature_stack() -> tuple[
     """
     try:
         from co_scientist.mcp_client import (
+            check_literature_source_available,
             check_mcp_available,
-            check_pubmed_available_via_mcp,
             check_tool_available,
         )
     except Exception as exc:
@@ -176,7 +180,7 @@ async def _probe_literature_stack() -> tuple[
     # The probes are independent network round-trips; overlap them.
     return await asyncio.gather(
         _run_probe(check_mcp_available(), timeout),
-        _run_probe(check_pubmed_available_via_mcp(), timeout),
+        _run_probe(check_literature_source_available(), timeout),
         _run_probe(check_tool_available(WEB_SEARCH_TOOL_NAME), timeout),
     )
 
