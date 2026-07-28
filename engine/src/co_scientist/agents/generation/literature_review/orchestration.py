@@ -244,15 +244,17 @@ def _log_collection_summary(
     with_fulltext, without_fulltext = count_papers_with_fulltext(
         all_paper_metadata
     )
+    # One line, both halves. A paper without a fulltext is the ordinary case
+    # -- most of the literature is paywalled and the review works from the
+    # abstract -- so it was raised as a warning on essentially every run, and
+    # a condition that is always true carries no information. The count is
+    # kept because the ratio is worth reading; it just is not a problem.
     logger.info(
-        "Collected %s papers (%s with fulltext)",
+        "Collected %s papers (%s with fulltext, %s abstract only)",
         len(all_paper_metadata),
         with_fulltext,
+        without_fulltext,
     )
-    if without_fulltext > 0:
-        logger.warning(
-            "%s papers do not have fulltexts available", without_fulltext
-        )
 
 
 async def _collect_papers_with_diagnostics(

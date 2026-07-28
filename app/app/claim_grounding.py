@@ -9,8 +9,11 @@ store-aware wiring both providers share (SSR §6, §7; RGV §4, §5):
 2. Assess each claim against the run's retrieved evidence passages and persist
    the resulting edge (label + exact supporting/contradicting passages +
    assessor provenance) to the ``claim_evidence`` graph.
-3. Run the publication gate: a hypothesis with a contradicted or unsupported
-   material claim cannot rank or publish and is quarantined for revision.
+3. Run the publication gate and record its verdict. A *contradicted* claim
+   withholds the hypothesis from the report (the contradiction gate in
+   ``report_content_gates``); a merely unsupported one does not, under the
+   rank-and-publish policy -- the idea is published carrying an "Unverified"
+   badge. This module records the verdict; it does not enforce it.
 
 The default assessor is deterministic so the pipeline runs offline; a real
 NLI/LLM entailment model is a swappable, provenance-tagged assessor.
@@ -123,7 +126,11 @@ def evidence_passages(
 class GroundingResult:
     """Outcome of grounding a run's hypotheses against its evidence."""
 
-    # Store ids of hypotheses a contradicted claim blocks from ranking.
+    # Store ids of hypotheses that did not clear the publication gate.
+    # Advisory: the report withholds only *contradicted* ideas (see
+    # report_content_gates._exclude_unsafe_hypotheses) and publishes merely
+    # unsupported ones with an "Unverified" badge. Nothing reads this set but
+    # the count, which the run's citation.grounding event reports.
     blocked_ids: frozenset[str]
     # Store id -> publication-gate reason for every grounded hypothesis.
     reason_by_id: Mapping[str, str]
@@ -165,8 +172,8 @@ def ground_hypotheses(
 
     Extracts atomic claims, assesses each against evidence passages (via the
     swappable assessor), persists the claim-evidence edges, and runs the
-    publication gate. A hypothesis whose gate blocks because a claim is
-    contradicted is returned in ``blocked_ids``, out of ranking/synthesis.
+    publication gate. A hypothesis whose gate does not clear is returned in
+    ``blocked_ids``; see that field for what does and does not follow from it.
 
     Args:
         run_id: Identifier of the run being grounded.
@@ -237,21 +244,25 @@ def persist_grounding(
 def _log_gate_outcome(blocked_count: int, gated_count: int) -> None:
     """Log the claim gate's tally for a pass, warning only when it took all.
 
-    A pass that blocks some hypotheses is the gate discriminating; a pass that
-    blocks every one of them is the run reaching publication with nothing
-    grounded, which says more about the evidence the pool was assessed against
-    than about any single hypothesis -- and is the state worth surfacing.
+    A pass that fails some hypotheses is the gate discriminating; a pass that
+    fails every one of them says more about the evidence the pool was assessed
+    against than about any single hypothesis, and is the state worth
+    surfacing -- it means the run published nothing an evidence passage
+    actually supports.
+
+    Both lines describe the badge, not a withholding: failing this gate does
+    not remove an idea from the report (see ``_record_blocked_hypothesis``).
     """
     if not gated_count:
         return
     if blocked_count == gated_count:
         logger.warning(
-            "Claim gate blocked all %s hypotheses: none reached publication",
+            "No hypothesis cleared the claim gate: all %s published unverified",
             gated_count,
         )
         return
     logger.info(
-        "Claim gate: %s of %s hypotheses blocked from publication",
+        "Claim gate: %s of %s hypotheses published unverified",
         blocked_count,
         gated_count,
     )
@@ -263,12 +274,14 @@ def _ground_one_hypothesis(
     assessments: list[tuple[ClaimAssessment, str]],
     target: GroundingTarget,
 ) -> GateResult:
-    """Persist one hypothesis's claim edges, gate it, and record if blocked.
+    """Persist one hypothesis's claim edges, gate it, and record the verdict.
 
-    Faithful publication policy is conservative: unsupported scientific
-    claims are quarantined alongside contradictions until revised or
-    grounded. Speculative prose may be retained in working memory, but it
-    cannot enter decisive ranking or the final report categorically.
+    The gate's verdict is recorded, not enforced here. Contradicted ideas are
+    withheld from the report by the contradiction gate; ideas that merely lack
+    support are ranked and published under an "Unverified" badge, which is the
+    rank-and-publish policy the report layer implements. Treating a missing
+    supporting passage as grounds for withholding would suppress most of a
+    run: evidence retrieval finds direct support for a minority of claims.
     """
     allow_speculative = target.allow_speculative
     _persist_claim_edges(
@@ -352,14 +365,20 @@ def _record_blocked_hypothesis(
         db_path=db_path,
         conn=conn,
     )
-    # Info, not warning: quarantining an ungrounded hypothesis is the gate
-    # working, one line per blocked hypothesis is a per-item verdict rather
-    # than a problem report, and the decision is already persisted as a
-    # safety_decision row and counted in the run's citation.grounding event.
-    # The aggregate that *is* worth a warning -- nothing clearing the gate at
-    # all -- is raised once in persist_grounding below.
+    # Says what actually happens. Under the rank-and-publish policy (see
+    # report_content_gates._unverified_hypothesis_ids) failing this gate does
+    # not withhold an idea: only a *contradicted* claim does that. An
+    # unsupported one is published carrying the "Unverified" badge, and this
+    # line used to announce a quarantine "from ranking and publication" that
+    # nothing performs -- reading the log, a run looked like it had thrown
+    # away every idea it went on to publish.
+    #
+    # Info, not warning, for the same reason as the redaction line: one row
+    # per assessed hypothesis is a per-item verdict, already persisted as the
+    # claim_gate safety_decision above and counted in the run's
+    # citation.grounding event.
     logger.info(
-        "Quarantining hypothesis %s from ranking and publication: %s",
+        "Hypothesis %s did not clear the claim gate (published unverified): %s",
         hyp_id,
         gate.reason,
     )

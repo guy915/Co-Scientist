@@ -101,7 +101,13 @@ def _apply_redaction(
         db_path=db_path,
         conn=conn,
     )
-    logger.warning(
+    # Info, not warning: redaction is the screen doing its job on a
+    # dual-use idea, one line per redacted hypothesis is a per-item verdict
+    # rather than a problem report, and the decision is already persisted as
+    # the ``redact`` safety_decision row written just above. As a warning it
+    # put a row per flagged idea into a log whose readable window is the
+    # newest hundred records.
+    logger.info(
         "Redacted detail fields of hypothesis %s: %s",
         hyp["id"],
         review.outcome.value,
