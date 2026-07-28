@@ -86,7 +86,12 @@ export function ActiveRunView({
   );
   return (
     <main className="min-h-0 overflow-auto px-8 py-7 max-[720px]:px-4">
-      <section className="mx-auto grid w-full max-w-4xl gap-7">
+      {/* The section's three children are the progress header, the metric
+          cards, and the activity log, so this gap *is* the space above and
+          below the cards. 24px rather than 28: the cards sit 12px apart
+          from each other, and a 28px moat around a 12px row read as three
+          separate blocks instead of one metrics band. */}
+      <section className="mx-auto grid w-full max-w-4xl gap-6">
         <div>
           <p className="text-sm font-medium text-cosci-blue">Executing</p>
           <h2 className="mt-1 text-2xl font-medium">Research in progress</h2>
