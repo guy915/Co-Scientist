@@ -50,8 +50,12 @@ function RunMetrics({
   evidenceCount: number;
   ideaCount: number;
 }) {
+  // `my-0`: a <dl> carries a 1em user-agent block margin, which stacked on
+  // top of the section's own 28px gap and separated these cards from the
+  // progress header above and the activity log below by 44px instead — the
+  // one place on the page whose vertical rhythm did not match the rest of it.
   return (
-    <dl className="grid grid-cols-3 gap-3 max-[720px]:grid-cols-1">
+    <dl className="my-0 grid grid-cols-3 gap-3 max-[720px]:grid-cols-1">
       <RunMetric label="Time elapsed" value={elapsed} />
       <RunMetric label="Sources Analyzed" value={String(evidenceCount)} />
       <RunMetric label="Ideas explored" value={String(ideaCount)} />
@@ -142,7 +146,9 @@ function RunMetric({label, value}: {label: string; value: string}) {
   return (
     <div className="rounded-md bg-cosci-hover p-4">
       <dt className="text-xs text-cosci-muted">{label}</dt>
-      <dd className="mt-1 text-xl font-medium">{value}</dd>
+      {/* `ms-0`: a <dd>'s user-agent 40px inline indent pushed each value
+          out of line with the label it belongs to. */}
+      <dd className="mt-1 ms-0 text-xl font-medium">{value}</dd>
     </div>
   );
 }
