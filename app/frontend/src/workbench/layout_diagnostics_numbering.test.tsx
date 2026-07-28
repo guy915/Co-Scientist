@@ -25,6 +25,7 @@ it('renumbers shown records consecutively, ignoring id gaps', async () => {
     })),
     last_id: 33,
     total: 4,
+    session_total: 4,
   });
   renderLayout();
 
@@ -57,6 +58,7 @@ it('numbers a capped window by position in the stream', async () => {
     logs,
     last_id: 5000,
     total: 250,
+    session_total: 250,
   });
   renderLayout();
 
@@ -85,6 +87,7 @@ it('never shows more than the 100 newest records', async () => {
     logs: many,
     last_id: 120,
     total: 120,
+    session_total: 120,
   });
   const {container} = renderLayout();
 

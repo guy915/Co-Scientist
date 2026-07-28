@@ -24,13 +24,15 @@ it('hides pre-session history and shows only records added this session', async 
     ],
     last_id: 100,
     total: 5,
+    session_total: 5,
   });
   // Every later load pages from the baseline (after_id=100): the server
-  // returns only the one record added this session.
+  // returns only the one record added this session, and counts only it.
   logsApiMock.getAppLogs.mockResolvedValue({
     logs: [logRecord(101, {message: 'fresh session line'})],
     last_id: 101,
     total: 6,
+    session_total: 1,
   });
 
   renderLayout('/');
@@ -48,6 +50,41 @@ it('hides pre-session history and shows only records added this session', async 
   expect(logsApiMock.getAppLogs).toHaveBeenCalledWith(100, 100);
 });
 
+it('keeps counting after pruning shrinks the whole-table total', async () => {
+  // Retention pruning and a scoped clear both delete rows from under the
+  // session anchor, so the server's whole-table `total` can fall below
+  // what it was when the session started. The panel takes the count from
+  // the server's own after-cursor count for that reason: subtracting a
+  // start-of-session snapshot goes negative here, which used to pin the
+  // badge at 0 (and the "#N" numbering at zero or below) while records
+  // kept rendering underneath it.
+  window.sessionStorage.setItem(
+    'cosci-logs-session-baseline',
+    JSON.stringify({id: 100}),
+  );
+  logsApiMock.getAppLogs.mockReset();
+  logsApiMock.getAppLogs.mockResolvedValue({
+    logs: [
+      logRecord(101, {message: 'survived the prune'}),
+      logRecord(102, {message: 'logged after the prune'}),
+    ],
+    last_id: 102,
+    // Fewer rows remain table-wide than existed at session start.
+    total: 2,
+    session_total: 2,
+  });
+
+  renderLayout('/');
+  fireEvent.click(await screen.findByRole('button', {name: /Logs 2/i}));
+
+  expect(await screen.findByText(/survived the prune/)).toBeVisible();
+  const numbers = Array.from(
+    document.querySelectorAll('.ucs-diagnostic-entry-meta'),
+  ).map(el => el.querySelector('span')?.textContent);
+  expect(numbers).toEqual(['#1', '#2']);
+  expect(screen.getByText('Total 2')).toBeInTheDocument();
+});
+
 it('keeps this session across a tab reload', async () => {
   // A reload is the reflex for "did that just get logged?" — it must not
   // throw the session away. The baseline lives in sessionStorage, so a
@@ -56,7 +93,7 @@ it('keeps this session across a tab reload', async () => {
   // hide everything logged so far).
   window.sessionStorage.setItem(
     'cosci-logs-session-baseline',
-    JSON.stringify({id: 100, total: 5}),
+    JSON.stringify({id: 100}),
   );
   logsApiMock.getAppLogs.mockReset();
   logsApiMock.getAppLogs.mockResolvedValue({
@@ -66,6 +103,7 @@ it('keeps this session across a tab reload', async () => {
     ],
     last_id: 102,
     total: 7,
+    session_total: 2,
   });
 
   renderLayout('/');

@@ -27,17 +27,13 @@ interface AppliedLogState {
   withEntries: boolean;
 }
 
-// Where this browsing session began in the durable, app-wide log. The
-// panel shows only records added after this point, so opening the site
-// starts on a clean panel instead of the whole retained history.
-//
-//   - `id`: the log's high-water id at session start; a record is "this
-//     session" only when its id is above it.
-//   - `total`: the visible-record count at session start.
-//     The server's `total` ignores the `after_id` window (it counts the
-//     whole visible set), so subtracting this snapshot yields the exact
-//     count of records added this session — which drives the badge and
-//     the "#N" numbering without a second count query.
+// Where this browsing session began in the durable, app-wide log: the
+// log's high-water id at session start, so a record belongs to this
+// session only when its id is above it. The panel shows only those, so
+// opening the site starts on a clean panel instead of the whole retained
+// history. The anchor is all this holds — every request pages from it and
+// the server reports `session_total` for exactly that window, so nothing
+// here has to reconstruct a count by arithmetic.
 //
 // The baseline lives in sessionStorage, not in this module's memory,
 // because the two events look identical to a module-scoped variable but
@@ -51,7 +47,6 @@ const BASELINE_KEY = 'cosci-logs-session-baseline';
 
 interface SessionBaseline {
   id: number;
-  total: number;
 }
 
 // Storage can be unavailable or full (private modes, quota); the baseline
@@ -106,7 +101,7 @@ export function sessionAfterId(): number {
 function ensureSessionBaseline(payload: AppLogsPayload): void {
   const baseline = readBaseline();
   if (baseline === null || payload.last_id < baseline.id) {
-    writeBaseline({id: payload.last_id, total: payload.total});
+    writeBaseline({id: payload.last_id});
   }
 }
 
@@ -119,13 +114,23 @@ function ensureSessionBaseline(payload: AppLogsPayload): void {
 // and the cap is re-enforced here so the panel shows at most the newest
 // PANEL_LIMIT. Numbers backwards from the session total so the newest row
 // is always `total` (a capped window shows 151..250, not 1..100).
+//
+// The count is the server's `session_total` for the window this request
+// asked for, never a subtraction off the whole-table `total`: retention
+// pruning and a scoped clear both delete rows the snapshot had counted,
+// so the difference goes negative and the badge sticks at zero while rows
+// keep rendering underneath it.
 function buildLoadedLogs(
   payload: AppLogsPayload,
   open: boolean,
+  requestAfterId: number,
 ): {applied: AppliedLogState; logs: PersistedAppLogs} {
-  const baseline = readBaseline() ?? {id: payload.last_id, total: 0};
+  const baseline = readBaseline() ?? {id: payload.last_id};
   const session = payload.logs.filter(record => record.id > baseline.id);
-  const total = Math.max(0, payload.total - baseline.total);
+  // A request issued before the current anchor existed — the establishing
+  // load, or one racing the re-anchor after an operator Clear restarts ids
+  // — counted pre-session rows, so it contributes nothing to this session.
+  const total = requestAfterId < baseline.id ? 0 : payload.session_total;
   const shown = open ? session.slice(-PANEL_LIMIT) : [];
   const first = total - shown.length + 1;
   return {
@@ -163,22 +168,76 @@ function isAlreadyApplied(
 // fetched however deep the retained log is; the session count stays cheap
 // to keep current whether the panel is open or closed. The same fetch
 // runs on every route, so navigating never changes what the panel shows.
-// Wires `load` to run once immediately, on a steady background poll (a
-// hidden tab loads nothing; foregrounding runs one immediate catch-up load
-// rather than waiting out the interval), and whenever the api layer
-// announces the persisted log changed. Returns the cleanup.
-function subscribeToLogPolling(load: () => void): () => void {
+// Wires `load` to run once immediately, on a steady background poll at
+// `intervalMs` (a hidden tab loads nothing; foregrounding runs one
+// immediate catch-up load rather than waiting out the interval), and
+// whenever the api layer announces the persisted log changed. Returns the
+// cleanup.
+function subscribeToLogPolling(
+  load: () => void,
+  intervalMs: number,
+): () => void {
   load();
   const loadIfVisible = () => {
     if (!document.hidden) load();
   };
-  const timer = window.setInterval(loadIfVisible, APP_LOGS_POLL_MS);
+  const timer = window.setInterval(loadIfVisible, intervalMs);
   document.addEventListener('visibilitychange', loadIfVisible);
   window.addEventListener(APP_LOGS_CHANGED_EVENT, load);
   return () => {
     window.clearInterval(timer);
     document.removeEventListener('visibilitychange', loadIfVisible);
     window.removeEventListener(APP_LOGS_CHANGED_EVENT, load);
+  };
+}
+
+// What one effect generation's loader writes to, bundled so the loader
+// stays a plain function rather than a closure over the hook body.
+interface LogLoaderDeps {
+  open: boolean;
+  applied: {current: AppliedLogState | null};
+  setLogs: (logs: PersistedAppLogs) => void;
+}
+
+// Builds the loader for one effect generation, plus the `dispose` that
+// retires it. Responses of a disposed generation are dropped rather than
+// applied to a remounted panel.
+function makeLogLoader({open, applied, setLogs}: LogLoaderDeps) {
+  let disposed = false;
+  // Requests can resolve out of order (an announce-triggered load can
+  // race the poll); only the most recently issued request may apply.
+  let latestRequest = 0;
+  const load = () => {
+    const request = ++latestRequest;
+    // The anchor this request pages from, kept so the response is read
+    // against the anchor that was current when it was issued.
+    const afterId = sessionAfterId();
+    // Always page the newest PANEL_LIMIT of the session (from the
+    // baseline), so the badge count is right whether the panel is open
+    // or closed; only display entries are gated on `open`.
+    getAppLogs(afterId, PANEL_LIMIT)
+      .then(payload => {
+        // Record the baseline before the guards: a disposed mount load
+        // must still anchor the session, or a later load anchors it to a
+        // payload that already contains this session's records.
+        ensureSessionBaseline(payload);
+        if (disposed || request !== latestRequest) return;
+        const next = buildLoadedLogs(payload, open, afterId);
+        if (isAlreadyApplied(applied.current, next.applied, open)) return;
+        applied.current = next.applied;
+        setLogs(next.logs);
+      })
+      .catch(() => {
+        if (disposed || request !== latestRequest) return;
+        applied.current = null;
+        setLogs({entries: [], total: 0});
+      });
+  };
+  return {
+    load,
+    dispose() {
+      disposed = true;
+    },
   };
 }
 
@@ -193,36 +252,19 @@ export function usePersistedAppLogs(
   const appliedRef = useRef<AppliedLogState | null>(null);
 
   useEffect(() => {
-    let disposed = false;
-    // Requests can resolve out of order (an announce-triggered load can
-    // race the poll); only the most recently issued request may apply.
-    let latestRequest = 0;
-    const load = () => {
-      const request = ++latestRequest;
-      // Always page the newest PANEL_LIMIT of the session (from the
-      // baseline), so the badge count is right whether the panel is open
-      // or closed; only display entries are gated on `open`.
-      getAppLogs(sessionAfterId(), PANEL_LIMIT)
-        .then(payload => {
-          // Record the baseline before the guards: a disposed mount load
-          // must still anchor the session, or a later load anchors it to a
-          // payload that already contains this session's records.
-          ensureSessionBaseline(payload);
-          if (disposed || request !== latestRequest) return;
-          const {applied, logs: nextLogs} = buildLoadedLogs(payload, open);
-          if (isAlreadyApplied(appliedRef.current, applied, open)) return;
-          appliedRef.current = applied;
-          setLogs(nextLogs);
-        })
-        .catch(() => {
-          if (disposed || request !== latestRequest) return;
-          appliedRef.current = null;
-          setLogs({entries: [], total: 0});
-        });
-    };
-    const unsubscribe = subscribeToLogPolling(load);
+    const {load, dispose} = makeLogLoader({
+      open,
+      applied: appliedRef,
+      setLogs,
+    });
+    // `open` is already a dependency, so flipping the panel re-subscribes
+    // at the other cadence instead of needing a second timer.
+    const unsubscribe = subscribeToLogPolling(
+      load,
+      open ? APP_LOGS_POLL_MS.open : APP_LOGS_POLL_MS.closed,
+    );
     return () => {
-      disposed = true;
+      dispose();
       unsubscribe();
     };
   }, [version, open]);

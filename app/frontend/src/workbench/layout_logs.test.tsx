@@ -59,6 +59,7 @@ it('refreshes the badge when the api announces a log change', async () => {
     ],
     last_id: 7,
     total: 7,
+    session_total: 7,
   });
   const {APP_LOGS_CHANGED_EVENT} = await import('@/api/logs');
   fireEvent(window, new Event(APP_LOGS_CHANGED_EVENT));
@@ -93,6 +94,7 @@ it('keeps the badge fresh while the popover is closed', async () => {
       ],
       last_id: 9,
       total: 9,
+      session_total: 9,
     });
     // No popover open, no events: only the periodic background poll
     // can pick up the new record.

@@ -3,10 +3,12 @@
 Owns ``GET /api/logs`` and the payload/filter logic that the run-scoped
 ``GET /api/runs/{id}/logs`` endpoint (in ``app.runs``) shares, so both
 endpoints accept identical query parameters and return the same shape:
-``{"logs": [...], "last_id": N, "total": N}``. ``last_id`` is the table's
-high-water mark regardless of filters, letting pollers resume with
-``after_id`` even when the newest rows did not match their filter;
-``total`` is the size of the whole matching set, ignoring the window.
+``{"logs": [...], "last_id": N, "total": N, "session_total": N}``.
+``last_id`` is the table's high-water mark regardless of filters, letting
+pollers resume with ``after_id`` even when the newest rows did not match
+their filter; ``total`` is the size of the whole matching set, ignoring
+the window; ``session_total`` is the size of the set after ``after_id``,
+for a poller that counts only what its own cursor has seen.
 """
 
 from __future__ import annotations
@@ -196,15 +198,15 @@ def _query_logs_payload(
     filters: store.LogFilters,
     limit: int,
 ) -> dict[str, Any]:
-    """Run the three reads backing one logs response on an open connection.
+    """Run the four reads backing one logs response on an open connection.
 
     Args:
-        conn: The open connection all three reads share.
+        conn: The open connection all four reads share.
         filters: The window and filters of the row query.
         limit: Maximum rows returned (the newest matches, oldest-first).
 
     Returns:
-        The ``{"logs", "last_id", "total"}`` payload.
+        The ``{"logs", "last_id", "total", "session_total"}`` payload.
     """
     rows = store.list_logs(filters=filters, limit=limit, conn=conn)
     # `total` counts the whole matching set (no cursor, no limit) so the
@@ -212,8 +214,20 @@ def _query_logs_payload(
     total = store.count_logs(
         filters=dataclasses.replace(filters, after_id=0), conn=conn
     )
+    # `session_total` keeps the cursor, so a caller polling from a fixed
+    # anchor gets the size of its own slice as a first-class number. It is
+    # counted here rather than left to the caller to derive by subtracting
+    # a start-of-anchor snapshot from `total`: retention pruning and a
+    # scoped clear both delete rows below the anchor, which drives such a
+    # difference negative and reads as "nothing new" forever.
+    session_total = store.count_logs(filters=filters, conn=conn)
     last_id = store.latest_log_id(conn=conn)
-    return {"logs": rows, "last_id": last_id, "total": total}
+    return {
+        "logs": rows,
+        "last_id": last_id,
+        "total": total,
+        "session_total": session_total,
+    }
 
 
 def logs_payload(
@@ -228,7 +242,8 @@ def logs_payload(
             as a query parameter.
 
     Returns:
-        The ``{"logs", "last_id", "total"}`` payload both endpoints return.
+        The ``{"logs", "last_id", "total", "session_total"}`` payload both
+        endpoints return.
 
     Raises:
         HTTPException: 422 when ``min_level`` is not a known level name.

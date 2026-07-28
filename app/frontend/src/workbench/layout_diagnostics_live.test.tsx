@@ -19,6 +19,7 @@ it('ignores stale out-of-order log responses', async () => {
     logs: [logRecord(id)],
     last_id: id,
     total: id,
+    session_total: id,
   });
   // Let the mount-time loads settle first, so both racing requests
   // below belong to the same effect generation.
@@ -55,6 +56,7 @@ it('does not jump to the end while the user is scrolled up', async () => {
     logs: [logRecord(1), logRecord(2)],
     last_id: 2,
     total: 2,
+    session_total: 2,
   });
   renderLayout();
 
@@ -72,6 +74,7 @@ it('does not jump to the end while the user is scrolled up', async () => {
     logs: [logRecord(1), logRecord(2), logRecord(3)],
     last_id: 3,
     total: 3,
+    session_total: 3,
   });
   fireEvent(
     window,
@@ -90,6 +93,7 @@ it('keeps following the newest record at the window cap', async () => {
     logs: [logRecord(1), logRecord(2)],
     last_id: 2,
     total: 2,
+    session_total: 2,
   });
   renderLayout();
 
@@ -107,6 +111,7 @@ it('keeps following the newest record at the window cap', async () => {
     logs: [logRecord(2), logRecord(3)],
     last_id: 3,
     total: 3,
+    session_total: 3,
   });
   fireEvent(
     window,

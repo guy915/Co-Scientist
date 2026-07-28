@@ -42,6 +42,7 @@ it('shows the same app-wide log on a run route as on home', async () => {
     ],
     last_id: 41,
     total: 1,
+    session_total: 1,
   });
   renderLayout('/runs/demo-ferroptosis/ideas');
 
@@ -77,6 +78,7 @@ it('loads persisted backend logs into the diagnostics popover', async () => {
     ],
     last_id: 5,
     total: 3,
+    session_total: 3,
   });
   renderLayout('/');
 
@@ -119,6 +121,7 @@ it('never scrolls sideways, even with a long logger name', async () => {
     ],
     last_id: 1,
     total: 1,
+    session_total: 1,
   });
   const {container} = renderLayout();
 
@@ -146,6 +149,7 @@ it('renders the message as plain text with a level meta row', async () => {
     ],
     last_id: 2,
     total: 2,
+    session_total: 2,
   });
   const {container} = renderLayout();
 

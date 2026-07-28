@@ -14,7 +14,6 @@ and ``conn`` (an open connection to reuse).
 
 from __future__ import annotations
 
-import dataclasses
 import logging
 import sqlite3
 import time
@@ -196,12 +195,16 @@ def count_logs(
     db_path: str | None = None,
     conn: sqlite3.Connection | None = None,
 ) -> int:
-    """Count every row matching the filters, ignoring paging.
+    """Count every row matching the filters, ignoring the window cap.
 
-    Unlike :func:`list_logs` there is no ``after_id`` or ``limit``: this
-    is the size of the whole matching set, so the UI can show a true
-    total next to a capped window. Any ``after_id`` on ``filters`` is
-    therefore ignored.
+    Unlike :func:`list_logs` there is no ``limit``: the count covers the
+    whole matching set, so the UI can show a true total next to a capped
+    window. ``after_id`` is honored like every other filter -- pass
+    ``after_id=0`` for the whole-table count, or keep a poller's cursor
+    to count only the rows it has not yet seen. The two are separate
+    numbers, not one derivable from the other: rows below the cursor are
+    deleted by retention pruning and by a scoped clear, so a difference
+    taken against a stale whole-table count goes negative.
 
     Args:
         filters: Which rows to match (see :class:`LogFilters`); None
@@ -212,9 +215,7 @@ def count_logs(
     Returns:
         The number of matching rows.
     """
-    where, params = _log_filters(
-        dataclasses.replace(filters or LogFilters(), after_id=0)
-    )
+    where, params = _log_filters(filters or LogFilters())
     query = "SELECT COUNT(*) AS n FROM app_logs WHERE " + where
     with _use_conn(conn, db_path) as c:
         row = c.execute(query, params).fetchone()

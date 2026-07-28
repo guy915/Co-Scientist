@@ -120,6 +120,23 @@ def test_count_logs_ignores_limit_and_respects_filters(
     )
 
 
+def test_count_logs_honours_the_cursor(isolated_db: str) -> None:
+    _append(isolated_db, "old one")
+    cursor = _append(isolated_db, "old two")
+    _append(isolated_db, "new one")
+    # Two counts of the same set, differing only in the cursor. The
+    # after-cursor count is its own query rather than a subtraction: rows
+    # below the cursor are deleted by retention pruning and by a scoped
+    # clear, which drives such a difference negative.
+    assert store.count_logs(db_path=isolated_db) == 3
+    assert (
+        store.count_logs(
+            filters=store.LogFilters(after_id=cursor), db_path=isolated_db
+        )
+        == 1
+    )
+
+
 def test_noise_loggers_hidden_below_warning(isolated_db: str) -> None:
     _append(isolated_db, "run started", logger_name="app.runs")
     _append(isolated_db, "GET /status", logger_name="uvicorn.access")

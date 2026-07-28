@@ -40,8 +40,12 @@ export const COPY_LIMIT = 50;
 // How many of the newest records the panel fetches and shows.
 export const PANEL_LIMIT = 100;
 
-// How often the persisted backend log is re-fetched in the background.
-export const APP_LOGS_POLL_MS = 5_000;
+// How often the persisted backend log is re-fetched in the background,
+// by whether the panel is open. An open panel is a live view someone is
+// watching, so it ticks fast enough to read as real time; a closed one
+// only feeds the badge, where a slower tick keeps the steady-state query
+// load off the database whose single writer every run competes for.
+export const APP_LOGS_POLL_MS = {open: 2_000, closed: 5_000};
 
 // Shape of the `cosci-diagnostic-event` CustomEvent's `detail`, as dispatched
 // by callers elsewhere in the app (e.g. useChatSession's emitDiagnosticEvent)

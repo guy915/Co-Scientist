@@ -36,6 +36,7 @@ it('clears the persisted log from the Clear action', async () => {
     ],
     last_id: 1,
     total: 1,
+    session_total: 1,
   });
   renderLayout();
 
@@ -46,6 +47,7 @@ it('clears the persisted log from the Clear action', async () => {
     logs: [],
     last_id: 1,
     total: 0,
+    session_total: 0,
   });
   fireEvent.click(screen.getByRole('button', {name: 'Clear'}));
 
@@ -71,6 +73,7 @@ it('copies only the newest 50 entries', async () => {
     logs: many,
     last_id: 60,
     total: 60,
+    session_total: 60,
   });
   const writeText = vi.fn().mockResolvedValue(undefined);
   Object.assign(navigator, {clipboard: {writeText}});
@@ -105,6 +108,7 @@ it('copies the real store ids, not the display numbers', async () => {
     })),
     last_id: 33,
     total: 2,
+    session_total: 2,
   });
   const writeText = vi.fn().mockResolvedValue(undefined);
   Object.assign(navigator, {clipboard: {writeText}});
@@ -143,6 +147,7 @@ function oneRecordPayload() {
     ],
     last_id: 1,
     total: 1,
+    session_total: 1,
   };
 }
 

@@ -114,6 +114,34 @@ def test_logs_endpoint_total_respects_filters_not_cursor(
     assert body["total"] == 2
 
 
+def test_logs_endpoint_session_total_follows_the_cursor(
+    isolated_db: str,
+) -> None:
+    _seed(isolated_db, "before the cursor")
+    cursor = _seed(isolated_db, "at the cursor")
+    _seed(isolated_db, "after the cursor")
+    client = make_operator_client()
+
+    # Filtered to the seeded rows: log capture writes the app's own
+    # startup records from a background thread, so an unfiltered count
+    # here would race it.
+    body = client.get(
+        "/api/logs", params={"after_id": cursor, "q": "cursor"}
+    ).json()
+    assert [row["message"] for row in body["logs"]] == ["after the cursor"]
+    # Two counts of the same filtered set, differing only in the cursor:
+    # `total` is the whole matching set, `session_total` only what this
+    # poller's anchor has seen. A UI counting its own slice reads the
+    # latter, so rows deleted below the anchor cannot drive it negative.
+    assert body["total"] == 3
+    assert body["session_total"] == 1
+
+    # Filters narrow both counts; only the cursor separates them.
+    body = client.get("/api/logs", params={"q": "at the"}).json()
+    assert body["total"] == 1
+    assert body["session_total"] == 1
+
+
 def test_logs_endpoint_hides_noise_by_default(isolated_db: str) -> None:
     _seed(isolated_db, "run started")
     _seed_from(isolated_db, "uvicorn.access", "GET /status 200")

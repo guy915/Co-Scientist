@@ -35,6 +35,14 @@ export interface AppLogsPayload {
   last_id: number;
   /** Size of the whole matching set, ignoring `after_id` and `limit`. */
   total: number;
+  /**
+   * Size of the matching set *after* `after_id`, ignoring `limit`: the
+   * count of what this request's cursor covers. `total` cannot stand in
+   * for it — subtracting a start-of-session snapshot of `total` goes
+   * negative the moment retention pruning or a clear drops rows below the
+   * cursor, which pins a badge at zero while records keep arriving.
+   */
+  session_total: number;
 }
 
 /**
