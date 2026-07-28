@@ -20,6 +20,7 @@ from typing import Any, NamedTuple
 
 from app import store
 from app.elo import live_leaderboard
+from app.notifications import email_notifications_configured
 from app.report_content import _agent_insights as _agent_insights
 from app.report_content import (
     _contradicted_hypothesis_ids as _contradicted_hypothesis_ids,
@@ -437,6 +438,18 @@ def _enqueue_completion_notification(
         run.config.get("completion_notification") if run else {}
     ) or {}
     if not (notification.get("enabled") and notification.get("email")):
+        return
+    if not email_notifications_configured():
+        # Enqueueing here would spend three retries against an SMTP transport
+        # that provably does not exist and leave a failed task nothing
+        # recovers, all of it invisible to the scientist who asked to be
+        # told. The opt-in is gated on the same capability in the UI, so
+        # reaching this means the server lost its configuration mid-run.
+        logger.warning(
+            "Run %s opted into a completion email but SMTP is not "
+            "configured (set SMTP_HOST and SMTP_FROM_EMAIL); no mail sent",
+            run_id,
+        )
         return
     store.enqueue_task(
         store.NewTask(

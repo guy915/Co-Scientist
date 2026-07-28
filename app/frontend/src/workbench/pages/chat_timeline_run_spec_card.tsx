@@ -43,9 +43,7 @@ import {
   MessageActionRow,
   responseActions,
 } from './chat_timeline_message_actions';
-
-const GOAL_EDITOR_CLASSES =
-  'mt-3 w-full rounded-xl border border-cosci-border bg-transparent p-3';
+import {CompletionNotification} from './chat_timeline_run_spec_notification';
 
 // Props for RunSpecCard, named at module level per the destructured prop
 // signature otherwise pushing the component past the line cap.
@@ -242,45 +240,6 @@ function RunSpecDocument(props: RunSpecDocumentProps) {
         canStart={isCompletionEmailValid(spec)}
       />
     </div>
-  );
-}
-
-function CompletionNotification({
-  spec,
-  disabled,
-  onChange,
-}: {
-  spec: InferredRunSpec;
-  disabled: boolean;
-  onChange: (enabled: boolean, email: string) => void;
-}) {
-  const enabled = Boolean(spec.notifyOnCompletion);
-  return (
-    <fieldset className={OPTION_GROUP_CLASSES}>
-      <legend className={OPTION_GROUP_LEGEND_CLASSES}>Notification</legend>
-      <label className="flex items-center gap-3 text-sm">
-        <input
-          type="checkbox"
-          checked={enabled}
-          disabled={disabled}
-          onChange={event =>
-            onChange(event.currentTarget.checked, spec.completionEmail || '')
-          }
-        />
-        Email me when the Goal Report is ready
-      </label>
-      {enabled ? (
-        <input
-          type="email"
-          required
-          disabled={disabled}
-          aria-label="Completion notification email"
-          className={GOAL_EDITOR_CLASSES}
-          value={spec.completionEmail || ''}
-          onChange={event => onChange(true, event.currentTarget.value)}
-        />
-      ) : null}
-    </fieldset>
   );
 }
 

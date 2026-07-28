@@ -13,6 +13,7 @@ from pydantic import BaseModel, Field
 
 from app import diagnostics, engine_adapter, paper_corpus
 from app.config import settings
+from app.notifications import email_notifications_configured
 from app.run_modes import (
     DEFAULT_RUN_TIER,
     RUN_TIER_DEFAULTS,
@@ -98,6 +99,13 @@ class SystemStatusResponse(BaseModel):
         description=(
             "whether the mcp server advertises its web search tool, which "
             "it does only when a search-provider api key is configured"
+        ),
+    )
+    email_notifications_available: bool = Field(
+        False,
+        description=(
+            "whether an SMTP transport is configured, so a run can actually "
+            "be opted in to a completion email"
         ),
     )
     probes: dict[str, ProbeStatus] = Field(
@@ -217,6 +225,10 @@ def _build_status_payload(
         # True only when the MCP server advertises its web search tool, which
         # requires a search-provider API key on that server.
         "web_search_available": web_search.available,
+        # Local, not probed: an SMTP transport is either configured on this
+        # process or it is not, and the plan card's completion-email opt-in
+        # is gated on the answer.
+        "email_notifications_available": email_notifications_configured(),
         "probes": {
             "mcp": {"state": mcp.state, "error": mcp.error},
             "pubmed": {"state": pubmed.state, "error": pubmed.error},

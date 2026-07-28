@@ -10,9 +10,22 @@ from typing import Any
 from app.config import settings
 
 
+def email_notifications_configured() -> bool:
+    """Whether this deployment can actually deliver a completion email.
+
+    The opt-in on the plan card promises a message when the Goal Report
+    lands, and the only thing standing behind that promise is an SMTP
+    transport an operator has to configure. Without one the durable task
+    raises below, spends its retries, and fails where no scientist can see
+    it -- so callers gate the opt-in on this instead of offering something
+    the server has no way to send.
+    """
+    return bool(settings.smtp_host and settings.smtp_from_email)
+
+
 def _send_smtp(recipient: str, subject: str, body: str) -> None:
     """Send one completion email using STARTTLS when credentials are set."""
-    if not settings.smtp_host or not settings.smtp_from_email:
+    if not email_notifications_configured():
         raise RuntimeError("SMTP completion notifications are not configured")
     message = EmailMessage()
     message["From"] = settings.smtp_from_email

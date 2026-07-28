@@ -185,6 +185,34 @@ def test_status_reports_effective_tools_config(
         assert "indra_statements" in body["enabled_tools"]
 
 
+def test_status_reports_whether_email_can_actually_be_sent(
+    isolated_db: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """/status gates the completion-email opt-in on a real SMTP transport.
+
+    Without one the send task can only raise and exhaust its retries where
+    no scientist can see it, so the UI must not offer the opt-in at all.
+    """
+    import app.main as main_module
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "smtp_host", "")
+    monkeypatch.setattr(settings, "smtp_from_email", "")
+    with TestClient(main_module.app) as client:
+        assert (
+            client.get("/status").json()["email_notifications_available"]
+            is False
+        )
+
+    monkeypatch.setattr(settings, "smtp_host", "smtp.example.org")
+    monkeypatch.setattr(settings, "smtp_from_email", "noreply@example.org")
+    with TestClient(main_module.app) as client:
+        assert (
+            client.get("/status").json()["email_notifications_available"]
+            is True
+        )
+
+
 def test_module_import_bridges_settings_and_logs_missing_mcp_url(
     monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ) -> None:

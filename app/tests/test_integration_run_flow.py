@@ -27,10 +27,12 @@ from collections.abc import Callable
 from typing import Any
 
 import httpx
+import pytest
 from fastapi import FastAPI
 from httpx import ASGITransport
 
 from app import store
+from app.config import settings
 from tests._client import make_client as _client
 from tests._client import wait_for_status as _wait_status
 
@@ -199,8 +201,13 @@ async def test_sse_stream_replay_then_live_matches_full_event_log(
 
 def test_completion_notification_is_opt_in_and_durable(
     isolated_db: str,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """A requested email becomes a retryable task only after report release."""
+    # An SMTP transport has to exist for the opt-in to mean anything; without
+    # one the task is never enqueued (see _enqueue_completion_notification).
+    monkeypatch.setattr(settings, "smtp_host", "smtp.example.org")
+    monkeypatch.setattr(settings, "smtp_from_email", "noreply@example.org")
     headers = {"X-Client-ID": "notification-scientist"}
     with _client() as client:
         created = client.post(
@@ -235,3 +242,31 @@ def test_completion_notification_is_opt_in_and_durable(
     assert len(email_tasks) == 1
     assert email_tasks[0].inputs["email"] == "scientist@example.org"
     assert email_tasks[0].max_attempts == 3
+
+
+def test_completion_notification_is_skipped_without_an_smtp_transport(
+    isolated_db: str,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """An unsendable notice is reported, not queued to fail three times."""
+    monkeypatch.setattr(settings, "smtp_host", "")
+    monkeypatch.setattr(settings, "smtp_from_email", "")
+    headers = {"X-Client-ID": "unconfigured-scientist"}
+    with caplog.at_level("WARNING"), _client() as client:
+        run_id = client.post(
+            "/api/runs",
+            headers=headers,
+            json={
+                "research_goal": "Study notification fidelity",
+                "tier": "express",
+                "notify_on_completion": True,
+                "completion_email": "scientist@example.org",
+            },
+        ).json()["id"]
+        client.post(f"/api/runs/{run_id}/start", headers=headers, json={})
+        _wait_status(client, run_id, "completed", timeout=20.0, interval=0.1)
+
+    tasks = store.list_tasks(run_id, db_path=isolated_db)
+    assert not [t for t in tasks if t.task_type == "notification.email"]
+    assert "SMTP is not configured" in caplog.text

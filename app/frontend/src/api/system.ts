@@ -22,6 +22,11 @@ export interface SystemStatus {
   literature_review_available: boolean;
   /** Present once the backend advertises the web-search tool. */
   web_search_available?: boolean;
+  /**
+   * Whether an SMTP transport is configured. False means a completion-email
+   * opt-in could only ever fail, so the plan card does not offer one.
+   */
+  email_notifications_available?: boolean;
   probes: {mcp: ProbeStatus; pubmed: ProbeStatus; web_search?: ProbeStatus};
   mcp_server_url: string;
   // The engine is the only workflow provider now; 'mock' only ever appears
