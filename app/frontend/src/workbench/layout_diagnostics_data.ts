@@ -34,8 +34,11 @@ export interface DiagnosticLogEntry {
 // the summary's Runs chip imply that a research run produced the record.
 export const SERVER_LOG_SOURCE = 'Server';
 
-// How many of the newest entries the Copy action serializes.
-export const COPY_LIMIT = 50;
+// How many of the newest entries the Copy action serializes. Matching
+// PANEL_LIMIT means an export carries the whole window the reader was
+// looking at: a copy that stopped short of it cut the run's narrative in
+// half, since one run's stage records alone can fill most of the window.
+export const COPY_LIMIT = 100;
 
 // How many of the newest records the panel fetches and shows.
 export const PANEL_LIMIT = 100;

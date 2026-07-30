@@ -1,5 +1,6 @@
 import {act, fireEvent, screen, waitFor} from '@testing-library/react';
 import {afterEach, beforeEach, expect, it, vi} from 'vitest';
+import {COPY_LIMIT} from './layout_diagnostics_data';
 import {EXPORT_LOGS_MARKER} from './layout_diagnostics_export';
 import {
   installLayoutMocks,
@@ -58,8 +59,8 @@ it('clears the persisted log from the Clear action', async () => {
   ).toBeInTheDocument();
 });
 
-it('copies only the newest 50 entries', async () => {
-  const many = Array.from({length: 60}, (_, index) => ({
+it('copies the newest COPY_LIMIT entries, not the whole session', async () => {
+  const many = Array.from({length: 140}, (_, index) => ({
     id: index + 1,
     created_at: 1_700_000_000 + index,
     level: 'INFO',
@@ -71,27 +72,27 @@ it('copies only the newest 50 entries', async () => {
   }));
   logsApiMock.getAppLogs.mockResolvedValue({
     logs: many,
-    last_id: 60,
-    total: 60,
-    session_total: 60,
+    last_id: 140,
+    total: 140,
+    session_total: 140,
   });
   const writeText = vi.fn().mockResolvedValue(undefined);
   Object.assign(navigator, {clipboard: {writeText}});
   renderLayout();
 
-  fireEvent.click(await screen.findByRole('button', {name: /Logs 60/i}));
+  fireEvent.click(await screen.findByRole('button', {name: /Logs 140/i}));
   // The full window loads when the popover opens; Copy reads it.
-  await screen.findByText(/record 60/);
+  await screen.findByText(/record 140/);
   fireEvent.click(screen.getByRole('button', {name: 'Copy'}));
 
   await waitFor(() => expect(writeText).toHaveBeenCalled());
   const copied = copiedEntries(writeText.mock.calls[0][0] as string) as {
     payload: {message: string};
   }[];
-  expect(copied).toHaveLength(50);
+  expect(copied).toHaveLength(COPY_LIMIT);
   // The newest tail, not the oldest head.
-  expect(copied[0].payload.message).toBe('record 11');
-  expect(copied[49].payload.message).toBe('record 60');
+  expect(copied[0].payload.message).toBe('record 41');
+  expect(copied[COPY_LIMIT - 1].payload.message).toBe('record 140');
 });
 
 it('copies the real store ids, not the display numbers', async () => {

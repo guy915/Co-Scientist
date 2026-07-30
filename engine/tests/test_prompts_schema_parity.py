@@ -1,16 +1,18 @@
-"""Every closed enum a schema declares is named by the prompt that fills it.
+"""Prompts describe the JSON their schema will actually accept.
 
-A prompt that describes a closed enum in its own words instead of naming the
-values ("state whether it is well-supported, uncertain, or likely false")
-gets answered in those words: the reviewer replied "unsupported", the value
-was not one of supported/uncertain/likely_false, and the whole response was
-rejected and re-requested. The prompt's wording is the instruction the model
-actually follows, so it has to carry the literal tokens.
+Where a prompt and its schema disagree, the prompt wins -- it is the
+instruction the model follows -- and the schema then rejects the answer and
+buys the same content a second time. Both guards here pin a shape that
+failed in production: a closed enum described in the prompt's own words
+("well-supported, uncertain, or likely false") came back as "unsupported",
+and a closed object whose keys only ever appeared in the appended schema
+came back with an eighth key the model made up.
 """
 
 import pathlib
 from typing import Any
 
+from co_scientist.schemas.ranking import RANKING_SCHEMA
 from co_scientist.schemas.registry import _PROMPT_SCHEMA_MAP
 
 _TEMPLATES = (
@@ -49,3 +51,19 @@ def test_prompts_name_the_enum_values_their_schema_accepts() -> None:
     assert not unnamed, "prompts that do not name their enum values:\n" + (
         "\n".join(unnamed)
     )
+
+
+def test_ranking_prompt_names_every_comparison_field() -> None:
+    """The tournament prompt names the seven keys its judgment allows.
+
+    judgment_explanation is closed, and its keys appeared nowhere but the
+    schema block appended to the prompt -- the criteria the prompt itself
+    lists are prose headings ("Novelty and Originality"). A judge asked for
+    seven comparisons in one vocabulary and given seven keys in another
+    answered with an eighth key of its own invention, which cost the match
+    a second call.
+    """
+    template = (_TEMPLATES / "ranking.md").read_text()
+    explanation = RANKING_SCHEMA["schema"]["properties"]["judgment_explanation"]
+    for field in explanation["required"]:
+        assert field in template, f"ranking.md does not name {field}"
