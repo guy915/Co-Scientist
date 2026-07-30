@@ -149,11 +149,42 @@ def _exclude_unsafe_hypotheses(
         The hypotheses safe to synthesize, in the original order.
     """
     contradicted = _contradicted_hypothesis_ids(run_id, db_path, claim_edges)
-    return [
+    kept = [
         hyp
         for hyp in hyps
         if _hypothesis_passes_safety_gate(run_id, hyp, contradicted, db_path)
     ]
+    _log_gate_outcome(len(kept), len(hyps))
+    return kept
+
+
+def _log_gate_outcome(kept: int, total: int) -> None:
+    """Reports, in one line, what the gate withheld from the report.
+
+    The per-hypothesis exclusions above log at info because withholding a
+    contradicted or unsafe idea is the gate working as designed: a warning
+    per idea puts a row that needs no action into the warnings band, once
+    per excluded idea, and buries the run's narrative under them. The one
+    outcome that does need attention is the gate taking everything, which
+    leaves a report with no ideas in it.
+
+    Args:
+        kept: How many hypotheses cleared the gate.
+        total: How many were offered to it.
+    """
+    if total and not kept:
+        logger.warning(
+            "Report gate: excluded all %s hypotheses from synthesis; the "
+            "report has no ideas to show.",
+            total,
+        )
+        return
+    if kept < total:
+        logger.info(
+            "Report gate: excluded %s of %s hypotheses from synthesis.",
+            total - kept,
+            total,
+        )
 
 
 def _hypothesis_passes_safety_gate(
@@ -172,7 +203,7 @@ def _hypothesis_passes_safety_gate(
     # entirely; merely-unsupported ideas are published with an "Unverified"
     # badge (see _unverified_hypothesis_ids), not excluded here.
     if str(hyp.get("id")) in contradicted:
-        logger.warning(
+        logger.info(
             "Excluding hypothesis %s from synthesis: contradicted claim",
             hyp.get("id"),
         )
@@ -182,7 +213,7 @@ def _hypothesis_passes_safety_gate(
     # without re-reviewing or double-recording the audit row.
     if status and status != "pending":
         if is_blocking_status(str(status)):
-            logger.warning(
+            logger.info(
                 "Excluding hypothesis %s from synthesis: %s",
                 hyp.get("id"),
                 status,
@@ -200,7 +231,7 @@ def _legacy_hypothesis_passes_safety_gate(
     if not review.blocks_tournament:
         return True
     record_hypothesis_block(run_id, hyp.get("id"), review, db_path=db_path)
-    logger.warning(
+    logger.info(
         "Excluding hypothesis %s from synthesis: %s",
         hyp.get("id"),
         review.outcome.value,

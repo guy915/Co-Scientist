@@ -57,4 +57,4 @@ The following reflection notes analyze how each hypothesis relates to observatio
 {{meta_review_context}}
 ## Output Format
 
-Provide your judgment in JSON format. The winner must be "a" or "b" (just the letter).
+Provide your judgment in JSON format. The winner must be "a" or "b" (just the letter), and confidence_level must be exactly "High", "Medium", or "Low" — how sure you are of the winner, not how good either hypothesis is.

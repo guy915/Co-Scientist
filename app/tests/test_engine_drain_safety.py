@@ -9,7 +9,10 @@ unverified ideas. The PARITY-cited synthesis-exclusion case stays in
 
 from __future__ import annotations
 
+import logging
 from typing import Any
+
+import pytest
 
 from app import engine_adapter, report_render, store
 
@@ -246,3 +249,53 @@ def test_drain_screens_hypotheses_before_finalize(isolated_db: str) -> None:
         d["stage"] == "hypothesis" and d["decision"] == "block"
         for d in decisions
     )
+
+
+def test_gate_reports_exclusions_once_and_at_info(
+    isolated_db: str, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A withheld idea is news at info; the report losing every idea warns.
+
+    Withholding a contradicted or unsafe idea is the gate doing its job, so
+    it belongs in the run narrative rather than in the warnings band -- one
+    warning per idea is a row per idea that needs no action. The case that
+    does need one is the gate emptying the report.
+    """
+    run = store.create_run("gate logging", "standard", "engine", {})
+    _, _, contradicted_id = _seed_gate_split(run, isolated_db)
+    hyps = store.list_hypotheses(run.id, db_path=isolated_db)
+
+    with caplog.at_level(logging.INFO, logger="app.report_content_gates"):
+        report_render._exclude_unsafe_hypotheses(run.id, hyps, isolated_db)
+
+    assert not [r for r in caplog.records if r.levelno >= logging.WARNING]
+    assert any(contradicted_id in r.getMessage() for r in caplog.records)
+    assert any(
+        "excluded 1 of 3" in r.getMessage().lower() for r in caplog.records
+    )
+
+
+def test_gate_warns_when_it_excludes_everything(
+    isolated_db: str, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Nothing left to synthesize is the outcome worth a warning."""
+    run = store.create_run("gate empty", "standard", "engine", {})
+    store.add_hypothesis(
+        store.NewHypothesis(
+            run_id=run.id,
+            title="Unsafe",
+            statement="Weaponize the pathogen to enhance transmissibility.",
+        ),
+        db_path=isolated_db,
+    )
+    hyps = store.list_hypotheses(run.id, db_path=isolated_db)
+
+    with caplog.at_level(logging.INFO, logger="app.report_content_gates"):
+        kept = report_render._exclude_unsafe_hypotheses(
+            run.id, hyps, isolated_db
+        )
+
+    assert kept == []
+    warnings = [r for r in caplog.records if r.levelno == logging.WARNING]
+    assert len(warnings) == 1
+    assert "no ideas" in warnings[0].getMessage()

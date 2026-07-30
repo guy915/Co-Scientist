@@ -56,7 +56,7 @@ For each draft hypothesis, decide whether to **approve**, **refine**, or **pivot
 
 ## Output format
 
-**CRITICAL: Each hypothesis MUST include ALL FOUR components below:**
+**CRITICAL: Each hypothesis MUST include ALL FIVE components below:**
 
 Output your hypotheses in JSON format. Provide a list of {{hypotheses_count}} hypotheses, each with:
 
@@ -127,6 +127,12 @@ Methodology: (1) Implement velocity tracking by computing gradient of activation
 Metrics: Detection accuracy (precision/recall/F1), detection timing (layers until trigger), false positive rate on benign prompts, computational overhead (% of baseline inference cost), robustness to adversarial probe attacks.
 
 Validation: Success requires >90% detection rate, <5% false positive rate, >50% reduction in computational cost vs. full-depth scanning, and maintained performance under adversarial probe attacks. Single A100 GPU, ~48 hours runtime."
+
+### 5. Novelty Validation (required)
+`novelty_validation.decision` records what the novelty analyses did to the draft, and must be exactly one of:
+- `approved` - the draft stakes out new territory and passes through unchanged
+- `refined` - the draft was adjusted to avoid overlap with the literature
+- `pivoted` - the draft was redirected to a different, unexplored angle
 
 ## Guidelines
 
