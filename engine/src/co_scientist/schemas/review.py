@@ -297,6 +297,7 @@ FULL_REVIEW_SCHEMA: dict[str, Any] = {
                 },
             },
             "quality_and_novelty": {"type": "string"},
+            "literature_grounding": {"type": "string"},
             "verdict": {
                 "type": "string",
                 "enum": ["sound", "needs_revision", "rejected"],
@@ -307,6 +308,7 @@ FULL_REVIEW_SCHEMA: dict[str, Any] = {
             "correctness",
             "assumptions",
             "quality_and_novelty",
+            "literature_grounding",
             "verdict",
             "justification",
         ],
@@ -316,6 +318,12 @@ FULL_REVIEW_SCHEMA: dict[str, Any] = {
 
 # Simulation review (SSR §4): a step-through mental simulation of the proposed
 # mechanism (or its test), surfacing the step where it would most likely fail.
+# These properties must stay in step with what simulation_review.md asks for:
+# the prompt requested a robustness assessment and the decisive step while the
+# schema (closed, like every review schema here) declared neither, so the model
+# answered with an undeclared `decisive_step`, validation rejected the whole
+# response, and the node paid for a second full call to get the same content
+# back under a name the schema accepted. Same for full_review.md above.
 SIMULATION_REVIEW_SCHEMA: dict[str, Any] = {
     "name": "simulation_review",
     "schema": {
@@ -339,11 +347,20 @@ SIMULATION_REVIEW_SCHEMA: dict[str, Any] = {
                 "type": "array",
                 "items": {"type": "string"},
             },
+            "robustness": {"type": "string"},
             "verdict": {
                 "type": "string",
                 "enum": ["holds", "partially_holds", "breaks_down"],
             },
+            "decisive_step": {"type": "string"},
         },
-        "required": ["model", "steps", "failure_points", "verdict"],
+        "required": [
+            "model",
+            "steps",
+            "failure_points",
+            "robustness",
+            "verdict",
+            "decisive_step",
+        ],
     },
 }

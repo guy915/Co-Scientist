@@ -1,5 +1,7 @@
 """The six Reflection review types (SSR §4) are enumerated and dispatchable."""
 
+import jsonschema
+
 from co_scientist.agents.reflection.review_types import (
     ReviewType,
     prompt_name_for,
@@ -63,6 +65,45 @@ def test_simulation_review_schema_shape() -> None:
         "breaks_down",
     ]
     assert "steps" in props and "failure_points" in props
+
+
+# Both schemas below close the object (additionalProperties: False), so every
+# answer the prompt asks for needs a property to land in. When one did not,
+# the model invented a plausible name for it (`decisive_step`), validation
+# rejected the whole response, and the node paid for a second full call --
+# see the parity assertions that follow.
+def test_simulation_review_answer_from_the_prompt_validates() -> None:
+    """A response covering every numbered instruction fits the schema."""
+    schema = schema_for(ReviewType.SIMULATION)
+    assert schema is not None
+    answer = {
+        "model": "Two kinases coupled by a negative feedback loop.",
+        "steps": [
+            {"step": "The ligand binds its receptor.", "plausible": True}
+        ],
+        "failure_points": ["Step 3 stalls without the cofactor."],
+        "robustness": "A redundant pathway blunts the effect.",
+        "verdict": "partially_holds",
+        "decisive_step": "Step 3.",
+    }
+    jsonschema.validate(instance=answer, schema=schema["schema"])
+
+
+def test_full_review_answer_from_the_prompt_validates() -> None:
+    """A response covering every numbered instruction fits the schema."""
+    schema = schema_for(ReviewType.FULL)
+    assert schema is not None
+    answer = {
+        "correctness": "Internally consistent.",
+        "assumptions": [
+            {"assumption": "The receptor is expressed.", "support": "supported"}
+        ],
+        "quality_and_novelty": "A non-obvious combination.",
+        "literature_grounding": "Two cohort studies report the association.",
+        "verdict": "needs_revision",
+        "justification": "The dose assumption is unsupported.",
+    }
+    jsonschema.validate(instance=answer, schema=schema["schema"])
 
 
 def test_recurrent_review_adapts_full_review() -> None:
