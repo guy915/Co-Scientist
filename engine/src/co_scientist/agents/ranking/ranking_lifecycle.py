@@ -15,10 +15,13 @@ from co_scientist.agents.ranking.ranking_results import (
     _build_ranking_delta,
 )
 from co_scientist.constants import (
+    PROGRESS_TOURNAMENT_COMPLETE,
+    PROGRESS_TOURNAMENT_START,
     TOURNAMENT_MATCHES_PER_HYPOTHESIS,
     TOURNAMENT_MIN_MATCHES_PER_HYPOTHESIS,
+    truncate,
 )
-from co_scientist.models import Hypothesis
+from co_scientist.models import Hypothesis, rank_by_elo
 from co_scientist.progress import emit_progress
 from co_scientist.state import WorkflowState
 
@@ -211,7 +214,7 @@ async def _prepare_ranking_round(
         state,
         "tournament_start",
         f"Running tournament with {len(hypotheses)} hypotheses...",
-        65,
+        PROGRESS_TOURNAMENT_START,
     )
 
     tournament_rounds = _tournament_round_count(state, hypotheses)
@@ -223,17 +226,17 @@ def _sort_hypotheses_by_elo(
 ) -> list[Hypothesis]:
     """Sorts the pool by Elo rating (highest first), unrankable ones last.
 
-    Score then text break ties deterministically when Elo ratings are equal.
+    The Elo comparison is ``models.rank_by_elo``, the canonical ordering every
+    other node reads, and the unrankable-last rule is a stable partition
+    composed on top of it rather than a second comparison. Written as its own
+    key the two drifted: this one negated Elo and score to sort ascending,
+    which left its ``text`` tiebreak ascending, while ``rank_by_elo`` reverses
+    a whole key and so breaks the same tie descending. Ties are the common
+    case at the flat seed rating, so for exactly the hypotheses no tournament
+    had separated, this node's own output order and the top-k the research
+    overview re-derived from it were reverses of each other.
     """
-    return sorted(
-        hypotheses,
-        key=lambda item: (
-            not item.is_rankable(),
-            -item.elo_rating,
-            -item.score,
-            item.text,
-        ),
-    )
+    return sorted(rank_by_elo(hypotheses), key=lambda h: not h.is_rankable())
 
 
 async def _finalize_ranking_result(
@@ -266,9 +269,11 @@ async def _finalize_ranking_result(
         state,
         "tournament_complete",
         f"Tournament complete ({tournament_rounds} rounds)",
-        80,
+        PROGRESS_TOURNAMENT_COMPLETE,
         top_elo=hypotheses[0].elo_rating,
-        top_hypothesis=hypotheses[0].text[:200],
+        # ``truncate`` rather than a bare slice: this payload reaches the UI,
+        # where a cut without the marker reads as a complete short idea.
+        top_hypothesis=truncate(hypotheses[0].text),
     )
 
     return _build_ranking_delta(

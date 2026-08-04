@@ -362,8 +362,16 @@ class Hypothesis:
 def rank_by_elo(hypotheses: list[Hypothesis]) -> list[Hypothesis]:
     """Return hypotheses ordered by Elo rating, strongest first.
 
-    Canonical ranking policy shared across nodes. Ties break by ``score`` then
-    ``text`` so ordering is fully deterministic for a fixed set of hypotheses.
+    Canonical ranking policy shared across nodes, including the ranking node's
+    own output order -- there is one Elo comparison, and callers needing extra
+    rules (the tournament puts unrankable ideas last) compose a stable sort on
+    top of this rather than restating it.
+
+    Ties break by ``score`` then ``text`` so ordering is fully deterministic
+    for a fixed set of hypotheses. All three components sort descending:
+    ``reverse=True`` applies to the whole key, and a mixed-direction key
+    (negating the numbers to leave ``text`` ascending) is what let a second
+    copy of this comparison disagree with it on every tie.
 
     Args:
         hypotheses: The hypotheses to rank (not mutated).

@@ -72,6 +72,7 @@ from co_scientist.agents.supervisor.supervisor_decision import (
     choose_supervisor_task,
 )
 from co_scientist.constants import INITIAL_ELO_RATING as INITIAL_ELO_RATING
+from co_scientist.constants import PROGRESS_ORCHESTRATOR_DECISION
 from co_scientist.models import Hypothesis as Hypothesis
 from co_scientist.models import phase_message
 from co_scientist.progress import emit_progress
@@ -87,11 +88,6 @@ from co_scientist.scheduling import policy as policy
 from co_scientist.state import WorkflowState
 
 logger = logging.getLogger(__name__)
-
-# Progress percentage for the orchestrator decision event. It sits between the
-# ranking/deep-verification band and the terminal synthesis so the UI shows
-# forward motion each loop.
-_PROGRESS_ORCHESTRATOR = 80
 
 
 @dataclasses.dataclass(frozen=True)
@@ -249,7 +245,7 @@ async def _emit_orchestrator_decision(
         state,
         "orchestrator_decision",
         outcome.observable_reason,
-        _PROGRESS_ORCHESTRATOR,
+        PROGRESS_ORCHESTRATOR_DECISION,
         next_task=decision.next_task.value,
         termination_reason=outcome.termination_reason_value,
         decision_provenance=outcome.decision_provenance,
@@ -271,7 +267,9 @@ def _orchestrator_result(
         "task_history": _appended_task_record(
             state, decision, outcome.iteration, outcome.observable_reason
         ),
-        "orchestrator_state": _next_bookkeeping(book, stats, decision),
+        "orchestrator_state": _next_bookkeeping(
+            book, stats, decision, state["hypotheses"]
+        ),
         "supervisor_decision_provenance": outcome.decision_provenance,
         "current_iteration": outcome.iteration,
         # Steering is a one-shot high-priority request: clear it once the

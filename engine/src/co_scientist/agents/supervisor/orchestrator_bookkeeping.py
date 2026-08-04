@@ -13,6 +13,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from co_scientist.agents.ranking.ranking_lifecycle import _coverage_floor
 from co_scientist.models import Hypothesis
 from co_scientist.scheduling import (
     SchedulerStats,
@@ -69,23 +70,29 @@ def _is_settlement_rank(
     )
 
 
-def _initial_settlement_allowance(stats: SchedulerStats) -> int:
+def _initial_settlement_allowance(hypotheses: list[Hypothesis]) -> int:
     """Return the most settlement rounds that could ever be useful.
 
-    One round covers at most two unmatched hypotheses, and the pool admits
-    only so many distinct pairings, so the allowance is the smaller of the
-    two. Mirrors ``ranking_lifecycle._coverage_floor``, which bounds the
-    rounds an individual tournament schedules for the same reason.
+    Delegates to ``ranking_lifecycle._coverage_floor`` rather than restating
+    it: one round covers at most two owed matches and the pool admits only so
+    many distinct pairings, which is the same arithmetic over the same pool
+    that bounds the rounds an individual tournament schedules.
+
+    A near-copy that read the scheduler's zero-match count instead agreed with
+    the floor only at the extremes. The floor sums what each rankable idea
+    still owes against ``TOURNAMENT_MIN_MATCHES_PER_HYPOTHESIS``, so ten ideas
+    sitting at one match each owed the tournament five rounds and the
+    orchestrator none -- and the orchestrator's is the number that decides how
+    long settlement may run.
     """
-    rankable = stats.rankable_count
-    max_pairs = rankable * (rankable - 1) // 2
-    return min((stats.unmatched_rankable_count + 1) // 2, max_pairs)
+    return _coverage_floor(hypotheses)
 
 
 def _settled_allowance(
     book: dict[str, Any],
     stats: SchedulerStats,
     decision: SupervisorDecision,
+    hypotheses: list[Hypothesis],
 ) -> tuple[int | None, int | None]:
     """Return the (allowance, last-unmatched) pair for the next decision.
 
@@ -99,11 +106,20 @@ def _settled_allowance(
     never increased -- so an episode fires finitely often. A new episode can
     open only after the backlog reached zero, which is to say only after
     settlement succeeded, so the run still reaches a terminal decision.
+
+    Note the two quantities in play. Whether an episode is open or closed
+    follows the scheduler's own owed-coverage check, which asks whether any
+    rankable idea has *no* match at all; how many rounds the open episode may
+    spend follows the tournament's coverage floor over the same pool, which
+    asks how many matches every rankable idea still owes. The first is a
+    trigger and the second a size, so they are deliberately different
+    questions -- but the size must be the tournament's, or the orchestrator
+    stops funding rounds the tournament is still asking for.
     """
     if _is_settlement_rank(stats, decision):
         allowance = book.get("settlement_allowance")
         if allowance is None:
-            allowance = _initial_settlement_allowance(stats)
+            allowance = _initial_settlement_allowance(hypotheses)
         return (
             max(0, int(allowance) - 1),
             stats.unmatched_rankable_count,
@@ -121,6 +137,7 @@ def _next_bookkeeping(
     book: dict[str, Any],
     stats: SchedulerStats,
     decision: SupervisorDecision,
+    hypotheses: list[Hypothesis],
 ) -> dict[str, Any]:
     """Compute the bookkeeping to carry into the next decision.
 
@@ -130,6 +147,16 @@ def _next_bookkeeping(
     and break ties, and advances the settlement-episode allowance that bounds
     how long owed tournament coverage may override a budget ceiling (see
     :func:`_settled_allowance`).
+
+    Args:
+        book: Orchestrator bookkeeping from before this decision.
+        stats: The statistics this decision was made from.
+        decision: The scheduling decision just taken.
+        hypotheses: The pool ``stats`` was computed from, read for the
+            tournament coverage a fresh settlement episode is sized from.
+
+    Returns:
+        The bookkeeping to carry into the next decision.
     """
     updated = dict(book)
     updated["prev_top_elo"] = stats.top_elo
@@ -139,7 +166,9 @@ def _next_bookkeeping(
         updated["pool_at_last_proximity"] = stats.pool_size
     if decision.next_task in (TaskType.GENERATE, TaskType.EVOLVE):
         updated["last_work_task"] = decision.next_task.value
-    allowance, last_unmatched = _settled_allowance(book, stats, decision)
+    allowance, last_unmatched = _settled_allowance(
+        book, stats, decision, hypotheses
+    )
     updated["settlement_allowance"] = allowance
     updated["unmatched_at_last_settlement"] = last_unmatched
     return updated
