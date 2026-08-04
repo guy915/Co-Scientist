@@ -22,6 +22,7 @@ import pytest
 
 from co_scientist.agents.evolution import evolve
 from co_scientist.agents.evolution.evolve import (
+    _select_evolution_pool,
     _specialist_feedback_for,
     evolve_node,
 )
@@ -56,14 +57,30 @@ _MAX_COUNT_TEXTS = [
     "echo transporter shuttles glucose intracellularly",
 ]
 
+# Ratings for _MAX_COUNT_TEXTS, deliberately ascending: the top-2 by Elo are
+# the last two entries, so a test asserting "the top-2 were evolved" fails if
+# the pool is sliced in list order rather than ranked.
+_MAX_COUNT_ELOS = [1000, 1100, 1200, 1300, 1400]
+
 # A distinct, disjoint evolved text per top-k original so neither the
 # unchanged guard nor the 0.95 near-duplicate guard fires.
 _MAX_COUNT_EVOLVED = {
-    "alpha membrane channel governs sodium": (
+    "delta receptor binds dopamine selectively": (
         "foxtrot scaffold stabilizes microtubule assembly"
     ),
-    "bravo cytokine triggers inflammation cascade": (
+    "echo transporter shuttles glucose intracellularly": (
         "golf ligand quenches reactive oxygen species"
+    ),
+}
+
+# The same, for the two ideas that survive the gates in the rankable-parent
+# test: "charlie" (Elo 1100) and "delta" (Elo 1300).
+_SURVIVOR_EVOLVED = {
+    "charlie enzyme catalyzes lipid breakdown": (
+        "hotel peptide blocks vesicle fusion"
+    ),
+    "delta receptor binds dopamine selectively": (
+        "india cofactor rescues folding intermediates"
     ),
 }
 
@@ -318,10 +335,15 @@ async def test_respects_evolution_max_count(
     """With more hypotheses than the cap, only the top-k are evolved/kept.
 
     Five disjoint-vocabulary hypotheses with a cap of 2 must yield exactly two
-    evolved hypotheses (the first two) and two evolution details; the lower
-    ranked three are discarded.
+    evolved hypotheses and two evolution details; the lower ranked three are
+    discarded. The two strongest sit at the *end* of the input list, so "top"
+    can only mean the Elo ranking -- read off the first two positions this
+    passes whatever the ratings say.
     """
-    hypotheses = [make_hypothesis(text=t) for t in _MAX_COUNT_TEXTS]
+    hypotheses = [
+        make_hypothesis(text=text, elo_rating=elo)
+        for text, elo in zip(_MAX_COUNT_TEXTS, _MAX_COUNT_ELOS, strict=True)
+    ]
     state = make_state(hypotheses=hypotheses, evolution_max_count=2)
     _stub_llm_from_prompt(monkeypatch, _make_top_k_builder(_MAX_COUNT_EVOLVED))
 
@@ -335,8 +357,75 @@ async def test_respects_evolution_max_count(
     # Only the top-2 were evolved; the children are new-text entrants and each
     # links back to one of the top-2 parents.
     assert not (evolved_texts & set(_MAX_COUNT_TEXTS))
-    top_two_ids = {hypotheses[0].id, hypotheses[1].id}
+    top_two_ids = {hypotheses[3].id, hypotheses[4].id}
     assert {c.parent_id for c in children} == top_two_ids
+
+
+async def test_evolution_parents_are_ranked_survivors_not_the_list_head(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Disqualified ideas at the head of an unsorted pool are not bred.
+
+    Evolution is entered from meta_review, which returns no ``hypotheses``
+    key, and the two ranking early-exits (fewer than two rankable ideas; the
+    whole-run tournament budget spent) both hand the pool back untouched --
+    so the pool routinely reaches evolution unsorted. Here the two ideas the
+    review gate rejected lead the list and outrank the survivors on Elo, and
+    the only two viable ideas trail it. Slicing the head bred the two
+    rejected ideas and never touched the survivors, which surfaces as the
+    run's ideas being repetitive rather than as its parents being wrong.
+    """
+    rejected = [
+        make_hypothesis(text=text, elo_rating=1500)
+        for text in _MAX_COUNT_TEXTS[:2]
+    ]
+    for hypothesis in rejected:
+        hypothesis.review_disposition = "non_novel"
+    survivors = [
+        make_hypothesis(text=text, elo_rating=elo)
+        for text, elo in zip(_MAX_COUNT_TEXTS[2:4], (1100, 1300), strict=True)
+    ]
+    undermined = make_hypothesis(text=_MAX_COUNT_TEXTS[4], elo_rating=1490)
+    undermined.deep_verification_verdict = "undermined"
+
+    state = make_state(
+        hypotheses=[*rejected, undermined, *survivors],
+        evolution_max_count=2,
+    )
+    _stub_llm_from_prompt(monkeypatch, _make_top_k_builder(_SURVIVOR_EVOLVED))
+
+    # Asserted on the selection itself so a regression names the parents it
+    # picked, not just the stub guard the wrong parent trips downstream.
+    parents = _select_evolution_pool(state, state["hypotheses"])
+    assert [h.text for h in parents] == [survivors[1].text, survivors[0].text]
+
+    result = await evolve_node(state)
+
+    children = _children(result)
+    assert {c.parent_id for c in children} == {h.id for h in survivors}
+    assert len(children) == 2
+
+
+async def test_evolution_breeds_nothing_when_no_idea_is_rankable(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An all-disqualified pool yields no parents rather than bad ones.
+
+    A rejected idea is barred from the tournament and dropped from the
+    report, so breeding one spends a model call on a lineage the run has
+    already ruled out. Generation, which the orchestrator can still
+    schedule, is the recovery path -- not evolution.
+    """
+    hypotheses = [make_hypothesis(text=text) for text in _MAX_COUNT_TEXTS[:3]]
+    for hypothesis in hypotheses:
+        hypothesis.review_disposition = "inaccurate"
+    state = make_state(hypotheses=hypotheses, evolution_max_count=3)
+    _stub_llm_from_prompt(monkeypatch, _make_top_k_builder({}))
+
+    result = await evolve_node(state)
+
+    assert _children(result) == []
+    assert result["evolution_details"] == []
 
 
 async def test_empty_hypotheses_returns_no_children(

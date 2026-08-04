@@ -17,7 +17,7 @@ from co_scientist.constants import (
     PROGRESS_EVOLVE_COMPLETE,
     PROGRESS_EVOLVE_START,
 )
-from co_scientist.models import Hypothesis
+from co_scientist.models import Hypothesis, rank_by_elo
 from co_scientist.progress import emit_progress
 from co_scientist.state import WorkflowState
 
@@ -28,24 +28,42 @@ def _select_evolution_pool(
     state: WorkflowState,
     hypotheses: list[Hypothesis],
 ) -> list[Hypothesis]:
-    """Selects the top-k hypotheses to evolve.
+    """Selects the strongest rankable hypotheses to evolve.
+
+    Ranks defensively and drops the ideas the gates disqualified, rather
+    than slicing the pool as it arrives. Evolution is entered from
+    meta_review, which returns no ``hypotheses`` key at all, so the order
+    here is whatever the last node to write the pool left -- and the two
+    ranking early-exits (fewer than two rankable ideas; the whole-run
+    tournament budget spent, which the code there calls the common case
+    late in a run) both return the pool untouched, on the durable path as
+    well as in the graph. A plain slice then bred the head of an unsorted
+    list: in a run whose review gate blocked all but one idea, every
+    parent was a disqualified idea and the survivor was never bred at all.
+    That is the same failure as the incident where a shrunken pool kept
+    re-deriving one drug, and it reads the same way -- as the ideas being
+    repetitive, not as the parents being wrong.
 
     Args:
         state: Current workflow state.
-        hypotheses: Hypothesis pool entering evolution; assumed already
-            sorted by descending Elo rating (set by ranking_node).
+        hypotheses: Hypothesis pool entering evolution, in whatever order
+            the node that last wrote the pool left it.
 
     Returns:
-        The top_k hypotheses to evolve. ``len(top_k)`` is the real attempt
-        count (which may be below the configured maximum when fewer
-        hypotheses are available), so callers report progress off it.
+        The top_k rankable hypotheses by Elo. ``len(top_k)`` is the real
+        attempt count -- below the configured maximum when fewer
+        hypotheses qualify, and zero when none do -- so callers report
+        progress off it.
     """
     evolution_max_count = state.get("evolution_max_count", 10)
 
-    # hypotheses arrives already sorted by descending Elo rating (set by
-    # ranking_node's return), so a plain slice selects the top performers
-    # without needing to re-sort here.
-    return hypotheses[:evolution_max_count]
+    rankable = [hyp for hyp in hypotheses if hyp.is_rankable()]
+    if not rankable:
+        logger.warning(
+            "Evolution has no parents: 0 of %s hypotheses are rankable",
+            len(hypotheses),
+        )
+    return rank_by_elo(rankable)[:evolution_max_count]
 
 
 async def _emit_evolution_start(
@@ -76,8 +94,8 @@ async def _prepare_evolution_round(
 
     Args:
         state: Current workflow state.
-        hypotheses: Hypothesis pool entering evolution; assumed already
-            sorted by descending Elo rating (set by ranking_node).
+        hypotheses: Hypothesis pool entering evolution, in whatever order
+            the node that last wrote the pool left it.
 
     Returns:
         Tuple of (top_k hypotheses to evolve, flattened previously removed
