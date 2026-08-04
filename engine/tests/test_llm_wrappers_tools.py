@@ -174,6 +174,82 @@ async def test_tool_loop_applies_provider_quirks(
     assert captured["reasoning_effort"] == "high"
 
 
+async def _captured_tool_loop_args(
+    monkeypatch: pytest.MonkeyPatch, model_name: str, max_tokens: int
+) -> dict[str, Any]:
+    """Run one tool-free loop turn and return the kwargs litellm received."""
+    _disable_cache(monkeypatch)
+    captured: dict[str, Any] = {}
+    monkeypatch.setattr(
+        "co_scientist.llm.litellm.acompletion",
+        _capturing_acompletion(captured),
+    )
+
+    await call_llm_with_tools(
+        "a prompt",
+        CompletionSpec(model_name=model_name, max_tokens=max_tokens),
+        ToolLoop(tools=_SEARCH_TOOL, executor=_raising_tool_executor),
+    )
+    return captured
+
+
+async def test_tool_loop_turn_raised_to_the_token_floor(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A thinking tool-loop turn never goes out on an answer-sized budget.
+
+    Every turn here reasons, and ``max_tokens`` bounds the chain of thought
+    as well as the answer, so an answer-sized budget lets the reasoning
+    consume the whole allowance: empty content, billed in full, retried. The
+    budgets that reach this path make that reachable rather than theoretical
+    -- the draft agent's is capped below the floor outright
+    (``DRAFT_MAX_TOKENS_CAP``), and validation synthesis starts under it.
+
+    Asserted at the litellm seam rather than on the arg builder, because the
+    defect being pinned was the tool loop restating ``call_llm``'s thinking
+    knobs instead of sharing the helper that also carries this floor.
+    """
+    from co_scientist.constants import THINKING_FLOOR_MAX_TOKENS
+
+    captured = await _captured_tool_loop_args(
+        monkeypatch, "dashscope/deepseek-v4-flash", 4000
+    )
+
+    assert captured["max_tokens"] == THINKING_FLOOR_MAX_TOKENS
+
+
+async def test_tool_loop_token_floor_never_lowers_a_larger_budget(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The floor only raises: a call site sized above it keeps its own."""
+    from co_scientist.constants import THINKING_FLOOR_MAX_TOKENS
+
+    above_floor = THINKING_FLOOR_MAX_TOKENS + 6000
+    captured = await _captured_tool_loop_args(
+        monkeypatch, "deepseek/deepseek-v4-pro", above_floor
+    )
+
+    assert captured["max_tokens"] == above_floor
+
+
+async def test_tool_loop_token_floor_not_applied_to_non_thinking_models(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A model without a thinking mode spends its budget on the answer.
+
+    It is also sent no ``extra_body`` at all, matching ``call_llm``: the
+    restated version set the key to an empty dict for every non-thinking
+    provider, which is the tell that the two paths were shaping thinking
+    independently rather than sharing one helper.
+    """
+    captured = await _captured_tool_loop_args(
+        monkeypatch, "gemini/gemini-2.5-flash", 4000
+    )
+
+    assert captured["max_tokens"] == 4000
+    assert "extra_body" not in captured
+
+
 def test_message_to_history_preserves_reasoning_content() -> None:
     """Thinking's reasoning_content is echoed back on a tool-call turn.
 

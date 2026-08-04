@@ -28,11 +28,10 @@ from co_scientist.cache import (
 )
 from co_scientist.llm_request import (
     _acompletion_within_timeout,
+    _apply_thinking_args,
     _apply_timeout,
     _clamp_temperature,
     _save_prompt_if_named,
-    deepseek_thinking_extra_body,
-    reasoning_effort_args,
 )
 from co_scientist.llm_types import CompletionSpec, LLMCallOptions
 
@@ -200,7 +199,17 @@ def _build_tool_loop_completion_args(
 
     Same two-layer timeout ceiling as ``call_llm``: ask the provider client
     to give up on its own, leaving the hard cancellation to the caller's
-    ``_acompletion_within_timeout`` await.
+    ``_acompletion_within_timeout`` await. Both layers are the run-wide
+    ``COSCIENTIST_LLM_TIMEOUT_SECONDS`` ceiling, which no call site narrows,
+    so the deadline that has to admit a funded chain of thought is already
+    the same one every other completion gets.
+
+    Thinking mode goes through the same ``_apply_thinking_args`` as
+    ``call_llm`` rather than being restated here, because that helper also
+    carries the ``max_tokens`` floor a thinking call needs -- restating only
+    the provider knobs sent every draft and validation-synthesis turn out
+    thinking on an answer-sized budget. The tool loop always thinks: nothing
+    on this path exposes the opt-out.
 
     Args:
         messages: The running conversation resent on every iteration.
@@ -216,9 +225,10 @@ def _build_tool_loop_completion_args(
         "max_tokens": request.max_tokens,
         "temperature": request.temperature,
         "drop_params": True,
-        "extra_body": deepseek_thinking_extra_body(request.model_name),
-        **reasoning_effort_args(request.model_name),
     }
+    _apply_thinking_args(
+        completion_args, request.model_name, enable_thinking=True
+    )
     _apply_timeout(completion_args)
     return completion_args
 
