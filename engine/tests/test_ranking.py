@@ -232,9 +232,25 @@ async def test_malformed_judge_response_uses_position_balanced_fallback(
     # Four hypotheses so the tournament has several distinct comparisons to
     # make: the balance is only observable across more than one matchup, and
     # a two-hypothesis pool admits exactly one.
+    #
+    # Ids are fixed rather than left at make_hypothesis's default random
+    # uuid4: _balanced_invalid_fallback (ranking_debate_turns.py) hashes the
+    # sorted pair of ids to pick the fallback slot, so random ids make "did
+    # every matchup land in slot A" a per-run coin flip -- the rare failure
+    # this test exists to catch. These four were verified (not guessed) to
+    # split the resulting matchups across both slots; a naive sequential
+    # choice like "hyp-1".."hyp-4" instead sends every fallback to slot A
+    # and would make the assertion below vacuously true.
+    ids = [
+        "fallback-hyp-alpha",
+        "fallback-hyp-epsilon",
+        "fallback-hyp-beta",
+        "fallback-hyp-delta",
+    ]
     state = make_state(
         hypotheses=[
-            make_hypothesis(text=f"hypothesis {i} TXT") for i in range(4)
+            make_hypothesis(text=f"hypothesis {i} TXT", id=ids[i])
+            for i in range(4)
         ],
         tournament_pairs=4,
     )
