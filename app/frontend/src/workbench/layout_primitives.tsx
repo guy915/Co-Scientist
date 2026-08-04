@@ -1,4 +1,6 @@
 import {type ReactNode} from 'react';
+import {Icon, type IconName} from '@/components/icon';
+import {tooltipClassNames} from './tooltip';
 
 const SHELL_POPOVER_CLASSES = 'ucs-popover';
 
@@ -26,6 +28,71 @@ export function headerControlButtonClasses(padding = 'px-[0.72rem]'): string {
     'font-semibold whitespace-nowrap text-cosci-logs-accent-fg ' +
     'hover:bg-cosci-logs-accent-hover ' +
     '[&[aria-expanded=true]]:bg-cosci-logs-accent-hover'
+  );
+}
+
+// The plain pill, for a control that does not tighten its own padding.
+const DEFAULT_HEADER_CONTROL_CLASSES = headerControlButtonClasses();
+
+// Leading-icon sizing, shared by every header control so the three pills
+// line up whatever icon they carry.
+const HEADER_CONTROL_ICON_CLASSES = 'text-[1.05rem]';
+
+/**
+ * The header controls' shared trigger: the accent pill above, carrying a
+ * leading icon, a label, and the caller's open state.
+ *
+ * @param props.icon The pill's leading icon.
+ * @param props.label The pill's visible label.
+ * @param props.tooltip Hover text, rendered by the CSS-only tooltip.
+ * @param props.open Whether this control's popover is shown.
+ * @param props.onToggle Requests the parent flip `open`.
+ * @param props.ariaLabel An accessible name replacing the visible label,
+ *   for a control whose label alone does not name it (Logs adds its count).
+ *   Left off, the label names the button.
+ * @param props.className The pill's own classes, when the control needs
+ *   padding other than the default; pass a complete class name so
+ *   Tailwind's scanner sees it at the call site.
+ * @param props.children Content after the label, e.g. the Logs count badge.
+ */
+interface HeaderControlTriggerProps {
+  icon: IconName;
+  label: string;
+  tooltip: string;
+  open: boolean;
+  onToggle: () => void;
+  ariaLabel?: string;
+  className?: string;
+  children?: ReactNode;
+}
+
+export function HeaderControlTrigger({
+  icon,
+  label,
+  tooltip,
+  open,
+  onToggle,
+  ariaLabel,
+  className = DEFAULT_HEADER_CONTROL_CLASSES,
+  children,
+}: HeaderControlTriggerProps) {
+  return (
+    <button
+      type="button"
+      className={tooltipClassNames({className, placement: 'left'})}
+      aria-label={ariaLabel}
+      data-tooltip={tooltip}
+      aria-expanded={open}
+      onClick={onToggle}
+    >
+      <Icon
+        aria-hidden="true"
+        className={HEADER_CONTROL_ICON_CLASSES}
+        name={icon}
+      />
+      <span>{label}</span>
+      {children}
+    </button>
   );
 }
 

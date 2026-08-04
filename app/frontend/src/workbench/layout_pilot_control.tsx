@@ -1,15 +1,11 @@
 import {useState, type ReactNode} from 'react';
 import {submitFeedback, type FeedbackCategory} from '@/api/feedback';
-import {Icon} from '@/components/icon';
 import {useAudience} from './audience_context';
 import {FEEDBACK_CATEGORIES, PILOT_FEEDBACK} from './audience_content';
 import {
-  headerControlButtonClasses,
+  HeaderControlTrigger,
   headerControlPopoverClasses,
 } from './layout_primitives';
-import {tooltipClassNames} from './tooltip';
-
-const BUTTON_CLASSES = headerControlButtonClasses();
 
 const POPOVER_CLASSES = headerControlPopoverClasses(
   '!w-[min(24rem,calc(100vw-2rem))]',
@@ -86,31 +82,6 @@ function CategoryChips({
         </button>
       ))}
     </div>
-  );
-}
-
-// The trigger button on its own: a "Feedback" pill with a stars icon.
-function PilotTriggerButton({
-  open,
-  onToggle,
-}: {
-  open: boolean;
-  onToggle: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      className={tooltipClassNames({
-        className: BUTTON_CLASSES,
-        placement: 'left',
-      })}
-      data-tooltip="Send feedback"
-      aria-expanded={open}
-      onClick={onToggle}
-    >
-      <Icon aria-hidden="true" className="text-[1.05rem]" name="stars" />
-      <span>Feedback</span>
-    </button>
   );
 }
 
@@ -228,7 +199,13 @@ export function PilotControl({
 
   return (
     <>
-      <PilotTriggerButton open={open} onToggle={onToggle} />
+      <HeaderControlTrigger
+        icon="stars"
+        label="Feedback"
+        tooltip="Send feedback"
+        open={open}
+        onToggle={onToggle}
+      />
       {open &&
         renderPopover(
           <FeedbackForm form={form} sending={sending} />,

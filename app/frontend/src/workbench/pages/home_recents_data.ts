@@ -1,5 +1,6 @@
 import {isActiveStatus, type Run} from '@/api/runs';
 import {formatDurationPhrase} from '@/lib/duration';
+import {capitalizeTerm} from '@/lib/text';
 
 // Formats a run's creation date for the meta chip, e.g. "July 8, 2026".
 // Timestamps on Run are Unix seconds, hence the *1000 to build a Date.
@@ -68,7 +69,7 @@ export function formatHomeRunTimeChip(run: Run, nowSeconds: number): string {
 }
 
 function formatHomeRunStatus(run: Run): string {
-  return run.status.charAt(0).toUpperCase() + run.status.slice(1);
+  return capitalizeTerm(run.status);
 }
 
 /**

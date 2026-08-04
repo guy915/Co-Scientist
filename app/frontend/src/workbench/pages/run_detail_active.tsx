@@ -3,6 +3,7 @@ import {type RunWithSummary} from '@/api/runs';
 import {Icon, type IconName} from '@/components/icon';
 import type {StreamEvent} from '@/hooks/use_run_stream';
 import {formatDurationPhrase} from '@/lib/duration';
+import {capitalizeTerm} from '@/lib/text';
 import {useNowTick} from '@/workbench/hooks/use_now_tick';
 import {joinClasses} from '../classes';
 import {RunExecutionProgress} from './home_recents_run_steps';
@@ -283,7 +284,7 @@ function activityMeta(phase: string): ActivityMeta {
   if (known) return known;
   const words = phase.replaceAll('_', ' ').replaceAll('.', ' ');
   return {
-    title: words.charAt(0).toUpperCase() + words.slice(1),
+    title: capitalizeTerm(words),
     icon: 'history',
     tone: 'text-cosci-muted',
   };

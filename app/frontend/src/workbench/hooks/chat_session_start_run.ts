@@ -90,14 +90,12 @@ async function startDraftRun(
       payload: {event: 'start_queued', run_id: session.id},
     });
   } catch (err) {
-    setError(err instanceof Error ? err.message : String(err));
+    const message = err instanceof Error ? err.message : String(err);
+    setError(message);
     emitDiagnosticEvent({
       stage: 'LIFECYCLE',
       level: 'error',
-      payload: {
-        event: 'start_failed',
-        message: err instanceof Error ? err.message : String(err),
-      },
+      payload: {event: 'start_failed', message},
     });
   }
 }

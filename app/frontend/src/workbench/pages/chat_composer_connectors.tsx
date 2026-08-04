@@ -196,43 +196,58 @@ function visibleConnectors(
   );
 }
 
-// The toggle handler for one connector row: web-search and Lab papers each
-// drive their own independent toggle, while every other (literature)
-// connector shares the single pubmed/literature-retrieval toggle, since the
-// engine enables that stack as one unit.
-function toggleHandlerFor(
-  connector: Connector,
-  toggles: ConnectorToggleProps,
-): () => void {
-  if (connector.id === WEB_SEARCH_CONNECTOR_ID) {
-    return () => toggles.onWebSearchEnabledChange?.(!toggles.webSearchEnabled);
-  }
-  if (connector.id === PAPER_CORPUS_CONNECTOR_ID) {
-    return () =>
-      toggles.onPaperCorpusEnabledChange?.(!toggles.paperCorpusEnabled);
-  }
-  return () => toggles.onPubmedEnabledChange?.(!toggles.pubmedEnabled);
+// Which toggle a connector row reads and writes, plus the icon it shows.
+interface ConnectorBehavior {
+  checked: boolean;
+  setChecked?: (value: boolean) => void;
+  icon: IconName;
 }
 
-// One connector row's derived checked/toggle/icon state; see
-// toggleHandlerFor for why web-search and Lab papers stand apart.
+// The connectors that own an independent toggle, keyed by id. Web search and
+// Lab papers each stand alone here; every other connector falls through to
+// the literature default below, since the engine enables that stack as one
+// unit. This maps ids that are already on screen to their behavior — which
+// connectors an audience sees is decided by visibleConnectors alone.
+function standaloneBehaviors(
+  toggles: ConnectorToggleProps,
+): Record<string, ConnectorBehavior> {
+  return {
+    [WEB_SEARCH_CONNECTOR_ID]: {
+      checked: toggles.webSearchEnabled,
+      setChecked: toggles.onWebSearchEnabledChange,
+      icon: 'search',
+    },
+    [PAPER_CORPUS_CONNECTOR_ID]: {
+      checked: toggles.paperCorpusEnabled,
+      setChecked: toggles.onPaperCorpusEnabledChange,
+      icon: 'science',
+    },
+  };
+}
+
+// The shared pubmed/literature-retrieval behavior, for every connector with
+// no entry of its own.
+function literatureBehavior(toggles: ConnectorToggleProps): ConnectorBehavior {
+  return {
+    checked: toggles.pubmedEnabled,
+    setChecked: toggles.onPubmedEnabledChange,
+    icon: 'article',
+  };
+}
+
+// One connector row's derived checked/toggle/icon state, from a single
+// lookup in the table above.
 function connectorRowState(
   connector: Connector,
   toggles: ConnectorToggleProps,
 ): {checked: boolean; toggle: () => void; iconName: IconName} {
-  const isWebSearch = connector.id === WEB_SEARCH_CONNECTOR_ID;
-  const isPaperCorpus = connector.id === PAPER_CORPUS_CONNECTOR_ID;
-  const checked = isWebSearch
-    ? toggles.webSearchEnabled
-    : isPaperCorpus
-      ? toggles.paperCorpusEnabled
-      : toggles.pubmedEnabled;
-  const iconName: IconName = isWebSearch
-    ? 'search'
-    : isPaperCorpus
-      ? 'science'
-      : 'article';
-  return {checked, toggle: toggleHandlerFor(connector, toggles), iconName};
+  const behavior =
+    standaloneBehaviors(toggles)[connector.id] ?? literatureBehavior(toggles);
+  return {
+    checked: behavior.checked,
+    toggle: () => behavior.setChecked?.(!behavior.checked),
+    iconName: behavior.icon,
+  };
 }
 
 // One row in the connectors menu: an icon, the connector's display name, and

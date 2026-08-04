@@ -1,43 +1,14 @@
 import {type ReactNode} from 'react';
 import {Link} from 'react-router-dom';
-import {Icon} from '@/components/icon';
 import {GOOGLE_NOTE} from './audience_content';
 import {
-  headerControlButtonClasses,
+  HeaderControlTrigger,
   headerControlPopoverClasses,
 } from './layout_primitives';
-import {tooltipClassNames} from './tooltip';
-
-const BUTTON_CLASSES = headerControlButtonClasses();
 
 const POPOVER_CLASSES = headerControlPopoverClasses(
   '!w-[min(28rem,calc(100vw-2rem))]',
 );
-
-// The trigger button on its own: a labelled pill with a review icon.
-function GoogleTeamTriggerButton({
-  open,
-  onToggle,
-}: {
-  open: boolean;
-  onToggle: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      className={tooltipClassNames({
-        className: BUTTON_CLASSES,
-        placement: 'left',
-      })}
-      data-tooltip={GOOGLE_NOTE.label}
-      aria-expanded={open}
-      onClick={onToggle}
-    >
-      <Icon aria-hidden="true" className="text-[1.05rem]" name="rate_review" />
-      <span>{GOOGLE_NOTE.label}</span>
-    </button>
-  );
-}
 
 // The popover body: the RTL Hebrew note plus its action links.
 function GoogleTeamNote() {
@@ -96,7 +67,13 @@ export function GoogleTeamControl({
 }: GoogleTeamControlProps) {
   return (
     <>
-      <GoogleTeamTriggerButton open={open} onToggle={onToggle} />
+      <HeaderControlTrigger
+        icon="rate_review"
+        label={GOOGLE_NOTE.label}
+        tooltip={GOOGLE_NOTE.label}
+        open={open}
+        onToggle={onToggle}
+      />
       {open && renderPopover(<GoogleTeamNote />, POPOVER_CLASSES)}
     </>
   );

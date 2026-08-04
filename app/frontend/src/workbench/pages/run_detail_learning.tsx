@@ -350,6 +350,13 @@ function evidenceSection(
 // Strips a leading "H1: " style hypothesis-id prefix and title-cases the
 // remaining words (lowercasing small connector words), falling back to a
 // numbered placeholder when nothing is left after stripping.
+//
+// This capitalizes every word unconditionally, unlike lib/text's
+// capitalizeTerm, which leaves a term alone unless it is entirely lowercase
+// ASCII. These are evidence titles, so they carry scientific terms this
+// still mangles ("mRNA" -> "MRNA"). Adopting that guard here would change
+// what the tab renders, so it is a fix to make deliberately rather than a
+// like-for-like substitution.
 function learningTitle(title: string, index: number): string {
   const cleaned = title.replace(/^H\d+:\s*/i, '').trim();
   if (!cleaned) return `Learning Section ${index + 1}`;

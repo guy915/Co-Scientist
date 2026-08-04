@@ -1,6 +1,5 @@
 import {useEffect, useMemo, useRef, useState, type ReactNode} from 'react';
 import {deleteAppLogs} from '@/api/logs';
-import {Icon} from '@/components/icon';
 import {copyText} from '@/lib/clipboard';
 import {joinClasses} from './classes';
 import {DiagnosticChips} from './layout_diagnostics_chips';
@@ -21,8 +20,10 @@ import {
   usePersistedAppLogs,
 } from './layout_diagnostics_state';
 import {useSystemStatus} from './hooks/system_status_context';
-import {headerControlButtonClasses} from './layout_primitives';
-import {tooltipClassNames} from './tooltip';
+import {
+  HeaderControlTrigger,
+  headerControlButtonClasses,
+} from './layout_primitives';
 
 // Sizing/positioning for the logs popover: capped to the viewport (dvh) with
 // a narrower width override under the 720px breakpoint. The `!` overrides
@@ -41,8 +42,6 @@ const LOGS_POPOVER_CLASSES = joinClasses(
 const LOGS_BUTTON_CLASSES = headerControlButtonClasses(
   'px-[0.62rem] py-0 pl-[0.72rem]',
 );
-
-const LOGS_BUTTON_ICON_CLASSES = 'text-[1.05rem]';
 
 const LOGS_COUNT_CLASSES =
   'ucs-logs-count grid h-[1.38rem] min-w-[1.35rem] place-items-center ' +
@@ -87,9 +86,10 @@ const DIAGNOSTIC_EMPTY_CLASSES =
   'bg-cosci-logs-panel-bg px-[0.7rem] py-[0.55rem] text-center ' +
   'text-cosci-logs-panel-fg';
 
-// Header "Logs" trigger button: shows the running entry count as a badge
-// and toggles the popover open/closed. Purely presentational — all state
-// lives in DiagnosticsControl.
+// Header "Logs" trigger button: the shared header-control pill, showing the
+// running entry count as a badge. Kept as its own component so the count's
+// two renderings — the badge and the accessible name, which a screen reader
+// hears instead of the badge — stay side by side.
 function LogsTriggerButton({
   open,
   count,
@@ -100,25 +100,17 @@ function LogsTriggerButton({
   onToggle: () => void;
 }) {
   return (
-    <button
-      type="button"
-      className={tooltipClassNames({
-        className: LOGS_BUTTON_CLASSES,
-        placement: 'left',
-      })}
-      aria-label={`Logs ${count}`}
-      data-tooltip="Logs"
-      aria-expanded={open}
-      onClick={onToggle}
+    <HeaderControlTrigger
+      icon="expand_more"
+      label="Logs"
+      tooltip="Logs"
+      open={open}
+      onToggle={onToggle}
+      ariaLabel={`Logs ${count}`}
+      className={LOGS_BUTTON_CLASSES}
     >
-      <Icon
-        aria-hidden="true"
-        className={LOGS_BUTTON_ICON_CLASSES}
-        name="expand_more"
-      />
-      <span>Logs</span>
       <span className={LOGS_COUNT_CLASSES}>{count}</span>
-    </button>
+    </HeaderControlTrigger>
   );
 }
 
