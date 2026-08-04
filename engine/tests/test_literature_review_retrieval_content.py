@@ -102,7 +102,7 @@ def test_resolve_content_tool_dangling_reference_returns_none() -> None:
 
 
 # =============================================================================
-# _build_multi_source_content_config
+# build_content_config -- multi-source entries
 # =============================================================================
 
 
@@ -118,14 +118,14 @@ def test_build_multi_source_content_config_keys_by_source_tool() -> None:
     )
     registry = _registry({"arxiv_content": _tool("mcp_arxiv_content")})
 
-    config = rs._build_multi_source_content_config(workflow, registry)
+    config = rs.build_content_config(workflow, registry, True)
 
     assert set(config) == {"arxiv"}
     assert config["arxiv"].mcp_tool_name == "mcp_arxiv_content"
 
 
 # =============================================================================
-# _build_default_content_config
+# build_content_config -- single-source default entry
 # =============================================================================
 
 
@@ -138,7 +138,7 @@ def test_build_default_content_config_success() -> None:
     )
     registry = _registry({"wf_content": _tool("mcp_wf_content")})
 
-    config = rs._build_default_content_config(workflow, registry)
+    config = rs.build_content_config(workflow, registry, False)
 
     assert set(config) == {"_default"}
     assert config["_default"].mcp_tool_name == "mcp_wf_content"
@@ -149,14 +149,14 @@ def test_build_default_content_config_success() -> None:
 def test_build_default_content_config_no_tool_configured() -> None:
     """No workflow-level content tool yields an empty config."""
     assert (
-        rs._build_default_content_config(WorkflowConfig(), _registry({})) == {}
+        rs.build_content_config(WorkflowConfig(), _registry({}), False) == {}
     )
 
 
 def test_build_default_content_config_dangling_reference() -> None:
     """A workflow content tool id absent from the registry yields empty."""
     workflow = WorkflowConfig(content_tool="ghost")
-    assert rs._build_default_content_config(workflow, _registry({})) == {}
+    assert rs.build_content_config(workflow, _registry({}), False) == {}
 
 
 # =============================================================================

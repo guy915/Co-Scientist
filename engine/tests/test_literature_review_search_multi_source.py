@@ -21,20 +21,16 @@ from co_scientist.agents.generation.literature_review.helpers import (
 )
 from co_scientist.config import (
     SearchSourceConfig,
-    ToolConfig,
     ToolRegistry,
     WorkflowConfig,
 )
-from co_scientist.mcp_client import MCPToolClient
 from tests._mcp import FakeCallToolClient, make_tool_lookup_registry
+from tests._retrieval_config import make_tool_config
+from tests._search_fixtures import (
+    make_search_run_ctx,
+    make_two_source_workflow,
+)
 from tests._state import make_state
-
-
-def _tool_config(
-    mcp_tool_name: str = "search_x", **overrides: Any
-) -> ToolConfig:
-    """Build a minimal ToolConfig for the search tests."""
-    return ToolConfig(server="s", mcp_tool_name=mcp_tool_name, **overrides)
 
 
 class _SequencedMCPClient:
@@ -69,7 +65,7 @@ class _SequencedMCPClient:
 
 def test_build_query_tool_params_with_tool_config_maps_parameters() -> None:
     """A tool config maps canonical params and drops null-mapped entries."""
-    tool_config = _tool_config(
+    tool_config = make_tool_config(
         parameter_mapping={"query": "q", "recency_years": None}
     )
     params = search._build_query_tool_params(
@@ -118,27 +114,15 @@ def test_tag_source_name_tags_dict_entries_only() -> None:
 # =============================================================================
 
 
-def _run_ctx(
-    client: Any, errors: list[str], run_id: str = "run1"
-) -> search._SearchRunContext:
-    """A run context over the shared ``"slug"`` slug for search calls."""
-    return search._SearchRunContext(
-        slug="slug",
-        run_id=run_id,
-        mcp_client=cast(MCPToolClient, client),
-        errors=errors,
-    )
-
-
 async def test_search_source_for_query_success_tags_results() -> None:
     """A successful call normalizes and tags the source name onto results."""
-    tool_config = _tool_config()
+    tool_config = make_tool_config()
     client = FakeCallToolClient(response={"P1": {"title": "T1"}})
     errors: list[str] = []
 
     result = await search._search_source_for_query(
         "query",
-        _run_ctx(client, errors),
+        make_search_run_ctx(client, errors),
         tool_config,
         "pubmed",
         3,
@@ -161,7 +145,7 @@ async def test_search_source_for_query_retries_malformed_transport_result(
         "co_scientist.agents.generation.literature_review.search.asyncio.sleep",
         no_delay,
     )
-    tool_config = _tool_config()
+    tool_config = make_tool_config()
     client = _SequencedMCPClient(
         ["429 Too Many Requests", {"P1": {"title": "Recovered"}}]
     )
@@ -169,7 +153,7 @@ async def test_search_source_for_query_retries_malformed_transport_result(
 
     result = await search._search_source_for_query(
         "query",
-        _run_ctx(client, errors),
+        make_search_run_ctx(client, errors),
         tool_config,
         "openalex",
         3,
@@ -194,13 +178,13 @@ async def test_search_source_for_query_error_appends_message_and_empties(
         "co_scientist.agents.generation.literature_review.search.asyncio.sleep",
         no_delay,
     )
-    tool_config = _tool_config()
+    tool_config = make_tool_config()
     client = FakeCallToolClient(error=ConnectionError("boom"))
     errors: list[str] = []
 
     result = await search._search_source_for_query(
         "q",
-        _run_ctx(client, errors),
+        make_search_run_ctx(client, errors),
         tool_config,
         "pubmed",
         3,
@@ -227,7 +211,7 @@ async def test_search_single_source_missing_tool_config_returns_empty() -> None:
     result = await search._search_single_source(
         source,
         ["q1"],
-        _run_ctx(client, []),
+        make_search_run_ctx(client, []),
         cast(ToolRegistry, registry),
     )
 
@@ -237,7 +221,7 @@ async def test_search_single_source_missing_tool_config_returns_empty() -> None:
 
 async def test_search_single_source_collects_across_queries() -> None:
     """Every query for a resolved source is searched and merged together."""
-    tool_config = _tool_config(mcp_tool_name="search_pubmed")
+    tool_config = make_tool_config(mcp_tool_name="search_pubmed")
     registry = make_tool_lookup_registry({"pubmed_ft": tool_config})
     client = FakeCallToolClient(response={"P1": {"title": "T1"}})
     source = SearchSourceConfig(tool="pubmed_ft", papers_per_query=2)
@@ -245,7 +229,7 @@ async def test_search_single_source_collects_across_queries() -> None:
     tool_id, results = await search._search_single_source(
         source,
         ["q1", "q2"],
-        _run_ctx(client, []),
+        make_search_run_ctx(client, []),
         cast(ToolRegistry, registry),
     )
 
@@ -259,17 +243,6 @@ async def test_search_single_source_collects_across_queries() -> None:
 # =============================================================================
 # _search_all_sources / _phase2_collect_papers_multi_source
 # =============================================================================
-
-
-def _two_source_workflow(papers_per_query: int) -> WorkflowConfig:
-    """A cross-source-deduped workflow with src_a and src_b sources."""
-    return WorkflowConfig(
-        search_sources=[
-            SearchSourceConfig(tool="src_a", papers_per_query=papers_per_query),
-            SearchSourceConfig(tool="src_b", papers_per_query=papers_per_query),
-        ],
-        deduplicate_across_sources=True,
-    )
 
 
 def _multi_source_config(
@@ -304,7 +277,7 @@ async def _collect_multi_source(
     return await search._phase2_collect_papers_multi_source(
         queries,
         config,
-        _run_ctx(client, errors, run_id=state["run_id"]),
+        make_search_run_ctx(client, errors, run_id=state["run_id"]),
     )
 
 
@@ -316,12 +289,12 @@ async def test_phase2_collect_papers_multi_source_merges_and_dedupes() -> None:
     queries' worth of papers sharing a title, which ``merge_search_results``
     collapses to a single entry.
     """
-    tool_a = _tool_config(mcp_tool_name="search_a")
+    tool_a = make_tool_config(mcp_tool_name="search_a")
     # src_b is unresolvable.
     registry = make_tool_lookup_registry({"src_a": tool_a})
     config = _multi_source_config(
         registry,
-        _two_source_workflow(2),
+        make_two_source_workflow(2),
         source_name="pubmed",
         papers_to_read_count=10,
         search_tool_name="pubmed_search_with_fulltext",
@@ -348,12 +321,12 @@ async def test_multi_source_collection_respects_unique_evidence_budget() -> (
     None
 ):
     """Ranked multi-source results are capped to the configured corpus size."""
-    tool_a = _tool_config(mcp_tool_name="search_a")
-    tool_b = _tool_config(mcp_tool_name="search_b")
+    tool_a = make_tool_config(mcp_tool_name="search_a")
+    tool_b = make_tool_config(mcp_tool_name="search_b")
     registry = make_tool_lookup_registry({"src_a": tool_a, "src_b": tool_b})
     config = _multi_source_config(
         registry,
-        _two_source_workflow(4),
+        make_two_source_workflow(4),
         source_name="academic",
         papers_to_read_count=2,
     )

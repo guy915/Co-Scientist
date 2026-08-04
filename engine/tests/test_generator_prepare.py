@@ -13,31 +13,14 @@ from co_scientist.generator import (
     GeneratorOptions,
     HypothesisGenerator,
 )
-
-
-def _stub_mcp(monkeypatch: pytest.MonkeyPatch, *, available: bool) -> None:
-    """Patch both MCP-availability probes to a fixed boolean.
-
-    ``_prepare_generation`` imports these names from ``co_scientist.mcp_client``
-    at call time, so patching the source module suffices.
-
-    Args:
-        monkeypatch: The pytest monkeypatch fixture.
-        available: Value both probes should return.
-    """
-
-    async def fake(**_: Any) -> bool:
-        return available
-
-    monkeypatch.setattr(mcp_client, "check_mcp_available", fake)
-    monkeypatch.setattr(mcp_client, "check_literature_source_available", fake)
+from tests._mcp import stub_mcp_availability
 
 
 async def test_prepare_generation_populates_core_config(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Initial state carries the configured model names and counts."""
-    _stub_mcp(monkeypatch, available=False)
+    stub_mcp_availability(monkeypatch, available=False)
     gen = HypothesisGenerator(
         model_name="m",
         max_iterations=2,
@@ -67,7 +50,7 @@ async def test_prepare_generation_generates_run_id(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """A run_id is auto-generated and threaded into the state when absent."""
-    _stub_mcp(monkeypatch, available=False)
+    stub_mcp_availability(monkeypatch, available=False)
     gen = HypothesisGenerator()
     state = await gen._prepare_generation("goal")
     assert state["run_id"]
@@ -77,7 +60,7 @@ async def test_prepare_generation_honors_explicit_run_id(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """A caller-supplied run_id is used verbatim."""
-    _stub_mcp(monkeypatch, available=False)
+    stub_mcp_availability(monkeypatch, available=False)
     gen = HypothesisGenerator()
     state = await gen._prepare_generation("goal", run_id="fixed-id")
     assert state["run_id"] == "fixed-id"
@@ -87,7 +70,7 @@ async def test_prepare_generation_passes_through_opts(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Optional preferences/constraints and user inputs land in the state."""
-    _stub_mcp(monkeypatch, available=False)
+    stub_mcp_availability(monkeypatch, available=False)
     gen = HypothesisGenerator()
     opts = {
         "preferences": "pref-X",
@@ -110,7 +93,7 @@ async def test_prepare_generation_opt_defaults(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Omitted optional fields default to None / empty / False."""
-    _stub_mcp(monkeypatch, available=False)
+    stub_mcp_availability(monkeypatch, available=False)
     gen = HypothesisGenerator()
     state = await gen._prepare_generation("goal")
     assert state["preferences"] is None
@@ -126,7 +109,7 @@ async def test_prepare_generation_dev_isolation_flag(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """The dev lit-tools isolation flag is passed through to the state."""
-    _stub_mcp(monkeypatch, available=False)
+    stub_mcp_availability(monkeypatch, available=False)
     gen = HypothesisGenerator()
     state = await gen._prepare_generation(
         "goal", opts={"dev_test_lit_tools_isolation": True}
@@ -141,7 +124,7 @@ async def test_mcp_available_enables_lit_review_graph(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """When MCP is available the auto-detected graph includes lit review."""
-    _stub_mcp(monkeypatch, available=True)
+    stub_mcp_availability(monkeypatch, available=True)
     gen = HypothesisGenerator()
     state = await gen._prepare_generation("goal")
     assert state["mcp_available"] is True
@@ -154,7 +137,7 @@ async def test_mcp_unavailable_uses_simplified_graph(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Without MCP, lit review is dropped and flags reflect unavailability."""
-    _stub_mcp(monkeypatch, available=False)
+    stub_mcp_availability(monkeypatch, available=False)
     gen = HypothesisGenerator()
     state = await gen._prepare_generation("goal")
     assert state["mcp_available"] is False
@@ -212,7 +195,7 @@ async def test_tool_calling_honored_when_mcp_available(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Tool-calling generation stays on when MCP + lit review are available."""
-    _stub_mcp(monkeypatch, available=True)
+    stub_mcp_availability(monkeypatch, available=True)
     gen = HypothesisGenerator()
     state = await gen._prepare_generation(
         "goal", opts={"enable_tool_calling_generation": True}
@@ -224,7 +207,7 @@ async def test_tool_calling_disabled_when_mcp_unavailable(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Tool-calling generation is silently disabled when MCP is unavailable."""
-    _stub_mcp(monkeypatch, available=False)
+    stub_mcp_availability(monkeypatch, available=False)
     gen = HypothesisGenerator()
     state = await gen._prepare_generation(
         "goal", opts={"enable_tool_calling_generation": True}
@@ -244,7 +227,7 @@ async def test_tool_calling_with_lit_disabled_does_not_raise(
     asserts the observed graceful-disable behavior rather than the documented
     raise.
     """
-    _stub_mcp(monkeypatch, available=True)
+    stub_mcp_availability(monkeypatch, available=True)
     gen = HypothesisGenerator()
     state = await gen._prepare_generation(
         "goal",

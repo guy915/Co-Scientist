@@ -21,73 +21,18 @@ from co_scientist.agents.generation.literature_review import (
 )
 from co_scientist.agents.generation.literature_review.helpers import (
     ContentToolConfig,
-    SearchConfig,
 )
-from co_scientist.config import ToolRegistry
 from co_scientist.config.schema import ToolConfig, WorkflowConfig
 from co_scientist.mcp_client import MCPToolClient
-from tests._mcp import make_tool_lookup_registry as _registry
+from tests._mcp import (
+    FakeToolResultsClient,
+    make_tool_results_client,
+)
+from tests._mcp import (
+    make_tool_lookup_registry as _registry,
+)
+from tests._search_fixtures import make_search_config
 from tests._state import make_state
-
-
-class _FakeMCPClient:
-    """Duck-typed stand-in for ``MCPToolClient`` exposing only ``call_tool``.
-
-    Returns the configured per-tool result, or raises ``RuntimeError`` for
-    any tool name listed in ``error_tools``. Every call is recorded so tests
-    can assert on the arguments the phase functions built.
-    """
-
-    def __init__(
-        self,
-        results: dict[str, Any] | None = None,
-        error_tools: set[str] | None = None,
-    ) -> None:
-        """Configure per-tool canned results and/or tools that should fail."""
-        self._results = results or {}
-        self._error_tools = error_tools or set()
-        self.calls: list[tuple[str, dict[str, Any]]] = []
-
-    async def call_tool(self, tool_name: str, **kwargs: Any) -> Any:
-        """Record the call and return the canned result, or raise."""
-        self.calls.append((tool_name, kwargs))
-        if tool_name in self._error_tools:
-            raise RuntimeError(f"tool failed: {tool_name}")
-        return self._results.get(tool_name)
-
-
-def _client(
-    results: dict[str, Any] | None = None,
-    error_tools: set[str] | None = None,
-) -> MCPToolClient:
-    """Build a fake client typed as MCPToolClient for the phase signatures."""
-    return cast(MCPToolClient, _FakeMCPClient(results, error_tools))
-
-
-def _search_config(
-    *,
-    workflow: WorkflowConfig | None = None,
-    tool_registry: ToolRegistry | None = None,
-    is_multi_source: bool = False,
-) -> SearchConfig:
-    """Build a SearchConfig with the phase-relevant fields overridden.
-
-    The remaining fields (search_tool_name, search_tool_config, source_name,
-    papers_to_read_count, is_dev_mode) are irrelevant to content.py's phase
-    functions, which only read ``workflow``, ``tool_registry``, and
-    ``is_multi_source``.
-    """
-    return SearchConfig(
-        tool_registry=tool_registry,
-        workflow=workflow,
-        is_multi_source=is_multi_source,
-        search_tool_name="search_tool",
-        search_tool_config=None,
-        source_name="unknown",
-        papers_to_read_count=5,
-        is_dev_mode=False,
-    )
-
 
 # =============================================================================
 # _discover_pdf_link
@@ -96,7 +41,7 @@ def _search_config(
 
 async def test_discover_pdf_link_no_landing_url_skips_call() -> None:
     """A paper with no value under url_field is skipped without a tool call."""
-    client = _FakeMCPClient()
+    client = FakeToolResultsClient()
     result = await lr_content._discover_pdf_link(
         "p1", {}, "discover_tool", "url", cast(MCPToolClient, client)
     )
@@ -107,7 +52,7 @@ async def test_discover_pdf_link_no_landing_url_skips_call() -> None:
 async def test_discover_pdf_link_success_returns_parsed_url() -> None:
     """A successful discovery call yields the parsed PDF URL."""
     payload = json.dumps(["http://example.test/paper.pdf"])
-    client = _FakeMCPClient(results={"discover_tool": payload})
+    client = FakeToolResultsClient(results={"discover_tool": payload})
 
     result = await lr_content._discover_pdf_link(
         "p1",
@@ -125,7 +70,7 @@ async def test_discover_pdf_link_success_returns_parsed_url() -> None:
 
 async def test_discover_pdf_link_no_pdf_found_returns_none() -> None:
     """A discovery call that yields no PDF URL still returns cleanly."""
-    client = _FakeMCPClient(results={"discover_tool": json.dumps([])})
+    client = FakeToolResultsClient(results={"discover_tool": json.dumps([])})
 
     result = await lr_content._discover_pdf_link(
         "p1",
@@ -140,7 +85,7 @@ async def test_discover_pdf_link_no_pdf_found_returns_none() -> None:
 
 async def test_discover_pdf_link_tool_error_returns_none() -> None:
     """A raising discovery tool leaves the paper without a pdf_url."""
-    client = _FakeMCPClient(error_tools={"discover_tool"})
+    client = FakeToolResultsClient(error_tools={"discover_tool"})
 
     result = await lr_content._discover_pdf_link(
         "p1",
@@ -191,7 +136,7 @@ async def test_run_pdf_discovery_mixed_success_and_failure() -> None:
         "p1": {"url": "http://landing1"},
         "p2": {"url": "http://landing2"},
     }
-    client = _FakeMCPClient(
+    client = FakeToolResultsClient(
         results={"good_tool": json.dumps(["http://x/p1.pdf"])},
         error_tools={"bad_tool"},
     )
@@ -217,14 +162,14 @@ async def test_run_pdf_discovery_mixed_success_and_failure() -> None:
 async def test_phase2_4_no_workflow_is_noop() -> None:
     """With no workflow configured, discovery config is empty and no-op."""
     metadata = {"p1": {"url": "http://landing"}}
-    client = _client()
+    client = make_tool_results_client()
 
     await lr_content._phase2_4_discover_pdf_links(
-        metadata, {}, _search_config(), client
+        metadata, {}, make_search_config(), client
     )
 
     assert "pdf_url" not in metadata["p1"]
-    assert cast(_FakeMCPClient, client).calls == []
+    assert cast(FakeToolResultsClient, client).calls == []
 
 
 async def test_phase2_4_no_eligible_papers_is_noop() -> None:
@@ -236,16 +181,16 @@ async def test_phase2_4_no_eligible_papers_is_noop() -> None:
         {"discover": ToolConfig(server="s", mcp_tool_name="mcp_discover")}
     )
     metadata = {"p1": {"pdf_url": "http://already.pdf"}}
-    client = _client()
+    client = make_tool_results_client()
 
     await lr_content._phase2_4_discover_pdf_links(
         metadata,
         {},
-        _search_config(workflow=workflow, tool_registry=registry),
+        make_search_config(workflow=workflow, tool_registry=registry),
         client,
     )
 
-    assert cast(_FakeMCPClient, client).calls == []
+    assert cast(FakeToolResultsClient, client).calls == []
 
 
 async def test_phase2_4_success_populates_pdf_url() -> None:
@@ -257,14 +202,14 @@ async def test_phase2_4_success_populates_pdf_url() -> None:
         {"discover": ToolConfig(server="s", mcp_tool_name="mcp_discover")}
     )
     metadata = {"p1": {"url": "http://landing"}}
-    client = _client(
+    client = make_tool_results_client(
         results={"mcp_discover": json.dumps(["http://x/found.pdf"])}
     )
 
     await lr_content._phase2_4_discover_pdf_links(
         metadata,
         {},
-        _search_config(workflow=workflow, tool_registry=registry),
+        make_search_config(workflow=workflow, tool_registry=registry),
         client,
     )
 
@@ -278,7 +223,7 @@ async def test_phase2_4_success_populates_pdf_url() -> None:
 
 async def test_fetch_paper_content_no_url_skips_call() -> None:
     """A paper with no value under url_field is skipped without a tool call."""
-    client = _FakeMCPClient()
+    client = FakeToolResultsClient()
     cfg = ContentToolConfig(
         mcp_tool_name="content_tool", url_field="pdf_url", content_params={}
     )
@@ -293,7 +238,7 @@ async def test_fetch_paper_content_no_url_skips_call() -> None:
 
 async def test_fetch_paper_content_success_resolves_params() -> None:
     """A successful fetch resolves placeholders and returns the content."""
-    client = _FakeMCPClient(
+    client = FakeToolResultsClient(
         results={"content_tool": {"content": "the fetched body"}}
     )
     cfg = ContentToolConfig(
@@ -325,7 +270,7 @@ async def test_fetch_paper_content_success_resolves_params() -> None:
 
 async def test_fetch_paper_content_tool_error_returns_none() -> None:
     """A raising content tool leaves the paper without fulltext."""
-    client = _FakeMCPClient(error_tools={"content_tool"})
+    client = FakeToolResultsClient(error_tools={"content_tool"})
     cfg = ContentToolConfig(
         mcp_tool_name="content_tool", url_field="pdf_url", content_params={}
     )
@@ -388,7 +333,7 @@ async def test_run_content_fetch_mixed_success_and_failure() -> None:
         "p1": {"pdf_url": "http://x/p1.pdf"},
         "p2": {"pdf_url": "http://x/p2.pdf"},
     }
-    client = _FakeMCPClient(
+    client = FakeToolResultsClient(
         results={"good_tool": {"content": "body one"}},
         error_tools={"bad_tool"},
     )
@@ -420,15 +365,15 @@ async def test_run_content_fetch_mixed_success_and_failure() -> None:
 async def test_phase2_5_no_workflow_is_noop() -> None:
     """With no workflow configured, content config is empty and no-op."""
     metadata = {"p1": {"pdf_url": "http://x/p1.pdf"}}
-    client = _client()
+    client = make_tool_results_client()
     state = make_state(research_goal="goal")
 
     await lr_content._phase2_5_fetch_content(
-        metadata, {}, _search_config(), client, state
+        metadata, {}, make_search_config(), client, state
     )
 
     assert "fulltext" not in metadata["p1"]
-    assert cast(_FakeMCPClient, client).calls == []
+    assert cast(FakeToolResultsClient, client).calls == []
 
 
 async def test_phase2_5_no_eligible_papers_is_noop() -> None:
@@ -442,18 +387,18 @@ async def test_phase2_5_no_eligible_papers_is_noop() -> None:
     metadata = {
         "p1": {"pdf_url": "http://x.pdf", "fulltext": "already have it"}
     }
-    client = _client()
+    client = make_tool_results_client()
     state = make_state(research_goal="goal")
 
     await lr_content._phase2_5_fetch_content(
         metadata,
         {},
-        _search_config(workflow=workflow, tool_registry=registry),
+        make_search_config(workflow=workflow, tool_registry=registry),
         client,
         state,
     )
 
-    assert cast(_FakeMCPClient, client).calls == []
+    assert cast(FakeToolResultsClient, client).calls == []
 
 
 async def test_phase2_5_success_populates_fulltext() -> None:
@@ -465,13 +410,15 @@ async def test_phase2_5_success_populates_fulltext() -> None:
         {"content": ToolConfig(server="s", mcp_tool_name="mcp_content")}
     )
     metadata = {"p1": {"pdf_url": "http://x/p1.pdf"}}
-    client = _client(results={"mcp_content": {"content": "fetched body"}})
+    client = make_tool_results_client(
+        results={"mcp_content": {"content": "fetched body"}}
+    )
     state = make_state(research_goal="goal")
 
     await lr_content._phase2_5_fetch_content(
         metadata,
         {},
-        _search_config(workflow=workflow, tool_registry=registry),
+        make_search_config(workflow=workflow, tool_registry=registry),
         client,
         state,
     )

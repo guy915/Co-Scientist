@@ -28,6 +28,7 @@ from co_scientist.agents.evolution.evolve import (
 from co_scientist.constants import INITIAL_ELO_RATING
 from co_scientist.models import Hypothesis, HypothesisOrigin
 from co_scientist.state import WorkflowState
+from tests._llm_fake import stub_call_llm_json
 from tests._state import make_hypothesis, make_state
 
 # Canned refinement reused by the single-hypothesis evolution tests. Its
@@ -70,22 +71,6 @@ _MAX_COUNT_EVOLVED = {
 def _children(result: dict[str, Any]) -> list[Hypothesis]:
     """Return the evolution children an evolve_node result would append."""
     return list(result["hypotheses"].items)
-
-
-def _stub_llm(
-    monkeypatch: pytest.MonkeyPatch, response: dict[str, Any]
-) -> None:
-    """Patch evolve's call_llm_json to return one fixed response.
-
-    Args:
-        monkeypatch: The pytest monkeypatch fixture.
-        response: The canned JSON response every evolution call receives.
-    """
-
-    async def fake(**_: Any) -> dict[str, Any]:
-        return response
-
-    monkeypatch.setattr(evolve, "call_llm_json", fake)
 
 
 def _assert_fresh_immutable_child(
@@ -238,7 +223,7 @@ async def test_evolution_produces_evolved_hypotheses(
         experiment="old experiment",
     )
     state = make_state(hypotheses=[original], evolution_max_count=1)
-    _stub_llm(monkeypatch, _RAPAMYCIN_RESPONSE)
+    stub_call_llm_json(monkeypatch, evolve, _RAPAMYCIN_RESPONSE)
 
     result = await evolve_node(state)
 
@@ -280,7 +265,7 @@ async def test_evolution_child_starts_without_deep_verification(
         deep_verification_verdict="holds",
     )
     state = make_state(hypotheses=[original], evolution_max_count=1)
-    _stub_llm(monkeypatch, _RAPAMYCIN_RESPONSE)
+    stub_call_llm_json(monkeypatch, evolve, _RAPAMYCIN_RESPONSE)
 
     result = await evolve_node(state)
 
@@ -315,7 +300,9 @@ async def test_evolution_noop_produces_no_child(
         deep_verification_verdict="holds",
     )
     state = make_state(hypotheses=[original], evolution_max_count=1)
-    _stub_llm(monkeypatch, {})  # empty -> unchanged -> no child
+    stub_call_llm_json(
+        monkeypatch, evolve, {}
+    )  # empty -> unchanged -> no child
 
     result = await evolve_node(state)
 
@@ -382,7 +369,7 @@ async def test_unchanged_response_records_no_child_or_detail(
     state = make_state(hypotheses=[original], evolution_max_count=1)
     # Empty response -> ``hypothesis`` key missing, so the parser falls back to
     # the original text, which trips the unchanged-guard.
-    _stub_llm(monkeypatch, {})
+    stub_call_llm_json(monkeypatch, evolve, {})
 
     result = await evolve_node(state)
 
@@ -411,7 +398,7 @@ async def test_duplicate_guard_sees_ideas_outside_the_evolution_pool(
         make_hypothesis(text=outsider_text),
     ]
     state = make_state(hypotheses=hypotheses, evolution_max_count=1)
-    _stub_llm(monkeypatch, _RAPAMYCIN_RESPONSE)
+    stub_call_llm_json(monkeypatch, evolve, _RAPAMYCIN_RESPONSE)
 
     result = await evolve_node(state)
 

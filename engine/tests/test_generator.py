@@ -7,12 +7,9 @@ constructor configuration and env side effects, LangGraph compilation
 The two MCP-availability probes are stubbed so the helper runs offline.
 """
 
-from typing import Any
-
 import pytest
 from langgraph.graph.state import CompiledStateGraph
 
-from co_scientist import mcp_client
 from co_scientist.constants import (
     DEFAULT_EVOLUTION_MAX_COUNT,
     DEFAULT_INITIAL_HYPOTHESES_COUNT,
@@ -45,24 +42,6 @@ _LIT_NODES = {
 
 # Node set for the simplified flow (no literature_review / reflection).
 _SIMPLE_NODES = _LIT_NODES - {"literature_review", "reflection"}
-
-
-def _stub_mcp(monkeypatch: pytest.MonkeyPatch, *, available: bool) -> None:
-    """Patch both MCP-availability probes to a fixed boolean.
-
-    ``_prepare_generation`` imports these names from ``co_scientist.mcp_client``
-    at call time, so patching the source module suffices.
-
-    Args:
-        monkeypatch: The pytest monkeypatch fixture.
-        available: Value both probes should return.
-    """
-
-    async def fake(**_: Any) -> bool:
-        return available
-
-    monkeypatch.setattr(mcp_client, "check_mcp_available", fake)
-    monkeypatch.setattr(mcp_client, "check_literature_source_available", fake)
 
 
 # --- Construction / configuration -------------------------------------------

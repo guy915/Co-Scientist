@@ -82,7 +82,7 @@ def test_resolve_pdf_discovery_tool_dangling_reference_returns_none() -> None:
 
 
 # =============================================================================
-# _build_multi_source_pdf_config
+# build_pdf_discovery_config -- multi-source entries
 # =============================================================================
 
 
@@ -100,13 +100,13 @@ def test_build_multi_source_pdf_config_keys_by_source_tool() -> None:
     )
     registry = _registry({"scholar_discovery": _tool("mcp_scholar_discovery")})
 
-    config = rs._build_multi_source_pdf_config(workflow, registry)
+    config = rs.build_pdf_discovery_config(workflow, registry, True)
 
     assert config == {"scholar": ("mcp_scholar_discovery", "url")}
 
 
 # =============================================================================
-# _build_default_pdf_config
+# build_pdf_discovery_config -- single-source default entry
 # =============================================================================
 
 
@@ -117,7 +117,7 @@ def test_build_default_pdf_config_success() -> None:
     )
     registry = _registry({"wf_discovery": _tool("mcp_wf_discovery")})
 
-    config = rs._build_default_pdf_config(workflow, registry)
+    config = rs.build_pdf_discovery_config(workflow, registry, False)
 
     assert config == {"_default": ("mcp_wf_discovery", "landing_url")}
 
@@ -125,13 +125,13 @@ def test_build_default_pdf_config_success() -> None:
 def test_build_default_pdf_config_no_tool_configured() -> None:
     """No workflow-level discovery tool yields an empty config."""
     workflow = WorkflowConfig()
-    assert rs._build_default_pdf_config(workflow, _registry({})) == {}
+    assert rs.build_pdf_discovery_config(workflow, _registry({}), False) == {}
 
 
 def test_build_default_pdf_config_dangling_reference() -> None:
     """A workflow discovery tool id absent from the registry yields empty."""
     workflow = WorkflowConfig(pdf_discovery_tool="ghost")
-    assert rs._build_default_pdf_config(workflow, _registry({})) == {}
+    assert rs.build_pdf_discovery_config(workflow, _registry({}), False) == {}
 
 
 # =============================================================================

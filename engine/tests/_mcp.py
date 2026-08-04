@@ -1,4 +1,4 @@
-"""Shared fakes and builders for the MCP client tests.
+"""Shared fakes and builders for the MCP seams the tests stand in for.
 
 The MCP client wrapper's only external dependency is ``MultiServerMCPClient``
 from ``langchain_mcp_adapters`` - a network client that talks to a live MCP
@@ -6,11 +6,17 @@ server. These helpers provide an in-memory ``FakeMultiServerMCPClient`` (patched
 in over the real class by the ``_patch_mcp_seam`` fixture in ``conftest``), a
 ``FakeToolRegistry`` for the config-driven multi-server path, and small builders
 for real ``StructuredTool`` instances and LiteLLM-shaped tool-call objects.
+
+Also here, for the consumers of that client rather than the client itself:
+``FakeToolResultsClient`` (the duck-typed ``call_tool``/``has_tool`` stand-in
+the literature-review phase tests drive) and ``stub_mcp_availability`` (the
+generator's two MCP-availability probes forced to a fixed answer).
 """
 
 import types
 from typing import Any, ClassVar, cast
 
+import pytest
 from langchain_core.tools import StructuredTool
 
 # --- Real tool builders -----------------------------------------------------
@@ -67,6 +73,97 @@ class FakeCallToolClient:
         if self._error is not None:
             raise self._error
         return self._response
+
+
+class FakeToolResultsClient:
+    """Per-tool ``MCPToolClient`` stand-in for the literature-review phases.
+
+    Unlike ``FakeCallToolClient``'s single fixed response, ``call_tool``
+    resolves its result by tool name, so one client can drive a fan-out
+    across several tools. Any tool named in ``error_tools`` raises
+    ``RuntimeError`` instead, and every call is recorded so tests can assert
+    on the arguments the phase functions built.
+
+    ``has_tool`` reports membership in ``available_tools``; leaving that
+    unset means every tool is available, since a test that does not care
+    about availability filtering should not have to opt in to it.
+    """
+
+    def __init__(
+        self,
+        results: dict[str, Any] | None = None,
+        available_tools: set[str] | None = None,
+        error_tools: set[str] | None = None,
+    ) -> None:
+        """Configure per-tool canned results, availability, and failures.
+
+        Args:
+            results: Map from tool name to the value ``call_tool`` returns;
+                an unlisted tool returns None.
+            available_tools: Tool names ``has_tool`` reports as available,
+                or None to report every name available.
+            error_tools: Tool names whose ``call_tool`` raises instead.
+        """
+        self._results = results or {}
+        self._available_tools = available_tools
+        self._error_tools = error_tools or set()
+        self.calls: list[tuple[str, dict[str, Any]]] = []
+
+    async def call_tool(self, tool_name: str, **kwargs: Any) -> Any:
+        """Record the call and return the canned result, or raise."""
+        self.calls.append((tool_name, kwargs))
+        if tool_name in self._error_tools:
+            raise RuntimeError(f"tool failed: {tool_name}")
+        return self._results.get(tool_name)
+
+    def has_tool(self, tool_name: str) -> bool:
+        """Report whether the given tool name was marked available."""
+        if self._available_tools is None:
+            return True
+        return tool_name in self._available_tools
+
+
+def make_tool_results_client(
+    results: dict[str, Any] | None = None,
+    available_tools: set[str] | None = None,
+    error_tools: set[str] | None = None,
+) -> Any:
+    """Build a FakeToolResultsClient typed as the MCPToolClient code expects.
+
+    Args:
+        results: Map from tool name to the value ``call_tool`` returns.
+        available_tools: Tool names ``has_tool`` reports available, or None
+            for all of them.
+        error_tools: Tool names whose ``call_tool`` raises instead.
+
+    Returns:
+        The fake, typed so it satisfies the phase functions' signatures.
+    """
+    return cast(
+        Any,
+        FakeToolResultsClient(results, available_tools, error_tools),
+    )
+
+
+def stub_mcp_availability(
+    monkeypatch: pytest.MonkeyPatch, *, available: bool
+) -> None:
+    """Patch both MCP-availability probes to a fixed boolean.
+
+    ``_prepare_generation`` imports these names from ``co_scientist.mcp_client``
+    at call time, so patching the source module suffices.
+
+    Args:
+        monkeypatch: The pytest monkeypatch fixture.
+        available: Value both probes should return.
+    """
+    from co_scientist import mcp_client
+
+    async def fake(**_: Any) -> bool:
+        return available
+
+    monkeypatch.setattr(mcp_client, "check_mcp_available", fake)
+    monkeypatch.setattr(mcp_client, "check_literature_source_available", fake)
 
 
 # --- Minimal get_tool-only ToolRegistry stub --------------------------------

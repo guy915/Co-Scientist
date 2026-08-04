@@ -12,7 +12,6 @@ External seams stubbed: the MCP client's ``call_tool`` (an in-memory fake) and
 ``test_literature_review_node``); no network or disk I/O anywhere here.
 """
 
-import dataclasses
 from typing import Any, cast
 
 import pytest
@@ -21,31 +20,33 @@ from co_scientist.agents.generation.literature_review import queries
 from co_scientist.agents.generation.literature_review.helpers import (
     SearchConfig,
 )
-from co_scientist.config import ToolConfig, WorkflowConfig
+from co_scientist.config import WorkflowConfig
 from co_scientist.mcp_client import MCPToolClient
 from tests._mcp import FakeCallToolClient, make_tool_lookup_registry
+from tests._retrieval_config import make_tool_config
+from tests._search_fixtures import make_search_config
 from tests._state import make_state
-
-_DEFAULT_SEARCH_CONFIG = SearchConfig(
-    tool_registry=None,
-    workflow=None,
-    is_multi_source=False,
-    search_tool_name="pubmed_search_with_fulltext",
-    search_tool_config=None,
-    source_name="pubmed",
-    papers_to_read_count=5,
-    is_dev_mode=False,
-)
 
 
 def _search_config(**overrides: Any) -> SearchConfig:
-    """Build a SearchConfig with inert defaults, overriding given fields."""
-    return dataclasses.replace(_DEFAULT_SEARCH_CONFIG, **overrides)
+    """Build a SearchConfig over the pubmed source, overriding given fields.
 
+    The pubmed tool and source names are this module's own -- query
+    generation reads them into the prompt -- so they stay explicit here
+    rather than inheriting the shared builder's placeholders.
 
-def _tool_config(mcp_tool_name: str = "query_gen") -> ToolConfig:
-    """Build a minimal ToolConfig for the query-generation tests."""
-    return ToolConfig(server="s", mcp_tool_name=mcp_tool_name)
+    Args:
+        **overrides: Any SearchConfig fields to set (e.g. ``workflow``,
+            ``tool_registry``).
+
+    Returns:
+        A SearchConfig naming pubmed as the search source.
+    """
+    return make_search_config(
+        search_tool_name="pubmed_search_with_fulltext",
+        source_name="pubmed",
+        **overrides,
+    )
 
 
 # =============================================================================
@@ -142,7 +143,7 @@ def test_resolve_query_generation_tool_missing_tool_config_returns_none() -> (
 
 def test_resolve_query_generation_tool_returns_name_and_format() -> None:
     """A resolvable tool id returns its MCP name and configured format."""
-    tool_config = _tool_config(mcp_tool_name="qgen_mcp")
+    tool_config = make_tool_config(mcp_tool_name="qgen_mcp")
     workflow = WorkflowConfig(
         query_generation_tool="qgen_tool", query_format="natural_language"
     )
@@ -164,7 +165,7 @@ def test_resolve_query_generation_tool_returns_name_and_format() -> None:
 
 async def test_try_mcp_query_generation_calls_the_resolved_tool() -> None:
     """A resolved query-generation tool is invoked via the MCP client."""
-    tool_config = _tool_config(mcp_tool_name="qgen_mcp")
+    tool_config = make_tool_config(mcp_tool_name="qgen_mcp")
     workflow = WorkflowConfig(
         query_generation_tool="qgen_tool", query_format="boolean"
     )

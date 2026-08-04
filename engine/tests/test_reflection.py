@@ -8,34 +8,17 @@ default state's ``tool_registry=None`` it short-circuits to a network-free
 no-op, which is exactly the LLM-only path under test.
 """
 
-from typing import Any
-
 import pytest
 
 from co_scientist.agents.reflection import reflection
 from co_scientist.agents.reflection.reflection import reflection_node
+from tests._llm_fake import stub_call_llm_json
 from tests._state import make_hypothesis, make_state
 
 # Literature context that satisfies the node's ``articles_with_reasoning``
 # guard so reflection actually runs (an empty/None value short-circuits the
 # whole node).
 _ARTICLES = "Article 1: observation A supports pathway X."
-
-
-def _stub_llm(
-    monkeypatch: pytest.MonkeyPatch, response: dict[str, Any]
-) -> None:
-    """Patch reflection's call_llm_json to return a fixed analysis response.
-
-    Args:
-        monkeypatch: The pytest monkeypatch fixture.
-        response: The dict the stubbed LLM should return for every call.
-    """
-
-    async def fake(**_: Any) -> dict[str, Any]:
-        return response
-
-    monkeypatch.setattr(reflection, "call_llm_json", fake)
 
 
 async def test_empty_hypotheses_returns_empty() -> None:
@@ -74,8 +57,9 @@ async def test_hypotheses_get_reflection_notes(
     state = make_state(
         hypotheses=[hyp_a, hyp_b], articles_with_reasoning=_ARTICLES
     )
-    _stub_llm(
+    stub_call_llm_json(
         monkeypatch,
+        reflection,
         {
             "classification": "missing piece",
             "reasoning": "fills a gap",
@@ -108,7 +92,7 @@ async def test_empty_llm_response_defaults_gracefully(
     """
     hyp = make_hypothesis(text="some hypothesis")
     state = make_state(hypotheses=[hyp], articles_with_reasoning=_ARTICLES)
-    _stub_llm(monkeypatch, {})
+    stub_call_llm_json(monkeypatch, reflection, {})
 
     result = await reflection_node(state)
 

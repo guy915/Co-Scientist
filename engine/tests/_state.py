@@ -7,7 +7,12 @@ only has to override the few fields it exercises.
 
 from typing import Any, cast
 
-from co_scientist.models import Article, ExecutionMetrics, Hypothesis
+from co_scientist.models import (
+    Article,
+    ExecutionMetrics,
+    Hypothesis,
+    HypothesisReview,
+)
 from co_scientist.state import WorkflowState
 
 
@@ -41,6 +46,28 @@ def make_hypothesis(text: str = "a hypothesis", **overrides: Any) -> Hypothesis:
     fields: dict[str, Any] = {"text": text}
     fields.update(overrides)
     return Hypothesis(**fields)
+
+
+def make_review(**overrides: Any) -> HypothesisReview:
+    """Build a HypothesisReview with all six required fields populated.
+
+    Args:
+        **overrides: Any HypothesisReview fields to override (e.g.
+            ``review_summary``, ``scores``, ``overall_score``).
+
+    Returns:
+        A HypothesisReview instance.
+    """
+    fields: dict[str, Any] = {
+        "review_summary": "a solid review",
+        "scores": {"novelty": 8, "relevance": 7},
+        "safety_ethical_concerns": "none",
+        "detailed_feedback": {"novelty": "novel angle"},
+        "constructive_feedback": "tighten the experiment",
+        "overall_score": 7.5,
+    }
+    fields.update(overrides)
+    return HypothesisReview(**fields)
 
 
 def _run_and_pool_defaults() -> dict[str, Any]:

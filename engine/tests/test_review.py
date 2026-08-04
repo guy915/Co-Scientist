@@ -26,6 +26,7 @@ from co_scientist.agents.reflection import review
 from co_scientist.agents.reflection.review import review_node
 from co_scientist.constants import COMPARATIVE_BATCH_THRESHOLD
 from co_scientist.models import HypothesisReview
+from tests._llm_fake import stub_call_llm_json
 from tests._state import make_hypothesis, make_state
 
 
@@ -144,25 +145,6 @@ def test_a_missing_score_does_not_disqualify_the_idea() -> None:
     assert hypothesis.is_rankable()
 
 
-def _stub_llm(
-    monkeypatch: pytest.MonkeyPatch, response: dict[str, Any]
-) -> None:
-    """Patch review's call_llm_json to return a fixed response for every call.
-
-    The same response is returned regardless of arguments, so in the parallel
-    path every hypothesis receives an identical review.
-
-    Args:
-        monkeypatch: The pytest monkeypatch fixture.
-        response: The canned JSON response to return.
-    """
-
-    async def fake(**_: Any) -> dict[str, Any]:
-        return response
-
-    monkeypatch.setattr(review, "call_llm_json", fake)
-
-
 def _batch_entry(scores: dict[str, int]) -> dict[str, Any]:
     """Build one comparative-batch review entry with the given scores.
 
@@ -185,8 +167,9 @@ def _stub_batch(
     monkeypatch: pytest.MonkeyPatch, score_dicts: list[dict[str, int]]
 ) -> None:
     """Stub review's LLM to return one batch entry per given score dict."""
-    _stub_llm(
+    stub_call_llm_json(
         monkeypatch,
+        review,
         {"reviews": [_batch_entry(scores) for scores in score_dicts]},
     )
 
@@ -251,8 +234,9 @@ async def test_parallel_individual_attaches_reviews(
     """
     count = COMPARATIVE_BATCH_THRESHOLD + 1  # 6 -> exceeds the threshold
     hyps = [make_hypothesis(text=f"h{i}") for i in range(count)]
-    _stub_llm(
+    stub_call_llm_json(
         monkeypatch,
+        review,
         {
             "review_summary": "individual summary",
             "scores": {"soundness": 7, "novelty": 5},  # mean 6.0
@@ -292,8 +276,9 @@ async def test_individual_missing_scores_defaults_to_overall_score(
     """
     count = COMPARATIVE_BATCH_THRESHOLD + 1  # 6 -> parallel individual path
     hyps = [make_hypothesis(text=f"h{i}") for i in range(count)]
-    _stub_llm(
+    stub_call_llm_json(
         monkeypatch,
+        review,
         {
             "review_summary": "no criteria scores",
             "scores": {},

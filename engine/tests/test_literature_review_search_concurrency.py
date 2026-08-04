@@ -20,42 +20,14 @@ from typing import Any, cast
 from co_scientist.agents.generation.literature_review import search
 from co_scientist.config import (
     SearchSourceConfig,
-    ToolConfig,
     ToolRegistry,
-    WorkflowConfig,
 )
-from co_scientist.mcp_client import MCPToolClient
 from tests._mcp import make_tool_lookup_registry
-
-
-def _tool_config(
-    mcp_tool_name: str = "search_x", **overrides: Any
-) -> ToolConfig:
-    """Build a minimal ToolConfig for the search tests."""
-    return ToolConfig(server="s", mcp_tool_name=mcp_tool_name, **overrides)
-
-
-def _run_ctx(
-    client: Any, errors: list[str], run_id: str = "run1"
-) -> search._SearchRunContext:
-    """A run context over the shared ``"slug"`` slug for search calls."""
-    return search._SearchRunContext(
-        slug="slug",
-        run_id=run_id,
-        mcp_client=cast(MCPToolClient, client),
-        errors=errors,
-    )
-
-
-def _two_source_workflow(papers_per_query: int) -> WorkflowConfig:
-    """A cross-source-deduped workflow with src_a and src_b sources."""
-    return WorkflowConfig(
-        search_sources=[
-            SearchSourceConfig(tool="src_a", papers_per_query=papers_per_query),
-            SearchSourceConfig(tool="src_b", papers_per_query=papers_per_query),
-        ],
-        deduplicate_across_sources=True,
-    )
+from tests._retrieval_config import make_tool_config
+from tests._search_fixtures import (
+    make_search_run_ctx,
+    make_two_source_workflow,
+)
 
 
 class _BarrierMCPClient:
@@ -102,7 +74,7 @@ async def test_queries_for_one_source_run_concurrently() -> None:
     The barrier only releases once all three calls are in flight, so this
     test cannot pass if the queries are awaited sequentially.
     """
-    tool_config = _tool_config(mcp_tool_name="search_pubmed")
+    tool_config = make_tool_config(mcp_tool_name="search_pubmed")
     registry = make_tool_lookup_registry({"pubmed_ft": tool_config})
     client = _BarrierMCPClient(parties=3, response={"P1": {"title": "T1"}})
     source = SearchSourceConfig(tool="pubmed_ft", papers_per_query=2)
@@ -111,7 +83,7 @@ async def test_queries_for_one_source_run_concurrently() -> None:
         search._search_single_source(
             source,
             ["q1", "q2", "q3"],
-            _run_ctx(client, []),
+            make_search_run_ctx(client, []),
             cast(ToolRegistry, registry),
         ),
         timeout=5,
@@ -126,19 +98,19 @@ async def test_sources_still_overlap_with_concurrent_queries() -> None:
     """Cross-source parallelism survives the within-source change."""
     registry = make_tool_lookup_registry(
         {
-            "src_a": _tool_config(mcp_tool_name="search_a"),
-            "src_b": _tool_config(mcp_tool_name="search_b"),
+            "src_a": make_tool_config(mcp_tool_name="search_a"),
+            "src_b": make_tool_config(mcp_tool_name="search_b"),
         }
     )
     # Two sources x two queries must all be in flight together.
     client = _BarrierMCPClient(parties=4, response={"P1": {"title": "T1"}})
-    workflow = _two_source_workflow(2)
+    workflow = make_two_source_workflow(2)
 
     results = await asyncio.wait_for(
         search._search_all_sources(
             workflow.search_sources,
             ["q1", "q2"],
-            _run_ctx(client, []),
+            make_search_run_ctx(client, []),
             cast(ToolRegistry, registry),
         ),
         timeout=5,
@@ -172,7 +144,7 @@ class _PerQueryMCPClient:
 
 async def test_one_failed_query_does_not_discard_its_siblings() -> None:
     """A broken query is isolated; the rest of the source still lands."""
-    tool_config = _tool_config(mcp_tool_name="search_pubmed")
+    tool_config = make_tool_config(mcp_tool_name="search_pubmed")
     registry = make_tool_lookup_registry({"pubmed_ft": tool_config})
     # The middle query fails every attempt; the others succeed.
     client = _PerQueryMCPClient(
@@ -187,7 +159,7 @@ async def test_one_failed_query_does_not_discard_its_siblings() -> None:
     _, results = await search._search_single_source(
         SearchSourceConfig(tool="pubmed_ft", papers_per_query=2),
         ["q1", "q2", "q3"],
-        _run_ctx(client, errors),
+        make_search_run_ctx(client, errors),
         cast(ToolRegistry, registry),
     )
 
@@ -202,7 +174,7 @@ async def test_duplicate_papers_keep_the_last_query_s_metadata() -> None:
     first: the same paper seen by several queries has to resolve the same
     way every run.
     """
-    tool_config = _tool_config(mcp_tool_name="search_pubmed")
+    tool_config = make_tool_config(mcp_tool_name="search_pubmed")
     registry = make_tool_lookup_registry({"pubmed_ft": tool_config})
     # The later query answers first, but must still win the merge, exactly
     # as it did when the loop awaited them in order.
@@ -216,7 +188,7 @@ async def test_duplicate_papers_keep_the_last_query_s_metadata() -> None:
     _, results = await search._search_single_source(
         SearchSourceConfig(tool="pubmed_ft", papers_per_query=2),
         ["q1", "q2"],
-        _run_ctx(client, []),
+        make_search_run_ctx(client, []),
         cast(ToolRegistry, registry),
     )
 

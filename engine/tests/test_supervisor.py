@@ -7,24 +7,12 @@ the returned state update, including the ``key_areas`` logging guard that must
 tolerate a non-dict ``research_goal_analysis``.
 """
 
-from typing import Any
-
 import pytest
 
 from co_scientist.agents.supervisor import supervisor
 from co_scientist.agents.supervisor.supervisor import supervisor_node
+from tests._llm_fake import stub_call_llm_json
 from tests._state import make_state
-
-
-def _stub_llm(
-    monkeypatch: pytest.MonkeyPatch, response: dict[str, Any]
-) -> None:
-    """Patch supervisor's call_llm_json to return a fixed JSON response."""
-
-    async def fake(**_: Any) -> dict[str, Any]:
-        return response
-
-    monkeypatch.setattr(supervisor, "call_llm_json", fake)
 
 
 async def test_guidance_carries_response_subobjects(
@@ -48,7 +36,7 @@ async def test_guidance_carries_response_subobjects(
         "adjustment_recommendations": ["broaden search"],
         "output_preparation": {"format": "ranked list"},
     }
-    _stub_llm(monkeypatch, response)
+    stub_call_llm_json(monkeypatch, supervisor, response)
 
     result = await supervisor_node(make_state())
 
@@ -72,7 +60,7 @@ async def test_missing_response_fields_default_to_empty(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """An empty response yields guidance with empty defaults, not a crash."""
-    _stub_llm(monkeypatch, {})
+    stub_call_llm_json(monkeypatch, supervisor, {})
 
     result = await supervisor_node(make_state())
 
@@ -95,7 +83,9 @@ async def test_list_research_goal_analysis_does_not_crash(
     guidance unchanged.
     """
     analysis = ["area one", "area two"]
-    _stub_llm(monkeypatch, {"research_goal_analysis": analysis})
+    stub_call_llm_json(
+        monkeypatch, supervisor, {"research_goal_analysis": analysis}
+    )
 
     result = await supervisor_node(make_state())
 
@@ -109,8 +99,9 @@ async def test_key_areas_feed_message_metadata(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Present key_areas are counted into the emitted message metadata."""
-    _stub_llm(
+    stub_call_llm_json(
         monkeypatch,
+        supervisor,
         {
             "research_goal_analysis": {
                 "key_areas": ["alpha", "beta", "gamma", "delta"],

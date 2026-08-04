@@ -12,9 +12,10 @@ Patches ``litellm.acompletion`` directly -- the single external call every
 ``co_scientist.llm`` entry point (``call_llm``, ``call_llm_json``) funnels
 through -- rather than patching individual node modules' imported
 ``call_llm``/``call_llm_json`` references (the idiom used by the
-node-level unit tests). This keeps one patch point instead of one per node
-module, and it exercises the real JSON extraction, schema validation, and
-retry logic in ``co_scientist.llm`` rather than bypassing it.
+node-level unit tests, and available here as ``stub_call_llm_json``). This
+keeps one patch point instead of one per node module, and it exercises the
+real JSON extraction, schema validation, and retry logic in
+``co_scientist.llm`` rather than bypassing it.
 
 For a schema'd call (``response_format={"type": "json_schema", ...}``),
 ``_fill_schema`` builds a minimal value that satisfies the schema: every
@@ -52,12 +53,14 @@ within a single response.
 
 import itertools
 import json
+import types
 from typing import Any
 
 import pytest
 
 from co_scientist import cache, llm_tool_loop
 from co_scientist.cache import LLMCache
+from co_scientist.generator import GeneratorOptions, HypothesisGenerator
 from co_scientist.offline_llm import (
     _ARRAY_LENGTH_HINTS,
     _fill_schema,
@@ -98,6 +101,63 @@ def disable_llm_cache(monkeypatch: pytest.MonkeyPatch) -> None:
     """
     monkeypatch.setattr(
         llm_tool_loop, "get_cache", lambda: LLMCache(enabled=False)
+    )
+
+
+def stub_call_llm_json(
+    monkeypatch: pytest.MonkeyPatch,
+    module: types.ModuleType,
+    response: dict[str, Any],
+) -> list[dict[str, Any]]:
+    """Patch one node module's ``call_llm_json`` to a fixed response.
+
+    The node-level unit-test idiom (see the module docstring): a node
+    imports ``call_llm_json`` into its own namespace, so patching that name
+    on the node's module replaces its only LLM dependency. The same
+    ``response`` comes back regardless of arguments, so in a parallel path
+    every item receives an identical result.
+
+    Every invocation is recorded, which callers that only need the stub can
+    ignore.
+
+    Args:
+        monkeypatch: The pytest monkeypatch fixture.
+        module: The node module whose imported ``call_llm_json`` to patch.
+        response: The dict the stub returns for every call.
+
+    Returns:
+        A list the stub appends each call's kwargs to, for spy assertions.
+    """
+    calls: list[dict[str, Any]] = []
+
+    async def fake(**kwargs: Any) -> dict[str, Any]:
+        calls.append(kwargs)
+        return response
+
+    monkeypatch.setattr(module, "call_llm_json", fake)
+    return calls
+
+
+def make_test_generator() -> HypothesisGenerator:
+    """Builds a small, fast HypothesisGenerator for the end-to-end tests.
+
+    Sized so a full run stays quick: one iteration, two initial
+    hypotheses, two evolution slots, and a two-pair tournament, with the
+    LLM cache off so the faked completions above are never replayed from
+    an earlier test's on-disk entries.
+
+    Returns:
+        A HypothesisGenerator over the fake ``"fake/model"`` name.
+    """
+    return HypothesisGenerator(
+        model_name="fake/model",
+        max_iterations=1,
+        initial_hypotheses_count=2,
+        evolution_max_count=2,
+        options=GeneratorOptions(
+            tournament_pairs=2,
+            enable_cache=False,
+        ),
     )
 
 

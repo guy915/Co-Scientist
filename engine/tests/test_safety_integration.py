@@ -15,28 +15,14 @@ from typing import Any
 import pytest
 
 from co_scientist.generator import (
-    GeneratorOptions,
     HypothesisGenerator,
 )
 from co_scientist.models import GenerationMethod, Hypothesis, HypothesisOrigin
 from co_scientist.state import AppendHypotheses
-from tests._llm_fake import install_fake_llm
+from tests._llm_fake import install_fake_llm, make_test_generator
 
 UNSAFE_TEXT = "Weaponize engineered pathogens for maximum spread"
 UNSAFE_ID = "unsafe-injected-001"
-
-
-def _make_generator() -> HypothesisGenerator:
-    return HypothesisGenerator(
-        model_name="fake/model",
-        max_iterations=1,
-        initial_hypotheses_count=2,
-        evolution_max_count=2,
-        options=GeneratorOptions(
-            tournament_pairs=2,
-            enable_cache=False,
-        ),
-    )
 
 
 def _make_unsafe_hypothesis() -> Hypothesis:
@@ -164,7 +150,7 @@ async def test_unsafe_hypothesis_never_reaches_tournament(
     """An injected unsafe hypothesis is removed before ranking."""
     install_fake_llm(monkeypatch)
     _inject_unsafe(monkeypatch)
-    gen = _make_generator()
+    gen = make_test_generator()
 
     events = await _collect_events(
         gen, "Identify a synthetic-lethal target for cancer therapy"
@@ -182,7 +168,7 @@ async def test_safe_hypotheses_survive_full_pipeline(
 ) -> None:
     """Safe hypotheses pass through safety_screen and reach the report."""
     install_fake_llm(monkeypatch)
-    gen = _make_generator()
+    gen = make_test_generator()
 
     result = await gen.generate_hypotheses(
         "Explain how protein X folds",
@@ -205,7 +191,7 @@ async def test_rescreening_preserves_prior_status(
 ) -> None:
     """Hypotheses screened in pass 1 keep their status in pass 2."""
     install_fake_llm(monkeypatch)
-    gen = _make_generator()
+    gen = make_test_generator()
 
     events: list[tuple[str, dict[str, Any]]] = []
     async for node_name, state_dict in gen.generate_hypotheses(

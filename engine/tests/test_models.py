@@ -14,6 +14,7 @@ from co_scientist.models import (
     HypothesisOrigin,
     HypothesisReview,
 )
+from tests._state import make_review
 
 # Exact serialized key sets are part of the contract this net pins.
 _HYPOTHESIS_DICT_KEYS = {
@@ -82,7 +83,7 @@ def test_hypothesis_mutable_defaults_not_shared() -> None:
     b = Hypothesis(text="b")
     a.evolution_history.append("step 1")
     a.enrichments["k"] = "v"
-    a.reviews.append(_make_review())
+    a.reviews.append(make_review())
     assert b.evolution_history == []
     assert b.enrichments == {}
     assert b.reviews == []
@@ -172,7 +173,7 @@ def test_hypothesis_to_dict_shape_and_computed_fields() -> None:
 
 def test_hypothesis_to_dict_serializes_reviews() -> None:
     """Nested reviews are flattened to plain dicts inside ``to_dict``."""
-    review = _make_review()
+    review = make_review()
     hyp = Hypothesis(text="x", reviews=[review])
     d = hyp.to_dict()
     assert len(d["reviews"]) == 1
@@ -309,32 +310,13 @@ def test_hypothesis_from_dict_restores_enum_and_reviews() -> None:
     hyp = Hypothesis(
         text="x",
         generation_method=GenerationMethod.DEBATE,
-        reviews=[_make_review()],
+        reviews=[make_review()],
     )
     restored = Hypothesis.from_dict(hyp.to_dict())
     assert restored.generation_method == GenerationMethod.DEBATE
     assert isinstance(restored.reviews[0], HypothesisReview)
     # to_dict must not raise on the reconstructed object.
     assert restored.to_dict()["generation_method"] == "debate"
-
-
-# --- Helpers ----------------------------------------------------------------
-
-
-def _make_review() -> HypothesisReview:
-    """Builds a minimal valid ``HypothesisReview`` for serialization tests.
-
-    Returns:
-        A ``HypothesisReview`` with all six required fields populated.
-    """
-    return HypothesisReview(
-        review_summary="ok",
-        scores={"novelty": 5},
-        safety_ethical_concerns="none",
-        detailed_feedback={"novelty": "fine"},
-        constructive_feedback="ship it",
-        overall_score=5.0,
-    )
 
 
 # --- Hypothesis: deep-verification fields -----------------------------------

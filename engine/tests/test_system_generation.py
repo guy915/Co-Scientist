@@ -22,10 +22,9 @@ from typing import Any
 import pytest
 
 from co_scientist.generator import (
-    GeneratorOptions,
     HypothesisGenerator,
 )
-from tests._llm_fake import install_fake_llm
+from tests._llm_fake import install_fake_llm, make_test_generator
 
 # The node execution order for one max_iterations=1 run in LLM-only mode
 # (literature_review/reflection are absent -- see tests/test_generator.py's
@@ -54,20 +53,6 @@ _EXPECTED_NODE_SEQUENCE = [
     "orchestrator",
     "research_overview",
 ]
-
-
-def _make_generator() -> HypothesisGenerator:
-    """Builds a small, fast HypothesisGenerator for the tests below."""
-    return HypothesisGenerator(
-        model_name="fake/model",
-        max_iterations=1,
-        initial_hypotheses_count=2,
-        evolution_max_count=2,
-        options=GeneratorOptions(
-            tournament_pairs=2,
-            enable_cache=False,
-        ),
-    )
 
 
 async def _collect_stream_events(
@@ -121,7 +106,7 @@ async def test_generate_hypotheses_non_streaming_result_shape(
 ) -> None:
     """``stream=False`` returns a single, fully-populated result dict."""
     install_fake_llm(monkeypatch)
-    gen = _make_generator()
+    gen = make_test_generator()
 
     result = await gen.generate_hypotheses(
         "Explain how protein X folds",
@@ -163,7 +148,7 @@ async def test_generate_hypotheses_streaming_event_progression(
 ) -> None:
     """``stream=True`` yields nodes in graph order with growing state."""
     install_fake_llm(monkeypatch)
-    gen = _make_generator()
+    gen = make_test_generator()
 
     events = await _collect_stream_events(
         gen, "Identify a synthetic-lethal target"
@@ -209,14 +194,14 @@ async def test_streaming_and_non_streaming_agree_on_final_shape(
     """
     install_fake_llm(monkeypatch)
 
-    non_streaming_result = await _make_generator().generate_hypotheses(
+    non_streaming_result = await make_test_generator().generate_hypotheses(
         "Explain a resistance mechanism",
         opts={"enable_literature_review_node": False},
         stream=False,
     )
 
     events = await _collect_stream_events(
-        _make_generator(), "Explain a resistance mechanism"
+        make_test_generator(), "Explain a resistance mechanism"
     )
     assert events
     last_state = events[-1][1]

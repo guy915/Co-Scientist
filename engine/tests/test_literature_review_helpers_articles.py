@@ -17,16 +17,28 @@ from typing import Any
 from co_scientist.agents.generation.literature_review import helpers
 from co_scientist.config.schema import ResponseFormat, ToolConfig
 from co_scientist.models import Article
+from tests._retrieval_config import make_tool_config
 
 
 def _tool_config(
     response_format: ResponseFormat | None = None,
     source_type: str = "academic",
 ) -> ToolConfig:
-    """Build a minimal ToolConfig for the helper tests."""
-    return ToolConfig(
-        server="s",
-        mcp_tool_name="t",
+    """Build a minimal ToolConfig for the helper tests.
+
+    These tests vary the response format and source type rather than the
+    tool name, so the shared builder's name argument is pinned to ``"t"``.
+
+    Args:
+        response_format: The parsing format under test, or None for the
+            schema default.
+        source_type: The tool's declared source type.
+
+    Returns:
+        A ToolConfig carrying the given format and source type.
+    """
+    return make_tool_config(
+        "t",
         source_type=source_type,
         response_format=response_format or ResponseFormat(),
     )

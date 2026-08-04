@@ -22,81 +22,17 @@ from typing import Any, cast
 from co_scientist.agents.generation.literature_review import (
     enrichment as lr_enrichment,
 )
-from co_scientist.agents.generation.literature_review.helpers import (
-    SearchConfig,
-)
-from co_scientist.config import ToolRegistry
 from co_scientist.config.schema import ToolConfig, WorkflowConfig
 from co_scientist.mcp_client import MCPToolClient
-from tests._mcp import make_tool_lookup_registry as _registry
+from tests._mcp import (
+    FakeToolResultsClient,
+    make_tool_results_client,
+)
+from tests._mcp import (
+    make_tool_lookup_registry as _registry,
+)
+from tests._search_fixtures import make_search_config
 from tests._state import make_state
-
-
-class _FakeMCPClient:
-    """Duck-typed stand-in for ``MCPToolClient`` used by enrichment tests.
-
-    Returns the configured per-tool result, or raises ``RuntimeError`` for
-    any tool name listed in ``error_tools``. ``has_tool`` reports membership
-    in ``available_tools``.
-    """
-
-    def __init__(
-        self,
-        results: dict[str, Any] | None = None,
-        available_tools: set[str] | None = None,
-        error_tools: set[str] | None = None,
-    ) -> None:
-        """Configure per-tool canned results, availability, and failures."""
-        self._results = results or {}
-        self._available_tools = available_tools or set()
-        self._error_tools = error_tools or set()
-        self.calls: list[tuple[str, dict[str, Any]]] = []
-
-    async def call_tool(self, tool_name: str, **kwargs: Any) -> Any:
-        """Record the call and return the canned result, or raise."""
-        self.calls.append((tool_name, kwargs))
-        if tool_name in self._error_tools:
-            raise RuntimeError(f"tool failed: {tool_name}")
-        return self._results.get(tool_name)
-
-    def has_tool(self, tool_name: str) -> bool:
-        """Report whether the given tool name was marked available."""
-        return tool_name in self._available_tools
-
-
-def _client(
-    results: dict[str, Any] | None = None,
-    available_tools: set[str] | None = None,
-    error_tools: set[str] | None = None,
-) -> MCPToolClient:
-    """Build a fake client typed as MCPToolClient for the phase signatures."""
-    return cast(
-        MCPToolClient,
-        _FakeMCPClient(results, available_tools, error_tools),
-    )
-
-
-def _search_config(
-    *,
-    workflow: WorkflowConfig | None = None,
-    tool_registry: ToolRegistry | None = None,
-) -> SearchConfig:
-    """Build a SearchConfig with only the enrichment-relevant fields set.
-
-    The remaining fields are irrelevant to enrichment.py's phase functions,
-    which only read ``workflow`` and ``tool_registry``.
-    """
-    return SearchConfig(
-        tool_registry=tool_registry,
-        workflow=workflow,
-        is_multi_source=False,
-        search_tool_name="search_tool",
-        search_tool_config=None,
-        source_name="unknown",
-        papers_to_read_count=5,
-        is_dev_mode=False,
-    )
-
 
 # =============================================================================
 # _call_enrichment_tool_for_entity
@@ -105,7 +41,7 @@ def _search_config(
 
 async def test_call_enrichment_tool_for_entity_success() -> None:
     """A successful call returns the raw tool result."""
-    client = _FakeMCPClient(results={"kg_tool": {"statements": []}})
+    client = FakeToolResultsClient(results={"kg_tool": {"statements": []}})
     result = await lr_enrichment._call_enrichment_tool_for_entity(
         "kg_tool", {"entity_name": "KRAS"}, cast(MCPToolClient, client)
     )
@@ -115,7 +51,7 @@ async def test_call_enrichment_tool_for_entity_success() -> None:
 
 async def test_call_enrichment_tool_for_entity_error_returns_none() -> None:
     """A raising tool call is swallowed and returns None."""
-    client = _FakeMCPClient(error_tools={"kg_tool"})
+    client = FakeToolResultsClient(error_tools={"kg_tool"})
     result = await lr_enrichment._call_enrichment_tool_for_entity(
         "kg_tool", {"entity_name": "KRAS"}, cast(MCPToolClient, client)
     )
@@ -204,7 +140,9 @@ async def test_call_enrichment_tool_for_entities_queries_all_in_parallel() -> (
     tool_config = ToolConfig(
         server="s", mcp_tool_name="kg_tool", display_name="KG Tool"
     )
-    client = _client(results={"kg_tool": json.dumps({"results": [{"n": 1}]})})
+    client = make_tool_results_client(
+        results={"kg_tool": json.dumps({"results": [{"n": 1}]})}
+    )
 
     text, items = await lr_enrichment._call_enrichment_tool_for_entities(
         tool_config, ["KRAS", "MAPK1"], client
@@ -220,7 +158,9 @@ async def test_call_enrichment_tool_for_entities_queries_all_in_parallel() -> (
 async def test_call_enrichment_tool_for_entities_no_result() -> None:
     """An entity whose call returns no result contributes no text or items."""
     tool_config = ToolConfig(server="s", mcp_tool_name="kg_tool")
-    client = _client()  # no configured results: call_tool returns None
+    client = (
+        make_tool_results_client()
+    )  # no configured results: call_tool returns None
 
     text, items = await lr_enrichment._call_enrichment_tool_for_entities(
         tool_config, ["KRAS"], client
@@ -257,7 +197,7 @@ def test_resolve_enrichment_tool_configs_filters_availability() -> None:
     registry = _registry(
         {"avail": available, "disabled": disabled, "unreachable": unreachable}
     )
-    client = _client(available_tools={"mcp_available"})
+    client = make_tool_results_client(available_tools={"mcp_available"})
 
     configs = lr_enrichment._resolve_enrichment_tool_configs(
         workflow, registry, client
@@ -313,7 +253,7 @@ def test_aggregate_enrichment_results_empty_text_adds_no_section() -> None:
 def test_resolve_enrichment_context_no_tool_registry_returns_none() -> None:
     """A configured workflow with no tool registry cannot resolve context."""
     workflow = WorkflowConfig(context_enrichment_tools=["kg"])
-    config = _search_config(workflow=workflow, tool_registry=None)
+    config = make_search_config(workflow=workflow, tool_registry=None)
     state = make_state(research_goal="Study of KRAS in cancer")
 
     assert lr_enrichment._resolve_enrichment_context(state, config) is None
@@ -322,7 +262,7 @@ def test_resolve_enrichment_context_no_tool_registry_returns_none() -> None:
 def test_resolve_enrichment_context_no_entities_returns_none() -> None:
     """A research goal with no extractable entities resolves to None."""
     workflow = WorkflowConfig(context_enrichment_tools=["kg"])
-    config = _search_config(workflow=workflow, tool_registry=_registry({}))
+    config = make_search_config(workflow=workflow, tool_registry=_registry({}))
     state = make_state(research_goal="a plain lowercase research goal")
 
     assert lr_enrichment._resolve_enrichment_context(state, config) is None
@@ -332,7 +272,7 @@ def test_resolve_enrichment_context_success() -> None:
     """A configured workflow with extractable entities resolves cleanly."""
     workflow = WorkflowConfig(context_enrichment_tools=["kg"])
     registry = _registry({})
-    config = _search_config(workflow=workflow, tool_registry=registry)
+    config = make_search_config(workflow=workflow, tool_registry=registry)
     state = make_state(research_goal="Study of KRAS in cancer")
 
     resolved = lr_enrichment._resolve_enrichment_context(state, config)
@@ -352,7 +292,9 @@ def test_resolve_enrichment_context_success() -> None:
 async def test_run_enrichment_tools_aggregates_across_tools() -> None:
     """Every configured tool is queried and its output aggregated."""
     tc = ToolConfig(server="s", mcp_tool_name="kg_tool", display_name="KG")
-    client = _client(results={"kg_tool": json.dumps({"results": [{"n": 1}]})})
+    client = make_tool_results_client(
+        results={"kg_tool": json.dumps({"results": [{"n": 1}]})}
+    )
 
     sections, items = await lr_enrichment._run_enrichment_tools(
         ["KRAS"], [tc], client
@@ -395,11 +337,11 @@ async def test_phase2_6_no_available_tool_configs_returns_empty() -> None:
     workflow = WorkflowConfig(context_enrichment_tools=["kg"])
     # "kg" not present in the registry, so resolution yields no tool configs.
     registry = _registry({})
-    config = _search_config(workflow=workflow, tool_registry=registry)
+    config = make_search_config(workflow=workflow, tool_registry=registry)
     state = make_state(research_goal="Study of KRAS in cancer")
 
     text, items = await lr_enrichment._phase2_6_fetch_context_enrichment(
-        state, config, _client()
+        state, config, make_tool_results_client()
     )
 
     assert (text, items) == ("", [])
@@ -415,12 +357,12 @@ async def test_phase2_6_resolved_tool_yields_nothing_returns_empty() -> None:
     tool_cfg = ToolConfig(server="s", mcp_tool_name="mcp_kg")
     registry = _registry({"kg": tool_cfg})
     workflow = WorkflowConfig(context_enrichment_tools=["kg"])
-    config = _search_config(workflow=workflow, tool_registry=registry)
+    config = make_search_config(workflow=workflow, tool_registry=registry)
     state = make_state(research_goal="Study of KRAS in cancer")
     # "mcp_kg" is available but configured with no results: every entity
     # query returns None, so _call_enrichment_tool_for_entities yields
     # ("", []) for the tool.
-    client = _client(available_tools={"mcp_kg"})
+    client = make_tool_results_client(available_tools={"mcp_kg"})
 
     text, items = await lr_enrichment._phase2_6_fetch_context_enrichment(
         state, config, client
@@ -436,9 +378,9 @@ async def test_phase2_6_success_returns_combined_text_and_items() -> None:
     )
     registry = _registry({"kg": tool_cfg})
     workflow = WorkflowConfig(context_enrichment_tools=["kg"])
-    config = _search_config(workflow=workflow, tool_registry=registry)
+    config = make_search_config(workflow=workflow, tool_registry=registry)
     state = make_state(research_goal="Study of KRAS in cancer")
-    client = _client(
+    client = make_tool_results_client(
         results={"mcp_kg": json.dumps({"results": [{"n": 1}]})},
         available_tools={"mcp_kg"},
     )

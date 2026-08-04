@@ -7,8 +7,6 @@ the response-to-``meta_review`` field mapping, including the flattening of
 ``recurring_themes`` objects to ``emerging_themes`` strings.
 """
 
-from typing import Any
-
 import pytest
 
 from co_scientist.agents.meta_review import meta_review
@@ -17,51 +15,8 @@ from co_scientist.agents.meta_review.meta_review import (
     _collect_review_summaries,
     meta_review_node,
 )
-from co_scientist.models import HypothesisReview
-from tests._state import make_hypothesis, make_state
-
-
-def _make_review(**overrides: Any) -> HypothesisReview:
-    """Build a HypothesisReview with all required fields populated.
-
-    Args:
-        **overrides: HypothesisReview fields to override.
-
-    Returns:
-        A HypothesisReview instance.
-    """
-    fields: dict[str, Any] = {
-        "review_summary": "a solid review",
-        "scores": {"novelty": 8, "relevance": 7},
-        "safety_ethical_concerns": "none",
-        "detailed_feedback": {"novelty": "novel angle"},
-        "constructive_feedback": "tighten the experiment",
-        "overall_score": 7.5,
-    }
-    fields.update(overrides)
-    return HypothesisReview(**fields)
-
-
-def _stub_llm(
-    monkeypatch: pytest.MonkeyPatch, response: dict[str, Any]
-) -> list[dict[str, Any]]:
-    """Patch meta_review's call_llm_json and record each invocation.
-
-    Args:
-        monkeypatch: The pytest monkeypatch fixture.
-        response: The dict the stub returns for every call.
-
-    Returns:
-        A list that the stub appends to on each call, for spy assertions.
-    """
-    calls: list[dict[str, Any]] = []
-
-    async def fake(**kwargs: Any) -> dict[str, Any]:
-        calls.append(kwargs)
-        return response
-
-    monkeypatch.setattr(meta_review, "call_llm_json", fake)
-    return calls
+from tests._llm_fake import stub_call_llm_json
+from tests._state import make_hypothesis, make_review, make_state
 
 
 async def test_no_reviews_returns_default_without_llm(
@@ -72,7 +27,9 @@ async def test_no_reviews_returns_default_without_llm(
     The LLM must not be called, and the returned dict carries only the
     ``meta_review`` key with the four default subfields.
     """
-    calls = _stub_llm(monkeypatch, {"meta_review_summary": "should not appear"})
+    calls = stub_call_llm_json(
+        monkeypatch, meta_review, {"meta_review_summary": "should not appear"}
+    )
     state = make_state(
         hypotheses=[make_hypothesis(text="aaa"), make_hypothesis(text="bbb")]
     )
@@ -102,8 +59,9 @@ async def test_with_reviews_maps_response_fields(
     summary/strengths/weaknesses/strategic_recommendations are copied through
     to their meta_review keys, and the LLM is called exactly once.
     """
-    calls = _stub_llm(
+    calls = stub_call_llm_json(
         monkeypatch,
+        meta_review,
         {
             "meta_review_summary": "overall the set is promising",
             "strengths": ["clear mechanism", "testable"],
@@ -114,7 +72,7 @@ async def test_with_reviews_maps_response_fields(
     )
     state = make_state(
         hypotheses=[
-            make_hypothesis(text="reviewed hyp", reviews=[_make_review()])
+            make_hypothesis(text="reviewed hyp", reviews=[make_review()])
         ]
     )
 
@@ -139,8 +97,9 @@ async def test_recurring_themes_flattened_to_emerging_themes(
     A dict entry contributes its ``theme`` value; a plain-string entry is
     stringified, exercising both branches of the flattening logic.
     """
-    _stub_llm(
+    stub_call_llm_json(
         monkeypatch,
+        meta_review,
         {
             "meta_review_summary": "summary",
             "recurring_themes": [
@@ -155,7 +114,7 @@ async def test_recurring_themes_flattened_to_emerging_themes(
     )
     state = make_state(
         hypotheses=[
-            make_hypothesis(text="reviewed hyp", reviews=[_make_review()])
+            make_hypothesis(text="reviewed hyp", reviews=[make_review()])
         ]
     )
 
@@ -172,8 +131,8 @@ def test_review_collection_keeps_complete_history() -> None:
     hypothesis = make_hypothesis(
         text="reviewed hyp",
         reviews=[
-            _make_review(review_summary="first failure pattern"),
-            _make_review(review_summary="later reassessment"),
+            make_review(review_summary="first failure pattern"),
+            make_review(review_summary="later reassessment"),
         ],
     )
     [record] = _collect_review_summaries([hypothesis])
@@ -191,7 +150,7 @@ def test_review_collection_numbers_hypotheses_from_one() -> None:
     a 0-based one published an off-by-one in the report.
     """
     hypotheses = [
-        make_hypothesis(text=f"hyp {i}", reviews=[_make_review()])
+        make_hypothesis(text=f"hyp {i}", reviews=[make_review()])
         for i in range(3)
     ]
 
@@ -207,7 +166,7 @@ def test_feedback_collection_keeps_full_debate_transcript() -> None:
         {"turn": 2, "reasoning": "B has a cleaner falsification test."},
     ]
     records = _collect_feedback_records(
-        [make_hypothesis(text="reviewed", reviews=[_make_review()])],
+        [make_hypothesis(text="reviewed", reviews=[make_review()])],
         [
             {
                 "hypothesis_a_id": "a",
