@@ -202,8 +202,8 @@ async def test_tool_loop_turn_raised_to_the_token_floor(
     as well as the answer, so an answer-sized budget lets the reasoning
     consume the whole allowance: empty content, billed in full, retried. The
     budgets that reach this path make that reachable rather than theoretical
-    -- the draft agent's is capped below the floor outright
-    (``DRAFT_MAX_TOKENS_CAP``), and validation synthesis starts under it.
+    -- the draft agent's scaled budget is under the floor at every count a
+    run tier asks for, and validation synthesis starts under it too.
 
     Asserted at the litellm seam rather than on the arg builder, because the
     defect being pinned was the tool loop restating ``call_llm``'s thinking

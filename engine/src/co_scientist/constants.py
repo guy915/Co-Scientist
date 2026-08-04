@@ -55,6 +55,11 @@ generation.
 # These four token budgets are the base values that scaled_max_tokens() below
 # scales up for count-dependent calls (e.g. batch review, evolution); simple
 # single-hypothesis calls use them directly.
+#
+# The first three sit below THINKING_FLOOR_MAX_TOKENS by design: they are
+# answer budgets, which the floor replaces outright on a thinking model. Read
+# them as what a call's answer costs, not as what the request carries. A
+# *cap* below the floor is the case that needs deliberating -- see below.
 DEFAULT_MAX_TOKENS: Final = 4000
 """Default max tokens for standard LLM calls."""
 
@@ -65,7 +70,14 @@ LONG_MAX_TOKENS: Final = 10000
 """Max tokens for complex multi-hypothesis operations."""
 
 THINKING_MAX_TOKENS: Final = 18000
-"""Max tokens for extended thinking + long responses."""
+"""Max tokens for extended thinking + long responses.
+
+Also the value of ``THINKING_FLOOR_MAX_TOKENS`` below, by derivation rather
+than coincidence: the floor was set to the budget these nodes had already
+proven in production. Changing this number therefore moves the floor under
+every other thinking call in the engine, so change the two together
+deliberately or not at all.
+"""
 
 THINKING_FLOOR_MAX_TOKENS: Final = THINKING_MAX_TOKENS
 """Smallest total budget any thinking-enabled call may be sent with.
@@ -87,6 +99,17 @@ on top precisely to avoid pushing the already-generous scaled batch caps
 (``REVIEW_BATCH_MAX_TOKENS_CAP`` and friends) into untested territory: a
 call whose budget already exceeds the floor is left exactly as its node
 sized it.
+
+It applies only where the call actually reasons, which is decided by the
+model, not the call site: ``_apply_thinking_args`` returns early for a model
+with no thinking mode, and no first-party call site passes
+``enable_thinking=False``. So every budget in this module lives in two
+regimes at once -- superseded by the floor on the DeepSeek-family models
+this engine deploys on, and operative as written on any other provider. That
+is why a cap below the floor is not merely inert: it is a ceiling that binds
+on one provider and silently does not on another. The caps block at the end
+of this module keeps every cap above the floor so each one means the same
+thing in both regimes; ``tests/test_token_budget_floor.py`` pins that.
 """
 
 # Temperature settings
@@ -324,6 +347,18 @@ def scaled_max_tokens(
     the base budget covers the first ``free_count`` items, every further
     item adds ``per_item`` tokens, and ``cap`` bounds the total.
 
+    Deliberately ignorant of ``THINKING_FLOOR_MAX_TOKENS``, so a returned
+    value can still be below it. Raising the result here, or rejecting a
+    ``cap`` beneath the floor, needs the one fact this function does not
+    have: whether the call reasons, which is a property of the model.
+    Applying the floor blind would raise budgets on providers that never
+    reason and have tighter output ceilings of their own (see
+    ``VALIDATION_SYNTHESIS_BATCH_SIZE``), and would give the floor a second
+    enforcement point that cannot see what the first one sees -- which is
+    how two copies of one rule drift apart. The floor keeps its single site
+    in ``_apply_thinking_args``; "no cap below the floor" is a static
+    property of the constants below, so a test pins it instead.
+
     Args:
         base: Base token budget for the call.
         count: Number of items (hypotheses, context entries, ...) in the call.
@@ -396,6 +431,19 @@ def corpus_slug(research_goal: str) -> str:
     return "research_" + hashlib.md5(research_goal.encode()).hexdigest()[:8]
 
 
+# Scaled per-node budgets, one group per scaled_max_tokens call site. Every
+# *_CAP below is above THINKING_FLOOR_MAX_TOKENS by rule, not by accident: a
+# cap under the floor is overwritten wherever the model reasons and enforced
+# wherever it does not, i.e. a ceiling the deployed configuration can never
+# impose. Above the floor, each cap is the operative ceiling in both regimes.
+#
+# A cap is a runaway backstop, not a target. Counts come from the run tier's
+# initial_hypotheses_count (4/8/12/16, raisable per request), and at all of
+# those every scaled value here lands under both its cap and the floor -- so
+# on a thinking model these calls go out at the floor. Size a cap for the
+# pathological count, never for a plausible one, and keep it above the floor;
+# tests/test_token_budget_floor.py enforces the last part.
+
 REVIEW_BATCH_TOKENS_PER_HYPOTHESIS: Final = 1500
 """Extra batch-review output tokens per hypothesis beyond the free count."""
 
@@ -420,8 +468,26 @@ DEBATE_FINAL_TURN_MAX_TOKENS_CAP: Final = 20000
 DRAFT_TOKENS_PER_HYPOTHESIS: Final = 200
 """Extra draft-phase output tokens per requested hypothesis."""
 
-DRAFT_MAX_TOKENS_CAP: Final = 16000
-"""Upper limit for the draft-phase output budget."""
+DRAFT_MAX_TOKENS_CAP: Final = 20000
+"""Upper limit for the draft-phase output budget.
+
+Raised from 16000, which was the one cap that sat below
+``THINKING_FLOOR_MAX_TOKENS``. The draft agent runs on the tool loop, which
+always reasons, so on every deployed model that cap was overwritten by the
+floor before the request went out, while on a non-reasoning provider it
+stayed enforced -- the same constant meaning two different things depending
+on who served the call.
+
+Nothing about the draft call argues for a number below its siblings. A draft
+is the cheapest thing this engine generates: ``DRAFT_TOKENS_PER_HYPOTHESIS``
+prices one at 200 tokens, so even the largest tier's 16 drafts ask for 11200
+against an 8000 base that already dominates the sum. The cap is unreachable
+at any count a run tier produces (it takes 60 drafts to reach this value, 40
+to reach the old one), which is what makes it a backstop against a caller
+raising ``initial_hypotheses_count`` rather than a ceiling any real run
+meets. Since no real run is affected either way, the value is chosen to
+agree with the other generation-family caps and to clear the floor.
+"""
 
 VALIDATION_SYNTHESIS_TOKENS_PER_HYPOTHESIS: Final = 2500
 """Extra validation-synthesis output tokens per hypothesis in the batch."""
