@@ -8,6 +8,7 @@ tools' heterogeneous result shapes.
 
 import json
 import logging
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Optional, TypeVar, cast
 
@@ -21,6 +22,14 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 _ConfigT = TypeVar("_ConfigT")
+_EntryT = TypeVar("_EntryT")
+
+# Resolves one source's entry for a retrieval step. The source is None for
+# the single-source default entry, where only workflow-level values apply.
+_SourceToolResolver = Callable[
+    [Optional["SearchSourceConfig"], "WorkflowConfig", "ToolRegistry"],
+    _EntryT | None,
+]
 
 
 def _lookup_source_config(
@@ -40,63 +49,126 @@ def _lookup_source_config(
 
 
 # =============================================================================
+# Shared per-source tool resolution
+# =============================================================================
+
+
+@dataclass(frozen=True)
+class _SourceToolFields:
+    """Which config attributes back one retrieval step's tool resolution.
+
+    Both PDF discovery and content retrieval resolve a tool id and a
+    metadata URL field the same way - source-level override first, workflow
+    default second - and differ only in which attribute names hold them.
+
+    Attributes:
+        tool_attr: Attribute holding the step's tool id.
+        url_field_attr: Attribute holding the metadata field name whose
+            value the step's tool is called with.
+    """
+
+    tool_attr: str
+    url_field_attr: str
+
+
+_PDF_FIELDS = _SourceToolFields(
+    tool_attr="pdf_discovery_tool",
+    url_field_attr="pdf_discovery_url_field",
+)
+_CONTENT_FIELDS = _SourceToolFields(
+    tool_attr="content_tool",
+    url_field_attr="content_url_field",
+)
+
+
+def _source_or_workflow(
+    source: Optional["SearchSourceConfig"],
+    workflow: "WorkflowConfig",
+    attr: str,
+) -> Any:
+    """Return the source's override for ``attr``, else the workflow's value."""
+    override = getattr(source, attr, None) if source is not None else None
+    return override or getattr(workflow, attr, None)
+
+
+def _resolve_source_tool(
+    source: Optional["SearchSourceConfig"],
+    workflow: "WorkflowConfig",
+    tool_registry: "ToolRegistry",
+    fields: _SourceToolFields,
+) -> tuple[str, str] | None:
+    """Resolve one step's (mcp_tool_name, url_field) for one source.
+
+    A source-level override wins; otherwise the workflow-level default
+    applies. Returns None when no tool is configured at either level, or
+    when the configured tool id is not in the registry.
+    """
+    tool_id = _source_or_workflow(source, workflow, fields.tool_attr)
+    if not tool_id:
+        return None
+    tool_cfg = tool_registry.get_tool(tool_id)
+    if not tool_cfg:
+        return None
+    url_field = _source_or_workflow(source, workflow, fields.url_field_attr)
+    return tool_cfg.mcp_tool_name, url_field
+
+
+def _build_source_config(
+    workflow: Optional["WorkflowConfig"],
+    tool_registry: Optional["ToolRegistry"],
+    is_multi_source: bool,
+    resolve: _SourceToolResolver[_EntryT],
+) -> dict[str, _EntryT]:
+    """Build one retrieval step's config mapping for the configured mode.
+
+    Multi-source mode resolves one entry per enabled source, keyed by
+    source.tool so get_papers_needing_* can route each paper to the entry
+    for the source it came from (via paper_source_map): sources differ in
+    landing-page layout and in what their content tool needs. Single-source
+    mode resolves the workflow-level defaults once, under "_default".
+
+    Args:
+        workflow: Resolved literature-review workflow config, if any.
+        tool_registry: Resolved tool registry, if any.
+        is_multi_source: Whether the workflow declares search sources.
+        resolve: The step's per-source resolver (PDF discovery or content).
+
+    Returns:
+        Dict mapping source_tool_id -> the step's resolved entry.
+    """
+    if not workflow or not tool_registry:
+        return {}
+
+    if not is_multi_source:
+        default = resolve(None, workflow, tool_registry)
+        return {"_default": default} if default else {}
+
+    config: dict[str, _EntryT] = {}
+    for source in workflow.get_enabled_search_sources():
+        resolved = resolve(source, workflow, tool_registry)
+        if resolved:
+            config[source.tool] = resolved
+    return config
+
+
+# =============================================================================
 # PDF discovery helpers
 # =============================================================================
 
 
 def _resolve_pdf_discovery_tool(
-    source: "SearchSourceConfig",
+    source: Optional["SearchSourceConfig"],
     workflow: "WorkflowConfig",
     tool_registry: "ToolRegistry",
 ) -> tuple[str, str] | None:
     """Resolve a single source's PDF discovery (mcp_tool_name, url_field).
 
     A source-level override wins; otherwise falls back to the workflow-level
-    default discovery tool/field.
+    default discovery tool/field. Unlike content retrieval, PDF discovery
+    has never carried extra call params - it is called with the landing-page
+    URL alone.
     """
-    discovery_tool = source.pdf_discovery_tool or workflow.pdf_discovery_tool
-    if not discovery_tool:
-        return None
-    tool_cfg = tool_registry.get_tool(discovery_tool)
-    if not tool_cfg:
-        return None
-    discovery_url_field = (
-        source.pdf_discovery_url_field or workflow.pdf_discovery_url_field
-    )
-    return tool_cfg.mcp_tool_name, discovery_url_field
-
-
-def _build_multi_source_pdf_config(
-    workflow: "WorkflowConfig",
-    tool_registry: "ToolRegistry",
-) -> dict[str, tuple[str, str]]:
-    """Build per-source PDF discovery config for multi-source mode.
-
-    Per-source keys let get_papers_needing_pdf_discovery route each paper
-    to the tool/field for the source it came from (via paper_source_map),
-    since sources can have different landing-page layouts.
-    """
-    config: dict[str, tuple[str, str]] = {}
-    for source in workflow.get_enabled_search_sources():
-        resolved = _resolve_pdf_discovery_tool(source, workflow, tool_registry)
-        if resolved:
-            config[source.tool] = resolved
-    return config
-
-
-def _build_default_pdf_config(
-    workflow: "WorkflowConfig",
-    tool_registry: "ToolRegistry",
-) -> dict[str, tuple[str, str]]:
-    """Build the single-source default PDF discovery config."""
-    if not workflow.pdf_discovery_tool:
-        return {}
-    tool_cfg = tool_registry.get_tool(workflow.pdf_discovery_tool)
-    if not tool_cfg:
-        return {}
-    return {
-        "_default": (tool_cfg.mcp_tool_name, workflow.pdf_discovery_url_field)
-    }
+    return _resolve_source_tool(source, workflow, tool_registry, _PDF_FIELDS)
 
 
 def build_pdf_discovery_config(
@@ -109,12 +181,9 @@ def build_pdf_discovery_config(
     Returns:
         Dict mapping source_tool_id -> (mcp_tool_name, url_field)
     """
-    if not workflow or not tool_registry:
-        return {}
-    if is_multi_source:
-        return _build_multi_source_pdf_config(workflow, tool_registry)
-    # Single-source mode: one default entry under the "_default" key.
-    return _build_default_pdf_config(workflow, tool_registry)
+    return _build_source_config(
+        workflow, tool_registry, is_multi_source, _resolve_pdf_discovery_tool
+    )
 
 
 def _resolve_pdf_discovery_entry(
@@ -235,66 +304,28 @@ class ContentToolConfig:
 
 
 def _resolve_content_tool(
-    source: "SearchSourceConfig",
+    source: Optional["SearchSourceConfig"],
     workflow: "WorkflowConfig",
     tool_registry: "ToolRegistry",
 ) -> ContentToolConfig | None:
     """Resolve a single source's content retrieval config.
 
     Same per-source-override-falls-back-to-workflow-default pattern as
-    _resolve_pdf_discovery_tool.
+    _resolve_pdf_discovery_tool, plus the call params only this step has:
+    workflow params merged under source-specific params, source winning.
     """
-    src_content_tool = source.content_tool or workflow.content_tool
-    if not src_content_tool:
-        return None
-    tool_cfg = tool_registry.get_tool(src_content_tool)
-    if not tool_cfg:
-        return None
-    src_url_field = source.content_url_field or workflow.content_url_field
-    # Merge workflow params with source-specific params (source takes
-    # priority)
-    src_params = {**workflow.content_params, **source.content_params}
-    return ContentToolConfig(
-        mcp_tool_name=tool_cfg.mcp_tool_name,
-        url_field=src_url_field,
-        content_params=src_params,
+    resolved = _resolve_source_tool(
+        source, workflow, tool_registry, _CONTENT_FIELDS
     )
-
-
-def _build_multi_source_content_config(
-    workflow: "WorkflowConfig",
-    tool_registry: "ToolRegistry",
-) -> dict[str, ContentToolConfig]:
-    """Build per-source content retrieval config for multi-source mode.
-
-    Keyed by source.tool so get_papers_needing_content can look it up via
-    paper_source_map.
-    """
-    config: dict[str, ContentToolConfig] = {}
-    for source in workflow.get_enabled_search_sources():
-        resolved = _resolve_content_tool(source, workflow, tool_registry)
-        if resolved:
-            config[source.tool] = resolved
-    return config
-
-
-def _build_default_content_config(
-    workflow: "WorkflowConfig",
-    tool_registry: "ToolRegistry",
-) -> dict[str, ContentToolConfig]:
-    """Build the single-source default content retrieval config."""
-    if not workflow.content_tool:
-        return {}
-    tool_cfg = tool_registry.get_tool(workflow.content_tool)
-    if not tool_cfg:
-        return {}
-    return {
-        "_default": ContentToolConfig(
-            mcp_tool_name=tool_cfg.mcp_tool_name,
-            url_field=workflow.content_url_field,
-            content_params=workflow.content_params,
-        )
-    }
+    if not resolved:
+        return None
+    mcp_tool_name, url_field = resolved
+    src_params = source.content_params if source else {}
+    return ContentToolConfig(
+        mcp_tool_name=mcp_tool_name,
+        url_field=url_field,
+        content_params={**workflow.content_params, **src_params},
+    )
 
 
 def build_content_config(
@@ -307,12 +338,9 @@ def build_content_config(
     Returns:
         Dict mapping source_tool_id -> ContentToolConfig
     """
-    if not workflow or not tool_registry:
-        return {}
-    if is_multi_source:
-        return _build_multi_source_content_config(workflow, tool_registry)
-    # Single-source mode: one default entry under the "_default" key.
-    return _build_default_content_config(workflow, tool_registry)
+    return _build_source_config(
+        workflow, tool_registry, is_multi_source, _resolve_content_tool
+    )
 
 
 def _resolve_content_entry(

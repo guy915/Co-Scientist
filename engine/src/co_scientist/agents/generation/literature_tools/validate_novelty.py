@@ -16,7 +16,10 @@ from co_scientist.agents.generation.literature_tools.validate_search import (
     _NoveltySearchContext,
     _search_papers_for_hypothesis,
 )
-from co_scientist.constants import GENERATE_LIT_TOOL_MAX_PAPERS
+from co_scientist.constants import (
+    GENERATE_LIT_TOOL_MAX_PAPERS,
+    truncate_for_prompt,
+)
 from co_scientist.prompts import get_hypothesis_novelty_analysis_prompt
 from co_scientist.state import WorkflowState
 
@@ -58,20 +61,12 @@ def _build_novelty_analysis_prompt(
     Returns:
         The assembled novelty-analysis prompt text.
     """
-    fulltext = metadata.get("fulltext", "")
-
-    # Truncate if too long. Keeps the per-paper prompt size bounded
-    # regardless of how long the source paper's fulltext is.
-    max_chars = 200_000
-    if len(fulltext) > max_chars:
-        fulltext = fulltext[:max_chars] + "\n\n[... truncated for length ...]"
-
     return get_hypothesis_novelty_analysis_prompt(
         hypothesis_text=hypothesis_text,
         title=metadata.get("title", "Unknown"),
         authors=metadata.get("authors", []),
         year=metadata.get("year"),
-        fulltext=fulltext,
+        fulltext=truncate_for_prompt(metadata.get("fulltext", "")),
     )
 
 

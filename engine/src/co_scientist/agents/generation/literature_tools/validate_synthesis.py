@@ -26,8 +26,7 @@ from co_scientist.constants import (
     get_validate_max_iterations,
     scaled_max_tokens,
 )
-from co_scientist.exceptions import ResponseParseError
-from co_scientist.llm_json import attempt_json_repair, extract_response_json
+from co_scientist.llm_json import parse_tool_loop_json
 from co_scientist.models import GenerationMethod, Hypothesis
 from co_scientist.prompts import (
     ValidationSynthesisRequest,
@@ -230,22 +229,11 @@ def _parse_synthesis_response(
         ResponseParseError: if the response cannot be parsed as JSON even
             after repair attempts.
     """
-    response_text = extract_response_json(final_response)
-    response_data, was_repaired = attempt_json_repair(
-        response_text, allow_major_repairs=True
+    result: list[dict[str, Any]] = parse_tool_loop_json(
+        final_response,
+        "hypotheses",
+        f"Validation synthesis (batch {batch_label})",
     )
-
-    if response_data is None:
-        logger.error("Failed to parse batch %s JSON response", batch_label)
-        logger.error("Response: %s...", final_response[:500])
-        raise ResponseParseError(
-            f"Validation synthesis returned invalid JSON (batch {batch_label})"
-        )
-
-    if was_repaired:
-        logger.warning("Batch %s JSON required repairs", batch_label)
-
-    result: list[dict[str, Any]] = response_data.get("hypotheses", [])
     logger.debug(
         "Batch %s synthesis returned %s hypotheses", batch_label, len(result)
     )

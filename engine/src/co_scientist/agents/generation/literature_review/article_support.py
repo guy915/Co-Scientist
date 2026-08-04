@@ -9,7 +9,11 @@ import logging
 from collections.abc import Callable
 from typing import Any, cast
 
-from co_scientist.constants import LITERATURE_REVIEW_FAILED
+from co_scientist.constants import (
+    LITERATURE_REVIEW_FAILED,
+    PROMPT_PAPER_MAX_CHARS,
+    truncate_for_prompt,
+)
 from co_scientist.models import Article, phase_message
 
 logger = logging.getLogger(__name__)
@@ -237,18 +241,15 @@ def get_papers_with_content(
 
 
 def get_paper_content_for_analysis(
-    metadata: dict[str, Any], max_chars: int = 200_000
+    metadata: dict[str, Any], max_chars: int = PROMPT_PAPER_MAX_CHARS
 ) -> str:
     """Get paper content for analysis, with truncation if needed."""
     # Fulltext is preferred; abstract is the fallback when fulltext wasn't
     # fetched (mirrors the policy in get_papers_with_content).
     content = str(metadata.get("fulltext") or metadata.get("abstract") or "")
-    # Bound the input size to the paper-analysis LLM call regardless of how
-    # long the source fulltext is.
     if len(content) > max_chars:
         logger.debug("Truncating paper content to %s chars", max_chars)
-        content = content[:max_chars] + "\n\n[... truncated for length ...]"
-    return content
+    return truncate_for_prompt(content, max_chars)
 
 
 # =============================================================================

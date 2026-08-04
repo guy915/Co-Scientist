@@ -148,9 +148,7 @@ def test_build_default_content_config_success() -> None:
 
 def test_build_default_content_config_no_tool_configured() -> None:
     """No workflow-level content tool yields an empty config."""
-    assert (
-        rs.build_content_config(WorkflowConfig(), _registry({}), False) == {}
-    )
+    assert rs.build_content_config(WorkflowConfig(), _registry({}), False) == {}
 
 
 def test_build_default_content_config_dangling_reference() -> None:

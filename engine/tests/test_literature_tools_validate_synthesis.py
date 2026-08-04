@@ -102,7 +102,10 @@ def test_parse_synthesis_response_repairs_truncated_json(
     truncated = '{"hypotheses": [{"hypothesis": "x"}'
     result = _parse_synthesis_response(truncated, "1")
     assert result == [{"hypothesis": "x"}]
-    assert "required repairs" in caplog.text
+    # The warning names the batch, so a log reader can still tell which
+    # synthesis phase needed repairing.
+    assert "required major repairs" in caplog.text
+    assert "batch 1" in caplog.text
 
 
 # -----------------------------------------------------------------------------

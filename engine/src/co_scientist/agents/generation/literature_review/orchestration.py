@@ -121,6 +121,27 @@ async def _phase2_collect_papers(
     return await _phase2_collect_papers_single_source(queries, config, ctx)
 
 
+async def _discover_then_fetch_content(
+    all_paper_metadata: dict[str, dict[str, Any]],
+    paper_source_map: dict[str, str],
+    config: SearchConfig,
+    mcp_client: MCPToolClient,
+    state: WorkflowState,
+) -> None:
+    """Phase 2.4 then 2.5: discover PDF links, then fetch their content.
+
+    These two are sequential on purpose: Phase 2.5 fetches from the pdf_url
+    values Phase 2.4 writes into all_paper_metadata, so it has nothing to
+    fetch until 2.4 has finished.
+    """
+    await _phase2_4_discover_pdf_links(
+        all_paper_metadata, paper_source_map, config, mcp_client
+    )
+    await _phase2_5_fetch_content(
+        all_paper_metadata, paper_source_map, config, mcp_client, state
+    )
+
+
 async def _fetch_content_and_enrichment(
     all_paper_metadata: dict[str, dict[str, Any]],
     paper_source_map: dict[str, str],
@@ -128,23 +149,25 @@ async def _fetch_content_and_enrichment(
     mcp_client: MCPToolClient,
     state: WorkflowState,
 ) -> tuple[str, list[dict[str, Any]]]:
-    """Phase 2.5 + 2.6: fetch content and context enrichment in parallel.
+    """Phases 2.4-2.6: paper retrieval and context enrichment in parallel.
 
-    These two phases are independent of each other (content fetching acts on
-    already-collected papers; enrichment queries external KG tools using
-    entities from the research goal), so running them concurrently shaves
-    wall-clock time off the node.
+    Enrichment is independent of paper collection *entirely*: it queries
+    external KG tools for entities extracted from the research goal and
+    reads nothing the retrieval phases write, so it starts alongside PDF
+    discovery rather than queueing behind it. Running them concurrently
+    shaves wall-clock time off the node, which sits on the run's serial
+    spine.
 
     Returns:
         (background_context, context_enrichment_sources) from Phase 2.6.
     """
-    content_task = _phase2_5_fetch_content(
+    retrieval_task = _discover_then_fetch_content(
         all_paper_metadata, paper_source_map, config, mcp_client, state
     )
     enrichment_task = _phase2_6_fetch_context_enrichment(
         state, config, mcp_client
     )
-    _, enrichment_result = await asyncio.gather(content_task, enrichment_task)
+    _, enrichment_result = await asyncio.gather(retrieval_task, enrichment_task)
     return cast(tuple[str, list[dict[str, Any]]], enrichment_result)
 
 
@@ -289,10 +312,6 @@ async def _enrich_collected_papers(
         (background_context, context_enrichment_sources) ready for
         synthesis, with any per-run private-corpus sources merged in.
     """
-    await _phase2_4_discover_pdf_links(
-        all_paper_metadata, paper_source_map, config, mcp_client
-    )
-
     (
         background_context,
         context_enrichment_sources,

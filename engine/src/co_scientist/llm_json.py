@@ -17,6 +17,7 @@ from typing import Any
 import jsonschema
 from jsonschema.exceptions import ValidationError
 
+from co_scientist.exceptions import ResponseParseError
 from co_scientist.llm_json_repair import (
     _MAJOR_JSON_REPAIR_STRATEGIES as _MAJOR_JSON_REPAIR_STRATEGIES,
 )
@@ -64,6 +65,59 @@ from co_scientist.llm_json_repair import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def parse_tool_loop_json(
+    final_response: str, list_key: str, phase_label: str
+) -> list[Any]:
+    """Parse a tool-calling loop's final response into its named list.
+
+    Shared by the tool-based generation phases (drafting and validation
+    synthesis), which each end a tool-calling loop by asking for one JSON
+    object holding a single list.
+
+    allow_major_repairs=True: tool-calling loop final responses are more
+    prone to truncated/malformed JSON than single-shot calls (llm.py).
+
+    Args:
+        final_response: The agent's final tool-call-loop response text.
+        list_key: Key holding the phase's result list in the JSON object.
+        phase_label: Names the phase in the logs and in the raised error, so
+            a log reader can tell which phase produced bad JSON.
+
+    Returns:
+        The parsed ``list_key`` list, or an empty list when the key is
+        absent from an otherwise-parseable response.
+
+    Raises:
+        ResponseParseError: If the response cannot be parsed even after
+            repair attempts. Hard failure rather than an empty list:
+            returning nothing silently would make the phase consuming this
+            output a silent no-op too.
+    """
+    response_text = extract_response_json(final_response)
+    response_data, was_repaired = attempt_json_repair(
+        response_text, allow_major_repairs=True
+    )
+
+    if response_data is None:
+        logger.error(
+            "Failed to parse %s JSON response after all repair attempts",
+            phase_label,
+        )
+        logger.error("Response: %s...", final_response[:500])
+        raise ResponseParseError(
+            f"{phase_label} returned invalid JSON that could not be repaired"
+        )
+
+    if was_repaired:
+        logger.warning(
+            "%s JSON response required major repairs (possible truncation)",
+            phase_label,
+        )
+
+    parsed: list[Any] = response_data.get(list_key, [])
+    return parsed
 
 
 def validate_json_schema(

@@ -60,18 +60,6 @@ from co_scientist.agents.generation.literature_review.retrieval_support import (
     ContentToolConfig as ContentToolConfig,
 )
 from co_scientist.agents.generation.literature_review.retrieval_support import (
-    _build_default_content_config as _build_default_content_config,
-)
-from co_scientist.agents.generation.literature_review.retrieval_support import (
-    _build_default_pdf_config as _build_default_pdf_config,
-)
-from co_scientist.agents.generation.literature_review.retrieval_support import (
-    _build_multi_source_content_config as _build_multi_source_content_config,
-)
-from co_scientist.agents.generation.literature_review.retrieval_support import (
-    _build_multi_source_pdf_config as _build_multi_source_pdf_config,
-)
-from co_scientist.agents.generation.literature_review.retrieval_support import (
     _content_or_text_field as _content_or_text_field,
 )
 from co_scientist.agents.generation.literature_review.retrieval_support import (

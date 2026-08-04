@@ -413,6 +413,34 @@ def truncate(text: str, limit: int = 200, suffix: str = "...") -> str:
     return text[:limit] + suffix if len(text) > limit else text
 
 
+PROMPT_PAPER_MAX_CHARS: Final = 200_000
+"""Per-paper character budget for prompts that embed a whole paper."""
+
+_PROMPT_TRUNCATION_MARKER: Final = "\n\n[... truncated for length ...]"
+"""Marker appended when a paper is cut to the per-prompt budget."""
+
+
+def truncate_for_prompt(
+    text: str, max_chars: int = PROMPT_PAPER_MAX_CHARS
+) -> str:
+    """Truncates a paper's text to the per-prompt character budget.
+
+    Bounds a prompt that embeds one whole paper -- the literature review's
+    per-paper analysis and the tool-based path's per-paper novelty analysis
+    -- regardless of how long the source fulltext is. Both cut at the same
+    point and leave the same marker, so both live here.
+
+    Args:
+        text: Paper text (fulltext or abstract) destined for a prompt.
+        max_chars: Maximum characters kept before the truncation marker.
+
+    Returns:
+        The text unchanged if within budget, else its first ``max_chars``
+        characters followed by the truncation marker.
+    """
+    return truncate(text, max_chars, _PROMPT_TRUNCATION_MARKER)
+
+
 def corpus_slug(research_goal: str) -> str:
     """Derives the on-disk corpus slug for a research goal.
 

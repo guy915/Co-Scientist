@@ -11,7 +11,7 @@ helper names are re-exported here for compatibility.
 
 import logging
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, NoReturn, Optional
+from typing import TYPE_CHECKING, Any, Optional
 
 from co_scientist.agents.generation.literature_tools.draft_prompt import (
     _build_draft_prompt as _build_draft_prompt,
@@ -45,14 +45,13 @@ from co_scientist.constants import (
     get_draft_max_iterations,
     scaled_max_tokens,
 )
-from co_scientist.exceptions import ResponseParseError
 from co_scientist.llm import (
     CompletionSpec,
     LLMCallOptions,
     ToolLoop,
     call_llm_with_tools,
 )
-from co_scientist.llm_json import attempt_json_repair, extract_response_json
+from co_scientist.llm_json import parse_tool_loop_json
 from co_scientist.state import WorkflowState
 from co_scientist.tools.provider import MCPToolProvider
 
@@ -81,27 +80,6 @@ class _DraftCall:
     max_iterations: int
 
 
-def _raise_draft_parse_error(final_response: str) -> NoReturn:
-    """Log and raise for a draft response that could not be repaired as JSON.
-
-    Hard failure instead of returning an empty draft list: silently
-    skipping to an empty Phase 1 would make Phase 2 a silent no-op too.
-
-    Args:
-        final_response: the draft agent's final tool-call-loop response.
-
-    Raises:
-        ResponseParseError: always.
-    """
-    logger.error(
-        "Failed to parse draft JSON response after all repair attempts"
-    )
-    logger.error("Response: %s...", final_response[:500])
-    raise ResponseParseError(
-        "Draft phase returned invalid JSON that could not be repaired"
-    )
-
-
 def _parse_draft_response(final_response: str) -> list[dict[str, str]]:
     """Parse the draft agent's final response into draft hypothesis dicts.
 
@@ -113,27 +91,12 @@ def _parse_draft_response(final_response: str) -> list[dict[str, str]]:
 
     Raises:
         ResponseParseError: if the response cannot be parsed as JSON even
-            after repair attempts.
+            after repair attempts. Failing hard here is deliberate: an empty
+            Phase 1 would make Phase 2 a silent no-op too.
     """
-    # Parse JSON response (strip markdown if present, then use repair logic)
-    response_text = extract_response_json(final_response)
-
-    # Use attempt_json_repair for robust parsing
-    # allow_major_repairs=True: tool-calling loop final responses are more
-    # prone to truncated/malformed JSON than single-shot calls (llm.py).
-    response_data, was_repaired = attempt_json_repair(
-        response_text, allow_major_repairs=True
+    drafts: list[dict[str, str]] = parse_tool_loop_json(
+        final_response, "drafts", "Draft phase"
     )
-
-    if response_data is None:
-        _raise_draft_parse_error(final_response)
-
-    if was_repaired:
-        logger.warning(
-            "Draft JSON response required major repairs (possible truncation)"
-        )
-
-    drafts: list[dict[str, str]] = response_data.get("drafts", [])
     logger.info("Parsed %s draft hypotheses", len(drafts))
     return drafts
 
