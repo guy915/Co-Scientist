@@ -102,9 +102,9 @@ async def test_tournament_wave_fills_to_the_configured_size(
 
     ``_ranking_wave`` picks from the candidate pairings it is handed, so the
     pool it is given is an upper bound on the wave. The durable path asked
-    for ``min(3, rounds)`` candidates -- inherited from the streaming path,
-    which generates a few and then picks exactly one -- so a wave could never
-    reach the configured size no matter how many rounds remained. Each
+    for ``min(3, rounds)`` candidates -- inherited from the retired
+    streaming path, which generated a few and picked one -- so a wave could
+    never reach the configured size no matter how many rounds remained. Each
     matchup is real model work, and every short wave is another sequential
     durable task: the ultra run spent about two hours across 178 of them.
     """

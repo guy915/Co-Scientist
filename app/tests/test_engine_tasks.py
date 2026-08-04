@@ -166,11 +166,11 @@ async def test_bootstrap_never_escalates_an_offline_backed_run(
     """An offline-backed run's intake gate makes no contextual model call.
 
     The durable bootstrap screens through ``screen_with_escalation``, whose
-    offline guard must hold here exactly as it does on the streaming path.
-    Without it the contextual model is called for keyless/offline runs, and a
-    nondeterministic "uncertain" verdict silently pauses a run that should
-    have completed. Patched at ``app.safety.screen_contextual`` -- the seam the
-    escalation wrapper itself calls -- so the guard is exercised, not bypassed.
+    offline guard must hold at that boundary. Without it the contextual model
+    is called for keyless/offline runs, and a nondeterministic "uncertain"
+    verdict silently pauses a run that should have completed. Patched at
+    ``app.safety.screen_contextual`` -- the seam the escalation wrapper itself
+    calls -- so the guard is exercised, not bypassed.
     """
     run = store.create_run(
         "Task-level science",

@@ -1,11 +1,11 @@
 """Tests for the engine adapter's canonical event vocabulary.
 
 The engine node -> canonical event mapping in ``engine_adapter.events`` is
-shared verbatim by the durable node executor (``engine_tasks_emit``): every
-streamed engine node is normalized into the canonical event type + payload
-shape the frontend reads, and the milestone side-messages are derived from
-that same payload. CI only exercises the offline path, so these tests are the
-sole guard on the node->type mapping, the normalized payload shape, and the
+what the durable node executor (``engine_tasks_emit``) emits through: every
+engine node is normalized into the canonical event type + payload shape the
+frontend reads, and the milestone side-messages are derived from that same
+payload. CI only exercises the offline path, so these tests are the sole
+guard on the node->type mapping, the normalized payload shape, and the
 milestone messages -- exercised directly against the mapping functions rather
 than through any run driver, so they stay fast and deterministic.
 
@@ -25,7 +25,7 @@ from app.engine_adapter.events import (
     append_node_milestone,
 )
 
-# Node names streamed by the real engine (generator.py ``add_node`` calls) and
+# Node names the real engine registers (generator.py ``add_node`` calls) and
 # the canonical event type each must be normalized to by the adapter.
 _ENGINE_NODES = [
     "supervisor",

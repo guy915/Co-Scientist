@@ -1,8 +1,8 @@
 """Engine-event translation into the canonical event vocabulary.
 
-Maps streamed engine node names to canonical event types, projects each
-node's state snapshot into the canonical event payload shape, and formats
-the user-facing milestone messages surfaced for key events.
+Maps engine node names to canonical event types, projects each node's
+state snapshot into the canonical event payload shape, and formats the
+user-facing milestone messages surfaced for key events.
 """
 
 from __future__ import annotations
@@ -24,7 +24,7 @@ def _canonical_event_type(node_name: str) -> str:
     than a legacy ``engine.`` prefix.
 
     Args:
-        node_name: The engine graph node name streamed by the generator.
+        node_name: The engine graph node name the generator completed.
 
     Returns:
         The canonical event type used across the adapter and frontend.
@@ -187,7 +187,7 @@ _PAYLOAD_BUILDERS: dict[str, Callable[[dict[str, Any]], dict[str, Any]]] = {
 def _canonical_engine_payload(
     node_name: str, node_type: str, state: dict[str, Any]
 ) -> dict[str, Any]:
-    """Build a canonical event payload for a streamed engine node.
+    """Build a canonical event payload for one completed engine node.
 
     Per-stage keys (``count``, ``hypotheses``, ``evidence``, ``matches``,
     ``children``, ``agents``, ``reviewed``, ``clusters``, ``critique``,
@@ -295,9 +295,8 @@ def append_node_milestone(
     """Persist the milestone side-message for one canonical node event.
 
     The single home for the milestone message's shape (a ``"system"`` role,
-    ``"milestone"`` kind chat message), shared by the streaming and durable
-    engine paths so the two can never carry different shapes. A no-op for
-    node types without a milestone builder.
+    ``"milestone"`` kind chat message), so no caller carries a second copy
+    of it. A no-op for node types without a milestone builder.
 
     Args:
         run_id: The run the milestone belongs to.

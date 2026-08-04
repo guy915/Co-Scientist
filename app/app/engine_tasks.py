@@ -249,11 +249,11 @@ async def _screen_bootstrap_intake(
     """Screen a run's research goal at the durable bootstrap boundary.
 
     Via screen_with_escalation, not screen_contextual directly: the
-    escalation wrapper carries the two guards this durable path must honor
-    as much as the streaming one does -- an offline-backed run never pays
-    for a real contextual model call, and a stage a human already approved
-    is not re-screened (which would otherwise let a fresh contextual verdict
-    re-hold an approved run on every resume).
+    escalation wrapper carries the two guards this boundary must honor --
+    an offline-backed run never pays for a real contextual model call, and
+    a stage a human already approved is not re-screened (which would
+    otherwise let a fresh contextual verdict re-hold an approved run on
+    every resume).
 
     Returns a withheld result if the goal was blocked or held, else
     ``None`` to let the caller proceed.
@@ -315,8 +315,7 @@ async def execute_bootstrap(
     store.update_run_status(run.id, RunStatus.RUNNING, db_path=db_path)
     # Sync the run row before the generator is built (_generator_and_opts
     # reads it back via run_used_offline), so a config-pinned llm_backend
-    # takes effect on the durable boundary exactly as it does on the
-    # streaming one.
+    # takes effect on this boundary.
     sync_engine_llm_backend(run.id, resolved_run_config(run.config), db_path)
     state, paused = await _prepare_bootstrap_state(task, run, db_path)
     if paused is not None:

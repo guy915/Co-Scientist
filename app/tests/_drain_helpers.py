@@ -215,9 +215,9 @@ def _persist_and_finalize(
 ) -> None:
     """Drain a synthetic final state, then build + persist its report.
 
-    Mirrors the engine branch of ``run_workflow``: the drain writes rows and
-    returns the report inputs, and ``finalize_report`` builds/screens/saves the
-    report. Uses a plain-dict emitter, so no event log is needed.
+    Mirrors the durable finalize task: the drain writes rows and returns the
+    report inputs, and ``finalize_report`` builds/screens/saves the report.
+    Uses a plain-dict emitter, so no event log is needed.
     """
     drained = engine_adapter._persist_final_state(
         run_id=run.id,

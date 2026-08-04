@@ -46,21 +46,21 @@ def _emit_node_milestone(
     state: dict[str, Any],
     db_path: str | None,
 ) -> None:
-    """Append the milestone chat message the streaming path emits for a node.
+    """Append the milestone chat message for one completed node.
 
     Reuses ``events.py``'s canonical vocabulary and its
     ``append_node_milestone`` helper (the single home for the milestone
-    message's shape) so the durable and streaming engine paths never carry
-    two copies of the milestone strings. A no-op for node types with no
-    milestone builder (e.g. ``review``, ``orchestrator``, ``safety_screen``,
+    message's shape) rather than carrying a second copy of the milestone
+    strings. A no-op for node types with no milestone builder (e.g.
+    ``review``, ``orchestrator``, ``safety_screen``,
     ``comprehensive_reflection``) -- checked before the state conversion
     below so those completions pay no extra cost.
 
     Callers place this immediately after the node's checkpoint commit (the
-    same call site as the durable path's ``scientific_task`` event, where one
-    exists), which is only reached once per real checkpoint advance -- a
-    redelivered/replayed task returns earlier, at the function's existing
-    idempotency guard, so a retried task never emits a duplicate milestone.
+    same call site as the ``scientific_task`` event, where one exists), which
+    is only reached once per real checkpoint advance -- a redelivered or
+    replayed task returns earlier, at the function's existing idempotency
+    guard, so a retried task never emits a duplicate milestone.
     A crash between the checkpoint commit and this call loses that node's
     milestone rather than duplicating it, the same failure mode the existing
     ``scientific_task`` emit already has.
@@ -89,10 +89,10 @@ async def _emit_node_completion(
 ) -> None:
     """Emit the milestone and ``scientific_task`` event for one node.
 
-    Pairs the two side-effects the streaming path's ``_emit_engine_node_event``
-    couples for every node: a milestone chat message (a no-op for node types
-    without one) and the ``scientific_task`` completion event the frontend's
-    live-activity feed (``ACTIVITY_META``) and mid-run refetch logic key on.
+    Pairs the two side-effects every node commit carries: a milestone chat
+    message (a no-op for node types without one) and the ``scientific_task``
+    completion event the frontend's live-activity feed (``ACTIVITY_META``)
+    and mid-run refetch logic key on.
 
     Before this, the five fan-out aggregate completions (``generate``,
     ``review``, ``comprehensive_reflection``, ``deep_verification``,

@@ -114,11 +114,11 @@ def sync_engine_llm_backend(
 ) -> None:
     """Persist the resolved offline/real backend for an engine run.
 
-    Written before the engine is dispatched -- by both run boundaries, the
-    streaming ``run_workflow`` and the durable bootstrap -- so every later
-    reader (``run_used_offline``, used by generator construction, report
-    finalization, and hypothesis badging) reflects the resolved config's
-    override rather than whatever was derived when the run row was created.
+    Written at the durable bootstrap, before the engine is dispatched, so
+    every later reader (``run_used_offline``, used by generator
+    construction, report finalization, and hypothesis badging) reflects the
+    resolved config's override rather than whatever was derived when the run
+    row was created.
     """
     backend = "offline" if resolve_offline_backend(cfg) else "real"
     store.set_run_llm_backend(run_id, backend, db_path=db_path)

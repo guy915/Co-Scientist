@@ -12,7 +12,7 @@ synthesis-exclusion cases. Citation classification and deep-verification
 reviews live in ``test_engine_drain_citations.py``; the pre-tournament safety
 screen and rank-and-publish gating live in ``test_engine_drain_safety.py``.
 Shared synthetic-state builders live in ``tests/_drain_helpers.py``. The
-adapter's streamed event vocabulary is covered separately in
+adapter's canonical event vocabulary is covered separately in
 ``test_engine_adapter_events``.
 """
 

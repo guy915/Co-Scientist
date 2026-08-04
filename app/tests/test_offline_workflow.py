@@ -54,7 +54,7 @@ def test_offline_workflow_emits_canonical_event_sequence(
     types = [e["type"] for e in events]
     # Each durable node commit surfaces a ``scientific_task`` event naming the
     # node it completed; the graph stages are read from those, not from
-    # per-node top-level event types (a streaming-path concept).
+    # per-node top-level event types, which this path does not emit.
     nodes = [
         e["payload"].get("task")
         for e in events

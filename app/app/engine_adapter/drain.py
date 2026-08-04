@@ -1,9 +1,9 @@
 """Final-state drain: persist a real engine run's results into the store.
 
-Writes a streamed engine run's accumulated final state — evidence,
-hypotheses (with reviews, deep-verification reviews, and citations), and
-tournament matches — into the SQLite store in one transaction, and returns
-the provider-specific report inputs the shared finalize path needs.
+Writes an engine run's accumulated final state — evidence, hypotheses
+(with reviews, deep-verification reviews, and citations), and tournament
+matches — into the SQLite store in one transaction, and returns the
+provider-specific report inputs the shared finalize path needs.
 """
 
 from __future__ import annotations

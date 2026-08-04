@@ -131,8 +131,8 @@ async def test_worker_consumes_independent_specialist_task_chain(
         "engine.finalize",
     ]
     assert all(task.status == "completed" for task in tasks)
-    # Milestones append once in commit order, matching the streaming path's
-    # `supervisor.plan` and `research_overview` emissions (see events.py).
+    # Milestones append once in commit order, from the canonical
+    # `supervisor.plan` and `research_overview` builders (see events.py).
     assert _milestones(run.id, db_path=isolated_db) == [
         "Research plan ready — supervisor complete",
         "Research overview ready",
@@ -307,7 +307,7 @@ async def test_generic_node_completion_emits_matching_milestone(
     """The remaining milestone-bearing nodes append their canonical chat text.
 
     Covers the four node types (reflection, evolve, proximity, meta_review)
-    the streaming path milestones (see events.py's ``_MILESTONE_BUILDERS``)
+    carrying a milestone builder (see events.py's ``_MILESTONE_BUILDERS``)
     that no other durable-executor test happens to exercise through
     ``execute_node_task``'s generic completion path. The rest are covered
     elsewhere: supervisor.plan and research_overview by

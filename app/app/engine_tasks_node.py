@@ -268,10 +268,7 @@ def _drain_and_persist_final_state(
 
 
 async def _emit_finalize_stage_events(emit: Any, drained: Any) -> None:
-    """Emit the same post-drain stage events the streaming path emits.
-
-    Keeps both engine execution modes carrying identical per-stage fidelity.
-    """
+    """Emit the post-drain safety, grounding, and citation-audit stages."""
     await emit("safety.hypothesis", drained.safety_counts)
     await emit("citation.grounding", drained.grounding_counts)
     await emit(
