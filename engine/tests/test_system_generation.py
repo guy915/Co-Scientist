@@ -32,6 +32,15 @@ from tests._llm_fake import install_fake_llm, make_test_generator
 # ranking reaches the orchestrator, which schedules one evolve cycle,
 # then a proximity refresh, then terminates (converged) into research_overview.
 # The orchestrator is the loop point that appears before each routed phase.
+#
+# Each tournament is followed by a second ranking pass: this pool holds two
+# rankable ideas, so one pairing leaves both at one match of the
+# TOURNAMENT_MIN_MATCHES_PER_HYPOTHESIS the tournament's coverage floor asks
+# for, and the orchestrator's owed-coverage check settles the shortfall before
+# moving on. The settlement round re-enters through safety_screen and
+# deep_verification like any other routed ranking phase. It fires once per
+# tournament, not repeatedly: settling brings the pool to the minimum, which
+# closes the settlement episode.
 _EXPECTED_NODE_SEQUENCE = [
     "supervisor",
     "generate",
@@ -41,10 +50,18 @@ _EXPECTED_NODE_SEQUENCE = [
     "deep_verification",
     "ranking",
     "orchestrator",
+    "safety_screen",
+    "deep_verification",
+    "ranking",
+    "orchestrator",
     "meta_review",
     "evolve",
     "review",
     "comprehensive_reflection",
+    "safety_screen",
+    "deep_verification",
+    "ranking",
+    "orchestrator",
     "safety_screen",
     "deep_verification",
     "ranking",

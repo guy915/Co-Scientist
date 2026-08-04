@@ -16,6 +16,7 @@ import time
 from typing import Any
 
 from co_scientist.agents.ranking.ranking_lifecycle import (
+    _coverage_floor,
     _tournament_round_count,
 )
 from co_scientist.constants import INITIAL_ELO_RATING
@@ -38,6 +39,7 @@ class _StatsScalars:
     total_matches: int
     avg_coverage: float
     unmatched_rankable_count: int
+    owed_coverage_rounds: int
     top_elo: int
     llm_calls: int
     gen_yield: float
@@ -118,6 +120,10 @@ def _compute_stats(
         total_matches=sum(h.total_matches for h in hyps),
         avg_coverage=avg_coverage,
         unmatched_rankable_count=unmatched,
+        # The tournament's own floor over this pool, so the settlement
+        # episode the scheduler opens and the rounds it may spend are one
+        # number rather than two that agree only at the extremes.
+        owed_coverage_rounds=_coverage_floor(hyps),
         top_elo=max((h.elo_rating for h in hyps), default=INITIAL_ELO_RATING),
         llm_calls=llm_calls,
         gen_yield=gen_yield,
@@ -182,8 +188,9 @@ def _build_scheduler_stats(
         total_matches=scalars.total_matches,
         match_coverage=scalars.avg_coverage,
         unmatched_rankable_count=scalars.unmatched_rankable_count,
+        owed_coverage_rounds=scalars.owed_coverage_rounds,
         settlement_allowance=book.get("settlement_allowance"),
-        unmatched_at_last_settlement=book.get("unmatched_at_last_settlement"),
+        owed_at_last_settlement=book.get("owed_at_last_settlement"),
         tournament_rounds_remaining=_tournament_round_count(
             state, state.get("hypotheses") or []
         ),

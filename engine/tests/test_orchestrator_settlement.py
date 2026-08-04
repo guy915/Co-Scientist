@@ -4,6 +4,12 @@ Covers the orchestrator-side half of owed-coverage settlement: deriving the
 unmatched count from the pool, and initialising, decrementing, and never
 refilling the allowance that bounds how long the scheduler may override a
 budget ceiling to finish owed tournament rounds.
+
+The episode's trigger, its close, and its size are all the tournament's
+coverage floor over the same pool, and several tests here exist only to keep
+them that one quantity: a trigger coarser than the size never lets the size
+apply, and a close coarser than the trigger re-arms the allowance that bounds
+the loop.
 """
 
 from co_scientist.agents.ranking.ranking_lifecycle import _coverage_floor
@@ -72,11 +78,17 @@ def test_rankable_coverage_ignores_unrankable_hypotheses() -> None:
 
 
 def _settlement_stats(**overrides: object) -> SchedulerStats:
-    """Stats for a pool mid-settlement, with overridable allowance state."""
+    """Stats for a pool mid-settlement, with overridable allowance state.
+
+    Matches ``_pool(4, 2)``: four ideas that never played, owing two matches
+    each among six rankable, which is four rounds at two owed slots settled
+    per pairing.
+    """
     base: dict[str, object] = {
         "pool_size": 6,
         "rankable_count": 6,
         "unmatched_rankable_count": 4,
+        "owed_coverage_rounds": 4,
     }
     base.update(overrides)
     return SchedulerStats(**base)  # type: ignore[arg-type]
@@ -115,7 +127,7 @@ def test_first_settlement_initialises_and_spends_one_round() -> None:
     )
 
     assert book["settlement_allowance"] == 3
-    assert book["unmatched_at_last_settlement"] == 4
+    assert book["owed_at_last_settlement"] == 4
 
 
 def test_allowance_is_bounded_by_distinct_pairs() -> None:
@@ -125,7 +137,10 @@ def test_allowance_is_bounded_by_distinct_pairs() -> None:
     # the max_pairs term the initial allowance would be 2 and this would read
     # 1 after the first firing.
     stats = _settlement_stats(
-        pool_size=2, rankable_count=2, unmatched_rankable_count=2
+        pool_size=2,
+        rankable_count=2,
+        unmatched_rankable_count=2,
+        owed_coverage_rounds=1,
     )
 
     book = _next_bookkeeping(_init_bookkeeping([]), stats, _RANK, _pool(2))
@@ -139,13 +154,13 @@ def test_allowance_decrements_and_never_refills() -> None:
     # owes far more than the allowance already carries.
     book = {
         "settlement_allowance": 3,
-        "unmatched_at_last_settlement": 2,
+        "owed_at_last_settlement": 2,
         "pool_at_last_decision": 6,
     }
 
     updated = _next_bookkeeping(
         book,
-        _settlement_stats(unmatched_rankable_count=99),
+        _settlement_stats(unmatched_rankable_count=40, owed_coverage_rounds=40),
         _RANK,
         _pool(40),
     )
@@ -154,7 +169,7 @@ def test_allowance_decrements_and_never_refills() -> None:
 
 
 def test_allowance_floors_at_zero() -> None:
-    book = {"settlement_allowance": 0, "unmatched_at_last_settlement": 1}
+    book = {"settlement_allowance": 0, "owed_at_last_settlement": 1}
 
     updated = _next_bookkeeping(book, _settlement_stats(), _RANK, _pool(4, 2))
 
@@ -168,7 +183,7 @@ def test_non_settlement_rank_leaves_the_allowance_alone() -> None:
 
     updated = _next_bookkeeping(
         book,
-        _settlement_stats(unmatched_rankable_count=0),
+        _settlement_stats(unmatched_rankable_count=0, owed_coverage_rounds=0),
         _RANK,
         _pool(0, 6),
     )
@@ -183,12 +198,66 @@ def _loop_stats(book: dict[str, object], **overrides: object) -> SchedulerStats:
         "reviewed_count": 6,
         "rankable_count": 6,
         "settlement_allowance": book.get("settlement_allowance"),
-        "unmatched_at_last_settlement": book.get(
-            "unmatched_at_last_settlement"
-        ),
+        "owed_at_last_settlement": book.get("owed_at_last_settlement"),
     }
     base.update(overrides)
     return SchedulerStats(**base)  # type: ignore[arg-type]
+
+
+def test_pool_at_one_match_each_opens_a_settlement_episode() -> None:
+    """The trigger has to see everything the size it opens is measured on.
+
+    Ten rankable ideas at one match apiece each owe the tournament a second
+    match -- five rounds by the same coverage floor that sizes the episode --
+    while not one of them reads as unmatched. A trigger on the zero-match
+    count opened no episode at all in this state, so the corrected size never
+    got to apply: the tournament ended under-covered while the scheduler
+    reported coverage settled and stopped on the budget instead.
+    """
+    budget = Budget(max_iterations=5, max_llm_calls=10)
+    pool = [_hyp(f"h{i}", wins=1) for i in range(10)]
+    stats = _loop_stats(
+        _init_bookkeeping([]),
+        pool_size=10,
+        reviewed_count=10,
+        rankable_count=10,
+        unmatched_rankable_count=0,
+        owed_coverage_rounds=_coverage_floor(pool),
+        llm_calls=999,
+    )
+
+    decision = decide_next_task(stats, budget)
+
+    assert decision.next_task is TaskType.RANK
+    # The episode opens sized from the floor and is charged for this round,
+    # which is what makes the widened trigger terminate.
+    book = _next_bookkeeping(_init_bookkeeping([]), stats, decision, pool)
+    assert book["settlement_allowance"] == 4
+    assert book["owed_at_last_settlement"] == 5
+
+
+def test_under_covered_pool_does_not_rearm_the_allowance() -> None:
+    """Episode close and trigger read one quantity, or nothing bounds them.
+
+    The pool below still owes rounds but has no unmatched idea. Closing the
+    episode on the zero-match count here would return the allowance to None
+    while the check kept firing, so every cycle would re-size a fresh episode
+    and the settlement loop would never end.
+    """
+    pool = [_hyp(f"h{i}", wins=1) for i in range(10)]
+    book = {"settlement_allowance": 2, "owed_at_last_settlement": 5}
+    stats = _settlement_stats(
+        rankable_count=10,
+        unmatched_rankable_count=0,
+        owed_coverage_rounds=_coverage_floor(pool),
+        settlement_allowance=2,
+        owed_at_last_settlement=5,
+    )
+
+    updated = _next_bookkeeping(book, stats, _RANK, pool)
+
+    assert updated["settlement_allowance"] == 2
+    assert updated["owed_at_last_settlement"] == 5
 
 
 def test_late_backlog_settles_after_an_early_episode_cleared() -> None:
@@ -201,12 +270,16 @@ def test_late_backlog_settles_after_an_early_episode_cleared() -> None:
     budget = Budget(max_iterations=5, max_llm_calls=10)
     book = _init_bookkeeping([])
 
-    early = _loop_stats(book, unmatched_rankable_count=1)
+    early = _loop_stats(
+        book, unmatched_rankable_count=1, owed_coverage_rounds=1
+    )
     early_decision = decide_next_task(early, budget)
     assert early_decision.next_task is TaskType.RANK
     book = _next_bookkeeping(book, early, early_decision, _pool(1, 5))
 
-    cleared = _loop_stats(book, unmatched_rankable_count=0)
+    cleared = _loop_stats(
+        book, unmatched_rankable_count=0, owed_coverage_rounds=0
+    )
     book = _next_bookkeeping(
         book, cleared, decide_next_task(cleared, budget), _pool(0, 6)
     )
@@ -217,6 +290,7 @@ def test_late_backlog_settles_after_an_early_episode_cleared() -> None:
         reviewed_count=48,
         rankable_count=48,
         unmatched_rankable_count=13,
+        owed_coverage_rounds=13,
         llm_calls=999,
     )
 
@@ -229,18 +303,18 @@ def test_cleared_backlog_rearms_the_allowance() -> None:
     # backlog is sized from what it actually owes.
     book = {
         "settlement_allowance": 0,
-        "unmatched_at_last_settlement": 2,
+        "owed_at_last_settlement": 2,
     }
 
     updated = _next_bookkeeping(
         book,
-        _settlement_stats(unmatched_rankable_count=0),
+        _settlement_stats(unmatched_rankable_count=0, owed_coverage_rounds=0),
         _RANK,
         _pool(0, 6),
     )
 
     assert updated["settlement_allowance"] is None
-    assert updated["unmatched_at_last_settlement"] is None
+    assert updated["owed_at_last_settlement"] is None
 
 
 def test_ordinary_ranking_does_not_charge_the_allowance() -> None:
@@ -250,15 +324,16 @@ def test_ordinary_ranking_does_not_charge_the_allowance() -> None:
     # intent from "RANK while anything is unmatched" charged it anyway.
     stats = _settlement_stats(
         unmatched_rankable_count=2,
+        owed_coverage_rounds=2,
         settlement_allowance=5,
-        unmatched_at_last_settlement=2,
+        owed_at_last_settlement=2,
     )
-    book = {"settlement_allowance": 5, "unmatched_at_last_settlement": 2}
+    book = {"settlement_allowance": 5, "owed_at_last_settlement": 2}
 
     updated = _next_bookkeeping(book, stats, _RANK, _pool(2, 4))
 
     assert updated["settlement_allowance"] == 5
-    assert updated["unmatched_at_last_settlement"] == 2
+    assert updated["owed_at_last_settlement"] == 2
 
 
 def test_stall_guard_does_not_compare_across_episodes() -> None:
@@ -266,16 +341,19 @@ def test_stall_guard_does_not_compare_across_episodes() -> None:
     # recorded 2 must still settle rather than read as "no progress".
     book = {
         "settlement_allowance": None,
-        "unmatched_at_last_settlement": 2,
+        "owed_at_last_settlement": 2,
     }
-    cleared = _settlement_stats(unmatched_rankable_count=0)
+    cleared = _settlement_stats(
+        unmatched_rankable_count=0, owed_coverage_rounds=0
+    )
 
     updated = _next_bookkeeping(book, cleared, _RANK, _pool(0, 6))
     stats = _settlement_stats(
         rankable_count=48,
         unmatched_rankable_count=13,
+        owed_coverage_rounds=13,
         settlement_allowance=updated["settlement_allowance"],
-        unmatched_at_last_settlement=updated["unmatched_at_last_settlement"],
+        owed_at_last_settlement=updated["owed_at_last_settlement"],
         llm_calls=999,
     )
 
@@ -309,23 +387,21 @@ def test_settlement_terminates_while_the_backlog_still_shrinks() -> None:
     rounds = 0
 
     for _ in range(50):
+        pool = _pool(backlog, 2 - backlog)
         stats = SchedulerStats(
             pool_size=2,
             reviewed_count=2,
             rankable_count=2,
             unmatched_rankable_count=backlog,
+            owed_coverage_rounds=_coverage_floor(pool),
             llm_calls=999,
             settlement_allowance=book.get("settlement_allowance"),
-            unmatched_at_last_settlement=book.get(
-                "unmatched_at_last_settlement"
-            ),
+            owed_at_last_settlement=book.get("owed_at_last_settlement"),
         )
         decision = decide_next_task(stats, budget)
         if decision.terminate:
             break
-        book = _next_bookkeeping(
-            book, stats, decision, _pool(backlog, 2 - backlog)
-        )
+        book = _next_bookkeeping(book, stats, decision, pool)
         backlog -= 1
         rounds += 1
 
@@ -344,22 +420,23 @@ def test_settlement_terminates_when_ranking_never_helps() -> None:
     book = _init_bookkeeping([])
     decision = None
 
+    pool = _pool(8)
+
     for _ in range(50):
         stats = SchedulerStats(
             pool_size=8,
             reviewed_count=8,
             rankable_count=8,
             unmatched_rankable_count=8,
+            owed_coverage_rounds=_coverage_floor(pool),
             llm_calls=999,
             settlement_allowance=book.get("settlement_allowance"),
-            unmatched_at_last_settlement=book.get(
-                "unmatched_at_last_settlement"
-            ),
+            owed_at_last_settlement=book.get("owed_at_last_settlement"),
         )
         decision = decide_next_task(stats, budget)
         if decision.terminate:
             break
-        book = _next_bookkeeping(book, stats, decision, _pool(8))
+        book = _next_bookkeeping(book, stats, decision, pool)
 
     assert decision is not None
     assert decision.terminate
@@ -379,6 +456,7 @@ def test_settlement_allowance_is_monotonically_decreasing() -> None:
             pool_size=len(pool),
             rankable_count=len(pool),
             unmatched_rankable_count=unmatched,
+            owed_coverage_rounds=_coverage_floor(pool),
             settlement_allowance=book.get("settlement_allowance"),
         )
         book = _next_bookkeeping(book, stats, _RANK, pool)

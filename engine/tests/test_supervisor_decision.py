@@ -362,6 +362,7 @@ def test_hard_stop_yields_to_owed_coverage_but_not_to_cancellation() -> None:
         pool_size=6,
         rankable_count=6,
         unmatched_rankable_count=2,
+        owed_coverage_rounds=2,
         llm_calls=99,
     )
 
@@ -371,6 +372,7 @@ def test_hard_stop_yields_to_owed_coverage_but_not_to_cancellation() -> None:
         pool_size=6,
         rankable_count=6,
         unmatched_rankable_count=2,
+        owed_coverage_rounds=2,
         llm_calls=99,
         cancelled=True,
     )
@@ -404,6 +406,7 @@ def test_hard_stop_deferral_reads_the_allowance_not_the_baseline() -> None:
         pool_size=6,
         rankable_count=6,
         unmatched_rankable_count=2,
+        owed_coverage_rounds=2,
         llm_calls=99,
     )
 
@@ -413,6 +416,7 @@ def test_hard_stop_deferral_reads_the_allowance_not_the_baseline() -> None:
         pool_size=6,
         rankable_count=6,
         unmatched_rankable_count=2,
+        owed_coverage_rounds=2,
         settlement_allowance=0,
         llm_calls=99,
     )
@@ -424,3 +428,32 @@ def test_hard_stop_deferral_reads_the_allowance_not_the_baseline() -> None:
 
     assert stop is not None
     assert stop.termination_reason is TerminationReason.BUDGET
+
+
+def test_hard_stop_defers_for_an_under_covered_pool() -> None:
+    """The deferral reads the same owed-rounds figure the scheduler does.
+
+    _hard_stop runs before required_transition, so a pool that owes rounds
+    without holding a single unmatched idea -- every idea at one match of the
+    two -- was stopped here on the budget before the settlement round the
+    scheduler was about to force could ever run.
+    """
+    from co_scientist.agents.supervisor.supervisor_decision import _hard_stop
+    from co_scientist.scheduling import (
+        Budget,
+        SchedulerStats,
+        SupervisorDecision,
+        TaskType,
+    )
+
+    budget = Budget(max_iterations=5, max_llm_calls=10)
+    settling = SupervisorDecision(next_task=TaskType.RANK, reason="settle")
+    under_covered = SchedulerStats(
+        pool_size=10,
+        rankable_count=10,
+        unmatched_rankable_count=0,
+        owed_coverage_rounds=5,
+        llm_calls=99,
+    )
+
+    assert _hard_stop(under_covered, budget, settling) is None

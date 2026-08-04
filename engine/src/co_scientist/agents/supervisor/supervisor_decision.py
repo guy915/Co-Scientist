@@ -96,9 +96,15 @@ def _owed_coverage_is_affordable(stats: SchedulerStats) -> bool:
     queue-adjudication path the model may be consulted and return a task
     other than RANK, which charges nothing, so a baseline-derived deferral
     was not bounded by anything. The allowance itself is.
+
+    Measured on ``owed_coverage_rounds``, the same quantity
+    ``policy._check_owed_coverage`` triggers on. This gate runs *before* the
+    scheduler's forced transitions, so a narrower test here stops the run
+    before the settlement round it just asked for -- the deferral has to see
+    everything the check does or the check never reaches a run.
     """
     allowance = stats.settlement_allowance
-    return stats.unmatched_rankable_count > 0 and (
+    return stats.owed_coverage_rounds > 0 and (
         allowance is None or allowance > 0
     )
 

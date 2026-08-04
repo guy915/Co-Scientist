@@ -118,11 +118,11 @@ def _check_stop_signals(stats: SchedulerStats) -> SupervisorDecision | None:
 def _check_owed_coverage(
     stats: SchedulerStats,
 ) -> SupervisorDecision | None:
-    """Step 3: settle hypotheses that have never entered the tournament.
+    """Step 3: settle hypotheses the tournament still owes matches to.
 
     Ranked above the budget ceilings and below the cancel/safety stops and
-    scientist steering. A hypothesis that leaves a run unmatched has no
-    tournament result at all, which is a worse outcome than a small,
+    scientist steering. A hypothesis that leaves a run under-covered has no
+    tournament result worth reading, which is a worse outcome than a small,
     bounded overshoot of a ceiling that exists to catch runaways rather
     than to meter work. Cancellation and safety blocks still win outright:
     the operator asked to stop, or the content is unsafe, and more work is
@@ -135,16 +135,29 @@ def _check_owed_coverage(
     35 hypotheses at two matches each averages 1.46 across 48 and clears a
     1.0 threshold while 13 have never been matched once.
 
+    Triggers on ``owed_coverage_rounds`` -- the tournament's own coverage
+    floor -- and not on the zero-match count, because that count is coarser
+    than the episode it opens. The episode is *sized* from the floor, so a
+    trigger that only saw ideas with no match at all could never let the
+    size apply: ten ideas each at one match of the two the tournament asks
+    for owe five rounds and report zero unmatched, and the run ended
+    under-covered while this check reported coverage satisfied. The floor is
+    the stricter test -- an idea with no matches always owes rounds -- so
+    this subsumes the old trigger rather than replacing it.
+
     Bounded by ``settlement_allowance``, which is scoped to a settlement
     *episode*: within one it strictly decreases and is never refilled, so an
     episode fires finitely many times, and a new episode can begin only once
-    the backlog reached zero -- that is, only once settlement succeeded. The
-    run therefore always reaches a terminal decision. That bound is
-    structural: it does not assume ranking makes progress, that pairings
-    remain, or that the pool holds still. The stall test below is a cost
-    optimisation on top of it, not the thing that makes the loop safe.
+    the owed rounds reached zero -- that is, only once settlement succeeded.
+    The run therefore always reaches a terminal decision. That argument needs
+    the episode to open and close on the *same* quantity: a close measured on
+    a coarser count than the trigger would re-arm the allowance while this
+    check still fired, refilling the very counter that bounds it. The bound
+    is otherwise structural: it does not assume ranking makes progress, that
+    pairings remain, or that the pool holds still. The stall test below is a
+    cost optimisation on top of it, not the thing that makes the loop safe.
     """
-    if stats.unmatched_rankable_count < 1:
+    if stats.owed_coverage_rounds < 1:
         return None
     # Nothing to pair against: demanding coverage could never be satisfied.
     if stats.rankable_count < 2:
@@ -152,14 +165,16 @@ def _check_owed_coverage(
     allowance = stats.settlement_allowance
     if allowance is not None and allowance < 1:
         return None
-    previous = stats.unmatched_at_last_settlement
-    if previous is not None and stats.unmatched_rankable_count >= previous:
+    previous = stats.owed_at_last_settlement
+    if previous is not None and stats.owed_coverage_rounds >= previous:
         return None
     return SupervisorDecision(
         next_task=TaskType.RANK,
         reason=(
-            f"{stats.unmatched_rankable_count} hypothesis(es) have no "
-            "tournament matches; settle coverage before terminating"
+            f"{stats.owed_coverage_rounds} tournament round(s) owed to bring "
+            "every rankable idea to minimum coverage "
+            f"({stats.unmatched_rankable_count} have never been matched); "
+            "settle coverage before terminating"
         ),
     )
 

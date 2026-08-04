@@ -107,19 +107,30 @@ class SchedulerStats:
     # Rankable hypotheses with zero tournament matches. Tracked alongside the
     # average below because an average cannot see them: 35 ideas at two
     # matches each averages 1.46 across 48 and clears a 1.0 threshold while
-    # 13 have never played once. The average gates ordering refinement; this
-    # gates whether anyone has been left out entirely.
+    # 13 have never played once. Reported to the planner and named in the
+    # settlement reason as the sharpest form of the backlog; the settlement
+    # gate itself reads ``owed_coverage_rounds``, which is the one that
+    # decides.
     unmatched_rankable_count: int = 0
+    # Ranking rounds the rankable pool still owes to bring every idea to the
+    # tournament's minimum match count -- ``ranking_lifecycle._coverage_floor``
+    # over the same pool. It both opens a settlement episode and sizes it, and
+    # it is deliberately one number for both: a trigger coarser than the size
+    # never lets the size apply. Ten ideas sitting at one match each owe five
+    # rounds, and a gate reading the zero-match count above saw none of them.
+    owed_coverage_rounds: int = 0
     # Remaining tournament rounds the scheduler may spend overriding a budget
     # ceiling to settle owed coverage. None means the override has not fired
     # yet and may; 0 means the allowance is spent and it never fires again.
     # Strictly decreasing and never refilled, which is what bounds the
     # override rather than any assumption that ranking makes progress.
     settlement_allowance: int | None = None
-    # Unmatched count observed at the previous settlement round, or None if
-    # there was none. Lets the scheduler stop early when a round changed
-    # nothing. A cost optimisation only -- termination rests on the allowance.
-    unmatched_at_last_settlement: int | None = None
+    # Owed rounds observed at the previous settlement round, or None if there
+    # was none. Lets the scheduler stop early when a round changed nothing. A
+    # cost optimisation only -- termination rests on the allowance. Measured
+    # in the same units as the trigger so a round that covered half the
+    # backlog reads as progress rather than as a stall.
+    owed_at_last_settlement: int | None = None
     # Tournament coverage: average tournament participations per RANKABLE
     # hypothesis (sum of their match counts / rankable_count). Average rather
     # than minimum so the gate is reachable by a bounded tournament.

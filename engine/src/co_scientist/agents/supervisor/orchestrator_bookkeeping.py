@@ -45,7 +45,7 @@ def _init_bookkeeping(hypotheses: list[Hypothesis]) -> dict[str, Any]:
         # the allowance is sized from the backlog observed at that moment.
         # Both fields return to None whenever the backlog clears.
         "settlement_allowance": None,
-        "unmatched_at_last_settlement": None,
+        "owed_at_last_settlement": None,
     }
 
 
@@ -84,6 +84,10 @@ def _initial_settlement_allowance(hypotheses: list[Hypothesis]) -> int:
     sitting at one match each owed the tournament five rounds and the
     orchestrator none -- and the orchestrator's is the number that decides how
     long settlement may run.
+
+    ``SchedulerStats.owed_coverage_rounds`` is this same floor computed from
+    the same pool one layer up, which is what lets the episode open, close,
+    and be sized on a single quantity.
     """
     return _coverage_floor(hypotheses)
 
@@ -94,27 +98,29 @@ def _settled_allowance(
     decision: SupervisorDecision,
     hypotheses: list[Hypothesis],
 ) -> tuple[int | None, int | None]:
-    """Return the (allowance, last-unmatched) pair for the next decision.
+    """Return the (allowance, last-owed) pair for the next decision.
 
     The allowance is scoped to a *settlement episode*, not to the run. An
     episode opens on the first round the owed-coverage check requests and
-    closes when the backlog reaches zero, at which point both fields return
+    closes when the owed rounds reach zero, at which point both fields return
     to None so a later backlog re-arms from what it actually owes.
 
     Within an episode the counter is initialised once, is charged on every
     settlement round whether or not the round helped, floors at zero, and is
     never increased -- so an episode fires finitely often. A new episode can
-    open only after the backlog reached zero, which is to say only after
+    open only after the owed rounds reached zero, which is to say only after
     settlement succeeded, so the run still reaches a terminal decision.
 
-    Note the two quantities in play. Whether an episode is open or closed
-    follows the scheduler's own owed-coverage check, which asks whether any
-    rankable idea has *no* match at all; how many rounds the open episode may
-    spend follows the tournament's coverage floor over the same pool, which
-    asks how many matches every rankable idea still owes. The first is a
-    trigger and the second a size, so they are deliberately different
-    questions -- but the size must be the tournament's, or the orchestrator
-    stops funding rounds the tournament is still asking for.
+    Trigger, close, and size are one quantity: the tournament's coverage
+    floor over the pool, read here as ``stats.owed_coverage_rounds`` and
+    recomputed as the initial allowance. They were briefly two -- the
+    scheduler asked whether any rankable idea had *no* match at all while the
+    size counted every match still owed -- and that split is what let a pool
+    sitting one match short of the minimum end a run under-covered. Closing
+    on a coarser quantity than the trigger is the more dangerous half of the
+    same mistake: the episode would re-arm while the check still fired,
+    refilling the allowance that bounds it, and the settlement loop would
+    have nothing left to stop it.
     """
     if _is_settlement_rank(stats, decision):
         allowance = book.get("settlement_allowance")
@@ -122,14 +128,14 @@ def _settled_allowance(
             allowance = _initial_settlement_allowance(hypotheses)
         return (
             max(0, int(allowance) - 1),
-            stats.unmatched_rankable_count,
+            stats.owed_coverage_rounds,
         )
-    if stats.unmatched_rankable_count == 0:
+    if stats.owed_coverage_rounds == 0:
         # Episode over: nothing is owed, so the counter re-arms.
         return None, None
     return (
         book.get("settlement_allowance"),
-        book.get("unmatched_at_last_settlement"),
+        book.get("owed_at_last_settlement"),
     )
 
 
@@ -166,9 +172,7 @@ def _next_bookkeeping(
         updated["pool_at_last_proximity"] = stats.pool_size
     if decision.next_task in (TaskType.GENERATE, TaskType.EVOLVE):
         updated["last_work_task"] = decision.next_task.value
-    allowance, last_unmatched = _settled_allowance(
-        book, stats, decision, hypotheses
-    )
+    allowance, last_owed = _settled_allowance(book, stats, decision, hypotheses)
     updated["settlement_allowance"] = allowance
-    updated["unmatched_at_last_settlement"] = last_unmatched
+    updated["owed_at_last_settlement"] = last_owed
     return updated
