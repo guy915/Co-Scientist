@@ -195,7 +195,7 @@ async def _commit_review_aggregate(
     successful: int,
     failed: int,
 ) -> dict[str, Any]:
-    """Checkpoint the committed reviews and hand off to reflection.
+    """Checkpoint the committed reviews and advance the run.
 
     Args:
         commit: The leased task, its expected checkpoint seq, and db path.
@@ -212,7 +212,7 @@ async def _commit_review_aggregate(
         state, _review_aggregate_update(state, successful, failed)
     )
     checkpoint_seq, successor_id = await _checkpoint_and_advance(
-        commit, committed, "review", "comprehensive_reflection"
+        commit, committed, "review"
     )
     return {
         "checkpoint_seq": checkpoint_seq,
@@ -328,7 +328,7 @@ async def _commit_generation_aggregate(
     state: dict[str, Any],
     items: _GenerationItems,
 ) -> dict[str, Any]:
-    """Finalize combined generation results and hand off to the next node.
+    """Finalize combined generation results and advance the run.
 
     Args:
         commit: The leased task, its expected checkpoint seq, and db path.
@@ -342,9 +342,8 @@ async def _commit_generation_aggregate(
 
     update = await _generation_aggregate_update(commit.task, state, items)
     committed = apply_task_update(state, update)
-    successor = "reflection" if state.get("mcp_available") else "review"
     checkpoint_seq, successor_id = await _checkpoint_and_advance(
-        commit, committed, "generate", successor
+        commit, committed, "generate"
     )
     return {
         "checkpoint_seq": checkpoint_seq,

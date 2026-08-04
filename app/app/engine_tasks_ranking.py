@@ -322,17 +322,28 @@ async def _commit_ranking_finalize(
     current_seq: int,
     db_path: str | None,
 ) -> dict[str, Any]:
-    """Checkpoint the finalized tournament and report matches committed."""
+    """Checkpoint the finalized tournament and report matches committed.
+
+    The successor comes from the engine's route table for the same reason
+    the fan-out aggregates' does (see ``_checkpoint_and_advance``): this is
+    the only path production runs, so a literal here would survive a graph
+    re-route that ``engine/tests/test_task_runtime.py`` reported as applied.
+    """
+    from co_scientist.task_runtime import next_task_type
+
+    # ``co_scientist`` is unfollowed by the app's mypy, so this arrives as
+    # ``Any``; restate the engine's declared type on the binding.
+    successor: str | None = next_task_type("ranking", committed)
     checkpoint_seq, successor_id = _save_state_and_enqueue(
         task,
         committed,
-        "orchestrator",
+        successor,
         expected_checkpoint_seq=current_seq,
         db_path=db_path,
     )
     await _emit_node_completion(
         task.run_id,
-        NodeCompletion("ranking", "orchestrator", checkpoint_seq),
+        NodeCompletion("ranking", successor, checkpoint_seq),
         committed,
         db_path,
     )

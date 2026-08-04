@@ -47,19 +47,32 @@ async def _checkpoint_and_advance(
     commit: TaskCommit,
     committed: dict[str, Any],
     node_name: str,
-    successor: str,
 ) -> tuple[int, str | None]:
     """Checkpoint an aggregate's committed state and emit its completion.
+
+    The successor is resolved from the engine's own route table, never
+    named as a literal here. ``next_task_type`` is what the in-process
+    graph routes on, and ``engine/tests/test_task_runtime.py`` pins that
+    table against the graph's topology -- but the durable path is the only
+    path production runs, so a successor spelled out here would keep the
+    old target after a graph re-route while that test still passed. Read
+    the route from the committed state, so the state-dependent branches
+    (MCP availability after ``generate``) resolve the same way too.
 
     Args:
         commit: The leased task, its expected checkpoint seq, and db path.
         committed: Workflow state the aggregate folded its items into.
         node_name: Engine node this aggregate completes.
-        successor: Node to schedule next.
 
     Returns:
         A tuple of (committed checkpoint sequence, successor task id).
     """
+    from co_scientist.task_runtime import next_task_type
+
+    # The app's mypy config skips following ``co_scientist`` imports, so the
+    # engine's declared return type arrives here as ``Any``. Restate it on
+    # the binding rather than passing an unchecked value on.
+    successor: str | None = next_task_type(node_name, committed)
     checkpoint_seq, successor_id = _save_state_and_enqueue(
         commit.task,
         committed,
@@ -163,7 +176,7 @@ async def _commit_mature_reflection_aggregate(
     state: dict[str, Any],
     items: _AppliedItems,
 ) -> dict[str, Any]:
-    """Checkpoint the committed reflection results and hand off to safety.
+    """Checkpoint the committed reflection results and advance the run.
 
     Args:
         commit: The leased task, its expected checkpoint seq, and db path.
@@ -178,7 +191,7 @@ async def _commit_mature_reflection_aggregate(
     update = _mature_reflection_update(state, items)
     committed = apply_task_update(state, update)
     checkpoint_seq, successor_id = await _checkpoint_and_advance(
-        commit, committed, "comprehensive_reflection", "safety_screen"
+        commit, committed, "comprehensive_reflection"
     )
     return {
         "checkpoint_seq": checkpoint_seq,
@@ -307,7 +320,7 @@ async def _commit_verification_aggregate(
     state: dict[str, Any],
     items: _AppliedItems,
 ) -> dict[str, Any]:
-    """Checkpoint the committed verifications and continue the tournament.
+    """Checkpoint the committed verifications and advance the run.
 
     Args:
         commit: The leased task, its expected checkpoint seq, and db path.
@@ -322,7 +335,7 @@ async def _commit_verification_aggregate(
     update = _verification_aggregate_update(state, items)
     committed = apply_task_update(state, update)
     checkpoint_seq, successor_id = await _checkpoint_and_advance(
-        commit, committed, "deep_verification", "ranking"
+        commit, committed, "deep_verification"
     )
     return {
         "checkpoint_seq": checkpoint_seq,
