@@ -9,7 +9,11 @@ from typing import Any
 
 import pytest
 
-from co_scientist.agents.proximity import proximity, proximity_node
+from co_scientist.agents.proximity import (
+    proximity,
+    proximity_dedup,
+    proximity_node,
+)
 from co_scientist.models import Hypothesis
 from tests._state import make_hypothesis, make_state
 
@@ -242,6 +246,78 @@ async def test_cluster_members_still_match_by_text_without_index(
 
     assert len(result["hypotheses"]) == 1
     assert result["hypotheses"][0].elo_rating == 1400
+
+
+def test_echoed_member_resolves_through_the_normalized_key() -> None:
+    """Case and whitespace drift in an echoed member still resolves.
+
+    The fallback compares a re-quote against the stored text, so it has to
+    normalize the way the persisted graph's own lookup does. Comparing raw
+    prefixes made a capitalized or space-padded re-quote a stranger to
+    clustering and a member to the graph, from one model response.
+    """
+    hypothesis = make_hypothesis(text="alpha pathway drives tumor growth")
+
+    proximity_dedup._assign_cluster_ids(
+        [hypothesis],
+        [
+            {
+                "cluster_id": "c1",
+                "similar_hypotheses": [
+                    {
+                        "text": "  Alpha Pathway Drives Tumor Growth ",
+                        "similarity_degree": "high",
+                    }
+                ],
+            }
+        ],
+    )
+
+    assert hypothesis.similarity_cluster_id == "c1"
+    assert hypothesis.similarity_degree == "high"
+
+
+async def test_drifted_echo_dedupes_and_leaves_no_stale_edge(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Dedup and the persisted graph agree on who a cluster member is.
+
+    They resolve the same echoed text with the same key, so a member either
+    counts for both or for neither. Resolving it only in the graph left a
+    persisted high-similarity edge between two hypotheses deduplication had
+    just judged distinct enough to both keep.
+    """
+    low, high = _alpha_beta_pair()
+    state = make_state(hypotheses=[low, high])
+    _stub_clusters(
+        monkeypatch,
+        {
+            "similarity_clusters": [
+                {
+                    "cluster_id": "c1",
+                    "similar_hypotheses": [
+                        {
+                            "text": "  Alpha Pathway Drives Tumor Growth",
+                            "similarity_degree": "high",
+                        },
+                        {
+                            "text": "beta pathway drives tumor growth",
+                            "similarity_degree": "high",
+                        },
+                    ],
+                }
+            ]
+        },
+    )
+
+    result = await proximity_node(state)
+
+    assert len(result["hypotheses"]) == 1
+    assert result["hypotheses"][0].elo_rating == 1400
+    assert len(result["removed_duplicates"]) == 1
+    # The dropped member is gone from the graph too, rather than persisting
+    # as an edge to a survivor that no longer has a neighbour.
+    assert result["proximity_graph"]["edges"] == []
 
 
 # --- Prompt payload clipping -------------------------------------------------

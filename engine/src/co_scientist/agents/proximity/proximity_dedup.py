@@ -10,6 +10,7 @@ these names for compatibility.
 import logging
 from typing import Any
 
+from co_scientist.agents.proximity.proximity_graph import member_match_key
 from co_scientist.models import Hypothesis, rank_by_elo
 
 logger = logging.getLogger(__name__)
@@ -25,7 +26,7 @@ def _match_cluster_member(
     Args:
         similar_hyp: One entry of a cluster's ``similar_hypotheses``.
         hypotheses: The pool, in the order the prompt numbered it.
-        by_prefix: First-occurrence map from 100-char text prefix.
+        by_prefix: First-occurrence map keyed by ``member_match_key``.
 
     Returns:
         The matching hypothesis, or None when the entry resolves to none.
@@ -35,7 +36,7 @@ def _match_cluster_member(
         return hypotheses[index]
     text = similar_hyp.get("text")
     if isinstance(text, str) and text:
-        return by_prefix.get(text[:100])
+        return by_prefix.get(member_match_key(text))
     return None
 
 
@@ -59,16 +60,22 @@ def _assign_cluster_ids(
     """Assigns similarity-cluster ids and degrees back onto hypotheses.
 
     A cluster member is resolved by the positional ``index`` the prompt
-    assigns each hypothesis, falling back to comparing the first 100 chars
-    of echoed text. Text matching came first and is kept as the fallback --
-    it is robust to the quoting drift a model introduces -- but it cannot be
-    the contract: echoing every member's full text made the response scale
-    with the pool, and a large pool's echo does not fit the token budget
-    (46 hypotheses averaging 1250 chars need roughly 14k output tokens
-    against 10k). The JSON then truncated, every retry truncated the same
-    way, and the node fell through to "no clusters" -- five spent attempts
-    and deduplication silently skipped. An index costs a couple of
-    characters and carries the identical clustering judgement.
+    assigns each hypothesis, falling back to comparing echoed text through
+    ``member_match_key``. Text matching came first and is kept as the
+    fallback -- it is robust to the quoting drift a model introduces -- but
+    it cannot be the contract: echoing every member's full text made the
+    response scale with the pool, and a large pool's echo does not fit the
+    token budget (46 hypotheses averaging 1250 chars need roughly 14k
+    output tokens against 10k). The JSON then truncated, every retry
+    truncated the same way, and the node fell through to "no clusters" --
+    five spent attempts and deduplication silently skipped. An index costs
+    a couple of characters and carries the identical clustering judgement.
+
+    The fallback goes through ``member_match_key`` because the persisted
+    proximity graph resolves the same echoed members with that key. Raw
+    prefixes here meant a re-quote that only changed case or padding was a
+    stranger to clustering and a member to the graph -- one model response
+    producing two different answers to "which hypothesis is this".
 
     Mutates the hypotheses in place.
 
@@ -76,11 +83,11 @@ def _assign_cluster_ids(
         hypotheses: All hypotheses being analyzed for proximity.
         similarity_clusters: Clusters as returned by the proximity LLM call.
     """
-    # First-occurrence prefix index: if several hypotheses share the same
-    # 100-char prefix, the earliest one wins (matching by list order).
+    # First-occurrence index: if several hypotheses share a match key, the
+    # earliest one wins (matching by list order).
     by_prefix: dict[str, Hypothesis] = {}
     for hyp in hypotheses:
-        by_prefix.setdefault(hyp.text[:100], hyp)
+        by_prefix.setdefault(member_match_key(hyp.text), hyp)
 
     for cluster in similarity_clusters:
         cluster_id = cluster.get("cluster_id", "unknown")

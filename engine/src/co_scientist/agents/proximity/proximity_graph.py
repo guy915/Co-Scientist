@@ -33,8 +33,10 @@ PROXIMITY_METHOD = "llm-cluster"
 PROXIMITY_METHOD_VERSION = "1"
 
 # The proximity LLM echoes each hypothesis's text back per cluster; matching is
-# done on the first 100 chars (nodes/proximity.py::_assign_cluster_ids uses
-# the same prefix), so a re-quote that drifts past char 100 still resolves.
+# done on the first 100 chars, so a re-quote that drifts past char 100 still
+# resolves. proximity_dedup.py::_assign_cluster_ids resolves the same echoed
+# members by calling member_match_key below, so clustering and this graph
+# cannot disagree about which hypothesis a member is.
 _MATCH_PREFIX_CHARS = 100
 
 
@@ -44,9 +46,10 @@ def member_match_key(text: str) -> str:
     Both the id map (built by the proximity node from surviving hypotheses)
     and each cluster member's echoed text are reduced to this key, so a member
     resolves to its hypothesis id whenever the node would have clustered it.
-    Matching is on the normalized first ``_MATCH_PREFIX_CHARS`` characters,
-    consistent with the node's own prefix matching and robust to the LLM
-    editing the tail of a re-quoted hypothesis.
+    Matching is on the normalized first ``_MATCH_PREFIX_CHARS`` characters:
+    the same window the node's own fallback uses -- which reaches this
+    function rather than reimplementing it -- and robust to the LLM editing
+    the tail, the case, or the padding of a re-quoted hypothesis.
 
     Args:
         text: Raw hypothesis text (from a Hypothesis or an echoed cluster
