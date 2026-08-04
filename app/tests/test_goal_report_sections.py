@@ -1,6 +1,6 @@
 """Tests for evidence-derived Goal Report sections."""
 
-from app import report_render
+from app import report_markdown, report_render
 
 
 def _hypothesis(identifier: str, title: str) -> dict[str, object]:
@@ -62,9 +62,10 @@ def test_goal_report_sections_preserve_claim_grounding() -> None:
 
     assert topics[0]["title"] == "Feedback control"
     assert topics[0]["reference_ids"] == ["ev1"]
-    assert insights["contradictions"] == [
+    assert len(insights["contradictions"]) == 1
+    assert insights["contradictions"][0].startswith(
         "The bypass is constitutively active."
-    ]
+    )
     assert insights["uncertainties"] == [
         "Cell-type specificity remains uncertain."
     ]
@@ -187,8 +188,100 @@ def test_contradictions_carry_claim_text_and_never_blank_entries() -> None:
 
     insights = report_render._agent_insights([hypothesis], edges, {})
 
-    assert insights["contradictions"] == [
+    assert len(insights["contradictions"]) == 1
+    assert insights["contradictions"][0].startswith(
         "The bypass is constitutively active."
+    )
+
+
+def test_contradictions_name_ideas_the_report_withholds() -> None:
+    """A contradiction says its idea is not in the report, and still shows.
+
+    Two facts, and they only make sense together. A contradicted claim is
+    exactly what makes the publication gate withhold its hypothesis, so the
+    released edge list is contradiction-free by construction -- scoping the
+    panel to it, for consistency with the rest of the report, would empty the
+    panel on every run rather than drop a stray entry. The panel therefore
+    keeps the run's whole edge list and each entry says, in itself, that the
+    idea behind the claim was withheld; otherwise it reads as a reference to
+    an idea the reader cannot find anywhere.
+    """
+    released = _hypothesis("h1", "Feedback control")
+    contradicted = _hypothesis("h2", "Unsupported bypass")
+    edges = [
+        _edge("h1", "Feedback is rate-limiting.", "supports", ("ev1",)),
+        _edge("h2", "The bypass is constitutively active.", "contradicts"),
+    ]
+
+    published = report_render._exclude_unsafe_hypotheses(
+        "run-1", [released, contradicted], None, edges
+    )
+    released_edges = report_render._released_claim_evidence(
+        published, edges, []
+    )
+    insights = report_render._agent_insights(published, edges, {})
+
+    assert [hyp["id"] for hyp in published] == ["h1"]
+    assert not [e for e in released_edges if e["label"] == "contradicts"]
+    entry = insights["contradictions"][0]
+    assert entry.startswith("The bypass is constitutively active.")
+    assert "withheld" in entry
+
+
+def test_insights_and_markdown_show_one_statement_per_idea() -> None:
+    """Both sections quote the same proposal text for the same idea.
+
+    The panel entry and the markdown body carry the same label -- "Proposed
+    hypothesis" -- so they have to carry the same string. They resolved it
+    through different fallbacks (``statement or title`` against ``statement
+    or text``), which diverged on exactly the idea whose statement is empty:
+    the panel fell back to the title, which the drain derives as the
+    statement's *first sentence*, so one report quoted a whole proposal in
+    one section and its opening sentence in another.
+    """
+    hypothesis = {
+        "id": "h1",
+        "title": "Feedback control is rate-limiting.",
+        "text": (
+            "Feedback control is rate-limiting. Blocking the loop raises "
+            "the steady-state flux."
+        ),
+    }
+
+    insights = report_render._agent_insights([hypothesis], [], {})
+    markdown = report_markdown.render_report_markdown(
+        report_markdown.ReportMarkdownInputs(
+            research_goal="Map the feedback loop.",
+            provider="engine",
+            top_hypotheses=[hypothesis],
+        )
+    )
+
+    finding = insights["key_findings"][0].removeprefix("Proposed hypothesis: ")
+    rendered_label = "**Proposed hypothesis:** "
+    rendered = [
+        line.removeprefix(rendered_label)
+        for line in markdown.splitlines()
+        if line.startswith(rendered_label)
+    ]
+    assert rendered == [finding]
+    assert finding == hypothesis["text"]
+
+
+def test_key_findings_omit_an_idea_with_no_proposal_text() -> None:
+    """An idea with nothing to propose is dropped, not labelled blank.
+
+    The markdown entry omits its "Proposed hypothesis" line when there is no
+    statement; the panel emitted the bare label instead, and the frontend's
+    blank-entry filter cannot catch it because the label itself is text.
+    """
+    with_text = {"id": "h1", "statement": "Blocking the loop raises flux."}
+    without_text = {"id": "h2", "title": "A title with no statement."}
+
+    insights = report_render._agent_insights([with_text, without_text], [], {})
+
+    assert insights["key_findings"] == [
+        "Proposed hypothesis: Blocking the loop raises flux."
     ]
 
 

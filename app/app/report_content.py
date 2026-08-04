@@ -36,7 +36,7 @@ from app.report_content_gates import (
 from app.report_content_gates import (
     _verified_hypothesis_count as _verified_hypothesis_count,
 )
-from app.text_utils import hypothesis_title
+from app.text_utils import hypothesis_statement, hypothesis_title
 
 logger = logging.getLogger(__name__)
 
@@ -156,8 +156,30 @@ def _synthesized_knowledge_base_topics(
     return topics
 
 
+# Every contradiction the panel can show belongs to an idea the report does
+# not carry, so each entry states that rather than leaving the reader hunting
+# for an idea that is not there. See :func:`_contradicted_claims`.
+_WITHHELD_CONTRADICTION_NOTE = (
+    "Contradicted by the evidence, so the idea proposing it was withheld "
+    "from the ranked report."
+)
+
+
 def _contradicted_claims(claim_edges: list[dict[str, Any]]) -> list[str]:
     """Readable claim text for every edge the evidence contradicts.
+
+    Deliberately reads the run's *whole* edge list, not the released subset
+    the rest of the report is scoped to. A contradicted claim is exactly what
+    makes ``_hypothesis_passes_safety_gate`` withhold its hypothesis, so the
+    released edges are contradiction-free by construction: scoping this to
+    them would not remove a stray entry, it would empty the panel on every
+    run forever while looking like a consistency fix.
+
+    Keeping the edges therefore means the claim named here belongs to an idea
+    the reader will not find in the report, which read as a dangling
+    reference. Each entry now carries ``_WITHHELD_CONTRADICTION_NOTE``, which
+    says so: the evidence against an idea is the run's finding and worth
+    reporting, and the idea's absence is a fact about it, not an omission.
 
     Textless edges are dropped rather than emitted blank: the Goal Report
     shows a section header whenever the list is non-empty, so a blank entry
@@ -169,7 +191,7 @@ def _contradicted_claims(claim_edges: list[dict[str, Any]]) -> list[str]:
             continue
         claim = str(edge.get("claim") or "").strip()
         if claim:
-            claims.append(claim)
+            claims.append(f"{claim} ({_WITHHELD_CONTRADICTION_NOTE})")
     return claims
 
 
@@ -194,19 +216,47 @@ def _recommended_direction(raw: Any) -> dict[str, Any]:
     }
 
 
+def _key_findings(hypotheses: list[dict[str, Any]]) -> list[str]:
+    """The leading ideas' proposals, labelled as the panel presents them.
+
+    Resolved through ``hypothesis_statement`` -- the same helper the markdown
+    body's "Proposed hypothesis" line uses -- so one report cannot quote the
+    same idea two ways. An idea with no proposal text is left out rather than
+    emitted as a bare label, matching the markdown entry, which omits the
+    line entirely; the frontend drops blank strings but would happily render
+    a bullet reading only "Proposed hypothesis:".
+
+    Args:
+        hypotheses: The released hypotheses, best-ranked first.
+
+    Returns:
+        One labelled finding per idea among the leading five that has a
+        proposal to show.
+    """
+    statements = (hypothesis_statement(h) for h in hypotheses[:5])
+    return [
+        f"Proposed hypothesis: {statement}"
+        for statement in statements
+        if statement
+    ]
+
+
 def _agent_insights(
     hypotheses: list[dict[str, Any]],
     claim_edges: list[dict[str, Any]],
     meta_review: dict[str, Any] | None,
 ) -> dict[str, Any]:
-    """Derive visible findings, uncertainty, contradictions, and experiments."""
+    """Derive visible findings, uncertainty, contradictions, and experiments.
+
+    ``hypotheses`` is the released set, so findings and experiments describe
+    only ideas the report carries. ``claim_edges`` is the run's whole edge
+    list on purpose -- see :func:`_contradicted_claims` for why scoping it to
+    the released edges would empty the contradictions panel rather than
+    tidy it.
+    """
     meta = meta_review or {}
     return {
-        "key_findings": [
-            "Proposed hypothesis: "
-            + str(hypothesis.get("statement") or hypothesis.get("title") or "")
-            for hypothesis in hypotheses[:5]
-        ],
+        "key_findings": _key_findings(hypotheses),
         "uncertainties": [
             str(item) for item in meta.get("common_weaknesses", [])
         ],

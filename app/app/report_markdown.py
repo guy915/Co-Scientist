@@ -59,7 +59,7 @@ from app.report_markdown_overview import (
 from app.report_markdown_overview import (
     render_research_overview_markdown as render_research_overview_markdown,
 )
-from app.text_utils import coalesce, hypothesis_title
+from app.text_utils import hypothesis_statement, hypothesis_title
 
 
 def _append_if(lines: list[str], label: str, value: str) -> None:
@@ -310,10 +310,15 @@ def _render_hypothesis_entry(
     hyp: dict[str, Any],
     edges: list[dict[str, Any]],
 ) -> list[str]:
-    """Render one numbered 'Top hypotheses' entry."""
+    """Render one numbered 'Top hypotheses' entry.
+
+    Title and statement both resolve through the shared ``text_utils``
+    helpers, so this entry and the payload's Agent-insights panel name the
+    same idea with the same words.
+    """
     title = hypothesis_title(hyp)
     lines = [f"### {i}. {title}  _Elo: {hyp.get('elo_rating', '')}_"]
-    statement = coalesce(hyp.get("statement"), hyp.get("text"))
+    statement = hypothesis_statement(hyp)
     if statement:
         lines += [f"**Proposed hypothesis:** {statement}", ""]
     for label, value in (
