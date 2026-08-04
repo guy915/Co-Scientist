@@ -116,7 +116,7 @@ from co_scientist.llm import (
     LLMCallOptions,
     call_llm_json,
 )
-from co_scientist.models import Hypothesis
+from co_scientist.models import Hypothesis, rank_by_elo
 from co_scientist.state import WorkflowState
 
 logger = logging.getLogger(__name__)
@@ -255,6 +255,7 @@ def _build_single_evolution_task(
     i: int,
     hyp: Hypothesis,
     context: _EvolutionContext,
+    ranked_hypotheses: list[Hypothesis],
 ) -> Coroutine[Any, Any, tuple[Hypothesis | None, dict[str, Any] | None]]:
     """Builds the evolve_single_hypothesis coroutine for one pool member."""
     operation = _EvolutionOperation(
@@ -280,6 +281,7 @@ def _build_single_evolution_task(
             all_hypotheses=state["hypotheses"],
             exclude_hypothesis=hyp,
             max_context=15,  # cap at 15 for fixed token budget
+            ranked_hypotheses=ranked_hypotheses,
         ),
         context=context,
         hypothesis_index=i,
@@ -332,8 +334,12 @@ def _build_evolution_tasks(
     context = _build_evolution_context(
         state, removed_duplicates, supervisor_guidance
     )
+    # Rank the pool once for the whole round rather than once per member:
+    # every member samples its context from the same pool minus itself, and
+    # dropping one member cannot reorder the rest.
+    ranked_hypotheses = rank_by_elo(state["hypotheses"])
     return [
-        _build_single_evolution_task(state, i, hyp, context)
+        _build_single_evolution_task(state, i, hyp, context, ranked_hypotheses)
         for i, hyp in enumerate(top_k)
     ]
 

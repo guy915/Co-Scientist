@@ -26,12 +26,12 @@ def _sample_up_to(pool: list[Hypothesis], count: int) -> list[Hypothesis]:
 
 
 def _sample_top_and_random(
-    others: list[Hypothesis], top_count: int, random_count: int
+    others_by_elo: list[Hypothesis], top_count: int, random_count: int
 ) -> list[Hypothesis]:
     """Combine the top-Elo performers with a random sample of the rest.
 
     Args:
-        others: Candidate hypotheses, not yet sorted.
+        others_by_elo: Candidate hypotheses, already ranked by Elo.
         top_count: Number of top-Elo performers to keep unconditionally.
         random_count: Number of additional hypotheses to sample randomly
             from the remainder.
@@ -39,9 +39,8 @@ def _sample_top_and_random(
     Returns:
         The top performers followed by the randomly sampled remainder.
     """
-    others_sorted = rank_by_elo(others)
-    top_performers = others_sorted[:top_count]
-    remaining = others_sorted[top_count:]
+    top_performers = others_by_elo[:top_count]
+    remaining = others_by_elo[top_count:]
     sampled_others = _sample_up_to(remaining, random_count)
 
     logger.debug(
@@ -49,7 +48,7 @@ def _sample_top_and_random(
         len(top_performers) + len(sampled_others),
         top_count,
         len(sampled_others),
-        len(others),
+        len(others_by_elo),
     )
 
     return top_performers + sampled_others
@@ -59,6 +58,7 @@ def sample_context_hypotheses(
     all_hypotheses: list[Hypothesis],
     exclude_hypothesis: Hypothesis,
     max_context: int = 15,
+    ranked_hypotheses: list[Hypothesis] | None = None,
 ) -> list[str]:
     """Strategically sample a subset of other hypotheses for evolution context.
 
@@ -70,6 +70,12 @@ def sample_context_hypotheses(
         all_hypotheses: all hypotheses being evolved
         exclude_hypothesis: the hypothesis being evolved (exclude from context)
         max_context: maximum context hypotheses to include (default 15)
+        ranked_hypotheses: all_hypotheses already ordered by rank_by_elo,
+            when the caller has it. Dropping one member cannot reorder the
+            rest, so a caller sampling context for every member of a pool
+            ranks it once here rather than once per member. Ranked locally
+            when omitted, and only consulted on the large-pool branch --
+            the small-pool branch deliberately keeps the caller's order.
 
     Returns:
         List of hypothesis texts to use as context
@@ -81,8 +87,15 @@ def sample_context_hypotheses(
         # Small pool, include all
         return _hypothesis_texts(others)
 
+    if ranked_hypotheses is None:
+        others_by_elo = rank_by_elo(others)
+    else:
+        others_by_elo = [
+            h for h in ranked_hypotheses if h.text != exclude_hypothesis.text
+        ]
+
     # Top 5 by Elo (avoid copying winners) + up to 10 random (diversity).
-    context_hypotheses = _sample_top_and_random(others, 5, 10)
+    context_hypotheses = _sample_top_and_random(others_by_elo, 5, 10)
 
     return _hypothesis_texts(context_hypotheses)
 

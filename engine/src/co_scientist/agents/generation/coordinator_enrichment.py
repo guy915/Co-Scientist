@@ -175,7 +175,18 @@ async def _enrich_hypotheses(
     # MCP requests and avoids adding a second constant for the same purpose.
     semaphore = asyncio.Semaphore(MAX_CONCURRENT_LLM_CALLS)
 
-    for enrichment in enrichment_configs:
-        await _run_one_enrichment(
-            enrichment, tool_registry, hypotheses, mcp_client, semaphore
+    # Enrichment configs are independent of each other, so they overlap
+    # rather than run in sequence: awaiting each config's whole per-hypothesis
+    # fan-out before starting the next made wall-clock the sum over configs
+    # while the shared semaphore -- the thing that actually bounds MCP
+    # concurrency -- sat mostly idle. Every shipped domain declares one
+    # enrichment today, so this only matters for the next one that adds a
+    # second.
+    await asyncio.gather(
+        *(
+            _run_one_enrichment(
+                enrichment, tool_registry, hypotheses, mcp_client, semaphore
+            )
+            for enrichment in enrichment_configs
         )
+    )

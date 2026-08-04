@@ -160,7 +160,6 @@ class _TournamentContext(NamedTuple):
     """One tournament's round-invariant inputs, threaded into every round."""
 
     hypotheses: list[Hypothesis]
-    tournament_rounds: int
     research_goal: str
     current_iteration: int
     supervisor_guidance: dict[str, Any] | None
@@ -173,13 +172,11 @@ class _TournamentContext(NamedTuple):
 def _build_tournament_context(
     state: WorkflowState,
     hypotheses: list[Hypothesis],
-    tournament_rounds: int,
     guidance: _TournamentGuidance,
 ) -> _TournamentContext:
     """Bundles this tournament's round-invariant inputs into one context."""
     return _TournamentContext(
         hypotheses,
-        tournament_rounds,
         state["research_goal"],
         state.get("current_iteration", 0),
         guidance.supervisor_guidance,
@@ -206,10 +203,15 @@ def _select_next_pairing(
     pair re-judged it for every remaining round: production tournaments ran
     six and twelve rounds on one matchup, ratcheting the winner's rating
     with each replay and reporting it as a rating earned across opponents.
+
+    Only one pairing is requested because only the first is used: the
+    ``judged`` exclusion set is what keeps rounds from repeating a
+    comparison, so scheduling spare candidates here would just be weighted
+    choices thrown away.
     """
     candidates = _build_tournament_pairings(
         ctx.hypotheses,
-        min(3, ctx.tournament_rounds),
+        1,
         ctx.research_goal,
         ctx.current_iteration * 10_000 + index,
         judged=judged,
@@ -330,9 +332,7 @@ async def _run_tournament_matchups(
         Tuple of (matchup details, total LLM calls); see
         ``_execute_tournament_rounds`` for the commit ordering.
     """
-    ctx = _build_tournament_context(
-        state, hypotheses, tournament_rounds, guidance
-    )
+    ctx = _build_tournament_context(state, hypotheses, guidance)
     return await _execute_tournament_rounds(state, tournament_rounds, ctx)
 
 
