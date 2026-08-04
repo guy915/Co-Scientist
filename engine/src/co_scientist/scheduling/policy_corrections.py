@@ -8,6 +8,8 @@ the pool cannot support.
 
 from __future__ import annotations
 
+import dataclasses
+
 from co_scientist.scheduling.models import (
     SchedulerStats,
     SupervisorDecision,
@@ -100,14 +102,36 @@ def validate_decision(
     precondition is downgraded to a safe alternative rather than executed;
     see each ``_correct_*`` helper for its specific precondition.
 
+    ``queue_actions`` survive a correction. A correction is a statement about
+    the *next task* — the model asked for something the graph cannot dispatch
+    or the pool cannot support — and says nothing about the model's reading of
+    the durable queue, whose actions name existing task rows by id. Dropping
+    them is not a deferral: a failed durable row is revived by nothing
+    automatic (``resume_run_tasks`` requeues only ``paused`` rows and the
+    expired-lease rescue skips a task whose attempts are spent), and the
+    conditions two of these corrections fire on -- fewer than two rankable
+    hypotheses, no reviewed hypothesis -- are pool properties that a corrected
+    task need not clear. So the Supervisor re-asks on the next loop point,
+    ``_needs_queue_adjudication`` re-fires, the same correction fires again,
+    and the same revival is discarded again, for as many rounds as the pool
+    stays in that state. Carrying them through cannot extend the run: an
+    action mutates a queue row's status or priority, never ``next_task``,
+    never the iteration counter, and never any allowance the termination
+    predicates read.
+
+    Terminating decisions return untouched above, so no stop -- cancellation,
+    safety, or a spent budget -- ever carries actions through here; those are
+    built fresh by ``policy_checks`` and ``supervisor_decision._hard_stop``
+    and never pass a ``_correct_*`` helper.
+
     Args:
         decision: The proposed decision (from :func:`decide_next_task` or an
             LLM Supervisor recommendation).
         stats: The statistics the decision must be consistent with.
 
     Returns:
-        The original decision, or a corrected safe one, with the reason
-        annotated when it was changed.
+        The original decision, or a corrected safe one carrying the proposed
+        queue actions, with the reason annotated when it was changed.
     """
     if decision.terminate:
         return decision
@@ -121,5 +145,7 @@ def validate_decision(
     ):
         corrected = correct(task, stats)
         if corrected is not None:
-            return corrected
+            return dataclasses.replace(
+                corrected, queue_actions=decision.queue_actions
+            )
     return decision

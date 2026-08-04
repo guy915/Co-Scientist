@@ -275,6 +275,44 @@ async def test_failed_durable_task_still_consults_the_model(
 
 
 @pytest.mark.asyncio
+async def test_corrected_allocation_still_delivers_the_queue_action(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Correcting the next task must not discard the failed row's revival.
+
+    An unrankable pool invites the model to keep asking for RANK, so the rank
+    correction fires on every round with these stats. The action is the failed
+    row's only route back, so dropping it stranded it for as long as the pool
+    stayed unrankable rather than for one loop point.
+    """
+    retry = {"action": "retry", "task_id": "task-9", "reason": "Transient."}
+
+    async def _allocation(**_kwargs: Any) -> dict[str, Any]:
+        return {
+            "next_task": "rank",
+            "reason": "Rank once the failed match is revived.",
+            "queue_actions": [retry],
+        }
+
+    monkeypatch.setattr(supervisor_decision, "call_llm_json", _allocation)
+    state = _state()
+    state["durable_task_queue"] = [
+        {"task_id": "task-9", "status": "failed", "error": "unavailable"}
+    ]
+    stats = SchedulerStats(
+        pool_size=6, reviewed_count=6, rankable_count=1, iteration=1
+    )
+
+    decision, _ = await supervisor_decision.choose_supervisor_task(
+        state, stats, Budget(max_iterations=4)
+    )
+
+    assert decision.next_task is TaskType.GENERATE
+    assert "corrected" in decision.reason
+    assert decision.queue_actions[0]["task_id"] == "task-9"
+
+
+@pytest.mark.asyncio
 async def test_allocation_runs_on_the_worker_model_with_thinking(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

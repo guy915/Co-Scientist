@@ -262,6 +262,52 @@ def test_validate_rejects_evolve_without_reviews() -> None:
     assert validated2.next_task is TaskType.GENERATE
 
 
+def test_correction_carries_queue_actions_through() -> None:
+    """Every correction keeps the queue actions it was handed.
+
+    A correction judges the *next task*; the actions name existing durable
+    task rows by id, and a failed row has no other route back --
+    ``resume_run_tasks`` requeues only paused rows and the expired-lease
+    rescue skips a task whose attempts are spent. Rebuilding the decision
+    dropped them, and the conditions the rank/evolve corrections fire on are
+    pool properties the corrected task need not clear, so the same revival
+    was discarded on every subsequent loop point rather than deferred by one.
+    """
+    retry = ({"action": "retry", "task_id": "t-9", "reason": "transient"},)
+
+    steered = validate_decision(
+        SupervisorDecision(TaskType.RANK, "llm said rank", queue_actions=retry),
+        healthy_stats(pending_steering=True),
+    )
+    assert steered.next_task is TaskType.GENERATE
+    assert steered.queue_actions == retry
+
+    ranked = validate_decision(
+        SupervisorDecision(TaskType.RANK, "llm said rank", queue_actions=retry),
+        healthy_stats(pool_size=1, rankable_count=1),
+    )
+    assert ranked.next_task is TaskType.GENERATE
+    assert ranked.queue_actions == retry
+
+    evolved = validate_decision(
+        SupervisorDecision(
+            TaskType.EVOLVE, "llm said evolve", queue_actions=retry
+        ),
+        healthy_stats(reviewed_count=0, unreviewed_count=3),
+    )
+    assert evolved.next_task is TaskType.REFLECT
+    assert evolved.queue_actions == retry
+
+    undispatchable = validate_decision(
+        SupervisorDecision(
+            TaskType.SYNTHESIZE, "llm said synthesize", queue_actions=retry
+        ),
+        healthy_stats(),
+    )
+    assert undispatchable.next_task is TaskType.GENERATE
+    assert undispatchable.queue_actions == retry
+
+
 def test_validate_passes_valid_decision_unchanged() -> None:
     """A valid decision is returned unchanged."""
     stats = healthy_stats()
