@@ -43,6 +43,11 @@ _lock = threading.Lock()
 # Monotonic time at which the next request may be issued.
 _next_slot = 0.0
 
+# Clock and sleep hooks, indirected only so tests can drive the pacer with a
+# fake clock instead of real elapsed time. Production never overrides these.
+_clock: Callable[[], float] = time.monotonic
+_sleep: Callable[[float], None] = time.sleep
+
 
 def _request_interval() -> float:
     """Seconds to leave between requests, given the credentials in force."""
@@ -56,12 +61,12 @@ def _await_slot() -> None:
     """Block until this caller's turn to issue a request comes round."""
     interval = _request_interval()
     with _lock:
-        now = time.monotonic()
+        now = _clock()
         start = max(now, _next_slot)
         _claim_slot(start + interval)
     delay = start - now
     if delay > 0:
-        time.sleep(delay)
+        _sleep(delay)
 
 
 def _claim_slot(next_slot: float) -> None:

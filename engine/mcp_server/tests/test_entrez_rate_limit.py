@@ -36,19 +36,42 @@ def paced(monkeypatch: pytest.MonkeyPatch) -> None:
     entrez_rate_limit.entrez_call(lambda **_kwargs: None)
 
 
-def test_sequential_requests_are_spaced() -> None:
-    """Back-to-back calls leave at least the interval between them."""
+def test_sequential_requests_are_spaced(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Back-to-back calls leave at least the interval between them.
+
+    Driven by a fake clock rather than real elapsed time. Real time ties
+    the assertion to OS scheduling: the gap it measures includes however
+    long it takes the interpreter to get rescheduled after a real
+    ``time.sleep`` returns, and machine load can stretch that enough to
+    push a perfectly-spaced pair under the floor -- a false failure in the
+    measurement, not in the pacer. A fake clock has no such lag, so this
+    pins the pacer's slot arithmetic on its own.
+    """
+    fake_now = [0.0]
+
+    def clock() -> float:
+        return fake_now[0]
+
+    def sleep(seconds: float) -> None:
+        fake_now[0] += seconds
+
+    monkeypatch.setattr(entrez_rate_limit, "_clock", clock)
+    monkeypatch.setattr(entrez_rate_limit, "_sleep", sleep)
+    monkeypatch.setattr(entrez_rate_limit, "_next_slot", 0.0)
+
     issued: list[float] = []
 
     def request(**_kwargs: Any) -> str:
-        issued.append(time.monotonic())
+        issued.append(clock())
         return "handle"
 
     for _ in range(3):
         assert entrez_rate_limit.entrez_call(request) == "handle"
 
     gaps = [b - a for a, b in itertools.pairwise(issued)]
-    assert all(gap >= _TEST_INTERVAL * 0.9 for gap in gaps), gaps
+    assert all(gap >= _TEST_INTERVAL for gap in gaps), gaps
 
 
 def test_concurrent_callers_do_not_burst() -> None:
