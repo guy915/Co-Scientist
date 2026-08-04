@@ -4,10 +4,43 @@ Centralizes magic numbers and configuration values for better maintainability.
 """
 
 import hashlib
-import logging
 from typing import Final
 
-logger = logging.getLogger(__name__)
+# Everything the Elo tournament is shaped by -- seed rating, K-factor, debate
+# depth, per-hypothesis match budgets, wave width -- moved to a sibling
+# module; each of those values carries its own incident history, and together
+# they were the largest single subject in this file. Every name is re-exported
+# so ``co_scientist.constants`` stays the one import path for all of them.
+# The redundant ``X as X`` is what marks a re-export under mypy's strict
+# no-implicit-reexport; the last name below is long enough that the alias form
+# cannot fit in 80 columns, and renaming it would break every caller.
+from co_scientist.constants_tournament import (
+    ELO_K_FACTOR as ELO_K_FACTOR,
+)
+from co_scientist.constants_tournament import (
+    ELO_UPSET_MARGIN as ELO_UPSET_MARGIN,
+)
+from co_scientist.constants_tournament import (
+    INITIAL_ELO_RATING as INITIAL_ELO_RATING,
+)
+from co_scientist.constants_tournament import (
+    MULTI_TURN_DEBATE_TURNS as MULTI_TURN_DEBATE_TURNS,
+)
+from co_scientist.constants_tournament import (
+    RANKING_WAVE_MIN_SIZE as RANKING_WAVE_MIN_SIZE,
+)
+from co_scientist.constants_tournament import (
+    RANKING_WAVE_SIZE as RANKING_WAVE_SIZE,
+)
+from co_scientist.constants_tournament import (
+    SINGLE_TURN_DEBATE_TURNS as SINGLE_TURN_DEBATE_TURNS,
+)
+from co_scientist.constants_tournament import (
+    TOURNAMENT_MATCHES_PER_HYPOTHESIS as TOURNAMENT_MATCHES_PER_HYPOTHESIS,
+)
+from co_scientist.constants_tournament import (
+    TOURNAMENT_MIN_MATCHES_PER_HYPOTHESIS as TOURNAMENT_MIN_MATCHES_PER_HYPOTHESIS,  # noqa: E501
+)
 
 # Literature review status markers
 # Sentinel string stored in place of a synthesis when the literature-review
@@ -16,83 +49,6 @@ logger = logging.getLogger(__name__)
 LITERATURE_REVIEW_FAILED: Final = "__LIT_REVIEW_FAILED__"
 """Marker indicating literature review failed and should not be used for
 generation.
-"""
-
-# Elo rating system parameters
-# Seed rating assigned to every newly generated hypothesis (nodes/generation/
-# citations.py) before it has played any tournament matches in ranking.py.
-INITIAL_ELO_RATING: Final = 1200
-"""Initial Elo rating for new hypotheses."""
-
-# Standard chess-style K-factor: how much a single match win/loss moves a
-# hypothesis's Elo rating. Consumed by ranking.calculate_elo_update.
-ELO_K_FACTOR: Final = 24
-"""K-factor for Elo rating updates (higher = more volatile ratings)."""
-
-# Debate depth for a tournament matchup (paper invariant SSR §4, §12): top-
-# ranked comparisons use a multi-turn scientific debate, lower-ranked ones a
-# single-turn comparison. A matchup is "top-ranked" when at least one
-# hypothesis is at or above the pool's median Elo. The depth is a documented
-# clone choice (Google specifies "multi-turn" but not the count).
-MULTI_TURN_DEBATE_TURNS: Final = 2
-"""Number of debate turns for a top-ranked matchup (clone-defined).
-
-Sets the tournament's wall clock outright. Turns are serial -- each re-reads
-the transcript so far -- while the matchups of a wave are judged
-concurrently, so a wave costs this many call latencies no matter how wide it
-is. Ranking is the run's highest-volume LLM stage, which makes this the
-single most expensive number in the pipeline.
-
-Lowered from three. Two is the smallest depth that still spends real
-test-time compute *and* keeps the position-bias guard intact: the turns
-present the pair in opposite A/B orders, so a two-turn agreement is a
-verdict both orderings reached independently, which is the property the
-depth exists to buy. What the third turn added was a tiebreak; a split now
-resolves through the identity-stable balanced fallback in
-``_balanced_invalid_fallback`` instead, which alternates across matchups and
-so does not bias the tournament in either hypothesis's favour.
-"""
-
-SINGLE_TURN_DEBATE_TURNS: Final = 1
-"""Number of turns for a lower-ranked (single-turn) matchup."""
-
-ELO_UPSET_MARGIN: Final = 100
-"""Pre-match Elo lead by which the loser must have exceeded the winner for a
-judged matchup to be classified an "upset" (see ``ranking.match_tier``)."""
-
-TOURNAMENT_MIN_MATCHES_PER_HYPOTHESIS: Final = 2
-"""Matches every rankable hypothesis is *guaranteed*, budget notwithstanding.
-
-A rating built from one match is a coin flip, not a measurement: from the
-flat 1200 seed a single result has exactly two possible outcomes, so every
-idea that played once reports one of the same two numbers. Two is the floor
-at which an idea has a win-loss record.
-
-This is the number the matchmaker's ``min_coverage`` and the ranking budget's
-coverage floor both mean, and they must not drift: they were 2 and 1
-respectively, so the budget guaranteed one match while the matchmaker was
-trying to buy two. Late-arriving ideas -- everything evolution and the second
-generation wave add -- therefore got exactly one match each, and a production
-run ended with six ideas tied at 1212 and seven at 1188, presented as a
-ranking.
-"""
-
-TOURNAMENT_MATCHES_PER_HYPOTHESIS: Final = 3
-"""Matches each rankable hypothesis is budgeted over the whole run.
-
-The tournament budget has to scale with the pool, because the pool is not
-fixed: evolution keeps adding ideas after the first ranking cycle. Against a
-flat per-tier ceiling the per-idea coverage therefore collapsed as a run
-progressed -- a production run ended with twelve of its eighteen rankable
-ideas having played exactly one match each, which at ``ELO_K_FACTOR`` from a
-flat 1200 seed leaves exactly two reachable ratings (1212 and 1188). The
-report then showed a dozen ideas tied at two values and presented that as a
-ranking.
-
-Three is the smallest count that gives every idea a win-loss *record* rather
-than a single coin flip, and it costs about one extra ranking wave per tier
-(matchups within a wave are judged concurrently -- see ``RANKING_WAVE_SIZE``),
-not one call per extra match.
 """
 
 # LLM API parameters
@@ -189,30 +145,6 @@ as the worst possible score silently disqualified the idea.
 MAX_CONCURRENT_LLM_CALLS: Final = 5
 """Maximum concurrent LLM API calls to avoid rate limits."""
 
-RANKING_WAVE_SIZE: Final = 12
-"""Matchups one durable ranking task judges concurrently.
-
-Ranking gets its own bound rather than sharing MAX_CONCURRENT_LLM_CALLS
-because its fan-out is the tournament's whole shape, not an incidental
-batch. A wave is judged inside a single durable task, so widening it adds
-no task leases and no SQLite writes -- it only decides how many matchups
-share one Elo snapshot.
-
-Sized so a standard tier's 12-match pass fits in one wave and an ultra
-tier's 32 fits in three. The cost is adaptation: every pairing in a wave
-is drawn from the same snapshot, so ratings re-adapt at wave boundaries
-rather than after each match. That trade is why this is not simply
-unbounded.
-"""
-
-RANKING_WAVE_MIN_SIZE: Final = 3
-"""Width ranking falls back to once the provider starts throttling.
-
-A wave wider than the provider will serve does not run faster; the extra
-calls spend their time asleep in backoff, and the burst is what provoked
-the throttling in the first place.
-"""
-
 # Workflow defaults
 DEFAULT_MAX_ITERATIONS: Final = 1
 """Default number of refinement iterations."""
@@ -281,10 +213,17 @@ PROGRESS_META_REVIEW_START: Final = 45
 PROGRESS_META_REVIEW_COMPLETE: Final = 50
 PROGRESS_EVOLVE_START: Final = 55
 PROGRESS_EVOLVE_COMPLETE: Final = 60
+PROGRESS_TOURNAMENT_START: Final = 65
+PROGRESS_TOURNAMENT_COMPLETE: Final = 80
 PROGRESS_DEEP_VERIFICATION_START: Final = 81
 PROGRESS_DEEP_VERIFICATION_COMPLETE: Final = 84
 PROGRESS_PROXIMITY_START: Final = 75
 PROGRESS_PROXIMITY_COMPLETE: Final = 85
+# The orchestrator decision event sits between the ranking/deep-verification
+# band and the terminal synthesis so the UI shows forward motion each loop.
+# Sharing the tournament's completion value is incidental -- both end that
+# band -- so these are two checkpoints, not one.
+PROGRESS_ORCHESTRATOR_DECISION: Final = 80
 PROGRESS_RESEARCH_OVERVIEW_START: Final = 95
 PROGRESS_RESEARCH_OVERVIEW_COMPLETE: Final = 99
 
