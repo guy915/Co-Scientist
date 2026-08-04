@@ -21,6 +21,7 @@ from app.claim_grounding import (
 )
 from app.claims import AssessorDraft, EntailmentLabel, as_passages
 from tests._drain_helpers import _build_report
+from tests._store_helpers import _add
 
 # A claim whose evidence flatly contradicts it (negation marker + shared terms).
 _CONTRADICTED = (
@@ -32,13 +33,6 @@ _CONTRADICTING_EVIDENCE = (
 )
 # A benign claim the same evidence pool neither contradicts.
 _SUPPORTED = "A dietary change improves cardiovascular outcomes in adults."
-
-
-def _add(run_id: str, title: str, statement: str, db: str) -> str:
-    return store.add_hypothesis(
-        store.NewHypothesis(run_id=run_id, title=title, statement=statement),
-        db_path=db,
-    )
 
 
 def _assert_contradicted_graph(

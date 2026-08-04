@@ -93,6 +93,37 @@ def test_idea_buckets_partition_every_idea() -> None:
     } == {hyp["id"] for hyp in released + excluded}
 
 
+def test_idea_bucket_titles_use_the_shared_title_helper() -> None:
+    """An idea carrying only ``text`` is named in both buckets.
+
+    Every other surface of the same report -- the markdown body, the event
+    stream, the leaderboard -- resolves a display name through
+    ``text_utils.hypothesis_title``, which falls back to ``text``. The two
+    bucket builders read ``title`` alone, so exactly one section of the
+    report called such an idea "Untitled idea".
+    """
+    released: dict[str, object] = {
+        "id": "h1",
+        "text": "Feedback control is rate-limiting.",
+    }
+    excluded: dict[str, object] = {
+        "id": "h2",
+        "text": "The bypass is constitutively active.",
+        "status": "rejected",
+    }
+
+    buckets = report_render._idea_buckets([released], [released, excluded], [])
+
+    assert (
+        buckets["high_potential"][0]["title"]
+        == "Feedback control is rate-limiting."
+    )
+    assert (
+        buckets["non_viable"][0]["title"]
+        == "The bypass is constitutively active."
+    )
+
+
 def test_idea_buckets_explain_a_review_rejected_idea_as_deduplicated() -> None:
     """A review/dedup-rejected idea gets an accurate reason, not "release gate".
 

@@ -14,26 +14,12 @@ import httpx
 import pytest
 
 from app.cli import runs_cmd, runs_stream_cmd
-from app.cli.http import (
-    ApiClient,
-    ApiClientOptions,
-    ApiUnreachableError,
-    CliError,
-)
+from app.cli.http import ApiClient, ApiUnreachableError, CliError
+from tests._cli_helpers import api_client
 
 # The package re-exports the ``main`` function under the same name as the
 # module, so fetch the module itself for monkeypatching.
 cli_main = importlib.import_module("app.cli.main")
-
-
-def _client(handler: object, **kwargs: object) -> ApiClient:
-    """Build an ApiClient whose requests are served by ``handler``."""
-    transport = httpx.MockTransport(handler)  # type: ignore[arg-type]
-    return ApiClient(
-        "http://api.test",
-        options=ApiClientOptions(transport=transport, retry_wait=0.0),
-        **kwargs,  # type: ignore[arg-type]
-    )
 
 
 # ---------------------------------------------------------------------------
@@ -51,7 +37,7 @@ def test_get_retries_transient_connect_error() -> None:
             raise httpx.ConnectError("refused")
         return httpx.Response(200, json={"ok": True})
 
-    assert _client(handler).request_json("GET", "/x") == {"ok": True}
+    assert api_client(handler).request_json("GET", "/x") == {"ok": True}
     assert attempts == 3
 
 
@@ -65,7 +51,7 @@ def test_get_retries_retryable_status() -> None:
             return httpx.Response(503, text="unavailable")
         return httpx.Response(200, json={"ok": True})
 
-    assert _client(handler).request_json("GET", "/x") == {"ok": True}
+    assert api_client(handler).request_json("GET", "/x") == {"ok": True}
     assert attempts == 2
 
 
@@ -78,7 +64,7 @@ def test_get_does_not_retry_client_errors() -> None:
         return httpx.Response(404, json={"detail": "missing"})
 
     with pytest.raises(CliError):
-        _client(handler).request_json("GET", "/x")
+        api_client(handler).request_json("GET", "/x")
     assert attempts == 1
 
 
@@ -91,7 +77,7 @@ def test_get_exhausts_retries_then_raises() -> None:
         raise httpx.ConnectError("refused")
 
     with pytest.raises(CliError) as excinfo:
-        _client(handler).request_json("GET", "/x")
+        api_client(handler).request_json("GET", "/x")
     assert "could not reach API" in excinfo.value.message
     assert attempts == 3
 
@@ -105,7 +91,7 @@ def test_post_is_not_retried() -> None:
         raise httpx.ConnectError("refused")
 
     with pytest.raises(CliError):
-        _client(handler).request_json("POST", "/x", json_body={})
+        api_client(handler).request_json("POST", "/x", json_body={})
     assert attempts == 1
 
 
@@ -208,7 +194,7 @@ def test_run_id_is_percent_quoted_in_paths(
         return httpx.Response(200, json={"id": "x", "status": "draft"})
 
     args = argparse.Namespace(run_id="a/b c", json=True)
-    rc = runs_cmd.handle_show(args, _client(handler))
+    rc = runs_cmd.handle_show(args, api_client(handler))
     assert rc == 0
     assert "/api/runs/a%2Fb%20c" in seen["url"]
 
@@ -219,7 +205,7 @@ def test_show_non_object_body_is_a_clean_error() -> None:
 
     args = argparse.Namespace(run_id="r1", json=False)
     with pytest.raises(CliError) as excinfo:
-        runs_cmd.handle_show(args, _client(handler))
+        runs_cmd.handle_show(args, api_client(handler))
     assert "unexpected non-object response" in excinfo.value.message
 
 
@@ -229,7 +215,7 @@ def test_lifecycle_non_object_body_is_a_clean_error() -> None:
 
     args = argparse.Namespace(run_id="r1", json=False)
     with pytest.raises(CliError) as excinfo:
-        runs_cmd.handle_cancel(args, _client(handler))
+        runs_cmd.handle_cancel(args, api_client(handler))
     assert "unexpected non-object response" in excinfo.value.message
 
 
@@ -255,11 +241,7 @@ def _watch_client(
     # time, so the patch must target ``runs_stream_cmd`` (the re-export in
     # ``runs_cmd`` is a separate binding).
     monkeypatch.setattr(runs_stream_cmd, "WATCH_RECONNECT_WAIT", 0.0)
-    transport = httpx.MockTransport(handler)  # type: ignore[arg-type]
-    return ApiClient(
-        "http://api.test",
-        options=ApiClientOptions(transport=transport, retry_wait=0.0),
-    )
+    return api_client(handler)
 
 
 def test_watch_reconnects_after_mid_stream_drop(

@@ -8,12 +8,10 @@ app-wide view the CLI needs.
 
 from __future__ import annotations
 
-import logging
-
 import pytest
 
 from app import store
-from tests._client import make_client
+from tests._client import append_log_row, make_client
 
 
 def _seed(
@@ -22,18 +20,9 @@ def _seed(
     *,
     run_id: str | None = None,
     client_id: str | None = None,
-    logger_name: str = "app.seeded",
 ) -> int:
-    return store.append_log(
-        store.NewLogRecord(
-            level="INFO",
-            levelno=logging.INFO,
-            logger_name=logger_name,
-            message=message,
-            run_id=run_id,
-            client_id=client_id,
-        ),
-        db_path=isolated_db,
+    return append_log_row(
+        isolated_db, message, run_id=run_id, client_id=client_id
     )
 
 

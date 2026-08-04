@@ -10,12 +10,6 @@ from app.version import API_VERSION
 from tests._client import make_client as _client
 
 
-@pytest.fixture(autouse=True)
-def _fresh_probe_cache() -> None:
-    """Isolate /status probe results between tests."""
-    diagnostics.clear_probe_cache()
-
-
 def test_health_ok() -> None:
     client = _client()
     res = client.get("/health")

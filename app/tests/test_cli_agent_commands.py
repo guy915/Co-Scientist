@@ -13,17 +13,9 @@ import pytest
 
 from app.cli import runs_cmd, status_cmd
 from app.cli.http import ApiClient, ApiClientOptions, CliError
+from tests._cli_helpers import api_client
 
 cli_main = importlib.import_module("app.cli.main")
-
-
-def _client(handler: object) -> ApiClient:
-    """Build an ApiClient whose requests are served by ``handler``."""
-    transport = httpx.MockTransport(handler)  # type: ignore[arg-type]
-    return ApiClient(
-        "http://api.test",
-        options=ApiClientOptions(transport=transport, retry_wait=0.0),
-    )
 
 
 def _read_args(run_id: str = "r1", as_json: bool = False) -> argparse.Namespace:
@@ -53,7 +45,7 @@ def test_matches_lists_rows(capsys: pytest.CaptureFixture[str]) -> None:
             },
         )
 
-    assert runs_cmd.handle_matches(_read_args(), _client(handler)) == 0
+    assert runs_cmd.handle_matches(_read_args(), api_client(handler)) == 0
     out = capsys.readouterr().out
     assert "h1" in out
     assert "h2" in out
@@ -77,7 +69,7 @@ def test_proximity_lists_edges(capsys: pytest.CaptureFixture[str]) -> None:
             },
         )
 
-    assert runs_cmd.handle_proximity(_read_args(), _client(handler)) == 0
+    assert runs_cmd.handle_proximity(_read_args(), api_client(handler)) == 0
     out = capsys.readouterr().out
     assert "h1" in out
     assert "0.83" in out
@@ -102,7 +94,9 @@ def test_claim_evidence_lists_edges(
             },
         )
 
-    assert runs_cmd.handle_claim_evidence(_read_args(), _client(handler)) == 0
+    assert (
+        runs_cmd.handle_claim_evidence(_read_args(), api_client(handler)) == 0
+    )
     out = capsys.readouterr().out
     assert "supports" in out
     assert "PINK1" in out
@@ -123,7 +117,7 @@ def test_metrics_renders_key_values(
             },
         )
 
-    assert runs_cmd.handle_metrics(_read_args(), _client(handler)) == 0
+    assert runs_cmd.handle_metrics(_read_args(), api_client(handler)) == 0
     out = capsys.readouterr().out
     assert "llm_calls" in out
     assert "12" in out
@@ -136,7 +130,7 @@ def test_metrics_absent_prints_notice(
     def handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(200, json={"metrics": None})
 
-    assert runs_cmd.handle_metrics(_read_args(), _client(handler)) == 0
+    assert runs_cmd.handle_metrics(_read_args(), api_client(handler)) == 0
     assert "no metrics recorded" in capsys.readouterr().out
 
 
@@ -158,7 +152,7 @@ def test_demo_lists_runs(capsys: pytest.CaptureFixture[str]) -> None:
         )
 
     args = argparse.Namespace(json=False)
-    assert runs_cmd.handle_demo(args, _client(handler)) == 0
+    assert runs_cmd.handle_demo(args, api_client(handler)) == 0
     assert "demo-1" in capsys.readouterr().out
 
 
@@ -175,7 +169,7 @@ def test_config_renders_defaults(capsys: pytest.CaptureFixture[str]) -> None:
         )
 
     args = argparse.Namespace(json=False)
-    assert status_cmd.handle_config(args, _client(handler)) == 0
+    assert status_cmd.handle_config(args, api_client(handler)) == 0
     out = capsys.readouterr().out
     assert "max_iterations" in out
     assert "3" in out
@@ -214,7 +208,7 @@ def test_wait_polls_until_completed(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     handler = _status_sequence("running", "running", "completed")
-    rc = runs_cmd.handle_wait(_wait_args(), _client(handler))
+    rc = runs_cmd.handle_wait(_wait_args(), api_client(handler))
     assert rc == 0
     out = capsys.readouterr().out
     # One line per status change, not per poll.
@@ -230,14 +224,14 @@ def test_wait_exit_codes_reflect_terminal_status() -> None:
         ("paused", 6),
     ):
         handler = _status_sequence(status)
-        rc = runs_cmd.handle_wait(_wait_args(), _client(handler))
+        rc = runs_cmd.handle_wait(_wait_args(), api_client(handler))
         assert rc == expected, status
 
 
 def test_wait_times_out_with_exit_124() -> None:
     handler = _status_sequence("running")
     with pytest.raises(CliError) as excinfo:
-        runs_cmd.handle_wait(_wait_args(max_wait=0.05), _client(handler))
+        runs_cmd.handle_wait(_wait_args(max_wait=0.05), api_client(handler))
     assert excinfo.value.exit_code == 124
 
 
@@ -245,7 +239,7 @@ def test_wait_json_emits_final_run_only(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     handler = _status_sequence("running", "completed")
-    rc = runs_cmd.handle_wait(_wait_args(as_json=True), _client(handler))
+    rc = runs_cmd.handle_wait(_wait_args(as_json=True), api_client(handler))
     assert rc == 0
     out = capsys.readouterr().out
     assert out.count('"status"') == 1
@@ -288,7 +282,7 @@ def test_create_start_flag_creates_then_starts(
             return httpx.Response(200, json={"id": "r9", "status": "draft"})
         return httpx.Response(200, json={"id": "r9", "status": "running"})
 
-    rc = runs_cmd.handle_create(_create_args(start=True), _client(handler))
+    rc = runs_cmd.handle_create(_create_args(start=True), api_client(handler))
     assert rc == 0
     assert paths == ["/api/runs", "/api/runs/r9/start"]
     assert "r9\trunning" in capsys.readouterr().out
@@ -304,7 +298,7 @@ def test_create_goal_from_stdin(
         return httpx.Response(200, json={"id": "r1", "status": "draft"})
 
     monkeypatch.setattr("sys.stdin", io.StringIO("a long goal\n"))
-    rc = runs_cmd.handle_create(_create_args(goal="-"), _client(handler))
+    rc = runs_cmd.handle_create(_create_args(goal="-"), api_client(handler))
     assert rc == 0
     assert goals == ["a long goal"]
 
@@ -322,7 +316,7 @@ def test_steer_message_from_stdin(
 
     monkeypatch.setattr("sys.stdin", io.StringIO("focus on PINK1\n"))
     args = argparse.Namespace(run_id="r1", message="-", json=False)
-    assert runs_cmd.handle_steer(args, _client(handler)) == 0
+    assert runs_cmd.handle_steer(args, api_client(handler)) == 0
     assert contents == ["focus on PINK1"]
 
 
@@ -337,7 +331,7 @@ def test_ask_question_from_stdin(
 
     monkeypatch.setattr("sys.stdin", io.StringIO("why?\n"))
     args = argparse.Namespace(run_id="r1", question="-", json=False)
-    assert runs_cmd.handle_ask(args, _client(handler)) == 0
+    assert runs_cmd.handle_ask(args, api_client(handler)) == 0
     assert questions == ["why?"]
 
 
@@ -350,7 +344,7 @@ def test_empty_stdin_argument_is_an_error(
     monkeypatch.setattr("sys.stdin", io.StringIO("  \n"))
     args = argparse.Namespace(run_id="r1", message="-", json=False)
     with pytest.raises(CliError) as excinfo:
-        runs_cmd.handle_steer(args, _client(handler))
+        runs_cmd.handle_steer(args, api_client(handler))
     assert "stdin is empty" in excinfo.value.message
 
 

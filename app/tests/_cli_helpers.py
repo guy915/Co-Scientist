@@ -1,6 +1,11 @@
-"""Shared server fixture and HTTP helpers for the cosci CLI e2e suites.
+"""Shared server fixture and HTTP helpers for the cosci CLI suites.
 
-Both CLI test modules (``test_cli_commands.py`` and
+Two kinds of helper live here. The ``cli_server`` fixture (and the HTTP
+helpers below it) back the e2e suites, which drive the CLI against a real
+uvicorn process. :func:`api_client` backs the unit suites, which drive one
+``ApiClient`` against an ``httpx.MockTransport`` with no server at all.
+
+Both CLI e2e modules (``test_cli_commands.py`` and
 ``test_cli_commands_runs.py``) drive ``app.cli.main.main`` (the same entry
 point the ``cosci`` console script calls) against a real uvicorn process
 running the real engine on the deterministic offline backend with no API
@@ -32,6 +37,7 @@ from typing import Any
 import httpx
 import pytest
 
+from app.cli.http import ApiClient, ApiClientOptions
 from app.cli.main import main
 from tests._client import wait_for
 
@@ -278,3 +284,33 @@ def _run_summary(base: str, run_id: str, client_id: str) -> dict[str, Any]:
     resp = _api(base, "GET", f"/api/runs/{run_id}", client_id=client_id)
     resp.raise_for_status()
     return dict(resp.json().get("summary") or {})
+
+
+# ---------------------------------------------------------------------------
+# Serverless client: drive one ApiClient against an httpx.MockTransport.
+# ---------------------------------------------------------------------------
+
+
+def api_client(handler: object, **kwargs: object) -> ApiClient:
+    """Build an ApiClient whose requests are served by ``handler``.
+
+    ``retry_wait`` is pinned to zero. The GET retry path still makes every
+    attempt it would in production; only the real 0.5s sleep between tries
+    is dropped, which no test asserts on and which cost the unit suites a
+    second per transport-failure test.
+
+    Args:
+        handler: An ``httpx.MockTransport`` handler: takes a request and
+            returns a response (or raises an ``httpx`` transport error).
+        **kwargs: Forwarded to :class:`ApiClient` -- ``client_id`` and
+            ``logs_token``.
+
+    Returns:
+        A client bound to the stub base URL ``http://api.test``.
+    """
+    transport = httpx.MockTransport(handler)  # type: ignore[arg-type]
+    return ApiClient(
+        "http://api.test",
+        options=ApiClientOptions(transport=transport, retry_wait=0.0),
+        **kwargs,  # type: ignore[arg-type]
+    )

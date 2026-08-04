@@ -13,21 +13,7 @@ from app.hypothesis_screening import (
     hypothesis_text,
     screen_hypotheses,
 )
-
-
-def _add(
-    run_id: str,
-    title: str,
-    statement: str,
-    db: str,
-    mechanism: str = "",
-) -> str:
-    return store.add_hypothesis(
-        store.NewHypothesis(
-            run_id=run_id, title=title, statement=statement, mechanism=mechanism
-        ),
-        db_path=db,
-    )
+from tests._store_helpers import _add
 
 
 def test_screen_persists_status_and_blocks_unsafe(isolated_db: str) -> None:

@@ -10,17 +10,9 @@ import httpx
 import pytest
 
 from app.cli import logs_cmd
-from app.cli.http import ApiClient, ApiClientOptions
+from tests._cli_helpers import api_client
 
 cli_main = importlib.import_module("app.cli.main")
-
-
-def _client(handler: object) -> ApiClient:
-    transport = httpx.MockTransport(handler)  # type: ignore[arg-type]
-    return ApiClient(
-        "http://api.test",
-        options=ApiClientOptions(transport=transport, retry_wait=0.0),
-    )
 
 
 def _args(**overrides: Any) -> argparse.Namespace:
@@ -71,7 +63,7 @@ def test_logs_lists_rows(capsys: pytest.CaptureFixture[str]) -> None:
             },
         )
 
-    assert logs_cmd.handle_logs(_args(), _client(handler)) == 0
+    assert logs_cmd.handle_logs(_args(), api_client(handler)) == 0
     out = capsys.readouterr().out
     assert "server started" in out
     assert "run scoped" in out
@@ -89,7 +81,7 @@ def test_logs_passes_filters(capsys: pytest.CaptureFixture[str]) -> None:
         return httpx.Response(200, json={"logs": [], "last_id": 0})
 
     args = _args(run="r1", level="warning", grep="boom", after_id=5)
-    assert logs_cmd.handle_logs(args, _client(handler)) == 0
+    assert logs_cmd.handle_logs(args, api_client(handler)) == 0
     url = urls[0]
     assert "run_id=r1" in url
     assert "min_level=warning" in url
@@ -108,7 +100,7 @@ def test_logs_all_requests_verbose_records(
         urls.append(str(request.url))
         return httpx.Response(200, json={"logs": [], "last_id": 0})
 
-    assert logs_cmd.handle_logs(_args(all=True), _client(handler)) == 0
+    assert logs_cmd.handle_logs(_args(all=True), api_client(handler)) == 0
     assert "verbose=1" in urls[0]
 
 
@@ -129,7 +121,7 @@ def test_logs_follow_polls_from_last_id(
             )
         raise KeyboardInterrupt()
 
-    rc = logs_cmd.handle_logs(_args(follow=True), _client(handler))
+    rc = logs_cmd.handle_logs(_args(follow=True), api_client(handler))
     assert rc == 130
     out = capsys.readouterr().out
     assert "first" in out
@@ -159,7 +151,7 @@ def test_logs_follow_recovers_from_a_server_clear(
             )
         raise KeyboardInterrupt()
 
-    rc = logs_cmd.handle_logs(_args(follow=True), _client(handler))
+    rc = logs_cmd.handle_logs(_args(follow=True), api_client(handler))
     assert rc == 130
     out = capsys.readouterr().out
     assert "old line" in out
@@ -174,7 +166,7 @@ def test_logs_json_emits_payload(capsys: pytest.CaptureFixture[str]) -> None:
             200, json={"logs": [_row(1, "hello")], "last_id": 1}
         )
 
-    assert logs_cmd.handle_logs(_args(json=True), _client(handler)) == 0
+    assert logs_cmd.handle_logs(_args(json=True), api_client(handler)) == 0
     assert '"hello"' in capsys.readouterr().out
 
 
@@ -187,7 +179,7 @@ def test_logs_clear_deletes_and_reports(
         seen.append((request.method, request.url.path))
         return httpx.Response(200, json={"deleted": 7})
 
-    rc = logs_cmd.handle_logs(_args(clear=True), _client(handler))
+    rc = logs_cmd.handle_logs(_args(clear=True), api_client(handler))
     assert rc == 0
     assert seen == [("DELETE", "/api/logs")]
     assert "deleted\t7" in capsys.readouterr().out

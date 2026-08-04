@@ -87,3 +87,17 @@ def isolated_db(
     from app.logging_setup import shutdown_log_capture
 
     shutdown_log_capture()
+
+
+@pytest.fixture(autouse=True)
+def _fresh_probe_cache() -> None:
+    """Start every test with an empty /status probe cache.
+
+    ``clear_probe_cache`` only drops a module-level memo of the last
+    MCP/PubMed/web-search probe triple -- it makes no call and installs no
+    state -- so clearing it suite-wide can only remove what an earlier test
+    left behind, never couple one test to another.
+    """
+    from app.diagnostics import clear_probe_cache
+
+    clear_probe_cache()

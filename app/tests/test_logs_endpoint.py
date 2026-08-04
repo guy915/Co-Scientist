@@ -4,8 +4,7 @@ from __future__ import annotations
 
 import logging
 
-from app import store
-from tests._client import make_operator_client
+from tests._client import append_log_row, make_operator_client
 
 
 def _seed(
@@ -16,15 +15,8 @@ def _seed(
     levelno: int = logging.INFO,
     run_id: str | None = None,
 ) -> int:
-    return store.append_log(
-        store.NewLogRecord(
-            level=level,
-            levelno=levelno,
-            logger_name="app.seeded",
-            message=message,
-            run_id=run_id,
-        ),
-        db_path=isolated_db,
+    return append_log_row(
+        isolated_db, message, level=level, levelno=levelno, run_id=run_id
     )
 
 
@@ -36,14 +28,12 @@ def _seed_from(
     level: str = "INFO",
     levelno: int = logging.INFO,
 ) -> int:
-    return store.append_log(
-        store.NewLogRecord(
-            level=level,
-            levelno=levelno,
-            logger_name=logger_name,
-            message=message,
-        ),
-        db_path=isolated_db,
+    return append_log_row(
+        isolated_db,
+        message,
+        logger_name=logger_name,
+        level=level,
+        levelno=levelno,
     )
 
 

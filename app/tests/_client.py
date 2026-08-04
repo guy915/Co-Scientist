@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import time
 import types
 from collections.abc import AsyncIterator, Callable
@@ -46,6 +47,34 @@ def make_operator_client() -> TestClient:
     from app.main import app
 
     return TestClient(app, client=("127.0.0.1", 50000))
+
+
+def append_log_row(db_path: str, message: str, **fields: Any) -> int:
+    """Persist one log record and return its row id.
+
+    The low-level ``NewLogRecord`` construction the log suites share. Each
+    suite keeps its own purpose-named wrapper on top, naming only the fields
+    that suite varies; everything else takes the INFO/``app.seeded`` default
+    below (or ``NewLogRecord``'s own, for fields not named here).
+
+    Args:
+        db_path: Path to the per-test SQLite database.
+        message: The record's message text.
+        **fields: Any ``store.NewLogRecord`` field, overriding the defaults.
+
+    Returns:
+        The new record's row id.
+    """
+    from app import store
+
+    record: dict[str, Any] = {
+        "level": "INFO",
+        "levelno": logging.INFO,
+        "logger_name": "app.seeded",
+        "message": message,
+    }
+    record.update(fields)
+    return store.append_log(store.NewLogRecord(**record), db_path=db_path)
 
 
 def wait_for(

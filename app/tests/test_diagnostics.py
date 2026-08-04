@@ -26,13 +26,6 @@ from app.diagnostics import (
     probe_literature_stack_cached,
 )
 
-
-@pytest.fixture(autouse=True)
-def _fresh_probe_cache() -> None:
-    """Every test starts (and later tests resume) with an empty probe cache."""
-    clear_probe_cache()
-
-
 # --- health checks -----------------------------------------------------------
 
 
