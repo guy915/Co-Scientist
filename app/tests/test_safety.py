@@ -62,6 +62,43 @@ def test_safety_decision_serializes_cleanly() -> None:
     assert out["category"] == "allowed"
 
 
+def test_azure_safety_model_resolves_its_credential(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An ``azure/`` safety model must not read as having no credential.
+
+    ``_semantic_credential_available`` used to carry its own provider table,
+    which never learned ``AZURE_API_KEY``. The gap does not raise: the
+    contextual screen just returns the deterministic baseline, so the
+    semantic layer reads as configured-but-never-winning rather than as
+    broken. It now answers from ``config.PROVIDER_CREDENTIAL_ENV``, which
+    the offline-mode probe already recognized Azure through.
+    """
+    monkeypatch.setenv("AZURE_API_KEY", "sk-test")
+    assert safety._semantic_credential_available("azure/gpt-4o") is True
+
+
+def test_google_api_key_credentials_a_gemini_safety_model(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The other drift direction: Gemini's second env var still counts.
+
+    Consolidating onto one map must not quietly drop a credential either
+    reader already honoured.
+    """
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    monkeypatch.setenv("GOOGLE_API_KEY", "sk-test")
+    assert safety._semantic_credential_available("gemini/gemini-3-pro") is True
+
+
+def test_unknown_provider_has_no_credential(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A model whose provider is unmapped falls back to the baseline."""
+    monkeypatch.setenv("AZURE_API_KEY", "sk-test")
+    assert safety._semantic_credential_available("mystery/model-x") is False
+
+
 async def test_contextual_screen_holds_ambiguous_risk(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

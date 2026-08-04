@@ -12,7 +12,6 @@ from __future__ import annotations
 import enum
 import json
 import logging
-import os
 from collections.abc import AsyncIterator, Awaitable, Callable
 from dataclasses import dataclass, field
 from typing import Any
@@ -22,6 +21,7 @@ from co_scientist.safety import POLICY_VERSION, review_content_safety
 from app import store
 from app.config import (
     deepseek_thinking_kwargs,
+    has_provider_credential,
     settings,
     thinking_safe_max_tokens,
     thinking_safe_timeout,
@@ -121,16 +121,15 @@ def screen_final(report_markdown: str) -> SafetyDecision:
 
 
 def _semantic_credential_available(model: str) -> bool:
-    """Return whether the configured provider has a usable credential."""
-    provider = model.split("/", 1)[0].lower()
-    env_names = {
-        "gemini": ("GEMINI_API_KEY", "GOOGLE_API_KEY"),
-        "deepseek": ("DEEPSEEK_API_KEY",),
-        "dashscope": ("DASHSCOPE_API_KEY",),
-        "openai": ("OPENAI_API_KEY",),
-        "anthropic": ("ANTHROPIC_API_KEY",),
-    }.get(provider, ())
-    return any(os.getenv(name) for name in env_names)
+    """Return whether the configured provider has a usable credential.
+
+    Delegates to ``config.PROVIDER_CREDENTIAL_ENV`` rather than carrying its
+    own provider table. This module's copy had drifted apart from the
+    offline-mode probe's, and a provider missing here does not raise -- the
+    contextual screen just returns the deterministic baseline, so the
+    semantic layer reads as configured-but-never-winning.
+    """
+    return has_provider_credential(model)
 
 
 def _semantic_prompt(text: str, stage: str) -> str:

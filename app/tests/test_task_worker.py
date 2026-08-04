@@ -8,6 +8,7 @@ from typing import Any
 import pytest
 
 from app import engine_tasks, store, task_worker
+from app.config import settings
 from tests._client import make_client
 
 
@@ -24,7 +25,7 @@ def test_engine_start_queues_durable_work(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """The API returns after persisting real-engine work for a worker."""
-    monkeypatch.setenv("COSCIENTIST_EMBEDDED_WORKER", "0")
+    monkeypatch.setattr(settings, "coscientist_embedded_worker", False)
     with make_client() as client:
         created = client.post(
             "/api/runs", json={"research_goal": "Durable engine goal"}

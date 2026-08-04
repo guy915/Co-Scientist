@@ -1,5 +1,7 @@
 """Application configuration using pydantic-settings."""
 
+import os
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -102,6 +104,17 @@ class Settings(BaseSettings):
     # headroom to serve requests. Tunable without a code change.
     worker_pool_size: int = 8
 
+    # Whether this process drains the durable task queue itself. True (the
+    # default) runs a run's worker cohort inside the API process, which is
+    # what local development and the single-service deployment rely on. A
+    # deployment that runs ``python -m app.task_worker`` as its own service
+    # sets COSCIENTIST_EMBEDDED_WORKER=0 on the API so the two never lease the
+    # same task. Read through Settings rather than os.getenv at each launch
+    # site: three sites restated the "1" default independently and compared it
+    # inconsistently, so a typo'd value meant something different depending on
+    # which of them read it.
+    coscientist_embedded_worker: bool = True
+
     # /status availability probes: per-probe network timeout and how long
     # a probe pair's result is reused before re-probing the MCP server.
     status_probe_timeout_seconds: float = 3.0
@@ -168,6 +181,82 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
+
+
+PROVIDER_CREDENTIAL_ENV: dict[str, tuple[str, ...]] = {
+    "anthropic": ("ANTHROPIC_API_KEY",),
+    "azure": ("AZURE_API_KEY",),
+    "dashscope": ("DASHSCOPE_API_KEY",),
+    "deepseek": ("DEEPSEEK_API_KEY",),
+    "gemini": ("GEMINI_API_KEY", "GOOGLE_API_KEY"),
+    "openai": ("OPENAI_API_KEY",),
+}
+"""Env vars that credential each LiteLLM provider prefix.
+
+Not a Settings field: LiteLLM and the engine read these from the process
+environment directly, so "can this provider be called" is an env question.
+It is one map because the answer has to be the same wherever it is asked.
+Two hand-maintained copies drifted in opposite directions and each gap
+failed silently rather than loudly:
+
+- The offline-mode probe knew ``AZURE_API_KEY`` but not ``GOOGLE_API_KEY``,
+  so a deployment credentialed only through ``GOOGLE_API_KEY`` looked
+  keyless and ran every run on the deterministic offline backend.
+- The semantic safety screen knew ``GOOGLE_API_KEY`` but not
+  ``AZURE_API_KEY``, so ``SEMANTIC_SAFETY_MODEL=azure/...`` resolved to no
+  credential at all and every contextual screen returned the deterministic
+  baseline instead.
+
+Adding a provider here is one edit, and both questions learn it at once.
+"""
+
+
+def provider_credential_names(model_name: str) -> tuple[str, ...]:
+    """Return the env vars that credential ``model_name``'s provider.
+
+    Args:
+        model_name: Model name in litellm format (``provider/model``). A
+            name with no prefix, or an unknown prefix, has no known
+            credential.
+
+    Returns:
+        The provider's credential env var names, empty when unknown.
+    """
+    provider = model_name.split("/", 1)[0].lower()
+    return PROVIDER_CREDENTIAL_ENV.get(provider, ())
+
+
+def has_provider_credential(model_name: str) -> bool:
+    """Return whether ``model_name``'s own provider has a usable credential.
+
+    Args:
+        model_name: Model name in litellm format (``provider/model``).
+
+    Returns:
+        True when at least one of that provider's credential env vars is set
+        to a non-empty value.
+    """
+    return any(
+        os.getenv(name) for name in provider_credential_names(model_name)
+    )
+
+
+def any_provider_credential() -> bool:
+    """Return whether any known provider credential is present.
+
+    Used to decide whether this process can attempt a real LLM call at all.
+    Which model is actually used is a separate question, settled by
+    ``settings.model_name`` and friends.
+
+    Returns:
+        True when at least one credential env var in
+        ``PROVIDER_CREDENTIAL_ENV`` is set to a non-empty value.
+    """
+    return any(
+        os.getenv(name)
+        for names in PROVIDER_CREDENTIAL_ENV.values()
+        for name in names
+    )
 
 
 def _is_deepseek(model_name: str) -> bool:

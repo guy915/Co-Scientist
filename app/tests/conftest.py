@@ -8,17 +8,16 @@ from collections.abc import Iterator
 
 import pytest
 
+from app.config import PROVIDER_CREDENTIAL_ENV
+
 # Provider credentials LiteLLM/the engine may read from the environment. The
 # suite must be hermetic: a dev machine's real keys must never leak in and let
 # an offline-intended run make a paid call, so every fixture deletes all of
-# them before a test runs.
-_PROVIDER_KEYS = (
-    "GEMINI_API_KEY",
-    "OPENAI_API_KEY",
-    "ANTHROPIC_API_KEY",
-    "AZURE_API_KEY",
-    "DEEPSEEK_API_KEY",
-    "DASHSCOPE_API_KEY",
+# them before a test runs. Derived from the app's own map rather than listed
+# again here, so a credential the app learns to honour is a credential the
+# scrub removes -- a hand-kept copy already lagged GOOGLE_API_KEY.
+_PROVIDER_KEYS = tuple(
+    name for names in PROVIDER_CREDENTIAL_ENV.values() for name in names
 )
 
 

@@ -15,26 +15,73 @@ import sys
 
 import pytest
 
+from app import safety
+from app.config import PROVIDER_CREDENTIAL_ENV
 from app.engine_adapter import provider
+
+_ALL_CREDENTIAL_ENV = tuple(
+    name for names in PROVIDER_CREDENTIAL_ENV.values() for name in names
+)
+
+
+def _clear_credentials(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Remove every provider credential this app knows how to recognize."""
+    for key in _ALL_CREDENTIAL_ENV:
+        monkeypatch.delenv(key, raising=False)
 
 
 def test_dashscope_key_counts_as_provider_credential(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """A DashScope key alone must not silently fall back to mock mode."""
-    for key in (
-        "GEMINI_API_KEY",
-        "OPENAI_API_KEY",
-        "ANTHROPIC_API_KEY",
-        "AZURE_API_KEY",
-        "DEEPSEEK_API_KEY",
-        "DASHSCOPE_API_KEY",
-    ):
-        monkeypatch.delenv(key, raising=False)
+    _clear_credentials(monkeypatch)
     assert provider._has_provider_key() is False
 
     monkeypatch.setenv("DASHSCOPE_API_KEY", "sk-test")
     assert provider._has_provider_key() is True
+
+
+@pytest.mark.parametrize("credential", _ALL_CREDENTIAL_ENV)
+def test_every_known_credential_keeps_the_run_on_a_real_provider(
+    monkeypatch: pytest.MonkeyPatch, credential: str
+) -> None:
+    """Any credential the app recognizes anywhere must defeat offline mode.
+
+    The offline-mode probe and the semantic safety screen each carried their
+    own provider table and drifted apart: ``GOOGLE_API_KEY`` was known only
+    to safety, so a deployment credentialed that way looked keyless here and
+    ran every run on the deterministic offline backend -- no error, just
+    silently fabricated science. Parametrized over the shared map so a
+    provider added to it can never be recognized by only one reader again.
+    """
+    monkeypatch.delenv("COSCIENTIST_FORCE_OFFLINE", raising=False)
+    monkeypatch.delenv("COSCIENTIST_FORCE_MOCK", raising=False)
+    _clear_credentials(monkeypatch)
+    assert provider.offline_mode() is True
+
+    monkeypatch.setenv(credential, "sk-test")
+    assert provider._has_provider_key() is True
+    assert provider.offline_mode() is False
+
+
+def test_credential_lookup_has_one_owner(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Both readers answer "is this provider usable" from the same map.
+
+    Pins the consolidation rather than the two answers: a provider added to
+    ``PROVIDER_CREDENTIAL_ENV`` has to reach the offline-mode probe and the
+    safety screen together, which is precisely what two hand-kept copies
+    stopped doing.
+    """
+    _clear_credentials(monkeypatch)
+    monkeypatch.setitem(
+        PROVIDER_CREDENTIAL_ENV, "fictional", ("FICTIONAL_KEY",)
+    )
+    monkeypatch.setenv("FICTIONAL_KEY", "sk-test")
+
+    assert provider._has_provider_key() is True
+    assert safety._semantic_credential_available("fictional/model-x") is True
 
 
 def test_engine_importable_returns_false_on_exception(

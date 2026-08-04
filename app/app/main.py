@@ -241,7 +241,7 @@ def _launch_embedded_recovery_workers(
     synchronous: on the event loop they starve request handling, which is
     how a boot with runs to recover stopped answering its healthcheck.
     """
-    if os.getenv("COSCIENTIST_EMBEDDED_WORKER", "1") != "1":
+    if not settings.coscientist_embedded_worker:
         return
     from app import task_worker
 

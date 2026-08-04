@@ -15,7 +15,7 @@ import sys
 from typing import Any
 
 from app import store
-from app.config import settings
+from app.config import any_provider_credential, settings
 
 # Editable-install .pth files aren't always processed in Python 3.12 venvs.
 # Inject the sibling engine src into sys.path at import time so that
@@ -33,18 +33,12 @@ logger = logging.getLogger(__name__)
 # environment is present. Any single key is sufficient to attempt the
 # real-engine path; which model actually gets used is a separate concern
 # controlled by settings.model_name / settings.supervisor_model_name.
+#
+# Which env vars count is config.PROVIDER_CREDENTIAL_ENV's to say, not this
+# module's: the same question is asked by the semantic safety screen, and the
+# two answered it from separately maintained lists until they disagreed.
 def _has_provider_key() -> bool:
-    return any(
-        bool(os.getenv(k))
-        for k in (
-            "GEMINI_API_KEY",
-            "OPENAI_API_KEY",
-            "ANTHROPIC_API_KEY",
-            "AZURE_API_KEY",
-            "DEEPSEEK_API_KEY",
-            "DASHSCOPE_API_KEY",
-        )
-    )
+    return any_provider_credential()
 
 
 # Checks importability via find_spec rather than a real import, so this can

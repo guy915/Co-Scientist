@@ -82,7 +82,7 @@ def _enqueue_workflow_and_maybe_launch_worker(
     """
     store.append_event(run_id, "lifecycle", {"event": "queued"})
     task = task_worker.enqueue_run_workflow(run_id, force_provider="engine")
-    if os.getenv("COSCIENTIST_EMBEDDED_WORKER", "1") == "1":
+    if settings.coscientist_embedded_worker:
         # Local compatibility mode consumes the same durable lease. A
         # production worker service runs ``python -m app.task_worker`` and
         # sets COSCIENTIST_EMBEDDED_WORKER=0 on the API service.
@@ -304,7 +304,7 @@ async def _launch_resume(run_id: str) -> None:
     _run_or_404(run_id)
     true_resume = _prepare_resume_state(run_id)
     _queue_resume_workflow(run_id, true_resume)
-    if os.getenv("COSCIENTIST_EMBEDDED_WORKER", "1") == "1":
+    if settings.coscientist_embedded_worker:
         _launch_embedded_resume_worker(run_id)
 
 

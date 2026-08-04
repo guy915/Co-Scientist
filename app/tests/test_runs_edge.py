@@ -71,7 +71,7 @@ def test_concurrency_ceiling_is_uniform_and_per_client(
     halves -- one client's runs never consume another's allowance, and a
     second ultra run is allowed.
     """
-    monkeypatch.setenv("COSCIENTIST_EMBEDDED_WORKER", "0")
+    monkeypatch.setattr(settings, "coscientist_embedded_worker", False)
     monkeypatch.setattr(settings, "max_concurrent_runs", 2)
     client = _client()
 
@@ -164,7 +164,7 @@ def test_engine_queue_can_pause_and_resume_without_process_handle(
     """Durable engine work pauses in SQLite and resumes without a checkpoint."""
     from app import store
 
-    monkeypatch.setenv("COSCIENTIST_EMBEDDED_WORKER", "0")
+    monkeypatch.setattr(settings, "coscientist_embedded_worker", False)
     c = _client()
     rid = _new_run(c, "Durable pause test")
     started = c.post(f"/api/runs/{rid}/start", json={})
