@@ -17,6 +17,11 @@ from co_scientist.agents.reflection.deep_verification import (
     _retrieve_probe_evidence,
     merge_retrieved_articles,
 )
+from co_scientist.agents.reflection.evidence_context import (
+    EvidenceCaps,
+    build_evidence_context,
+    showable_articles,
+)
 from co_scientist.agents.reflection.reflection import (
     _ReflectionContext,
     analyze_single_hypothesis,
@@ -57,6 +62,12 @@ logger = logging.getLogger(__name__)
 # Bounds the searches (and downstream paper fan-out) per reviewed hypothesis,
 # sharing the literature-review node's own Phase 1 cap.
 _MAX_HYPOTHESIS_QUERIES = LITERATURE_REVIEW_MAX_QUERIES
+
+# How many sources one review prompt carries. Public papers and private
+# scientist-supplied sources are capped separately so a full run corpus
+# cannot squeeze the private context out of the prompt entirely.
+_MAX_REVIEW_ARTICLES = 12
+_MAX_REVIEW_PRIVATE_SOURCES = 4
 
 
 def _prompt_variables(
@@ -105,23 +116,29 @@ def _recurrent_review_suffix(
 def _build_domain_context(
     state: WorkflowState, targeted_articles: list[Article] | None
 ) -> str:
-    """Formats retrieved public and private evidence for a review prompt."""
+    """Formats retrieved public and private evidence for a review prompt.
+
+    Bounds the block by source count rather than by total length: a review
+    weighs a handful of papers in depth, so it is the number of voices that
+    has to stay reviewable, not the character budget.
+    """
     evidence = [
-        article
-        for article in (state.get("articles") or [])
-        if article.used_in_analysis and not article.is_retracted
+        # The run corpus and this review's own targeted retrieval are
+        # filtered separately because only the former has been marked
+        # analyzed; both are then capped as one list, so a full corpus
+        # crowds out the targeted sources exactly as it did before.
+        *showable_articles(state.get("articles")),
+        *showable_articles(targeted_articles, require_analyzed=False),
     ]
-    evidence.extend(targeted_articles or [])
-    evidence_sections = [
-        f"[{index + 1}] {article.title}: "
-        f"{(article.abstract or article.content or '')[:1800]}"
-        for index, article in enumerate(evidence[:12])
-    ]
-    private_sections = [
-        str(source.get("display") or "")[:1800]
-        for source in (state.get("context_enrichment_sources") or [])[:4]
-    ]
-    return "\n\n".join([*evidence_sections, *private_sections])
+    return build_evidence_context(
+        evidence,
+        private_sources=state.get("context_enrichment_sources"),
+        caps=EvidenceCaps(
+            articles=_MAX_REVIEW_ARTICLES,
+            private_sources=_MAX_REVIEW_PRIVATE_SOURCES,
+        ),
+        require_analyzed=False,
+    )
 
 
 async def _hypothesis_search_queries(

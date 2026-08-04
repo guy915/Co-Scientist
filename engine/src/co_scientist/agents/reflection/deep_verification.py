@@ -5,6 +5,12 @@ import dataclasses
 import logging
 from typing import Any
 
+from co_scientist.agents.reflection.evidence_context import (
+    PUBLIC_SNIPPET_CHARS,
+    RETRIEVED_LABEL,
+    EvidenceCaps,
+    build_evidence_context,
+)
 from co_scientist.agents.reflection.verification_freshness import (
     DEEP_VERIFICATION_PROMPT_VERSION as DEEP_VERIFICATION_PROMPT_VERSION,
 )
@@ -42,6 +48,11 @@ logger = logging.getLogger(__name__)
 
 _MAX_PROBE_QUERIES = 3
 _MAX_PROBE_SOURCES = 6
+
+# Ceiling on the opening evidence block, before the probe block is appended
+# to it. Eight full-length sources' worth (PUBLIC_SNIPPET_CHARS), so it trims
+# a long corpus rather than competing with the per-source truncation.
+_MAX_VERIFICATION_CONTEXT_CHARS = 8 * PUBLIC_SNIPPET_CHARS
 
 
 @dataclasses.dataclass(frozen=True)
@@ -129,12 +140,15 @@ async def _retrieve_probe_evidence(
 
 
 def _retrieved_evidence_context(articles: list[Article]) -> str:
-    """Format newly retrieved sources with stable verification keys."""
-    sections = []
-    for index, article in enumerate(articles):
-        content = article.abstract or article.content or ""
-        sections.append(f"[V{index + 1}] {article.title}: {content[:2000]}")
-    return "\n\n".join(sections)
+    """Format newly retrieved sources with stable verification keys.
+
+    Keyed ``V`` because this block is appended to the opening evidence in
+    one prompt, so the two must not share key space. Uncapped in
+    aggregate: the probe cap already bounds the list.
+    """
+    return build_evidence_context(
+        articles, require_analyzed=False, article_label=RETRIEVED_LABEL
+    )
 
 
 async def _call_verification(
@@ -259,21 +273,18 @@ async def _verify_with_probes(
 
 
 def _verification_evidence_context(state: WorkflowState) -> str:
-    """Format bounded public and private evidence for verification prompts."""
-    sections = []
-    for index, article in enumerate(state.get("articles") or []):
-        if not article.used_in_analysis:
-            continue
-        sections.append(
-            f"[P{index + 1}] {article.title}: {(article.abstract or '')[:2000]}"
-        )
-    for index, source in enumerate(
-        state.get("context_enrichment_sources") or []
-    ):
-        sections.append(
-            f"[E{index + 1}] {str(source.get('display') or '')[:2500]}"
-        )
-    return "\n\n".join(sections)[:16000] or "No retrieved evidence available."
+    """Format bounded public and private evidence for verification prompts.
+
+    Bounded by total length rather than by source count: unlike a review,
+    verification probes whatever the run has gathered, so breadth is the
+    point and the only real limit is the prompt it has to fit in.
+    """
+    context = build_evidence_context(
+        state.get("articles"),
+        private_sources=state.get("context_enrichment_sources"),
+        caps=EvidenceCaps(total_chars=_MAX_VERIFICATION_CONTEXT_CHARS),
+    )
+    return context or "No retrieved evidence available."
 
 
 def _apply_verification_results(
