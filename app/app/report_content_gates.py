@@ -53,6 +53,31 @@ def _contradicted_hypothesis_ids(
     }
 
 
+def _supported_hypothesis_ids(edges: list[dict[str, Any]]) -> set[str]:
+    """Ids of hypotheses with at least one evidence-supported claim edge.
+
+    The one definition of "supported" the report uses. A ``partial``
+    (near-miss) verdict counts alongside ``supports``: it still means
+    relevant, consistent evidence was found. Shared by
+    :func:`_unverified_hypothesis_ids` and :func:`_verified_hypothesis_count`
+    because those two are exact complements of each other over the published
+    set -- the "Unverified" badge and the "Verified ideas" tile are one fact
+    shown twice, and two independently-editable copies of this rule could
+    drift into contradicting each other.
+
+    Args:
+        edges: Claim-evidence edges to scan.
+
+    Returns:
+        The set of hypothesis ids carrying a supporting edge.
+    """
+    return {
+        str(edge["hypothesis_id"])
+        for edge in edges
+        if edge.get("label") in ("supports", "partial")
+    }
+
+
 def _unverified_hypothesis_ids(
     run_id: str,
     db_path: str | None,
@@ -78,11 +103,7 @@ def _unverified_hypothesis_ids(
     edges = store.list_claim_evidence(run_id, db_path=db_path)
     if not edges:
         return set()
-    supported = {
-        str(edge["hypothesis_id"])
-        for edge in edges
-        if edge.get("label") in ("supports", "partial")
-    }
+    supported = _supported_hypothesis_ids(edges)
     rows = (
         hyps
         if hyps is not None
@@ -111,11 +132,7 @@ def _verified_hypothesis_count(
     """
     if not claim_edges:
         return 0
-    supported = {
-        str(edge["hypothesis_id"])
-        for edge in claim_edges
-        if edge.get("label") in ("supports", "partial")
-    }
+    supported = _supported_hypothesis_ids(claim_edges)
     return sum(1 for hyp in hyps if str(hyp.get("id")) in supported)
 
 

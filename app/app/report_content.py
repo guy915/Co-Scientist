@@ -36,6 +36,7 @@ from app.report_content_gates import (
 from app.report_content_gates import (
     _verified_hypothesis_count as _verified_hypothesis_count,
 )
+from app.text_utils import hypothesis_title
 
 logger = logging.getLogger(__name__)
 
@@ -254,11 +255,16 @@ def _high_potential_bucket(
     one -- and the UI shows both as counts side by side, so capping this
     half made the pair stop summing to the run's idea count as soon as a run
     released more than five ideas.
+
+    Titles come from ``hypothesis_title`` so a bucket names an idea exactly
+    as the markdown body, the event stream, and the leaderboard do; naming it
+    here instead left a hypothesis carrying only ``text`` reading "Untitled
+    idea" in the buckets and correctly everywhere else in the same report.
     """
     return [
         {
             "id": str(hypothesis.get("id")),
-            "title": str(hypothesis.get("title") or "Untitled idea"),
+            "title": hypothesis_title(hypothesis),
             "reason": (
                 "Released by safety and evidence gates and ranked by Elo."
             ),
@@ -302,7 +308,11 @@ def _non_viable_bucket(
     safe_ids: set[str],
     edge_reasons: dict[str, set[str]],
 ) -> list[dict[str, Any]]:
-    """Build the 'non_viable' idea bucket for every excluded hypothesis."""
+    """Build the 'non_viable' idea bucket for every excluded hypothesis.
+
+    Titles come from ``hypothesis_title`` for the same reason as in
+    :func:`_high_potential_bucket`: one naming rule across the whole report.
+    """
     non_viable = []
     for hypothesis in all_hypotheses:
         hypothesis_id = str(hypothesis.get("id"))
@@ -312,7 +322,7 @@ def _non_viable_bucket(
         non_viable.append(
             {
                 "id": hypothesis_id,
-                "title": str(hypothesis.get("title") or "Untitled idea"),
+                "title": hypothesis_title(hypothesis),
                 "reason": " ".join(reasons)
                 or "Withheld from the ranked report.",
             }

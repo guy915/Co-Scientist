@@ -90,3 +90,31 @@ def list_matches(
 ) -> list[dict[str, Any]]:
     """Return a run's tournament match rows ordered by creation time."""
     return _list_by_run("matches", run_id, db_path, conn)
+
+
+def count_matches(
+    run_id: str,
+    db_path: str | None = None,
+    conn: sqlite3.Connection | None = None,
+) -> int:
+    """Return how many tournament match rows a run has.
+
+    One COUNT(*), for the callers that want this number alone: materializing
+    the rows to length them reads the whole table, and ``summary_counts``
+    charges four more COUNT(*) queries for tables they never look at.
+
+    Args:
+        run_id: Identifier of the run to count matches for.
+        db_path: Optional override for the SQLite database path.
+        conn: Optional open connection to reuse (e.g. from ``transaction``).
+
+    Returns:
+        The run's match row count.
+    """
+    with _use_conn(conn, db_path) as conn:
+        return int(
+            conn.execute(
+                "SELECT COUNT(*) FROM matches WHERE run_id=?",
+                (run_id,),
+            ).fetchone()[0]
+        )

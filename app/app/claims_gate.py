@@ -146,13 +146,29 @@ class GateDecision(str, enum.Enum):
 
 @dataclasses.dataclass(frozen=True)
 class GateResult:
-    """The publication-gate outcome plus the claims that drove it."""
+    """The publication-gate outcome plus the claims that drove it.
+
+    Attributes:
+        decision: Whether the hypothesis may publish.
+        reason: The rule that decided it, in the gate's own words.
+        contradicted_claims: Claims the evidence contradicts.
+        unsupported_claims: Claims the evidence neither supports nor
+            contradicts.
+        speculative_claims: The ``unsupported_claims`` presented as
+            speculation, which do not block on their own.
+        failed_claims: The claims the block is actually about, chosen by
+            :func:`_failed_claims`; empty on an ALLOW. Recorded verbatim as
+            the ``claim_gate`` safety decision's matches, so the gate names
+            them rather than leaving a caller to re-derive which of the
+            other three tuples the reason referred to.
+    """
 
     decision: GateDecision
     reason: str
     contradicted_claims: tuple[str, ...]
     unsupported_claims: tuple[str, ...]
     speculative_claims: tuple[str, ...] = ()
+    failed_claims: tuple[str, ...] = ()
 
 
 @dataclasses.dataclass(frozen=True)
@@ -252,6 +268,23 @@ def _gate_block_reason(
     return None
 
 
+def _failed_claims(partition: _ClaimPartition) -> tuple[str, ...]:
+    """The claims a block is about, in the order the gate's rules fire.
+
+    Mirrors :func:`_gate_block_reason`'s priority: a contradiction names the
+    contradicted claims, otherwise the categorical claims left unsupported
+    once speculation is set aside, and failing both (every unsupported claim
+    was speculative, so the block was for having no supported claim at all)
+    the unsupported claims themselves. A hypothesis with no assessable claims
+    has nothing to name and yields an empty tuple.
+    """
+    return (
+        partition.contradicted
+        or partition.blocking_unsupported
+        or partition.unsupported
+    )
+
+
 def _decide_gate(
     assessments: list[ClaimAssessment],
     partition: _ClaimPartition,
@@ -271,7 +304,12 @@ def _decide_gate(
         require_supported_claim=require_supported_claim,
     )
     if reason is not None:
-        return GateResult(GateDecision.BLOCK, reason, *claims)
+        return GateResult(
+            GateDecision.BLOCK,
+            reason,
+            *claims,
+            failed_claims=_failed_claims(partition),
+        )
     allow_reason = "all fundamental claims supported"
     if partition.unsupported:
         allow_reason = (

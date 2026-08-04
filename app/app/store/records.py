@@ -27,6 +27,7 @@ from app.store.db import _now, _use_conn
 from app.store.records_matches import NewMatch as NewMatch
 from app.store.records_matches import _insert_match_row as _insert_match_row
 from app.store.records_matches import add_match as add_match
+from app.store.records_matches import count_matches as count_matches
 from app.store.records_matches import list_matches as list_matches
 from app.store.records_proximity import (
     NewProximityEdge as NewProximityEdge,

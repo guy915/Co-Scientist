@@ -266,16 +266,30 @@ def _render_evidence_span(span: Any, relation: str) -> str:
     return f"  - {relation} span — {source}: “{quote}”"
 
 
-def _render_claim_evidence(
-    hypothesis_id: str,
+def _claim_evidence_by_hypothesis(
     claim_evidence: list[dict[str, Any]],
-) -> list[str]:
+) -> dict[str, list[dict[str, Any]]]:
+    """Group claim edges by hypothesis id in one pass.
+
+    The section renders up to five hypotheses and every edge belongs to
+    exactly one of them, so grouping once beats re-filtering the whole edge
+    list per entry.
+
+    Args:
+        claim_evidence: The run's released claim-evidence edges.
+
+    Returns:
+        Mapping of hypothesis id to its edges, in their original order.
+    """
+    grouped: dict[str, list[dict[str, Any]]] = {}
+    for edge in claim_evidence:
+        key = str(edge.get("hypothesis_id") or "")
+        grouped.setdefault(key, []).append(edge)
+    return grouped
+
+
+def _render_claim_evidence(edges: list[dict[str, Any]]) -> list[str]:
     """Render every persisted claim verdict for one released hypothesis."""
-    edges = [
-        edge
-        for edge in claim_evidence
-        if str(edge.get("hypothesis_id") or "") == hypothesis_id
-    ]
     if not edges:
         return []
     lines = ["**Claim evidence:**", ""]
@@ -294,7 +308,7 @@ def _render_claim_evidence(
 def _render_hypothesis_entry(
     i: int,
     hyp: dict[str, Any],
-    claim_evidence: list[dict[str, Any]],
+    edges: list[dict[str, Any]],
 ) -> list[str]:
     """Render one numbered 'Top hypotheses' entry."""
     title = hypothesis_title(hyp)
@@ -308,7 +322,7 @@ def _render_hypothesis_entry(
     ):
         if value:
             lines += [f"{label} {value}", ""]
-    lines += _render_claim_evidence(str(hyp.get("id") or ""), claim_evidence)
+    lines += _render_claim_evidence(edges)
     return lines
 
 
@@ -317,9 +331,12 @@ def _render_top_hypotheses_markdown(
     claim_evidence: list[dict[str, Any]],
 ) -> list[str]:
     """Render the numbered 'Top hypotheses' section."""
+    edges_by_hypothesis = _claim_evidence_by_hypothesis(claim_evidence)
     lines: list[str] = ["## Top hypotheses", ""]
     for i, hyp in enumerate(top_hypotheses, 1):
-        lines += _render_hypothesis_entry(i, hyp, claim_evidence)
+        lines += _render_hypothesis_entry(
+            i, hyp, edges_by_hypothesis.get(str(hyp.get("id") or ""), [])
+        )
     return lines
 
 

@@ -346,21 +346,19 @@ def _record_blocked_hypothesis(
     conn: sqlite3.Connection | None,
     db_path: str | None,
 ) -> None:
-    """Persist the block decision and log the quarantine of a hypothesis."""
-    failed_claims = gate.contradicted_claims or tuple(
-        claim
-        for claim in gate.unsupported_claims
-        if claim not in set(gate.speculative_claims)
-    )
-    if not failed_claims:
-        failed_claims = gate.unsupported_claims
+    """Persist the block decision and log the quarantine of a hypothesis.
+
+    The recorded matches come from ``gate.failed_claims``: the gate already
+    knows which of its rules fired and which claims that rule was about, so
+    re-deriving the set out here could only ever approximate it.
+    """
     store.add_safety_decision(
         store.NewSafetyDecision(
             run_id=run_id,
             stage="claim_gate",
             decision="block",
             reason=f"hypothesis {hyp_id}: {gate.reason}",
-            matches=list(failed_claims),
+            matches=list(gate.failed_claims),
         ),
         db_path=db_path,
         conn=conn,

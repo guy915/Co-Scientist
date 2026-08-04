@@ -114,7 +114,7 @@ class _ReportData(NamedTuple):
     claim_edges: list[dict[str, Any]]
     released_claim_edges: list[dict[str, Any]]
     evidence: list[dict[str, Any]]
-    counts: dict[str, int]
+    match_count: int
 
 
 class _BuiltReport(NamedTuple):
@@ -175,14 +175,17 @@ def _gather_report_data(run_id: str, db_path: str | None) -> _ReportData:
     hyps = _exclude_unsafe_hypotheses(run_id, all_hyps, db_path, claim_edges)
     evidence = store.list_evidence(run_id, db_path=db_path)
     released_claim_edges = _released_claim_evidence(hyps, claim_edges, evidence)
-    counts = store.summary_counts(run_id, db_path=db_path)
+    # The payload wants two numbers, and one of them is already in hand:
+    # ``summary_counts`` exists to avoid materializing tables the caller has,
+    # and asking it here re-counted evidence beside three tables the report
+    # never reads.
     return _ReportData(
         hyps=hyps,
         all_hyps=all_hyps,
         claim_edges=claim_edges,
         released_claim_edges=released_claim_edges,
         evidence=evidence,
-        counts=counts,
+        match_count=store.count_matches(run_id, db_path=db_path),
     )
 
 
@@ -203,8 +206,8 @@ def _assemble_report_payload(
             hypothesis_count=len(hyps),
             idea_count=len(all_hyps),
             verified_count=_verified_hypothesis_count(hyps, claim_edges),
-            evidence_count=data.counts["evidence"],
-            match_count=data.counts["matches"],
+            evidence_count=len(data.evidence),
+            match_count=data.match_count,
             citation_summary=req.citation_summary,
             meta_review=req.meta_review,
             research_overview=req.research_overview,
