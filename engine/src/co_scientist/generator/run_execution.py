@@ -18,6 +18,10 @@ from co_scientist.generator.streaming import (
     _merge_node_state_into_cumulative,
     cumulative_stream_state_from,
 )
+from co_scientist.models import (
+    run_scoped_hypothesis_ids,
+    run_seed_material,
+)
 from co_scientist.state import WorkflowState
 
 if TYPE_CHECKING:
@@ -137,11 +141,17 @@ class StreamExecutionMixin:
                 run_id=run_id,
             )
 
-            # Delegate to streaming implementation
-            async for node_name, state_dict in self._handle_streaming(
-                initial_state, checkpoint_callback=checkpoint_callback
+            # Preparation mints no hypotheses, so seeding here rather than
+            # inside it keeps the durable path (which prepares state and
+            # then runs each node as its own task) on plain uuid4.
+            with run_scoped_hypothesis_ids(
+                run_seed_material(initial_state["run_id"], research_goal)
             ):
-                yield node_name, state_dict
+                # Delegate to streaming implementation
+                async for node_name, state_dict in self._handle_streaming(
+                    initial_state, checkpoint_callback=checkpoint_callback
+                ):
+                    yield node_name, state_dict
 
     async def _handle_streaming(
         self,

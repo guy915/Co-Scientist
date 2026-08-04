@@ -4,17 +4,21 @@ These models maintain compatibility with the original AI-CoScientist
 while providing clean type safety for LangGraph.
 
 The execution-metrics models and node state-update helpers live in
-``models_metrics`` and are re-exported here so import sites are
-unaffected by the split.
+``models_metrics``, and hypothesis-id minting in ``models_ids``; both are
+re-exported here so import sites are unaffected by the split.
 """
 
 import dataclasses
 import enum
-import uuid
 from dataclasses import dataclass, field
 from typing import Any
 
 from co_scientist.constants import INITIAL_ELO_RATING
+from co_scientist.models_ids import new_hypothesis_id as new_hypothesis_id
+from co_scientist.models_ids import (
+    run_scoped_hypothesis_ids as run_scoped_hypothesis_ids,
+)
+from co_scientist.models_ids import run_seed_material as run_seed_material
 from co_scientist.models_metrics import ExecutionMetrics as ExecutionMetrics
 from co_scientist.models_metrics import MetricDeltas as MetricDeltas
 from co_scientist.models_metrics import _known_field_kwargs
@@ -180,9 +184,12 @@ class Hypothesis:
 
     Attributes:
         text: The dense technical hypothesis formulation
-        id: Stable unique identifier (uuid4) that survives serialization and
+        id: Stable unique identifier that survives serialization and
             evolution. Excluded from equality/hashing (``compare=False``) so the
-            text-based dedup heuristics are unaffected.
+            text-based dedup heuristics are unaffected. Minted by
+            ``models_ids.new_hypothesis_id``: a random uuid4, or this run's
+            next deterministic id inside a ``run_scoped_hypothesis_ids``
+            block.
         category: Short classification label for the hypothesis (e.g. the
             mechanism family or research sub-area it belongs to). Optional;
             when set it drives the document breadcrumb in the viewer, mirroring
@@ -216,7 +223,7 @@ class Hypothesis:
     """
 
     text: str
-    id: str = field(default_factory=lambda: str(uuid.uuid4()), compare=False)
+    id: str = field(default_factory=new_hypothesis_id, compare=False)
     # Lineage metadata (paper invariant: Evolution creates immutable children;
     # SSR §4, §12; TE §5). parent_id is None for generation-0 hypotheses and
     # points to the immediate parent for evolved/derived children. generation

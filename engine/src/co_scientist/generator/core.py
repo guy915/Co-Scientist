@@ -46,6 +46,10 @@ from co_scientist.generator.run_setup import (
     _resolve_tool_calling_generation,
 )
 from co_scientist.generator.streaming import _build_generation_result
+from co_scientist.models import (
+    run_scoped_hypothesis_ids,
+    run_seed_material,
+)
 from co_scientist.state import WorkflowState
 
 logger = logging.getLogger(__name__)
@@ -428,9 +432,15 @@ class HypothesisGenerator(McpAvailabilityMixin, StreamExecutionMixin):
                 opts=opts,
                 run_id=run_id,
             )
-            return await self._run_graph_to_completion(
-                initial_state, initial_state["start_time"]
-            )
+            # Preparation mints no hypotheses, so seeding here rather than
+            # inside it keeps the durable path (which prepares state and
+            # then runs each node as its own task) on plain uuid4.
+            with run_scoped_hypothesis_ids(
+                run_seed_material(initial_state["run_id"], research_goal)
+            ):
+                return await self._run_graph_to_completion(
+                    initial_state, initial_state["start_time"]
+                )
 
     async def _run_graph_to_completion(
         self, initial_state: WorkflowState, start_time: float
