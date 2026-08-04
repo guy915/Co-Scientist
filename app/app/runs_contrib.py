@@ -40,6 +40,41 @@ from app.store import ScientificTask
 router = APIRouter()
 
 
+def _steer_and_continue(
+    run_id: str,
+    sender: str,
+    content: str,
+    meta: dict[str, Any],
+) -> ScientificTask | None:
+    """Queue a steering message and reopen the run so the agents read it.
+
+    Every scientist contribution -- a hypothesis, a review, an attachment --
+    reaches the run the same way: as a steering message the next cycle
+    reads, plus a continuation task so a run that already finished picks the
+    contribution up instead of stranding it.
+
+    Args:
+        run_id: Run the contribution belongs to.
+        sender: Author the steering message is attributed to.
+        content: The instruction the agents read on the next cycle.
+        meta: Contribution kind and the id of the row it refers to.
+
+    Returns:
+        The enqueued continuation task, or None when the run is not a
+        completed engine run with a checkpoint to continue from.
+    """
+    message = store.append_message(
+        store.NewMessage(
+            run_id=run_id,
+            sender=sender,
+            content=content,
+            kind="steering",
+            meta=meta,
+        )
+    )
+    return engine_tasks.enqueue_scientist_continuation(run_id, message.id)
+
+
 def _persist_manual_hypothesis(
     run_id: str, hyp: dict[str, Any], author: str
 ) -> str:
@@ -65,20 +100,14 @@ def _notify_manual_hypothesis(
     run_id: str, author: str, statement: str, hyp_id: str
 ) -> ScientificTask | None:
     """Steer the run with the new hypothesis and audit the contribution."""
-    message = store.append_message(
-        store.NewMessage(
-            run_id=run_id,
-            sender=author,
-            content=(
-                "Scientist-contributed hypothesis to evaluate in "
-                f"subsequent work: {statement}"
-            ),
-            kind="steering",
-            meta={"kind": "manual_hypothesis", "hypothesis_id": hyp_id},
-        )
-    )
-    continuation = engine_tasks.enqueue_scientist_continuation(
-        run_id, message.id
+    continuation = _steer_and_continue(
+        run_id,
+        author,
+        (
+            "Scientist-contributed hypothesis to evaluate in "
+            f"subsequent work: {statement}"
+        ),
+        {"kind": "manual_hypothesis", "hypothesis_id": hyp_id},
     )
     store.append_event(
         run_id,
@@ -159,23 +188,14 @@ def _persist_and_notify_human_review(
             critique=review.critique,
         )
     )
-    message = store.append_message(
-        store.NewMessage(
-            run_id=run_id,
-            sender=author,
-            content=(
-                f"Scientist review of hypothesis {review.hypothesis_id}: "
-                f"verdict={review.verdict}; {review.critique}"
-            ),
-            kind="steering",
-            meta={
-                "kind": "human_review",
-                "hypothesis_id": review.hypothesis_id,
-            },
-        )
-    )
-    continuation = engine_tasks.enqueue_scientist_continuation(
-        run_id, message.id
+    continuation = _steer_and_continue(
+        run_id,
+        author,
+        (
+            f"Scientist review of hypothesis {review.hypothesis_id}: "
+            f"verdict={review.verdict}; {review.critique}"
+        ),
+        {"kind": "human_review", "hypothesis_id": review.hypothesis_id},
     )
     store.append_event(
         run_id,
@@ -237,20 +257,14 @@ async def add_attachment(
             abstract=req.text,
         )
     )
-    message = store.append_message(
-        store.NewMessage(
-            run_id=run_id,
-            sender="scientist",
-            content=(
-                f"Use the private research document '{req.title}' "
-                "in subsequent work."
-            ),
-            kind="steering",
-            meta={"kind": "attachment", "evidence_id": ev_id},
-        )
-    )
-    continuation = engine_tasks.enqueue_scientist_continuation(
-        run_id, message.id
+    continuation = _steer_and_continue(
+        run_id,
+        "scientist",
+        (
+            f"Use the private research document '{req.title}' "
+            "in subsequent work."
+        ),
+        {"kind": "attachment", "evidence_id": ev_id},
     )
     return {
         "id": ev_id,
@@ -292,18 +306,12 @@ def _persist_and_notify_upload(
             extraction_tool=extracted.extraction_tool,
         )
     )
-    message = store.append_message(
-        store.NewMessage(
-            run_id=run_id,
-            sender=uploader,
-            content="Use the uploaded private research document "
-            f"'{title}' in subsequent work.",
-            kind="steering",
-            meta={"kind": "attachment", "evidence_id": evidence_id},
-        )
-    )
-    continuation = engine_tasks.enqueue_scientist_continuation(
-        run_id, message.id
+    continuation = _steer_and_continue(
+        run_id,
+        uploader,
+        "Use the uploaded private research document "
+        f"'{title}' in subsequent work.",
+        {"kind": "attachment", "evidence_id": evidence_id},
     )
     store.append_event(
         run_id,

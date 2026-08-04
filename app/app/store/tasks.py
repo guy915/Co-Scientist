@@ -33,6 +33,7 @@ from app.store.tasks_probes import (
     _has_claimable_task as _has_claimable_task,
 )
 from app.store.tasks_probes import cohort_poll as cohort_poll
+from app.store.tasks_probes import has_task_of_type as has_task_of_type
 
 
 @dataclasses.dataclass(frozen=True)

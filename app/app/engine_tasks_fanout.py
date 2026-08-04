@@ -10,10 +10,15 @@ aggregates that commit fan-out results in
 from __future__ import annotations
 
 import sqlite3
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
+from functools import partial
 from typing import Any
 
 from app import store
+from app.engine_tasks_fanout_aggregates import (
+    _AggregateSpec,
+    _enqueue_aggregate_task,
+)
 from app.engine_tasks_fanout_aggregates import (
     execute_generation_aggregate as execute_generation_aggregate,
 )
@@ -25,9 +30,6 @@ from app.engine_tasks_fanout_aggregates import (
 )
 from app.engine_tasks_fanout_aggregates import (
     execute_verification_aggregate as execute_verification_aggregate,
-)
-from app.engine_tasks_fanout_generation import (
-    _enqueue_generation_aggregate_task as _enqueue_generation_aggregate_task,
 )
 from app.engine_tasks_fanout_generation import (
     _enqueue_generation_fanout as _enqueue_generation_fanout,
@@ -116,46 +118,35 @@ def _enqueue_review_item_tasks(
     ]
 
 
-def _enqueue_review_aggregate_task(
-    task: ScientificTask,
-    items: Sequence[ScientificTask],
-    checkpoint_seq: int,
-    conn: sqlite3.Connection,
-) -> ScientificTask:
-    """Enqueue the review aggregate that depends on every review-item task."""
-    return store.enqueue_task(
-        store.NewTask(
-            run_id=task.run_id,
-            task_type=REVIEW_AGGREGATE_TASK,
-            inputs={
-                "checkpoint_seq": checkpoint_seq,
-                "item_task_ids": [item.id for item in items],
-            },
-            idempotency_key=f"review:aggregate:{checkpoint_seq}",
-            priority=80,
-            dependencies=tuple(item.id for item in items),
-            provenance={
-                "scheduled_by": task.task_type,
-                "allow_failed_dependencies": True,
-            },
-        ),
-        conn=conn,
-    )
+_REVIEW_AGGREGATE_SPEC = _AggregateSpec(
+    task_type=REVIEW_AGGREGATE_TASK, priority=80, key_prefix="review"
+)
 
 
-def _create_review_fanout_tasks(
+def _create_fanout_tasks(
+    enqueue_items: Callable[[sqlite3.Connection], list[ScientificTask]],
     task: ScientificTask,
-    unreviewed: Sequence[Any],
     checkpoint_seq: int,
+    spec: _AggregateSpec,
     db_path: str | None,
 ) -> tuple[list[ScientificTask], ScientificTask]:
-    """Enqueue one review-item task per hypothesis plus its aggregate."""
+    """Enqueue a family's item tasks and its aggregate in one transaction.
+
+    Args:
+        enqueue_items: Enqueues the family's per-item tasks on the open
+            connection and returns them in order.
+        task: The node task scheduling the fan-out.
+        checkpoint_seq: Checkpoint sequence the fan-out is planned at.
+        spec: The aggregate's per-family task type, priority, and key.
+        db_path: Optional override for the SQLite database path.
+
+    Returns:
+        A tuple of (item tasks, aggregate task).
+    """
     with store.transaction(db_path) as conn:
-        items = _enqueue_review_item_tasks(
-            task, unreviewed, checkpoint_seq, conn
-        )
-        aggregate = _enqueue_review_aggregate_task(
-            task, items, checkpoint_seq, conn
+        items = enqueue_items(conn)
+        aggregate = _enqueue_aggregate_task(
+            task, items, checkpoint_seq, conn, spec
         )
     return items, aggregate
 
@@ -173,8 +164,12 @@ def _enqueue_review_fanout(
         for hypothesis in state["hypotheses"]
         if not hypothesis.reviews
     ]
-    items, aggregate = _create_review_fanout_tasks(
-        task, unreviewed, checkpoint_seq, db_path
+    items, aggregate = _create_fanout_tasks(
+        partial(_enqueue_review_item_tasks, task, unreviewed, checkpoint_seq),
+        task,
+        checkpoint_seq,
+        _REVIEW_AGGREGATE_SPEC,
+        db_path,
     )
     return {
         "checkpoint_seq": checkpoint_seq,
@@ -214,48 +209,11 @@ def _enqueue_verification_item_tasks(
     ]
 
 
-def _enqueue_verification_aggregate_task(
-    task: ScientificTask,
-    items: Sequence[ScientificTask],
-    checkpoint_seq: int,
-    conn: sqlite3.Connection,
-) -> ScientificTask:
-    """Enqueue the verification aggregate depending on every item task."""
-    return store.enqueue_task(
-        store.NewTask(
-            run_id=task.run_id,
-            task_type=VERIFICATION_AGGREGATE_TASK,
-            inputs={
-                "checkpoint_seq": checkpoint_seq,
-                "item_task_ids": [item.id for item in items],
-            },
-            idempotency_key=f"verification:aggregate:{checkpoint_seq}",
-            priority=82,
-            dependencies=tuple(item.id for item in items),
-            provenance={
-                "scheduled_by": task.task_type,
-                "allow_failed_dependencies": True,
-            },
-        ),
-        conn=conn,
-    )
-
-
-def _create_verification_fanout_tasks(
-    task: ScientificTask,
-    selected: Sequence[Any],
-    checkpoint_seq: int,
-    db_path: str | None,
-) -> tuple[list[ScientificTask], ScientificTask]:
-    """Enqueue one deep-verification task per hypothesis plus its aggregate."""
-    with store.transaction(db_path) as conn:
-        items = _enqueue_verification_item_tasks(
-            task, selected, checkpoint_seq, conn
-        )
-        aggregate = _enqueue_verification_aggregate_task(
-            task, items, checkpoint_seq, conn
-        )
-    return items, aggregate
+_VERIFICATION_AGGREGATE_SPEC = _AggregateSpec(
+    task_type=VERIFICATION_AGGREGATE_TASK,
+    priority=82,
+    key_prefix="verification",
+)
 
 
 def _enqueue_verification_fanout(
@@ -273,8 +231,14 @@ def _enqueue_verification_fanout(
     selected = _select_hypotheses_to_verify(
         state["hypotheses"], state["model_name"]
     )
-    items, aggregate = _create_verification_fanout_tasks(
-        task, selected, checkpoint_seq, db_path
+    items, aggregate = _create_fanout_tasks(
+        partial(
+            _enqueue_verification_item_tasks, task, selected, checkpoint_seq
+        ),
+        task,
+        checkpoint_seq,
+        _VERIFICATION_AGGREGATE_SPEC,
+        db_path,
     )
     return {
         "checkpoint_seq": checkpoint_seq,
@@ -340,48 +304,11 @@ def _enqueue_mature_reflection_item_tasks(
     ]
 
 
-def _enqueue_mature_reflection_aggregate_task(
-    task: ScientificTask,
-    items: Sequence[ScientificTask],
-    checkpoint_seq: int,
-    conn: sqlite3.Connection,
-) -> ScientificTask:
-    """Enqueue the reflection aggregate depending on every item task."""
-    return store.enqueue_task(
-        store.NewTask(
-            run_id=task.run_id,
-            task_type=MATURE_REFLECTION_AGGREGATE_TASK,
-            inputs={
-                "checkpoint_seq": checkpoint_seq,
-                "item_task_ids": [item.id for item in items],
-            },
-            idempotency_key=f"reflection:aggregate:{checkpoint_seq}",
-            priority=80,
-            dependencies=tuple(item.id for item in items),
-            provenance={
-                "scheduled_by": task.task_type,
-                "allow_failed_dependencies": True,
-            },
-        ),
-        conn=conn,
-    )
-
-
-def _create_mature_reflection_tasks(
-    task: ScientificTask,
-    specs: Sequence[tuple[str, str]],
-    checkpoint_seq: int,
-    db_path: str | None,
-) -> tuple[list[ScientificTask], ScientificTask]:
-    """Enqueue one durable task per reflection spec plus its aggregate."""
-    with store.transaction(db_path) as conn:
-        items = _enqueue_mature_reflection_item_tasks(
-            task, specs, checkpoint_seq, conn
-        )
-        aggregate = _enqueue_mature_reflection_aggregate_task(
-            task, items, checkpoint_seq, conn
-        )
-    return items, aggregate
+_MATURE_REFLECTION_AGGREGATE_SPEC = _AggregateSpec(
+    task_type=MATURE_REFLECTION_AGGREGATE_TASK,
+    priority=80,
+    key_prefix="reflection",
+)
 
 
 def _enqueue_mature_reflection_fanout(
@@ -393,8 +320,14 @@ def _enqueue_mature_reflection_fanout(
 ) -> dict[str, Any]:
     """Schedule maturity-appropriate Reflection modes as durable tasks."""
     specs = _mature_reflection_specs(state)
-    items, aggregate = _create_mature_reflection_tasks(
-        task, specs, checkpoint_seq, db_path
+    items, aggregate = _create_fanout_tasks(
+        partial(
+            _enqueue_mature_reflection_item_tasks, task, specs, checkpoint_seq
+        ),
+        task,
+        checkpoint_seq,
+        _MATURE_REFLECTION_AGGREGATE_SPEC,
+        db_path,
     )
     return {
         "checkpoint_seq": checkpoint_seq,

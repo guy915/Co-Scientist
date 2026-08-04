@@ -15,6 +15,10 @@ from dataclasses import dataclass
 from typing import Any
 
 from app import store
+from app.engine_tasks_fanout_aggregates import (
+    _AggregateSpec,
+    _enqueue_aggregate_task,
+)
 from app.engine_tasks_support import (
     _CHECKPOINT_PROVIDER,
     GENERATION_AGGREGATE_TASK,
@@ -142,32 +146,13 @@ def _enqueue_generation_strategy_tasks(
     ]
 
 
-def _enqueue_generation_aggregate_task(
-    task: ScientificTask,
-    planned_seq: int,
-    items: Sequence[ScientificTask],
-    counts: Any,
-    conn: sqlite3.Connection,
-) -> ScientificTask:
-    """Enqueue the generation aggregate that depends on every strategy task."""
-    return store.enqueue_task(
-        store.NewTask(
-            run_id=task.run_id,
-            task_type=GENERATION_AGGREGATE_TASK,
-            inputs={
-                "checkpoint_seq": planned_seq,
-                "item_task_ids": [item.id for item in items],
-                "counts": dataclasses.asdict(counts),
-            },
-            idempotency_key=f"generation:aggregate:{planned_seq}",
-            priority=81,
-            dependencies=tuple(item.id for item in items),
-            provenance={
-                "scheduled_by": task.task_type,
-                "allow_failed_dependencies": True,
-            },
-        ),
-        conn=conn,
+def _generation_aggregate_spec(counts: Any) -> _AggregateSpec:
+    """Return the generation family's aggregate spec, carrying its counts."""
+    return _AggregateSpec(
+        task_type=GENERATION_AGGREGATE_TASK,
+        priority=81,
+        key_prefix="generation",
+        extra_inputs={"counts": dataclasses.asdict(counts)},
     )
 
 
@@ -205,8 +190,12 @@ async def _enqueue_generation_fanout(
             _StrategyInputs(literature, reference_index),
             conn,
         )
-        aggregate = _enqueue_generation_aggregate_task(
-            task, planned_seq, items, counts, conn
+        aggregate = _enqueue_aggregate_task(
+            task,
+            items,
+            planned_seq,
+            conn,
+            _generation_aggregate_spec(counts),
         )
     return {
         "checkpoint_seq": planned_seq,

@@ -150,10 +150,7 @@ async def pause_run(run_id: str) -> dict[str, Any]:
     makes the run resumable, so no extra checkpoint needs to be created here.
     """
     run = _run_or_404(run_id)
-    has_engine_task = any(
-        task.task_type.startswith("engine.")
-        for task in store.list_tasks(run_id)
-    )
+    has_engine_task = store.has_task_of_type(run_id, "engine.")
     if has_engine_task and run.status in {
         RunStatus.QUEUED.value,
         RunStatus.RUNNING.value,
@@ -167,10 +164,7 @@ async def pause_run(run_id: str) -> dict[str, Any]:
 
 def _has_paused_engine_task(run_id: str) -> bool:
     """Return whether the run has a paused engine-provider task queued."""
-    return any(
-        task.status == "paused" and task.task_type.startswith("engine.")
-        for task in store.list_tasks(run_id)
-    )
+    return store.has_task_of_type(run_id, "engine.", status="paused")
 
 
 @router.post("/{run_id}/resume")

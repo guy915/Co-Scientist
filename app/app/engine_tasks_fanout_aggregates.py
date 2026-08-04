@@ -8,14 +8,21 @@ Split from ``app.engine_tasks_fanout``, which re-exports these names so
 The mature-reflection and deep-verification aggregates, plus the shared
 checkpoint-and-advance helper, live in
 ``app.engine_tasks_fanout_reflection`` and are re-exported below.
+
+The one shape every family's aggregate *task* shares -- the enqueue --
+lives here too, since both fan-out schedulers
+(``app.engine_tasks_fanout`` and ``app.engine_tasks_fanout_generation``)
+import this module and neither can import the other without a cycle.
 """
 
 from __future__ import annotations
 
-from collections.abc import Sequence
-from dataclasses import dataclass
+import sqlite3
+from collections.abc import Mapping, Sequence
+from dataclasses import dataclass, field
 from typing import Any
 
+from app import store
 from app.engine_tasks_context import TaskCommit
 from app.engine_tasks_fanout_reflection import (
     _AppliedItems as _AppliedItems,
@@ -59,6 +66,70 @@ from app.engine_tasks_support import (
     _save_state_and_enqueue as _save_state_and_enqueue,
 )
 from app.store import ScientificTask
+
+
+@dataclass(frozen=True)
+class _AggregateSpec:
+    """The parts of an aggregate task that differ per fan-out family.
+
+    Attributes:
+        task_type: Durable task type the aggregate is enqueued as.
+        priority: Queue priority, below the family's own item tasks so a
+            wave drains before the aggregate that folds it in.
+        key_prefix: Idempotency-key prefix; the key is that prefix plus
+            ``:aggregate:<checkpoint_seq>``.
+        extra_inputs: Family-specific task inputs, merged after the two
+            every aggregate carries.
+    """
+
+    task_type: str
+    priority: int
+    key_prefix: str
+    extra_inputs: Mapping[str, Any] = field(default_factory=dict)
+
+
+def _enqueue_aggregate_task(
+    task: ScientificTask,
+    items: Sequence[ScientificTask],
+    checkpoint_seq: int,
+    conn: sqlite3.Connection,
+    spec: _AggregateSpec,
+) -> ScientificTask:
+    """Enqueue a fan-out aggregate depending on every one of its item tasks.
+
+    The dependency tuple and ``allow_failed_dependencies`` are what let a
+    single item's failure be isolated rather than stall the run, so every
+    family gets them identically.
+
+    Args:
+        task: The node task scheduling the fan-out.
+        items: The family's per-item tasks, in enqueue order.
+        checkpoint_seq: Checkpoint sequence the fan-out was planned at.
+        conn: Open connection of the caller's transaction.
+        spec: The per-family task type, priority, key prefix, and inputs.
+
+    Returns:
+        The enqueued aggregate task.
+    """
+    return store.enqueue_task(
+        store.NewTask(
+            run_id=task.run_id,
+            task_type=spec.task_type,
+            inputs={
+                "checkpoint_seq": checkpoint_seq,
+                "item_task_ids": [item.id for item in items],
+                **spec.extra_inputs,
+            },
+            idempotency_key=f"{spec.key_prefix}:aggregate:{checkpoint_seq}",
+            priority=spec.priority,
+            dependencies=tuple(item.id for item in items),
+            provenance={
+                "scheduled_by": task.task_type,
+                "allow_failed_dependencies": True,
+            },
+        ),
+        conn=conn,
+    )
 
 
 def _apply_review_items(
