@@ -432,6 +432,12 @@ class WorkflowState(TypedDict):
     lit tools (no debate).
     """
 
+    dev_mode: bool | None
+    """Development mode: read a far smaller literature budget for fast
+    iteration, overriding literature_review_papers_count. Resolved once per
+    run from opts or COSCIENTIST_DEV_MODE (generator/run_setup.py).
+    """
+
     tool_registry: Any | None
     """Optional ToolRegistry for config-driven tool selection."""
 

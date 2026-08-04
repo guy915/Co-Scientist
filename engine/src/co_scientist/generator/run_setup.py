@@ -1,15 +1,22 @@
 """Per-run and per-instance setup helpers for the hypothesis generator.
 
 Resolves caller-supplied generation options against system availability
-(tool-calling generation, dev isolation mode), applies constructor-supplied
-cache overrides to the environment, mints run identities, and builds the
-optional tool registry.
+(tool-calling generation, dev isolation mode, dev mode), applies
+constructor-supplied cache overrides to the environment, mints run
+identities, and builds the optional tool registry.
+
+This is where the process environment is allowed to reach a run: a flag is
+read here once, at the boundary, and travels the rest of the way as workflow
+state, so a node's behavior is a function of the state it was handed.
 """
 
 import logging
+import os
 import time
 import uuid
 from typing import Any
+
+from co_scientist.config.registry import parse_bool_env
 
 logger = logging.getLogger(__name__)
 
@@ -112,8 +119,6 @@ def _configure_cache_dir_env(cache_dir: str | None) -> None:
     if cache_dir is None:
         return
 
-    import os
-
     os.environ["COSCIENTIST_CACHE_DIR"] = cache_dir
 
 
@@ -147,6 +152,34 @@ def _resolve_dev_isolation_flag(opts: dict[str, Any]) -> bool:
         logger.info(
             "Dev isolation mode enabled: forcing lit review cache"
             " + all hypotheses to lit tools"
+        )
+    return enabled
+
+
+def _resolve_dev_mode_flag(opts: dict[str, Any]) -> bool:
+    """Resolves dev mode for a run, from opts or the process environment.
+
+    Dev mode shrinks the literature-review budget for fast iteration. The
+    ``COSCIENTIST_DEV_MODE`` environment variable is the outer default a
+    developer sets once for a whole session; an explicit ``dev_mode`` opt is
+    the inner, per-run answer and wins over it. Reading the env here rather
+    than inside the literature review node keeps the node a function of the
+    state it is handed -- and keeps the flag visible in a checkpoint, which
+    an ambient env read never is.
+
+    Args:
+        opts: Caller-supplied generation options.
+
+    Returns:
+        Whether dev mode is enabled for this run.
+    """
+    requested = opts.get("dev_mode")
+    if requested is None:
+        requested = parse_bool_env(os.getenv("COSCIENTIST_DEV_MODE", "false"))
+    enabled = bool(requested)
+    if enabled:
+        logger.info(
+            "Dev mode enabled: using the reduced literature-review budget"
         )
     return enabled
 

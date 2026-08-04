@@ -89,6 +89,56 @@ def test_format_indra_statements_skips_unformattable_entries() -> None:
     assert "KRAS" in text and "MAPK1" in text
 
 
+def test_format_indra_statements_survives_a_non_dict_endpoint() -> None:
+    """A non-dict endpoint degrades to unformattable, not to an exception.
+
+    A knowledge-graph server can return a bare name where an agent object is
+    expected. Nothing between here and the per-tool gather catches that, so
+    one such statement used to discard the whole tool's enrichment -- every
+    entity, not just this one -- and read as an unavailable tool.
+    """
+    stmts: list[dict[str, Any]] = [
+        {"subj": "KRAS", "obj": {"name": "MAPK1"}},  # subj is not an agent
+        {
+            "subj": {"name": "EGFR"},
+            "obj": {"name": "MAPK1"},
+            "type": "Activation",
+            "belief": 0.9,
+        },
+    ]
+    text, items = lr_enrichment._format_indra_statements(stmts)
+    assert len(items) == 1
+    assert "EGFR" in text
+
+
+def test_format_one_indra_statement_formats_complex_members() -> None:
+    """A Complex/family statement formats from its members.
+
+    These statements carry ``members`` instead of a subject and object.
+    Reflection has always rendered them; enrichment dropped them silently,
+    so a knowledge graph answered mostly in complexes contributed nothing.
+    """
+    formatted = lr_enrichment._format_one_indra_statement(
+        {
+            "members": [{"name": "BRCA1"}, {"name": "BARD1"}],
+            "type": "Complex",
+            "belief": 0.87,
+        }
+    )
+    assert formatted is not None
+    display, item = formatted
+    assert display == "Complex(BRCA1, BARD1) [Complex] (belief: 0.87)"
+    assert item["display"] == f"INDRA: {display}"
+
+
+def test_format_one_indra_statement_shapeless_still_returns_none() -> None:
+    """A statement with neither endpoints nor members formats to None."""
+    assert (
+        lr_enrichment._format_one_indra_statement({"type": "Activation"})
+        is None
+    )
+
+
 # =============================================================================
 # _format_dict_result -- fallback when neither statements nor results present
 # =============================================================================

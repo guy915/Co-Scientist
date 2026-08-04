@@ -117,6 +117,47 @@ async def test_prepare_generation_dev_isolation_flag(
     assert state["dev_test_lit_tools_isolation"] is True
 
 
+async def test_prepare_generation_reads_dev_mode_env_into_state(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """COSCIENTIST_DEV_MODE is read here, at the boundary, and put in state.
+
+    The literature review node consumes ``dev_mode`` from state, so this is
+    the one place the env var is allowed to enter a run.
+    """
+    stub_mcp_availability(monkeypatch, available=False)
+    monkeypatch.setenv("COSCIENTIST_DEV_MODE", "true")
+    gen = HypothesisGenerator()
+    state = await gen._prepare_generation("goal")
+    assert state["dev_mode"] is True
+
+
+async def test_prepare_generation_dev_mode_opt_overrides_env(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A per-run dev_mode opt beats the session-wide env var, either way."""
+    stub_mcp_availability(monkeypatch, available=False)
+    monkeypatch.setenv("COSCIENTIST_DEV_MODE", "true")
+    gen = HypothesisGenerator()
+    state = await gen._prepare_generation("goal", opts={"dev_mode": False})
+    assert state["dev_mode"] is False
+
+    monkeypatch.delenv("COSCIENTIST_DEV_MODE", raising=False)
+    state = await gen._prepare_generation("goal", opts={"dev_mode": True})
+    assert state["dev_mode"] is True
+
+
+async def test_prepare_generation_dev_mode_defaults_off(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """With neither an opt nor the env var, a run is not in dev mode."""
+    stub_mcp_availability(monkeypatch, available=False)
+    monkeypatch.delenv("COSCIENTIST_DEV_MODE", raising=False)
+    gen = HypothesisGenerator()
+    state = await gen._prepare_generation("goal")
+    assert state["dev_mode"] is False
+
+
 # --- _prepare_generation: MCP detection & graph selection --------------------
 
 

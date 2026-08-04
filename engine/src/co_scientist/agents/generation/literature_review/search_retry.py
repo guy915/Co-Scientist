@@ -6,12 +6,12 @@ namespace callers and tests patch against keeps resolving.
 
 import asyncio
 import logging
-import random
 from typing import Any
 
 from co_scientist.agents.generation.literature_review.outcomes import (
     _describe_exc,
 )
+from co_scientist.backoff import jittered_backoff_seconds
 from co_scientist.mcp_client import MCPToolClient
 from co_scientist.tools.response_parser import parse_mcp_result
 
@@ -24,21 +24,26 @@ logger = logging.getLogger(__name__)
 # force and then drops the whole query, which is how a run reached its claim
 # gate with a pool that never covered the topic.
 #
-# Jittered, like the throttled-LLM backoff: a run fires many queries at once,
-# and a fixed schedule releases every throttled caller simultaneously,
-# reproducing the burst that caused the throttling.
+# The waits are jittered on the shared schedule (see
+# backoff.jittered_backoff_seconds); the numbers below are this path's own,
+# sized for causes that clear in well under a second.
 _SEARCH_ATTEMPTS = 4
 _SEARCH_RETRY_BASE_DELAY_SECONDS = 0.5
 _SEARCH_RETRY_MAX_DELAY_SECONDS = 8.0
 
 
 def _search_retry_delay(attempt: int) -> float:
-    """Jittered exponential backoff before search attempt ``attempt`` + 1."""
-    ceiling = min(
-        _SEARCH_RETRY_BASE_DELAY_SECONDS * 2 ** (attempt - 1),
-        _SEARCH_RETRY_MAX_DELAY_SECONDS,
+    """Jittered exponential backoff before search attempt ``attempt`` + 1.
+
+    Capped, unlike the LLM retry: the whole point of retrying here is to
+    outlast a cause measured in seconds, so a wait that kept doubling would
+    cost the run more than the source it is waiting on.
+    """
+    return jittered_backoff_seconds(
+        attempt,
+        base_seconds=_SEARCH_RETRY_BASE_DELAY_SECONDS,
+        max_seconds=_SEARCH_RETRY_MAX_DELAY_SECONDS,
     )
-    return random.uniform(ceiling / 2, ceiling)
 
 
 async def _call_search_tool(

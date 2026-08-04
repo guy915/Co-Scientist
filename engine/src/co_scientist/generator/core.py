@@ -42,6 +42,7 @@ from co_scientist.generator.run_setup import (
     _build_tool_registry,
     _configure_cache_dir_env,
     _resolve_dev_isolation_flag,
+    _resolve_dev_mode_flag,
     _resolve_run_identity,
     _resolve_tool_calling_generation,
 )
@@ -83,6 +84,9 @@ class HypothesisGenerator(McpAvailabilityMixin, StreamExecutionMixin):
           default: False).
         - dev_test_lit_tools_isolation: Dev mode - force lit review cache,
           all hypotheses to lit tools (default: False).
+        - dev_mode: Dev mode - read a far smaller number of papers in the
+          literature review, overriding literature_review_papers_count
+          (default: the COSCIENTIST_DEV_MODE env var).
         - user_inputs: Dictionary with ``starting_hypotheses``
           (user-provided starting hypotheses) and ``literature``
           (user-provided literature references).
@@ -301,9 +305,10 @@ class HypothesisGenerator(McpAvailabilityMixin, StreamExecutionMixin):
             enable_tool_calling_generation=_resolve_tool_calling_generation(
                 opts, mcp_available, enable_literature_review_node
             ),
-            # This flag is threaded through to the initial state and the
-            # consuming nodes branch on it directly.
+            # These flags are threaded through to the initial state and the
+            # consuming nodes branch on them directly.
             dev_test_lit_tools_isolation=_resolve_dev_isolation_flag(opts),
+            dev_mode=_resolve_dev_mode_flag(opts),
         )
         return capabilities, enable_literature_review_node
 

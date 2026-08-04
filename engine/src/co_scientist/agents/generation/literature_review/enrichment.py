@@ -16,6 +16,7 @@ from co_scientist.agents.generation.literature_review.helpers import (
 )
 from co_scientist.agents.reflection.reflection_helpers import (
     extract_entity_names,
+    parse_indra_statement,
 )
 from co_scientist.mcp_client import MCPToolClient
 from co_scientist.state import WorkflowState
@@ -74,26 +75,33 @@ def _format_generic_items(
 def _format_one_indra_statement(
     s: dict[str, Any],
 ) -> tuple[str, dict[str, Any]] | None:
-    """Format one INDRA subject/object/relation statement as a causal edge.
+    """Format one INDRA statement as a causal edge for the synthesis prompt.
 
-    INDRA statements encode subject/object/relation triples with a belief
-    score; format as a readable causal edge for the synthesis prompt.
-    Returns None when the statement lacks either endpoint name.
+    Parsing is shared with reflection's INDRA formatters
+    (``parse_indra_statement``), which tolerates the non-dict values a
+    knowledge-graph server can return for an endpoint and recognizes the
+    Complex/family shape that lists members instead of a subject and object.
+
+    Returns:
+        The (display_text, structured_item) pair, or None when the statement
+        names neither a pair of endpoints nor any complex members.
     """
-    subj = (s.get("subj") or {}).get("name", "")
-    obj = (s.get("obj") or {}).get("name", "")
-    if not (subj and obj):
+    core = parse_indra_statement(s)
+    belief = f"(belief: {core.belief:.2f})"
+    if core.subj and core.obj:
+        display = f"{core.subj} \u2192 {core.obj} [{core.rel_type}] {belief}"
+    elif core.member_names:
+        members = ", ".join(core.member_names)
+        display = f"Complex({members}) [{core.rel_type}] {belief}"
+    else:
         return None
-    rel = s.get("type", "")
-    belief = s.get("belief", 0)
-    display = f"{subj} \u2192 {obj} [{rel}] (belief: {belief:.2f})"
     return display, {"display": f"INDRA: {display}", "data": s}
 
 
 def _format_indra_statements(
     stmts: list[dict[str, Any]],
 ) -> tuple[str, list[dict[str, Any]]]:
-    """Format INDRA subject/object/relation statements as causal-edge text."""
+    """Format INDRA statements as causal-edge text, skipping shapeless ones."""
     lines = []
     items = []
     for s in stmts[:_CONTEXT_ENRICHMENT_RESULTS_PER_ENTITY]:

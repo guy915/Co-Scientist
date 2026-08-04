@@ -7,14 +7,12 @@ single-source path.
 """
 
 import logging
-import os
 from typing import TYPE_CHECKING
 
 from co_scientist.agents.generation.literature_review.helpers import (
     SearchConfig,
     extract_source_name,
 )
-from co_scientist.config.registry import parse_bool_env
 from co_scientist.constants import (
     LITERATURE_REVIEW_PAPERS_COUNT,
     LITERATURE_REVIEW_PAPERS_COUNT_DEV,
@@ -32,11 +30,15 @@ def _resolve_papers_to_read_count(state: WorkflowState) -> tuple[int, bool]:
 
     Dev mode uses a far smaller paper budget for fast iteration; a per-run
     override in state takes priority over the default when not in dev mode.
+    The flag itself is resolved once per run, at the generator boundary
+    (``generator/run_setup._resolve_dev_mode_flag``), and read from state
+    here -- so the budget this node uses is visible in the run's state
+    rather than in the process environment.
 
     Returns:
         A (papers_to_read_count, is_dev_mode) tuple.
     """
-    is_dev_mode = parse_bool_env(os.getenv("COSCIENTIST_DEV_MODE", "false"))
+    is_dev_mode = bool(state.get("dev_mode", False))
     run_papers_count = state.get("literature_review_papers_count")
     papers_to_read_count = (
         LITERATURE_REVIEW_PAPERS_COUNT_DEV

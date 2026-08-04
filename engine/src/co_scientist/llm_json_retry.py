@@ -12,13 +12,13 @@ the ``call_llm`` seam keeps resolving through ``co_scientist.llm``.
 import asyncio
 import json
 import logging
-import random
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from typing import Any
 
 from jsonschema.exceptions import ValidationError
 
+from co_scientist.backoff import jittered_backoff_seconds
 from co_scientist.cache import LLMCache, LLMCacheRequest, NullCache
 from co_scientist.exceptions import LLMTimeoutError
 from co_scientist.llm_json import (
@@ -66,13 +66,14 @@ def _is_rate_limited(error: Exception) -> bool:
 def _rate_limit_backoff_seconds(attempt: int) -> float:
     """Return the jittered wait before retrying a throttled attempt.
 
-    The jitter matters more than the growth: a burst throttles many callers
-    at once, and an unjittered wait would release all of them simultaneously,
-    reproducing the burst that caused the throttle. Spreading them is what
-    actually smooths the ramp the provider is asking for.
+    Uncapped, unlike the search-tool retry: a provider still throttling on
+    the last of a handful of attempts is asking for a longer pause, and the
+    attempt budget already bounds the total. See
+    ``backoff.jittered_backoff_seconds`` for why the wait is jittered.
     """
-    ceiling = _RATE_LIMIT_BACKOFF_BASE_SECONDS * (2 ** (attempt - 1))
-    return float(ceiling * (0.5 + random.random() / 2))
+    return jittered_backoff_seconds(
+        attempt, base_seconds=_RATE_LIMIT_BACKOFF_BASE_SECONDS
+    )
 
 
 @dataclass(frozen=True)

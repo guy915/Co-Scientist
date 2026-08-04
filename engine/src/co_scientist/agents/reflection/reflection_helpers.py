@@ -280,8 +280,8 @@ def _ev_count_str(ev_count: int) -> str:
     return f"{ev_count}+" if ev_count >= _EVIDENCE_LIMIT else str(ev_count)
 
 
-class _StatementCore(NamedTuple):
-    """Core fields shared by the two INDRA statement formatters."""
+class IndraStatementCore(NamedTuple):
+    """Core fields shared by every INDRA statement formatter."""
 
     subj: str
     obj: str
@@ -291,17 +291,21 @@ class _StatementCore(NamedTuple):
     ev_count: int
 
 
-def _parse_statement(stmt: dict[str, Any]) -> _StatementCore:
-    """Extract the fields both statement formatters render.
+def parse_indra_statement(stmt: dict[str, Any]) -> IndraStatementCore:
+    """Extract the fields every INDRA statement formatter renders.
 
-    Owns the subject/object versus complex-members shape decision so the two
-    formatters differ only in how they lay the values out.
+    Owns the subject/object versus complex-members shape decision so the
+    formatters differ only in how they lay the values out, and absorbs the
+    shapes a knowledge-graph server can return for an endpoint that is not a
+    plain agent dict (see ``_agent_name``). Shared with the literature
+    review's context enrichment, which renders the same statements as
+    causal edges for the synthesis prompt.
     """
     # INDRA statements come in two shapes: simple pairwise relations
     # (subj/obj) or "Complex"/family statements that list members instead;
-    # both formatters branch on which fields are populated below.
+    # every formatter branches on which fields are populated below.
     members = stmt.get("members", [])
-    return _StatementCore(
+    return IndraStatementCore(
         subj=_agent_name(stmt, "subj"),
         obj=_agent_name(stmt, "obj"),
         member_names=[
@@ -315,7 +319,7 @@ def _parse_statement(stmt: dict[str, Any]) -> _StatementCore:
 
 def _format_single_statement(stmt: dict[str, Any]) -> str:
     """Format one INDRA statement as a concise line."""
-    core = _parse_statement(stmt)
+    core = parse_indra_statement(stmt)
     ev_str = _ev_count_str(core.ev_count)
 
     if core.subj and core.obj:
@@ -364,7 +368,7 @@ def _statement_to_enrichment_item(
     """Convert one INDRA statement into a flat dict for UI display."""
     # Mirrors _format_single_statement's subj/obj vs. members branching,
     # but returns a dict of individual fields instead of one text line.
-    core = _parse_statement(stmt)
+    core = parse_indra_statement(stmt)
 
     if core.subj and core.obj:
         return {

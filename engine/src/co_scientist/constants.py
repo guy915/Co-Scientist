@@ -261,10 +261,10 @@ DEFAULT_CACHE_ENABLED: Final = True
 caching).
 """
 
-# Selected in agents/generation/literature_review/run_config.py based
-# on the COSCIENTIST_DEV_MODE env var; dev mode ignores any per-run
-# override and always uses the smaller _DEV budget for faster
-# iteration.
+# Selected in agents/generation/literature_review/run_config.py from the
+# run's dev_mode state (resolved at the generator boundary from opts or
+# COSCIENTIST_DEV_MODE); dev mode ignores any per-run override and always
+# uses the smaller _DEV budget for faster iteration.
 LITERATURE_REVIEW_PAPERS_COUNT: Final = 10
 """default number of papers to collect from MCP servers/tools when a run does
 not specify a per-run count."""

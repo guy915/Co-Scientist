@@ -113,6 +113,7 @@ def _input_and_literature_defaults() -> dict[str, Any]:
         "pubmed_available": False,
         "enable_tool_calling_generation": False,
         "dev_test_lit_tools_isolation": False,
+        "dev_mode": False,
         "tool_registry": None,
         "context_enrichment_sources": None,
     }

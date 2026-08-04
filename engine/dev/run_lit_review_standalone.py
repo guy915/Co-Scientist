@@ -231,7 +231,8 @@ def _display_literature_results(
 
 def _build_lit_review_state(mcp_ok: bool, pubmed_ok: bool):
     """Build the minimal literature-review state and print the run banner."""
-    if os.getenv("COSCIENTIST_DEV_MODE", "").lower() == "true":
+    dev_mode = os.getenv("COSCIENTIST_DEV_MODE", "").lower() == "true"
+    if dev_mode:
         console.print(
             "\n[yellow]Dev mode enabled - using reduced paper counts[/yellow]"
         )
@@ -241,6 +242,9 @@ def _build_lit_review_state(mcp_ok: bool, pubmed_ok: bool):
     )
     state["mcp_available"] = mcp_ok
     state["pubmed_available"] = pubmed_ok
+    # This script drives the node directly, so it stands in for the
+    # generator boundary that would otherwise put the flag into state.
+    state["dev_mode"] = dev_mode
     console.print(
         f"\n[yellow]Research goal:[/yellow] {state['research_goal']}\n"
     )

@@ -60,12 +60,15 @@ class RunCapabilities:
             enabled for this run.
         dev_test_lit_tools_isolation: Whether dev lit-tools isolation is
             enabled for this run.
+        dev_mode: Whether dev mode (reduced literature budget) is enabled for
+            this run.
     """
 
     mcp_available: bool = False
     pubmed_available: bool = False
     enable_tool_calling_generation: bool = False
     dev_test_lit_tools_isolation: bool = False
+    dev_mode: bool = False
 
 
 def _initial_runtime_fields() -> dict[str, Any]:
@@ -129,6 +132,7 @@ def _initial_run_identity_fields(
         "dev_test_lit_tools_isolation": (
             capabilities.dev_test_lit_tools_isolation
         ),
+        "dev_mode": capabilities.dev_mode,
     }
 
 

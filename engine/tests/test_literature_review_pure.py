@@ -14,6 +14,7 @@ from co_scientist.agents.generation.literature_review import (
 )
 from co_scientist.agents.generation.literature_review import node as lr
 from co_scientist.config import ToolRegistry
+from co_scientist.constants import LITERATURE_REVIEW_PAPERS_COUNT_DEV
 from tests._state import make_state
 
 
@@ -55,14 +56,38 @@ def test_get_search_config_defaults_single_source() -> None:
     assert config.papers_to_read_count > 0
 
 
-def test_get_search_config_honors_run_paper_count(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
+def test_get_search_config_honors_run_paper_count() -> None:
     """Per-run literature count overrides the default outside dev mode."""
-    monkeypatch.delenv("COSCIENTIST_DEV_MODE", raising=False)
     config = lr._get_search_config(
         make_state(literature_review_papers_count=12)
     )
+    assert config.papers_to_read_count == 12
+
+
+def test_get_search_config_reads_dev_mode_from_state() -> None:
+    """Dev mode arrives as run state and shrinks the evidence budget."""
+    config = lr._get_search_config(
+        make_state(dev_mode=True, literature_review_papers_count=12)
+    )
+    assert config.is_dev_mode is True
+    assert config.papers_to_read_count == LITERATURE_REVIEW_PAPERS_COUNT_DEV
+
+
+def test_get_search_config_ignores_the_ambient_dev_mode_env(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The node reads its run's state, not the process environment.
+
+    ``COSCIENTIST_DEV_MODE`` is resolved once at the generator boundary
+    (``generator/run_setup._resolve_dev_mode_flag``). Read again down here it
+    would silently override the run's own evidence budget, so a run's
+    literature size would depend on how the process happened to be started.
+    """
+    monkeypatch.setenv("COSCIENTIST_DEV_MODE", "true")
+    config = lr._get_search_config(
+        make_state(literature_review_papers_count=12)
+    )
+    assert config.is_dev_mode is False
     assert config.papers_to_read_count == 12
 
 
