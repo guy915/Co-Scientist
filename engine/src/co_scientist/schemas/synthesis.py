@@ -9,8 +9,9 @@ from typing import Any
 
 # Evolution schema
 # Shapes the "evolution" prompt output, consumed by the
-# hypothesis-refinement step in nodes/evolve.py. Represents a single refined
-# hypothesis (evolution runs one hypothesis at a time); refinement_summary
+# hypothesis-refinement step in agents/evolution/evolve.py. Represents a
+# single refined hypothesis (evolution runs one hypothesis at a time);
+# refinement_summary
 # is a human-readable diff-style note, not used for further LLM prompting.
 EVOLUTION_SCHEMA: dict[str, Any] = {
     "name": "hypothesis_evolution",
@@ -58,7 +59,8 @@ EVOLUTION_SCHEMA: dict[str, Any] = {
 }
 # Research-overview schema
 # Shapes the "research_overview" prompt output, consumed by
-# nodes/research_overview.py at the end of a run to synthesize the
+# agents/meta_review/research_overview.py at the end of a run to synthesize
+# the
 # top-ranked hypotheses into a narrative summary plus an NIH-style
 # "Specific Aims" writeup (introduction / aims / impact), mirroring the
 # structure NIH grant applications use for the Specific Aims page.

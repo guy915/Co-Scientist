@@ -18,7 +18,8 @@ from co_scientist.prompts._common import (
 from co_scientist.prompts.loading import _build_prompt
 
 
-# Renders prompts/meta_review.md for nodes/meta_review.py; all_reviews is
+# Renders prompts/meta_review.md for
+# agents/meta_review/meta_review.py; all_reviews is
 # the JSON dump of every review collected so far, synthesized once per
 # iteration into cross-hypothesis feedback.
 def get_meta_review_prompt(
@@ -57,7 +58,8 @@ def get_meta_review_prompt(
     )
 
 
-# Renders prompts/research_overview.md for nodes/research_overview.py, the
+# Renders prompts/research_overview.md for
+# agents/meta_review/research_overview.py, the
 # terminal synthesis over the top-Elo hypotheses.
 def get_research_overview_prompt(
     research_goal: str,
@@ -176,7 +178,8 @@ def _build_supervisor_prompt_variables(
     }
 
 
-# Renders prompts/supervisor.md for nodes/supervisor.py, the planning call
+# Renders prompts/supervisor.md for
+# agents/supervisor/supervisor.py, the planning call
 # at the head of the graph.
 def get_supervisor_prompt(
     inputs: SupervisorPromptInputs,

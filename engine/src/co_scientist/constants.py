@@ -261,9 +261,10 @@ DEFAULT_CACHE_ENABLED: Final = True
 caching).
 """
 
-# Selected in nodes/literature_review.py based on the COSCIENTIST_DEV_MODE
-# env var; dev mode ignores any per-run override and always uses the
-# smaller _DEV budget for faster iteration.
+# Selected in agents/generation/literature_review/run_config.py based
+# on the COSCIENTIST_DEV_MODE env var; dev mode ignores any per-run
+# override and always uses the smaller _DEV budget for faster
+# iteration.
 LITERATURE_REVIEW_PAPERS_COUNT: Final = 10
 """default number of papers to collect from MCP servers/tools when a run does
 not specify a per-run count."""
@@ -285,8 +286,8 @@ identically.
 # Generate node literature tool usage parameters
 # The next two functions size the tool-calling agent's iteration budget for
 # the two-phase (draft, then validate) generation-with-literature-tools flow
-# in nodes/generation/literature_tools/. Each LLM tool call, whether it reads
-# a paper or emits a draft, counts as one iteration.
+# in agents/generation/literature_tools/. Each LLM tool call, whether it
+# reads a paper or emits a draft, counts as one iteration.
 
 
 def get_draft_max_iterations(hypotheses_count: int) -> int:

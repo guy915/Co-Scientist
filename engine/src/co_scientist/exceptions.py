@@ -20,8 +20,9 @@ class ConfigError(CoScientistError):
     """The tool registry or configuration is not initialized or invalid."""
 
 
-# Raised by the debate and review nodes (nodes/generation/debate.py,
-# nodes/review.py) once retries are exhausted without usable output.
+# Raised by the debate and review nodes (agents/generation/debate.py,
+# agents/reflection/review.py) once retries are exhausted without usable
+# output.
 class GenerationError(CoScientistError):
     """Hypothesis generation or debate failed to produce a result."""
 

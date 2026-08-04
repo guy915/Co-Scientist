@@ -350,7 +350,7 @@ def _render_debate_prompt(
     return prompt, schema
 
 
-# Called by nodes/generation/debate.py once per debate turn. Template
+# Called by agents/generation/debate.py once per debate turn. Template
 # choice depends on literature availability
 # (generation_debate_and_literature vs generation_after_debate), and the
 # final turn switches from free-form discussion to schema-constrained JSON

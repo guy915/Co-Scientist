@@ -91,7 +91,8 @@ def _build_ranking_prompt_variables(
 
 
 # Renders prompts/ranking.md for each pairwise tournament match in
-# nodes/ranking.py. Beyond the two hypothesis texts, the prompt aggregates
+# agents/ranking/ranking.py. Beyond the two hypothesis texts, the
+# prompt aggregates
 # every per-hypothesis signal available at match time: review scores,
 # reflection notes, and (from the second tournament onward) deep-
 # verification probes.
@@ -128,7 +129,8 @@ def get_ranking_prompt(
     )
 
 
-# Renders prompts/proximity.md for nodes/proximity.py. The hypothesis texts
+# Renders prompts/proximity.md for
+# agents/proximity/proximity.py. The hypothesis texts
 # are passed as a JSON array; include_domain=False because similarity
 # clustering is domain-neutral by design.
 def get_proximity_prompt(

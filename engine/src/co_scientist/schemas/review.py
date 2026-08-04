@@ -55,13 +55,15 @@ _DETAILED_FEEDBACK_SCHEMA: dict[str, Any] = {
 
 # Review schema
 # Shapes the "review" prompt output, consumed by the single-hypothesis
-# review path in nodes/review.py. The scored criteria cover the paper's five
-# default output criteria (SSR §1) -- relevance (alignment with the goal),
-# plausibility, novelty, testability, and safety -- plus scientific_soundness,
+# review path in agents/reflection/review.py. The scored criteria cover
+# the paper's five default output criteria (SSR §1) -- relevance
+# (alignment with the goal), plausibility, novelty, testability, and
+# safety -- plus scientific_soundness,
 # clarity, and potential_impact. Each scored criterion also appears as prose
 # feedback under the matching key in detailed_feedback (safety additionally
 # has the free-text safety_ethical_concerns field). overall_score is the
-# average of the scores in "scores"; nodes/review.py stores it as
+# average of the scores in "scores"; agents/reflection/review.py stores it
+# as
 # hypothesis.score, and it is later surfaced as prompt context for ranking,
 # evolution, and meta-review (it does not feed the Elo rating math itself,
 # which is driven solely by tournament win/loss outcomes).
@@ -110,11 +112,13 @@ REVIEW_SCHEMA: dict[str, Any] = {
 }
 # Batch review schema - for reviewing multiple hypotheses together
 # Shapes the "review_batch" prompt output, consumed by the comparative
-# batch review path in nodes/review.py. Per-item structure mirrors
+# batch review path in agents/reflection/review.py. Per-item structure
+# mirrors
 # REVIEW_SCHEMA above (same shared scores/detailed_feedback sub-schemas)
 # plus a comparative_notes field.
-# Note: hypothesis_index is informational only; nodes/review.py matches
-# each response entry back to its source hypothesis by array position
+# Note: hypothesis_index is informational only;
+# agents/reflection/review.py matches each response entry back to
+# its source hypothesis by array position
 # (reviews_data[i]), not by reading this field, so a wrong index value from
 # the LLM does not break the mapping.
 REVIEW_BATCH_SCHEMA: dict[str, Any] = {
@@ -184,7 +188,8 @@ REVIEW_BATCH_SCHEMA: dict[str, Any] = {
 }
 # Reflection schema
 # Shapes the "reflection_observations" prompt output, consumed by
-# nodes/reflection.py, which checks each hypothesis against retrieved
+# agents/reflection/reflection.py, which checks each hypothesis
+# against retrieved
 # literature/knowledge-graph evidence. "classification" is a closed enum
 # the rest of the pipeline treats as a categorical verdict (e.g. surfaced
 # verbatim in reflection notes shown to ranking/evolution).
@@ -223,7 +228,8 @@ REFLECTION_SCHEMA: dict[str, Any] = {
 }
 # Deep-verification schema
 # Shapes the "deep_verification" prompt output, consumed by
-# nodes/deep_verification.py, which probes a hypothesis's fundamental
+# agents/reflection/deep_verification.py, which probes a hypothesis's
+# fundamental
 # assumptions with targeted questions. "verdict" is a closed enum
 # ("holds"/"weakened"/"undermined") read back later by
 # _format_deep_verification_context() in prompts.py to inject this

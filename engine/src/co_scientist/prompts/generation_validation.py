@@ -17,7 +17,7 @@ from co_scientist.prompts.loading import (
 
 
 # Renders prompts/hypothesis_novelty_analysis.md, called by
-# nodes/generation/literature_tools/validate.py once per (draft hypothesis,
+# agents/generation/literature_tools/validate.py once per (draft hypothesis,
 # paper) pair (paired there with HYPOTHESIS_NOVELTY_ANALYSIS_SCHEMA).
 def get_hypothesis_novelty_analysis_prompt(
     hypothesis_text: str,
@@ -262,7 +262,8 @@ def _build_validation_synthesis_prompt_variables(
 
 
 # Renders prompts/hypothesis_validation_synthesis_with_tools.md for the
-# Phase 2 validation agent in nodes/generation/literature_tools/validate.py.
+# Phase 2 validation agent in
+# agents/generation/literature_tools/validate.py.
 # tool_instructions is built from the "validation" workflow's tool list so
 # the agent knows which MCP search tools it may call while pivoting.
 def get_validation_synthesis_prompt_with_tools(

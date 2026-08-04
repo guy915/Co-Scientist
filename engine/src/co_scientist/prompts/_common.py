@@ -94,7 +94,8 @@ def _format_recommendation(rec: Any) -> str:
     return str(rec)
 
 
-# Reads the state dict shaped by nodes/meta_review.py (which renames the
+# Reads the state dict shaped by
+# agents/meta_review/meta_review.py (which renames the
 # schema's strengths/weaknesses fields to common_strengths/
 # common_weaknesses when storing state), not the raw META_REVIEW_SCHEMA
 # output.

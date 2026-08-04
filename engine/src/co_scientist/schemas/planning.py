@@ -8,8 +8,9 @@ cross-hypothesis meta-review synthesis.
 from typing import Any
 
 # Supervisor schema
-# Shapes the "supervisor" prompt output, consumed by nodes/supervisor.py at
-# the start (and, for iterative runs, between rounds) of a run. This is the
+# Shapes the "supervisor" prompt output, consumed by
+# agents/supervisor/supervisor.py at the start (and, for
+# iterative runs, between rounds) of a run. This is the
 # largest/most structured schema in the file because the supervisor is a
 # single planning call whose output threads through nearly every later
 # node: research_goal_analysis and workflow_plan feed the various
@@ -197,8 +198,8 @@ SUPERVISOR_SCHEMA: dict[str, Any] = {
             },
             # performance_assessment, adjustment_recommendations, and
             # output_preparation below are stored on workflow state
-            # (nodes/supervisor.py) for observability/debugging but are not
-            # currently re-read by any prompt-formatting helper.
+            # (agents/supervisor/supervisor.py) for observability/debugging
+            # but are not currently re-read by any prompt-formatting helper.
             "performance_assessment": {
                 "type": "object",
                 "properties": {
@@ -332,7 +333,8 @@ SUPERVISOR_SCHEMA: dict[str, Any] = {
 }
 # Meta-review schema
 # Shapes the "meta_review" prompt output, consumed by
-# nodes/meta_review.py after a full review pass across all hypotheses.
+# agents/meta_review/meta_review.py after a full review pass across
+# all hypotheses.
 # Synthesizes cross-hypothesis patterns (recurring_themes, strengths,
 # weaknesses), assesses each pipeline stage (process_assessment), and
 # proposes both concrete next-iteration guidance

@@ -90,7 +90,7 @@ def _build_draft_prompt_variables(req: DraftPromptRequest) -> dict[str, Any]:
 
 
 # Renders prompts/generation_draft_with_tools.md for the Phase 1 draft
-# agent in nodes/generation/literature_tools/draft.py (schema:
+# agent in agents/generation/literature_tools/draft.py (schema:
 # GENERATION_DRAFT_SCHEMA via the prompt-name lookup). Focuses on reading
 # papers and identifying gaps, with the lit review summary included as
 # context (not instructions).

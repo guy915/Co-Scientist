@@ -67,7 +67,7 @@ def _index_into_list(current: Any, index: str) -> Any:
     return current[idx] if idx < len(current) else None
 
 
-# Instantiated per tool call (see nodes/generation/literature_tools/
+# Instantiated per tool call (see agents/generation/literature_tools/
 # validate.py) with that tool's ToolConfig, so a single MCP response-shape
 # difference between e.g. PubMed and arXiv is absorbed entirely by YAML
 # field_mapping expressions rather than per-source parsing code.

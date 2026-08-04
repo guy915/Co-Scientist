@@ -23,7 +23,8 @@ def _review_sections(context: PromptRunContext) -> PromptSections:
 
 
 # Renders prompts/review.md for the single-hypothesis review path in
-# nodes/review.py (used when the batch is too large for comparative review).
+# agents/reflection/review.py (used when the batch is too large for
+# comparative review).
 def get_review_prompt(
     research_goal: str,
     hypothesis_text: str,
@@ -49,7 +50,8 @@ def get_review_prompt(
     )
 
 
-# Renders prompts/deep_verification.md for nodes/deep_verification.py, run
+# Renders prompts/deep_verification.md for
+# agents/reflection/deep_verification.py, run
 # once per top-Elo hypothesis. Deliberately takes no guidance/context
 # blocks: probing should challenge the hypothesis on its own terms.
 def get_deep_verification_prompt(
@@ -75,7 +77,8 @@ def get_deep_verification_prompt(
 
 
 # Renders prompts/review_batch.md for the comparative batch review path in
-# nodes/review.py; hypotheses_list is a pre-formatted text block, not a
+# agents/reflection/review.py; hypotheses_list is a pre-formatted
+# text block, not a
 # Python list.
 def get_review_batch_prompt(
     research_goal: str,
@@ -230,7 +233,8 @@ def _format_supervisor_guidance_for_review(
     return "".join(sections) if sections else ""
 
 
-# Renders prompts/reflection_observations.md for nodes/reflection.py, run
+# Renders prompts/reflection_observations.md for
+# agents/reflection/reflection.py, run
 # per hypothesis against the literature-review synthesis; indra_evidence
 # carries optional knowledge-graph enrichment text ("" when unavailable).
 def get_reflection_prompt(

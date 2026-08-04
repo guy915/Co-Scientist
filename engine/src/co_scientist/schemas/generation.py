@@ -57,7 +57,7 @@ _LITERATURE_GROUNDING_FIELD: dict[str, Any] = {
 
 # Generation schema
 # Shapes the final-turn output of the debate-based generation node
-# (nodes/generation/debate.py) for both the
+# (agents/generation/debate.py) for both the
 # "generation_debate_and_literature" and "generation_after_debate" prompt
 # templates. One hypothesis per array entry with its explanation, literature
 # grounding, and proposed experiment.
@@ -103,7 +103,7 @@ GENERATION_SCHEMA: dict[str, Any] = {
 }
 # Generation draft schema (Phase 1: drafting without validation)
 # Shapes the output of the "generation_draft_with_tools" prompt, consumed by
-# the tool-using draft step in nodes/generation/literature_tools/draft.py.
+# the tool-using draft step in agents/generation/literature_tools/draft.py.
 # Each draft still needs a novelty-validation pass (see
 # HYPOTHESIS_VALIDATION_SYNTHESIS_SCHEMA below) before it becomes a final
 # Hypothesis, so this schema omits literature_grounding/novelty_validation
@@ -161,7 +161,7 @@ GENERATION_DRAFT_SCHEMA: dict[str, Any] = {
 # Shapes the output of the "hypothesis_validation_synthesis" and
 # "hypothesis_validation_synthesis_with_tools" prompts. The with-tools
 # variant is the one actually invoked, by
-# nodes/generation/literature_tools/validate.py (get_validation_synthesis_
+# agents/generation/literature_tools/validate.py (get_validation_synthesis_
 # prompt_with_tools in prompts.py); the tool-less variant and its prompt
 # getter (get_hypothesis_validation_synthesis_prompt) have no production
 # caller and are only exercised directly by tests. novelty_validation.decision
@@ -230,7 +230,7 @@ HYPOTHESIS_VALIDATION_SYNTHESIS_SCHEMA: dict[str, Any] = {
 }
 # Hypothesis novelty analysis schema
 # Imported directly (not via get_schema_for_prompt) by
-# nodes/generation/literature_tools/validate.py, which pairs it with
+# agents/generation/literature_tools/validate.py, which pairs it with
 # get_hypothesis_novelty_analysis_prompt to check one draft hypothesis
 # against one paper at a time. novelty_assessment is a closed enum the
 # validation-synthesis step reads back to judge whether a draft still

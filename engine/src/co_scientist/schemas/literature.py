@@ -9,7 +9,8 @@ from typing import Any
 
 # Literature review query generation schema
 # Imported directly (not via get_schema_for_prompt) by
-# nodes/literature_review.py, which pairs it with whichever of the three
+# agents/generation/literature_review/queries.py, which pairs it with
+# whichever of the three
 # query-generation prompt templates
 # (literature_review_query_generation_pubmed/_indra/_generic) source-type
 # detection selects; the schema itself is source-agnostic, it just wants a
@@ -41,7 +42,8 @@ LITERATURE_QUERY_SCHEMA: dict[str, Any] = {
 }
 # Literature review paper analysis schema
 # Imported directly (not via get_schema_for_prompt) by
-# nodes/literature_review.py to structure the per-paper analysis produced
+# agents/generation/literature_review/analysis.py to structure the
+# per-paper analysis produced
 # for each fetched article (used later when synthesizing the literature
 # review and, via get_literature_review_synthesis_prompt, when assembling
 # the "Papers Analyzed" section of downstream generation prompts).

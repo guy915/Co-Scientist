@@ -9,7 +9,7 @@ from typing import Any
 
 # Ranking schema
 # Shapes the "ranking" prompt output, consumed by the pairwise tournament
-# comparison in nodes/ranking.py. "winner" drives the Elo update
+# comparison in agents/ranking/ranking.py. "winner" drives the Elo update
 # (calculate_elo_update) for the pair; judgment_explanation breaks the
 # comparison down per criterion (mirroring the review criteria, plus
 # feasibility) but is not itself parsed by ranking logic beyond
@@ -69,12 +69,13 @@ RANKING_SCHEMA: dict[str, Any] = {
     },
 }
 # Proximity schema
-# Shapes the "proximity" prompt output, consumed by nodes/proximity.py to
-# cluster near-duplicate hypotheses before deduplication.
-# nodes/proximity.py matches each similar_hypotheses entry back to a
-# Hypothesis object by comparing the first 100 characters of "text" (not by
-# array position or an id), then groups hypotheses by cluster_id and keeps
-# only the strongest of each "high" similarity_degree group.
+# Shapes the "proximity" prompt output, consumed by
+# agents/proximity/proximity.py to cluster near-duplicate hypotheses
+# before deduplication. agents/proximity/proximity.py matches each
+# similar_hypotheses entry back to a Hypothesis object by comparing
+# the first 100 characters of "text" (not by array position or an
+# id), then groups hypotheses by cluster_id and keeps only the
+# strongest of each "high" similarity_degree group.
 PROXIMITY_SCHEMA: dict[str, Any] = {
     "name": "proximity_analysis",
     "strict": False,

@@ -91,7 +91,8 @@ def _select_query_generation_template(source_type: str) -> str:
     return "literature_review_query_generation_generic"
 
 
-# Query-generation entry point used by nodes/literature_review.py, paired
+# Query-generation entry point used by
+# agents/generation/literature_review/queries.py, paired
 # there with LITERATURE_QUERY_SCHEMA. Returns a bare string (no schema in
 # the tuple) because the schema is imported directly by the caller.
 def get_literature_review_query_generation_prompt(
@@ -146,7 +147,8 @@ def get_hypothesis_query_generation_prompt(
 
 
 # Renders prompts/literature_review_paper_analysis.md, called by
-# nodes/literature_review.py once per fetched paper (paired there with
+# agents/generation/literature_review/analysis.py once per fetched
+# paper (paired there with
 # LITERATURE_PAPER_ANALYSIS_SCHEMA).
 def get_literature_review_paper_analysis_prompt(
     research_goal: str,
@@ -207,7 +209,8 @@ def _format_paper_analyses(paper_analyses: list[dict[str, Any]]) -> str:
 
 
 # Renders prompts/literature_review_synthesis.md for
-# nodes/literature_review.py: flattens the per-paper analyses into one
+# agents/generation/literature_review/synthesis.py: flattens the
+# per-paper analyses into one
 # markdown block and optionally appends knowledge-graph background as a
 # "Mechanistic Background" section (empty string when unavailable).
 def get_literature_review_synthesis_prompt(
