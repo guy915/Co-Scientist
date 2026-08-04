@@ -28,6 +28,33 @@ const evidence = [
   },
 ];
 
+// Evidence titles carrying scientific terms whose casing must survive
+// title-casing verbatim: an all-caps abbreviation glued to lowercase letters
+// ("mRNA") and a Greek-letter prefix ("α-synuclein") that journals set
+// lowercase, both of which naive per-word capitalization mangles.
+const scientificTermEvidence = [
+  {
+    id: 'ev-mrna',
+    title: 'mRNA expression during cold stress',
+    source: 'PubMed',
+    url: '',
+    authors: [],
+    year: 2025,
+    abstract: '',
+    available: true,
+  },
+  {
+    id: 'ev-greek',
+    title: 'α-synuclein aggregation in neurons',
+    source: 'PubMed',
+    url: '',
+    authors: [],
+    year: 2025,
+    abstract: '',
+    available: true,
+  },
+];
+
 // Four references so a topic can cite non-adjacent positions, which is what
 // distinguishes real reference numbers from a per-topic 1..N counter.
 const numberedEvidence = ['ev-a', 'ev-b', 'ev-c', 'ev-d'].map((id, index) => ({
@@ -113,6 +140,23 @@ describe('LearningView', () => {
     expect(
       screen.queryByText('mitochondrial feedback in cold stress'),
     ).toBeNull();
+  });
+});
+
+describe('LearningView section title capitalization', () => {
+  it('keeps scientific-term casing intact while title-casing the rest', () => {
+    render(<LearningView goal="goal" evidence={scientificTermEvidence} />);
+
+    expect(
+      screen.getByRole('heading', {
+        name: 'mRNA Expression During Cold Stress',
+      }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('heading', {
+        name: 'α-synuclein Aggregation in Neurons',
+      }),
+    ).toBeInTheDocument();
   });
 });
 

@@ -3,6 +3,7 @@ import {type Evidence, type KnowledgeBaseTopic, type Report} from '@/api/runs';
 import {Icon} from '@/components/icon';
 import {splitAbstractSections} from '@/lib/format_abstract';
 import {renderInlineHtml} from '@/lib/sanitize_html';
+import {capitalizeTerm} from '@/lib/text';
 import {
   REPORT_H3_CLASSES,
   REPORT_H4_CLASSES,
@@ -347,16 +348,6 @@ function evidenceSection(
   };
 }
 
-// Strips a leading "H1: " style hypothesis-id prefix and title-cases the
-// remaining words (lowercasing small connector words), falling back to a
-// numbered placeholder when nothing is left after stripping.
-//
-// This capitalizes every word unconditionally, unlike lib/text's
-// capitalizeTerm, which leaves a term alone unless it is entirely lowercase
-// ASCII. These are evidence titles, so they carry scientific terms this
-// still mangles ("mRNA" -> "MRNA"). Adopting that guard here would change
-// what the tab renders, so it is a fix to make deliberately rather than a
-// like-for-like substitution.
 function learningTitle(title: string, index: number): string {
   const cleaned = title.replace(/^H\d+:\s*/i, '').trim();
   if (!cleaned) return `Learning Section ${index + 1}`;
@@ -365,7 +356,7 @@ function learningTitle(title: string, index: number): string {
     .map(word =>
       /^(and|or|the|of|in|for|to|with|by)$/i.test(word)
         ? word.toLowerCase()
-        : word.charAt(0).toUpperCase() + word.slice(1),
+        : capitalizeTerm(word),
     )
     .join(' ');
 }
