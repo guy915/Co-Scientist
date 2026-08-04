@@ -63,6 +63,30 @@ class _SearchRunContext:
     errors: list[str] | None = None
 
 
+@dataclass(frozen=True)
+class _QueryTarget:
+    """The one search tool a query runs against, and how to label it.
+
+    Both Phase 2 paths search a single tool per call and differ only in what
+    that tool is and how a failure against it is named, so bundling the
+    difference here is what lets them share one search body.
+
+    Attributes:
+        tool_name: MCP tool name to invoke.
+        tool_config: Tool config used to map parameters and normalize the
+            response, or None on the no-registry fallback path.
+        label: Names this target in logs and in the ctx.errors entry a failed
+            search appends: the source name in multi-source mode, the query
+            index where the single-source path has nothing else to go on.
+        max_papers: Papers to request from this call.
+    """
+
+    tool_name: str
+    tool_config: Optional["ToolConfig"]
+    label: str
+    max_papers: int
+
+
 def _build_query_tool_params(
     query: str,
     slug: str,
@@ -106,19 +130,16 @@ def _tag_source_name(
     return normalized
 
 
-async def _search_source_for_query(
+async def _search_target_for_query(
     query: str,
     ctx: _SearchRunContext,
-    tool_config: "ToolConfig",
-    src_name: str,
-    papers_per_query: int,
+    target: _QueryTarget,
 ) -> dict[str, dict[str, Any]]:
-    """Search one source for a single query; returns normalized results.
+    """Search one target for a single query; returns normalized results.
 
-    Scoped to the per-source query loop in `_run_single_source_queries`: a
-    failed query is swallowed here (not raised) so other queries/sources
-    still complete; the caller aggregates ctx.errors to distinguish "zero
-    results" from "search broke".
+    The shared body of both Phase 2 paths. A failed query is swallowed here
+    (not raised) so other queries and sources still complete; the caller
+    aggregates ctx.errors to distinguish "zero results" from "search broke".
 
     A query that comes back empty is retried in progressively broader form
     (see ``query_broadening``). Back ends AND every term, so an over-specific
@@ -129,31 +150,27 @@ async def _search_source_for_query(
     query was not what failed.
     """
     for attempt_query in broadened_queries(query):
-        normalized = await _attempt_source_query(
-            attempt_query, ctx, tool_config, src_name, papers_per_query
-        )
+        normalized = await _attempt_query(attempt_query, ctx, target)
         if normalized is None:
             return {}
         if normalized:
             if attempt_query != query:
                 logger.info(
-                    "Broadened %s query %r to %r after no results",
-                    src_name,
+                    "Broadened %s from %r to %r after no results",
+                    target.label,
                     query,
                     attempt_query,
                 )
-            return _tag_source_name(normalized, src_name)
+            return normalized
     return {}
 
 
-async def _attempt_source_query(
+async def _attempt_query(
     query: str,
     ctx: _SearchRunContext,
-    tool_config: "ToolConfig",
-    src_name: str,
-    papers_per_query: int,
+    target: _QueryTarget,
 ) -> dict[str, dict[str, Any]] | None:
-    """Run one query against one source.
+    """Run one query against one target, once.
 
     Returns:
         The normalized results (possibly empty), or None when the search
@@ -162,23 +179,44 @@ async def _attempt_source_query(
     """
     try:
         tool_params = _build_query_tool_params(
-            query, ctx.slug, ctx.run_id, papers_per_query, tool_config
+            query, ctx.slug, ctx.run_id, target.max_papers, target.tool_config
         )
         result_data = await _call_search_tool(
             ctx.mcp_client,
-            tool_config.mcp_tool_name,
+            target.tool_name,
             tool_params,
         )
-        return normalize_search_response(result_data, tool_config)
+        return normalize_search_response(result_data, target.tool_config)
     except Exception as e:
-        # A failed query for this source is swallowed here (not raised) so
-        # other queries/sources still complete; the caller aggregates
-        # errors to distinguish "zero results" from "search broke".
+        # A failed query is swallowed here (not raised) so the other queries
+        # and sources still complete; the caller aggregates errors to
+        # distinguish "zero results" from "search broke".
         detail = _describe_exc(e)
-        logger.error("Query failed for %s: %s", src_name, detail)
+        logger.error("Search failed for %s: %s", target.label, detail)
         if ctx.errors is not None:
-            ctx.errors.append(f"{src_name}: {detail}")
+            ctx.errors.append(f"{target.label}: {detail}")
         return None
+
+
+async def _search_source_for_query(
+    query: str,
+    ctx: _SearchRunContext,
+    tool_config: "ToolConfig",
+    src_name: str,
+    papers_per_query: int,
+) -> dict[str, dict[str, Any]]:
+    """Search one multi-source source for a query, tagging its results.
+
+    Scoped to the per-source query loop in `_run_single_source_queries`.
+    """
+    target = _QueryTarget(
+        tool_name=tool_config.mcp_tool_name,
+        tool_config=tool_config,
+        label=src_name,
+        max_papers=papers_per_query,
+    )
+    normalized = await _search_target_for_query(query, ctx, target)
+    return _tag_source_name(normalized, src_name)
 
 
 async def _run_single_source_queries(
@@ -257,37 +295,33 @@ async def _search_single_query(
     ctx: _SearchRunContext,
     config: SearchConfig,
 ) -> tuple[int, dict[str, dict[str, Any]]]:
-    """Search single query (for single-source mode)."""
+    """Search single query (for single-source mode).
+
+    Runs the same broadening ladder as the multi-source path: nothing about
+    an over-constrained query is multi-source-specific, and a lone source has
+    no sibling to make up for what it misses. The shipped single-source
+    configs (``examples/arxiv_only.yaml``, ``examples/google_scholar.yaml``)
+    put every query here.
+
+    Errors are recorded per-query index (not raised) so asyncio.gather in the
+    caller still completes for the other queries; the aggregated errors list
+    drives the "search broke" vs "search found nothing" distinction in the
+    main node function.
+    """
     logger.debug(
         "Searching query %s (%s papers): %s...", index, papers_count, query[:80]
     )
+    target = _QueryTarget(
+        tool_name=config.search_tool_name,
+        tool_config=config.search_tool_config,
+        label=f"query {index}",
+        max_papers=papers_count,
+    )
 
-    try:
-        tool_params = _build_query_tool_params(
-            query, ctx.slug, ctx.run_id, papers_count, config.search_tool_config
-        )
-        result_data = await _call_search_tool(
-            ctx.mcp_client, config.search_tool_name, tool_params
-        )
-        normalized = normalize_search_response(
-            result_data, config.search_tool_config
-        )
+    normalized = await _search_target_for_query(query, ctx, target)
 
-        logger.debug("Query %s: found %s papers", index, len(normalized))
-        return (index, normalized)
-
-    except Exception as e:
-        # Errors are recorded per-query index (not raised) so
-        # asyncio.gather in the caller still completes for the other
-        # queries; the aggregated errors list drives the "search broke" vs
-        # "search found nothing" distinction in the main node function.
-        detail = _describe_exc(e)
-        logger.error(
-            "Query %s (%s) failed: %s", index, config.search_tool_name, detail
-        )
-        if ctx.errors is not None:
-            ctx.errors.append(f"query {index}: {detail}")
-        return (index, {})
+    logger.debug("Query %s: found %s papers", index, len(normalized))
+    return (index, normalized)
 
 
 async def _search_all_sources(
