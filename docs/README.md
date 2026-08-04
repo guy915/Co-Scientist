@@ -22,8 +22,6 @@ but do not update them to match later changes.
 
 | Dir | Contents |
 |---|---|
-| `audits/` | Audit packages (e.g. the Google Co-Scientist implementation audit, with its regeneration script) |
 | `decisions/` | Dated decision records |
-| `plans/` | Dated implementation plans |
-| `specs/` | Dated design specs |
-| `reports/` | Dated status/integration reports |
+| `superpowers/plans/` | Dated implementation plans |
+| `superpowers/specs/` | Dated design specs |

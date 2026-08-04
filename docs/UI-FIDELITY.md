@@ -50,7 +50,7 @@ pixels, not for lexicon or product structure.
 
 **C. Secondary skins** — `references/ui-ux/gemini-enterprise/` (shared base
 shell; HTML/CSS), `references/ui-ux/gemini/` (plain consumer Gemini — mostly
-unrelated, do not anchor on it), `references/peripheral/notebooklm/` (UI lineage
+unrelated, do not anchor on it), `references/ui-ux/notebooklm/` (UI lineage
 only), `references/ui-ux/legacy-workbench-ui/` (**our own** pre-refactor UI — not
 a source of truth).
 
@@ -75,12 +75,12 @@ asserted as drift.
 
 ## 2. Tab / surface mapping (ours ↔ reference)
 
-Our live report lives in `run_detail.tsx` (`TABS`, line 37; `TAB_LABELS`, lines
-47–52). It mirrors the **newer** live-footage era, and `TAB_ALIASES`
-(lines 99–107) absorbs the **older** spec/ESN names so old deep-links still
-resolve.
+Our live report lives in `run_detail.tsx`, routed by the canonical tab table in
+the sibling `run_tabs.ts` (`TABS`, line 7). It mirrors the **newer**
+live-footage era, and `run_tabs.ts`'s `TAB_ALIASES` (line 14) absorbs the
+**older** spec/ESN names so old deep-links still resolve.
 
-| Our tab (`TAB_LABELS`) | Newer footage (canonical) | Older ESN / spec (aliased) | Verdict |
+| Our tab (`TAB_META`) | Newer footage (canonical) | Older ESN / spec (aliased) | Verdict |
 |---|---|---|---|
 | `details` → **Goal Details** | Goal Details | Run Specification(s) → `specifications`/`specs` | Faithful (F1) |
 | `learning` → **Learning** | Learning | Knowledge Base → `knowledge`/`evidence` | Faithful (F11) |
@@ -108,8 +108,8 @@ divergence from the canonical reference). Confidence is stated per item.
 - **Reference truth:** `mash-fibrosis-research-plan-and-run.mp4` ≈66 s — 4 tabs,
   icon+label, L→R: *Goal Details* (active, underlined) / *Learning* /
   *Research Overview* / *All Ideas*.
-- **Our impl:** `run_detail.tsx:37` `TABS=['details','learning','overview','ideas']`;
-  `:47–52` `TAB_LABELS` maps to the four labels above.
+- **Our impl:** `run_tabs.ts:7` `TABS=['details','learning','overview','ideas']`;
+  `run_detail_shell.tsx`'s `TAB_META` maps to the four labels above.
 - **Verifier note:** independently re-extracted the frame and read the code —
   labels and order are 1:1. Not drift.
 

@@ -62,9 +62,7 @@ enrichments:
   # Post-generation per-hypothesis tool calls (see below)
 
 settings:
-  auto_discover: true
   merge_strategy: "replace"
-  allow_disable_builtins: true
 ```
 
 ---
@@ -221,7 +219,6 @@ workflows:
         content_url_field: "pdf_url"
 
     # Multi-source settings
-    multi_source_strategy: "parallel"
     deduplicate_across_sources: true
 
     # Availability check
@@ -238,7 +235,6 @@ workflows:
     # Additional tools available to the lit review agent
     read_tools:
       - "read_pdf"
-      - "query_pdf"
     utility_tools:
       - "find_pdf_links"
 

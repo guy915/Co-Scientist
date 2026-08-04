@@ -74,7 +74,7 @@ Every run executes on the engine, and the engine adapter emits its events into t
 19. status            (completed)
 ```
 
-The frontend's Progress tab renders this verbatim. The SSE endpoint at `GET /api/runs/{id}/events?after=<seq>` always replays history starting at the requested sequence, then tails live. This is what makes "reopen after restart" work: the client never depends on in-memory event state.
+The frontend's active-run view (`run_detail_active.tsx`) renders this as a live timeline while a run is in flight. The SSE endpoint at `GET /api/runs/{id}/events?after=<seq>` always replays history starting at the requested sequence, then tails live. This is what makes "reopen after restart" work: the client never depends on in-memory event state.
 
 ## Persistence model
 
@@ -112,7 +112,7 @@ An offline-backed run still executes the real engine graph; `co_scientist.offlin
 The workbench holds no durable state in the browser. On mount it:
 
 1. Calls `getRun(id)` for status + summary counts.
-2. Calls `getHypotheses / getEvidence / getMatches / getReviews / getSafety / getCitations / getReport` in parallel.
+2. Calls `getHypotheses / getEvidence / getMatches / getReviews / getClaimEvidence / getSafety / getReport` in parallel.
 3. Opens an `EventSource` on `/api/runs/{id}/events?after=0` which replays every event since the run started, then tails live.
 4. The chat workspace polls `/api/runs/{id}/messages` while a run is active and uses the streaming `/messages/ask` endpoint for Q&A responses.
 
@@ -127,8 +127,9 @@ This means a hard refresh, a backend restart, or a new browser session all produ
 -   FastAPI single-file app is preserved; the new router is mounted alongside
     the diagnostics endpoints (`/health`, `/config`, `/status`).
 -   Frontend stack is preserved: React 19 + Vite 7 + Tailwind v4 + Bun + gts.
-    The workbench lives under `src/workbench/`, with public landing and demo
-    pages under `src/public/`.
+    The workbench lives under `src/workbench/`; the earlier public landing
+    page and demo routes were removed, and `src/public/` now holds only
+    residual helpers (404 page, no-index).
 -   The engine's offline LLM backend exists so the system has **observable
     behaviour without any external dependency**. The same LangGraph graph
     runs either way; only `litellm.acompletion` for `offline/` models is

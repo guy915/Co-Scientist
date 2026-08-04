@@ -33,9 +33,12 @@ engine-level option; the web app does not expose a toggle for it yet, so reach
 it through the library:
 
 ```python
-result = await generator.generate(
+result = await generator.generate_hypotheses(
     research_goal="...",
-    enable_tool_calling_generation=True,
+    opts={
+        "enable_literature_review_node": True,
+        "enable_tool_calling_generation": True,
+    },
 )
 ```
 
@@ -130,7 +133,7 @@ async function `(query, max_results, recency_days) -> dict[str, Any]` that
 calls its vendor API and normalizes the response into
 `{result_id: {title, url, abstract, source, published_date}}`, plus one entry
 in `_PROVIDERS` naming its key env var. Normalization is a pure function, so
-test it directly against a captured payload — see `tests/test_web_search.py`.
+test it directly against a captured payload — see `mcp_server/tests/test_web_search.py`.
 
 ## Safety
 

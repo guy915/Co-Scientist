@@ -197,6 +197,8 @@ Most users won't need to modify these, but they're centralized in `src/co_scient
 
 ### Elo Rating Parameters
 
+Defined in `src/co_scientist/constants_tournament.py` (re-exported from `constants.py`):
+
 ```python
 INITIAL_ELO_RATING = 1200  # Starting Elo rating for all hypotheses
 ELO_K_FACTOR = 24          # Rating change magnitude per match
@@ -206,9 +208,9 @@ ELO_K_FACTOR = 24          # Rating change magnitude per match
 
 ```python
 DEFAULT_MAX_TOKENS = 4000     # Standard responses
-EXTENDED_MAX_TOKENS = 6000    # Longer responses
-LONG_MAX_TOKENS = 8000        # Very long responses
-THINKING_MAX_TOKENS = 16000   # Extended thinking models
+EXTENDED_MAX_TOKENS = 8000    # Longer responses
+LONG_MAX_TOKENS = 10000       # Very long responses
+THINKING_MAX_TOKENS = 18000   # Extended thinking models
 ```
 
 ### Temperature Settings
@@ -225,12 +227,12 @@ Some models, especially thinking ones, require temperature=1 or ignore the param
 
 ```python
 DUPLICATE_SIMILARITY_THRESHOLD = 0.95  # Remove near-identical hypotheses
-PROXIMITY_SIMILARITY_THRESHOLD = 0.85  # Cluster similar hypotheses
 ```
 
 ### Modifying Constants
 
-If you need to tune these parameters, edit `src/co_scientist/constants.py`.
+If you need to tune these parameters, edit `src/co_scientist/constants.py` (or
+`constants_tournament.py` for the Elo/tournament parameters above).
 
 Modifying constants may affect result quality and should be done with careful evaluation.
 

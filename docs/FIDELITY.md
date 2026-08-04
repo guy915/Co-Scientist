@@ -6,7 +6,7 @@
 > (`verified`/`partial`/`missing`/`external`/`undisclosed`). This document is
 > the narrative companion; where the two differ, PARITY.md and the tests win.
 
-The Co-Scientist research artefacts (the "Towards an AI co-scientist" paper, the public demos, and the product captures in `media/`) describe the system at the level of agent roles, behavioural invariants, and final-product UX. They do **not** publish numeric hyperparameters, ranking constants, prompt details, or persistence schemas. This document catalogues which invariants this implementation preserves, which are **implementation-defined** (chosen to satisfy the spirit of the published behaviour without overspecifying), and which are explicitly out of scope.
+The Co-Scientist research artefacts (the "Towards an AI co-scientist" paper, the public demos, and the product captures in `references/core/google-co-scientist/media/`) describe the system at the level of agent roles, behavioural invariants, and final-product UX. They do **not** publish numeric hyperparameters, ranking constants, prompt details, or persistence schemas. This document catalogues which invariants this implementation preserves, which are **implementation-defined** (chosen to satisfy the spirit of the published behaviour without overspecifying), and which are explicitly out of scope.
 
 ## Invariants preserved exactly
 
@@ -14,27 +14,29 @@ The Co-Scientist research artefacts (the "Towards an AI co-scientist" paper, the
 | --- | --- | --- |
 | Multi-agent, supervised co-scientist (not a single prompt chain) | `app/app/engine_adapter` drives the engine's compiled LangGraph `StateGraph`, whose nodes are the agent packages under `engine/src/co_scientist/agents/` (Supervisor, Generation, Reflection, Ranking, Evolution, Proximity, Meta-review, Safety) | "Towards an AI co-scientist" §3 |
 | Hypotheses are persistent, versioned, auditable | `store.hypotheses` is append-only; `hypothesis_state` separates mutable fields | published behavioural invariant |
-| Tournament uses **pairwise** comparison (not absolute scalar scoring) | `co_scientist.agents.ranking.ranking::judge_matchup` (re-exported at the historical `co_scientist.nodes.ranking` import path) | published |
-| Initial Elo is **1200** | `app/elo.py` `INITIAL_ELO`; mirrors engine `INITIAL_ELO_RATING` | published |
-| Standard Elo formula | `app/elo.py` `update_pair` mirrors `engine.nodes.ranking.calculate_elo_update` | textbook Elo |
+| Tournament uses **pairwise** comparison (not absolute scalar scoring) | `co_scientist.agents.ranking.ranking::judge_matchup` (defined in the sibling `agents/ranking/ranking_debate.py` and re-exported; the old `co_scientist.nodes` shim layer has been removed) | published |
+| Initial Elo is **1200** | `app/app/elo.py` `INITIAL_ELO`; mirrors engine `INITIAL_ELO_RATING` | published |
+| Standard Elo formula | The engine owns the update math (`co_scientist.agents.ranking.ranking::calculate_elo_update`); `app/app/elo.py` only projects a leaderboard from the engine's already-computed ratings — its own pairwise updater was retired with the app's mock tournament | textbook Elo |
 | Evolution generates **new** offspring hypotheses with lineage (never mutates the parent) | Engine builds an immutable child (`agents/evolution/evolve_results.py::_build_evolution_child`: new id, Elo 1200, zero matches, `parent_id`/`generation`); real-engine drain persists the explicit lineage (`engine_adapter/drain.py`); `store.hypotheses` is append-only. Tests: engine `test_evolve.py`, `test_integration_pipeline.py::test_evolve_path_appends_immutable_children`; app `test_engine_drain.py::test_drain_persists_explicit_lineage`, `test_evolution.py` | published — explicit invariant in product docs (SSR §4, §12) |
 | Meta-review feedback synthesized and appended to every agent's prompt in later iterations | `agents/meta_review/meta_review.py`; `_format_meta_review_context` threaded into the generation, reflection, ranking, review, and evolve prompts (no-op when empty); `store.reviews` row per iteration | "Towards an AI co-scientist" §3.3 — feedback without back-propagation |
 | Deep-verification review (probing questions challenging a hypothesis's fundamental assumptions) | `agents/reflection/deep_verification.py` runs on the top-k by Elo after ranking; verdict feeds the ranking prompt; surfaced as `reviewer_agent="deep_verification"` reviews | "Towards an AI co-scientist" §3.3 + Fig A.15 |
 | Research overview + NIH Specific Aims synthesized from the top hypotheses | `agents/meta_review/research_overview.py` terminal node; surfaced in the report payload + markdown (`## Research Overview` / `## NIH Specific Aims`) | "Towards an AI co-scientist" §3.3 — research overview |
 | Safety screening before **and** after generation | `safety.screen_intake` + `safety.screen_final`; both persisted | published |
-| Runs use one canonical hypothesis-generation path | `run_modes.normalize_run_mode`; legacy `standard`/`advanced` inputs resolve to `default` | implementation policy after removing the obsolete profile split |
-| UI exposes hypotheses (ideas), evidence, tournament, reports, and scientist-in-the-loop interaction | Workbench chat workspace + run detail (`workbench_app.tsx`); the only live tab component is `ideas_tab.tsx`; `run_detail.tsx` renders details / learning / research-overview inline | published UX (see the note below on retired tabs) |
+| Runs use one canonical hypothesis-generation path | `run_modes.normalize_run_tier` / `run_modes.normalize_run_focus` size and steer every run; the old `standard`/`advanced`/`default` run-mode string no longer exists | implementation policy — superseded by the tier (express/standard/extended/ultra) + focus system |
+| UI exposes hypotheses (ideas), evidence, tournament, reports, and scientist-in-the-loop interaction | Workbench chat workspace + run detail (`workbench_app.tsx`); `run_detail.tsx` routes to four tab components — `run_detail_specifications.tsx` (details), `run_detail_learning.tsx`, `run_detail_overview.tsx`, and `components/tabs/ideas_tab.tsx` (ideas) | published UX (see the note below on retired tabs) |
 
 > **The citation classifier is an audit label, not a verification gate.**
 > Citation classification (`store.citations.state` ∈ {verified, partial,
 > unsupported, unavailable}) is a post-hoc **audit label** computed from
-> document-level lexical overlap (`app/citations.py`, Jaccard thresholds),
+> document-level lexical overlap (`app/app/citations.py`, coverage
+> thresholds — intersection over the claim's own tokens, not Jaccard),
 > surfaced in the UI and report. It is **not** a claim-level entailment check.
-> A separate claim-level grounding + publication gate (`app/claims.py`,
-> `CITE-*` in [PARITY.md](PARITY.md)) now exists but is `partial`: the
-> assessor is still lexical (not entailment), and for the real engine it runs
-> *after* the tournament rather than gating ranking. See PARITY.md for the
-> exact status.
+> A separate claim-level grounding + publication gate (`app/app/claims.py`,
+> `CITE-*` in [PARITY.md](PARITY.md)) now exists and is `verified`: the
+> real-run default assessor is LLM/NLI-based (the offline/CI default stays
+> lexical by design), and on the durable engine path it runs *before*
+> ranking via the pre-ranking evidence gate, so a contradicted claim no
+> longer shapes the tournament. See PARITY.md for the exact status.
 
 ## Implementation-defined values
 
@@ -43,12 +45,12 @@ Because the source materials do not publish these numbers, this implementation f
 | Value | Default | Source of decision |
 | --- | --- | --- |
 | `ELO_K_FACTOR` | **24** | Mirrors engine ranking node default. K is intentionally moderate so a single match can move a candidate ~12 points; high enough to surface a leader in 6–12 matches, low enough that one bad call doesn't destroy the leaderboard. |
-| Canonical run mode | default | Current product flow has one run path. Older clients and persisted drafts may still send `standard` or `advanced`, but execution normalizes them to `default`. |
+| Canonical run mode | tier `standard` / focus `balance` | Current product flow sizes and steers every run through the tier (express/standard/extended/ultra) + focus system; the older `standard`/`advanced`/`default` run-mode string no longer exists. |
 | Default pool size | 8 initial hypotheses | Matches the current chat-first workflow's candidate pool. |
 | Default iterations | 2 evolve cycles | Keeps tournament and evolution as part of every run. |
 | Tournament pair count | 12 | Calibrated so an Elo leader emerges with statistical separation for the canonical default pool. |
-| Safety hard-block patterns | Narrow CBRN/weaponization keyword combinations | Hand-picked to bias toward avoiding false positives on legitimate research (CRISPR papers, pathogen biology, etc.). Reviewable in `app/safety.py`. |
-| Citation classifier | Jaccard token overlap with two thresholds (0.35 / 0.10) | Lightweight, deterministic, and good enough to surface all four classes for the demo. The real engine would call an LLM verifier here. |
+| Safety hard-block patterns | Narrow CBRN/weaponization keyword combinations | Hand-picked to bias toward avoiding false positives on legitimate research (CRISPR papers, pathogen biology, etc.). Reviewable in `app/app/safety.py`. |
+| Citation classifier | Coverage (intersection over the claim's tokens) with two thresholds (0.60 verified / 0.30 partial) | Lightweight, deterministic, and good enough to surface all four classes for the demo; superseded the module's original Jaccard scoring, which made the top two states mathematically unreachable against an asymmetric claim/abstract pair. The real engine's LLM/NLI assessor (see `CITE-CLAIM-001` in PARITY.md) is the real-run default. |
 
 ## Explicitly out of scope (this pass)
 
@@ -120,10 +122,11 @@ The "Towards an AI co-scientist" paper is the primary fidelity reference. The im
 -   Proximity clustering guides deduplication and pairing.
 -   The final report distinguishes verified, partially supported, and
     unsupported claims **by the audit label above** (the document-level
-    citation classifier). Separate claim-level grounding (`app/claims.py`)
-    now exists but is `partial` — a lexical assessor, not entailment, and for
-    the real engine it runs *after* the tournament; see the `CITE-*` rows in
-    [PARITY.md](PARITY.md).
+    citation classifier). Separate claim-level grounding (`app/app/claims.py`)
+    now exists and is `verified` — the real-run default assessor is
+    LLM/NLI-based (offline/CI stays lexical by design), and on the durable
+    engine path it runs *before* ranking via the pre-ranking evidence gate;
+    see the `CITE-*` rows in [PARITY.md](PARITY.md).
 -   Safety as a fail-closed gate on hazardous biomedical / chemical content
     **at the run level** (intake + final), **plus** a structured
     per-hypothesis safety review (`SAFE-PERHYP-001`). The engine-native

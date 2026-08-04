@@ -52,7 +52,7 @@ Each node is an async function that follows a consistent pattern:
 ```python
 from typing import Dict, Any
 from ..state import WorkflowState
-from ..llm import call_llm_json
+from ..llm import CompletionSpec, call_llm_json
 
 async def node_name(state: WorkflowState) -> Dict[str, Any]:
     """
@@ -71,10 +71,12 @@ async def node_name(state: WorkflowState) -> Dict[str, Any]:
     # 2. Perform operation (often with LLM call)
     response = await call_llm_json(
         prompt="Your prompt here",
-        model_name=state["model_name"],
-        temperature=0.7,
-        max_tokens=4000,
-        json_schema=YourSchema,
+        spec=CompletionSpec(
+            model_name=state["model_name"],
+            temperature=0.7,
+            max_tokens=4000,
+            json_schema=YourSchema,
+        ),
     )
 
     # 3. Update metrics
@@ -160,7 +162,7 @@ class WorkflowState(TypedDict, total=False):
 | Field | Type | Description |
 |-------|------|-------------|
 | `research_goal` | `str` | Original research question |
-| `research_plan` | `str` | Strategy from supervisor |
+| `supervisor_guidance` | `dict` | Strategy from supervisor (exposed to stream/result consumers as `research_plan`) |
 | `hypotheses` | `List[Dict]` | Current hypothesis pool |
 | `articles_with_reasoning` | `str` | Literature summary (if MCP available) |
 | `articles` | `List[Dict]` | Retrieved papers (literature review) |
@@ -186,7 +188,7 @@ Each hypothesis is a dictionary. Key fields:
 | `reviews` | list | Per-review scores and feedback |
 | `evolution_history` | list | Refinement summaries from Evolve node |
 | `reflection_notes` | string | Reflection node analysis against literature |
-| `generation_method` | string | `"literature"` or `"debate"` |
+| `generation_method` | string | `"literature_tools"` or `"debate"` |
 
 See `models.py` for the full `Hypothesis` dataclass.
 
@@ -195,27 +197,34 @@ See `models.py` for the full `Hypothesis` dataclass.
 ### Standard JSON Response
 
 ```python
-from co_scientist.llm import call_llm_json
+from co_scientist.llm import CompletionSpec, call_llm_json
 
 response = await call_llm_json(
     prompt="Your prompt",
-    model_name="gemini/gemini-2.5-flash",
-    temperature=0.7,
-    max_tokens=4000,
-    json_schema=MySchema, # uses schema where possible to avoid brittleness
+    spec=CompletionSpec(
+        model_name="gemini/gemini-2.5-flash",
+        temperature=0.7,
+        max_tokens=4000,
+        json_schema=MySchema, # uses schema where possible to avoid brittleness
+    ),
 )
 ```
 
 ### With Tool Calling (MCP)
 
 ```python
-from co_scientist.mcp_client import get_mcp_tools
+from co_scientist.llm import CompletionSpec, ToolLoop, call_llm_with_tools
+from co_scientist.mcp_client import get_mcp_client
+from co_scientist.tools.provider import MCPToolProvider
 
-tools = await get_mcp_tools()
-response = await call_llm_with_tools(
+mcp_client = await get_mcp_client()
+provider = MCPToolProvider(mcp_client=mcp_client)
+_, openai_tools = provider.get_tools()
+
+response, _ = await call_llm_with_tools(
     prompt="Your prompt",
-    tools=tools,
-    model_name="gemini/gemini-2.5-flash",
+    spec=CompletionSpec(model_name="gemini/gemini-2.5-flash"),
+    loop=ToolLoop(tools=openai_tools, executor=provider.execute_tool_call),
 )
 ```
 

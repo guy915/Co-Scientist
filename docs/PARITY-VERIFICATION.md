@@ -178,8 +178,8 @@ documented external blocker. To verify later:
 
 ```bash
 # 1. Start the reference MCP server (Python 3.12 venv):
-pip install -e mcp_server/           # into a 3.12 environment
-uvicorn mcp_server.server:app --host 0.0.0.0 --port 8888
+pip install -e engine/mcp_server/    # into a 3.12 environment
+cd engine && uvicorn mcp_server.server:app --host 0.0.0.0 --port 8888
 
 # 2. Run the app against the real engine + MCP with a live key:
 cd app && MODEL_NAME=deepseek/deepseek-chat \
