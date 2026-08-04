@@ -20,6 +20,7 @@ from langchain_mcp_adapters.sessions import Connection
 from co_scientist.config.env_vars import parse_timeout_env
 from co_scientist.exceptions import MCPToolTimeoutError
 from co_scientist.mcp_client_helpers import (
+    NOT_INITIALIZED_MESSAGE,
     _ensure_tools_initialized,
     _filter_tools_by_whitelist,
     _resolve_server_configs,
@@ -277,11 +278,7 @@ class MCPToolClient:
 
     def _require_initialized_tools(self) -> dict[str, Any]:
         """Return self._tools_dict, raising if not yet initialized."""
-        if self._tools_dict is None:
-            raise RuntimeError(
-                "mcp client not initialized. call initialize() first."
-            )
-        return self._tools_dict
+        return _ensure_tools_initialized(self._tools_dict)
 
     async def execute_tool_call(self, tool_call: Any) -> dict[str, Any]:
         """Execute an MCP tool call.
@@ -341,15 +338,18 @@ class MCPToolClient:
             - tools_dict: Dict mapping tool names to tool objects
             - openai_tools: List of tools in OpenAI format for LiteLLM
         """
-        if self._tools_dict is None or self._openai_tools is None:
-            raise RuntimeError(
-                "MCP client not initialized. Call initialize() first."
-            )
+        tools_dict = _ensure_tools_initialized(self._tools_dict)
+        # A separate condition, not a restatement of the one above: both are
+        # populated together by _index_tools, so an unset OpenAI-format list
+        # is its own half-initialized state, and letting it through would
+        # hand callers a None where they expect the LiteLLM tool schemas.
+        if self._openai_tools is None:
+            raise RuntimeError(NOT_INITIALIZED_MESSAGE)
 
         if whitelist is None:
-            return self._tools_dict, self._openai_tools
+            return tools_dict, self._openai_tools
 
-        return _filter_tools_by_whitelist(self._tools_dict, whitelist)
+        return _filter_tools_by_whitelist(tools_dict, whitelist)
 
     def has_tool(self, tool_name: str) -> bool:
         """Check if a tool is available."""

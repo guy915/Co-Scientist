@@ -64,6 +64,14 @@ def _resolve_server_configs(
     return {"default": {"transport": "streamable_http", "url": server_url}}
 
 
+NOT_INITIALIZED_MESSAGE = "mcp client not initialized. call initialize() first."
+"""Single wording for every "initialize() has not run" guard on the client.
+
+Each guard raising its own literal is how the wording drifted before (one
+copy was capitalized differently), so they all read it from here.
+"""
+
+
 def _ensure_tools_initialized(
     tools_dict: dict[str, Any] | None,
 ) -> dict[str, Any]:
@@ -80,9 +88,7 @@ def _ensure_tools_initialized(
         RuntimeError: If tools_dict is None.
     """
     if tools_dict is None:
-        raise RuntimeError(
-            "mcp client not initialized. call initialize() first."
-        )
+        raise RuntimeError(NOT_INITIALIZED_MESSAGE)
     return tools_dict
 
 

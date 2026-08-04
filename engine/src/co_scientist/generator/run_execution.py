@@ -192,13 +192,11 @@ class StreamExecutionMixin:
                 initial_state,
                 config={"recursion_limit": _GRAPH_RECURSION_LIMIT},
             ):
-                # Chunk is a dict with node names as keys
-                for node_name, node_state in chunk.items():
-                    logger.debug("streaming node: %s", node_name)
-                    _merge_node_state_into_cumulative(
-                        cumulative_state, node_state
-                    )
-                    state_dict = _build_stream_state_dict(cumulative_state)
+                # Chunk is a dict with node names as keys -- the same shape
+                # the checkpointed path's "updates" items carry.
+                for node_name, state_dict in _process_updates_chunk(
+                    cumulative_state, cast(dict[str, Any], chunk)
+                ):
                     logger.debug("yielding state for node: %s", node_name)
                     yield node_name, state_dict
         except Exception as e:

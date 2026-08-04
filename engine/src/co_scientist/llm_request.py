@@ -81,6 +81,26 @@ def llm_timeout_seconds() -> float | None:
     return parse_timeout_env(LLM_TIMEOUT_ENV, DEFAULT_LLM_TIMEOUT_SECONDS)
 
 
+def _apply_timeout(completion_args: dict[str, Any]) -> None:
+    """Asks the provider client to give up on its own, in place.
+
+    This is only the first of the two ceilings every completion runs under,
+    and it is the weaker one: the argument binds only if litellm plumbs it
+    through to the transport for the provider in use. Both call sites
+    (``call_llm`` via ``_base_completion_args`` and the tool loop) also await
+    through ``_acompletion_within_timeout``, which cancels the coroutine
+    regardless -- a hang that never reached the transport would otherwise be
+    unbounded.
+
+    Args:
+        completion_args: The in-progress completion kwargs dict; mutated with
+            "timeout" unless the ceiling is disabled.
+    """
+    timeout = llm_timeout_seconds()
+    if timeout is not None:
+        completion_args["timeout"] = timeout
+
+
 # Extra head-room over the value handed to litellm, so that when the
 # provider client honours its own deadline it is the one to fail -- with a
 # provider-specific error naming the endpoint -- and this ceiling only fires
@@ -347,14 +367,7 @@ def _base_completion_args(
         "drop_params": True,
     }
 
-    # Ask the provider client to give up on its own. call_llm additionally
-    # wraps the await in a hard asyncio ceiling, because this argument only
-    # binds if litellm plumbs it through to the transport for the provider in
-    # use, and a hang that never reaches the transport would otherwise be
-    # unbounded.
-    timeout = llm_timeout_seconds()
-    if timeout is not None:
-        completion_args["timeout"] = timeout
+    _apply_timeout(completion_args)
 
     return completion_args
 

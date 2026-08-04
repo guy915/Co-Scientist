@@ -28,10 +28,10 @@ from co_scientist.cache import (
 )
 from co_scientist.llm_request import (
     _acompletion_within_timeout,
+    _apply_timeout,
     _clamp_temperature,
     _save_prompt_if_named,
     deepseek_thinking_extra_body,
-    llm_timeout_seconds,
     reasoning_effort_args,
 )
 from co_scientist.llm_types import CompletionSpec, LLMCallOptions
@@ -219,9 +219,7 @@ def _build_tool_loop_completion_args(
         "extra_body": deepseek_thinking_extra_body(request.model_name),
         **reasoning_effort_args(request.model_name),
     }
-    timeout = llm_timeout_seconds()
-    if timeout is not None:
-        completion_args["timeout"] = timeout
+    _apply_timeout(completion_args)
     return completion_args
 
 
