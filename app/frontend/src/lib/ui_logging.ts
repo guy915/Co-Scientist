@@ -4,6 +4,16 @@
 // land — instead of only in a browser console nobody is watching.
 import {postAppLogs, type ClientLogRecord} from '@/api/logs';
 
+// Ships records and swallows any failure. Every write from this module is
+// best-effort on purpose: offline or with the API down there is nothing
+// useful left to do, and reporting an error or a click must never itself
+// break the page it is reporting on.
+function postBestEffort(records: ClientLogRecord[]): void {
+  void postAppLogs(records).catch(() => {
+    // Deliberately ignored; see above.
+  });
+}
+
 /**
  * Persists one UI error line. Best-effort: a failed POST is swallowed so
  * error reporting can never itself break the page.
@@ -13,11 +23,7 @@ import {postAppLogs, type ClientLogRecord} from '@/api/logs';
  */
 export function logUiError(message: string, detail?: string): void {
   const full = detail ? `${message} | ${detail}` : message;
-  void postAppLogs([{message: full, level: 'error', logger: 'error'}]).catch(
-    () => {
-      // Offline or API down: nothing useful left to do.
-    },
-  );
+  postBestEffort([{message: full, level: 'error', logger: 'error'}]);
 }
 
 // Elements whose clicks are worth a log line: actual controls, not
@@ -57,8 +63,7 @@ const INTERACTION_FLUSH_COUNT = 20;
 let pendingInteractions: ClientLogRecord[] = [];
 let interactionFlushTimer: number | null = null;
 
-// Posts the buffered interaction records as one batch. Best-effort like
-// every other UI log write.
+// Posts the buffered interaction records as one batch.
 function flushInteractions(): void {
   if (interactionFlushTimer !== null) {
     window.clearTimeout(interactionFlushTimer);
@@ -67,9 +72,7 @@ function flushInteractions(): void {
   if (!pendingInteractions.length) return;
   const batch = pendingInteractions;
   pendingInteractions = [];
-  void postAppLogs(batch).catch(() => {
-    // Offline or API down: interaction logging is best-effort.
-  });
+  postBestEffort(batch);
 }
 
 // Buffers one interaction record; the buffer ships on a short timer,

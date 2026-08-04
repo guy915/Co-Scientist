@@ -87,6 +87,24 @@ export async function parseJson<T>(
 }
 
 /**
+ * Throws the same descriptive `Error` as `parseJson` when a response was not
+ * ok, without touching the body. For requests whose success case carries no
+ * JSON to parse (e.g. a 204 from a DELETE), where `parseJson` would throw on
+ * the absent body after the request in fact succeeded.
+ */
+export async function assertOk(
+  res: Response,
+  errorPrefix?: string,
+): Promise<void> {
+  if (res.ok) return;
+  forgetSessionIfUnauthorized(res);
+  const text = await res.text().catch(() => res.statusText);
+  throw new Error(
+    responseErrorMessage(res.status, res.statusText, text, errorPrefix),
+  );
+}
+
+/**
  * Fetches `path` relative to the API base URL and parses the JSON body.
  * Exported for sibling API clients (e.g. `@/api/system`) so the base-URL
  * and error-shaping policy stays defined once.

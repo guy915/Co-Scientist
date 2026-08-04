@@ -16,11 +16,11 @@ import type {
 } from './run_types';
 import {
   API_BASE_URL,
+  assertOk,
   authQuery,
   clientHeaders,
   fetchField,
   fetchJson,
-  forgetSessionIfUnauthorized,
   jsonRequest,
   parseJson,
 } from './runs_http';
@@ -199,10 +199,7 @@ export async function revokeReportShare(
     `${API_BASE_URL}/api/runs/${runId}/shares/${shareId}`,
     {method: 'DELETE', headers: clientHeaders()},
   );
-  if (!response.ok) {
-    forgetSessionIfUnauthorized(response);
-    throw new Error(await response.text());
-  }
+  await assertOk(response);
 }
 
 /** Loads a public read-only Goal Report without a client ownership header. */

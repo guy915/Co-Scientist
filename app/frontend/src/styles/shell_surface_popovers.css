@@ -312,15 +312,13 @@
   text-decoration: none;
 }
 
+/* Hover/focus state layer, plus the active conversation, which wears that same
+   filled pill persistently so the chat the user is viewing stays highlighted in
+   the rail (matches the reference's selected conversation). Kept as one rule
+   because the two states are the same tone; the dark block below re-specifies
+   the whole list for the same reason. */
 .ucs-chat-link:hover,
-.ucs-chat-link:focus-visible {
-  background: var(--cosci-shell-hover-bg);
-  color: var(--cosci-shell-hover-text);
-}
-
-/* Active conversation: a persistent filled pill in the shell-hover tone, so the
-   chat the user is viewing stays highlighted in the rail (matches the
-   reference's selected conversation). */
+.ucs-chat-link:focus-visible,
 .ucs-chat-link--active,
 .ucs-chat-link--active:hover,
 .ucs-chat-link--active:focus-visible {
