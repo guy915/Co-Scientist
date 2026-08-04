@@ -45,31 +45,63 @@ def test_extracts_atomic_claims_and_drops_fragments() -> None:
     ]
 
 
+# A full-length title+abstract -- the shape an EvidencePassage carries in a run
+# (claim_grounding.evidence_passages joins an evidence row's title and
+# abstract). The length is the point: a one-sentence claim against a passage
+# many times its size is the asymmetry a union-denominated metric caps, and at
+# claim size Jaccard and coverage agree, so no assertion below could tell a
+# capped metric from a working one. It restates the claim in other words --
+# never saying "inhibit" -- so it is a paraphrase, not a copy.
+_SUPPORTING_ABSTRACT = (
+    "Selective kinase X blockade in acute myeloid leukemia: preclinical "
+    "evidence across patient-derived models. "
+    "Acute myeloid leukemia remains difficult to treat, and the contribution "
+    "of kinase X to disease maintenance has not been established in primary "
+    "material. We profiled expression across sixty-one primary specimens and "
+    "eleven established lines, then applied a selective small-molecule "
+    "antagonist alongside cytarabine and an isotype-matched vehicle control. "
+    "Target engagement was verified by phosphoproteomic readout at three "
+    "separate residues. Blocking the kinase curtailed tumor "
+    "proliferation in every AML model tested, with cell-cycle arrest at the "
+    "G1 checkpoint and induction of apoptosis in treated cells within "
+    "forty-eight hours. Colony formation from healthy donor progenitors was "
+    "unaffected at equivalent concentrations, suggesting a usable "
+    "therapeutic window. Transcriptional profiling implicated downstream "
+    "signaling through the canonical survival axis rather than off-target "
+    "activity. These results support further evaluation of this strategy in "
+    "acute myeloid leukemia."
+)
+
+_KINASE_CLAIM = "Inhibiting kinase X reduces tumor growth in AML cells."
+
+
 # --- Entailment: lexical overlap is not "verified" --------------------------
 
 
 def test_weak_overlap_is_insufficient_not_supported() -> None:
     """A passage merely sharing a couple of words does not SUPPORT the claim."""
-    claim = "Inhibiting kinase X reduces tumor growth in AML cells."
     passages = as_passages(
         ["This unrelated review discusses cardiac tissue growth."]
     )
-    result = assess_claim(claim, passages)
+    result = assess_claim(_KINASE_CLAIM, passages)
     assert result.label is EntailmentLabel.INSUFFICIENT
     assert result.supporting_passages == ()
 
 
 def test_strong_topical_overlap_supports_with_located_span() -> None:
-    """A restating passage SUPPORTS, and the span points at the source."""
-    claim = "Inhibiting kinase X reduces tumor growth in AML cells."
+    """A restating full-length abstract SUPPORTS; the span cites the source."""
     passage = EvidencePassage(
         evidence_id="ev-1",
-        text="Kinase X inhibition reduces tumor growth across several AML "
-        "cells.",
+        text=_SUPPORTING_ABSTRACT,
         source="pubmed",
         url="https://example.org/1",
     )
-    result = assess_claim(claim, [passage])
+    # Guard the fixture, not just the verdict: shrink this passage back to the
+    # size of the claim and the assertion below passes under a union-
+    # denominated metric too, which is how the cap survived here once already.
+    assert len(passage.text.split()) > 8 * len(_KINASE_CLAIM.split())
+
+    result = assess_claim(_KINASE_CLAIM, [passage])
     assert result.label is EntailmentLabel.SUPPORTS
     assert len(result.supporting_passages) == 1
     span = result.supporting_passages[0]
@@ -77,8 +109,34 @@ def test_strong_topical_overlap_supports_with_located_span() -> None:
     assert span.url == "https://example.org/1"
     # The offsets index into the exact passage text.
     assert passage.text[span.start : span.end] == span.quote
-    assert "kinase x inhibition" in span.quote.lower()
+    assert "curtailed tumor proliferation" in span.quote.lower()
     assert result.assessor  # provenance recorded
+
+
+def test_passage_quoting_the_claim_verbatim_reaches_the_top_band() -> None:
+    """A source literally containing the claim must reach SUPPORTS.
+
+    The sanity check ``citations._token_overlap`` prescribes for any new
+    similarity threshold: feed it a document containing the claim word for
+    word. If that cannot reach the top state the threshold is unreachable and
+    every real citation collapses into the bottom one -- which is what a
+    union-denominated score does here, scoring 0.071 and missing even partial.
+    """
+    passage = EvidencePassage(
+        evidence_id="ev-1",
+        text=_SUPPORTING_ABSTRACT.replace(
+            "These results support",
+            f"{_KINASE_CLAIM} These results support",
+        ),
+        source="pubmed",
+        url="https://example.org/1",
+    )
+    result = assess_claim(_KINASE_CLAIM, [passage])
+    assert result.label is EntailmentLabel.SUPPORTS
+    span = result.supporting_passages[0]
+    # The located span is the claim sentence itself, verbatim from the source.
+    assert span.quote == _KINASE_CLAIM
+    assert passage.text[span.start : span.end] == span.quote
 
 
 def test_contradiction_dominates_over_support() -> None:

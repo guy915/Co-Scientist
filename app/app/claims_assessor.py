@@ -121,13 +121,31 @@ _CONCEPT_ALIASES = {
 
 # Clone-defined lexical support threshold used ONLY by the deterministic
 # fallback assessor (never the meaning of "verified" for the LLM assessor).
-_SUPPORT_LEXICAL_THRESHOLD = 0.18
+# Stated against coverage (see _lexical_score): a majority of what the claim
+# asserts must appear in the passage.
+#
+# Derived by measuring, not by tuning between two examples. Over a cross
+# product of nine real PubMed title+abstract passages (three topics) against
+# claims drawn from each paper's own conclusion, the unrelated cross-topic
+# population topped out at 0.462 coverage; 0.50 is the lowest round line above
+# it, and no cross-topic pair reaches SUPPORTS there. Moving it either way is
+# strictly worse: at 0.60 the genuinely-supporting-but-paraphrased population
+# falls from 3/9 to 0/9 supports while unrelated leakage is already zero, and
+# at 0.40 same-topic-different-assertion pairs start clearing it (2/18 -> 4/18).
+_SUPPORT_LEXICAL_THRESHOLD = 0.50
 
 # Lexical band below full support: a passage clearing this but not the support
 # threshold is a near-miss -> PARTIAL. Deterministic-fallback only; the LLM
 # assessor decides partial from meaning, not overlap. Kept at half the support
 # threshold so a passage must still be clearly on-topic to earn partial.
-_PARTIAL_LEXICAL_THRESHOLD = 0.09
+#
+# This line is weaker evidence than the support line above, and is stated as
+# such: no coverage value cleanly separates a near-miss from an unrelated
+# passage. 0.25 sits above the unrelated population's 75th percentile (0.179)
+# and excludes 48 of 54 of them, which is the most the metric can do alone --
+# the residual is what _PARTIAL_MIN_SHARED_TOKENS and claim-specific retrieval
+# (retrieve_passages) are for.
+_PARTIAL_LEXICAL_THRESHOLD = 0.25
 
 # A partial verdict also requires at least this many shared concept tokens. A
 # single shared token is topical coincidence (a passage naming the claim's
@@ -182,11 +200,45 @@ def _tokens(text: str) -> frozenset[str]:
 
 
 def _lexical_score(claim: str, passage: str) -> float:
-    """Jaccard token overlap — a retrieval/fallback signal, not a verdict."""
+    """How much of the claim's vocabulary the passage states.
+
+    Coverage (intersection over the *claim's* tokens), not Jaccard, for the
+    same reason ``citations._token_overlap`` is: the two texts are
+    deliberately asymmetric. A ``EvidencePassage`` is an evidence row's title
+    plus abstract (``claim_grounding.evidence_passages``) -- 1000-2000
+    characters, 70-170 concept tokens -- and a claim is one sentence, 8-28 of
+    them. Jaccard divides by the union, which the longer side dominates, so
+    the score cannot exceed ``len(claim) / len(claim | passage)`` however
+    perfectly the passage supports the claim.
+
+    That ceiling sat *below the thresholds it was compared against*. Measured
+    over nine real PubMed title+abstract passages, the ceiling ranged 0.054 to
+    0.224 against a 0.18 support line: an abstract carrying the claim verbatim
+    reached SUPPORTS in 3 of 9 cases and was scored INSUFFICIENT in 2, and of
+    the genuinely-supporting passages that paraphrase rather than quote,
+    *none* could reach SUPPORTS -- 0 of 9. One worked example: the claim
+    "Inhibition of FLT3 reduces proliferation of leukemic blasts in acute
+    myeloid leukemia" against an abstract literally containing that sentence
+    scored 0.060, missing not just the 0.18 support line but the 0.09 partial
+    line too, so both upper states were unreachable. This is the same defect
+    ``citations.classify_citation`` carried (verbatim quote scoring 0.18
+    against a 0.35 line, every citation in every real run "unsupported"); it
+    reads as poor evidence quality rather than as a metric bug because the
+    numbers are individually plausible.
+
+    Coverage asks what the label is actually about -- what fraction of what
+    the claim asserts the passage states -- and is invariant to how much else
+    the passage discusses. It is a retrieval/fallback signal, not a verdict:
+    a bag of words cannot tell a claim's subject from its assertion, so an
+    abstract on the claim's topic that asserts something else scores as high
+    as one that supports it. Discriminating those is the LLM entailment
+    assessor's job (``claim_verifier``); this scorer's job is only to stop
+    capping the states it is compared against.
+    """
     a, b = _tokens(claim), _tokens(passage)
     if not a or not b:
         return 0.0
-    return len(a & b) / len(a | b)
+    return len(a & b) / len(a)
 
 
 def retrieve_passages(
@@ -220,7 +272,14 @@ def retrieve_passages(
 
 
 def _best_sentence(claim: str, text: str) -> str:
-    """Return the sentence in ``text`` most lexically overlapping ``claim``."""
+    """Return the sentence in ``text`` stating the most of ``claim``.
+
+    The one place ``_lexical_score`` is an argmax rather than a threshold
+    test, so the cap it was changed to remove never applied here. Coverage
+    divides by the claim, which is constant across candidates, making this
+    exactly "the sentence containing the most claim tokens"; ties keep the
+    earliest sentence, since ``max`` returns the first maximal element.
+    """
     sentences = [s.strip() for s in _SENTENCE_SPLIT.split(text) if s.strip()]
     if not sentences:
         return text.strip()
