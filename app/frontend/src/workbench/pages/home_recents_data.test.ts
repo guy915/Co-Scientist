@@ -143,9 +143,9 @@ it('derives the phase from the engine provider’s active durable task', () => {
   }
 });
 
-it('derives the phase from the mock provider’s latest pipeline stage', () => {
-  // The mock provider leases no durable tasks, so the stage event is its
-  // only progress signal.
+it('derives the phase from a reported pipeline-stage event', () => {
+  // A run reporting stage events (`latest_stage`) rather than a leased
+  // durable task has that as its only progress signal.
   const cases: [string, number][] = [
     ['supervisor.plan', 1],
     ['literature_review', 2],
@@ -155,7 +155,7 @@ it('derives the phase from the mock provider’s latest pipeline stage', () => {
     ['ranking', 4],
     ['evolve', 4],
     ['meta_review', 4],
-    ['deep_verification', 4],
+    ['deep_verification', 3],
     ['research_overview', 4],
   ];
   for (const [latest_stage, phase] of cases) {
@@ -166,9 +166,46 @@ it('derives the phase from the mock provider’s latest pipeline stage', () => {
   }
 });
 
+// Every stage event type paired with the durable task type that reports the
+// same underlying node, so the two progress signals can be checked for
+// agreement through the public API rather than by reaching into TASK_PHASE
+// and STAGE_PHASE directly. `supervisor.plan` is the one stage type whose
+// task counterpart is not name-for-name identical (`engine.node.supervisor`,
+// per `_canonical_event_type` in app/engine_adapter/events.py); every other
+// pair differs only by the `engine.node.` prefix.
+const STAGE_TASK_PAIRS: [string, string][] = [
+  ['supervisor.plan', 'engine.node.supervisor'],
+  ['literature_review', 'engine.node.literature_review'],
+  ['generate', 'engine.node.generate'],
+  ['reflection', 'engine.node.reflection'],
+  ['proximity', 'engine.node.proximity'],
+  ['ranking', 'engine.node.ranking'],
+  ['evolve', 'engine.node.evolve'],
+  ['meta_review', 'engine.node.meta_review'],
+  ['deep_verification', 'engine.node.deep_verification'],
+  ['research_overview', 'engine.node.research_overview'],
+];
+
+it('reports the same phase for a stage event as for its durable-task counterpart', () => {
+  // TASK_PHASE and STAGE_PHASE are two tables for the same four-step flow;
+  // if they drift, a run reports a different step depending on which
+  // progress signal happens to be present rather than what work it is
+  // actually doing. This is what let deep_verification read phase 3 from a
+  // leased task and phase 4 from a stage event: each mapping's own pinned
+  // cases (above, and in ENGINE_TASK_PHASES) matched its own hand-written
+  // expectation and neither test caught the two disagreeing.
+  for (const [stage, task] of STAGE_TASK_PAIRS) {
+    const stagePhase = homeRunStepIndex(
+      makeRun({status: 'running', latest_stage: stage}),
+    );
+    const taskPhase = homeRunStepIndex(makeRun(activeTask(task)));
+    expect(stagePhase, `stage '${stage}' vs task '${task}'`).toBe(taskPhase);
+  }
+});
+
 it('reports no phase for a running run that reports no progress yet', () => {
-  // Neither provider's signal is present: the caller holds the last phase
-  // rather than the flow claiming to be back at the first step.
+  // Neither signal is present: the caller holds the last phase rather than
+  // the flow claiming to be back at the first step.
   expect(
     homeRunStepIndex(makeRun({status: 'running', latest_stage: null})),
   ).toBeNull();

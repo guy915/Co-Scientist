@@ -125,21 +125,57 @@ const TASK_PHASE: Record<string, number | null> = {
   finalize: 4,
 };
 
-// Pipeline-stage event type -> phase, mirroring TASK_PHASE for the mock
-// provider, which reports progress as `_STAGE_EVENT_TYPES` events (see
-// app/store/runs.py) rather than durable tasks.
-const STAGE_PHASE: Record<string, number> = {
-  'supervisor.plan': 1,
-  literature_review: 2,
-  generate: 2,
-  reflection: 3,
-  proximity: 3,
-  ranking: 4,
-  evolve: 4,
-  meta_review: 4,
-  deep_verification: 4,
-  research_overview: 4,
+// Stage event types the engine appends directly to `run_events`
+// (`_STAGE_EVENT_TYPES` in app/store/runs_views.py) -- a narrower, flatter
+// vocabulary than TASK_PHASE's durable task types: no bootstrap/orchestrator/
+// finalize scaffolding, and no separate entry for a fanned-out node's
+// per-item task type (e.g. deep_verification's fan-out reports task phase
+// through the `verification` key, but only ever the `deep_verification`
+// stage type).
+const STAGE_EVENT_TYPES = [
+  'supervisor.plan',
+  'literature_review',
+  'generate',
+  'reflection',
+  'proximity',
+  'ranking',
+  'evolve',
+  'meta_review',
+  'deep_verification',
+  'research_overview',
+] as const;
+
+// The one stage type `_canonical_event_type` (app/engine_adapter/events.py)
+// renames away from its node name: the supervisor node's stage event type is
+// `supervisor.plan`, not `supervisor`. Every other stage type above equals
+// its TASK_PHASE key directly, so this is the map's only entry.
+const STAGE_TYPE_TASK_KEY: Record<string, string> = {
+  'supervisor.plan': 'supervisor',
 };
+
+// Looks up the phase TASK_PHASE assigns the node behind a stage type, rather
+// than restating the number. Throws instead of defaulting a miss to null:
+// every stage type today resolves (pinned by the stage/task agreement test
+// in home_recents_data.test.ts), so hitting this means a new stage type was
+// added upstream with no TASK_PHASE counterpart to derive from -- a real
+// decision to make, not a silent null.
+function phaseForStageType(stageType: string): number {
+  const taskKey = STAGE_TYPE_TASK_KEY[stageType] ?? stageType;
+  const phase = TASK_PHASE[taskKey] ?? null;
+  if (phase === null) {
+    throw new Error(
+      `STAGE_PHASE: no TASK_PHASE['${taskKey}'] for stage type '${stageType}'`,
+    );
+  }
+  return phase;
+}
+
+// Pipeline-stage event type -> phase, derived from TASK_PHASE so the two
+// progress signals cannot drift the way they did when a hand-copied
+// `deep_verification` sat at phase 4 here and phase 3 in TASK_PHASE.
+const STAGE_PHASE = Object.fromEntries(
+  STAGE_EVENT_TYPES.map(stageType => [stageType, phaseForStageType(stageType)]),
+) as Record<string, number>;
 
 // The segment of a durable task type that identifies the work being done:
 // the graph node for `engine.node.<key>`, the workflow for
@@ -158,7 +194,7 @@ function statusPhaseOverride(status: Run['status']): number | null {
   return null;
 }
 
-// The engine provider's signal: the phase of the durable task currently
+// This run's durable-task-lease signal: the phase of the task currently
 // leased, or null when there is none or its type is unmapped. An unmapped
 // task type and a deliberately phase-less one (orchestrator) both mean "no
 // signal", so both normalize to null.
@@ -168,8 +204,9 @@ function taskPhaseFor(run: Run): number | null {
   return TASK_PHASE[taskPhaseKey(activeTask)] ?? null;
 }
 
-// The mock provider's signal: the phase of the run's most recent reported
-// stage event, or null when there is none or it maps to no phase.
+// This run's stage-event signal: the phase of its most recent reported
+// `_STAGE_EVENT_TYPES` event, or null when there is none or it maps to no
+// phase.
 function stagePhaseFor(run: Run): number | null {
   const stage = run.latest_stage;
   if (!stage) return null;
@@ -178,10 +215,9 @@ function stagePhaseFor(run: Run): number | null {
 
 /**
  * Derives the 1-based phase (1-4) a live run is currently working in, reading
- * whichever real progress signal its provider reports: the engine provider
- * leases durable tasks (`execution_progress.active_task`) and emits no stage
- * events, while the mock provider emits stage events (`latest_stage`) and
- * leases no tasks. Each signal is absent for the other provider, so both are
+ * whichever real progress signal is present: a leased durable task
+ * (`execution_progress.active_task`) or a reported pipeline-stage event
+ * (`latest_stage`). A run carries at most one of the two, so both are
  * consulted rather than either being assumed.
  *
  * The engine revisits phases on every cycle, so this deliberately moves
