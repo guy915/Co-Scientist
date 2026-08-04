@@ -13,6 +13,8 @@ from mcp_server.tools.indra_cogex.client import (
     indra_post,
     maybe_parse_agent,
     parse_id,
+    run_indra_tool,
+    tool_error,
 )
 
 logger = logging.getLogger(__name__)
@@ -92,22 +94,37 @@ async def _dispatch_statement_query(
         Dict with statements and metadata, or an error payload.
     """
     query_meta = _statement_query_meta(query)
-    try:
-        if query.mesh_term:
-            stmts, total = await _query_by_mesh(
-                query.mesh_term, query.evidence_limit, query.limit
-            )
-        elif query.agent:
-            stmts, total = await _query_by_agents(query.agent, query)
-        else:
-            return {
-                "error": "provide either 'agent' or 'mesh_term'",
-                "query": query_meta,
-            }
-        return _statements_response(stmts, total, query_meta)
-    except Exception as e:
-        logger.error("query_mechanistic_statements failed: %s", e)
-        return {"error": str(e), "query": query_meta}
+    return await run_indra_tool(
+        logger,
+        "query_mechanistic_statements",
+        query_meta,
+        _run_statement_query(query, query_meta),
+    )
+
+
+async def _run_statement_query(
+    query: _StatementQuery,
+    query_meta: dict[str, Any],
+) -> dict[str, Any]:
+    """Fetches statements by MeSH term or by agent, whichever was supplied.
+
+    Args:
+        query: The statement query supplied by the caller.
+        query_meta: Query metadata echoed back in the response.
+
+    Returns:
+        Dict with statements and metadata, or an error payload when neither
+        an agent nor a MeSH term was given.
+    """
+    if query.mesh_term:
+        stmts, total = await _query_by_mesh(
+            query.mesh_term, query.evidence_limit, query.limit
+        )
+    elif query.agent:
+        stmts, total = await _query_by_agents(query.agent, query)
+    else:
+        return tool_error("provide either 'agent' or 'mesh_term'", query_meta)
+    return _statements_response(stmts, total, query_meta)
 
 
 def _statements_response(

@@ -25,14 +25,14 @@ from __future__ import annotations
 
 import asyncio
 import datetime
-import json
 import os
 import pathlib
 import tempfile
 from typing import Any
 
+from evaluations._artifacts import write_dated_artifact
+
 _ROOT = pathlib.Path(__file__).resolve().parent.parent
-_RESULTS_DIR = _ROOT / "evaluations" / "results"
 _INDRA_CONFIG = (
     _ROOT
     / "engine"
@@ -292,10 +292,7 @@ def run() -> dict[str, Any]:
 def main() -> int:
     """Run the golden run, write the artifact, print a compact summary."""
     report = run()
-    _RESULTS_DIR.mkdir(parents=True, exist_ok=True)
-    date = datetime.date.today().isoformat()
-    out = _RESULTS_DIR / f"golden-run-indra-{date}.json"
-    out.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
+    out = write_dated_artifact(report, "golden-run-indra")
 
     a = report["acceptance"]
     print(f"golden run: {'PASS' if a['passed'] else 'FAIL'}")
@@ -305,7 +302,7 @@ def main() -> int:
     )
     print(f"  indra_calls={a['indra_calls']}")
     print(f"  checks={a['checks']}")
-    print(f"wrote {out.relative_to(_ROOT)}")
+    print(f"wrote {out}")
     return 0 if a["passed"] else 1
 
 

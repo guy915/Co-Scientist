@@ -7,6 +7,8 @@ from mcp_server.tools.indra_cogex.client import (
     cap_results,
     indra_post,
     parse_id,
+    run_indra_tool,
+    tool_error,
 )
 
 logger = logging.getLogger(__name__)
@@ -45,14 +47,12 @@ async def query_drug_info(
     Returns:
         Dict with query results and metadata.
     """
-    try:
-        return await _run_drug_query(identifier, query_type, max_results)
-    except Exception as e:
-        logger.error("query_drug_info failed: %s", e)
-        return {
-            "error": str(e),
-            "query": {"identifier": identifier, "query_type": query_type},
-        }
+    return await run_indra_tool(
+        logger,
+        "query_drug_info",
+        {"identifier": identifier, "query_type": query_type},
+        _run_drug_query(identifier, query_type, max_results),
+    )
 
 
 async def _run_drug_query(
@@ -72,13 +72,14 @@ async def _run_drug_query(
         unknown query_type.
     """
     curie = parse_id(identifier)
-    result: dict[str, Any] = {
-        "query": {"identifier": identifier, "query_type": query_type},
-    }
+    query_meta = {"identifier": identifier, "query_type": query_type}
     if query_type not in _DRUG_ENDPOINTS:
         valid = ", ".join(_DRUG_ENDPOINTS.keys())
-        return {"error": f"invalid query_type '{query_type}', use: {valid}"}
+        return tool_error(
+            f"invalid query_type '{query_type}', use: {valid}", query_meta
+        )
 
+    result: dict[str, Any] = {"query": query_meta}
     # Generic dispatch: look up the CoGex endpoint, the payload key it
     # expects the entity under, and the key to store results under.
     endpoint, param_name, result_key = _DRUG_ENDPOINTS[query_type]
@@ -108,14 +109,12 @@ async def query_clinical_trials(
     Returns:
         Dict with clinical trials and metadata.
     """
-    try:
-        return await _run_clinical_trials(identifier, entity_type, max_results)
-    except Exception as e:
-        logger.error("query_clinical_trials failed: %s", e)
-        return {
-            "error": str(e),
-            "query": {"identifier": identifier, "entity_type": entity_type},
-        }
+    return await run_indra_tool(
+        logger,
+        "query_clinical_trials",
+        {"identifier": identifier, "entity_type": entity_type},
+        _run_clinical_trials(identifier, entity_type, max_results),
+    )
 
 
 async def _run_clinical_trials(
@@ -135,6 +134,7 @@ async def _run_clinical_trials(
         invalid entity_type.
     """
     curie = parse_id(identifier)
+    query_meta = {"identifier": identifier, "entity_type": entity_type}
     if entity_type == "disease":
         # Trials that study this disease/condition.
         raw = await indra_post(
@@ -145,11 +145,11 @@ async def _run_clinical_trials(
         raw = await indra_post("/api/get_trials_for_drug", {"drug": curie})
     else:
         entity_err = f"invalid entity_type '{entity_type}'"
-        return {"error": f"{entity_err}, use 'disease' or 'drug'"}
+        return tool_error(f"{entity_err}, use 'disease' or 'drug'", query_meta)
 
     trials, total = cap_results(raw, max_results)
     return {
         "trials": trials,
         "total_trials": total,
-        "query": {"identifier": identifier, "entity_type": entity_type},
+        "query": query_meta,
     }

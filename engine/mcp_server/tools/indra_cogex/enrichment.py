@@ -4,7 +4,11 @@ import logging
 from dataclasses import dataclass
 from typing import Any
 
-from mcp_server.tools.indra_cogex.client import indra_post
+from mcp_server.tools.indra_cogex.client import (
+    indra_post,
+    run_indra_tool,
+    tool_error,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -92,23 +96,40 @@ async def _run_enrichment(request: _EnrichmentRequest) -> dict[str, Any]:
     if error is not None:
         return error
 
+    return await run_indra_tool(
+        logger,
+        "run_enrichment_analysis",
+        query_meta,
+        _run_validated_enrichment(request, query_meta),
+    )
+
+
+async def _run_validated_enrichment(
+    request: _EnrichmentRequest,
+    query_meta: dict[str, Any],
+) -> dict[str, Any]:
+    """Dispatches an already-validated enrichment request to INDRA.
+
+    Args:
+        request: The enrichment request, already passed by validation.
+        query_meta: Query metadata echoed back in the response.
+
+    Returns:
+        Dict with the raw enrichment results and query metadata.
+    """
     filters = {
         "alpha": request.alpha,
         "keep_insignificant": request.keep_insignificant,
         "minimum_evidence_count": request.minimum_evidence_count,
         "minimum_belief": request.minimum_belief,
     }
-    try:
-        raw = await _dispatch_enrichment_analysis(
-            request.analysis_type,
-            request.gene_list,
-            request.negative_genes,
-            filters,
-        )
-        return {"results": raw, "query": query_meta}
-    except Exception as e:
-        logger.error("run_enrichment_analysis failed: %s", e)
-        return {"error": str(e), "query": query_meta}
+    raw = await _dispatch_enrichment_analysis(
+        request.analysis_type,
+        request.gene_list,
+        request.negative_genes,
+        filters,
+    )
+    return {"results": raw, "query": query_meta}
 
 
 def _validate_enrichment(
@@ -124,15 +145,15 @@ def _validate_enrichment(
     # Signed analysis needs both up- and down-regulated sets so INDRA can
     # reason about which upstream regulators explain the observed direction.
     if analysis_type == "signed" and not negative_genes:
-        return {
-            "error": "signed analysis requires 'negative_genes'",
-            "query": query_meta,
-        }
+        return tool_error(
+            "signed analysis requires 'negative_genes'", query_meta
+        )
     if analysis_type not in ("discrete", "signed", "kinase"):
         valid = "discrete, signed, kinase"
-        return {
-            "error": f"invalid analysis_type '{analysis_type}', use: {valid}"
-        }
+        return tool_error(
+            f"invalid analysis_type '{analysis_type}', use: {valid}",
+            query_meta,
+        )
     return None
 
 

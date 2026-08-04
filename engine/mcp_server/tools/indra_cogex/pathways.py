@@ -7,6 +7,7 @@ from mcp_server.tools.indra_cogex.client import (
     cap_results,
     indra_post,
     parse_id,
+    run_indra_tool,
 )
 
 logger = logging.getLogger(__name__)
@@ -30,11 +31,12 @@ async def query_pathways(
     Returns:
         Dict with pathways and metadata.
     """
-    try:
-        return await _run_pathways(gene_ids, max_results)
-    except Exception as e:
-        logger.error("query_pathways failed: %s", e)
-        return {"error": str(e), "query": {"gene_ids": gene_ids}}
+    return await run_indra_tool(
+        logger,
+        "query_pathways",
+        {"gene_ids": gene_ids},
+        _run_pathways(gene_ids, max_results),
+    )
 
 
 async def _run_pathways(
@@ -97,13 +99,12 @@ async def query_causal_subnetwork(
     Returns:
         Dict with subnetwork relations and metadata.
     """
-    try:
-        return await _run_causal_subnetwork(
-            node_ids, find_mediators, max_results
-        )
-    except Exception as e:
-        logger.error("query_causal_subnetwork failed: %s", e)
-        return {"error": str(e), "query": {"node_ids": node_ids}}
+    return await run_indra_tool(
+        logger,
+        "query_causal_subnetwork",
+        {"node_ids": node_ids},
+        _run_causal_subnetwork(node_ids, find_mediators, max_results),
+    )
 
 
 async def _run_causal_subnetwork(

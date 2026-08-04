@@ -1,6 +1,10 @@
+import {fileURLToPath} from 'node:url';
+
 import {
   type APIRequestContext,
   type APIResponse,
+  type Page,
+  expect,
   request,
   test as base,
 } from '@playwright/test';
@@ -113,4 +117,66 @@ export const test = base.extend<{api: BackendApi}>({
   },
 });
 
-export {expect} from '@playwright/test';
+export {expect};
+
+/** A canvas size the visual-acceptance suite renders and screenshots at. */
+export interface Viewport {
+  width: number;
+  height: number;
+}
+
+/** The desktop canvas the faithful-render acceptance shots are taken at. */
+export const DESKTOP_VIEWPORT: Viewport = {width: 1440, height: 720};
+
+/** The mobile canvas the faithful-render acceptance shots are taken at. */
+export const MOBILE_VIEWPORT: Viewport = {width: 390, height: 780};
+
+// Screenshots are build artifacts, not tracked docs assets: write them under
+// e2e/test-results/, which e2e/.gitignore already covers, so a local run never
+// leaves untracked PNGs in docs/assets/ for a later `git add -A` to pick up.
+function assetPath(name: string): string {
+  return fileURLToPath(new URL(`../test-results/${name}`, import.meta.url));
+}
+
+/**
+ * Asserts the document does not scroll horizontally at `width`. Callers pass
+ * the width from the same `Viewport` they sized the page with, so the sized
+ * viewport and the asserted width cannot drift apart.
+ */
+export async function assertNoHorizontalOverflow(
+  page: Page,
+  width: number,
+): Promise<void> {
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(
+    width,
+  );
+}
+
+/**
+ * Asserts no horizontal overflow at the given viewport, then writes the
+ * viewport-sized acceptance screenshot under e2e/test-results/.
+ */
+export async function captureViewport(
+  page: Page,
+  opts: Viewport & {name: string},
+): Promise<void> {
+  await assertNoHorizontalOverflow(page, opts.width);
+  await page.screenshot({path: assetPath(opts.name), fullPage: false});
+}
+
+/**
+ * Creates a run over the API, starts it, and waits for it to settle as
+ * `completed` — the setup every check that needs a finished Goal Report to
+ * render must do first.
+ */
+export async function createCompletedRun(
+  api: BackendApi,
+  body: Record<string, unknown>,
+): Promise<string> {
+  const {id} = await api.createRun(body);
+  await api.startRun(id);
+  await expect
+    .poll(async () => (await api.getRun(id)).status)
+    .toBe('completed');
+  return id;
+}

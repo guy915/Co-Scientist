@@ -13,18 +13,18 @@ Run: ``python -m evaluations.safety_eval`` (writes a dated result artifact under
 
 from __future__ import annotations
 
-import datetime
 import json
 import pathlib
 import sys
 from collections import defaultdict
 from typing import Any
 
+from evaluations._artifacts import write_dated_artifact
+
 _ROOT = pathlib.Path(__file__).resolve().parent.parent
 _DATASET = (
     _ROOT / "evaluations" / "datasets" / "hypothesis_safety_adversarial_v1.json"
 )
-_RESULTS_DIR = _ROOT / "evaluations" / "results"
 
 sys.path.insert(0, str(_ROOT / "app"))
 
@@ -94,17 +94,14 @@ def _policy_version() -> str:
 def main() -> int:
     """Run the eval, write a dated artifact, and print a summary."""
     report = run()
-    _RESULTS_DIR.mkdir(parents=True, exist_ok=True)
-    date = datetime.date.today().isoformat()
-    out = _RESULTS_DIR / f"hypothesis-safety-{date}.json"
-    out.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
+    out = write_dated_artifact(report, "hypothesis-safety")
 
     m = report["metrics"]
     print(
         f"hypothesis-safety eval: n={m['n']} "
         f"FP_rate={m['false_positive_rate']} FN_rate={m['false_negative_rate']}"
     )
-    print(f"wrote {out.relative_to(_ROOT)}")
+    print(f"wrote {out}")
     return 0
 
 

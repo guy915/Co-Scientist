@@ -7,6 +7,8 @@ from mcp_server.tools.indra_cogex.client import (
     cap_results,
     indra_post,
     parse_id,
+    run_indra_tool,
+    tool_error,
 )
 
 logger = logging.getLogger(__name__)
@@ -37,19 +39,14 @@ async def query_gene_disease_network(
     Returns:
         Dict with associated entities, counts, and query metadata.
     """
-    try:
-        return await _run_gene_disease_network(
+    return await run_indra_tool(
+        logger,
+        "query_gene_disease_network",
+        {"identifier": identifier, "entity_type": entity_type},
+        _run_gene_disease_network(
             identifier, entity_type, include_variants, max_results
-        )
-    # Any failure (bad identifier, network error, API error) becomes a
-    # structured error payload rather than being raised, since this backs
-    # an MCP tool endpoint that must always return a dict.
-    except Exception as e:
-        logger.error("query_gene_disease_network failed: %s", e)
-        return {
-            "error": str(e),
-            "query": {"identifier": identifier, "entity_type": entity_type},
-        }
+        ),
+    )
 
 
 async def _run_gene_disease_network(
@@ -72,9 +69,8 @@ async def _run_gene_disease_network(
     """
     # Convert "NAMESPACE:id" into the [namespace, id] pair CoGex expects.
     curie = parse_id(identifier)
-    result: dict[str, Any] = {
-        "query": {"identifier": identifier, "entity_type": entity_type},
-    }
+    query_meta = {"identifier": identifier, "entity_type": entity_type}
+    result: dict[str, Any] = {"query": query_meta}
 
     if entity_type == "disease":
         result.update(
@@ -86,7 +82,7 @@ async def _run_gene_disease_network(
         )
     else:
         entity_err = f"invalid entity_type '{entity_type}'"
-        return {"error": f"{entity_err}, use 'disease' or 'gene'"}
+        return tool_error(f"{entity_err}, use 'disease' or 'gene'", query_meta)
 
     return result
 
@@ -181,20 +177,37 @@ async def query_gene_codependents(
     Returns:
         Dict with codependent genes and counts.
     """
-    try:
-        curie = parse_id(gene_id)
-        # Codependency scores come from DepMap CRISPR knockout screens:
-        # genes whose essentiality profiles correlate across cell lines.
-        raw = await indra_post(
-            "/api/get_codependents_for_gene",
-            {"gene": curie},
-        )
-        genes, total = cap_results(raw, max_results)
-        return {
-            "codependent_genes": genes,
-            "total_codependents": total,
-            "query": {"gene_id": gene_id},
-        }
-    except Exception as e:
-        logger.error("query_gene_codependents failed: %s", e)
-        return {"error": str(e), "query": {"gene_id": gene_id}}
+    return await run_indra_tool(
+        logger,
+        "query_gene_codependents",
+        {"gene_id": gene_id},
+        _run_gene_codependents(gene_id, max_results),
+    )
+
+
+async def _run_gene_codependents(
+    gene_id: str,
+    max_results: int,
+) -> dict[str, Any]:
+    """Fetches DepMap codependent genes for a gene from INDRA.
+
+    Args:
+        gene_id: Gene in "HGNC:id" format.
+        max_results: Max codependent genes to return.
+
+    Returns:
+        Dict with codependent genes, counts, and query metadata.
+    """
+    curie = parse_id(gene_id)
+    # Codependency scores come from DepMap CRISPR knockout screens:
+    # genes whose essentiality profiles correlate across cell lines.
+    raw = await indra_post(
+        "/api/get_codependents_for_gene",
+        {"gene": curie},
+    )
+    genes, total = cap_results(raw, max_results)
+    return {
+        "codependent_genes": genes,
+        "total_codependents": total,
+        "query": {"gene_id": gene_id},
+    }

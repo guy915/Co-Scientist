@@ -13,7 +13,6 @@ under ``evaluations/results/`` and prints a summary).
 
 from __future__ import annotations
 
-import datetime
 import json
 import os
 import pathlib
@@ -21,12 +20,13 @@ import sys
 from collections import defaultdict
 from typing import Any
 
+from evaluations._artifacts import write_dated_artifact
+
 _ROOT = pathlib.Path(__file__).resolve().parent.parent
 _DATASET = _ROOT / "evaluations" / "datasets" / "citation_entailment_v1.json"
 _CHALLENGE_DATASET = (
     _ROOT / "evaluations" / "datasets" / "citation_entailment_challenge_v1.json"
 )
-_RESULTS_DIR = _ROOT / "evaluations" / "results"
 
 # Documented production gates for the semantic (LLM/NLI) assessor on the
 # adversarial challenge panel. Contradiction recall is the safety-critical
@@ -225,12 +225,8 @@ def _write_artifact(
     report: dict[str, Any], panel: str, challenge: bool, tag: str
 ) -> pathlib.Path:
     """Write the dated result artifact and return its path."""
-    _RESULTS_DIR.mkdir(parents=True, exist_ok=True)
-    date = datetime.date.today().isoformat()
     suffix = f"-{panel}" if challenge else ""
-    out = _RESULTS_DIR / f"citation-entailment{suffix}-{tag}-{date}.json"
-    out.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
-    return out
+    return write_dated_artifact(report, f"citation-entailment{suffix}-{tag}")
 
 
 def main() -> int:
@@ -257,7 +253,7 @@ def main() -> int:
     print(f"by kind: {m['by_kind']}")
     gates = report["production_gates"]
     print(f"production gates passed: {gates['passed']} ({gates['checks']})")
-    print(f"wrote {out.relative_to(_ROOT)}")
+    print(f"wrote {out}")
     # On the challenge panel the documented gates are enforced; the offline
     # deterministic assessor is expected to fail them (it is a lexical baseline,
     # not the production semantic path), so only gate the run when scoring the
