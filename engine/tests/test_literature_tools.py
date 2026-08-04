@@ -41,6 +41,7 @@ from co_scientist.agents.generation.literature_tools.validate import (
 from co_scientist.constants import corpus_slug
 from co_scientist.exceptions import ResponseParseError
 from co_scientist.models import GenerationMethod, Hypothesis
+from tests._mcp import FakeCallToolClient
 from tests._state import make_state
 
 # -----------------------------------------------------------------------------
@@ -48,22 +49,13 @@ from tests._state import make_state
 # -----------------------------------------------------------------------------
 
 
-class _FakeMcpClient:
-    """Minimal MCP client whose paper search returns a canned dict.
-
-    ``MCPToolProvider`` only calls ``get_tools``/``execute_tool_call`` when a
-    whitelist is supplied; with the registry disabled neither runs, so only
-    ``call_tool`` (the legacy paper-search fallback) needs to exist.
-    """
-
-    def __init__(self, papers: dict[str, Any] | None = None) -> None:
-        self.papers = papers if papers is not None else {}
-        self.calls: list[tuple[str, dict[str, Any]]] = []
-
-    async def call_tool(self, name: str, **kwargs: Any) -> dict[str, Any]:
-        """Record the call and return the canned papers dict."""
-        self.calls.append((name, kwargs))
-        return self.papers
+# The MCP client here is the shared ``FakeCallToolClient``, which
+# implements ``call_tool`` and nothing else. That is enough because
+# ``MCPToolProvider`` only reaches for ``get_tools``/``execute_tool_call``
+# when a whitelist is supplied; with the registry disabled neither runs,
+# leaving ``call_tool`` (the legacy paper-search fallback) as the only
+# method under test. Its canned response is the papers dict a search
+# returns.
 
 
 class _FakeReferenceIndex:
@@ -124,7 +116,7 @@ async def test_draft_parses_plain_json(monkeypatch: pytest.MonkeyPatch) -> None:
     result = await draft_hypotheses(
         state=make_state(),
         count=2,
-        mcp_client=_FakeMcpClient(),
+        mcp_client=FakeCallToolClient({}),
         tool_registry=None,
     )
 
@@ -143,7 +135,7 @@ async def test_draft_strips_json_fence(monkeypatch: pytest.MonkeyPatch) -> None:
     result = await draft_hypotheses(
         state=make_state(),
         count=1,
-        mcp_client=_FakeMcpClient(),
+        mcp_client=FakeCallToolClient({}),
         tool_registry=None,
     )
 
@@ -163,7 +155,7 @@ async def test_draft_repairs_trailing_comma(
     result = await draft_hypotheses(
         state=make_state(),
         count=1,
-        mcp_client=_FakeMcpClient(),
+        mcp_client=FakeCallToolClient({}),
         tool_registry=None,
     )
 
@@ -180,7 +172,7 @@ async def test_draft_missing_drafts_key_defaults_empty(
     result = await draft_hypotheses(
         state=make_state(),
         count=2,
-        mcp_client=_FakeMcpClient(),
+        mcp_client=FakeCallToolClient({}),
         tool_registry=None,
     )
 
@@ -199,7 +191,7 @@ async def test_draft_unparseable_response_raises(
         await draft_hypotheses(
             state=make_state(),
             count=1,
-            mcp_client=_FakeMcpClient(),
+            mcp_client=FakeCallToolClient({}),
             tool_registry=None,
         )
 
@@ -265,7 +257,7 @@ async def test_validate_builds_literature_tools_hypotheses(
     result = await validate_hypotheses(
         state=make_state(),
         draft_hypotheses=drafts,
-        mcp_client=_FakeMcpClient(papers={}),
+        mcp_client=FakeCallToolClient({}),
         tool_registry=None,
     )
 
@@ -321,7 +313,7 @@ async def test_validate_runs_novelty_pass_when_papers_found(
     result = await validate_hypotheses(
         state=make_state(),
         draft_hypotheses=[{"text": "alpha draft"}],
-        mcp_client=_FakeMcpClient(papers=_PRIOR_ALPHA_PAPERS),
+        mcp_client=FakeCallToolClient(_PRIOR_ALPHA_PAPERS),
         tool_registry=None,
     )
 
@@ -349,7 +341,7 @@ async def test_validate_empty_drafts_returns_empty(
     result = await validate_hypotheses(
         state=make_state(),
         draft_hypotheses=[],
-        mcp_client=_FakeMcpClient(papers={}),
+        mcp_client=FakeCallToolClient({}),
         tool_registry=None,
     )
 
@@ -376,7 +368,7 @@ async def test_validate_text_fallback_key(
     result = await validate_hypotheses(
         state=make_state(),
         draft_hypotheses=[{"text": "d"}],
-        mcp_client=_FakeMcpClient(papers={}),
+        mcp_client=FakeCallToolClient({}),
         tool_registry=None,
     )
 
@@ -409,7 +401,7 @@ async def test_validate_resolves_citation_map(
     result = await validate_hypotheses(
         state=make_state(),
         draft_hypotheses=[{"text": "d"}],
-        mcp_client=_FakeMcpClient(papers={}),
+        mcp_client=FakeCallToolClient({}),
         tool_registry=None,
         reference_index=ref_index,
     )

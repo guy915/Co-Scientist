@@ -17,6 +17,7 @@ from typing import Any, cast
 
 import httpx
 import pytest
+from mcp_server.tests._httpx import stub_failure, stub_responses
 from mcp_server.tools.indra_cogex.associations import (
     query_gene_codependents,
     query_gene_disease_network,
@@ -42,48 +43,6 @@ from mcp_server.tools.indra_cogex.pathways import (
 from mcp_server.tools.indra_cogex.statements import (
     query_mechanistic_statements,
 )
-
-
-class _StubResponse:
-    """A canned httpx.Response standing in for a real CoGex reply."""
-
-    def __init__(self, payload: Any) -> None:
-        self._payload = payload
-
-    def raise_for_status(self) -> None:
-        """Represent a 2xx response: never raises."""
-
-    def json(self) -> Any:
-        """Return the fixture payload."""
-        return self._payload
-
-
-class _StubClient:
-    """A canned httpx.AsyncClient returning one response or raising once."""
-
-    def __init__(
-        self,
-        response: _StubResponse | None = None,
-        error: Exception | None = None,
-    ) -> None:
-        self._response = response
-        self._error = error
-        self.calls: list[tuple[str, Any]] = []
-
-    async def __aenter__(self) -> "_StubClient":
-        return self
-
-    async def __aexit__(self, *_: Any) -> bool:
-        return False
-
-    async def post(self, url: str, json: Any = None) -> _StubResponse:
-        """Record the call, then return the stub response or raise."""
-        self.calls.append((url, json))
-        if self._error is not None:
-            raise self._error
-        assert self._response is not None
-        return self._response
-
 
 # --- parse_id / maybe_parse_agent -------------------------------------
 
@@ -159,8 +118,7 @@ def test_cap_results_passes_non_lists_through_unchanged() -> None:
 async def test_indra_post_returns_parsed_json(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    client = _StubClient(response=_StubResponse({"ok": True}))
-    monkeypatch.setattr(httpx, "AsyncClient", lambda **_: client)
+    client = stub_responses(monkeypatch, {"ok": True})
 
     result = await indra_post("/api/x", {"a": 1})
 
@@ -174,8 +132,7 @@ async def test_indra_post_does_not_catch_transport_failures(
     # indra_post itself is a raising function; catching is run_indra_tool's
     # job, one layer up. If indra_post started swallowing errors too, every
     # caller would double-handle them.
-    client = _StubClient(error=httpx.ConnectError("boom"))
-    monkeypatch.setattr(httpx, "AsyncClient", lambda **_: client)
+    stub_failure(monkeypatch, httpx.ConnectError("boom"))
 
     with pytest.raises(httpx.ConnectError):
         await indra_post("/api/x", {"a": 1})
@@ -262,8 +219,7 @@ async def test_every_tool_degrades_on_transport_failure(
     kwargs: dict[str, Any],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    client = _StubClient(error=httpx.ConnectError("connection refused"))
-    monkeypatch.setattr(httpx, "AsyncClient", lambda **_: client)
+    stub_failure(monkeypatch, httpx.ConnectError("connection refused"))
 
     result = await tool_fn(**kwargs)
 

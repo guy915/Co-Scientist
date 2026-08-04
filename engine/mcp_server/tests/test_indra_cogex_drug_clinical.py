@@ -1,58 +1,11 @@
 """Tests for drug target/indication/side-effect and clinical trial tools."""
 
-from typing import Any
-
-import httpx
 import pytest
+from mcp_server.tests._httpx import stub_responses, stub_unreachable
 from mcp_server.tools.indra_cogex.drug_clinical import (
     query_clinical_trials,
     query_drug_info,
 )
-
-
-class _StubResponse:
-    def __init__(self, payload: Any) -> None:
-        self._payload = payload
-
-    def raise_for_status(self) -> None:
-        """Represent a 2xx response: never raises."""
-
-    def json(self) -> Any:
-        """Return the fixture payload."""
-        return self._payload
-
-
-class _StubClient:
-    def __init__(
-        self, payload: Any = None, error: Exception | None = None
-    ) -> None:
-        self._payload = payload
-        self._error = error
-        self.calls: list[tuple[str, Any]] = []
-
-    async def __aenter__(self) -> "_StubClient":
-        return self
-
-    async def __aexit__(self, *_: Any) -> bool:
-        return False
-
-    async def post(self, url: str, json: Any = None) -> _StubResponse:
-        self.calls.append((url, json))
-        if self._error is not None:
-            raise self._error
-        return _StubResponse(self._payload)
-
-
-def _stub(monkeypatch: pytest.MonkeyPatch, payload: Any) -> _StubClient:
-    client = _StubClient(payload=payload)
-    monkeypatch.setattr(httpx, "AsyncClient", lambda **_: client)
-    return client
-
-
-def _stub_unreachable(monkeypatch: pytest.MonkeyPatch, message: str) -> None:
-    client = _StubClient(error=RuntimeError(message))
-    monkeypatch.setattr(httpx, "AsyncClient", lambda **_: client)
-
 
 # --- query_drug_info: all four query_type branches share one dispatch ---
 # table (_DRUG_ENDPOINTS in the source), so they are parametrized here too.
@@ -92,7 +45,7 @@ async def test_drug_info_success(
     result_key: str,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    client = _stub(monkeypatch, [{"id": "X"}])
+    client = stub_responses(monkeypatch, [{"id": "X"}])
 
     result = await query_drug_info("CHEBI:CHEBI:27690", query_type=query_type)
 
@@ -106,7 +59,7 @@ async def test_drug_info_success(
 async def test_drug_info_rejects_invalid_query_type(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    _stub_unreachable(monkeypatch, "must not reach the network")
+    stub_unreachable(monkeypatch)
 
     result = await query_drug_info("CHEBI:CHEBI:27690", query_type="bogus")
 
@@ -138,7 +91,7 @@ async def test_clinical_trials_success(
     param_name: str,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    client = _stub(monkeypatch, [{"nct_id": "NCT1"}])
+    client = stub_responses(monkeypatch, [{"nct_id": "NCT1"}])
 
     result = await query_clinical_trials(
         "MESH:D000544", entity_type=entity_type
@@ -154,7 +107,7 @@ async def test_clinical_trials_success(
 async def test_clinical_trials_rejects_invalid_entity_type(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    _stub_unreachable(monkeypatch, "must not reach the network")
+    stub_unreachable(monkeypatch)
 
     result = await query_clinical_trials("MESH:D000544", entity_type="bogus")
 

@@ -6,59 +6,12 @@ invalid-choice branch to pin -- only the exception path, driven here by a
 malformed identifier.
 """
 
-from typing import Any
-
-import httpx
 import pytest
+from mcp_server.tests._httpx import stub_responses, stub_unreachable
 from mcp_server.tools.indra_cogex.pathways import (
     query_causal_subnetwork,
     query_pathways,
 )
-
-
-class _StubResponse:
-    def __init__(self, payload: Any) -> None:
-        self._payload = payload
-
-    def raise_for_status(self) -> None:
-        """Represent a 2xx response: never raises."""
-
-    def json(self) -> Any:
-        """Return the fixture payload."""
-        return self._payload
-
-
-class _StubClient:
-    def __init__(
-        self, payload: Any = None, error: Exception | None = None
-    ) -> None:
-        self._payload = payload
-        self._error = error
-        self.calls: list[tuple[str, Any]] = []
-
-    async def __aenter__(self) -> "_StubClient":
-        return self
-
-    async def __aexit__(self, *_: Any) -> bool:
-        return False
-
-    async def post(self, url: str, json: Any = None) -> _StubResponse:
-        self.calls.append((url, json))
-        if self._error is not None:
-            raise self._error
-        return _StubResponse(self._payload)
-
-
-def _stub(monkeypatch: pytest.MonkeyPatch, payload: Any) -> _StubClient:
-    client = _StubClient(payload=payload)
-    monkeypatch.setattr(httpx, "AsyncClient", lambda **_: client)
-    return client
-
-
-def _stub_unreachable(monkeypatch: pytest.MonkeyPatch, message: str) -> None:
-    client = _StubClient(error=RuntimeError(message))
-    monkeypatch.setattr(httpx, "AsyncClient", lambda **_: client)
-
 
 # --- query_pathways: single-gene vs shared-pathway mode -------------------
 
@@ -82,7 +35,7 @@ async def test_pathways_success(
     mode: str,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    client = _stub(monkeypatch, [{"pathway": "WP1"}])
+    client = stub_responses(monkeypatch, [{"pathway": "WP1"}])
 
     result = await query_pathways(gene_ids)
 
@@ -100,7 +53,7 @@ async def test_pathways_success(
 async def test_pathways_reports_a_malformed_identifier(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    _stub_unreachable(monkeypatch, "must not reach the network")
+    stub_unreachable(monkeypatch)
 
     result = await query_pathways(["HGNC:6407", "no-colon"])
 
@@ -126,7 +79,7 @@ async def test_causal_subnetwork_success(
     payload_flag: str,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    client = _stub(monkeypatch, [{"stmt": "Activation"}])
+    client = stub_responses(monkeypatch, [{"stmt": "Activation"}])
 
     result = await query_causal_subnetwork(
         ["HGNC:6407", "HGNC:5173"], find_mediators=find_mediators
@@ -143,7 +96,7 @@ async def test_causal_subnetwork_success(
 async def test_causal_subnetwork_reports_a_malformed_identifier(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    _stub_unreachable(monkeypatch, "must not reach the network")
+    stub_unreachable(monkeypatch)
 
     result = await query_causal_subnetwork(["HGNC:6407", "bad-node"])
 

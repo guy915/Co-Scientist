@@ -2,54 +2,9 @@
 
 from typing import Any
 
-import httpx
 import pytest
+from mcp_server.tests._httpx import stub_responses, stub_unreachable
 from mcp_server.tools.indra_cogex.enrichment import run_enrichment_analysis
-
-
-class _StubResponse:
-    def __init__(self, payload: Any) -> None:
-        self._payload = payload
-
-    def raise_for_status(self) -> None:
-        """Represent a 2xx response: never raises."""
-
-    def json(self) -> Any:
-        """Return the fixture payload."""
-        return self._payload
-
-
-class _StubClient:
-    def __init__(
-        self, payload: Any = None, error: Exception | None = None
-    ) -> None:
-        self._payload = payload
-        self._error = error
-        self.calls: list[tuple[str, Any]] = []
-
-    async def __aenter__(self) -> "_StubClient":
-        return self
-
-    async def __aexit__(self, *_: Any) -> bool:
-        return False
-
-    async def post(self, url: str, json: Any = None) -> _StubResponse:
-        self.calls.append((url, json))
-        if self._error is not None:
-            raise self._error
-        return _StubResponse(self._payload)
-
-
-def _stub(monkeypatch: pytest.MonkeyPatch, payload: Any) -> _StubClient:
-    client = _StubClient(payload=payload)
-    monkeypatch.setattr(httpx, "AsyncClient", lambda **_: client)
-    return client
-
-
-def _stub_unreachable(monkeypatch: pytest.MonkeyPatch, message: str) -> None:
-    client = _StubClient(error=RuntimeError(message))
-    monkeypatch.setattr(httpx, "AsyncClient", lambda **_: client)
-
 
 # --- run_enrichment_analysis: discrete / signed / kinase ------------------
 # The three analysis types share one request/response shape closely enough
@@ -77,7 +32,7 @@ async def test_enrichment_success(
     gene_key: str,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    client = _stub(monkeypatch, {"p_value": 0.01})
+    client = stub_responses(monkeypatch, {"p_value": 0.01})
 
     result = await run_enrichment_analysis(
         ["HGNC:1"], analysis_type=analysis_type, **extra_kwargs
@@ -96,7 +51,7 @@ async def test_enrichment_success(
 async def test_enrichment_rejects_invalid_analysis_type(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    _stub_unreachable(monkeypatch, "must not reach the network")
+    stub_unreachable(monkeypatch)
 
     result = await run_enrichment_analysis(["HGNC:1"], analysis_type="bogus")
 
@@ -109,7 +64,7 @@ async def test_enrichment_rejects_invalid_analysis_type(
 async def test_enrichment_signed_requires_negative_genes(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    _stub_unreachable(monkeypatch, "must not reach the network")
+    stub_unreachable(monkeypatch)
 
     result = await run_enrichment_analysis(["HGNC:1"], analysis_type="signed")
 

@@ -21,35 +21,12 @@ from co_scientist.agents.generation.coordinator_enrichment import (
     _run_one_enrichment,
 )
 from co_scientist.config.schema import EnrichmentConfig, ToolConfig
+from tests._mcp import FakeCallToolClient
 from tests._state import make_hypothesis, make_state
 
 # -----------------------------------------------------------------------------
 # _enrich_one_hypothesis
 # -----------------------------------------------------------------------------
-
-
-class _FakeMcpClient:
-    """Records call_tool invocations and returns a canned result."""
-
-    def __init__(self, result: Any) -> None:
-        self.result = result
-        self.calls: list[dict[str, Any]] = []
-
-    async def call_tool(self, name: str, **kwargs: Any) -> Any:
-        """Record the call and return the canned result."""
-        self.calls.append({"name": name, **kwargs})
-        return self.result
-
-
-class _FailingMcpClient:
-    """An MCP client whose call_tool always raises."""
-
-    def __init__(self, error: Exception) -> None:
-        self.error = error
-
-    async def call_tool(self, _name: str, **_kwargs: Any) -> Any:
-        """Always raise the configured error."""
-        raise self.error
 
 
 async def test_enrich_one_hypothesis_unwraps_results_path() -> None:
@@ -62,7 +39,7 @@ async def test_enrich_one_hypothesis_unwraps_results_path() -> None:
         results_path="results",
     )
     tool_config = ToolConfig(server="s", mcp_tool_name="nvd_search")
-    mcp_client = _FakeMcpClient({"results": [{"id": "CVE-1"}], "total": 1})
+    mcp_client = FakeCallToolClient({"results": [{"id": "CVE-1"}], "total": 1})
 
     await _enrich_one_hypothesis(
         hyp,
@@ -73,7 +50,7 @@ async def test_enrich_one_hypothesis_unwraps_results_path() -> None:
 
     assert hyp.enrichments["cves"] == [{"id": "CVE-1"}]
     assert mcp_client.calls == [
-        {"name": "nvd_search", "topic": "the explanation", "max_results": 5}
+        ("nvd_search", {"topic": "the explanation", "max_results": 5})
     ]
 
 
@@ -84,7 +61,7 @@ async def test_enrich_one_hypothesis_without_results_path_uses_raw_parsed() -> (
     hyp = make_hypothesis(text="h1")
     enrichment = EnrichmentConfig(tool="cve_lookup", max_results=3)
     tool_config = ToolConfig(server="s", mcp_tool_name="nvd_search")
-    mcp_client = _FakeMcpClient({"raw": "payload"})
+    mcp_client = FakeCallToolClient({"raw": "payload"})
 
     await _enrich_one_hypothesis(
         hyp,
@@ -101,7 +78,7 @@ async def test_enrich_one_hypothesis_defaults_input_to_text() -> None:
     hyp = make_hypothesis(text="fallback text")
     enrichment = EnrichmentConfig(tool="cve_lookup")
     tool_config = ToolConfig(server="s", mcp_tool_name="nvd_search")
-    mcp_client = _FakeMcpClient({})
+    mcp_client = FakeCallToolClient({})
 
     await _enrich_one_hypothesis(
         hyp,
@@ -110,7 +87,8 @@ async def test_enrich_one_hypothesis_defaults_input_to_text() -> None:
         asyncio.Semaphore(1),
     )
 
-    assert mcp_client.calls[0]["topic"] == "fallback text"
+    _, kwargs = mcp_client.calls[0]
+    assert kwargs["topic"] == "fallback text"
 
 
 async def test_enrich_one_hypothesis_records_error_on_failure() -> None:
@@ -118,7 +96,7 @@ async def test_enrich_one_hypothesis_records_error_on_failure() -> None:
     hyp = make_hypothesis(text="h1")
     enrichment = EnrichmentConfig(tool="cve_lookup")
     tool_config = ToolConfig(server="s", mcp_tool_name="nvd_search")
-    mcp_client = _FailingMcpClient(RuntimeError("mcp down"))
+    mcp_client = FakeCallToolClient(error=RuntimeError("mcp down"))
 
     await _enrich_one_hypothesis(
         hyp,
@@ -168,7 +146,7 @@ async def test_run_one_enrichment_missing_tool_is_noop(
 async def test_run_one_enrichment_fans_out_per_hypothesis() -> None:
     """A resolved tool runs once per hypothesis, keyed by output_key."""
     tool_config = ToolConfig(server="s", mcp_tool_name="nvd_search")
-    mcp_client = _FakeMcpClient({"ok": True})
+    mcp_client = FakeCallToolClient({"ok": True})
     hyps = [make_hypothesis(text="h1"), make_hypothesis(text="h2")]
     # output_key left blank -> falls back to the tool id.
     enrichment = EnrichmentConfig(tool="cve_lookup")
@@ -181,7 +159,10 @@ async def test_run_one_enrichment_fans_out_per_hypothesis() -> None:
         asyncio.Semaphore(2),
     )
 
-    assert {call["topic"] for call in mcp_client.calls} == {"h1", "h2"}
+    assert {kwargs["topic"] for _, kwargs in mcp_client.calls} == {
+        "h1",
+        "h2",
+    }
     assert hyps[0].enrichments["cve_lookup"] == {"ok": True}
     assert hyps[1].enrichments["cve_lookup"] == {"ok": True}
 

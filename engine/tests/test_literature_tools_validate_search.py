@@ -6,7 +6,7 @@ here call them directly rather than going through the full
 ``validate_hypotheses`` pipeline.
 """
 
-from typing import Any, cast
+from typing import cast
 
 import pytest
 
@@ -20,6 +20,7 @@ from co_scientist.agents.generation.literature_tools.validate_search import (
 )
 from co_scientist.config import ToolConfig, ToolRegistry
 from co_scientist.config.tool_schema import ResponseFormat
+from tests._mcp import FakeCallToolClient
 from tests._state import make_article
 
 # -----------------------------------------------------------------------------
@@ -138,19 +139,6 @@ def test_find_search_tool_skips_non_matching_categories() -> None:
 # -----------------------------------------------------------------------------
 
 
-class _FakeMcpClient:
-    """Records call_tool invocations and returns a canned result."""
-
-    def __init__(self, result: Any) -> None:
-        self.result = result
-        self.calls: list[tuple[str, dict[str, Any]]] = []
-
-    async def call_tool(self, name: str, **kwargs: Any) -> Any:
-        """Record the call and return the canned result."""
-        self.calls.append((name, kwargs))
-        return self.result
-
-
 def _search_tool_config() -> ToolConfig:
     return ToolConfig(
         server="s",
@@ -173,7 +161,7 @@ def _search_tool_config() -> ToolConfig:
 async def test_search_papers_via_tool_config_returns_paper_dict() -> None:
     """A config-driven search maps the parsed articles into a paper dict."""
     tool_config = _search_tool_config()
-    mcp_client = _FakeMcpClient(
+    mcp_client = FakeCallToolClient(
         {"p1": {"title": "Paper One", "authors": ["A"], "year": 2020}}
     )
 
@@ -206,7 +194,7 @@ async def test_search_papers_via_tool_config_returns_paper_dict() -> None:
 async def test_search_papers_via_tool_config_omits_run_id_when_absent() -> None:
     """A falsy run_id is not injected into the canonical search params."""
     tool_config = _search_tool_config()
-    mcp_client = _FakeMcpClient({})
+    mcp_client = FakeCallToolClient({})
 
     await _search_papers_via_tool_config(
         tool_config,
@@ -236,7 +224,7 @@ async def test_search_papers_for_hypothesis_uses_config_tool() -> None:
         ToolRegistry,
         _FakeRegistry(["search_papers"], {"search_papers": tool_config}),
     )
-    mcp_client = _FakeMcpClient(
+    mcp_client = FakeCallToolClient(
         {"p1": {"title": "Paper One", "authors": [], "year": 2020}}
     )
 
@@ -259,7 +247,7 @@ async def test_search_papers_for_hypothesis_no_tool_returns_empty(
 ) -> None:
     """A registry with no matching search tool skips the novelty search."""
     registry = cast(ToolRegistry, _FakeRegistry([], {}))
-    mcp_client = _FakeMcpClient({})
+    mcp_client = FakeCallToolClient({})
 
     result = await _search_papers_for_hypothesis(
         "hypothesis text",
@@ -278,7 +266,7 @@ async def test_search_papers_for_hypothesis_no_tool_returns_empty(
 
 async def test_search_papers_for_hypothesis_legacy_fallback() -> None:
     """No tool_registry at all falls back to the legacy direct call."""
-    mcp_client = _FakeMcpClient({"p1": {"title": "Legacy paper"}})
+    mcp_client = FakeCallToolClient({"p1": {"title": "Legacy paper"}})
 
     result = await _search_papers_for_hypothesis(
         "hypothesis text",
