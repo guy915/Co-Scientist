@@ -232,23 +232,10 @@ async def add_human_review(
     }
 
 
-@router.post("/{run_id}/attachments")
-async def add_attachment(
+def _persist_and_notify_attachment(
     run_id: str, req: HumanAttachmentRequest
-) -> dict[str, Any]:
-    """Attach a scientist-provided text document to a run's corpus (M7).
-
-    Text-only and consent-gated: no binary or archive is accepted (so there is
-    no extraction/malware surface), the text is size-capped by the request
-    model, and ``consent`` must be true. The document is stored as run-scoped
-    evidence marked as an attachment and indexed into the private retrieval
-    corpus (``run_corpus``).
-    """
-    _require_run(run_id)
-    if not req.consent:
-        raise HTTPException(
-            status_code=422, detail="consent is required to index a document"
-        )
+) -> tuple[str, ScientificTask | None]:
+    """Persist the pasted document as evidence and steer the run with it."""
     ev_id = store.add_evidence(
         store.NewEvidence(
             run_id=run_id,
@@ -266,6 +253,32 @@ async def add_attachment(
         ),
         {"kind": "attachment", "evidence_id": ev_id},
     )
+    store.append_event(
+        run_id,
+        "scientist.attachment",
+        {"evidence_id": ev_id, "title": req.title},
+    )
+    return ev_id, continuation
+
+
+@router.post("/{run_id}/attachments")
+async def add_attachment(
+    run_id: str, req: HumanAttachmentRequest
+) -> dict[str, Any]:
+    """Attach a scientist-provided text document to a run's corpus (M7).
+
+    Text-only and consent-gated: no binary or archive is accepted (so there is
+    no extraction/malware surface), the text is size-capped by the request
+    model, and ``consent`` must be true. The document is stored as run-scoped
+    evidence marked as an attachment and indexed into the private retrieval
+    corpus (``run_corpus``).
+    """
+    _require_run(run_id)
+    if not req.consent:
+        raise HTTPException(
+            status_code=422, detail="consent is required to index a document"
+        )
+    ev_id, continuation = _persist_and_notify_attachment(run_id, req)
     return {
         "id": ev_id,
         "indexed": True,

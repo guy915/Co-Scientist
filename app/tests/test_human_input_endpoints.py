@@ -211,3 +211,43 @@ def test_attachment_rejects_oversized_text(isolated_db: str) -> None:
     )
     # The request-model max_length bound rejects it before any storage.
     assert res.status_code == 422
+
+
+def test_pasted_and_uploaded_attachments_emit_same_audit_event(
+    isolated_db: str,
+) -> None:
+    """A pasted-text attachment must audit identically to an uploaded file.
+
+    Both endpoints persist evidence and steer the run with the same
+    contribution kind (see runs_contrib.py); the event log must not treat
+    one as invisible while recording the other.
+    """
+    client = _client()
+    run_id = _new_run(client)
+
+    pasted = client.post(
+        f"/api/runs/{run_id}/attachments",
+        json={
+            "title": "Pasted note",
+            "text": "Persister cells tolerate EGFR inhibition reversibly.",
+            "consent": True,
+        },
+    ).json()
+    uploaded = client.post(
+        f"/api/runs/{run_id}/attachments/upload",
+        files={
+            "file": ("assay.md", b"Kinase X reduced growth.", "text/markdown")
+        },
+        data={"consent": "true"},
+    ).json()
+
+    events = client.get(f"/api/runs/{run_id}/events?stream=false").json()
+    attachment_events = [
+        e for e in events["events"] if e["type"] == "scientist.attachment"
+    ]
+    assert [e["payload"]["evidence_id"] for e in attachment_events] == [
+        pasted["id"],
+        uploaded["id"],
+    ]
+    assert attachment_events[0]["payload"]["title"] == "Pasted note"
+    assert attachment_events[1]["payload"]["title"] == "assay.md"
