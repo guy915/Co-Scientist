@@ -48,6 +48,33 @@ _IMMEDIATE_STOP_REASONS = frozenset(
     {TerminationReason.CANCELLED, TerminationReason.SAFETY}
 )
 
+# Every constraint below is executable, not documentation. Production's
+# provider enforces none of it -- DeepSeek only accepts json_object, where
+# this schema reaches the model as prompt text and nothing server-side
+# checks the reply -- but ``call_llm_json`` validates each parsed response
+# against this same schema in-process before returning it
+# (``llm_json.validate_json_schema``). So a bound declared here is enforced
+# here: an out-of-range or non-integer priority, at either level, never
+# reaches ``SupervisorDecision``. It fails validation, the retry carries
+# the error back to the model, and a model that keeps violating loses the
+# whole allocation to the deterministic scheduler under
+# "reconstructed-fallback" provenance. Do not widen or drop a bound to
+# quiet a retry: that turns a recorded contract violation into a silently
+# accepted value. (``minimum``/``maximum`` constrain numbers only, so the
+# ``["integer", "null"]`` union does not defeat them; null is the declared
+# "leave this task's priority alone" value.) The app re-bounds once more
+# where these land in its queue -- a receiver defending an input it does
+# not control, not a duplicate of this.
+#
+# The one constraint this does *not* enforce is the top-level ``required``
+# list. For json_object-only providers -- production -- the
+# ``_backfill_required_fields`` shim fills missing required fields with
+# type-neutral defaults before validating, so a reply omitting
+# ``next_task`` is silently completed with the enum's first value and
+# recorded as a model decision the model never made. The nested
+# ``required`` inside ``queue_actions`` items is unaffected: the shim
+# returns at the array and never descends into its items. Both properties
+# are pinned by tests/test_supervisor_decision_schema.py.
 _DECISION_SCHEMA: dict[str, Any] = {
     "name": "supervisor_allocation",
     "schema": {
@@ -336,6 +363,13 @@ async def _call_supervisor_planner(
             prompt_metadata={"iteration": stats.iteration},
         ),
     )
+    # The schema validation inside call_llm_json has already bounded both
+    # priorities and typed every queue action (see _DECISION_SCHEMA), so
+    # the clamp here is belt-and-braces with two live effects: the 50
+    # default for a priority the schema leaves optional, and int()
+    # normalizing the integral float that JSON Schema's "integer" admits
+    # (55.0), so a real int leaves the engine. Queue actions pass through
+    # as parsed for the same reason -- they are already in range.
     proposed = SupervisorDecision(
         next_task=TaskType(str(response["next_task"])),
         reason=str(response["reason"]),
