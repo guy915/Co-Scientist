@@ -1,8 +1,8 @@
-"""Engine-event translation into the canonical mock event vocabulary.
+"""Engine-event translation into the canonical event vocabulary.
 
 Maps streamed engine node names to canonical event types, projects each
-node's state snapshot into a mock-shaped event payload, and formats the
-user-facing milestone messages surfaced for key events.
+node's state snapshot into the canonical event payload shape, and formats
+the user-facing milestone messages surfaced for key events.
 """
 
 from __future__ import annotations
@@ -15,27 +15,28 @@ from app.report_render import article_stub, hypothesis_stub, match_stub
 
 
 def _canonical_event_type(node_name: str) -> str:
-    """Map an engine node name to the canonical mock event vocabulary.
+    """Map an engine node name to the canonical event vocabulary.
 
     Only ``supervisor`` diverges from its node name (it emits
-    ``supervisor.plan``). Every other node -- including any with no mock
-    counterpart, such as ``review`` -- keeps its unprefixed node name, so it
-    renders via the frontend's prettify fallback rather than a legacy
-    ``engine.`` prefix.
+    ``supervisor.plan``). Every other node -- including any with no
+    payload/milestone builder, such as ``review`` -- keeps its unprefixed
+    node name, so it renders via the frontend's prettify fallback rather
+    than a legacy ``engine.`` prefix.
 
     Args:
         node_name: The engine graph node name streamed by the generator.
 
     Returns:
-        The canonical event type used across the mock, adapter, and frontend.
+        The canonical event type used across the adapter and frontend.
     """
     return "supervisor.plan" if node_name == "supervisor" else node_name
 
 
 # Canonical pipeline stages the real engine runs, surfaced in the
-# ``supervisor.plan`` payload's ``agents`` key so the frontend summary matches
-# the mock's shape. Derived from the engine's actual graph nodes rather than
-# copying the mock's list (which carries stages the engine never emits).
+# ``supervisor.plan`` payload's ``agents`` key so the frontend summary has a
+# fixed set of stages to render. Derived from the engine's actual graph
+# nodes rather than hand-maintained separately, so it cannot drift to name
+# a stage the engine never emits.
 _ENGINE_PIPELINE_AGENTS: list[str] = [
     "supervisor",
     "literature_review",
@@ -88,8 +89,8 @@ def _evolve_payload_extra(state: dict[str, Any]) -> dict[str, Any]:
 def _reflection_payload_extra(state: dict[str, Any]) -> dict[str, Any]:
     """Build the ``reflection`` node's payload keys.
 
-    ``reviewed`` mirrors the mock's count of hypotheses that have picked up a
-    review during this pass, read from each hypothesis's ``reviews`` list.
+    ``reviewed`` counts the hypotheses that have picked up a review during
+    this pass, read from each hypothesis's ``reviews`` list.
     """
     hyps: list[dict[str, Any]] = state.get("hypotheses") or []
     return {"reviewed": sum(1 for h in hyps if h.get("reviews"))}
@@ -145,8 +146,8 @@ def _meta_review_payload_extra(state: dict[str, Any]) -> dict[str, Any]:
 def _deep_verification_payload_extra(state: dict[str, Any]) -> dict[str, Any]:
     """Build the ``deep_verification`` node's payload keys.
 
-    ``probes`` mirrors the mock's per-hypothesis entries: one per hypothesis
-    that was probed, each carrying its verdict and probe list.
+    ``probes`` carries one entry per hypothesis that was probed, each
+    carrying its verdict and probe list.
     """
     hyps: list[dict[str, Any]] = state.get("hypotheses") or []
     probes = [
@@ -188,11 +189,11 @@ def _canonical_engine_payload(
 ) -> dict[str, Any]:
     """Build a canonical event payload for a streamed engine node.
 
-    Per-stage keys match the mock's payload shape (``count``, ``hypotheses``,
-    ``evidence``, ``matches``, ``children``, ``agents``, ``reviewed``,
-    ``clusters``, ``critique``, ``top_k_ids``, ``verified``, ``probes``,
-    ``research_overview``) so a single vocabulary drives ``_format_milestone``
-    and the raw event log console.
+    Per-stage keys (``count``, ``hypotheses``, ``evidence``, ``matches``,
+    ``children``, ``agents``, ``reviewed``, ``clusters``, ``critique``,
+    ``top_k_ids``, ``verified``, ``probes``, ``research_overview``) form the
+    single vocabulary that drives ``_format_milestone`` and the raw event
+    log console.
 
     The list-shaped keys are projected to minimal stubs rather than carrying
     raw engine-state objects: every consumer reads only their ``length``, and
@@ -275,10 +276,10 @@ _MILESTONE_BUILDERS: dict[str, Callable[[dict[str, Any]], str]] = {
 def _format_milestone(node_type: str, payload: dict[str, Any]) -> str | None:
     """Return a human-readable milestone string for key node events, or None.
 
-    Reads the single canonical (mock-shaped) payload vocabulary. Unknown or
-    legacy types (e.g. old persisted ``engine.*`` events) fall through to
-    ``None``, so no milestone is generated — the same behaviour today's code
-    has for unmatched types.
+    Reads the single canonical payload vocabulary. Unknown or legacy types
+    (e.g. old persisted ``engine.*`` events) fall through to ``None``, so no
+    milestone is generated — the same behaviour today's code has for
+    unmatched types.
     """
     builder = _MILESTONE_BUILDERS.get(node_type)
     return builder(payload) if builder is not None else None

@@ -13,8 +13,9 @@ def handle_status(args: argparse.Namespace, client: ApiClient) -> int:
     """Print API health and provider/literature availability.
 
     Combines ``GET /health`` and ``GET /status`` into a single view so an
-    operator can confirm the API is up and see whether it will run the real
-    engine or the deterministic mock before creating a run.
+    operator can confirm the API is up and see whether it has a real LLM
+    provider configured or will fall back to the deterministic offline
+    backend before creating a run.
     """
     as_json: bool = args.json
     health = client.request_json("GET", "/health")

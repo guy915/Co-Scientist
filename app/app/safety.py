@@ -411,11 +411,11 @@ async def apply_safety_gate(
 ) -> AsyncIterator[dict[str, Any]]:
     """Record a safety decision, emit it, and gate the run on a hard block.
 
-    Shared by both workflow providers so the record -> emit -> block-and-stop
-    sequence lives in one place. Yields the events to forward on the workflow's
-    stream: the ``safety.{stage}`` decision, plus a blocked ``status`` event
-    when the decision blocks. The caller must return from its workflow when
-    ``result.decision == "block"``.
+    Shared by the intake and final safety gates so the record -> emit ->
+    block-and-stop sequence lives in one place. Yields the events to forward
+    on the workflow's stream: the ``safety.{stage}`` decision, plus a
+    blocked ``status`` event when the decision blocks. The caller must
+    return from its workflow when ``result.decision == "block"``.
 
     Args:
         run_id: Identifier of the run being gated.

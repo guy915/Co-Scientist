@@ -80,9 +80,10 @@ function RunStepItem({icon, label}: {icon: IconName; label: string}) {
   );
 }
 
-// The active-task label: the humanized durable task when the engine provider
-// reports one, else the humanized stage when the mock provider reports one,
-// else a neutral placeholder while neither signal has arrived yet.
+// The active-task label: the humanized durable-task-lease signal
+// (`execution_progress.active_task`) when one is present, else the
+// humanized stage-event signal (`latest_stage`) when that is present
+// instead, else a neutral placeholder while neither signal has arrived yet.
 function activeTaskLabel(run: Run): string {
   const activeTask = run.execution_progress?.active_task;
   if (activeTask) return humanizeTask(activeTask);

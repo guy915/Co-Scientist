@@ -240,8 +240,8 @@ async def finalize_report(
 ) -> AsyncIterator[dict[str, Any]]:
     """Build, screen, persist, and emit a run's final report.
 
-    Single finalize path both providers invoke after their drain; order
-    enforced by ``_finalize_report_pipeline``.
+    The run's single finalize path, invoked after its drain; order enforced
+    by ``_finalize_report_pipeline``.
 
     Args:
         run_id: Identifier of the run being finalized.

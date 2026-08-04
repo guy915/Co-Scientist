@@ -162,7 +162,8 @@ def create_run(
         research_goal: The natural-language research goal for the run.
         profile: Canonical run mode. The column name is retained for
             compatibility with older clients.
-        provider: The execution provider, e.g. 'mock' or 'engine'.
+        provider: The execution provider; every caller passes 'engine'
+            today (see ``engine_adapter.select_provider``).
         config: Run configuration values serialized to JSON.
         options: Optional creation inputs and database override (see
             :class:`RunCreateOptions`).

@@ -15,7 +15,8 @@ from app import store
 from app.store import RunStatus
 from app.text_utils import hypothesis_id, hypothesis_title
 
-# Emitter both providers pass in: records an event and returns its stub.
+# The durable engine tasks build one of these per run: records an event and
+# returns its stub.
 EmitFn = Callable[[str, dict[str, Any]], Awaitable[dict[str, Any]]]
 
 
@@ -25,17 +26,18 @@ def make_emitter(
     db_path: str | None = None,
     sleep_seconds: float = 0.0,
 ) -> EmitFn:
-    """Build the per-run event emitter both providers stream through.
+    """Build the per-run event emitter the durable engine tasks stream through.
 
     Records an event via ``store.append_event`` and returns the streamed stub
     ``{"seq", "type", "payload"}`` -- the single home for that SSE contract
-    shape. The mock passes ``sleep_seconds`` to pace its synthetic timeline; the
-    engine leaves it at 0 (the generator's ``yield`` already cedes control).
+    shape. ``sleep_seconds`` is available for callers that want to pace a
+    synthetic timeline; every current caller leaves it at 0 (the generator's
+    ``yield`` already cedes control).
 
     Args:
         run_id: Identifier of the run whose events are recorded.
         db_path: Optional override for the SQLite database path.
-        sleep_seconds: Optional per-event pacing delay (mock only).
+        sleep_seconds: Optional per-event pacing delay; unused today.
 
     Returns:
         An async emitter callable matching ``EmitFn``.

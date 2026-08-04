@@ -1,9 +1,9 @@
 """Per-run execution metrics (LLM calls, phase timings).
 
 One row per run holding the final ``ExecutionMetrics``-shaped dict the
-workflow produced (see the engine's ``models.ExecutionMetrics``); the
-mock provider persists an equivalent deterministic dict. The row is
-upserted, so a resumed run that finalizes again simply replaces it.
+workflow produced (see the engine's ``models.ExecutionMetrics``); a curated
+demo run persists an equivalent deterministic dict. The row is upserted,
+so a resumed run that finalizes again simply replaces it.
 """
 
 from __future__ import annotations

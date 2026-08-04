@@ -78,9 +78,10 @@ def derive_health_status(
     """Derive the overall health value from the individual checks.
 
     The store is load-bearing for every endpoint, so an unreachable store
-    is ``unhealthy``. A missing engine is normal in mock mode; it only
-    degrades health when an LLM provider key is configured (the operator
-    expects the real engine) but the package cannot be imported.
+    is ``unhealthy``. A missing engine is normal when no provider key is
+    configured; it only degrades health when an LLM provider key is
+    configured (the operator expects the real engine) but the package
+    cannot be imported.
 
     Args:
         store_check: Outcome of the SQLite store check.

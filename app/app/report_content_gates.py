@@ -92,10 +92,9 @@ def _unverified_hypothesis_ids(
     published, but flagged "Unverified" in the report and the idea list rather
     than blocking the run.
 
-    When a run has no claim-evidence edges at all -- claim grounding never ran,
-    as for mock demo runs -- none of its ideas were assessed, so none is
-    reported unverified (the badge means "assessed and unsupported", not
-    "not yet assessed").
+    When a run has no claim-evidence edges at all -- claim grounding never
+    ran -- none of its ideas were assessed, so none is reported unverified
+    (the badge means "assessed and unsupported", not "not yet assessed").
 
     ``hyps`` may be passed to reuse an already-fetched hypothesis list;
     when omitted it is queried from the store.

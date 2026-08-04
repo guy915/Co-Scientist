@@ -66,7 +66,7 @@ def offline_mode() -> bool:
     if os.getenv("COSCIENTIST_FORCE_OFFLINE") == "1":
         return True
     if os.getenv("COSCIENTIST_FORCE_MOCK") == "1":
-        return True  # deprecated alias, retained until the mock is retired
+        return True  # deprecated alias, retained for backward compatibility
     return not _has_provider_key()
 
 
@@ -153,13 +153,13 @@ def system_status() -> dict[str, Any]:
 def _import_hypothesis_generator() -> Any | None:
     """Import the engine's `HypothesisGenerator`, or None if unavailable."""
     try:
-        # The engine is an optional runtime dependency; when absent this
-        # import fails and the app falls back to the mock provider.
+        # The engine is a hard runtime dependency; this import only fails
+        # if the co_scientist package is missing or broken.
         from co_scientist import (
             HypothesisGenerator,
         )
 
         return HypothesisGenerator
     except Exception as e:  # pragma: no cover (defensive)
-        logger.error("engine import failed: %s — falling back to mock", e)
+        logger.error("engine import failed: %s", e)
         return None

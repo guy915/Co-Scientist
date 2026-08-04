@@ -192,12 +192,12 @@ def _persist_one_citation(
 ) -> None:
     """Persist one hypothesis citation row, classifying and tallying it.
 
-    Routes the citation through the shared classifier (the same path the
-    mock uses) rather than hardcoding a state, so the four-state citation UI
-    reflects real runs. The target's grounding is the claim the citation
-    supports; it is matched against the cited paper's abstract (when the
-    source was retrieved), and a source with no resolvable URL (e.g. a
-    knowledge-graph statement) falls out as "unavailable".
+    Routes the citation through the shared classifier rather than hardcoding
+    a state, so the four-state citation UI reflects real runs. The target's
+    grounding is the claim the citation supports; it is matched against the
+    cited paper's abstract (when the source was retrieved), and a source
+    with no resolvable URL (e.g. a knowledge-graph statement) falls out as
+    "unavailable".
 
     Mutates the sink's `ev_id_by_title` (a citation may add evidence for its
     source on the fly) and `citation_summary` (running citation-state

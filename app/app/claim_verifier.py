@@ -15,7 +15,7 @@ thresholds, SSR §12):
   deterministic assessor rather than failing the grounding pass (best-effort,
   mirroring ``title_gen``/``qa``).
 - The assessor is *synchronous* (uses ``litellm.completion``) because grounding
-  runs inside the synchronous drain / mock-stage persistence path.
+  runs inside the synchronous drain's persistence path.
 
 This module is exercised end-to-end by the golden run (P0.6); the offline suite
 fakes ``litellm.completion`` to prove prompt/parse/guard behavior.

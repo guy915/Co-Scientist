@@ -44,7 +44,7 @@ export interface SystemStatus {
 /**
  * Fetches the backend's system availability status.
  *
- * @returns Provider/mock-mode info and literature-stack probe results.
+ * @returns Provider/offline-backend info and literature-stack probe results.
  */
 export function getSystemStatus(): Promise<SystemStatus> {
   return fetchJson('/status');

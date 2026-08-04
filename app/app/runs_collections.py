@@ -35,8 +35,8 @@ async def get_hypotheses(run_id: str) -> dict[str, Any]:
     # Flag ideas without an evidence-supported claim so the UI can badge them
     # "Unverified" (they are ranked and published under the rank-and-publish
     # policy; only contradicted/unsafe ideas are withheld from the report).
-    # Offline-backed runs (mock demos, deterministic offline engine runs) are
-    # illustrative fixtures, not assessed science, so they are never badged
+    # Offline-backed runs (curated demos, deterministic offline engine runs)
+    # are illustrative fixtures, not assessed science, so they are never badged
     # (they carry simulated "insufficient" claim rows that would otherwise
     # flag every idea). Keyed on the run's persisted backend, not the process
     # offline_mode(), so a real engine run created while offline is badged.

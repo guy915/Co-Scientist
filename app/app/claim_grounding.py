@@ -2,7 +2,7 @@
 
 The claim-level primitives live in :mod:`app.claims` (pure: atomic-claim
 extraction, per-claim entailment, and the publication gate). This module is the
-store-aware wiring both providers share (SSR §6, §7; RGV §4, §5):
+store-aware wiring the engine drain runs (SSR §6, §7; RGV §4, §5):
 
 1. For each hypothesis, extract atomic claims from its statement/mechanism/
    expected-effect text.
@@ -99,8 +99,8 @@ def evidence_passages(
 
     Each passage is the evidence row's title + abstract, carrying the source
     evidence id, source, and url so a support span located inside it can be
-    traced back to (and opened at) its exact source. Shared by both providers
-    (the mock stages pass ``db_path``; the engine drain reuses its ``conn``).
+    traced back to (and opened at) its exact source. Callers pass either
+    ``conn`` (the engine drain reuses its open transaction) or ``db_path``.
     """
     passages: list[EvidencePassage] = []
     for ev in store.list_evidence(run_id, conn=conn, db_path=db_path):
@@ -217,8 +217,8 @@ def persist_grounding(
     Args:
         run_id: Identifier of the run being grounded.
         assessed: Output of :func:`assess_hypothesis_claims`.
-        allow_speculative: Compatibility-only switch for explicitly marked
-            mock workflows. Faithful engine runs must leave this False.
+        allow_speculative: Compatibility-only switch; no current caller sets
+            this True. Faithful engine runs must leave this False.
         conn: Optional open connection to reuse (e.g. from ``transaction``).
         db_path: Optional override for the SQLite database path.
 

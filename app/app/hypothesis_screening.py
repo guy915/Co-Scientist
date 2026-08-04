@@ -9,10 +9,10 @@ first, with an audit row. Uncertainty routes to safe abstention (see
 ``hypothesis_safety``), never optimistic inclusion.
 
 The review *logic* lives in :mod:`app.hypothesis_safety` (pure, no store). This
-module is the store-aware wiring both providers share: the mock calls it after
-reflection and drops blocked hypotheses before the tournament seeds; the
-real-engine drain calls it after persisting hypotheses so their status is
-recorded and the report path excludes the blocked ones.
+module is the store-aware wiring: the engine drain calls it after persisting
+hypotheses so their status is recorded and the report path excludes the
+blocked ones, and a scientist-authored hypothesis re-runs the same screen
+when it is admitted.
 """
 
 from __future__ import annotations

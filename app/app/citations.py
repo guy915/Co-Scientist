@@ -10,9 +10,9 @@ Each citation is mapped to one of four states the UI surfaces:
                   claim.
 - `unavailable` — no resolvable source (broken URL, retracted, no metadata).
 
-In the absence of a real verification corpus the mock implementation uses
-deterministic rules over the supplied evidence record so the pipeline produces
-stable labels for tests and screenshots.
+In the absence of a real verification corpus this module uses deterministic
+rules over the supplied evidence record so the pipeline produces stable
+labels for tests and screenshots.
 """
 
 from __future__ import annotations

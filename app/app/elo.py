@@ -50,8 +50,7 @@ def live_leaderboard(
 ) -> list[dict[str, Any]]:
     """Compact Elo standings snapshot carried on workflow event payloads.
 
-    Shared by the engine adapter and the mock workflow so the frontend's
-    live-standings reader sees one payload shape across providers.
+    The one payload shape the frontend's live-standings reader relies on.
 
     Args:
         hyps: Hypothesis dicts carrying ``elo_rating``, ``win_count``,

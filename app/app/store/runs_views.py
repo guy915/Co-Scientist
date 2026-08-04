@@ -20,8 +20,11 @@ _TOP_HYPOTHESES_CAP = 3
 # Event types that mark a pipeline stage, used to report a run's
 # ``latest_stage`` for the live progress indicator. Cross-cutting events
 # (safety.*, citation.*, status, lifecycle, report) are excluded so the
-# reported stage tracks the linear agent pipeline. Both providers emit these
-# canonical types.
+# reported stage tracks the linear agent pipeline. The durable engine path
+# never appends one of these -- its live signal is the leased task on
+# ``execution_progress.active_task`` instead. The curated demo-seed path
+# (``seed_scenario.py``) is what actually emits this vocabulary, appending
+# the whole set at once when a run is seeded rather than progressively.
 _STAGE_EVENT_TYPES: tuple[str, ...] = (
     "supervisor.plan",
     "literature_review",

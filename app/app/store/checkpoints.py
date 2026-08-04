@@ -3,9 +3,9 @@
 Stores versioned checkpoint envelopes so an interrupted run can resume from its
 last committed boundary rather than failing or restarting. One row per saved
 checkpoint; :func:`get_latest_checkpoint` returns the newest by per-run
-sequence. The envelope shape and its schema version are owned by the provider
-(engine ``co_scientist.checkpoint`` or the mock); this module only persists and
-retrieves it transactionally.
+sequence. The envelope shape and its schema version are owned by the engine
+(``co_scientist.checkpoint``); this module only persists and retrieves it
+transactionally.
 """
 
 from __future__ import annotations
