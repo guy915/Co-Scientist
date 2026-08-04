@@ -1,11 +1,18 @@
-"""Model-driven, durable research-goal interview API."""
+"""Model-driven, durable research-goal interview API.
+
+This module owns the durable turn lifecycle and the HTTP surface. The
+provider call and its deterministic fallback live in ``interviews_model``,
+and the request-shaping half (schema, prompts, field normalization) in
+``interviews_prompts``; both are re-exported here, so ``app.interviews``
+remains the stable import and monkeypatch surface.
+"""
 
 from __future__ import annotations
 
 import asyncio
-import json
+import dataclasses
 import logging
-from collections.abc import AsyncIterator, Awaitable, Callable
+from collections.abc import AsyncIterator
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Request
@@ -15,10 +22,26 @@ from pydantic import BaseModel, Field
 from app import store
 from app.audience import AUDIENCE_PATTERN
 from app.auth import client_id
-from app.config import (
-    THINKING_FLOOR_TIMEOUT_SECONDS,
-    deepseek_thinking_kwargs,
-    thinking_safe_max_tokens,
+from app.interviews_model import (
+    _INTERVIEW_STALL_SECONDS as _INTERVIEW_STALL_SECONDS,
+)
+from app.interviews_model import (
+    _INTERVIEW_TOTAL_SECONDS as _INTERVIEW_TOTAL_SECONDS,
+)
+from app.interviews_model import (
+    ReasoningSink as ReasoningSink,
+)
+from app.interviews_model import (
+    _call_interview_model as _call_interview_model,
+)
+from app.interviews_model import (
+    _collect_stream_content as _collect_stream_content,
+)
+from app.interviews_model import (
+    _fallback_interview_response as _fallback_interview_response,
+)
+from app.interviews_model import (
+    _stream_interview_content as _stream_interview_content,
 )
 from app.interviews_prompts import (
     _RESPONSE_SCHEMA as _RESPONSE_SCHEMA,
@@ -47,25 +70,10 @@ from app.interviews_prompts import (
 from app.interviews_prompts import (
     _system_prompt as _system_prompt,
 )
-from app.llm_stream import stream_chunks
 from app.qa import sse_frame
-
-# Receives each chain-of-thought fragment as the model emits it.
-ReasoningSink = Callable[[str], Awaitable[None]]
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/interviews", tags=["interviews"])
-
-# Silence, not duration, is what marks an interview turn as lost. The turn
-# streams and its chain of thought is relayed to the scientist as it arrives,
-# so a long reasoning pass is visible progress, not a blank wait -- while a
-# provider that has stopped answering goes quiet immediately. Bounding the
-# total instead is what made a funded chain of thought fail the turn on the
-# clock right after it stopped failing on the token budget.
-_INTERVIEW_STALL_SECONDS = 45.0
-# Derived so the clock cannot drift below the token budget it has to admit,
-# plus room for the prompt round-trip either side of the reasoning.
-_INTERVIEW_TOTAL_SECONDS = THINKING_FLOOR_TIMEOUT_SECONDS + 60.0
 
 
 class CreateInterviewRequest(BaseModel):
@@ -96,137 +104,6 @@ def _owned_interview(interview_id: str, request: Request) -> dict[str, Any]:
     if interview is None or interview["client_id"] != client_id(request):
         raise HTTPException(status_code=404, detail="interview not found")
     return interview
-
-
-async def _stream_interview_content(
-    interview: dict[str, Any], on_reasoning: ReasoningSink | None
-) -> str:
-    """Stream one Agent turn, relaying reasoning, and return its answer text.
-
-    The call always streams so there is a single transport to reason about.
-    DeepSeek emits the whole chain of thought as ``reasoning_content`` deltas
-    before the first ``content`` delta, so reasoning can be surfaced live
-    while the answer is still being written. Content deltas are accumulated
-    silently: they are fragments of the response JSON, never prose to show a
-    scientist.
-
-    Returns:
-        The concatenated answer content (still unparsed JSON).
-    """
-    import litellm
-
-    model, messages, response_format = _interview_request(interview)
-    response = await litellm.acompletion(
-        model=model,
-        messages=messages,
-        response_format=response_format,
-        temperature=0.3,
-        # Thinking spends reasoning tokens against this budget before the
-        # four-field answer, so the floor covers the reasoning and 3k is
-        # what remains for the answer -- ample for four short fields.
-        # Sizing this for the answer alone is what leaves a run untitled
-        # and an interview turn blank; see thinking_safe_max_tokens.
-        max_tokens=thinking_safe_max_tokens(model, 3_000),
-        # Bounds establishing the stream; once chunks flow, stream_chunks
-        # below owns the clock.
-        timeout=_INTERVIEW_TOTAL_SECONDS,
-        stream=True,
-        **deepseek_thinking_kwargs(model),
-    )
-    return await _collect_stream_content(response, on_reasoning)
-
-
-async def _collect_stream_content(
-    response: Any, on_reasoning: ReasoningSink | None
-) -> str:
-    """Drain a streaming completion, relaying reasoning, into answer text."""
-    content: list[str] = []
-    async for chunk in stream_chunks(
-        response,
-        stall_seconds=_INTERVIEW_STALL_SECONDS,
-        total_seconds=_INTERVIEW_TOTAL_SECONDS,
-    ):
-        if not chunk.choices:
-            continue
-        delta = chunk.choices[0].delta
-        # Absent on non-thinking models and on providers that never reason.
-        reasoning = getattr(delta, "reasoning_content", None)
-        if reasoning and on_reasoning is not None:
-            await on_reasoning(reasoning)
-        if delta.content:
-            content.append(delta.content)
-    return "".join(content)
-
-
-async def _call_interview_model(
-    interview: dict[str, Any],
-    on_reasoning: ReasoningSink | None = None,
-) -> dict[str, Any]:
-    """Call the configured semantic interview model with structured output.
-
-    Args:
-        interview: The durable interview row being advanced.
-        on_reasoning: Optional sink for live chain-of-thought fragments.
-
-    Returns:
-        The parsed response object.
-
-    Raises:
-        HTTPException: 503 on any provider, timeout, or parse failure, which
-            ``_advance`` converts into the deterministic fallback turn.
-    """
-    try:
-        content = await _stream_interview_content(interview, on_reasoning)
-        parsed = json.loads(content)
-        if not isinstance(parsed, dict):
-            raise ValueError("interview response must be a JSON object")
-        return {str(key): value for key, value in parsed.items()}
-    except Exception as exc:
-        logger.warning("Interview model failed: %s", exc)
-        raise HTTPException(
-            status_code=503,
-            detail="The interview Agent is temporarily unavailable.",
-        ) from exc
-
-
-def _fallback_interview_response(
-    interview: dict[str, Any],
-) -> dict[str, Any]:
-    """Advance the four-field interview from explicit scientist answers.
-
-    The recovery path never infers scientific content. It assigns each new
-    answer to the field the Agent most recently requested, preserving a usable
-    and resumable interview when the configured model is temporarily absent.
-    """
-    fields = dict(interview["fields"])
-    user_turns = [
-        str(turn["content"]).strip()
-        for turn in interview["turns"]
-        if turn["role"] == "user" and str(turn["content"]).strip()
-    ]
-    answers = user_turns[1:]
-    if not fields.get("focus_area") and answers:
-        fields["focus_area"] = [answers[0]]
-    if not fields.get("preferences") and len(answers) > 1:
-        fields["preferences"] = [answers[1]]
-    completed = _ready(fields)
-    if completed:
-        message = "The research goal is ready for run configuration."
-    elif not fields.get("focus_area"):
-        message = (
-            "Which scientific mechanisms or focus areas should this research "
-            "prioritize?"
-        )
-    else:
-        message = (
-            "What constraints, available models or data, exclusions, and "
-            "feasibility preferences should guide the work?"
-        )
-    return {
-        "assistant_message": message,
-        **fields,
-        "completed": completed,
-    }
 
 
 def _reasoning_capture(
@@ -270,26 +147,67 @@ async def _advance(
     assert interview is not None
     sink, fragments = _reasoning_capture(on_reasoning)
     response, used_fallback = await _run_interview_turn(interview, sink)
+    turn = _resolved_turn(response, used_fallback, "".join(fragments))
+    _persist_interview_turn(interview_id, turn)
+    updated = store.get_interview(interview_id)
+    assert updated is not None
+    return updated
+
+
+@dataclasses.dataclass(frozen=True)
+class _ResolvedTurn:
+    """What one advanced turn resolved to, before it is persisted.
+
+    Attributes:
+        message: The Agent's message to the scientist.
+        fields: The four structured fields as this turn derived them.
+        reasoning: The turn's whole chain of thought, as relayed.
+        completed: Whether this turn completes the interview.
+    """
+
+    message: str
+    fields: dict[str, Any]
+    reasoning: str
+    completed: bool
+
+
+def _resolved_turn(
+    response: dict[str, Any], used_fallback: bool, reasoning: str
+) -> _ResolvedTurn:
+    """Read one model response into the turn record to persist.
+
+    Returns:
+        The resolved turn.
+
+    Raises:
+        HTTPException: 502 when the Agent returned no message to show.
+    """
     fields = _normalized_fields(response)
     message = str(response.get("assistant_message") or "").strip()
     if not message:
         raise HTTPException(
             status_code=502, detail="Interview Agent returned no message."
         )
-    completed = _interview_turn_completed(response, fields, used_fallback)
+    return _ResolvedTurn(
+        message=message,
+        fields=fields,
+        reasoning=reasoning,
+        completed=_interview_turn_completed(response, fields, used_fallback),
+    )
+
+
+def _persist_interview_turn(interview_id: str, turn: _ResolvedTurn) -> None:
+    """Append the Agent's turn and update the interview's derived fields."""
     store.append_interview_turn(
         interview_id,
-        store.NewInterviewTurn("agent", message, "".join(fragments)),
+        store.NewInterviewTurn("agent", turn.message, turn.reasoning),
     )
     store.update_interview(
         interview_id,
-        fields,
-        None if completed else message,
-        completed=completed,
+        turn.fields,
+        None if turn.completed else turn.message,
+        completed=turn.completed,
     )
-    updated = store.get_interview(interview_id)
-    assert updated is not None
-    return updated
 
 
 async def _run_interview_turn(
