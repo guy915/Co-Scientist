@@ -16,6 +16,28 @@ import sqlite3
 from app.store.db import _now, _use_conn, transaction
 
 
+def clamp_task_priority(priority: int) -> int:
+    """Bound a Supervisor-proposed priority to its declared JSON range.
+
+    The Supervisor's allocation schema promises 0-100 for both the next
+    task's priority and each queued reprioritization
+    (``supervisor_decision.py``'s ``_DECISION_SCHEMA``), but structured-
+    output enforcement is not guaranteed by every provider, so every write
+    path re-bounds the value defensively instead of trusting it. This is
+    not a property of the ``scientific_tasks.priority`` column itself --
+    ``report_notify.py`` deliberately enqueues completion-email tasks at
+    priority -100, outside this range, to sink beneath all Supervisor-
+    scheduled work.
+
+    Args:
+        priority: The proposed priority, from Supervisor JSON output.
+
+    Returns:
+        The priority clamped to [0, 100].
+    """
+    return max(0, min(100, priority))
+
+
 def reprioritize_task(
     task_id: str,
     priority: int,
@@ -25,7 +47,7 @@ def reprioritize_task(
     conn: sqlite3.Connection | None = None,
 ) -> bool:
     """Change one queued task's claim priority and record Supervisor reason."""
-    bounded = max(0, min(100, priority))
+    bounded = clamp_task_priority(priority)
     with _use_conn(conn, db_path) as active:
         row = active.execute(
             "SELECT provenance_json FROM scientific_tasks "

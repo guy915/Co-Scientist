@@ -93,7 +93,7 @@ async def _execute_task_payload(
     task: ScientificTask, *, db_path: str | None
 ) -> dict[str, Any]:
     """Execute one leased task without committing its durable outcome."""
-    if task.task_type.startswith("engine."):
+    if task.task_type.startswith(engine_tasks.ENGINE_TASK_PREFIX):
         return await engine_tasks.execute_engine_task(task, db_path=db_path)
     if task.task_type == _EMAIL_TASK:
         return await deliver_completion_notification(task.inputs)

@@ -33,6 +33,13 @@ from app.report_render import make_emitter as make_emitter
 from app.run_modes import resolved_run_config
 from app.store import ScientificTask
 
+# Every durable task type in the engine-workflow family shares this
+# prefix (bootstrap, node dispatch, finalize, fan-out, ranking) as
+# opposed to unrelated task types like "notification.email". Callers
+# that only need "does this run still have engine work" (the run
+# lifecycle router, the standalone worker) match against this rather
+# than the fine-grained task types below.
+ENGINE_TASK_PREFIX = "engine."
 _CHECKPOINT_PROVIDER = "engine"
 BOOTSTRAP_TASK = "engine.bootstrap"
 NODE_TASK_PREFIX = "engine.node."
@@ -134,7 +141,7 @@ def _enqueue_node_successor(
             task_type=successor_type,
             inputs={"checkpoint_seq": checkpoint_seq},
             idempotency_key=f"{successor_type}:{checkpoint_seq}",
-            priority=max(0, min(100, priority)),
+            priority=store.clamp_task_priority(priority),
             dependencies=(task.id,),
             provenance={"scheduled_by": task.task_type},
         ),

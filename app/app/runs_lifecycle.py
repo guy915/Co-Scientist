@@ -19,7 +19,7 @@ from typing import Any
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException
 
-from app import engine_adapter, store, task_worker
+from app import engine_adapter, engine_tasks, store, task_worker
 from app.config import settings
 from app.runs_models import StartRunRequest
 from app.runs_support import _run_or_404
@@ -150,7 +150,9 @@ async def pause_run(run_id: str) -> dict[str, Any]:
     makes the run resumable, so no extra checkpoint needs to be created here.
     """
     run = _run_or_404(run_id)
-    has_engine_task = store.has_task_of_type(run_id, "engine.")
+    has_engine_task = store.has_task_of_type(
+        run_id, engine_tasks.ENGINE_TASK_PREFIX
+    )
     if has_engine_task and run.status in {
         RunStatus.QUEUED.value,
         RunStatus.RUNNING.value,
@@ -164,7 +166,9 @@ async def pause_run(run_id: str) -> dict[str, Any]:
 
 def _has_paused_engine_task(run_id: str) -> bool:
     """Return whether the run has a paused engine-provider task queued."""
-    return store.has_task_of_type(run_id, "engine.", status="paused")
+    return store.has_task_of_type(
+        run_id, engine_tasks.ENGINE_TASK_PREFIX, status="paused"
+    )
 
 
 @router.post("/{run_id}/resume")

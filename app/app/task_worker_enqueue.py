@@ -64,7 +64,8 @@ def enqueue_run_workflow(
         resumed = [
             task
             for task in store.list_tasks(run_id, db_path=db_path)
-            if task.status == "queued" and task.task_type.startswith("engine.")
+            if task.status == "queued"
+            and task.task_type.startswith(engine_tasks.ENGINE_TASK_PREFIX)
         ]
         if resumed:
             return resumed[0]
