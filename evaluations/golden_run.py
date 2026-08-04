@@ -1,24 +1,37 @@
 """Local MCP-backed golden run.
 
-Drives one small biomedical run through the real production path
-(app ``run_workflow`` -> engine -> MCP/INDRA -> drain -> report) against the
-LOCAL MCP server, with the INDRA cancer tools config and the semantic (LLM)
-claim assessor enabled, then asserts the acceptance from the persisted store
-and writes a reproducibility artifact under ``evaluations/results/``.
+Drives one small biomedical run through the real production path -- the
+durable task queue (``store.create_run`` -> ``task_worker`` ->
+``engine_tasks`` -> engine -> MCP/INDRA -> drain -> report) against the LOCAL
+MCP server, with the INDRA cancer tools config and the semantic (LLM) claim
+assessor enabled, then asserts the acceptance from the persisted store and
+writes a reproducibility artifact under ``evaluations/results/``.
 
-Acceptance (P0.6): nonzero *real* evidence records (not mock), nonempty support
-passages, and at least one authorized INDRA tool invocation with
-``indra_cancer.yaml`` — the live acceptance behind CITE-CLAIM-001 and
-TOOLS-CONFIG-001.
+The run is delivered exactly as ``POST /api/runs/{id}/start`` delivers one:
+the run row is persisted, ``task_worker.enqueue_run_workflow`` puts
+``engine.bootstrap`` on the queue, and a bounded worker cohort
+(``run_run_worker_pool``, the same one the embedded API worker launches)
+drains the resulting node/fan-out/tournament task chain to a terminal state.
+There is no in-process streaming drive any more, so the acceptance is read
+from the persisted event log and store rather than from a stream.
+
+Acceptance (P0.6): the run completes on the real (not offline) backend with
+nonzero *real* evidence records, nonempty support passages, and at least one
+authorized INDRA tool invocation with ``indra_cancer.yaml`` -- the live
+acceptance behind CITE-CLAIM-001 and TOOLS-CONFIG-001.
+
+Run size comes from the tier, not from this script: the durable path
+re-resolves the persisted config through ``resolved_run_config``, whose
+numeric knobs may only raise a tier baseline. ``express`` is therefore the
+smallest run available, and only ``evidence_count`` is raised above it (more
+retrieved evidence is what the two cited requirements are about).
 
 This makes real provider (DeepSeek) + MCP (PubMed/INDRA) calls and is run out of
 band, never in CI. It is LOCAL only; it never touches Railway prod. Re-running
 is safe (fresh temp DB each time).
 
 Run:
-    DEEPSEEK_API_KEY=... \
-    PYTHONPATH=engine/src:app \
-    .venv/bin/python -m evaluations.golden_run
+    DEEPSEEK_API_KEY=... .venv/bin/python -m evaluations.golden_run
 """
 
 from __future__ import annotations
@@ -27,6 +40,7 @@ import asyncio
 import datetime
 import os
 import pathlib
+import sys
 import tempfile
 from typing import Any
 
@@ -42,8 +56,16 @@ _INDRA_CONFIG = (
     / "examples"
     / "indra_cancer.yaml"
 )
-# The worktree carries no .env; the provider key lives in the main checkout's.
-_MAIN_ENV = pathlib.Path("/Users/guy/Code/Co-Scientist/.env")
+# The viewer backend is imported as a plain package from the repo root, the
+# same way the offline evals reach it (see citation_eval). The engine is a
+# real installed dependency and needs no path help.
+sys.path.insert(0, str(_ROOT / "app"))
+
+# Smallest tier the durable path can execute; see the module docstring.
+_TIER = "express"
+# Raised above the express baseline (4): evidence is what the two cited
+# requirements are asserted over. Overrides may only raise, never lower.
+_EVIDENCE_COUNT = 6
 
 _INDRA_TOOLS = {
     "query_mechanistic_statements",
@@ -63,12 +85,13 @@ _GOAL = (
 
 
 def _load_provider_key() -> str:
-    """Read DEEPSEEK_API_KEY from the environment or the main checkout .env."""
+    """Read DEEPSEEK_API_KEY from the environment or the checkout's .env."""
     key = os.getenv("DEEPSEEK_API_KEY", "").strip()
     if key:
         return key
-    if _MAIN_ENV.exists():
-        for line in _MAIN_ENV.read_text().splitlines():
+    env_file = _ROOT / ".env"
+    if env_file.exists():
+        for line in env_file.read_text().splitlines():
             line = line.strip()
             if line.startswith("DEEPSEEK_API_KEY="):
                 return line.split("=", 1)[1].strip()
@@ -80,14 +103,20 @@ def _configure_env(db_path: str) -> None:
 
     Literature review is left enabled (no FORCE_LITERATURE_REVIEW=0), so the
     INDRA/PubMed search tools actually run — the whole point of the golden run.
+    ``MODEL_NAME`` is deliberately not pinned here: an operator override is
+    honoured, and otherwise the app's own default model applies, so the
+    artifact records what actually ran instead of a name frozen in this file.
+    Forcing the offline backend would make every acceptance check vacuous, so
+    it is cleared rather than trusted.
     """
-    os.environ["MODEL_NAME"] = "deepseek/deepseek-chat"
     os.environ["MCP_SERVER_URL"] = "http://localhost:8888/mcp"
     os.environ["TOOLS_CONFIG"] = str(_INDRA_CONFIG)
     os.environ["CLAIM_ASSESSOR"] = "llm"
     os.environ["COSCIENTIST_DB_PATH"] = db_path
     os.environ["DEEPSEEK_API_KEY"] = _load_provider_key()
     os.environ.pop("FORCE_LITERATURE_REVIEW", None)
+    os.environ.pop("COSCIENTIST_FORCE_OFFLINE", None)
+    os.environ.pop("COSCIENTIST_FORCE_MOCK", None)
 
 
 def _install_tool_call_counter() -> dict[str, int]:
@@ -119,28 +148,63 @@ def _install_tool_call_counter() -> dict[str, int]:
     return counts
 
 
-async def _drive_run(run_id: str, db_path: str) -> int:
-    """Run the workflow to completion, returning the number of events seen."""
-    from app import engine_adapter
+def _persist_run(db_path: str) -> str:
+    """Create the run row the durable queue will execute, returning its id.
 
-    seen = 0
-    async for _event in engine_adapter.run_workflow(
-        run_id=run_id,
-        research_goal=_GOAL,
-        config={
-            "initial_hypotheses_count": 2,
-            "max_iterations": 1,
-            "evolution_max_count": 2,
-            "tournament_pairs": 2,
-            "evidence_count": 6,
+    Mirrors what ``POST /api/runs`` persists: a config resolved through
+    ``resolved_run_config`` around a real planning ``setup`` block, so the
+    engine receives the same guidance a UI-created run would. The backend is
+    pinned to "real" rather than left for ``offline_mode()`` to decide, so a
+    missing key fails the run instead of quietly producing an offline
+    artifact that would satisfy every check below.
+    """
+    from app import store
+    from app.run_modes import resolved_run_config, setup_config
+
+    config = resolved_run_config(
+        {
+            "setup": setup_config(research_goal=_GOAL, tier=_TIER),
+            "tier": _TIER,
+            "evidence_count": _EVIDENCE_COUNT,
             "enable_literature_review": True,
-        },
-        db_path=db_path,
-        force_provider="engine",
-        sleep_seconds=0,
-    ):
-        seen += 1
-    return seen
+        }
+    )
+    run = store.create_run(
+        _GOAL,
+        _TIER,
+        "engine",
+        config,
+        store.RunCreateOptions(
+            client_id="golden-run",
+            llm_backend="real",
+            db_path=db_path,
+        ),
+    )
+    return str(run.id)
+
+
+def _drive_run(run_id: str, db_path: str) -> int:
+    """Drain the run's durable task chain, returning its persisted event count.
+
+    The same two steps ``POST /{id}/start`` performs: enqueue the run's
+    ``engine.bootstrap`` task, then run a bounded worker cohort over the
+    queue. The cohort returns once no ready task and no live lease remain --
+    i.e. once the run has reached a terminal state -- so no polling is
+    needed. It runs on its own event loop, as every cohort does.
+    """
+    from app import store, task_worker
+
+    task_worker.enqueue_run_workflow(
+        run_id, force_provider="engine", db_path=db_path
+    )
+    asyncio.run(
+        task_worker.run_run_worker_pool(
+            run_id,
+            f"golden-run:{run_id[:8]}",
+            policy=task_worker.WorkerPolicy(db_path=db_path),
+        )
+    )
+    return len(store.list_events(run_id, db_path=db_path))
 
 
 def _collect(run_id: str, db_path: str) -> dict[str, Any]:
@@ -158,6 +222,7 @@ def _collect(run_id: str, db_path: str) -> dict[str, Any]:
         "matches": matches,
         "report": report,
         "hypotheses": hypotheses,
+        "run": store.get_run(run_id, db_path=db_path),
     }
 
 
@@ -174,6 +239,25 @@ def _support_passages(
     return spans
 
 
+def _run_reached_real_completion(
+    collected: dict[str, Any],
+) -> tuple[bool, bool]:
+    """Return (completed, ran_on_the_real_backend) for the persisted run row.
+
+    The durable cohort returns when the queue drains, which a *failed* run
+    also does; and a keyless environment would answer every LLM call from the
+    deterministic offline backend. Neither was expressible on the streaming
+    path, and both would otherwise pass the evidence checks below.
+    """
+    from app import store
+
+    run = collected["run"]
+    if run is None:
+        return False, False
+    completed = run.status == store.RunStatus.COMPLETED.value
+    return completed, not store.run_used_offline(run)
+
+
 def _assess(
     collected: dict[str, Any], tool_calls: dict[str, int]
 ) -> dict[str, Any]:
@@ -183,8 +267,11 @@ def _assess(
     indra_calls = {t: c for t, c in tool_calls.items() if t in _INDRA_TOOLS}
     spans = _support_passages(collected["claim_edges"])
     nonempty_spans = [s for s in spans if str(s.get("quote") or "").strip()]
+    completed, real_backend = _run_reached_real_completion(collected)
 
     checks = {
+        "run_completed": completed,
+        "real_llm_backend": real_backend,
         "nonzero_evidence": len(evidence) > 0,
         "no_mock_sources": bool(evidence) and "mock" not in sources,
         "at_least_one_indra_invocation": sum(indra_calls.values()) > 0,
@@ -236,17 +323,26 @@ def _build_report(
     collected: dict[str, Any],
     assessment: dict[str, Any],
 ) -> dict[str, Any]:
-    """Assemble the reproducibility report payload."""
+    """Assemble the reproducibility report payload.
+
+    Configuration is read back from the resolved settings rather than from
+    the environment this script wrote, so the artifact records what the run
+    actually used (notably the model, which is no longer pinned here).
+    """
+    from app.config import settings
+
     report_row = collected["report"] or {}
     return {
         "goal": _GOAL,
         "provider": "engine",
-        "model": os.environ["MODEL_NAME"],
-        "mcp_server_url": os.environ["MCP_SERVER_URL"],
-        "tools_config": os.environ["TOOLS_CONFIG"],
-        "claim_assessor": os.environ["CLAIM_ASSESSOR"],
+        "run_path": "durable",
+        "tier": _TIER,
+        "model": settings.model_name,
+        "mcp_server_url": settings.mcp_server_url,
+        "tools_config": settings.tools_config,
+        "claim_assessor": settings.claim_assessor,
         "run_id": run_id,
-        "events_streamed": events,
+        "events_recorded": events,
         "acceptance": assessment,
         "evidence_sample": _sample_evidence(collected["evidence"]),
         "support_span_sample": _sample_spans(
@@ -256,8 +352,7 @@ def _build_report(
             "hypothesis_count"
         ),
         "reproduce": (
-            "DEEPSEEK_API_KEY=... PYTHONPATH=engine/src:app "
-            ".venv/bin/python -m evaluations.golden_run"
+            "DEEPSEEK_API_KEY=... .venv/bin/python -m evaluations.golden_run"
         ),
         "captured_at": datetime.datetime.now().isoformat(timespec="seconds"),
     }
@@ -274,19 +369,19 @@ def run() -> dict[str, Any]:
 
     tool_calls = _install_tool_call_counter()
 
-    from app import store
+    from app import engine_adapter
+    from app.config import settings
 
-    run_row = store.create_run(
-        _GOAL,
-        "standard",
-        "engine",
-        {},
-        store.RunCreateOptions(db_path=db_path),
-    )
-    events = asyncio.run(_drive_run(run_row.id, db_path))
-    collected = _collect(run_row.id, db_path)
+    # The app lifespan validates this before serving; without it a bad
+    # TOOLS_CONFIG silently falls back to default tools and the run would
+    # "pass" having never loaded indra_cancer.yaml at all.
+    engine_adapter.validate_tools_config(settings.tools_config)
+
+    run_id = _persist_run(db_path)
+    events = _drive_run(run_id, db_path)
+    collected = _collect(run_id, db_path)
     assessment = _assess(collected, tool_calls)
-    return _build_report(run_row.id, events, collected, assessment)
+    return _build_report(run_id, events, collected, assessment)
 
 
 def main() -> int:
