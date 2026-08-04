@@ -15,6 +15,8 @@ import sqlite3
 from dataclasses import dataclass
 from typing import Any, NamedTuple
 
+from co_scientist.models import Hypothesis
+
 from app import store
 from app.elo import INITIAL_ELO
 from app.engine_adapter.drain_reviews import (
@@ -147,22 +149,42 @@ def _derive_hypothesis_identity(h: dict[str, Any]) -> _HypIdentity:
     return _HypIdentity(text, title, generation, agent, engine_id, parent_id)
 
 
-BLOCKING_REVIEW_DISPOSITIONS = frozenset(
-    {
-        "inaccurate",
-        "non_novel",
-        "inaccurate_and_non_novel",
-        "evidence_blocked",
-    }
-)
-
 # Excluded from the ranked report, but not by a judgement on the idea: a
 # duplicate is archived by proximity because a higher-ranked idea already
-# says the same thing. Kept apart from BLOCKING_REVIEW_DISPOSITIONS so the
-# two reach the reader as different words -- lumping them told a scientist
-# their ideas had been rejected on the merits when most had simply been
-# deduplicated. One run showed twenty "Disqualified" ideas on that basis.
+# says the same thing. Kept apart from the engine's blocking dispositions so
+# the two reach the reader as different words -- lumping them told a
+# scientist their ideas had been rejected on the merits when most had simply
+# been deduplicated. One run showed twenty "Disqualified" ideas on that
+# basis. Note the engine's own predicate also leaves "duplicate" out of
+# BLOCKING_REVIEW_DISPOSITIONS, for the same reason.
 DEDUPLICATED_REVIEW_DISPOSITION = "duplicate"
+
+
+def _payload_is_rankable(h: dict[str, Any]) -> bool:
+    """Ask the engine whether a drained payload may enter the tournament.
+
+    The drain works on serialized hypothesis dicts, so the two fields
+    ``Hypothesis.is_rankable`` reads are lifted into a bare ``Hypothesis``
+    and the engine's own predicate answers. The predicate lives there so the
+    persisted status and the tournament agree about what a run may publish
+    -- the app previously restated both the blocking-disposition set and the
+    predicate over it, and a disposition added to only one side would make an
+    idea unrankable in the engine while the app still stored it ``active``
+    and published it.
+
+    Args:
+        h: An engine hypothesis payload from the drained final state.
+
+    Returns:
+        Whether the engine would admit this hypothesis to the tournament.
+    """
+    return bool(
+        Hypothesis(
+            text="",
+            review_disposition=h.get("review_disposition"),
+            deep_verification_verdict=h.get("deep_verification_verdict"),
+        ).is_rankable()
+    )
 
 
 def _hypothesis_status(h: dict[str, Any]) -> str:
@@ -170,21 +192,18 @@ def _hypothesis_status(h: dict[str, Any]) -> str:
 
     Three outcomes the UI must be able to tell apart:
 
-    - ``rejected``: excluded from the tournament on merit. Mirrors the
-      engine's ``Hypothesis.is_rankable`` -- a blocking review disposition
-      *or* a deep-verification verdict of "undermined". An undermined idea
-      recorded as active would show as merely unranked, which is exactly
-      the conflation this status exists to remove.
+    - ``rejected``: excluded from the tournament on merit -- whatever the
+      engine's ``Hypothesis.is_rankable`` refuses, which today is a blocking
+      review disposition or a deep-verification verdict of "undermined". An
+      undermined idea recorded as active would show as merely unranked,
+      which is exactly the conflation this status exists to remove.
     - ``duplicate``: archived by proximity as redundant, not judged.
     - ``active``: everything else, including ideas the initial review
       flagged as needing revision -- those still rank and publish.
     """
     if h.get("review_disposition") == DEDUPLICATED_REVIEW_DISPOSITION:
         return "duplicate"
-    if (
-        h.get("review_disposition") in BLOCKING_REVIEW_DISPOSITIONS
-        or h.get("deep_verification_verdict") == "undermined"
-    ):
+    if not _payload_is_rankable(h):
         return "rejected"
     return "active"
 

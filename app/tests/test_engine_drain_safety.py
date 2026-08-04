@@ -2,9 +2,10 @@
 
 Split out of ``test_engine_drain.py`` by concern. These cover the drain's
 per-hypothesis safety screen (writing ``safety_status`` and audit rows before
-finalize) and the rank-and-publish split of contradicted versus merely
-unverified ideas. The PARITY-cited synthesis-exclusion case stays in
-``test_engine_drain.py``.
+finalize), the rank-and-publish split of contradicted versus merely
+unverified ideas, and the persisted-status gate that decides which drained
+ideas the report may publish at all. The PARITY-cited synthesis-exclusion
+case stays in ``test_engine_drain.py``.
 """
 
 from __future__ import annotations
@@ -13,8 +14,10 @@ import logging
 from typing import Any
 
 import pytest
+from co_scientist import models as engine_models
 
 from app import engine_adapter, report_render, store
+from tests._drain_helpers import _final_state_with_lineage
 
 
 def _seed_gate_split(run: Any, db_path: str) -> tuple[str, str, str]:
@@ -299,3 +302,75 @@ def test_gate_warns_when_it_excludes_everything(
     warnings = [r for r in caplog.records if r.levelno == logging.WARNING]
     assert len(warnings) == 1
     assert "no ideas" in warnings[0].getMessage()
+
+
+def _drained_status(
+    disposition: str | None, isolated_db: str, goal: str
+) -> str:
+    """Drain a state whose parent carries ``disposition``; return its status."""
+    state = _final_state_with_lineage()
+    state["hypotheses"][0]["review_disposition"] = disposition
+    run = store.create_run(goal, "standard", "engine", {})
+    engine_adapter._persist_final_state(
+        run_id=run.id, final_state=state, db_path=isolated_db
+    )
+    by_id = {
+        hypothesis["id"]: hypothesis
+        for hypothesis in store.list_hypotheses(run.id, db_path=isolated_db)
+    }
+    return str(by_id["parent-1"]["status"])
+
+
+@pytest.mark.parametrize(
+    "disposition", sorted(engine_models.BLOCKING_REVIEW_DISPOSITIONS)
+)
+def test_every_engine_blocking_disposition_drains_as_rejected(
+    isolated_db: str, disposition: str
+) -> None:
+    """Persisted status tracks the engine's tournament gate, member for member.
+
+    Parametrized over the engine's own set rather than a copy of it: what a
+    run may publish and what a run may rank are one rule, and the app used
+    to restate both the set and the predicate over it.
+    """
+    assert _drained_status(disposition, isolated_db, f"{disposition} goal") == (
+        "rejected"
+    )
+
+
+@pytest.mark.parametrize("disposition", [None, "needs_revision"])
+def test_non_blocking_dispositions_still_publish(
+    isolated_db: str, disposition: str | None
+) -> None:
+    """A weak-but-not-fatal idea competes and publishes; the tournament rules.
+
+    ``duplicate`` is deliberately absent from both this list and the engine's
+    blocking set -- it has its own status and its own wording, covered by
+    ``test_drain_preserves_proximity_pruned_parent_as_a_duplicate``.
+    """
+    assert (
+        _drained_status(disposition, isolated_db, f"{disposition} goal")
+        == "active"
+    )
+
+
+def test_a_new_engine_blocking_disposition_reaches_the_drain(
+    isolated_db: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A disposition added to the engine must not stay publishable here.
+
+    The drift the drain used to be exposed to, simulated: a disposition the
+    engine starts blocking on makes an idea unrankable there, so the app
+    must stop recording it ``active`` and publishing it -- the "report
+    contradicts its own tabs" failure. The app no longer keeps its own copy
+    of the set or of the predicate over it, so this arrives for free.
+    """
+    monkeypatch.setattr(
+        engine_models,
+        "BLOCKING_REVIEW_DISPOSITIONS",
+        engine_models.BLOCKING_REVIEW_DISPOSITIONS | {"superseded_by_evidence"},
+    )
+    status = _drained_status(
+        "superseded_by_evidence", isolated_db, "drifted gate goal"
+    )
+    assert status == "rejected"
