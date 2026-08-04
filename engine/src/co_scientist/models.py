@@ -105,6 +105,54 @@ def _reviews_to_dicts(
     ]
 
 
+def _claim_fields(hypothesis: "Hypothesis") -> dict[str, Any]:
+    """Serialize what the hypothesis asserts, as generation wrote it.
+
+    Args:
+        hypothesis: The hypothesis being serialized.
+
+    Returns:
+        The claim, its supporting prose, and the citations it rests on.
+    """
+    return {
+        # Also referred to as "hypothesis" in other contexts.
+        "text": hypothesis.text,
+        "category": hypothesis.category,
+        "explanation": hypothesis.explanation,
+        "literature_grounding": hypothesis.literature_grounding,
+        "experiment": hypothesis.experiment,
+        # "literature_review_used": hypothesis.literature_review_used,
+        "novelty_validation": hypothesis.novelty_validation,
+        "enrichments": hypothesis.enrichments,
+        "citation_map": hypothesis.citation_map,
+    }
+
+
+def _assessment_fields(hypothesis: "Hypothesis") -> dict[str, Any]:
+    """Serialize what the run's review agents concluded about a hypothesis.
+
+    Args:
+        hypothesis: The hypothesis being serialized.
+
+    Returns:
+        The reviews, proximity/evolution traces, deep-verification result,
+        and the review and safety dispositions gating publication.
+    """
+    return {
+        "reviews": _reviews_to_dicts(hypothesis.reviews),
+        "similarity_cluster_id": hypothesis.similarity_cluster_id,
+        "evolution_history": hypothesis.evolution_history,
+        "reflection_notes": hypothesis.reflection_notes,
+        "deep_verification_probes": hypothesis.deep_verification_probes,
+        "deep_verification_verdict": hypothesis.deep_verification_verdict,
+        "deep_verification_fingerprint": (
+            hypothesis.deep_verification_fingerprint
+        ),
+        "review_disposition": hypothesis.review_disposition,
+        "safety_status": hypothesis.safety_status,
+    }
+
+
 # Review dispositions that keep a hypothesis out of the Elo tournament: the
 # initial peer-review gate (inaccurate / non-novel) and the pre-ranking
 # evidence gate (evidence_blocked). Shared by ranking and the scheduler so
@@ -254,35 +302,18 @@ class Hypothesis:
         # Includes the derived total_matches/win_rate properties for API
         # consumers; from_dict() strips both back out since they are
         # recomputed from win_count/loss_count, not stored state.
+        # The field groups are spliced in at their original positions, so the
+        # serialized key order is unchanged by the grouping.
         return {
             "id": self.id,
             "parent_id": self.parent_id,
             "generation": self.generation,
             "origin": self.origin.value,
             "creation_iteration": self.creation_iteration,
-            # Also referred to as "hypothesis" in other contexts.
-            "text": self.text,
-            "category": self.category,
-            "explanation": self.explanation,
-            "literature_grounding": self.literature_grounding,
-            "experiment": self.experiment,
-            # "literature_review_used": self.literature_review_used,
-            "novelty_validation": self.novelty_validation,
-            "enrichments": self.enrichments,
-            "citation_map": self.citation_map,
+            **_claim_fields(self),
             "score": self.score,
             "elo_rating": self.elo_rating,
-            "reviews": _reviews_to_dicts(self.reviews),
-            "similarity_cluster_id": self.similarity_cluster_id,
-            "evolution_history": self.evolution_history,
-            "reflection_notes": self.reflection_notes,
-            "deep_verification_probes": self.deep_verification_probes,
-            "deep_verification_verdict": self.deep_verification_verdict,
-            "deep_verification_fingerprint": (
-                self.deep_verification_fingerprint
-            ),
-            "review_disposition": self.review_disposition,
-            "safety_status": self.safety_status,
+            **_assessment_fields(self),
             "generation_method": _generation_method_value(
                 self.generation_method
             ),

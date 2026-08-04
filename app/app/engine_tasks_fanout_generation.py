@@ -41,6 +41,21 @@ class _StrategyInputs:
     reference_index: Any
 
 
+@dataclass(frozen=True)
+class _GenerationPlan:
+    """The fan-out's shape, decided before any durable row is written.
+
+    Attributes:
+        task_specs: (strategy, count, index) spec per durable strategy task.
+        inputs: Literature and reference index every strategy task reads.
+        aggregate_spec: Spec for the aggregate that folds the strategies in.
+    """
+
+    task_specs: list[tuple[str, int, int]]
+    inputs: _StrategyInputs
+    aggregate_spec: _AggregateSpec
+
+
 def _generation_task_specs(
     strategy_counts: dict[str, int],
 ) -> list[tuple[str, int, int]]:
@@ -156,16 +171,20 @@ def _generation_aggregate_spec(counts: Any) -> _AggregateSpec:
     )
 
 
-async def _enqueue_generation_fanout(
-    task: ScientificTask,
-    state: dict[str, Any],
-    checkpoint_seq: int,
-    *,
-    db_path: str | None,
-) -> dict[str, Any]:
-    """Commit generation planning and enqueue each enabled strategy."""
+async def _plan_generation_fanout(state: dict[str, Any]) -> _GenerationPlan:
+    """Prepare the generation inputs and decide the fan-out's shape.
+
+    Runs entirely before the transaction, so the provider work the
+    preparation does never happens while the SQLite write lock is held.
+
+    Args:
+        state: Workflow state the generation node was entered with.
+
+    Returns:
+        The per-strategy task specs, their shared inputs, and the
+        aggregate spec carrying the planned counts.
+    """
     from co_scientist.agents.generation.coordinator import _prepare_generation
-    from co_scientist.checkpoint import serialize_workflow_state
 
     counts, reference_index, literature = await _prepare_generation(state)
     strategy_counts = {
@@ -174,11 +193,33 @@ async def _enqueue_generation_fanout(
         "debate_only": counts.debate_only_count,
         "assumptions": counts.assumptions_count,
     }
-    task_specs = _generation_task_specs(strategy_counts)
-    envelope = serialize_workflow_state(
-        state,
-        last_event_seq=store.latest_event_seq(task.run_id, db_path=db_path),
+    return _GenerationPlan(
+        task_specs=_generation_task_specs(strategy_counts),
+        inputs=_StrategyInputs(literature, reference_index),
+        aggregate_spec=_generation_aggregate_spec(counts),
     )
+
+
+def _commit_generation_fanout(
+    task: ScientificTask,
+    checkpoint_seq: int,
+    envelope: dict[str, Any],
+    plan: _GenerationPlan,
+    db_path: str | None,
+) -> tuple[int, list[ScientificTask], ScientificTask]:
+    """Write the plan checkpoint and every fan-out row in one transaction.
+
+    Args:
+        task: The generation node task scheduling the fan-out.
+        checkpoint_seq: Checkpoint sequence the plan was built against.
+        envelope: Serialized workflow state to checkpoint.
+        plan: The fan-out shape from ``_plan_generation_fanout``.
+        db_path: Optional override for the SQLite database path.
+
+    Returns:
+        The committed checkpoint sequence, the per-strategy tasks in spec
+        order, and the aggregate task.
+    """
     with store.transaction(db_path) as conn:
         planned_seq = _save_generation_plan_checkpoint(
             task, checkpoint_seq, envelope, conn
@@ -186,8 +227,8 @@ async def _enqueue_generation_fanout(
         items = _enqueue_generation_strategy_tasks(
             task,
             planned_seq,
-            task_specs,
-            _StrategyInputs(literature, reference_index),
+            plan.task_specs,
+            plan.inputs,
             conn,
         )
         aggregate = _enqueue_aggregate_task(
@@ -195,8 +236,29 @@ async def _enqueue_generation_fanout(
             items,
             planned_seq,
             conn,
-            _generation_aggregate_spec(counts),
+            plan.aggregate_spec,
         )
+    return planned_seq, items, aggregate
+
+
+async def _enqueue_generation_fanout(
+    task: ScientificTask,
+    state: dict[str, Any],
+    checkpoint_seq: int,
+    *,
+    db_path: str | None,
+) -> dict[str, Any]:
+    """Commit generation planning and enqueue each enabled strategy."""
+    from co_scientist.checkpoint import serialize_workflow_state
+
+    plan = await _plan_generation_fanout(state)
+    envelope = serialize_workflow_state(
+        state,
+        last_event_seq=store.latest_event_seq(task.run_id, db_path=db_path),
+    )
+    planned_seq, items, aggregate = _commit_generation_fanout(
+        task, checkpoint_seq, envelope, plan, db_path
+    )
     return {
         "checkpoint_seq": planned_seq,
         "fanout_task_ids": [item.id for item in items],

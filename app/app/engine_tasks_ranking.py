@@ -70,32 +70,54 @@ def _ranking_eligible(state: dict[str, Any]) -> list[Any]:
     ]
 
 
-async def _schedule_ranking_chain(
-    task: ScientificTask,
-    state: dict[str, Any],
-    checkpoint_seq: int,
-    *,
-    db_path: str | None,
-) -> dict[str, Any] | None:
-    """Prepare a tournament and schedule its first sequential match task."""
-    from co_scientist.agents.ranking.ranking import _prepare_ranking_round
+def _ranking_chain_skipped(state: dict[str, Any], eligible: list[Any]) -> bool:
+    """Report whether this cycle must not schedule a tournament at all.
+
+    Args:
+        state: Workflow state the tournament would be scheduled from.
+        eligible: Hypotheses allowed into the tournament this cycle.
+
+    Returns:
+        True when there is nothing to judge, or no round budget left.
+    """
     from co_scientist.agents.ranking.ranking_lifecycle import (
         _tournament_round_count,
     )
 
-    eligible = _ranking_eligible(state)
     if len(eligible) < 2:
-        return None
+        return True
+    # The app's mypy config skips following ``co_scientist`` imports, so the
+    # engine's declared ``-> int`` arrives here as ``Any``. Restate it on the
+    # binding rather than returning an unchecked comparison.
+    rounds_left: int = _tournament_round_count(state, state["hypotheses"])
     # tournament_pairs is a whole-run budget and the scheduler asks for
     # ranking once per cycle, so this is the common case late in a run.
     # Scheduling anyway would not merely waste a task: the tournament
     # clears pending_ranking_matchups on entry, so an empty one overwrites
     # the matches the run already judged.
-    if _tournament_round_count(state, state["hypotheses"]) < 1:
-        return None
-    rounds, *_ = await _prepare_ranking_round(state, eligible)
-    state["pending_ranking_matchups"] = []
-    committed_seq, successor_id = _save_state_and_enqueue_exact(
+    return rounds_left < 1
+
+
+def _enqueue_first_ranking_match(
+    task: ScientificTask,
+    state: dict[str, Any],
+    checkpoint_seq: int,
+    rounds: int,
+    db_path: str | None,
+) -> tuple[int, str]:
+    """Checkpoint the prepared tournament and enqueue its first match.
+
+    Args:
+        task: The ranking node task scheduling the chain.
+        state: Workflow state carrying the prepared tournament.
+        checkpoint_seq: Checkpoint sequence the chain was prepared against.
+        rounds: Number of matches the tournament will judge.
+        db_path: Optional override for the SQLite database path.
+
+    Returns:
+        The committed checkpoint sequence and the first match task's id.
+    """
+    return _save_state_and_enqueue_exact(
         TaskCommit(task, checkpoint_seq, db_path),
         state,
         ExactSuccessor(
@@ -108,6 +130,26 @@ async def _schedule_ranking_chain(
             },
             idempotency_key="ranking:match:{checkpoint_seq}:0",
         ),
+    )
+
+
+async def _schedule_ranking_chain(
+    task: ScientificTask,
+    state: dict[str, Any],
+    checkpoint_seq: int,
+    *,
+    db_path: str | None,
+) -> dict[str, Any] | None:
+    """Prepare a tournament and schedule its first sequential match task."""
+    from co_scientist.agents.ranking.ranking import _prepare_ranking_round
+
+    eligible = _ranking_eligible(state)
+    if _ranking_chain_skipped(state, eligible):
+        return None
+    rounds, *_ = await _prepare_ranking_round(state, eligible)
+    state["pending_ranking_matchups"] = []
+    committed_seq, successor_id = _enqueue_first_ranking_match(
+        task, state, checkpoint_seq, rounds, db_path
     )
     return {
         "checkpoint_seq": committed_seq,

@@ -6,8 +6,9 @@ report/completed events stay independently nameable/testable, through one
 implementation.
 
 The report content builders live in ``report_markdown``, the event-payload
-helpers in ``report_events``, and the content-derivation helpers (topics,
-insights, buckets, claim filters) in ``report_content``; their names are
+helpers in ``report_events``, the content-derivation helpers (topics,
+insights, buckets, claim filters) in ``report_content``, and the
+completion-email scheduling in ``report_notify``; their names are
 re-exported here so callers keep a single ``app.report_render`` import
 surface.
 """
@@ -20,7 +21,6 @@ from typing import Any, NamedTuple
 
 from app import store
 from app.elo import live_leaderboard
-from app.notifications import email_notifications_configured
 from app.report_content import _agent_insights as _agent_insights
 from app.report_content import (
     _contradicted_hypothesis_ids as _contradicted_hypothesis_ids,
@@ -58,6 +58,15 @@ from app.report_markdown import (
 )
 from app.report_markdown import (
     format_deep_verification_critique as format_deep_verification_critique,
+)
+from app.report_notify import (
+    _completion_email_deliverable as _completion_email_deliverable,
+)
+from app.report_notify import (
+    _completion_email_task as _completion_email_task,
+)
+from app.report_notify import (
+    _enqueue_completion_notification as _enqueue_completion_notification,
 )
 from app.safety import (
     SafetyDecision,
@@ -426,49 +435,3 @@ async def _block_for_empty_leaderboard(
     )
     logger.warning("Report finalize blocked for run %s: %s", run_id, reason)
     yield await emit("status", {"status": "blocked", "reason": reason})
-
-
-def _enqueue_completion_notification(
-    run_id: str,
-    research_goal: str,
-    report_id: str,
-    *,
-    db_path: str | None,
-) -> None:
-    """Enqueue the completion email task when the run opted in."""
-    run = store.get_run(run_id, db_path=db_path)
-    notification = (
-        run.config.get("completion_notification") if run else {}
-    ) or {}
-    if not (notification.get("enabled") and notification.get("email")):
-        return
-    if not email_notifications_configured():
-        # Enqueueing here would spend three retries against an SMTP transport
-        # that provably does not exist and leave a failed task nothing
-        # recovers, all of it invisible to the scientist who asked to be
-        # told. The opt-in is gated on the same capability in the UI, so
-        # reaching this means the server lost its configuration mid-run.
-        logger.warning(
-            "Run %s opted into a completion email but SMTP is not "
-            "configured (set SMTP_HOST and SMTP_FROM_EMAIL); no mail sent",
-            run_id,
-        )
-        return
-    store.enqueue_task(
-        store.NewTask(
-            run_id=run_id,
-            task_type="notification.email",
-            inputs={
-                "run_id": run_id,
-                "email": notification["email"],
-                "title": run.title or research_goal if run else research_goal,
-            },
-            idempotency_key=f"completion-email:{report_id}",
-            priority=-100,
-            dependencies=(),
-            provenance={"trigger": "Goal Report completed"},
-            budget={"delivery_attempts": 3},
-            max_attempts=3,
-        ),
-        db_path=db_path,
-    )

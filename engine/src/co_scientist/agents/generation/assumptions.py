@@ -88,6 +88,44 @@ def _build_assumptions_prompt(
     )
 
 
+async def _call_assumptions_llm(
+    state: WorkflowState,
+    prompt: str,
+    schema: Any,
+) -> dict[str, Any]:
+    """Issue the single structured call the assumptions technique makes.
+
+    Args:
+        state: Workflow state supplying the model name and run id.
+        prompt: The rendered assumptions prompt.
+        schema: The JSON schema the response must satisfy.
+
+    Returns:
+        The parsed JSON response.
+    """
+    return await call_llm_json(
+        prompt,
+        spec=CompletionSpec(
+            model_name=state["model_name"],
+            max_tokens=EXTENDED_MAX_TOKENS,
+            temperature=MEDIUM_TEMPERATURE,
+            json_schema=schema,
+        ),
+        options=LLMCallOptions(
+            # Never cached, matching the debate and tool-drafting strategies.
+            # Generation fans out one durable task per hypothesis, so several
+            # tasks issue this call with an identical prompt and rely on
+            # sampling to explore different ideas. A cache hit would serve
+            # them all the same hypothesis, and the state reducer dedupes on
+            # append -- so the run would quietly commit one hypothesis where
+            # the tier asked for several, with nothing failing to show it.
+            use_cache=False,
+            run_id=state.get("run_id"),
+            prompt_name="generation_assumptions",
+        ),
+    )
+
+
 async def generate_with_assumptions(
     state: WorkflowState,
     count: int,
@@ -110,27 +148,7 @@ async def generate_with_assumptions(
     prompt, schema = _build_assumptions_prompt(
         state, count, reference_text, literature_context
     )
-    response = await call_llm_json(
-        prompt,
-        spec=CompletionSpec(
-            model_name=state["model_name"],
-            max_tokens=EXTENDED_MAX_TOKENS,
-            temperature=MEDIUM_TEMPERATURE,
-            json_schema=schema,
-        ),
-        options=LLMCallOptions(
-            # Never cached, matching the debate and tool-drafting strategies.
-            # Generation fans out one durable task per hypothesis, so several
-            # tasks issue this call with an identical prompt and rely on
-            # sampling to explore different ideas. A cache hit would serve
-            # them all the same hypothesis, and the state reducer dedupes on
-            # append -- so the run would quietly commit one hypothesis where
-            # the tier asked for several, with nothing failing to show it.
-            use_cache=False,
-            run_id=state.get("run_id"),
-            prompt_name="generation_assumptions",
-        ),
-    )
+    response = await _call_assumptions_llm(state, prompt, schema)
     raw: list[dict[str, Any]] = response.get("hypotheses", [])
     hypotheses = [
         hypothesis_from_llm_output(h, sources, GenerationMethod.ASSUMPTIONS)
