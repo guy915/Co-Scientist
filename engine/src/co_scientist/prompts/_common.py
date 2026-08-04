@@ -4,6 +4,8 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
+from co_scientist.constants import truncate
+
 
 @dataclass(frozen=True)
 class PromptRunContext:
@@ -157,10 +159,23 @@ def _format_run_guidance(
     return "\n".join(sections).strip()
 
 
-def _format_bullet_list(items: list[str] | None) -> str:
-    """Render items as a "- " bullet list, or "None provided" when empty."""
+def _format_bullet_list(
+    items: list[str] | None, *, truncate_chars: int | None = None
+) -> str:
+    """Render items as a "- " bullet list, or "None provided" when empty.
+
+    Args:
+        items: Items to render, one per bullet.
+        truncate_chars: When given, each item is shortened to this many
+            characters via ``constants.truncate`` before being rendered --
+            which appends its "..." marker only to items actually cut, so a
+            short item renders unmarked. None (the default) renders every
+            item in full.
+    """
     if not items:
         return "None provided"
+    if truncate_chars is not None:
+        items = [truncate(item, truncate_chars) for item in items]
     return "\n".join(f"- {item}" for item in items)
 
 

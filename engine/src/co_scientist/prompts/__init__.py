@@ -19,6 +19,9 @@ from co_scientist.prompts._common import (
     PromptRunContext,
 )
 from co_scientist.prompts._common import (
+    _format_bullet_list as _format_bullet_list,
+)
+from co_scientist.prompts._common import (
     _format_run_guidance as _format_run_guidance,
 )
 from co_scientist.prompts.generation import (

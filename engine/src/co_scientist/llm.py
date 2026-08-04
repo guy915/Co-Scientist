@@ -139,6 +139,9 @@ from co_scientist.llm_tool_loop import (
 )
 from co_scientist.llm_types import CompletionSpec as CompletionSpec
 from co_scientist.llm_types import LLMCallOptions as LLMCallOptions
+from co_scientist.llm_types import (
+    indexed_prompt_name as indexed_prompt_name,
+)
 
 logger = logging.getLogger(__name__)
 

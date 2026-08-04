@@ -76,15 +76,19 @@ def _specialist_feedback_for(
     state: WorkflowState, hypothesis: Hypothesis
 ) -> str:
     """Build a bounded, hypothesis-specific feedback ledger for evolution."""
-    verification = {
-        "verdict": hypothesis.deep_verification_verdict,
-        "probes": hypothesis.deep_verification_probes,
-    }
-    ledger = {
+    ledger: dict[str, Any] = {
         "claim_evidence_gate": hypothesis.enrichments.get("claim_gate") or {},
         "debates": _debates_for(state, hypothesis),
         "tournament": _tournament_matches_for(state, hypothesis)[-8:],
         "proximity_neighbors": _proximity_neighbors_for(state, hypothesis)[:8],
-        "deep_verification": verification,
     }
+    # Omitted rather than set to a hollow {"verdict": None, "probes": []}
+    # block: deep verification only reaches the tournament's leaders, so
+    # most hypotheses evolve before it has run at all, and a present-but-
+    # empty block reads as "checked, nothing found" rather than "not run
+    # yet". Hypothesis.deep_verification_summary() is None in exactly that
+    # case (see ranking_prompt._gather_matchup_summaries for the same gate).
+    deep_verification = hypothesis.deep_verification_summary()
+    if deep_verification is not None:
+        ledger["deep_verification"] = deep_verification
     return json.dumps(ledger, indent=2)[:8000]

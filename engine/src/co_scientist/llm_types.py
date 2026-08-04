@@ -55,3 +55,21 @@ class LLMCallOptions:
     prompt_name: str | None = None
     prompt_metadata: dict[str, Any] | None = None
     enable_thinking: bool = True
+
+
+def indexed_prompt_name(stem: str, index: int | None) -> str:
+    """Names a saved prompt as "{stem}_{index}", or bare ``stem`` if None.
+
+    The shared shape behind ``LLMCallOptions.prompt_name`` wherever a node
+    makes one call per pool member (indexed, for saved-prompt debugging)
+    alongside a single unindexed call for the same prompt.
+
+    Args:
+        stem: The base prompt name (e.g. "evolve", "review_individual").
+        index: This call's position within a batch, or None for a single,
+            unindexed call.
+
+    Returns:
+        "{stem}_{index}" when index is given, else stem unchanged.
+    """
+    return f"{stem}_{index}" if index is not None else stem

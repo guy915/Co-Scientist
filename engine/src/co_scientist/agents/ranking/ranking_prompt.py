@@ -43,7 +43,11 @@ class _MatchupSummaries:
 
 
 def _review_summary(hypothesis: Hypothesis) -> dict[str, Any] | None:
-    """Extracts the latest review scores for a matchup prompt.
+    """Extracts the latest review's scores for a matchup prompt.
+
+    Narrower than Hypothesis.review_summary(): the judge only needs the
+    numeric scores, and this is the run's highest-volume call (O(n^2) per
+    cycle), so the narrative fields are dropped to keep each prompt terse.
 
     Args:
         hypothesis: Hypothesis to summarize
@@ -51,17 +55,23 @@ def _review_summary(hypothesis: Hypothesis) -> dict[str, Any] | None:
     Returns:
         Review summary dict, or None if the hypothesis has no reviews
     """
-    latest_review = hypothesis.latest_review
-    if latest_review is None:
+    summary = hypothesis.review_summary()
+    if summary is None:
         return None
     return {
-        "scores": latest_review.scores,
-        "overall_score": latest_review.overall_score,
+        "scores": summary["scores"],
+        "overall_score": summary["overall_score"],
     }
 
 
 def _deep_verification_summary(hypothesis: Hypothesis) -> dict[str, Any] | None:
     """Extracts deep-verification probes for a matchup prompt.
+
+    Thin delegate to Hypothesis.deep_verification_summary(): kept as a
+    local name because ranking.py re-exports every ranking_prompt name for
+    compatibility (see its import block), so removing the name here would
+    break that re-export surface even though the projection itself now
+    lives on the model.
 
     Args:
         hypothesis: Hypothesis to summarize
@@ -69,12 +79,7 @@ def _deep_verification_summary(hypothesis: Hypothesis) -> dict[str, Any] | None:
     Returns:
         Deep-verification summary dict, or None if no probes are present
     """
-    if not hypothesis.deep_verification_probes:
-        return None
-    return {
-        "probes": hypothesis.deep_verification_probes,
-        "verdict": hypothesis.deep_verification_verdict,
-    }
+    return hypothesis.deep_verification_summary()
 
 
 def _log_reflection_coverage(hypotheses: list[Hypothesis]) -> None:

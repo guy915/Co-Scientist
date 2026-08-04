@@ -9,6 +9,12 @@ branch of ``_log_reflection_debug``, and both branches of
 ``_warn_if_reflection_notes_dropped`` -- never run. This file calls the
 private helpers directly (matching the existing convention of testing
 ``reflection_helpers``'s private functions directly).
+
+Both projections now delegate to ``Hypothesis.review_summary()``/
+``Hypothesis.deep_verification_summary()`` (also covered directly in
+``test_models.py``, since evolution reads the same methods without going
+through this module); the local names here stay in place because
+``ranking.py`` re-exports every ``ranking_prompt`` name for compatibility.
 """
 
 import logging

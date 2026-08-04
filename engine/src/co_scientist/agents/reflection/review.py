@@ -55,6 +55,7 @@ from co_scientist.llm import (
     CompletionSpec,
     LLMCallOptions,
     call_llm_json,
+    indexed_prompt_name,
 )
 from co_scientist.models import (
     Hypothesis,
@@ -157,15 +158,6 @@ async def review_single_hypothesis(
     return _review_from_response(response)
 
 
-def _review_prompt_name(hypothesis_index: int | None) -> str:
-    """Builds the per-hypothesis prompt name used for saved-prompt debugging."""
-    return (
-        f"review_individual_{hypothesis_index}"
-        if hypothesis_index is not None
-        else "review_individual"
-    )
-
-
 async def _call_review_llm(
     prompt: str,
     schema: dict[str, Any] | None,
@@ -190,7 +182,9 @@ async def _call_review_llm(
         ),
         options=LLMCallOptions(
             run_id=run_id,
-            prompt_name=_review_prompt_name(hypothesis_index),
+            prompt_name=indexed_prompt_name(
+                "review_individual", hypothesis_index
+            ),
             prompt_metadata={
                 "hypothesis_index": hypothesis_index,
                 "prompt_length_chars": len(prompt),

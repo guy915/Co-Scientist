@@ -14,6 +14,7 @@ from typing import Any
 from co_scientist.agents.evolution.evolve_prompt import (
     _build_review_feedback,
     _build_supervisor_guidance_text,
+    _format_diversity_instruction,
     _format_evolution_guidance_lines,
     _format_iteration_strategy,
     _format_refinement_priorities,
@@ -73,6 +74,48 @@ def test_build_review_feedback_renders_latest_review_as_json() -> None:
     assert "Add a dose-response arm." in feedback
     assert '"novelty": 7' in feedback
     assert "6.5" in feedback
+
+
+# --- _format_diversity_instruction ------------------------------------------
+
+
+def test_diversity_instruction_short_text_not_marked_truncated() -> None:
+    """Text under 200 chars renders without an appended "..." marker.
+
+    Regression guard: the local bullet-list formatter this prompt used to
+    carry appended "..." unconditionally, even to text it never truncated.
+    """
+    short_text = "a short hypothesis well under the 200-char cap"
+    result = _format_diversity_instruction([short_text], [])
+    assert short_text in result
+    assert f"{short_text}..." not in result
+
+
+def test_diversity_instruction_long_text_truncated_with_marker() -> None:
+    """Text over 200 chars is cut to 200 chars with a "..." marker."""
+    long_text = "x" * 250
+    result = _format_diversity_instruction([long_text], [])
+    assert ("x" * 200 + "...") in result
+    assert long_text not in result
+
+
+def test_diversity_instruction_empty_lists_render_none_provided() -> None:
+    """No other hypotheses or removed duplicates renders "None provided".
+
+    Regression guard: the local formatter this prompt used to carry
+    returned "" on an empty list, which a caller-side ``or "None"``
+    papered over with a bare "None" rather than the "None provided" every
+    other prompt uses for an absent list.
+    """
+    result = _format_diversity_instruction([], [])
+    assert (
+        "**Other hypotheses being evolved simultaneously:**\n"
+        "None provided" in result
+    )
+    assert (
+        "**Previously removed duplicates (DO NOT recreate these):**\n"
+        "None provided" in result
+    )
 
 
 # --- _format_refinement_priorities / _format_iteration_strategy ------------

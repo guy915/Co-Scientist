@@ -59,6 +59,7 @@ from co_scientist.llm import (
     CompletionSpec,
     LLMCallOptions,
     call_llm_json,
+    indexed_prompt_name,
 )
 from co_scientist.models import Hypothesis
 
@@ -115,15 +116,6 @@ def _get_ranking_semaphore() -> asyncio.Semaphore:
         semaphore = asyncio.Semaphore(RANKING_WAVE_SIZE)
         _ranking_semaphores[loop] = semaphore
     return semaphore
-
-
-def _matchup_prompt_name(matchup_index: int | None) -> str:
-    """Builds the saved-prompt name for one matchup judge call."""
-    return (
-        f"ranking_matchup_{matchup_index}"
-        if matchup_index is not None
-        else "ranking_matchup"
-    )
 
 
 def _judge_call_metadata(
@@ -185,7 +177,7 @@ async def _call_matchup_judge(
     Returns:
         Parsed JSON response from the LLM.
     """
-    prompt_name = _matchup_prompt_name(ctx.matchup_index)
+    prompt_name = indexed_prompt_name("ranking_matchup", ctx.matchup_index)
     metadata = _judge_call_metadata(
         ctx.matchup_index, mp.prompt, mp.notes_a, mp.notes_b
     )

@@ -344,3 +344,76 @@ def test_hypothesis_to_dict_includes_deep_verification() -> None:
     d = h.to_dict()
     assert d["deep_verification_probes"][0]["question"] == "q"
     assert d["deep_verification_verdict"] == "weakened"
+
+
+# --- Hypothesis: review/verification summaries -------------------------------
+#
+# Prompt-ready projections shared by the ranking-matchup and evolution
+# prompts (agents/ranking/ranking_prompt.py, agents/evolution/evolve_prompt.py,
+# agents/evolution/evolve_feedback.py), which each read only the subset of
+# fields they need from the result.
+
+
+def test_review_summary_none_when_no_reviews() -> None:
+    """A hypothesis with no reviews yields None, not a hollow dict."""
+    hyp = Hypothesis(text="x")
+    assert hyp.review_summary() is None
+
+
+def test_review_summary_projects_latest_review() -> None:
+    """The most recent review's fields are projected into a summary dict."""
+    review = make_review(
+        review_summary="Solid mechanism, weak controls.",
+        scores={"novelty": 7, "rigor": 5},
+        constructive_feedback="Add a dose-response arm.",
+        overall_score=6.5,
+    )
+    hyp = Hypothesis(text="x", reviews=[review])
+    assert hyp.review_summary() == {
+        "overall_score": 6.5,
+        "review_summary": "Solid mechanism, weak controls.",
+        "constructive_feedback": "Add a dose-response arm.",
+        "scores": {"novelty": 7, "rigor": 5},
+    }
+
+
+def test_review_summary_uses_the_latest_of_several_reviews() -> None:
+    """With multiple reviews, only the most recent one is projected."""
+    first = make_review(overall_score=3.0)
+    second = make_review(overall_score=8.0)
+    hyp = Hypothesis(text="x", reviews=[first, second])
+    summary = hyp.review_summary()
+    assert summary is not None
+    assert summary["overall_score"] == 8.0
+
+
+def test_deep_verification_summary_none_when_no_probes() -> None:
+    """A hypothesis with no deep-verification probes yields None.
+
+    None (rather than a dict of Nones/empties) lets a prompt builder drop
+    the block entirely instead of shipping a hollow one -- the drift that
+    used to separate this projection from evolution's own inline copy.
+    """
+    hyp = Hypothesis(text="x")
+    assert hyp.deep_verification_summary() is None
+
+
+def test_deep_verification_summary_returns_probes_and_verdict() -> None:
+    """Populated probes/verdict are returned as a summary dict."""
+    probes = [
+        {
+            "question": "does it hold under X?",
+            "answer": "yes",
+            "reasoning": "because Y",
+            "assumption_is_fundamental": True,
+        }
+    ]
+    hyp = Hypothesis(
+        text="x",
+        deep_verification_probes=probes,
+        deep_verification_verdict="holds",
+    )
+    assert hyp.deep_verification_summary() == {
+        "probes": probes,
+        "verdict": "holds",
+    }

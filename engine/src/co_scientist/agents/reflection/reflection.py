@@ -16,6 +16,7 @@ from co_scientist.llm import (
     CompletionSpec,
     LLMCallOptions,
     call_llm_json,
+    indexed_prompt_name,
 )
 from co_scientist.models import Hypothesis, phase_message
 from co_scientist.progress import emit_progress
@@ -162,7 +163,7 @@ async def _call_reflection_llm(
         ),
         options=LLMCallOptions(
             run_id=context.run_id,
-            prompt_name=f"reflection_{hypothesis_index}",
+            prompt_name=indexed_prompt_name("reflection", hypothesis_index),
             prompt_metadata={
                 "hypothesis_index": hypothesis_index,
                 "total_count": total_count,

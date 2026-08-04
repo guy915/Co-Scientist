@@ -290,6 +290,47 @@ class Hypothesis:
         """The most recent review, or None if the hypothesis has none."""
         return self.reviews[-1] if self.reviews else None
 
+    def review_summary(self) -> dict[str, Any] | None:
+        """Project the latest review into a prompt-ready summary dict.
+
+        None when the hypothesis has not been reviewed yet, so a prompt
+        builder can drop the block entirely rather than render a hollow
+        one. Shared by the ranking-matchup and evolution prompts, which
+        each keep only the subset of fields they need from the result.
+
+        Returns:
+            A dict with the latest review's overall_score, review_summary,
+            constructive_feedback, and scores, or None with no reviews yet.
+        """
+        latest = self.latest_review
+        if latest is None:
+            return None
+        return {
+            "overall_score": latest.overall_score,
+            "review_summary": latest.review_summary,
+            "constructive_feedback": latest.constructive_feedback,
+            "scores": latest.scores,
+        }
+
+    def deep_verification_summary(self) -> dict[str, Any] | None:
+        """Project deep-verification probes/verdict into a prompt-ready dict.
+
+        None before deep verification has run on this hypothesis (it only
+        reaches the tournament's leaders, after the first ranking pass), so
+        a prompt builder can drop the block entirely rather than render a
+        hollow one.
+
+        Returns:
+            A dict with this hypothesis's probes and verdict, or None if no
+            probes have been recorded yet.
+        """
+        if not self.deep_verification_probes:
+            return None
+        return {
+            "probes": self.deep_verification_probes,
+            "verdict": self.deep_verification_verdict,
+        }
+
     def is_rankable(self) -> bool:
         """Return whether this hypothesis may enter the Elo tournament.
 

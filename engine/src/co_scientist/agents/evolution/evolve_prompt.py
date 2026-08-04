@@ -12,6 +12,7 @@ from co_scientist.agents.evolution.evolution_operators import (
 from co_scientist.constants import truncate
 from co_scientist.models import Hypothesis
 from co_scientist.prompts import (
+    _format_bullet_list,
     _format_run_guidance,
     _get_domain_variables,
     load_prompt_with_schema,
@@ -116,18 +117,10 @@ def _build_review_feedback(hypothesis: Hypothesis) -> str:
         JSON-formatted review feedback, or an empty string if the
         hypothesis has no reviews yet.
     """
-    latest_review = hypothesis.latest_review
-    if latest_review is None:
+    summary = hypothesis.review_summary()
+    if summary is None:
         return ""
-    return json.dumps(
-        {
-            "overall_score": latest_review.overall_score,
-            "review_summary": latest_review.review_summary,
-            "constructive_feedback": latest_review.constructive_feedback,
-            "scores": latest_review.scores,
-        },
-        indent=2,
-    )
+    return json.dumps(summary, indent=2)
 
 
 def _build_meta_review_insights(meta_review: dict[str, Any]) -> str:
@@ -217,15 +210,6 @@ def _build_supervisor_guidance_text(
     return "".join(guidance_sections)
 
 
-def _format_bullet_list(texts: list[str]) -> str:
-    """Format texts as a bullet list, each truncated to 200 chars.
-
-    200 chars is enough for the LLM to recognize overlap without materially
-    growing the prompt.
-    """
-    return "\n".join(f"- {text[:200]}..." for text in texts)
-
-
 _DIVERSITY_INSTRUCTION_TEMPLATE = """
 
 ## CRITICAL: Preserve Diversity
@@ -270,15 +254,21 @@ def _format_diversity_instruction(
     Returns:
         Diversity-instruction text to append to the evolution prompt.
     """
-    other_hyps_formatted = _format_bullet_list(other_hypotheses_texts)
+    # Each item is capped at 200 chars -- enough for the LLM to recognize
+    # overlap without materially growing the prompt.
+    other_hyps_formatted = _format_bullet_list(
+        other_hypotheses_texts, truncate_chars=200
+    )
     # Only the 5 most recently removed duplicates are shown, keeping this
     # section bounded regardless of how many duplicates accumulate over a
     # run.
-    removed_dups_formatted = _format_bullet_list(removed_duplicates[-5:])
+    removed_dups_formatted = _format_bullet_list(
+        removed_duplicates[-5:], truncate_chars=200
+    )
 
     return _DIVERSITY_INSTRUCTION_TEMPLATE.format(
-        other_hyps=other_hyps_formatted or "None",
-        removed_dups=removed_dups_formatted or "None",
+        other_hyps=other_hyps_formatted,
+        removed_dups=removed_dups_formatted,
     )
 
 

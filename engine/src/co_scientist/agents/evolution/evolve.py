@@ -115,6 +115,7 @@ from co_scientist.llm import (
     CompletionSpec,
     LLMCallOptions,
     call_llm_json,
+    indexed_prompt_name,
 )
 from co_scientist.models import Hypothesis, rank_by_elo
 from co_scientist.state import WorkflowState
@@ -147,15 +148,6 @@ def _evolve_token_budget(other_hypotheses_texts: list[str]) -> int:
     return evolve_max_tokens
 
 
-def _evolve_prompt_name(hypothesis_index: int | None) -> str:
-    """Names the saved prompt for this evolution call, if indexed."""
-    return (
-        f"evolve_{hypothesis_index}"
-        if hypothesis_index is not None
-        else "evolve"
-    )
-
-
 async def _call_evolution_llm(
     full_prompt: str,
     schema: dict[str, Any] | None,
@@ -178,7 +170,7 @@ async def _call_evolution_llm(
         Parsed JSON response from the LLM.
     """
     evolve_max_tokens = _evolve_token_budget(other_hypotheses_texts)
-    prompt_name = _evolve_prompt_name(hypothesis_index)
+    prompt_name = indexed_prompt_name("evolve", hypothesis_index)
     return await call_llm_json(
         prompt=full_prompt,
         spec=CompletionSpec(
