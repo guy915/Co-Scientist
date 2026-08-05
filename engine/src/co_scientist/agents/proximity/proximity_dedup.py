@@ -158,15 +158,21 @@ def _build_removed_duplicates_for_cluster(
     """Builds removed-duplicate records for the non-kept high-similarity set.
 
     Every high-similarity hypothesis in the cluster other than ``best`` is
-    dropped; each drop is logged for visibility.
+    dropped. This is the one place a drop is traced, and it traces at debug:
+    deduplication working is the node doing its job, the count already
+    reaches the reader in the pass summary
+    (``proximity._log_dedup_summary``), and every drop is persisted as an
+    archived hypothesis. At info it wrote a row per drop into a log whose
+    readable window is the newest hundred records -- the same crowding that
+    summary line was itself fixed to stop.
     """
     removed_duplicates: list[dict[str, Any]] = []
     for duplicate in high_similarity[1:]:
         removed_duplicates.append(
             _build_removed_duplicate_record(duplicate, cluster_id, best)
         )
-        logger.info(
-            "Removed duplicate from cluster %s: %s... (Elo: %s)",
+        logger.debug(
+            "removed duplicate from cluster %s: %s... (elo %s)",
             cluster_id,
             duplicate.text[:100],
             duplicate.elo_rating,
@@ -183,6 +189,10 @@ def _resolve_cluster_duplicates(
     "high" similarity hypothesis (ranked by Elo, then score, then text),
     recording the rest as removed duplicates.
 
+    A single-member cluster needs no special case: it either falls in
+    ``others`` and is kept, or is the sole "high" member and is kept as the
+    best of one, with nothing after it to remove.
+
     Args:
         cluster_id: Identifier of the cluster being resolved.
         cluster_hypotheses: Hypotheses assigned to this cluster.
@@ -190,10 +200,6 @@ def _resolve_cluster_duplicates(
     Returns:
         Tuple of (hypotheses_to_keep, removed_duplicates) for this cluster.
     """
-    if len(cluster_hypotheses) == 1:
-        # No duplicates possible
-        return list(cluster_hypotheses), []
-
     high_similarity, others = _partition_by_similarity_degree(
         cluster_hypotheses
     )

@@ -141,6 +141,11 @@ def _log_dedup_summary(
 ) -> None:
     """Logs a summary of proximity deduplication results.
 
+    One info row per pass, carrying the count. The drops themselves are
+    traced individually -- and only at debug -- where they are decided, in
+    ``proximity_dedup._build_removed_duplicates_for_cluster``; a second
+    sample of the same event here said nothing that record did not.
+
     Args:
         original_count: Number of hypotheses before deduplication.
         kept_count: Number of hypotheses retained after deduplication.
@@ -153,14 +158,6 @@ def _log_dedup_summary(
         kept_count,
         len(removed_duplicates),
     )
-
-    # Sampled at debug, not warning: deduplication succeeding is the node
-    # doing its job, the count is already in the summary above, and every drop
-    # is persisted as an archived hypothesis. At warning it wrote four rows per
-    # pass into a log whose readable window is the newest hundred records,
-    # crowding out the run's own narrative with its most routine outcome.
-    for dup in removed_duplicates[:3]:  # Log first 3
-        logger.debug("removed near-duplicate: %s...", dup["text"][:80])
 
 
 @dataclass
@@ -178,21 +175,12 @@ class _ClusteringOutcome:
     similarity_clusters: list[dict[str, Any]]
 
 
-def _cluster_and_dedupe(
-    hypotheses: list[Hypothesis], similarity_clusters: list[dict[str, Any]]
-) -> tuple[list[Hypothesis], list[dict[str, Any]]]:
-    """Assigns cluster ids onto `hypotheses` in place, then dedupes them."""
-    _assign_cluster_ids(hypotheses, similarity_clusters)
-    return _dedupe_by_cluster(hypotheses)
-
-
 def _finish_clustering(
     hypotheses: list[Hypothesis], similarity_clusters: list[dict[str, Any]]
 ) -> _ClusteringOutcome:
-    """Dedupes the clustered hypotheses and logs the pass's summary."""
-    hypotheses_to_keep, removed_duplicates = _cluster_and_dedupe(
-        hypotheses, similarity_clusters
-    )
+    """Assigns cluster ids in place, dedupes, and logs the pass's summary."""
+    _assign_cluster_ids(hypotheses, similarity_clusters)
+    hypotheses_to_keep, removed_duplicates = _dedupe_by_cluster(hypotheses)
     _log_dedup_summary(
         len(hypotheses), len(hypotheses_to_keep), removed_duplicates
     )

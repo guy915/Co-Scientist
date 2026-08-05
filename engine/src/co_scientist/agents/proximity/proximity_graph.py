@@ -101,18 +101,19 @@ def _accumulate_cluster_edges(
         if id_a == id_b:
             continue
         key = frozenset({id_a, id_b})
-        weight = max(_degree_weight(deg_a), _degree_weight(deg_b))
+        # The edge's weight and its label are the same decision -- the
+        # stronger of the two members' degrees -- so each degree is scored
+        # once and both are read off that one comparison.
+        weight_a, weight_b = _degree_weight(deg_a), _degree_weight(deg_b)
+        stronger = deg_a if weight_a >= weight_b else deg_b
+        weight = max(weight_a, weight_b)
         existing = edges.get(key)
         if existing is None or weight > existing["similarity"]:
             edges[key] = {
                 "source": id_a,
                 "target": id_b,
                 "similarity": weight,
-                "degree": (
-                    deg_a
-                    if _degree_weight(deg_a) >= _degree_weight(deg_b)
-                    else deg_b
-                ),
+                "degree": stronger,
                 "cluster_id": cluster_id,
             }
 
