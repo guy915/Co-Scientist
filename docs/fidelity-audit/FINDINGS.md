@@ -15,8 +15,12 @@ See [PLAN.md](PLAN.md) for the sequenced work.
 on `main` since, `~` = partly addressed, `?` = contested between audits.
 `Src` — provenance in the source audits (`12:`/`20:`/`21:` = audit date).
 
-**`✓` and `~` are derived from commit subjects on `main`, not re-verified.**
-Confirm before closing anything.
+**Re-verified against `main` on 2026-08-05**, 276 commits past the audited
+revision `11a31082`. Every **Critical** and **High** finding was checked against
+the working tree; Medium and Low were checked where a commit or a neighbouring
+change made staleness likely. A blank `St` on a Medium/Low row therefore means
+"not contradicted by this pass", not "individually re-confirmed". See
+[the re-verification log](#re-verification-2026-08-05) for the evidence.
 
 ---
 
@@ -25,9 +29,9 @@ Confirm before closing anything.
 | ID | Sev | Class | Gap | St | Src |
 |---|---|---|---|---|---|
 | A1 | High | missing | No **Interview Progress** rail — Google shows 3 numbered steps → green checks; our only in-flight signal is "Thinking…" and fields are invisible until completion | | 12:A03, 20:F-INTERVIEW-02, 21:R7 |
-| A2 | High | missing | Custom evaluation criteria never collected; `criteria: []` hard-coded, so no rubric governs ranking, debates, or self-improvement | | 12:A08, 20:F-INTERVIEW-09/EB-006, 21:K1 |
+| A2 | High | missing | Custom evaluation criteria never collected; `criteria: []` hard-coded, so no rubric governs ranking, debates, or self-improvement | ~ | 12:A08, 20:F-INTERVIEW-09/EB-006, 21:K1 |
 | A3 | Medium | incorrect | Plan fields read-only; "Edit research plan" opens no editor and `editInterviewFields` is unused | | 12:A06, 20:F-INTERVIEW-05, 21:R38 |
-| A4 | Medium | missing | Interview lives only in React route state; reload discards it although the server still has it (`getInterview` never called) | | 20:F-INTERVIEW-04/F-STATE-01 |
+| A4 | Medium | missing | Interview lives only in React route state; reload discards it although the server still has it (`getInterview` never called) | ✓ | 20:F-INTERVIEW-04/F-STATE-01 |
 | A5 | Medium | incorrect | Raw provider chain-of-thought streamed to the user; Google's footage shows only a "Thinking" status | | 20:F-INTERVIEW-03/U23 |
 | A6 | Medium | missing | No AI/medical disclaimer anywhere ("AI can be inaccurate…" / "Consult a professional…") | | 12:J08/M03, 20:F-HOME-04, 21:R22 |
 | A7 | Medium | partial | Mid-run steering changes agent behavior but no UI calls `sendRunSteering` | | 12:A11/I05, 20:F-RUN-04, 21:R23 |
@@ -108,7 +112,7 @@ Confirm before closing anything.
 |---|---|---|---|---|---|
 | E1 | **Critical** | incorrect | **Full / simulation / recurrent reviews are computed at LLM + retrieval cost and read by nothing** — not ranking, evolution, meta-review, report, or UI. Even fatal findings change no disposition | | 12:E13/E14, 20:EB-035, 21:R3 |
 | E2 | **Critical** | incorrect | **The grounded-debate prompt renders `{{MISSING:user_hypotheses}}` and `{{MISSING:instructions}}` on every turn of the production path**, dropping user-supplied starting hypotheses and leaving the instruction slot empty | | 21:R5 |
-| E3 | **Critical** | incorrect | **Assumptions generation runs ungrounded on the durable path** even when literature is available, and is cache-enabled — byte-identical output across identical goals | | 21:R21 |
+| E3 | **Critical** | incorrect | **Assumptions generation runs ungrounded on the durable path** even when literature is available, and is cache-enabled — byte-identical output across identical goals | ✓ | 21:R21 |
 | E4 | High | partial | Deep verification omits **sub-assumption decomposition** and **decontextualization**, two of its three defining behaviors | | 12:E11, 20:EB-036, 21:R9 |
 | E5 | High | partial | Only 5 evolution operators (paper: 6); "inspiration from existing" absent, coherence/feasibility folded into ENHANCEMENT, and round-robin selection means ENHANCEMENT never fires on express | | 12:E24/K07, 20:EB-041, 21:R10 |
 | E6 | High | missing | Enhancement-through-grounding performs **no literature retrieval** — only stale run-wide synthesis text | | 12:E24, 20:EB-041, 21:R11 |
@@ -138,7 +142,7 @@ Confirm before closing anything.
 | F5 | High | partial | No weighted sampling or dynamic re-weighting; the per-agent `performance_assessment` that would drive it is computed and unused | | 12:E04/F05, 20:EB-009, 21:R31 |
 | F6 | Medium | incorrect | Steering is marked applied **before** the consuming checkpoint commits, so a crash can lose acknowledged steering | | 20:EB-002/EB-017 |
 | F7 | Medium | incorrect | Human review score is reconstructed as 20/60/90 from summary words and re-drained as a generic `review`, losing authorship and semantics | | 20:EB-004 |
-| F8 | Medium | incorrect | Foreign keys are declared but `PRAGMA foreign_keys=ON` runs only on the schema-init connection, so runtime FKs are off | | 20:EB-018, 21:M6 |
+| F8 | Medium | incorrect | Foreign keys are declared but `PRAGMA foreign_keys=ON` runs only on the schema-init connection, so runtime FKs are off | ✓ | 20:EB-018, 21:M6 |
 | F9 | Medium | incorrect | Several fan-outs abort the whole batch on one item failure instead of committing successful siblings | | 12:F09/L08, 20:EB-010/EB-043 |
 | F10 | Medium | partial | Evolution is not strictly stagnation-gated — on the common both-zero tie it alternates, so it fires without stagnation | | 21:R32 |
 | F11 | Low | divergent | Termination is iteration budget / convergence / LLM-call budget, not the paper's `MaxIdeas` and `MaxMatchesPerIdea` | | 12:F06, 20:EB-011, 21:F6 |
@@ -149,12 +153,12 @@ Confirm before closing anything.
 
 | ID | Sev | Class | Gap | St | Src |
 |---|---|---|---|---|---|
-| G1 | **Critical** | incorrect | **Claim-gate-blocked hypotheses stay `active` and are released** into the leaderboard, idea buckets, and report. Reproduced: fresh Standard and Ultra runs completed with **all** hypotheses failing the claim gate and **all** claim assessments `insufficient` | | 12:G16/G17, 20:EB-029 (reproduced) |
+| G1 | **Critical** | incorrect | **Claim-gate-blocked hypotheses stay `active` and are released** into the leaderboard, idea buckets, and report. Reproduced: fresh Standard and Ultra runs completed with **all** hypotheses failing the claim gate and **all** claim assessments `insufficient` | ~ | 12:G16/G17, 20:EB-029 (reproduced) |
 | G2 | **Critical** | incorrect | **Multi-term natural-language phrases are sent verbatim to Entrez, which ANDs every token** — no MeSH, no OR expansion, no field tags, no broadening retry, and the final fallback sends the whole prose goal. Documented root cause of the ~99% "insufficient" evidence rate | ~ | 12:G02/G09, 20:EB-024, 21:R1 |
 | G3 | High | incorrect | The `verified` citation label is token overlap; the module described itself as a mock — and it runs on the real path | ✓ | 12:G12/G13/D16, 20:EB-027, 21:R12 |
-| G4 | High | missing | **arXiv, bioRxiv, OpenTargets, ClinicalTrials.gov, Semantic Scholar, Crossref, Google Scholar** are named in config with no runnable backend — including OpenTargets and bioRxiv, which Google's product plan names explicitly | | 12:G01/G03/G04/G06/G07, 20:EB-023, 21:R13 |
+| G4 | High | missing | **arXiv, bioRxiv, OpenTargets, ClinicalTrials.gov, Semantic Scholar, Crossref, Google Scholar** are named in config with no runnable backend — including OpenTargets and bioRxiv, which Google's product plan names explicitly | ✓ | 12:G01/G03/G04/G06/G07, 20:EB-023, 21:R13 |
 | G5 | High | partial | No vector, semantic, or hybrid retrieval anywhere — all retrieval and ranking is lexical/heuristic, so irrelevant recent or highly-cited work can win | | 12:G02, 20:EB-024/U26, 21:G3 |
-| G6 | High | incorrect | A retracted source can still be reserved, selected, analyzed, and synthesized: the score penalizes retractions but reserved-slot and underfilled-budget paths still choose them | | 12:G21, 20:EB-026 (reproduced), 21:R44 |
+| G6 | High | incorrect | A retracted source can still be reserved, selected, analyzed, and synthesized: the score penalizes retractions but reserved-slot and underfilled-budget paths still choose them | ~ | 12:G21, 20:EB-026 (reproduced), 21:R44 |
 | G7 | Medium | incorrect | Knowledge Base evidence links read a nonexistent edge-level `evidence_id`, so links are usually empty | | 20:EB-030 |
 | G8 | Medium | incorrect | Contradiction insights read nonexistent `claim_text`/`claim_id` instead of the persisted `claim`, producing blank untraceable content | ✓ | 20:EB-031 |
 | G9 | Medium | partial | Q&A omits evidence passages yet requests citations; unsupported sources enter context and the offline answer ignores the question | | 20:EB-032 |
@@ -196,8 +200,8 @@ Confirm before closing anything.
 | ID | Sev | Class | Gap | St | Src |
 |---|---|---|---|---|---|
 | J1 | High | incorrect | The **intake** content policy is materially weaker than the per-hypothesis policy — "design a bioweapon for mass-casualty deployment" blocks per-hypothesis but is only dual-use (a no-op in standard mode) at intake | | 21:R16 |
-| J2 | High | incorrect | Semantic safety **fails open silently** when the configured model's provider key is absent: regex-only, no log line. A DashScope deployment without `DEEPSEEK_API_KEY` is regex-only | | 20:EB-048, 21:R17 |
-| J3 | High | incorrect | A `redact` decision records the label but persists the original content — the gate proceeds with the same goal and report Markdown | | 12:J07, 20:EB-050 |
+| J2 | High | incorrect | Semantic safety **fails open silently** when the configured model's provider key is absent: regex-only, no log line. A DashScope deployment without `DEEPSEEK_API_KEY` is regex-only | ~ | 20:EB-048, 21:R17 |
+| J3 | High | incorrect | A `redact` decision records the label but persists the original content — the gate proceeds with the same goal and report Markdown | ~ | 12:J07, 20:EB-050 |
 | J4 | High | partial | The primary classifier is a regex list; the LLM is an optional escalation. Google's is model-based | | 12:J04, 20:EB-048/EB-049, 21:J2 |
 | J5 | Medium | incorrect | `UNCERTAIN` hypotheses are dropped from the pool into `held_for_review`, which is never wired to the app or UI — they vanish silently | | 12:J06, 21:R34 |
 | J6 | Medium | partial | No mid-flight safety monitoring or halt; `safety_blocked` is read but never written, and the meta-review overview is not used as a monitor | | 12:J12, 20:EB-051, 21:J5 |
@@ -212,7 +216,7 @@ Confirm before closing anything.
 | ID | Sev | Class | Gap | St | Src |
 |---|---|---|---|---|---|
 | K1 | **Critical** | incorrect | Reports state mechanisms categorically while the citation audit shows zero verified claims. One real-provider run: 5 published ideas, 3 PubMed records, **0 verified / 0 partial / 13 unsupported** | | 12:K03/K10/D22, 20:EB-029 |
-| K2 | High | incorrect | The early review gate is set once from the **first** review and never revisited; a blocking value bars the idea from the tournament for the whole run, hides it as "Disqualified", and shrinks the pool evolution breeds from | | 12:H11, repo `_apply_initial_review_gate` |
+| K2 | High | incorrect | The early review gate is set once from the **first** review and never revisited; a blocking value bars the idea from the tournament for the whole run, hides it as "Disqualified", and shrinks the pool evolution breeds from | ✓ | 12:H11, repo `_apply_initial_review_gate` |
 | K3 | High | incorrect | Novelty claims are not verified against a broad current corpus, yet output still uses definitive novelty language | | 12:K08, 21:K2 |
 | K4 | Medium | partial | Five default criteria are embedded in prompts and reviews score 8 axes, but only soundness and novelty gate | | 12:K01, 21:K1 |
 | K5 | Medium | incorrect | Feasibility does not reflect the scientist's lab constraints; intake never elicits them and prompts invent feasible-looking methods | | 12:K05 |
@@ -226,7 +230,7 @@ Confirm before closing anything.
 | ID | Sev | Class | Gap | St | Src |
 |---|---|---|---|---|---|
 | L1 | High | incorrect | The evaluation **release gate exists only in evaluation code**; live finalization uses different rules, so passing evaluator tests does not prove live publication enforcement | | 20:OP-045 |
-| L2 | High | missing | No token or cost accounting anywhere — `response.usage` is discarded | | 12:F10/L09, 20:EB-061, 21:R35 |
+| L2 | High | missing | No token or cost accounting anywhere — `response.usage` is discarded | ~ | 12:F10/L09, 20:EB-061, 21:R35 |
 | L3 | Medium | incorrect | `max_llm_calls` undercounts (generation, literature review, and orchestrator allocation do not report), so runs exceed the nominal cap | | 20:EB-061, 21:R35 |
 | L4 | Medium | missing | No tracing (langsmith installed, never configured), no OTel/Prometheus/Sentry | | 12:L09, 21:R35 |
 | L5 | Medium | missing | No per-agent latency; `phase_times` has exactly one producer | | 21:R35 |
@@ -247,7 +251,7 @@ Confirm before closing anything.
 |---|---|---|---|---|---|
 | M1 | High | divergent | Product identity is teal/blue **"Co-Scientist"**; the target is green **"Hypothesis Generation"** | | 12:M01/M12, 20:F-ENTRY-01, 21:R19 |
 | M2 | High | incorrect | At 16:9 desktop — a supported ratio — report tabs and content clip horizontally; 2:1 is coherent | | 12:M10, 20:F-RESP-01 |
-| M3 | High | incorrect | Mobile idea detail has no visible Back; the only escape is re-tapping the already-active tab | | 20:F-IDEAS-09/F-RESP-03 |
+| M3 | High | incorrect | Mobile idea detail has no visible Back; the only escape is re-tapping the already-active tab | ~ | 20:F-IDEAS-09/F-RESP-03 |
 | M4 | Medium | divergent | The shell follows the secondary Gemini Enterprise twin (persistent rail, chat history, three-column ideas), not the Labs product | | 12:M13, 20:F-ENTRY-03/F-IDEAS-02 |
 | M5 | Medium | divergent | An Affiliation modal interrupts first use with an unevidenced organization chooser | | 20:F-ENTRY-02/F-ENTRY-04 |
 | M6 | Medium | incorrect | Demo runs merge into personal history without an `is_demo` label, and ownership middleware exempts them so any caller can mutate shared demo state | | 12:M15/M20, 20:F-ENTRY-06/OP-014/OP-055 |
@@ -272,7 +276,7 @@ surfaces.
 | N5 | High | incorrect | Uploads: caller-supplied MIME, no signature or malware check, no archive policy, no per-document delete, no at-rest encryption, no provider disclosure | | 20:OP-047 |
 | N6 | High | incorrect | Audience is self-declared; the publicly selectable SBI/UCD mode sends committed paper text to every model surface, and the catalog carries no per-document license manifest | | 20:OP-050 |
 | N7 | High | incorrect | MCP server allows wildcard origins/headers/methods with credentials and no auth, relying entirely on network trust; dev Compose publishes port 8888 to the host | | 20:OP-031 |
-| N8 | High | incorrect | Root setup installs the app `--no-deps` then an incomplete manual subset, so `pypdf` is missing and PDF ingestion is silently unavailable despite setup "succeeding" | | 20:OP-010 |
+| N8 | High | incorrect | Root setup installs the app `--no-deps` then an incomplete manual subset, so `pypdf` is missing and PDF ingestion is silently unavailable despite setup "succeeding" | ✓ | 20:OP-010 |
 | N9 | High | incorrect | Forced offline mode still attempts the configured remote chat model for interviews before falling back — leaking goal text | | 20:OP-013 |
 | N10 | High | partial | Production `/status` reported MCP/PubMed/literature/web up but `tools_config=null` and `enabled_tools=null`: specialized tools are registered but not authorized in live runs | | 20:OP-037 |
 | N11 | Medium | missing | No data-access/export request workflow | | 20:OP-009 |
@@ -283,10 +287,10 @@ surfaces.
 | N16 | Medium | incorrect | Root setup writes a root `.env` while `make dev-api` runs from `app/`, whose settings load the cwd `.env` — generated configuration is silently ignored | | 20:OP-012 |
 | N17 | Medium | incorrect | MCP package: editable install succeeds but setuptools discovers no package; Make/CI change cwd into `engine` to shadow the defect | | 20:OP-028 |
 | N18 | Medium | incorrect | Floating Python base tags, broad unpinned ranges, mutable major Action tags, non-frozen Bun install — identical source can resolve different images | | 20:OP-029 |
-| N19 | Medium | incorrect | `make test-all` covers engine + app only; root lint omits frontend gts; typecheck omits engine mypy | | 20:OP-015/OP-052 |
+| N19 | Medium | incorrect | `make test-all` covers engine + app only; root lint omits frontend gts; typecheck omits engine mypy | ~ | 20:OP-015/OP-052 |
 | N20 | Medium | incorrect | CI path filters omit root Makefiles, Dockerfiles, Vercel config, docs, and corpus | | 20:OP-016 |
 | N21 | Medium | missing | No CI Docker build, Compose smoke, deployment verification, or migration-on-volume gate | | 20:OP-017 |
-| N22 | Medium | incorrect | A unit test asserts NotebookLM/Download are absent while E2E requires them — the two contracts cannot jointly pass | | 20:OP-018 |
+| N22 | Medium | incorrect | A unit test asserts NotebookLM/Download are absent while E2E requires them — the two contracts cannot jointly pass | ✓ | 20:OP-018 |
 | N23 | Medium | incorrect | Concurrency lease tests use fixed 10-second thresholds, making the green/red signal load-dependent | | 20:OP-023 |
 | N24 | Medium | incorrect | E2E writes screenshots directly into tracked `docs/assets`, so running tests overwrites audit evidence; only one desktop project exists | | 20:OP-042 |
 | N25 | Medium | incorrect | Offline/demo runs are exempted from the empty-leaderboard scientific-readiness block, so demos pass a weaker publication condition | | 20:OP-041 |
@@ -299,7 +303,7 @@ surfaces.
 | N32 | Medium | incorrect | Root Vercel config is a universal rewrite and a stale frontend config lists removed routes; the production response carried no CSP, nosniff, referrer, or permissions policy | | 20:OP-040 |
 | N33 | Medium | missing | No non-mutating deployed smoke of production auth, CORS, ownership, MCP, volume/migrations, SMTP, or sanitized share before release | | 20:OP-026/OP-022 |
 | N34 | Medium | partial | MCP CI uses fake HTTP clients; no live PubMed/OpenAlex/INDRA rate-limit or contract smoke | | 20:OP-039 |
-| N35 | Low | incorrect | Engine Compose healthcheck probes `/health`, which the MCP server does not define | | 20:OP-032 |
+| N35 | Low | incorrect | Engine Compose healthcheck probes `/health`, which the MCP server does not define | ✓ | 20:OP-032 |
 | N36 | Low | incorrect | MCP package docs describe a narrower tool surface than what actually registers | | 20:OP-036 |
 
 ## O. Accessibility
@@ -309,11 +313,100 @@ Raised only by the 2026-07-20 audit.
 | ID | Sev | Class | Gap | St | Src |
 |---|---|---|---|---|---|
 | O1 | High | incorrect | Modal overlays support Escape but do not trap focus, inert the background, or restore opener focus | | 20:F-A11Y-02 |
-| O2 | High | incorrect | Idea selection is CSS-only — no selected/current/pressed/listbox semantics, so assistive technology cannot relate the list to the detail pane | | 20:F-IDEAS-08/F-A11Y-04 |
+| O2 | High | incorrect | Idea selection is CSS-only — no selected/current/pressed/listbox semantics, so assistive technology cannot relate the list to the detail pane | ~ | 20:F-IDEAS-08/F-A11Y-04 |
 | O3 | High | incorrect | Return navigation is an undocumented active-tab re-tap with no accessible instruction or semantic control | | 20:F-A11Y-05 |
 | O4 | Medium | incorrect | Generic `ShellPopover` applies `role=status` to menus, logs, and forms, turning large interactive regions into noisy live announcements | | 20:F-A11Y-03 |
 | O5 | Medium | incorrect | Continuously growing raw reasoning sits in an `aria-live=polite` region | | 20:F-A11Y-07 |
 | O6 | Low | partial | Mixed navigation/tab semantics; `aria-current=page` on `<nav>` buttons with no tablist/tabpanel keyboard pattern | | 20:F-A11Y-06 |
+
+---
+
+## Re-verification 2026-08-05
+
+The three audits read `11a31082` (2026-07-20). `main` is 276 commits past it.
+This pass re-read the working tree for every Critical and High finding, plus the
+Mediums and Lows a nearby commit made suspect. Findings are cited by the file
+that decided the verdict.
+
+### Closed since the audits (`✓`)
+
+| ID | What changed | Evidence |
+|---|---|---|
+| A4 | The interview is rehydrated from the server on reload | `use_chat_rehydrate.ts:78` calls `getInterview` |
+| E3 | Assumptions generation grounds on a reference index and no longer caches | `assumptions.py` — `use_cache=False`, `_resolve_assumptions_context` |
+| F8 | `PRAGMA foreign_keys=ON` now runs on every store connection, not just schema init | `store/db.py:97` |
+| G3 | Citation classification uses claim coverage, not Jaccard; thresholds restated against it | `citations.py:107` |
+| G4 | The unrunnable sources are gone from config — arXiv, bioRxiv, OpenTargets, ClinicalTrials, Semantic Scholar, Crossref, Scholar no longer appear | `config/tools.yaml` declares only backed tools |
+| G8 | Contradiction insights read the persisted `claim` | no `claim_text`/`claim_id` readers remain in `app/` |
+| H1, H3 | Cluster members resolve by prompt index, with text only as fallback | `proximity_graph.py`, commits `9ac07d7b`, `e4cda162` |
+| K2 | The review gate blocks only the "not viable" band; the rework band is `needs_revision` — rankable and publishable | `review.py:102-125` |
+| N8 | `pypdf` is in the single-source dependency list installed after `--no-deps` | `app/requirements-app.txt:32` |
+| N22 | The contradiction is gone — no e2e spec requires NotebookLM | only the two unit assertions remain |
+| N35 | The Compose MCP healthcheck probes the root, not the undefined `/health` | `docker-compose.yml:87` |
+
+### Partly closed (`~`)
+
+| ID | What moved | What remains |
+|---|---|---|
+| A2 | `criteria` is collected and threaded into engine opts | not confirmed to reach ranking or debate prompts |
+| G1 | Contradicted ideas are now withheld; merely-unsupported ones publish with an "Unverified" badge | this is a **re-scope, not a fix** — a claim-gate block still does not suppress release, it relabels it. Confirm the badge is the intended policy |
+| G2 | A progressive broadening ladder retries queries that return nothing | still no MeSH, OR expansion, or field tags; prose-goal fallback unre-checked |
+| G6 | Retraction detection exists across metadata shapes | the reserved-slot and underfilled-budget admission paths were not re-traced |
+| J2 | The provider-credential table is unified, so a DashScope deployment resolves correctly | still fails open to regex-only, still with no log line |
+| J3 | The engine redacts hypothesis fields in place | app-side goal and report-Markdown redaction not confirmed |
+| L2 | `prompt_tokens`/`completion_tokens` are parsed off the response | nothing persists or surfaces them; no cost accounting |
+| M3 | A labelled Back control exists in the run shell | not confirmed as the mobile idea-detail escape |
+| N19 | `test-all` now covers mcp + parity; `typecheck` covers engine mypy | root `lint` still omits frontend gts |
+| O2 | Idea rows carry `aria-current` | still no listbox/option semantics relating list to detail pane |
+
+### Re-confirmed open
+
+Verified still present, with the line that proves it:
+
+- **E2** — `generation_debate_and_literature.md` requires `{{user_hypotheses}}`
+  and `{{instructions}}`; neither is produced by `_build_debate_base_variables`,
+  `_build_debate_literature_variables`, or `_build_debate_guidance_variables`.
+  Both render as `{{MISSING:...}}` on every turn.
+- **F1** — `store.fail_task` sets the *task* to `failed` and touches no run
+  state; nothing else transitions the run. An exhausted task still leaves the
+  run `running`.
+- **I1** — `research_overview.py:62` passes `state["hypotheses"]` straight to
+  `_summarize_top_hypotheses`, which Elo-ranks the whole pool with no
+  disposition, safety, or claim filter.
+- **I2** — no consumer of `research_overview` in generation or supervisor.
+- **E1** — `full_review`/`simulation_review` schemas are produced; no reader
+  outside `agents/reflection/`.
+- **E5** — five operators (`enhancement`, `simplification`, `combination`,
+  `analogy`, `out_of_box`), selected round-robin by `(index + iteration) % 5`.
+- **E7** — `meta_review` still absent from proximity, literature review, safety.
+- **E8** — novelty grounding still gated on `state["mcp_available"]`
+  (`comprehensive_reflection.py:167`, `deep_verification.py:106`).
+- **E11** — `enable_tool_calling_generation` is set only in tests.
+- **F5** — `performance_assessment` written at `supervisor.py:254`, never read.
+- **J5** — `held_for_review` exists throughout the engine and appears nowhere
+  in `app/`.
+- **D1** — rank and Elo chips still head each row in `ideas_tab.tsx`.
+- **D2, D6** — `TABS = ['details', 'learning', 'overview', 'ideas']`;
+  `normalizeTab` falls back to `details`.
+- **D4, A7** — `askRunQuestion` and `sendRunSteering` have no non-test caller.
+- **D5** — `get_shared_report` returns `list_hypotheses` and `list_evidence`
+  raw.
+- **C1** — `Math.max(seen, phase)` still retains the furthest phase.
+- **C6** — `use_run_stream.ts:76` states outright that connection drops are not
+  surfaced.
+- **N1** — `auth_mode` defaults to `compatibility`.
+- **N2** — `access_token` is still read from the query string
+  (`auth.py:104`) and appended by the client (`runs_http.ts:39`).
+- **N3** — the only `DELETE` route is share revocation.
+- **N5** — upload MIME is still caller-supplied.
+- **N7** — MCP CORS is still `allow_origins=["*"]` (deliberate, and commented).
+- **N24** — one Chromium project in `e2e/playwright.config.ts`.
+- **N25** — `report_render.py:405` still exempts offline-backed runs from the
+  empty-leaderboard block.
+
+Unchanged and unchecked in this pass: most of B, the Low rows of D, H2/H4–H9,
+I4–I8, K3–K9, L4–L15, M-series beyond M3, and N10–N18/N26–N34. Nothing in the
+276 commits suggests they moved, but they were not individually re-read.
 
 ---
 

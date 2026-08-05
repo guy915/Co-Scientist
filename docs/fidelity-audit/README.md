@@ -79,14 +79,19 @@ behavior.
 
 ## Status of the findings
 
-The `St` column in FINDINGS.md marks findings that appear to have moved on `main`
-since the last audit — the always-empty proximity graph, the Jaccard citation
-label, the duplicated "Verified ideas" tile, PubMed query broadening, the dead
-LangGraph path, and the parity ledger.
+The `St` column in FINDINGS.md was re-verified against `main` on **2026-08-05**,
+276 commits past the audited revision. Every Critical and High finding was
+checked against the working tree; Mediums and Lows were checked where a nearby
+commit made staleness likely.
 
-**Those markers are derived from commit subjects and were not re-verified.** The
-audits are two weeks old and `main` has moved 224 commits. Re-check before
-closing anything.
+Fifteen findings closed and eleven partly closed — see
+[the re-verification log](FINDINGS.md#re-verification-2026-08-05), which cites
+the file that decided each verdict and lists what was deliberately not re-read.
+
+One verdict is a trap: **G1 was re-scoped, not fixed.** Contradicted ideas are
+now withheld and merely-unsupported ones publish with an "Unverified" badge, so
+a claim-gate block relabels an idea rather than suppressing it. Confirm that is
+the intended policy before treating the row as closed.
 
 ## Recovering the originals
 
