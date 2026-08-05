@@ -1,6 +1,10 @@
 import {type ReactNode, useEffect, useState} from 'react';
 import {useParams} from 'react-router-dom';
-import {getSharedGoalReport, type Run, type SharedGoalReport} from '@/api/runs';
+import {
+  getSharedGoalReport,
+  type SharedGoalReport,
+  type SharedRun,
+} from '@/api/runs';
 
 const PAGE_CLASSES =
   'mx-auto mb-24 grid w-[min(60rem,calc(100%-2rem))] gap-10 py-10 ' +
@@ -31,12 +35,12 @@ function useSharedReport(token: string) {
 }
 
 // The report headline: the model-generated title, else the raw goal.
-function reportHeadline(run: Run): string {
+function reportHeadline(run: SharedRun): string {
   return run.title || run.research_goal;
 }
 
 // The Run Specifications label for the run's mode.
-function runTypeLabel(run: Run): string {
+function runTypeLabel(run: SharedRun): string {
   return run.run_mode === 'advanced' ? 'Advanced Run' : 'Standard Run';
 }
 

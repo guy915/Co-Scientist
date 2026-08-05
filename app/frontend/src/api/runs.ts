@@ -61,6 +61,7 @@ export type {
   RunWithSummary,
   SafetyDecision,
   SharedGoalReport,
+  SharedRun,
   SupportSpan,
 } from './run_types';
 export {

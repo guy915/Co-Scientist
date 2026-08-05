@@ -224,7 +224,12 @@ export interface Evidence {
   url: string;
   authors: string[];
   year: number | null;
-  abstract: string;
+  /**
+   * Full text of the source. Present on owner-facing reads; the public share
+   * view omits it because attachment evidence stores the private document
+   * body here.
+   */
+  abstract?: string;
   // whether the full source was reachable when evidence was gathered
   available: boolean;
 }
@@ -443,10 +448,21 @@ export interface SafetyDecision {
   resolved_at?: number | null;
 }
 
+/**
+ * The public-safe subset of a run a share exposes: the fields the shared
+ * page renders. The full Run row (configuration, ownership, error state) is
+ * never returned through a share token.
+ */
+export interface SharedRun {
+  research_goal: string;
+  title?: string | null;
+  run_mode?: RunMode;
+}
+
 /** Read-only data available through a public share capability. */
 export interface SharedGoalReport {
   share_id: string;
-  run: Run;
+  run: SharedRun;
   report: Report;
   hypotheses: Hypothesis[];
   evidence: Evidence[];
