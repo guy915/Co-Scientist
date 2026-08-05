@@ -27,6 +27,13 @@ const STAT_GRID_CLASSES =
 const REPORT_LEAD_STAT_CLASSES =
   'cosci-overview-lead-stat mt-1 mb-4 text-cosci-fg';
 
+// The stand-in for a report that has no leaderboard yet. Module scope, not a
+// fresh `[]` per call: this value is a useMemo dependency downstream, and a
+// new array identity on every render defeated both of those memos for any run
+// without a persisted report -- they recomputed on all 6 of 6 renders instead
+// of 1.
+const NO_LEADERBOARD: ReportPayload['leaderboard'] = [];
+
 // Report-backed overview stats, falling back to the live rows while a run is
 // still in flight and has no persisted report yet.
 function overviewReportStats(
@@ -42,7 +49,7 @@ function overviewReportStats(
   if (!report) {
     return {
       overview: undefined,
-      leaderboard: [],
+      leaderboard: NO_LEADERBOARD,
       ideaCount: hypotheses.length,
       matchCount: matches.length,
     };
