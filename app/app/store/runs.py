@@ -34,6 +34,12 @@ from app.store.runs_reconcile import (
     _reconcile_one_run as _reconcile_one_run,
 )
 from app.store.runs_reconcile import (
+    _settle_run_for_failed_task as _settle_run_for_failed_task,
+)
+from app.store.runs_reconcile import (
+    _settle_run_out_of_work as _settle_run_out_of_work,
+)
+from app.store.runs_reconcile import (
     reconcile_interrupted_runs as reconcile_interrupted_runs,
 )
 from app.store.runs_views import (

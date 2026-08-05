@@ -17,6 +17,9 @@ from collections.abc import Iterable, Mapping
 from typing import Any
 
 from app.store.db import _now, _use_conn, connect, transaction
+from app.store.runs_reconcile import (
+    _settle_run_for_failed_task as _settle_run_for_failed_task,
+)
 from app.store.tasks_lifecycle import cancel_run_tasks as cancel_run_tasks
 from app.store.tasks_lifecycle import cancel_task as cancel_task
 from app.store.tasks_lifecycle import (
@@ -440,7 +443,14 @@ def fail_task(
     retryable: bool = True,
     db_path: str | None = None,
 ) -> bool:
-    """Record failure and requeue when the bounded retry budget permits."""
+    """Record failure and requeue when the bounded retry budget permits.
+
+    A failure that spends the task's last attempt (or is permanent) also
+    settles the run when nothing claimable remains: the run transitions
+    to failed and its terminal status event is appended inside this same
+    transaction, so a run can never be left running with no work that
+    could ever advance it (the SSE stream closes on that event).
+    """
     with transaction(db_path) as conn:
         row = conn.execute(
             "SELECT * FROM scientific_tasks WHERE id=? AND status='leased' "
@@ -450,21 +460,20 @@ def fail_task(
         if row is None:
             return False
         task = _decode(row)
-        status = (
-            "queued"
-            if retryable and task.attempt < task.max_attempts
-            else "failed"
-        )
+        retry_left = retryable and task.attempt < task.max_attempts
+        status = "queued" if retry_left else "failed"
         now = _now()
         conn.execute(
             "UPDATE scientific_tasks SET status=?, error=?, lease_owner=NULL, "
             "lease_expires_at=NULL, completed_at=?, updated_at=? WHERE id=?",
-            (
-                status,
-                error,
-                now if status == "failed" else None,
-                now,
-                task_id,
-            ),
+            (status, error, now if status == "failed" else None, now, task_id),
         )
+        if status == "failed":
+            _settle_run_for_failed_task(
+                conn,
+                task.run_id,
+                task.task_type,
+                error,
+                retryable=retryable,
+            )
     return True
