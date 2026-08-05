@@ -7,14 +7,10 @@ consequence. Findings already closed on `main`, and findings that record a
 deliberate local design choice, are not carried here — [FINDINGS.md](FINDINGS.md)
 remains the full register.
 
-**Every item here is decided.** Where a finding admitted more than one
-reasonable resolution, this plan names the one to build; nothing waits on an
-outside answer. Four items cannot be *finished* inside this repository —
-wet-lab validation and the blinded expert panel (stage 12), production SMTP
-(`B8`), and the production half of the MCP shared secret (stage 9). Each says so
-where it appears. Record those as blocked with the reason and keep going; a
-fixture, a sample, or a plausible-looking artifact standing in for absent
-evidence is worse than leaving the item open.
+**Every item here is decided and every item is code.** Where a finding admitted
+more than one reasonable resolution, this plan names the one to build; nothing
+waits on an outside answer, and nothing here needs work outside the repository
+to be called done.
 
 ## Stages
 
@@ -187,8 +183,7 @@ deliberately unwired: their endpoints remain available, and the UI does not grow
 to reach them. Leave those three rows open in FINDINGS.md.
 
 Run deletion (`N3`) is not wiring — it has no endpoint at all and belongs to
-stage 9. The completion email (`B8`) is code-complete and blocked only on
-production SMTP settings; leave it open and note it.
+stage 9.
 
 ---
 
@@ -315,10 +310,9 @@ Independent of everything else and separately shippable. Ordered by exposure:
    control, this is the inner one), `N6` (self-declared audience), `N14`
    (diagnostic disclosure), `N32` (missing security headers).
 
-   The MCP shared secret needs a matching variable set on both Railway services
-   before it takes effect in production. Ship the code with a documented default
-   of "unset means the previous behavior", note the variable in the deployment
-   docs, and leave the production change itself open.
+   Ship the MCP secret so that an unset variable keeps the current behavior, and
+   document it alongside the other MCP env vars in
+   `engine/mcp_server/.env.example` and the deployment docs.
 2. **Data lifecycle:** `N3` (no run/report/document deletion — the only DELETE
    route is share revocation), `N4` (retention and cascade), `N5` (upload MIME
    is caller-supplied, no signature or malware check), `N11`, `N12`.
@@ -384,15 +378,17 @@ itself — leases, heartbeats, idempotency, per-node checkpoints, working resume
 
 ## Stage 12 — Evaluation
 
-**Closes:** L8–L12, L15, J7, K3
+**Closes:** L8, L9, L11, L12, J7, K3
 
-Mostly evidence acquisition, not code: the GPQA / Elo-correctness concordance
-harness (`L8`), a controlled multi-budget scaling curve (`L9`), strategy and tool
-ablations (`L11`), a blinded expert panel (`L10`), evaluation artifacts with full
-provenance (`L12`), and an expanded adversarial safety set (`J7`).
+Build the GPQA / Elo-correctness concordance harness (`L8`), a controlled
+multi-budget scaling curve across the run tiers (`L9`), strategy and tool
+ablations (`L11`), and evaluation artifacts carrying full source, env, model,
+prompt, seed, and cost provenance — the golden run currently reads a secret from
+an absolute developer path (`L12`). Expand the adversarial safety set beyond its
+13 near-tautological items (`J7`), and verify novelty claims against a broad
+current corpus rather than asserting them (`K3`).
 
-**`L15` (wet-lab validation) cannot be closed in this repository** and stays
-explicitly open. Fixtures and anecdotes are not substitutes for it.
+These are harnesses that produce measurements. Report whatever they measure.
 
 ---
 

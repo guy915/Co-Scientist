@@ -488,6 +488,20 @@ The local `product-surface-and-ux.md` also renders the fourth tab plural
 
 ---
 
+## Open, but not code
+
+Three findings stay open and are deliberately absent from [PLAN.md](PLAN.md),
+because no amount of work in this repository closes them. They are the
+repository owner's to act on, not an implementer's.
+
+| ID | What it needs |
+|---|---|
+| `L15` | Wet-lab or case-study reproduction. External scientific work. |
+| `L10` | A blinded expert panel. The harness code exists; what is missing is recruited reviewers producing real ratings. |
+| `B8` | Production SMTP settings. The completion email is code-complete; `SMTP_*` and `PUBLIC_APP_URL` are unset on the deployment. |
+
+---
+
 ## Evidence boundaries — unknowable from public sources
 
 These bound what "1:1" can mean. **Do not convert any of these into a code task
