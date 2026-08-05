@@ -66,19 +66,19 @@ change made staleness likely. A blank `St` on a Medium/Low row therefore means
 | B6 | Low | ext | Connector toggles (PubMed / Web / Lab papers) — Google's agent selects sources, naming them in plan prose | = | 20:F-HOME-06, 21:B5 |
 | B7 | Low | missing | No credit / charge / refund / account-ledger concept | | 12:B05, 20:OP-003 |
 | B8 | Low | partial | Completion email is implemented but delivery unproven; SMTP unset in production | | 12:B06, 20:F-INTERVIEW-10/OP-004 |
-| B9 | Low | partial | Status vocabulary is a superset (extra `synthesizing`/`blocked`, `aborted`→`cancelled`); failed/cancelled/blocked runs still render full report tabs | | 12:B10, 20:F-STATE-03/F-RUN-07, 21:C4 |
+| B9 | Low | partial | Status vocabulary is a superset (extra `synthesizing`/`blocked`, `aborted`→`cancelled`); failed/cancelled/blocked runs still render full report tabs | ✓ | 12:B10, 20:F-STATE-03/F-RUN-07, 21:C4 |
 | B10 | Low | partial | Pause/resume/cancel exist in the backend with no UI — and are not evidenced for Google either | | 12:B09, 20:U14 |
 
 ## C. Active run and progress
 
 | ID | Sev | Class | Gap | St | Src |
 |---|---|---|---|---|---|
-| C1 | Medium | incorrect | Progress moves **backward**: fixed phase constants let deep verification report 81–84 then proximity 75–85, and the home card retains the furthest phase with `Math.max` | | 12:C06/C07, 20:F-RUN-06/EB-062, 21:R36 |
+| C1 | Medium | incorrect | Progress moves **backward**: fixed phase constants let deep verification report 81–84 then proximity 75–85, and the home card retains the furthest phase with `Math.max` | ✓ | 12:C06/C07, 20:F-RUN-06/EB-062, 21:R36 |
 | C2 | Medium | incorrect | "Time remaining" is permanently "Estimating…"; where computed it is naive linear extrapolation over uneven tasks | | 12:C02, 20:F-RUN-02, 21:R36 |
 | C3 | Medium | partial | Progress bar permanently indeterminate ("Progress pending") vs Google's determinate bar | | 12:C01, 20:F-RUN-01, 21:R36 |
 | C4 | Medium | divergent | Activity log exposes internal stage names and raw task strings ("Engine Node Generate"); no per-item `EXECUTING` / `-- : --` status | | 12:C05/C08, 20:F-RUN-03, 21:R36 |
 | C5 | Medium | divergent | Report and ideas unviewable mid-run — the tab bar is suppressed until the run settles | = | 21:R37 |
-| C6 | Medium | missing | No live/reconnecting/stale indicator; SSE reconnects silently so a frozen page looks healthy | | 20:F-RUN-05 |
+| C6 | Medium | missing | No live/reconnecting/stale indicator; SSE reconnects silently so a frozen page looks healthy | ✓ | 20:F-RUN-05 |
 | C7 | Low | partial | Tiles differ from Google's exact three (Time remaining / Sources Analyzed / Ideas explored) | = | 12:C03/C04, 20:F-RUN-01, 21:L6 |
 | C8 | Low | ext | Developer diagnostics (Logs popover, Offline chip) inside the research shell | = | 12:C09, 20:F-STATE-05/F-STATE-06 |
 
@@ -103,7 +103,7 @@ change made staleness likely. A blank `St` on a Medium/Low row therefore means
 | D15 | Medium | incorrect | "Verified ideas" tile displayed the same number as "High Potential" | ✓ | 12:D04, 20:F-SUMMARY-02, 21:R29 |
 | D16 | Medium | ? | NotebookLM handoff absent — **contested**: current Google Help lists it, 21 §4 argues it belongs to *Literature Insights*, not this product | ? | 12:D13/M18, 20:OP-005, 21:§4 |
 | D17 | Low | partial | Tab nav labels contradict the documents' own `<h2>` headings (the "Learning" tab is headed "Knowledge Base") | | 12:M17, 20:F-SPEC-01, 21:R43 |
-| D18 | Low | partial | `Evidence.available` never surfaced, so unreachable sources look accessed | | 20:F-KB-05, 21:G8 |
+| D18 | Low | partial | `Evidence.available` never surfaced, so unreachable sources look accessed | ✓ | 20:F-KB-05, 21:G8 |
 | D19 | Low | partial | Match history, opponents, Elo deltas, and debate transcripts are not inspectable | | 12:D23, 20:F-IDEAS-06, 21:D7 |
 | D20 | Low | partial | Lineage is text-only ("evolved from an earlier hypothesis"); the parent is never named or linked and there is no tree | | 20:F-IDEAS-03, 21:D8 |
 | D21 | Low | incorrect | Origin labels can leak raw engine keys (`generate`/`evolve` vs the mapped `generation`/`evolution`) | | 20:F-IDEAS-11 |
@@ -155,6 +155,7 @@ change made staleness likely. A blank `St` on a Medium/Low row therefore means
 | F11 | Low | divergent | Termination is iteration budget / convergence / LLM-call budget, not the paper's `MaxIdeas` and `MaxMatchesPerIdea` | | 12:F06, 20:EB-011, 21:F6 |
 | F12 | Low | note | Dead termination reasons (`CANCELLED`/`SAFETY`/`MAX_TASKS`/`WALL_CLOCK`) exist but their state keys are never written | | 21:F8 |
 | F13 | Low | note | The compiled LangGraph was built on every bootstrap but never invoked for real runs | ✓ | 20:EB-007, 21:R54 |
+| F14 | Low | note | A queued task whose dependency failed (without `allow_failed_dependencies`) is not claimable yet still blocks run settlement and keeps the cohort polling — a dependency livelock; settlement conservatively treats queued as claimable | | observed during F1 fix, 2026-08-05 |
 
 ## G. Retrieval, grounding, citations
 
@@ -170,7 +171,7 @@ change made staleness likely. A blank `St` on a Medium/Low row therefore means
 | G8 | Medium | incorrect | Contradiction insights read nonexistent `claim_text`/`claim_id` instead of the persisted `claim`, producing blank untraceable content | ✓ | 20:EB-031 |
 | G9 | Medium | partial | Q&A omits evidence passages yet requests citations; unsupported sources enter context and the offline answer ignores the question | | 20:EB-032 |
 | G10 | Medium | partial | Literature is gathered once and reused; full/simulation/evolution/ranking perform no live search | | 12:G09, 21:E10 |
-| G11 | Medium | incorrect | Ungrounded runs are not conspicuously marked — a literature failure falls back to latent model knowledge and the report still reads categorically | | 12:G15/G23 |
+| G11 | Medium | incorrect | Ungrounded runs are not conspicuously marked — a literature failure falls back to latent model knowledge and the report still reads categorically | ✓ | 12:G15/G23 |
 | G12 | Low | partial | PMIDs/DOIs are captured but never dereferenced; `available` means only "URL string non-empty" | | 12:G14, 20:EB-027, 21:G8 |
 | G13 | Low | missing | AlphaFold and other specialized models absent (Google's evidence for this is qualitative only) | | 12:G05, 20:EB-023, 21:G10 |
 | G14 | Low | partial | No durable structured fact/contradiction knowledge base; entity extraction is regex, not NER | | 12:G22, 21:G4 |
@@ -242,7 +243,7 @@ change made staleness likely. A blank `St` on a Medium/Low row therefore means
 | L4 | Medium | missing | No tracing (langsmith installed, never configured), no OTel/Prometheus/Sentry | | 12:L09, 21:R35 |
 | L5 | Medium | missing | No per-agent latency; `phase_times` has exactly one producer | | 21:R35 |
 | L6 | Medium | partial | `/health` is store-reachability only — a wedged run, failed task, stalled worker, or full disk all report `healthy` | | 21:R35 |
-| L7 | Medium | partial | Eight schemas silently degrade to empty structures after 5 failed attempts, visible only as a WARNING | | 21:R40 |
+| L7 | Medium | partial | Eight schemas silently degrade to empty structures after 5 failed attempts, visible only as a WARNING | ✓ | 21:R40 |
 | L8 | Medium | missing | No GPQA / Elo-vs-expert-correctness concordance harness | | 12:L03, 20:EB-064, 21:R41 |
 | L9 | Medium | missing | No controlled multi-budget test-time-scaling curve; adjustable budgets do not prove scaling | | 12:L02, 20:EB-065, 21:L1 |
 | L10 | Medium | missing | No blinded expert panel artifact (code exists, no recruited/rated panel) | | 12:L12, 20:EB-066 |
