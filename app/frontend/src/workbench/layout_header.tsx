@@ -2,7 +2,7 @@ import {type ReactNode, type RefObject} from 'react';
 import {Link} from 'react-router-dom';
 import {Icon} from '@/components/icon';
 import {isModifiedClick} from '@/lib/modified_click';
-import {useAudience} from './audience_context';
+import {type Audience, useAudience} from './audience_context';
 import {GoogleLabsIcon} from './components/google_labs_icon';
 import {TruncatedLabel} from './components/truncated_label';
 import {DiagnosticsControl} from './layout_diagnostics';
@@ -13,14 +13,33 @@ import {NAV_ICON_CLASSES, ShellPopover} from './layout_primitives';
 import {SystemStatusIndicator} from './layout_status';
 import {tooltipClassNames} from './tooltip';
 
+// The shape the three header controls share: an open flag, a toggle request,
+// and the shell's popover wrapper.
+type HeaderControl = (props: {
+  open: boolean;
+  onToggle: () => void;
+  renderPopover: (children: ReactNode, className: string) => ReactNode;
+}) => ReactNode;
+
 // The single audience-specific header control, which REPLACES the Logs
 // button rather than sitting beside it: the Google team gets a personal note,
 // SBI/UCD pilots a feedback form, and the general audience the diagnostics
-// Logs popover. Only one is shown at a time, chosen by audience -- so a pilot
-// sees Feedback where a general user sees Logs, never both. The team/pilot
-// controls sit on the shell's 'audience' popover slot and Logs on its own
-// 'logs' slot; the shell's single-open-panel rule keeps them mutually
-// exclusive with every other header popover.
+// Logs popover. One entry per audience, so exactly one control is shown --
+// a pilot sees Feedback where a general user sees Logs, never both -- and the
+// table is keyed by Audience so a new audience is a compile error here rather
+// than a silent fallthrough to Logs. The team/pilot controls sit on the
+// shell's 'audience' popover slot and Logs on its own 'logs' slot; the shell's
+// single-open-panel rule keeps them mutually exclusive with every other
+// header popover.
+const AUDIENCE_CONTROLS: Record<
+  Audience,
+  {Control: HeaderControl; panel: ShellPanel}
+> = {
+  general: {Control: DiagnosticsControl, panel: 'logs'},
+  google: {Control: GoogleTeamControl, panel: 'audience'},
+  sbi_ucd: {Control: PilotControl, panel: 'audience'},
+};
+
 function AudienceHeaderControl({
   activePanel,
   onTogglePanel,
@@ -28,33 +47,17 @@ function AudienceHeaderControl({
   activePanel: ShellPanel | null;
   onTogglePanel: (panel: ShellPanel) => void;
 }) {
+  // An unanswered affiliation question reads as the plain general workspace,
+  // the same as everywhere else the audience is consumed.
   const {audience} = useAudience();
-  const renderPopover = (children: ReactNode, className: string) => (
-    <ShellPopover className={className}>{children}</ShellPopover>
-  );
-  if (audience === 'google') {
-    return (
-      <GoogleTeamControl
-        open={activePanel === 'audience'}
-        onToggle={() => onTogglePanel('audience')}
-        renderPopover={renderPopover}
-      />
-    );
-  }
-  if (audience === 'sbi_ucd') {
-    return (
-      <PilotControl
-        open={activePanel === 'audience'}
-        onToggle={() => onTogglePanel('audience')}
-        renderPopover={renderPopover}
-      />
-    );
-  }
+  const {Control, panel} = AUDIENCE_CONTROLS[audience ?? 'general'];
   return (
-    <DiagnosticsControl
-      open={activePanel === 'logs'}
-      onToggle={() => onTogglePanel('logs')}
-      renderPopover={renderPopover}
+    <Control
+      open={activePanel === panel}
+      onToggle={() => onTogglePanel(panel)}
+      renderPopover={(children, className) => (
+        <ShellPopover className={className}>{children}</ShellPopover>
+      )}
     />
   );
 }

@@ -2,6 +2,7 @@ import {useEffect, useMemo, useRef, useState, type ReactNode} from 'react';
 import {deleteAppLogs} from '@/api/logs';
 import {copyText} from '@/lib/clipboard';
 import {joinClasses} from './classes';
+import {useResetTimer} from './hooks/use_reset_timer';
 import {DiagnosticChips} from './layout_diagnostics_chips';
 import {
   summarizeDiagnosticEntries,
@@ -143,32 +144,21 @@ interface DiagnosticsControlProps {
 const COPIED_RESET_MS = 2_000;
 
 // Owns the transient "Copied" label: set it on a successful copy, and let
-// it expire on its own. The timer is cancelled on unmount and before each
-// re-set, so a rapid second copy restarts the window rather than being
-// cleared by the first one's pending timeout.
+// it expire on its own. useResetTimer supplies the unmount cleanup and the
+// replace-on-reschedule that keeps a rapid second copy from being cleared by
+// the first one's pending timeout.
 function useCopiedFlag() {
   const [copied, setCopied] = useState(false);
-  const timerRef = useRef<number | null>(null);
-
-  function cancel() {
-    if (timerRef.current !== null) window.clearTimeout(timerRef.current);
-    timerRef.current = null;
-  }
-
-  useEffect(() => cancel, []);
+  const timer = useResetTimer();
 
   return {
     copied,
     markCopied() {
-      cancel();
       setCopied(true);
-      timerRef.current = window.setTimeout(
-        () => setCopied(false),
-        COPIED_RESET_MS,
-      );
+      timer.schedule(() => setCopied(false), COPIED_RESET_MS);
     },
     resetCopied() {
-      cancel();
+      timer.cancel();
       setCopied(false);
     },
   };

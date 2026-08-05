@@ -1,5 +1,6 @@
-import {useEffect, useRef, useState} from 'react';
+import {useState} from 'react';
 import {reportAppLogs} from '@/api/logs';
+import {useResetTimer} from './hooks/use_reset_timer';
 import type {
   DiagnosticCounts,
   DiagnosticLogEntry,
@@ -48,22 +49,11 @@ export interface ReportSubject {
  */
 export function useLogReport() {
   const [status, setStatus] = useState<ReportStatus>('idle');
-  const timerRef = useRef<number | null>(null);
-
-  function cancel() {
-    if (timerRef.current !== null) window.clearTimeout(timerRef.current);
-    timerRef.current = null;
-  }
-
-  useEffect(() => cancel, []);
+  const timer = useResetTimer();
 
   function settle(outcome: ReportStatus) {
     setStatus(outcome);
-    cancel();
-    timerRef.current = window.setTimeout(
-      () => setStatus('idle'),
-      OUTCOME_RESET_MS,
-    );
+    timer.schedule(() => setStatus('idle'), OUTCOME_RESET_MS);
   }
 
   async function send(subject: ReportSubject) {
@@ -71,7 +61,9 @@ export function useLogReport() {
     // window twice, which is the one thing the rate limit is there to
     // catch; catching it here keeps that budget for real reports.
     if (status === 'sending') return;
-    cancel();
+    // 'sending' is not a transient label, so any pending expiry from a
+    // previous attempt is dropped rather than left to clear it.
+    timer.cancel();
     setStatus('sending');
     try {
       await reportAppLogs(

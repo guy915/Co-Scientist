@@ -183,7 +183,7 @@ export function NavRail({
       />
       <div className={nav.bottom}>
         <RailSettingsControl
-          navOpen={navOpen}
+          nav={nav}
           activePanel={activePanel}
           onTogglePanel={onTogglePanel}
           onOpenSettings={onOpenSettings}
@@ -219,22 +219,22 @@ function SettingsPopoverMenu({
 }
 
 // The Settings control at the bottom of the rail: the trigger button plus
-// its popover menu (Appearance/Model/Help).
+// its popover menu (Appearance/Model/Help). Takes the resolved class bundle
+// rather than `navOpen`, so the open/collapsed lookup happens once, in
+// NavRail, and cannot disagree with the rail it sits in.
 function RailSettingsControl({
-  navOpen,
+  nav,
   activePanel,
   onTogglePanel,
   onOpenSettings,
   settingsControlRef,
 }: {
-  navOpen: boolean;
+  nav: NavRailVariant;
   activePanel: ShellPanel | null;
   onTogglePanel: (panel: ShellPanel) => void;
   onOpenSettings: (section: SettingsSection) => void;
   settingsControlRef: RefObject<HTMLDivElement | null>;
 }) {
-  const nav = navOpen ? NAV_RAIL_VARIANTS.open : NAV_RAIL_VARIANTS.collapsed;
-
   return (
     <div ref={settingsControlRef} className={nav.settingsControl}>
       <NavActionButton
