@@ -130,6 +130,29 @@ def corpus_from_evidence(
     ]
 
 
+def _context_source(
+    document: CorpusDocument, excerpt_chars: int
+) -> dict[str, Any]:
+    """Format one private document as a bounded engine evidence source.
+
+    The excerpt is cut once and reused for both the display line and the
+    structured payload, so the two can never disagree about how much of the
+    document the engine was actually shown.
+    """
+    excerpt = document.text[:excerpt_chars]
+    return {
+        "display": f"Private scientist source '{document.title}': {excerpt}",
+        "tool_id": "private_corpus",
+        "source_type": "private_document",
+        "data": {
+            "document_id": document.doc_id,
+            "title": document.title,
+            "excerpt": excerpt,
+            "private": True,
+        },
+    }
+
+
 def engine_context_sources(
     evidence_rows: list[dict[str, Any]],
     research_goal: str,
@@ -150,20 +173,4 @@ def engine_context_sources(
         selected = sorted(documents, key=lambda item: item.doc_id)[
             :max_documents
         ]
-    return [
-        {
-            "display": (
-                f"Private scientist source '{document.title}': "
-                f"{document.text[:excerpt_chars]}"
-            ),
-            "tool_id": "private_corpus",
-            "source_type": "private_document",
-            "data": {
-                "document_id": document.doc_id,
-                "title": document.title,
-                "excerpt": document.text[:excerpt_chars],
-                "private": True,
-            },
-        }
-        for document in selected
-    ]
+    return [_context_source(document, excerpt_chars) for document in selected]

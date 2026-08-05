@@ -55,8 +55,9 @@ async def get_shared_report(token: str) -> dict[str, Any]:
     share = store.resolve_report_share(token)
     if share is None:
         raise HTTPException(status_code=404, detail="share not found")
-    run = store.get_run(str(share["run_id"]))
-    report = store.get_latest_report(str(share["run_id"]))
+    shared_run_id = str(share["run_id"])
+    run = store.get_run(shared_run_id)
+    report = store.get_latest_report(shared_run_id)
     if run is None or report is None:
         raise HTTPException(status_code=404, detail="Goal Report not found")
     return {

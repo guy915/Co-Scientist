@@ -83,10 +83,10 @@ _MAX_TOKENS = 6000
 
 def _render_passages(passages: Sequence[EvidencePassage]) -> str:
     """Render candidate passages as an id-tagged, numbered prompt block."""
-    lines = []
-    for i, p in enumerate(passages, start=1):
-        lines.append(f"[{i}] evidence_id={p.evidence_id}\n{p.text}")
-    return "\n\n".join(lines)
+    return "\n\n".join(
+        f"[{i}] evidence_id={p.evidence_id}\n{p.text}"
+        for i, p in enumerate(passages, start=1)
+    )
 
 
 def _coerce_pairs(items: Any) -> tuple[tuple[str, str], ...]:

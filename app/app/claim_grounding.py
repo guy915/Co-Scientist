@@ -62,6 +62,7 @@ from app.claim_grounding_assess import (
     assess_hypothesis_claims as assess_hypothesis_claims,
 )
 from app.claims import (
+    _ASSESSOR_DETERMINISTIC,
     Assessor,
     ClaimAssessment,
     EvidencePassage,
@@ -86,7 +87,7 @@ def build_assessor(mode: str, model: str) -> tuple[Assessor, str]:
         from app.claim_verifier import make_llm_assessor
 
         return make_llm_assessor(model)
-    return deterministic_assessor, "deterministic-v1"
+    return deterministic_assessor, _ASSESSOR_DETERMINISTIC
 
 
 def evidence_passages(

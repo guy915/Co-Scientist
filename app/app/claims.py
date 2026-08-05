@@ -39,6 +39,7 @@ from collections.abc import Sequence
 
 from app.claims_assessor import (
     _DEFAULT_RETRIEVAL_TOP_K,
+    _SENTENCE_SPLIT,
 )
 
 # --- Retrieval and the deterministic assessor -------------------------------
@@ -109,7 +110,6 @@ from app.claims_gate import (
 
 # A claim must have some substance; drop fragments below this word count.
 _MIN_CLAIM_WORDS = 4
-_SENTENCE_SPLIT = re.compile(r"(?<=[.!?])\s+")
 
 
 def extract_atomic_claims(text: str) -> list[str]:
