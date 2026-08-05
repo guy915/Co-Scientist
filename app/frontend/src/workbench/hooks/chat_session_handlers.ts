@@ -1,4 +1,4 @@
-import {type Dispatch, type FormEvent, type SetStateAction} from 'react';
+import {type FormEvent} from 'react';
 import {
   addInterviewTurn,
   createInterview,
@@ -7,46 +7,40 @@ import {
   type Interview,
 } from '@/api/runs';
 import {type InferredRunSpec} from '../run_spec';
-import {type Audience} from '../audience_context';
 import {copyText} from '@/lib/clipboard';
 import {type ChatEntry} from '../pages/chat_timeline_cards';
-import {type ToastState} from './use_toast';
 import {announceChatsChanged} from './chat_history_context';
 import {appendChatMessage, emitDiagnosticEvent} from './chat_session_helpers';
 import {promoteDraftToRun} from './chat_session_start_run';
 import {applyInterview, type TranscriptSink} from './chat_session_transcript';
-import {
-  type ChatSessionDeps,
-  type DraftIntro,
-  type HandlerDeps,
-  type SpecStage,
-} from './chat_session_types';
+import {type ChatSessionDeps, type HandlerDeps} from './chat_session_types';
 import {type ComposerLog, type RunSpecLifecycle} from './chat_session_state';
 
-interface SubmitComposerDeps {
+// The handler-bag slice a composer submit reads, plus the two values only the
+// submit event itself supplies. Projected off HandlerDeps rather than
+// restated, so a field that changes shape there cannot drift out of sync here.
+type SubmitComposerDeps = Pick<
+  HandlerDeps,
+  | 'input'
+  | 'interview'
+  | 'audience'
+  | 'setInput'
+  | 'setError'
+  | 'setToast'
+  | 'setMessages'
+  | 'setInterview'
+  | 'onChatStarted'
+  | 'setIsStarting'
+  | 'setIsAwaitingAgent'
+  | 'setAgentReasoning'
+  | 'setPendingAttachments'
+  | 'setDraft'
+  | 'setConfirmed'
+  | 'stageDraftSpec'
+> & {
   e: FormEvent<HTMLFormElement>;
   files: File[];
-  input: string;
-  interview: Interview | null;
-  audience: Audience | null;
-  setInput: (value: string) => void;
-  setError: (message: string | null) => void;
-  setToast: (value: string | ToastState | null) => void;
-  setMessages: Dispatch<SetStateAction<ChatEntry[]>>;
-  setInterview: (interview: Interview | null) => void;
-  onChatStarted: (chatId: string) => void;
-  setIsStarting: (value: boolean) => void;
-  setIsAwaitingAgent: (value: boolean) => void;
-  setAgentReasoning: Dispatch<SetStateAction<string>>;
-  setPendingAttachments: Dispatch<SetStateAction<File[]>>;
-  setDraft: (stage: SpecStage | null) => void;
-  setConfirmed: (stage: SpecStage | null) => void;
-  stageDraftSpec: (
-    spec: InferredRunSpec,
-    createdAt?: number,
-    intro?: DraftIntro,
-  ) => void;
-}
+};
 
 // Applies the Agent's reply for one interview turn to the chat log.
 //
@@ -139,27 +133,32 @@ async function submitComposerMessage(deps: SubmitComposerDeps): Promise<void> {
   }
 }
 
+/** The session slice a "back to an empty conversation" transition writes. */
+type ClearConversationDeps = Pick<
+  HandlerDeps,
+  'setInput' | 'clearSessionState' | 'setMessages' | 'setError'
+>;
+
+// Empties the whole conversation -- every spec/session stage, the message log,
+// and any error -- leaving the composer holding `input`. Both ways back to a
+// blank workspace (cancelling a draft, starting a new chat from a copied
+// prompt) are this same wipe; only the composer's parting text and the toast
+// they leave behind differ.
+function clearConversation(deps: ClearConversationDeps, input: string): void {
+  deps.clearSessionState();
+  deps.setMessages([]);
+  deps.setError(null);
+  deps.setInput(input);
+}
+
 // Cancels the draft and clears the whole conversation (not just the spec),
 // returning the workspace to its empty state. Takes its dependencies as
 // arguments instead of closing over hook state.
-function cancelDraftSpec({
-  setInput,
-  clearSessionState,
-  setMessages,
-  setError,
-  setToast,
-}: {
-  setInput: (value: string) => void;
-  clearSessionState: () => void;
-  setMessages: (value: ChatEntry[]) => void;
-  setError: (message: string | null) => void;
-  setToast: (value: string | ToastState | null) => void;
-}) {
-  setInput('');
-  clearSessionState();
-  setMessages([]);
-  setError(null);
-  setToast('The session was canceled');
+function cancelDraftSpec(
+  deps: ClearConversationDeps & Pick<HandlerDeps, 'setToast'>,
+) {
+  clearConversation(deps, '');
+  deps.setToast('The session was canceled');
   emitDiagnosticEvent({
     stage: 'LIFECYCLE',
     payload: {event: 'draft_cancelled'},
@@ -173,10 +172,8 @@ function editPlan({
   spec,
   stageDraftSpec,
   focusComposer,
-}: {
+}: Pick<HandlerDeps, 'stageDraftSpec' | 'focusComposer'> & {
   spec: InferredRunSpec;
-  stageDraftSpec: (spec: InferredRunSpec, createdAt?: number) => void;
-  focusComposer: () => void;
 }) {
   stageDraftSpec(spec);
   focusComposer();
@@ -189,27 +186,24 @@ function editPlan({
 // Copies a message's prompt text and offers a "Start new chat" toast action
 // that clears the session and prefills the composer with it. Takes its
 // dependencies as arguments instead of closing over hook state.
-interface CopyMessagePromptDeps {
-  message: ChatEntry;
-  clearSessionState: () => void;
-  setMessages: (value: ChatEntry[]) => void;
-  setError: (message: string | null) => void;
-  setToast: (value: string | ToastState | null) => void;
-  setInput: (value: string) => void;
-  focusComposer: () => void;
-}
+type CopyMessagePromptDeps = ClearConversationDeps &
+  Pick<HandlerDeps, 'setToast' | 'focusComposer'> & {message: ChatEntry};
 
 async function copyMessagePrompt({
   message,
+  setInput,
   clearSessionState,
   setMessages,
   setError,
   setToast,
-  setInput,
   focusComposer,
 }: CopyMessagePromptDeps): Promise<void> {
-  await copyText(message.content);
   const promptText = message.content;
+  await copyText(promptText);
+  // Named apart from the deps bag so the long-lived toast action below holds
+  // only the four setters it uses, rather than pinning the whole handler bag
+  // (and with it the staged attachment Files) for as long as the toast shows.
+  const clear = {setInput, clearSessionState, setMessages, setError};
   // Copy is a pure utility (matching the reference): it does not stage a
   // draft. The toast offers "Start new chat", which clears the session and
   // prefills the composer with the copied prompt.
@@ -218,11 +212,8 @@ async function copyMessagePrompt({
     action: {
       label: 'Start new chat',
       onClick: () => {
-        clearSessionState();
-        setMessages([]);
-        setError(null);
+        clearConversation(clear, promptText);
         setToast(null);
-        setInput(promptText);
         focusComposer();
       },
     },

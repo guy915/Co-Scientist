@@ -81,6 +81,14 @@ export interface ComposerAttachment {
   previewUrl: string | null;
 }
 
+// Releases an attachment's preview object URL, if it has one. Every path that
+// drops an attachment (removing one, clearing them all, unmounting) goes
+// through here, since a preview left un-revoked leaks its blob for the life of
+// the document.
+function revokePreview(attachment: ComposerAttachment): void {
+  if (attachment.previewUrl) URL.revokeObjectURL(attachment.previewUrl);
+}
+
 // Revokes every remaining preview object URL on unmount, via a ref mirroring
 // `attachments`, so navigating away doesn't leak blob URLs for attachments
 // that were never explicitly removed.
@@ -95,9 +103,7 @@ function useAttachmentPreviewCleanup(attachments: ComposerAttachment[]) {
 
   useEffect(() => {
     return () => {
-      attachmentRef.current.forEach(attachment => {
-        if (attachment.previewUrl) URL.revokeObjectURL(attachment.previewUrl);
-      });
+      attachmentRef.current.forEach(revokePreview);
     };
   }, []);
 }
@@ -126,16 +132,14 @@ export function useComposerAttachments() {
   function removeAttachment(id: string) {
     setAttachments(current => {
       const attachment = current.find(item => item.id === id);
-      if (attachment?.previewUrl) URL.revokeObjectURL(attachment.previewUrl);
+      if (attachment) revokePreview(attachment);
       return current.filter(item => item.id !== id);
     });
   }
 
   function clearAttachments() {
     setAttachments(current => {
-      current.forEach(attachment => {
-        if (attachment.previewUrl) URL.revokeObjectURL(attachment.previewUrl);
-      });
+      current.forEach(revokePreview);
       return [];
     });
   }
