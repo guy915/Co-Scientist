@@ -13,7 +13,7 @@ remains the full register.
 |---|---|---|
 | 1 | Five correctness bugs | medium |
 | 2 | Stop presenting degraded state as normal | small |
-| 3 | Remove controls that report success for nothing | small |
+| 3 | Make every control do what it claims | medium |
 | 4 | Wire what is already built | small |
 | 5 | Engine reasoning | large |
 | 6 | Durable state and safety | medium |
@@ -104,22 +104,57 @@ is exactly the kind of confident-but-false signal this stage exists to remove.
 
 ---
 
-## Stage 3 — Remove controls that report success for nothing
+## Stage 3 — Make every control do what it claims
 
-**Closes:** M11, A14 (partial), A16, A17
+**Closes:** M11, A16, A17
 
-Mostly deletions.
-
-- **`M11`** — Settings accepts a DeepSeek API key, saves it, and confirms
-  success. It goes to `localStorage` and nothing reads it. Remove the field; the
-  panel already discloses that runs use the deployment's provider.
-- **`A14`** — remove the decorative lock icon from the composer. It implies
-  encryption that does not exist. (Scope is the icon; the surrounding copy is
-  settled.)
+- **`M11` — finish bring-your-own-key.** Settings accepts a provider API key,
+  saves it, and confirms success; `lib/api_key.ts` stores it under
+  `cosci-api-key` and nothing reads it. The module's own header records the
+  intent — "runs use it only once the backend grows a bring-your-own-key path."
+  Build that path; see below for what it involves.
 - **`A17`** — disable the home composer once a run starts; it currently keeps
   posting turns into a completed interview.
 - **`A16`** — signal the keyless/offline interview fallback instead of silently
   serving a canned three-question script.
+
+### `M11` in detail
+
+The durable task model decides the shape of this. A run's tasks each build their
+own `HypothesisGenerator` (`engine_adapter/opts.py::_build_generator`), lease
+independently, and may execute in a different process from the request that
+created the run — so a key held only for that request is gone by the time the
+run does any work. **The key has to be persisted for the run's lifetime**, which
+makes the storage design part of the feature rather than a follow-up.
+
+1. **Transport.** Send the key on run creation and on the interview/Q&A paths,
+   in a request header. Not a query parameter — `N2` is removing the one that
+   already exists, and a key in a URL lands in history, proxy logs, and
+   referrers.
+2. **Storage.** Persist encrypted at rest, keyed to the owning `client_id` or
+   researcher session, scoped to the run, and deleted when the run's data is
+   (which is `N3`, stage 9 — sequence accordingly). Plain text in SQLite is not
+   acceptable for a user-supplied credential.
+3. **Use.** Thread it through `_generator_kwargs` to the engine, and from there
+   to the per-call `api_key` argument on the LiteLLM completion. It must
+   override the deployment credential for that run only, never process-wide.
+4. **Pair it with a provider.** The field is labelled DeepSeek, the defaults are
+   `deepseek/*`, and production runs `dashscope/*`. A key without a matching
+   provider gets sent to the wrong endpoint and fails opaquely. Either constrain
+   the field to the deployment's configured provider or let the user choose one,
+   and validate the pair before accepting it.
+5. **Contain it.** Never log it (check `logging_setup.py` and the MCP tool
+   logging wrapper), never return it from `/config`, `/status`, or any run
+   payload, and redact it from checkpoint blobs — `store/checkpoints.py`
+   serializes run state wholesale.
+6. **Fail legibly.** A rejected or expired user key must surface as that, not as
+   a generic run failure.
+
+Note that `lib/api_key.ts` keeps the key in `localStorage`, which is readable by
+any script running on the page. That is a normal choice for this kind of field
+and the alternative (asking for the key every session) is worse UX — but it
+means an XSS anywhere in the app exposes the key, so treat it as one more reason
+to keep the value out of logs, payloads, and checkpoints.
 
 ---
 
