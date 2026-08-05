@@ -217,6 +217,12 @@ def _canonical_engine_payload(
     builder = _PAYLOAD_BUILDERS.get(node_type)
     if builder is not None:
         payload.update(builder(state))
+    # Enhancement nodes served a placeholder fallback record their schema
+    # names in state; carrying them on every later node event surfaces the
+    # degradation from the first commit that holds it (L7).
+    degraded = [str(name) for name in state.get("degraded_nodes") or []]
+    if degraded:
+        payload["degraded"] = degraded
     return payload
 
 

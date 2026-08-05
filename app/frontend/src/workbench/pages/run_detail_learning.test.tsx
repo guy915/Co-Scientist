@@ -160,6 +160,56 @@ describe('LearningView section title capitalization', () => {
   });
 });
 
+describe('LearningView unreachable sources (D18)', () => {
+  const unreachable = {
+    id: 'ev-gone',
+    title: 'a source that never resolved',
+    source: 'PubMed',
+    url: 'https://example.test/gone',
+    authors: ['A. Researcher'],
+    year: 2025,
+    abstract: '',
+    available: false,
+  };
+
+  it('labels an unavailable reference instead of offering to open it', () => {
+    render(<LearningView goal="goal" evidence={[unreachable]} />);
+
+    const pill = screen.getByText('Unavailable');
+    expect(pill).toBeInTheDocument();
+    expect(pill).toHaveAttribute(
+      'title',
+      'The full source could not be reached when this evidence was gathered',
+    );
+    // The row still carries a url, but an unreachable source must not render
+    // the normal "Open" action beside it.
+    expect(screen.queryByRole('link', {name: 'Open'})).toBeNull();
+  });
+
+  it('keeps the Open action for a reachable reference', () => {
+    render(
+      <LearningView
+        goal="goal"
+        evidence={[{...unreachable, available: true}]}
+      />,
+    );
+
+    expect(screen.queryByText('Unavailable')).toBeNull();
+    expect(screen.getByRole('link', {name: 'Open'})).toBeInTheDocument();
+  });
+
+  it('summarizes an unreachable evidence section honestly', () => {
+    render(<LearningView goal="goal" evidence={[unreachable]} />);
+
+    expect(
+      screen.getByText(
+        'The full source could not be reached when this evidence was ' +
+          'gathered, so it is listed without a summary.',
+      ),
+    ).toBeInTheDocument();
+  });
+});
+
 describe('LearningView supporting-reference numbering', () => {
   it('numbers citations by their place in the reference list', () => {
     const block = renderNumberedTopic(['ev-c', 'ev-a']);

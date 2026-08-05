@@ -63,6 +63,9 @@ from co_scientist.llm_json_repair import (
 from co_scientist.llm_json_repair import (
     extract_response_json as extract_response_json,
 )
+from co_scientist.progress import (
+    record_schema_degradation as record_schema_degradation,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -211,6 +214,10 @@ def get_fallback_response(
             "fallback so the run degrades gracefully instead of aborting.",
             schema_name,
         )
+        # The run continues on the fallback below; this only makes the
+        # degradation durable (state key) and visible (progress event) so a
+        # blank report section can explain itself.
+        record_schema_degradation(schema_name)
         # Deep-copy so a caller mutating nested lists/dicts cannot corrupt the
         # shared template.
         return copy.deepcopy(fallback)

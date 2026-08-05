@@ -218,6 +218,17 @@ def _persist_grounding_matches_and_proximity(
     return grounding_result
 
 
+def _degraded_sections(final_state: dict[str, Any]) -> list[str]:
+    """Return the engine nodes whose output degraded to a fallback.
+
+    The engine records every enhancement node served a placeholder fallback
+    instead of parseable LLM output (``co_scientist.progress.
+    record_schema_degradation``); the report carries the list so a section
+    left blank by a degradation can say so instead of showing silence.
+    """
+    return [str(name) for name in final_state.get("degraded_nodes") or []]
+
+
 def _build_drain_result(
     final_state: dict[str, Any],
     citation_summary: dict[str, int],
@@ -233,6 +244,7 @@ def _build_drain_result(
             "research_overview": _final_state_dict(
                 final_state, "research_overview"
             ),
+            "degraded_sections": _degraded_sections(final_state),
         },
         safety_counts={
             "screened": screening_result.screened_count,

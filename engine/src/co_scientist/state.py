@@ -351,6 +351,16 @@ class WorkflowState(TypedDict):
     longer contains them) so they are genuinely paused, not just hidden.
     """
 
+    degraded_nodes: list[str]
+    """Schema names of enhancement nodes whose LLM output could not be
+    parsed after all retries and were served a placeholder fallback instead
+    (see ``llm_json._ENHANCEMENT_NODE_FALLBACKS``). The run continues --
+    this list only lets the report say a section is blank because
+    generation failed, rather than showing silence. Recorded at
+    fallback-serve time by ``progress.record_schema_degradation``, never
+    returned as a node update.
+    """
+
     # Metrics
     metrics: Annotated[ExecutionMetrics, merge_metrics]
     """Execution metrics for the workflow (auto-merged from concurrent updates).

@@ -321,6 +321,13 @@ function placeholderSection(fallbackGoal: string): LearningSectionItem {
   };
 }
 
+// Summary copy for a source whose full text was never reachable: it used to
+// fall through to the generic learning blurb, presenting an unreachable
+// source as if it had been read (D18).
+const UNAVAILABLE_SOURCE_SUMMARY =
+  'The full source could not be reached when this evidence was gathered, ' +
+  'so it is listed without a summary.';
+
 function evidenceSection(
   item: Evidence,
   index: number,
@@ -330,10 +337,12 @@ function evidenceSection(
     id: `learning-section-${index + 1}`,
     title: learningTitle(item.title, index),
     summary:
-      item.abstract ||
-      'This section summarizes the concepts, protocols, and ' +
-        'methodological constraints Co-Scientist learned while ' +
-        `studying ${fallbackGoal}.`,
+      item.available === false
+        ? UNAVAILABLE_SOURCE_SUMMARY
+        : item.abstract ||
+          'This section summarizes the concepts, protocols, and ' +
+            'methodological constraints Co-Scientist learned while ' +
+            `studying ${fallbackGoal}.`,
     // Detail expands on the summary with source attribution when available,
     // otherwise a generic note tying the item back to the research goal.
     detail:

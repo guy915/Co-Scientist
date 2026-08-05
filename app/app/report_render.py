@@ -94,6 +94,9 @@ class ReportRequest(NamedTuple):
         citation_summary: Per-state citation counts, when audited.
         meta_review: The meta-review agent's synthesis, when produced.
         research_overview: The research-overview synthesis, when produced.
+        degraded_sections: Engine nodes whose output degraded to a
+            placeholder fallback after repeated parse failures; the report
+            carries the list so a blank section can explain itself.
         execution_time: Wall-clock seconds the run took, when measured.
         summary: Optional summary paragraph for the markdown header.
         db_path: Optional override for the SQLite database path.
@@ -105,6 +108,7 @@ class ReportRequest(NamedTuple):
     citation_summary: dict[str, int] | None = None
     meta_review: dict[str, Any] | None = None
     research_overview: dict[str, Any] | None = None
+    degraded_sections: list[str] | None = None
     execution_time: float | None = None
     summary: str | None = None
     db_path: str | None = None
@@ -206,7 +210,7 @@ def _assemble_report_payload(
     synthesized_topics = _synthesized_knowledge_base_topics(
         req.research_overview, data.evidence
     )
-    return build_report_payload(
+    payload = build_report_payload(
         ReportPayloadInputs(
             research_goal=req.research_goal,
             run_mode=req.run_mode,
@@ -229,6 +233,10 @@ def _assemble_report_payload(
             execution_time=req.execution_time,
         )
     )
+    # A section left blank by a fallback reads as missing data unless the
+    # report says generation failed; the engine records the degraded nodes.
+    payload["degraded_sections"] = list(req.degraded_sections or [])
+    return payload
 
 
 async def finalize_report(

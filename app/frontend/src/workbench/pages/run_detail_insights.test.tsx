@@ -90,3 +90,38 @@ it('drops a recommendation with no focus area and no advice', () => {
     screen.queryByRole('heading', {name: 'Recommended directions'}),
   ).not.toBeInTheDocument();
 });
+
+it('flags a meta-review that degraded to a fallback', () => {
+  // L7: the meta-review-derived lists are blank after a fallback, so the
+  // section must say generation failed instead of showing silence.
+  render(<AgentInsightsSection insights={makeInsights()} degraded />);
+
+  expect(
+    screen.getByText(
+      'This section could not be generated after repeated attempts.',
+    ),
+  ).toBeInTheDocument();
+});
+
+it('renders the degradation notice even without any insights payload', () => {
+  render(<AgentInsightsSection insights={undefined} degraded />);
+
+  expect(
+    screen.getByRole('heading', {name: 'Agent Insights'}),
+  ).toBeInTheDocument();
+  expect(
+    screen.getByText(
+      'This section could not be generated after repeated attempts.',
+    ),
+  ).toBeInTheDocument();
+});
+
+it('shows no degradation notice for a clean run', () => {
+  render(<AgentInsightsSection insights={makeInsights()} />);
+
+  expect(
+    screen.queryByText(
+      'This section could not be generated after repeated attempts.',
+    ),
+  ).not.toBeInTheDocument();
+});

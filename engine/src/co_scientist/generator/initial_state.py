@@ -101,6 +101,10 @@ def _initial_runtime_fields() -> dict[str, Any]:
         # including across a checkpoint restore.
         "safety_decisions": [],
         "held_for_review": [],
+        # Enhancement nodes served a placeholder fallback append their schema
+        # names here (progress.record_schema_degradation) so the final report
+        # can explain a blank section instead of showing silence.
+        "degraded_nodes": [],
         "metrics": ExecutionMetrics(),
         "messages": [],
     }

@@ -346,6 +346,13 @@ export interface ReportPayload {
   };
   claim_evidence?: ClaimEvidenceRow[];
   execution_time?: number;
+  /**
+   * Engine nodes whose output degraded to a placeholder fallback after
+   * repeated parse failures (L7). Names the report sections a reader should
+   * read as "generation failed" rather than as missing data. Empty/absent on
+   * clean runs and on reports written before the field existed.
+   */
+  degraded_sections?: string[];
 }
 
 /** One synthesized technical topic backed by claim-evidence references. */

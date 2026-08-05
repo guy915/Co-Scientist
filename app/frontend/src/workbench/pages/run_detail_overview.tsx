@@ -10,7 +10,13 @@ import {
 import {formatDurationPhrase} from '@/lib/duration';
 import {sortByEloDesc} from '@/lib/hypotheses';
 import {readableText, readableTextList} from '@/lib/text';
-import {AgentInsightsSection} from './run_detail_insights';
+import {
+  AgentInsightsSection,
+  DegradedSectionNotice,
+  META_REVIEW_SCHEMA,
+  RESEARCH_OVERVIEW_SCHEMA,
+  sectionDegraded,
+} from './run_detail_insights';
 import {
   REPORT_H3_CLASSES,
   REPORT_H4_CLASSES,
@@ -154,8 +160,14 @@ export function ResearchOverviewView({
     <ReportDocument title="Summary">
       {leadStat ? <p className={REPORT_LEAD_STAT_CLASSES}>{leadStat}</p> : null}
       <SummaryStats payload={report?.payload} />
-      <AgentInsightsSection insights={report?.payload.agent_insights} />
-      <OverviewSummary overview={overview} />
+      <AgentInsightsSection
+        insights={report?.payload.agent_insights}
+        degraded={sectionDegraded(report, META_REVIEW_SCHEMA)}
+      />
+      <OverviewSummary
+        overview={overview}
+        degraded={sectionDegraded(report, RESEARCH_OVERVIEW_SCHEMA)}
+      />
       <ResearchDirectionsSection overview={overview} />
       <SpecificAimsSection overview={overview} />
       <ResearchContactsSection overview={overview} />
@@ -240,10 +252,24 @@ function ResearchContactsSection({
   );
 }
 
-// Overview summary sentence, or the pre-synthesis placeholder.
-function OverviewSummary({overview}: {overview: ResearchOverview | undefined}) {
-  const summary = readableText(overview?.overview?.summary);
+// The overview's summary sentence, empty when there is none yet.
+function overviewSummaryText(overview: ResearchOverview | undefined): string {
+  return readableText(overview?.overview?.summary);
+}
+
+// Overview summary sentence, or the pre-synthesis placeholder. When the run's
+// report says the research overview degraded (L7), a blank summary is
+// labelled as a generation failure rather than left as an in-flight promise.
+function OverviewSummary({
+  overview,
+  degraded = false,
+}: {
+  overview: ResearchOverview | undefined;
+  degraded?: boolean;
+}) {
+  const summary = overviewSummaryText(overview);
   if (summary) return <p>{summary}</p>;
+  if (degraded) return <DegradedSectionNotice />;
   return (
     <p>
       The research overview appears after Co-Scientist finishes the final

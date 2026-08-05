@@ -40,6 +40,10 @@ _STREAMED_STATE_KEYS = (
     "debate_transcripts",
     "safety_decisions",
     "held_for_review",
+    # Enhancement nodes served a fallback (see
+    # progress.record_schema_degradation); seeded here and overlaid from a
+    # restored state on resume so a blank report section can explain itself.
+    "degraded_nodes",
 )
 
 # Streamed keys copied last-write-wins; "hypotheses" is excluded because it
@@ -171,6 +175,7 @@ def _initial_cumulative_stream_state() -> dict[str, Any]:
         "debate_transcripts": None,
         "safety_decisions": [],
         "held_for_review": [],
+        "degraded_nodes": [],
     }
 
 
@@ -228,6 +233,8 @@ def _build_generation_result(
         "termination_reason": final_state.get("termination_reason"),
         "safety_decisions": final_state.get("safety_decisions", []),
         "held_for_review": final_state.get("held_for_review", []),
+        # Enhancement nodes served a placeholder fallback during the run.
+        "degraded_nodes": final_state.get("degraded_nodes", []),
         "execution_time": execution_time,
         # total_time reports the ainvoke wall-clock, overriding the metric's
         # own accumulated value.

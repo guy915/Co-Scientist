@@ -43,6 +43,21 @@ const REFERENCE_LIST_LINK_CLASSES =
 
 const REFERENCE_LIST_LINK_ICON_CLASSES = 'text-base';
 
+// The quiet counterpart of the "Open" pill for a source whose full text was
+// never reachable: same slot and shape, muted so it reads as a state, not an
+// action. An unreachable source used to render identically to a fetched one,
+// which presented a degraded knowledge base as normal (D18).
+const REFERENCE_UNAVAILABLE_CLASSES =
+  'reference-unavailable-pill inline-flex items-center gap-[0.35rem] ' +
+  'rounded-full border border-cosci-border bg-transparent px-[0.7rem] ' +
+  'py-[0.3rem] text-[0.78rem] font-medium text-cosci-muted ' +
+  'max-[720px]:col-start-2 max-[720px]:w-fit';
+
+const REFERENCE_UNAVAILABLE_TEXT = 'Unavailable';
+
+const REFERENCE_UNAVAILABLE_TITLE =
+  'The full source could not be reached when this evidence was gathered';
+
 /** One resolved citation: the reference it names and the number to print. */
 export interface ReferenceCitation {
   id: string;
@@ -180,21 +195,41 @@ function ReferenceListItem({item, number}: {item: Evidence; number: number}) {
         className={REFERENCE_LIST_TITLE_CLASSES}
         dangerouslySetInnerHTML={{__html: renderInlineHtml(item.title)}}
       />
-      {item.url ? (
-        <a
-          className={REFERENCE_LIST_LINK_CLASSES}
-          href={item.url}
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Icon
-            className={REFERENCE_LIST_LINK_ICON_CLASSES}
-            aria-hidden="true"
-            name="open_in_new"
-          />
-          Open
-        </a>
-      ) : null}
+      <ReferenceSourceState item={item} />
     </li>
+  );
+}
+
+// The row's reachability state: an "Open" action when the full source was
+// fetched, else a quiet "Unavailable" pill so a source that was never
+// reachable is plainly labelled instead of reading as a normal reference
+// (D18). `available` is what the store recorded when evidence was gathered.
+function ReferenceSourceState({item}: {item: Evidence}) {
+  if (item.available === false) {
+    return (
+      <span
+        className={REFERENCE_UNAVAILABLE_CLASSES}
+        title={REFERENCE_UNAVAILABLE_TITLE}
+        aria-label={REFERENCE_UNAVAILABLE_TITLE}
+      >
+        {REFERENCE_UNAVAILABLE_TEXT}
+      </span>
+    );
+  }
+  if (!item.url) return null;
+  return (
+    <a
+      className={REFERENCE_LIST_LINK_CLASSES}
+      href={item.url}
+      target="_blank"
+      rel="noopener noreferrer"
+    >
+      <Icon
+        className={REFERENCE_LIST_LINK_ICON_CLASSES}
+        aria-hidden="true"
+        name="open_in_new"
+      />
+      Open
+    </a>
   );
 }
