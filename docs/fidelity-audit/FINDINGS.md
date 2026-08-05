@@ -12,8 +12,13 @@ See [PLAN.md](PLAN.md) for the sequenced work.
 `partial`, `incorrect` (claims the behavior but violates it), `divergent`
 (deliberate substitute), `ext` (non-faithful extension Google does not have),
 `matched`, `note`. `St` — status: blank = open as last audited, `✓` = addressed
-on `main` since, `~` = partly addressed, `?` = contested between audits.
+on `main` since, `~` = partly addressed, `?` = contested between audits,
+`=` = **accepted divergence — closed, do not "fix"**.
 `Src` — provenance in the source audits (`12:`/`20:`/`21:` = audit date).
+
+**This project is not a Google clone.** Twenty-one findings ask for the reversal
+of a deliberate product decision; they are marked `=` and are not work. See
+[Accepted divergences](#accepted-divergences) before acting on any row.
 
 **Re-verified against `main` on 2026-08-05**, 276 commits past the audited
 revision `11a31082`. Every **Critical** and **High** finding was checked against
@@ -32,16 +37,16 @@ change made staleness likely. A blank `St` on a Medium/Low row therefore means
 | A2 | High | missing | Custom evaluation criteria never collected; `criteria: []` hard-coded, so no rubric governs ranking, debates, or self-improvement | ~ | 12:A08, 20:F-INTERVIEW-09/EB-006, 21:K1 |
 | A3 | Medium | incorrect | Plan fields read-only; "Edit research plan" opens no editor and `editInterviewFields` is unused | | 12:A06, 20:F-INTERVIEW-05, 21:R38 |
 | A4 | Medium | missing | Interview lives only in React route state; reload discards it although the server still has it (`getInterview` never called) | ✓ | 20:F-INTERVIEW-04/F-STATE-01 |
-| A5 | Medium | incorrect | Raw provider chain-of-thought streamed to the user; Google's footage shows only a "Thinking" status | | 20:F-INTERVIEW-03/U23 |
+| A5 | Medium | incorrect | Raw provider chain-of-thought streamed to the user; Google's footage shows only a "Thinking" status | = | 20:F-INTERVIEW-03/U23 |
 | A6 | Medium | missing | No AI/medical disclaimer anywhere ("AI can be inaccurate…" / "Consult a professional…") | | 12:J08/M03, 20:F-HOME-04, 21:R22 |
 | A7 | Medium | partial | Mid-run steering changes agent behavior but no UI calls `sendRunSteering` | | 12:A11/I05, 20:F-RUN-04, 21:R23 |
 | A8 | Medium | partial | Scientist hypotheses/reviews: endpoints and safety admission exist, no UI | | 12:A12/A13, 20:F-AGENT-03, 21:A10 |
 | A9 | Medium | partial | Attachments upload only *after* run creation and never ground the interview or plan, though the UI implies they do | | 20:F-HOME-05, 20:EB-025 |
 | A10 | Medium | partial | Private corpus is run-scoped BM25 keyword search — not an indexed hundreds-of-PDFs, multimodal, agent-searchable repository | | 12:A09/A10/G19/G20, 20:EB-025, 21:G9 |
 | A11 | Medium | incorrect | Create → upload → start is non-transactional; partial failure neither rolls back nor surfaces the orphan draft | | 20:F-INTERVIEW-12 |
-| A12 | Low | partial | Field vocabulary drift: "Focus Area" singular vs Google's "Focus Areas"; extra Title field | | 12:A04, 20:F-INTERVIEW-07, 21:R42 |
+| A12 | Low | partial | Field vocabulary drift: "Focus Area" singular vs Google's "Focus Areas"; extra Title field | = | 12:A04, 20:F-INTERVIEW-07, 21:R42 |
 | A13 | Low | missing | No thumbs up/down on interview turns | | 12:M03, 21:R53 |
-| A14 | Low | divergent | Composer copy differs ("What breakthrough should we make today?" vs "What's your research challenge?"); a decorative lock icon implies encryption that does not exist | | 12:M02, 20:F-HOME-01, 21:A1 |
+| A14 | Low | divergent | Composer copy differs ("What breakthrough should we make today?" vs "What's your research challenge?"); a decorative lock icon implies encryption that does not exist | = | 12:M02, 20:F-HOME-01, 21:A1 |
 | A15 | Low | incorrect | Retry duplicates the same assistant string instead of re-running the model | | 20:F-INTERVIEW-06 |
 | A16 | Low | incorrect | Keyless/offline interview silently degrades to a canned 3-question script with no UI signal | | 12:A05, 21:R56 |
 | A17 | Low | incorrect | Home composer stays active after start and keeps posting turns to the completed interview | | 20:F-AGENT-02 |
@@ -51,12 +56,12 @@ change made staleness likely. A blank `St` on a Medium/Low row therefore means
 
 | ID | Sev | Class | Gap | St | Src |
 |---|---|---|---|---|---|
-| B1 | High | ext | Four tiers (`express/standard/extended/ultra`) replace Google's exactly-two Standard/Advanced; Google's config is conversational, with no settings form | | 12:B01/B03, 20:F-INTERVIEW-08/EB-005, 21:R8 |
-| B2 | Medium | ext | Four-way focus selector (evidence/balance/novelty/breakthrough) has no Google basis | | 12:A15, 21:R8 |
+| B1 | High | ext | Four tiers (`express/standard/extended/ultra`) replace Google's exactly-two Standard/Advanced; Google's config is conversational, with no settings form | = | 12:B01/B03, 20:F-INTERVIEW-08/EB-005, 21:R8 |
+| B2 | Medium | ext | Four-way focus selector (evidence/balance/novelty/breakthrough) has no Google basis | = | 12:A15, 21:R8 |
 | B3 | Medium | missing | Concurrency quota is one aggregate ceiling, not Google's 3 Standard + 1 Advanced; counted per spoofable client id *and* per profile, so one id can reserve 40 | | 12:B04, 20:OP-002/OP-054 |
 | B4 | Medium | divergent | Compute envelope far below Google's several-hour scale | | 12:B07, 20:EB-011 |
 | B5 | Medium | incorrect | The generator caches its compiled graph and MCP availability, so configuration changes silently execute a stale topology | | 20:EB-012 |
-| B6 | Low | ext | Connector toggles (PubMed / Web / Lab papers) — Google's agent selects sources, naming them in plan prose | | 20:F-HOME-06, 21:B5 |
+| B6 | Low | ext | Connector toggles (PubMed / Web / Lab papers) — Google's agent selects sources, naming them in plan prose | = | 20:F-HOME-06, 21:B5 |
 | B7 | Low | missing | No credit / charge / refund / account-ledger concept | | 12:B05, 20:OP-003 |
 | B8 | Low | partial | Completion email is implemented but delivery unproven; SMTP unset in production | | 12:B06, 20:F-INTERVIEW-10/OP-004 |
 | B9 | Low | partial | Status vocabulary is a superset (extra `synthesizing`/`blocked`, `aborted`→`cancelled`); failed/cancelled/blocked runs still render full report tabs | | 12:B10, 20:F-STATE-03/F-RUN-07, 21:C4 |
@@ -70,21 +75,21 @@ change made staleness likely. A blank `St` on a Medium/Low row therefore means
 | C2 | Medium | incorrect | "Time remaining" is permanently "Estimating…"; where computed it is naive linear extrapolation over uneven tasks | | 12:C02, 20:F-RUN-02, 21:R36 |
 | C3 | Medium | partial | Progress bar permanently indeterminate ("Progress pending") vs Google's determinate bar | | 12:C01, 20:F-RUN-01, 21:R36 |
 | C4 | Medium | divergent | Activity log exposes internal stage names and raw task strings ("Engine Node Generate"); no per-item `EXECUTING` / `-- : --` status | | 12:C05/C08, 20:F-RUN-03, 21:R36 |
-| C5 | Medium | divergent | Report and ideas unviewable mid-run — the tab bar is suppressed until the run settles | | 21:R37 |
+| C5 | Medium | divergent | Report and ideas unviewable mid-run — the tab bar is suppressed until the run settles | = | 21:R37 |
 | C6 | Medium | missing | No live/reconnecting/stale indicator; SSE reconnects silently so a frozen page looks healthy | | 20:F-RUN-05 |
-| C7 | Low | partial | Tiles differ from Google's exact three (Time remaining / Sources Analyzed / Ideas explored) | | 12:C03/C04, 20:F-RUN-01, 21:L6 |
-| C8 | Low | ext | Developer diagnostics (Logs popover, Offline chip) inside the research shell | | 12:C09, 20:F-STATE-05/F-STATE-06 |
+| C7 | Low | partial | Tiles differ from Google's exact three (Time remaining / Sources Analyzed / Ideas explored) | = | 12:C03/C04, 20:F-RUN-01, 21:L6 |
+| C8 | Low | ext | Developer diagnostics (Logs popover, Offline chip) inside the research shell | = | 12:C09, 20:F-STATE-05/F-STATE-06 |
 
 ## D. Goal Report surface
 
 | ID | Sev | Class | Gap | St | Src |
 |---|---|---|---|---|---|
-| D1 | **Critical** | ext | **Ideas is an Elo leaderboard with rank + "Elo rating: N" chips. Google deliberately hides Elo and shows a card list.** The single most consequential product divergence — and the local reference corpus's "Elo leaderboard" requirement is clone-invented | | 12:D02/D23, 20:F-IDEAS-01/U09, 21:R2 |
-| D2 | High | divergent | All four tab labels differ and the order is inverted: `Goal Details / Learning / Research Overview / All Ideas` vs `Ideas / Knowledge Base / Summary / Run Specification(s)` | | 12:D01/M05, 20:F-REPORT-01, 21:R6 |
-| D3 | High | missing | `HIGH POTENTIAL` / `NON VIABLE` pills absent from idea cards; buckets survive only as report counts | | 12:D03/D17/M06, 20:F-IDEAS-07, 21:R20 |
+| D1 | **Critical** | ext | **Ideas is an Elo leaderboard with rank + "Elo rating: N" chips. Google deliberately hides Elo and shows a card list.** The single most consequential product divergence — and the local reference corpus's "Elo leaderboard" requirement is clone-invented | = | 12:D02/D23, 20:F-IDEAS-01/U09, 21:R2 |
+| D2 | High | divergent | All four tab labels differ and the order is inverted: `Goal Details / Learning / Research Overview / All Ideas` vs `Ideas / Knowledge Base / Summary / Run Specification(s)` | = | 12:D01/M05, 20:F-REPORT-01, 21:R6 |
+| D3 | High | missing | `HIGH POTENTIAL` / `NON VIABLE` pills absent from idea cards; buckets survive only as report counts | = | 12:D03/D17/M06, 20:F-IDEAS-07, 21:R20 |
 | D4 | High | missing | Per-idea and report-level "Chat with Agent": `askRunQuestion` exists with no UI caller | | 12:A14/D12/D24, 20:F-AGENT-01, 21:R23 |
 | D5 | High | incorrect | Public share returns raw complete hypotheses and evidence tables rather than the filtered release artifact — leaks blocked ideas, private document text, and run config | | 20:F-SHARE-02/EB-052 |
-| D6 | Medium | incorrect | Completed runs land on Goal Details (configuration) instead of Ideas | | 20:F-REPORT-02 |
+| D6 | Medium | incorrect | Completed runs land on Goal Details (configuration) instead of Ideas | = | 20:F-REPORT-02 |
 | D7 | Medium | partial | Knowledge Base renders ≤3 sections vs Google's 12+; no sticky navigator, no inline citation chips | | 12:D07, 20:F-KB-01/F-KB-04, 21:R30 |
 | D8 | Medium | incorrect | With no synthesis, the UI fabricates "learning" sections from the first three evidence abstracts — presentation output indistinguishable from an engine result | | 12:D08, 20:F-KB-02 |
 | D9 | Medium | incorrect | KB reference numbers restart at 1 per topic while linking to global evidence rows, so a shown `[1]` can open `[5]` | | 20:F-KB-03 |
@@ -100,10 +105,10 @@ change made staleness likely. A blank `St` on a Medium/Low row therefore means
 | D19 | Low | partial | Match history, opponents, Elo deltas, and debate transcripts are not inspectable | | 12:D23, 20:F-IDEAS-06, 21:D7 |
 | D20 | Low | partial | Lineage is text-only ("evolved from an earlier hypothesis"); the parent is never named or linked and there is no tree | | 20:F-IDEAS-03, 21:D8 |
 | D21 | Low | incorrect | Origin labels can leak raw engine keys (`generate`/`evolve` vs the mapped `generation`/`evolution`) | | 20:F-IDEAS-11 |
-| D22 | Low | ext | Claim spans, cluster IDs, safety internals, and lineage blocks reshape the primary idea detail; Google exposes none of these | | 12:D06, 20:F-IDEAS-12 |
+| D22 | Low | ext | Claim spans, cluster IDs, safety internals, and lineage blocks reshape the primary idea detail; Google exposes none of these | = | 12:D06, 20:F-IDEAS-12 |
 | D23 | Low | partial | Sections rail has no scroll-spy or active state | | 20:F-IDEAS-10 |
 | D24 | Low | partial | Winning ideas render as read-only text with no navigation to the idea or its rationale | | 20:F-SUMMARY-05 |
-| D25 | Low | ext | Safety adjudication controls live inside report specifications, replacing target content and weakening the reviewer boundary | | 20:F-SPEC-04 |
+| D25 | Low | ext | Safety adjudication controls live inside report specifications, replacing target content and weakening the reviewer boundary | = | 20:F-SPEC-04 |
 | D26 | Low | incorrect | Post-run upload is accepted but shows no list/status/removal and no reachable task consumes it | | 20:F-SPEC-05 |
 
 ## E. Coalition and reasoning strategies
@@ -249,15 +254,15 @@ change made staleness likely. A blank `St` on a Medium/Low row therefore means
 
 | ID | Sev | Class | Gap | St | Src |
 |---|---|---|---|---|---|
-| M1 | High | divergent | Product identity is teal/blue **"Co-Scientist"**; the target is green **"Hypothesis Generation"** | | 12:M01/M12, 20:F-ENTRY-01, 21:R19 |
+| M1 | High | divergent | Product identity is teal/blue **"Co-Scientist"**; the target is green **"Hypothesis Generation"** | = | 12:M01/M12, 20:F-ENTRY-01, 21:R19 |
 | M2 | High | incorrect | At 16:9 desktop — a supported ratio — report tabs and content clip horizontally; 2:1 is coherent | | 12:M10, 20:F-RESP-01 |
 | M3 | High | incorrect | Mobile idea detail has no visible Back; the only escape is re-tapping the already-active tab | ~ | 20:F-IDEAS-09/F-RESP-03 |
-| M4 | Medium | divergent | The shell follows the secondary Gemini Enterprise twin (persistent rail, chat history, three-column ideas), not the Labs product | | 12:M13, 20:F-ENTRY-03/F-IDEAS-02 |
-| M5 | Medium | divergent | An Affiliation modal interrupts first use with an unevidenced organization chooser | | 20:F-ENTRY-02/F-ENTRY-04 |
+| M4 | Medium | divergent | The shell follows the secondary Gemini Enterprise twin (persistent rail, chat history, three-column ideas), not the Labs product | = | 12:M13, 20:F-ENTRY-03/F-IDEAS-02 |
+| M5 | Medium | divergent | An Affiliation modal interrupts first use with an unevidenced organization chooser | = | 20:F-ENTRY-02/F-ENTRY-04 |
 | M6 | Medium | incorrect | Demo runs merge into personal history without an `is_demo` label, and ownership middleware exempts them so any caller can mutate shared demo state | | 12:M15/M20, 20:F-ENTRY-06/OP-014/OP-055 |
-| M7 | Low | divergent | Invented three-step home onboarding and hard-coded biomedical prompt suggestions | | 20:F-HOME-01/F-HOME-02 |
-| M8 | Low | ext | Dark theme has no Google product evidence | | 12:M09, 20:F-EXT-03 |
-| M9 | Low | ext | `/proposals` renders a static authored graph that can read as scientific Proximity output | | 20:F-EXT-01 |
+| M7 | Low | divergent | Invented three-step home onboarding and hard-coded biomedical prompt suggestions | = | 20:F-HOME-01/F-HOME-02 |
+| M8 | Low | ext | Dark theme has no Google product evidence | = | 12:M09, 20:F-EXT-03 |
+| M9 | Low | ext | `/proposals` renders a static authored graph that can read as scientific Proximity output | = | 20:F-EXT-01 |
 | M10 | Low | incorrect | Feedback is SBI-only; the general audience gets no Product Feedback path, no privacy notice, no screenshot option | | 20:F-EXT-02/OP-007 |
 | M11 | Low | incorrect | Settings stores a DeepSeek key in the browser and confirms success, but nothing reads it | | 20:F-HOME-07 |
 | M12 | Low | divergent | Undiscoverable global shortcuts (`g n`, arrow tab cycling) may intercept expected navigation | | 20:F-A11Y-08, 21:C11 |
@@ -318,6 +323,47 @@ Raised only by the 2026-07-20 audit.
 | O4 | Medium | incorrect | Generic `ShellPopover` applies `role=status` to menus, logs, and forms, turning large interactive regions into noisy live announcements | | 20:F-A11Y-03 |
 | O5 | Medium | incorrect | Continuously growing raw reasoning sits in an `aria-live=polite` region | | 20:F-A11Y-07 |
 | O6 | Low | partial | Mixed navigation/tab semantics; `aria-current=page` on `<nav>` buttons with no tablist/tabpanel keyboard pattern | | 20:F-A11Y-06 |
+
+---
+
+## Accepted divergences
+
+Marked `=` above. Each of these is a real difference from Google, correctly
+observed by the audits — and each is a decision this project made on purpose.
+They are **closed as won't-fix**, not open findings.
+
+The reasoning is the same for all of them: the audits scored this repository as
+an attempted replica, so any deviation read as a violation. It is not a replica.
+The engine reconstructs the paper's published behavior; the product surface is
+its own. A finding that says "Google does X and you do Y" is only a defect when
+Y is *worse*, not when Y is *different*.
+
+| Area | Accepted as-is |
+|---|---|
+| Ideas surface | Elo leaderboard with rank and rating chips, and the provenance blocks in idea detail, instead of a bare card list with potential pills (`D1`, `D3`, `D22`) |
+| Report tabs | `Goal Details / Learning / Research Overview / All Ideas`, landing on Goal Details (`D2`, `D6`) |
+| Run configuration | Four tiers, the four-way focus selector, and the connector toggles, as an explicit settings form (`B1`, `B2`, `B6`) |
+| Active run | Report hidden until the run settles; our own tile set (`C5`, `C7`) |
+| Shell and identity | Teal "Co-Scientist", the Gemini-Enterprise-style shell, the Affiliation gate, home onboarding and suggestions, the dark theme, `/proposals` (`M1`, `M4`, `M5`, `M7`, `M8`, `M9`) |
+| Operator surface | The Logs popover and Offline chip inside the research shell (`C8`) |
+| Interview | Streaming reasoning to the reader as visible progress; our field vocabulary and composer copy (`A5`, `A12`, `A14`) |
+| Safety | Adjudication controls in run specifications (`D25`) |
+
+Two carry a real defect inside an accepted divergence — fix the defect, keep the
+divergence:
+
+- **`A14`** — the composer copy stays. The decorative **lock icon** implies
+  encryption that does not exist and should go.
+- **`M5`** — the Affiliation gate stays. Note that it is **load-bearing beyond
+  UI**: `paper_corpus.disabled_tools_for()` keys corpus access off the audience,
+  so removing the gate removes an access control.
+
+Not accepted, and still open on merit rather than on fidelity: the interview
+progress rail (`A1`), the disclaimer (`A6`), thumbs feedback (`A13`), Chat with
+Agent (`D4`), the expanded Knowledge Base (`D7`), mechanism diagrams (`D10`),
+share and download UI (`D11`, `D12`), Summary bucket members (`D14`), match and
+lineage views (`D19`, `D20`), and a general feedback path (`M10`). These add
+capability rather than reverting a decision — judge each on its own value.
 
 ---
 
