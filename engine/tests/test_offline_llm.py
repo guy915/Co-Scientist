@@ -22,39 +22,19 @@ from co_scientist import llm_request, offline_llm
 from co_scientist.agents.supervisor.supervisor_decision import (
     _DECISION_SCHEMA,
 )
-from co_scientist.generator import (
-    GeneratorOptions,
-    HypothesisGenerator,
-)
 from co_scientist.schemas.generation import GENERATION_SCHEMA
 from co_scientist.schemas.ranking import RANKING_SCHEMA
 from co_scientist.schemas.review import REVIEW_BATCH_SCHEMA
+from tests._offline_helpers import (
+    isolate_offline_router,
+    make_offline_generator,
+)
 
 
 @pytest.fixture(autouse=True)
 def _isolate_offline_router(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Isolates ``install_offline_router``'s state to one test at a time.
-
-    ``install_offline_router`` mutates real module attributes directly
-    (not through ``monkeypatch``), so a permanent install in one test
-    would otherwise leak into every later test in the process. Recording
-    the current value of each patched attribute with ``monkeypatch``
-    (even when re-set to itself) registers it for automatic restoration
-    at teardown, and resetting the module's own idempotency bookkeeping
-    guarantees a fresh install every test.
-
-    Args:
-        monkeypatch: The pytest monkeypatch fixture.
-    """
-    monkeypatch.setattr(litellm, "acompletion", litellm.acompletion)
-    monkeypatch.setattr(
-        llm_request,
-        "_supports_json_schema_response_format",
-        llm_request._supports_json_schema_response_format,
-    )
-    monkeypatch.setattr(offline_llm, "_installed", False)
-    monkeypatch.setattr(offline_llm, "_original_acompletion", None)
-    monkeypatch.setattr(offline_llm, "_original_supports_json_schema", None)
+    """Isolates ``install_offline_router``'s state to one test at a time."""
+    isolate_offline_router(monkeypatch)
 
 
 def test_is_offline_model_checks_the_prefix() -> None:
@@ -306,20 +286,6 @@ def _install_recording_router(
     return escaped_calls
 
 
-def _offline_generator() -> HypothesisGenerator:
-    """Build the small single-iteration generator the end-to-end run uses."""
-    return HypothesisGenerator(
-        model_name=offline_llm.DEFAULT_OFFLINE_MODEL,
-        max_iterations=1,
-        initial_hypotheses_count=2,
-        evolution_max_count=2,
-        options=GeneratorOptions(
-            tournament_pairs=2,
-            enable_cache=False,
-        ),
-    )
-
-
 async def test_end_to_end_offline_generator_run_yields_hypotheses(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -336,7 +302,7 @@ async def test_end_to_end_offline_generator_run_yields_hypotheses(
     """
     escaped_calls = _install_recording_router(monkeypatch)
 
-    result = await _offline_generator().generate_hypotheses(
+    result = await make_offline_generator().generate_hypotheses(
         "Explain how protein X folds",
         opts={"enable_literature_review_node": False},
         stream=False,

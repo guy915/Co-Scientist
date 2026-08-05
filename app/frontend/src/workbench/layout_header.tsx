@@ -9,17 +9,17 @@ import {DiagnosticsControl} from './layout_diagnostics';
 import {GoogleTeamControl} from './layout_google_control';
 import {type ShellPanel} from './layout_hooks';
 import {PilotControl} from './layout_pilot_control';
-import {NAV_ICON_CLASSES, ShellPopover} from './layout_primitives';
+import {
+  NAV_ICON_CLASSES,
+  ShellPopover,
+  type HeaderControlProps,
+} from './layout_primitives';
 import {SystemStatusIndicator} from './layout_status';
 import {tooltipClassNames} from './tooltip';
 
 // The shape the three header controls share: an open flag, a toggle request,
 // and the shell's popover wrapper.
-type HeaderControl = (props: {
-  open: boolean;
-  onToggle: () => void;
-  renderPopover: (children: ReactNode, className: string) => ReactNode;
-}) => ReactNode;
+type HeaderControl = (props: HeaderControlProps) => ReactNode;
 
 // The single audience-specific header control, which REPLACES the Logs
 // button rather than sitting beside it: the Google team gets a personal note,

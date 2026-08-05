@@ -6,10 +6,23 @@ import {
   postAppLogs,
 } from './logs';
 
-const runsApiMock = vi.hoisted(() => ({
-  fetchJson: vi.fn(),
-  clientHeaders: vi.fn(() => ({'X-Client-ID': 'client-7'})),
-}));
+const runsApiMock = vi.hoisted(() => {
+  const clientHeaders = vi.fn(() => ({'X-Client-ID': 'client-7'}));
+  // Mirrors runs_http's jsonRequest (the real one is mocked away with
+  // './runs'), building its headers through the mocked clientHeaders so the
+  // inits the module under test sends still carry the caller's identity.
+  const jsonRequest = vi.fn(
+    (body: unknown, includeClientId = false): RequestInit => ({
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(includeClientId ? clientHeaders() : {}),
+      },
+      body: JSON.stringify(body),
+    }),
+  );
+  return {fetchJson: vi.fn(), clientHeaders, jsonRequest};
+});
 
 vi.mock('./runs', () => runsApiMock);
 

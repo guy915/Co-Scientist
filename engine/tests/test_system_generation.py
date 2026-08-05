@@ -21,10 +21,8 @@ from typing import Any
 
 import pytest
 
-from co_scientist.generator import (
-    HypothesisGenerator,
-)
 from tests._llm_fake import install_fake_llm, make_test_generator
+from tests._stream import collect_stream_events
 
 # The node execution order for one max_iterations=1 run in LLM-only mode
 # (literature_review/reflection are absent -- see tests/test_generator.py's
@@ -70,20 +68,6 @@ _EXPECTED_NODE_SEQUENCE = [
     "orchestrator",
     "research_overview",
 ]
-
-
-async def _collect_stream_events(
-    gen: HypothesisGenerator, goal: str
-) -> list[tuple[str, dict[str, Any]]]:
-    """Consume the streaming API into a list of (node_name, state) tuples."""
-    events: list[tuple[str, dict[str, Any]]] = []
-    async for node_name, state_dict in gen.generate_hypotheses(
-        goal,
-        opts={"enable_literature_review_node": False},
-        stream=True,
-    ):
-        events.append((node_name, state_dict))
-    return events
 
 
 def _assert_public_hypothesis_shape(hyp: dict[str, Any]) -> None:
@@ -167,7 +151,7 @@ async def test_generate_hypotheses_streaming_event_progression(
     install_fake_llm(monkeypatch)
     gen = make_test_generator()
 
-    events = await _collect_stream_events(
+    events = await collect_stream_events(
         gen, "Identify a synthetic-lethal target"
     )
 
@@ -217,7 +201,7 @@ async def test_streaming_and_non_streaming_agree_on_final_shape(
         stream=False,
     )
 
-    events = await _collect_stream_events(
+    events = await collect_stream_events(
         make_test_generator(), "Explain a resistance mechanism"
     )
     assert events

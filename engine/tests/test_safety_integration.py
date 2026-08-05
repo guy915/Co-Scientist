@@ -14,12 +14,10 @@ from typing import Any
 
 import pytest
 
-from co_scientist.generator import (
-    HypothesisGenerator,
-)
 from co_scientist.models import GenerationMethod, Hypothesis, HypothesisOrigin
 from co_scientist.state import AppendHypotheses
 from tests._llm_fake import install_fake_llm, make_test_generator
+from tests._stream import collect_stream_events
 
 UNSAFE_TEXT = "Weaponize engineered pathogens for maximum spread"
 UNSAFE_ID = "unsafe-injected-001"
@@ -66,20 +64,6 @@ def _inject_unsafe(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         "co_scientist.generator.graph.NODE_REGISTRY", patched_registry
     )
-
-
-async def _collect_events(
-    gen: HypothesisGenerator, goal: str
-) -> list[tuple[str, dict[str, Any]]]:
-    """Consume the streaming API into a list of (node_name, state) tuples."""
-    events: list[tuple[str, dict[str, Any]]] = []
-    async for node_name, state_dict in gen.generate_hypotheses(
-        goal,
-        opts={"enable_literature_review_node": False},
-        stream=True,
-    ):
-        events.append((node_name, state_dict))
-    return events
 
 
 def _assert_injected_then_screened(
@@ -152,7 +136,7 @@ async def test_unsafe_hypothesis_never_reaches_tournament(
     _inject_unsafe(monkeypatch)
     gen = make_test_generator()
 
-    events = await _collect_events(
+    events = await collect_stream_events(
         gen, "Identify a synthetic-lethal target for cancer therapy"
     )
 
@@ -193,13 +177,9 @@ async def test_rescreening_preserves_prior_status(
     install_fake_llm(monkeypatch)
     gen = make_test_generator()
 
-    events: list[tuple[str, dict[str, Any]]] = []
-    async for node_name, state_dict in gen.generate_hypotheses(
-        "Identify a synthetic-lethal target",
-        opts={"enable_literature_review_node": False},
-        stream=True,
-    ):
-        events.append((node_name, state_dict))
+    events = await collect_stream_events(
+        gen, "Identify a synthetic-lethal target"
+    )
 
     safety_events = [(n, s) for n, s in events if n == "safety_screen"]
     assert len(safety_events) >= 2, (

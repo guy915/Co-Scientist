@@ -20,13 +20,12 @@ flake stayed invisible.
 import uuid
 from typing import Any
 
-import litellm
 import pytest
 
-from co_scientist import llm_request, models, offline_llm
-from co_scientist.generator import (
-    GeneratorOptions,
-    HypothesisGenerator,
+from co_scientist import models, offline_llm
+from tests._offline_helpers import (
+    isolate_offline_router,
+    make_offline_generator,
 )
 
 _GOAL = "Identify repurposable drugs for hepatic fibrosis"
@@ -34,26 +33,8 @@ _GOAL = "Identify repurposable drugs for hepatic fibrosis"
 
 @pytest.fixture(autouse=True)
 def _isolate_offline_router(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Isolates ``install_offline_router``'s state to one test at a time.
-
-    ``install_offline_router`` mutates real module attributes directly
-    rather than through ``monkeypatch``, so recording each patched
-    attribute (even re-set to itself) registers it for restoration at
-    teardown, and clearing the module's idempotency bookkeeping
-    guarantees a fresh install per test.
-
-    Args:
-        monkeypatch: The pytest monkeypatch fixture.
-    """
-    monkeypatch.setattr(litellm, "acompletion", litellm.acompletion)
-    monkeypatch.setattr(
-        llm_request,
-        "_supports_json_schema_response_format",
-        llm_request._supports_json_schema_response_format,
-    )
-    monkeypatch.setattr(offline_llm, "_installed", False)
-    monkeypatch.setattr(offline_llm, "_original_acompletion", None)
-    monkeypatch.setattr(offline_llm, "_original_supports_json_schema", None)
+    """Isolates ``install_offline_router``'s state to one test at a time."""
+    isolate_offline_router(monkeypatch)
     offline_llm.install_offline_router()
 
 
@@ -66,13 +47,7 @@ async def _run(run_id: str) -> dict[str, Any]:
     Returns:
         The generation result dict.
     """
-    generator = HypothesisGenerator(
-        model_name=offline_llm.DEFAULT_OFFLINE_MODEL,
-        max_iterations=1,
-        initial_hypotheses_count=2,
-        evolution_max_count=2,
-        options=GeneratorOptions(tournament_pairs=2, enable_cache=False),
-    )
+    generator = make_offline_generator()
     return await generator.generate_hypotheses(
         _GOAL,
         opts={"enable_literature_review_node": False},
@@ -90,13 +65,7 @@ async def _streamed_run(run_id: str) -> dict[str, Any]:
     Returns:
         The last streamed cumulative state.
     """
-    generator = HypothesisGenerator(
-        model_name=offline_llm.DEFAULT_OFFLINE_MODEL,
-        max_iterations=1,
-        initial_hypotheses_count=2,
-        evolution_max_count=2,
-        options=GeneratorOptions(tournament_pairs=2, enable_cache=False),
-    )
+    generator = make_offline_generator()
     last: dict[str, Any] = {}
     async for _node, state in generator.generate_hypotheses(
         _GOAL,

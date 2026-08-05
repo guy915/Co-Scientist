@@ -6,7 +6,7 @@ import {
   type ChatEntry,
   type StartedSession,
 } from '../pages/chat_timeline_cards';
-import {type ToastState} from './use_toast';
+import {type ToastSetter} from './use_toast';
 
 /**
  * A staged run spec paired with the timeline timestamp it was created at.
@@ -44,7 +44,7 @@ export interface ChatSessionDeps {
    */
   onChatStarted: (chatId: string) => void;
   focusComposer: () => void;
-  setToast: (value: string | ToastState | null) => void;
+  setToast: ToastSetter;
   pubmedEnabled: boolean;
   webSearchEnabled: boolean;
   paperCorpusEnabled: boolean;
@@ -94,7 +94,7 @@ export interface HandlerDeps {
   setError: (message: string | null) => void;
   pendingAttachments: File[];
   setPendingAttachments: Dispatch<SetStateAction<File[]>>;
-  setToast: (value: string | ToastState | null) => void;
+  setToast: ToastSetter;
   clearSessionState: () => void;
   stageDraftSpec: (
     spec: InferredRunSpec,

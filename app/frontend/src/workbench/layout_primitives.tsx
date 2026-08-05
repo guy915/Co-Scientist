@@ -4,6 +4,25 @@ import {tooltipClassNames} from './tooltip';
 
 const SHELL_POPOVER_CLASSES = 'ucs-popover';
 
+/** Wraps popover content in the shell's positioned popover container. */
+export type RenderPopover = (
+  children: ReactNode,
+  className: string,
+) => ReactNode;
+
+/**
+ * The shape the header controls share: an open flag, a toggle request, and
+ * the shell's popover wrapper.
+ */
+export interface HeaderControlProps {
+  /** Whether the popover is shown; owned by the parent shell. */
+  open: boolean;
+  /** Requests the parent flip `open`. */
+  onToggle: () => void;
+  /** Wraps the panel content in the shell's positioned popover container. */
+  renderPopover: RenderPopover;
+}
+
 /**
  * Icon sizing/coloring class shared by the shell's header and nav-rail
  * buttons (hamburger, rail actions).

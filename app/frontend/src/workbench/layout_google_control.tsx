@@ -1,9 +1,9 @@
-import {type ReactNode} from 'react';
 import {Link} from 'react-router-dom';
 import {GOOGLE_NOTE} from './audience_content';
 import {
   HeaderControlTrigger,
   headerControlPopoverClasses,
+  type HeaderControlProps,
 } from './layout_primitives';
 
 const POPOVER_CLASSES = headerControlPopoverClasses(
@@ -49,22 +49,12 @@ function GoogleTeamNote() {
 /**
  * Header control replacing Logs for the Google team: a personal note and a
  * link to the recommendations page.
- *
- * @param props.open Whether the popover is shown.
- * @param props.onToggle Requests the parent flip `open`.
- * @param props.renderPopover Wraps the panel in the shell's positioned popover.
  */
-interface GoogleTeamControlProps {
-  open: boolean;
-  onToggle: () => void;
-  renderPopover: (children: ReactNode, className: string) => ReactNode;
-}
-
 export function GoogleTeamControl({
   open,
   onToggle,
   renderPopover,
-}: GoogleTeamControlProps) {
+}: HeaderControlProps) {
   return (
     <>
       <HeaderControlTrigger

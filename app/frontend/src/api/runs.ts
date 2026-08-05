@@ -63,7 +63,12 @@ export type {
   SharedGoalReport,
   SupportSpan,
 } from './run_types';
-export {clientHeaders, exchangeAccessCode, fetchJson} from './runs_http';
+export {
+  clientHeaders,
+  exchangeAccessCode,
+  fetchJson,
+  jsonRequest,
+} from './runs_http';
 export {
   addInterviewTurn,
   createInterview,

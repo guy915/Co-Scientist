@@ -1,4 +1,4 @@
-import {useEffect, useMemo, useRef, useState, type ReactNode} from 'react';
+import {useEffect, useMemo, useRef, useState} from 'react';
 import {deleteAppLogs} from '@/api/logs';
 import {copyText} from '@/lib/clipboard';
 import {joinClasses} from './classes';
@@ -24,17 +24,19 @@ import {useSystemStatus} from './hooks/system_status_context';
 import {
   HeaderControlTrigger,
   headerControlButtonClasses,
+  headerControlPopoverClasses,
+  type HeaderControlProps,
 } from './layout_primitives';
 
-// Sizing/positioning for the logs popover: capped to the viewport (dvh) with
-// a narrower width override under the 720px breakpoint. The `!` overrides
-// beat the shared .ucs-popover defaults applied by the parent's ShellPopover.
+// Sizing/positioning for the logs popover: the shared header-control
+// positioning prefix plus a logs-specific body capped to the viewport (dvh),
+// with a narrower width override under the 720px breakpoint. The `!`
+// overrides beat the shared .ucs-popover defaults applied by the parent's
+// ShellPopover.
 const LOGS_POPOVER_CLASSES = joinClasses(
-  'ucs-popover--logs',
-  'top-[calc(100%+0.45rem)] right-0 !w-[min(32rem,calc(100vw-2rem))]',
+  headerControlPopoverClasses('!w-[min(32rem,calc(100vw-2rem))]'),
   'max-h-[min(32rem,calc(100dvh-6rem))] grid-rows-[auto_auto_minmax(0,1fr)]',
-  '!gap-0 overflow-hidden !p-0 !border-cosci-logs-border ' +
-    '!bg-cosci-logs-surface',
+  '!gap-0 overflow-hidden !border-cosci-logs-border !bg-cosci-logs-surface',
   'max-[720px]:right-[-0.5rem] ' +
     'max-[720px]:!w-[min(18.5rem,calc(100vw-1.5rem))]',
 );
@@ -115,28 +117,6 @@ function LogsTriggerButton({
   );
 }
 
-/**
- * Header "Logs" button plus its diagnostics popover.
- *
- * The panel renders the persisted app-wide log — the same list on every
- * route, numbered by the store's consecutive ids. In-page diagnostic
- * events and route navigations are shipped to that log via the ingestion
- * endpoint, Clear deletes the persisted log (server-side), and Copy
- * exports a context preamble plus the newest entries (see
- * layout_diagnostics_export).
- *
- * @param props.open Whether the popover is shown; owned by the parent shell
- *   so it stays mutually exclusive with the Settings popover.
- * @param props.onToggle Requests the parent flip `open`.
- * @param props.renderPopover Lets the parent wrap the panel content in its
- *   own positioned popover container (shared with the Settings menu).
- */
-interface DiagnosticsControlProps {
-  open: boolean;
-  onToggle: () => void;
-  renderPopover: (children: ReactNode, className: string) => ReactNode;
-}
-
 // How long the Copy button reads "Copied" before returning to "Copy".
 // Long enough to register as confirmation, short enough that the control
 // never looks stuck — a second copy must not have to guess whether the
@@ -209,11 +189,21 @@ function makeDiagnosticActions({
   return {onCopy, onClear};
 }
 
+/**
+ * Header "Logs" button plus its diagnostics popover.
+ *
+ * The panel renders the persisted app-wide log — the same list on every
+ * route, numbered by the store's consecutive ids. In-page diagnostic
+ * events and route navigations are shipped to that log via the ingestion
+ * endpoint, Clear deletes the persisted log (server-side), and Copy
+ * exports a context preamble plus the newest entries (see
+ * layout_diagnostics_export).
+ */
 export function DiagnosticsControl({
   open,
   onToggle,
   renderPopover,
-}: DiagnosticsControlProps) {
+}: HeaderControlProps) {
   // Bumped whenever the persisted log changed (ingest, navigation, clear)
   // so the fetch effect re-runs immediately instead of waiting for a poll.
   const [version, setVersion] = useState(0);

@@ -1,6 +1,7 @@
 """Shared fixtures for the durable task-queue suites.
 
-Used by ``test_task_queue.py`` and ``test_task_queue_control.py``.
+Used by ``test_task_queue.py``, ``test_task_queue_control.py``, and
+``test_task_worker_leases.py``.
 """
 
 from __future__ import annotations

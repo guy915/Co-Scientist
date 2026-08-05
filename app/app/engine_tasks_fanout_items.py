@@ -46,16 +46,7 @@ async def execute_review_item(
         task, db_path, superseded="review item"
     )
     hypothesis_id, hypothesis = _hypothesis_for_item(task, state)
-    context = ReviewContext(
-        research_goal=state["research_goal"],
-        model_name=state["model_name"],
-        run_id=state.get("run_id"),
-        supervisor_guidance=state.get("supervisor_guidance"),
-        meta_review=state.get("meta_review"),
-        tool_registry=state.get("tool_registry"),
-        run_setup_guidance=state.get("run_setup_guidance"),
-        run_focus_guidance=state.get("run_focus_guidance"),
-    )
+    context = ReviewContext.from_state(state)
     review = await review_single_hypothesis(
         hypothesis_text=hypothesis.text,
         context=context,

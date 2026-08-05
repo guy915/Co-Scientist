@@ -10,6 +10,7 @@ import pytest
 from app import engine_tasks, store, task_worker
 from app.config import settings
 from tests._client import make_client
+from tests._task_worker_helpers import make_cancellable_executor
 
 
 def test_enqueue_workflow_is_idempotent(isolated_db: str) -> None:
@@ -122,19 +123,11 @@ async def test_worker_shutdown_cancels_task_payload(
     )
     started = asyncio.Event()
     interrupted = asyncio.Event()
-
-    async def _execute(
-        _task: store.ScientificTask, *, db_path: str | None = None
-    ) -> dict[str, bool]:
-        started.set()
-        try:
-            await asyncio.Event().wait()
-        except asyncio.CancelledError:
-            interrupted.set()
-            raise
-        return {"completed": True}
-
-    monkeypatch.setattr(engine_tasks, "execute_engine_task", _execute)
+    monkeypatch.setattr(
+        engine_tasks,
+        "execute_engine_task",
+        make_cancellable_executor(started, interrupted),
+    )
     running = asyncio.create_task(
         task_worker.run_once("worker-a", db_path=isolated_db)
     )

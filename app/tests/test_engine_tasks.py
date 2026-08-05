@@ -18,6 +18,7 @@ from app import engine_tasks, safety, store, task_worker
 from tests._engine_tasks_helpers import (
     _deterministic_screen,
     _Generator,
+    _install_plain_fake_judge,
     _milestones,
     _patch_generator,
     _patch_task_node,
@@ -272,20 +273,7 @@ def _patch_ranking_judge(
 ) -> None:
     """Route the generator seams and stub the pairwise Elo judge."""
     _patch_generator(monkeypatch, generator, restore=True)
-
-    import co_scientist.agents.ranking.ranking as ranking_module
-
-    async def fake_judge(*_: Any, **kwargs: Any) -> tuple[str, dict[str, Any]]:
-        turns = int(kwargs["debate_turns"])
-        return "a", {
-            "decision_summary": "A is stronger",
-            "confidence_level": "high",
-            "debate_turns": turns,
-            "debate_transcript": [],
-            "judge_model": "fixture",
-        }
-
-    monkeypatch.setattr(ranking_module, "judge_matchup", fake_judge)
+    _install_plain_fake_judge(monkeypatch)
 
 
 async def _drain_ranking_matches(

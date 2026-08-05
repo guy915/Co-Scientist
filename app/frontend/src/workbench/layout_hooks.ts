@@ -1,4 +1,5 @@
 import {
+  useCallback,
   useEffect,
   useRef,
   useState,
@@ -9,6 +10,7 @@ import {
 import {type SettingsSection} from './components/settings_dialog';
 import {HEADER_TITLE_EVENT} from './dom_events';
 import {useChatHistoryContext} from './hooks/chat_history_context';
+import {useEscapeKey} from './hooks/use_escape_key';
 import {closeDrawerIfMobile} from './hooks/use_is_mobile';
 
 /**
@@ -92,16 +94,13 @@ function useEscapeClosesDrawer(
   navOpen: boolean,
   setNavOpen: (open: boolean) => void,
 ) {
-  useEffect(() => {
-    if (!navOpen) return;
-    function onKeyDown(event: KeyboardEvent) {
-      if (event.key === 'Escape') closeDrawerIfMobile(setNavOpen);
-    }
-    window.addEventListener('keydown', onKeyDown);
-    return () => {
-      window.removeEventListener('keydown', onKeyDown);
-    };
-  }, [navOpen]);
+  // Stable handler so the shared hook only re-subscribes when `navOpen`
+  // flips; an inline arrow would re-subscribe every render.
+  const closeDrawer = useCallback(
+    () => closeDrawerIfMobile(setNavOpen),
+    [setNavOpen],
+  );
+  useEscapeKey(closeDrawer, navOpen);
 }
 
 // Closes `activePanel` on a pointerdown landing outside both the Settings and

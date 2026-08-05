@@ -1,7 +1,7 @@
 import {type Interview, type InterviewTurn} from '@/api/runs';
-import {interviewToRunSpec, type InferredRunSpec} from '../run_spec';
+import {interviewToRunSpec} from '../run_spec';
 import {type ChatEntry} from '../pages/chat_timeline_cards';
-import {type DraftIntro, type SpecStage} from './chat_session_types';
+import {type HandlerDeps} from './chat_session_types';
 
 /**
  * One persisted turn as a timeline bubble.
@@ -45,16 +45,15 @@ export function splitTranscript(interview: Interview): {
 }
 
 /** The session state an interview snapshot is rendered into. */
-export interface TranscriptSink {
+export interface TranscriptSink extends Pick<
+  HandlerDeps,
+  'setInterview' | 'setDraft' | 'setConfirmed' | 'stageDraftSpec'
+> {
+  // Deliberately wider than HandlerDeps.setMessages: rendering a snapshot
+  // replaces the whole log with plain entries, so the sink accepts any
+  // replacement setter and must not require the session's stateful dispatch.
+  // Do not narrow this to Dispatch<SetStateAction<ChatEntry[]>>.
   setMessages: (entries: ChatEntry[]) => void;
-  setInterview: (interview: Interview | null) => void;
-  setDraft: (stage: SpecStage | null) => void;
-  setConfirmed: (stage: SpecStage | null) => void;
-  stageDraftSpec: (
-    spec: InferredRunSpec,
-    createdAt?: number,
-    intro?: DraftIntro,
-  ) => void;
 }
 
 /**

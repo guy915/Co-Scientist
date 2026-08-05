@@ -2,6 +2,7 @@ import type {RefObject} from 'react';
 import {useEffect, useRef, useState} from 'react';
 import {Icon} from '@/components/icon';
 import {getStoredApiKey, setStoredApiKey} from '@/lib/api_key';
+import {useEscapeKey} from '../hooks/use_escape_key';
 import {useToast, type ToastState} from '../hooks/use_toast';
 import {type Mode, useTheme} from '../theme_context';
 import {
@@ -29,21 +30,6 @@ function useFocusOnMount(ref: RefObject<HTMLElement | null>) {
   useEffect(() => {
     ref.current?.focus();
   }, [ref]);
-}
-
-// Global Escape-to-close, active for as long as the caller stays mounted.
-// `enabled` is false for a locked dialog, which has no close path at all.
-function useEscapeKey(onClose: () => void, enabled: boolean) {
-  useEffect(() => {
-    if (!enabled) return;
-    function onKeyDown(event: KeyboardEvent) {
-      if (event.key === 'Escape') onClose();
-    }
-    window.addEventListener('keydown', onKeyDown);
-    return () => {
-      window.removeEventListener('keydown', onKeyDown);
-    };
-  }, [onClose, enabled]);
 }
 
 // Model section's API key field: a local editable copy of the persisted key

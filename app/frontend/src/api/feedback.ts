@@ -2,7 +2,7 @@
 // app/feedback.py.
 
 import type {Audience} from './run_types';
-import {clientHeaders, fetchJson} from './runs';
+import {fetchJson, jsonRequest} from './runs';
 
 /** Note categories the form offers; mirrors FEEDBACK_CATEGORIES server-side. */
 export type FeedbackCategory = 'bug' | 'suggestion' | 'question' | 'praise';
@@ -27,13 +27,15 @@ export function submitFeedback(input: {
   category: FeedbackCategory;
   audience: Audience | null;
 }): Promise<FeedbackNote> {
-  return fetchJson<FeedbackNote>('/api/feedback', {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json', ...clientHeaders()},
-    body: JSON.stringify({
-      message: input.message,
-      category: input.category,
-      audience: input.audience ?? undefined,
-    }),
-  });
+  return fetchJson<FeedbackNote>(
+    '/api/feedback',
+    jsonRequest(
+      {
+        message: input.message,
+        category: input.category,
+        audience: input.audience ?? undefined,
+      },
+      /*includeClientId=*/ true,
+    ),
+  );
 }

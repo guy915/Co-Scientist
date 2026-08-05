@@ -9,7 +9,7 @@
 // headers the panel reads as empty in any deployment the browser does not
 // reach over loopback, and submitted records are stored ownerless and can
 // never be read back.
-import {clientHeaders, fetchJson} from './runs';
+import {clientHeaders, fetchJson, jsonRequest} from './runs';
 
 /** One persisted backend log record. */
 export interface AppLogRecord {
@@ -86,11 +86,7 @@ export async function postAppLogs(
 ): Promise<{added: number; last_id: number}> {
   const result = await fetchJson<{added: number; last_id: number}>(
     '/api/logs',
-    {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json', ...clientHeaders()},
-      body: JSON.stringify({records}),
-    },
+    jsonRequest({records}, /*includeClientId=*/ true),
   );
   announceAppLogsChanged();
   return result;
@@ -110,11 +106,10 @@ export async function postAppLogs(
 export function reportAppLogs(
   report: string,
 ): Promise<{status: string; chars: number}> {
-  return fetchJson('/api/logs/report', {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json', ...clientHeaders()},
-    body: JSON.stringify({report}),
-  });
+  return fetchJson(
+    '/api/logs/report',
+    jsonRequest({report}, /*includeClientId=*/ true),
+  );
 }
 
 /**

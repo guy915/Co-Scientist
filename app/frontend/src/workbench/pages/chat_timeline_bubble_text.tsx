@@ -160,14 +160,17 @@ function remeasureBubbleOnChange(state: CollapsibleBubbleTextState): void {
 
 // Flips collapsed/expanded, re-measuring first in case metrics (e.g. a font
 // load) shifted since the last measurement.
-function toggleBubbleExpanded(state: {
-  textRef: RefObject<HTMLSpanElement | null>;
-  expanded: boolean;
-  setHeights: Dispatch<SetStateAction<BubbleHeights>>;
-  setExpanded: Dispatch<SetStateAction<boolean>>;
-  setClamped: Dispatch<SetStateAction<boolean>>;
-  setSettled: Dispatch<SetStateAction<boolean>>;
-}): void {
+function toggleBubbleExpanded(
+  state: Pick<
+    CollapsibleBubbleTextState,
+    | 'textRef'
+    | 'expanded'
+    | 'setHeights'
+    | 'setExpanded'
+    | 'setClamped'
+    | 'setSettled'
+  >,
+): void {
   const {textRef, expanded, setHeights, setExpanded, setClamped, setSettled} =
     state;
   const element = textRef.current;

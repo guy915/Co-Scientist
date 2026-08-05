@@ -11,6 +11,8 @@ from typing import Any
 import pytest
 
 from app import engine_tasks, store, task_worker
+from tests._task_queue_helpers import _enqueue
+from tests._task_worker_helpers import make_cancellable_executor
 
 
 def _enqueue_test_tasks(
@@ -34,16 +36,6 @@ def _assert_all_completed(run_id: str, db_path: str) -> None:
     assert {
         task.status for task in store.list_tasks(run_id, db_path=db_path)
     } == {"completed"}
-
-
-def _enqueue_one(run_id: str, task_type: str, key: str, db_path: str) -> Any:
-    """Enqueue a single specialist task with the given idempotency key."""
-    return store.enqueue_task(
-        store.NewTask(
-            run_id=run_id, task_type=task_type, inputs={}, idempotency_key=key
-        ),
-        db_path=db_path,
-    )
 
 
 def _count_lease_renewals(monkeypatch: pytest.MonkeyPatch) -> dict[str, int]:
@@ -132,19 +124,11 @@ async def test_worker_cancels_execution_after_lease_revocation(
     )
     started = asyncio.Event()
     interrupted = asyncio.Event()
-
-    async def _execute(
-        _task: store.ScientificTask, *, db_path: str | None = None
-    ) -> dict[str, bool]:
-        started.set()
-        try:
-            await asyncio.Event().wait()
-        except asyncio.CancelledError:
-            interrupted.set()
-            raise
-        return {"completed": True}
-
-    monkeypatch.setattr(engine_tasks, "execute_engine_task", _execute)
+    monkeypatch.setattr(
+        engine_tasks,
+        "execute_engine_task",
+        make_cancellable_executor(started, interrupted),
+    )
     running = asyncio.create_task(
         task_worker.run_once(
             "worker-a", db_path=isolated_db, lease_seconds=0.15
@@ -307,9 +291,7 @@ async def test_heartbeat_writes_on_the_lease_schedule_not_the_poll_schedule(
     outright with "database is locked".
     """
     run = store.create_run("heartbeat cost", "standard", "engine", {})
-    task = _enqueue_one(
-        run.id, "engine.test.heartbeat", "heartbeat:0", isolated_db
-    )
+    task = _enqueue(run.id, "engine.test.heartbeat", "heartbeat:0", isolated_db)
     renewals = _count_lease_renewals(monkeypatch)
 
     stop = asyncio.Event()

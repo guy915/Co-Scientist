@@ -1,10 +1,11 @@
-import {useState, type ReactNode} from 'react';
+import {useState} from 'react';
 import {submitFeedback, type FeedbackCategory} from '@/api/feedback';
 import {useAudience} from './audience_context';
 import {FEEDBACK_CATEGORIES, PILOT_FEEDBACK} from './audience_content';
 import {
   HeaderControlTrigger,
   headerControlPopoverClasses,
+  type HeaderControlProps,
 } from './layout_primitives';
 
 const POPOVER_CLASSES = headerControlPopoverClasses(
@@ -178,22 +179,12 @@ function FeedbackForm({
 /**
  * Header control replacing Logs for SBI/UCD: a short feedback form posting to
  * the pilot feedback endpoint.
- *
- * @param props.open Whether the popover is shown.
- * @param props.onToggle Requests the parent flip `open`.
- * @param props.renderPopover Wraps the panel in the shell's positioned popover.
  */
-interface PilotControlProps {
-  open: boolean;
-  onToggle: () => void;
-  renderPopover: (children: ReactNode, className: string) => ReactNode;
-}
-
 export function PilotControl({
   open,
   onToggle,
   renderPopover,
-}: PilotControlProps) {
+}: HeaderControlProps) {
   const form = useFeedbackForm();
   const sending = form.state === 'sending';
 

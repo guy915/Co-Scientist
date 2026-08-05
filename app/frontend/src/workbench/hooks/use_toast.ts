@@ -12,6 +12,9 @@ export interface ToastState {
   action?: ToastAction;
 }
 
+/** Shows or clears a toast; accepts the plain-string shorthand or null. */
+export type ToastSetter = (value: string | ToastState | null) => void;
+
 /**
  * Manages a transient toast that auto-clears after a delay. Accepts either a
  * plain string (message only) or a {@link ToastState} with an action button.
@@ -21,7 +24,7 @@ export interface ToastState {
  */
 export function useToast(durationMs = 3000): {
   toast: ToastState | null;
-  setToast: (value: string | ToastState | null) => void;
+  setToast: ToastSetter;
 } {
   // Single-slot "queue": showing a new toast replaces the current one.
   const [toast, setToastState] = useState<ToastState | null>(null);
