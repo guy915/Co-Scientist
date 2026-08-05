@@ -16,7 +16,8 @@ from typing import Any
 
 from fastapi import Request
 
-from app import qa, store
+from app import store
+from app.sse import sse_frame
 from app.store import TERMINAL_STATUSES, RunRow, RunStatus
 
 # Statuses that end an SSE stream. PAUSED is not a terminal *run* status (a
@@ -34,7 +35,7 @@ def _terminal_frame(status: str, seq: int) -> str:
 
     This frame is never persisted; it only tells clients to close.
     """
-    return qa.sse_frame(
+    return sse_frame(
         {"type": "_terminal", "payload": {"status": status}, "seq": seq}
     )
 
@@ -107,7 +108,7 @@ def _drain_tick_frames(
     terminal_status: str | None = None
     for ev in new_events:
         last_seq = ev["seq"]
-        frames.append(qa.sse_frame(ev))
+        frames.append(sse_frame(ev))
         terminal_status = _terminal_status_from_event(ev) or terminal_status
     return last_seq, terminal_status, frames
 
@@ -169,7 +170,7 @@ async def _event_stream(
     )
     for ev in history:
         last_seq = ev["seq"]
-        yield qa.sse_frame(ev)
+        yield sse_frame(ev)
 
     # If terminal (or paused) already, send a final marker and return.
     if run.status in _STREAM_END_STATUSES:

@@ -24,6 +24,7 @@ from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
 from app.claims import (
+    _ASSESSOR_DETERMINISTIC,
     Assessor,
     ClaimAssessment,
     EvidencePassage,
@@ -61,7 +62,7 @@ class AssessorSpec:
     """
 
     assessor: Assessor = deterministic_assessor
-    assessor_id: str = "deterministic-v1"
+    assessor_id: str = _ASSESSOR_DETERMINISTIC
 
 
 def _claim_records(hyp: Mapping[str, Any]) -> list[tuple[str, str]]:
@@ -163,7 +164,7 @@ def assess_hypothesis_claims(
     passages: Sequence[EvidencePassage],
     *,
     assessor: Assessor = deterministic_assessor,
-    assessor_id: str = "deterministic-v1",
+    assessor_id: str = _ASSESSOR_DETERMINISTIC,
     reuse: Mapping[str, Mapping[str, ClaimAssessment]] | None = None,
 ) -> list[tuple[str, list[tuple[ClaimAssessment, str]]]]:
     """Assess every hypothesis's claims against the evidence pool.

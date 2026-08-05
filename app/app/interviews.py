@@ -70,7 +70,7 @@ from app.interviews_prompts import (
 from app.interviews_prompts import (
     _system_prompt as _system_prompt,
 )
-from app.qa import sse_frame
+from app.sse import sse_frame
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/interviews", tags=["interviews"])

@@ -6,12 +6,12 @@ evidence manifest (using the four-state citation model in ``citations.py``),
 assembling the system prompt from the run's hypotheses/reviews/matches, and
 streaming the LLM answer while persisting the exchange. The manifest and
 prompt-assembly half lives in ``app.qa_manifest`` and is re-exported here so
-callers keep importing from this module.
+callers keep importing from this module, as is the shared SSE encoder
+``sse_frame`` (now ``app.sse``).
 """
 
 from __future__ import annotations
 
-import json
 import logging
 from collections.abc import AsyncGenerator, AsyncIterator
 from typing import Any
@@ -27,6 +27,7 @@ from app.llm_stream import stream_chunks
 from app.qa_manifest import QaRunContext as QaRunContext
 from app.qa_manifest import build_evidence_manifest as build_evidence_manifest
 from app.qa_manifest import build_system_prompt as build_system_prompt
+from app.sse import sse_frame as sse_frame
 
 logger = logging.getLogger(__name__)
 
@@ -37,11 +38,6 @@ _ANSWER_MAX_TOKENS = 4_000
 # thing that distinguishes a dead provider from a thorough one.
 _QA_STALL_SECONDS = 45.0
 _QA_TOTAL_SECONDS = THINKING_FLOOR_TIMEOUT_SECONDS + 60.0
-
-
-def sse_frame(event: dict[str, Any]) -> str:
-    """Format an event dict as a Server-Sent Events data frame."""
-    return f"data: {json.dumps(event)}\n\n"
 
 
 def _offline_hypothesis_lines(
