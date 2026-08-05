@@ -203,6 +203,10 @@ CREATE TABLE IF NOT EXISTS citations (
     FOREIGN KEY (evidence_id) REFERENCES evidence(id) ON DELETE CASCADE
 );
 CREATE INDEX IF NOT EXISTS idx_cit_hyp ON citations(hypothesis_id);
+-- The per-run listing (store.list_citations) filters on run_id and orders by
+-- created_at; without this it scanned the whole table -- every run's rows, not
+-- just this one's -- and sorted the survivors in a temp b-tree.
+CREATE INDEX IF NOT EXISTS idx_cit_run ON citations(run_id, created_at);
 
 -- Reviewer critiques and scores for a hypothesis; one row per reviewing
 -- agent pass (reflection, review, meta_review), never updated in place.
@@ -256,6 +260,11 @@ CREATE TABLE IF NOT EXISTS safety_decisions (
     created_at REAL NOT NULL,
     FOREIGN KEY (run_id) REFERENCES runs(id) ON DELETE CASCADE
 );
+-- This table had no index at all, so every per-run read of it (the audit
+-- listing, the adjudication lookup in safety_stage_is_approved) and every
+-- per-run delete scanned it whole.
+CREATE INDEX IF NOT EXISTS idx_safety_run
+    ON safety_decisions(run_id, created_at);
 
 -- Rendered report snapshots for a run. Multiple rows may accumulate (a
 -- report can be regenerated); get_latest_report picks the newest by
@@ -354,6 +363,10 @@ CREATE TABLE IF NOT EXISTS claim_evidence (
     FOREIGN KEY (hypothesis_id) REFERENCES hypotheses(id) ON DELETE CASCADE
 );
 CREATE INDEX IF NOT EXISTS idx_claim_ev_hyp ON claim_evidence(hypothesis_id);
+-- Same reason as idx_cit_run: the publication gate and the report render read
+-- this graph per run, and the hypothesis_id index above cannot serve that.
+CREATE INDEX IF NOT EXISTS idx_claim_ev_run
+    ON claim_evidence(run_id, created_at);
 
 -- Persisted application log records captured from the Python root logger
 -- (see app/logging_setup.py). App-wide: run_id is NULL for records emitted

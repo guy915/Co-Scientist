@@ -383,3 +383,38 @@ def test_deleting_a_run_cascades_to_child_rows(db: str) -> None:
     assert store.list_reviews(run.id) == []
     assert store.list_citations(run.id) == []
     assert store.list_events(run.id) == []
+
+
+# Tables read (and deleted) one run at a time by ``_list_by_run``. A run's
+# rows are a slice of a table that holds every run's, so a missing run_id
+# index does not merely make the query slower -- it makes one run's read
+# proportional to every other run's writes.
+_PER_RUN_LISTED_TABLES = (
+    "evidence",
+    "citations",
+    "claim_evidence",
+    "safety_decisions",
+    "reviews",
+    "matches",
+    "proximity_edges",
+)
+
+
+@pytest.mark.parametrize("table", _PER_RUN_LISTED_TABLES)
+def test_per_run_listing_never_scans_the_whole_table(
+    db: str, table: str
+) -> None:
+    """Every per-run listing must reach its rows through an index.
+
+    citations, claim_evidence, and safety_decisions each carried an index
+    for someone else (hypothesis_id, or nothing at all), so the per-run
+    query planned a full table scan across every run in the database.
+    """
+    with store.connect() as conn:
+        plan = conn.execute(
+            f"EXPLAIN QUERY PLAN SELECT * FROM {table} WHERE run_id=? "
+            "ORDER BY created_at ASC",
+            ("any-run",),
+        ).fetchall()
+    detail = " ".join(row["detail"] for row in plan)
+    assert f"SCAN {table}" not in detail, detail
