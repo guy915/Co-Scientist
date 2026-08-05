@@ -18,7 +18,7 @@ import sqlite3
 from dataclasses import dataclass
 from typing import Any
 
-from app.store.db import _now, _use_conn
+from app.store.db import _now, _use_conn, connect
 from app.store.records_support import _list_by_run
 
 
@@ -104,7 +104,7 @@ def resolve_safety_decision(
     """Resolve one held/redacted safety decision exactly once."""
     if resolution not in {"approved", "rejected"}:
         raise ValueError("resolution must be approved or rejected")
-    with _use_conn(None, db_path) as conn:
+    with connect(db_path) as conn:
         cursor = conn.execute(
             "UPDATE safety_decisions SET resolution=?, resolved_by=?, "
             "resolved_at=? WHERE id=? AND run_id=? AND requires_review=1 "
@@ -121,7 +121,7 @@ def safety_stage_is_approved(
     db_path: str | None = None,
 ) -> bool:
     """Return whether a reviewer approved the latest matching policy stage."""
-    with _use_conn(None, db_path) as conn:
+    with connect(db_path) as conn:
         row = conn.execute(
             "SELECT resolution FROM safety_decisions WHERE run_id=? AND "
             "stage=? AND policy_version=? ORDER BY id DESC LIMIT 1",

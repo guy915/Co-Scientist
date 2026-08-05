@@ -16,7 +16,7 @@ import uuid
 from collections.abc import Iterable, Mapping
 from typing import Any
 
-from app.store.db import _now, _use_conn, transaction
+from app.store.db import _now, _use_conn, connect, transaction
 from app.store.tasks_lifecycle import cancel_run_tasks as cancel_run_tasks
 from app.store.tasks_lifecycle import cancel_task as cancel_task
 from app.store.tasks_lifecycle import (
@@ -212,7 +212,7 @@ def list_active_engine_task_run_ids(
     db_path: str | None = None,
 ) -> list[str]:
     """Return non-terminal runs whose durable engine work needs a worker."""
-    with _use_conn(None, db_path) as conn:
+    with connect(db_path) as conn:
         rows = conn.execute(
             "SELECT DISTINCT t.run_id FROM scientific_tasks t "
             "JOIN runs r ON r.id=t.run_id "
@@ -224,6 +224,33 @@ def list_active_engine_task_run_ids(
     return [str(row["run_id"]) for row in rows]
 
 
+# Nothing enqueues the legacy "run.workflow" task type any more, but rows of
+# that type may still exist in production databases created before the
+# node-level durable executor. Such a lease is only a process boundary, not a
+# disclosed scientific work budget, so it is excluded from every part of the
+# rollup to keep progress determinate for any run that still carries one.
+_LEGACY_TASK_TYPE = "run.workflow"
+
+# One aggregate rather than decoding every task row: a fan-out item's
+# inputs_json alone is kilobytes, and none of the four JSON columns a task
+# carries contributes to these five scalars. This is read once per run on
+# every run-list response and again on every run-detail poll, so the decode
+# was paid over and over for numbers SQLite can count in place. The engine
+# prefix is compared with substr rather than LIKE, matching
+# ``has_task_of_type``: LIKE would treat "_" as a wildcard.
+_PROGRESS_QUERY = (
+    "SELECT COUNT(*) AS total,"
+    " COALESCE(SUM(status IN ('completed','failed','cancelled')), 0)"
+    " AS completed,"
+    " COALESCE(SUM(status='queued'), 0) AS queued,"
+    " COALESCE(MAX(substr(task_type,1,7)='engine.'), 0) AS dynamic_plan,"
+    " (SELECT task_type FROM scientific_tasks WHERE run_id=? AND"
+    "  task_type<>? AND status IN ('leased','running')"
+    "  ORDER BY created_at ASC LIMIT 1) AS active_task"
+    " FROM scientific_tasks WHERE run_id=? AND task_type<>?"
+)
+
+
 def task_progress(
     run_id: str,
     *,
@@ -231,38 +258,23 @@ def task_progress(
     conn: sqlite3.Connection | None = None,
 ) -> dict[str, Any]:
     """Summarize monotonic execution progress from committed durable tasks."""
-    tasks = list_tasks(run_id, db_path=db_path, conn=conn)
-    # Nothing enqueues the legacy "run.workflow" task type any more, but rows
-    # of that type may still exist in production databases created before the
-    # node-level durable executor. Such a lease is only a process boundary,
-    # not a disclosed scientific work budget, so drop it from the count to
-    # keep progress determinate for any run that still carries one.
-    scientific_tasks = [
-        task for task in tasks if task.task_type != "run.workflow"
-    ]
-    total = len(scientific_tasks)
-    terminal = {"completed", "failed", "cancelled"}
-    completed = sum(task.status in terminal for task in scientific_tasks)
-    active = next(
-        (
-            task
-            for task in scientific_tasks
-            if task.status in {"leased", "running"}
-        ),
-        None,
-    )
-    dynamic_plan = any(
-        task.task_type.startswith("engine.") for task in scientific_tasks
-    )
+    with _use_conn(conn, db_path) as active:
+        row = active.execute(
+            _PROGRESS_QUERY,
+            (run_id, _LEGACY_TASK_TYPE, run_id, _LEGACY_TASK_TYPE),
+        ).fetchone()
+    total = int(row["total"])
+    completed = int(row["completed"])
+    # A model-expanded plan has no honest denominator, so it reports neither
+    # a fraction nor determinacy however many tasks have committed.
+    determinate = total > 0 and not row["dynamic_plan"]
     return {
-        "determinate": total > 0 and not dynamic_plan,
+        "determinate": determinate,
         "completed_tasks": completed,
         "total_tasks": total,
-        "fraction": completed / total if total and not dynamic_plan else None,
-        "active_task": active.task_type if active else None,
-        "queued_tasks": sum(
-            task.status == "queued" for task in scientific_tasks
-        ),
+        "fraction": completed / total if determinate else None,
+        "active_task": row["active_task"],
+        "queued_tasks": int(row["queued"]),
     }
 
 

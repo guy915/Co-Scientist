@@ -15,7 +15,7 @@ import sqlite3
 from dataclasses import dataclass
 from typing import Any
 
-from app.store.db import _now, _use_conn, checkpoint_wal
+from app.store.db import _now, _use_conn, checkpoint_wal, connect
 
 
 @dataclass(frozen=True)
@@ -200,7 +200,7 @@ def prune_superseded_checkpoints(db_path: str | None = None) -> int:
 
     total = 0
     while True:
-        with _use_conn(None, db_path) as owned:
+        with connect(db_path) as owned:
             deleted = int(
                 (owned.execute(delete, (_PRUNE_BATCH_ROWS,)).rowcount) or 0
             )

@@ -87,7 +87,10 @@ def create_interview(
                 now=now,
             ),
         )
-    result = get_interview(interview_id, db_path=db_path)
+        # Read back on the same connection: the write is already committed
+        # (the store connects in autocommit), so opening a second one only
+        # bought another connect/pragma round trip.
+        result = get_interview(interview_id, conn=conn)
     assert result is not None
     return result
 
