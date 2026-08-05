@@ -29,6 +29,7 @@ from co_scientist.prompts import (
     PromptRunContext,
     get_research_overview_prompt,
 )
+from co_scientist.safety import is_blocking_status
 from co_scientist.state import WorkflowState
 
 logger = logging.getLogger(__name__)
@@ -53,6 +54,10 @@ _EVIDENCE_ABSTRACT_CHARS: Final = 3000
 async def research_overview_node(state: WorkflowState) -> dict[str, Any]:
     """Synthesize the top-k hypotheses into an overview + NIH Specific Aims.
 
+    Only hypotheses the publication gates release are offered to the model:
+    the pool is filtered before the LLM call, because prose synthesized
+    from a blocked idea cannot be unlabeled afterwards.
+
     Args:
         state: The current workflow state.
 
@@ -60,14 +65,22 @@ async def research_overview_node(state: WorkflowState) -> dict[str, Any]:
         A state delta carrying the research overview, metrics, and a message.
     """
     hypotheses = state.get("hypotheses", [])
-    if not hypotheses:
+    publishable = _publishable_hypotheses(hypotheses)
+    if not publishable:
         # Nothing survived to this terminal node (e.g. an earlier failure
-        # or all hypotheses were pruned); skip the LLM call rather than
-        # synthesizing an overview from an empty pool.
+        # or all hypotheses were pruned), or the publication gates
+        # withheld every remaining hypothesis; skip the LLM call rather
+        # than synthesizing an overview from an empty or excluded pool.
+        if hypotheses:
+            logger.warning(
+                "Research overview skipped: publication gates withheld all "
+                "%d hypotheses; nothing to synthesize",
+                len(hypotheses),
+            )
         return {"research_overview": {}}
 
     articles = state.get("articles")
-    summary = _summarize_top_hypotheses(hypotheses)
+    summary = _summarize_top_hypotheses(publishable)
     contact_candidates = _build_contact_candidates(articles)
     evidence_corpus = _build_evidence_corpus(articles)
 
@@ -92,6 +105,29 @@ async def research_overview_node(state: WorkflowState) -> dict[str, Any]:
     return _build_research_overview_result(research_overview)
 
 
+def _publishable_hypotheses(
+    hypotheses: list[Hypothesis],
+) -> list[Hypothesis]:
+    """Filter to the hypotheses the final report would publish.
+
+    Mirrors the report's exclusions on engine-side state: the tournament's
+    rankability test (``Hypothesis.is_rankable``) plus the blocking safety
+    outcomes. Ideas merely needing revision still publish, and
+    proximity-archived duplicates are pruned from the pool upstream.
+
+    Args:
+        hypotheses: The hypothesis pool at the terminal node.
+
+    Returns:
+        The publishable hypotheses, in pool order.
+    """
+    return [
+        h
+        for h in hypotheses
+        if h.is_rankable() and not is_blocking_status(h.safety_status)
+    ]
+
+
 def _summarize_top_hypotheses(hypotheses: list[Hypothesis]) -> str:
     """Ranks hypotheses by Elo and formats the top-k as a numbered summary.
 
@@ -100,7 +136,7 @@ def _summarize_top_hypotheses(hypotheses: list[Hypothesis]) -> str:
     hypotheses so the synthesis prompt stays a bounded size.
 
     Args:
-        hypotheses: The full hypothesis pool.
+        hypotheses: The publishable hypothesis pool.
 
     Returns:
         A newline-joined, numbered summary of the top-k hypotheses.

@@ -11,7 +11,8 @@ from unittest.mock import AsyncMock
 import pytest
 
 from co_scientist.agents.meta_review import research_overview as ro
-from co_scientist.models import Article
+from co_scientist.constants import RESEARCH_OVERVIEW_TOP_K
+from co_scientist.models import Article, Hypothesis
 from tests._state import make_article, make_hypothesis, make_state
 
 # A grounded LLM response: one contact and one knowledge-base topic trace back
@@ -118,6 +119,137 @@ async def test_produces_overview_and_aims(
     assert topics[0]["title"] == "Epigenetic control of fibrosis"
     assert topics[0]["references"][0]["title"] == "Fibrosis mechanisms"
     assert "Unsupported topic" not in str(topics)
+
+
+# One (field, value) pair per publication-gate exclusion category: the
+# blocking review dispositions, a deep-verification verdict that undermined
+# the idea, and the blocking safety outcomes.
+_BLOCKED_HYPOTHESIS_FIELDS: list[tuple[str, str]] = [
+    ("review_disposition", "inaccurate"),
+    ("review_disposition", "non_novel"),
+    ("review_disposition", "inaccurate_and_non_novel"),
+    ("review_disposition", "evidence_blocked"),
+    ("deep_verification_verdict", "undermined"),
+    ("safety_status", "prohibited"),
+    ("safety_status", "ethical_concern"),
+    ("safety_status", "uncertain"),
+]
+
+
+def _blocked_hypotheses() -> list[Hypothesis]:
+    """One hypothesis per exclusion category, each outranking healthy ideas.
+
+    The high Elo ratings make the failure mode visible: an unfiltered
+    top-k summary would consist of exactly these withheld ideas.
+    """
+    return [
+        make_hypothesis(
+            text=f"blocked idea {index} ({field_name}={value})",
+            elo_rating=2000 + index,
+            **{field_name: value},
+        )
+        for index, (field_name, value) in enumerate(_BLOCKED_HYPOTHESIS_FIELDS)
+    ]
+
+
+async def test_publication_gates_filter_before_synthesis(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Blocked hypotheses never reach the synthesis prompt.
+
+    The pool mixes healthy hypotheses with one representative of every
+    exclusion category; the blocked ones all outrank the healthy ones by
+    Elo, so ranking the unfiltered pool would feed the withheld ideas to
+    the synthesis LLM. Filtering must happen before that call -- prose
+    already synthesized from a blocked idea cannot be unlabeled later.
+    """
+    fake = AsyncMock(return_value=_OVERVIEW_RESPONSE)
+    monkeypatch.setattr(ro, "call_llm_json", fake)
+
+    healthy = make_hypothesis(text="healthy idea", elo_rating=1500)
+    needs_revision = make_hypothesis(
+        text="needs revision idea",
+        elo_rating=1400,
+        review_disposition="needs_revision",
+    )
+    blocked = _blocked_hypotheses()
+
+    state = make_state(
+        hypotheses=[healthy, needs_revision, *blocked],
+        research_goal="g",
+        supervisor_model_name="test/model",
+        meta_review={},
+    )
+    out = await ro.research_overview_node(state)
+
+    assert fake.await_count == 1
+    assert fake.await_args is not None
+    prompt = fake.await_args.kwargs["prompt"]
+    assert "healthy idea" in prompt
+    # needs_revision ranks and publishes; only the not-viable band blocks.
+    assert "needs revision idea" in prompt
+    for hypothesis in blocked:
+        assert hypothesis.text not in prompt
+    assert out["research_overview"]["overview"]["summary"] == "S"
+
+
+async def test_all_blocked_pool_skips_synthesis(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """When the gates withhold everything, no LLM call happens.
+
+    The node takes the same empty-pool branch as a run with no hypotheses
+    at all and returns an empty research_overview.
+    """
+    fake = AsyncMock(return_value=_OVERVIEW_RESPONSE)
+    monkeypatch.setattr(ro, "call_llm_json", fake)
+
+    state = make_state(
+        hypotheses=_blocked_hypotheses(),
+        research_goal="g",
+        supervisor_model_name="test/model",
+        meta_review={},
+    )
+    out = await ro.research_overview_node(state)
+
+    assert out == {"research_overview": {}}
+    assert fake.await_count == 0
+
+
+async def test_healthy_pool_keeps_top_k_elo_order(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A fully publishable pool keeps the top-k Elo-order behavior.
+
+    More hypotheses than the top-k cap are offered; the summary must hold
+    exactly the strongest RESEARCH_OVERVIEW_TOP_K, in descending Elo order.
+    """
+    fake = AsyncMock(return_value=_OVERVIEW_RESPONSE)
+    monkeypatch.setattr(ro, "call_llm_json", fake)
+
+    hypotheses = [
+        make_hypothesis(text=f"idea-{index:02d}", elo_rating=1000 + index * 10)
+        for index in range(RESEARCH_OVERVIEW_TOP_K + 2)
+    ]
+    state = make_state(
+        hypotheses=hypotheses,
+        research_goal="g",
+        supervisor_model_name="test/model",
+        meta_review={},
+    )
+    await ro.research_overview_node(state)
+
+    assert fake.await_count == 1
+    assert fake.await_args is not None
+    prompt = fake.await_args.kwargs["prompt"]
+    ranked_texts = [
+        f"idea-{index:02d}"
+        for index in range(RESEARCH_OVERVIEW_TOP_K + 1, 1, -1)
+    ]
+    positions = [prompt.index(text) for text in ranked_texts]
+    assert positions == sorted(positions)
+    assert "idea-00" not in prompt
+    assert "idea-01" not in prompt
 
 
 def test_evidence_corpus_interleaves_sources() -> None:
