@@ -4,8 +4,9 @@ Split from ``app.cli.runs_cmd`` to keep that module small: this module holds
 the handlers that hold a connection open or poll until a run settles —
 ``wait`` (status polling), ``watch`` (SSE event tail with reconnects), and
 ``ask`` (streamed Q&A) — plus the path/stdin helpers they share with the
-plain request/response handlers. ``app.cli.runs_cmd`` re-exports every name
-here, so ``runs_cmd.handle_watch`` and friends keep resolving.
+plain request/response handlers. ``app.cli.runs_cmd`` re-exports the three
+handlers and ``WATCH_RECONNECT_ATTEMPTS``, so ``runs_cmd.handle_watch`` and
+friends keep resolving.
 """
 
 from __future__ import annotations
@@ -128,10 +129,9 @@ def handle_wait(args: argparse.Namespace, client: ApiClient) -> int:
     as_json: bool = args.json
     deadline = _wait_deadline(max_wait)
     last_status: str | None = None
+    path = _run_path(run_id)
     while True:
-        body = expect_object(
-            client.request_json("GET", _run_path(run_id)), _run_path(run_id)
-        )
+        body = expect_object(client.request_json("GET", path), path)
         status = str(body.get("status") or "")
         last_status = _note_wait_status(run_id, status, last_status, as_json)
         exit_code = _wait_exit_code(status, body, as_json)
@@ -212,27 +212,6 @@ def _consume_watch_connection(
     return False
 
 
-def _consume_watch_attempt(
-    client: ApiClient,
-    run_id: str,
-    as_json: bool,
-    progress: _WatchProgress,
-) -> tuple[bool, ApiUnreachableError | None]:
-    """Run one watch connection attempt.
-
-    Returns:
-        A ``(terminal, error)`` pair: ``terminal`` is True once the
-        stream's synthetic ``_terminal`` frame has been printed, and
-        ``error`` holds the connection failure when the attempt raised
-        ``ApiUnreachableError`` instead of closing cleanly.
-    """
-    try:
-        terminal = _consume_watch_connection(client, run_id, as_json, progress)
-    except ApiUnreachableError as exc:
-        return False, exc
-    return terminal, None
-
-
 def _enforce_watch_reconnect_budget(
     failures: int, run_id: str, last_error: ApiUnreachableError | None
 ) -> None:
@@ -273,15 +252,15 @@ def handle_watch(args: argparse.Namespace, client: ApiClient) -> int:
     as_json: bool = args.json
     progress = _WatchProgress(after=args.after)
     failures = 0
-    last_error: ApiUnreachableError | None = None
     try:
         while True:
             progress.progressed = False
-            terminal, last_error = _consume_watch_attempt(
-                client, run_id, as_json, progress
-            )
-            if terminal:
-                return 0
+            last_error: ApiUnreachableError | None = None
+            try:
+                if _consume_watch_connection(client, run_id, as_json, progress):
+                    return 0
+            except ApiUnreachableError as exc:
+                last_error = exc
             failures = 1 if progress.progressed else failures + 1
             _enforce_watch_reconnect_budget(failures, run_id, last_error)
             time.sleep(WATCH_RECONNECT_WAIT)

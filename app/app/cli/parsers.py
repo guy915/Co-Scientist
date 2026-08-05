@@ -1,13 +1,12 @@
 """Parser builders for the ``cosci`` operator CLI.
 
 Split from ``app.cli.main`` to keep that module small: this module holds the
-top-level ``status``/``config``/``logs`` registration helpers and re-exports
-the shared option constants and common parent parser from
-``app.cli.parsers_common`` plus the ``runs`` command-group builders from
-``app.cli.parsers_runs``. ``app.cli.main`` re-exports every name here, builds
-the full tree in ``build_parser``, and owns dispatch. Kept import-light
-(stdlib + httpx only) so ``cosci --help`` does not pull in FastAPI or the
-engine.
+top-level ``status``/``config``/``logs`` registration helpers, and re-exports
+the common parent parser (``app.cli.parsers_common``) and the ``runs``
+command-group builder (``app.cli.parsers_runs``) so ``app.cli.main`` assembles
+the whole tree from one import. ``main`` builds the tree in ``build_parser``
+and owns dispatch. Kept import-light (stdlib + httpx only) so ``cosci --help``
+does not pull in FastAPI or the engine.
 """
 
 from __future__ import annotations
@@ -15,79 +14,10 @@ from __future__ import annotations
 import argparse
 
 from app.cli import logs_cmd as logs_cmd
-from app.cli import runs_cmd as runs_cmd
 from app.cli import status_cmd as status_cmd
-from app.cli.http import DEFAULT_API_URL as DEFAULT_API_URL
-from app.cli.http import ApiClient as ApiClient
-from app.cli.parsers_common import (
-    DEFAULT_TIMEOUT as DEFAULT_TIMEOUT,
-)
-from app.cli.parsers_common import (
-    RUN_FOCUS_VALUES as RUN_FOCUS_VALUES,
-)
-from app.cli.parsers_common import (
-    RUN_TIER_VALUES as RUN_TIER_VALUES,
-)
-from app.cli.parsers_common import (
-    Handler as Handler,
-)
-from app.cli.parsers_common import (
-    _add_connection_options as _add_connection_options,
-)
-from app.cli.parsers_common import (
-    _add_request_behavior_options as _add_request_behavior_options,
-)
-from app.cli.parsers_common import (
-    _common_parser as _common_parser,
-)
-from app.cli.parsers_common import (
-    _default_timeout as _default_timeout,
-)
-from app.cli.parsers_common import (
-    _json_flag as _json_flag,
-)
-from app.cli.parsers_runs import (
-    _add_create as _add_create,
-)
-from app.cli.parsers_runs import (
-    _add_create_planning_options as _add_create_planning_options,
-)
-from app.cli.parsers_runs import (
-    _add_create_size_overrides as _add_create_size_overrides,
-)
-from app.cli.parsers_runs import (
-    _add_run_content_read_commands as _add_run_content_read_commands,
-)
-from app.cli.parsers_runs import (
-    _add_run_id_command as _add_run_id_command,
-)
-from app.cli.parsers_runs import (
-    _add_run_interaction_commands as _add_run_interaction_commands,
-)
-from app.cli.parsers_runs import (
-    _add_run_lifecycle_commands as _add_run_lifecycle_commands,
-)
-from app.cli.parsers_runs import (
-    _add_run_list_commands as _add_run_list_commands,
-)
-from app.cli.parsers_runs import (
-    _add_run_process_read_commands as _add_run_process_read_commands,
-)
-from app.cli.parsers_runs import (
-    _add_run_read_commands as _add_run_read_commands,
-)
-from app.cli.parsers_runs import (
-    _add_run_streaming_commands as _add_run_streaming_commands,
-)
-from app.cli.parsers_runs import (
-    _add_run_wait_command as _add_run_wait_command,
-)
-from app.cli.parsers_runs import (
-    _add_run_watch_command as _add_run_watch_command,
-)
-from app.cli.parsers_runs import (
-    _add_runs as _add_runs,
-)
+from app.cli.parsers_common import _add_leaf_command
+from app.cli.parsers_common import _common_parser as _common_parser
+from app.cli.parsers_runs import _add_runs as _add_runs
 
 
 def _add_status(
@@ -95,13 +25,13 @@ def _add_status(
     common: argparse.ArgumentParser,
 ) -> None:
     """Register the top-level ``status`` command."""
-    parser = sub.add_parser(
+    _add_leaf_command(
+        sub,
+        common,
         "status",
-        parents=[common],
-        help="show API health and provider/literature availability",
+        status_cmd.handle_status,
+        "show API health and provider/literature availability",
     )
-    _json_flag(parser)
-    parser.set_defaults(handler=status_cmd.handle_status)
 
 
 def _add_config(
@@ -109,13 +39,13 @@ def _add_config(
     common: argparse.ArgumentParser,
 ) -> None:
     """Register the top-level ``config`` command."""
-    parser = sub.add_parser(
+    _add_leaf_command(
+        sub,
+        common,
         "config",
-        parents=[common],
-        help="show the server's run-configuration defaults",
+        status_cmd.handle_config,
+        "show the server's run-configuration defaults",
     )
-    _json_flag(parser)
-    parser.set_defaults(handler=status_cmd.handle_config)
 
 
 def _add_logs_filter_options(parser: argparse.ArgumentParser) -> None:
@@ -178,12 +108,12 @@ def _add_logs(
     common: argparse.ArgumentParser,
 ) -> None:
     """Register the top-level ``logs`` command."""
-    parser = sub.add_parser(
+    parser = _add_leaf_command(
+        sub,
+        common,
         "logs",
-        parents=[common],
-        help="query the app-wide persisted log records",
+        logs_cmd.handle_logs,
+        "query the app-wide persisted log records",
     )
     _add_logs_filter_options(parser)
     _add_logs_action_options(parser)
-    _json_flag(parser)
-    parser.set_defaults(handler=logs_cmd.handle_logs)

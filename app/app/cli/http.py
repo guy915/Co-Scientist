@@ -113,6 +113,18 @@ class ApiClientOptions:
     transport: httpx.BaseTransport | None = None
 
 
+def _build_headers(
+    client_id: str | None, logs_token: str | None
+) -> dict[str, str]:
+    """Build the header dict carrying the optional client/logs identity."""
+    headers: dict[str, str] = {}
+    if client_id:
+        headers["X-Client-ID"] = client_id
+    if logs_token:
+        headers["X-Logs-Token"] = logs_token
+    return headers
+
+
 class ApiClient:
     """Synchronous httpx wrapper bound to one API base URL and client id.
 
@@ -120,17 +132,6 @@ class ApiClient:
     run listings to the caller (see ``app.runs._client_id``); a missing id
     shares the header-less pool, matching the API's own default.
     """
-
-    def _build_headers(
-        self, client_id: str | None, logs_token: str | None
-    ) -> dict[str, str]:
-        """Build the header dict carrying the optional client/logs identity."""
-        headers: dict[str, str] = {}
-        if client_id:
-            headers["X-Client-ID"] = client_id
-        if logs_token:
-            headers["X-Logs-Token"] = logs_token
-        return headers
 
     def __init__(
         self,
@@ -156,7 +157,7 @@ class ApiClient:
         if "://" not in base_url:
             base_url = f"http://{base_url}"
         self.base_url = base_url.rstrip("/")
-        self._headers = self._build_headers(client_id, logs_token)
+        self._headers = _build_headers(client_id, logs_token)
         self._timeout = options.timeout
         self._retry_wait = options.retry_wait
         self._verbose = options.verbose

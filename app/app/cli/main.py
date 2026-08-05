@@ -3,9 +3,10 @@
 Builds an ``argparse`` command tree whose leaves each carry a ``handler`` set
 via ``set_defaults``; ``main`` parses arguments, constructs the shared
 :class:`ApiClient`, and invokes the selected handler. Command handlers live in
-``status_cmd`` and ``runs_cmd``; the per-group parser builders were split into
-``app.cli.parsers`` and are re-exported here. Kept import-light (stdlib +
-httpx only) so ``cosci --help`` does not pull in FastAPI or the engine.
+``status_cmd``, ``logs_cmd``, ``runs_cmd``, and ``runs_stream_cmd``; the
+per-group parser builders live in ``app.cli.parsers``. Kept import-light
+(stdlib + httpx only) so ``cosci --help`` does not pull in FastAPI or the
+engine.
 """
 
 from __future__ import annotations
@@ -16,49 +17,19 @@ import os
 import sys
 from typing import cast
 
-from app.cli import logs_cmd as logs_cmd
-from app.cli import runs_cmd as runs_cmd
+# Imported as a module, not as its handlers, so that patching
+# ``app.cli.main.status_cmd.handle_status`` reaches the parser default (which
+# is resolved when ``build_parser`` runs, not at import time).
 from app.cli import status_cmd as status_cmd
 from app.cli.http import ApiClient, ApiClientOptions, CliError
 from app.cli.parsers import (
-    DEFAULT_TIMEOUT as DEFAULT_TIMEOUT,
+    _add_config,
+    _add_logs,
+    _add_runs,
+    _add_status,
+    _common_parser,
 )
-from app.cli.parsers import (
-    RUN_FOCUS_VALUES as RUN_FOCUS_VALUES,
-)
-from app.cli.parsers import (
-    RUN_TIER_VALUES as RUN_TIER_VALUES,
-)
-from app.cli.parsers import (
-    Handler as Handler,
-)
-from app.cli.parsers import (
-    _add_config as _add_config,
-)
-from app.cli.parsers import (
-    _add_create as _add_create,
-)
-from app.cli.parsers import (
-    _add_logs as _add_logs,
-)
-from app.cli.parsers import (
-    _add_run_id_command as _add_run_id_command,
-)
-from app.cli.parsers import (
-    _add_runs as _add_runs,
-)
-from app.cli.parsers import (
-    _add_status as _add_status,
-)
-from app.cli.parsers import (
-    _common_parser as _common_parser,
-)
-from app.cli.parsers import (
-    _default_timeout as _default_timeout,
-)
-from app.cli.parsers import (
-    _json_flag as _json_flag,
-)
+from app.cli.types import Handler
 from app.version import API_VERSION
 
 

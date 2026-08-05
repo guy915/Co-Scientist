@@ -1,9 +1,9 @@
 """Shared option constants and parent parser for the ``cosci`` CLI.
 
 Split from ``app.cli.parsers`` to keep that module small: this module holds
-the option-value constants mirrored from the API, the handler type alias, the
-timeout resolution, and the common parent parser attached to every leaf
-subcommand. ``app.cli.parsers`` re-exports every name here. Kept import-light
+the option-value constants mirrored from the API, the timeout resolution, and
+the common parent parser attached to every leaf subcommand (the handler type
+alias lives in ``app.cli.types`` and is re-exported here). Kept import-light
 (stdlib + httpx only) so ``cosci --help`` does not pull in FastAPI or the
 engine.
 """
@@ -12,9 +12,9 @@ from __future__ import annotations
 
 import argparse
 import os
-from collections.abc import Callable
 
-from app.cli.http import DEFAULT_API_URL, ApiClient
+from app.cli.http import DEFAULT_API_URL
+from app.cli.types import Handler as Handler
 
 # Mirror of the enums the API validates (RUN_FOCUS_PATTERN / RUN_TIER_PATTERN
 # in app.run_modes). Duplicated here so building the parser stays import-light;
@@ -26,8 +26,6 @@ RUN_FOCUS_VALUES = (
     "breakthrough",
 )
 RUN_TIER_VALUES = ("express", "standard", "extended", "ultra")
-
-Handler = Callable[[argparse.Namespace, ApiClient], int]
 
 DEFAULT_TIMEOUT = 30.0
 
@@ -54,6 +52,25 @@ def _json_flag(parser: argparse.ArgumentParser) -> None:
         action="store_true",
         help="emit the raw JSON payload instead of line-oriented text",
     )
+
+
+def _add_leaf_command(
+    sub: argparse._SubParsersAction[argparse.ArgumentParser],
+    common: argparse.ArgumentParser,
+    name: str,
+    handler: Handler,
+    help_text: str,
+) -> argparse.ArgumentParser:
+    """Register one leaf subcommand and return it for further arguments.
+
+    Every leaf carries the common connection options, the shared ``--json``
+    flag, and a ``handler`` default; anything else (a run id, filters, a
+    ``--follow``) is added by the caller on the returned parser.
+    """
+    parser = sub.add_parser(name, parents=[common], help=help_text)
+    _json_flag(parser)
+    parser.set_defaults(handler=handler)
+    return parser
 
 
 def _add_connection_options(common: argparse.ArgumentParser) -> None:

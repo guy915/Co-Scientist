@@ -6,11 +6,17 @@ exit code, and pull request values off the namespace into typed locals so the
 module stays strict-mypy clean. The streaming/polling handlers (``wait``,
 ``watch``, ``ask``) live in ``app.cli.runs_stream_cmd`` and are re-exported
 here so ``runs_cmd.handle_watch`` and friends keep resolving.
+
+The per-run sub-collection reads (``hypotheses``, ``evidence``, ...) differ
+only in path, payload key, and columns, so they are one table --
+:data:`COLLECTION_COMMANDS` -- that drives both the handlers here and the
+subcommand registration in ``app.cli.parsers_runs``.
 """
 
 from __future__ import annotations
 
 import argparse
+import dataclasses
 import json
 from typing import Any
 
@@ -28,25 +34,11 @@ from app.cli.render import (
     oneline,
 )
 from app.cli.runs_stream_cmd import (
-    WAIT_EXIT_CODES as WAIT_EXIT_CODES,
-)
-from app.cli.runs_stream_cmd import (
     WATCH_RECONNECT_ATTEMPTS as WATCH_RECONNECT_ATTEMPTS,
 )
 from app.cli.runs_stream_cmd import (
-    WATCH_RECONNECT_WAIT as WATCH_RECONNECT_WAIT,
-)
-from app.cli.runs_stream_cmd import (
-    _print_terminal as _print_terminal,
-)
-from app.cli.runs_stream_cmd import (
-    _run_path as _run_path,
-)
-from app.cli.runs_stream_cmd import (
-    _text_arg as _text_arg,
-)
-from app.cli.runs_stream_cmd import (
-    _watch_events as _watch_events,
+    _run_path,
+    _text_arg,
 )
 from app.cli.runs_stream_cmd import (
     handle_ask as handle_ask,
@@ -57,6 +49,7 @@ from app.cli.runs_stream_cmd import (
 from app.cli.runs_stream_cmd import (
     handle_watch as handle_watch,
 )
+from app.cli.types import Handler
 
 # ---------------------------------------------------------------------------
 # Listing and detail
@@ -93,11 +86,12 @@ def handle_show(args: argparse.Namespace, client: ApiClient) -> int:
     """Show a run's details plus per-table summary counts (GET /api/runs/id)."""
     run_id: str = args.run_id
     as_json: bool = args.json
-    body = client.request_json("GET", _run_path(run_id))
+    path = _run_path(run_id)
+    body = client.request_json("GET", path)
     if as_json:
         emit_json(body)
         return 0
-    body = expect_object(body, _run_path(run_id))
+    body = expect_object(body, path)
     pairs: list[tuple[str, Any]] = [
         ("id", body.get("id")),
         ("status", body.get("status")),
@@ -213,90 +207,55 @@ def _emit_action(body: Any, as_json: bool) -> int:
 # ---------------------------------------------------------------------------
 
 
-def _emit_collection(
-    args: argparse.Namespace,
-    client: ApiClient,
-    suffix: str,
-    key: str,
-    field_groups: tuple[tuple[str, ...], ...],
-) -> int:
-    """Fetch a run sub-collection and print it as JSON or one line per item."""
-    run_id: str = args.run_id
-    as_json: bool = args.json
-    body = client.request_json("GET", _run_path(run_id, f"/{suffix}"))
-    if as_json:
-        emit_json(body)
-        return 0
-    items = body.get(key, []) if isinstance(body, dict) else []
-    for item in items:
-        if isinstance(item, dict):
-            print(format_record_line(item, field_groups))
-        else:
-            print(oneline(item))
-    return 0
+@dataclasses.dataclass(frozen=True)
+class CollectionCommand:
+    """One ``cosci runs <name>`` read over a run sub-collection.
+
+    The subcommand name doubles as the API path suffix, and its payload key
+    is that name with dashes swapped for underscores, so each read command is
+    fully described by this row. :data:`COLLECTION_COMMANDS` drives both the
+    handlers below and the parser registration in ``app.cli.parsers_runs``.
+
+    Attributes:
+        name: Subcommand name and ``/api/runs/{id}/<name>`` path suffix.
+        columns: Ordered candidate-key groups, one per output column, as
+            taken by :func:`app.cli.render.format_record_line`.
+        help: One-line subcommand help, shown by ``cosci runs --help``.
+    """
+
+    name: str
+    columns: tuple[tuple[str, ...], ...]
+    help: str
+
+    @property
+    def key(self) -> str:
+        """The response-payload key holding this collection's item list."""
+        return self.name.replace("-", "_")
 
 
-def handle_hypotheses(args: argparse.Namespace, client: ApiClient) -> int:
-    """List the run's hypotheses with Elo and lineage (GET /hypotheses)."""
-    return _emit_collection(
-        args,
-        client,
-        "hypotheses",
+COLLECTION_COMMANDS = (
+    CollectionCommand(
         "hypotheses",
         (("id",), ("elo_rating", "elo"), ("title", "statement")),
-    )
-
-
-def handle_evidence(args: argparse.Namespace, client: ApiClient) -> int:
-    """List the literature evidence retrieved for the run (GET /evidence)."""
-    return _emit_collection(
-        args,
-        client,
-        "evidence",
-        "evidence",
-        (("id",), ("source",), ("title",)),
-    )
-
-
-def handle_reviews(args: argparse.Namespace, client: ApiClient) -> int:
-    """List reviewer and meta-review notes for the run (GET /reviews)."""
-    return _emit_collection(
-        args,
-        client,
-        "reviews",
+        "list hypotheses",
+    ),
+    CollectionCommand(
+        "evidence", (("id",), ("source",), ("title",)), "list evidence"
+    ),
+    CollectionCommand(
         "reviews",
         (("id",), ("reviewer_agent",), ("summary", "critique")),
-    )
-
-
-def handle_citations(args: argparse.Namespace, client: ApiClient) -> int:
-    """List the run's citation rows with their state (GET /citations)."""
-    return _emit_collection(
-        args,
-        client,
-        "citations",
-        "citations",
-        (("id",), ("state",), ("claim",)),
-    )
-
-
-def handle_safety(args: argparse.Namespace, client: ApiClient) -> int:
-    """List the run's intake/final safety-gate decisions (GET /safety)."""
-    return _emit_collection(
-        args,
-        client,
-        "safety",
+        "list reviews",
+    ),
+    CollectionCommand(
+        "citations", (("id",), ("state",), ("claim",)), "list citations"
+    ),
+    CollectionCommand(
         "safety",
         (("id",), ("stage",), ("decision",), ("reason",)),
-    )
-
-
-def handle_matches(args: argparse.Namespace, client: ApiClient) -> int:
-    """List the run's tournament matches with Elo movement (GET /matches)."""
-    return _emit_collection(
-        args,
-        client,
-        "matches",
+        "list safety rows",
+    ),
+    CollectionCommand(
         "matches",
         (
             ("id",),
@@ -305,15 +264,9 @@ def handle_matches(args: argparse.Namespace, client: ApiClient) -> int:
             ("loser_id",),
             ("rationale",),
         ),
-    )
-
-
-def handle_proximity(args: argparse.Namespace, client: ApiClient) -> int:
-    """List the run's idea-proximity edges (GET /proximity)."""
-    return _emit_collection(
-        args,
-        client,
-        "proximity",
+        "list tournament matches",
+    ),
+    CollectionCommand(
         "proximity",
         (
             ("source_hypothesis_id",),
@@ -321,18 +274,61 @@ def handle_proximity(args: argparse.Namespace, client: ApiClient) -> int:
             ("similarity",),
             ("cluster_id",),
         ),
-    )
-
-
-def handle_claim_evidence(args: argparse.Namespace, client: ApiClient) -> int:
-    """List the run's claim-level entailment edges (GET /claim-evidence)."""
-    return _emit_collection(
-        args,
-        client,
+        "list idea-proximity edges",
+    ),
+    CollectionCommand(
         "claim-evidence",
-        "claim_evidence",
         (("id",), ("hypothesis_id",), ("label",), ("claim",)),
-    )
+        "list claim-level entailment edges",
+    ),
+)
+
+
+def _emit_collection(
+    args: argparse.Namespace, client: ApiClient, spec: CollectionCommand
+) -> int:
+    """Fetch a run sub-collection and print it as JSON or one line per item."""
+    run_id: str = args.run_id
+    as_json: bool = args.json
+    body = client.request_json("GET", _run_path(run_id, f"/{spec.name}"))
+    if as_json:
+        emit_json(body)
+        return 0
+    items = body.get(spec.key, []) if isinstance(body, dict) else []
+    for item in items:
+        if isinstance(item, dict):
+            print(format_record_line(item, spec.columns))
+        else:
+            print(oneline(item))
+    return 0
+
+
+def _collection_handler(spec: CollectionCommand) -> Handler:
+    """Build the handler that serves one collection read command."""
+
+    def handler(args: argparse.Namespace, client: ApiClient) -> int:
+        return _emit_collection(args, client, spec)
+
+    handler.__name__ = f"handle_{spec.key}"
+    handler.__qualname__ = handler.__name__
+    handler.__doc__ = f"{spec.help.capitalize()} (GET /{spec.name})."
+    return handler
+
+
+# Handlers keyed by subcommand name. The ``handle_*`` aliases below are the
+# names the parser and the tests refer to; both resolve to the same object.
+COLLECTION_HANDLERS: dict[str, Handler] = {
+    spec.name: _collection_handler(spec) for spec in COLLECTION_COMMANDS
+}
+
+handle_hypotheses = COLLECTION_HANDLERS["hypotheses"]
+handle_evidence = COLLECTION_HANDLERS["evidence"]
+handle_reviews = COLLECTION_HANDLERS["reviews"]
+handle_citations = COLLECTION_HANDLERS["citations"]
+handle_safety = COLLECTION_HANDLERS["safety"]
+handle_matches = COLLECTION_HANDLERS["matches"]
+handle_proximity = COLLECTION_HANDLERS["proximity"]
+handle_claim_evidence = COLLECTION_HANDLERS["claim-evidence"]
 
 
 def handle_metrics(args: argparse.Namespace, client: ApiClient) -> int:
@@ -422,15 +418,12 @@ def handle_steer(args: argparse.Namespace, client: ApiClient) -> int:
     run_id: str = args.run_id
     message = _text_arg(args.message, "the steering message")
     as_json: bool = args.json
-    body = client.request_json(
-        "POST",
-        _run_path(run_id, "/messages"),
-        json_body={"content": message},
-    )
+    path = _run_path(run_id, "/messages")
+    body = client.request_json("POST", path, json_body={"content": message})
     if as_json:
         emit_json(body)
         return 0
-    body = expect_object(body, _run_path(run_id, "/messages"))
+    body = expect_object(body, path)
     pairs: list[tuple[str, Any]] = [
         ("id", body.get("id")),
         ("status", body.get("status")),
