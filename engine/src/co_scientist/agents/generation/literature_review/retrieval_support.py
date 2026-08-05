@@ -48,6 +48,38 @@ def _lookup_source_config(
     return config.get(source_tool_id) or config.get("_default")
 
 
+def _select_eligible_papers(
+    all_paper_metadata: dict[str, dict[str, Any]],
+    paper_source_map: dict[str, str],
+    config: dict[str, _ConfigT],
+    resolve: Callable[
+        [str, dict[str, Any], dict[str, str], dict[str, _ConfigT]],
+        _EntryT | None,
+    ],
+) -> list[_EntryT]:
+    """Collect the per-paper entries a retrieval step is eligible to run.
+
+    Both PDF discovery and content retrieval walk the collected papers in
+    order and keep whatever their own ``_resolve_*_entry`` admits, so only
+    that resolver differs between them.
+
+    Args:
+        all_paper_metadata: Collected paper metadata keyed by paper id.
+        paper_source_map: Paper id to the source tool id that produced it.
+        config: The step's per-source config mapping.
+        resolve: The step's per-paper entry resolver, returning None for a
+            paper the step should skip.
+
+    Returns:
+        The resolved entries, in ``all_paper_metadata`` order.
+    """
+    entries = (
+        resolve(pid, meta, paper_source_map, config)
+        for pid, meta in all_paper_metadata.items()
+    )
+    return [entry for entry in entries if entry is not None]
+
+
 # =============================================================================
 # Shared per-source tool resolution
 # =============================================================================
@@ -221,15 +253,12 @@ def get_papers_needing_pdf_discovery(
     Returns:
         List of (paper_id, metadata, tool_name, url_field) tuples
     """
-    papers = []
-    for pid, meta in all_paper_metadata.items():
-        entry = _resolve_pdf_discovery_entry(
-            pid, meta, paper_source_map, pdf_discovery_config
-        )
-        if entry:
-            papers.append(entry)
-
-    return papers
+    return _select_eligible_papers(
+        all_paper_metadata,
+        paper_source_map,
+        pdf_discovery_config,
+        _resolve_pdf_discovery_entry,
+    )
 
 
 def _first_link_url(link: Any) -> str | None:
@@ -378,15 +407,12 @@ def get_papers_needing_content(
     Returns:
         List of (paper_id, metadata, content_tool_config) tuples
     """
-    papers = []
-    for pid, meta in all_paper_metadata.items():
-        entry = _resolve_content_entry(
-            pid, meta, paper_source_map, content_config
-        )
-        if entry:
-            papers.append(entry)
-
-    return papers
+    return _select_eligible_papers(
+        all_paper_metadata,
+        paper_source_map,
+        content_config,
+        _resolve_content_entry,
+    )
 
 
 def _content_or_text_field(data: dict[str, Any]) -> str | None:

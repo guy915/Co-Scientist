@@ -191,12 +191,14 @@ async def _query_enrichment_entity(
 ) -> tuple[str, list[dict[str, Any]]]:
     """Query one enrichment tool for one entity, tagging results by it.
 
-    The tool name and id are derived from tool_config; map_parameters
-    translates the canonical entity_name/limit pair into this tool's own
-    YAML-configured parameter names.
+    The tool name is derived from tool_config; map_parameters translates the
+    canonical entity_name/limit pair into this tool's own YAML-configured
+    parameter names. The tool id is *not* stamped here: the caller
+    (`_aggregate_enrichment_results`) stamps every item with the originating
+    YAML tool id, which is the one citation building needs and the one
+    ToolConfig actually carries.
     """
     tool_name = tool_config.mcp_tool_name
-    tool_id = getattr(tool_config, "tool_id", tool_name)
     params = tool_config.map_parameters(
         {
             "entity_name": entity,
@@ -207,9 +209,7 @@ async def _query_enrichment_entity(
     if raw is None:
         return "", []
     text, items = _parse_enrichment_result(raw)
-    # Tag each item with entity and tool_id for citation building
     for item in items:
-        item.setdefault("tool_id", tool_id)
         item.setdefault("entity", entity)
     return text, items
 

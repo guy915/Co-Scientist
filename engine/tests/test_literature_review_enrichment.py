@@ -202,7 +202,9 @@ async def test_call_enrichment_tool_for_entities_queries_all_in_parallel() -> (
     assert "[MAPK1]" in text
     assert len(items) == 2
     assert {item["entity"] for item in items} == {"KRAS", "MAPK1"}
-    assert all(item["tool_id"] == "kg_tool" for item in items)
+    # tool_id is stamped by _aggregate_enrichment_results, from the YAML tool
+    # id rather than the MCP tool name; this stage leaves it unset.
+    assert all("tool_id" not in item for item in items)
 
 
 async def test_call_enrichment_tool_for_entities_no_result() -> None:

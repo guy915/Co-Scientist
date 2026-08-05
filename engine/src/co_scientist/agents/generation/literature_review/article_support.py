@@ -46,6 +46,7 @@ def build_article_from_metadata(
     """Build an Article object from MCP response metadata."""
     year = parse_year_from_metadata(metadata)
     url = _build_article_url(paper_id, metadata, source_name)
+    is_retracted = _metadata_is_retracted(metadata)
 
     # content/pdf_links are unused in PubMed-only mode (fulltext is read
     # directly from files by an external tool); they're still populated
@@ -62,10 +63,10 @@ def build_article_from_metadata(
         source_id=paper_id,
         source=source_name,
         doi=metadata.get("doi"),
-        is_retracted=_metadata_is_retracted(metadata),
+        is_retracted=is_retracted,
         correction_status=str(
             metadata.get("correction_status")
-            or ("retracted" if _metadata_is_retracted(metadata) else "current")
+            or ("retracted" if is_retracted else "current")
         ),
         publication_type=metadata.get("publication_type"),
         pdf_links=[],
