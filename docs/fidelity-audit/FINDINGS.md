@@ -13,12 +13,14 @@ See [PLAN.md](PLAN.md) for the sequenced work.
 (deliberate substitute), `ext` (non-faithful extension Google does not have),
 `matched`, `note`. `St` — status: blank = open as last audited, `✓` = addressed
 on `main` since, `~` = partly addressed, `?` = contested between audits,
-`=` = **accepted divergence — closed, do not "fix"**.
+`=` = closed as a deliberate local choice.
 `Src` — provenance in the source audits (`12:`/`20:`/`21:` = audit date).
 
-**This project is not a Google clone.** Twenty-one findings ask for the reversal
-of a deliberate product decision; they are marked `=` and are not work. See
-[Accepted divergences](#accepted-divergences) before acting on any row.
+The audits scored this repository as an attempted replica of Google's product,
+so they recorded every difference as a gap. It is not a replica: the engine
+reconstructs the paper's published behavior, the product surface is its own. A
+difference is a defect only where the local choice is worse — not where it is
+merely different. Rows marked `=` are the differences that were chosen.
 
 **Re-verified against `main` on 2026-08-05**, 276 commits past the audited
 revision `11a31082`. Every **Critical** and **High** finding was checked against
@@ -326,44 +328,25 @@ Raised only by the 2026-07-20 audit.
 
 ---
 
-## Accepted divergences
+## Closed as deliberate local choices
 
-Marked `=` above. Each of these is a real difference from Google, correctly
-observed by the audits — and each is a decision this project made on purpose.
-They are **closed as won't-fix**, not open findings.
+Marked `=` above: `A5`, `A12`, `A14`, `B1`, `B2`, `B6`, `C5`, `C7`, `C8`, `D1`,
+`D2`, `D3`, `D6`, `D22`, `D25`, `M1`, `M4`, `M5`, `M7`, `M8`, `M9`. Each is a
+real difference from Google, correctly observed — and each is how this product
+is meant to work. They are closed, and [PLAN.md](PLAN.md) does not carry them.
 
-The reasoning is the same for all of them: the audits scored this repository as
-an attempted replica, so any deviation read as a violation. It is not a replica.
-The engine reconstructs the paper's published behavior; the product surface is
-its own. A finding that says "Google does X and you do Y" is only a defect when
-Y is *worse*, not when Y is *different*.
+One of them is load-bearing beyond its surface and is worth knowing about while
+working anywhere near audience or corpus code: the **`M5` affiliation control
+is an access control.** `paper_corpus.disabled_tools_for()` keys corpus access
+off the run's audience, so the chooser is what gates one lab's papers from
+every other run.
 
-| Area | Accepted as-is |
-|---|---|
-| Ideas surface | Elo leaderboard with rank and rating chips, and the provenance blocks in idea detail, instead of a bare card list with potential pills (`D1`, `D3`, `D22`) |
-| Report tabs | `Goal Details / Learning / Research Overview / All Ideas`, landing on Goal Details (`D2`, `D6`) |
-| Run configuration | Four tiers, the four-way focus selector, and the connector toggles, as an explicit settings form (`B1`, `B2`, `B6`) |
-| Active run | Report hidden until the run settles; our own tile set (`C5`, `C7`) |
-| Shell and identity | Teal "Co-Scientist", the Gemini-Enterprise-style shell, the Affiliation gate, home onboarding and suggestions, the dark theme, `/proposals` (`M1`, `M4`, `M5`, `M7`, `M8`, `M9`) |
-| Operator surface | The Logs popover and Offline chip inside the research shell (`C8`) |
-| Interview | Streaming reasoning to the reader as visible progress; our field vocabulary and composer copy (`A5`, `A12`, `A14`) |
-| Safety | Adjudication controls in run specifications (`D25`) |
-
-Two carry a real defect inside an accepted divergence — fix the defect, keep the
-divergence:
-
-- **`A14`** — the composer copy stays. The decorative **lock icon** implies
-  encryption that does not exist and should go.
-- **`M5`** — the Affiliation gate stays. Note that it is **load-bearing beyond
-  UI**: `paper_corpus.disabled_tools_for()` keys corpus access off the audience,
-  so removing the gate removes an access control.
-
-Not accepted, and still open on merit rather than on fidelity: the interview
-progress rail (`A1`), the disclaimer (`A6`), thumbs feedback (`A13`), Chat with
-Agent (`D4`), the expanded Knowledge Base (`D7`), mechanism diagrams (`D10`),
-share and download UI (`D11`, `D12`), Summary bucket members (`D14`), match and
-lineage views (`D19`, `D20`), and a general feedback path (`M10`). These add
-capability rather than reverting a decision — judge each on its own value.
+Still open, on merit rather than on fidelity — these add capability rather than
+trading one design for another, so each is worth its own judgement: the
+interview progress rail (`A1`), an AI/medical disclaimer (`A6`), thumbs feedback
+(`A13`), Chat with Agent (`D4`), an expanded Knowledge Base (`D7`), mechanism
+diagrams (`D10`), share and download UI (`D11`, `D12`), Summary bucket members
+(`D14`), match and lineage views (`D19`, `D20`), a general feedback path (`M10`).
 
 ---
 

@@ -6,15 +6,14 @@ How far this repository is from Google DeepMind's AI Co-Scientist (Nature 2026,
 
 | Document | Purpose |
 |---|---|
-| [FINDINGS.md](FINDINGS.md) | Every distinct gap, deduplicated, with severity, class, and provenance. Also: accepted divergences, the 2026-08-05 re-verification, confirmed matches, corpus-integrity corrections, evidence boundaries, audit disagreements |
+| [FINDINGS.md](FINDINGS.md) | Every distinct gap, deduplicated, with severity, class, and provenance. Also: the 2026-08-05 re-verification, deliberate local choices, confirmed matches, corpus-integrity corrections, evidence boundaries, audit disagreements |
 | [PLAN.md](PLAN.md) | The work queue, in 13 stages |
 
-> **This project is not a Google clone.** The audits scored it as an attempted
-> replica, so every deviation read as a violation. That premise was retired on
-> 2026-08-05: 21 findings are now closed as
-> [accepted divergences](FINDINGS.md#accepted-divergences) and the plan's
-> "visible product" stage was deleted rather than deferred. What remains is
-> ordinary defect work. Read that section before acting on any row.
+The audits assessed this repository as an attempted replica, so they recorded
+every difference from Google as a gap. It is not a replica — the engine
+reconstructs the paper's published behavior, the product surface is its own — so
+a difference counts as a defect only where the local choice is worse. FINDINGS.md
+keeps the full record either way; PLAN.md carries only the defects.
 
 Evidence screenshots: [`docs/assets/fidelity-audit-2026-07-20/`](../assets/fidelity-audit-2026-07-20/)
 — 15 captures at desktop 16:9, desktop 2:1, and mobile 1:2.
