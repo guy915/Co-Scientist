@@ -90,7 +90,7 @@ change made staleness likely. A blank `St` on a Medium/Low row therefore means
 | D2 | High | divergent | All four tab labels differ and the order is inverted: `Goal Details / Learning / Research Overview / All Ideas` vs `Ideas / Knowledge Base / Summary / Run Specification(s)` | = | 12:D01/M05, 20:F-REPORT-01, 21:R6 |
 | D3 | High | missing | `HIGH POTENTIAL` / `NON VIABLE` pills absent from idea cards; buckets survive only as report counts | = | 12:D03/D17/M06, 20:F-IDEAS-07, 21:R20 |
 | D4 | High | missing | Per-idea and report-level "Chat with Agent": `askRunQuestion` exists with no UI caller | | 12:A14/D12/D24, 20:F-AGENT-01, 21:R23 |
-| D5 | High | incorrect | Public share returns raw complete hypotheses and evidence tables rather than the filtered release artifact — leaks blocked ideas, private document text, and run config | | 20:F-SHARE-02/EB-052 |
+| D5 | High | incorrect | Public share returns raw complete hypotheses and evidence tables rather than the filtered release artifact — leaks blocked ideas, private document text, and run config | ✓ | 20:F-SHARE-02/EB-052 |
 | D6 | Medium | incorrect | Completed runs land on Goal Details (configuration) instead of Ideas | = | 20:F-REPORT-02 |
 | D7 | Medium | partial | Knowledge Base renders ≤3 sections vs Google's 12+; no sticky navigator, no inline citation chips | | 12:D07, 20:F-KB-01/F-KB-04, 21:R30 |
 | D8 | Medium | incorrect | With no synthesis, the UI fabricates "learning" sections from the first three evidence abstracts — presentation output indistinguishable from an engine result | | 12:D08, 20:F-KB-02 |
@@ -118,7 +118,7 @@ change made staleness likely. A blank `St` on a Medium/Low row therefore means
 | ID | Sev | Class | Gap | St | Src |
 |---|---|---|---|---|---|
 | E1 | **Critical** | incorrect | **Full / simulation / recurrent reviews are computed at LLM + retrieval cost and read by nothing** — not ranking, evolution, meta-review, report, or UI. Even fatal findings change no disposition | | 12:E13/E14, 20:EB-035, 21:R3 |
-| E2 | **Critical** | incorrect | **The grounded-debate prompt renders `{{MISSING:user_hypotheses}}` and `{{MISSING:instructions}}` on every turn of the production path**, dropping user-supplied starting hypotheses and leaving the instruction slot empty | | 21:R5 |
+| E2 | **Critical** | incorrect | **The grounded-debate prompt renders `{{MISSING:user_hypotheses}}` and `{{MISSING:instructions}}` on every turn of the production path**, dropping user-supplied starting hypotheses and leaving the instruction slot empty | ✓ | 21:R5 |
 | E3 | **Critical** | incorrect | **Assumptions generation runs ungrounded on the durable path** even when literature is available, and is cache-enabled — byte-identical output across identical goals | ✓ | 21:R21 |
 | E4 | High | partial | Deep verification omits **sub-assumption decomposition** and **decontextualization**, two of its three defining behaviors | | 12:E11, 20:EB-036, 21:R9 |
 | E5 | High | partial | Only 5 evolution operators (paper: 6); "inspiration from existing" absent, coherence/feasibility folded into ENHANCEMENT, and round-robin selection means ENHANCEMENT never fires on express | | 12:E24/K07, 20:EB-041, 21:R10 |
@@ -142,7 +142,7 @@ change made staleness likely. A blank `St` on a Medium/Low row therefore means
 
 | ID | Sev | Class | Gap | St | Src |
 |---|---|---|---|---|---|
-| F1 | **Critical** | incorrect | **A durable task that exhausts its retries leaves the run stuck in `running` forever** — no `failed` transition, SSE never closes, `cosci runs wait` hangs until a process restart | | 20:EB-015 (reproduced), 21:R18 |
+| F1 | **Critical** | incorrect | **A durable task that exhausts its retries leaves the run stuck in `running` forever** — no `failed` transition, SSE never closes, `cosci runs wait` hangs until a process restart | ✓ | 20:EB-015 (reproduced), 21:R18 |
 | F2 | High | incorrect | An approved intake/final safety hold has **no claimable successor task** — the holding task already succeeded, so approval reuses a completed idempotency key and nothing resumes | | 12:J06, 20:EB-016 (reproduced) |
 | F3 | High | incorrect | A scientist-submitted hypothesis **collides with itself** during final persistence (`UNIQUE constraint failed: hypotheses.id`), preventing completion | | 20:EB-003 (reproduced) |
 | F4 | High | divergent | Supervisor is not an allocator — its own prompt says it must **not** plan workflow execution; execution is a fixed serial spine that picks one successor at a time | | 12:E02/F04, 20:EB-008, 21:F1 |
@@ -193,7 +193,7 @@ change made staleness likely. A blank `St` on a Medium/Low row therefore means
 
 | ID | Sev | Class | Gap | St | Src |
 |---|---|---|---|---|---|
-| I1 | **Critical** | incorrect | **The final research overview is built from all hypotheses sorted by Elo**, filtering neither review disposition, deep-verification verdict, claim gate, safety state, nor `is_rankable` — so rejected and safety-blocked content contaminates published prose | | 12:D19, 20:EB-046 (reproduced) |
+| I1 | **Critical** | incorrect | **The final research overview is built from all hypotheses sorted by Elo**, filtering neither review disposition, deep-verification verdict, claim gate, safety state, nor `is_rankable` — so rejected and safety-blocked content contaminates published prose | ✓ | 12:D19, 20:EB-046 (reproduced) |
 | I2 | **Critical** | missing | **The research overview never feeds back into Generation.** The paper says it does; here `research_overview` is strictly terminal with no consumer | | 21:R4 |
 | I3 | High | partial | Recurrent review injects tournament state but its output is write-only (see E1) | | 12:E14, 20:EB-035, 21:I4 |
 | I4 | Medium | incorrect | Response/node caching is on by default with no TTL and no model/prompt/tool/source version invalidation, so more compute can replay cached output instead of exploring | | 12:I10/L14, 20:EB-063 |
@@ -210,7 +210,7 @@ change made staleness likely. A blank `St` on a Medium/Low row therefore means
 | J2 | High | incorrect | Semantic safety **fails open silently** when the configured model's provider key is absent: regex-only, no log line. A DashScope deployment without `DEEPSEEK_API_KEY` is regex-only | ~ | 20:EB-048, 21:R17 |
 | J3 | High | incorrect | A `redact` decision records the label but persists the original content — the gate proceeds with the same goal and report Markdown | ~ | 12:J07, 20:EB-050 |
 | J4 | High | partial | The primary classifier is a regex list; the LLM is an optional escalation. Google's is model-based | | 12:J04, 20:EB-048/EB-049, 21:J2 |
-| J5 | Medium | incorrect | `UNCERTAIN` hypotheses are dropped from the pool into `held_for_review`, which is never wired to the app or UI — they vanish silently | | 12:J06, 21:R34 |
+| J5 | Medium | incorrect | `UNCERTAIN` hypotheses are dropped from the pool into `held_for_review`, which is never wired to the app or UI — they vanish silently | ✓ | 12:J06, 21:R34 |
 | J6 | Medium | partial | No mid-flight safety monitoring or halt; `safety_blocked` is read but never written, and the meta-review overview is not used as a monitor | | 12:J12, 20:EB-051, 21:J5 |
 | J7 | Medium | partial | Adversarial suite is 13 hand-written, near-tautological items against Google's 1,200 goals / 40 topics plus ~2,000 safe controls | | 12:J03, 20:EB-067, 21:R51 |
 | J8 | Low | partial | The reviewer `safety` score is collected but no code reads it to reject | | 21:R52 |
