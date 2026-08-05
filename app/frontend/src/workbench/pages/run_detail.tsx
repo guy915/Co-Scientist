@@ -1,5 +1,11 @@
 import {useParams} from 'react-router-dom';
-import {isActiveStatus, type RunStatus, runGoal} from '@/api/runs';
+import {
+  type ChatSummary,
+  isActiveStatus,
+  type RunStatus,
+  type RunWithSummary,
+  runGoal,
+} from '@/api/runs';
 import {useChatHistoryContext} from '@/workbench/hooks/chat_history_context';
 import {useRunHistoryContext} from '@/workbench/hooks/run_history_context';
 import {IdeasTab} from '../components/tabs/ideas_tab';
@@ -8,11 +14,15 @@ import {useRunDetailData} from './run_detail_data';
 import {LearningView} from './run_detail_learning';
 import {ResearchOverviewView} from './run_detail_overview';
 import {
+  isTerminalNonCompletedStatus,
   ReportErrorAlert,
   ReportTabNav,
   ReportTitlebar,
+  ReportUngroundedNotice,
   RunDetailSkeleton,
+  RunEndState,
   RunToast,
+  type TerminalNonCompletedStatus,
   useTabNavigation,
 } from './run_detail_shell';
 import {RunSpecificationsView} from './run_detail_specifications';
@@ -57,11 +67,67 @@ function useRunActivity(
 
 // The page grid: only a settled, non-active run gets the tab-nav row, since
 // ActiveRunView replaces the tabbed body entirely and an unknown activity has
-// no business painting chrome it may be about to drop.
+// no business painting chrome it may be about to drop. A run that ended
+// without completing gets no tab row either -- it renders its end state.
 function reportPageClasses(showTabs: boolean): string {
   return showTabs
     ? REPORT_PAGE_CLASSES
     : `${REPORT_PAGE_CLASSES} grid-rows-[3.75rem_minmax(0,1fr)]`;
+}
+
+// The run payload carries the persisted LLM backend the run executed on
+// ("offline" deterministic router vs "real" provider). The shared Run type
+// predates the field, so it is read through a local extension.
+type RunWithBackend = RunWithSummary & {
+  llm_backend?: 'offline' | 'real' | null;
+};
+
+// Mirrors the backend's store.run_used_offline: the persisted llm_backend
+// column is authoritative; rows created before the column existed fall back
+// to the provider (the mock provider was always offline-backed). Offline
+// runs are illustrative fixtures -- the same convention get_hypotheses uses
+// to exempt them from "Unverified" badging.
+function runUsedOffline(run: RunWithSummary): boolean {
+  const backend = (run as RunWithBackend).llm_backend;
+  if (backend === undefined || backend === null) {
+    return run.provider === 'mock';
+  }
+  return backend === 'offline';
+}
+
+// A completed run whose literature retrieval returned nothing still reads
+// categorically; flag it as ungrounded unless it was offline-backed.
+function reportIsUngrounded(data: RunDetailData): boolean {
+  const run = data.run;
+  if (!data.loaded || !run || run.status !== 'completed') return false;
+  if (data.evidence.length > 0) return false;
+  return !runUsedOffline(run);
+}
+
+// The end-state facts of a run that terminated without completing, or null
+// for every other run (including an unloaded one).
+function terminalEndStateOf(run: RunWithSummary | null): {
+  status: TerminalNonCompletedStatus;
+  error: string | null;
+} | null {
+  if (run && isTerminalNonCompletedStatus(run.status)) {
+    return {status: run.status, error: run.error};
+  }
+  return null;
+}
+
+// Before the first fetch settles (and nothing has failed), the page is
+// still guessing at what it should paint.
+function isInitialLoading(data: RunDetailData): boolean {
+  return !data.loaded && !data.error;
+}
+
+// The conversation a run came from, when the rail knows of one.
+function chatIdForRun(
+  chats: readonly ChatSummary[],
+  id: string,
+): string | undefined {
+  return chats.find(chat => chat.run_id === id)?.id;
 }
 
 /**
@@ -79,8 +145,12 @@ export function RunDetail() {
 
   if (!id) return null;
 
-  const showTabs = activity === 'inactive';
-  const chatId = chats.find(chat => chat.run_id === id)?.id;
+  // A run that ended without completing shows its end state (status plus
+  // recorded error) instead of report tabs: content for it either does not
+  // exist or would present a partial run as finished.
+  const showEndState = terminalEndStateOf(data.run) !== null;
+  const showTabs = activity === 'inactive' && !showEndState;
+  const chatId = chatIdForRun(chats, id);
   return (
     <div className={reportPageClasses(showTabs)}>
       <ReportTitlebar title={data.title} chatId={chatId} />
@@ -110,14 +180,23 @@ interface RunDetailBodyProps {
   data: RunDetailData;
 }
 
-// Chooses the loading skeleton, the live-run view, or the tab content.
+// Chooses the loading skeleton, the terminal end state, the live-run view,
+// or the tab content.
 function RunDetailBody({
   active,
   activeTab,
   ideasViewKey,
   data,
 }: RunDetailBodyProps) {
-  if (!data.loaded && !data.error) return <RunDetailSkeleton />;
+  if (isInitialLoading(data)) return <RunDetailSkeleton />;
+  const endState = terminalEndStateOf(data.run);
+  if (endState) {
+    return (
+      <main className={REPORT_SCROLL_CLASSES}>
+        <RunEndState status={endState.status} error={endState.error} />
+      </main>
+    );
+  }
   if (active && data.run) {
     return (
       <ActiveRunView
@@ -164,9 +243,47 @@ function IdeasSection({
   );
 }
 
+// The active tab's content section.
+function tabSection(
+  activeTab: TabName,
+  ideasViewKey: number,
+  data: RunDetailData,
+) {
+  if (activeTab === 'details') {
+    return (
+      <RunSpecificationsView
+        run={data.run}
+        safety={data.safety}
+        onSafetyChanged={data.refreshNow}
+      />
+    );
+  }
+  if (activeTab === 'learning') {
+    return (
+      <LearningView
+        goal={runGoal(data.run)}
+        evidence={data.evidence}
+        report={data.report}
+      />
+    );
+  }
+  if (activeTab === 'overview') {
+    return (
+      <ResearchOverviewView
+        run={data.run}
+        report={data.report}
+        hypotheses={data.hypotheses}
+        matches={data.matches}
+      />
+    );
+  }
+  return <IdeasSection ideasViewKey={ideasViewKey} data={data} />;
+}
+
 // Active tab content for a loaded run. Keying <main> by activeTab remounts it
 // on tab switch, which also resets any per-tab local UI state (e.g.
-// IdeasTab's selection, LearningView's search query).
+// IdeasTab's selection, LearningView's search query). The ungrounded notice
+// rides above every tab's content because it applies to the whole report.
 function RunDetailTabContent({
   activeTab,
   ideasViewKey,
@@ -174,31 +291,8 @@ function RunDetailTabContent({
 }: Omit<RunDetailBodyProps, 'active'>) {
   return (
     <main className={REPORT_SCROLL_CLASSES} key={activeTab}>
-      {activeTab === 'details' && (
-        <RunSpecificationsView
-          run={data.run}
-          safety={data.safety}
-          onSafetyChanged={data.refreshNow}
-        />
-      )}
-      {activeTab === 'learning' && (
-        <LearningView
-          goal={runGoal(data.run)}
-          evidence={data.evidence}
-          report={data.report}
-        />
-      )}
-      {activeTab === 'overview' && (
-        <ResearchOverviewView
-          run={data.run}
-          report={data.report}
-          hypotheses={data.hypotheses}
-          matches={data.matches}
-        />
-      )}
-      {activeTab === 'ideas' && (
-        <IdeasSection ideasViewKey={ideasViewKey} data={data} />
-      )}
+      {reportIsUngrounded(data) && <ReportUngroundedNotice />}
+      {tabSection(activeTab, ideasViewKey, data)}
     </main>
   );
 }

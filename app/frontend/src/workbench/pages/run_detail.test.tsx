@@ -144,3 +144,54 @@ it('shows a skeleton while loading, then the goal details', async () => {
   expect(document.querySelector('[aria-busy="true"]')).toBeInTheDocument();
   expect(await screen.findByText('Run Specifications')).toBeInTheDocument();
 });
+
+// A run that died shows its true state — status and recorded error — not
+// report tabs whose content either does not exist or presents a partial run
+// as finished.
+it('renders the failed end state with the recorded error, not report tabs', async () => {
+  vi.mocked(runsApi.getRun).mockResolvedValue({
+    ...makeRun('Study pathway X'),
+    status: 'failed',
+    error: 'engine.node.generate exhausted its retry budget',
+  });
+
+  renderAt('/runs/run-1/details');
+
+  expect(await screen.findByText('Run failed')).toBeInTheDocument();
+  expect(
+    screen.getByText('engine.node.generate exhausted its retry budget'),
+  ).toBeInTheDocument();
+  expect(screen.queryByRole('link', {name: 'Goal Details'})).toBeNull();
+  expect(screen.queryByRole('link', {name: 'All Ideas'})).toBeNull();
+  expect(screen.queryByText('Run Specifications')).toBeNull();
+});
+
+it('renders the blocked end state with the recorded error, not report tabs', async () => {
+  vi.mocked(runsApi.getRun).mockResolvedValue({
+    ...makeRun('Study pathway X'),
+    status: 'blocked',
+    error: 'Safety screen held the run for human adjudication',
+  });
+
+  renderAt('/runs/run-1/overview');
+
+  expect(await screen.findByText('Run blocked')).toBeInTheDocument();
+  expect(
+    screen.getByText('Safety screen held the run for human adjudication'),
+  ).toBeInTheDocument();
+  expect(screen.queryByRole('link', {name: 'Research Overview'})).toBeNull();
+  expect(screen.queryByText('Summary')).toBeNull();
+});
+
+it('renders the cancelled end state without report tabs', async () => {
+  vi.mocked(runsApi.getRun).mockResolvedValue({
+    ...makeRun('Study pathway X'),
+    status: 'cancelled',
+  });
+
+  renderAt('/runs/run-1/details');
+
+  expect(await screen.findByText('Run cancelled')).toBeInTheDocument();
+  expect(screen.queryByRole('link', {name: 'Goal Details'})).toBeNull();
+  expect(screen.queryByText('Run Specifications')).toBeNull();
+});

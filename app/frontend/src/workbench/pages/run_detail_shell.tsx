@@ -1,8 +1,13 @@
 import {useCallback, useState} from 'react';
 import {Link, useParams} from 'react-router-dom';
+import {type RunStatus} from '@/api/runs';
 import {Icon, type IconName} from '@/components/icon';
 import {TruncatedLabel} from '../components/truncated_label';
 import {TABS, tabPath, type TabName} from '../run_tabs';
+import {
+  REPORT_DOCUMENT_CLASSES,
+  REPORT_H2_CLASSES,
+} from './run_detail_document';
 
 // Icon and label shown per tab in the nav bar (keyed by TabName so a missing
 // entry is a compile error, not a silent blank tab).
@@ -196,6 +201,116 @@ export function RunToast({message}: {message: string}) {
   return (
     <div role="status" className={REPORT_TOAST_CLASSES}>
       {message}
+    </div>
+  );
+}
+
+/** Terminal run statuses that ended without a completed goal report. */
+export type TerminalNonCompletedStatus = 'failed' | 'cancelled' | 'blocked';
+
+const TERMINAL_NON_COMPLETED_STATUSES: readonly RunStatus[] = [
+  'failed',
+  'cancelled',
+  'blocked',
+];
+
+/**
+ * Whether a run status is terminal but not `completed` — a run that ended
+ * without producing a report.
+ *
+ * @param status The run status (may be undefined before load).
+ * @returns True when the run ended failed, cancelled, or blocked.
+ */
+export function isTerminalNonCompletedStatus(
+  status: RunStatus | undefined,
+): status is TerminalNonCompletedStatus {
+  return Boolean(status && TERMINAL_NON_COMPLETED_STATUSES.includes(status));
+}
+
+// Status and description for each non-completed terminal state.
+const END_STATE_COPY: Record<
+  TerminalNonCompletedStatus,
+  {heading: string; description: string}
+> = {
+  failed: {
+    heading: 'Run failed',
+    description: 'This run failed before producing a goal report.',
+  },
+  cancelled: {
+    heading: 'Run cancelled',
+    description: 'This run was cancelled before producing a goal report.',
+  },
+  blocked: {
+    heading: 'Run blocked',
+    description: 'This run was blocked before producing a goal report.',
+  },
+};
+
+// The recorded-error box: error-container tones for failed/blocked (the
+// tones the design reserves for them), a neutral panel for cancelled.
+const END_STATE_ERROR_CLASSES =
+  'mt-8 rounded-md bg-th-destructive-container px-4 py-3 ' +
+  'text-th-destructive-on-container';
+
+const END_STATE_NEUTRAL_ERROR_CLASSES =
+  'mt-8 rounded-md border border-cosci-border bg-cosci-panel px-4 py-3';
+
+/**
+ * Truthful end state for a run that terminated without completing: the
+ * status and the run's recorded error, in place of report tabs whose
+ * content either does not exist or would present a partial run as finished.
+ */
+export function RunEndState({
+  status,
+  error,
+}: {
+  status: TerminalNonCompletedStatus;
+  error: string | null;
+}) {
+  const copy = END_STATE_COPY[status];
+  return (
+    <article className={REPORT_DOCUMENT_CLASSES}>
+      <h2 className={REPORT_H2_CLASSES}>{copy.heading}</h2>
+      <p>{copy.description}</p>
+      {error && (
+        <div
+          role="status"
+          className={
+            status === 'cancelled'
+              ? END_STATE_NEUTRAL_ERROR_CLASSES
+              : END_STATE_ERROR_CLASSES
+          }
+        >
+          <strong>Recorded error</strong>
+          <p className="mb-0 mt-2">{error}</p>
+        </div>
+      )}
+    </article>
+  );
+}
+
+const UNGROUNDED_NOTICE_CLASSES =
+  'mx-auto mt-9 flex w-[min(100%_-_3rem,58rem)] items-start gap-3 rounded-md ' +
+  'bg-th-warning-container px-4 py-3 text-th-on-warning-container ' +
+  'max-[720px]:mt-5 max-[720px]:w-[min(100%_-_1.2rem,100%)] ' +
+  'max-[720px]:max-w-none';
+
+/**
+ * Report-level notice for a completed run whose literature retrieval
+ * returned nothing: the report below is not grounded in retrieved sources.
+ */
+export function ReportUngroundedNotice() {
+  return (
+    <div role="note" className={UNGROUNDED_NOTICE_CLASSES}>
+      <Icon
+        aria-hidden="true"
+        name="warning"
+        className="mt-[0.1rem] shrink-0 text-[1.25rem]"
+      />
+      <p className="m-0">
+        No literature was retrieved for this run. The content below is not
+        grounded in retrieved sources.
+      </p>
     </div>
   );
 }

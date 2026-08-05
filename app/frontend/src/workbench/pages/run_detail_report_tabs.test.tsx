@@ -1,6 +1,7 @@
 import {fireEvent, screen, waitFor} from '@testing-library/react';
 import {beforeEach, expect, it, vi} from 'vitest';
 import * as runsApi from '@/api/runs';
+import {type Evidence, type RunWithSummary} from '@/api/runs';
 import {makeRun, renderAt, tab} from './run_detail_test_support';
 
 // Controllable stream mock: tests mutate `streamState` then rerender to drive
@@ -132,4 +133,89 @@ it('navigates when a tab is clicked', async () => {
       '/runs/run-1/learning',
     ),
   );
+});
+
+const UNGROUNDED_NOTICE = /No literature was retrieved for this run/;
+
+const EVIDENCE_ROW = {
+  id: 'ev-1',
+  title: 'Retrieved paper',
+  source: 'pubmed',
+  url: 'https://example.org/paper',
+  authors: [],
+  year: 2024,
+  available: true,
+} as Evidence;
+
+// A completed run whose literature retrieval returned nothing still reads
+// categorically unless flagged; offline-backed runs are illustrative
+// fixtures and exempt (mirrors store.run_used_offline's exemption of the
+// "Unverified" badge in GET /hypotheses).
+it('flags a completed run with no retrieved evidence as ungrounded', async () => {
+  vi.mocked(runsApi.getRun).mockResolvedValue({
+    ...makeRun('Study pathway X'),
+    provider: 'engine',
+    llm_backend: 'real',
+  } as RunWithSummary);
+  vi.mocked(runsApi.getEvidence).mockResolvedValue([]);
+
+  renderAt('/runs/run-1/details');
+
+  expect(await screen.findByText(UNGROUNDED_NOTICE)).toBeInTheDocument();
+});
+
+it('shows the ungrounded notice on every report tab', async () => {
+  vi.mocked(runsApi.getRun).mockResolvedValue({
+    ...makeRun('Study pathway X'),
+    provider: 'engine',
+    llm_backend: 'real',
+  } as RunWithSummary);
+  vi.mocked(runsApi.getEvidence).mockResolvedValue([]);
+
+  renderAt('/runs/run-1/ideas');
+
+  expect(await screen.findByText(UNGROUNDED_NOTICE)).toBeInTheDocument();
+});
+
+it('omits the ungrounded notice when the run retrieved evidence', async () => {
+  vi.mocked(runsApi.getRun).mockResolvedValue({
+    ...makeRun('Study pathway X'),
+    provider: 'engine',
+    llm_backend: 'real',
+  } as RunWithSummary);
+  vi.mocked(runsApi.getEvidence).mockResolvedValue([EVIDENCE_ROW]);
+
+  renderAt('/runs/run-1/details');
+
+  await screen.findByText('Run Specifications');
+  expect(screen.queryByText(UNGROUNDED_NOTICE)).toBeNull();
+});
+
+it('exempts offline-backed runs from the ungrounded notice', async () => {
+  vi.mocked(runsApi.getRun).mockResolvedValue({
+    ...makeRun('Study pathway X'),
+    provider: 'engine',
+    llm_backend: 'offline',
+  } as RunWithSummary);
+  vi.mocked(runsApi.getEvidence).mockResolvedValue([]);
+
+  renderAt('/runs/run-1/details');
+
+  await screen.findByText('Run Specifications');
+  expect(screen.queryByText(UNGROUNDED_NOTICE)).toBeNull();
+});
+
+it('exempts legacy mock-provider runs from the ungrounded notice', async () => {
+  // Rows created before the llm_backend column existed fall back to the
+  // provider: the mock provider was always offline-backed.
+  vi.mocked(runsApi.getRun).mockResolvedValue({
+    ...makeRun('Study pathway X'),
+    provider: 'mock',
+  } as RunWithSummary);
+  vi.mocked(runsApi.getEvidence).mockResolvedValue([]);
+
+  renderAt('/runs/run-1/details');
+
+  await screen.findByText('Run Specifications');
+  expect(screen.queryByText(UNGROUNDED_NOTICE)).toBeNull();
 });
