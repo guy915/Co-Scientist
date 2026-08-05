@@ -7,6 +7,15 @@ consequence. Findings already closed on `main`, and findings that record a
 deliberate local design choice, are not carried here — [FINDINGS.md](FINDINGS.md)
 remains the full register.
 
+**Every item here is decided.** Where a finding admitted more than one
+reasonable resolution, this plan names the one to build; nothing waits on an
+outside answer. Four items cannot be *finished* inside this repository —
+wet-lab validation and the blinded expert panel (stage 12), production SMTP
+(`B8`), and the production half of the MCP shared secret (stage 9). Each says so
+where it appears. Record those as blocked with the reason and keep going; a
+fixture, a sample, or a plausible-looking artifact standing in for absent
+evidence is worse than leaving the item open.
+
 ## Stages
 
 | Stage | Theme | Size |
@@ -66,8 +75,10 @@ Do these first and in this order. Each is independently shippable.
    disposition, safety, or claim filter. Filter **before** the LLM call — never
    post-filter prose already synthesized from blocked ideas.
 5. **`J5` — uncertain hypotheses vanish.** `held_for_review` is written
-   throughout the engine and read nowhere in `app/`. Either surface it or stop
-   dropping into it; silently discarding work is not an option.
+   throughout the engine and read nowhere in `app/`. Surface it as a visible
+   "held for review" state that a person can inspect and adjudicate, following
+   the existing safety-adjudication path — that already has both an endpoint and
+   a UI, so this is the shape to match rather than a new one to invent.
 
 **Done when:** an integration test injects one of each kind of blocked idea and
 asserts absence from the share payload and the overview; a task driven past its
@@ -139,10 +150,11 @@ makes the storage design part of the feature rather than a follow-up.
    to the per-call `api_key` argument on the LiteLLM completion. It must
    override the deployment credential for that run only, never process-wide.
 4. **Pair it with a provider.** The field is labelled DeepSeek, the defaults are
-   `deepseek/*`, and production runs `dashscope/*`. A key without a matching
-   provider gets sent to the wrong endpoint and fails opaquely. Either constrain
-   the field to the deployment's configured provider or let the user choose one,
-   and validate the pair before accepting it.
+   `deepseek/*`, and production runs `dashscope/*`, so a key without a matching
+   provider gets sent to the wrong endpoint and fails opaquely. Let the user
+   choose the provider alongside the key, from the set `config.py` already knows
+   (`PROVIDER_CREDENTIAL_ENV`), and validate the pair with a cheap live call
+   before accepting it.
 5. **Contain it.** Never log it (check `logging_setup.py` and the MCP tool
    logging wrapper), never return it from `/config`, `/status`, or any run
    payload, and redact it from checkpoint blobs — `store/checkpoints.py`
@@ -160,7 +172,7 @@ to keep the value out of logs, payloads, and checkpoints.
 
 ## Stage 4 — Wire what is already built
 
-**Closes:** D11, D12 — then, on product judgement, D4, A7, A8
+**Closes:** D11, D12
 
 The server side of these is built, tested, and unreachable.
 
@@ -169,14 +181,14 @@ The server side of these is built, tested, and unreachable.
    `shares.py`. **Depends on `D5`** — the share payload must be sanitized before
    a UI makes shares easy to create.
 
-The next three are also fully built server-side, but each adds real UI surface
-to a product whose owner considers the UI settled. **Confirm with the repository
-owner before building any of them:** Chat with Agent (`D4`, `askRunQuestion`),
-mid-run steering (`A7`, `sendRunSteering`), scientist contribution (`A8`).
+Those two are the whole stage. Chat with Agent (`D4`), mid-run steering (`A7`),
+and scientist contribution (`A8`) are also built server-side, and stay
+deliberately unwired: their endpoints remain available, and the UI does not grow
+to reach them. Leave those three rows open in FINDINGS.md.
 
-Two related items are *not* wiring: run deletion (`N3`) has no endpoint at all
-and belongs to stage 9, and the completion email (`B8`) is blocked on production
-SMTP environment variables, which is the repository owner's change to make.
+Run deletion (`N3`) is not wiring — it has no endpoint at all and belongs to
+stage 9. The completion email (`B8`) is code-complete and blocked only on
+production SMTP settings; leave it open and note it.
 
 ---
 
@@ -230,8 +242,10 @@ SMTP environment variables, which is the repository owner's change to make.
    dual-use at intake (`J1`).
 5. Finish `J2`: the provider-credential table is now unified, so DashScope
    resolves correctly, but the semantic screen still falls back to regex-only on
-   a missing credential with no log line. Make that failure closed, or at
-   minimum loud.
+   a missing credential with no log line. Make that failure **closed** — a
+   configured semantic screen that cannot reach its model is a safety control
+   that is not running, so the screen should refuse rather than silently
+   degrade. Log it at WARNING as well, so the cause is visible.
 6. Finish `J3`: the engine redacts hypothesis fields in place; confirm app-side
    goal and report-Markdown redaction, and that the original is unreadable
    through DB, API, SSE, log, share, and export.
@@ -247,11 +261,12 @@ SMTP environment variables, which is the repository owner's change to make.
 
 **Closes:** G1, G2, G5, G6, G7, G9, G10, G12, G14, I4
 
-1. **`G1` — settle the policy first, with the repository owner.** Contradicted
-   ideas are withheld from the report; merely-unsupported ones publish with an
-   "Unverified" badge. That is a deliberate-looking behavior with no recorded
-   decision behind it, so confirm it is intended before building on it. If it
-   is, record it in FINDINGS.md and close the row.
+1. **`G1` — the policy is decided; record it and close the row.** Contradicted
+   ideas are withheld from the report entirely; merely-unsupported ones publish
+   with an "Unverified" badge. That is the intended behavior. Write it into
+   FINDINGS.md as the recorded decision, add a test that pins both halves, and
+   mark `G1` closed. The rest of this stage raises how much evidence gets found,
+   which shrinks the unsupported set — it does not change what happens to it.
 2. Finish `G2`: a progressive broadening ladder retries queries that return
    nothing (`query_broadening.py`). Still missing MeSH, OR expansion, and field
    tags — and confirm the final fallback no longer sends the whole prose goal
@@ -294,10 +309,16 @@ Independent of everything else and separately shippable. Ordered by exposure:
 1. **Security:** `N1` (auth defaults to `compatibility`, trusting a
    caller-selected `X-Client-ID`), `N2` (`access_token` read from the query
    string at `auth.py:104` and appended by `runs_http.ts:39`), `N7` (the MCP
-   server is unauthenticated with wildcard CORS — currently intentional and
-   commented, so make the call explicitly rather than by default), `N6`
-   (self-declared audience), `N14` (diagnostic disclosure), `N32` (missing
-   security headers).
+   server is unauthenticated with wildcard CORS — require a shared-secret token
+   header on every MCP call, read from an env var on both the `api` and `mcp`
+   services, and drop the wildcard origins; the private network stays the outer
+   control, this is the inner one), `N6` (self-declared audience), `N14`
+   (diagnostic disclosure), `N32` (missing security headers).
+
+   The MCP shared secret needs a matching variable set on both Railway services
+   before it takes effect in production. Ship the code with a documented default
+   of "unset means the previous behavior", note the variable in the deployment
+   docs, and leave the production change itself open.
 2. **Data lifecycle:** `N3` (no run/report/document deletion — the only DELETE
    route is share revocation), `N4` (retention and cascade), `N5` (upload MIME
    is caller-supplied, no signature or malware check), `N11`, `N12`.
@@ -326,7 +347,9 @@ from interactive popovers (`O4`); keep streaming status concise and non-live
 keyboard behavior (`O6`). Fix the 720-CSS-pixel boundary so 16:9 and 2:1 both
 render without clipping (`M2`); confirm the Back control in
 `run_detail_shell.tsx:123` is reachable as the mobile idea-detail escape (`M3`).
-Make global shortcuts discoverable or remove them (`M12`).
+Make the global shortcuts discoverable — they stay, so give them a visible
+reference and make sure they do not intercept expected browser navigation
+(`M12`).
 
 Verify every change in both light and dark themes, and measure dark from a real
 capture rather than by eye.
