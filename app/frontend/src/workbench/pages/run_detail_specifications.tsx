@@ -236,6 +236,11 @@ function decisionDisplayValues(decision: SafetyDecision) {
   return {
     category: decision.category,
     needsResolution: decision.requires_review && !decision.resolution,
+    // A hypothesis the engine's safety screen held out of the pool. It has
+    // no hypothesis row of its own, so its decision row is the one place a
+    // person can see the idea and adjudicate it.
+    heldHypothesis:
+      decision.stage === 'hypothesis' && decision.decision === 'hold',
   };
 }
 
@@ -246,13 +251,20 @@ function SafetyDecisionItem({
   busy,
   onResolve,
 }: ResolveProps & {decision: SafetyDecision}) {
-  const {category, needsResolution} = decisionDisplayValues(decision);
+  const {category, needsResolution, heldHypothesis} =
+    decisionDisplayValues(decision);
   return (
     <div className="mb-5">
-      <p>
-        <strong>{decision.stage}:</strong>{' '}
-        {category ? `${category} — ${decision.reason}` : decision.reason}
-      </p>
+      {heldHypothesis ? (
+        <p>
+          <strong>Held for review:</strong> {decision.reason}
+        </p>
+      ) : (
+        <p>
+          <strong>{decision.stage}:</strong>{' '}
+          {category ? `${category} — ${decision.reason}` : decision.reason}
+        </p>
+      )}
       {decision.resolution ? <p>Resolution: {decision.resolution}</p> : null}
       {needsResolution ? (
         <ResolveButtons busy={busy} onResolve={onResolve} />

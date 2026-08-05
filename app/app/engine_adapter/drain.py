@@ -101,6 +101,9 @@ from app.engine_adapter.drain_reviews import (
 from app.engine_adapter.drain_reviews import (
     _score_or_none as _score_or_none,
 )
+from app.engine_adapter.drain_safety import (
+    _persist_held_for_review as _persist_held_for_review,
+)
 from app.hypothesis_screening import screen_hypotheses
 from app.text_utils import first_sentence as first_sentence
 
@@ -258,13 +261,18 @@ def _build_drain_result(
 
 
 class _FinalStateInputs(NamedTuple):
-    """Precomputed persistence inputs derived from an engine final state."""
+    """Precomputed persistence inputs derived from an engine final state.
+
+    ``final_state`` itself rides along for the consumers that read keys not
+    precomputed here (the held-for-review persistence).
+    """
 
     hyps_parents_first: list[dict[str, Any]]
     articles: list[dict[str, Any]]
     matchups: list[dict[str, Any]]
     proximity_graph: dict[str, Any]
     persisted_engine_ids: set[str]
+    final_state: dict[str, Any]
 
 
 def _prepare_final_state_inputs(
@@ -290,6 +298,7 @@ def _prepare_final_state_inputs(
         matchups=_final_state_list(final_state, "tournament_matchups"),
         proximity_graph=_final_state_dict(final_state, "proximity_graph"),
         persisted_engine_ids=persisted_engine_ids,
+        final_state=final_state,
     )
 
 
@@ -399,7 +408,9 @@ def _persist_evidence_hypotheses_and_screen(
             sink,
             conn,
         )
-        return _screen_and_collect_grounding_inputs(run_id, conn)
+        result = _screen_and_collect_grounding_inputs(run_id, conn)
+        _persist_held_for_review(run_id, inputs.final_state, conn)
+        return result
 
 
 def _persist_grounding_matches_proximity_txn(

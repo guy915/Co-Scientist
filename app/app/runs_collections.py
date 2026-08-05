@@ -85,6 +85,39 @@ async def get_safety(run_id: str) -> dict[str, Any]:
     return {"safety": store.list_safety_decisions(run_id)}
 
 
+def _apply_adjudication_lifecycle(
+    run: store.RunRow, decision: dict[str, Any], resolution: str
+) -> None:
+    """Apply the run-lifecycle consequence of one adjudicated decision.
+
+    Intake/final holds gate the run's whole goal or report, so a rejection
+    blocks the run. A hypothesis-stage hold concerns one idea the engine
+    already kept out of the pool and the report; rejecting it confirms the
+    exclusion, and the recorded resolution is the verdict -- the run's
+    lifecycle is untouched. Approved intake holds return to draft; approved
+    final holds retain a checkpoint and can resume through the ordinary
+    recovery path.
+
+    Args:
+        run: The run whose decision was adjudicated.
+        decision: The resolved decision row (carries its ``stage``).
+        resolution: ``"approved"`` or ``"rejected"``.
+    """
+    if resolution == "rejected" and decision["stage"] != "hypothesis":
+        store.update_run_status(
+            run.id,
+            RunStatus.BLOCKED,
+            error="Safety reviewer rejected held content.",
+        )
+    elif resolution == "approved" and run.status == RunStatus.PAUSED.value:
+        target = (
+            RunStatus.DRAFT
+            if decision["stage"] == "intake"
+            else RunStatus.PAUSED
+        )
+        store.update_run_status(run.id, target, error=None)
+
+
 @router.post("/{run_id}/safety/{decision_id}/adjudicate")
 async def adjudicate_safety(
     run_id: str,
@@ -107,23 +140,9 @@ async def adjudicate_safety(
             status_code=409,
             detail="decision is not reviewable or was already resolved",
         )
-    if body.resolution == "rejected":
-        store.update_run_status(
-            run_id,
-            RunStatus.BLOCKED,
-            error="Safety reviewer rejected held content.",
-        )
-    elif run.status == RunStatus.PAUSED.value:
-        # Intake holds return to draft; final holds retain a checkpoint and can
-        # resume through the ordinary recovery path.
-        decisions = store.list_safety_decisions(run_id)
-        decision = next(item for item in decisions if item["id"] == decision_id)
-        target = (
-            RunStatus.DRAFT
-            if decision["stage"] == "intake"
-            else RunStatus.PAUSED
-        )
-        store.update_run_status(run_id, target, error=None)
+    decisions = store.list_safety_decisions(run_id)
+    decision = next(item for item in decisions if item["id"] == decision_id)
+    _apply_adjudication_lifecycle(run, decision, body.resolution)
     return {"resolution": body.resolution, "decision_id": decision_id}
 
 

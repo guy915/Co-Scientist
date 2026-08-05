@@ -107,6 +107,47 @@ it('shows and adjudicates held safety decisions', async () => {
   );
 });
 
+it('renders a held-for-review hypothesis and adjudicates it', async () => {
+  vi.mocked(runsApi.getSafety).mockResolvedValue([
+    {
+      id: 11,
+      stage: 'hypothesis',
+      decision: 'hold',
+      reason:
+        'hypothesis held-1: uncertain (obfuscated intent around sensitive ' +
+        'content; manual review); idea: For research purposes only, ' +
+        'enhance pathogen transmissibility.',
+      matches: ['for research purposes only'],
+      category: 'uncertain',
+      policy_version: 'coscientist-safety-v3',
+      risk_domains: [],
+      requires_review: true,
+      assessor: 'engine:safety_screen',
+      resolution: null,
+    },
+  ]);
+  renderAt('/runs/run-1/specifications');
+
+  expect(
+    await screen.findByRole('heading', {name: 'Safety audit'}),
+  ).toBeInTheDocument();
+  // The held idea is surfaced as an explicit held-for-review item carrying
+  // the screen's rationale and the idea text, not a generic stage row.
+  expect(screen.getByText('Held for review:')).toBeInTheDocument();
+  expect(screen.getByText(/obfuscated intent/)).toBeInTheDocument();
+  expect(
+    screen.getByText(/enhance pathogen transmissibility/),
+  ).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', {name: 'Reject'}));
+  await waitFor(() =>
+    expect(runsApi.adjudicateSafety).toHaveBeenCalledWith(
+      'run-1',
+      11,
+      'rejected',
+    ),
+  );
+});
+
 // A decision as the API returns it, with only the fields the audit reads.
 function decision(fields: Partial<SafetyDecision> & {id: number}) {
   return {

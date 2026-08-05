@@ -172,6 +172,74 @@ def test_safety_adjudication_is_identified_and_single_use(
     assert repeated.status_code == 409
 
 
+def test_held_hypothesis_adjudication_records_without_blocking(
+    isolated_db: str,
+) -> None:
+    """A held-hypothesis hold resolves once and spares the run's lifecycle.
+
+    Unlike intake/final holds, which gate the run's whole goal or report, a
+    hypothesis-stage hold concerns one idea the engine already excluded from
+    the pool and the report. Approving or rejecting it flips the recorded
+    resolution exactly once, and the run itself is left alone.
+    """
+    from app import engine_adapter
+    from tests._drain_helpers import _held_final_state
+
+    client = _client()
+    headers = {"X-Client-ID": "held-reviewer"}
+    created = client.post(
+        "/api/runs",
+        headers=headers,
+        json={"research_goal": "Adjudicate hypotheses held for review"},
+    ).json()
+    run_id = created["id"]
+    engine_adapter._persist_final_state(
+        run_id=run_id, final_state=_held_final_state(), db_path=isolated_db
+    )
+
+    # The holds are retrievable through the safety endpoint the UI reads.
+    listed = client.get(f"/api/runs/{run_id}/safety", headers=headers)
+    assert listed.status_code == 200
+    holds = [d for d in listed.json()["safety"] if d["decision"] == "hold"]
+    assert len(holds) == 2
+
+    approved = client.post(
+        f"/api/runs/{run_id}/safety/{holds[0]['id']}/adjudicate",
+        headers=headers,
+        json={"resolution": "approved"},
+    )
+    assert approved.status_code == 200
+
+    rejected = client.post(
+        f"/api/runs/{run_id}/safety/{holds[1]['id']}/adjudicate",
+        headers=headers,
+        json={"resolution": "rejected"},
+    )
+    assert rejected.status_code == 200
+
+    by_id = {
+        d["id"]: d
+        for d in client.get(
+            f"/api/runs/{run_id}/safety", headers=headers
+        ).json()["safety"]
+    }
+    assert by_id[holds[0]["id"]]["resolution"] == "approved"
+    assert by_id[holds[1]["id"]]["resolution"] == "rejected"
+    # Single-use, like every other held decision.
+    repeated = client.post(
+        f"/api/runs/{run_id}/safety/{holds[0]['id']}/adjudicate",
+        headers=headers,
+        json={"resolution": "rejected"},
+    )
+    assert repeated.status_code == 409
+    # The held ideas were never part of the published output, so neither
+    # resolution blocks the run (an intake/final rejection would).
+    assert (
+        client.get(f"/api/runs/{run_id}", headers=headers).json()["status"]
+        == "draft"
+    )
+
+
 def test_list_runs_honors_limit_query(isolated_db: str) -> None:
     client = _client()
     headers = {"X-Client-ID": "limit-test"}

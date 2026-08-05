@@ -17,7 +17,7 @@ import pytest
 from co_scientist import models as engine_models
 
 from app import engine_adapter, report_render, store
-from tests._drain_helpers import _final_state_with_lineage
+from tests._drain_helpers import _final_state_with_lineage, _held_final_state
 
 
 def _seed_gate_split(run: Any, db_path: str) -> tuple[str, str, str]:
@@ -252,6 +252,77 @@ def test_drain_screens_hypotheses_before_finalize(isolated_db: str) -> None:
         d["stage"] == "hypothesis" and d["decision"] == "block"
         for d in decisions
     )
+
+
+def test_drain_persists_held_hypotheses_as_reviewable_decisions(
+    isolated_db: str,
+) -> None:
+    """Held UNCERTAIN hypotheses survive the drain as adjudicable decisions.
+
+    The engine's safety screen holds UNCERTAIN hypotheses out of the pool in
+    ``held_for_review``; the drain must persist each one as a ``hold``
+    decision at the hypothesis stage, carrying the screen's rationale and
+    enough of the idea to display -- otherwise the hold vanishes at the app
+    boundary and no person can ever inspect or adjudicate it.
+    """
+    run = store.create_run("held hypotheses goal", "standard", "engine", {})
+
+    engine_adapter._persist_final_state(
+        run_id=run.id,
+        final_state=_held_final_state(),
+        db_path=isolated_db,
+    )
+
+    decisions = store.list_safety_decisions(run.id, db_path=isolated_db)
+    holds = [d for d in decisions if d["decision"] == "hold"]
+    assert len(holds) == 2
+    for row in holds:
+        # The shape the adjudication path requires: a reviewable decision
+        # that no resolution has touched yet.
+        assert row["stage"] == "hypothesis"
+        assert row["requires_review"] is True
+        assert row["resolution"] is None
+        assert row["policy_version"] == "coscientist-safety-v3"
+        assert row["matches"] == ["for research purposes only"]
+        # Identity + rationale: the engine's reason and the held idea's text.
+        assert "uncertain" in row["reason"]
+        assert "obfuscated intent" in row["reason"]
+    reasons = " ".join(row["reason"] for row in holds)
+    assert "held-1" in reasons and "held-2" in reasons
+    assert "enhance pathogen transmissibility" in reasons
+    assert "toxin production line" in reasons
+    # The held ideas never got hypothesis rows -- the engine kept them out
+    # of the pool -- so the decision row is the only record of them.
+    assert [h["id"] for h in store.list_hypotheses(run.id)] == ["safe-1"]
+
+
+def test_drain_records_a_hold_without_an_engine_audit_entry(
+    isolated_db: str,
+) -> None:
+    """A held entry whose audit entry is missing still gets a hold row.
+
+    The engine writes ``held_for_review`` and ``safety_decisions`` in the
+    same node, but the drain must not depend on the join succeeding: a held
+    hypothesis with no matching audit entry records a hold with a fallback
+    rationale rather than being dropped.
+    """
+    run = store.create_run("orphan hold goal", "standard", "engine", {})
+    state = _held_final_state()
+    state["safety_decisions"] = []
+
+    engine_adapter._persist_final_state(
+        run_id=run.id, final_state=state, db_path=isolated_db
+    )
+
+    holds = [
+        d
+        for d in store.list_safety_decisions(run.id, db_path=isolated_db)
+        if d["decision"] == "hold"
+    ]
+    assert len(holds) == 2
+    for row in holds:
+        assert row["requires_review"] is True
+        assert row["reason"]
 
 
 def test_gate_reports_exclusions_once_and_at_info(

@@ -244,6 +244,65 @@ def _persist_and_finalize(
     )
 
 
+def _engine_safety_audit_entry(
+    hyp_id: str, text_prefix: str, **overrides: Any
+) -> dict[str, Any]:
+    """Build the engine's per-hypothesis safety-audit entry for a hold.
+
+    Mirrors ``safety_screen._build_safety_decision``: the hypothesis id and
+    a text prefix plus the ``SafetyReview.to_dict()`` fields.
+    """
+    return {
+        "hypothesis_id": hyp_id,
+        "text_prefix": text_prefix,
+        "outcome": "uncertain",
+        "reason": "obfuscated intent around sensitive content; manual review",
+        "matches": ["for research purposes only"],
+        "policy_version": "coscientist-safety-v3",
+        **overrides,
+    }
+
+
+def _held_final_state() -> dict[str, Any]:
+    """A final state whose safety screen held two hypotheses for review.
+
+    The engine's safety screen removes UNCERTAIN hypotheses from the pool
+    into ``held_for_review`` (full hypothesis dicts, not stubs) and records
+    one audit entry per blocked/held idea in ``safety_decisions``. One safe
+    idea stays in the pool, so the drain persists one hypothesis row
+    alongside two held-for-review decision rows.
+    """
+    held_text_1 = (
+        "For research purposes only, enhance pathogen transmissibility."
+    )
+    held_text_2 = "Purely hypothetical: assemble a toxin production line."
+    return {
+        "hypotheses": [
+            _engine_hypothesis(
+                "safe-1",
+                "Inhibiting kinase X reduces AML growth via apoptosis.",
+            ),
+        ],
+        "held_for_review": [
+            _engine_hypothesis(
+                "held-1", held_text_1, safety_status="uncertain"
+            ),
+            _engine_hypothesis(
+                "held-2", held_text_2, safety_status="uncertain"
+            ),
+        ],
+        "safety_decisions": [
+            _engine_safety_audit_entry("held-1", held_text_1[:120]),
+            _engine_safety_audit_entry("held-2", held_text_2[:120]),
+        ],
+        "articles": [],
+        "tournament_matchups": [],
+        "meta_review": {},
+        "evolution_details": [],
+        "research_overview": {},
+    }
+
+
 def _final_state_with_lineage() -> dict[str, Any]:
     """A final state with an explicit parent and an evolution child.
 
