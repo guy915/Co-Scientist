@@ -18,13 +18,13 @@ from langchain_mcp_adapters.client import MultiServerMCPClient
 from langchain_mcp_adapters.sessions import Connection
 
 from co_scientist.config.env_vars import parse_timeout_env
+from co_scientist.constants import truncate
 from co_scientist.exceptions import MCPToolTimeoutError
 from co_scientist.mcp_client_helpers import (
     NOT_INITIALIZED_MESSAGE,
     _ensure_tools_initialized,
     _filter_tools_by_whitelist,
     _resolve_server_configs,
-    _truncate_for_log,
     _unwrap_tool_result,
 )
 
@@ -249,7 +249,7 @@ class MCPToolClient:
         logger.debug(
             "mcp tool result for %s: %s",
             tool_name,
-            _truncate_for_log(str(result)),
+            truncate(str(result)),
         )
 
         return cast(str, result)

@@ -10,7 +10,10 @@ unrecognized ones.
 from dataclasses import dataclass, field
 from typing import Any
 
-from co_scientist.config.schema_fields import _declared_field_kwargs
+from co_scientist.config.schema_fields import (
+    _declared_field_kwargs,
+    _tolerant_field_kwargs,
+)
 
 
 @dataclass
@@ -58,11 +61,7 @@ class SearchSourceConfig:
         if isinstance(data, str):
             # Simple format: just tool name
             return cls(tool=data)
-        # tool is required on the dataclass but tolerated as missing in YAML.
-        return cls(
-            tool=data.get("tool", ""),
-            **_declared_field_kwargs(cls, data, exclude=("tool",)),
-        )
+        return cls(**_tolerant_field_kwargs(cls, data, "tool"))
 
 
 def _search_source_tool_ids(sources: list["SearchSourceConfig"]) -> list[str]:
@@ -136,13 +135,10 @@ class WorkflowConfig:
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "WorkflowConfig":
         """Create WorkflowConfig from dictionary."""
-        if not data:
-            return cls()
-
         # Parse search_sources into nested SearchSourceConfig objects.
         search_sources = [
             SearchSourceConfig.from_dict(source_data)
-            for source_data in data.get("search_sources", [])
+            for source_data in (data or {}).get("search_sources", [])
         ]
 
         return cls(
@@ -212,11 +208,7 @@ class EnrichmentConfig:
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "EnrichmentConfig":
         """Create EnrichmentConfig from dictionary."""
-        # tool is required on the dataclass but tolerated as missing in YAML.
-        return cls(
-            tool=data.get("tool", ""),
-            **_declared_field_kwargs(cls, data, exclude=("tool",)),
-        )
+        return cls(**_tolerant_field_kwargs(cls, data, "tool"))
 
 
 # Read by prompts/loading.py's _get_domain_variables() via
@@ -250,6 +242,4 @@ class PromptsConfig:
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "PromptsConfig":
         """Create PromptsConfig from dictionary."""
-        if not data:
-            return cls()
         return cls(**_declared_field_kwargs(cls, data))

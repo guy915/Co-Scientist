@@ -8,6 +8,7 @@ module re-exports the names historically importable from
 """
 
 import logging
+from collections.abc import Iterable
 from pathlib import Path
 from typing import Any, cast
 
@@ -54,6 +55,23 @@ USER_CONFIG_PATHS = [
     Path.home() / ".coscientist" / "tools.yaml",
     Path.home() / ".config" / "coscientist" / "tools.yaml",
 ]
+
+
+def _coerce_enabled(entries: Iterable[dict[str, Any]]) -> None:
+    """Coerce each entry's string ``enabled`` value to a bool, in place.
+
+    ``substitute_env_vars`` only replaces ``${VAR}`` text, so a YAML
+    ``enabled: ${SOME_FLAG}`` arrives as the literal string "true"/"false"
+    rather than a bool, and the dataclasses want a real bool. Servers and
+    tools both need this, and both used to say so themselves.
+
+    Args:
+        entries: Raw YAML entry mappings for one section (or one tool
+            category), mutated in place.
+    """
+    for entry in entries:
+        if isinstance(entry.get("enabled"), str):
+            entry["enabled"] = parse_bool_env(entry["enabled"])
 
 
 class ToolRegistry:
@@ -175,32 +193,10 @@ class ToolRegistry:
         return None
 
     def _parse_enabled_values(self, data: dict[str, Any]) -> None:
-        """Parse 'enabled' fields that may be string booleans from env vars."""
-        # substitute_env_vars() only replaces ${VAR} text, so a YAML
-        # `enabled: ${SOME_FLAG}` becomes the literal string "true"/"false"
-        # rather than a bool; this pass coerces those strings before the
-        # dataclasses (which expect real bools) are built.
-        # Parse server enabled values
-        for server_data in data.get("servers", {}).values():
-            if isinstance(server_data.get("enabled"), str):
-                server_data["enabled"] = parse_bool_env(server_data["enabled"])
-
-        # Parse tool enabled values
+        """Coerce every string ``enabled`` flag left by env substitution."""
+        _coerce_enabled(data.get("servers", {}).values())
         for category_tools in data.get("tools", {}).values():
-            self._parse_tool_category_enabled_values(category_tools)
-
-    def _parse_tool_category_enabled_values(
-        self, category_tools: dict[str, Any]
-    ) -> None:
-        """Coerce string 'enabled' values to bool for one tools.yaml category.
-
-        Args:
-            category_tools: Mapping of tool id to tool data for a single
-                category (e.g. all entries under "search_tools").
-        """
-        for tool_data in category_tools.values():
-            if isinstance(tool_data.get("enabled"), str):
-                tool_data["enabled"] = parse_bool_env(tool_data["enabled"])
+            _coerce_enabled(category_tools.values())
 
     def _merge_configs(
         self,

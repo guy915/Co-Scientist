@@ -12,7 +12,7 @@ from typing import Any
 
 def _declared_field_kwargs(
     cls: type[Any],
-    data: dict[str, Any],
+    data: dict[str, Any] | None,
     *,
     exclude: tuple[str, ...] = (),
 ) -> dict[str, Any]:
@@ -25,9 +25,16 @@ def _declared_field_kwargs(
     matching the legacy ``data.get(key, default)`` semantics where presence
     wins over the default.
 
+    ``data`` may also be None: a YAML section written with an empty body
+    (``prompts:``) parses to None rather than to ``{}``, and every caller
+    used to guard for that itself with an ``if not data: return cls()``
+    line that meant exactly "all defaults" -- which is what an empty kwargs
+    mapping already produces.
+
     Args:
         cls: Dataclass whose declared fields define the accepted keys.
-        data: Raw configuration dictionary (typically parsed YAML).
+        data: Raw configuration dictionary (typically parsed YAML), or None
+            for an absent/empty section.
         exclude: Field names the caller handles explicitly (nested
             parsing, renamed keys, or defaults that differ from the
             dataclass declaration).
@@ -38,4 +45,31 @@ def _declared_field_kwargs(
     # Field names declared on the dataclass, minus the ones the caller
     # handles itself; only keys matching this set are forwarded.
     names = {f.name for f in fields(cls)} - set(exclude)
-    return {key: value for key, value in data.items() if key in names}
+    return {key: value for key, value in (data or {}).items() if key in names}
+
+
+def _tolerant_field_kwargs(
+    cls: type[Any],
+    data: dict[str, Any],
+    required: str,
+) -> dict[str, Any]:
+    """Build constructor kwargs, defaulting one dataclass-required field.
+
+    Three config dataclasses declare a field with no default -- so it must
+    be passed -- while tolerating its absence in YAML. Each stated the
+    field name twice (once to ``data.get``, once to ``exclude``) plus the
+    same explanatory comment; naming the pattern once keeps the two
+    mentions from drifting apart.
+
+    Args:
+        cls: Dataclass whose declared fields define the accepted keys.
+        data: Raw configuration dictionary (typically parsed YAML).
+        required: The field to supply as "" when YAML omits it.
+
+    Returns:
+        Mapping of field name to raw value, suitable for ``cls(**kwargs)``.
+    """
+    return {
+        required: data.get(required, ""),
+        **_declared_field_kwargs(cls, data, exclude=(required,)),
+    }

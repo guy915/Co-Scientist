@@ -127,10 +127,7 @@ from co_scientist.llm_tool_loop import (
 from co_scientist.llm_tool_loop import (
     _message_to_history_dict as _message_to_history_dict,
 )
-from co_scientist.llm_tool_loop import (
-    _prepare_llm_call,
-    _PromptCallOptions,
-)
+from co_scientist.llm_tool_loop import _prepare_llm_call
 from co_scientist.llm_tool_loop import (
     _run_tool_call_iteration as _run_tool_call_iteration,
 )
@@ -203,9 +200,6 @@ async def call_llm(
             ``LLMCallOptions()``.
     """
     opt = options if options is not None else LLMCallOptions()
-    call_opts = _PromptCallOptions(
-        opt.use_cache, opt.run_id, opt.prompt_name, opt.prompt_metadata
-    )
     request = LLMCacheRequest(
         prompt=prompt,
         model_name=spec.model_name,
@@ -214,9 +208,7 @@ async def call_llm(
         json_schema=spec.json_schema,
         force_json=spec.force_json,
     )
-    request, cache, cached_response = await _prepare_llm_call(
-        request, call_opts
-    )
+    request, cache, cached_response = await _prepare_llm_call(request, opt)
     if cached_response is not None:
         logger.debug("using cached llm response")
         return cast(str, cached_response["text"])
@@ -323,9 +315,6 @@ async def call_llm_json(
             ``LLMCallOptions()``.
     """
     opt = options if options is not None else LLMCallOptions()
-    call_opts = _PromptCallOptions(
-        opt.use_cache, opt.run_id, opt.prompt_name, opt.prompt_metadata
-    )
     request = LLMCacheRequest(
         prompt=prompt,
         model_name=spec.model_name,
@@ -333,9 +322,7 @@ async def call_llm_json(
         max_tokens=spec.max_tokens,
         json_schema=spec.json_schema,
     )
-    request, cache, cached_response = await _prepare_llm_call(
-        request, call_opts
-    )
+    request, cache, cached_response = await _prepare_llm_call(request, opt)
     if cached_response is not None:
         logger.debug("using cached llm json response")
         return cached_response

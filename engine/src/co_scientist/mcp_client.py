@@ -49,9 +49,6 @@ from co_scientist.mcp_client_helpers import (
     _resolve_server_url,
 )
 from co_scientist.mcp_client_helpers import (
-    _truncate_for_log as _truncate_for_log,
-)
-from co_scientist.mcp_client_helpers import (
     _unwrap_tool_result as _unwrap_tool_result,
 )
 from co_scientist.mcp_client_session import (

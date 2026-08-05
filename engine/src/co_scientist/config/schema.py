@@ -24,15 +24,6 @@ consumes -- and re-exports every name historically importable from
 from dataclasses import dataclass, field
 from typing import Any
 
-from co_scientist.config.content_params import (
-    _apply_placeholder_match as _apply_placeholder_match,
-)
-from co_scientist.config.content_params import (
-    _resolve_content_param_value as _resolve_content_param_value,
-)
-from co_scientist.config.content_params import (
-    _substitute_placeholders as _substitute_placeholders,
-)
 from co_scientist.config.content_params import resolve_content_params
 from co_scientist.config.schema_fields import _declared_field_kwargs
 from co_scientist.config.tool_schema import (
@@ -41,17 +32,11 @@ from co_scientist.config.tool_schema import (
     ServerConfig,
     ToolConfig,
 )
-from co_scientist.config.tool_schema import (
-    _recency_years_to_starting_year as _recency_years_to_starting_year,
-)
 from co_scientist.config.workflow_schema import (
     EnrichmentConfig,
     PromptsConfig,
     SearchSourceConfig,
     WorkflowConfig,
-)
-from co_scientist.config.workflow_schema import (
-    _search_source_tool_ids as _search_source_tool_ids,
 )
 
 __all__ = [
@@ -79,6 +64,14 @@ def _parse_servers(data: dict[str, Any]) -> dict[str, ServerConfig]:
     return servers
 
 
+def _parse_workflows(data: dict[str, Any]) -> dict[str, WorkflowConfig]:
+    """Parse the top-level ``workflows`` section into WorkflowConfig objects."""
+    workflows = {}
+    for workflow_id, workflow_data in data.get("workflows", {}).items():
+        workflows[workflow_id] = WorkflowConfig.from_dict(workflow_data)
+    return workflows
+
+
 def _parse_tools_by_category(
     data: dict[str, Any],
 ) -> dict[str, dict[str, ToolConfig]]:
@@ -90,14 +83,6 @@ def _parse_tools_by_category(
         for tool_id, tool_data in category_tools.items():
             tools[category][tool_id] = ToolConfig.from_dict(tool_data, tool_id)
     return tools
-
-
-def _parse_workflows(data: dict[str, Any]) -> dict[str, WorkflowConfig]:
-    """Parse the top-level ``workflows`` section into WorkflowConfig objects."""
-    workflows = {}
-    for workflow_id, workflow_data in data.get("workflows", {}).items():
-        workflows[workflow_id] = WorkflowConfig.from_dict(workflow_data)
-    return workflows
 
 
 @dataclass

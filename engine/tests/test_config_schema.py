@@ -195,3 +195,17 @@ def test_explicit_null_overrides_default_when_key_present() -> None:
     # Presence wins even where the declared default is non-None.
     tool = ToolConfig.from_dict({"applies_to": None}, tool_id="t1")
     assert tool.applies_to is None
+
+
+def test_from_dict_tolerates_an_empty_yaml_section() -> None:
+    """A section written with no body parses to None, not to ``{}``.
+
+    ``prompts:`` / ``response_format:`` with nothing under it is valid YAML
+    and yields None, which reaches ``from_dict`` through
+    ``data.get(key, {})`` because the key *is* present. Every such config
+    must fall back to its declared defaults rather than raise.
+    """
+    assert PromptsConfig.from_dict(None) == PromptsConfig()  # type: ignore[arg-type]
+    assert ResponseFormat.from_dict(None) == ResponseFormat()  # type: ignore[arg-type]
+    assert ParameterConfig.from_dict(None) == ParameterConfig()  # type: ignore[arg-type]
+    assert WorkflowConfig.from_dict(None) == WorkflowConfig()  # type: ignore[arg-type]

@@ -63,23 +63,8 @@ def _log_cache_lookup(
         )
 
 
-@dataclass(frozen=True)
-class _PromptCallOptions:
-    """Bundles the cache/debug-artifact options for one LLM call.
-
-    Shared verbatim across ``call_llm``, ``call_llm_json``, and
-    ``call_llm_with_tools`` -- each builds one of these, alongside an
-    ``LLMCacheRequest``, to call ``_prepare_llm_call``.
-    """
-
-    use_cache: bool = True
-    run_id: str | None = None
-    prompt_name: str | None = None
-    prompt_metadata: dict[str, Any] | None = None
-
-
 async def _prepare_llm_call(
-    request: LLMCacheRequest, opts: _PromptCallOptions
+    request: LLMCacheRequest, opts: LLMCallOptions
 ) -> tuple[LLMCacheRequest, "LLMCache | NullCache", dict[str, Any] | None]:
     """Runs the shared pre-call sequence for the public LLM entry points.
 
@@ -355,7 +340,7 @@ async def _run_tool_call_loop(
 
 
 async def _prepare_tool_call(
-    request: LLMCacheRequest, opts: _PromptCallOptions
+    request: LLMCacheRequest, opts: LLMCallOptions
 ) -> tuple[
     LLMCacheRequest,
     "LLMCache | NullCache",
@@ -424,9 +409,6 @@ async def call_llm_with_tools(
             ``LLMCallOptions()``.
     """
     opt = options if options is not None else LLMCallOptions()
-    call_opts = _PromptCallOptions(
-        opt.use_cache, opt.run_id, opt.prompt_name, opt.prompt_metadata
-    )
     request = LLMCacheRequest(
         prompt=prompt,
         model_name=spec.model_name,
@@ -434,7 +416,7 @@ async def call_llm_with_tools(
         max_tokens=spec.max_tokens,
         tools=loop.tools,
     )
-    request, cache, cached_result = await _prepare_tool_call(request, call_opts)
+    request, cache, cached_result = await _prepare_tool_call(request, opt)
     if cached_result is not None:
         return cached_result
     # Seed history with the initial user turn; resent in full each iteration.

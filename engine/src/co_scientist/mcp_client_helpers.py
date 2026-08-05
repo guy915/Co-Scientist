@@ -126,19 +126,6 @@ def _unwrap_tool_result(result: Any) -> Any:
     return result[0]["text"] if _is_wrapped_text_result(result) else result
 
 
-def _truncate_for_log(text: str, limit: int = 200) -> str:
-    """Truncates text for a debug log line, appending an ellipsis if cut.
-
-    Args:
-        text: Text to (possibly) truncate.
-        limit: Maximum length before truncation.
-
-    Returns:
-        text unchanged if within limit, else text[:limit] followed by "...".
-    """
-    return text if len(text) <= limit else text[:limit] + "..."
-
-
 def _filter_tools_by_whitelist(
     tools_dict: dict[str, Any],
     whitelist: list[str],

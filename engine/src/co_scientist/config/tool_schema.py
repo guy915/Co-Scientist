@@ -10,7 +10,10 @@ import datetime
 from dataclasses import dataclass, field
 from typing import Any
 
-from co_scientist.config.schema_fields import _declared_field_kwargs
+from co_scientist.config.schema_fields import (
+    _declared_field_kwargs,
+    _tolerant_field_kwargs,
+)
 
 
 @dataclass
@@ -24,11 +27,7 @@ class ServerConfig:
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "ServerConfig":
         """Create ServerConfig from dictionary."""
-        # url is required on the dataclass but tolerated as missing in YAML.
-        return cls(
-            url=data.get("url", ""),
-            **_declared_field_kwargs(cls, data, exclude=("url",)),
-        )
+        return cls(**_tolerant_field_kwargs(cls, data, "url"))
 
 
 # Consumed by tools/response_parser.py's ResponseParser: type/results_path/
@@ -55,8 +54,6 @@ class ResponseFormat:
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "ResponseFormat":
         """Create ResponseFormat from dictionary."""
-        if not data:
-            return cls()
         return cls(**_declared_field_kwargs(cls, data))
 
 
@@ -76,8 +73,6 @@ class ParameterConfig:
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "ParameterConfig":
         """Create ParameterConfig from dictionary."""
-        if not data:
-            return cls()
         return cls(**_declared_field_kwargs(cls, data))
 
 

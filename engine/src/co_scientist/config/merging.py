@@ -40,12 +40,10 @@ def _determine_merge_strategy(
         The declared merge_strategy, or "override" if neither config
         declares one.
     """
-    if custom and "settings" in custom:
-        strategy: str = custom.get("settings", {}).get(
-            "merge_strategy", "override"
-        )
-        return strategy
-    if user and "settings" in user:
-        strategy = user.get("settings", {}).get("merge_strategy", "override")
-        return strategy
+    for overlay in (custom, user):
+        if overlay and "settings" in overlay:
+            strategy: str = overlay["settings"].get(
+                "merge_strategy", "override"
+            )
+            return strategy
     return "override"
