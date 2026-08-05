@@ -92,6 +92,13 @@ no completed real-provider run) is in its §2–§3.
   script does not exist anywhere in the tree, so the matrix and
   [closure-overrides.json](2026-07-12/closure-overrides.json) must be kept in
   sync by hand, or the matrix treated as frozen.
+- **The 07-12 closure counts disagree with themselves.** Acceptance condition 17,
+  in both [CLOSURE-MATRIX.md](2026-07-12/CLOSURE-MATRIX.md) and
+  [closure-overrides.json](2026-07-12/closure-overrides.json), says "85
+  implemented, 105 partial". Counting the 232 `findings` entries in the JSON gives
+  **86 implemented / 104 partial**, which is what
+  [FINAL-STATUS.md](2026-07-12/FINAL-STATUS.md) §2 and this index report. The
+  acceptance-condition prose is stale by one finding.
 - **One source link points at a deleted file.** 07-21's `M2` cites
   `app/app/engine_adapter/workflow.py` as dead code; it was subsequently removed
   by `4d6ed845`, so that link no longer resolves. The finding was correct and has
