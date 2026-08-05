@@ -298,4 +298,4 @@ def _format_review_context(
         " comprehensive comparison, not just scores.\n"
     )
 
-    return "".join(sections) if sections else ""
+    return "".join(sections)

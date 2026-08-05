@@ -5,6 +5,7 @@ from typing import Any
 from co_scientist.prompts._common import (
     PromptRunContext,
     PromptSections,
+    _csv_value,
     _format_meta_review_context,
     _run_guidance_section,
 )
@@ -126,9 +127,7 @@ def _format_review_phase_guidance(review_phase: dict[str, Any]) -> list[str]:
 
     sections = ["## Supervisor Guidance for Review\n"]
     if review_phase.get("critical_criteria"):
-        criteria = review_phase["critical_criteria"]
-        if isinstance(criteria, list):
-            criteria = ", ".join(criteria)
+        criteria = _csv_value(review_phase["critical_criteria"])
         sections.append(f"**Critical Criteria to Emphasize:** {criteria}\n")
     if review_phase.get("review_depth"):
         sections.append(
@@ -230,7 +229,7 @@ def _format_supervisor_guidance_for_review(
         _format_config_synthesis_guidance(config, needs_header=not sections)
     )
 
-    return "".join(sections) if sections else ""
+    return "".join(sections)
 
 
 # Renders prompts/reflection_observations.md for

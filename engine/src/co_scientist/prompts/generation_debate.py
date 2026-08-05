@@ -6,6 +6,7 @@ from typing import Any
 from co_scientist.constants import DEBATE_MAX_TURNS
 from co_scientist.prompts._common import (
     PromptRunContext,
+    _csv_value,
     _format_meta_review_context,
     _run_guidance_section,
 )
@@ -65,10 +66,8 @@ def _format_debate_generation_phase_section(
     if needs_header:
         sections.append("Generation guidance:\n")
     if generation_phase.get("focus_areas"):
-        focus_areas = generation_phase["focus_areas"]
-        if isinstance(focus_areas, list):
-            focus_areas = ", ".join(focus_areas)
-        sections.append(f"Focus on: {focus_areas}\n")
+        focus = _csv_value(generation_phase["focus_areas"])
+        sections.append(f"Focus on: {focus}\n")
     return sections
 
 
@@ -100,7 +99,7 @@ def _format_supervisor_guidance_for_debate(
         )
     )
 
-    return "".join(sections) if sections else ""
+    return "".join(sections)
 
 
 _DEBATE_FINAL_TURN_INSTRUCTIONS = """

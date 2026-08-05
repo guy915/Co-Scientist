@@ -95,18 +95,14 @@ def _generation_method_value(
 def _reviews_to_dicts(
     reviews: list[HypothesisReview],
 ) -> list[dict[str, Any]]:
-    """Serialize HypothesisReview instances into plain dicts."""
-    return [
-        {
-            "review_summary": r.review_summary,
-            "scores": r.scores,
-            "safety_ethical_concerns": r.safety_ethical_concerns,
-            "detailed_feedback": r.detailed_feedback,
-            "constructive_feedback": r.constructive_feedback,
-            "overall_score": r.overall_score,
-        }
-        for r in reviews
-    ]
+    """Serialize HypothesisReview instances into plain dicts.
+
+    ``asdict`` rather than a hand-written field list: the inverse
+    ``_rebuild_reviews`` splats straight back into the dataclass, so a field
+    added to ``HypothesisReview`` and not to the list here would round-trip
+    as a silently missing key.
+    """
+    return [dataclasses.asdict(r) for r in reviews]
 
 
 def _claim_fields(hypothesis: "Hypothesis") -> dict[str, Any]:

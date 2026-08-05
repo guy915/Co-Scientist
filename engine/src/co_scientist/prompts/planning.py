@@ -9,6 +9,7 @@ from typing import Any
 from co_scientist.prompts._common import (
     PromptRunContext,
     PromptSections,
+    _csv_value,
     _format_bullet_list,
     _format_bullet_section,
     _format_csv_list,
@@ -213,9 +214,7 @@ def _format_meta_review_evolution_phase_section(
 
     sections = ["**Evolution Phase Guidance:**\n"]
     if evolution_phase.get("refinement_priorities"):
-        priorities = evolution_phase["refinement_priorities"]
-        if isinstance(priorities, list):
-            priorities = ", ".join(priorities)
+        priorities = _csv_value(evolution_phase["refinement_priorities"])
         sections.append(f"- Refinement Priorities: {priorities}\n")
     if evolution_phase.get("iteration_strategy"):
         iter_strat = evolution_phase["iteration_strategy"]
@@ -250,4 +249,4 @@ def _format_supervisor_guidance_for_meta_review(
         " with the research plan and evolution strategy.\n"
     )
 
-    return "".join(sections) if sections else ""
+    return "".join(sections)

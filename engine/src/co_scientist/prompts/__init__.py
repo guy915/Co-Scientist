@@ -24,18 +24,24 @@ from co_scientist.prompts._common import (
 from co_scientist.prompts._common import (
     _format_run_guidance as _format_run_guidance,
 )
-from co_scientist.prompts.generation import (
+from co_scientist.prompts.generation_debate import (
     DebatePromptRequest,
+    get_debate_generation_prompt,
+)
+from co_scientist.prompts.generation_draft import (
     DraftPromptRequest,
-    ValidationSynthesisRequest,
-    build_tool_instructions,
+    get_draft_prompt_with_tools,
+)
+from co_scientist.prompts.generation_formatting import (
     format_articles_metadata,
     format_attributes,
     format_preferences,
     format_supervisor_guidance_for_generation,
     format_user_hypotheses,
-    get_debate_generation_prompt,
-    get_draft_prompt_with_tools,
+)
+from co_scientist.prompts.generation_tools import build_tool_instructions
+from co_scientist.prompts.generation_validation import (
+    ValidationSynthesisRequest,
     get_hypothesis_novelty_analysis_prompt,
     get_hypothesis_validation_synthesis_prompt,
     get_validation_synthesis_prompt_with_tools,

@@ -140,7 +140,7 @@ def _format_meta_review_context(meta_review: dict[str, Any] | None) -> str:
         "Use these insights to provide more informed and consistent reviews.\n"
     )
 
-    return "".join(sections) if sections else ""
+    return "".join(sections)
 
 
 def _format_run_guidance(
@@ -177,6 +177,23 @@ def _format_bullet_list(
     if truncate_chars is not None:
         items = [truncate(item, truncate_chars) for item in items]
     return "\n".join(f"- {item}" for item in items)
+
+
+def _csv_value(value: Any) -> str:
+    """Comma-join a guidance value the model may answer as a list or a scalar.
+
+    The supervisor schema declares these fields as string arrays and the
+    prompts render them inline, but production runs on a provider whose
+    json_object mode does not enforce the schema, so a bare string arrives
+    often enough that all three call sites grew the same isinstance check.
+
+    Args:
+        value: A supervisor-guidance field value.
+
+    Returns:
+        The list comma-joined, or the value rendered as-is.
+    """
+    return ", ".join(value) if isinstance(value, list) else str(value)
 
 
 def _format_csv_list(items: list[str] | None) -> str:
