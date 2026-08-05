@@ -175,6 +175,58 @@ async def test_parallel_debates_receive_distinct_focus_prompts(
     assert len(set(final_prompts)) == 3
 
 
+async def test_debate_prompts_carry_starting_hypotheses(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """State starting hypotheses reach every turn's prompt (finding E2).
+
+    The grounded-debate template declares {{user_hypotheses}} and
+    {{instructions}} slots; the node must thread the state's
+    starting_hypotheses into the request so no turn renders a
+    {{MISSING:...}} sentinel or silently drops the seeds.
+    """
+    prompts: list[str] = []
+
+    async def fake_call_llm(**kwargs: Any) -> str:
+        prompts.append(str(kwargs["prompt"]))
+        return "a debate turn argument"
+
+    async def fake_call_llm_json(**kwargs: Any) -> dict[str, Any]:
+        prompts.append(str(kwargs["prompt"]))
+        return {
+            "hypotheses": [
+                {
+                    "hypothesis": "refined seed hypothesis",
+                    "explanation": "because the mechanism fits",
+                    "literature_grounding": None,
+                    "experiment": "run the assay",
+                }
+            ]
+        }
+
+    monkeypatch.setattr(debate, "call_llm", fake_call_llm)
+    monkeypatch.setattr(debate, "call_llm_json", fake_call_llm_json)
+
+    state = make_state(
+        starting_hypotheses=["seed idea: blocking receptor R halts fibrosis"],
+        articles_with_reasoning="Literature synthesis on receptor R.",
+    )
+    # The coordinator passes articles_with_reasoning explicitly; doing so
+    # here selects the literature-aware debate template that declares the
+    # {{user_hypotheses}} slot.
+    await generate_with_debate(
+        state,
+        count=1,
+        articles_with_reasoning=state["articles_with_reasoning"],
+    )
+
+    # Two free-form turns plus the final structured turn.
+    assert len(prompts) == DEBATE_MAX_TURNS
+    for prompt in prompts:
+        assert "seed idea: blocking receptor R halts fibrosis" in prompt
+        assert "{{MISSING" not in prompt
+
+
 async def test_empty_final_response_raises_generation_error(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

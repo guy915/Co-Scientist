@@ -199,10 +199,10 @@ def test_get_debate_generation_prompt_with_articles_with_reasoning() -> None:
         )
     )
     assert "Prior work suggests ABA signaling matters." in prompt
-    # Unlike generation_after_debate.md, the literature template also has a
-    # {{user_hypotheses}} placeholder this builder does not supply, so a
-    # blanket "{{MISSING" check is not used here (same template-escaping
-    # quirk noted in test_prompts_generation.py's paper-analysis tests).
+    # The builder supplies every placeholder the literature template
+    # declares (including user_hypotheses and instructions), so the render
+    # leaves no {{MISSING:...}} sentinel behind.
+    assert "{{MISSING" not in prompt
     assert schema is None
 
 
@@ -273,3 +273,86 @@ def test_research_expansion_feedback_is_wired() -> None:
     )
     # The meta-review feedback is substituted into the prompt (not dropped).
     assert "META-REVIEW-FEEDBACK-MARKER" in raw
+
+
+# --- user_hypotheses / instructions slots (finding E2) ----------------------
+
+
+def test_debate_literature_prompt_renders_user_hypotheses() -> None:
+    """User-supplied starting hypotheses reach the literature debate prompt.
+
+    The grounded-debate template declares a {{user_hypotheses}} slot; the
+    builder must fill it with the seed hypotheses rather than letting it
+    render as a {{MISSING:...}} sentinel.
+    """
+    prompt, _schema = get_debate_generation_prompt(
+        DebatePromptRequest(
+            research_goal="engineer a drought-resistant crop",
+            hypotheses_count=2,
+            transcript="",
+            articles_with_reasoning="Prior work suggests ABA signaling.",
+            user_hypotheses=[
+                "ABA receptor agonists tighten stomatal control",
+                "Root-specific osmoprotectant synthesis raises yield",
+            ],
+        )
+    )
+    assert "ABA receptor agonists tighten stomatal control" in prompt
+    assert "Root-specific osmoprotectant synthesis raises yield" in prompt
+    assert "{{MISSING" not in prompt
+
+
+def test_debate_literature_prompt_renders_instructions() -> None:
+    """Explicit debate instructions reach the literature template's slot."""
+    prompt, _schema = get_debate_generation_prompt(
+        DebatePromptRequest(
+            research_goal="engineer a drought-resistant crop",
+            hypotheses_count=2,
+            transcript="",
+            articles_with_reasoning="Prior work suggests ABA signaling.",
+            instructions="Weigh the field-trial data before converging.",
+        )
+    )
+    assert "Weigh the field-trial data before converging." in prompt
+    assert "{{MISSING" not in prompt
+
+
+def test_debate_literature_prompt_fallbacks_when_inputs_absent() -> None:
+    """Without seeds/instructions the slots render explicit fallbacks.
+
+    Neither slot may ever render the {{MISSING:...}} sentinel: an empty run
+    gets an explicit "none provided" line for the starting hypotheses and a
+    default task instruction.
+    """
+    prompt, _schema = get_debate_generation_prompt(
+        DebatePromptRequest(
+            research_goal="engineer a drought-resistant crop",
+            hypotheses_count=1,
+            transcript="",
+            articles_with_reasoning="Prior work suggests ABA signaling.",
+        )
+    )
+    assert "No user-provided starting hypotheses." in prompt
+    assert "{{MISSING" not in prompt
+
+
+def test_debate_prompts_have_no_missing_slots_on_either_template() -> None:
+    """Both debate-turn templates render fully interpolated prompts.
+
+    The literature-aware template declares the user_hypotheses/instructions
+    slots; the no-literature template declares neither. Either way the
+    builder must leave no {{MISSING:...}} sentinel behind, whether or not
+    the request carries user hypotheses.
+    """
+    for articles_with_reasoning in ("lit synthesis", None):
+        for user_hypotheses in (["a seed hypothesis"], None):
+            prompt, _schema = get_debate_generation_prompt(
+                DebatePromptRequest(
+                    research_goal="map a disease pathway",
+                    hypotheses_count=1,
+                    transcript="",
+                    articles_with_reasoning=articles_with_reasoning,
+                    user_hypotheses=user_hypotheses,
+                )
+            )
+            assert "{{MISSING" not in prompt

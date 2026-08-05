@@ -13,6 +13,7 @@ from co_scientist.prompts._common import (
 from co_scientist.prompts.generation_formatting import (
     _build_citation_reference_section,
     format_articles_metadata,
+    format_user_hypotheses,
 )
 from co_scientist.prompts.loading import (
     _get_domain_variables,
@@ -176,6 +177,17 @@ IMPORTANT: Use plain text with standard punctuation (no LaTeX, no decorative \
 Unicode).
 """
 
+# Default task instruction for the literature-aware debate template's
+# {{instructions}} slot, mirroring the draft-with-tools builder's fallback
+# (DraftPromptRequest.instructions). WorkflowState carries no run-level
+# instructions key, so the slot is filled from the request when a caller
+# supplies one and from this default otherwise -- it must never render as
+# a {{MISSING:...}} sentinel.
+_DEFAULT_DEBATE_INSTRUCTIONS = (
+    "Focus on creative ideation - debate diverse hypotheses, building on"
+    " the user-provided starting hypotheses above when present."
+)
+
 
 def _format_debate_attributes(attributes: str | list[str] | None) -> str:
     """Format debate-prompt attributes as a comma-joined string.
@@ -219,6 +231,8 @@ class DebatePromptRequest:
         transcript: The debate transcript accumulated so far.
         preferences: Free-text user preferences, if any.
         attributes: Desired hypothesis attributes, as text or a list.
+        user_hypotheses: Seed hypotheses supplied by the user.
+        instructions: Custom task instructions for the debate, if any.
         is_final_turn: Whether this is the schema-constrained final turn.
         articles_with_reasoning: The literature-review synthesis text; its
             presence also selects the literature-aware template.
@@ -233,6 +247,8 @@ class DebatePromptRequest:
     transcript: str
     preferences: str | None = None
     attributes: str | list[str] | None = None
+    user_hypotheses: list[str] | None = None
+    instructions: str | None = None
     is_final_turn: bool = False
     articles_with_reasoning: str | None = None
     articles: list[Any] | None = None
@@ -257,7 +273,14 @@ def _discussion_turn_budget() -> int:
 
 
 def _build_debate_base_variables(req: DebatePromptRequest) -> dict[str, Any]:
-    """Build the goal/transcript/preferences core of the debate variables."""
+    """Build the goal/transcript/user-input core of the debate variables.
+
+    The literature-aware template declares a {{user_hypotheses}} and an
+    {{instructions}} slot, so both are always produced: user hypotheses
+    render as an explicit "none provided" line when absent, and
+    instructions fall back to the default task instruction -- neither may
+    render as a {{MISSING:...}} sentinel.
+    """
     return {
         "goal": req.research_goal,
         "hypotheses_count": req.hypotheses_count,
@@ -267,6 +290,8 @@ def _build_debate_base_variables(req: DebatePromptRequest) -> dict[str, Any]:
         or "Novel, testable, scientifically sound, specific, and diverse"
         " hypotheses",
         "attributes": _format_debate_attributes(req.attributes),
+        "user_hypotheses": format_user_hypotheses(req.user_hypotheses),
+        "instructions": req.instructions or _DEFAULT_DEBATE_INSTRUCTIONS,
     }
 
 

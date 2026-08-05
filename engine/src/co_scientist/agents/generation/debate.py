@@ -188,6 +188,7 @@ def _build_debate_turn_prompt(
             transcript=transcript,
             preferences=ctx.preferences,
             attributes=ctx.attributes,
+            user_hypotheses=state.get("starting_hypotheses"),
             is_final_turn=is_final,
             articles_with_reasoning=ctx.articles_with_reasoning,
             articles=state.get("articles"),
