@@ -54,8 +54,8 @@ const COMPOSER_MAX_HEIGHT_LARGE = 146;
  * in-conversation composer, which replaces the home-stage one when the first
  * message is sent, since that swap unmounts the focused textarea and would
  * otherwise drop the caret to the body, forcing a click to carry on typing.
- * The pubmed/webSearch/paperCorpus fields mirror each connector's toggled
- * state and change callback. `onSubmit` handles Enter or the send button.
+ * `connectors` carries each connector's toggled state and change callback.
+ * `onSubmit` handles Enter or the send button.
  */
 export interface ComposerProps {
   input: string;
@@ -64,25 +64,27 @@ export interface ComposerProps {
   busy: boolean;
   large?: boolean;
   autoFocus?: boolean;
-  pubmedEnabled?: boolean;
-  onPubmedEnabledChange?: (value: boolean) => void;
-  webSearchEnabled?: boolean;
-  onWebSearchEnabledChange?: (value: boolean) => void;
-  paperCorpusEnabled?: boolean;
-  onPaperCorpusEnabledChange?: (value: boolean) => void;
+  connectors?: ConnectorToggleProps;
   onSubmit: (e: FormEvent<HTMLFormElement>, files: File[]) => void;
 }
 
-// The connector-toggle bundle Composer passes down to ComposerFooter, with
-// each toggle's default applied.
-function composerConnectorToggles(props: ComposerProps): ConnectorToggleProps {
+// Every connector on, with no owner to write a change back to: the shape a
+// Composer rendered without a session behind it (tests, isolated previews)
+// shows.
+const DEFAULT_CONNECTORS: ConnectorToggleProps = {
+  pubmedEnabled: true,
+  webSearchEnabled: true,
+  paperCorpusEnabled: true,
+};
+
+// The optional presentation props, resolved to their defaults in one place so
+// Composer itself reads as wiring rather than as a run of fallbacks.
+function composerOptions(props: ComposerProps) {
   return {
-    pubmedEnabled: props.pubmedEnabled ?? true,
-    onPubmedEnabledChange: props.onPubmedEnabledChange,
-    webSearchEnabled: props.webSearchEnabled ?? true,
-    onWebSearchEnabledChange: props.onWebSearchEnabledChange,
-    paperCorpusEnabled: props.paperCorpusEnabled ?? true,
-    onPaperCorpusEnabledChange: props.onPaperCorpusEnabledChange,
+    large: props.large ?? false,
+    setupDraftMode: props.setupDraftMode ?? false,
+    autoFocus: props.autoFocus ?? false,
+    connectors: props.connectors ?? DEFAULT_CONNECTORS,
   };
 }
 
@@ -110,16 +112,13 @@ function handleComposerFormSubmit(
  */
 export function Composer(props: ComposerProps) {
   const {input, setInput, busy, onSubmit} = props;
-  const large = props.large ?? false;
-  const setupDraftMode = props.setupDraftMode ?? false;
-  const autoFocus = props.autoFocus ?? false;
+  const {large, setupDraftMode, autoFocus, connectors} = composerOptions(props);
   const state = useComposerState(input, large);
   const referenceLabel = composerReferenceLabel(setupDraftMode);
   // There is nothing to send while the input is blank, and nothing to send it
   // to while the session is still answering. Both gate submission only; the
   // textarea is never disabled, so typing and focus survive either state.
   const submitDisabled = !input.trim() || busy;
-  const connectors = composerConnectorToggles(props);
 
   return (
     <form

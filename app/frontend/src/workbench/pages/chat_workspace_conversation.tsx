@@ -7,6 +7,7 @@ import {
   CHAT_TIMELINE_CLASSES,
 } from './chat_setup_classes';
 import {Composer} from './chat_composer';
+import {type ConnectorToggleProps} from './chat_composer_connectors';
 import {buildTimelineItems, type TimelineItem} from './chat_workspace_timeline';
 import {useChatTimelineScroll} from './chat_workspace_scroll';
 
@@ -96,12 +97,7 @@ export interface ConversationViewProps {
     'input' | 'setInput' | 'error' | 'isStarting' | 'handleSubmit'
   >;
   setupDraftMode: boolean;
-  pubmedEnabled: boolean;
-  onPubmedEnabledChange: (value: boolean) => void;
-  webSearchEnabled: boolean;
-  onWebSearchEnabledChange: (value: boolean) => void;
-  paperCorpusEnabled: boolean;
-  onPaperCorpusEnabledChange: (value: boolean) => void;
+  connectors: ConnectorToggleProps;
 }
 
 /**
@@ -124,12 +120,7 @@ export function ConversationView(props: ConversationViewProps) {
         composerRef={props.composerRef}
         session={props.session}
         setupDraftMode={props.setupDraftMode}
-        pubmedEnabled={props.pubmedEnabled}
-        onPubmedEnabledChange={props.onPubmedEnabledChange}
-        webSearchEnabled={props.webSearchEnabled}
-        onWebSearchEnabledChange={props.onWebSearchEnabledChange}
-        paperCorpusEnabled={props.paperCorpusEnabled}
-        onPaperCorpusEnabledChange={props.onPaperCorpusEnabledChange}
+        connectors={props.connectors}
       />
     </>
   );
@@ -178,12 +169,7 @@ interface ComposerSectionProps {
     'input' | 'setInput' | 'isStarting' | 'handleSubmit'
   >;
   setupDraftMode: boolean;
-  pubmedEnabled: boolean;
-  onPubmedEnabledChange: (value: boolean) => void;
-  webSearchEnabled: boolean;
-  onWebSearchEnabledChange: (value: boolean) => void;
-  paperCorpusEnabled: boolean;
-  onPaperCorpusEnabledChange: (value: boolean) => void;
+  connectors: ConnectorToggleProps;
 }
 
 // Overlaid, non-scrolling composer; setupDraftMode swaps its placeholder
@@ -200,12 +186,7 @@ function ComposerSection(props: ComposerSectionProps) {
           setupDraftMode={props.setupDraftMode}
           busy={isStarting}
           autoFocus
-          pubmedEnabled={props.pubmedEnabled}
-          onPubmedEnabledChange={props.onPubmedEnabledChange}
-          webSearchEnabled={props.webSearchEnabled}
-          onWebSearchEnabledChange={props.onWebSearchEnabledChange}
-          paperCorpusEnabled={props.paperCorpusEnabled}
-          onPaperCorpusEnabledChange={props.onPaperCorpusEnabledChange}
+          connectors={props.connectors}
           onSubmit={handleSubmit}
         />
       </div>

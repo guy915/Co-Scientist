@@ -203,28 +203,6 @@ interface ConnectorBehavior {
   icon: IconName;
 }
 
-// The connectors that own an independent toggle, keyed by id. Web search and
-// Lab papers each stand alone here; every other connector falls through to
-// the literature default below, since the engine enables that stack as one
-// unit. This maps ids that are already on screen to their behavior — which
-// connectors an audience sees is decided by visibleConnectors alone.
-function standaloneBehaviors(
-  toggles: ConnectorToggleProps,
-): Record<string, ConnectorBehavior> {
-  return {
-    [WEB_SEARCH_CONNECTOR_ID]: {
-      checked: toggles.webSearchEnabled,
-      setChecked: toggles.onWebSearchEnabledChange,
-      icon: 'search',
-    },
-    [PAPER_CORPUS_CONNECTOR_ID]: {
-      checked: toggles.paperCorpusEnabled,
-      setChecked: toggles.onPaperCorpusEnabledChange,
-      icon: 'science',
-    },
-  };
-}
-
 // The shared pubmed/literature-retrieval behavior, for every connector with
 // no entry of its own.
 function literatureBehavior(toggles: ConnectorToggleProps): ConnectorBehavior {
@@ -235,14 +213,40 @@ function literatureBehavior(toggles: ConnectorToggleProps): ConnectorBehavior {
   };
 }
 
+// The connectors that own an independent toggle, keyed by id. Web search and
+// Lab papers each stand alone here; every other connector falls through to
+// the literature default above, since the engine enables that stack as one
+// unit. This maps ids that are already on screen to their behavior — which
+// connectors an audience sees is decided by visibleConnectors alone.
+//
+// Entries are selector functions, not built behaviors, so the table itself
+// lives at module scope: a per-row table meant rebuilding every connector's
+// behavior on every render just to read one of them back out.
+const STANDALONE_BEHAVIORS: Record<
+  string,
+  (toggles: ConnectorToggleProps) => ConnectorBehavior
+> = {
+  [WEB_SEARCH_CONNECTOR_ID]: toggles => ({
+    checked: toggles.webSearchEnabled,
+    setChecked: toggles.onWebSearchEnabledChange,
+    icon: 'search',
+  }),
+  [PAPER_CORPUS_CONNECTOR_ID]: toggles => ({
+    checked: toggles.paperCorpusEnabled,
+    setChecked: toggles.onPaperCorpusEnabledChange,
+    icon: 'science',
+  }),
+};
+
 // One connector row's derived checked/toggle/icon state, from a single
 // lookup in the table above.
 function connectorRowState(
   connector: Connector,
   toggles: ConnectorToggleProps,
 ): {checked: boolean; toggle: () => void; iconName: IconName} {
-  const behavior =
-    standaloneBehaviors(toggles)[connector.id] ?? literatureBehavior(toggles);
+  const behavior = (STANDALONE_BEHAVIORS[connector.id] ?? literatureBehavior)(
+    toggles,
+  );
   return {
     checked: behavior.checked,
     toggle: () => behavior.setChecked?.(!behavior.checked),

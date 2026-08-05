@@ -1,11 +1,4 @@
-import {
-  type Dispatch,
-  type RefObject,
-  type SetStateAction,
-  useCallback,
-  useEffect,
-  useState,
-} from 'react';
+import {type RefObject, useCallback, useEffect, useState} from 'react';
 import {createPortal} from 'react-dom';
 import {
   type NavigateFunction,
@@ -28,6 +21,7 @@ import {
   HOME_WORKSPACE_CLASSES,
   HOME_WORKSPACE_MAIN_CLASSES,
 } from './chat_home_classes';
+import {type ConnectorToggleProps} from './chat_composer_connectors';
 import {HomeStage} from './chat_home_stage';
 import {type StartedSession} from './chat_timeline_cards';
 import {type TimelineItem} from './chat_workspace_timeline';
@@ -46,31 +40,22 @@ interface ChatWorkspaceLocationState {
 // useToast's setter type, matching its actual (non-Dispatch) signature.
 type SetToast = (value: string | ToastState | null) => void;
 
-// The three connector-toggle states shared by the home and in-chat
-// composers, plus their setters, bundled so both ChatWorkspace and
-// WorkspaceMain can pass them around as one value.
-interface ConnectorToggles {
-  pubmedEnabled: boolean;
-  setPubmedEnabled: Dispatch<SetStateAction<boolean>>;
-  webSearchEnabled: boolean;
-  setWebSearchEnabled: Dispatch<SetStateAction<boolean>>;
-  paperCorpusEnabled: boolean;
-  setPaperCorpusEnabled: Dispatch<SetStateAction<boolean>>;
-}
-
 // Owns the PubMed/web-search/lab-papers connector toggles, each defaulting
-// on and shared between the home and in-chat composers.
-function useConnectorToggles(): ConnectorToggles {
+// on and shared between the home and in-chat composers. Returned in the shape
+// the composer already takes them in (ConnectorToggleProps), so every surface
+// between here and the connectors menu passes one value rather than restating
+// the same six names.
+function useConnectorToggles(): ConnectorToggleProps {
   const [pubmedEnabled, setPubmedEnabled] = useState(true);
   const [webSearchEnabled, setWebSearchEnabled] = useState(true);
   const [paperCorpusEnabled, setPaperCorpusEnabled] = useState(true);
   return {
     pubmedEnabled,
-    setPubmedEnabled,
+    onPubmedEnabledChange: setPubmedEnabled,
     webSearchEnabled,
-    setWebSearchEnabled,
+    onWebSearchEnabledChange: setWebSearchEnabled,
     paperCorpusEnabled,
-    setPaperCorpusEnabled,
+    onPaperCorpusEnabledChange: setPaperCorpusEnabled,
   };
 }
 
@@ -90,15 +75,16 @@ interface WorkspaceSessionBundle {
 // Owns the audience, toast, recents-history, and session state machine, and
 // the stable focusComposer callback they all share.
 function useWorkspaceSessionBundle(
-  connectors: ConnectorToggles,
+  connectors: ConnectorToggleProps,
 ): WorkspaceSessionBundle {
   const {audience} = useAudience();
   const {toast, setToast} = useToast();
   const {history, homeScores, reloadHistory} = useRunHistory();
   const navigate = useNavigate();
   // Focuses the composer textarea on the next frame; used both locally and
-  // injected into useChatSession.
-  const focusComposer = useCallback(focusComposerTextarea, []);
+  // injected into useChatSession. A module-level function is already stable
+  // across renders, so it needs no useCallback to be a safe effect dep.
+  const focusComposer = focusComposerTextarea;
   // A conversation gets its durable id from its first turn; putting it in the
   // URL there is what makes reloading (or reopening from the rail) return to
   // this chat rather than a blank workspace. Replace, not push: the blank
@@ -255,19 +241,14 @@ function HomeStageSection({
   recents,
 }: {
   session: ReturnType<typeof useChatSession>;
-  connectors: ConnectorToggles;
+  connectors: ConnectorToggleProps;
   recents: WorkspaceRecents;
 }) {
   return (
     <HomeStage
       input={session.input}
       setInput={session.setInput}
-      pubmedEnabled={connectors.pubmedEnabled}
-      onPubmedEnabledChange={connectors.setPubmedEnabled}
-      webSearchEnabled={connectors.webSearchEnabled}
-      onWebSearchEnabledChange={connectors.setWebSearchEnabled}
-      paperCorpusEnabled={connectors.paperCorpusEnabled}
-      onPaperCorpusEnabledChange={connectors.setPaperCorpusEnabled}
+      connectors={connectors}
       onSubmit={session.handleSubmit}
       runs={recents.history}
       scoresByRunId={recents.homeScores}
@@ -285,7 +266,7 @@ function ConversationSection({
   layout,
 }: {
   session: ReturnType<typeof useChatSession>;
-  connectors: ConnectorToggles;
+  connectors: ConnectorToggleProps;
   layout: WorkspaceLayout;
 }) {
   return (
@@ -295,12 +276,7 @@ function ConversationSection({
       composerRef={layout.composerRef}
       session={session}
       setupDraftMode={Boolean(session.draft || session.startedSession)}
-      pubmedEnabled={connectors.pubmedEnabled}
-      onPubmedEnabledChange={connectors.setPubmedEnabled}
-      webSearchEnabled={connectors.webSearchEnabled}
-      onWebSearchEnabledChange={connectors.setWebSearchEnabled}
-      paperCorpusEnabled={connectors.paperCorpusEnabled}
-      onPaperCorpusEnabledChange={connectors.setPaperCorpusEnabled}
+      connectors={connectors}
     />
   );
 }
@@ -317,7 +293,7 @@ function WorkspaceMain({
 }: {
   hasConversation: boolean;
   session: ReturnType<typeof useChatSession>;
-  connectors: ConnectorToggles;
+  connectors: ConnectorToggleProps;
   recents: WorkspaceRecents;
   layout: WorkspaceLayout;
 }) {

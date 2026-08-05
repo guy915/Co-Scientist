@@ -21,6 +21,7 @@ import {
   HOME_TITLE_CLASSES,
 } from './chat_home_classes';
 import {Composer} from './chat_composer';
+import {type ConnectorToggleProps} from './chat_composer_connectors';
 import {HomeRecentsPanel} from './home_recents';
 import {
   SESSION_STEPS,
@@ -42,26 +43,27 @@ export {
  * signature otherwise pushing the component past the line cap.
  *
  * `input`/`setInput` are the controlled composer value, owned by the parent
- * session state. The pubmed/webSearch/paperCorpus fields mirror each
- * connector toggle's state and change callback. `onSubmit` is the composer's
- * form submit handler. `runs`/`scoresByRunId` feed the recents panel, and
- * `showAllRecents`/`onToggleShowAll` control its expanded state.
+ * session state. `connectors` carries each connector toggle's state and
+ * change callback. `onSubmit` is the composer's form submit handler.
+ * `runs`/`scoresByRunId` feed the recents panel, and `showAllRecents`/
+ * `onToggleShowAll` control its expanded state.
  */
 export interface HomeStageProps {
   input: string;
   setInput: (value: string) => void;
-  pubmedEnabled: boolean;
-  onPubmedEnabledChange: (enabled: boolean) => void;
-  webSearchEnabled: boolean;
-  onWebSearchEnabledChange: (enabled: boolean) => void;
-  paperCorpusEnabled: boolean;
-  onPaperCorpusEnabledChange: (enabled: boolean) => void;
+  connectors: ConnectorToggleProps;
   onSubmit: (e: FormEvent<HTMLFormElement>, files: File[]) => void;
   runs: Run[];
   scoresByRunId: Record<string, number | null>;
   showAllRecents: boolean;
   onToggleShowAll: () => void;
 }
+
+/** The composer fields HomeStage passes straight through to Composer. */
+type HomeComposerProps = Pick<
+  HomeStageProps,
+  'input' | 'setInput' | 'connectors' | 'onSubmit'
+>;
 
 // Filling the composer from a suggestion drops in the full prompt (not the
 // preview) and dismisses that suggestion's preview bubble, since the row is
@@ -79,37 +81,16 @@ function selectHomeSuggestion(
 function HomeComposer({
   input,
   setInput,
-  pubmedEnabled,
-  onPubmedEnabledChange,
-  webSearchEnabled,
-  onWebSearchEnabledChange,
-  paperCorpusEnabled,
-  onPaperCorpusEnabledChange,
+  connectors,
   onSubmit,
-}: Pick<
-  HomeStageProps,
-  | 'input'
-  | 'setInput'
-  | 'pubmedEnabled'
-  | 'onPubmedEnabledChange'
-  | 'webSearchEnabled'
-  | 'onWebSearchEnabledChange'
-  | 'paperCorpusEnabled'
-  | 'onPaperCorpusEnabledChange'
-  | 'onSubmit'
->) {
+}: HomeComposerProps) {
   return (
     <Composer
       input={input}
       setInput={setInput}
       busy={false}
       large
-      pubmedEnabled={pubmedEnabled}
-      onPubmedEnabledChange={onPubmedEnabledChange}
-      webSearchEnabled={webSearchEnabled}
-      onWebSearchEnabledChange={onWebSearchEnabledChange}
-      paperCorpusEnabled={paperCorpusEnabled}
-      onPaperCorpusEnabledChange={onPaperCorpusEnabledChange}
+      connectors={connectors}
       onSubmit={onSubmit}
     />
   );
@@ -119,18 +100,7 @@ function HomeComposer({
 // the composer. Split out of HomeStage so it only needs the suggestion-row
 // state as extra props on top of HomeStageProps' composer fields.
 function HomeMainColumn(
-  props: Pick<
-    HomeStageProps,
-    | 'input'
-    | 'setInput'
-    | 'pubmedEnabled'
-    | 'onPubmedEnabledChange'
-    | 'webSearchEnabled'
-    | 'onWebSearchEnabledChange'
-    | 'paperCorpusEnabled'
-    | 'onPaperCorpusEnabledChange'
-    | 'onSubmit'
-  > & {
+  props: HomeComposerProps & {
     isMobile: boolean;
     suggestions: readonly Suggestion[];
     hoveredSuggestion: string | null;
