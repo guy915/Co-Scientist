@@ -398,6 +398,45 @@ def _reset_derivation(interview_id: str) -> None:
     )
 
 
+def _rewind_and_restream(
+    interview_id: str,
+    turn_id: int,
+    request: Request,
+    *,
+    role: str,
+    replacement: str | None = None,
+) -> StreamingResponse:
+    """Rewind an owned interview to ``turn_id`` and answer again from there.
+
+    The one revision path. Editing a scientist turn and retrying an Agent
+    turn differ only in which role they may target and whether a replacement
+    prompt takes the rewound turn's place; everything else -- ownership, the
+    revisability check, discarding the tail, re-deriving the four fields, and
+    streaming the next turn -- is the same, and has to stay the same.
+
+    Args:
+        interview_id: The interview being revised.
+        turn_id: The turn the revision targets; it and everything after it
+            are discarded.
+        request: Incoming request, used to check ownership.
+        role: The role the targeted turn must have.
+        replacement: Scientist text to append in the rewound turn's place,
+            or None to re-answer the surviving prompt unchanged.
+
+    Returns:
+        The SSE response streaming the re-derived turn.
+    """
+    interview = _owned_interview(interview_id, request)
+    _require_revisable_turn(interview, turn_id, role)
+    store.rewind_interview(interview_id, turn_id)
+    if replacement is not None:
+        store.append_interview_turn(
+            interview_id, store.NewInterviewTurn("user", replacement)
+        )
+    _reset_derivation(interview_id)
+    return _interview_stream(interview_id)
+
+
 @router.put("/{interview_id}/turns/{turn_id}")
 async def edit_interview_turn(
     interview_id: str,
@@ -414,14 +453,9 @@ async def edit_interview_turn(
     Everything the Agent said after it was derived from the old wording, so
     it goes with it.
     """
-    interview = _owned_interview(interview_id, request)
-    _require_revisable_turn(interview, turn_id, "user")
-    store.rewind_interview(interview_id, turn_id)
-    store.append_interview_turn(
-        interview_id, store.NewInterviewTurn("user", body.content)
+    return _rewind_and_restream(
+        interview_id, turn_id, request, role="user", replacement=body.content
     )
-    _reset_derivation(interview_id)
-    return _interview_stream(interview_id)
 
 
 @router.post("/{interview_id}/turns/{turn_id}/retry")
@@ -434,11 +468,7 @@ async def retry_interview_turn(
     with the rejected turn still in the transcript asks it to continue from
     the answer rather than to reconsider it.
     """
-    interview = _owned_interview(interview_id, request)
-    _require_revisable_turn(interview, turn_id, "agent")
-    store.rewind_interview(interview_id, turn_id)
-    _reset_derivation(interview_id)
-    return _interview_stream(interview_id)
+    return _rewind_and_restream(interview_id, turn_id, request, role="agent")
 
 
 @router.put("/{interview_id}/fields")
