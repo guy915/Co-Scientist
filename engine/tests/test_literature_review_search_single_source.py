@@ -13,35 +13,29 @@ from co_scientist.mcp_client import MCPToolClient
 # Two queries' worth of pubmed results: query 2 repeats query 1's "Shared
 # paper" (case-insensitively) and adds a retracted entry, so dedup and the
 # retraction filter both fire.
-_OVERFETCH_RESULTS: list[tuple[int, dict[str, dict[str, Any]]]] = [
-    (
-        1,
-        {
-            "p1": {"title": "Shared paper", "source": "pubmed", "year": 2025},
-            "p2": {
-                "title": "Independent paper",
-                "source": "pubmed",
-                "year": 2024,
-            },
+_OVERFETCH_RESULTS: list[dict[str, dict[str, Any]]] = [
+    {
+        "p1": {"title": "Shared paper", "source": "pubmed", "year": 2025},
+        "p2": {
+            "title": "Independent paper",
+            "source": "pubmed",
+            "year": 2024,
         },
-    ),
-    (
-        2,
-        {
-            "duplicate": {
-                "title": "shared paper",
-                "source": "pubmed",
-                "year": 2025,
-            },
-            "p3": {"title": "Third paper", "source": "pubmed", "year": 2023},
-            "retracted": {
-                "title": "Retracted paper",
-                "source": "pubmed",
-                "year": 2026,
-                "is_retracted": True,
-            },
+    },
+    {
+        "duplicate": {
+            "title": "shared paper",
+            "source": "pubmed",
+            "year": 2025,
         },
-    ),
+        "p3": {"title": "Third paper", "source": "pubmed", "year": 2023},
+        "retracted": {
+            "title": "Retracted paper",
+            "source": "pubmed",
+            "year": 2026,
+            "is_retracted": True,
+        },
+    },
 ]
 
 
@@ -51,13 +45,11 @@ def _recording_search_all_queries(observed: dict[str, int]) -> Any:
     async def fake_search_all_queries(
         queries: list[str],
         papers_per_query: int,
-        remainder: int,
         *_args: Any,
         **_kwargs: Any,
-    ) -> list[tuple[int, dict[str, dict[str, Any]]]]:
+    ) -> list[dict[str, dict[str, Any]]]:
         observed["queries"] = len(queries)
         observed["papers_per_query"] = papers_per_query
-        observed["remainder"] = remainder
         return _OVERFETCH_RESULTS
 
     return fake_search_all_queries
@@ -93,11 +85,7 @@ async def test_single_source_overfetches_dedupes_ranks_and_caps(
         ),
     )
 
-    assert observed == {
-        "queries": 2,
-        "papers_per_query": 3,
-        "remainder": 0,
-    }
+    assert observed == {"queries": 2, "papers_per_query": 3}
     assert list(papers) == ["p1", "p2", "p3"]
     assert "duplicate" not in papers
     assert "retracted" not in papers

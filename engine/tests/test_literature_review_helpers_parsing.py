@@ -2,15 +2,14 @@
 
 Covers ``count_papers_with_fulltext``, ``parse_content_result``,
 ``get_paper_content_for_analysis``, ``parse_mcp_query_result``,
-``calculate_papers_per_query``, ``merge_search_results``, and
-``parse_pdf_discovery_result`` in ``literature_review.helpers``. The
-article-building helpers are covered in
+``merge_search_results``, and ``parse_pdf_discovery_result`` in
+``literature_review.helpers``. The article-building helpers are covered in
 ``test_literature_review_helpers_articles``.
 
 The functions under test do no I/O: they parse content payloads, count fulltext
-availability, split paper budgets, merge multi-source results, and pull PDF
-links out of raw responses. These tests lock in that deterministic behavior
-without any LLM, MCP, or network mocking.
+availability, merge multi-source results, and pull PDF links out of raw
+responses. These tests lock in that deterministic behavior without any LLM,
+MCP, or network mocking.
 """
 
 import json
@@ -202,31 +201,6 @@ def test_parse_mcp_query_result_list_passthrough() -> None:
 def test_parse_mcp_query_result_other_type_returns_empty() -> None:
     """A non-string, non-list input yields an empty list."""
     assert helpers.parse_mcp_query_result({"queries": ["a"]}) == []
-
-
-# =============================================================================
-# calculate_papers_per_query
-# =============================================================================
-
-
-def test_calculate_papers_per_query_even_split() -> None:
-    """An even division gives that quotient with a remainder."""
-    assert helpers.calculate_papers_per_query(10, 3) == (3, 1)
-
-
-def test_calculate_papers_per_query_exact() -> None:
-    """An exact division leaves no remainder."""
-    assert helpers.calculate_papers_per_query(12, 4) == (3, 0)
-
-
-def test_calculate_papers_per_query_clamps_to_two_minimum() -> None:
-    """A sub-2 per-query result is clamped to the 2 minimum.
-
-    The remainder is still computed from the raw division, not the clamp.
-    """
-    per_query, remainder = helpers.calculate_papers_per_query(3, 5)
-    assert per_query == 2
-    assert remainder == 3
 
 
 # =============================================================================

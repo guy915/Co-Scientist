@@ -2,8 +2,8 @@
 
 Small, composable functions supporting query generation (Phase 1) and paper
 search/collection (Phase 2): the resolved ``SearchConfig`` bundle, search
-response normalization, query source-type selection, per-query paper budgets,
-and multi-source result merging.
+response normalization, query source-type selection, multi-source result
+merging, and the evidence-budget selection that reduces it.
 """
 
 import json
@@ -273,36 +273,6 @@ def determine_query_source_type(
 # =============================================================================
 # Search helpers
 # =============================================================================
-
-
-def calculate_papers_per_query(
-    total_papers: int,
-    num_queries: int,
-) -> tuple[int, int]:
-    """Calculate papers per query with remainder distribution.
-
-    Returns:
-        Tuple of (papers_per_query, remainder)
-    """
-    papers_per_query = total_papers // num_queries
-    remainder = total_papers % num_queries
-
-    # Enforce a floor of 2 papers/query even if the requested total would
-    # imply fewer per query; too few results per query risks a thin,
-    # unrepresentative literature sample for that query.
-    if papers_per_query < 2:
-        papers_per_query = 2
-        logger.warning(
-            "Target %s papers with %s queries gives <2 per query,"
-            " using 2 minimum",
-            total_papers,
-            num_queries,
-        )
-
-    # remainder is returned so callers can give the first `remainder`
-    # queries one extra paper each, evenly distributing the leftovers
-    # instead of concentrating them on a single query.
-    return papers_per_query, remainder
 
 
 def _normalize_title(metadata: dict[str, Any]) -> str:

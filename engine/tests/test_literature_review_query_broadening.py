@@ -184,10 +184,9 @@ def _single_source_config() -> SearchConfig:
 
 async def _search_single(client: Any, query: str, errors: list[str]) -> Any:
     """Run one query through the single-source path."""
-    _, results = await search._search_single_query(
+    return await search._search_single_query(
         query, 1, 4, _ctx(client, errors), _single_source_config()
     )
-    return results
 
 
 async def test_the_single_source_path_broadens_too() -> None:

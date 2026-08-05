@@ -218,7 +218,7 @@ async def _search_single_query(
     papers_count: int,
     ctx: _SearchRunContext,
     config: SearchConfig,
-) -> tuple[int, dict[str, dict[str, Any]]]:
+) -> dict[str, dict[str, Any]]:
     """Search single query (for single-source mode).
 
     Runs the same broadening ladder as the multi-source path: nothing about
@@ -245,4 +245,4 @@ async def _search_single_query(
     normalized = await _search_target_for_query(query, ctx, target)
 
     logger.debug("Query %s: found %s papers", index, len(normalized))
-    return (index, normalized)
+    return normalized

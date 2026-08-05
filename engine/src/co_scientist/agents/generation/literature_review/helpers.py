@@ -153,9 +153,6 @@ from co_scientist.agents.generation.literature_review.search_support import (
     _resolve_source_id_field as _resolve_source_id_field,
 )
 from co_scientist.agents.generation.literature_review.search_support import (
-    calculate_papers_per_query as calculate_papers_per_query,
-)
-from co_scientist.agents.generation.literature_review.search_support import (
     determine_query_source_type as determine_query_source_type,
 )
 from co_scientist.agents.generation.literature_review.search_support import (

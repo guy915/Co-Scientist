@@ -231,37 +231,31 @@ async def _phase2_collect_papers_multi_source(
 async def _search_all_queries(
     queries: list[str],
     papers_per_query: int,
-    remainder: int,
     ctx: _SearchRunContext,
     config: SearchConfig,
-) -> list[tuple[int, dict[str, dict[str, Any]]]]:
+) -> list[dict[str, dict[str, Any]]]:
     """Searches all queries against the single configured source in parallel.
 
     Unlike multi-source mode, there is only one tool/source involved here so
-    no per-source serialization is needed. The first `remainder` queries get
-    one extra paper on top of papers_per_query. Returns per-query (index,
-    results) pairs, in query order.
+    no per-source serialization is needed. Every query asks for the same
+    budget: this path over-fetches deliberately (see the caller) rather than
+    dividing one budget across the queries. Returns each query's results, in
+    query order.
     """
     tasks = [
-        _search_single_query(
-            query,
-            i + 1,
-            papers_per_query + (1 if i < remainder else 0),
-            ctx,
-            config,
-        )
+        _search_single_query(query, i + 1, papers_per_query, ctx, config)
         for i, query in enumerate(queries)
     ]
     return await asyncio.gather(*tasks)
 
 
 def _combine_and_cap_single_source_results(
-    search_results: list[tuple[int, dict[str, dict[str, Any]]]],
+    search_results: list[dict[str, dict[str, Any]]],
     config: SearchConfig,
 ) -> dict[str, dict[str, Any]]:
     """Merges per-query results, dedupes/ranks, and caps to the read count."""
     combined: dict[str, dict[str, Any]] = {}
-    for _, result_data in search_results:
+    for result_data in search_results:
         combined.update(result_data)
     ranked, _ = merge_search_results(
         [(config.search_tool_name, combined)], deduplicate=True
@@ -288,7 +282,7 @@ async def _phase2_collect_papers_single_source(
     # rank, and cap globally so the configured evidence count represents
     # unique sources rather than raw search hits.
     search_results = await _search_all_queries(
-        queries, config.papers_to_read_count, 0, ctx, config
+        queries, config.papers_to_read_count, ctx, config
     )
 
     all_paper_metadata = _combine_and_cap_single_source_results(

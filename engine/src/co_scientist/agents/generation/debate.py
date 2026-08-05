@@ -351,24 +351,6 @@ async def _run_debate_turns(
     raise GenerationError(f"{ctx.debate_label} ended without final turn")
 
 
-async def _run_single_debate(
-    state: WorkflowState,
-    ctx: _DebateContext,
-    num_turns: int = DEBATE_MAX_TURNS,
-) -> tuple[Hypothesis, str]:
-    """Generate a single hypothesis using multi-turn debate strategy.
-
-    Args:
-        state: current workflow state
-        ctx: per-debate context from _build_debate_context
-        num_turns: number of debate turns to run (default from constants)
-
-    Returns:
-        Tuple of (single generated Hypothesis object, debate transcript string)
-    """
-    return await _run_debate_turns(state, ctx, num_turns)
-
-
 def _unpack_debate_results(
     debate_results: list[tuple[Hypothesis, str]],
 ) -> tuple[list[Hypothesis], list[dict[str, Any]]]:
@@ -401,18 +383,19 @@ def _build_debate_tasks(
     articles_with_reasoning: str | None,
     reference_index: ReferenceIndex | None,
 ) -> list[Coroutine[Any, Any, tuple[Hypothesis, str]]]:
-    """Build one _run_single_debate coroutine per debate in this batch.
+    """Build one debate-turn-loop coroutine per debate in this batch.
 
     debate_id=i doubles as both a diversity-angle selector (see
     _debate_diversity_instruction) and a stable identifier for pairing each
     resulting hypothesis back to its transcript in _unpack_debate_results.
     """
     return [
-        _run_single_debate(
+        _run_debate_turns(
             state,
             _build_debate_context(
                 state, i, count, articles_with_reasoning, reference_index
             ),
+            DEBATE_MAX_TURNS,
         )
         for i in range(count)
     ]
