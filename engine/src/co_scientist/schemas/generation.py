@@ -7,6 +7,8 @@ generation, novelty analysis, and validation synthesis.
 
 from typing import Any
 
+from co_scientist.schemas.builders import obj
+
 # Field sub-schemas shared verbatim across the generation schemas below,
 # referenced by identity (nothing mutates schema dicts at runtime; sharing
 # schema objects is the established pattern -- see schemas/review.py). The
@@ -64,14 +66,12 @@ _LITERATURE_GROUNDING_FIELD: dict[str, Any] = {
 GENERATION_SCHEMA: dict[str, Any] = {
     "name": "hypothesis_generation",
     "strict": False,
-    "schema": {
-        "type": "object",
-        "properties": {
+    "schema": obj(
+        {
             "hypotheses": {
                 "type": "array",
-                "items": {
-                    "type": "object",
-                    "properties": {
+                "items": obj(
+                    {
                         "hypothesis": _HYPOTHESIS_FIELD,
                         "explanation": _EXPLANATION_FIELD,
                         "literature_grounding": _LITERATURE_GROUNDING_FIELD,
@@ -87,19 +87,11 @@ GENERATION_SCHEMA: dict[str, Any] = {
                             ),
                         },
                     },
-                    "required": [
-                        "hypothesis",
-                        "explanation",
-                        "literature_grounding",
-                        "experiment",
-                    ],
-                    "additionalProperties": False,
-                },
+                    optional=("category",),
+                ),
             }
-        },
-        "required": ["hypotheses"],
-        "additionalProperties": False,
-    },
+        }
+    ),
 }
 # Generation draft schema (Phase 1: drafting without validation)
 # Shapes the output of the "generation_draft_with_tools" prompt, consumed by
@@ -111,14 +103,12 @@ GENERATION_SCHEMA: dict[str, Any] = {
 GENERATION_DRAFT_SCHEMA: dict[str, Any] = {
     "name": "hypothesis_draft",
     "strict": False,
-    "schema": {
-        "type": "object",
-        "properties": {
+    "schema": obj(
+        {
             "drafts": {
                 "type": "array",
-                "items": {
-                    "type": "object",
-                    "properties": {
+                "items": obj(
+                    {
                         "hypothesis": _HYPOTHESIS_FIELD,
                         "explanation": _EXPLANATION_FIELD,
                         "experiment": _EXPERIMENT_FIELD,
@@ -142,20 +132,10 @@ GENERATION_DRAFT_SCHEMA: dict[str, Any] = {
                             ),
                         },
                     },
-                    "required": [
-                        "hypothesis",
-                        "explanation",
-                        "gap_reasoning",
-                        "literature_sources",
-                        "experiment",
-                    ],
-                    "additionalProperties": False,
-                },
+                ),
             }
-        },
-        "required": ["drafts"],
-        "additionalProperties": False,
-    },
+        }
+    ),
 }
 # Hypothesis validation synthesis schema (Phase 2)
 # Shapes the output of the "hypothesis_validation_synthesis" and
@@ -170,14 +150,12 @@ GENERATION_DRAFT_SCHEMA: dict[str, Any] = {
 HYPOTHESIS_VALIDATION_SYNTHESIS_SCHEMA: dict[str, Any] = {
     "name": "hypothesis_validation_synthesis",
     "strict": False,
-    "schema": {
-        "type": "object",
-        "properties": {
+    "schema": obj(
+        {
             "hypotheses": {
                 "type": "array",
-                "items": {
-                    "type": "object",
-                    "properties": {
+                "items": obj(
+                    {
                         "hypothesis": {
                             "type": "string",
                             "description": (
@@ -200,33 +178,21 @@ HYPOTHESIS_VALIDATION_SYNTHESIS_SCHEMA: dict[str, Any] = {
                                 " this hypothesis belongs to."
                             ),
                         },
-                        "novelty_validation": {
-                            "type": "object",
-                            "properties": {
+                        "novelty_validation": obj(
+                            {
                                 "decision": {
                                     "type": "string",
                                     "description": "validation decision",
                                     "enum": ["approved", "refined", "pivoted"],
                                 }
-                            },
-                            "required": ["decision"],
-                            "additionalProperties": False,
-                        },
+                            }
+                        ),
                     },
-                    "required": [
-                        "hypothesis",
-                        "explanation",
-                        "literature_grounding",
-                        "experiment",
-                        "novelty_validation",
-                    ],
-                    "additionalProperties": False,
-                },
+                    optional=("category",),
+                ),
             }
-        },
-        "required": ["hypotheses"],
-        "additionalProperties": False,
-    },
+        }
+    ),
 }
 # Hypothesis novelty analysis schema
 # Imported directly (not via get_schema_for_prompt) by
@@ -238,9 +204,8 @@ HYPOTHESIS_VALIDATION_SYNTHESIS_SCHEMA: dict[str, Any] = {
 HYPOTHESIS_NOVELTY_ANALYSIS_SCHEMA: dict[str, Any] = {
     "name": "hypothesis_novelty_analysis",
     "strict": False,
-    "schema": {
-        "type": "object",
-        "properties": {
+    "schema": obj(
+        {
             "methods_used": {
                 "type": "string",
                 "description": "what methods/techniques this paper employs",
@@ -282,17 +247,6 @@ HYPOTHESIS_NOVELTY_ANALYSIS_SCHEMA: dict[str, Any] = {
                     " to this paper"
                 ),
             },
-        },
-        "required": [
-            "methods_used",
-            "populations_studied",
-            "mechanisms_investigated",
-            "key_findings",
-            "stated_limitations",
-            "future_work_suggested",
-            "novelty_assessment",
-            "overlap_explanation",
-        ],
-        "additionalProperties": False,
-    },
+        }
+    ),
 }

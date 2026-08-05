@@ -7,6 +7,15 @@ final research-overview synthesis.
 
 from typing import Any
 
+from co_scientist.schemas.builders import obj, str_array
+
+# Evolution's experiment field asks for exactly what generation's does, so
+# it is the same object rather than a second copy of the wording (schema
+# dicts are never mutated; sharing them by identity is this package's
+# established pattern). The sibling explanation field legitimately differs
+# -- it asks for the refinements -- so it is written out below.
+from co_scientist.schemas.generation import _EXPERIMENT_FIELD
+
 # Evolution schema
 # Shapes the "evolution" prompt output, consumed by the
 # hypothesis-refinement step in agents/evolution/evolve.py. Represents a
@@ -16,9 +25,8 @@ from typing import Any
 EVOLUTION_SCHEMA: dict[str, Any] = {
     "name": "hypothesis_evolution",
     "strict": False,
-    "schema": {
-        "type": "object",
-        "properties": {
+    "schema": obj(
+        {
             "hypothesis": {
                 "type": "string",
                 "description": (
@@ -40,22 +48,9 @@ EVOLUTION_SCHEMA: dict[str, Any] = {
                     " any refinements made (4-6 sentences)"
                 ),
             },
-            "experiment": {
-                "type": "string",
-                "description": (
-                    "Concrete experiment design with models, datasets,"
-                    " metrics, and validation criteria (4-6 sentences)"
-                ),
-            },
-        },
-        "required": [
-            "hypothesis",
-            "explanation",
-            "experiment",
-            "refinement_summary",
-        ],
-        "additionalProperties": False,
-    },
+            "experiment": _EXPERIMENT_FIELD,
+        }
+    ),
 }
 # Research-overview schema
 # Shapes the "research_overview" prompt output, consumed by
@@ -66,111 +61,64 @@ EVOLUTION_SCHEMA: dict[str, Any] = {
 # structure NIH grant applications use for the Specific Aims page.
 RESEARCH_OVERVIEW_SCHEMA: dict[str, Any] = {
     "name": "research_overview",
-    "schema": {
-        "type": "object",
-        "additionalProperties": False,
-        "properties": {
-            "overview": {
-                "type": "object",
-                "additionalProperties": False,
-                "properties": {
+    "schema": obj(
+        {
+            "overview": obj(
+                {
                     "summary": {"type": "string"},
                     "research_directions": {
                         "type": "array",
-                        "items": {
-                            "type": "object",
-                            "additionalProperties": False,
-                            "properties": {
+                        "items": obj(
+                            {
                                 "title": {"type": "string"},
                                 "importance": {"type": "string"},
-                                "suggested_experiments": {
-                                    "type": "array",
-                                    "items": {"type": "string"},
-                                },
-                            },
-                            "required": [
-                                "title",
-                                "importance",
-                                "suggested_experiments",
-                            ],
-                        },
+                                "suggested_experiments": str_array(),
+                            }
+                        ),
                     },
-                },
-                "required": ["summary", "research_directions"],
-            },
-            "nih_specific_aims": {
-                "type": "object",
-                "additionalProperties": False,
-                "properties": {
+                }
+            ),
+            "nih_specific_aims": obj(
+                {
                     "introduction": {"type": "string"},
                     "aims": {
                         "type": "array",
-                        "items": {
-                            "type": "object",
-                            "additionalProperties": False,
-                            "properties": {
+                        "items": obj(
+                            {
                                 "aim": {"type": "string"},
                                 "rationale": {"type": "string"},
                                 "approach": {"type": "string"},
-                            },
-                            "required": ["aim", "rationale", "approach"],
-                        },
+                            }
+                        ),
                     },
                     "impact": {"type": "string"},
-                },
-                "required": ["introduction", "aims", "impact"],
-            },
+                }
+            ),
             "research_contacts": {
                 "type": "array",
                 "maxItems": 5,
-                "items": {
-                    "type": "object",
-                    "additionalProperties": False,
-                    "properties": {
+                "items": obj(
+                    {
                         "candidate_id": {"type": "string"},
                         "name": {"type": "string"},
                         "expertise": {"type": "string"},
                         "justification": {"type": "string"},
-                    },
-                    "required": [
-                        "candidate_id",
-                        "name",
-                        "expertise",
-                        "justification",
-                    ],
-                },
+                    }
+                ),
             },
             "knowledge_base": {
                 "type": "array",
                 "maxItems": 8,
-                "items": {
-                    "type": "object",
-                    "additionalProperties": False,
-                    "properties": {
+                "items": obj(
+                    {
                         "title": {"type": "string"},
                         "summary": {"type": "string"},
                         "detail": {"type": "string"},
                         "uncertainty": {"type": "string"},
-                        "evidence_ids": {
-                            "type": "array",
-                            "items": {"type": "string"},
-                        },
-                    },
-                    "required": [
-                        "title",
-                        "summary",
-                        "detail",
-                        "uncertainty",
-                        "evidence_ids",
-                    ],
-                },
+                        "evidence_ids": str_array(),
+                    }
+                ),
             },
-        },
-        "required": [
-            "overview",
-            "nih_specific_aims",
-            "research_contacts",
-            "knowledge_base",
-        ],
-    },
+        }
+    ),
 }

@@ -7,6 +7,8 @@ batch review, literature-grounded reflection, and deep verification.
 
 from typing import Any
 
+from co_scientist.schemas.builders import obj, str_array
+
 # The eight scored criteria: the paper's five default output criteria
 # (SSR §1) -- relevance, plausibility, novelty, testability, safety --
 # plus scientific_soundness, clarity, and potential_impact.
@@ -25,12 +27,9 @@ _SCORE_CRITERIA: tuple[str, ...] = (
 # by identity from both (nothing mutates schema dicts at runtime; sharing
 # schema objects across registry entries is the established pattern -- see
 # GENERATION_SCHEMA's reuse in schemas/registry.py).
-_SCORES_SCHEMA: dict[str, Any] = {
-    "type": "object",
-    "properties": {name: {"type": "integer"} for name in _SCORE_CRITERIA},
-    "required": list(_SCORE_CRITERIA),
-    "additionalProperties": False,
-}
+_SCORES_SCHEMA: dict[str, Any] = obj(
+    {name: {"type": "integer"} for name in _SCORE_CRITERIA}
+)
 
 _FEEDBACK_DESCRIPTIONS: dict[str, str] = {
     "scientific_soundness": (
@@ -43,15 +42,12 @@ _FEEDBACK_DESCRIPTIONS: dict[str, str] = {
     "potential_impact": "Specific feedback on potential significance",
 }
 
-_DETAILED_FEEDBACK_SCHEMA: dict[str, Any] = {
-    "type": "object",
-    "properties": {
+_DETAILED_FEEDBACK_SCHEMA: dict[str, Any] = obj(
+    {
         name: {"type": "string", "description": description}
         for name, description in _FEEDBACK_DESCRIPTIONS.items()
-    },
-    "required": list(_FEEDBACK_DESCRIPTIONS),
-    "additionalProperties": False,
-}
+    }
+)
 
 # Review schema
 # Shapes the "review" prompt output, consumed by the single-hypothesis
@@ -70,9 +66,8 @@ _DETAILED_FEEDBACK_SCHEMA: dict[str, Any] = {
 REVIEW_SCHEMA: dict[str, Any] = {
     "name": "hypothesis_review",
     "strict": False,
-    "schema": {
-        "type": "object",
-        "properties": {
+    "schema": obj(
+        {
             "hypothesis_text": {
                 "type": "string",
                 "description": "The hypothesis being reviewed",
@@ -97,18 +92,8 @@ REVIEW_SCHEMA: dict[str, Any] = {
                 "type": "number",
                 "description": "Calculated as average of criterion scores",
             },
-        },
-        "required": [
-            "hypothesis_text",
-            "review_summary",
-            "scores",
-            "detailed_feedback",
-            "constructive_feedback",
-            "safety_ethical_concerns",
-            "overall_score",
-        ],
-        "additionalProperties": False,
-    },
+        }
+    ),
 }
 # Batch review schema - for reviewing multiple hypotheses together
 # Shapes the "review_batch" prompt output, consumed by the comparative
@@ -124,15 +109,13 @@ REVIEW_SCHEMA: dict[str, Any] = {
 REVIEW_BATCH_SCHEMA: dict[str, Any] = {
     "name": "hypothesis_batch_review",
     "strict": False,
-    "schema": {
-        "type": "object",
-        "properties": {
+    "schema": obj(
+        {
             "reviews": {
                 "type": "array",
                 "description": "Array of reviews, one for each hypothesis",
-                "items": {
-                    "type": "object",
-                    "properties": {
+                "items": obj(
+                    {
                         "hypothesis_index": {
                             "type": "integer",
                             "description": (
@@ -169,22 +152,11 @@ REVIEW_BATCH_SCHEMA: dict[str, Any] = {
                             ),
                         },
                     },
-                    "required": [
-                        "hypothesis_index",
-                        "hypothesis_text",
-                        "review_summary",
-                        "scores",
-                        "detailed_feedback",
-                        "constructive_feedback",
-                        "safety_ethical_concerns",
-                    ],
-                    "additionalProperties": False,
-                },
+                    optional=("comparative_notes",),
+                ),
             }
-        },
-        "required": ["reviews"],
-        "additionalProperties": False,
-    },
+        }
+    ),
 }
 # Reflection schema
 # Shapes the "reflection_observations" prompt output, consumed by
@@ -196,9 +168,8 @@ REVIEW_BATCH_SCHEMA: dict[str, Any] = {
 REFLECTION_SCHEMA: dict[str, Any] = {
     "name": "reflection_observations",
     "strict": False,
-    "schema": {
-        "type": "object",
-        "properties": {
+    "schema": obj(
+        {
             "hypothesis_text": {
                 "type": "string",
                 "description": "The hypothesis being analyzed",
@@ -221,10 +192,8 @@ REFLECTION_SCHEMA: dict[str, Any] = {
                     " observations"
                 ),
             },
-        },
-        "required": ["hypothesis_text", "reasoning", "classification"],
-        "additionalProperties": False,
-    },
+        }
+    ),
 }
 # Deep-verification schema
 # Shapes the "deep_verification" prompt output, consumed by
@@ -236,16 +205,12 @@ REFLECTION_SCHEMA: dict[str, Any] = {
 # hypothesis's probing history into subsequent ranking (tournament) prompts.
 DEEP_VERIFICATION_SCHEMA: dict[str, Any] = {
     "name": "deep_verification",
-    "schema": {
-        "type": "object",
-        "additionalProperties": False,
-        "properties": {
+    "schema": obj(
+        {
             "probes": {
                 "type": "array",
-                "items": {
-                    "type": "object",
-                    "additionalProperties": False,
-                    "properties": {
+                "items": obj(
+                    {
                         "question": {"type": "string"},
                         "answer": {"type": "string"},
                         "reasoning": {"type": "string"},
@@ -256,24 +221,16 @@ DEEP_VERIFICATION_SCHEMA: dict[str, Any] = {
                         # few terms a relevant paper would actually contain,
                         # produced by the same call rather than a second one.
                         "search_query": {"type": "string"},
-                    },
-                    "required": [
-                        "question",
-                        "answer",
-                        "reasoning",
-                        "assumption_is_fundamental",
-                        "search_query",
-                    ],
-                },
+                    }
+                ),
             },
             "verdict": {
                 "type": "string",
                 "enum": ["holds", "weakened", "undermined"],
             },
             "overall_assessment": {"type": "string"},
-        },
-        "required": ["probes", "verdict", "overall_assessment"],
-    },
+        }
+    ),
 }
 
 
@@ -282,25 +239,20 @@ DEEP_VERIFICATION_SCHEMA: dict[str, Any] = {
 # initial screen (REVIEW_SCHEMA).
 FULL_REVIEW_SCHEMA: dict[str, Any] = {
     "name": "full_review",
-    "schema": {
-        "type": "object",
-        "additionalProperties": False,
-        "properties": {
+    "schema": obj(
+        {
             "correctness": {"type": "string"},
             "assumptions": {
                 "type": "array",
-                "items": {
-                    "type": "object",
-                    "additionalProperties": False,
-                    "properties": {
+                "items": obj(
+                    {
                         "assumption": {"type": "string"},
                         "support": {
                             "type": "string",
                             "enum": ["supported", "uncertain", "likely_false"],
                         },
-                    },
-                    "required": ["assumption", "support"],
-                },
+                    }
+                ),
             },
             "quality_and_novelty": {"type": "string"},
             "literature_grounding": {"type": "string"},
@@ -309,16 +261,8 @@ FULL_REVIEW_SCHEMA: dict[str, Any] = {
                 "enum": ["sound", "needs_revision", "rejected"],
             },
             "justification": {"type": "string"},
-        },
-        "required": [
-            "correctness",
-            "assumptions",
-            "quality_and_novelty",
-            "literature_grounding",
-            "verdict",
-            "justification",
-        ],
-    },
+        }
+    ),
 }
 
 
@@ -332,41 +276,25 @@ FULL_REVIEW_SCHEMA: dict[str, Any] = {
 # back under a name the schema accepted. Same for full_review.md above.
 SIMULATION_REVIEW_SCHEMA: dict[str, Any] = {
     "name": "simulation_review",
-    "schema": {
-        "type": "object",
-        "additionalProperties": False,
-        "properties": {
+    "schema": obj(
+        {
             "model": {"type": "string"},
             "steps": {
                 "type": "array",
-                "items": {
-                    "type": "object",
-                    "additionalProperties": False,
-                    "properties": {
+                "items": obj(
+                    {
                         "step": {"type": "string"},
                         "plausible": {"type": "boolean"},
-                    },
-                    "required": ["step", "plausible"],
-                },
+                    }
+                ),
             },
-            "failure_points": {
-                "type": "array",
-                "items": {"type": "string"},
-            },
+            "failure_points": str_array(),
             "robustness": {"type": "string"},
             "verdict": {
                 "type": "string",
                 "enum": ["holds", "partially_holds", "breaks_down"],
             },
             "decisive_step": {"type": "string"},
-        },
-        "required": [
-            "model",
-            "steps",
-            "failure_points",
-            "robustness",
-            "verdict",
-            "decisive_step",
-        ],
-    },
+        }
+    ),
 }

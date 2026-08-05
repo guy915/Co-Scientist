@@ -7,6 +7,8 @@ per-paper analysis.
 
 from typing import Any
 
+from co_scientist.schemas.builders import obj
+
 # Literature review query generation schema
 # Imported directly (not via get_schema_for_prompt) by
 # agents/generation/literature_review/queries.py, which pairs it with
@@ -18,9 +20,8 @@ from typing import Any
 LITERATURE_QUERY_SCHEMA: dict[str, Any] = {
     "name": "pubmed_query_generation",
     "strict": False,
-    "schema": {
-        "type": "object",
-        "properties": {
+    "schema": obj(
+        {
             "queries": {
                 "type": "array",
                 "description": (
@@ -35,10 +36,8 @@ LITERATURE_QUERY_SCHEMA: dict[str, Any] = {
                     ),
                 },
             }
-        },
-        "required": ["queries"],
-        "additionalProperties": False,
-    },
+        }
+    ),
 }
 # Literature review paper analysis schema
 # Imported directly (not via get_schema_for_prompt) by
@@ -50,9 +49,8 @@ LITERATURE_QUERY_SCHEMA: dict[str, Any] = {
 LITERATURE_PAPER_ANALYSIS_SCHEMA: dict[str, Any] = {
     "name": "paper_analysis",
     "strict": False,
-    "schema": {
-        "type": "object",
-        "properties": {
+    "schema": obj(
+        {
             "key_findings": {
                 "type": "string",
                 "description": "main contributions and results from this work",
@@ -79,15 +77,6 @@ LITERATURE_PAPER_ANALYSIS_SCHEMA: dict[str, Any] = {
                 "type": "string",
                 "description": "how this paper relates to the research goal",
             },
-        },
-        "required": [
-            "key_findings",
-            "gaps_identified",
-            "future_work",
-            "methodology_limitations",
-            "unexplored_areas",
-            "relevance",
-        ],
-        "additionalProperties": False,
-    },
+        }
+    ),
 }

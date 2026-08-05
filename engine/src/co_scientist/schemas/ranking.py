@@ -7,6 +7,8 @@ proximity-based similarity clustering.
 
 from typing import Any
 
+from co_scientist.schemas.builders import obj
+
 # Ranking schema
 # Shapes the "ranking" prompt output, consumed by the pairwise tournament
 # comparison in agents/ranking/ranking.py. "winner" drives the Elo update
@@ -17,9 +19,8 @@ from typing import Any
 RANKING_SCHEMA: dict[str, Any] = {
     "name": "ranking_judgment",
     "strict": False,
-    "schema": {
-        "type": "object",
-        "properties": {
+    "schema": obj(
+        {
             "research_goal": {"type": "string"},
             "hypothesis_a": {"type": "string"},
             "hypothesis_b": {"type": "string"},
@@ -28,9 +29,8 @@ RANKING_SCHEMA: dict[str, Any] = {
                 "enum": ["a", "b"],
                 "description": "The winning hypothesis (a or b)",
             },
-            "judgment_explanation": {
-                "type": "object",
-                "properties": {
+            "judgment_explanation": obj(
+                {
                     "scientific_soundness_comparison": {"type": "string"},
                     "novelty_comparison": {"type": "string"},
                     "relevance_comparison": {"type": "string"},
@@ -38,35 +38,15 @@ RANKING_SCHEMA: dict[str, Any] = {
                     "clarity_comparison": {"type": "string"},
                     "impact_comparison": {"type": "string"},
                     "feasibility_comparison": {"type": "string"},
-                },
-                "required": [
-                    "scientific_soundness_comparison",
-                    "novelty_comparison",
-                    "relevance_comparison",
-                    "testability_comparison",
-                    "clarity_comparison",
-                    "impact_comparison",
-                    "feasibility_comparison",
-                ],
-                "additionalProperties": False,
-            },
+                }
+            ),
             "decision_summary": {"type": "string"},
             "confidence_level": {
                 "type": "string",
                 "enum": ["High", "Medium", "Low"],
             },
-        },
-        "required": [
-            "research_goal",
-            "hypothesis_a",
-            "hypothesis_b",
-            "winner",
-            "judgment_explanation",
-            "decision_summary",
-            "confidence_level",
-        ],
-        "additionalProperties": False,
-    },
+        }
+    ),
 }
 # Proximity schema
 # Shapes the "proximity" prompt output, consumed by
@@ -79,14 +59,12 @@ RANKING_SCHEMA: dict[str, Any] = {
 PROXIMITY_SCHEMA: dict[str, Any] = {
     "name": "proximity_analysis",
     "strict": False,
-    "schema": {
-        "type": "object",
-        "properties": {
+    "schema": obj(
+        {
             "similarity_clusters": {
                 "type": "array",
-                "items": {
-                    "type": "object",
-                    "properties": {
+                "items": obj(
+                    {
                         "cluster_id": {"type": "string"},
                         "cluster_name": {"type": "string"},
                         "central_theme": {"type": "string"},
@@ -98,39 +76,22 @@ PROXIMITY_SCHEMA: dict[str, Any] = {
                         # deduplication was skipped entirely.
                         "similar_hypotheses": {
                             "type": "array",
-                            "items": {
-                                "type": "object",
-                                "properties": {
+                            "items": obj(
+                                {
                                     "index": {"type": "integer"},
                                     "similarity_degree": {
                                         "type": "string",
                                         "enum": ["high", "medium", "low"],
                                     },
-                                },
-                                "required": ["index", "similarity_degree"],
-                                "additionalProperties": False,
-                            },
+                                }
+                            ),
                         },
                         "synthesis_potential": {"type": "string"},
-                    },
-                    "required": [
-                        "cluster_id",
-                        "cluster_name",
-                        "central_theme",
-                        "similar_hypotheses",
-                        "synthesis_potential",
-                    ],
-                    "additionalProperties": False,
-                },
+                    }
+                ),
             },
             "diversity_assessment": {"type": "string"},
             "redundancy_assessment": {"type": "string"},
-        },
-        "required": [
-            "similarity_clusters",
-            "diversity_assessment",
-            "redundancy_assessment",
-        ],
-        "additionalProperties": False,
-    },
+        }
+    ),
 }

@@ -1,5 +1,9 @@
 from co_scientist import constants
 from co_scientist.schemas import get_schema_for_prompt
+from co_scientist.schemas.generation import (
+    GENERATION_SCHEMA,
+    HYPOTHESIS_VALIDATION_SYNTHESIS_SCHEMA,
+)
 from co_scientist.schemas.review import REVIEW_BATCH_SCHEMA, REVIEW_SCHEMA
 
 # The paper's five default output criteria (SSR §1). "relevance" is the
@@ -81,3 +85,32 @@ def test_research_overview_enforces_nih_specific_aims_format() -> None:
     # Each aim requires the grant-style aim / rationale / approach triple.
     aim_item = aims["properties"]["aims"]["items"]
     assert set(aim_item["required"]) == {"aim", "rationale", "approach"}
+
+
+def test_optional_properties_stay_out_of_required() -> None:
+    """The six deliberately-optional schema keys must not become required.
+
+    ``schemas.builders.obj`` derives ``required`` from ``properties``, which
+    is right for 54 of the 60 object nodes here; these are the exceptions,
+    and nothing else notices if an ``optional=`` argument is dropped -- the
+    model simply starts being rejected for omitting a field it was told it
+    could omit. Each is closed (``additionalProperties: False``), so the key
+    must stay declared as well as stay out of ``required``.
+    """
+    generation_item = GENERATION_SCHEMA["schema"]["properties"]["hypotheses"][
+        "items"
+    ]
+    synthesis_item = HYPOTHESIS_VALIDATION_SYNTHESIS_SCHEMA["schema"][
+        "properties"
+    ]["hypotheses"]["items"]
+    review_item = REVIEW_BATCH_SCHEMA["schema"]["properties"]["reviews"][
+        "items"
+    ]
+    optional = (
+        (generation_item, "category"),
+        (synthesis_item, "category"),
+        (review_item, "comparative_notes"),
+    )
+    for node, name in optional:
+        assert name in node["properties"], f"{name} no longer declared"
+        assert name not in node["required"], f"{name} became required"
