@@ -117,8 +117,12 @@ const TASK_PHASE: Record<string, number | null> = {
   verification: 3,
   deep_verification: 3,
   safety_screen: 3,
-  proximity: 3,
   ranking: 4,
+  // Proximity executes after the tournament, so it belongs to the final
+  // display phase even though it is not itself tournament work -- phase 4
+  // is "the tournament and everything after", and reporting it as phase 3
+  // made the flow step backward right after the tournament.
+  proximity: 4,
   evolve: 4,
   meta_review: 4,
   research_overview: 4,

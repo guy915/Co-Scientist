@@ -9,10 +9,30 @@ export interface StreamEvent {
   created_at?: number;
 }
 
+/**
+ * Live transport state of the stream's EventSource connection. 'connecting'
+ * is the initial state (and persists while a pre-open error retries),
+ * 'open' means the socket is up, 'reconnecting' means a connection that had
+ * opened dropped and EventSource is retrying it, and 'disconnected' means
+ * the attempt ended with no retry (e.g. the request errored outright).
+ */
+export type StreamConnectionState =
+  | 'connecting'
+  | 'open'
+  | 'reconnecting'
+  | 'disconnected';
+
+// EventSource exposes its readyState only as statics on the constructor
+// (which jsdom lacks), so the one value the error handler needs is named
+// here instead of read off the class. CLOSED is the terminal state: an
+// error while CLOSED gets no reconnect attempt.
+const ES_CLOSED = 2;
+
 /** State returned by {@link useRunStream}. */
 export interface UseRunStreamResult {
   events: StreamEvent[]; // full ordered timeline received so far
   terminal: boolean; // true once the backend sent the end-of-stream sentinel
+  connection: StreamConnectionState; // live EventSource transport state
 }
 
 /**
@@ -73,21 +93,46 @@ function createEventBatcher(
  * Subscribe to /api/runs/{id}/events. Always replays from seq=0 so the
  * UI hydrates the entire timeline on mount, even after a refresh.
  *
- * Connection drops are not surfaced: EventSource reconnects on its own, and
- * the terminal sentinel is the only signal consumers act on.
+ * Connection state is surfaced in `connection`: EventSource reconnects on
+ * its own, but silently — before this was tracked, a dropped or stalled
+ * stream left the page frozen yet looking healthy. Reconnects keep the
+ * batching/dedupe semantics below (the backend replays from seq=0 and the
+ * seq set drops the duplicates). The deliberate close on the terminal
+ * sentinel leaves the last state in place; `terminal` is the completion
+ * signal, not `connection`.
  */
 export function useRunStream(runId: string | null): UseRunStreamResult {
   const [events, setEvents] = useState<StreamEvent[]>([]);
   const [terminal, setTerminal] = useState(false);
+  const [connection, setConnection] =
+    useState<StreamConnectionState>('connecting');
   useEffect(() => {
     if (!runId) return; // nothing to stream until a run is selected
     // Reset state when switching runs: the previous run's timeline must not
     // bleed into the new subscription (which replays from seq=0 anyway).
     setEvents([]);
     setTerminal(false);
+    setConnection('connecting');
 
     const es = new EventSource(eventsStreamUrl(runId));
     const batcher = createEventBatcher(setEvents);
+    // Whether this connection ever opened, so an error before the first
+    // open reads as still connecting rather than as a dropped stream.
+    let opened = false;
+
+    es.onopen = () => {
+      opened = true;
+      setConnection('open');
+    };
+    es.onerror = () => {
+      // EventSource retries on its own while not CLOSED; CLOSED means this
+      // attempt ended the stream outright and nothing is coming back.
+      if (es.readyState === ES_CLOSED) {
+        setConnection('disconnected');
+      } else {
+        setConnection(opened ? 'reconnecting' : 'connecting');
+      }
+    };
 
     es.onmessage = msg => {
       try {
@@ -113,5 +158,5 @@ export function useRunStream(runId: string | null): UseRunStreamResult {
     };
     // Re-subscribe only when runId changes; other setters are stable.
   }, [runId]);
-  return {events, terminal};
+  return {events, terminal, connection};
 }

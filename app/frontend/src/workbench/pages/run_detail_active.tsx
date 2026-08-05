@@ -1,12 +1,12 @@
 import {useMemo} from 'react';
-import {type RunWithSummary} from '@/api/runs';
 import {Icon, type IconName} from '@/components/icon';
-import type {StreamEvent} from '@/hooks/use_run_stream';
+import type {StreamConnectionState, StreamEvent} from '@/hooks/use_run_stream';
 import {formatDurationPhrase} from '@/lib/duration';
 import {capitalizeTerm} from '@/lib/text';
 import {useNowTick} from '@/workbench/hooks/use_now_tick';
 import {joinClasses} from '../classes';
 import {RunExecutionProgress} from './home_recents_run_steps';
+import {type RunWithStreamState} from './run_detail_data';
 
 const IDLE_NOTE_CLASSES =
   'mt-4 flex items-center gap-3 rounded-md bg-cosci-hover px-4 py-3.5';
@@ -26,7 +26,7 @@ const TIMELINE_ROW_CLASSES =
  * metrics, and the streaming activity timeline.
  */
 interface ActiveRunViewProps {
-  run: RunWithSummary;
+  run: RunWithStreamState;
   events: StreamEvent[];
   evidenceCount: number;
   ideaCount: number;
@@ -36,7 +36,7 @@ interface ActiveRunViewProps {
 // skew between the client and the server's created_at. Elapsed time is a
 // measurement rather than a projection, so unlike the estimate it replaced it
 // is honest from the first second of the run.
-function elapsedLabel(run: RunWithSummary, nowSeconds: number): string {
+function elapsedLabel(run: RunWithStreamState, nowSeconds: number): string {
   const elapsedSeconds = Math.max(0, nowSeconds - run.created_at);
   return formatDurationPhrase(elapsedSeconds, {subMinute: true});
 }
@@ -103,7 +103,11 @@ export function ActiveRunView({
           evidenceCount={evidenceCount}
           ideaCount={ideaCount}
         />
-        <ActivityLog activity={activity} nowSeconds={nowSeconds} />
+        <ActivityLog
+          activity={activity}
+          connection={run.stream_connection}
+          nowSeconds={nowSeconds}
+        />
       </section>
     </main>
   );
@@ -113,21 +117,28 @@ export function ActiveRunView({
 // until the first event lands.
 function ActivityLog({
   activity,
+  connection,
   nowSeconds,
 }: {
   activity: StreamEvent[];
+  connection: StreamConnectionState | undefined;
   nowSeconds: number;
 }) {
   return (
     <section aria-label="Activity log">
       <div className="flex items-center gap-2.5">
-        <LivePulse />
+        {connection === 'open' || connection === undefined ? (
+          <LivePulse />
+        ) : (
+          <StreamStatusDot connection={connection} />
+        )}
         {/* `my-0`: an <h3>'s 1em user-agent block margin does not collapse
             inside this flex row, so it survived as 16px of padding above
             the heading. The section's own gap already spaces the cards
             from this log, and that extra 16px landed on one side of them
             only — 44px of white below the cards against 27px above. */}
         <h3 className="my-0 text-base font-medium">Live activity</h3>
+        <StreamStatusNote connection={connection} />
       </div>
       {activity.length ? (
         <ol className="mt-5">
@@ -313,6 +324,59 @@ function LivePulse() {
     <span className="relative flex size-2.5" aria-hidden="true">
       <span className={PULSE_RING_CLASSES} />
       <span className={PULSE_DOT_CLASSES} />
+    </span>
+  );
+}
+
+// Labels for every transport state that is not a healthy open connection.
+// 'open' and a missing state (a stream double with no transport field)
+// render nothing — neither is a degraded condition to surface.
+const STREAM_STATUS_LABEL: Record<
+  Exclude<StreamConnectionState, 'open'>,
+  string
+> = {
+  connecting: 'Connecting...',
+  reconnecting: 'Reconnecting...',
+  disconnected: 'Stream disconnected',
+};
+
+// The pulse dot claims the feed is live, so a stream that is not open gets
+// this static marker in its place instead of passing as healthy.
+function StreamStatusDot({
+  connection,
+}: {
+  connection: Exclude<StreamConnectionState, 'open'>;
+}) {
+  return (
+    <span className="relative flex size-2.5" aria-hidden="true">
+      <span
+        className={joinClasses(
+          'inline-flex size-2.5 rounded-full',
+          connection === 'connecting' ? 'bg-cosci-muted' : 'bg-th-warning',
+        )}
+      />
+    </span>
+  );
+}
+
+// A quiet status line naming the stream's degraded transport state. It sits
+// in the activity header because that heading is the element claiming the
+// feed is live; role="status" lets assistive tech hear the change.
+function StreamStatusNote({
+  connection,
+}: {
+  connection: StreamConnectionState | undefined;
+}) {
+  if (connection === undefined || connection === 'open') return null;
+  return (
+    <span
+      role="status"
+      className={joinClasses(
+        'text-xs',
+        connection === 'connecting' ? 'text-cosci-muted' : 'text-th-warning',
+      )}
+    >
+      {STREAM_STATUS_LABEL[connection]}
     </span>
   );
 }

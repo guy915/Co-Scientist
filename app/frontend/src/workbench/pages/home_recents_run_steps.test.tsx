@@ -77,15 +77,34 @@ it('carries one spinner, on the In Progress row', () => {
   expect(row?.textContent).toContain('In Progress');
 });
 
-it('keeps revealed phases when the run cycles back to an earlier one', () => {
+it('moves back when the run reports an earlier phase', () => {
   const {rerender} = render(
     <RunStepFlow run={runOn('engine.ranking.match')} />,
   );
   expect(shownPhases()).toHaveLength(4);
 
-  // The engine loops, so it genuinely re-enters reviewing. The tournament
-  // row it already showed must not vanish.
+  // The engine loops, so it genuinely re-enters reviewing — and proximity
+  // runs after the tournament. The flow reports the phase the run is in,
+  // rather than retaining the furthest one: hiding that backward step was
+  // the defect, since it presented a regression as forward progress.
   rerender(<RunStepFlow run={runOn('engine.fanout.review.item')} />);
+  expect(shownPhases()).toEqual([
+    'Exploring focus areas',
+    'Generating hypotheses',
+    'Reviewing hypotheses',
+  ]);
+});
+
+it('keeps the final phase while proximity runs after the tournament', () => {
+  const {rerender} = render(
+    <RunStepFlow run={runOn('engine.ranking.match')} />,
+  );
+  expect(shownPhases()).toHaveLength(4);
+
+  // Proximity executes after the tournament and maps to the same final
+  // display phase, so the flow holds all four steps rather than stepping
+  // back to reviewing.
+  rerender(<RunStepFlow run={runOn('engine.node.proximity')} />);
   expect(shownPhases()).toHaveLength(4);
 });
 

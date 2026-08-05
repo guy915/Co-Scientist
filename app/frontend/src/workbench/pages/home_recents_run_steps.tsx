@@ -14,13 +14,15 @@ const RUN_STEPS: {icon: IconName; label: string}[] = [
 
 /**
  * Renders the live flow for an active run: an "In Progress" row carrying the
- * spinner, then the phases the run has reached so far.
+ * spinner, then the phases up to the one the run is currently in.
  *
  * The phase comes from the run's own reported progress, so the flow tracks
- * real work rather than a timer. The run revisits phases every cycle, so the
- * list reads as a record of the phases it has entered: it grows by the
- * furthest phase reached, never by the current one, so cycling back to an
- * earlier phase cannot make rows it already showed disappear.
+ * real work rather than a timer. It shows the *latest* reported phase, not
+ * the furthest one ever reached: a run genuinely returns to earlier phases
+ * (every new work cycle re-enters generation/review, and proximity follows
+ * the tournament), and retaining the furthest phase masked those backward
+ * steps instead of reporting them. Rows appearing and disappearing as the
+ * phase moves is the honest signal.
  *
  * @param run The active run to show progress for.
  */
@@ -29,12 +31,14 @@ export function RunStepFlow({run}: {run: Run}) {
   // A run reports no phase while routing between agents and in the gaps
   // between leased tasks. Hold the last phase actually observed so those gaps
   // read as the work continuing, rather than snapping back to the first step.
-  const [furthestPhase, setFurthestPhase] = useState(phase ?? 1);
+  // A *reported* phase replaces it outright — see the docstring for why the
+  // flow no longer retains the furthest phase seen.
+  const [currentPhase, setCurrentPhase] = useState(phase ?? 1);
   useEffect(() => {
     if (phase === null) return;
-    setFurthestPhase(seen => Math.max(seen, phase));
+    setCurrentPhase(phase);
   }, [phase]);
-  const revealed = RUN_STEPS.slice(0, furthestPhase);
+  const revealed = RUN_STEPS.slice(0, currentPhase);
 
   return (
     <div className="reference-run-steps">

@@ -219,9 +219,11 @@ DUPLICATE_SIMILARITY_THRESHOLD: Final = 0.95
 
 # Progress tracking
 # Percent-complete checkpoints (0-100) each node emits as progress events.
-# Values are not strictly monotonic across a run: the graph runs
-# deep-verification (81-84) between ranking and proximity (75-85), so
-# reported progress steps back from 84 to 75 when proximity starts.
+# Numbered for the order the durable path actually executes, so a run's
+# first pass never reports a smaller value after a larger one (pinned by
+# tests/test_progress_order.py); the orchestrator decision and proximity
+# share one flat value, and loop re-entries re-emit smaller values by
+# design because the values name phases, not a completion fraction.
 PROGRESS_SUPERVISOR_START: Final = 5
 PROGRESS_SUPERVISOR_COMPLETE: Final = 10
 PROGRESS_GENERATE_START: Final = 15
@@ -232,21 +234,21 @@ PROGRESS_REVIEW_START: Final = 25
 PROGRESS_REVIEW_COMPLETE: Final = 40
 PROGRESS_SAFETY_SCREEN_START: Final = 41
 PROGRESS_SAFETY_SCREEN_COMPLETE: Final = 42
-PROGRESS_META_REVIEW_START: Final = 45
-PROGRESS_META_REVIEW_COMPLETE: Final = 50
-PROGRESS_EVOLVE_START: Final = 55
-PROGRESS_EVOLVE_COMPLETE: Final = 60
-PROGRESS_TOURNAMENT_START: Final = 65
-PROGRESS_TOURNAMENT_COMPLETE: Final = 80
-PROGRESS_DEEP_VERIFICATION_START: Final = 81
-PROGRESS_DEEP_VERIFICATION_COMPLETE: Final = 84
+# Deep verification precedes every tournament.
+PROGRESS_DEEP_VERIFICATION_START: Final = 45
+PROGRESS_DEEP_VERIFICATION_COMPLETE: Final = 50
+PROGRESS_TOURNAMENT_START: Final = 55
+PROGRESS_TOURNAMENT_COMPLETE: Final = 70
+# The post-tournament band; the shared value is explained above.
+PROGRESS_ORCHESTRATOR_DECISION: Final = 75
 PROGRESS_PROXIMITY_START: Final = 75
-PROGRESS_PROXIMITY_COMPLETE: Final = 85
-# The orchestrator decision event sits between the ranking/deep-verification
-# band and the terminal synthesis so the UI shows forward motion each loop.
-# Sharing the tournament's completion value is incidental -- both end that
-# band -- so these are two checkpoints, not one.
-PROGRESS_ORCHESTRATOR_DECISION: Final = 80
+PROGRESS_PROXIMITY_COMPLETE: Final = 75
+# Evolve enters after the post-tournament band, so its checkpoints sit
+# above it even though the task re-enters the review pipeline.
+PROGRESS_META_REVIEW_START: Final = 80
+PROGRESS_META_REVIEW_COMPLETE: Final = 82
+PROGRESS_EVOLVE_START: Final = 85
+PROGRESS_EVOLVE_COMPLETE: Final = 87
 PROGRESS_RESEARCH_OVERVIEW_START: Final = 95
 PROGRESS_RESEARCH_OVERVIEW_COMPLETE: Final = 99
 

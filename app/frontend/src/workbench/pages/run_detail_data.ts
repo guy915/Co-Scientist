@@ -19,8 +19,24 @@ import {
   type SafetyDecision,
 } from '@/api/runs';
 import {useDebouncedCallback} from '@/workbench/hooks/use_debounced_callback';
-import {type StreamEvent, useRunStream} from '@/hooks/use_run_stream';
+import {
+  type StreamConnectionState,
+  type StreamEvent,
+  useRunStream,
+} from '@/hooks/use_run_stream';
 import {HEADER_TITLE_EVENT} from '../dom_events';
+
+/**
+ * The fetched run row plus the live transport state of its event stream.
+ * The connection state rides the row because the live-run view receives
+ * only the row and the timeline: a dropped or reconnecting stream must
+ * stay visible there instead of reading as healthy. Optional so consumers
+ * treat a missing state (e.g. a test double with no transport field) as
+ * "no signal", not as a drop.
+ */
+export type RunWithStreamState = RunWithSummary & {
+  stream_connection?: StreamConnectionState;
+};
 
 type RunDataKey =
   | 'hypotheses'
@@ -287,13 +303,14 @@ function useRunFetch(id: string | undefined) {
 // Wires the live SSE event stream for a run (replayed from seq=0 on mount):
 // calls `onDataEvents` with the set of collections a coalesced batch of
 // events can change, and `onTerminal` once the stream reaches its terminal
-// sentinel. Returns `terminal` so callers can derive their own state from it.
+// sentinel. Returns `terminal` and the stream's transport `connection` so
+// callers can derive their own state from them.
 function useRunEventStream(
   id: string | undefined,
   onDataEvents: (keys: Iterable<RunDataKey>) => void,
   onTerminal: () => void,
 ) {
-  const {events, terminal} = useRunStream(id ?? null);
+  const {events, terminal, connection} = useRunStream(id ?? null);
 
   // The stream delivers events in coalesced batches, so scan the whole newly
   // appended slice for data events rather than only the batch tail: a batch
@@ -319,7 +336,7 @@ function useRunEventStream(
     onTerminal();
   }, [terminal, onTerminal]);
 
-  return {events, terminal};
+  return {events, terminal, connection};
 }
 
 // Toast message for a run that just reached a failed/blocked terminal state,
@@ -365,19 +382,29 @@ function useRunDerivedState(run: RunWithSummary | null, terminal: boolean) {
  * to the live SSE event stream so mid-run updates refetch just the
  * collections a given event type can change. Also derives the display title
  * and dispatches it to the shell header, and raises a toast if the run ends
- * failed/blocked.
+ * failed/blocked. The returned run row carries the stream's transport state
+ * (see RunWithStreamState) so the live-run view can surface a dropped or
+ * reconnecting connection instead of reading as healthy.
  */
 export function useRunDetailData(id: string | undefined) {
   const data = useRunFetch(id);
-  const {events, terminal} = useRunEventStream(
+  const {events, terminal, connection} = useRunEventStream(
     id,
     data.scheduleRefresh,
     data.refreshNow,
   );
   const {toast, title} = useRunDerivedState(data.run, terminal);
 
+  // Memoized so the augmented row keeps a stable identity between refetches
+  // and connection changes, the way the bare fetched row did.
+  const run = useMemo<RunWithStreamState | null>(
+    () =>
+      data.run === null ? null : {...data.run, stream_connection: connection},
+    [data.run, connection],
+  );
+
   return {
-    run: data.run,
+    run,
     hypotheses: data.hypotheses,
     evidence: data.evidence,
     matches: data.matches,

@@ -5,12 +5,20 @@ import {useRunStream, type StreamEvent} from './use_run_stream';
 // jsdom has no EventSource, so we install a controllable fake. Each constructed
 // instance is recorded in `instances` so a test can reach in and fire handlers.
 class FakeEventSource {
+  // The readyState vocabulary the spec pins on the constructor.
+  static CONNECTING = 0;
+  static OPEN = 1;
+  static CLOSED = 2;
+
   static instances: FakeEventSource[] = [];
   url: string;
+  readyState = FakeEventSource.CONNECTING;
   onopen: (() => void) | null = null;
   onerror: (() => void) | null = null;
   onmessage: ((ev: {data: string}) => void) | null = null;
-  close = vi.fn();
+  close = vi.fn(() => {
+    this.readyState = FakeEventSource.CLOSED;
+  });
 
   constructor(url: string) {
     this.url = url;
@@ -233,4 +241,102 @@ it('drops the unflushed buffer on runId change (no leak)', async () => {
   });
 
   expect(result.current.events).toEqual([]);
+});
+
+describe('connection state', () => {
+  it('reports connecting until the socket opens', () => {
+    const {result} = renderHook(() => useRunStream('run-1'));
+    expect(result.current.connection).toBe('connecting');
+
+    act(() => {
+      const es = FakeEventSource.last();
+      es.readyState = FakeEventSource.OPEN;
+      es.onopen?.();
+    });
+    expect(result.current.connection).toBe('open');
+  });
+
+  it('reports reconnecting when an open stream errors and retries', () => {
+    const {result} = renderHook(() => useRunStream('run-1'));
+    const es = FakeEventSource.last();
+    act(() => {
+      es.readyState = FakeEventSource.OPEN;
+      es.onopen?.();
+    });
+
+    // The connection drops; EventSource retries, so its readyState is back
+    // to CONNECTING by the time onerror lands.
+    act(() => {
+      es.readyState = FakeEventSource.CONNECTING;
+      es.onerror?.();
+    });
+    expect(result.current.connection).toBe('reconnecting');
+
+    // The retry lands and the stream is healthy again.
+    act(() => {
+      es.readyState = FakeEventSource.OPEN;
+      es.onopen?.();
+    });
+    expect(result.current.connection).toBe('open');
+  });
+
+  it('reports disconnected when the stream ends with no retry', () => {
+    const {result} = renderHook(() => useRunStream('run-1'));
+    const es = FakeEventSource.last();
+    act(() => {
+      es.readyState = FakeEventSource.OPEN;
+      es.onopen?.();
+    });
+
+    // CLOSED means EventSource gave up (an error response gets no retry),
+    // so the drop must read as terminal, not as reconnecting.
+    act(() => {
+      es.readyState = FakeEventSource.CLOSED;
+      es.onerror?.();
+    });
+    expect(result.current.connection).toBe('disconnected');
+  });
+
+  it('stays connecting when the first attempt errors while retrying', () => {
+    // A pre-open failure is still connecting, not a dropped stream: nothing
+    // had been established yet.
+    const {result} = renderHook(() => useRunStream('run-1'));
+    act(() => {
+      const es = FakeEventSource.last();
+      es.readyState = FakeEventSource.CONNECTING;
+      es.onerror?.();
+    });
+    expect(result.current.connection).toBe('connecting');
+  });
+
+  it('keeps the last state across the deliberate terminal close', async () => {
+    // The terminal sentinel closes the socket on purpose; that is a
+    // completion, not a drop, so the state does not flip to an error.
+    const {result} = renderHook(() => useRunStream('run-1'));
+    const es = FakeEventSource.last();
+    act(() => {
+      es.readyState = FakeEventSource.OPEN;
+      es.onopen?.();
+    });
+
+    await emit(es, {type: '_terminal', payload: {}});
+    expect(result.current.terminal).toBe(true);
+    expect(result.current.connection).toBe('open');
+  });
+
+  it('resets to connecting when the run changes', () => {
+    const {result, rerender} = renderHook(
+      ({id}: {id: string}) => useRunStream(id),
+      {initialProps: {id: 'run-1'}},
+    );
+    act(() => {
+      const es = FakeEventSource.last();
+      es.readyState = FakeEventSource.OPEN;
+      es.onopen?.();
+    });
+    expect(result.current.connection).toBe('open');
+
+    rerender({id: 'run-2'});
+    expect(result.current.connection).toBe('connecting');
+  });
 });
