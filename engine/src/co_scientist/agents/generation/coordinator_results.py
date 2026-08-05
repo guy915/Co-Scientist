@@ -149,20 +149,28 @@ def _log_bucket_methods(label: str, hypotheses: list[Hypothesis]) -> None:
 
 
 def _log_generation_summary(results: GenerationResults) -> None:
-    """Log summary of generated hypotheses."""
+    """Log summary of generated hypotheses.
+
+    The breakdown covers every bucket that feeds all_hypotheses. Assumptions
+    was left out of it while still being counted in the total, so any run
+    allocating an assumptions slice (total_count >= 4) logged parts that did
+    not sum to the total it printed.
+    """
     total = len(results.all_hypotheses)
     logger.info(
         "Generated %s total hypotheses (%s tool-based,"
-        " %s debate-with-lit, %s debate-only)",
+        " %s debate-with-lit, %s debate-only, %s assumptions)",
         total,
         len(results.tools_hypotheses),
         len(results.debate_with_lit_hypotheses),
         len(results.debate_only_hypotheses),
+        len(results.assumptions_hypotheses),
     )
 
     _log_bucket_methods("tool-based", results.tools_hypotheses)
     _log_bucket_methods("debate-with-Lit", results.debate_with_lit_hypotheses)
     _log_bucket_methods("debate-only", results.debate_only_hypotheses)
+    _log_bucket_methods("assumptions", results.assumptions_hypotheses)
 
 
 def _build_summary_message_parts(
