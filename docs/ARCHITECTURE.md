@@ -61,7 +61,7 @@ Every run executes on the engine, and the engine adapter emits its events into t
 6.  literature_review (N evidence)
 7.  generate          (initial_hypotheses_count rows)
 8.  reflection
-9.  proximity         (cluster summary)
+9.  proximity         (cluster summary, when the pool grew since the previous proximity pass)
 10. ranking           (iter 1)
 11. evolve            (evolution_max_count children with parent_id)
 12. meta_review       (per-iteration critique)

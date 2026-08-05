@@ -256,7 +256,7 @@ Canonical event timeline (`docs/ARCHITECTURE.md:56`):
 ```
  1. lifecycle (created)        2. lifecycle (queued)      3. safety.intake
  4. status (running)           5. supervisor.plan          6. literature_review (N evidence)
- 7. generate (initial rows)    8. reflection               9. proximity (cluster summary)
+ 7. generate (initial rows)    8. reflection               9. proximity (cluster summary, when the pool grew since the previous proximity pass)
 10. ranking (iter 1)          11. evolve (children+parent) 12. meta_review
 13. ranking (iter 2, …)       14. deep_verification (top-k)  15. citation_audit
 16. research_overview         17. safety.final             18. report (json + markdown)

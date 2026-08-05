@@ -50,7 +50,7 @@ def test_offline_workflow_emits_canonical_event_sequence(
     isolated_db: str,
 ) -> None:
     """The durable run emits the gate/stage vocabulary in graph order."""
-    _run_id, events = _run_offline_workflow("Sequence test goal", isolated_db)
+    run_id, events = _run_offline_workflow("Sequence test goal", isolated_db)
     types = [e["type"] for e in events]
     # Each durable node commit surfaces a ``scientific_task`` event naming the
     # node it completed; the graph stages are read from those, not from
@@ -75,7 +75,10 @@ def test_offline_workflow_emits_canonical_event_sequence(
     )
 
     # Every substantive graph node the engine runs appears as a completed
-    # durable task.
+    # durable task. Proximity is not in this set: the scheduler only runs it
+    # when the pool grew since the last proximity pass, and evolution's
+    # children are sometimes rejected (unchanged echoes or near-duplicates),
+    # so an offline express run can legitimately finish without one.
     expected_nodes = {
         "supervisor",
         "generate",
@@ -84,12 +87,19 @@ def test_offline_workflow_emits_canonical_event_sequence(
         "evolve",
         "meta_review",
         "deep_verification",
-        "proximity",
         "research_overview",
     }
     assert expected_nodes <= set(nodes), (
         f"missing nodes: {expected_nodes - set(nodes)}"
     )
+
+    # The scheduling link still holds: pool growth is the trigger for a
+    # proximity pass, and express's max_iterations=1 rules out a second
+    # generate, so an evolved child in the store exactly mirrors the
+    # scheduler's pool-grew signal.
+    hyps = store.list_hypotheses(run_id, db_path=isolated_db)
+    if any(h.get("parent_id") for h in hyps):
+        assert "proximity" in nodes, "missing nodes: {'proximity'}"
 
     # Ordering the graph guarantees: intake gates first, planning precedes
     # generation, and the report is the last thing before the terminal status.
