@@ -51,10 +51,13 @@ RANKING_SCHEMA: dict[str, Any] = {
 # Proximity schema
 # Shapes the "proximity" prompt output, consumed by
 # agents/proximity/proximity.py to cluster near-duplicate hypotheses
-# before deduplication. agents/proximity/proximity.py matches each
-# similar_hypotheses entry back to a Hypothesis object by comparing
-# the first 100 characters of "text" (not by array position or an
-# id), then groups hypotheses by cluster_id and keeps only the
+# before deduplication. Each similar_hypotheses entry names its
+# hypothesis by the "index" the prompt assigned it, which is how both
+# deduplication (proximity_dedup._match_cluster_member) and the
+# persisted proximity graph (proximity_graph._resolve_member_id)
+# resolve a member; comparing the first 100 characters of an echoed
+# "text" is only their shared fallback, since this schema forbids
+# that key. Members are then grouped by cluster_id, keeping only the
 # strongest of each "high" similarity_degree group.
 PROXIMITY_SCHEMA: dict[str, Any] = {
     "name": "proximity_analysis",

@@ -1,50 +1,58 @@
 """Tests for the weighted proximity graph builder (Milestone 3).
 
-These feed the builder the *real* proximity-schema shape
-(``similarity_clusters[].similar_hypotheses[].text``) that ``proximity_node``
-passes in production, not the earlier hand-shaped ``hypotheses`` key that never
-existed in a live response.
+These feed the builder the shape a live ``PROXIMITY_SCHEMA`` response emits:
+``similarity_clusters[].similar_hypotheses[].index``, with no ``text`` key at
+all (the schema sets ``additionalProperties: False`` and does not declare one).
+Fixtures that echoed ``text`` instead exercised only the fallback path, so they
+stayed green through the whole period in which every production graph was
+empty.
 """
 
 from co_scientist.agents.proximity.proximity_graph import (
     PROXIMITY_METHOD,
+    SurvivorIndex,
     build_proximity_graph,
     member_match_key,
 )
 
 
-def _id_map(*pairs: tuple[str, str]) -> dict[str, str]:
-    """Build a match-key -> id map the way the node does (prefix-normalized)."""
-    return {member_match_key(text): hyp_id for text, hyp_id in pairs}
+def _survivors(*ids: str) -> SurvivorIndex:
+    """Build a survivor index from ids in prompt order (index i -> ids[i]).
+
+    ``by_text`` is left empty on purpose: a live response carries no member
+    text, so leaving the fallback table populated would let these tests
+    resolve a member by text and pass even with the index path broken.
+    """
+    return SurvivorIndex(by_index=dict(enumerate(ids)), by_text={})
 
 
 def _clusters() -> list[dict[str, object]]:
-    """Two clusters (real schema shape): one pair, one singleton."""
+    """Two clusters (live schema shape): one pair, one singleton."""
     return [
         {
             "cluster_id": "c1",
             "similar_hypotheses": [
-                {"text": "alpha", "similarity_degree": "high"},
-                {"text": "beta", "similarity_degree": "medium"},
+                {"index": 0, "similarity_degree": "high"},
+                {"index": 1, "similarity_degree": "medium"},
             ],
         },
         {
             "cluster_id": "c2",
             "similar_hypotheses": [
-                {"text": "gamma", "similarity_degree": "low"},
+                {"index": 2, "similarity_degree": "low"},
             ],
         },
     ]
 
 
-_ID_BY_TEXT = _id_map(("alpha", "h-a"), ("beta", "h-b"), ("gamma", "h-c"))
+_SURVIVORS = _survivors("h-a", "h-b", "h-c")
 
 
 def test_builds_weighted_edges_within_clusters() -> None:
     """A same-cluster pair gets one edge weighted by the stronger degree."""
     graph = build_proximity_graph(
         _clusters(),
-        _ID_BY_TEXT,
+        _SURVIVORS,
         research_goal="goal",
         model="fake/model",
         updated_at=123.0,
@@ -63,7 +71,7 @@ def test_graph_meta_records_provenance() -> None:
     """The graph meta carries method/version/model/goal/update-time."""
     graph = build_proximity_graph(
         _clusters(),
-        _ID_BY_TEXT,
+        _SURVIVORS,
         research_goal="my goal",
         model="fake/model",
         updated_at=999.0,
@@ -79,19 +87,21 @@ def test_graph_meta_records_provenance() -> None:
 
 
 def test_unresolvable_members_are_skipped() -> None:
-    """A cluster member whose text is not in the id map is dropped."""
+    """A member whose index is not a survivor's position is dropped."""
     clusters = [
         {
             "cluster_id": "c1",
             "similar_hypotheses": [
-                {"text": "alpha", "similarity_degree": "high"},
-                {"text": "unknown", "similarity_degree": "high"},
+                {"index": 0, "similarity_degree": "high"},
+                # No survivor sits at this position: either dedup removed it
+                # or the model invented an out-of-range index.
+                {"index": 7, "similarity_degree": "high"},
             ],
         }
     ]
     graph = build_proximity_graph(
         clusters,
-        _ID_BY_TEXT,
+        _SURVIVORS,
         research_goal="goal",
         model="m",
         updated_at=1.0,
@@ -103,7 +113,7 @@ def test_unresolvable_members_are_skipped() -> None:
 def test_empty_clusters_yield_empty_graph() -> None:
     """No clusters yields an empty edge set with valid meta."""
     graph = build_proximity_graph(
-        [], _ID_BY_TEXT, research_goal="goal", model="m", updated_at=1.0
+        [], _SURVIVORS, research_goal="goal", model="m", updated_at=1.0
     )
     assert graph["edges"] == []
     assert graph["meta"]["edge_count"] == 0
@@ -113,16 +123,19 @@ def test_empty_clusters_yield_empty_graph() -> None:
 def test_resolves_member_text_drifted_beyond_prefix() -> None:
     """A member echoed with drift past the first 100 chars still resolves.
 
-    The proximity LLM re-quotes each hypothesis's text, and may edit it past
-    the first 100 characters (the reason the node matches on a 100-char
-    prefix). The graph must key on the same normalized prefix, or the edge is
-    silently lost even though the node clustered the members.
+    An older response echoes each hypothesis's text instead of its index, and
+    may edit it past the first 100 characters (the reason the node matches on
+    a 100-char prefix). The fallback must key on the same normalized prefix,
+    or the edge is silently lost even though the node clustered the members.
     """
     prefix_a = "x" * 100
     prefix_b = "y" * 100
-    id_map = _id_map(
-        (prefix_a + " canonical tail", "h-1"),
-        (prefix_b + " canonical tail", "h-2"),
+    survivors = SurvivorIndex(
+        by_index={},
+        by_text={
+            member_match_key(prefix_a + " canonical tail"): "h-1",
+            member_match_key(prefix_b + " canonical tail"): "h-2",
+        },
     )
     clusters = [
         {
@@ -141,7 +154,7 @@ def test_resolves_member_text_drifted_beyond_prefix() -> None:
         }
     ]
     graph = build_proximity_graph(
-        clusters, id_map, research_goal="g", model="m", updated_at=1.0
+        clusters, survivors, research_goal="g", model="m", updated_at=1.0
     )
     assert graph["meta"]["edge_count"] == 1
     assert {graph["edges"][0]["source"], graph["edges"][0]["target"]} == {

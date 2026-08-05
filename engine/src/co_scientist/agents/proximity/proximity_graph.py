@@ -15,6 +15,7 @@ documented clone choice.
 
 from __future__ import annotations
 
+import dataclasses
 import itertools
 from typing import Any
 
@@ -32,11 +33,13 @@ _DEGREE_WEIGHT: dict[str, float] = {
 PROXIMITY_METHOD = "llm-cluster"
 PROXIMITY_METHOD_VERSION = "1"
 
-# The proximity LLM echoes each hypothesis's text back per cluster; matching is
-# done on the first 100 chars, so a re-quote that drifts past char 100 still
-# resolves. proximity_dedup.py::_assign_cluster_ids resolves the same echoed
-# members by calling member_match_key below, so clustering and this graph
-# cannot disagree about which hypothesis a member is.
+# A cluster member names its hypothesis by the positional index the prompt
+# assigned (PROXIMITY_SCHEMA), and only older responses echo the text back.
+# Where a member does carry text, matching is done on the first 100 chars, so a
+# re-quote that drifts past char 100 still resolves.
+# proximity_dedup.py::_assign_cluster_ids resolves the same echoed members by
+# calling member_match_key below, so clustering and this graph cannot disagree
+# about which hypothesis a member is.
 _MATCH_PREFIX_CHARS = 100
 
 
@@ -61,25 +64,77 @@ def member_match_key(text: str) -> str:
     return text[:_MATCH_PREFIX_CHARS].strip().lower()
 
 
+@dataclasses.dataclass(frozen=True)
+class SurvivorIndex:
+    """The two ways a cluster member resolves to a surviving hypothesis.
+
+    Both tables cover the dedup survivors only, so a member the proximity
+    node has just dropped resolves to nothing and never becomes a graph
+    node. They are carried together because the resolution order matters:
+    index first, text as the fallback, exactly as
+    ``proximity_dedup._match_cluster_member`` resolves the same members.
+
+    Attributes:
+        by_index: Prompt position -> hypothesis id. Positions are the ones
+            ``proximity._prepare_hypotheses_for_analysis`` numbered, so a
+            removed duplicate leaves its position absent rather than
+            renumbering the survivors.
+        by_text: ``member_match_key`` -> hypothesis id, for responses that
+            echo a member's text instead of (or as well as) its index.
+    """
+
+    by_index: dict[int, str]
+    by_text: dict[str, str]
+
+
 def _degree_weight(degree: str | None) -> float:
     """Map a similarity degree label to its numeric weight (default low)."""
     return _DEGREE_WEIGHT.get((degree or "low").lower(), _DEGREE_WEIGHT["low"])
 
 
+def _resolve_member_id(
+    member: dict[str, Any], survivors: SurvivorIndex
+) -> str | None:
+    """Resolve one cluster member to a surviving hypothesis id, index first.
+
+    ``PROXIMITY_SCHEMA`` identifies a member by the positional ``index`` the
+    prompt assigned and forbids any other key, so the index is the contract
+    and echoed ``text`` is only a fallback for a response that carries it
+    anyway. Reading text alone emptied the persisted graph on every real run
+    once the schema stopped echoing it: no member carried a ``text`` key, so
+    every member resolved to None and no cluster ever produced a pair.
+
+    Args:
+        member: One entry of a cluster's ``similar_hypotheses``.
+        survivors: Resolution tables over the dedup survivors.
+
+    Returns:
+        The surviving hypothesis's id, or None when the member resolves to
+        none of them.
+    """
+    index = member.get("index")
+    if isinstance(index, int):
+        resolved = survivors.by_index.get(index)
+        if resolved is not None:
+            return resolved
+    text = member.get("text")
+    if isinstance(text, str) and text:
+        return survivors.by_text.get(member_match_key(text))
+    return None
+
+
 def _cluster_member_ids(
-    cluster: dict[str, Any], id_by_text: dict[str, str]
+    cluster: dict[str, Any], survivors: SurvivorIndex
 ) -> list[tuple[str, str]]:
     """Return (hypothesis_id, degree) for each resolvable cluster member.
 
-    Consumes the proximity schema's ``similar_hypotheses[].text`` shape (the
-    only shape a live ``PROXIMITY_SCHEMA`` response emits) and resolves each
-    member back to a hypothesis id via :func:`member_match_key`. Members whose
-    text does not resolve (e.g. a hypothesis pruned by dedup before the graph
-    was built) are dropped.
+    Members that resolve to nothing are dropped: an out-of-range index, an
+    unrecognized text, or a hypothesis pruned by dedup before the graph was
+    built.
     """
     members: list[tuple[str, str]] = []
     for member in cluster.get("similar_hypotheses", []):
-        hyp_id = id_by_text.get(member_match_key(member.get("text", "")))
+        hyp_id = _resolve_member_id(member, survivors)
         if hyp_id is not None:
             members.append((hyp_id, member.get("similarity_degree", "low")))
     return members
@@ -88,7 +143,7 @@ def _cluster_member_ids(
 def _accumulate_cluster_edges(
     edges: dict[frozenset[str], dict[str, Any]],
     cluster: dict[str, Any],
-    hypotheses_by_text: dict[str, str],
+    survivors: SurvivorIndex,
 ) -> None:
     """Merges one cluster's pairwise edges into the accumulating edge map.
 
@@ -96,7 +151,7 @@ def _accumulate_cluster_edges(
     appears in more than one cluster.
     """
     cluster_id = cluster.get("cluster_id", "unknown")
-    members = _cluster_member_ids(cluster, hypotheses_by_text)
+    members = _cluster_member_ids(cluster, survivors)
     for (id_a, deg_a), (id_b, deg_b) in itertools.combinations(members, 2):
         if id_a == id_b:
             continue
@@ -141,7 +196,7 @@ def _proximity_graph_meta(
 
 def build_proximity_graph(
     similarity_clusters: list[dict[str, Any]],
-    hypotheses_by_text: dict[str, str],
+    survivors: SurvivorIndex,
     *,
     research_goal: str,
     model: str,
@@ -153,8 +208,8 @@ def build_proximity_graph(
         similarity_clusters: Clusters as returned by the proximity LLM call;
             each has a ``cluster_id`` and member hypotheses with a
             ``similarity_degree``.
-        hypotheses_by_text: Map from normalized hypothesis text to its stable
-            id, used to resolve cluster members to hypothesis ids.
+        survivors: Index/text resolution tables over the dedup survivors,
+            used to resolve cluster members to hypothesis ids.
         research_goal: The goal context the graph was computed under.
         model: The model that produced the clustering (provenance).
         updated_at: Unix timestamp when the graph was computed.
@@ -167,7 +222,7 @@ def build_proximity_graph(
     """
     edges: dict[frozenset[str], dict[str, Any]] = {}
     for cluster in similarity_clusters:
-        _accumulate_cluster_edges(edges, cluster, hypotheses_by_text)
+        _accumulate_cluster_edges(edges, cluster, survivors)
 
     return {
         "edges": list(edges.values()),

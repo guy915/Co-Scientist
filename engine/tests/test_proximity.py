@@ -18,7 +18,9 @@ from co_scientist.models import Hypothesis
 from tests._state import make_hypothesis, make_state
 
 # A two-member cluster whose members are both "high" similarity: dedup keeps
-# only the top-Elo member. Shared verbatim across the high-similarity tests.
+# only the top-Elo member. This is the retired text-echo shape, kept for the
+# tests that exercise the echoed-text fallback specifically; anything asserting
+# on what production does should use _HIGH_HIGH_BY_INDEX below.
 _HIGH_HIGH_CLUSTERS: dict[str, Any] = {
     "similarity_clusters": [
         {
@@ -32,6 +34,22 @@ _HIGH_HIGH_CLUSTERS: dict[str, Any] = {
                     "text": "beta pathway drives tumor growth",
                     "similarity_degree": "high",
                 },
+            ],
+        }
+    ]
+}
+
+
+# The same two-member "high"/"high" cluster in the live schema shape: members
+# are named by the index the prompt assigned and carry no ``text`` key at all,
+# which is what PROXIMITY_SCHEMA permits.
+_HIGH_HIGH_BY_INDEX: dict[str, Any] = {
+    "similarity_clusters": [
+        {
+            "cluster_id": "c1",
+            "similar_hypotheses": [
+                {"index": 0, "similarity_degree": "high"},
+                {"index": 1, "similarity_degree": "high"},
             ],
         }
     ]
@@ -137,12 +155,14 @@ async def test_proximity_graph_has_weighted_edge_for_surviving_cluster(
 ) -> None:
     """A live 2-member cluster yields one weighted edge in the graph.
 
-    Regression guard for the schema-contract bug: the graph builder consumed
-    a ``hypotheses`` key while the proximity schema emits
-    ``similar_hypotheses``, so production graphs were always empty. This feeds
-    the real schema shape through ``proximity_node`` (which calls
-    ``_build_proximity_update``) and asserts a nonzero weighted edge. Both
-    members are "medium" so both survive dedup and become graph nodes.
+    Regression guard for the schema-contract bug, which recurred once the
+    schema stopped echoing member text: the graph builder resolved members by
+    ``text`` only, ``PROXIMITY_SCHEMA`` emits ``index`` and forbids ``text``,
+    so every member resolved to nothing and every production graph was empty
+    while deduplication (which resolves by index) kept working. The members
+    below carry no ``text`` key, exactly as a live response does, so the
+    index path is the only way this edge can exist. Both are "medium" so both
+    survive dedup and become graph nodes.
     """
     state = make_state(
         hypotheses=[make_hypothesis(text="aaa"), make_hypothesis(text="bbb")]
@@ -154,8 +174,8 @@ async def test_proximity_graph_has_weighted_edge_for_surviving_cluster(
                 {
                     "cluster_id": "c1",
                     "similar_hypotheses": [
-                        {"text": "aaa", "similarity_degree": "medium"},
-                        {"text": "bbb", "similarity_degree": "medium"},
+                        {"index": 0, "similarity_degree": "medium"},
+                        {"index": 1, "similarity_degree": "medium"},
                     ],
                 }
             ]
@@ -175,15 +195,18 @@ async def test_proximity_graph_excludes_deduped_high_similarity_member(
 ) -> None:
     """A removed high-similarity duplicate is not a graph node.
 
-    The graph is built over dedup survivors (``hypotheses_to_keep``), so a
-    cluster whose members are all "high" (one kept, the rest removed) leaves
-    no surviving pair and therefore no edge. This pins survivors-only keying
-    so a later change cannot "fix" empty edges by pairing against a removed
-    hypothesis, which would make the matchmaker compare deleted ideas.
+    The graph is built over dedup survivors, so a cluster whose members are
+    all "high" (one kept, the rest removed) leaves no surviving pair and
+    therefore no edge. Members carry the live ``index`` shape, so this pins
+    survivors-only resolution on the path production actually takes: the
+    dropped duplicate's prompt position must resolve to nothing rather than
+    to whichever hypothesis now sits at that position. A later change cannot
+    "fix" empty edges by pairing against a removed hypothesis, which would
+    persist edges to ideas the report no longer contains.
     """
     low, high = _alpha_beta_pair()
     state = make_state(hypotheses=[low, high])
-    _stub_clusters(monkeypatch, _HIGH_HIGH_CLUSTERS)
+    _stub_clusters(monkeypatch, _HIGH_HIGH_BY_INDEX)
     result = await proximity_node(state)
     # One survivor after high-similarity dedup -> no pair -> no edges.
     assert len(result["hypotheses"]) == 1
@@ -207,20 +230,7 @@ async def test_cluster_members_match_by_index(
     """
     low, high = _alpha_beta_pair()
     state = make_state(hypotheses=[low, high])
-    _stub_clusters(
-        monkeypatch,
-        {
-            "similarity_clusters": [
-                {
-                    "cluster_id": "c1",
-                    "similar_hypotheses": [
-                        {"index": 0, "similarity_degree": "high"},
-                        {"index": 1, "similarity_degree": "high"},
-                    ],
-                }
-            ]
-        },
-    )
+    _stub_clusters(monkeypatch, _HIGH_HIGH_BY_INDEX)
 
     result = await proximity_node(state)
 

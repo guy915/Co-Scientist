@@ -10,6 +10,7 @@ from co_scientist.agents.proximity.proximity_dedup import (
     _dedupe_by_cluster,
 )
 from co_scientist.agents.proximity.proximity_graph import (
+    SurvivorIndex,
     build_proximity_graph,
     member_match_key,
 )
@@ -42,10 +43,11 @@ def _prepare_hypotheses_for_analysis(
 ) -> list[dict[str, Any]]:
     """Builds the per-hypothesis payload sent to the proximity LLM call.
 
-    Sends only the fields the clustering prompt needs, plus a positional
-    `index` used only for prompt authoring; matching responses back to
-    Hypothesis objects is done by text prefix, not this index (see
-    _assign_cluster_ids).
+    Sends only the fields the clustering prompt needs, plus the positional
+    `index` a response names its cluster members by. That index is how both
+    deduplication (_assign_cluster_ids) and the persisted proximity graph
+    (_survivor_index) resolve a member back to its Hypothesis, with echoed
+    text kept only as a fallback.
 
     Text is sent whole, deliberately. This is the only node that puts the
     entire pool in one prompt, so it is the obvious place to economise by
@@ -225,22 +227,54 @@ async def _run_proximity_clustering(
     return _finish_clustering(hypotheses, similarity_clusters)
 
 
+def _survivor_index(
+    hypotheses: list[Hypothesis], outcome: _ClusteringOutcome
+) -> SurvivorIndex:
+    """Builds the graph's member-resolution tables over the dedup survivors.
+
+    ``by_index`` is keyed by each hypothesis's position in the pool the
+    prompt numbered (``_prepare_hypotheses_for_analysis``), which is what a
+    live ``PROXIMITY_SCHEMA`` response names its members by. Removed
+    duplicates are simply left out rather than renumbering the survivors,
+    so an index still means the same hypothesis it did in the prompt while
+    a dropped member resolves to nothing. ``by_text`` keeps the older
+    echoed-text fallback, keyed by member_match_key so a cluster member the
+    LLM re-quotes resolves the same way the node's clustering resolves it.
+
+    Args:
+        hypotheses: The pool before this pass's deduplication, in the order
+            the prompt numbered it.
+        outcome: Result of this pass's clustering and deduplication.
+
+    Returns:
+        Resolution tables covering only the surviving hypotheses.
+    """
+    kept_ids = {h.id for h in outcome.hypotheses_to_keep}
+    return SurvivorIndex(
+        by_index={
+            index: hyp.id
+            for index, hyp in enumerate(hypotheses)
+            if hyp.id in kept_ids
+        },
+        by_text={
+            member_match_key(h.text): h.id for h in outcome.hypotheses_to_keep
+        },
+    )
+
+
 def _build_updated_proximity_graph(
-    state: WorkflowState, outcome: _ClusteringOutcome
+    state: WorkflowState,
+    hypotheses: list[Hypothesis],
+    outcome: _ClusteringOutcome,
 ) -> dict[str, Any]:
     """Builds the persisted weighted proximity graph for this pass's clusters.
 
     Edges over the kept hypotheses carry a similarity score and
-    method/model/goal/update-time provenance (Milestone 3). The id map is
-    keyed by member_match_key so a cluster member echoed by the LLM resolves
-    to its surviving hypothesis the same way the node's clustering does.
+    method/model/goal/update-time provenance (Milestone 3).
     """
-    id_by_text = {
-        member_match_key(h.text): h.id for h in outcome.hypotheses_to_keep
-    }
     return build_proximity_graph(
         outcome.similarity_clusters,
-        id_by_text,
+        _survivor_index(hypotheses, outcome),
         research_goal=state["research_goal"],
         model=state["model_name"],
         updated_at=time.time(),
@@ -288,7 +322,7 @@ def _build_proximity_update(
     all_removed_duplicates = (
         state.get("removed_duplicates", []) + outcome.removed_duplicates
     )
-    proximity_graph = _build_updated_proximity_graph(state, outcome)
+    proximity_graph = _build_updated_proximity_graph(state, hypotheses, outcome)
 
     return {
         "hypotheses": outcome.hypotheses_to_keep,
