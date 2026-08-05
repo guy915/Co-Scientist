@@ -95,8 +95,16 @@ async def _synthesize_meta_review(
     hypotheses_count: int,
 ) -> dict[str, Any]:
     """Builds the prompt, calls the LLM, and assembles the meta-review."""
-    prompt_context = _build_meta_review_prompt_context(state, all_reviews)
-    prompt, schema = get_meta_review_prompt(**prompt_context)
+    prompt, schema = get_meta_review_prompt(
+        research_goal=state["research_goal"],
+        all_reviews=json.dumps(all_reviews, indent=2),
+        context=PromptRunContext(
+            supervisor_guidance=state.get("supervisor_guidance"),
+            tool_registry=state.get("tool_registry"),
+            run_setup_guidance=state.get("run_setup_guidance"),
+            run_focus_guidance=state.get("run_focus_guidance"),
+        ),
+    )
     response = await _call_meta_review_llm(
         state, prompt, schema, hypotheses_count, len(all_reviews)
     )
@@ -190,43 +198,20 @@ def _empty_meta_review_result() -> dict[str, Any]:
     }
 
 
-def _build_meta_review_prompt_context(
-    state: WorkflowState, all_reviews: list[dict[str, Any]]
-) -> dict[str, Any]:
-    """Extracts the state fields needed to build the meta-review prompt.
-
-    Args:
-        state: Current workflow state.
-        all_reviews: Per-hypothesis review summaries from
-            _collect_review_summaries.
-
-    Returns:
-        Dict of keyword arguments ready to spread into
-        get_meta_review_prompt.
-    """
-    return {
-        "research_goal": state["research_goal"],
-        "all_reviews": json.dumps(all_reviews, indent=2),
-        "instructions": None,  # for the future
-        "context": PromptRunContext(
-            supervisor_guidance=state.get("supervisor_guidance"),
-            tool_registry=state.get("tool_registry"),
-            run_setup_guidance=state.get("run_setup_guidance"),
-            run_focus_guidance=state.get("run_focus_guidance"),
-        ),
-    }
-
-
 def _log_meta_review_summary(meta_review: dict[str, Any]) -> None:
     """Logs a summary of the completed meta-review.
+
+    One record, not three: each is an open-write-close against the app's
+    single SQLite writer and competes for a readable window of the newest
+    hundred, so a node's completion is worth one line carrying its counts.
 
     Args:
         meta_review: assembled meta_review dict.
     """
-    logger.info("Meta-review complete")
-    logger.info("Common strengths: %s", len(meta_review["common_strengths"]))
     logger.info(
-        "Strategic recommendations: %s",
+        "Meta-review complete: %s common strengths,"
+        " %s strategic recommendations",
+        len(meta_review["common_strengths"]),
         len(meta_review["strategic_recommendations"]),
     )
 

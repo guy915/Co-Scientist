@@ -3,7 +3,7 @@
 import itertools
 import logging
 from collections.abc import Iterator
-from typing import Any
+from typing import Any, Final
 
 from co_scientist.constants import (
     MEDIUM_TEMPERATURE,
@@ -33,6 +33,22 @@ from co_scientist.state import WorkflowState
 
 logger = logging.getLogger(__name__)
 
+# Bounds on what the terminal synthesis prompt offers the model and accepts
+# back. The offered pools are capped so a large run's article set cannot grow
+# the prompt without limit; the acceptance caps bound the sections a reader is
+# handed.
+_MAX_CONTACT_CANDIDATES: Final = 30
+"""Verified authors offered to the model as possible research contacts."""
+
+_MAX_RESEARCH_CONTACTS: Final = 5
+"""Grounded contacts kept from the model's response."""
+
+_MAX_KNOWLEDGE_BASE_TOPICS: Final = 8
+"""Knowledge-base topics considered from the model's response."""
+
+_EVIDENCE_ABSTRACT_CHARS: Final = 3000
+"""Per-source abstract budget in the evidence corpus."""
+
 
 async def research_overview_node(state: WorkflowState) -> dict[str, Any]:
     """Synthesize the top-k hypotheses into an overview + NIH Specific Aims.
@@ -50,9 +66,10 @@ async def research_overview_node(state: WorkflowState) -> dict[str, Any]:
         # synthesizing an overview from an empty pool.
         return {"research_overview": {}}
 
-    summary, contact_candidates, evidence_corpus = (
-        _prepare_research_overview_inputs(state, hypotheses)
-    )
+    articles = state.get("articles")
+    summary = _summarize_top_hypotheses(hypotheses)
+    contact_candidates = _build_contact_candidates(articles)
+    evidence_corpus = _build_evidence_corpus(articles)
 
     await emit_progress(
         state,
@@ -64,13 +81,7 @@ async def research_overview_node(state: WorkflowState) -> dict[str, Any]:
     research_overview = await _synthesize_research_overview(
         state, summary, contact_candidates, evidence_corpus
     )
-    return await _finalize_research_overview(state, research_overview)
 
-
-async def _finalize_research_overview(
-    state: WorkflowState, research_overview: dict[str, Any]
-) -> dict[str, Any]:
-    """Streams completion, logs, and builds the research_overview result."""
     await emit_progress(
         state,
         "research_overview_complete",
@@ -81,21 +92,11 @@ async def _finalize_research_overview(
     return _build_research_overview_result(research_overview)
 
 
-def _prepare_research_overview_inputs(
-    state: WorkflowState, hypotheses: list[Hypothesis]
-) -> tuple[str, dict[str, dict[str, Any]], dict[str, dict[str, Any]]]:
-    """Builds the hypothesis summary and evidence pools for synthesis."""
-    summary = _summarize_top_hypotheses(hypotheses)
-    contact_candidates = _build_contact_candidates(state.get("articles"))
-    evidence_corpus = _build_evidence_corpus(state.get("articles"))
-    return summary, contact_candidates, evidence_corpus
-
-
 def _summarize_top_hypotheses(hypotheses: list[Hypothesis]) -> str:
     """Ranks hypotheses by Elo and formats the top-k as a numbered summary.
 
     Re-ranks defensively (does not assume the incoming list is already
-    Elo-sorted) and keeps only the strongest RESEARCH_OVERVIEW_TOP_K (10)
+    Elo-sorted) and keeps only the strongest ``RESEARCH_OVERVIEW_TOP_K``
     hypotheses so the synthesis prompt stays a bounded size.
 
     Args:
@@ -199,7 +200,11 @@ def _build_contact_candidates(
         for author_index, raw_name in enumerate(article.authors):
             name = raw_name.strip()
             normalized = name.casefold()
-            if not name or normalized in seen_names or len(candidates) >= 30:
+            if (
+                not name
+                or normalized in seen_names
+                or len(candidates) >= _MAX_CONTACT_CANDIDATES
+            ):
                 continue
             candidate_id = f"author-{article_index + 1}-{author_index + 1}"
             candidates[candidate_id] = {
@@ -303,7 +308,8 @@ def _validate_research_contacts(
     if not isinstance(raw_contacts, list):
         return []
     matches = itertools.islice(
-        _iter_matching_contacts(raw_contacts, candidates), 5
+        _iter_matching_contacts(raw_contacts, candidates),
+        _MAX_RESEARCH_CONTACTS,
     )
     return [
         {
@@ -361,7 +367,7 @@ def _build_evidence_corpus(
             "evidence_id": evidence_id,
             "source_id": article.source_id or "",
             "title": article.title,
-            "abstract": (article.abstract or "")[:3000],
+            "abstract": (article.abstract or "")[:_EVIDENCE_ABSTRACT_CHARS],
             "source": article.source,
             "url": article.url or "",
         }
@@ -412,7 +418,7 @@ def _validate_knowledge_base(
     if not isinstance(raw_topics, list):
         return []
     topics: list[dict[str, Any]] = []
-    for index, raw in enumerate(raw_topics[:8]):
+    for index, raw in enumerate(raw_topics[:_MAX_KNOWLEDGE_BASE_TOPICS]):
         evidence_ids = _topic_evidence_ids(raw, corpus)
         if evidence_ids is None:
             continue
