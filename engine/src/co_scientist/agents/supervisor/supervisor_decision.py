@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import dataclasses
 import json
 import logging
 from typing import Any
@@ -379,6 +380,44 @@ async def _call_supervisor_planner(
     return validate_decision(proposed, stats)
 
 
+def _overruled(
+    baseline: SupervisorDecision, validated: SupervisorDecision
+) -> SupervisorDecision:
+    """Return the baseline, still carrying the proposal's queue actions.
+
+    Both guards below overrule the model's *next task*. Neither says anything
+    about its reading of the durable queue, whose actions name existing task
+    rows by id -- so the queue actions survive, exactly as they now do when
+    ``validate_decision`` corrects a task (see ``policy_corrections``).
+
+    Dropping them was not a one-round deferral. Measured over the real loop:
+    with the iteration budget spent and a review backlog keeping the baseline
+    non-terminating, the post-budget guard fired on 60 of 60 planning calls,
+    every one of them carrying a revival for a failed durable row, and the
+    revival landed in 0 of 20 runs -- ``stats.iteration`` never decreases, so
+    that guard's condition latches for the rest of the run and the row stays
+    failed through termination. Nothing automatic revives it: resume requeues
+    only *paused* rows and the expired-lease rescue skips a task whose
+    attempts are spent. The non-progress guard clears once a work cycle
+    advances the iteration, but not for free -- it delayed the same revival by
+    up to four rounds and doubled the planning calls spent re-asking for it.
+
+    Which of the two happens was also arbitrary: with identical stats and the
+    identical action, delivery turned on whether the model's chosen next task
+    happened to be a work task (18 delivered, 11 discarded over the same 29
+    calls).
+
+    Terminating decisions cannot reach here -- ``choose_supervisor_task``
+    returns a stop before calling this, and ``_hard_stop`` returns the
+    baseline itself whenever it terminates -- so no stop ever carries queue
+    actions through. That short-circuit is load-bearing for the blanket
+    carry-through, not incidental.
+    """
+    if not validated.queue_actions:
+        return baseline
+    return dataclasses.replace(baseline, queue_actions=validated.queue_actions)
+
+
 def _resolve_planner_decision(
     state: WorkflowState,
     stats: SchedulerStats,
@@ -392,7 +431,7 @@ def _resolve_planner_decision(
         # baseline, but repeating the same pass without a work-cycle
         # advance is a non-progress loop. Fall back to the disclosed
         # scheduler and record that the code-enforced invariant fired.
-        return baseline, "hard-invariant"
+        return _overruled(baseline, validated), "hard-invariant"
     if (
         not stats.pending_steering
         and stats.iteration >= budget.max_iterations
@@ -401,5 +440,5 @@ def _resolve_planner_decision(
         # Once the exploration budget is spent, the model may select the
         # required review/ranking/proximity cleanup but cannot grow the
         # pool again. The deterministic policy owns that terminal drain.
-        return baseline, "hard-invariant"
+        return _overruled(baseline, validated), "hard-invariant"
     return validated, "model"
