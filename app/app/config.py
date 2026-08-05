@@ -32,7 +32,8 @@ class Settings(BaseSettings):
     # Docker, and the e2e harness all pass --port explicitly. 8008 matches the
     # port everything else in the repo uses (make start, docker-compose).
     port: int = 8008
-    debug: bool = False  # also raises app/co_scientist loggers to DEBUG
+    # also raises app/co_scientist loggers to DEBUG
+    coscientist_debug: bool = False
 
     # MCP Server Configuration (optional, for literature review tools)
     # Bridged into the MCP_SERVER_URL env var in main.py; the engine's MCP

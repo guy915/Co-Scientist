@@ -103,7 +103,7 @@ _install_log_capture()
 # enabled
 logger = logging.getLogger(__name__)
 coscientist_logger = logging.getLogger("co_scientist")
-_app_log_level = logging.DEBUG if settings.debug else logging.INFO
+_app_log_level = logging.DEBUG if settings.coscientist_debug else logging.INFO
 logger.setLevel(_app_log_level)
 coscientist_logger.setLevel(_app_log_level)
 
@@ -458,5 +458,5 @@ if __name__ == "__main__":
         "app.main:app",
         host=settings.host,
         port=settings.port,
-        reload=settings.debug,
+        reload=settings.coscientist_debug,
     )

@@ -123,7 +123,7 @@ All backend settings are read from `.env` (or environment variables). See `.env.
 | `COSCIENTIST_CACHE_DIR` | `./cache` | Cache directory path |
 | `TOOLS_CONFIG` | — | Path or URL to a YAML tools config (optional) |
 | `ENTREZ_EMAIL` | — | Email for NCBI Entrez / PubMed access (optional) |
-| `DEBUG` | `false` | Enable debug-level logging |
+| `COSCIENTIST_DEBUG` | `false` | Enable debug-level logging |
 
 The frontend reads a single variable:
 
