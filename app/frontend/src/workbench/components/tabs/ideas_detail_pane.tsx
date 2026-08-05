@@ -27,9 +27,12 @@ const IDEA_DETAIL_PANE_CLASSES =
 // helper so that lib carries no app-specific class knowledge.
 const IDEA_SCROLL_PANE_SELECTOR = '.idea-detail-pane, .cosci-report-scroll';
 
+// `text-th-muted-fg` is the named alias of --md-sys-color-on-surface-variant
+// (see theme_tokens.css); DESIGN.md keeps arbitrary token references out of
+// component class strings.
 const IDEA_DETAIL_EMPTY_CLASSES =
   `${IDEA_DETAIL_PANE_CLASSES} empty place-items-center text-center ` +
-  'text-[var(--md-sys-color-on-surface-variant)]';
+  'text-th-muted-fg';
 
 const IDEA_DETAIL_SECTION_CLASSES =
   'idea-detail-section grid gap-[0.45rem] border-t-0 pt-0 ' +
@@ -276,23 +279,24 @@ function EvidenceSpanList({spans}: {spans: NormalizedSpan[]}) {
   );
 }
 
+// The located quotes a verdict rests on: a contradiction cites what
+// contradicts the claim, every other verdict what supports it.
+function claimSpans(claim: ClaimEvidenceRow): NormalizedSpan[] {
+  return claim.label === 'contradicts'
+    ? normalizeSpans(claim.contradicting)
+    : normalizeSpans(claim.supporting);
+}
+
 function ClaimEvidenceDetail({claims}: {claims: ClaimEvidenceRow[]}) {
-  const details = claims.map(c => ({
-    claim: c,
-    spans:
-      c.label === 'contradicts'
-        ? normalizeSpans(c.contradicting)
-        : normalizeSpans(c.supporting),
-  }));
-  if (!details.length) return null;
+  if (!claims.length) return null;
   return (
     <div className="mt-1 flex flex-col gap-2">
-      {details.map(({claim, spans}) => (
+      {claims.map(claim => (
         <div key={claim.id} className="text-xs">
           <p>
             <ClaimVerdictLabel claim={claim} />: {claim.claim}
           </p>
-          <EvidenceSpanList spans={spans} />
+          <EvidenceSpanList spans={claimSpans(claim)} />
         </div>
       ))}
     </div>

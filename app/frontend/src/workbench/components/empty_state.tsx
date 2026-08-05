@@ -1,6 +1,12 @@
 import type {ReactNode} from 'react';
 
-const BASE_CLASS = 'rounded border p-6 text-sm text-center';
+// The border/text tones are the named th-* utilities rather than inline
+// `var(--md-sys-color-*)` styles: those tokens are declared as aliases of the
+// very same MD3 variables (see theme_tokens.css), so they still read from the
+// live runtime theme, and DESIGN.md keeps arbitrary token references out of
+// components.
+const BASE_CLASS =
+  'rounded border border-th-border p-6 text-sm text-center text-th-muted-fg';
 
 /**
  * Renders the shared bordered empty-state placeholder used by the run tabs.
@@ -16,15 +22,7 @@ export function EmptyState({
   className?: string;
 }) {
   return (
-    <div
-      className={className ? `${BASE_CLASS} ${className}` : BASE_CLASS}
-      // Border/text colors are set inline (rather than via a Tailwind class)
-      // so they read directly from the live MD3 theme variables.
-      style={{
-        borderColor: 'var(--md-sys-color-outline-variant)',
-        color: 'var(--md-sys-color-on-surface-variant)',
-      }}
-    >
+    <div className={className ? `${BASE_CLASS} ${className}` : BASE_CLASS}>
       {children}
     </div>
   );
