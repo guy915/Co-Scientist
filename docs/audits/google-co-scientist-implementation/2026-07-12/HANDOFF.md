@@ -18,18 +18,18 @@ not replace them.
 
 Use sources in this order when claims conflict:
 
-1. `docs/audits/google-co-scientist-implementation/GOOGLE_CO_SCIENTIST_FIDELITY_DIFF_2026-07-12.md`
+1. `docs/audits/google-co-scientist-implementation/2026-07-12/FIDELITY-DIFF.md`
    is the audited 232-row behavior-level baseline (A01-M20), uncertainty
    register, difference register, and fidelity-first roadmap.
-2. `docs/audits/google-co-scientist-implementation/GOOGLE_CO_SCIENTIST_1_TO_1_IMPLEMENTATION_PROMPT.md`
+2. `docs/audits/google-co-scientist-implementation/2026-07-12/IMPLEMENTATION-PROMPT.md`
    is the imperative implementation contract. Its 17 acceptance conditions at
    lines 404-447 are the terminal completion gate.
 3. Current executable code and runtime behavior. Names, types, routes, prompts,
    comments, mocks, stubs, and UI shells are not implementation proof.
 4. Direct tests/evaluations that exercise the claimed behavior. A broad passing
    suite is not proof of an uncovered requirement.
-5. `docs/audits/google-co-scientist-implementation/fidelity_closure_overrides.json`,
-   regenerated `docs/audits/google-co-scientist-implementation/IMPLEMENTATION_CLOSURE_MATRIX_2026-07-13.md`, and
+5. `docs/audits/google-co-scientist-implementation/2026-07-12/closure-overrides.json`,
+   regenerated `docs/audits/google-co-scientist-implementation/2026-07-12/CLOSURE-MATRIX.md`, and
    `docs/PARITY.md`. These are trackers, not substitutes for code/runtime proof.
 6. Git history, checked-in browser captures, evaluation reports, the durable
    SQLite database, and real-provider soak logs.
@@ -99,7 +99,7 @@ implemented, two partial). Reconcile every row before completion.
 | 17 | unproven | Fidelity diff contains uncertainty register | Final row-by-row documentation reconciliation and no literal-parity overclaim |
 
 The detailed machine-readable version is
-`docs/audits/google-co-scientist-implementation/fidelity_closure_overrides.json`.
+`docs/audits/google-co-scientist-implementation/2026-07-12/closure-overrides.json`.
 Regenerate the matrix with:
 
 ```bash
@@ -205,8 +205,8 @@ files remain modified:
 ```text
  M app/tests/test_runs.py
  M docs/PARITY.md
- M docs/audits/google-co-scientist-implementation/IMPLEMENTATION_CLOSURE_MATRIX_2026-07-13.md
- M docs/audits/google-co-scientist-implementation/fidelity_closure_overrides.json
+ M docs/audits/google-co-scientist-implementation/2026-07-12/CLOSURE-MATRIX.md
+ M docs/audits/google-co-scientist-implementation/2026-07-12/closure-overrides.json
 ```
 
 These edits are intentional work in progress. Do not discard them.
@@ -215,9 +215,9 @@ These edits are intentional work in progress. Do not discard them.
   proximity landscape endpoint.
 - `docs/PARITY.md` updates the durable worker, proximity API/UI, Elo K-factor,
   and incremental proximity rows to match current code.
-- `fidelity_closure_overrides.json` records ten finding overrides and the
+- `closure-overrides.json` records ten finding overrides and the
   current 17-condition ledger.
-- `IMPLEMENTATION_CLOSURE_MATRIX_2026-07-13.md` is regenerated output from those
+- `CLOSURE-MATRIX.md` is regenerated output from those
   overrides; regenerate it rather than manually drifting it.
 
 Before the next commit, inspect `git diff`, run the named tests, regenerate the

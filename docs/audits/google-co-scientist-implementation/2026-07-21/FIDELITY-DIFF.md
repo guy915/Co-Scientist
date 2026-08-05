@@ -6,7 +6,7 @@
 > product. It records every detectable difference and classifies each as
 > `matched` / `partial` / `missing` / `incorrect` / `divergent` /
 > `non-faithful-extension` / `unverifiable`. No numerical fidelity score is
-> assigned. Companion artifact: `IMPLEMENTATION_PROMPT_2026-07-21.md`.
+> assigned. Companion artifact: `IMPLEMENTATION-PROMPT.md`.
 >
 > **Method.** The implementation side was mapped by reading source exhaustively
 > (14 subsystem dossiers, every claim anchored to `file:line`); the Google side
@@ -31,7 +31,7 @@ observability.
 
 **What is faithfully implemented (verified against code, on the production
 path):** the three "clone vs generic-RAG" invariants all hold — Elo initialises
-at exactly 1200 ([constants.py:24](../../../engine/src/co_scientist/constants.py)),
+at exactly 1200 ([constants.py:24](../../../../engine/src/co_scientist/constants.py)),
 the Evolution agent creates new hypotheses and provably never mutates a parent
 (with tests), and the Meta-review critique is threaded into most downstream
 agent prompts. Multi-turn debate for top-ranked pairs vs single-turn for
@@ -107,9 +107,9 @@ and the central decision to expose rather than hide the tournament.
   never accepted as proof; the call path was traced to confirm the behavior is
   reachable on the real provider path.
 - **Two run paths.** The **durable task path**
-  ([engine_tasks.py](../../../app/app/engine_tasks.py) + [task_worker.py](../../../app/app/task_worker.py))
+  ([engine_tasks.py](../../../../app/app/engine_tasks.py) + [task_worker.py](../../../../app/app/task_worker.py))
   is the only path a user run takes. The **streaming/compiled-LangGraph path**
-  ([engine_adapter/workflow.py](../../../app/app/engine_adapter/workflow.py)) is
+  ([engine_adapter/workflow.py](../../../../app/app/engine_adapter/workflow.py)) is
   reached only by the offline demo seeder. Behaviors are stated per path.
 - **Fidelity-first.** A feature that *exceeds, replaces, simplifies, or
   intentionally differs from* Google's design is a violation
@@ -232,18 +232,18 @@ the exact difference, **⇒** = fidelity consequence, class.
   *"What's your research challenge?"*. U: a chat composer with greeting *"What
   breakthrough should we make today?"*, floating label *"Start a new research
   goal to begin"*, placeholder-less textarea + a lock icon
-  ([chat_home_stage.tsx:234](../../../app/frontend/src/workbench/pages/chat_home_stage.tsx), [chat_composer.tsx:170-251](../../../app/frontend/src/workbench/pages/chat_composer.tsx)).
+  ([chat_home_stage.tsx:234](../../../../app/frontend/src/workbench/pages/chat_home_stage.tsx), [chat_composer.tsx:170-251](../../../../app/frontend/src/workbench/pages/chat_composer.tsx)).
   Δ: different copy; greeting vs question framing; a decorative `encrypted` lock
   icon implying encryption that doesn't exist. ⇒ textual/visual divergence.
   **divergent**
 - **A2 — Interview loop.** G(verified): conversational Agent interview, one
   question at a time. U: a real model-driven interview, one question at a time,
   streaming chain-of-thought, JSON-schema-constrained
-  ([interviews.py:242-321](../../../app/app/interviews.py)). Δ: none material in
+  ([interviews.py:242-321](../../../../app/app/interviews.py)). Δ: none material in
   mechanism. ⇒ **matched**
 - **A3 — Interview field vocabulary.** G(verified): Research Challenge / Focus
   Areas / Preferences. U: Research Challenge / Focus Area / Preferences (+ Title)
-  ([interviews.py:58-63](../../../app/app/interviews.py)). Δ: "Focus Area"
+  ([interviews.py:58-63](../../../../app/app/interviews.py)). Δ: "Focus Area"
   singular vs Google's "Focus Areas"; extra "Title" field. ⇒ minor terminology
   drift. **partial**
 - **A4 — Interview Progress stepper.** G(verified): a right-hand *"Interview
@@ -253,7 +253,7 @@ the exact difference, **⇒** = fidelity consequence, class.
   missing. **missing**
 - **A5 — Research-plan summary + approve.** G(verified): plan shown, "Open"
   enables when ready. U: a `RunSpecCard` with the four fields read-only + "Start
-  research" ([chat_timeline_run_spec_card.tsx](../../../app/frontend/src/workbench/pages/chat_timeline_run_spec_card.tsx)).
+  research" ([chat_timeline_run_spec_card.tsx](../../../../app/frontend/src/workbench/pages/chat_timeline_run_spec_card.tsx)).
   ⇒ **matched** (mechanism), with copy differences.
 - **A6 — Plan field editing.** G(unverifiable). U: the four fields are **not
   editable**; the "Edit research plan" button opens no editor and a post-edit
@@ -268,20 +268,20 @@ the exact difference, **⇒** = fidelity consequence, class.
   (grep-verified). ⇒ **missing**
 - **A9 — Mid-run scientist steering (UI).** G(verified paper interaction #1/#4):
   refine goal / direct follow-up. U: backend steering **works** and changes agent
-  behavior ([opts.py:120-128](../../../app/app/engine_adapter/opts.py),
-  [policy.py:305-316](../../../engine/src/co_scientist/scheduling/policy.py)), but
+  behavior ([opts.py:120-128](../../../../app/app/engine_adapter/opts.py),
+  [policy.py:305-316](../../../../engine/src/co_scientist/scheduling/policy.py)), but
   **no UI calls it** — `sendRunSteering` has zero call sites. ⇒ capability exists,
   unreachable by users. **partial**
 - **A10 — Contribute-your-own-hypothesis / manual review.** G(verified paper
   interaction #2/#3). U: endpoints + admission-through-safety exist
-  ([runs.py:788-845](../../../app/app/runs.py)) but **no UI**. ⇒ **partial**
+  ([runs.py:788-845](../../../../app/app/runs.py)) but **no UI**. ⇒ **partial**
 - **A11 — Voice input.** G: not shown in captures (likely none). U: none. ⇒
   **matched** (both absent).
 - **A12 — Interview turn cap.** G(unverifiable). U: **no** turn cap; a model that
-  never sets `completed` interviews indefinitely ([interviews.py:403](../../../app/app/interviews.py)). ⇒ **unverifiable** (robustness note).
+  never sets `completed` interviews indefinitely ([interviews.py:403](../../../../app/app/interviews.py)). ⇒ **unverifiable** (robustness note).
 - **A13 — Offline interview degradation.** U: on a keyless/offline deployment the
   interview silently falls to a canned 3-question script with no UI signal
-  ([interviews.py:324-361](../../../app/app/interviews.py)). ⇒ offline-only defect;
+  ([interviews.py:324-361](../../../../app/app/interviews.py)). ⇒ offline-only defect;
   **incorrect** in that failure mode.
 
 ### B. Standard/Advanced runs, configuration, execution behavior
@@ -290,12 +290,12 @@ the exact difference, **⇒** = fidelity consequence, class.
   Standard/Advanced form appears in the product; the paper parses the goal into a
   minimal free-text config (Preferences/Attributes/Constraints). U: a **four-tier**
   selector `express/standard/extended/ultra` on the plan card, each mapping to six
-  numeric knobs ([run_modes.py:59-92](../../../app/app/run_modes.py)). Δ: a
+  numeric knobs ([run_modes.py:59-92](../../../../app/app/run_modes.py)). Δ: a
   settings form Google doesn't surface; "Advanced Run" explicitly migrated away
-  ([run_modes.py:104-110](../../../app/app/run_modes.py)). ⇒ **non-faithful-extension**
+  ([run_modes.py:104-110](../../../../app/app/run_modes.py)). ⇒ **non-faithful-extension**
 - **B2 — "Advanced Run" terminology.** G(verified in paper/product literature as
   the deep mode). U: absent from UI; the shared public report labels tiers
-  "Advanced Run"/"Standard Run" ([shared_goal_report.tsx](../../../app/frontend/src/workbench/pages/shared_goal_report.tsx))
+  "Advanced Run"/"Standard Run" ([shared_goal_report.tsx](../../../../app/frontend/src/workbench/pages/shared_goal_report.tsx))
   but the live workspace shows Express/Standard/Extended/Ultra. Δ: nomenclature
   mismatch and internal inconsistency. ⇒ **divergent**
 - **B3 — What tiers actually change.** U(verified): `initial_hypotheses_count`
@@ -306,10 +306,10 @@ the exact difference, **⇒** = fidelity consequence, class.
   the *depth-scaling intent* is matched; the surfacing is not. **partial**
 - **B4 — Focus selector.** U: four foci (Prefer evidence / Balance / Prefer
   novelty / Breakthrough) that alter prompt text only
-  ([run_modes.py:159-183](../../../app/app/run_modes.py)). G: no such control. ⇒
+  ([run_modes.py:159-183](../../../../app/app/run_modes.py)). G: no such control. ⇒
   **non-faithful-extension**
 - **B5 — Connector toggles.** U: PubMed / Web search / Lab papers toggles on the
-  composer ([chat_workspace.tsx:46-50](../../../app/frontend/src/workbench/pages/chat_workspace.tsx)).
+  composer ([chat_workspace.tsx:46-50](../../../../app/frontend/src/workbench/pages/chat_workspace.tsx)).
   G(strong-inference): sources are chosen by the agent, named in plan prose
   (OpenTargets/PubMed/bioRxiv), not toggled by the user. ⇒ **non-faithful-extension**
 - **B6 — Estimated time/cost panel.** G(the product shows *"Time remaining 6h
@@ -319,25 +319,25 @@ the exact difference, **⇒** = fidelity consequence, class.
 ### C. User journey, screens, terminology, controls, states, progress, visuals
 
 - **C1 — Product name.** G(verified): "Hypothesis Generation". U: "Co-Scientist"
-  in the shell ([layout_header.tsx:99](../../../app/frontend/src/workbench/layout_header.tsx)).
+  in the shell ([layout_header.tsx:99](../../../../app/frontend/src/workbench/layout_header.tsx)).
   ⇒ **divergent**
 - **C2 — Color identity.** G(verified): green. U: teal seed `#1A6B6B` + Gemini
-  blue `#0b57d0` palette ([reference_surface.css](../../../app/frontend/src/styles/reference_surface.css)).
+  blue `#0b57d0` palette ([reference_surface.css](../../../../app/frontend/src/styles/reference_surface.css)).
   ⇒ **divergent**
 - **C3 — Typography.** G(verified): Google Sans family. U: self-hosted 'Google
-  Sans' / 'Google Sans Text' woff2 ([index.css:14-66](../../../app/frontend/src/index.css)).
+  Sans' / 'Google Sans Text' woff2 ([index.css:14-66](../../../../app/frontend/src/index.css)).
   ⇒ **matched** (note: the local reference doc's advice to avoid Google Sans is
   itself off-target for 1:1 product fidelity; a licensing concern, not a fidelity
   gap).
 - **C4 — Run state machine.** G(strong-inference, product shows Executing→report;
   paper: scoping/running/paused/completed/failed/aborted). U: 9 statuses
   `draft/queued/running/synthesizing/completed/cancelled/failed/blocked/paused`
-  ([store/models.py:19-32](../../../app/app/store/models.py)). Δ: extra
+  ([store/models.py:19-32](../../../../app/app/store/models.py)). Δ: extra
   `synthesizing`/`blocked`; `aborted`→`cancelled`. ⇒ superset, mostly compatible.
   **partial**
 - **C5 — Report tab *nav labels*.** G(verified): `Ideas | Knowledge Base |
   Summary | Run Specification`. U nav labels: `Goal Details | Learning | Research
-  Overview | All Ideas` ([run_detail_shell.tsx:10-13](../../../app/frontend/src/workbench/pages/run_detail_shell.tsx)).
+  Overview | All Ideas` ([run_detail_shell.tsx:10-13](../../../../app/frontend/src/workbench/pages/run_detail_shell.tsx)).
   Δ: **all four differ**, and the order is inverted (Google leads with Ideas; we
   lead with Goal Details / end with All Ideas). ⇒ **divergent** (high impact).
 - **C6 — Report tab *document headings*.** U(verified): the internal `<h2>`
@@ -347,15 +347,15 @@ the exact difference, **⇒** = fidelity consequence, class.
   **partial**
 - **C7 — Mid-run visibility.** G(verified): the run view + a live report. U: while
   a run is active the **tab bar is suppressed** — ideas/report are unviewable
-  until the run settles ([run_detail.tsx:75-77](../../../app/frontend/src/workbench/pages/run_detail.tsx)).
+  until the run settles ([run_detail.tsx:75-77](../../../../app/frontend/src/workbench/pages/run_detail.tsx)).
   ⇒ **divergent**
 - **C8 — Idea labels on cards.** G(verified): `HIGH POTENTIAL` / `NON VIABLE`
   pills on each idea card. U: **no such labels on cards**; the buckets exist only
   as report stat tiles. Idea rows instead show a **rank number + "Elo rating: N"
-  chip + "Unverified" chip** ([ideas_tab.tsx:255-299](../../../app/frontend/src/workbench/components/tabs/ideas_tab.tsx)).
+  chip + "Unverified" chip** ([ideas_tab.tsx:255-299](../../../../app/frontend/src/workbench/components/tabs/ideas_tab.tsx)).
   ⇒ **missing** (labels) + **non-faithful-extension** (Elo exposed).
 - **C9 — Follow-up "Chat with Agent".** G(verified): a per-idea follow-up. U: Q&A
-  endpoint exists ([qa.py](../../../app/app/qa.py)) but **no UI**; the started-run
+  endpoint exists ([qa.py](../../../../app/app/qa.py)) but **no UI**; the started-run
   card only offers "View session details" / "Start a new … session". ⇒ **missing**
   (surface).
 - **C10 — Mechanism diagrams.** G(verified): expanded idea cards render a
@@ -368,16 +368,16 @@ the exact difference, **⇒** = fidelity consequence, class.
 
 - **D1 — Ideas = leaderboard vs card list.** G(verified): a card list, **Elo
   hidden**, tournament is an engine not a UI feature. U: an **Elo-descending
-  leaderboard** with rank chips ([lib/hypotheses.ts:12-14](../../../app/frontend/src/lib/hypotheses.ts)).
+  leaderboard** with rank chips ([lib/hypotheses.ts:12-14](../../../../app/frontend/src/lib/hypotheses.ts)).
   ⇒ the single most consequential product divergence. **non-faithful-extension**
 - **D2 — Agent Insights panel.** G(verified): a collapsible prose panel. U: an
   "Agent Insights" section with Key findings / Uncertainties / Contradictions /
-  Recommended directions / Next experiments ([run_detail_overview.tsx:213-243](../../../app/frontend/src/workbench/pages/run_detail_overview.tsx)).
+  Recommended directions / Next experiments ([run_detail_overview.tsx:213-243](../../../../app/frontend/src/workbench/pages/run_detail_overview.tsx)).
   ⇒ **matched** (concept), richer subsections.
 - **D3 — Report stat tiles.** G(verified): `High potential ideas / Non-viable
   ideas / Number of verified ideas / Sources analyzed`. U: `High Potential /
   Non-Viable / Verified ideas / Sources Analyzed`
-  ([run_detail_overview.tsx:156-161](../../../app/frontend/src/workbench/pages/run_detail_overview.tsx)).
+  ([run_detail_overview.tsx:156-161](../../../../app/frontend/src/workbench/pages/run_detail_overview.tsx)).
   Δ: label wording/casing differs; and **"Verified ideas" displays the same
   number as "High Potential"** (both bound to `highPotential`), whereas Google's
   "verified" is an independent axis (4+20≠15). ⇒ **incorrect** (duplicated tile) +
@@ -386,7 +386,7 @@ the exact difference, **⇒** = fidelity consequence, class.
   "Summary" + "Show more", inline citation chips, sticky navigator, "References" +
   "Search references" + `[n]` + "Open". U: up to **3** sections with "Summary" /
   "Show more" / "Details", a "References" block with "Search references" + `[n]` +
-  "Open" ([run_detail_learning.tsx](../../../app/frontend/src/workbench/pages/run_detail_learning.tsx)).
+  "Open" ([run_detail_learning.tsx](../../../../app/frontend/src/workbench/pages/run_detail_learning.tsx)).
   Δ: far fewer sections; no sticky navigator; no inline citation chips in prose;
   and the common fallback restates hypotheses rather than a synthesized monograph.
   ⇒ **partial**
@@ -411,14 +411,14 @@ the exact difference, **⇒** = fidelity consequence, class.
   ([impl-app-backend §9](.)). ⇒ **unverifiable** target; capability effectively
   absent in-product.
 - **D10 — Public share.** U: `/shared/:token` renders, but **no UI mints a token**
-  ([shares.py](../../../app/app/shares.py)). ⇒ **partial** (unreachable).
+  ([shares.py](../../../../app/app/shares.py)). ⇒ **partial** (unreachable).
 
 ### E. Agent coalition — roles, prompts, inputs, outputs, observable behavior
 
 - **E1 — Roster size.** G(verified): **7** agents. U: engine registers ~8 agent
   packages (Supervisor, Generation, Reflection, Ranking, Proximity, Evolution,
   Meta-review, Safety) + Literature-Review + Research-Overview + Orchestrator +
-  Deep-Verification as distinct nodes ([agents/](../../../engine/src/co_scientist/agents/)).
+  Deep-Verification as distinct nodes ([agents/](../../../../engine/src/co_scientist/agents/)).
   Δ: safety/literature/citation are explicit — closer to the paper's 7 than the
   clone-corpus's 12. ⇒ **matched** in spirit (7 canonical roles all present).
 - **E2 — Generation techniques.** G(verified): 4 (literature exploration;
@@ -435,8 +435,8 @@ the exact difference, **⇒** = fidelity consequence, class.
 - **E5 — Deep verification depth.** G(verified): decompose into assumptions →
   **sub-assumptions**, **decontextualize**, judge **fundamental-ness**. U:
   one flat assumption level; **no sub-assumptions**, **no decontextualization**;
-  fundamental-ness present ([deep_verification.py](../../../engine/src/co_scientist/agents/reflection/deep_verification.py),
-  [schemas/review.py:231-271](../../../engine/src/co_scientist/schemas/review.py)).
+  fundamental-ness present ([deep_verification.py](../../../../engine/src/co_scientist/agents/reflection/deep_verification.py),
+  [schemas/review.py:231-271](../../../../engine/src/co_scientist/schemas/review.py)).
   ⇒ **partial** (two of three defining behaviors missing).
 - **E6 — Full/simulation/recurrent reviews are write-only.** U(verified): computed
   at LLM+retrieval cost, serialized to `enrichments`, but **nothing in ranking,
@@ -444,17 +444,17 @@ the exact difference, **⇒** = fidelity consequence, class.
   reviews "provide feedback to all other agents." ⇒ **incorrect** (no causal
   effect; wasted compute).
 - **E7 — Initial-review tool-free.** G(verified). U: genuinely tool-free single
-  LLM call ([review.py](../../../engine/src/co_scientist/agents/reflection/review.py)).
+  LLM call ([review.py](../../../../engine/src/co_scientist/agents/reflection/review.py)).
   ⇒ **matched**
 - **E8 — Full-review search grounding.** G(verified): search-grounded, gated on
   initial pass. U: real MCP retrieval feeds the prompt (retrieve-then-prompt, not
-  agentic); **without MCP it runs ungrounded** ([comprehensive_reflection.py:163-166](../../../engine/src/co_scientist/agents/reflection/comprehensive_reflection.py)).
+  agentic); **without MCP it runs ungrounded** ([comprehensive_reflection.py:163-166](../../../../engine/src/co_scientist/agents/reflection/comprehensive_reflection.py)).
   ⇒ **partial** (grounded only when MCP is up).
 - **E9 — Evolution strategies.** G(verified): 6. U: **5** operators
   (`ENHANCEMENT, SIMPLIFICATION, COMBINATION, ANALOGY, OUT_OF_BOX`);
   "coherence/feasibility" folded into ENHANCEMENT; "inspiration from existing"
   absent; selected by **round-robin**, so ENHANCEMENT never fires on express
-  ([evolution_operators.py](../../../engine/src/co_scientist/agents/evolution/evolution_operators.py)).
+  ([evolution_operators.py](../../../../engine/src/co_scientist/agents/evolution/evolution_operators.py)).
   ⇒ **partial**
 - **E10 — Enhancement-through-grounding retrieval.** G(verified): retrieve
   articles, fill gaps. U: **no retrieval anywhere in evolution**; only stale
@@ -463,16 +463,16 @@ the exact difference, **⇒** = fidelity consequence, class.
 - **E11 — Ranking judge prompt.** G(verified): pairwise, criteria
   novelty/correctness/testability, verdict token `"better idea: <1 or 2>"`. U: a
   single "Tournament Judge" on 7 criteria; verdict is a **JSON enum `["a","b"]`**,
-  not the literal token ([ranking.py:200-220](../../../engine/src/co_scientist/agents/ranking/ranking.py)).
+  not the literal token ([ranking.py:200-220](../../../../engine/src/co_scientist/agents/ranking/ranking.py)).
   Δ: functionally equivalent, literally different; and 7 criteria are collected
   but **not parsed**. ⇒ **divergent**
 - **E12 — Meta-review synthesis.** G(verified): synthesize reviews + debates → a
   critique. U: synthesizes both reviews and debate transcripts
-  ([meta_review.py:265-273](../../../engine/src/co_scientist/agents/meta_review/meta_review.py)).
+  ([meta_review.py:265-273](../../../../engine/src/co_scientist/agents/meta_review/meta_review.py)).
   ⇒ **matched**
 - **E13 — Supervisor persona.** G(verified): administrative planner. U: a plan
   call producing *domain guidance* (explicitly forbidden from planning execution)
-  + a per-cycle allocation call ([supervisor.py](../../../engine/src/co_scientist/agents/supervisor/supervisor.py)).
+  + a per-cycle allocation call ([supervisor.py](../../../../engine/src/co_scientist/agents/supervisor/supervisor.py)).
   ⇒ **matched** (role), with 3 of 6 guidance blocks unused.
 - **E14 — Prompt termination tokens.** G(verified): debate ends on `HYPOTHESIS`;
   comparison ends on `better idea:`. U: the `HYPOTHESIS` token is instructed but
@@ -486,22 +486,22 @@ the exact difference, **⇒** = fidelity consequence, class.
   (Preferences/Attributes/Constraints). U: a Supervisor LLM call produces
   6-field domain guidance; the *numeric* config comes from the app's tier table,
   and the Supervisor is forbidden from changing it
-  ([supervisor.md:7,94](../../../engine/src/co_scientist/prompts/templates/supervisor.md)).
+  ([supervisor.md:7,94](../../../../engine/src/co_scientist/prompts/templates/supervisor.md)).
   ⇒ **partial**
 - **F2 — Summary statistics.** G(verified): hypotheses generated, requiring
   review, tournament progress, generation-vs-evolution effectiveness. U: **all
-  four computed** ([orchestrator.py:114-166](../../../engine/src/co_scientist/agents/supervisor/orchestrator.py)).
+  four computed** ([orchestrator.py:114-166](../../../../engine/src/co_scientist/agents/supervisor/orchestrator.py)).
   ⇒ **matched**
 - **F3 — Weighted sampling / re-weighting.** G(verified): "strategically weighting
   and sampling the specialized agents." U: **no weighted sampling**; an LLM picks
   one of five tasks per cycle under deterministic guardrails; the per-agent
   `performance_assessment` that would drive re-weighting is computed but **unused**
-  ([supervisor_decision.py](../../../engine/src/co_scientist/agents/supervisor/supervisor_decision.py)).
+  ([supervisor_decision.py](../../../../engine/src/co_scientist/agents/supervisor/supervisor_decision.py)).
   ⇒ **partial**
 - **F4 — Async worker framework.** G(verified): agents as async worker processes
   off a durable queue managed by the Supervisor. U: a **real** durable SQLite task
   queue with leases/heartbeats/retries/idempotency, 8-worker cohort, per-node
-  fan-out ([task_worker.py](../../../app/app/task_worker.py), [store/tasks.py](../../../app/app/store/tasks.py)).
+  fan-out ([task_worker.py](../../../../app/app/task_worker.py), [store/tasks.py](../../../../app/app/store/tasks.py)).
   ⇒ **matched** (strong; arguably more faithful than the local-ref LangGraph
   design).
 - **F5 — Parallelism.** U: genuine intra-node fan-out (review/generation/mature-reflection/deep-verification) at ≤8 concurrency; the node-type chain is
@@ -510,12 +510,12 @@ the exact difference, **⇒** = fidelity consequence, class.
   NumberOfMatchesPerIdea < MaxMatchesPerIdea`. U: terminates on **iteration
   budget** (COMPLETED), convergence (top-Elo stable 2 cycles), or **LLM-call
   budget**; `MaxIdeas`/`MaxMatchesPerIdea` are not the predicate
-  ([policy.py](../../../engine/src/co_scientist/scheduling/policy.py)). ⇒
+  ([policy.py](../../../../engine/src/co_scientist/scheduling/policy.py)). ⇒
   **divergent** (different, reasonable termination model).
 - **F7 — Evolution trigger cadence.** G(verified pseudocode): Evolution is
   **stagnation-gated**. U: Evolution fires via a generation-vs-evolution
   effectiveness tiebreak that, on a tie (the common both-zero case), **alternates**
-  — so it can fire without stagnation ([policy.py:110-140](../../../engine/src/co_scientist/scheduling/policy.py)).
+  — so it can fire without stagnation ([policy.py:110-140](../../../../engine/src/co_scientist/scheduling/policy.py)).
   ⇒ **partial**
 - **F8 — Dead termination reasons.** U: `CANCELLED`/`SAFETY`/`MAX_TASKS`/`WALL_CLOCK` reasons exist but their state keys are never written; cancellation is
   enforced outside the engine ([impl-supervisor §2,§6](.)). ⇒ dead code, not a
@@ -534,8 +534,8 @@ the exact difference, **⇒** = fidelity consequence, class.
   effective retrieval is "critical." U: multi-term natural-language phrases are
   sent verbatim to `Entrez.esearch`, which **ANDs every token**; no MeSH, no OR
   expansion, no field tags, **no broadening retry on zero results**, and the final
-  fallback sends the entire prose goal ([queries.py:176-184](../../../engine/src/co_scientist/agents/generation/literature_review/queries.py),
-  [pubmed_client.py:194-219](../../../engine/mcp_server/...)). ⇒ **incorrect**
+  fallback sends the entire prose goal ([queries.py:176-184](../../../../engine/src/co_scientist/agents/generation/literature_review/queries.py),
+  [pubmed_client.py:194-219](../../../../engine/mcp_server/...)). ⇒ **incorrect**
   (frequently-empty grounding — the documented root cause of the ~99%
   "insufficient" evidence rate).
 - **G3 — Hybrid/semantic/vector search.** G(paper-unspecified; embeddings hinted
@@ -544,18 +544,18 @@ the exact difference, **⇒** = fidelity consequence, class.
   acceptable per the paper but **partial** vs a grounded ideal.
 - **G4 — Knowledge/evidence graph.** G(paper: not integrated — a stated
   limitation). U: no scientific entity graph; a real per-claim `claim_evidence`
-  provenance table exists ([store/db.py:695-711](../../../app/app/store/db.py)).
+  provenance table exists ([store/db.py:695-711](../../../../app/app/store/db.py)).
   ⇒ **matched** (both lack a KG); entity extraction is regex, not NER.
 - **G5 — Citation label ("verified").** G(verified product): "clickable
   citations"; ideas "linked to a … knowledge base of verified references." U: the
   four-state label is **Jaccard token overlap ≥0.35/0.10**, and the module calls
-  itself a "mock" ([app/citations.py:87-105](../../../app/app/citations.py)). It
+  itself a "mock" ([app/citations.py:87-105](../../../../app/app/citations.py)). It
   runs on the real path. ⇒ **incorrect** ("verified" ≠ verification).
 - **G6 — Claim-level NLI entailment.** Not a Google-stated mechanism, but the
   faithful realization of "grounded/verified claims." U: a **real** LLM entailment
   judge (SUPPORTS/CONTRADICTS/INSUFFICIENT) with verbatim-quote provenance and an
   anti-hallucination span-locate downgrade, default-on
-  ([claims.py](../../../app/app/claims.py), [claim_verifier.py](../../../app/app/claim_verifier.py)).
+  ([claims.py](../../../../app/app/claims.py), [claim_verifier.py](../../../../app/app/claim_verifier.py)).
   ⇒ **matched** (a genuine strength); its lexical retrieval stage is a limiter.
 - **G7 — Retraction checking.** G(unverifiable for the product). U: OpenAlex
   `is_retracted:false` filter only; **PubMed carries no retraction field**, no
@@ -565,7 +565,7 @@ the exact difference, **⇒** = fidelity consequence, class.
   `available` = "URL string non-empty." ⇒ **partial**
 - **G9 — Private-repository indexing.** G(verified paper): index a scientist's
   private publications. U: per-run attachment upload + a BM25-style keyword
-  retriever ([run_corpus.py](../../../app/app/run_corpus.py)). ⇒ **matched**
+  retriever ([run_corpus.py](../../../../app/app/run_corpus.py)). ⇒ **matched**
   (run-scoped).
 - **G10 — AlphaFold / specialized models.** G(verified, qualitative). U: none. ⇒
   **missing** (but Google's is qualitative-only).
@@ -573,26 +573,26 @@ the exact difference, **⇒** = fidelity consequence, class.
 ### H. Hypothesis lifecycle — proximity, clustering, debate, ranking, Elo, evolution
 
 - **H1 — Elo init 1200.** G(verified ×3). U: `INITIAL_ELO_RATING = 1200`
-  ([constants.py:24](../../../engine/src/co_scientist/constants.py)). ⇒ **matched**
+  ([constants.py:24](../../../../engine/src/co_scientist/constants.py)). ⇒ **matched**
 - **H2 — Multi-turn top / single-turn low.** G(verified). U: 3-turn debate when
   either side ≥ pool-median Elo, else 1-turn; genuine multiple LLM round-trips,
-  position-balanced, majority vote ([ranking.py:328-418](../../../engine/src/co_scientist/agents/ranking/ranking.py)).
+  position-balanced, majority vote ([ranking.py:328-418](../../../../engine/src/co_scientist/agents/ranking/ranking.py)).
   ⇒ **matched** (threshold is clone-defined — paper doesn't specify the cutoff).
 - **H3 — Debate turn counts.** G(verified): 3–5 typical, max 10. U: generation
   debate hard-coded to **5** (prompt says "max 10"); ranking debate fixed at
-  **3**/1 ([constants.py:37-98](../../../engine/src/co_scientist/constants.py)). ⇒
+  **3**/1 ([constants.py:37-98](../../../../engine/src/co_scientist/constants.py)). ⇒
   **partial** (fixed, not the 3–5/10 range).
 - **H4 — Match pairing.** G(verified): Proximity-similar + newer/top-ranked. U:
   weighted matchmaking with recency + rank + a dominant +2.0 same-cluster bonus
-  ([ranking_matchmaking.py](../../../engine/src/co_scientist/agents/ranking/ranking_matchmaking.py)).
+  ([ranking_matchmaking.py](../../../../engine/src/co_scientist/agents/ranking/ranking_matchmaking.py)).
   ⇒ **matched**
 - **H5 — Elo K-factor.** G(unverifiable — paper-unspecified). U: fixed **24**, no
-  annealing, no margin scaling, no draws ([ranking_elo.py](../../../engine/src/co_scientist/agents/ranking/ranking_elo.py)).
+  annealing, no margin scaling, no draws ([ranking_elo.py](../../../../engine/src/co_scientist/agents/ranking/ranking_elo.py)).
   ⇒ clone-defined; **matched** to "reasonable configurable choice" (though it
   departs from the annealed schedule the local refs document).
 - **H6 — Proximity embeddings.** G(paper: "e.g. text embeddings" — unspecified).
   U: **LLM-judged** qualitative similarity (high/medium/low → 0.3/0.6/1.0), no
-  embeddings ([proximity_graph.py](../../../engine/src/co_scientist/agents/proximity/proximity_graph.py)).
+  embeddings ([proximity_graph.py](../../../../engine/src/co_scientist/agents/proximity/proximity_graph.py)).
   ⇒ clone-defined; **partial** (functional for dedup/matchmaking).
 - **H7 — Persisted proximity graph.** U: **always empty** — the graph builder
   reads a `text` field the schema no longer emits (index/text mismatch from commit
@@ -603,7 +603,7 @@ the exact difference, **⇒** = fidelity consequence, class.
 - **H8 — Evolution new-only invariant.** G(verified). U: children are fresh
   `Hypothesis` objects with `parent_id`, generation+1, fresh Elo 1200, 0 matches,
   0 reviews; parent never mutated; guaranteed by the append-only reducer; locked
-  by tests ([evolve_results.py:76-96](../../../engine/src/co_scientist/agents/evolution/evolve_results.py)).
+  by tests ([evolve_results.py:76-96](../../../../engine/src/co_scientist/agents/evolution/evolve_results.py)).
   ⇒ **matched**
 - **H9 — Multi-parent combination.** G(verified strategy): combine several top
   hypotheses. U: lineage is **single `parent_id`** (no `parent_ids`); COMBINATION
@@ -612,7 +612,7 @@ the exact difference, **⇒** = fidelity consequence, class.
   crippled).
 - **H10 — Evolution reads top-5, overview reads top-10.** G(verified). U:
   `evolution_max_count` per tier (4/8/12/16, not fixed 5); research overview
-  `RESEARCH_OVERVIEW_TOP_K = 10` ([constants.py:114](../../../engine/src/co_scientist/constants.py)).
+  `RESEARCH_OVERVIEW_TOP_K = 10` ([constants.py:114](../../../../engine/src/co_scientist/constants.py)).
   ⇒ **partial** (overview matched; evolution set-size differs).
 - **H11 — Diversity across parallel debates.** U: 8 diversity angles exist but are
   **inert on the durable path** (each debate task runs with `total_debates=1`)
@@ -636,7 +636,7 @@ the exact difference, **⇒** = fidelity consequence, class.
   ([impl-evolution §9](.)). ⇒ **missing**
 - **I4 — Feedback from tournament to Reflection (recurrent).** G(verified). U:
   recurrent review reuses full-review with injected tournament state
-  ([comprehensive_reflection.py:210-216](../../../engine/src/co_scientist/agents/reflection/comprehensive_reflection.py)),
+  ([comprehensive_reflection.py:210-216](../../../../engine/src/co_scientist/agents/reflection/comprehensive_reflection.py)),
   but its output is write-only (E6). ⇒ **partial**
 - **I5 — Elo history / journal.** U: no journal table; matches store before/after
   snapshots but `iteration` is hard-coded 0 and matches are written **only at
@@ -655,11 +655,11 @@ the exact difference, **⇒** = fidelity consequence, class.
 - **J1 — Two-gate design.** G(verified): goal intake (reject) + per-hypothesis
   pre-tournament (exclude, don't develop, don't show). U: intake gate + a
   per-hypothesis `safety_screen` node run **before every ranking**, plus a final
-  output gate ([safety_screen.py](../../../engine/src/co_scientist/agents/safety/safety_screen.py),
-  [engine_tasks.py:692](../../../app/app/engine_tasks.py)). ⇒ **matched**
+  output gate ([safety_screen.py](../../../../engine/src/co_scientist/agents/safety/safety_screen.py),
+  [engine_tasks.py:692](../../../../app/app/engine_tasks.py)). ⇒ **matched**
 - **J2 — Classifier type.** G(verified): "automated safety evaluation" on Gemini
   (model-based). U: the **primary classifier is a regex list**; the LLM is an
-  optional escalation ([safety.py](../../../engine/src/co_scientist/safety.py)). ⇒
+  optional escalation ([safety.py](../../../../engine/src/co_scientist/safety.py)). ⇒
   **partial**
 - **J3 — Intake vs hypothesis asymmetry.** U: the intake content policy is
   materially **weaker** than the per-hypothesis policy — a goal like "design a
@@ -669,7 +669,7 @@ the exact difference, **⇒** = fidelity consequence, class.
 - **J4 — Fail-open on missing credential.** U: if the configured semantic-safety
   model's provider key is absent, the LLM layer is **silently skipped** (regex-only
   safety) with no log line; default model is DeepSeek, so a DashScope deployment
-  without `DEEPSEEK_API_KEY` is regex-only ([safety.py:117-167](../../../app/app/safety.py)).
+  without `DEEPSEEK_API_KEY` is regex-only ([safety.py:117-167](../../../../app/app/safety.py)).
   ⇒ **incorrect** (silent fail-open).
 - **J5 — Continuous mid-flight monitoring / halt.** G(verified safeguard #4):
   meta-review continuously monitors and alerts. U: **no mid-flight halt** —
@@ -685,7 +685,7 @@ the exact difference, **⇒** = fidelity consequence, class.
   filter ([impl-safety §2](.)). ⇒ **missing** (unattested for Google too).
 - **J9 — Adversarial benchmark.** G(verified): **1,200** goals / 40 topics, plus
   ~2,000 safe controls. U: a **13-item** hand-written suite, near-tautological,
-  self-acknowledged as "NOT Google's 1,200-goal set" ([safety_eval.py](../../../evaluations/safety_eval.py)).
+  self-acknowledged as "NOT Google's 1,200-goal set" ([safety_eval.py](../../../../evaluations/safety_eval.py)).
   ⇒ **partial** (token coverage).
 - **J10 — Reviewer safety score.** U: `REVIEW_SCHEMA` collects a `safety` score
   but **no code reads it to reject**; rejection uses only soundness + novelty. ⇒
@@ -703,7 +703,7 @@ the exact difference, **⇒** = fidelity consequence, class.
 - **K3 — Hypothesis output structure.** G(verified real outputs): long
   mechanism-naming title + abstract prose + mechanism + experiment. U: schema
   fields hypothesis/explanation/literature_grounding/experiment/category
-  ([schemas/generation.py:63](../../../engine/src/co_scientist/schemas/generation.py)).
+  ([schemas/generation.py:63](../../../../engine/src/co_scientist/schemas/generation.py)).
   ⇒ **matched** (shape).
 - **K4 — Categorize + summarize.** G(verified). U: an optional `category` field
   (not always populated; absent from the prompt body) + `explanation`; no separate

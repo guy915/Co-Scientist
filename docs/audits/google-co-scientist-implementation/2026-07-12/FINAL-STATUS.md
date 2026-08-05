@@ -2,10 +2,10 @@
 
 **Date:** 2026-07-14
 **Reconciled HEAD:** see `git log` (the reconciliation commits of 2026-07-14)
-**Companion artifacts:** `GOOGLE_CO_SCIENTIST_FIDELITY_DIFF_2026-07-12.md`
-(232-row audit), `GOOGLE_CO_SCIENTIST_1_TO_1_IMPLEMENTATION_PROMPT.md`
-(17 acceptance conditions), `fidelity_closure_overrides.json` + generated
-`IMPLEMENTATION_CLOSURE_MATRIX_2026-07-13.md` (per-finding ledger), `docs/PARITY.md`.
+**Companion artifacts:** `FIDELITY-DIFF.md`
+(232-row audit), `IMPLEMENTATION-PROMPT.md`
+(17 acceptance conditions), `closure-overrides.json` + generated
+`CLOSURE-MATRIX.md` (per-finding ledger), `docs/PARITY.md`.
 
 ## 1. Outcome summary
 
@@ -116,7 +116,7 @@ confirmation bias, and the audit endorsed the fail-closed choice.
 | 16 Evaluation reports checked in | partial | Citation/safety/expert-readiness/scaling harness/failure-recovery present; GPQA/scaling-curve/expert-panel/wet-lab external. |
 | 17 Documentation identifies uncertainty | implemented | This document + reconciled ledger + consistent PARITY; no literal-parity claim; the product itself labels reconstruction provenance. |
 
-`PREVIOUS_SESSION_SUMMARY.md` (a prior session's transcript summary) is now
+`SESSION-SUMMARY.md` (a prior session's transcript summary) is now
 tracked with the other audit artifacts, since the goal's reading list references
 it and it should be durable for future sessions.
 
@@ -228,7 +228,7 @@ never `verified_google`:
 
 The authoritative `verified` / `inferred` / `reconstructed` / `extension` /
 `unavailable` taxonomy lives at the audit level — the reconciled closure ledger
-(`fidelity_closure_overrides.json`) and this register — rather than as a
+(`closure-overrides.json`) and this register — rather than as a
 machine-readable `fidelity_provenance` section emitted on every run. The product
 surfaces reconstruction provenance only as a conditional UI note (Run
 Specifications, when legacy criteria are present) plus the run's stored `tier`;

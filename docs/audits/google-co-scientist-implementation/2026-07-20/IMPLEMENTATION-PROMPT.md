@@ -1,6 +1,6 @@
 # Implementation prompt: evidence-bounded Google Co-Scientist / Hypothesis Generation reconstruction
 
-Use this self-contained prompt as the governing instruction for the implementation effort, together with the repository's `AGENTS.md`. The companion `GOOGLE_CO_SCIENTIST_FIDELITY_DIFF_2026-07-20.md` supplies row-level evidence and reproduction detail, but this prompt does not depend on it to define the required outcome, work, or acceptance conditions. Do not treat an older fidelity, parity, closure, handoff, plan, mock, demo, or test-name claim as truth when it conflicts with current source, runtime behavior, or primary Google evidence.
+Use this self-contained prompt as the governing instruction for the implementation effort, together with the repository's `AGENTS.md`. The companion `FIDELITY-DIFF.md` supplies row-level evidence and reproduction detail, but this prompt does not depend on it to define the required outcome, work, or acceptance conditions. Do not treat an older fidelity, parity, closure, handoff, plan, mock, demo, or test-name claim as truth when it conflicts with current source, runtime behavior, or primary Google evidence.
 
 ## Mission
 

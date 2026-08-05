@@ -456,7 +456,7 @@ Remove the never-enqueued `run.workflow` task type. Reconcile the two
 
 ## Where to look (do not re-audit; use these)
 
-- Full findings + evidence with `file:line`: `FIDELITY_DIFF_2026-07-21.md` (this
+- Full findings + evidence with `file:line`: `FIDELITY-DIFF.md` (this
   folder), register rows R1–R58.
 - Per-subsystem implementation dossiers and the paper/product evidence dossiers:
   the audit scratchpad at

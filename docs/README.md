@@ -22,6 +22,7 @@ but do not update them to match later changes.
 
 | Dir | Contents |
 |---|---|
+| [`audits/google-co-scientist-implementation/`](audits/google-co-scientist-implementation/README.md) | Three dated fidelity audits vs. Google's Co-Scientist and the Hypothesis Generation product, plus a cross-audit register that deduplicates them. None of them credits `FIDELITY.md` or `PARITY.md` as evidence — read the audits when those two disagree with the tree. |
 | `decisions/` | Dated decision records |
 | `superpowers/plans/` | Dated implementation plans |
 | `superpowers/specs/` | Dated design specs |

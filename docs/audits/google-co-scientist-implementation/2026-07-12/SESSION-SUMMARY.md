@@ -21,8 +21,8 @@
 - Engine 1,018 tests, backend 371, frontend 270 passed; build, lint, both type checks pass.
 - **Fidelity evaluation itself failed**: offline citation smoke reported contradiction recall **0.75** against required **0.80**. A recent real engine report published **five ideas while its own citation audit marked all 13 claims unsupported** — recorded as a critical behavioral gap, not cosmetic.
 **Deliverables (unstaged; staging blocked by quota).**
-1. `docs/audits/.../GOOGLE_CO_SCIENTIST_FIDELITY_DIFF_2026-07-12.md` — executive conclusion, map of both systems, **232 independently traceable comparison items**, exhaustive difference register, separate inferred/unverifiable register, strictly-ordered fidelity-first roadmap. No numeric score. Findings indexed A01–M20.
-2. `docs/audits/.../GOOGLE_CO_SCIENTIST_1_TO_1_IMPLEMENTATION_PROMPT.md` — imperative build spec with **17 acceptance conditions**.
+1. `docs/audits/.../FIDELITY-DIFF.md` — executive conclusion, map of both systems, **232 independently traceable comparison items**, exhaustive difference register, separate inferred/unverifiable register, strictly-ordered fidelity-first roadmap. No numeric score. Findings indexed A01–M20.
+2. `docs/audits/.../IMPLEMENTATION-PROMPT.md` — imperative build spec with **17 acceptance conditions**.
 **Audit conclusion.** A functioning Co-Scientist-*inspired* prototype, **not** a close 1:1 replica. Largest discrepancies:
 - Static sequential orchestration vs Google's adaptive asynchronous task framework.
 - Insufficient scientific grounding/verification (inspected report: 13 unsupported, 0 verified claims).
@@ -97,7 +97,7 @@ The plan was executed as evidence-linked checkpoints, each verified and committe
   - Debate → one leased task per debate (not six debates hidden in one strategy worker).
 - Commit: `f76a66b4 feat(orchestration): run scientific work as durable tasks` (3,176 additions, 26 files) — confirmed the earlier commit restriction wasn't permanent.
 - Mature Reflection modes decomposed the same way: `d355f19e`. App 422.
-**Closure ledger.** `scripts/build_fidelity_closure.py` + `fidelity_closure_overrides.json` mechanically enumerate all **232** audited findings + **17** gates, defaulting fail-closed to `unproven`; only rows with direct evidence promoted. Generated `IMPLEMENTATION_CLOSURE_MATRIX_2026-07-13.md`.
+**Closure ledger.** `scripts/build_fidelity_closure.py` + `closure-overrides.json` mechanically enumerate all **232** audited findings + **17** gates, defaulting fail-closed to `unproven`; only rows with direct evidence promoted. Generated `CLOSURE-MATRIX.md`.
 - Commit: `c839bd0d`. (Noted honestly: overrides initially covered only ~10 findings, so most rows read `unproven` even where later commits implement them — a reconciliation debt, not proof 230 features are absent.)
 **Retrieval.** OpenAlex cursor pagination (verified against docs), API-key support, explicit retraction exclusion/metadata, deterministic source-quality/impact/recency ranking after cross-source dedup; default registry activates PubMed **and** OpenAlex; merged corpus capped to the unique evidence budget; ChEMBL and reviewed UniProt tools registered with provenance.
 - Commit: `2b6223d2`.
@@ -127,7 +127,7 @@ Checkpoint verification band across this stretch: engine ~1,047 (Ruff + mypy), a
 > **[User]** Okay take a tangent to document everything, so this goal can be carried over and continued in fresh sessions or even different coding agents.
 **[Assistant]**
 - First closed a small recovery fix as its own verified checkpoint so a future agent doesn't inherit a half-change: `c2ac6c3e fix(recovery): complete superseded tasks idempotently`.
-- Wrote `docs/audits/.../IMPLEMENTATION_HANDOFF_2026-07-13.md` (~505 lines): authoritative artifacts + evidence hierarchy; all 17 acceptance-condition statuses; major checkpoints/commits; current dirty-worktree ownership; real-provider soak run + root-database details; known defects/risks/scientific gaps; evaluation + browser work remaining; exact service/test/verification commands; strict next-action sequence; browser-state matrix; common traps; completion-audit protocol. Updated `.remember/remember.md` to route fresh sessions to it.
+- Wrote `docs/audits/.../HANDOFF.md` (~505 lines): authoritative artifacts + evidence hierarchy; all 17 acceptance-condition statuses; major checkpoints/commits; current dirty-worktree ownership; real-provider soak run + root-database details; known defects/risks/scientific gaps; evaluation + browser work remaining; exact service/test/verification commands; strict next-action sequence; browser-state matrix; common traps; completion-audit protocol. Updated `.remember/remember.md` to route fresh sessions to it.
 - Commit: `0f3bdb3e docs(fidelity): add implementation continuation handoff`. The four pre-existing in-progress files preserved and documented separately.
 ---
 
@@ -177,11 +177,11 @@ Representative real-run terminal states observed: one soak completed 192 durable
 
 > **[User]** so how many artifacts are there for this, there was an original diff document, and implementation prompt, some matrix, the handoff, probably other ones I'm missing?
 **[Assistant]** Core implementation-control artifacts (5):
-1. `GOOGLE_CO_SCIENTIST_FIDELITY_DIFF_2026-07-12.md` — 232-item audit, uncertainty + difference registers, roadmap.
-2. `GOOGLE_CO_SCIENTIST_1_TO_1_IMPLEMENTATION_PROMPT.md` — imperative spec + 17 acceptance conditions.
-3. `fidelity_closure_overrides.json` — machine-readable evidence + status.
-4. `IMPLEMENTATION_CLOSURE_MATRIX_2026-07-13.md` — generated status of all 232 findings.
-5. `IMPLEMENTATION_HANDOFF_2026-07-13.md` — operational continuation guide.
+1. `FIDELITY-DIFF.md` — 232-item audit, uncertainty + difference registers, roadmap.
+2. `IMPLEMENTATION-PROMPT.md` — imperative spec + 17 acceptance conditions.
+3. `closure-overrides.json` — machine-readable evidence + status.
+4. `CLOSURE-MATRIX.md` — generated status of all 232 findings.
+5. `HANDOFF.md` — operational continuation guide.
 Related but separate (5): `docs/PARITY.md` (machine-checked, predates the exhaustive audit), `docs/FIDELITY.md` (narrative, partly stale), `docs/PARITY-VERIFICATION.md` (July 10 report, stale counts), `docs/ui-fidelity.md` (earlier UI/UX audit), `.remember/remember.md` (entry pointer). Evidence outputs: 4 dated screenshots in `docs/assets/`, 10 eval JSONs in `evaluations/results/`.
 Counts: **5 core + 5 related/pointer + 14 evidence = 24** (excluding `references/`, tests, scripts, source, DB). Reading order for a fresh agent: **handoff → fidelity diff → implementation prompt → closure overrides/matrix → parity ledger**.
 
@@ -209,17 +209,17 @@ Counts: **5 core + 5 related/pointer + 14 evidence = 24** (excluding `references
 ```text
 Complete the Google AI Co-Scientist fidelity implementation in the current repository.
 Begin by reading every file in `docs/audits/google-co-scientist-implementation/` in this order:
-1. `IMPLEMENTATION_HANDOFF_2026-07-13.md`
-2. `GOOGLE_CO_SCIENTIST_FIDELITY_DIFF_2026-07-12.md`
-3. `GOOGLE_CO_SCIENTIST_1_TO_1_IMPLEMENTATION_PROMPT.md`
-4. `fidelity_closure_overrides.json`
-5. `IMPLEMENTATION_CLOSURE_MATRIX_2026-07-13.md`
+1. `HANDOFF.md`
+2. `FIDELITY-DIFF.md`
+3. `IMPLEMENTATION-PROMPT.md`
+4. `closure-overrides.json`
+5. `CLOSURE-MATRIX.md`
 Treat the fidelity diff and implementation prompt as the authoritative scope. Use the handoff to resume from the current implementation and runtime state without repeating completed work. Treat the closure files as evidence trackers, not as substitutes for inspecting executable behavior.
 Implement every actionable gap identified by the diff and prompt. Assess and credit only behavior that actually works in the current product. Do not count plans, comments, component names, schemas, routes, prompts, mocks, stubs, demonstrations, or superficial UI as completed behavior.
 Preserve all existing user changes. Follow `AGENTS.md`, commit at natural checkpoints, and verify frontend behavior visually and interactively with the built-in browser at desktop and mobile viewports.
 Maintain evidence traceability throughout:
 - Link each closed finding to exact files, symbols, tests, runtime evidence, or browser artifacts.
-- Update `fidelity_closure_overrides.json` only when direct evidence supports the new status.
+- Update `closure-overrides.json` only when direct evidence supports the new status.
 - Regenerate the closure matrix with `python3 scripts/build_fidelity_closure.py`.
 - Keep `docs/PARITY.md` consistent with actual behavior.
 - Clearly mark proprietary or insufficiently evidenced Google behavior as inferred or unverifiable.
