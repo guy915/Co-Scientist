@@ -253,28 +253,6 @@ def _gather_matchup_side_summaries(
     )
 
 
-def _assemble_matchup_prompt(
-    hypothesis_a: Hypothesis,
-    hypothesis_b: Hypothesis,
-    context: _MatchupPromptContext,
-) -> tuple[str, dict[str, Any] | None, str | None, str | None]:
-    """Gathers summaries and reflection notes, then renders the prompt."""
-    summaries = _gather_matchup_side_summaries(hypothesis_a, hypothesis_b)
-
-    prompt, schema = _render_matchup_prompt(
-        hypothesis_a, hypothesis_b, context, summaries
-    )
-    _warn_if_reflection_notes_dropped(
-        prompt, summaries.reflection_notes_a, summaries.reflection_notes_b
-    )
-    return (
-        prompt,
-        schema,
-        summaries.reflection_notes_a,
-        summaries.reflection_notes_b,
-    )
-
-
 def _build_matchup_prompt(
     hypothesis_a: Hypothesis,
     hypothesis_b: Hypothesis,
@@ -291,4 +269,16 @@ def _build_matchup_prompt(
     Returns:
         Tuple of (prompt, schema, reflection_notes_a, reflection_notes_b).
     """
-    return _assemble_matchup_prompt(hypothesis_a, hypothesis_b, context)
+    summaries = _gather_matchup_side_summaries(hypothesis_a, hypothesis_b)
+    prompt, schema = _render_matchup_prompt(
+        hypothesis_a, hypothesis_b, context, summaries
+    )
+    _warn_if_reflection_notes_dropped(
+        prompt, summaries.reflection_notes_a, summaries.reflection_notes_b
+    )
+    return (
+        prompt,
+        schema,
+        summaries.reflection_notes_a,
+        summaries.reflection_notes_b,
+    )

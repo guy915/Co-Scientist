@@ -368,25 +368,23 @@ def _statement_to_enrichment_item(
     """Convert one INDRA statement into a flat dict for UI display."""
     # Mirrors _format_single_statement's subj/obj vs. members branching,
     # but returns a dict of individual fields instead of one text line.
+    # Only the relationship text differs between the two shapes, so the
+    # branch produces that string and the item is built once.
     core = parse_indra_statement(stmt)
 
     if core.subj and core.obj:
-        return {
-            "relationship": f"{core.subj} \u2192 {core.obj}",
-            "type": core.rel_type,
-            "belief": f"{core.belief:.0%}",
-            "evidence_count": _ev_count_str(core.ev_count),
-        }
+        relationship = f"{core.subj} \u2192 {core.obj}"
+    elif core.member_names:
+        relationship = f"Complex({', '.join(core.member_names)})"
+    else:
+        return None
 
-    if core.member_names:
-        return {
-            "relationship": f"Complex({', '.join(core.member_names)})",
-            "type": core.rel_type,
-            "belief": f"{core.belief:.0%}",
-            "evidence_count": _ev_count_str(core.ev_count),
-        }
-
-    return None
+    return {
+        "relationship": relationship,
+        "type": core.rel_type,
+        "belief": f"{core.belief:.0%}",
+        "evidence_count": _ev_count_str(core.ev_count),
+    }
 
 
 def _agent_name(stmt: dict[str, Any], role: str) -> str:

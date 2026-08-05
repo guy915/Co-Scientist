@@ -174,30 +174,6 @@ def _initial_user_and_literature_fields(
     }
 
 
-def _build_identity_and_literature_fields(
-    identity: RunIdentity,
-    capabilities: RunCapabilities,
-    opts: dict[str, Any],
-    user_inputs: dict[str, Any],
-) -> dict[str, Any]:
-    """Builds and merges the identity and user/literature state fragments.
-
-    Args:
-        identity: Who this run is and where its progress is reported.
-        capabilities: The system capabilities and modes resolved for it.
-        opts: Caller-supplied generation options.
-        user_inputs: The ``user_inputs`` sub-dict of opts.
-
-    Returns:
-        The merged identity and user/literature state fragment.
-    """
-    identity_fields = _initial_run_identity_fields(identity, capabilities)
-    user_and_literature_fields = _initial_user_and_literature_fields(
-        opts=opts, user_inputs=user_inputs
-    )
-    return {**identity_fields, **user_and_literature_fields}
-
-
 def _build_initial_state(
     *,
     config_fields: dict[str, Any],
@@ -223,8 +199,9 @@ def _build_initial_state(
         {
             **config_fields,
             **_initial_runtime_fields(),
-            **_build_identity_and_literature_fields(
-                identity, capabilities, opts, user_inputs
+            **_initial_run_identity_fields(identity, capabilities),
+            **_initial_user_and_literature_fields(
+                opts=opts, user_inputs=user_inputs
             ),
         },
     )

@@ -69,13 +69,7 @@ from co_scientist.agents.evolution.evolve_prompt import (
     _format_refinement_priorities as _format_refinement_priorities,
 )
 from co_scientist.agents.evolution.evolve_prompt import (
-    _log_items as _log_items,
-)
-from co_scientist.agents.evolution.evolve_prompt import (
     _log_meta_review_debug as _log_meta_review_debug,
-)
-from co_scientist.agents.evolution.evolve_prompt import (
-    _log_truncated_items as _log_truncated_items,
 )
 from co_scientist.agents.evolution.evolve_results import (
     _apply_evolution_result as _apply_evolution_result,

@@ -264,16 +264,16 @@ async def _run_one_round(
     index: int,
     judged: set[frozenset[str]],
     ctx: _TournamentContext,
-) -> tuple[dict[str, Any] | None, int, frozenset[str] | None]:
+) -> tuple[dict[str, Any], int, frozenset[str]] | None:
     """Selects, judges, and commits one tournament round.
 
     Returns:
-        Tuple of (matchup detail, or None if no unjudged pairing remained;
-        debate depth used; and the pair just committed).
+        Tuple of (matchup detail, debate depth used, the pair just
+        committed), or None if no unjudged pairing remained.
     """
     pairing = _select_next_pairing(ctx, index, judged)
     if pairing is None:
-        return None, 0, None
+        return None
     hyp_a, hyp_b = pairing
     detail, depth = await _judge_and_commit_matchup(
         state, hyp_a, hyp_b, index, ctx
@@ -299,13 +299,11 @@ async def _execute_tournament_rounds(
     total_llm_calls = 0
     judged: set[frozenset[str]] = set()
     for index in range(tournament_rounds):
-        detail, depth, committed = await _run_one_round(
-            state, index, judged, ctx
-        )
-        if detail is None:
+        round_result = await _run_one_round(state, index, judged, ctx)
+        if round_result is None:
             break
-        if committed is not None:
-            judged.add(committed)
+        detail, depth, committed = round_result
+        judged.add(committed)
         details.append(detail)
         total_llm_calls += depth
     return details, total_llm_calls

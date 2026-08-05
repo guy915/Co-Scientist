@@ -17,6 +17,7 @@ from co_scientist.prompts import (
     _get_domain_variables,
     load_prompt_with_schema,
 )
+from co_scientist.prompts._common import _csv_value
 
 logger = logging.getLogger(__name__)
 
@@ -69,16 +70,6 @@ def _log_debug_items(
         logger.debug("- %s", truncate(item, 100) if truncate_items else item)
 
 
-def _log_truncated_items(label: str, items: list[str]) -> None:
-    """Logs a debug header and up to 3 items, each truncated to 100 chars."""
-    _log_debug_items(label, items, truncate_items=True)
-
-
-def _log_items(label: str, items: list[str]) -> None:
-    """Logs a debug header and up to 3 items verbatim."""
-    _log_debug_items(label, items)
-
-
 def _log_meta_review_debug(meta_review: dict[str, Any]) -> None:
     """Logs meta-review signals used during evolution, for debugging.
 
@@ -91,17 +82,21 @@ def _log_meta_review_debug(meta_review: dict[str, Any]) -> None:
     logger.debug("\n=== evolve single hypothesis ===")
     logger.debug("using meta review for evolution")
 
-    _log_truncated_items(
-        "common Strengths", meta_review.get("common_strengths", [])
+    _log_debug_items(
+        "common Strengths",
+        meta_review.get("common_strengths", []),
+        truncate_items=True,
     )
-    _log_truncated_items(
-        "common Weaknesses", meta_review.get("common_weaknesses", [])
+    _log_debug_items(
+        "common Weaknesses",
+        meta_review.get("common_weaknesses", []),
+        truncate_items=True,
     )
-    _log_items(
+    _log_debug_items(
         "strategic Recommendations",
         meta_review.get("strategic_recommendations", []),
     )
-    _log_items("emerging Themes", meta_review.get("emerging_themes", []))
+    _log_debug_items("emerging Themes", meta_review.get("emerging_themes", []))
 
 
 def _build_review_feedback(hypothesis: Hypothesis) -> str:
@@ -152,9 +147,7 @@ def _format_refinement_priorities(
     priorities = evolution_phase.get("refinement_priorities")
     if not priorities:
         return None
-    if isinstance(priorities, list):
-        priorities = ", ".join(priorities)
-    return f"**Refinement Priorities:** {priorities}\n"
+    return f"**Refinement Priorities:** {_csv_value(priorities)}\n"
 
 
 def _format_iteration_strategy(evolution_phase: dict[str, Any]) -> str | None:

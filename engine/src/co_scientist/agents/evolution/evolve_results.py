@@ -110,6 +110,11 @@ def _build_evolution_detail(
     Feeds evolution_details in evolve_node's state delta, which the UI
     surfaces as the rationale for each change; records both parent and
     child ids so the lineage edge is explicit.
+
+    The ``operator`` field is not set here: it is carried on the LLM
+    response rather than on the refined fields, so ``_apply_evolution_result``
+    is its single writer. Seeding it with a default here as well meant every
+    non-enhancement operator was written twice and read once.
     """
     return {
         "parent_id": hypothesis.id,
@@ -117,7 +122,6 @@ def _build_evolution_detail(
         "original": hypothesis.text,
         "evolved": fields.refined_text,
         "rationale": fields.refinement_summary,
-        "operator": "enhancement",
     }
 
 

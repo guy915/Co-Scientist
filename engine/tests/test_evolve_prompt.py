@@ -23,15 +23,16 @@ from co_scientist.agents.evolution.evolve_prompt import (
 from co_scientist.models import HypothesisReview
 from tests._state import make_hypothesis
 
-# --- _log_meta_review_debug (covers _log_truncated_items/_log_items bodies) -
+# --- _log_meta_review_debug (covers the _log_debug_items body) -------------
 
 
 def test_log_meta_review_debug_with_all_fields_present() -> None:
     """A meta_review with every field populated logs without raising.
 
-    Exercises the non-empty-items body of both _log_truncated_items (used
-    for strengths/weaknesses) and _log_items (used for recommendations/
-    themes); nothing to assert beyond "it runs to completion".
+    Exercises the non-empty-items body of _log_debug_items on both of its
+    settings -- truncated (strengths/weaknesses) and verbatim
+    (recommendations/themes); nothing to assert beyond "it runs to
+    completion".
     """
     meta_review: dict[str, Any] = {
         "common_strengths": ["mechanistically grounded", "testable"],

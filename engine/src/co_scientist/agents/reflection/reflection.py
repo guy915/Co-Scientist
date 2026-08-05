@@ -67,18 +67,6 @@ async def analyze_single_hypothesis(
     logger.debug(
         "\n→ analyzing hypothesis %s/%s", hypothesis_index, total_count
     )
-    return await _analyze_single_hypothesis_impl(
-        hypothesis, hypothesis_index, total_count, context
-    )
-
-
-async def _analyze_single_hypothesis_impl(
-    hypothesis: Hypothesis,
-    hypothesis_index: int,
-    total_count: int,
-    context: _ReflectionContext,
-) -> dict[str, Any] | None:
-    """Prepares the reflection call and runs it, isolating per-idea failure."""
     call = await _prepare_reflection_call(hypothesis, context, hypothesis_index)
     return await _run_reflection_llm_or_none(
         call, context, hypothesis_index, total_count

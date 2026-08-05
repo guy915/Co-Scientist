@@ -6,6 +6,7 @@ routing decisions that drive the iteration cycle.
 """
 
 import logging
+from collections.abc import Hashable
 from typing import Any, cast
 
 from langgraph.graph import END, START, StateGraph
@@ -38,6 +39,15 @@ _TASK_ROUTES: dict[str, str] = {
     "evolve": "meta_review",
     "proximity": "proximity",
     "terminate": "research_overview",
+}
+
+# The node names _route_next_task can return, as the identity path map
+# langgraph's conditional edge wants (typed with its Hashable key, which is
+# invariant). Derived from _TASK_ROUTES rather than restated: a task added
+# there but missing from a hand-written literal is a route the compiled
+# graph rejects at run time, not at review time.
+_TASK_ROUTE_NODES: dict[Hashable, str] = {
+    node: node for node in sorted(_TASK_ROUTES.values())
 }
 
 
@@ -153,16 +163,7 @@ def _add_loop_and_terminal_edges(workflow: _WorkflowBuilder) -> None:
     workflow.add_edge("ranking", "orchestrator")
     workflow.add_edge("proximity", "orchestrator")
     workflow.add_conditional_edges(
-        "orchestrator",
-        _route_next_task,
-        {
-            "generate": "generate",
-            "review": "review",
-            "safety_screen": "safety_screen",
-            "meta_review": "meta_review",
-            "proximity": "proximity",
-            "research_overview": "research_overview",
-        },
+        "orchestrator", _route_next_task, _TASK_ROUTE_NODES
     )
     workflow.add_edge("research_overview", END)
 
