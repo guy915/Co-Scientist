@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import json
 import logging
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, AsyncIterator
 from typing import Any
 
 from app import store
@@ -52,7 +52,7 @@ def _offline_hypothesis_lines(
     Args:
         hypotheses: Hypothesis rows, already ordered by Elo descending.
         has_sources: Whether a non-empty evidence manifest accompanies the
-            answer, in which case the leading hypotheses cite it as ``[n]``.
+            answer, in which case the leading hypothesis cites it as ``[1]``.
 
     Returns:
         One formatted line per included hypothesis (top five at most).
@@ -63,9 +63,9 @@ def _offline_hypothesis_lines(
         elo = hyp.get("elo_rating")
         wins = hyp.get("win_count")
         record = f" (Elo {elo}, {wins} wins)" if elo is not None else ""
-        # Attach a citation marker to the leading hypotheses when the run has
-        # sources, so the UI resolves them against the manifest frame.
-        citation = f" [{rank}]" if has_sources and rank <= 1 else ""
+        # Attach a citation marker to the leading hypothesis when the run has
+        # sources, so the UI resolves it against the manifest frame.
+        citation = " [1]" if has_sources and rank == 1 else ""
         lines.append(f"{rank}. {title}{record}{citation}")
     return lines
 
@@ -135,6 +135,47 @@ def _offline_manifest_note(manifest: list[dict[str, Any]]) -> list[str]:
     ]
 
 
+async def _framed_answer(
+    run_id: str,
+    question_id: int,
+    manifest: list[dict[str, Any]],
+    deltas: AsyncIterator[str],
+) -> AsyncGenerator[str, None]:
+    """Frame an answer's deltas as SSE and persist the assembled text.
+
+    The single framing of a Q&A answer, shared by the model-backed and the
+    offline paths so the workbench chat renders both identically: the cited
+    sources first (so the UI can resolve ``[n]`` markers while the answer is
+    still arriving), then one ``chunk`` frame per delta, then ``done``. The
+    persisted text is the exact concatenation of the emitted chunks, written
+    before ``done`` so a reload right after completion shows the exchange.
+
+    Args:
+        run_id: The run being asked about.
+        question_id: Message id of the persisted question, echoed on ``done``.
+        manifest: The evidence manifest, emitted first and stored with the
+            answer.
+        deltas: The answer text, in the order it should stream.
+
+    Yields:
+        SSE ``data:`` frames.
+    """
+    if manifest:
+        yield sse_frame({"type": "sources", "sources": manifest})
+    full: list[str] = []
+    async for delta in deltas:
+        full.append(delta)
+        yield sse_frame({"type": "chunk", "content": delta})
+    _persist_qa_answer(run_id, full, manifest)
+    yield sse_frame({"type": "done", "question_id": question_id})
+
+
+async def _offline_deltas(answer: str) -> AsyncIterator[str]:
+    """Yield a pre-composed answer line by line, so the UI sees a stream."""
+    for line in answer.splitlines(keepends=True):
+        yield line
+
+
 async def stream_offline_answer(
     run_id: str,
     question_id: int,
@@ -142,11 +183,6 @@ async def stream_offline_answer(
     manifest: list[dict[str, Any]],
 ) -> AsyncGenerator[str, None]:
     """Stream a deterministic offline answer as SSE frames and persist it.
-
-    Mirrors ``stream_answer``'s framing (a leading ``sources`` frame, then
-    answer chunks, then ``done``) so the workbench chat renders the offline
-    answer identically to a model-generated one, and persists the exchange
-    with its evidence manifest.
 
     Args:
         run_id: The run being asked about.
@@ -157,16 +193,10 @@ async def stream_offline_answer(
     Yields:
         SSE ``data:`` frames.
     """
-    if manifest:
-        yield sse_frame({"type": "sources", "sources": manifest})
-    # Emit the answer line by line so the UI renders it as a stream; the
-    # persisted text is the exact concatenation of the emitted chunks.
-    full: list[str] = []
-    for chunk in answer.splitlines(keepends=True):
-        full.append(chunk)
-        yield sse_frame({"type": "chunk", "content": chunk})
-    _persist_qa_answer(run_id, full, manifest)
-    yield sse_frame({"type": "done", "question_id": question_id})
+    async for frame in _framed_answer(
+        run_id, question_id, manifest, _offline_deltas(answer)
+    ):
+        yield frame
 
 
 async def _stream_llm_deltas(
@@ -216,28 +246,6 @@ async def _stream_llm_deltas(
 def _citation_meta(manifest: list[dict[str, Any]]) -> dict[str, Any] | None:
     """Build the persisted-message meta dict carrying sources, if any."""
     return {"sources": manifest} if manifest else None
-
-
-async def _relay_answer_chunks(
-    model: str,
-    system_prompt: str,
-    question: str,
-    full: list[str],
-) -> AsyncGenerator[str, None]:
-    """Yield chunk SSE frames while accumulating deltas into ``full``.
-
-    Args:
-        model: The model name to complete with.
-        system_prompt: The assembled grounding prompt.
-        question: The user's question.
-        full: Mutable accumulator the caller reads once streaming completes.
-
-    Yields:
-        SSE ``data:`` chunk frames.
-    """
-    async for delta in _stream_llm_deltas(model, system_prompt, question):
-        full.append(delta)
-        yield sse_frame({"type": "chunk", "content": delta})
 
 
 def _persist_qa_answer(
@@ -297,36 +305,13 @@ async def stream_answer(
         SSE ``data:`` frames.
     """
     try:
-        async for frame in _stream_answer_frames(
-            run_id, question, question_id, system_prompt, manifest
+        deltas = _stream_llm_deltas(
+            settings.effective_chat_model, system_prompt, question
+        )
+        async for frame in _framed_answer(
+            run_id, question_id, manifest, deltas
         ):
             yield frame
     except Exception as exc:
         fallback = _handle_qa_stream_error(run_id, exc)
         yield sse_frame({"type": "error", "message": fallback})
-
-
-async def _stream_answer_frames(
-    run_id: str,
-    question: str,
-    question_id: int,
-    system_prompt: str,
-    manifest: list[dict[str, Any]],
-) -> AsyncGenerator[str, None]:
-    """Yield the sources/chunk/done frames of a successful answer stream."""
-    model = settings.effective_chat_model
-    # Sources frame goes out before any text so the UI can resolve [n]
-    # citation markers while the answer is still streaming.
-    if manifest:
-        yield sse_frame({"type": "sources", "sources": manifest})
-
-    # Relay each token delta as its own SSE frame, accumulating the full
-    # text so the complete answer can be persisted at the end.
-    full: list[str] = []
-    async for frame in _relay_answer_chunks(
-        model, system_prompt, question, full
-    ):
-        yield frame
-
-    _persist_qa_answer(run_id, full, manifest)
-    yield sse_frame({"type": "done", "question_id": question_id})
