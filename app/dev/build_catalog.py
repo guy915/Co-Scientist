@@ -298,6 +298,16 @@ def build() -> list[dict]:
     return entries
 
 
+# Rights posture recorded on every entry (see paper_corpus.py's
+# RIGHTS_PUBLISHER_COPYRIGHT docstring for what this claims and does not
+# claim). Every paper here is externally published -- the source is
+# "pubmed" or "paper-abstract" for all 210, never a preprint or unpublished
+# manuscript -- so the same default applies uniformly; a paper needing a
+# different posture (e.g. a confirmed CC-BY open-access text) gets an
+# explicit override added here when that is verified, not inferred.
+_RIGHTS = "publisher_copyright"
+
+
 def _core_entry(stem: str) -> dict:
     """Build a catalog entry from the hand-curated CORE table."""
     title, pmid, doi, source, attribution, abstract = CORE[stem]
@@ -308,6 +318,7 @@ def _core_entry(stem: str) -> dict:
         "source": source,
         "core": True,
         "attribution": attribution,
+        "rights": _RIGHTS,
     }
     if pmid:
         entry["pmid"] = pmid
@@ -328,6 +339,7 @@ def _harvested_entry(stem: str) -> dict:
         "attribution": "group",
         "year": meta["year"],
         "journal": meta["journal"],
+        "rights": _RIGHTS,
     }
     if meta["pmid"]:
         entry["pmid"] = meta["pmid"]

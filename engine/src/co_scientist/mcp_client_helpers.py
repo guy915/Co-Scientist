@@ -20,22 +20,78 @@ logger = logging.getLogger(__name__)
 DEFAULT_MCP_SERVER_URL = "http://localhost:8888/mcp"
 """Fallback MCP server URL when MCP_SERVER_URL is unset."""
 
+MCP_SHARED_SECRET_ENV = "COSCIENTIST_MCP_SHARED_SECRET"
+"""Env var carrying the shared-secret token sent with every MCP call.
+
+Set identically on the api and mcp services (see AGENTS.md's deployment
+section) so the reference MCP server can require it instead of trusting
+network placement alone. Left unset on either side reproduces the prior
+behaviour exactly -- no header is sent, and the server does not require one
+-- so introducing this cannot break a deployment that has not set it yet.
+"""
+
+MCP_AUTH_HEADER = "X-MCP-Shared-Secret"
+"""HTTP header name carrying the shared secret, checked by the MCP server."""
+
 
 def _resolve_server_url() -> str:
     """Return the MCP server URL from the environment or the default."""
     return os.environ.get("MCP_SERVER_URL", DEFAULT_MCP_SERVER_URL)
 
 
+def _mcp_auth_headers() -> dict[str, Any] | None:
+    """Return the shared-secret header this client should send, if any.
+
+    Returns:
+        A single-entry headers dict when ``COSCIENTIST_MCP_SHARED_SECRET``
+        is set, else None -- so callers can omit the "headers" key entirely
+        rather than sending an empty one.
+    """
+    secret = os.environ.get(MCP_SHARED_SECRET_ENV)
+    return {MCP_AUTH_HEADER: secret} if secret else None
+
+
+def _with_shared_secret(
+    configs: dict[str, dict[str, Any]],
+) -> dict[str, dict[str, Any]]:
+    """Attach the shared-secret header to every resolved server config.
+
+    Applied once here, after the config is resolved, so every path into
+    MCPToolClient -- registry-driven, explicit configs, or the legacy
+    single-URL fallback -- sends the same header without each branch having
+    to remember to.
+
+    Args:
+        configs: Server configs as {server_id: {"transport": ..., "url":
+            ...}}.
+
+    Returns:
+        The same configs, each carrying a merged "headers" entry, when a
+        shared secret is configured; unchanged otherwise.
+    """
+    headers = _mcp_auth_headers()
+    if headers is None:
+        return configs
+    return {
+        server_id: {
+            **cfg,
+            "headers": {**(cfg.get("headers") or {}), **headers},
+        }
+        for server_id, cfg in configs.items()
+    }
+
+
 def _resolve_server_configs(
     tool_registry: Optional["ToolRegistry"],
-    server_configs: dict[str, dict[str, str]] | None,
+    server_configs: dict[str, dict[str, Any]] | None,
     server_url: str | None,
-) -> dict[str, dict[str, str]]:
+) -> dict[str, dict[str, Any]]:
     """Resolve which MCP server configs MCPToolClient.__init__ should use.
 
     Precedence: an explicit tool_registry wins, then explicit
     server_configs, then a single legacy server_url (falling back to the
-    env var / default).
+    env var / default). Every path is given the shared-secret header before
+    returning, when one is configured.
 
     Args:
         tool_registry: ToolRegistry instance for config-driven multi-server
@@ -45,23 +101,25 @@ def _resolve_server_configs(
         server_url: URL of a single MCP server (legacy mode), if provided.
 
     Returns:
-        Dict of {server_id: {"transport": ..., "url": ...}}.
+        Dict of {server_id: {"transport": ..., "url": ..., "headers": ...}}.
     """
     if tool_registry is not None:
         # Use registry-provided server configs
         configs = tool_registry.get_server_configs_for_langchain()
         logger.debug("using %s servers from tool registry", len(configs))
-        return configs
+        return _with_shared_secret(configs)
 
     if server_configs is not None:
         logger.debug("using %s provided server configs", len(server_configs))
-        return server_configs
+        return _with_shared_secret(server_configs)
 
     # Legacy single-server mode
     if server_url is None:
         server_url = _resolve_server_url()
     logger.debug("using single server: %s", server_url)
-    return {"default": {"transport": "streamable_http", "url": server_url}}
+    return _with_shared_secret(
+        {"default": {"transport": "streamable_http", "url": server_url}}
+    )
 
 
 NOT_INITIALIZED_MESSAGE = "mcp client not initialized. call initialize() first."

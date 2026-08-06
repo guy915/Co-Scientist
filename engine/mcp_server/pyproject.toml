@@ -35,9 +35,23 @@ dev = [
 ]
 
 
-[tool.setuptools.packages.find]
-where = ["."]
-include = ["mcp_server*"]
+# The `mcp_server` package's modules sit directly in this directory
+# (alongside pyproject.toml), not in a nested `mcp_server/mcp_server/`
+# subdirectory, so setuptools' package-discovery (which looks for a
+# subdirectory matching the package name) finds nothing here -- the
+# editable install used to report success while leaving `mcp_server`
+# unimportable. Map the package explicitly onto the project root instead.
+[tool.setuptools]
+packages = [
+    "mcp_server",
+    "mcp_server.tools",
+    "mcp_server.tools.indra_cogex",
+    "mcp_server.tools.lit_review",
+    "mcp_server.tools.web",
+]
+
+[tool.setuptools.package-dir]
+mcp_server = "."
 
 [tool.setuptools.package-data]
 mcp_server = ["py.typed"]

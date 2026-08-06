@@ -220,6 +220,60 @@ CORPUS_AUDIENCE = "sbi_ucd"
 CORPUS_FETCH_TOOL_ID = "paper_corpus_fetch"
 CORPUS_TOOL_IDS = (CORPUS_FETCH_TOOL_ID,)
 
+# app.auth.Principal.method value a verified researcher session carries
+# (issued only by exchanging one of the configured invite/access codes --
+# see app.auth.verify_session_token and /api/auth/exchange). The other value
+# it can hold, "compatibility", is the unauthenticated X-Client-ID honor
+# system: fine for the other audience values, which only pick prompt copy,
+# but not for this one, which unlocks committed paper text.
+VERIFIED_PRINCIPAL_METHOD = "bearer"
+
+
+def verified_audience(
+    audience: str | None, principal_method: str | None
+) -> str | None:
+    """Downgrade a self-declared corpus-audience claim the caller can't back.
+
+    The audience field is otherwise honor system (see `audience.py`'s
+    docstring), and that is fine for every value but this one: `sbi_ucd`
+    gates real content -- the group's committed paper corpus -- not just
+    prompt copy, so it additionally requires a verified researcher session.
+    Call this once, at the point a request's self-declared audience is first
+    read (run creation, a Q&A question, interview creation), before it
+    reaches `catalog_context`, `disabled_tools_for`, or a stored config --
+    everything downstream then trusts the audience string as-is, so a caller
+    who cannot back the claim must never see it reach that point.
+
+    Args:
+        audience: The caller's self-declared audience.
+        principal_method: The requesting `Principal.method`
+            (`app.auth.Principal`), or None when no principal resolved.
+
+    Returns:
+        `audience` unchanged, unless it claims the corpus audience without a
+        verified researcher session, in which case None -- the same as
+        never having set it.
+    """
+    if (
+        audience == CORPUS_AUDIENCE
+        and principal_method != VERIFIED_PRINCIPAL_METHOD
+    ):
+        return None
+    return audience
+
+
+# Every catalog entry names its rights posture. `publisher_copyright` is
+# NCBI/PubMed's own stated default for the abstracts it indexes ("may be
+# under copyright, and are not to be reproduced without permission") and is
+# the honest default here too -- it was not independently re-verified per
+# paper, and few of the source journals grant a permissive license by
+# default. It is a posture to build access control from, not a legal
+# clearance: the fix this field pairs with is verified_audience() (N6),
+# which keeps the corpus out of every surface but a verified researcher
+# session rather than depending on the text's own license to police reuse.
+RIGHTS_PUBLISHER_COPYRIGHT = "publisher_copyright"
+RIGHTS_UNKNOWN = "unknown"
+
 
 @dataclasses.dataclass(frozen=True)
 class CatalogPaper:
@@ -231,6 +285,7 @@ class CatalogPaper:
     core: bool = True
     attribution: str = "group"
     year: str = ""
+    rights: str = RIGHTS_UNKNOWN
 
 
 @functools.cache
@@ -288,6 +343,7 @@ def _parse_catalog_paper(item: dict[str, Any]) -> CatalogPaper | None:
         core=core,
         attribution=str(item.get("attribution") or "group").strip(),
         year=str(item.get("year") or "").strip(),
+        rights=str(item.get("rights") or RIGHTS_UNKNOWN).strip(),
     )
 
 

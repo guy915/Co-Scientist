@@ -184,6 +184,51 @@ def test_committed_catalog_matches_the_committed_papers() -> None:
             assert paper.abstract, paper.paper_id
 
 
+def test_committed_catalog_records_a_rights_posture_for_every_paper() -> None:
+    """N6: every entry names what may be done with its text.
+
+    `publisher_copyright` is not a per-paper legal clearance -- it is
+    NCBI/PubMed's own stated default posture for the abstracts it indexes --
+    but recording it beats the prior silence, and it pairs with
+    `verified_audience` restricting who ever sees the text at all.
+    """
+    for paper in paper_corpus.load_catalog():
+        assert paper.rights == paper_corpus.RIGHTS_PUBLISHER_COPYRIGHT
+
+    assert not any(
+        paper.rights == paper_corpus.RIGHTS_UNKNOWN
+        for paper in paper_corpus.load_catalog()
+    )
+
+
+def test_catalog_entry_without_a_rights_field_defaults_to_unknown(
+    tmp_path: Path,
+) -> None:
+    """An older catalog reads as unknown rather than silently cleared.
+
+    A catalog written before the rights field existed must not be taken to
+    assert that its papers carry no rights at all.
+    """
+    corpus = tmp_path / "corpus"
+    corpus.mkdir()
+    (corpus / paper_corpus.CATALOG_FILENAME).write_text(
+        json.dumps(
+            {
+                "papers": [
+                    {
+                        "paper_id": "x",
+                        "title": "X",
+                        "abstract": "an abstract",
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    papers = paper_corpus.load_catalog(corpus)
+    assert papers[0].rights == paper_corpus.RIGHTS_UNKNOWN
+
+
 def test_format_catalog_prints_ids_and_the_fetch_instruction(
     installed: None,
 ) -> None:
@@ -339,3 +384,32 @@ def test_fetch_tool_is_withheld_from_other_audiences() -> None:
     ]
     for other in ("google", "general", "", None):
         assert paper_corpus.disabled_tools_for(other) == ["paper_corpus_fetch"]
+
+
+# --- verified_audience (N6): the corpus audience is not honor system ------
+
+
+def test_verified_audience_downgrades_unverified_corpus_claim() -> None:
+    """A caller without a verified researcher session cannot claim sbi_ucd."""
+    for method in (None, "compatibility", "", "anything-else"):
+        assert paper_corpus.verified_audience("sbi_ucd", method) is None
+
+
+def test_verified_audience_admits_a_verified_researcher_session() -> None:
+    assert paper_corpus.verified_audience("sbi_ucd", "bearer") == "sbi_ucd"
+
+
+def test_verified_audience_leaves_other_values_untouched() -> None:
+    """Every other audience is honor system by design; nothing gates it."""
+    for audience in ("google", "general", None):
+        for method in (None, "compatibility", "bearer"):
+            assert paper_corpus.verified_audience(audience, method) == audience
+
+
+def test_downgraded_audience_yields_no_catalog_or_tool_access(
+    installed: None,
+) -> None:
+    """The downgrade composes with the existing gates end to end."""
+    claimed = paper_corpus.verified_audience("sbi_ucd", "compatibility")
+    assert paper_corpus.catalog_context(claimed) == ""
+    assert paper_corpus.disabled_tools_for(claimed) == ["paper_corpus_fetch"]

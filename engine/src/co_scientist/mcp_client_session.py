@@ -95,7 +95,7 @@ class MCPToolClient:
     def __init__(
         self,
         server_url: str | None = None,
-        server_configs: dict[str, dict[str, str]] | None = None,
+        server_configs: dict[str, dict[str, Any]] | None = None,
         tool_registry: Optional["ToolRegistry"] = None,
     ):
         """Initialize the MCP client.

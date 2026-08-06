@@ -35,6 +35,10 @@ logging.basicConfig(
 # libraries stay at the INFO default set above.
 logging.getLogger("mcp_server").setLevel(log_level)
 
+from mcp_server.auth_middleware import (
+    SharedSecretAuthMiddleware,
+    resolve_shared_secret,
+)
 from mcp_server.tool_logging import with_call_logging
 from mcp_server.tools.biomedical_databases import search_chembl, search_uniprot
 from mcp_server.tools.indra_cogex import (
@@ -142,16 +146,26 @@ logger.info(
 mcp_http_app = mcp.http_app()
 app = FastAPI(lifespan=mcp_http_app.lifespan)
 
-# Add CORS middleware
-# Wide-open CORS: this is a reference/dev server with no auth of its own,
-# intended to be reached only from trusted internal callers (the engine's
-# MCP client), not exposed as a public API.
+# This is a server-to-server API -- the engine's MCP client, never a
+# browser -- so it has no cross-origin caller to allow. No origin is
+# trusted, and credentials cannot ride cross-origin requests that are
+# already refused.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
+    allow_origins=[],
+    allow_credentials=False,
+    allow_methods=["GET", "POST"],
     allow_headers=["*"],
+)
+
+# The inner control next to the outer one (network placement). A no-op
+# until COSCIENTIST_MCP_SHARED_SECRET is set on both this service and the
+# engine's client -- see auth_middleware's module docstring.
+_mcp_shared_secret = resolve_shared_secret()
+app.add_middleware(SharedSecretAuthMiddleware, secret=_mcp_shared_secret)
+logger.info(
+    "MCP shared-secret auth: %s",
+    "enabled" if _mcp_shared_secret else "disabled (env var unset)",
 )
 
 

@@ -205,12 +205,27 @@ def test_tools_config_report_marks_bad_path_invalid() -> None:
     assert report["enabled_tools"] is None
 
 
-def test_tools_config_report_none_is_valid_defaults() -> None:
-    """An unset config is valid; enabled tools default to None."""
+def test_tools_config_report_none_enumerates_the_bundled_default() -> None:
+    """N10: an unset config is not "nothing to report".
+
+    The engine still runs a determinate set, its own bundled default, and
+    /status must name it so a deployment that never set TOOLS_CONFIG is
+    visibly running the default rather than reading as broken next to
+    "MCP/PubMed up".
+
+    A production api service that never set TOOLS_CONFIG reported
+    ``enabled_tools: null``, indistinguishable from "nothing is known" --
+    when the engine was in fact running a real, enumerable default that
+    simply excludes the domain-specific tools (e.g. INDRA CoGex) a custom
+    config would add. INDRA absence pins that the default is genuinely
+    the bundled tools.yaml, not the INDRA example.
+    """
     report = tools_config_report(None)
     assert report["tools_config"] is None
     assert report["tools_config_valid"] is True
-    assert report["enabled_tools"] is None
+    assert report["enabled_tools"] is not None
+    assert "pubmed_search" in report["enabled_tools"]
+    assert "indra_statements" not in report["enabled_tools"]
 
 
 def test_build_generator_enables_web_search_by_default() -> None:

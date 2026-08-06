@@ -1,0 +1,96 @@
+"""Tests for the MCP server's shared-secret auth middleware.
+
+The server has no auth of its own beyond network placement (see N7 in
+docs/fidelity-audit/FINDINGS.md); this middleware is the inner control.
+Built against a minimal Starlette app rather than importing
+``mcp_server.server`` directly, since that module registers every real tool
+and reads live process environment at import time.
+"""
+
+import pytest
+from mcp_server.auth_middleware import (
+    MCP_AUTH_HEADER,
+    MCP_SHARED_SECRET_ENV,
+    SharedSecretAuthMiddleware,
+    resolve_shared_secret,
+)
+from starlette.applications import Starlette
+from starlette.responses import PlainTextResponse
+from starlette.routing import Route
+from starlette.testclient import TestClient
+
+
+async def _root(request):  # type: ignore[no-untyped-def]
+    return PlainTextResponse("status")
+
+
+async def _tool_endpoint(request):  # type: ignore[no-untyped-def]
+    return PlainTextResponse("tool result")
+
+
+def _make_app(secret: str | None) -> Starlette:
+    app = Starlette(
+        routes=[
+            Route("/", _root),
+            Route("/mcp", _tool_endpoint, methods=["POST"]),
+        ]
+    )
+    app.add_middleware(SharedSecretAuthMiddleware, secret=secret)
+    return app
+
+
+def test_unset_secret_allows_every_request() -> None:
+    """No env var set reproduces today's behaviour: nothing is checked."""
+    client = TestClient(_make_app(secret=None))
+
+    response = client.post("/mcp")
+
+    assert response.status_code == 200
+    assert response.text == "tool result"
+
+
+def test_configured_secret_rejects_missing_header() -> None:
+    client = TestClient(_make_app(secret="s3cret"))
+
+    response = client.post("/mcp")
+
+    assert response.status_code == 401
+
+
+def test_configured_secret_rejects_wrong_header() -> None:
+    client = TestClient(_make_app(secret="s3cret"))
+
+    response = client.post("/mcp", headers={MCP_AUTH_HEADER: "wrong"})
+
+    assert response.status_code == 401
+
+
+def test_configured_secret_accepts_matching_header() -> None:
+    client = TestClient(_make_app(secret="s3cret"))
+
+    response = client.post("/mcp", headers={MCP_AUTH_HEADER: "s3cret"})
+
+    assert response.status_code == 200
+    assert response.text == "tool result"
+
+
+def test_status_route_stays_exempt_even_with_secret_set() -> None:
+    """The plain status route is what Compose's own healthcheck probes."""
+    client = TestClient(_make_app(secret="s3cret"))
+
+    response = client.get("/")
+
+    assert response.status_code == 200
+
+
+def test_resolve_shared_secret_reads_env_var(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv(MCP_SHARED_SECRET_ENV, raising=False)
+    assert resolve_shared_secret() is None
+
+    monkeypatch.setenv(MCP_SHARED_SECRET_ENV, "token-123")
+    assert resolve_shared_secret() == "token-123"
+
+    monkeypatch.setenv(MCP_SHARED_SECRET_ENV, "")
+    assert resolve_shared_secret() is None

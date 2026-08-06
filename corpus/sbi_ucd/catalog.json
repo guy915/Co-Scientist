@@ -7,6 +7,7 @@
       "source": "pubmed",
       "core": true,
       "attribution": "group",
+      "rights": "publisher_copyright",
       "pmid": "34038718",
       "doi": "10.1016/j.celrep.2021.109157"
     },
@@ -17,6 +18,7 @@
       "source": "pubmed",
       "core": true,
       "attribution": "member prior work",
+      "rights": "publisher_copyright",
       "pmid": "35535207",
       "doi": "10.1016/j.isci.2022.103944"
     },
@@ -27,6 +29,7 @@
       "source": "pubmed",
       "core": true,
       "attribution": "group",
+      "rights": "publisher_copyright",
       "pmid": "39001416",
       "doi": "10.3390/cancers16132354"
     },
@@ -37,6 +40,7 @@
       "source": "pubmed",
       "core": true,
       "attribution": "group",
+      "rights": "publisher_copyright",
       "pmid": "37756395",
       "doi": "10.1126/sciadv.adh4119"
     },
@@ -47,6 +51,7 @@
       "source": "pubmed",
       "core": true,
       "attribution": "group",
+      "rights": "publisher_copyright",
       "pmid": "36104561",
       "doi": "10.1038/s41586-022-05194-y"
     },
@@ -57,6 +62,7 @@
       "source": "pubmed",
       "core": true,
       "attribution": "group",
+      "rights": "publisher_copyright",
       "pmid": "30385767",
       "doi": "10.1038/s41598-018-34353-3"
     },
@@ -67,6 +73,7 @@
       "source": "pubmed",
       "core": true,
       "attribution": "group",
+      "rights": "publisher_copyright",
       "pmid": "23829771",
       "doi": "10.1186/1752-0509-7-57"
     },
@@ -77,6 +84,7 @@
       "source": "pubmed",
       "core": true,
       "attribution": "group",
+      "rights": "publisher_copyright",
       "pmid": "27879396",
       "doi": "10.1126/scisignal.aae0535"
     },
@@ -87,6 +95,7 @@
       "source": "pubmed",
       "core": true,
       "attribution": "group",
+      "rights": "publisher_copyright",
       "pmid": "41037321",
       "doi": "10.7554/eLife.106814"
     },
@@ -97,6 +106,7 @@
       "source": "pubmed",
       "core": true,
       "attribution": "group",
+      "rights": "publisher_copyright",
       "pmid": "12384053",
       "doi": "10.1006/jtbi.2002.3096"
     },
@@ -107,6 +117,7 @@
       "source": "pubmed",
       "core": true,
       "attribution": "external",
+      "rights": "publisher_copyright",
       "pmid": "37021935",
       "doi": "10.1093/bioinformatics/btad166"
     },
@@ -117,6 +128,7 @@
       "source": "paper-abstract",
       "core": true,
       "attribution": "group",
+      "rights": "publisher_copyright",
       "doi": "10.1016/j.coisb.2018.02.003"
     },
     {
@@ -126,6 +138,7 @@
       "source": "pubmed",
       "core": true,
       "attribution": "external",
+      "rights": "publisher_copyright",
       "pmid": "40062619",
       "doi": "10.1093/bib/bbaf098"
     },
@@ -136,6 +149,7 @@
       "source": "pubmed",
       "core": true,
       "attribution": "group",
+      "rights": "publisher_copyright",
       "pmid": "12242336",
       "doi": "10.1073/pnas.192442699"
     },
@@ -146,6 +160,7 @@
       "source": "pubmed",
       "core": true,
       "attribution": "group",
+      "rights": "publisher_copyright",
       "pmid": "39752487",
       "doi": "10.1126/sciadv.ado9970"
     },
@@ -158,6 +173,7 @@
       "attribution": "group",
       "year": "1972",
       "journal": "Biofizika",
+      "rights": "publisher_copyright",
       "pmid": "5060630"
     },
     {
@@ -169,6 +185,7 @@
       "attribution": "group",
       "year": "1973",
       "journal": "Biofizika",
+      "rights": "publisher_copyright",
       "pmid": "4701446"
     },
     {
@@ -180,6 +197,7 @@
       "attribution": "group",
       "year": "1974",
       "journal": "Biofizika",
+      "rights": "publisher_copyright",
       "pmid": "4441506"
     },
     {
@@ -191,6 +209,7 @@
       "attribution": "group",
       "year": "1974",
       "journal": "Biofizika",
+      "rights": "publisher_copyright",
       "pmid": "4425692"
     },
     {
@@ -202,6 +221,7 @@
       "attribution": "group",
       "year": "1977",
       "journal": "Biofizika",
+      "rights": "publisher_copyright",
       "pmid": "142521"
     },
     {
@@ -213,6 +233,7 @@
       "attribution": "group",
       "year": "1979",
       "journal": "Biofizika",
+      "rights": "publisher_copyright",
       "pmid": "159725"
     },
     {
@@ -224,6 +245,7 @@
       "attribution": "group",
       "year": "1979",
       "journal": "Biofizika",
+      "rights": "publisher_copyright",
       "pmid": "223657"
     },
     {
@@ -235,6 +257,7 @@
       "attribution": "group",
       "year": "1979",
       "journal": "Biofizika",
+      "rights": "publisher_copyright",
       "pmid": "157781"
     },
     {
@@ -246,6 +269,7 @@
       "attribution": "group",
       "year": "1980",
       "journal": "Biofizika",
+      "rights": "publisher_copyright",
       "pmid": "7370336"
     },
     {
@@ -257,6 +281,7 @@
       "attribution": "group",
       "year": "1980",
       "journal": "Biofizika",
+      "rights": "publisher_copyright",
       "pmid": "6445212"
     },
     {
@@ -268,6 +293,7 @@
       "attribution": "group",
       "year": "1981",
       "journal": "Acta Biol Med Ger",
+      "rights": "publisher_copyright",
       "pmid": "7331640"
     },
     {
@@ -279,6 +305,7 @@
       "attribution": "group",
       "year": "1981",
       "journal": "Eur J Biochem",
+      "rights": "publisher_copyright",
       "pmid": "7238510",
       "doi": "10.1111/j.1432-1033.1981.tb05246.x"
     },
@@ -291,6 +318,7 @@
       "attribution": "group",
       "year": "1981",
       "journal": "Biofizika",
+      "rights": "publisher_copyright",
       "pmid": "7317462"
     },
     {
@@ -302,6 +330,7 @@
       "attribution": "group",
       "year": "1981",
       "journal": "Biofizika",
+      "rights": "publisher_copyright",
       "pmid": "7284447"
     },
     {
@@ -313,6 +342,7 @@
       "attribution": "group",
       "year": "1981",
       "journal": "Biofizika",
+      "rights": "publisher_copyright",
       "pmid": "6455164"
     },
     {
@@ -324,6 +354,7 @@
       "attribution": "group",
       "year": "1982",
       "journal": "J Math Biol",
+      "rights": "publisher_copyright",
       "pmid": "7142835",
       "doi": "10.1007/BF00275788"
     },
@@ -336,6 +367,7 @@
       "attribution": "group",
       "year": "1982",
       "journal": "Biofizika",
+      "rights": "publisher_copyright",
       "pmid": "7138944"
     },
     {
@@ -347,6 +379,7 @@
       "attribution": "group",
       "year": "1983",
       "journal": "Biofizika",
+      "rights": "publisher_copyright",
       "pmid": "6615906"
     },
     {
@@ -358,6 +391,7 @@
       "attribution": "group",
       "year": "1984",
       "journal": "J Theor Biol",
+      "rights": "publisher_copyright",
       "pmid": "6717037",
       "doi": "10.1016/s0022-5193(84)80020-x"
     },
@@ -370,6 +404,7 @@
       "attribution": "group",
       "year": "1984",
       "journal": "Biofizika",
+      "rights": "publisher_copyright",
       "pmid": "6087928"
     },
     {
@@ -381,6 +416,7 @@
       "attribution": "group",
       "year": "1985",
       "journal": "Izv Akad Nauk SSSR Biol",
+      "rights": "publisher_copyright",
       "pmid": "3157714"
     },
     {
@@ -392,6 +428,7 @@
       "attribution": "group",
       "year": "1987",
       "journal": "Biofizika",
+      "rights": "publisher_copyright",
       "pmid": "3620520"
     },
     {
@@ -403,6 +440,7 @@
       "attribution": "group",
       "year": "1988",
       "journal": "FEBS Lett",
+      "rights": "publisher_copyright",
       "pmid": "3378629",
       "doi": "10.1016/0014-5793(88)80775-0"
     },
@@ -415,6 +453,7 @@
       "attribution": "group",
       "year": "1988",
       "journal": "Biofizika",
+      "rights": "publisher_copyright",
       "pmid": "3370233"
     },
     {
@@ -426,6 +465,7 @@
       "attribution": "group",
       "year": "1988",
       "journal": "Mol Biol (Mosk)",
+      "rights": "publisher_copyright",
       "pmid": "3221852"
     },
     {
@@ -437,6 +477,7 @@
       "attribution": "group",
       "year": "1988",
       "journal": "Biokhimiia",
+      "rights": "publisher_copyright",
       "pmid": "2846076"
     },
     {
@@ -448,6 +489,7 @@
       "attribution": "group",
       "year": "1989",
       "journal": "Biokhimiia",
+      "rights": "publisher_copyright",
       "pmid": "2633800"
     },
     {
@@ -459,6 +501,7 @@
       "attribution": "group",
       "year": "1989",
       "journal": "Biofizika",
+      "rights": "publisher_copyright",
       "pmid": "2611277"
     },
     {
@@ -470,6 +513,7 @@
       "attribution": "group",
       "year": "1991",
       "journal": "Biokhimiia",
+      "rights": "publisher_copyright",
       "pmid": "1782265"
     },
     {
@@ -481,6 +525,7 @@
       "attribution": "group",
       "year": "1992",
       "journal": "Eur J Biochem",
+      "rights": "publisher_copyright",
       "pmid": "1446668",
       "doi": "10.1111/j.1432-1033.1992.tb17402.x"
     },
@@ -493,6 +538,7 @@
       "attribution": "group",
       "year": "1993",
       "journal": "FEBS Lett",
+      "rights": "publisher_copyright",
       "pmid": "8462681",
       "doi": "10.1016/0014-5793(93)81661-i"
     },
@@ -505,6 +551,7 @@
       "attribution": "group",
       "year": "1993",
       "journal": "FEBS Lett",
+      "rights": "publisher_copyright",
       "pmid": "8282097",
       "doi": "10.1016/0014-5793(93)80841-h"
     },
@@ -517,6 +564,7 @@
       "attribution": "group",
       "year": "1993",
       "journal": "J Bioenerg Biomembr",
+      "rights": "publisher_copyright",
       "pmid": "8394322",
       "doi": "10.1007/BF00762589"
     },
@@ -529,6 +577,7 @@
       "attribution": "group",
       "year": "1993",
       "journal": "FEBS Lett",
+      "rights": "publisher_copyright",
       "pmid": "8462680",
       "doi": "10.1016/0014-5793(93)81660-r"
     },
@@ -541,6 +590,7 @@
       "attribution": "group",
       "year": "1993",
       "journal": "Eur J Biochem",
+      "rights": "publisher_copyright",
       "pmid": "8462550",
       "doi": "10.1111/j.1432-1033.1993.tb17720.x"
     },
@@ -553,6 +603,7 @@
       "attribution": "group",
       "year": "1994",
       "journal": "Eur J Biochem",
+      "rights": "publisher_copyright",
       "pmid": "7925436",
       "doi": "10.1111/j.1432-1033.1994.00179.x"
     },
@@ -565,6 +616,7 @@
       "attribution": "group",
       "year": "1994",
       "journal": "Mol Cell Biochem",
+      "rights": "publisher_copyright",
       "pmid": "7808462",
       "doi": "10.1007/BF01267963"
     },
@@ -577,6 +629,7 @@
       "attribution": "group",
       "year": "1994",
       "journal": "Biochim Biophys Acta",
+      "rights": "publisher_copyright",
       "pmid": "7947961",
       "doi": "10.1016/0167-4838(94)90116-3"
     },
@@ -589,6 +642,7 @@
       "attribution": "group",
       "year": "1994",
       "journal": "Biophys Chem",
+      "rights": "publisher_copyright",
       "pmid": "8011948",
       "doi": "10.1016/0301-4622(93)e0095-m"
     },
@@ -601,6 +655,7 @@
       "attribution": "group",
       "year": "1994",
       "journal": "Biochem Mol Biol Int",
+      "rights": "publisher_copyright",
       "pmid": "7987249"
     },
     {
@@ -612,6 +667,7 @@
       "attribution": "group",
       "year": "1994",
       "journal": "FEBS Lett",
+      "rights": "publisher_copyright",
       "pmid": "8045290",
       "doi": "10.1016/0014-5793(94)00617-2"
     },
@@ -624,6 +680,7 @@
       "attribution": "group",
       "year": "1995",
       "journal": "Arch Biochem Biophys",
+      "rights": "publisher_copyright",
       "pmid": "7503547",
       "doi": "10.1006/abbi.1995.9918"
     },
@@ -636,6 +693,7 @@
       "attribution": "group",
       "year": "1995",
       "journal": "Biochem Mol Biol Int",
+      "rights": "publisher_copyright",
       "pmid": "7773196"
     },
     {
@@ -647,6 +705,7 @@
       "attribution": "group",
       "year": "1995",
       "journal": "FEBS Lett",
+      "rights": "publisher_copyright",
       "pmid": "7615057",
       "doi": "10.1016/0014-5793(95)00562-n"
     },
@@ -659,6 +718,7 @@
       "attribution": "group",
       "year": "1995",
       "journal": "Biophys Chem",
+      "rights": "publisher_copyright",
       "pmid": "17020850",
       "doi": "10.1016/0301-4622(94)00104-r"
     },
@@ -671,6 +731,7 @@
       "attribution": "group",
       "year": "1995",
       "journal": "Mol Cell Biochem",
+      "rights": "publisher_copyright",
       "pmid": "7596350",
       "doi": "10.1007/BF01816949"
     },
@@ -683,6 +744,7 @@
       "attribution": "group",
       "year": "1995",
       "journal": "Biophys Chem",
+      "rights": "publisher_copyright",
       "pmid": "17023325",
       "doi": "10.1016/0301-4622(95)00039-z"
     },
@@ -695,6 +757,7 @@
       "attribution": "group",
       "year": "1995",
       "journal": "J Bioenerg Biomembr",
+      "rights": "publisher_copyright",
       "pmid": "8718454",
       "doi": "10.1007/BF02110189"
     },
@@ -707,6 +770,7 @@
       "attribution": "group",
       "year": "1995",
       "journal": "Biochem Soc Trans",
+      "rights": "publisher_copyright",
       "pmid": "7672396",
       "doi": "10.1042/bst0230367"
     },
@@ -719,6 +783,7 @@
       "attribution": "group",
       "year": "1995",
       "journal": "Trends Biochem Sci",
+      "rights": "publisher_copyright",
       "pmid": "7701560",
       "doi": "10.1016/s0968-0004(00)88955-0"
     },
@@ -731,6 +796,7 @@
       "attribution": "group",
       "year": "1996",
       "journal": "Biophys Chem",
+      "rights": "publisher_copyright",
       "pmid": "8962468",
       "doi": "10.1016/s0301-4622(96)02195-3"
     },
@@ -743,6 +809,7 @@
       "attribution": "group",
       "year": "1996",
       "journal": "Biochem J",
+      "rights": "publisher_copyright",
       "pmid": "8611176",
       "doi": "10.1042/bj3130921"
     },
@@ -755,6 +822,7 @@
       "attribution": "group",
       "year": "1996",
       "journal": "J Theor Biol",
+      "rights": "publisher_copyright",
       "pmid": "8944172",
       "doi": "10.1006/jtbi.1996.0178"
     },
@@ -767,6 +835,7 @@
       "attribution": "group",
       "year": "1996",
       "journal": "Biochem J",
+      "rights": "publisher_copyright",
       "pmid": "8615766",
       "doi": "10.1042/bj3140753"
     },
@@ -779,6 +848,7 @@
       "attribution": "group",
       "year": "1996",
       "journal": "FEBS Lett",
+      "rights": "publisher_copyright",
       "pmid": "8766813",
       "doi": "10.1016/0014-5793(96)00532-7"
     },
@@ -791,6 +861,7 @@
       "attribution": "group",
       "year": "1996",
       "journal": "Biokhimiia",
+      "rights": "publisher_copyright",
       "pmid": "9035740"
     },
     {
@@ -802,6 +873,7 @@
       "attribution": "group",
       "year": "1997",
       "journal": "FEBS Lett",
+      "rights": "publisher_copyright",
       "pmid": "9315734",
       "doi": "10.1016/s0014-5793(97)01018-1"
     },
@@ -814,6 +886,7 @@
       "attribution": "group",
       "year": "1997",
       "journal": "Trends Biochem Sci",
+      "rights": "publisher_copyright",
       "pmid": "9270298",
       "doi": "10.1016/s0968-0004(97)82216-5"
     },
@@ -826,6 +899,7 @@
       "attribution": "group",
       "year": "1998",
       "journal": "Mol Cell Biochem",
+      "rights": "publisher_copyright",
       "pmid": "9746310"
     },
     {
@@ -837,6 +911,7 @@
       "attribution": "group",
       "year": "1998",
       "journal": "Biochim Biophys Acta",
+      "rights": "publisher_copyright",
       "pmid": "9545597",
       "doi": "10.1016/s0304-4165(97)00114-1"
     },
@@ -849,6 +924,7 @@
       "attribution": "group",
       "year": "1998",
       "journal": "Proc Natl Acad Sci U S A",
+      "rights": "publisher_copyright",
       "pmid": "9724740",
       "doi": "10.1073/pnas.95.18.10547"
     },
@@ -861,6 +937,7 @@
       "attribution": "group",
       "year": "1998",
       "journal": "Biochemistry (Mosc)",
+      "rights": "publisher_copyright",
       "pmid": "9668203"
     },
     {
@@ -872,6 +949,7 @@
       "attribution": "group",
       "year": "1998",
       "journal": "Biotechnol Bioeng",
+      "rights": "publisher_copyright",
       "pmid": "10099334",
       "doi": "10.1002/(sici)1097-0290(19980720)59:2<239::aid-bit11>3.0.co;2-9"
     },
@@ -884,6 +962,7 @@
       "attribution": "group",
       "year": "1998",
       "journal": "Mol Cell Biochem",
+      "rights": "publisher_copyright",
       "pmid": "9746327"
     },
     {
@@ -895,6 +974,7 @@
       "attribution": "group",
       "year": "1998",
       "journal": "Alcohol Clin Exp Res",
+      "rights": "publisher_copyright",
       "pmid": "9727641",
       "doi": "10.1111/j.1530-0277.1998.tb04007.x"
     },
@@ -907,6 +987,7 @@
       "attribution": "group",
       "year": "1999",
       "journal": "Biochem Soc Trans",
+      "rights": "publisher_copyright",
       "pmid": "10093744",
       "doi": "10.1042/bst0270261"
     },
@@ -919,6 +1000,7 @@
       "attribution": "group",
       "year": "1999",
       "journal": "J Biol Chem",
+      "rights": "publisher_copyright",
       "pmid": "10514507",
       "doi": "10.1074/jbc.274.42.30169"
     },
@@ -931,6 +1013,7 @@
       "attribution": "group",
       "year": "1999",
       "journal": "FEBS Lett",
+      "rights": "publisher_copyright",
       "pmid": "10471827",
       "doi": "10.1016/s0014-5793(99)01058-3"
     },
@@ -943,6 +1026,7 @@
       "attribution": "group",
       "year": "2000",
       "journal": "Biosystems",
+      "rights": "publisher_copyright",
       "pmid": "10745111",
       "doi": "10.1016/s0303-2647(99)00085-4"
     },
@@ -955,6 +1039,7 @@
       "attribution": "group",
       "year": "2000",
       "journal": "Biochem J",
+      "rights": "publisher_copyright",
       "pmid": "10970807"
     },
     {
@@ -966,6 +1051,7 @@
       "attribution": "group",
       "year": "2000",
       "journal": "Metab Eng",
+      "rights": "publisher_copyright",
       "pmid": "10935931",
       "doi": "10.1006/mben.1999.0132"
     },
@@ -978,6 +1064,7 @@
       "attribution": "group",
       "year": "2000",
       "journal": "Eur J Biochem",
+      "rights": "publisher_copyright",
       "pmid": "10712587",
       "doi": "10.1046/j.1432-1327.2000.01197.x"
     },
@@ -990,6 +1077,7 @@
       "attribution": "group",
       "year": "2000",
       "journal": "Trends Cell Biol",
+      "rights": "publisher_copyright",
       "pmid": "10754559",
       "doi": "10.1016/s0962-8924(00)01741-4"
     },
@@ -1002,6 +1090,7 @@
       "attribution": "group",
       "year": "2001",
       "journal": "Biochem J",
+      "rights": "publisher_copyright",
       "pmid": "11311143",
       "doi": "10.1042/bj3550787"
     },
@@ -1014,6 +1103,7 @@
       "attribution": "group",
       "year": "2001",
       "journal": "Mol Biol (Mosk)",
+      "rights": "publisher_copyright",
       "pmid": "11771135"
     },
     {
@@ -1025,6 +1115,7 @@
       "attribution": "group",
       "year": "2002",
       "journal": "Biophys J",
+      "rights": "publisher_copyright",
       "pmid": "11751299",
       "doi": "10.1016/S0006-3495(02)75377-0"
     },
@@ -1037,6 +1128,7 @@
       "attribution": "group",
       "year": "2002",
       "journal": "Trends Cell Biol",
+      "rights": "publisher_copyright",
       "pmid": "11978536",
       "doi": "10.1016/s0962-8924(02)02251-1"
     },
@@ -1049,6 +1141,7 @@
       "attribution": "group",
       "year": "2002",
       "journal": "Mol Biol Rep",
+      "rights": "publisher_copyright",
       "pmid": "12241075",
       "doi": "10.1023/a:1020354302260"
     },
@@ -1061,6 +1154,7 @@
       "attribution": "group",
       "year": "2002",
       "journal": "Biochemistry",
+      "rights": "publisher_copyright",
       "pmid": "11772030",
       "doi": "10.1021/bi011506c"
     },
@@ -1073,6 +1167,7 @@
       "attribution": "group",
       "year": "2003",
       "journal": "J Theor Biol",
+      "rights": "publisher_copyright",
       "pmid": "14615206",
       "doi": "10.1016/s0022-5193(03)00289-3"
     },
@@ -1085,6 +1180,7 @@
       "attribution": "group",
       "year": "2003",
       "journal": "J Exp Biol",
+      "rights": "publisher_copyright",
       "pmid": "12756289",
       "doi": "10.1242/jeb.00298"
     },
@@ -1097,6 +1193,7 @@
       "attribution": "group",
       "year": "2004",
       "journal": "Bioinformatics",
+      "rights": "publisher_copyright",
       "pmid": "15037511",
       "doi": "10.1093/bioinformatics/bth173"
     },
@@ -1109,6 +1206,7 @@
       "attribution": "group",
       "year": "2004",
       "journal": "Prog Biophys Mol Biol",
+      "rights": "publisher_copyright",
       "pmid": "15261524",
       "doi": "10.1016/j.pbiomolbio.2004.03.002"
     },
@@ -1121,6 +1219,7 @@
       "attribution": "group",
       "year": "2004",
       "journal": "Syst Biol (Stevenage)",
+      "rights": "publisher_copyright",
       "pmid": "17052120",
       "doi": "10.1049/sb:20045003"
     },
@@ -1133,6 +1232,7 @@
       "attribution": "group",
       "year": "2004",
       "journal": "J Cell Biol",
+      "rights": "publisher_copyright",
       "pmid": "14744999",
       "doi": "10.1083/jcb.200308060"
     },
@@ -1145,6 +1245,7 @@
       "attribution": "group",
       "year": "2004",
       "journal": "J Biol Chem",
+      "rights": "publisher_copyright",
       "pmid": "14613932",
       "doi": "10.1074/jbc.M310598200"
     },
@@ -1157,6 +1258,7 @@
       "attribution": "group",
       "year": "2005",
       "journal": "J Theor Biol",
+      "rights": "publisher_copyright",
       "pmid": "15572066",
       "doi": "10.1016/j.jtbi.2004.08.022"
     },
@@ -1169,6 +1271,7 @@
       "attribution": "group",
       "year": "2005",
       "journal": "Biophys J",
+      "rights": "publisher_copyright",
       "pmid": "15923229",
       "doi": "10.1529/biophysj.105.060533"
     },
@@ -1181,6 +1284,7 @@
       "attribution": "group",
       "year": "2005",
       "journal": "Syst Biol (Stevenage)",
+      "rights": "publisher_copyright",
       "pmid": "17044231",
       "doi": "10.1049/ip-syb:20059002"
     },
@@ -1193,6 +1297,7 @@
       "attribution": "group",
       "year": "2006",
       "journal": "BMC Bioinformatics",
+      "rights": "publisher_copyright",
       "pmid": "16430778",
       "doi": "10.1186/1471-2105-7-34"
     },
@@ -1205,6 +1310,7 @@
       "attribution": "group",
       "year": "2006",
       "journal": "FEBS J",
+      "rights": "publisher_copyright",
       "pmid": "16934033",
       "doi": "10.1111/j.1742-4658.2006.05394.x"
     },
@@ -1217,6 +1323,7 @@
       "attribution": "group",
       "year": "2006",
       "journal": "Nat Rev Mol Cell Biol",
+      "rights": "publisher_copyright",
       "pmid": "16482094",
       "doi": "10.1038/nrm1838"
     },
@@ -1229,6 +1336,7 @@
       "attribution": "group",
       "year": "2006",
       "journal": "FEBS J",
+      "rights": "publisher_copyright",
       "pmid": "16478465",
       "doi": "10.1111/j.1742-4658.2006.05105.x"
     },
@@ -1241,6 +1349,7 @@
       "attribution": "group",
       "year": "2006",
       "journal": "Mol Syst Biol",
+      "rights": "publisher_copyright",
       "pmid": "17102806",
       "doi": "10.1038/msb4100108"
     },
@@ -1253,6 +1362,7 @@
       "attribution": "group",
       "year": "2006",
       "journal": "Syst Biol (Stevenage)",
+      "rights": "publisher_copyright",
       "pmid": "16986625",
       "doi": "10.1049/ip-syb:20050090"
     },
@@ -1265,6 +1375,7 @@
       "attribution": "group",
       "year": "2006",
       "journal": "J Biol Chem",
+      "rights": "publisher_copyright",
       "pmid": "16687399",
       "doi": "10.1074/jbc.M600482200"
     },
@@ -1277,6 +1388,7 @@
       "attribution": "group",
       "year": "2006",
       "journal": "Biosystems",
+      "rights": "publisher_copyright",
       "pmid": "16242235",
       "doi": "10.1016/j.biosystems.2005.03.006"
     },
@@ -1289,6 +1401,7 @@
       "attribution": "group",
       "year": "2007",
       "journal": "Mol Syst Biol",
+      "rights": "publisher_copyright",
       "pmid": "18004277",
       "doi": "10.1038/msb4100188"
     },
@@ -1301,6 +1414,7 @@
       "attribution": "group",
       "year": "2007",
       "journal": "J Theor Biol",
+      "rights": "publisher_copyright",
       "pmid": "16949102",
       "doi": "10.1016/j.jtbi.2006.05.013"
     },
@@ -1313,6 +1427,7 @@
       "attribution": "group",
       "year": "2007",
       "journal": "Nat Cell Biol",
+      "rights": "publisher_copyright",
       "pmid": "17330115",
       "doi": "10.1038/ncb0307-247"
     },
@@ -1325,6 +1440,7 @@
       "attribution": "group",
       "year": "2008",
       "journal": "IET Syst Biol",
+      "rights": "publisher_copyright",
       "pmid": "19045829",
       "doi": "10.1049/iet-syb:20070081"
     },
@@ -1337,6 +1453,7 @@
       "attribution": "group",
       "year": "2008",
       "journal": "Cell",
+      "rights": "publisher_copyright",
       "pmid": "18485861",
       "doi": "10.1016/j.cell.2008.04.033"
     },
@@ -1349,6 +1466,7 @@
       "attribution": "group",
       "year": "2008",
       "journal": "SEB Exp Biol Ser",
+      "rights": "publisher_copyright",
       "pmid": "18709740"
     },
     {
@@ -1360,6 +1478,7 @@
       "attribution": "group",
       "year": "2009",
       "journal": "Mol Oncol",
+      "rights": "publisher_copyright",
       "pmid": "19596615",
       "doi": "10.1016/j.molonc.2009.05.009"
     },
@@ -1372,6 +1491,7 @@
       "attribution": "group",
       "year": "2009",
       "journal": "Wiley Interdiscip Rev Syst Biol Med",
+      "rights": "publisher_copyright",
       "pmid": "20182652",
       "doi": "10.1002/wsbm.16"
     },
@@ -1384,6 +1504,7 @@
       "attribution": "group",
       "year": "2009",
       "journal": "Biophys J",
+      "rights": "publisher_copyright",
       "pmid": "19289054",
       "doi": "10.1016/j.bpj.2008.11.018"
     },
@@ -1396,6 +1517,7 @@
       "attribution": "group",
       "year": "2009",
       "journal": "PLoS Comput Biol",
+      "rights": "publisher_copyright",
       "pmid": "19300504",
       "doi": "10.1371/journal.pcbi.1000330"
     },
@@ -1408,6 +1530,7 @@
       "attribution": "group",
       "year": "2009",
       "journal": "J Math Biol",
+      "rights": "publisher_copyright",
       "pmid": "18283462",
       "doi": "10.1007/s00285-008-0162-6"
     },
@@ -1420,6 +1543,7 @@
       "attribution": "group",
       "year": "2009",
       "journal": "FEBS Lett",
+      "rights": "publisher_copyright",
       "pmid": "19800332",
       "doi": "10.1016/j.febslet.2009.09.045"
     },
@@ -1432,6 +1556,7 @@
       "attribution": "group",
       "year": "2009",
       "journal": "Mol Syst Biol",
+      "rights": "publisher_copyright",
       "pmid": "19357636",
       "doi": "10.1038/msb.2009.19"
     },
@@ -1444,6 +1569,7 @@
       "attribution": "group",
       "year": "2009",
       "journal": "FEBS J",
+      "rights": "publisher_copyright",
       "pmid": "19627364",
       "doi": "10.1111/j.1742-4658.2009.07117.x"
     },
@@ -1456,6 +1582,7 @@
       "attribution": "group",
       "year": "2010",
       "journal": "Biophys J",
+      "rights": "publisher_copyright",
       "pmid": "20655833",
       "doi": "10.1016/j.bpj.2010.04.014"
     },
@@ -1468,6 +1595,7 @@
       "attribution": "group",
       "year": "2010",
       "journal": "Cell",
+      "rights": "publisher_copyright",
       "pmid": "20493519",
       "doi": "10.1016/j.cell.2010.03.054"
     },
@@ -1480,6 +1608,7 @@
       "attribution": "group",
       "year": "2010",
       "journal": "Cell Signal",
+      "rights": "publisher_copyright",
       "pmid": "20471474",
       "doi": "10.1016/j.cellsig.2010.05.006"
     },
@@ -1492,6 +1621,7 @@
       "attribution": "group",
       "year": "2010",
       "journal": "Nat Rev Mol Cell Biol",
+      "rights": "publisher_copyright",
       "pmid": "20495582",
       "doi": "10.1038/nrm2901"
     },
@@ -1504,6 +1634,7 @@
       "attribution": "group",
       "year": "2010",
       "journal": "Biochem Soc Trans",
+      "rights": "publisher_copyright",
       "pmid": "20863291",
       "doi": "10.1042/BST0381235"
     },
@@ -1516,6 +1647,7 @@
       "attribution": "group",
       "year": "2011",
       "journal": "Cell Signal",
+      "rights": "publisher_copyright",
       "pmid": "21726627",
       "doi": "10.1016/j.cellsig.2011.06.014"
     },
@@ -1528,6 +1660,7 @@
       "attribution": "group",
       "year": "2011",
       "journal": "PLoS Comput Biol",
+      "rights": "publisher_copyright",
       "pmid": "22194680",
       "doi": "10.1371/journal.pcbi.1002317"
     },
@@ -1540,6 +1673,7 @@
       "attribution": "group",
       "year": "2012",
       "journal": "Phys Biol",
+      "rights": "publisher_copyright",
       "pmid": "22871947",
       "doi": "10.1088/1478-3975/9/4/045007"
     },
@@ -1552,6 +1686,7 @@
       "attribution": "group",
       "year": "2012",
       "journal": "Biochem Soc Trans",
+      "rights": "publisher_copyright",
       "pmid": "22260680",
       "doi": "10.1042/BST20110609"
     },
@@ -1564,6 +1699,7 @@
       "attribution": "group",
       "year": "2012",
       "journal": "Front Physiol",
+      "rights": "publisher_copyright",
       "pmid": "23060802",
       "doi": "10.3389/fphys.2012.00355"
     },
@@ -1576,6 +1712,7 @@
       "attribution": "group",
       "year": "2012",
       "journal": "BMC Syst Biol",
+      "rights": "publisher_copyright",
       "pmid": "22920937",
       "doi": "10.1186/1752-0509-6-109"
     },
@@ -1588,6 +1725,7 @@
       "attribution": "group",
       "year": "2012",
       "journal": "Mol Biosyst",
+      "rights": "publisher_copyright",
       "pmid": "22990612",
       "doi": "10.1039/c2mb25168j"
     },
@@ -1600,6 +1738,7 @@
       "attribution": "group",
       "year": "2012",
       "journal": "Mol Biosyst",
+      "rights": "publisher_copyright",
       "pmid": "22218529",
       "doi": "10.1039/c2mb05375f"
     },
@@ -1612,6 +1751,7 @@
       "attribution": "group",
       "year": "2012",
       "journal": "PLoS One",
+      "rights": "publisher_copyright",
       "pmid": "22506020",
       "doi": "10.1371/journal.pone.0034439"
     },
@@ -1624,6 +1764,7 @@
       "attribution": "group",
       "year": "2013",
       "journal": "J Cell Sci",
+      "rights": "publisher_copyright",
       "pmid": "23390316",
       "doi": "10.1242/jcs.119974"
     },
@@ -1636,6 +1777,7 @@
       "attribution": "group",
       "year": "2013",
       "journal": "Cold Spring Harb Perspect Biol",
+      "rights": "publisher_copyright",
       "pmid": "23906711",
       "doi": "10.1101/cshperspect.a009043"
     },
@@ -1648,6 +1790,7 @@
       "attribution": "group",
       "year": "2013",
       "journal": "Mol Biosyst",
+      "rights": "publisher_copyright",
       "pmid": "23872884",
       "doi": "10.1039/c3mb70152b"
     },
@@ -1660,6 +1803,7 @@
       "attribution": "group",
       "year": "2013",
       "journal": "Mol Biosyst",
+      "rights": "publisher_copyright",
       "pmid": "23212737",
       "doi": "10.1039/c2mb25393c"
     },
@@ -1672,6 +1816,7 @@
       "attribution": "group",
       "year": "2013",
       "journal": "Proc Natl Acad Sci U S A",
+      "rights": "publisher_copyright",
       "pmid": "23847209",
       "doi": "10.1073/pnas.1301985110"
     },
@@ -1684,6 +1829,7 @@
       "attribution": "group",
       "year": "2013",
       "journal": "FEBS J",
+      "rights": "publisher_copyright",
       "pmid": "22340367",
       "doi": "10.1111/j.1742-4658.2012.08522.x"
     },
@@ -1696,6 +1842,7 @@
       "attribution": "group",
       "year": "2013",
       "journal": "FEBS J",
+      "rights": "publisher_copyright",
       "pmid": "24128262",
       "doi": "10.1111/febs.12560"
     },
@@ -1708,6 +1855,7 @@
       "attribution": "group",
       "year": "2013",
       "journal": "Cell Commun Signal",
+      "rights": "publisher_copyright",
       "pmid": "23902637",
       "doi": "10.1186/1478-811X-11-52"
     },
@@ -1720,6 +1868,7 @@
       "attribution": "group",
       "year": "2014",
       "journal": "PLoS One",
+      "rights": "publisher_copyright",
       "pmid": "24475266",
       "doi": "10.1371/journal.pone.0087293"
     },
@@ -1732,6 +1881,7 @@
       "attribution": "group",
       "year": "2014",
       "journal": "PLoS Comput Biol",
+      "rights": "publisher_copyright",
       "pmid": "24550716",
       "doi": "10.1371/journal.pcbi.1003385"
     },
@@ -1744,6 +1894,7 @@
       "attribution": "group",
       "year": "2014",
       "journal": "J R Soc Interface",
+      "rights": "publisher_copyright",
       "pmid": "24966234",
       "doi": "10.1098/rsif.2014.0383"
     },
@@ -1756,6 +1907,7 @@
       "attribution": "group",
       "year": "2014",
       "journal": "Front Physiol",
+      "rights": "publisher_copyright",
       "pmid": "24478717",
       "doi": "10.3389/fphys.2014.00004"
     },
@@ -1768,6 +1920,7 @@
       "attribution": "group",
       "year": "2014",
       "journal": "Nat Cell Biol",
+      "rights": "publisher_copyright",
       "pmid": "24929361",
       "doi": "10.1038/ncb2986"
     },
@@ -1780,6 +1933,7 @@
       "attribution": "group",
       "year": "2014",
       "journal": "Wiley Interdiscip Rev Syst Biol Med",
+      "rights": "publisher_copyright",
       "pmid": "24214316",
       "doi": "10.1002/wsbm.1253"
     },
@@ -1792,6 +1946,7 @@
       "attribution": "group",
       "year": "2014",
       "journal": "Cell Rep",
+      "rights": "publisher_copyright",
       "pmid": "24685131",
       "doi": "10.1016/j.celrep.2014.02.043"
     },
@@ -1804,6 +1959,7 @@
       "attribution": "group",
       "year": "2014",
       "journal": "Sci Signal",
+      "rights": "publisher_copyright",
       "pmid": "25140053",
       "doi": "10.1126/scisignal.2005157"
     },
@@ -1816,6 +1972,7 @@
       "attribution": "group",
       "year": "2014",
       "journal": "IET Syst Biol",
+      "rights": "publisher_copyright",
       "pmid": "25478702",
       "doi": "10.1049/iet-syb.2014.0024"
     },
@@ -1828,6 +1985,7 @@
       "attribution": "group",
       "year": "2015",
       "journal": "Oncotarget",
+      "rights": "publisher_copyright",
       "pmid": "25671297",
       "doi": "10.18632/oncotarget.3238"
     },
@@ -1840,6 +1998,7 @@
       "attribution": "group",
       "year": "2015",
       "journal": "Cell Cycle",
+      "rights": "publisher_copyright",
       "pmid": "25607644",
       "doi": "10.4161/15384101.2014.973743"
     },
@@ -1852,6 +2011,7 @@
       "attribution": "group",
       "year": "2015",
       "journal": "Sci Rep",
+      "rights": "publisher_copyright",
       "pmid": "26220783",
       "doi": "10.1038/srep12569"
     },
@@ -1864,6 +2024,7 @@
       "attribution": "group",
       "year": "2015",
       "journal": "Cell Rep",
+      "rights": "publisher_copyright",
       "pmid": "26344764",
       "doi": "10.1016/j.celrep.2015.08.014"
     },
@@ -1876,6 +2037,7 @@
       "attribution": "group",
       "year": "2015",
       "journal": "FEBS J",
+      "rights": "publisher_copyright",
       "pmid": "25491268",
       "doi": "10.1111/febs.13172"
     },
@@ -1888,6 +2050,7 @@
       "attribution": "group",
       "year": "2015",
       "journal": "Mol Syst Biol",
+      "rights": "publisher_copyright",
       "pmid": "26613961",
       "doi": "10.15252/msb.20156458"
     },
@@ -1900,6 +2063,7 @@
       "attribution": "group",
       "year": "2015",
       "journal": "Mol Pharmacol",
+      "rights": "publisher_copyright",
       "pmid": "26162865",
       "doi": "10.1124/mol.115.100057"
     },
@@ -1912,6 +2076,7 @@
       "attribution": "group",
       "year": "2015",
       "journal": "PLoS One",
+      "rights": "publisher_copyright",
       "pmid": "26222505",
       "doi": "10.1371/journal.pone.0134028"
     },
@@ -1924,6 +2089,7 @@
       "attribution": "group",
       "year": "2015",
       "journal": "PLoS One",
+      "rights": "publisher_copyright",
       "pmid": "26065894",
       "doi": "10.1371/journal.pone.0129859"
     },
@@ -1936,6 +2102,7 @@
       "attribution": "group",
       "year": "2015",
       "journal": "J Mol Cell Biol",
+      "rights": "publisher_copyright",
       "pmid": "25780058",
       "doi": "10.1093/jmcb/mjv017"
     },
@@ -1948,6 +2115,7 @@
       "attribution": "group",
       "year": "2015",
       "journal": "Mol Biosyst",
+      "rights": "publisher_copyright",
       "pmid": "26266875",
       "doi": "10.1039/c5mb00385g"
     },
@@ -1960,6 +2128,7 @@
       "attribution": "group",
       "year": "2015",
       "journal": "Sci Signal",
+      "rights": "publisher_copyright",
       "pmid": "26696630",
       "doi": "10.1126/scisignal.aab0990"
     },
@@ -1972,6 +2141,7 @@
       "attribution": "group",
       "year": "2015",
       "journal": "Biosci Rep",
+      "rights": "publisher_copyright",
       "pmid": "25643809",
       "doi": "10.1042/BSR20140172"
     },
@@ -1984,6 +2154,7 @@
       "attribution": "group",
       "year": "2015",
       "journal": "Nat Biotechnol",
+      "rights": "publisher_copyright",
       "pmid": "25850052",
       "doi": "10.1038/nbt.3185"
     },
@@ -1996,6 +2167,7 @@
       "attribution": "group",
       "year": "2015",
       "journal": "Cell Mol Life Sci",
+      "rights": "publisher_copyright",
       "pmid": "25697863",
       "doi": "10.1007/s00018-015-1850-1"
     },
@@ -2008,6 +2180,7 @@
       "attribution": "group",
       "year": "2015",
       "journal": "Nat Rev Cancer",
+      "rights": "publisher_copyright",
       "pmid": "26289315",
       "doi": "10.1038/nrc3983"
     },
@@ -2020,6 +2193,7 @@
       "attribution": "group",
       "year": "2016",
       "journal": "Cell Syst",
+      "rights": "publisher_copyright",
       "pmid": "27136688",
       "doi": "10.1016/j.cels.2016.01.003"
     },
@@ -2032,6 +2206,7 @@
       "attribution": "group",
       "year": "2016",
       "journal": "Semin Cell Dev Biol",
+      "rights": "publisher_copyright",
       "pmid": "26481970",
       "doi": "10.1016/j.semcdb.2015.09.024"
     },
@@ -2044,6 +2219,7 @@
       "attribution": "group",
       "year": "2016",
       "journal": "Oncotarget",
+      "rights": "publisher_copyright",
       "pmid": "27618787",
       "doi": "10.18632/oncotarget.9963"
     },
@@ -2056,6 +2232,7 @@
       "attribution": "group",
       "year": "2016",
       "journal": "Curr Opin Struct Biol",
+      "rights": "publisher_copyright",
       "pmid": "27521656",
       "doi": "10.1016/j.sbi.2016.07.019"
     },
@@ -2068,6 +2245,7 @@
       "attribution": "group",
       "year": "2016",
       "journal": "Brief Bioinform",
+      "rights": "publisher_copyright",
       "pmid": "26443615",
       "doi": "10.1093/bib/bbv070"
     },
@@ -2080,6 +2258,7 @@
       "attribution": "group",
       "year": "2016",
       "journal": "Angew Chem Int Ed Engl",
+      "rights": "publisher_copyright",
       "pmid": "26644280",
       "doi": "10.1002/anie.201509272"
     },
@@ -2092,6 +2271,7 @@
       "attribution": "group",
       "year": "2016",
       "journal": "PLoS Comput Biol",
+      "rights": "publisher_copyright",
       "pmid": "27716844",
       "doi": "10.1371/journal.pcbi.1005051"
     },
@@ -2104,6 +2284,7 @@
       "attribution": "group",
       "year": "2016",
       "journal": "Semin Cell Dev Biol",
+      "rights": "publisher_copyright",
       "pmid": "27350026",
       "doi": "10.1016/j.semcdb.2016.06.011"
     },
@@ -2116,6 +2297,7 @@
       "attribution": "group",
       "year": "2017",
       "journal": "Methods Mol Biol",
+      "rights": "publisher_copyright",
       "pmid": "28730495",
       "doi": "10.1007/978-1-4939-7154-1_27"
     },
@@ -2128,6 +2310,7 @@
       "attribution": "group",
       "year": "2017",
       "journal": "Med Hypotheses",
+      "rights": "publisher_copyright",
       "pmid": "28673600",
       "doi": "10.1016/j.mehy.2017.05.025"
     },
@@ -2140,6 +2323,7 @@
       "attribution": "group",
       "year": "2017",
       "journal": "NPJ Syst Biol Appl",
+      "rights": "publisher_copyright",
       "pmid": "28804640",
       "doi": "10.1038/s41540-017-0023-2"
     },
@@ -2152,6 +2336,7 @@
       "attribution": "group",
       "year": "2017",
       "journal": "ACS Nano",
+      "rights": "publisher_copyright",
       "pmid": "27768850",
       "doi": "10.1021/acsnano.6b05356"
     },
@@ -2164,6 +2349,7 @@
       "attribution": "group",
       "year": "2017",
       "journal": "Math Med Biol",
+      "rights": "publisher_copyright",
       "pmid": "27079221",
       "doi": "10.1093/imammb/dqw001"
     },
@@ -2176,6 +2362,7 @@
       "attribution": "group",
       "year": "2018",
       "journal": "Cell Syst",
+      "rights": "publisher_copyright",
       "pmid": "30007540",
       "doi": "10.1016/j.cels.2018.06.002"
     },
@@ -2188,6 +2375,7 @@
       "attribution": "group",
       "year": "2018",
       "journal": "Small GTPases",
+      "rights": "publisher_copyright",
       "pmid": "27533896",
       "doi": "10.1080/21541248.2016.1224399"
     },
@@ -2200,6 +2388,7 @@
       "attribution": "group",
       "year": "2018",
       "journal": "J Biol Chem",
+      "rights": "publisher_copyright",
       "pmid": "29233889",
       "doi": "10.1074/jbc.M117.778399"
     },
@@ -2212,6 +2401,7 @@
       "attribution": "group",
       "year": "2019",
       "journal": "Toxicol Sci",
+      "rights": "publisher_copyright",
       "pmid": "31271423",
       "doi": "10.1093/toxsci/kfz151"
     },
@@ -2224,6 +2414,7 @@
       "attribution": "group",
       "year": "2019",
       "journal": "NPJ Syst Biol Appl",
+      "rights": "publisher_copyright",
       "pmid": "31149348",
       "doi": "10.1038/s41540-019-0096-1"
     },
@@ -2236,6 +2427,7 @@
       "attribution": "group",
       "year": "2019",
       "journal": "PLoS Comput Biol",
+      "rights": "publisher_copyright",
       "pmid": "30653502",
       "doi": "10.1371/journal.pcbi.1006706"
     },
@@ -2248,6 +2440,7 @@
       "attribution": "group",
       "year": "2019",
       "journal": "Semin Cancer Biol",
+      "rights": "publisher_copyright",
       "pmid": "29518522",
       "doi": "10.1016/j.semcancer.2018.02.008"
     },
@@ -2260,6 +2453,7 @@
       "attribution": "group",
       "year": "2020",
       "journal": "Nat Commun",
+      "rights": "publisher_copyright",
       "pmid": "31980649",
       "doi": "10.1038/s41467-019-14224-9"
     },
@@ -2272,6 +2466,7 @@
       "attribution": "group",
       "year": "2020",
       "journal": "Elife",
+      "rights": "publisher_copyright",
       "pmid": "32705984",
       "doi": "10.7554/eLife.58165"
     },
@@ -2284,6 +2479,7 @@
       "attribution": "group",
       "year": "2021",
       "journal": "Cancers (Basel)",
+      "rights": "publisher_copyright",
       "pmid": "34944932",
       "doi": "10.3390/cancers13246312"
     },
@@ -2296,6 +2492,7 @@
       "attribution": "group",
       "year": "2021",
       "journal": "iScience",
+      "rights": "publisher_copyright",
       "pmid": "34381970",
       "doi": "10.1016/j.isci.2021.102845"
     },
@@ -2308,6 +2505,7 @@
       "attribution": "group",
       "year": "2021",
       "journal": "Bio Protoc",
+      "rights": "publisher_copyright",
       "pmid": "34395728",
       "doi": "10.21769/BioProtoc.4089"
     },
@@ -2320,6 +2518,7 @@
       "attribution": "group",
       "year": "2021",
       "journal": "Science",
+      "rights": "publisher_copyright",
       "pmid": "34210865",
       "doi": "10.1126/science.abj5028"
     },
@@ -2332,6 +2531,7 @@
       "attribution": "group",
       "year": "2021",
       "journal": "Curr Opin Struct Biol",
+      "rights": "publisher_copyright",
       "pmid": "33126139",
       "doi": "10.1016/j.sbi.2020.09.007"
     },
@@ -2344,6 +2544,7 @@
       "attribution": "group",
       "year": "2022",
       "journal": "Methods Mol Biol",
+      "rights": "publisher_copyright",
       "pmid": "34888717",
       "doi": "10.1007/978-1-0716-1767-0_5"
     },
@@ -2356,6 +2557,7 @@
       "attribution": "group",
       "year": "2023",
       "journal": "Biomolecules",
+      "rights": "publisher_copyright",
       "pmid": "37627277",
       "doi": "10.3390/biom13081212"
     },
@@ -2368,6 +2570,7 @@
       "attribution": "group",
       "year": "2023",
       "journal": "bioRxiv",
+      "rights": "publisher_copyright",
       "pmid": "36798271",
       "doi": "10.1101/2023.02.09.527908"
     },
@@ -2380,6 +2583,7 @@
       "attribution": "group",
       "year": "2023",
       "journal": "Trends Cell Biol",
+      "rights": "publisher_copyright",
       "pmid": "37263821",
       "doi": "10.1016/j.tcb.2023.04.004"
     },
@@ -2392,6 +2596,7 @@
       "attribution": "group",
       "year": "2024",
       "journal": "Cell Rep",
+      "rights": "publisher_copyright",
       "pmid": "39240715",
       "doi": "10.1016/j.celrep.2024.114710"
     },
@@ -2404,6 +2609,7 @@
       "attribution": "group",
       "year": "2025",
       "journal": "bioRxiv",
+      "rights": "publisher_copyright",
       "pmid": "40654850",
       "doi": "10.1101/2025.04.29.651188"
     },
@@ -2416,6 +2622,7 @@
       "attribution": "group",
       "year": "2025",
       "journal": "bioRxiv",
+      "rights": "publisher_copyright",
       "pmid": "38328237",
       "doi": "10.1101/2024.01.23.576920"
     },
@@ -2428,6 +2635,7 @@
       "attribution": "group",
       "year": "2026",
       "journal": "NPJ Syst Biol Appl",
+      "rights": "publisher_copyright",
       "pmid": "41986383",
       "doi": "10.1038/s41540-026-00710-6"
     },
@@ -2440,6 +2648,7 @@
       "attribution": "group",
       "year": "2026",
       "journal": "bioRxiv",
+      "rights": "publisher_copyright",
       "pmid": "42465263",
       "doi": "10.64898/2026.07.01.735930"
     },
@@ -2452,6 +2661,7 @@
       "attribution": "group",
       "year": "2026",
       "journal": "J Immunother Precis Oncol",
+      "rights": "publisher_copyright",
       "pmid": "41766762",
       "doi": "10.36401/JIPO-25-20"
     }

@@ -42,12 +42,13 @@ def connectors_report(
 ) -> list[dict[str, str]]:
     """Derive the user-facing data-source connectors for the composer menu.
 
-    PubMed and web search are listed on live availability rather than on the
-    tools YAML -- ``enabled_tools`` is None without a configured
-    ``TOOLS_CONFIG`` (the default), so this route is what makes either
-    appear on a default deployment. Every other known connector is listed
-    when the tools YAML enables a matching tool. Falls back to PubMed so the
-    menu is never empty.
+    A connector backed by a live probe (PubMed, web search, the paper
+    corpus) is listed on that probe alone: being configured is not the same
+    as being reachable, and offering a source the run cannot actually query
+    is how "the agent never searched the web" becomes a mystery rather than
+    a deployment answer. Every other known connector is listed when the
+    tools YAML enables a matching tool. Falls back to PubMed so the menu is
+    never empty.
 
     Args:
         literature_available: Whether the MCP + PubMed literature stack is up.
@@ -67,7 +68,9 @@ def connectors_report(
     }
     connectors: list[dict[str, str]] = []
     for key, display in _KNOWN_CONNECTORS:
-        if key in tool_blob or available_by_probe.get(key, False):
+        probed = available_by_probe.get(key)
+        listed = probed if probed is not None else key in tool_blob
+        if listed:
             connectors.append({"id": key, "display": display})
     if not connectors:
         connectors.append({"id": "pubmed", "display": "PubMed"})
@@ -109,19 +112,27 @@ def validate_tools_config(value: str | None) -> None:
 
 
 @functools.lru_cache(maxsize=8)
-def _enabled_tools(value: str) -> list[str] | None:
-    """Return the sorted enabled tool ids for a readable config, best-effort.
+def _enabled_tools(value: str | None) -> list[str] | None:
+    """Return the sorted enabled tool ids for a config, best-effort.
 
-    Builds a throwaway ``ToolRegistry`` from the config to enumerate the tools
-    a real run would actually enable. Returns None when the engine is not
-    importable or the registry cannot be built, so /status degrades to
-    reporting the path alone rather than erroring. Cached by path because the
-    config is fixed for the process's lifetime (a change needs a restart, which
-    also re-runs startup validation), so a polled /status does not re-parse the
-    YAML on every call.
+    Builds a throwaway ``ToolRegistry`` to enumerate the tools a real run
+    would actually enable. ``value=None`` is not "nothing to enumerate": the
+    engine ships a bundled default ``tools.yaml`` and a run with no custom
+    ``TOOLS_CONFIG`` runs on exactly that -- so this is called for the unset
+    case too, the same as for a custom path (N10: a production deployment
+    that never set ``TOOLS_CONFIG`` reported ``enabled_tools: null`` next to
+    "MCP/PubMed/literature/web up", which read as broken when it was in fact
+    running the engine's built-in default set, just not the domain-specific
+    one -- e.g. INDRA CoGex -- the operator intended). Returns None when the
+    engine is not importable or the registry cannot be built, so /status
+    degrades to reporting the path alone rather than erroring. Cached by
+    value because the config is fixed for the process's lifetime (a change
+    needs a restart, which also re-runs startup validation), so a polled
+    /status does not re-parse the YAML on every call.
 
     Args:
-        value: A readable local tools_config path.
+        value: A readable local tools_config path, or None for the bundled
+            default config.
 
     Returns:
         Sorted enabled tool ids, or None if they cannot be enumerated.
@@ -145,17 +156,18 @@ def tools_config_report(value: str | None) -> dict[str, Any]:
         value: The configured ``settings.tools_config`` (path, URL, or None).
 
     Returns:
-        A dict with ``tools_config`` (the configured value),
-        ``tools_config_valid`` (False only for a configured-but-unreadable
-        local path), and ``enabled_tools`` (the sorted enabled tool ids for a
-        readable local config, else None — unset/URL/unenumerable configs
-        report None).
+        A dict with ``tools_config`` (the configured value), ``tools_config_
+        valid`` (False only for a configured-but-unreadable local path), and
+        ``enabled_tools`` (the sorted enabled tool ids actually in effect --
+        for the bundled default when unset, for a readable local config when
+        one is set, else None for a URL or an unreadable path, which cannot
+        be enumerated without a network call or do not resolve at all).
     """
     if value is None:
         return {
             "tools_config": None,
             "tools_config_valid": True,
-            "enabled_tools": None,
+            "enabled_tools": _enabled_tools(None),
         }
     if _is_url(value):
         return {

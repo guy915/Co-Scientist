@@ -9,6 +9,11 @@ pollers resume with ``after_id`` even when the newest rows did not match
 their filter; ``total`` is the size of the whole matching set, ignoring
 the window; ``session_total`` is the size of the set after ``after_id``,
 for a poller that counts only what its own cursor has seen.
+
+The per-process rate limiting shared by the ingest and report endpoints
+lives in ``app.logs_rate_limit`` and is re-exported below, so
+``logs_api._report_hits`` (mutated directly by ``test_logs_report.py``)
+and ``logs_api.REPORTS_PER_MINUTE`` keep resolving.
 """
 
 from __future__ import annotations
@@ -17,7 +22,6 @@ import dataclasses
 import hmac
 import logging
 import sqlite3
-import time
 from typing import Annotated, Any
 
 from fastapi import APIRouter, HTTPException, Query, Request
@@ -27,6 +31,30 @@ from app import store
 from app.auth import client_id
 from app.config import settings
 from app.logging_setup import level_to_number
+from app.logs_rate_limit import (
+    REPORTS_PER_MINUTE as REPORTS_PER_MINUTE,
+)
+from app.logs_rate_limit import (
+    _check_both_rates as _check_both_rates,
+)
+from app.logs_rate_limit import (
+    _check_ingest_rate as _check_ingest_rate,
+)
+from app.logs_rate_limit import (
+    _check_rate as _check_rate,
+)
+from app.logs_rate_limit import (
+    _check_report_rate as _check_report_rate,
+)
+from app.logs_rate_limit import (
+    _ingest_hits as _ingest_hits,
+)
+from app.logs_rate_limit import (
+    _rate_limit_keys as _rate_limit_keys,
+)
+from app.logs_rate_limit import (
+    _report_hits as _report_hits,
+)
 from app.notifications import deliver_email, email_notifications_configured
 
 logger = logging.getLogger(__name__)
@@ -84,60 +112,9 @@ def _sanitize(text: str) -> str:
     return "".join(ch if ch.isprintable() else " " for ch in text).strip()
 
 
-# Sliding-window counters, keyed by client scope. Ingestion and reporting
-# keep separate buckets: one is a background stream of UI records, the other
-# a deliberate click that sends mail, and a budget sized for the first would
-# be no ceiling at all on the second.
-_ingest_hits: dict[str, list[float]] = {}
-_report_hits: dict[str, list[float]] = {}
-
-# Reports per client per minute. One click is one report; anything beyond a
-# handful is a mistake or an attempt to flood the operator's inbox.
-REPORTS_PER_MINUTE = 5
-
-
-def _check_rate(
-    hits_by_scope: dict[str, list[float]],
-    scope: str,
-    limit: int,
-    detail: str,
-) -> None:
-    """Raise 429 once a client exceeds a per-minute ceiling.
-
-    Raises:
-        HTTPException: 429 when this scope has spent its budget.
-    """
-    if limit <= 0:
-        return
-    now = time.monotonic()
-    # Evict scopes whose window has gone quiet, so one-off client ids do
-    # not accumulate in this process-lifetime map.
-    for stale in [
-        key
-        for key, times in hits_by_scope.items()
-        if key != scope and (not times or now - times[-1] >= 60.0)
-    ]:
-        del hits_by_scope[stale]
-    hits = [t for t in hits_by_scope.get(scope, []) if now - t < 60.0]
-    hits_by_scope[scope] = hits
-    if len(hits) >= limit:
-        raise HTTPException(status_code=429, detail=detail)
-    hits.append(now)
-
-
-def _check_ingest_rate(scope: str) -> None:
-    """Raise 429 once a client exceeds the per-minute ingest ceiling."""
-    _check_rate(
-        _ingest_hits,
-        scope,
-        settings.logs_ingest_per_minute,
-        "log ingestion rate exceeded",
-    )
-
-
-def _check_report_rate(scope: str) -> None:
-    """Raise 429 once a client exceeds the per-minute report ceiling."""
-    _check_rate(_report_hits, scope, REPORTS_PER_MINUTE, "report rate exceeded")
+# Rate limiting for the two open, unauthenticated endpoints below
+# (ingestion and reporting) lives in app.logs_rate_limit, re-exported
+# above.
 
 
 # High-volume logger prefixes hidden from the default view (below
@@ -325,7 +302,7 @@ async def post_logs(batch: ClientLogBatch, request: Request) -> dict[str, Any]:
     to INFO and messages are truncated to a sane length.
     """
     owner = client_id(request)
-    _check_ingest_rate(owner or "anonymous")
+    _check_ingest_rate(request)
     # One transaction for the whole batch: up to 50 rows per POST, and the
     # single writer should pay one lock acquisition for them, not fifty.
     with store.transaction() as conn:
@@ -400,7 +377,7 @@ async def report_logs(
             button instead of vanishing; 502 when the send itself fails.
     """
     owner = client_id(request) or "anonymous"
-    _check_report_rate(owner)
+    _check_report_rate(request)
     recipient = settings.log_report_email
     if not (recipient and email_notifications_configured()):
         raise HTTPException(
