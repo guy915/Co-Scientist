@@ -30,6 +30,10 @@ _ARTICLE_DICT_KEYS = {
     "publication_type",
     "pdf_links",
     "used_in_analysis",
+    "retrieved_at",
+    "retrieval_score",
+    "retrieval_rationale",
+    "retriever_version",
 }
 
 

@@ -6,6 +6,7 @@ orchestration, and shared synthesis-context construction. The LLM seams
 themselves stay in validate.py so tests can monkeypatch them there.
 """
 
+import dataclasses
 import logging
 from typing import TYPE_CHECKING, Any, Optional
 
@@ -72,6 +73,27 @@ def _build_synthesis_prompt_metadata(
         if already_validated_texts
         else 0,
     }
+
+
+def _synthesis_tool_contract(
+    tool_registry: Optional["ToolRegistry"],
+) -> dict[str, Any] | None:
+    """Resolve the tool registry's config as a cache-key-able contract.
+
+    The synthesis agent's tool *schema* (names/descriptions/params) is
+    already part of the LLM cache key via ``ToolLoop.tools``; this instead
+    captures what those tools actually do -- which sources are enabled,
+    their endpoints and parameter mappings -- so a registry change that
+    leaves the schema untouched still invalidates a cached transcript.
+    Mirrors ``agents/generation/literature_review/node.py``'s
+    ``_literature_cache_params`` tool_contract.
+
+    Returns:
+        The registry config as a plain dict, or None with no registry.
+    """
+    if tool_registry is None:
+        return None
+    return dataclasses.asdict(tool_registry.config)
 
 
 def _batch_hypotheses_for_synthesis(

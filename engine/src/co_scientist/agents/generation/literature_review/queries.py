@@ -2,10 +2,11 @@
 
 Generates the search queries used by Phase 2, preferring an MCP query-
 generation tool when one is configured and falling back to a source-aware LLM
-prompt (and finally to the raw research goal).
+prompt (and finally to a keyword-distilled form of the research goal).
 """
 
 import logging
+import re
 from typing import TYPE_CHECKING, cast
 
 from co_scientist.agents.generation.literature_review.helpers import (
@@ -176,6 +177,82 @@ async def _try_mcp_query_generation(
     )
 
 
+# Words too generic to help narrow a literature search; stripping them off
+# the research goal keeps the final fallback keyword-shaped instead of a
+# prose sentence, matching the "3-8 key terms" queries the query-generation
+# prompt asks the model for on every other path.
+_GOAL_FALLBACK_STOPWORDS = frozenset(
+    {
+        "a",
+        "an",
+        "the",
+        "of",
+        "for",
+        "in",
+        "on",
+        "to",
+        "and",
+        "or",
+        "not",
+        "is",
+        "are",
+        "how",
+        "does",
+        "do",
+        "what",
+        "why",
+        "can",
+        "could",
+        "will",
+        "would",
+        "that",
+        "this",
+        "these",
+        "those",
+        "by",
+        "as",
+        "be",
+        "using",
+        "use",
+        "via",
+        "into",
+        "from",
+        "about",
+        "we",
+        "our",
+        "with",
+    }
+)
+
+# Mirrors the "3-8 key terms" guidance the query-generation prompt gives the
+# model, so the fallback reads the same as a normally-generated query.
+_GOAL_FALLBACK_MAX_TERMS = 8
+
+
+def _distill_goal_to_query(research_goal: str) -> str:
+    """Reduce a prose research goal to a keyword-shaped fallback query.
+
+    Only reached once both query generators have already failed, so this is
+    the literal text a downstream source's ``esearch`` sees. A full prose
+    sentence -- articles, punctuation, question words and all -- collapses
+    under PubMed's AND-every-term semantics before the broadening ladder
+    even gets a chance to run, so this strips common stopwords and caps the
+    term count instead of forwarding the goal verbatim.
+
+    Args:
+        research_goal: The run's research goal, as free text.
+
+    Returns:
+        A space-joined keyword string, or the original goal unchanged if
+        stripping stopwords would leave nothing to search with.
+    """
+    words = re.findall(r"[A-Za-z0-9][A-Za-z0-9-]*", research_goal)
+    keywords = [w for w in words if w.lower() not in _GOAL_FALLBACK_STOPWORDS]
+    if not keywords:
+        return research_goal
+    return " ".join(keywords[:_GOAL_FALLBACK_MAX_TERMS])
+
+
 async def _phase1_generate_queries(
     state: WorkflowState,
     config: SearchConfig,
@@ -192,12 +269,16 @@ async def _phase1_generate_queries(
     if not queries:
         queries = await _generate_queries_via_llm(state, config)
 
-    # Final fallback to research goal
+    # Final fallback to a keyword-distilled research goal
     # Guarantees Phase 2 always has at least one query to search with, even
     # if both generators failed.
     if not queries:
-        logger.warning("No queries generated, using research goal")
-        queries = [state["research_goal"]]
+        fallback = _distill_goal_to_query(state["research_goal"])
+        logger.warning(
+            "No queries generated, falling back to distilled goal: %s",
+            fallback,
+        )
+        queries = [fallback]
 
     # Bounds the number of parallel search calls (and downstream
     # papers-per-query fan-out) regardless of how many queries either

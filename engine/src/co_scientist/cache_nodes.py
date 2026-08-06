@@ -12,11 +12,14 @@ from typing import Any
 from co_scientist.cache_storage import (
     _cache_dir_stats,
     _clear_cache_files,
+    _evict_stale_entry,
     _hash_key,
+    _is_cache_entry_stale,
     _read_node_cache_entry,
     _write_node_cache_file_atomically,
 )
 from co_scientist.constants import DEFAULT_CACHE_DIR
+from co_scientist.constants_cache import DEFAULT_CACHE_TTL_SECONDS
 
 logger = logging.getLogger(__name__)
 
@@ -31,16 +34,22 @@ class NodeCache:
     """
 
     def __init__(
-        self, cache_dir: str = DEFAULT_CACHE_DIR, enabled: bool = True
+        self,
+        cache_dir: str = DEFAULT_CACHE_DIR,
+        enabled: bool = True,
+        ttl_seconds: float | None = DEFAULT_CACHE_TTL_SECONDS,
     ):
         """Initialize the node cache.
 
         Args:
             cache_dir: Base directory to store cache files
             enabled: Whether caching is enabled
+            ttl_seconds: Age after which an entry is treated as a miss, or
+                None to disable expiry.
         """
         self.cache_dir = Path(cache_dir) / "nodes"
         self.enabled = enabled
+        self.ttl_seconds = ttl_seconds
 
         if self.enabled:
             self.cache_dir.mkdir(exist_ok=True, parents=True)
@@ -80,13 +89,24 @@ class NodeCache:
         cache_key = self._generate_cache_key(node_name, **key_params)
         cache_file = self.cache_dir / f"{cache_key}.pkl"
 
-        if cache_file.exists():
-            return _read_node_cache_entry(cache_file, node_name, cache_key)
+        if not cache_file.exists():
+            logger.debug(
+                "node cache MISS for %s (key %s...)", node_name, cache_key[:8]
+            )
+            return None
 
-        logger.debug(
-            "node cache MISS for %s (key %s...)", node_name, cache_key[:8]
-        )
-        return None
+        # force bypasses expiry too: it exists to make a dev/test entry
+        # always trusted regardless of the ambient cache settings.
+        if not force and _is_cache_entry_stale(cache_file, self.ttl_seconds):
+            logger.debug(
+                "node cache EXPIRED (ttl) for %s (key %s...)",
+                node_name,
+                cache_key[:8],
+            )
+            _evict_stale_entry(cache_file)
+            return None
+
+        return _read_node_cache_entry(cache_file, node_name, cache_key)
 
     def set(
         self,

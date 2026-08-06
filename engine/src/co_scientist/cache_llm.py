@@ -16,7 +16,9 @@ from typing import Any
 from co_scientist.cache_storage import (
     _cache_dir_stats,
     _clear_cache_files,
+    _evict_stale_entry,
     _hash_key,
+    _is_cache_entry_stale,
     _read_llm_cache_entry,
     _write_cache_file_atomically,
 )
@@ -24,6 +26,10 @@ from co_scientist.constants import (
     DEFAULT_CACHE_DIR,
     DEFAULT_CACHE_ENABLED,
     truncate,
+)
+from co_scientist.constants_cache import (
+    DEFAULT_CACHE_TTL_SECONDS,
+    LLM_CACHE_SCHEMA_VERSION,
 )
 
 logger = logging.getLogger(__name__)
@@ -41,6 +47,21 @@ class LLMCacheRequest:
         tools: Optional list of tool definitions (for tool-calling LLMs).
         json_schema: Optional JSON schema for structured output.
         force_json: Optional flag to force JSON output.
+        tool_contract: Optional resolved configuration of whatever the
+            prompt's tools (or other external source data) actually do at
+            call time -- as opposed to ``tools``, which is only the schema
+            *advertised* to the model. Two calls can offer an identical
+            tool schema while the tool itself behaves differently (a data
+            source disabled, an endpoint changed), in which case a cached
+            transcript from the old configuration must not replay. Mirrors
+            the node-cache tier's ``tool_contract``
+            (``agents/generation/literature_review/node.py``); folded into
+            the key only when a caller supplies one; keeping every call
+            site that has no notion of an external tool contract unaffected.
+        cache_schema_version: Schema version this entry was cached under.
+            Defaults to the current ``LLM_CACHE_SCHEMA_VERSION`` so every
+            caller is versioned without having to set this explicitly;
+            bumping the constant invalidates the whole cache at once.
     """
 
     prompt: str
@@ -50,6 +71,8 @@ class LLMCacheRequest:
     tools: list[dict[str, Any]] | None = None
     json_schema: dict[str, Any] | None = None
     force_json: bool | None = None
+    tool_contract: dict[str, Any] | None = None
+    cache_schema_version: int = LLM_CACHE_SCHEMA_VERSION
 
 
 class LLMCache:
@@ -59,15 +82,19 @@ class LLMCache:
         self,
         cache_dir: str = DEFAULT_CACHE_DIR,
         enabled: bool = DEFAULT_CACHE_ENABLED,
+        ttl_seconds: float | None = DEFAULT_CACHE_TTL_SECONDS,
     ):
         """Initialize the LLM cache.
 
         Args:
             cache_dir: Directory to store cache files
             enabled: Whether caching is enabled
+            ttl_seconds: Age after which an entry is treated as a miss, or
+                None to disable expiry.
         """
         self.cache_dir = Path(cache_dir)
         self.enabled = enabled
+        self.ttl_seconds = ttl_seconds
 
         # Directory is only created when caching is enabled, so a disabled
         # cache leaves no stray directory on disk.
@@ -97,6 +124,10 @@ class LLMCache:
             )
         if request.force_json is not None:
             key_data["force_json"] = request.force_json
+        if request.tool_contract is not None:
+            key_data["tool_contract"] = json.dumps(
+                request.tool_contract, sort_keys=True
+            )
 
     def _generate_cache_key(self, request: LLMCacheRequest) -> str:
         """Generate a unique cache key for the request.
@@ -113,6 +144,7 @@ class LLMCache:
             "model": request.model_name,
             "temperature": request.temperature,
             "max_tokens": request.max_tokens,
+            "cache_schema_version": request.cache_schema_version,
         }
         self._fold_optional_key_params(key_data, request)
         return _hash_key(key_data)
@@ -133,11 +165,16 @@ class LLMCache:
         self, cache_key: str, cache_file: Path
     ) -> dict[str, Any] | None:
         """Return the cached entry for cache_file, or log and return None."""
-        if cache_file.exists():
-            return _read_llm_cache_entry(cache_file, cache_key)
+        if not cache_file.exists():
+            logger.debug("cache MISS for key %s...", cache_key[:8])
+            return None
 
-        logger.debug("cache MISS for key %s...", cache_key[:8])
-        return None
+        if _is_cache_entry_stale(cache_file, self.ttl_seconds):
+            logger.debug("cache EXPIRED (ttl) for key %s...", cache_key[:8])
+            _evict_stale_entry(cache_file)
+            return None
+
+        return _read_llm_cache_entry(cache_file, cache_key)
 
     def get(self, request: LLMCacheRequest) -> dict[str, Any] | None:
         """Get cached response if available.

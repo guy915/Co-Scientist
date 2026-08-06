@@ -64,6 +64,9 @@ from co_scientist.agents.generation.literature_tools.validate_support import (
 from co_scientist.agents.generation.literature_tools.validate_support import (
     _run_and_retry_synthesis_batches as _run_and_retry_synthesis_batches,
 )
+from co_scientist.agents.generation.literature_tools.validate_support import (
+    _synthesis_tool_contract as _synthesis_tool_contract,
+)
 from co_scientist.agents.generation.literature_tools.validate_synthesis import (
     _build_hypotheses_from_synthesis as _build_hypotheses_from_synthesis,
 )
@@ -217,6 +220,7 @@ async def _invoke_synthesis_llm(
             tools=ctx.openai_tools,
             executor=tracked_executor,
             max_iterations=ctx.max_iterations,
+            tool_contract=_synthesis_tool_contract(ctx.tool_registry),
         ),
         options=LLMCallOptions(
             run_id=ctx.state.get("run_id"),

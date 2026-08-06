@@ -182,3 +182,51 @@ async def test_try_mcp_query_generation_calls_the_resolved_tool() -> None:
 
     assert result == ["alpha", "beta"]
     assert client.calls[0][0] == "qgen_mcp"
+
+
+# =============================================================================
+# _phase1_generate_queries -- final fallback to the research goal
+# =============================================================================
+
+
+async def test_final_fallback_distills_the_goal_instead_of_sending_it_raw(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """When both generators fail, the fallback query is keyword-shaped.
+
+    Sending the prose goal verbatim -- articles, punctuation, question
+    words and all -- hands Entrez a query that collapses under its own
+    AND-every-term semantics before the broadening ladder even runs. The
+    fallback must strip that down to the same keyword shape the query-
+    generation prompt itself asks the model for.
+    """
+
+    async def _raise(**_: Any) -> dict[str, Any]:
+        raise RuntimeError("llm down")
+
+    monkeypatch.setattr(queries, "call_llm_json", _raise)
+    state = make_state(
+        research_goal=(
+            "How does mifepristone affect the glucocorticoid receptor"
+            " in glioblastoma?"
+        )
+    )
+    client = FakeCallToolClient(response=[])
+
+    result = await queries._phase1_generate_queries(
+        state, _search_config(), cast(MCPToolClient, client)
+    )
+
+    assert result != [state["research_goal"]]
+    assert len(result) == 1
+    fallback = result[0]
+    assert "?" not in fallback
+    for stopword in ("how", "does", "the", "in"):
+        assert stopword not in fallback.lower().split()
+    for keyword in (
+        "mifepristone",
+        "glucocorticoid",
+        "receptor",
+        "glioblastoma",
+    ):
+        assert keyword in fallback.lower()

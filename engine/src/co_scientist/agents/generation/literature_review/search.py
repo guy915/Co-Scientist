@@ -20,6 +20,9 @@ from co_scientist.agents.generation.literature_review.helpers import (
     merge_search_results,
     select_within_budget,
 )
+from co_scientist.agents.generation.literature_review.relevance import (
+    apply_semantic_relevance,
+)
 
 # The one-query search body and the transient-failure retry around a single
 # tool call moved to sibling modules; every name is re-exported so this
@@ -161,7 +164,7 @@ async def _search_all_sources(
     return await asyncio.gather(*tasks)
 
 
-def _merge_and_budget_multi_source(
+async def _merge_and_budget_multi_source(
     source_results: list[tuple[str, dict[str, dict[str, Any]]]],
     enabled_sources: list["SearchSourceConfig"],
     config: SearchConfig,
@@ -170,13 +173,23 @@ def _merge_and_budget_multi_source(
 
     Optionally dedupes by title (config-driven via
     deduplicate_across_sources) and builds paper_source_map so later phases
-    know which source's tool config applies to each paper, then applies
-    select_within_budget's reserved-slots selection.
+    know which source's tool config applies to each paper. A bounded
+    semantic relevance pass re-ranks the merged pool (see
+    ``relevance.apply_semantic_relevance``) before select_within_budget's
+    reserved-slots selection runs on it, so a reserved source's own
+    best-by-hybrid-score candidates seat first, not merely its
+    best-by-citation ones.
     """
     assert config.workflow is not None
     all_paper_metadata, paper_source_map = merge_search_results(
         source_results,
         deduplicate=config.workflow.deduplicate_across_sources,
+    )
+    all_paper_metadata = await apply_semantic_relevance(
+        all_paper_metadata,
+        config.research_goal,
+        config.model_name,
+        config.papers_to_read_count,
     )
     selected_ids = select_within_budget(
         all_paper_metadata,
@@ -215,7 +228,7 @@ async def _phase2_collect_papers_multi_source(
         enabled_sources, queries, ctx, config.tool_registry
     )
 
-    all_paper_metadata, paper_source_map = _merge_and_budget_multi_source(
+    all_paper_metadata, paper_source_map = await _merge_and_budget_multi_source(
         source_results, enabled_sources, config
     )
 
@@ -249,16 +262,27 @@ async def _search_all_queries(
     return await asyncio.gather(*tasks)
 
 
-def _combine_and_cap_single_source_results(
+async def _combine_and_cap_single_source_results(
     search_results: list[dict[str, dict[str, Any]]],
     config: SearchConfig,
 ) -> dict[str, dict[str, Any]]:
-    """Merges per-query results, dedupes/ranks, and caps to the read count."""
+    """Merges per-query results, dedupes/ranks, and caps to the read count.
+
+    The semantic relevance pass runs before capping (see
+    ``relevance.apply_semantic_relevance``), so the papers kept are the
+    best by hybrid score, not merely the best by lexical heuristic.
+    """
     combined: dict[str, dict[str, Any]] = {}
     for result_data in search_results:
         combined.update(result_data)
     ranked, _ = merge_search_results(
         [(config.search_tool_name, combined)], deduplicate=True
+    )
+    ranked = await apply_semantic_relevance(
+        ranked,
+        config.research_goal,
+        config.model_name,
+        config.papers_to_read_count,
     )
     return dict(list(ranked.items())[: config.papers_to_read_count])
 
@@ -285,7 +309,7 @@ async def _phase2_collect_papers_single_source(
         queries, config.papers_to_read_count, ctx, config
     )
 
-    all_paper_metadata = _combine_and_cap_single_source_results(
+    all_paper_metadata = await _combine_and_cap_single_source_results(
         search_results, config
     )
     return all_paper_metadata, {}

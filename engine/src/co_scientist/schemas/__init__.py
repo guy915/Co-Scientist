@@ -24,6 +24,7 @@ from co_scientist.schemas.generation import (
 from co_scientist.schemas.literature import (
     LITERATURE_PAPER_ANALYSIS_SCHEMA,
     LITERATURE_QUERY_SCHEMA,
+    LITERATURE_RELEVANCE_SCHEMA,
 )
 from co_scientist.schemas.planning import (
     META_REVIEW_SCHEMA,
@@ -60,6 +61,7 @@ __all__ = [
     "HYPOTHESIS_VALIDATION_SYNTHESIS_SCHEMA",
     "LITERATURE_PAPER_ANALYSIS_SCHEMA",
     "LITERATURE_QUERY_SCHEMA",
+    "LITERATURE_RELEVANCE_SCHEMA",
     "META_REVIEW_SCHEMA",
     "PROXIMITY_SCHEMA",
     "RANKING_COMPARISON_CRITERIA",

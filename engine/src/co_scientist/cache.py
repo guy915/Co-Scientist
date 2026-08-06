@@ -41,8 +41,10 @@ from co_scientist.cache_storage import (
 from co_scientist.cache_storage import (
     _write_node_cache_file_atomically as _write_node_cache_file_atomically,
 )
+from co_scientist.config.env_vars import parse_timeout_env
 from co_scientist.config.registry import parse_bool_env
 from co_scientist.constants import DEFAULT_CACHE_DIR, DEFAULT_CACHE_ENABLED
+from co_scientist.constants_cache import DEFAULT_CACHE_TTL_SECONDS
 
 logger = logging.getLogger(__name__)
 
@@ -62,25 +64,28 @@ __all__ = [
 ]
 
 
-def _resolve_cache_env() -> tuple[bool, str]:
-    """Read the cache enabled flag and directory from the environment.
+def _resolve_cache_env() -> tuple[bool, str, float | None]:
+    """Read the cache enabled flag, directory, and TTL from the environment.
 
     Each accessor calls this once, on the first call in the process, before it
     memoizes its singleton: whichever caller (a caller that has deliberately
-    exported COSCIENTIST_CACHE_ENABLED/_DIR into its own process, e.g. an
-    ops deployment) runs first "wins" that setting for the rest of the
-    process; later os.environ edits are ignored. A single generator's
-    per-instance ``enable_cache`` preference does not take this path -- see
-    ``scoped_cache_override`` for how that is scoped instead.
+    exported COSCIENTIST_CACHE_ENABLED/_DIR/_TTL_SECONDS into its own
+    process, e.g. an ops deployment) runs first "wins" that setting for the
+    rest of the process; later os.environ edits are ignored. A single
+    generator's per-instance ``enable_cache`` preference does not take this
+    path -- see ``scoped_cache_override`` for how that is scoped instead.
 
     Returns:
-        A ``(cache_enabled, cache_dir)`` pair.
+        A ``(cache_enabled, cache_dir, ttl_seconds)`` triple.
     """
     cache_enabled_str = os.getenv(
         "COSCIENTIST_CACHE_ENABLED", str(DEFAULT_CACHE_ENABLED).lower()
     )
     cache_dir = os.getenv("COSCIENTIST_CACHE_DIR", DEFAULT_CACHE_DIR)
-    return parse_bool_env(cache_enabled_str), cache_dir
+    ttl_seconds = parse_timeout_env(
+        "COSCIENTIST_CACHE_TTL_SECONDS", DEFAULT_CACHE_TTL_SECONDS
+    )
+    return parse_bool_env(cache_enabled_str), cache_dir, ttl_seconds
 
 
 # Per-task override for whether the *current* asyncio task should treat
@@ -142,8 +147,12 @@ def get_cache() -> LLMCache:
     global _global_cache
 
     if _global_cache is None:
-        cache_enabled, cache_dir = _resolve_cache_env()
-        _global_cache = LLMCache(cache_dir=cache_dir, enabled=cache_enabled)
+        cache_enabled, cache_dir, ttl_seconds = _resolve_cache_env()
+        _global_cache = LLMCache(
+            cache_dir=cache_dir,
+            enabled=cache_enabled,
+            ttl_seconds=ttl_seconds,
+        )
 
         if cache_enabled:
             logger.info("LLM caching enabled (dir: %s)", cache_dir)
@@ -172,9 +181,11 @@ def get_node_cache() -> NodeCache:
     global _global_node_cache
 
     if _global_node_cache is None:
-        cache_enabled, cache_dir = _resolve_cache_env()
+        cache_enabled, cache_dir, ttl_seconds = _resolve_cache_env()
         _global_node_cache = NodeCache(
-            cache_dir=cache_dir, enabled=cache_enabled
+            cache_dir=cache_dir,
+            enabled=cache_enabled,
+            ttl_seconds=ttl_seconds,
         )
 
         if cache_enabled:

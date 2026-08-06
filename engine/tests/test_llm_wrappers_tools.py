@@ -8,11 +8,14 @@ litellm boundary is faked exactly as described in
 ``tests._llm_fake.disable_llm_cache``.
 """
 
+from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 
 import pytest
 
+from co_scientist import llm_tool_loop
+from co_scientist.cache import LLMCache
 from co_scientist.llm import (
     CompletionSpec,
     ToolLoop,
@@ -276,3 +279,77 @@ def test_message_to_history_omits_absent_reasoning_content() -> None:
 
     assert "reasoning_content" not in result
     assert result["content"] == "final answer"
+
+
+# --- ToolLoop.tool_contract: cache invalidation (I4) -----------------------
+
+
+async def _run_tool_loop_no_tools(
+    prompt: str, tool_contract: dict[str, Any] | None
+) -> str:
+    """Run one no-tool-call ``call_llm_with_tools`` iteration, cache live."""
+
+    async def tool_executor(_tc: Any) -> dict[str, Any]:
+        raise AssertionError("no tool call should run")
+
+    final_text, _ = await call_llm_with_tools(
+        prompt,
+        CompletionSpec(model_name="test-model"),
+        ToolLoop(
+            tools=_SEARCH_TOOL,
+            executor=tool_executor,
+            tool_contract=tool_contract,
+        ),
+    )
+    return final_text
+
+
+async def test_tool_contract_change_is_a_cache_miss(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A changed ``tool_contract`` misses a prior cached transcript.
+
+    Same prompt and tool *schema* both times -- only the resolved tool
+    configuration behind that schema differs -- so a cache keyed on prompt
+    and schema alone would wrongly replay the first call's answer.
+    """
+    cache_obj = LLMCache(cache_dir=str(tmp_path), enabled=True)
+    monkeypatch.setattr(llm_tool_loop, "get_cache", lambda: cache_obj)
+    state = _patch_acompletion(
+        monkeypatch,
+        [
+            _completion(_message("answer one")),
+            _completion(_message("answer two")),
+        ],
+    )
+
+    first = await _run_tool_loop_no_tools(
+        "same prompt", {"pubmed": {"enabled": True}}
+    )
+    second = await _run_tool_loop_no_tools(
+        "same prompt", {"pubmed": {"enabled": False}}
+    )
+
+    assert first == "answer one"
+    assert second == "answer two"
+    assert state["calls"] == 2
+
+
+async def test_identical_tool_contract_is_a_cache_hit(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Two identical calls share one cache entry.
+
+    Same prompt, tools, and tool_contract -- the second is served from
+    cache, not re-completed.
+    """
+    cache_obj = LLMCache(cache_dir=str(tmp_path), enabled=True)
+    monkeypatch.setattr(llm_tool_loop, "get_cache", lambda: cache_obj)
+    state = _patch_acompletion(monkeypatch, [_completion(_message("answer"))])
+    contract = {"pubmed": {"enabled": True}}
+
+    first = await _run_tool_loop_no_tools("same prompt", contract)
+    second = await _run_tool_loop_no_tools("same prompt", contract)
+
+    assert first == second == "answer"
+    assert state["calls"] == 1

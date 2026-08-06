@@ -391,11 +391,19 @@ class ToolLoop:
         executor: Async callable that runs one tool call and returns its
             result payload.
         max_iterations: Maximum model<->tool round-trips before giving up.
+        tool_contract: Optional resolved configuration behind ``tools`` --
+            e.g. a tool registry's enabled sources and endpoints -- that can
+            change how a tool call behaves without changing the schema
+            offered to the model. Folded into the cache key alongside
+            ``tools`` (see ``LLMCacheRequest.tool_contract``) so a
+            cached transcript from an old configuration cannot replay under
+            a new one. None for callers with no such external contract.
     """
 
     tools: list[dict[str, Any]]
     executor: Callable[[Any], Awaitable[dict[str, Any]]]
     max_iterations: int = 10
+    tool_contract: dict[str, Any] | None = None
 
 
 async def call_llm_with_tools(
@@ -430,6 +438,7 @@ async def call_llm_with_tools(
             temperature=spec.temperature,
             max_tokens=spec.max_tokens,
             tools=loop.tools,
+            tool_contract=loop.tool_contract,
         )
         request, cache, cached_result = await _prepare_tool_call(request, opt)
         if cached_result is not None:

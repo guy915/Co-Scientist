@@ -2,8 +2,9 @@
 
 Small, composable functions supporting query generation (Phase 1) and paper
 search/collection (Phase 2): the resolved ``SearchConfig`` bundle, search
-response normalization, query source-type selection, multi-source result
-merging, and the evidence-budget selection that reduces it.
+response normalization, query source-type selection, and multi-source result
+merging and ranking. The evidence-budget selection that reduces the merged,
+ranked results lives in the sibling ``search_budget`` module.
 """
 
 import json
@@ -12,9 +13,12 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any, Optional, cast
 
+from co_scientist.agents.generation.literature_review.article_support import (
+    _metadata_is_retracted,
+)
+
 if TYPE_CHECKING:
     from co_scientist.config import (
-        SearchSourceConfig,
         ToolConfig,
         ToolRegistry,
         WorkflowConfig,
@@ -42,6 +46,10 @@ class SearchConfig:
     source_name: str
     papers_to_read_count: int
     is_dev_mode: bool
+    # Threaded through for the hybrid relevance pass (relevance.py), which
+    # needs the goal to judge against and the model to judge with.
+    research_goal: str = ""
+    model_name: str = ""
 
 
 def _quoted_field_mapping_source(tool_config: "ToolConfig") -> str | None:
@@ -282,7 +290,7 @@ def _normalize_title(metadata: dict[str, Any]) -> str:
 
 def _retrieval_score(metadata: dict[str, Any]) -> float:
     """Score source quality, impact, recency, and correction risk."""
-    if metadata.get("is_retracted"):
+    if _metadata_is_retracted(metadata):
         return -1_000_000.0
     source = str(
         metadata.get("source") or metadata.get("_source_name") or ""
@@ -312,7 +320,7 @@ def _rank_search_results(
     for item in metadata.values():
         item["retrieval_score"] = round(_retrieval_score(item), 4)
         item["correction_status"] = (
-            "retracted" if item.get("is_retracted") else "current"
+            "retracted" if _metadata_is_retracted(item) else "current"
         )
     return dict(
         sorted(
@@ -381,89 +389,3 @@ def merge_search_results(
         paper_id: paper_source_map[paper_id] for paper_id in ranked
     }
     return ranked, ranked_source_map
-
-
-def _fill_reserved_slots(
-    ranked: dict[str, dict[str, Any]],
-    source_map: dict[str, str],
-    sources: list["SearchSourceConfig"],
-    budget: int,
-) -> list[str]:
-    """Fills each source's reserved slots best-first, capped at the budget."""
-    reserved: list[str] = []
-    for source in sources:
-        if source.reserved_slots <= 0:
-            continue
-        remaining = budget - len(reserved)
-        if remaining <= 0:
-            break
-        from_source = [
-            paper_id
-            for paper_id in ranked
-            if source_map.get(paper_id) == source.tool
-        ]
-        reserved.extend(from_source[: min(source.reserved_slots, remaining)])
-    return reserved
-
-
-def _fill_remaining_by_score(
-    ranked: dict[str, dict[str, Any]],
-    reserved: list[str],
-    budget: int,
-) -> list[str]:
-    """Appends the best-ranked remaining papers up to the budget."""
-    selected = list(reserved)
-    reserved_ids = set(reserved)
-    for paper_id in ranked:
-        if len(selected) >= budget:
-            break
-        if paper_id not in reserved_ids:
-            selected.append(paper_id)
-    return selected
-
-
-# Why reserved_slots exists: retrieval score rewards citation count and
-# recency, which a source can lack entirely rather than score poorly on. A
-# local corpus of the group's own papers carries neither, so it sorts below
-# every indexed paper and is truncated away no matter how well it answers
-# the question. Reserving places is the narrow fix -- raising such a
-# source's base score enough to survive would also let it displace
-# everything else.
-def select_within_budget(
-    ranked: dict[str, dict[str, Any]],
-    source_map: dict[str, str],
-    sources: list["SearchSourceConfig"],
-    budget: int,
-) -> list[str]:
-    """Choose which ranked papers fit the evidence budget.
-
-    Score alone decides, except that a source configured with
-    ``reserved_slots`` is guaranteed that many places first. Reserved
-    places are filled best-first from within the source, are never padded
-    when the source returned fewer papers, and cannot push the selection
-    past the budget.
-
-    Args:
-        ranked: Papers best-first, as returned by ``merge_search_results``.
-        source_map: Paper id to the source tool id that produced it.
-        sources: The workflow's enabled search sources, in config order.
-        budget: Total papers to select.
-
-    Returns:
-        The selected paper ids: reserved papers first, then the best of the
-        rest by score.
-    """
-    if budget <= 0:
-        return []
-
-    reserved = _fill_reserved_slots(ranked, source_map, sources, budget)
-    selected = _fill_remaining_by_score(ranked, reserved, budget)
-
-    if reserved:
-        logger.info(
-            "Evidence budget %s: %s reserved, %s by score",
-            budget,
-            len(reserved),
-            len(selected) - len(reserved),
-        )
-    return selected

@@ -469,6 +469,17 @@ class Article:
     )  # unused in PubMed-only mode (HTML-only)
     # Flag indicating if this article was analyzed by the agent
     used_in_analysis: bool = False
+    # When the engine retrieved this article (search-phase collection time),
+    # distinct from any downstream persistence timestamp a caller stamps on
+    # its own copy of the record.
+    retrieved_at: float | None = None
+    # Hybrid retrieval score (lexical heuristic + model-judged relevance,
+    # see search_support.py) and the provenance of how it was produced.
+    # None for an article that predates hybrid scoring or was never ranked
+    # this way (e.g. a directly fetched corpus paper).
+    retrieval_score: float | None = None
+    retrieval_rationale: str | None = None
+    retriever_version: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for serialization."""

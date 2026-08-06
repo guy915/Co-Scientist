@@ -1,10 +1,12 @@
 """Literature review helper functions (compatibility facade).
 
-The helper implementations live in three focused modules, split by the node
+The helper implementations live in four focused modules, split by the node
 phase they support:
 
 - ``search_support``: search config, response normalization, query
   generation, and result merging (Phases 1-2).
+- ``search_budget``: evidence-budget selection over the merged, ranked
+  results (Phase 2 reduction).
 - ``retrieval_support``: PDF discovery and content fetching (Phases 2.4-2.5).
 - ``article_support``: article assembly, fulltext availability, and node
   result construction.
@@ -116,6 +118,18 @@ from co_scientist.agents.generation.literature_review.retrieval_support import (
 from co_scientist.agents.generation.literature_review.retrieval_support import (
     parse_pdf_discovery_result as parse_pdf_discovery_result,
 )
+from co_scientist.agents.generation.literature_review.search_budget import (
+    _exclude_retracted as _exclude_retracted,
+)
+from co_scientist.agents.generation.literature_review.search_budget import (
+    _fill_remaining_by_score as _fill_remaining_by_score,
+)
+from co_scientist.agents.generation.literature_review.search_budget import (
+    _fill_reserved_slots as _fill_reserved_slots,
+)
+from co_scientist.agents.generation.literature_review.search_budget import (
+    select_within_budget as select_within_budget,
+)
 from co_scientist.agents.generation.literature_review.search_support import (
     SearchConfig as SearchConfig,
 )
@@ -166,7 +180,4 @@ from co_scientist.agents.generation.literature_review.search_support import (
 )
 from co_scientist.agents.generation.literature_review.search_support import (
     parse_mcp_query_result as parse_mcp_query_result,
-)
-from co_scientist.agents.generation.literature_review.search_support import (
-    select_within_budget as select_within_budget,
 )

@@ -6,6 +6,7 @@ analysis, and constructs the node's success/failure result dicts.
 """
 
 import logging
+import time
 from collections.abc import Callable
 from typing import Any, cast
 
@@ -71,6 +72,12 @@ def build_article_from_metadata(
         publication_type=metadata.get("publication_type"),
         pdf_links=[],
         used_in_analysis=used_in_analysis,
+        # Collection time, not the caller's eventual persistence time (see
+        # Article.retrieved_at).
+        retrieved_at=time.time(),
+        retrieval_score=metadata.get("retrieval_score"),
+        retrieval_rationale=metadata.get("retrieval_rationale"),
+        retriever_version=metadata.get("retriever_version"),
     )
 
 

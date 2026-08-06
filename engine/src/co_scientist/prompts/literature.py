@@ -187,6 +187,26 @@ def get_literature_review_paper_analysis_prompt(
     )
 
 
+# Renders prompts/literature_review_relevance.md, called by
+# agents/generation/literature_review/relevance.py once per candidate paper
+# in the pre-budget pool (paired there with LITERATURE_RELEVANCE_SCHEMA):
+# the semantic half of the hybrid retrieval score (fidelity-audit G5).
+def get_literature_review_relevance_prompt(
+    research_goal: str,
+    title: str,
+    abstract: str,
+) -> str:
+    """Get the prompt for judging one candidate paper's semantic relevance."""
+    return load_prompt(
+        "literature_review_relevance",
+        {
+            "research_goal": research_goal,
+            "title": title,
+            "abstract": abstract or "(no abstract available)",
+        },
+    )
+
+
 def _format_paper_analyses(paper_analyses: list[dict[str, Any]]) -> str:
     """Render each paper's metadata and analysis as a markdown section.
 

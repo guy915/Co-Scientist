@@ -80,3 +80,33 @@ LITERATURE_PAPER_ANALYSIS_SCHEMA: dict[str, Any] = {
         }
     ),
 }
+
+# Literature review semantic relevance schema
+# Imported directly by
+# agents/generation/literature_review/relevance.py, the model-judged half
+# of the hybrid retrieval scorer (fidelity-audit G5): one call per
+# candidate paper, so this schema names no pool to identify a candidate by
+# index -- it judges the single paper the prompt already names.
+LITERATURE_RELEVANCE_SCHEMA: dict[str, Any] = {
+    "name": "literature_relevance",
+    "strict": False,
+    "schema": obj(
+        {
+            "relevance": {
+                "type": "number",
+                "description": (
+                    "how well this paper's title and abstract bear on the"
+                    " research goal, from 0.0 (unrelated) to 1.0"
+                    " (directly on point)"
+                ),
+            },
+            "rationale": {
+                "type": "string",
+                "description": (
+                    "one sentence stating why this paper does or does not"
+                    " bear on the research goal"
+                ),
+            },
+        }
+    ),
+}

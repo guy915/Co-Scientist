@@ -10,6 +10,7 @@ import hashlib
 import json
 import logging
 import pickle
+import time
 from pathlib import Path
 from typing import Any
 
@@ -20,6 +21,39 @@ def _hash_key(key_data: dict[str, Any]) -> str:
     """Return the SHA256 hex digest of a canonical-JSON key payload."""
     key_string = json.dumps(key_data, sort_keys=True)
     return hashlib.sha256(key_string.encode()).hexdigest()
+
+
+def _is_cache_entry_stale(cache_file: Path, ttl_seconds: float | None) -> bool:
+    """Return whether a cache entry is older than its TTL.
+
+    Uses the file's own mtime rather than a timestamp stored inside the
+    entry, so neither cache tier's on-disk format has to change to gain
+    expiry, and entries written before TTL support was added age out
+    exactly like any other entry instead of being treated as ageless.
+
+    Args:
+        cache_file: The cache entry file whose age to check.
+        ttl_seconds: The expiry ceiling, or None to disable expiry (every
+            entry is considered fresh).
+
+    Returns:
+        True when the entry's age exceeds ``ttl_seconds``. A file that
+        vanished or cannot be stat'd (e.g. a concurrent clear) is reported
+        fresh -- the read that follows resolves the real outcome.
+    """
+    if ttl_seconds is None:
+        return False
+    try:
+        age_seconds = time.time() - cache_file.stat().st_mtime
+    except OSError:
+        return False
+    return age_seconds > ttl_seconds
+
+
+def _evict_stale_entry(cache_file: Path) -> None:
+    """Delete an expired cache entry, ignoring a concurrent removal."""
+    with contextlib.suppress(OSError):
+        cache_file.unlink()
 
 
 # Shared by LLMCache.clear() and NodeCache.clear() so the glob-and-delete

@@ -86,6 +86,25 @@ def _parse_date_revised(citation: dict[str, Any]) -> str:
     )
 
 
+def _extract_publication_types(article: dict[str, Any]) -> list[str]:
+    """Extracts an article's PubMed publication types.
+
+    Includes "Retracted Publication" for a retracted article -- the field
+    the engine's shared multi-shape retraction detector
+    (``article_support._metadata_is_retracted``) already checks, so
+    surfacing it here is what lets ranking and evidence-budget selection
+    recognize a retracted PubMed paper at all.
+
+    Args:
+        article: Entrez-parsed ``Article`` mapping.
+
+    Returns:
+        The publication type strings (e.g. "Journal Article", "Retracted
+        Publication"), or an empty list if the article carries none.
+    """
+    return [str(item) for item in article.get("PublicationTypeList", [])]
+
+
 def _extract_abstract(article: dict[str, Any]) -> str:
     """Extracts and joins an article's abstract text.
 
@@ -224,6 +243,7 @@ class _EntrezClient:
             "authors": _parse_authors(article),
             "publication": article["Journal"]["Title"],
             "pmc_full_text_id": self._fetch_pmc_fulltext_id(paper_id, doi),
+            "publication_types": _extract_publication_types(article),
         }
 
     def _esearch_ids(

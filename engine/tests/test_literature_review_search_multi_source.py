@@ -15,9 +15,15 @@ network, LLM, or disk I/O anywhere in this module.
 
 from typing import Any, cast
 
+import pytest
+
+from co_scientist import offline_llm
 from co_scientist.agents.generation.literature_review import search
 from co_scientist.agents.generation.literature_review.helpers import (
     SearchConfig,
+)
+from co_scientist.agents.generation.literature_review.relevance import (
+    _HYBRID_VERSION,
 )
 from co_scientist.config import (
     SearchSourceConfig,
@@ -25,12 +31,19 @@ from co_scientist.config import (
     WorkflowConfig,
 )
 from tests._mcp import FakeCallToolClient, make_tool_lookup_registry
+from tests._offline_helpers import isolate_offline_router
 from tests._retrieval_config import make_tool_config
 from tests._search_fixtures import (
     make_search_run_ctx,
     make_two_source_workflow,
 )
 from tests._state import make_state
+
+
+@pytest.fixture(autouse=True)
+def _isolate_offline_router(monkeypatch: pytest.MonkeyPatch) -> None:
+    isolate_offline_router(monkeypatch)
+    offline_llm.install_offline_router()
 
 
 class _SequencedMCPClient:
@@ -349,3 +362,48 @@ async def test_multi_source_collection_respects_unique_evidence_budget() -> (
 
     assert len(metadata) == 2
     assert set(metadata) == set(source_map)
+
+
+async def test_multi_source_hybrid_scores_when_goal_is_set() -> None:
+    """A configured research goal runs the semantic pass before budgeting.
+
+    Every selected paper carries a normalized hybrid score and its
+    provenance, and reserved-slot selection still runs unmodified on top
+    of the re-ranked pool.
+    """
+    tool_a = make_tool_config(mcp_tool_name="search_a")
+    tool_b = make_tool_config(mcp_tool_name="search_b")
+    registry = make_tool_lookup_registry({"src_a": tool_a, "src_b": tool_b})
+    config = SearchConfig(
+        tool_registry=cast(ToolRegistry, registry),
+        workflow=make_two_source_workflow(4),
+        is_multi_source=True,
+        search_tool_name="unused",
+        search_tool_config=None,
+        source_name="academic",
+        papers_to_read_count=2,
+        is_dev_mode=False,
+        research_goal="a research goal",
+        model_name=offline_llm.DEFAULT_OFFLINE_MODEL,
+    )
+    client = _SequencedMCPClient(
+        [
+            {
+                "A": {"title": "A", "year": 2025},
+                "B": {"title": "B", "year": 2024},
+            },
+            {
+                "C": {"title": "C", "year": 2023},
+                "D": {"title": "D", "year": 2022},
+            },
+        ]
+    )
+
+    metadata, _ = await _collect_multi_source(
+        ["query"], make_state(run_id="run-hybrid"), config, client, []
+    )
+
+    assert len(metadata) == 2
+    for item in metadata.values():
+        assert 0.0 <= item["retrieval_score"] <= 1.0
+        assert item["retriever_version"] == _HYBRID_VERSION

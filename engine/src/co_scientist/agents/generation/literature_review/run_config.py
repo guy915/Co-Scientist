@@ -144,4 +144,6 @@ def _get_search_config(state: WorkflowState) -> SearchConfig:
         source_name=source_name,
         papers_to_read_count=papers_to_read_count,
         is_dev_mode=is_dev_mode,
+        research_goal=str(state.get("research_goal") or ""),
+        model_name=str(state.get("model_name") or ""),
     )

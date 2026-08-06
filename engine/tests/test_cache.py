@@ -11,6 +11,8 @@ global singletons, so the global factories never touch the repo's real
 ``.coscientist_cache`` directory.
 """
 
+import os
+import time
 from dataclasses import replace
 from pathlib import Path
 from typing import Any
@@ -91,6 +93,35 @@ def test_key_changes_with_optional_params(tmp_path: Path) -> None:
     assert base != with_force_json
 
 
+def test_key_changes_with_tool_contract(tmp_path: Path) -> None:
+    """The resolved tool contract, not just its schema, is part of the key.
+
+    A source config change invalidates a cached tool-call transcript even
+    when the tool schema offered to the model is unchanged (I4).
+    """
+    cache_obj = LLMCache(cache_dir=str(tmp_path), enabled=True)
+    base = cache_obj._generate_cache_key(_REQUEST)
+    enabled = cache_obj._generate_cache_key(
+        replace(_REQUEST, tool_contract={"pubmed": {"enabled": True}})
+    )
+    disabled = cache_obj._generate_cache_key(
+        replace(_REQUEST, tool_contract={"pubmed": {"enabled": False}})
+    )
+    assert base != enabled
+    assert enabled != disabled
+
+
+def test_key_changes_with_cache_schema_version(tmp_path: Path) -> None:
+    """Bumping cache_schema_version invalidates the whole cache at once."""
+    cache_obj = LLMCache(cache_dir=str(tmp_path), enabled=True)
+    base = cache_obj._generate_cache_key(_REQUEST)
+    next_version = _REQUEST.cache_schema_version + 1
+    bumped = cache_obj._generate_cache_key(
+        replace(_REQUEST, cache_schema_version=next_version)
+    )
+    assert base != bumped
+
+
 # --- LLMCache: get/set roundtrip -------------------------------------------
 
 
@@ -107,6 +138,53 @@ def test_different_key_is_a_miss(tmp_path: Path) -> None:
     cache_obj = LLMCache(cache_dir=str(tmp_path), enabled=True)
     cache_obj.set(_REQUEST, _RESPONSE)
     assert cache_obj.get(replace(_REQUEST, prompt="unrelated")) is None
+
+
+def test_tool_contract_change_is_a_miss_end_to_end(tmp_path: Path) -> None:
+    """A get/set roundtrip misses when only ``tool_contract`` changed (I4)."""
+    cache_obj = LLMCache(cache_dir=str(tmp_path), enabled=True)
+    original = replace(_REQUEST, tool_contract={"pubmed": {"enabled": True}})
+    changed = replace(_REQUEST, tool_contract={"pubmed": {"enabled": False}})
+    cache_obj.set(original, _RESPONSE)
+    assert cache_obj.get(original) == _RESPONSE
+    assert cache_obj.get(changed) is None
+
+
+# --- LLMCache: TTL expiry ---------------------------------------------------
+
+
+def test_ttl_expired_entry_is_a_miss_and_is_evicted(tmp_path: Path) -> None:
+    """An entry older than the TTL misses and its file is removed."""
+    cache_obj = LLMCache(cache_dir=str(tmp_path), enabled=True, ttl_seconds=60)
+    cache_obj.set(_REQUEST, _RESPONSE)
+    _, cache_file = cache_obj._cache_location(_REQUEST)
+    stale = time.time() - 120
+    os.utime(cache_file, (stale, stale))
+
+    assert cache_obj.get(_REQUEST) is None
+    assert not cache_file.exists()
+
+
+def test_ttl_fresh_entry_is_still_a_hit(tmp_path: Path) -> None:
+    """An entry inside the TTL window is served normally."""
+    cache_obj = LLMCache(
+        cache_dir=str(tmp_path), enabled=True, ttl_seconds=3600
+    )
+    cache_obj.set(_REQUEST, _RESPONSE)
+    assert cache_obj.get(_REQUEST) == _RESPONSE
+
+
+def test_ttl_none_disables_expiry(tmp_path: Path) -> None:
+    """``ttl_seconds=None`` never expires an entry, however old."""
+    cache_obj = LLMCache(
+        cache_dir=str(tmp_path), enabled=True, ttl_seconds=None
+    )
+    cache_obj.set(_REQUEST, _RESPONSE)
+    _, cache_file = cache_obj._cache_location(_REQUEST)
+    ancient = time.time() - 10_000_000
+    os.utime(cache_file, (ancient, ancient))
+
+    assert cache_obj.get(_REQUEST) == _RESPONSE
 
 
 def test_set_writes_file_under_cache_dir(tmp_path: Path) -> None:
@@ -192,6 +270,36 @@ def test_get_cache_disabled_via_env(monkeypatch: pytest.MonkeyPatch) -> None:
     assert cache.get_cache().enabled is False
 
 
+def test_get_cache_reads_ttl_from_env(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """``COSCIENTIST_CACHE_TTL_SECONDS`` sets the global LLM cache's TTL."""
+    monkeypatch.setenv("COSCIENTIST_CACHE_TTL_SECONDS", "42")
+    monkeypatch.setattr(cache, "_global_cache", None)
+    assert cache.get_cache().ttl_seconds == 42.0
+
+
+def test_get_cache_ttl_zero_disables_expiry(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """``COSCIENTIST_CACHE_TTL_SECONDS=0`` disables expiry.
+
+    Matches every other wall-clock ceiling in this codebase.
+    """
+    monkeypatch.setenv("COSCIENTIST_CACHE_TTL_SECONDS", "0")
+    monkeypatch.setattr(cache, "_global_cache", None)
+    assert cache.get_cache().ttl_seconds is None
+
+
+def test_get_node_cache_reads_ttl_from_env(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """``COSCIENTIST_CACHE_TTL_SECONDS`` sets the global node cache's TTL."""
+    monkeypatch.setenv("COSCIENTIST_CACHE_TTL_SECONDS", "99")
+    monkeypatch.setattr(cache, "_global_node_cache", None)
+    assert cache.get_node_cache().ttl_seconds == 99.0
+
+
 # --- scoped_cache_override / cache_enabled_override --------------------
 
 
@@ -254,6 +362,54 @@ def test_node_cache_roundtrip(tmp_path: Path) -> None:
     assert node.get("literature_review", research_goal="cancer") is None
     node.set("literature_review", _NODE_OUTPUT, research_goal="cancer")
     assert node.get("literature_review", research_goal="cancer") == _NODE_OUTPUT
+
+
+def test_node_cache_ttl_expired_entry_is_a_miss_and_is_evicted(
+    tmp_path: Path,
+) -> None:
+    """A node-cache entry older than the TTL misses and is evicted (I4)."""
+    node = NodeCache(cache_dir=str(tmp_path), enabled=True, ttl_seconds=60)
+    node.set("literature_review", _NODE_OUTPUT, research_goal="cancer")
+    cache_key = node._generate_cache_key(
+        "literature_review", research_goal="cancer"
+    )
+    cache_file = node.cache_dir / f"{cache_key}.pkl"
+    stale = time.time() - 120
+    os.utime(cache_file, (stale, stale))
+
+    assert node.get("literature_review", research_goal="cancer") is None
+    assert not cache_file.exists()
+
+
+def test_node_cache_ttl_none_disables_expiry(tmp_path: Path) -> None:
+    """A node cache with no TTL never expires an entry."""
+    node = NodeCache(cache_dir=str(tmp_path), enabled=True, ttl_seconds=None)
+    node.set("literature_review", _NODE_OUTPUT, research_goal="cancer")
+    cache_key = node._generate_cache_key(
+        "literature_review", research_goal="cancer"
+    )
+    cache_file = node.cache_dir / f"{cache_key}.pkl"
+    ancient = time.time() - 10_000_000
+    os.utime(cache_file, (ancient, ancient))
+
+    assert node.get("literature_review", research_goal="cancer") == _NODE_OUTPUT
+
+
+def test_node_cache_force_bypasses_ttl(tmp_path: Path) -> None:
+    """``force=True`` serves an expired entry too, like the disabled gate."""
+    node = NodeCache(cache_dir=str(tmp_path), enabled=True, ttl_seconds=60)
+    node.set("literature_review", _NODE_OUTPUT, research_goal="cancer")
+    cache_key = node._generate_cache_key(
+        "literature_review", research_goal="cancer"
+    )
+    cache_file = node.cache_dir / f"{cache_key}.pkl"
+    stale = time.time() - 120
+    os.utime(cache_file, (stale, stale))
+
+    assert (
+        node.get("literature_review", force=True, research_goal="cancer")
+        == _NODE_OUTPUT
+    )
 
 
 def test_node_cache_param_mismatch_is_miss(tmp_path: Path) -> None:
