@@ -84,9 +84,19 @@ export interface Interview {
   fields: InterviewFields;
   current_question: string | null;
   turns: InterviewTurn[];
+  /** Documents attached to this chat, which the Agent reads each turn. */
+  documents: InterviewDocument[];
   created_at: number;
   updated_at: number;
   completed_at: number | null;
+}
+
+/** One document attached to a chat, as summarized back to the client. */
+export interface InterviewDocument {
+  id: string;
+  title: string;
+  mime_type: string;
+  byte_size: number;
 }
 
 /** Durable setup payload persisted inside `Run.config.setup`. */

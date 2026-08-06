@@ -22,7 +22,7 @@ from fastapi import (
     Request,
 )
 
-from app import credentials, engine_adapter, store
+from app import credentials, documents, engine_adapter, run_corpus, store
 from app.auth import client_id
 from app.config import byok_enabled
 from app.runs_models import CreateRunRequest, _build_create_run_config
@@ -224,12 +224,66 @@ def _persist_new_run(
     return run
 
 
+def _run_setup_documents(
+    req: CreateRunRequest, interview: dict[str, Any] | None, owner: str
+) -> list[dict[str, Any]]:
+    """Resolve every staged document this run is to be created with.
+
+    The union of the documents named on the request and those already
+    attached to its chat, de-duplicated by id and ordered as staged.
+
+    Raises:
+        HTTPException: 404 when a named document is unknown or unowned.
+    """
+    named = documents.resolve_owned_documents(req.document_ids, owner)
+    from_chat = (
+        store.list_interview_documents(str(interview["id"]))
+        if interview is not None
+        else []
+    )
+    resolved: dict[str, dict[str, Any]] = {}
+    for document in [*named, *from_chat]:
+        resolved.setdefault(str(document["id"]), document)
+    return list(resolved.values())
+
+
+def _index_setup_documents(run_id: str, staged: list[dict[str, Any]]) -> None:
+    """Copy staged documents into the new run's private corpus.
+
+    Indexed with the same source marker an in-run upload uses, so the
+    run-scoped retriever and the report's provenance cannot tell a document
+    attached at setup from one attached later -- only the timing differs.
+    """
+    for document in staged:
+        store.add_evidence(
+            store.NewEvidence(
+                run_id=run_id,
+                title=str(document["title"]),
+                source=run_corpus.ATTACHMENT_SOURCE,
+                abstract=str(document["text"]),
+                mime_type=str(document["mime_type"]),
+                sha256=str(document["sha256"]),
+                byte_size=int(document["byte_size"]),
+                document_version=str(document["sha256"]),
+                extraction_tool=str(document["extraction_tool"]),
+            )
+        )
+    store.mark_documents_used_by_run(run_id, [str(d["id"]) for d in staged])
+
+
 async def create_run(
     req: CreateRunRequest,
     request: Request,
     background_tasks: BackgroundTasks,
 ) -> dict[str, Any]:
     """Create a new run for the requesting client and return it.
+
+    Creation is the single committing step of run setup: the credential and
+    every attached document are resolved BEFORE the run row is written, so a
+    request that cannot be satisfied leaves nothing behind. Uploading
+    attachments after creation instead made setup a three-call sequence
+    whose middle step could fail, stranding a created, unstarted, ungrounded
+    run that nothing named.
 
     Args:
         req: Request body with the research goal, run mode, and run config.
@@ -244,12 +298,14 @@ async def create_run(
     # a clean 4xx here, never as a stored run that fails mid-execution.
     byok = await _resolve_byok(request)
     interview, req = _resolve_run_interview(req, request)
+    staged = _run_setup_documents(req, interview, client_id(request))
     run = _persist_new_run(
         req,
         request,
         interview,
         _resolve_run_settings(req, interview, byok),
     )
+    _index_setup_documents(run.id, staged)
     if byok is not None:
         credentials.store_run_credential(run.id, run.client_id, byok)
     # Title generation needs a real model: either the run brought its own

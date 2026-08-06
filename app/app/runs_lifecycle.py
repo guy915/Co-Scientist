@@ -52,23 +52,25 @@ def _check_startable(run: RunRow) -> None:
 def _reserve_capacity_or_409(run: RunRow) -> None:
     """Reserve the client's concurrent-run slot, raising 409 if it is full.
 
-    One ceiling for every tier: heavier tiers were previously capped harder
-    (ultra at 1), which stopped a researcher from investigating two
-    questions at once -- precisely what the deep tiers are for. Bounding
-    provider spend is the tier budget's job (max_llm_calls); this only has
-    to stop one client queueing unboundedly.
+    One ceiling for every tier, and one ceiling *across* them. Heavier
+    tiers were previously capped harder (ultra at 1), which stopped a
+    researcher from investigating two questions at once -- precisely what
+    the deep tiers are for. The correction went too far the other way: the
+    reservation counted each tier's runs separately, so one caller held a
+    full allowance per tier and the real ceiling was four times the
+    advertised one. Bounding provider spend is the tier budget's job
+    (max_llm_calls); this only has to stop one client queueing unboundedly,
+    which it can only do if every tier draws on the same slots.
     """
-    mode = str(run.profile)
     limit = settings.max_concurrent_runs
     if not store.reserve_run_capacity(
         run.id,
-        profile=mode,
         client_id=run.client_id,
         limit=limit,
     ):
         raise HTTPException(
             status_code=409,
-            detail=f"concurrent {mode} run limit reached ({limit})",
+            detail=f"concurrent run limit reached ({limit})",
         )
 
 

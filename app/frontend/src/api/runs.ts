@@ -36,6 +36,7 @@ export type {
   Evidence,
   Hypothesis,
   Interview,
+  InterviewDocument,
   InterviewFields,
   InterviewTurn,
   IdeaBucketEntry,
@@ -72,6 +73,8 @@ export {
   fetchJson,
   jsonRequest,
 } from './runs_http';
+export type {StagedDocument} from './documents';
+export {stageDocument} from './documents';
 export {
   addInterviewTurn,
   createInterview,
@@ -158,6 +161,10 @@ export function runGoal(run: Run | null | undefined): string {
 export async function createRun(input: {
   research_goal: string;
   interview_id?: string;
+  // Documents staged through POST /api/documents before this call. Creation
+  // copies them into the run's corpus, so the run is grounded the moment it
+  // exists rather than by a follow-up upload that can fail on its own.
+  document_ids?: string[];
   requirements?: string[];
   attributes?: string[];
   criteria?: string[];
@@ -253,6 +260,22 @@ export async function startRun(
   body: {force_provider?: 'mock' | 'engine'} = {},
 ): Promise<{id: string; status: string}> {
   return fetchJson(`/api/runs/${id}/start`, jsonRequest(body, true));
+}
+
+/**
+ * Settles a run that is not going to proceed.
+ *
+ * Used as the compensating half of run setup: when starting a just-created
+ * run fails, the run is settled here rather than left as a draft that
+ * nothing points at and nothing will ever pick up.
+ *
+ * @param id Run identifier.
+ * @returns The run id and its new status.
+ */
+export async function cancelRun(
+  id: string,
+): Promise<{id: string; status: string}> {
+  return fetchJson(`/api/runs/${id}/cancel`, jsonRequest({}, true));
 }
 
 /** Streams a grounded report-level or idea-level Agent answer to completion. */

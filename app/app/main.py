@@ -65,6 +65,7 @@ from app.diagnostics_api import (
 from app.diagnostics_api import (
     router as diagnostics_api_router,
 )
+from app.documents import router as documents_router
 from app.feedback import router as feedback_router
 from app.interviews import router as interviews_router
 from app.logging_setup import (
@@ -443,6 +444,7 @@ async def enforce_run_ownership(request: Request, call_next: Any) -> Response:
 # Mount the new run-lifecycle router (durable, persisted, SSE).
 app.include_router(runs_router)
 app.include_router(interviews_router)
+app.include_router(documents_router)
 app.include_router(shares_router)
 app.include_router(feedback_router)
 app.include_router(auth_router)

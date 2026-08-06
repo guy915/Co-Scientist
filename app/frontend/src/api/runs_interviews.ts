@@ -88,23 +88,35 @@ export async function createInterview(
   researchChallenge: string,
   onReasoning?: (fragment: string) => void,
   audience?: Audience,
+  documentIds: string[] = [],
 ): Promise<Interview> {
   return streamInterviewTurn(
     '/api/interviews',
-    {research_challenge: researchChallenge, audience},
+    {
+      research_challenge: researchChallenge,
+      audience,
+      document_ids: documentIds,
+    },
     onReasoning,
   );
 }
 
-/** Sends one scientist answer and returns the Agent's updated derivation. */
+/**
+ * Sends one scientist answer and returns the Agent's updated derivation.
+ *
+ * `documentIds` names documents staged through `/api/documents` with this
+ * turn; the Agent reads them while deriving it, so an attachment shapes the
+ * conversation it was made in rather than arriving after the plan is set.
+ */
 export async function addInterviewTurn(
   interviewId: string,
   content: string,
   onReasoning?: (fragment: string) => void,
+  documentIds: string[] = [],
 ): Promise<Interview> {
   return streamInterviewTurn(
     `/api/interviews/${interviewId}/turns`,
-    {content},
+    {content, document_ids: documentIds},
     onReasoning,
   );
 }

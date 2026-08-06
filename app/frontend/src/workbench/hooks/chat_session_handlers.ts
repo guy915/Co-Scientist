@@ -4,7 +4,9 @@ import {
   createInterview,
   editInterviewTurn,
   retryInterviewTurn,
+  stageDocument,
   type Interview,
+  type StagedDocument,
 } from '@/api/runs';
 import {type InferredRunSpec} from '../run_spec';
 import {copyText} from '@/lib/clipboard';
@@ -70,13 +72,25 @@ function applyAgentTurn(updated: Interview, deps: TranscriptSink): void {
 function beginComposerTurn(deps: SubmitComposerDeps): string | null {
   const text = deps.input.trim();
   if (!text) return null;
-  if (deps.files.length) {
-    deps.setPendingAttachments(current => [...current, ...deps.files]);
-  }
   deps.setInput('');
   deps.setError(null);
   deps.setToast(null);
   return text;
+}
+
+// Uploads the files attached to this turn and records them on the session.
+//
+// The upload happens here, with the turn, rather than after a run has been
+// created: the Agent reads the staged text while deriving this very turn,
+// which is what makes attaching a paper shape the conversation it was
+// attached to. The ids are also what creating the run carries in later.
+async function stageTurnFiles(
+  deps: SubmitComposerDeps,
+): Promise<StagedDocument[]> {
+  if (!deps.files.length) return [];
+  const staged = await Promise.all(deps.files.map(file => stageDocument(file)));
+  deps.setPendingAttachments(current => [...current, ...staged]);
+  return staged;
 }
 
 // Advances the durable interview by one turn: continues it when one is
@@ -85,11 +99,17 @@ function startInterviewTurn(
   deps: Pick<SubmitComposerDeps, 'interview' | 'audience'>,
   text: string,
   onReasoning: (fragment: string) => void,
+  documentIds: string[],
 ): Promise<Interview> {
   if (deps.interview) {
-    return addInterviewTurn(deps.interview.id, text, onReasoning);
+    return addInterviewTurn(deps.interview.id, text, onReasoning, documentIds);
   }
-  return createInterview(text, onReasoning, deps.audience ?? undefined);
+  return createInterview(
+    text,
+    onReasoning,
+    deps.audience ?? undefined,
+    documentIds,
+  );
 }
 
 // User-facing message for a failed interview turn.
@@ -124,7 +144,13 @@ async function submitComposerMessage(deps: SubmitComposerDeps): Promise<void> {
     deps.setAgentReasoning(current => current + fragment);
   const isFirstTurn = deps.interview === null;
   try {
-    const updated = await startInterviewTurn(deps, text, onReasoning);
+    const staged = await stageTurnFiles(deps);
+    const updated = await startInterviewTurn(
+      deps,
+      text,
+      onReasoning,
+      staged.map(document => document.id),
+    );
     deps.setInterview(updated);
     // The chat exists server-side from here on: list it in the rail, and on
     // its first turn put its id in the URL so reloading or reopening it

@@ -18,9 +18,15 @@ from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
-from app import credentials, store
+from app import credentials, documents, store
 from app.audience import AUDIENCE_PATTERN
 from app.auth import client_id
+from app.interviews_documents import (
+    _attach_documents as _attach_documents,
+)
+from app.interviews_documents import (
+    _with_documents as _with_documents,
+)
 from app.interviews_model import (
     _INTERVIEW_STALL_SECONDS as _INTERVIEW_STALL_SECONDS,
 )
@@ -84,16 +90,24 @@ router = APIRouter(prefix="/api/interviews", tags=["interviews"])
 
 
 class CreateInterviewRequest(BaseModel):
-    """Initial scientist challenge for a new interview."""
+    """Initial scientist challenge for a new interview.
+
+    ``document_ids`` names documents already staged through
+    ``/api/documents``. They are attached to the interview, so the very
+    first turn is scoped with the scientist's own material rather than
+    reaching the work only after the plan is fixed.
+    """
 
     research_challenge: str = Field(..., min_length=1, max_length=20_000)
     audience: str | None = Field(None, pattern=AUDIENCE_PATTERN)
+    document_ids: list[str] = Field(default_factory=list)
 
 
 class InterviewTurnRequest(BaseModel):
-    """One scientist answer or correction."""
+    """One scientist answer or correction, with any newly attached documents."""
 
     content: str = Field(..., min_length=1, max_length=20_000)
+    document_ids: list[str] = Field(default_factory=list)
 
 
 class InterviewFieldsRequest(BaseModel):
@@ -115,7 +129,7 @@ def _owned_interview(interview_id: str, request: Request) -> dict[str, Any]:
     interview = store.get_interview(interview_id)
     if interview is None or interview["client_id"] != client_id(request):
         raise HTTPException(status_code=404, detail="interview not found")
-    return interview
+    return _with_documents(interview)
 
 
 def _reasoning_capture(
@@ -163,7 +177,10 @@ async def _advance(
     _persist_interview_turn(interview_id, turn)
     updated = store.get_interview(interview_id)
     assert updated is not None
-    return updated
+    # The streamed turn is the same payload the GET returns, attachments
+    # included: a client that only ever sees streamed frames would
+    # otherwise never learn what is attached to the chat it is holding.
+    return _with_documents(updated)
 
 
 @dataclasses.dataclass(frozen=True)
@@ -285,13 +302,20 @@ def _request_byok(
 async def create_interview(
     body: CreateInterviewRequest, request: Request
 ) -> StreamingResponse:
-    """Start a durable Agent interview and stream its opening turn."""
+    """Start a durable Agent interview and stream its opening turn.
+
+    Any documents named in the body are attached before the opening turn is
+    derived, so the Agent's first question is already scoped by them.
+    """
     byok = _request_byok(request)
+    # Refused before the interview row exists, so a bad id leaves nothing.
+    documents.resolve_owned_documents(body.document_ids, client_id(request))
     interview = store.create_interview(
         client_id(request),
         body.research_challenge,
         audience=body.audience,
     )
+    _attach_documents(str(interview["id"]), body.document_ids, request)
     return _interview_stream(str(interview["id"]), byok)
 
 
@@ -321,6 +345,7 @@ async def add_interview_turn(
     interview = _owned_interview(interview_id, request)
     if interview["status"] != "active":
         raise HTTPException(status_code=409, detail="interview is not active")
+    _attach_documents(interview_id, body.document_ids, request)
     store.append_interview_turn(
         interview_id, store.NewInterviewTurn("user", body.content)
     )

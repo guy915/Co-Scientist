@@ -1,5 +1,5 @@
 import {useCallback, useState} from 'react';
-import {type Interview} from '@/api/runs';
+import {type Interview, type StagedDocument} from '@/api/runs';
 import {type InferredRunSpec} from '../run_spec';
 import {
   type ChatEntry,
@@ -100,7 +100,9 @@ export function useComposerLog(clearSessionState: () => void) {
   // from the spec state, not stored here).
   const [messages, setMessages] = useState<ChatEntry[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [pendingAttachments, setPendingAttachments] = useState<File[]>([]);
+  const [pendingAttachments, setPendingAttachments] = useState<
+    StagedDocument[]
+  >([]);
 
   // Full wipe back to the pristine composer, used by "New chat"; stable
   // identity so callers can hang effects off it.

@@ -1,0 +1,126 @@
+"""Pre-run document staging: ``/api/documents``.
+
+A scientist attaches a paper in the composer, before there is an interview
+turn to ground or a run to attach it to. This router accepts that upload on
+its own, extracts it once (``document_ingest``), and stores it against the
+caller's identity (``store.staged_documents``). The interview then quotes
+it when scoping the goal, and creating a run copies it into that run's
+private corpus as part of the create call.
+
+Uploading only *after* the run exists was both too late to inform the plan
+and a separate write that could fail on its own, leaving a run created,
+unstarted, and ungrounded. Staging first is what makes creation the single
+committing step.
+"""
+
+from __future__ import annotations
+
+from typing import Annotated, Any
+
+from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
+
+from app import document_ingest, store
+from app.auth import client_id
+
+router = APIRouter(prefix="/api/documents", tags=["documents"])
+
+
+async def _extract_upload(
+    file: UploadFile,
+) -> document_ingest.ExtractedDocument:
+    """Read and extract one upload, raising 422 on an invalid document."""
+    data = await file.read(document_ingest.MAX_UPLOAD_BYTES + 1)
+    try:
+        return document_ingest.extract_document(
+            data, file.content_type or "application/octet-stream"
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@router.post("")
+async def stage_document(
+    request: Request,
+    file: Annotated[UploadFile, File()],
+    consent: Annotated[bool, Form()],
+) -> dict[str, Any]:
+    """Extract one scientist upload and stage it against the caller.
+
+    Args:
+        request: Incoming request, used to read the owning client identity.
+        file: The uploaded document.
+        consent: Explicit consent to index the document's contents.
+
+    Returns:
+        The staged document's id and extraction provenance.
+
+    Raises:
+        HTTPException: 422 when consent is withheld or the document cannot
+            be extracted.
+    """
+    if not consent:
+        raise HTTPException(
+            status_code=422, detail="consent is required to index a document"
+        )
+    extracted = await _extract_upload(file)
+    title = (file.filename or "Uploaded document").strip()
+    document_id = store.add_staged_document(
+        store.NewStagedDocument(
+            client_id=client_id(request),
+            title=title,
+            text=extracted.text,
+            mime_type=extracted.mime_type,
+            sha256=extracted.sha256,
+            byte_size=extracted.byte_size,
+            extraction_tool=extracted.extraction_tool,
+        )
+    )
+    return {
+        "id": document_id,
+        "title": title,
+        "sha256": extracted.sha256,
+        "byte_size": extracted.byte_size,
+        "mime_type": extracted.mime_type,
+        "extraction_tool": extracted.extraction_tool,
+    }
+
+
+def resolve_owned_documents(
+    document_ids: list[str], owner: str
+) -> list[dict[str, Any]]:
+    """Resolve staged documents the caller owns, or refuse the whole set.
+
+    All-or-nothing on purpose: a request that names a document is asking for
+    work grounded in it, so silently proceeding with the subset that
+    resolved would produce an answer the scientist has no way to know was
+    ungrounded. Refusing before anything is written is also what keeps run
+    creation from leaving a half-attached run behind.
+
+    Args:
+        document_ids: The ids the request named.
+        owner: The calling client identity.
+
+    Returns:
+        The resolved rows, in the order they were named.
+
+    Raises:
+        HTTPException: 404 when any id is unknown or owned by someone else.
+    """
+    if not document_ids:
+        return []
+    documents = store.get_staged_documents(document_ids, owner)
+    if len(documents) != len(document_ids):
+        raise HTTPException(
+            status_code=404, detail="attached document not found"
+        )
+    return documents
+
+
+def document_summary(document: dict[str, Any]) -> dict[str, Any]:
+    """Summarize one staged document for a client payload, without its text."""
+    return {
+        "id": document["id"],
+        "title": document["title"],
+        "mime_type": document["mime_type"],
+        "byte_size": document["byte_size"],
+    }

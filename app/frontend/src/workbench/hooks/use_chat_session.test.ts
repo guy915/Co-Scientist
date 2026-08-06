@@ -13,7 +13,7 @@ vi.mock('@/api/runs', async importActual => {
     addInterviewTurn: vi.fn(),
     createRun: vi.fn(),
     startRun: vi.fn(),
-    uploadRunDocument: vi.fn(),
+    stageDocument: vi.fn(),
     editInterviewTurn: vi.fn(),
     retryInterviewTurn: vi.fn(),
   };
@@ -31,6 +31,7 @@ function completedInterview(goal: string) {
       title: 'Liver fibrosis',
     },
     current_question: null,
+    documents: [],
     // The transcript the session rebuilds itself from: the scientist's
     // challenge, then the closing turn that becomes the plan card's lead-in.
     turns: [
@@ -281,19 +282,20 @@ it('resetting a started session reopens the composer for a new chat', async () =
     'A brand new goal',
     expect.any(Function),
     undefined,
+    [],
   );
 });
 
-it('uploads staged scientific files before starting the run', async () => {
+it('stages attached documents before the run is created', async () => {
   const file = new File(['private result'], 'result.txt', {
     type: 'text/plain',
   });
   vi.mocked(runsApi.createRun).mockResolvedValue({
     id: 'run-with-file',
   } as Awaited<ReturnType<typeof runsApi.createRun>>);
-  vi.mocked(runsApi.uploadRunDocument).mockResolvedValue({
-    id: 'evidence-1',
-    indexed: true,
+  vi.mocked(runsApi.stageDocument).mockResolvedValue({
+    id: 'doc-1',
+    title: 'result.txt',
     sha256: 'abc',
     byte_size: 14,
     mime_type: 'text/plain',
@@ -309,12 +311,22 @@ it('uploads staged scientific files before starting the run', async () => {
   await act(async () => {
     await result.current.handleSubmit(submitEvent(), [file]);
   });
+
+  // Staged with the turn, so the Agent scopes the goal against it -- and
+  // before the run exists, so creation is what grounds the run.
+  expect(runsApi.stageDocument).toHaveBeenCalledWith(file);
+  expect(runsApi.createInterview).toHaveBeenCalledWith(
+    'Use my private result',
+    expect.any(Function),
+    undefined,
+    ['doc-1'],
+  );
+
   await act(async () => {
     await result.current.handleStartRun();
   });
 
-  expect(runsApi.uploadRunDocument).toHaveBeenCalledWith('run-with-file', file);
-  expect(runsApi.uploadRunDocument).toHaveBeenCalledBefore(
-    vi.mocked(runsApi.startRun),
-  );
+  expect(vi.mocked(runsApi.createRun).mock.calls[0][0].document_ids).toEqual([
+    'doc-1',
+  ]);
 });

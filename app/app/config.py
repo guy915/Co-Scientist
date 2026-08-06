@@ -83,10 +83,13 @@ class Settings(BaseSettings):
 
     # How many runs one researcher may have in flight at once. Scoped per
     # client, so one researcher's runs never consume another's allowance --
-    # concurrent users do not contend for this. It is a runaway guard, not a
-    # fairness mechanism: per-run spend is already bounded by the tier's
-    # max_llm_calls budget, so this only needs to stop one client from
-    # queueing an unbounded number of runs at once.
+    # concurrent users do not contend for this. One ceiling covers every
+    # tier together (see store.reserve_run_capacity): counting each tier
+    # separately let one caller hold this many express runs *and* this many
+    # ultra ones. It is a runaway guard, not a fairness mechanism: per-run
+    # spend is already bounded by the tier's max_llm_calls budget, so this
+    # only needs to stop one client from queueing an unbounded number of
+    # runs at once.
     max_concurrent_runs: int = 10
 
     # How many durable tasks one run executes at once. A run's fan-out

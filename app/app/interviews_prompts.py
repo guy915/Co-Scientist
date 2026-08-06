@@ -13,7 +13,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from app import paper_corpus
+from app import paper_corpus, store
 from app.audience import audience_chat_context
 from app.config import settings
 from app.text_utils import combine_blocks
@@ -67,6 +67,11 @@ _SYSTEM_PROMPT = (
     "an explicit statement that there are none leaves the list empty. "
     "Never infer lab capabilities the scientist has not stated.\n"
     "5. Title: an optional concise title.\n\n"
+    "When ``attached_documents`` is present, the scientist has attached "
+    "those documents to this conversation. Read them, scope the goal "
+    "against what they actually say, and ask questions that build on them "
+    "rather than re-asking what they already answer. An excerpt marked as "
+    "truncated is partial; do not treat it as the whole document.\n\n"
     "Continue until the challenge is precise, at least one focus area is "
     "known, and meaningful preferences or an explicit statement that there "
     "are none is captured. Then summarize the finalized goal, set "
@@ -173,13 +178,31 @@ def _transcript_turn(turn: dict[str, Any]) -> dict[str, Any]:
     return entry
 
 
+def _attached_documents(interview: dict[str, Any]) -> list[dict[str, str]]:
+    """Return excerpts of the documents attached to this interview.
+
+    The upload used to be possible only after the run existed, which put
+    the scientist's own material behind the plan it was supposed to shape.
+    Reading it here is what makes the attachment do what the composer's
+    paperclip implies. Empty for an interview with none, and for the
+    synthetic rows the prompt builders are exercised with directly.
+    """
+    interview_id = interview.get("id")
+    if not interview_id:
+        return []
+    return store.interview_document_excerpts(str(interview_id))
+
+
 def _prompt(interview: dict[str, Any]) -> str:
     """Render the persisted transcript and current derivation for the model."""
     transcript = [_transcript_turn(turn) for turn in interview["turns"]]
-    context = {
+    context: dict[str, Any] = {
         "current_fields": interview["fields"],
         "transcript": transcript,
     }
+    attached = _attached_documents(interview)
+    if attached:
+        context["attached_documents"] = attached
     return json.dumps(context, ensure_ascii=False)
 
 

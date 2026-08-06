@@ -18,6 +18,7 @@ function activeInterview(): Interview {
     id: 'interview-7',
     client_id: 'client-1',
     status: 'active',
+    documents: [],
     fields: {
       research_challenge: 'Study liver fibrosis',
       focus_area: [],

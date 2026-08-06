@@ -1,4 +1,4 @@
-import {createRun, startRun, uploadRunDocument} from '@/api/runs';
+import {cancelRun, createRun, startRun} from '@/api/runs';
 import {conciseTitle} from '@/lib/text';
 import {readStoredAudience} from '../audience_context';
 import {RUNS_CHANGED_EVENT} from '../dom_events';
@@ -31,7 +31,40 @@ function buildCreateRunPayload(deps: ExecuteStartDeps) {
     audience: readStoredAudience() ?? undefined,
     enable_web_search: deps.webSearchEnabled,
     enable_paper_corpus: deps.paperCorpusEnabled,
+    // Already uploaded and extracted (see stageDocument), so creation copies
+    // them into the run's corpus rather than a second call doing it after
+    // the run exists.
+    document_ids: deps.pendingAttachments.map(document => document.id),
   };
+}
+
+// The session slice the rollback below writes back.
+type SettleDeps = Pick<
+  ExecuteStartDeps,
+  'setDraft' | 'setConfirmed' | 'specToStart' | 'specCreatedAt'
+>;
+
+// Starts a just-created run, and settles it if that fails.
+//
+// Creation and start are two calls, so the window between them is the one
+// place run setup can half-succeed. A run created and never started is not
+// an error state the durable queue reconciles -- it simply sits, unstarted,
+// with nothing naming it. Cancelling it makes the run record the same
+// outcome the scientist was told about. A failure to cancel is not worth
+// reporting over the failure that caused it: the start error is the one
+// the scientist has to act on, so it is the one that propagates.
+async function startOrSettle(runId: string, deps: SettleDeps): Promise<void> {
+  try {
+    await startRun(runId);
+  } catch (error) {
+    await cancelRun(runId).catch(() => undefined);
+    // Put the workspace back where it was before the attempt: the plan is
+    // editable again, so a retry re-runs the specification the scientist
+    // wrote rather than rebuilding it from the transcript.
+    deps.setConfirmed(null);
+    deps.setDraft({spec: deps.specToStart, createdAt: deps.specCreatedAt});
+    throw error;
+  }
 }
 
 // Runs the create+start API round trip for a confirmed draft spec and
@@ -55,10 +88,7 @@ async function executeStart(deps: ExecuteStartDeps): Promise<StartedSession> {
   };
   deps.setConfirmed({spec: deps.specToStart, createdAt: deps.specCreatedAt});
   deps.setDraft(null);
-  for (const file of deps.pendingAttachments) {
-    await uploadRunDocument(created.id, file);
-  }
-  await startRun(created.id);
+  await startOrSettle(created.id, deps);
   deps.setPendingAttachments([]);
   // The interview is closed server-side from here on, so drop whatever was
   // typed meanwhile (the textarea stays live across the start round trip by
@@ -106,10 +136,17 @@ async function startDraftRun(
 
 /**
  * Promotes the draft to a real run: createRun (POST /api/runs) then startRun
- * (POST /api/runs/{id}/start). The draft becomes the confirmed spec once
- * creation succeeds; if createRun itself fails the draft stays staged so the
- * user can retry, and either failure surfaces via `error`. Takes its
- * dependencies as a single argument instead of closing over hook state.
+ * (POST /api/runs/{id}/start).
+ *
+ * Setup has one committing call. Attachments are staged before this runs
+ * (`stageDocument`) and are carried in by creation itself, so a document
+ * that cannot be read fails before any run exists. Creation failing leaves
+ * nothing behind; start failing settles the run it could not start. Either
+ * way the draft stays staged and the failure surfaces via `error`, so a
+ * retry re-runs the specification rather than losing it.
+ *
+ * Takes its dependencies as a single argument instead of closing over hook
+ * state.
  */
 export async function promoteDraftToRun(deps: HandlerDeps): Promise<void> {
   if (!deps.draft) return;

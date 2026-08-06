@@ -14,6 +14,7 @@ export function makeInterview(overrides: Partial<Interview> = {}): Interview {
       title: null,
     },
     current_question: 'Which mechanisms should I prioritize?',
+    documents: [],
     turns: [
       {
         id: 1,

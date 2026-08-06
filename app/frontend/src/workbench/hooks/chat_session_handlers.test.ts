@@ -23,6 +23,7 @@ test('starts a model-driven interview with no local draft', async () => {
     'Study liver fibrosis',
     expect.any(Function),
     undefined,
+    [],
   );
   expect(deps.setInterview).toHaveBeenCalledWith(interview);
   expect(deps.stageDraftSpec).not.toHaveBeenCalled();
@@ -47,6 +48,7 @@ test('conducts the interview under the declared audience', async () => {
     'Study liver fibrosis',
     expect.any(Function),
     'sbi_ucd',
+    [],
   );
 });
 
@@ -93,6 +95,7 @@ test('stages only a completed persisted interview derivation', async () => {
     active.id,
     'Focus on metabolism',
     expect.any(Function),
+    [],
   );
   expect(deps.stageDraftSpec).toHaveBeenCalledWith(
     expect.objectContaining({

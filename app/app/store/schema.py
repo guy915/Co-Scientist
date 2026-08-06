@@ -83,6 +83,31 @@ CREATE TABLE IF NOT EXISTS interview_turns (
 CREATE INDEX IF NOT EXISTS idx_interview_turns
     ON interview_turns(interview_id, id ASC);
 
+-- Scientist documents uploaded BEFORE any run exists, so an attachment can
+-- ground the interview that scopes the goal and can be carried into the run
+-- as part of creating it. Owned by client_id and never read across owners.
+-- `interview_id` is set when the document is attached to a chat, `run_id`
+-- when creating a run copies it into that run's private corpus; a row keeps
+-- both so a document is traceable from chat to run. Deliberately not
+-- foreign-keyed: a document exists before either row does.
+CREATE TABLE IF NOT EXISTS staged_documents (
+    id TEXT PRIMARY KEY,
+    client_id TEXT NOT NULL,
+    interview_id TEXT,
+    run_id TEXT,
+    title TEXT NOT NULL,
+    text TEXT NOT NULL,               -- extracted text, never the raw bytes
+    mime_type TEXT NOT NULL,
+    sha256 TEXT NOT NULL,
+    byte_size INTEGER NOT NULL,
+    extraction_tool TEXT NOT NULL,
+    created_at REAL NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_staged_documents_client
+    ON staged_documents(client_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_staged_documents_interview
+    ON staged_documents(interview_id, created_at ASC);
+
 -- Revocable capability links for read-only public Goal Reports. Tokens are
 -- random and stored only as hashes so a database read cannot disclose links.
 CREATE TABLE IF NOT EXISTS report_shares (

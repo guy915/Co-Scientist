@@ -31,6 +31,12 @@ class CreateRunRequest(BaseModel):
 
     research_goal: str = Field(..., min_length=1)
     interview_id: str | None = None
+    # Documents staged through /api/documents before this call. They are
+    # copied into the run's private corpus as part of creating it, so a run
+    # is grounded the moment it exists rather than by a second write that
+    # can fail on its own. Documents already attached to ``interview_id``
+    # are carried in too, without being named again.
+    document_ids: list[str] = Field(default_factory=list)
     # Free-form planning guidance lists; defaults are filled by setup_config
     # when omitted (direct API calls, seeded demos).
     requirements: list[str] | None = None

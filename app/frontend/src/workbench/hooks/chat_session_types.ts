@@ -1,6 +1,6 @@
 import {type Dispatch, type SetStateAction} from 'react';
 import {type InferredRunSpec} from '../run_spec';
-import {type Interview} from '@/api/runs';
+import {type Interview, type StagedDocument} from '@/api/runs';
 import {type Audience} from '../audience_context';
 import {
   type ChatEntry,
@@ -103,8 +103,11 @@ export interface HandlerDeps {
   setAgentReasoning: Dispatch<SetStateAction<string>>;
   setMessages: Dispatch<SetStateAction<ChatEntry[]>>;
   setError: (message: string | null) => void;
-  pendingAttachments: File[];
-  setPendingAttachments: Dispatch<SetStateAction<File[]>>;
+  // Documents already staged through /api/documents for this session:
+  // the chat reads them each turn, and creating the run carries them
+  // into its corpus. Files, not ids, would mean re-uploading.
+  pendingAttachments: StagedDocument[];
+  setPendingAttachments: Dispatch<SetStateAction<StagedDocument[]>>;
   setToast: ToastSetter;
   clearSessionState: () => void;
   stageDraftSpec: (
