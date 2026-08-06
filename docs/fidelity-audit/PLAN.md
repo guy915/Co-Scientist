@@ -22,7 +22,7 @@ to be called done.
 | 4 | Wire what is already built | small |
 | 5 | Engine reasoning | large |
 | 6 | Durable state and safety | done |
-| 7 | Grounding | medium |
+| 7 | Grounding | done |
 | 8 | Observability | small |
 | 9 | Security, privacy, packaging | large |
 | 10 | Accessibility and responsive | small |
@@ -254,9 +254,13 @@ design), B5, A9, A11, N9. `J10` closed as not-a-defect: only `redact` and
 
 ---
 
-## Stage 7 — Grounding
+## Stage 7 — Grounding — **done**
 
-**Closes:** G1, G2, G5, G6, G7, G9, G10, G12, G14, I4
+**Closed:** G2, G5, G6, G9, G12, G14, I4. `G1` and `G7` needed no code — both
+were already implemented and tested, and `G1`'s policy is now recorded as the
+decision it always was. `G10` closes to `~` on purpose: live retrieval reaches
+full review, simulation, deep verification, and grounding-evolution, and
+ranking deliberately keeps reading persisted state.
 
 1. **`G1` — the policy is decided; record it and close the row.** Contradicted
    ideas are withheld from the report entirely; merely-unsupported ones publish
