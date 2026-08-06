@@ -25,7 +25,7 @@ to be called done.
 | 7 | Grounding | done |
 | 8 | Observability | done |
 | 9 | Security, privacy, packaging | done |
-| 10 | Accessibility and responsive | small |
+| 10 | Accessibility and responsive | done |
 | 11 | Adaptive coalition | large |
 | 12 | Evaluation | external-dependent |
 | 13 | Documentation | ongoing |
@@ -336,7 +336,7 @@ before it is touched: the audience selector is the corpus access control.
 
 ---
 
-## Stage 10 — Accessibility and responsive
+## Stage 10 — Accessibility and responsive (done)
 
 **Closes:** all of O, M2, M3, M12
 

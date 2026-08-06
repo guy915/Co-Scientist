@@ -268,8 +268,8 @@ change made staleness likely. A blank `St` on a Medium/Low row therefore means
 | ID | Sev | Class | Gap | St | Src |
 |---|---|---|---|---|---|
 | M1 | High | divergent | Product identity is teal/blue **"Co-Scientist"**; the target is green **"Hypothesis Generation"** | = | 12:M01/M12, 20:F-ENTRY-01, 21:R19 |
-| M2 | High | incorrect | At 16:9 desktop — a supported ratio — report tabs and content clip horizontally; 2:1 is coherent | | 12:M10, 20:F-RESP-01 |
-| M3 | High | incorrect | Mobile idea detail has no visible Back; the only escape is re-tapping the already-active tab | ~ | 20:F-IDEAS-09/F-RESP-03 |
+| M2 | High | incorrect | At 16:9 desktop — a supported ratio — report tabs and content clip horizontally; 2:1 is coherent. Closed, and the boundary was the smaller half of it. Unifying the two mismatched breakpoints (720 in Tailwind variants, 700 everywhere else) on 700 made 701-720 worse. Measured in a browser, the split pane's detail column renders 0px at 701, 56px at 721, 172px at 900, 296px at 1024 -- a 656px non-shrinkable floor means it cannot show its own content near either number. One boundary was answering two questions; the columns now stack below 1024 while the phone breakpoint stays 700 | ✓ | 12:M10, 20:F-RESP-01 |
+| M3 | High | incorrect | Mobile idea detail has no visible Back; the only escape is re-tapping the already-active tab. Closed -- see O3. The register was right that the run-shell Back was not this escape | ✓ | 20:F-IDEAS-09/F-RESP-03 |
 | M4 | Medium | divergent | The shell follows the secondary Gemini Enterprise twin (persistent rail, chat history, three-column ideas), not the Labs product | = | 12:M13, 20:F-ENTRY-03/F-IDEAS-02 |
 | M5 | Medium | divergent | An Affiliation modal interrupts first use with an unevidenced organization chooser | = | 20:F-ENTRY-02/F-ENTRY-04 |
 | M6 | Medium | incorrect | Demo runs merge into personal history without an `is_demo` label, and ownership middleware exempts them so any caller can mutate shared demo state | | 12:M15/M20, 20:F-ENTRY-06/OP-014/OP-055 |
@@ -278,7 +278,7 @@ change made staleness likely. A blank `St` on a Medium/Low row therefore means
 | M9 | Low | ext | `/proposals` renders a static authored graph that can read as scientific Proximity output | = | 20:F-EXT-01 |
 | M10 | Low | incorrect | Feedback is SBI-only; the general audience gets no Product Feedback path, no privacy notice, no screenshot option | | 20:F-EXT-02/OP-007 |
 | M11 | Low | incorrect | Settings stores a DeepSeek key in the browser and confirms success, but nothing reads it | ✓ | 20:F-HOME-07 |
-| M12 | Low | divergent | Undiscoverable global shortcuts (`g n`, arrow tab cycling) may intercept expected navigation | | 20:F-A11Y-08, 21:C11 |
+| M12 | Low | divergent | Undiscoverable global shortcuts (`g n`, arrow tab cycling) may intercept expected navigation. Closed: shortcuts documented in the Settings help section and no longer swallowed from selects, listboxes, comboboxes, sliders, or radio groups. Browser navigation was already safe (modifier chords bail) | ✓ | 20:F-A11Y-08, 21:C11 |
 
 ## N. Operations, privacy, packaging, deployment
 
@@ -287,7 +287,7 @@ surfaces.
 
 | ID | Sev | Class | Gap | St | Src |
 |---|---|---|---|---|---|
-| N1 | **Critical** | incorrect | Default `compatibility` auth trusts a caller-selected `X-Client-ID`; a missing header means all such callers share one empty subject; CORS defaults to `*` with credentials. The default running product is spoofable | ✓ | 20:OP-001/EB-053 |
+| N1 | **Critical** | incorrect | Default `compatibility` auth trusts a caller-selected `X-Client-ID`; a missing header means all such callers share one empty subject; CORS defaults to `*` with credentials. The default running product is spoofable. REOPENED and closed properly 2026-08-06. The first pass closed the query-string and CORS halves; the empty-subject half was still live, and live verification caught it -- a headerless caller read and listed a run another headerless caller had created (200). An empty subject is now the absence of a scope: refused at every create, never matched on any read | ✓ | 20:OP-001/EB-053 |
 | N2 | High | incorrect | Bearer credentials accepted as an `access_token` **query parameter** and appended to download/SSE URLs, leaking through history, screenshots, proxy logs, and referrers. Fixed at the server and on the remaining SSE URL; EventSource cannot set headers, so the credential is not simply moved but replaced on that path | ✓ | 20:OP-046 |
 | N3 | High | missing | No run/report/document deletion API or UI — users cannot exercise the documented permanent-deletion right | ✓ | 20:OP-008 |
 | N4 | High | missing | No retention or cascade policy across events, tasks, checkpoints, reports, attachments, shares, logs, caches, notifications | ✓ | 20:OP-025 |
@@ -297,8 +297,8 @@ surfaces.
 | N8 | High | incorrect | Root setup installs the app `--no-deps` then an incomplete manual subset, so `pypdf` is missing and PDF ingestion is silently unavailable despite setup "succeeding" | ✓ | 20:OP-010 |
 | N9 | High | incorrect | Forced offline mode still attempts the configured remote chat model for interviews before falling back — leaking goal text. Fixed: one predicate refuses remote chat before the request is shaped, at all three call sites (interview, Q&A, and titling -- titling had the goal as its whole prompt). Each site reuses its existing no-provider degradation rather than adding a second one, and a scientist's own scoped key stays exempt, since forced offline withholds the deployment's credential. Verified at the transport: with forced offline set and two provider keys present, driving all three surfaces produced no non-loopback connection attempt. Nine existing tests were asserting on the shape of a request the app must never make, which is why the suite never caught this | ✓ | 20:OP-013 |
 | N10 | High | partial | Production `/status` reported MCP/PubMed/literature/web up but `tools_config=null` and `enabled_tools=null`: specialized tools are registered but not authorized in live runs | ✓ | 20:OP-037 |
-| N11 | Medium | missing | No data-access/export request workflow | ✓ | 20:OP-009 |
-| N12 | Medium | incorrect | Feedback is a write-only sink with no privacy notice, triage, ownership, retention, or deletion | ✓ | 20:OP-048 |
+| N11 | Medium | missing | No data-access/export request workflow. The export now refuses an identity-less caller rather than exporting the shared empty-subject pool; a silently empty export would read as "you have no data" | ✓ | 20:OP-009 |
+| N12 | Medium | incorrect | Feedback is a write-only sink with no privacy notice, triage, ownership, retention, or deletion. Feedback submission stays open (a browser must report its own errors), but its read and delete sides no longer hand one anonymous caller another's notes | ✓ | 20:OP-048 |
 | N13 | Medium | incorrect | Log-ingestion rate limiting is keyed to caller-controlled ids, never evicts, and is not shared across replicas | ✓ | 20:OP-049 |
 | N14 | Medium | incorrect | Public MCP/API status/root/OpenAPI reveal internal hostname, model names, provider-key presence, and tool config | ✓ | 20:OP-038 |
 | N15 | Medium | incorrect | API Dockerfiles do not install Tesseract, so image OCR cannot work in the container; tests fake `pypdf` and miss it | ✓ | 20:OP-011 |
@@ -330,12 +330,12 @@ Raised only by the 2026-07-20 audit.
 
 | ID | Sev | Class | Gap | St | Src |
 |---|---|---|---|---|---|
-| O1 | High | incorrect | Modal overlays support Escape but do not trap focus, inert the background, or restore opener focus | | 20:F-A11Y-02 |
-| O2 | High | incorrect | Idea selection is CSS-only — no selected/current/pressed/listbox semantics, so assistive technology cannot relate the list to the detail pane | ~ | 20:F-IDEAS-08/F-A11Y-04 |
-| O3 | High | incorrect | Return navigation is an undocumented active-tab re-tap with no accessible instruction or semantic control | | 20:F-A11Y-05 |
-| O4 | Medium | incorrect | Generic `ShellPopover` applies `role=status` to menus, logs, and forms, turning large interactive regions into noisy live announcements | | 20:F-A11Y-03 |
-| O5 | Medium | incorrect | Continuously growing raw reasoning sits in an `aria-live=polite` region | | 20:F-A11Y-07 |
-| O6 | Low | partial | Mixed navigation/tab semantics; `aria-current=page` on `<nav>` buttons with no tablist/tabpanel keyboard pattern | | 20:F-A11Y-06 |
+| O1 | High | incorrect | Modal overlays support Escape but do not trap focus, inert the background, or restore opener focus. Closed: Tab and Shift+Tab wrap inside the dialog, every ancestor sibling goes inert while it is open, and focus returns on close. Browser-verified, which is what caught the restore landing on `<body>`: the only opener is a menu item whose popover unmounts as the dialog appears, so `focus()` ran on a detached node. It now falls back to the nearest surviving ancestor -- the app shell, not the trigger, which would need the owning component to hand one down | ✓ | 20:F-A11Y-02 |
+| O2 | High | incorrect | Idea selection is CSS-only — no selected/current/pressed/listbox semantics, so assistive technology cannot relate the list to the detail pane. Closed as navigation, deliberately not a listbox: the rows are real deep-linkable URLs and a listbox role would owe full listbox keyboard behavior. The selected row now carries `aria-current="page"` plus `aria-controls` naming the detail pane. Browser-verified: exactly one selected row, unselected rows carry neither | ✓ | 20:F-IDEAS-08/F-A11Y-04 |
+| O3 | High | incorrect | Return navigation is an undocumented active-tab re-tap with no accessible instruction or semantic control. Closed: the titlebar Back control returns to the ranked list while an idea is open, gated to the phone breakpoint where the detail actually replaces the list (on desktop both are on screen, so Back keeps meaning "leave the run"), and the mobile detail view states the escape | ✓ | 20:F-A11Y-05 |
+| O4 | Medium | incorrect | Generic `ShellPopover` applies `role=status` to menus, logs, and forms, turning large interactive regions into noisy live announcements. Closed on five popovers, one more than the register listed -- the share panel hand-rolled the same `role=status`. Browser-verified: the only `role=status` left in the running app is the genuine system-status chip | ✓ | 20:F-A11Y-03 |
+| O5 | Medium | incorrect | Continuously growing raw reasoning sits in an `aria-live=polite` region. Closed: the concise label stays announced, the streamed trail moved outside the live region, visually unchanged | ✓ | 20:F-A11Y-07 |
+| O6 | Low | partial | Mixed navigation/tab semantics; `aria-current=page` on `<nav>` buttons with no tablist/tabpanel keyboard pattern. Closed as navigation: the strip stays `<nav>` + `aria-current=page` (real URLs, browser-navigable), and what was actually missing -- a name on the content region below it -- is now there. Deliberately not converted to a tablist | ✓ | 20:F-A11Y-06 |
 
 ---
 
@@ -391,9 +391,9 @@ that decided the verdict.
 | A2 | `criteria` is collected and threaded into engine opts | not confirmed to reach ranking or debate prompts |
 | B3 | The ceiling is one total per identity; it was multiplied per tier, so one id held four times its allowance | the 3 Standard + 1 Advanced split stays a deliberate divergence (see `B1`), and the spoofable `X-Client-ID` half is `N1` |
 | L2 | `prompt_tokens`/`completion_tokens` are parsed off the response | nothing persists or surfaces them; no cost accounting |
-| M3 | A labelled Back control exists in the run shell | confirmed **not** the mobile idea-detail escape — it leaves the run for the conversation or home and never returns to the ranked list |
+| M3 | A labelled Back control exists in the run shell | resolved 2026-08-06: it now returns to the ranked list while an idea is open, on the phone breakpoint only |
 | N19 | `test-all` now covers mcp + parity; `typecheck` covers engine mypy | root `lint` still omits frontend gts |
-| O2 | Idea rows carry `aria-current` | still no listbox/option semantics relating list to detail pane |
+| O2 | Idea rows carry `aria-current` | resolved 2026-08-06 as navigation, not a listbox: `aria-current="page"` plus `aria-controls` naming the detail pane |
 
 ### Re-confirmed open
 
