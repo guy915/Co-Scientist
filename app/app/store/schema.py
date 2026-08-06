@@ -71,6 +71,12 @@ CREATE TABLE IF NOT EXISTS interview_turns (
     -- the Agent's chain of thought for this turn; NULL for user turns and
     -- for models that emit none
     reasoning TEXT,
+    -- 1 when the deterministic recovery path authored this Agent turn
+    -- because no model could be reached (see
+    -- interviews_model._fallback_interview_response); 0 for model-driven
+    -- turns and every user turn. Per turn, so a mid-session credential
+    -- change marks only the turns it affects.
+    fallback INTEGER NOT NULL DEFAULT 0,
     created_at REAL NOT NULL,
     FOREIGN KEY (interview_id) REFERENCES interviews(id) ON DELETE CASCADE
 );

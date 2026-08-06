@@ -208,6 +208,7 @@ function draftSpecCardNode({
       spec={draft.spec}
       isStarting={isStarting}
       intro={draft.intro}
+      introFallback={draft.fallback}
       onFocusChange={(focus: RunFocus) => updateDraftSpec(setDraft, {focus})}
       onTierChange={(tier: RunTier) => updateDraftSpec(setDraft, {tier})}
       onNotificationChange={(enabled, email) =>

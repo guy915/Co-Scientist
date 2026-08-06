@@ -1,5 +1,6 @@
 import {fireEvent, screen} from '@testing-library/react';
 import {afterEach, expect, test, vi} from 'vitest';
+import {FALLBACK_NOTICE_TEXT} from './chat_timeline_bubble';
 import {renderBubble} from './chat_timeline_bubble_test_support';
 
 afterEach(() => {
@@ -27,4 +28,21 @@ test('renders a short user message with the request action row', () => {
   expect(screen.getByLabelText('Edit prompt')).toBeInTheDocument();
   expect(screen.getByLabelText('Copy prompt')).toBeInTheDocument();
   expect(screen.queryByLabelText('Expand')).not.toBeInTheDocument();
+});
+
+test('shows the fallback notice on a scripted assistant turn (A16)', () => {
+  // The keyless interview degrades to a deterministic question script; the
+  // turns it authors must be visibly marked so they are never read as model
+  // output.
+  renderBubble({
+    role: 'assistant',
+    content: 'Which scientific mechanisms should this research prioritize?',
+    fallback: true,
+  });
+  expect(screen.getByText(FALLBACK_NOTICE_TEXT)).toBeInTheDocument();
+});
+
+test('omits the fallback notice on model-driven turns', () => {
+  renderBubble({role: 'assistant', content: 'A model reply.'});
+  expect(screen.queryByText(FALLBACK_NOTICE_TEXT)).not.toBeInTheDocument();
 });

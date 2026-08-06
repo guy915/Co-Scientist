@@ -31,6 +31,7 @@ function activeInterview(): Interview {
         role: 'user',
         content: 'Study liver fibrosis',
         reasoning: null,
+        fallback: false,
         created_at: 1,
       },
       {
@@ -38,6 +39,7 @@ function activeInterview(): Interview {
         role: 'agent',
         content: 'Which mechanisms should I prioritize?',
         reasoning: 'No mechanism named yet, so ask for one.',
+        fallback: false,
         created_at: 2,
       },
     ],

@@ -25,6 +25,10 @@ export interface SpecStage {
   // The durable interview turn that produced this plan. The card has no
   // bubble of its own, so this is what its retry addresses.
   turnId?: number;
+  // True when the deterministic fallback authored that closing message (no
+  // model reachable). The plan card shows the same quiet notice a fallback
+  // bubble does, since the lead-in IS that turn.
+  fallback?: boolean;
 }
 
 /** The Agent's closing turn, as staged onto the plan card. */
@@ -32,6 +36,8 @@ export interface DraftIntro {
   message?: string;
   reasoning?: string;
   turnId?: number;
+  /** Whether the deterministic fallback authored the closing turn. */
+  fallback?: boolean;
 }
 
 /** View-layer collaborators the session needs but does not own. */

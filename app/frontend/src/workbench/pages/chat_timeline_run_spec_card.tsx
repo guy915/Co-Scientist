@@ -39,6 +39,7 @@ import {
   SPEC_ROW_CLASSES,
   SPEC_TERM_CLASSES,
 } from './chat_setup_classes';
+import {FallbackTurnNotice} from './chat_timeline_bubble';
 import {
   MessageActionRow,
   responseActions,
@@ -55,13 +56,17 @@ import {CompletionNotification} from './chat_timeline_run_spec_notification';
 // confirmed spec). `intro` is the Agent's closing interview message, shown
 // as the card's lead-in so the completed interview reads as a single
 // response; it falls back to generic copy when absent (e.g. a re-shown
-// confirmed spec). The remaining handlers wire the Focus/Tier options and
-// the cancel/edit/retry/start actions back to the session hook.
+// confirmed spec). `introFallback` marks that closing message as
+// fallback-authored (no model reachable), so the lead-in carries the same
+// quiet notice a fallback bubble does. The remaining handlers wire the
+// Focus/Tier options and the cancel/edit/retry/start actions back to the
+// session hook.
 interface RunSpecCardProps {
   spec: InferredRunSpec;
   isStarting: boolean;
   locked?: boolean;
   intro?: string;
+  introFallback?: boolean;
   onFocusChange: (focus: RunFocus) => void;
   onTierChange: (tier: RunTier) => void;
   onNotificationChange: (enabled: boolean, email: string) => void;
@@ -72,10 +77,13 @@ interface RunSpecCardProps {
 }
 
 // The card's lead-in copy: the Agent's closing interview message (or a
-// generic fallback) plus the fixed "review the four fields" paragraph.
-function RunSpecIntro({intro}: {intro?: string}) {
+// generic fallback) plus the fixed "review the four fields" paragraph. A
+// fallback-authored closing message carries the same quiet notice a fallback
+// bubble does, since the lead-in IS that turn.
+function RunSpecIntro({intro, fallback}: {intro?: string; fallback?: boolean}) {
   return (
     <>
+      {fallback && <FallbackTurnNotice />}
       <p className={SETUP_PARAGRAPH_CLASSES}>
         {/* `||`, not `??`: an empty closing message must fall back too. */}
         {intro ||
@@ -102,7 +110,7 @@ export function RunSpecCard(props: RunSpecCardProps) {
 
   return (
     <section className={SETUP_MESSAGE_CLASSES} aria-label="Inferred run setup">
-      <RunSpecIntro intro={props.intro} />
+      <RunSpecIntro intro={props.intro} fallback={props.introFallback} />
       <PlanHeading onEdit={props.onEdit} />
       <p className={PLAN_SUBHEADING_CLASSES}>
         Here's my plan to tackle the topic:

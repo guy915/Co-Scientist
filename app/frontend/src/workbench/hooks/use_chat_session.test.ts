@@ -39,6 +39,7 @@ function completedInterview(goal: string) {
         role: 'user' as const,
         content: goal,
         reasoning: null,
+        fallback: false,
         created_at: 1,
       },
       {
@@ -46,6 +47,7 @@ function completedInterview(goal: string) {
         role: 'agent' as const,
         content: 'The goal is ready.',
         reasoning: null,
+        fallback: false,
         created_at: 2,
       },
     ],

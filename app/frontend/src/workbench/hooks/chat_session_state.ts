@@ -54,13 +54,8 @@ export function useRunSpecLifecycle() {
     createdAt = Date.now() / 1000,
     intro?: DraftIntro,
   ) {
-    setDraft({
-      spec,
-      createdAt,
-      intro: intro?.message,
-      reasoning: intro?.reasoning,
-      turnId: intro?.turnId,
-    });
+    const {message, reasoning, turnId, fallback} = intro ?? {};
+    setDraft({spec, createdAt, intro: message, reasoning, turnId, fallback});
     setConfirmed(null);
     setStartedSession(null);
   }

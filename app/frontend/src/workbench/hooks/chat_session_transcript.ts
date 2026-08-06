@@ -22,6 +22,9 @@ export function turnToEntry(turn: InterviewTurn): ChatEntry {
     content: turn.content,
     reasoning: turn.reasoning ?? undefined,
     turnId: turn.id,
+    // Rides with the bubble exactly as persisted: a fallback-authored turn
+    // keeps its marker through every rebuild of the log.
+    fallback: turn.fallback || undefined,
     created_at: turn.created_at,
   };
 }
@@ -82,6 +85,9 @@ export function applyInterview(
       message: closing.content,
       reasoning: closing.reasoning ?? undefined,
       turnId: closing.id,
+      // The closing turn becomes the plan card's lead-in instead of a
+      // bubble, so its fallback marker rides with it there.
+      fallback: closing.fallback || undefined,
     });
     return;
   }

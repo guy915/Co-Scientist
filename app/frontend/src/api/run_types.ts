@@ -50,6 +50,15 @@ export interface InterviewTurn {
    * thinking the scientist watched arrive.
    */
   reasoning: string | null;
+  /**
+   * True when the deterministic fallback authored this Agent turn because no
+   * model could be reached (no deployment credential and no bring-your-own
+   * key answered it). Per turn, so a mid-session credential change marks
+   * only the turns it affects; always false for user turns. The timeline
+   * renders a quiet notice on marked turns so scripted questions are never
+   * silently passed off as model output.
+   */
+  fallback: boolean;
   created_at: number;
 }
 

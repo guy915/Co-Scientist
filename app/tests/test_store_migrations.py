@@ -89,3 +89,44 @@ def test_connect_is_idempotent_over_an_upgraded_database(
         conn.execute("SELECT client_id FROM app_logs").fetchall()
 
     assert "idx_app_logs_client" in _indexes(path, "app_logs")
+
+
+# The interview_turns table exactly as builds before the fallback-provenance
+# change created it: no fallback column.
+_OLD_INTERVIEW_TURNS = """
+CREATE TABLE interview_turns (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    interview_id TEXT NOT NULL,
+    role TEXT NOT NULL,
+    content TEXT NOT NULL,
+    reasoning TEXT,
+    created_at REAL NOT NULL
+);
+"""
+
+
+def test_connect_upgrades_old_interview_turns_table(
+    tmp_path: object,
+) -> None:
+    """Turns written before the fallback marker open unmarked, not broken.
+
+    A deployed volume holds transcripts whose turns predate the marker; the
+    upgrade must add the column and read those rows as model-driven (the
+    default), since a missing marker can only mean "written before the
+    signal existed", never "known to be scripted".
+    """
+    path = str(tmp_path / "old_turns.db")  # type: ignore[operator]
+    conn = sqlite3.connect(path)
+    conn.executescript(_OLD_INTERVIEW_TURNS)
+    conn.execute(
+        "INSERT INTO interview_turns (interview_id, role, content, "
+        "created_at) VALUES ('iv-1', 'agent', 'Which focus area?', 1.0)"
+    )
+    conn.commit()
+    conn.close()
+
+    with db.connect(path) as conn:
+        rows = conn.execute("SELECT fallback FROM interview_turns").fetchall()
+
+    assert "fallback" in _columns(path, "interview_turns")
+    assert [row[0] for row in rows] == [0]

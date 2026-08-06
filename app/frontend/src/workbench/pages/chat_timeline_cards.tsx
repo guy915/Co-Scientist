@@ -7,7 +7,11 @@
  * `chat_timeline_message_actions` row); this module re-exports them so
  * import sites keep a single entry point.
  */
-export {ChatBubble, type ChatEntry} from './chat_timeline_bubble';
+export {
+  ChatBubble,
+  FallbackTurnNotice,
+  type ChatEntry,
+} from './chat_timeline_bubble';
 export {RunSpecCard} from './chat_timeline_run_spec_card';
 export {
   StartedSessionCard,

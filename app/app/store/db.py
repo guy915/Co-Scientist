@@ -259,6 +259,13 @@ def _migrate_interview_message_hypothesis_columns(
     # replayed only the answers would ask its follow-up from less than the
     # scientist can see on screen.
     _add_column_if_missing(conn, "interview_turns", "reasoning", "TEXT")
+    # Fallback provenance for one interview turn: 1 when the deterministic
+    # recovery path authored the turn because no model could be reached, so
+    # the UI can signal scripted questions instead of silently passing them
+    # off as model output. Default 0 leaves older rows read as model-driven.
+    _add_column_if_missing(
+        conn, "interview_turns", "fallback", "INTEGER NOT NULL DEFAULT 0"
+    )
     # Structured metadata (e.g. Q&A cited sources) alongside message text.
     _add_column_if_missing(conn, "messages", "meta_json", "TEXT")
     # Short classification label surfaced as a breadcrumb in the viewer.

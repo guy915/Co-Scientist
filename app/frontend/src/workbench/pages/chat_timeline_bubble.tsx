@@ -38,7 +38,38 @@ export interface ChatEntry {
    * be edited or retried -- there is no server-side turn to replace.
    */
   turnId?: number;
+  /**
+   * True when the interview's deterministic fallback authored this message
+   * because no model could be reached. Rendered as a quiet notice so
+   * scripted questions are never silently passed off as model output.
+   */
+  fallback?: boolean;
   created_at: number;
+}
+
+// The quiet marker copy for a fallback-authored turn: honest about what the
+// scientist is reading without alarming them. Shares the ThoughtsDisclosure
+// summary's muted typography deliberately -- it is metadata, not content.
+export const FALLBACK_NOTICE_TEXT = 'Guided questions (no model available)';
+
+const FALLBACK_NOTICE_CLASSES = 'mb-1 text-xs font-medium text-cosci-muted';
+
+/**
+ * The quiet signal that a turn came from the interview's deterministic
+ * fallback (no model configured or reachable) rather than the model. Shown
+ * above fallback-authored assistant turns and the plan card's fallback
+ * lead-in; model-driven turns render nothing.
+ */
+export function FallbackTurnNotice() {
+  return <p className={FALLBACK_NOTICE_CLASSES}>{FALLBACK_NOTICE_TEXT}</p>;
+}
+
+// The bubble's provenance marker: a fallback-authored assistant turn shows
+// the scripted-question notice; every other turn shows nothing. Kept out of
+// ChatBubble's own body so its branch does not count against the bubble.
+function bubbleProvenanceNotice(message: ChatEntry) {
+  if (message.role !== 'assistant' || !message.fallback) return null;
+  return <FallbackTurnNotice />;
 }
 
 // The bubble row wrapper: a user bubble's edit/copy row floats to the left of
@@ -129,6 +160,10 @@ export function ChatBubble(props: ChatBubbleProps) {
       rowClassName={rowClassName}
       bubbleNode={
         <div className="min-w-0">
+          {/* Above the answer, like the thinking it replaces: a fallback
+              turn has no model and therefore no reasoning, so the notice is
+              the only provenance the bubble carries. */}
+          {bubbleProvenanceNotice(message)}
           {/* Above the answer, where the live trail was: the thinking came
               first, and reading it after the reply reverses the turn. */}
           <ThoughtsDisclosure reasoning={message.reasoning} />

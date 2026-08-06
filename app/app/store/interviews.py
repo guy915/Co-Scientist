@@ -109,13 +109,18 @@ def get_interview(
         if row is None:
             return None
         turns = active.execute(
-            "SELECT id, role, content, reasoning, created_at "
+            "SELECT id, role, content, reasoning, fallback, created_at "
             "FROM interview_turns WHERE interview_id=? ORDER BY id ASC",
             (interview_id,),
         ).fetchall()
     result = dict(row)
     result["fields"] = json.loads(result.pop("fields_json"))
-    result["turns"] = [dict(turn) for turn in turns]
+    # Normalize the stored 0/1 into a JSON boolean so every payload the
+    # frontend reads (interview GET, streamed turn frames) carries a real
+    # true/false marker.
+    result["turns"] = [
+        {**dict(turn), "fallback": bool(turn["fallback"])} for turn in turns
+    ]
     return result
 
 
@@ -198,11 +203,16 @@ class NewInterviewTurn:
         reasoning: The Agent's chain of thought for this turn, when the
             model emitted one. Stored so a resumed chat replays the thinking
             it showed and the next turn is derived from it.
+        fallback: True when the deterministic recovery path authored this
+            Agent turn because no model could be reached. Persisted per
+            turn so the UI can signal exactly which turns are scripted;
+            always False for user turns.
     """
 
     role: str
     content: str
     reasoning: str | None = None
+    fallback: bool = False
 
 
 def append_interview_turn(
@@ -216,7 +226,7 @@ def append_interview_turn(
 
     Args:
         interview_id: The interview the turn belongs to.
-        turn: The role, text, and reasoning to record.
+        turn: The role, text, reasoning, and fallback provenance to record.
         db_path: Optional database override.
         conn: Optional open connection to reuse.
     """
@@ -224,12 +234,13 @@ def append_interview_turn(
     with _use_conn(conn, db_path) as active:
         active.execute(
             "INSERT INTO interview_turns (interview_id, role, content, "
-            "reasoning, created_at) VALUES (?,?,?,?,?)",
+            "reasoning, fallback, created_at) VALUES (?,?,?,?,?,?)",
             (
                 interview_id,
                 turn.role,
                 turn.content.strip(),
                 turn.reasoning or None,
+                int(turn.fallback),
                 now,
             ),
         )
