@@ -23,6 +23,7 @@ from app.engine_tasks_support import (
     _require_item_task,
     _save_state_and_enqueue,
 )
+from app.engine_tasks_telemetry import merge_usage_snapshots
 from app.store import ScientificTask
 
 
@@ -35,12 +36,15 @@ class _AppliedItems:
         failed: Items that never completed, isolated from the aggregate.
         llm_calls: Provider calls the items are billed for.
         results: The raw per-item review payloads, in item order.
+        model_usage: Per-(phase, model) telemetry folded from every
+            completed item's captured usage.
     """
 
     successful: int
     failed: int
     llm_calls: int
     results: list[dict[str, Any]] = field(default_factory=list)
+    model_usage: dict[str, dict[str, Any]] = field(default_factory=dict)
 
 
 async def _checkpoint_and_advance(
@@ -134,6 +138,7 @@ def _apply_mature_reflection_items(
     successful = 0
     failed = 0
     reflection_results: list[dict[str, Any]] = []
+    usage_snapshots: list[dict[str, Any]] = []
     for item_id in item_task_ids:
         item = _require_item_task(item_id, db_path, kind="reflection task")
         if item.status != "completed" or not item.result:
@@ -144,12 +149,14 @@ def _apply_mature_reflection_items(
         review = item.result["review"]
         reflection_results.append(review)
         _apply_one_reflection_item(hypothesis, mode, review, current_iteration)
+        usage_snapshots.append(item.result.get("model_usage") or {})
         successful += 1
     return _AppliedItems(
         successful=successful,
         failed=failed,
         llm_calls=successful + failed,
         results=reflection_results,
+        model_usage=merge_usage_snapshots(usage_snapshots),
     )
 
 
@@ -174,7 +181,8 @@ def _mature_reflection_update(
         "hypotheses": state["hypotheses"],
         "articles": state["articles"],
         "metrics": create_metrics_update(
-            deltas=MetricDeltas(llm_calls=items.llm_calls)
+            deltas=MetricDeltas(llm_calls=items.llm_calls),
+            model_usage=items.model_usage,
         ),
         "messages": phase_message(
             "reflection",
@@ -266,6 +274,31 @@ def _completed_verification(item: Any) -> dict[str, Any] | None:
     return verification if isinstance(verification, dict) else None
 
 
+def _record_verification(
+    hypothesis: Any, verification: dict[str, Any], model_name: str
+) -> None:
+    """Record one completed verification on its hypothesis.
+
+    The fingerprint is what lets the next cycle skip a leader whose inputs
+    have not moved, so it is written here rather than by the caller.
+
+    Args:
+        hypothesis: The hypothesis the verification item ran against.
+        verification: The item's verification payload.
+        model_name: Verifier model the item ran on.
+    """
+    from co_scientist.agents.reflection.deep_verification import (
+        verification_fingerprint,
+    )
+
+    hypothesis.deep_verification_probes = verification.get("probes", [])
+    hypothesis.deep_verification_verdict = verification.get("verdict")
+    hypothesis.deep_verification_fingerprint = verification_fingerprint(
+        hypothesis, model_name
+    )
+    hypothesis.enrichments["deep_verification"] = verification
+
+
 def _apply_verification_items(
     by_id: dict[str, Any],
     item_task_ids: Sequence[Any],
@@ -296,11 +329,11 @@ def _apply_verification_items(
     """
     from co_scientist.agents.reflection.deep_verification import (
         _VALID_VERDICTS,
-        verification_fingerprint,
     )
 
     successful = failed = llm_calls = 0
     verification_results: list[dict[str, Any]] = []
+    usage_snapshots: list[dict[str, Any]] = []
     for item_id in item_task_ids:
         item = _require_item_task(item_id, db_path, kind="verification item")
         verification = _completed_verification(item)
@@ -313,19 +346,16 @@ def _apply_verification_items(
             _mark_failed_item_unverified(by_id, item)
             continue
         hypothesis = by_id[str((item.result or {})["hypothesis_id"])]
-        hypothesis.deep_verification_probes = verification.get("probes", [])
-        hypothesis.deep_verification_verdict = verification.get("verdict")
-        hypothesis.deep_verification_fingerprint = verification_fingerprint(
-            hypothesis, model_name
-        )
-        hypothesis.enrichments["deep_verification"] = verification
+        _record_verification(hypothesis, verification, model_name)
         llm_calls += int(verification.get("verification_llm_calls", 1))
+        usage_snapshots.append((item.result or {}).get("model_usage") or {})
         successful += 1
     return _AppliedItems(
         successful=successful,
         failed=failed,
         llm_calls=llm_calls,
         results=verification_results,
+        model_usage=merge_usage_snapshots(usage_snapshots),
     )
 
 
@@ -350,7 +380,8 @@ def _verification_aggregate_update(
         "hypotheses": state["hypotheses"],
         "articles": state["articles"],
         "metrics": create_metrics_update(
-            deltas=MetricDeltas(llm_calls=items.llm_calls)
+            deltas=MetricDeltas(llm_calls=items.llm_calls),
+            model_usage=items.model_usage,
         ),
         "messages": phase_message(
             "deep_verification",

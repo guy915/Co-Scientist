@@ -82,7 +82,7 @@ async def test_post_budget_growth_guard_still_delivers_the_queue_action(
         iteration=2,
     )
 
-    decision, provenance = await supervisor_decision.choose_supervisor_task(
+    decision, provenance, _ = await supervisor_decision.choose_supervisor_task(
         _state(), stats, Budget(max_iterations=2)
     )
 
@@ -119,7 +119,7 @@ async def test_non_progress_guard_still_delivers_the_queue_action(
         last_work_task=TaskType.GENERATE,
     )
 
-    decision, provenance = await supervisor_decision.choose_supervisor_task(
+    decision, provenance, _ = await supervisor_decision.choose_supervisor_task(
         state, stats, Budget(max_iterations=4)
     )
 
@@ -149,7 +149,7 @@ async def test_guard_without_queue_actions_returns_the_baseline_itself(
         iteration=2,
     )
 
-    decision, provenance = await supervisor_decision.choose_supervisor_task(
+    decision, provenance, _ = await supervisor_decision.choose_supervisor_task(
         _state(), stats, Budget(max_iterations=2)
     )
 

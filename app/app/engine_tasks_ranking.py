@@ -127,6 +127,7 @@ def _enqueue_first_ranking_match(
                 "tournament_rounds": rounds,
                 "total_llm_calls": 0,
                 "previous_pair": [],
+                "model_usage": {},
             },
             idempotency_key="ranking:match:{checkpoint_seq}:0",
         ),
@@ -182,6 +183,7 @@ def _ranking_match_successor(
     rounds: int,
     total_calls: int,
     last_pair: list[str],
+    model_usage: dict[str, dict[str, Any]],
 ) -> tuple[str, dict[str, Any]]:
     """Return the next ranking task type and its scheduling inputs."""
     if next_index < rounds:
@@ -190,10 +192,12 @@ def _ranking_match_successor(
             "tournament_rounds": rounds,
             "total_llm_calls": total_calls,
             "previous_pair": last_pair,
+            "model_usage": model_usage,
         }
     return RANKING_FINALIZE_TASK, {
         "tournament_rounds": rounds,
         "total_llm_calls": total_calls,
+        "model_usage": model_usage,
     }
 
 
@@ -261,7 +265,11 @@ async def _commit_ranking_match(
     """
     next_index = result.next_index
     successor_type, successor_inputs = _ranking_match_successor(
-        next_index, plan.rounds, result.total_calls, result.last_pair
+        next_index,
+        plan.rounds,
+        result.total_calls,
+        result.last_pair,
+        result.model_usage,
     )
     committed_seq, successor_id = _save_state_and_enqueue_exact(
         commit,
@@ -307,6 +315,7 @@ async def execute_ranking_match(
             total_calls=int(task.inputs["total_llm_calls"]),
             next_index=index,
             last_pair=[],
+            model_usage=dict(task.inputs.get("model_usage") or {}),
         ),
     )
     state["pending_ranking_matchups"] = result.details
@@ -348,6 +357,25 @@ async def _commit_ranking_finalize(
     }
 
 
+def _fold_ranking_telemetry(
+    update: dict[str, Any], model_usage: dict[str, dict[str, Any]]
+) -> None:
+    """Fold the tournament's accumulated telemetry into its metrics delta.
+
+    The per-match wave telemetry never reaches a checkpoint until here (see
+    ``_WaveResult.model_usage``'s docstring): every intervening match commit
+    uses ``_save_state_and_enqueue_exact``, which persists no metrics
+    snapshot, so this is the sole point that folds it in.
+    """
+    from co_scientist.models import create_metrics_update, merge_metrics
+
+    if not model_usage:
+        return
+    update["metrics"] = merge_metrics(
+        update["metrics"], create_metrics_update(model_usage=model_usage)
+    )
+
+
 async def execute_ranking_finalize(
     task: ScientificTask, *, db_path: str | None = None
 ) -> dict[str, Any]:
@@ -367,6 +395,7 @@ async def execute_ranking_finalize(
         int(task.inputs["tournament_rounds"]),
         int(task.inputs["total_llm_calls"]),
     )
+    _fold_ranking_telemetry(update, dict(task.inputs.get("model_usage") or {}))
     committed = apply_task_update(state, update)
     committed.pop("pending_ranking_matchups", None)
     return await _commit_ranking_finalize(

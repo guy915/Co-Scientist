@@ -34,6 +34,7 @@ from app.engine_tasks_support import (
     _emit_node_completion,
     _generator_for_restore,
     _latest_task_checkpoint,
+    _metrics_snapshot,
     _plain_final_state,
     _require_run,
     _save_paused_state,
@@ -332,7 +333,10 @@ def _drain_and_persist_final_state(
     drained = _persist_final_state(
         run_id=run.id, final_state=final_state, db_path=db_path
     )
-    metrics = final_state.get("metrics") or {}
+    # _metrics_snapshot also folds in the Supervisor's performance_assessment
+    # (finding F5); reused here (not just at each node commit, finding L14)
+    # so the run's final metrics row does not silently drop it on finalize.
+    metrics = _metrics_snapshot(final_state)
     execution_time = max(0.0, time.time() - float(state.get("start_time", 0)))
     store.save_run_metrics(run.id, metrics, db_path=db_path)
     store.update_run_status(run.id, RunStatus.SYNTHESIZING, db_path=db_path)

@@ -41,20 +41,23 @@ async def execute_review_item(
         ReviewContext,
         review_single_hypothesis,
     )
+    from co_scientist.llm_telemetry import scoped_telemetry
 
     state, expected_seq = _restore_item_checkpoint(
         task, db_path, superseded="review item"
     )
     hypothesis_id, hypothesis = _hypothesis_for_item(task, state)
     context = ReviewContext.from_state(state)
-    review = await review_single_hypothesis(
-        hypothesis_text=hypothesis.text,
-        context=context,
-        hypothesis_index=int(task.inputs["hypothesis_index"]),
-    )
+    with scoped_telemetry("review") as telemetry:
+        review = await review_single_hypothesis(
+            hypothesis_text=hypothesis.text,
+            context=context,
+            hypothesis_index=int(task.inputs["hypothesis_index"]),
+        )
     return {
         "hypothesis_id": hypothesis_id,
         "review": dataclasses.asdict(review),
+        "model_usage": telemetry.snapshot(),
         "checkpoint_seq": expected_seq,
     }
 
@@ -68,6 +71,7 @@ async def execute_verification_item(
         _VerificationContext,
         _verify_one,
     )
+    from co_scientist.llm_telemetry import scoped_telemetry
 
     state, expected_seq = _restore_item_checkpoint(
         task, db_path, superseded="verification item"
@@ -79,17 +83,19 @@ async def execute_verification_item(
         tool_registry=state.get("tool_registry"),
         state=state,
     )
-    result = await _verify_one(
-        hypothesis,
-        context,
-        asyncio.Semaphore(1),
-        _verification_evidence_context(state),
-    )
+    with scoped_telemetry("deep_verification") as telemetry:
+        result = await _verify_one(
+            hypothesis,
+            context,
+            asyncio.Semaphore(1),
+            _verification_evidence_context(state),
+        )
     if result is None:
         raise RuntimeError(f"deep verification failed for {hypothesis_id}")
     return {
         "hypothesis_id": hypothesis_id,
         "verification": result,
+        "model_usage": telemetry.snapshot(),
         "checkpoint_seq": expected_seq,
     }
 
@@ -129,21 +135,24 @@ async def execute_mature_reflection_item(
         _run_review,
     )
     from co_scientist.agents.reflection.review_types import ReviewType
+    from co_scientist.llm_telemetry import scoped_telemetry
 
     state, expected_seq = _restore_item_checkpoint(
         task, db_path, superseded="mature reflection"
     )
     hypothesis_id, hypothesis = _hypothesis_for_item(task, state)
     mode = ReviewType(str(task.inputs["review_mode"]))
-    if mode is ReviewType.OBSERVATION:
-        result = await _run_observation_reflection(state, hypothesis)
-    else:
-        _, result = await _run_review(state, hypothesis, mode)
+    with scoped_telemetry("comprehensive_reflection") as telemetry:
+        if mode is ReviewType.OBSERVATION:
+            result = await _run_observation_reflection(state, hypothesis)
+        else:
+            _, result = await _run_review(state, hypothesis, mode)
     if result is None:
         raise RuntimeError(f"{mode.value} review failed for {hypothesis_id}")
     return {
         "hypothesis_id": hypothesis_id,
         "review_mode": mode.value,
         "review": result,
+        "model_usage": telemetry.snapshot(),
         "checkpoint_seq": expected_seq,
     }

@@ -76,6 +76,7 @@ from co_scientist.agents.generation.literature_review.outcomes import (
     _log_sample_papers as _log_sample_papers,
 )
 from co_scientist.agents.generation.literature_review.queries import (
+    QueryPhaseResult,
     _phase1_generate_queries,
 )
 from co_scientist.agents.generation.literature_review.run_config import (
@@ -102,6 +103,7 @@ from co_scientist.mcp_client import (
     check_mcp_available,
     get_mcp_client,
 )
+from co_scientist.models import MetricDeltas, create_metrics_update
 from co_scientist.progress import emit_progress
 from co_scientist.state import WorkflowState
 
@@ -240,6 +242,30 @@ async def _check_server_available(
     return make_failure_result("literature source service unavailable")
 
 
+def _with_llm_call_metrics(
+    result: dict[str, Any], llm_calls: int
+) -> dict[str, Any]:
+    """Attach a metrics delta reporting this node's real LLM calls, in place.
+
+    Every literature-review exit path (cache hit, MCP unavailable, no
+    papers found, no fulltext available, full success) routes through this
+    so ``max_llm_calls`` sees the node's real spend regardless of which
+    phase it exited at (finding L3 -- literature review previously
+    reported no llm_calls at all).
+
+    Args:
+        result: the node's state-update dict, mutated in place.
+        llm_calls: real LLM calls made before this exit.
+
+    Returns:
+        The same ``result`` dict, for chaining at a return statement.
+    """
+    result["metrics"] = create_metrics_update(
+        deltas=MetricDeltas(llm_calls=llm_calls)
+    )
+    return result
+
+
 # =============================================================================
 # Main node function
 # =============================================================================
@@ -277,11 +303,12 @@ async def _finalize_review(
     state: WorkflowState,
     config: SearchConfig,
     collected: _CollectionResult,
-    queries: list[str],
+    query_result: QueryPhaseResult,
     cache_plan: _ReviewCachePlan,
 ) -> dict[str, Any]:
     """Phases 3-5: analyze, synthesize, finalize, and cache the result."""
-    synthesis = await _analyze_and_synthesize(
+    queries = query_result.queries
+    synthesis, review_llm_calls = await _analyze_and_synthesize(
         collected.all_paper_metadata, state, collected.background_context
     )
 
@@ -296,12 +323,15 @@ async def _finalize_review(
         state, queries, articles, collected.search_errors, synthesis
     )
 
-    return _build_and_cache_result(
+    result = _build_and_cache_result(
         synthesis,
         queries,
         articles,
         collected.context_enrichment_sources,
         cache_plan,
+    )
+    return _with_llm_call_metrics(
+        result, query_result.llm_calls + review_llm_calls
     )
 
 
@@ -309,14 +339,16 @@ async def _run_search_phases(
     state: WorkflowState,
     config: SearchConfig,
     mcp_client: MCPToolClient,
-) -> tuple[list[str], _CollectionResult] | dict[str, Any]:
+) -> tuple[QueryPhaseResult, _CollectionResult] | dict[str, Any]:
     """Phase 1 + 2-2.6: generate queries, collect papers, and gate on them.
 
     Returns:
-        Either the (queries, collected) pair to continue with, or an
-        early-exit failure result dict if collection yielded nothing usable.
+        Either the (query_result, collected) pair to continue with, or an
+        early-exit failure result dict (carrying query_result.llm_calls as
+        its own metrics delta) if collection yielded nothing usable.
     """
-    queries = await _phase1_generate_queries(state, config, mcp_client)
+    query_result = await _phase1_generate_queries(state, config, mcp_client)
+    queries = query_result.queries
 
     collected = await _collect_and_enrich_papers(
         queries, state, config, mcp_client
@@ -326,10 +358,10 @@ async def _run_search_phases(
         state, collected, queries, config
     )
     if edge_case_result is not None:
-        return edge_case_result
+        return _with_llm_call_metrics(edge_case_result, query_result.llm_calls)
 
     _log_sample_papers(collected.all_paper_metadata)
-    return queries, collected
+    return query_result, collected
 
 
 async def literature_review_node(state: WorkflowState) -> dict[str, Any]:
@@ -353,6 +385,8 @@ async def literature_review_node(state: WorkflowState) -> dict[str, Any]:
     phase_result = await _run_search_phases(state, config, mcp_client)
     if isinstance(phase_result, dict):
         return phase_result
-    queries, collected = phase_result
+    query_result, collected = phase_result
 
-    return await _finalize_review(state, config, collected, queries, cache_plan)
+    return await _finalize_review(
+        state, config, collected, query_result, cache_plan
+    )

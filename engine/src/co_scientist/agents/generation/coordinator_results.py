@@ -34,6 +34,9 @@ class GenerationResults:
     # Hypotheses from the iterative-assumptions technique (SSR §4); a plain
     # list like the tools path, with no transcript.
     assumptions_hypotheses: list[Hypothesis] = field(default_factory=list)
+    # Real LLM calls spent across every strategy that ran this cycle
+    # (finding L3 -- generation previously reported none at all).
+    llm_call_count: int = 0
 
     @property
     def all_hypotheses(self) -> list[Hypothesis]:
@@ -54,19 +57,26 @@ def _route_one_task_result(
     result: Any,
     buckets: dict[str, list[Hypothesis]],
     debate_transcripts: list[dict[str, Any]],
-) -> None:
+) -> int:
     """Route one gathered task result into its bucket, mutating in place.
 
-    A debate task's result is a (hypotheses, transcripts) tuple, unlike the
-    tools/assumptions tasks' plain hypothesis lists, so debate transcripts
-    are extended into debate_transcripts as they are encountered.
+    Every strategy's coroutine returns its hypotheses paired with the real
+    LLM-call count it spent (see generate_with_debate / _with_assumptions /
+    _with_tools -- finding L3); a debate task's result additionally carries
+    its per-debate transcripts as a middle element, unlike the
+    tools/assumptions tasks' plain (hypotheses, llm_calls) pairs.
+
+    Returns:
+        The LLM-call count this task reported.
     """
     if task_type in _DEBATE_TASK_TYPES:
-        hypotheses, transcripts = result
+        hypotheses, transcripts, llm_calls = result
         buckets[task_type] = hypotheses
         debate_transcripts.extend(transcripts)
     else:
-        buckets[task_type] = result
+        hypotheses, llm_calls = result
+        buckets[task_type] = hypotheses
+    return int(llm_calls)
 
 
 def _unpack_generation_results(
@@ -77,14 +87,15 @@ def _unpack_generation_results(
 
     Args:
         tasks: the (task_type, coroutine) pairs passed to asyncio.gather, in
-            the same order as results (task_type distinguishes the tools
-            path's plain hypothesis list from the two debate paths'
-            (hypotheses, transcripts) tuples).
+            the same order as results (task_type distinguishes the tools/
+            assumptions paths' (hypotheses, llm_calls) pairs from the two
+            debate paths' (hypotheses, transcripts, llm_calls) triples).
         results: asyncio.gather's return value for those tasks.
 
     Returns:
-        GenerationResults with each strategy's hypotheses/transcripts routed
-        to the right field.
+        GenerationResults with each strategy's hypotheses/transcripts
+        routed to the right field, and llm_call_count summed across all of
+        them.
     """
     buckets: dict[str, list[Hypothesis]] = {
         "tools": [],
@@ -94,8 +105,9 @@ def _unpack_generation_results(
     }
     debate_transcripts: list[dict[str, Any]] = []
 
+    llm_call_count = 0
     for i, (task_type, _) in enumerate(tasks):
-        _route_one_task_result(
+        llm_call_count += _route_one_task_result(
             task_type, results[i], buckets, debate_transcripts
         )
 
@@ -105,6 +117,7 @@ def _unpack_generation_results(
         debate_only_hypotheses=buckets["debate_only"],
         debate_transcripts=debate_transcripts,
         assumptions_hypotheses=buckets["assumptions"],
+        llm_call_count=llm_call_count,
     )
 
 

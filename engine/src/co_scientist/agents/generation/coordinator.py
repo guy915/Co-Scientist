@@ -375,7 +375,8 @@ async def _finalize_generation(
         results: gathered generation results from _execute_generation_tasks
 
     Returns:
-        dict with hypotheses, debate_transcripts, hypothesis_count, message.
+        dict with hypotheses, debate_transcripts, hypothesis_count,
+        llm_call_count, message.
     """
     # Only debate_only_hypotheses need the fallback message: tools_ and
     # debate_with_lit_hypotheses are only populated when has_literature was
@@ -400,6 +401,7 @@ async def _finalize_generation(
         "hypotheses": AppendHypotheses(all_hypotheses),
         "debate_transcripts": results.debate_transcripts,
         "hypothesis_count": len(all_hypotheses),
+        "llm_call_count": results.llm_call_count,
         "message": message_content,
     }
 

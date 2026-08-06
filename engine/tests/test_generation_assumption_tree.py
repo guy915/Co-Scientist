@@ -97,7 +97,7 @@ async def test_tree_makes_three_bounded_calls(
     )
     state = make_state(research_goal="explain protein folding")
 
-    result = await generate_with_assumptions(state, 1)
+    result, llm_calls = await generate_with_assumptions(state, 1)
 
     assert [c["options"].prompt_name for c in calls] == [
         "generation_assumption_tree",
@@ -106,6 +106,7 @@ async def test_tree_makes_three_bounded_calls(
     ]
     assert len(result) == 1
     assert result[0].generation_method is GenerationMethod.ASSUMPTIONS
+    assert llm_calls == 3
 
 
 async def test_tree_section_reaches_the_final_prompt(
@@ -218,12 +219,13 @@ async def test_no_load_bearing_assumptions_skips_level_1(
             _final_response(),
         ],
     )
-    result = await generate_with_assumptions(make_state(), 1)
+    result, llm_calls = await generate_with_assumptions(make_state(), 1)
     assert [c["options"].prompt_name for c in calls] == [
         "generation_assumption_tree",
         "generation_assumptions",
     ]
     assert len(result) == 1
+    assert llm_calls == 2
 
 
 async def test_empty_tree_degrades_to_single_final_call(
@@ -234,8 +236,9 @@ async def test_empty_tree_degrades_to_single_final_call(
         monkeypatch,
         [{"assumptions": []}, _final_response()],
     )
-    result = await generate_with_assumptions(make_state(), 1)
+    result, llm_calls = await generate_with_assumptions(make_state(), 1)
     assert len(result) == 1
+    assert llm_calls == 2
     final_prompt = calls[-1]["prompt"]
     assert "Assumption Tree" not in final_prompt
 
@@ -375,8 +378,8 @@ async def test_offline_tree_is_deterministic(
         research_goal="explain how protein X folds",
         model_name=offline_llm.DEFAULT_OFFLINE_MODEL,
     )
-    first = await generate_with_assumptions(state, 2)
-    second = await generate_with_assumptions(state, 2)
+    first, _ = await generate_with_assumptions(state, 2)
+    second, _ = await generate_with_assumptions(state, 2)
 
     assert first, "the offline tree must still produce hypotheses"
     assert [h.text for h in first] == [h.text for h in second]

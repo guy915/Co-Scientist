@@ -302,7 +302,7 @@ def _build_debate_context(
 async def _run_debate_turns(
     state: WorkflowState,
     ctx: _DebateContext,
-) -> tuple[Hypothesis, str]:
+) -> tuple[Hypothesis, str, int]:
     """Run one debate's discussion turns, then its synthesis turn.
 
     The panel debates for up to ``_DEBATE_MAX_DISCUSSION_TURNS`` free-form
@@ -313,6 +313,12 @@ async def _run_debate_turns(
     panel that never agrees still yields a hypothesis; it simply spends
     the whole envelope arguing. Each turn's prompt carries the full
     transcript accumulated so far.
+
+    Returns:
+        Tuple of (hypothesis, transcript, llm_call_count), where
+        llm_call_count is every real completion this debate spent: one per
+        discussion turn plus the final synthesis turn (finding L3 -- debate
+        generation previously reported no llm_calls at all).
     """
     transcript = ""
     turns_run = 0
@@ -335,24 +341,26 @@ async def _run_debate_turns(
     hypothesis = await _run_final_debate_turn(
         state, ctx, turns_run + 1, prompt, schema
     )
-    return hypothesis, transcript
+    # turns_run discussion turns plus the one final synthesis turn.
+    return hypothesis, transcript, turns_run + 1
 
 
 def _unpack_debate_results(
-    debate_results: list[tuple[Hypothesis, str]],
-) -> tuple[list[Hypothesis], list[dict[str, Any]]]:
-    """Split gathered (hypothesis, transcript) pairs into parallel lists.
+    debate_results: list[tuple[Hypothesis, str, int]],
+) -> tuple[list[Hypothesis], list[dict[str, Any]], int]:
+    """Split gathered (hypothesis, transcript, calls) triples into lists.
 
     Args:
-        debate_results: per-debate (hypothesis, transcript) pairs, in the
-            same order they were passed to asyncio.gather.
+        debate_results: per-debate (hypothesis, transcript, llm_call_count)
+            triples, in the same order they were passed to asyncio.gather.
 
     Returns:
-        Tuple of (debate_hypotheses, debate_transcripts), where each
-        transcript entry has the shape expected in WorkflowState:
-        {debate_id, transcript, hypothesis_text}.
+        Tuple of (debate_hypotheses, debate_transcripts, llm_call_count),
+        where each transcript entry has the shape expected in
+        WorkflowState: {debate_id, transcript, hypothesis_text}, and
+        llm_call_count sums every debate's real completions.
     """
-    debate_hypotheses = [hyp for hyp, _ in debate_results]
+    debate_hypotheses = [hyp for hyp, _, _ in debate_results]
     debate_transcripts = [
         {
             # The id stamped on the hypothesis is the debate's own
@@ -368,9 +376,10 @@ def _unpack_debate_results(
             "transcript": transcript,
             "hypothesis_text": debate_hypotheses[i].text,
         }
-        for i, (_, transcript) in enumerate(debate_results)
+        for i, (_, transcript, _) in enumerate(debate_results)
     ]
-    return debate_hypotheses, debate_transcripts
+    llm_call_count = sum(calls for _, _, calls in debate_results)
+    return debate_hypotheses, debate_transcripts, llm_call_count
 
 
 def _build_debate_tasks(
@@ -379,7 +388,7 @@ def _build_debate_tasks(
     articles_with_reasoning: str | None,
     reference_index: ReferenceIndex | None,
     batch_position: DebateBatchPosition,
-) -> list[Coroutine[Any, Any, tuple[Hypothesis, str]]]:
+) -> list[Coroutine[Any, Any, tuple[Hypothesis, str, int]]]:
     """Build one debate-turn-loop coroutine per debate in this batch.
 
     debate_id=debate_index+i doubles as both a diversity-angle selector
@@ -408,7 +417,7 @@ async def generate_with_debate(
     articles_with_reasoning: str | None = None,
     reference_index: ReferenceIndex | None = None,
     batch_position: DebateBatchPosition | None = None,
-) -> tuple[list[Hypothesis], list[dict[str, Any]]]:
+) -> tuple[list[Hypothesis], list[dict[str, Any]], int]:
     """Generate hypotheses using parallel debate strategy.
 
     Each debate generates 1 hypothesis through multi-turn expert discussion
@@ -425,13 +434,15 @@ async def generate_with_debate(
             angles its debate distinctly (finding E14).
 
     Returns:
-        tuple of (debate_hypotheses, debate_transcripts)
+        Tuple of (debate_hypotheses, debate_transcripts, llm_call_count) --
+        llm_call_count is every real completion spent across every debate
+        in this batch (finding L3).
     """
     # coordinator.py may allocate 0 hypotheses to this path (e.g. condition
     # (a)/(c) giving 0 to debate-only); skip the gather/log overhead entirely
     # rather than running it with an empty task list.
     if count == 0:
-        return [], []
+        return [], [], 0
 
     logger.info("Running %s parallel debates", count)
 
@@ -453,9 +464,9 @@ async def generate_with_debate(
         position,
     )
     debate_results = await asyncio.gather(*debate_tasks)
-    debate_hypotheses, debate_transcripts = _unpack_debate_results(
-        debate_results
+    debate_hypotheses, debate_transcripts, llm_call_count = (
+        _unpack_debate_results(debate_results)
     )
 
     logger.info("Generated %s hypotheses from debates", len(debate_hypotheses))
-    return debate_hypotheses, debate_transcripts
+    return debate_hypotheses, debate_transcripts, llm_call_count

@@ -49,7 +49,7 @@ def test_activity_uses_live_facts_not_planner_assertions(
 
     async def _hallucinated_decision(
         *_args: object, **_kwargs: object
-    ) -> tuple[SupervisorDecision, str]:
+    ) -> tuple[SupervisorDecision, str, int]:
         return (
             SupervisorDecision(
                 next_task=TaskType.GENERATE,
@@ -57,6 +57,7 @@ def test_activity_uses_live_facts_not_planner_assertions(
                 priority=80,
             ),
             "model",
+            1,
         )
 
     monkeypatch.setattr(

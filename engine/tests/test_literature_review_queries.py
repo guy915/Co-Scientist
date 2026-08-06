@@ -213,12 +213,16 @@ async def test_final_fallback_distills_the_goal_instead_of_sending_it_raw(
     )
     client = FakeCallToolClient(response=[])
 
-    result = await queries._phase1_generate_queries(
+    phase_result = await queries._phase1_generate_queries(
         state, _search_config(), cast(MCPToolClient, client)
     )
+    result = phase_result.queries
 
     assert result != [state["research_goal"]]
     assert len(result) == 1
+    # Both generators were exhausted before the keyword fallback, so the
+    # LLM-fallback path did run (and failed) -- it still spent one call.
+    assert phase_result.llm_calls == 1
     fallback = result[0]
     assert "?" not in fallback
     for stopword in ("how", "does", "the", "in"):

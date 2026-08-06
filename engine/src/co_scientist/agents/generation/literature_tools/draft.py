@@ -153,11 +153,30 @@ def _build_draft_prompt_metadata(
     }
 
 
+def _count_assistant_turns(messages: list[dict[str, Any]]) -> int:
+    """Count real completions spent in a tool-call loop's message history.
+
+    Each tool-loop iteration issues exactly one ``litellm.acompletion`` and
+    appends its assistant message to the running conversation
+    (``llm_tool_loop.py``), so the assistant-role entries are a precise
+    count of real LLM calls the loop made -- finding L3's fix for
+    tool-based generation, without needing to instrument ``llm.py`` itself.
+
+    Args:
+        messages: The full running conversation returned by
+            ``call_llm_with_tools``.
+
+    Returns:
+        The number of assistant-role turns, i.e. real completions made.
+    """
+    return sum(1 for m in messages if m.get("role") == "assistant")
+
+
 async def _call_draft_llm_with_tools(
     state: WorkflowState,
     call: _DraftCall,
     draft_max_tokens: int,
-) -> str:
+) -> tuple[str, int]:
     """Call the tool-calling draft LLM once and return its final response.
 
     Args:
@@ -166,10 +185,10 @@ async def _call_draft_llm_with_tools(
         draft_max_tokens: Token budget for this call.
 
     Returns:
-        The draft agent's final tool-call-loop response text.
+        Tuple of (final response text, real LLM calls made by the loop).
     """
     # Diversity-critical generation: keep drafts fresh, never cache-frozen.
-    final_response, _ = await call_llm_with_tools(
+    final_response, messages = await call_llm_with_tools(
         prompt=call.prompt,
         spec=CompletionSpec(
             model_name=state["model_name"],
@@ -190,14 +209,14 @@ async def _call_draft_llm_with_tools(
             ),
         ),
     )
-    return final_response
+    return final_response, _count_assistant_turns(messages)
 
 
 async def _invoke_draft_llm(
     state: WorkflowState,
     call: _DraftCall,
     draft_max_tokens: int,
-) -> str:
+) -> tuple[str, int]:
     """Run the draft agent's tool-calling LLM call, re-raising on failure.
 
     Args:
@@ -206,7 +225,7 @@ async def _invoke_draft_llm(
         draft_max_tokens: Token budget for this call.
 
     Returns:
-        The draft agent's final tool-call-loop response text.
+        Tuple of (final response text, real LLM calls made).
     """
     try:
         return await _call_draft_llm_with_tools(state, call, draft_max_tokens)
@@ -222,7 +241,7 @@ async def _invoke_draft_llm(
 async def _call_draft_agent(
     state: WorkflowState,
     call: _DraftCall,
-) -> str:
+) -> tuple[str, int]:
     """Invoke the draft agent's tool-calling loop and return its response.
 
     Args:
@@ -230,7 +249,7 @@ async def _call_draft_agent(
         call: Inputs for this draft-phase LLM invocation.
 
     Returns:
-        The draft agent's final tool-call-loop response text.
+        Tuple of (final response text, real LLM calls made).
     """
     draft_max_tokens = _compute_draft_max_tokens(
         call.count, call.max_iterations
@@ -323,7 +342,7 @@ async def _run_draft_pipeline(
     mcp_client: Any,
     tool_registry: Optional["ToolRegistry"],
     reference_index: Any | None,
-) -> tuple[str, dict[str, int]]:
+) -> tuple[str, dict[str, int], int]:
     """Set up tools, build the prompt, and run the draft agent's tool loop.
 
     Args:
@@ -336,7 +355,8 @@ async def _run_draft_pipeline(
             `[C*]` reference list.
 
     Returns:
-        Tuple of (draft agent's final response text, per-tool call counts).
+        Tuple of (draft agent's final response text, per-tool call counts,
+        real LLM calls made).
     """
     provider, openai_tools, max_iterations, prompt = _prepare_draft_call(
         state, count, mcp_client, tool_registry, reference_index
@@ -347,7 +367,7 @@ async def _run_draft_pipeline(
         "Draft"
     )
 
-    final_response = await _call_draft_agent(
+    final_response, llm_calls = await _call_draft_agent(
         state,
         _DraftCall(
             prompt=prompt,
@@ -358,7 +378,7 @@ async def _run_draft_pipeline(
         ),
     )
 
-    return final_response, tool_call_counts
+    return final_response, tool_call_counts, llm_calls
 
 
 async def draft_hypotheses(
@@ -367,7 +387,7 @@ async def draft_hypotheses(
     mcp_client: Any,
     tool_registry: Optional["ToolRegistry"] = None,
     reference_index: Any | None = None,
-) -> list[dict[str, str]]:
+) -> tuple[list[dict[str, str]], int]:
     """Phase 1: draft hypotheses by searching literature sources for metadata.
 
     Uses tools for searching research literature.
@@ -383,16 +403,17 @@ async def draft_hypotheses(
             `[C*]` reference list
 
     Returns:
-        List of draft dicts with text, gap_reasoning, literature_sources
+        Tuple of (draft dicts with text/gap_reasoning/literature_sources,
+        real LLM calls made -- finding L3).
     """
     logger.info(
         "Phase 1: Drafting %s hypotheses by examining literature", count
     )
 
-    final_response, tool_call_counts = await _run_draft_pipeline(
+    final_response, tool_call_counts, llm_calls = await _run_draft_pipeline(
         state, count, mcp_client, tool_registry, reference_index
     )
 
     _log_draft_completion(tool_call_counts)
 
-    return _parse_draft_response(final_response)
+    return _parse_draft_response(final_response), llm_calls

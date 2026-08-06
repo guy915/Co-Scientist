@@ -6,11 +6,17 @@ This phase uses a two-stage approach:
 access)
 
 The helpers live in sibling modules (validate_search.py, validate_novelty.py,
-validate_support.py, validate_synthesis.py); the two LLM seams (call_llm_json
+validate_support.py, validate_synthesis.py, validate_stages.py); the two LLM
+seams (call_llm_json
 for the per-paper
 novelty analysis and call_llm_with_tools for the synthesis agent) are called
-from this module so tests can monkeypatch them on this namespace. All helper
-names are re-exported here for compatibility.
+from this module so tests can monkeypatch them on this namespace. The
+stage-running functions built on top of those two seams
+(_run_validate_novelty_stage, _run_validation_synthesis_stage, and their
+supporting helpers) live in validate_stages.py, which reaches back into
+this module's seam functions with a deferred, function-scoped import --
+see that module's docstring for why. All helper names are re-exported
+here for compatibility.
 """
 
 import logging
@@ -48,6 +54,24 @@ from co_scientist.agents.generation.literature_tools.validate_search import (
 )
 from co_scientist.agents.generation.literature_tools.validate_search import (
     _search_papers_via_tool_config as _search_papers_via_tool_config,
+)
+from co_scientist.agents.generation.literature_tools.validate_stages import (
+    _count_validation_llm_calls as _count_validation_llm_calls,
+)
+from co_scientist.agents.generation.literature_tools.validate_stages import (
+    _run_single_synthesis_call as _run_single_synthesis_call,
+)
+from co_scientist.agents.generation.literature_tools.validate_stages import (
+    _run_synthesis_and_build_hypotheses as _run_synthesis_and_build_hypotheses,
+)
+from co_scientist.agents.generation.literature_tools.validate_stages import (
+    _run_synthesis_stage_batches as _run_synthesis_stage_batches,
+)
+from co_scientist.agents.generation.literature_tools.validate_stages import (
+    _run_validate_novelty_stage as _run_validate_novelty_stage,
+)
+from co_scientist.agents.generation.literature_tools.validate_stages import (
+    _run_validation_synthesis_stage as _run_validation_synthesis_stage,
 )
 from co_scientist.agents.generation.literature_tools.validate_support import (
     _batch_hypotheses_for_synthesis as _batch_hypotheses_for_synthesis,
@@ -103,7 +127,6 @@ from co_scientist.agents.generation.literature_tools.validate_synthesis import (
 from co_scientist.constants import (
     EXTENDED_MAX_TOKENS,
     HIGH_TEMPERATURE,
-    corpus_slug,
 )
 from co_scientist.llm import (
     CompletionSpec,
@@ -236,208 +259,13 @@ async def _invoke_synthesis_llm(
     return final_response, tool_call_counts
 
 
-async def _run_single_synthesis_call(
-    batch: list[dict[str, Any]],
-    batch_label: str,
-    already_validated_texts: list[str] | None,
-    ctx: _SynthesisContext,
-) -> list[dict[str, Any]]:
-    """Run one synthesis batch call and return the parsed hypotheses list.
-
-    already_validated_texts lets a retry see prior validated texts, so the
-    synthesis agent is less likely to produce a near-duplicate.
-
-    Args:
-        batch: hypothesis batch (with novelty analyses) to synthesize.
-        batch_label: label identifying this batch, used in logging.
-        already_validated_texts: prior validated texts, or None.
-        ctx: shared per-call synthesis state.
-
-    Returns:
-        The parsed "hypotheses" list from the synthesis response.
-    """
-    batch_size = len(batch)
-    logger.info(
-        "Processing synthesis batch %s (%s hypotheses)", batch_label, batch_size
-    )
-
-    call_inputs = _build_synthesis_call_inputs(
-        batch, batch_label, already_validated_texts, ctx
-    )
-
-    final_response, tool_call_counts = await _invoke_synthesis_llm(
-        call_inputs,
-        batch_label,
-        batch_size,
-        already_validated_texts,
-        ctx,
-    )
-    _log_synthesis_tool_call_summary(batch_label, tool_call_counts)
-
-    return _parse_synthesis_response(final_response, batch_label)
-
-
-async def _run_synthesis_stage_batches(
-    hypotheses_with_analyses: list[dict[str, Any]],
-    ctx: _SynthesisContext,
-) -> list[dict[str, Any]]:
-    """Batch, run, and retry-on-failure the synthesis stage for all drafts.
-
-    Executes all batches in parallel, capturing failures without aborting,
-    then retries any failed batch one hypothesis at a time.
-
-    Args:
-        hypotheses_with_analyses: Stage 1 output, one dict per draft.
-        ctx: shared per-call synthesis state.
-
-    Returns:
-        List of validated hypothesis dicts from all batches.
-    """
-    batches = _batch_hypotheses_for_synthesis(hypotheses_with_analyses)
-
-    # Closes over ctx to match the _SynthesisCaller signature used by the
-    # batch-execution/retry helpers below.
-    async def _call_synthesis(
-        batch: list[dict[str, Any]],
-        batch_label: str,
-        already_validated_texts: list[str] | None,
-    ) -> list[dict[str, Any]]:
-        """Run one synthesis call and return the parsed hypotheses list."""
-        return await _run_single_synthesis_call(
-            batch, batch_label, already_validated_texts, ctx
-        )
-
-    all_validated_hypotheses = await _run_and_retry_synthesis_batches(
-        batches, _call_synthesis
-    )
-    logger.info(
-        "Combined %s validated hypotheses from %s batches",
-        len(all_validated_hypotheses),
-        len(batches),
-    )
-    return all_validated_hypotheses
-
-
-async def _run_validation_synthesis_stage(
-    hypotheses_with_analyses: list[dict[str, Any]],
-    state: WorkflowState,
-    mcp_client: Any,
-    tool_registry: Optional["ToolRegistry"],
-    reference_index: Any | None,
-) -> list[dict[str, Any]]:
-    """Run Stage 2: synthesize approve/refine/pivot decisions for all drafts.
-
-    The synthesis agent has tool access for searching additional papers
-    when pivoting. The research goal is read from state.
-
-    Args:
-        hypotheses_with_analyses: Stage 1 output, one dict per draft with
-            "draft" and "novelty_analyses" keys.
-        state: current workflow state.
-        mcp_client: MCP client for tool access.
-        tool_registry: optional ToolRegistry for config-driven tool
-            selection.
-        reference_index: optional citation reference index supplying the
-            `[C*]` reference list.
-
-    Returns:
-        List of validated hypothesis dicts from all batches (including
-        individually-retried ones).
-    """
-    ctx = _build_synthesis_context(
-        hypotheses_with_analyses,
-        state,
-        mcp_client,
-        tool_registry,
-        reference_index,
-    )
-    return await _run_synthesis_stage_batches(hypotheses_with_analyses, ctx)
-
-
-async def _run_validate_novelty_stage(
-    draft_hypotheses: list[dict[str, str]],
-    state: WorkflowState,
-    mcp_client: Any,
-    tool_registry: Optional["ToolRegistry"],
-) -> list[dict[str, Any]]:
-    """Derive the shared corpus slug and run Stage 1 novelty analysis.
-
-    Args:
-        draft_hypotheses: list of draft dicts from Phase 1.
-        state: current workflow state.
-        mcp_client: MCP client for tool access.
-        tool_registry: optional ToolRegistry for config-driven tool
-            selection.
-
-    Returns:
-        Stage 1 output, one dict per draft with "draft" and
-        "novelty_analyses" keys.
-    """
-    # Same deterministic slug the draft phase used (warm corpus reuse).
-    shared_slug = corpus_slug(state["research_goal"])
-    logger.info("Reusing shared corpus from draft phase: %s", shared_slug)
-
-    search_ctx = _NoveltySearchContext(
-        mcp_client=mcp_client,
-        tool_registry=tool_registry,
-        shared_slug=shared_slug,
-        run_id=state.get("run_id"),
-    )
-
-    # The per-paper analyzer is threaded in so its call_llm_json seam
-    # resolves through this module's namespace (tests monkeypatch it here).
-    return await _run_novelty_analysis_stage(
-        draft_hypotheses,
-        state,
-        search_ctx,
-        analyze_paper=_analyze_paper_novelty,
-    )
-
-
-async def _run_synthesis_and_build_hypotheses(
-    hypotheses_with_analyses: list[dict[str, Any]],
-    state: WorkflowState,
-    mcp_client: Any,
-    tool_registry: Optional["ToolRegistry"],
-    reference_index: Any | None,
-) -> list[Hypothesis]:
-    """Run Stage 2 synthesis and build the final validated Hypothesis list.
-
-    Args:
-        hypotheses_with_analyses: Stage 1 output, one dict per draft.
-        state: current workflow state.
-        mcp_client: MCP client for tool access.
-        tool_registry: optional ToolRegistry for config-driven tool
-            selection.
-        reference_index: optional citation reference index supplying the
-            `[C*]` reference list and source map.
-
-    Returns:
-        list of validated Hypothesis objects with novelty_validation.
-    """
-    all_validated_hypotheses = await _run_validation_synthesis_stage(
-        hypotheses_with_analyses,
-        state,
-        mcp_client,
-        tool_registry,
-        reference_index,
-    )
-
-    # Order matches hypotheses_with_analyses order (batched sequentially).
-    hypotheses = _build_hypotheses_from_synthesis(
-        all_validated_hypotheses, reference_index
-    )
-    logger.info("Generated %s validated hypotheses", len(hypotheses))
-    return hypotheses
-
-
 async def validate_hypotheses(
     state: WorkflowState,
     draft_hypotheses: list[dict[str, str]],
     mcp_client: Any,
     tool_registry: Optional["ToolRegistry"] = None,
     reference_index: Any | None = None,
-) -> list[Hypothesis]:
+) -> tuple[list[Hypothesis], int]:
     """Phase 2: validate novelty and refine/pivot drafts.
 
     Two-stage approach: (1) per-hypothesis per-paper novelty analysis
@@ -453,7 +281,8 @@ async def validate_hypotheses(
             `[C*]` reference list and source map
 
     Returns:
-        list of validated Hypothesis objects with novelty_validation
+        Tuple of (validated Hypothesis objects with novelty_validation,
+        real LLM calls made across both stages -- finding L3).
     """
     logger.info(
         "Phase 2: Validating %s draft hypotheses", len(draft_hypotheses)
@@ -461,10 +290,11 @@ async def validate_hypotheses(
     hypotheses_with_analyses = await _run_validate_novelty_stage(
         draft_hypotheses, state, mcp_client, tool_registry
     )
-    return await _run_synthesis_and_build_hypotheses(
+    hypotheses = await _run_synthesis_and_build_hypotheses(
         hypotheses_with_analyses,
         state,
         mcp_client,
         tool_registry,
         reference_index,
     )
+    return hypotheses, _count_validation_llm_calls(hypotheses_with_analyses)

@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 # Re-exported so ``app.engine_tasks.RANKING_WAVE_SIZE`` keeps resolving. The
@@ -20,7 +20,9 @@ from typing import Any
 from co_scientist.constants import (
     RANKING_WAVE_SIZE as RANKING_WAVE_SIZE,
 )
+from co_scientist.llm_telemetry import scoped_telemetry
 
+from app.engine_tasks_telemetry import merge_usage_snapshots
 from app.store import ScientificTask
 
 logger = logging.getLogger(__name__)
@@ -66,12 +68,18 @@ class _WaveResult:
         total_calls: Cumulative LLM calls the tournament has spent.
         next_index: Round index the next task resumes at.
         last_pair: Hypothesis ids of the wave's final matchup (rematch guard).
+        model_usage: Per-(phase, model) telemetry folded from every wave
+            judged so far this tournament (finding L3's cost-accounting
+            counterpart), carried through the sequential match chain since
+            only the finalize task's checkpoint commits it (see
+            ``_commit_ranking_match`` in ``app.engine_tasks_ranking``).
     """
 
     details: list[dict[str, Any]]
     total_calls: int
     next_index: int
     last_pair: list[str]
+    model_usage: dict[str, dict[str, Any]] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -401,9 +409,14 @@ async def _advance_ranking_wave(
     """
     if not plan.wave:
         return _WaveResult(
-            carried.details, carried.total_calls, plan.rounds, []
+            carried.details,
+            carried.total_calls,
+            plan.rounds,
+            [],
+            carried.model_usage,
         )
-    survived = await _judge_wave_matchups(plan, state, eligible)
+    with scoped_telemetry("ranking") as telemetry:
+        survived = await _judge_wave_matchups(plan, state, eligible)
     new_details, calls_delta, last_pair = _apply_wave_elo(
         survived.pairs, survived.judgements, survived.depths, state
     )
@@ -415,4 +428,7 @@ async def _advance_ranking_wave(
         total_calls=carried.total_calls + calls_delta,
         next_index=plan.index + len(plan.wave),
         last_pair=last_pair,
+        model_usage=merge_usage_snapshots(
+            [carried.model_usage, telemetry.snapshot()]
+        ),
     )

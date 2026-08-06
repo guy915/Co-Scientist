@@ -74,7 +74,11 @@ from co_scientist.agents.supervisor.supervisor_decision import (
 from co_scientist.constants import INITIAL_ELO_RATING as INITIAL_ELO_RATING
 from co_scientist.constants import PROGRESS_ORCHESTRATOR_DECISION
 from co_scientist.models import Hypothesis as Hypothesis
-from co_scientist.models import phase_message
+from co_scientist.models import (
+    MetricDeltas,
+    create_metrics_update,
+    phase_message,
+)
 from co_scientist.progress import emit_progress
 from co_scientist.scheduling import Budget as Budget
 from co_scientist.scheduling import (
@@ -99,6 +103,9 @@ class _DecisionOutcome:
     iteration: int
     observable_reason: str
     termination_reason_value: str | None
+    # Real LLM calls this decision spent -- 1 when the planner model was
+    # consulted, 0 for a hard-stop or required transition (finding L3).
+    llm_calls: int = 0
 
 
 def _appended_task_record(
@@ -162,9 +169,12 @@ async def orchestrator_node(state: WorkflowState) -> dict[str, Any]:
     book = state.get("orchestrator_state") or _init_bookkeeping(
         state["hypotheses"]
     )
-    stats, decision, decision_provenance = await _run_supervisor_decision(
-        state, book
-    )
+    (
+        stats,
+        decision,
+        decision_provenance,
+        llm_calls,
+    ) = await _run_supervisor_decision(state, book)
     iteration, observable_reason, termination_reason_value = _decision_context(
         state, stats, decision
     )
@@ -174,6 +184,7 @@ async def orchestrator_node(state: WorkflowState) -> dict[str, Any]:
         iteration=iteration,
         observable_reason=observable_reason,
         termination_reason_value=termination_reason_value,
+        llm_calls=llm_calls,
     )
     return await _finalize_orchestrator_decision(state, book, stats, outcome)
 
@@ -191,14 +202,14 @@ async def _finalize_orchestrator_decision(
 
 async def _run_supervisor_decision(
     state: WorkflowState, book: dict[str, Any]
-) -> tuple[SchedulerStats, SupervisorDecision, str]:
+) -> tuple[SchedulerStats, SupervisorDecision, str, int]:
     """Computes scheduler stats and budget, then asks the policy to decide."""
     stats = _compute_stats(state, book)
     budget = _default_budget(state)
-    decision, decision_provenance = await choose_supervisor_task(
+    decision, decision_provenance, llm_calls = await choose_supervisor_task(
         state, stats, budget
     )
-    return stats, decision, decision_provenance
+    return stats, decision, decision_provenance, llm_calls
 
 
 def _advance_iteration(
@@ -281,5 +292,10 @@ def _orchestrator_result(
             "orchestrator",
             outcome.observable_reason,
             next_task=decision.next_task.value,
+        ),
+        # finding L3: previously omitted, so a spent orchestrator planning
+        # call never reached the accumulated llm_calls max_llm_calls reads.
+        "metrics": create_metrics_update(
+            deltas=MetricDeltas(llm_calls=outcome.llm_calls)
         ),
     }

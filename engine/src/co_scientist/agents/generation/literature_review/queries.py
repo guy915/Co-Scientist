@@ -7,6 +7,7 @@ prompt (and finally to a keyword-distilled form of the research goal).
 
 import logging
 import re
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, cast
 
 from co_scientist.agents.generation.literature_review.helpers import (
@@ -253,12 +254,37 @@ def _distill_goal_to_query(research_goal: str) -> str:
     return " ".join(keywords[:_GOAL_FALLBACK_MAX_TERMS])
 
 
+@dataclass(frozen=True)
+class QueryPhaseResult:
+    """Phase 1 output: the resolved search queries plus real LLM calls spent.
+
+    Bundled together (rather than two loose return values) so downstream
+    callers stay under the five-parameter limit once they also need to
+    thread the call count alongside the queries.
+
+    Attributes:
+        queries: Generated (MCP-tool, LLM, or keyword-distilled) queries.
+        llm_calls: Real LLM calls Phase 1 spent generating them.
+    """
+
+    queries: list[str]
+    llm_calls: int
+
+
 async def _phase1_generate_queries(
     state: WorkflowState,
     config: SearchConfig,
     mcp_client: MCPToolClient,
-) -> list[str]:
-    """Phase 1: Generate search queries."""
+) -> QueryPhaseResult:
+    """Phase 1: Generate search queries.
+
+    Returns:
+        The resolved queries paired with real LLM calls spent. The
+        MCP-tool and keyword-distillation paths make no LLM call; only the
+        LLM-fallback generator does, so llm_calls is 1 exactly when that
+        path ran (finding L3 -- literature review previously reported no
+        llm_calls at all).
+    """
     logger.info("Phase 1: generating search queries")
 
     queries = await _try_mcp_query_generation(state, config, mcp_client)
@@ -266,8 +292,10 @@ async def _phase1_generate_queries(
     # Fallback to LLM-based generation
     # Also the primary path when no query_generation_tool is configured at
     # all.
+    llm_calls = 0
     if not queries:
         queries = await _generate_queries_via_llm(state, config)
+        llm_calls = 1
 
     # Final fallback to a keyword-distilled research goal
     # Guarantees Phase 2 always has at least one query to search with, even
@@ -289,4 +317,4 @@ async def _phase1_generate_queries(
     for i, q in enumerate(queries, 1):
         logger.debug("Query %s: %s", i, q)
 
-    return queries
+    return QueryPhaseResult(queries=queries, llm_calls=llm_calls)

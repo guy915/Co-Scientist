@@ -1,12 +1,14 @@
-"""Tests for the generation coordinator's strategy routing and assembly.
+"""Tests for the generation coordinator's strategy routing.
 
 ``generate_hypotheses`` selects among three generation strategies based on
-state flags (literature availability, tool-calling, dev isolation), runs the
-chosen leaf strategies in parallel, and assembles their outputs into a single
-result dict. These tests stub the leaf strategies (``generate_with_tools``,
-``generate_with_debate``, and ``generate_with_assumptions``) on the
-coordinator's module namespace -- so no LLM or MCP runs -- and assert the real
-routing, count-allocation, degraded-mode fallback, and result-assembly logic.
+state flags (literature availability, tool-calling, dev isolation) and
+runs the chosen leaf strategies in parallel. These tests stub the leaf
+strategies (``generate_with_tools``, ``generate_with_debate``, and
+``generate_with_assumptions``) on the coordinator's module namespace --
+so no LLM or MCP runs -- and assert the real routing, count-allocation,
+and degraded-mode fallback logic. Result-assembly, the missing-guidance
+precondition, and progress-event lifecycle tests live in the sibling
+``test_coordinator_assembly.py``.
 """
 
 from typing import Any
@@ -18,44 +20,51 @@ from co_scientist.agents.generation.coordinator import (
     generate_hypotheses,
 )
 from co_scientist.constants import LITERATURE_REVIEW_FAILED
-from co_scientist.exceptions import GenerationError
-from co_scientist.models import GenerationMethod, Hypothesis
+from co_scientist.models import Hypothesis
 from tests._state import make_hypothesis, make_state
 
 
 class _ToolsRecorder:
     """Records calls to the stubbed ``generate_with_tools`` leaf strategy.
 
-    The coordinator assigns this strategy's return value directly, so the stub
-    returns a plain ``list[Hypothesis]``.
+    The coordinator unpacks this strategy's return as a 2-tuple, so the stub
+    returns ``(list[Hypothesis], llm_calls)``.
     """
 
-    def __init__(self, hypotheses: list[Hypothesis]) -> None:
+    def __init__(
+        self, hypotheses: list[Hypothesis], llm_calls: int = 0
+    ) -> None:
         self._hypotheses = hypotheses
+        self.llm_calls = llm_calls
         self.called = False
         self.count: int | None = None
 
     async def __call__(
         self, _state: Any, count: int, _reference_index: Any
-    ) -> list[Hypothesis]:
+    ) -> tuple[list[Hypothesis], int]:
         self.called = True
         self.count = count
-        return list(self._hypotheses)
+        return list(self._hypotheses), self.llm_calls
 
 
 class _DebateRecorder:
     """Records calls to the stubbed ``generate_with_debate`` leaf strategy.
 
-    The coordinator unpacks this strategy's return as a 2-tuple, so the stub
-    returns ``(list[Hypothesis], list[transcript])``. ``generate_with_debate``
-    is invoked with keyword arguments by the coordinator.
+    The coordinator unpacks this strategy's return as a 3-tuple, so the stub
+    returns ``(list[Hypothesis], list[transcript], llm_calls)``.
+    ``generate_with_debate`` is invoked with keyword arguments by the
+    coordinator.
     """
 
     def __init__(
-        self, hypotheses: list[Hypothesis], transcripts: list[dict[str, Any]]
+        self,
+        hypotheses: list[Hypothesis],
+        transcripts: list[dict[str, Any]],
+        llm_calls: int = 0,
     ) -> None:
         self._hypotheses = hypotheses
         self._transcripts = transcripts
+        self.llm_calls = llm_calls
         self.called = False
         self.count: int | None = None
         self.articles_with_reasoning: str | None = None
@@ -67,25 +76,29 @@ class _DebateRecorder:
         count: int,
         articles_with_reasoning: str | None = None,
         reference_index: Any = None,
-    ) -> tuple[list[Hypothesis], list[dict[str, Any]]]:
+    ) -> tuple[list[Hypothesis], list[dict[str, Any]], int]:
         self.called = True
         self.count = count
         self.articles_with_reasoning = articles_with_reasoning
-        return list(self._hypotheses), list(self._transcripts)
+        return list(self._hypotheses), list(self._transcripts), self.llm_calls
 
 
 class _AssumptionsRecorder:
     """Records calls to the stubbed ``generate_with_assumptions`` leaf.
 
-    The coordinator assigns this strategy's return value directly, so the stub
-    returns a plain ``list[Hypothesis]``. It is invoked with keyword arguments
-    for the literature context so a lit-available run can be asserted to pass
-    real references through (E07: assumptions is a first-class technique in
-    literature-available strategies, not degraded-mode only).
+    The coordinator unpacks this strategy's return as a 2-tuple, so the stub
+    returns ``(list[Hypothesis], llm_calls)``. It is invoked with keyword
+    arguments for the literature context so a lit-available run can be
+    asserted to pass real references through (E07: assumptions is a
+    first-class technique in literature-available strategies, not
+    degraded-mode only).
     """
 
-    def __init__(self, hypotheses: list[Hypothesis]) -> None:
+    def __init__(
+        self, hypotheses: list[Hypothesis], llm_calls: int = 0
+    ) -> None:
         self._hypotheses = hypotheses
+        self.llm_calls = llm_calls
         self.called = False
         self.count: int | None = None
         self.articles_with_reasoning: str | None = None
@@ -97,12 +110,12 @@ class _AssumptionsRecorder:
         count: int,
         articles_with_reasoning: str | None = None,
         reference_index: Any = None,
-    ) -> list[Hypothesis]:
+    ) -> tuple[list[Hypothesis], int]:
         self.called = True
         self.count = count
         self.articles_with_reasoning = articles_with_reasoning
         self.reference_index = reference_index
-        return list(self._hypotheses)
+        return list(self._hypotheses), self.llm_calls
 
 
 def _install(
@@ -121,13 +134,6 @@ def _install(
     )
 
 
-async def test_missing_supervisor_guidance_raises() -> None:
-    """Falsy supervisor_guidance raises GenerationError before any strategy."""
-    # make_state() defaults supervisor_guidance to {} (falsy).
-    with pytest.raises(GenerationError):
-        await generate_hypotheses(make_state())
-
-
 async def test_condition_a_splits_tools_debate_and_assumptions(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -137,12 +143,15 @@ async def test_condition_a_splits_tools_debate_and_assumptions(
     technique and the remaining three are split between the tool-driven and
     debate-with-literature paths.
     """
-    tools = _ToolsRecorder([make_hypothesis(text="t1")])
+    tools = _ToolsRecorder([make_hypothesis(text="t1")], llm_calls=3)
     debate = _DebateRecorder(
         [make_hypothesis(text="d1"), make_hypothesis(text="d2")],
         [{"hypothesis_text": "d1"}, {"hypothesis_text": "d2"}],
+        llm_calls=9,
     )
-    assumptions = _AssumptionsRecorder([make_hypothesis(text="a1")])
+    assumptions = _AssumptionsRecorder(
+        [make_hypothesis(text="a1")], llm_calls=2
+    )
     _install(monkeypatch, tools, debate, assumptions)
 
     state = make_state(
@@ -167,6 +176,8 @@ async def test_condition_a_splits_tools_debate_and_assumptions(
     assert texts == ["t1", "d1", "d2", "a1"]
     assert result["hypothesis_count"] == 4
     assert len(result["debate_transcripts"]) == 2
+    # Real LLM calls summed across every strategy that ran (finding L3).
+    assert result["llm_call_count"] == 3 + 9 + 2
 
 
 async def test_condition_a_single_count_collapses_to_tools_only(
@@ -406,88 +417,3 @@ async def test_dev_isolation_routes_all_to_tools(
     assert not debate.called
     assert result["hypothesis_count"] == 3
     assert "3 tool-based" in result["message"]
-
-
-async def test_result_dict_shape_and_message_format(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """The result dict carries expected keys and 'Generated N ...' message."""
-    tools = _ToolsRecorder([make_hypothesis(text="t1")])
-    debate = _DebateRecorder(
-        [make_hypothesis(text="d1")], [{"hypothesis_text": "d1"}]
-    )
-    _install(monkeypatch, tools, debate)
-
-    state = make_state(
-        supervisor_guidance={"focus": "x"},
-        initial_hypotheses_count=2,
-        mcp_available=True,
-        articles_with_reasoning="papers",
-        enable_tool_calling_generation=True,
-    )
-    result = await generate_hypotheses(state)
-
-    assert set(result.keys()) == {
-        "hypotheses",
-        "debate_transcripts",
-        "hypothesis_count",
-        "message",
-    }
-    assert result["message"] == (
-        "Generated 2 hypotheses (1 tool-based, 1 debate-with-literature)"
-    )
-
-
-async def test_later_generation_is_disclosed_as_research_expansion(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Later Supervisor cycles expose research expansion and base provenance."""
-    tools = _ToolsRecorder([])
-    hypothesis = make_hypothesis(text="underexplored branch")
-    hypothesis.generation_method = GenerationMethod.DEBATE
-    debate = _DebateRecorder([hypothesis], [])
-    _install(monkeypatch, tools, debate)
-
-    state = make_state(
-        supervisor_guidance={"focus": "seek an underexplored branch"},
-        initial_hypotheses_count=1,
-        current_iteration=2,
-        mcp_available=False,
-        enable_tool_calling_generation=False,
-    )
-    result = await generate_hypotheses(state)
-
-    expanded = result["hypotheses"].items[0]
-    assert expanded.creation_iteration == 2
-    assert expanded.generation_method == GenerationMethod.RESEARCH_EXPANSION
-    assert expanded.enrichments["base_generation_method"] == "debate"
-
-
-async def test_progress_callback_emits_start_and_complete(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """A progress_callback receives start and complete generation events."""
-    tools = _ToolsRecorder([])
-    debate = _DebateRecorder(
-        [make_hypothesis(text="d1")], [{"hypothesis_text": "d1"}]
-    )
-    _install(monkeypatch, tools, debate)
-
-    events: list[tuple[str, dict[str, Any]]] = []
-
-    async def callback(event: str, payload: dict[str, Any]) -> None:
-        events.append((event, payload))
-
-    state = make_state(
-        supervisor_guidance={"focus": "x"},
-        initial_hypotheses_count=1,
-        mcp_available=True,
-        articles_with_reasoning="papers",
-        enable_tool_calling_generation=False,
-        progress_callback=callback,
-    )
-    await generate_hypotheses(state)
-
-    emitted = [name for name, _ in events]
-    assert emitted == ["generation_start", "generation_complete"]
-    assert events[1][1]["hypotheses_count"] == 1

@@ -33,6 +33,24 @@ from app.engine_tasks_emit import (
 from app.engine_tasks_emit import (
     _plain_final_state as _plain_final_state,
 )
+from app.engine_tasks_metrics import (
+    _metrics_snapshot as _metrics_snapshot,
+)
+from app.engine_tasks_metrics import (
+    _performance_assessment as _performance_assessment,
+)
+from app.engine_tasks_metrics import (
+    _plain_metrics as _plain_metrics,
+)
+from app.engine_tasks_queue_actions import (
+    _apply_single_queue_action as _apply_single_queue_action,
+)
+from app.engine_tasks_queue_actions import (
+    _apply_supervisor_queue_actions as _apply_supervisor_queue_actions,
+)
+from app.engine_tasks_queue_actions import (
+    _durable_queue_snapshot as _durable_queue_snapshot,
+)
 from app.report_render import make_emitter as make_emitter
 from app.run_modes import resolved_run_config
 from app.store import ScientificTask
@@ -221,7 +239,14 @@ def _save_state_and_enqueue(
     state: dict[str, Any],
     successor: str | None,
 ) -> tuple[int, str | None]:
-    """Atomically checkpoint one node effect and enqueue its successor."""
+    """Atomically checkpoint one node effect and enqueue its successor.
+
+    Also persists the run's accumulated metrics snapshot in the same
+    transaction (finding L14): every node-level, ranking-chain, and
+    fan-out-aggregate commit routes through this one function, so a
+    single hook here gives a running run's ``GET /api/runs/{id}/metrics``
+    live numbers without a second transaction or a poll-driven write.
+    """
     from co_scientist.checkpoint import serialize_workflow_state
 
     task, db_path = commit.task, commit.db_path
@@ -238,61 +263,8 @@ def _save_state_and_enqueue(
             task, state, successor_type, checkpoint_seq, conn
         )
         _ack_consumed_steering(commit, conn)
+        store.save_run_metrics(task.run_id, _metrics_snapshot(state), conn=conn)
     return checkpoint_seq, successor_task.id
-
-
-def _apply_single_queue_action(
-    task_id: str,
-    action: dict[str, Any],
-    conn: sqlite3.Connection,
-) -> None:
-    """Apply one bounded queue mutation the Supervisor requested."""
-    reason = str(action.get("reason") or "Supervisor queue update")
-    kind = action.get("action")
-    if kind == "cancel":
-        store.cancel_task(task_id, reason=reason, conn=conn)
-        return
-    if kind == "retry":
-        store.retry_task(task_id, reason=reason, conn=conn)
-        return
-    priority = action.get("priority")
-    if kind == "reprioritize" and priority is not None:
-        store.reprioritize_task(
-            task_id, int(priority), reason=reason, conn=conn
-        )
-
-
-def _apply_supervisor_queue_actions(
-    run_id: str,
-    actions: list[dict[str, Any]],
-    conn: sqlite3.Connection,
-) -> None:
-    """Apply bounded same-run queue mutations inside the checkpoint commit."""
-    known_ids = {task.id for task in store.list_tasks(run_id, conn=conn)}
-    for action in actions[:8]:
-        task_id = str(action.get("task_id") or "")
-        if task_id in known_ids:
-            _apply_single_queue_action(task_id, action, conn)
-
-
-def _durable_queue_snapshot(
-    run_id: str, db_path: str | None
-) -> list[dict[str, Any]]:
-    """Return the bounded queue state the Supervisor may safely mutate."""
-    return [
-        {
-            "task_id": task.id,
-            "task_type": task.task_type,
-            "status": task.status,
-            "priority": task.priority,
-            "attempt": task.attempt,
-            "max_attempts": task.max_attempts,
-            "dependencies": list(task.dependencies),
-            "error": task.error,
-        }
-        for task in store.list_tasks(run_id, db_path=db_path)[-100:]
-        if task.status in {"queued", "leased", "paused", "failed"}
-    ]
 
 
 def _save_exact_checkpoint(

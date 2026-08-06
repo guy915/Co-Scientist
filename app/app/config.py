@@ -124,6 +124,17 @@ class Settings(BaseSettings):
     status_probe_timeout_seconds: float = 3.0
     status_probe_cache_ttl_seconds: float = 30.0
 
+    # /health durable-queue and disk checks. Both are local (a SQLite
+    # aggregate and a stat on the database's directory), not network calls,
+    # but /health is what a deploy platform polls continuously, so the same
+    # bound-and-cache shape as the /status probes applies: reuse a snapshot
+    # for a short TTL rather than paying for one on every poll.
+    health_check_cache_ttl_seconds: float = 5.0
+    # Free-disk floor (bytes) on the database's volume below which /health
+    # reports degraded, not unhealthy -- killing the container does not
+    # free space, and the process can still serve reads off a full disk.
+    health_check_min_free_disk_bytes: int = 100 * 1024 * 1024
+
     # Optional SMTP transport for scientist-requested completion notices.
     smtp_host: str = ""
     smtp_port: int = 587

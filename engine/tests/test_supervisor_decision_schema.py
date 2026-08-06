@@ -101,7 +101,7 @@ async def _allocate(
         pending_steering=False,
         held_for_review=[],
     )
-    decision, provenance = await supervisor_decision.choose_supervisor_task(
+    decision, provenance, _ = await supervisor_decision.choose_supervisor_task(
         state,
         SchedulerStats(pool_size=4, reviewed_count=4, iteration=1),
         Budget(max_iterations=4),

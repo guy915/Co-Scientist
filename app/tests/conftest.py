@@ -124,3 +124,17 @@ def _fresh_probe_cache() -> None:
     from app.diagnostics import clear_probe_cache
 
     clear_probe_cache()
+
+
+@pytest.fixture(autouse=True)
+def _fresh_health_check_cache() -> None:
+    """Start every test with an empty ``/health`` queue/disk check cache.
+
+    Same reasoning as ``_fresh_probe_cache``: the cache is a module-level
+    memo keyed on wall-clock time, and each test gets its own isolated
+    database, so a cached "healthy" from one test's db would otherwise
+    leak into the next test's assertions within the TTL window.
+    """
+    from app.diagnostics import clear_health_check_cache
+
+    clear_health_check_cache()

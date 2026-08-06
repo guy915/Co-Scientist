@@ -173,8 +173,12 @@ async def get_metrics(run_id: str) -> dict[str, Any]:
     """Return the run's persisted execution metrics.
 
     The metrics dict (LLM calls, phase timings, artifact counts) is
-    persisted when the workflow finalizes; ``metrics`` is null for runs
-    that have not completed a finalize yet.
+    written on every durable node-commit boundary (finding L14), inside
+    the same transaction that commits the node's checkpoint -- not on a
+    timer -- so a still-running run already shows live, if partial,
+    numbers here; the finalize drain then overwrites it with the final
+    total. ``metrics`` is null only for a run that has not yet committed
+    its first node (e.g. still bootstrapping).
     """
     _require_run(run_id)
     return {"metrics": store.get_run_metrics(run_id)}

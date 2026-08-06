@@ -334,8 +334,11 @@ handle_claim_evidence = COLLECTION_HANDLERS["claim-evidence"]
 def handle_metrics(args: argparse.Namespace, client: ApiClient) -> int:
     """Show the run's persisted execution metrics (GET /metrics).
 
-    Metrics are recorded when a workflow finalizes; before that the API
-    returns null and the text mode prints a one-line notice instead.
+    Metrics update live as the run commits each node (finding L14), so
+    this reflects real-time progress on a still-running run, not only the
+    final total; before the run's first node commits (e.g. still
+    bootstrapping) the API returns null and the text mode prints a
+    one-line notice instead.
     """
     run_id: str = args.run_id
     as_json: bool = args.json
@@ -345,7 +348,7 @@ def handle_metrics(args: argparse.Namespace, client: ApiClient) -> int:
         return 0
     metrics = body.get("metrics") if isinstance(body, dict) else None
     if not isinstance(metrics, dict):
-        print("no metrics recorded (run has not finalized)")
+        print("no metrics recorded yet")
         return 0
     pairs: list[tuple[str, Any]] = []
     for key in sorted(metrics):

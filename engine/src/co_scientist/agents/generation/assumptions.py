@@ -392,12 +392,16 @@ async def _build_assumption_tree(
     state: WorkflowState,
     reference_text: str,
     literature_context: str,
-) -> list[_AssumptionNode]:
+) -> tuple[list[_AssumptionNode], int]:
     """Run the bounded level-0/level-1 tree calls and return the tree.
 
     An empty or failed level 0 yields an empty tree; the caller still
     runs the final generation call (the template covers the no-tree
     case), so the technique degrades instead of failing the strategy.
+
+    Returns:
+        Tuple of (nodes, llm_call_count): llm_call_count is 1 for the
+        level-0 call, plus 1 more when a level-1 call ran (finding L3).
     """
     prompt, schema = _build_tree_prompt(
         state, reference_text, literature_context
@@ -414,7 +418,7 @@ async def _build_assumption_tree(
 
     parents = _select_parents(nodes)
     if not parents:
-        return nodes
+        return nodes, 1
     sub_prompt, sub_schema = _build_sub_prompt(
         state, parents, reference_text, literature_context
     )
@@ -427,7 +431,7 @@ async def _build_assumption_tree(
         len(parents),
         sum(len(parent.sub_assumptions) for parent in parents),
     )
-    return nodes
+    return nodes, 2
 
 
 async def generate_with_assumptions(
@@ -435,7 +439,7 @@ async def generate_with_assumptions(
     count: int,
     articles_with_reasoning: str | None = None,
     reference_index: ReferenceIndex | None = None,
-) -> list[Hypothesis]:
+) -> tuple[list[Hypothesis], int]:
     """Generate ``count`` hypotheses by interrogating an assumption tree.
 
     Builds the bounded assumption/sub-assumption tree first (E12), then
@@ -453,12 +457,16 @@ async def generate_with_assumptions(
         reference_index: Citation key -> source mapping, when available.
 
     Returns:
-        The generated hypotheses, tagged ``GenerationMethod.ASSUMPTIONS``.
+        Tuple of (hypotheses, llm_call_count): hypotheses are tagged
+        ``GenerationMethod.ASSUMPTIONS``; llm_call_count is every real
+        completion this technique spent -- the tree call(s) plus the
+        final ideation call (finding L3 -- this technique previously
+        reported no llm_calls at all).
     """
     reference_text, sources, literature_context = _resolve_assumptions_context(
         reference_index, articles_with_reasoning
     )
-    nodes = await _build_assumption_tree(
+    nodes, tree_calls = await _build_assumption_tree(
         state, reference_text, literature_context
     )
     tree_section = _render_tree_section(nodes)
@@ -478,4 +486,4 @@ async def generate_with_assumptions(
         len(hypotheses),
         len(nodes),
     )
-    return hypotheses
+    return hypotheses, tree_calls + 1

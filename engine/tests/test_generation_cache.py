@@ -146,7 +146,7 @@ def test_parallel_debates_stay_distinct_with_warm_cache(
     )
 
     state = make_state(research_goal="g", model_name="m")
-    hyps, _ = asyncio.run(generate_with_debate(state, count=4))
+    hyps, _, _ = asyncio.run(generate_with_debate(state, count=4))
 
     assert len(hyps) == 4
     texts = {h.text for h in hyps}

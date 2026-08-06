@@ -50,9 +50,12 @@ def _stub_debate_llm(monkeypatch: pytest.MonkeyPatch, final_text: str) -> None:
 
 async def test_count_zero_returns_empty() -> None:
     """Requesting zero debates short-circuits without any LLM call."""
-    hyps, transcripts = await generate_with_debate(make_state(), count=0)
+    hyps, transcripts, llm_calls = await generate_with_debate(
+        make_state(), count=0
+    )
     assert hyps == []
     assert transcripts == []
+    assert llm_calls == 0
 
 
 def _stub_debate_llm_counting(
@@ -99,13 +102,14 @@ async def test_declared_convergence_ends_the_debate_early(
         ["still arguing", "HYPOTHESIS: the panel agrees", "unreached"],
     )
 
-    hyps, _ = await generate_with_debate(make_state(), count=1)
+    hyps, _, llm_calls = await generate_with_debate(make_state(), count=1)
 
     assert len(hyps) == 1
     assert hyps[0].text == "converged idea"
     # Two free-form turns, then the structured turn - not the full budget.
     assert len(free_form) == 2
     assert len(finals) == 1
+    assert llm_calls == 3
 
 
 async def test_lowercase_hypothesis_prose_does_not_end_the_debate(
@@ -189,8 +193,13 @@ async def test_debate_produces_one_hypothesis_per_debate(
 ) -> None:
     """Each debate yields a DEBATE-method hypothesis with a unique debate id."""
     _stub_debate_llm(monkeypatch, "tumor suppressor X gates the pathway")
-    hyps, transcripts = await generate_with_debate(make_state(), count=2)
+    hyps, transcripts, llm_calls = await generate_with_debate(
+        make_state(), count=2
+    )
     assert len(hyps) == 2
+    # Each debate never converges on the stubbed text, so it spends the
+    # full discussion envelope plus its final synthesis turn.
+    assert llm_calls == 2 * (_DEBATE_MAX_DISCUSSION_TURNS + 1)
     assert all(h.text == "tumor suppressor X gates the pathway" for h in hyps)
     assert all(h.generation_method == GenerationMethod.DEBATE for h in hyps)
     assert all(h.experiment == "run the assay" for h in hyps)
@@ -228,7 +237,7 @@ async def test_parallel_debates_receive_distinct_focus_prompts(
     monkeypatch.setattr(debate, "call_llm", fake_call_llm)
     monkeypatch.setattr(debate, "call_llm_json", fake_call_llm_json)
 
-    hyps, _ = await generate_with_debate(make_state(), count=3)
+    hyps, _, _ = await generate_with_debate(make_state(), count=3)
 
     assert [h.text for h in hyps] == [
         "hypothesis from debate 1",
@@ -272,7 +281,7 @@ async def test_single_debate_of_a_larger_batch_gets_its_own_angle(
     monkeypatch.setattr(debate, "call_llm", fake_call_llm)
     monkeypatch.setattr(debate, "call_llm_json", fake_call_llm_json)
 
-    hyps, transcripts = await generate_with_debate(
+    hyps, transcripts, _ = await generate_with_debate(
         make_state(),
         count=1,
         batch_position=DebateBatchPosition(debate_index=2, total_debates=4),

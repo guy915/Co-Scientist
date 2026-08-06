@@ -1,4 +1,10 @@
-"""Tests for model-directed Supervisor task allocation."""
+"""Tests for model-directed Supervisor task allocation.
+
+The unit tests for ``_hard_stop``'s budget-deferral condition in
+isolation -- built directly from ``SchedulerStats``/``Budget`` values,
+with no model call or ``choose_supervisor_task`` pipeline -- live in the
+sibling ``test_supervisor_decision_hard_stop.py``.
+"""
 
 from __future__ import annotations
 
@@ -48,7 +54,11 @@ async def test_model_selects_productive_task(
 
     monkeypatch.setattr(supervisor_decision, "call_llm_json", _allocation)
     stats = SchedulerStats(pool_size=4, reviewed_count=4, iteration=1)
-    decision, provenance = await supervisor_decision.choose_supervisor_task(
+    (
+        decision,
+        provenance,
+        _,
+    ) = await supervisor_decision.choose_supervisor_task(
         _state(), stats, Budget(max_iterations=4)
     )
     assert decision.next_task is TaskType.EVOLVE
@@ -70,7 +80,11 @@ async def test_hard_budget_stop_bypasses_model(
     stats = SchedulerStats(
         pool_size=4, reviewed_count=4, iteration=1, llm_calls=10
     )
-    decision, provenance = await supervisor_decision.choose_supervisor_task(
+    (
+        decision,
+        provenance,
+        _,
+    ) = await supervisor_decision.choose_supervisor_task(
         _state(), stats, Budget(max_iterations=4, max_llm_calls=10)
     )
     assert decision.terminate
@@ -97,7 +111,11 @@ async def test_iteration_budget_blocks_model_directed_pool_growth(
         iteration=2,
     )
 
-    decision, provenance = await supervisor_decision.choose_supervisor_task(
+    (
+        decision,
+        provenance,
+        _,
+    ) = await supervisor_decision.choose_supervisor_task(
         _state(), stats, Budget(max_iterations=2)
     )
 
@@ -120,7 +138,11 @@ async def test_provider_failure_records_fallback(
     # Open choice: no required transition fires, so the model is consulted
     # and its failure is what the fallback has to absorb.
     stats = SchedulerStats(pool_size=4, reviewed_count=4, iteration=1)
-    decision, provenance = await supervisor_decision.choose_supervisor_task(
+    (
+        decision,
+        provenance,
+        _,
+    ) = await supervisor_decision.choose_supervisor_task(
         _state(), stats, Budget(max_iterations=4)
     )
     assert decision.next_task is TaskType.EVOLVE
@@ -139,7 +161,11 @@ async def test_scientist_steering_reprioritizes_generation(
     monkeypatch.setattr(supervisor_decision, "call_llm_json", _unexpected)
     state = _state()
     state["pending_steering"] = True
-    decision, provenance = await supervisor_decision.choose_supervisor_task(
+    (
+        decision,
+        provenance,
+        _,
+    ) = await supervisor_decision.choose_supervisor_task(
         state,
         SchedulerStats(
             pool_size=4,
@@ -169,7 +195,11 @@ async def test_review_backlog_skips_the_planning_call(
         pool_size=8, reviewed_count=5, unreviewed_count=3, iteration=1
     )
 
-    decision, provenance = await supervisor_decision.choose_supervisor_task(
+    (
+        decision,
+        provenance,
+        _,
+    ) = await supervisor_decision.choose_supervisor_task(
         _state(), stats, Budget(max_iterations=4)
     )
 
@@ -189,7 +219,11 @@ async def test_small_pool_skips_the_planning_call(
     monkeypatch.setattr(supervisor_decision, "call_llm_json", _unexpected)
     stats = SchedulerStats(pool_size=1, reviewed_count=1, iteration=0)
 
-    decision, provenance = await supervisor_decision.choose_supervisor_task(
+    (
+        decision,
+        provenance,
+        _,
+    ) = await supervisor_decision.choose_supervisor_task(
         _state(), stats, Budget(max_iterations=4)
     )
 
@@ -217,7 +251,11 @@ async def test_proximity_refresh_skips_the_planning_call(
         iteration=1,
     )
 
-    decision, provenance = await supervisor_decision.choose_supervisor_task(
+    (
+        decision,
+        provenance,
+        _,
+    ) = await supervisor_decision.choose_supervisor_task(
         _state(), stats, Budget(max_iterations=4)
     )
 
@@ -264,7 +302,11 @@ async def test_failed_durable_task_still_consults_the_model(
         pool_size=8, reviewed_count=5, unreviewed_count=3, iteration=1
     )
 
-    decision, provenance = await supervisor_decision.choose_supervisor_task(
+    (
+        decision,
+        provenance,
+        _,
+    ) = await supervisor_decision.choose_supervisor_task(
         state, stats, Budget(max_iterations=4)
     )
 
@@ -303,7 +345,7 @@ async def test_corrected_allocation_still_delivers_the_queue_action(
         pool_size=6, reviewed_count=6, rankable_count=1, iteration=1
     )
 
-    decision, _ = await supervisor_decision.choose_supervisor_task(
+    decision, _, _ = await supervisor_decision.choose_supervisor_task(
         state, stats, Budget(max_iterations=4)
     )
 
@@ -327,7 +369,7 @@ async def test_allocation_runs_on_the_worker_model_with_thinking(
     state = _state()
     stats = SchedulerStats(pool_size=4, reviewed_count=4, iteration=1)
 
-    _, provenance = await supervisor_decision.choose_supervisor_task(
+    _, provenance, _ = await supervisor_decision.choose_supervisor_task(
         state, stats, Budget(max_iterations=4)
     )
 
@@ -372,126 +414,13 @@ async def test_repeated_maintenance_cannot_stall_iteration_budget(
         last_work_task=TaskType.GENERATE,
     )
 
-    decision, provenance = await supervisor_decision.choose_supervisor_task(
+    (
+        decision,
+        provenance,
+        _,
+    ) = await supervisor_decision.choose_supervisor_task(
         state, stats, Budget(max_iterations=2)
     )
 
     assert decision.next_task is TaskType.EVOLVE
     assert provenance == "hard-invariant"
-
-
-def test_hard_stop_yields_to_owed_coverage_but_not_to_cancellation() -> None:
-    """_hard_stop defers budget stops when coverage remains, but not cancels.
-
-    _hard_stop runs after required_transition, so without this the RANK the
-    policy just chose is overridden and the feature never reaches a run.
-    """
-    from co_scientist.agents.supervisor.supervisor_decision import _hard_stop
-    from co_scientist.scheduling import (
-        Budget,
-        SchedulerStats,
-        SupervisorDecision,
-        TaskType,
-    )
-
-    budget = Budget(max_iterations=5, max_llm_calls=10)
-    settling = SupervisorDecision(next_task=TaskType.RANK, reason="settle")
-    stats = SchedulerStats(
-        pool_size=6,
-        rankable_count=6,
-        unmatched_rankable_count=2,
-        owed_coverage_rounds=2,
-        llm_calls=99,
-    )
-
-    assert _hard_stop(stats, budget, settling) is None
-
-    cancelled = SchedulerStats(
-        pool_size=6,
-        rankable_count=6,
-        unmatched_rankable_count=2,
-        owed_coverage_rounds=2,
-        llm_calls=99,
-        cancelled=True,
-    )
-    stop = _hard_stop(cancelled, budget, settling)
-
-    assert stop is not None
-    assert stop.next_task is TaskType.TERMINATE
-
-
-def test_hard_stop_deferral_reads_the_allowance_not_the_baseline() -> None:
-    """The deferral is bounded by the allowance on any baseline task.
-
-    _needs_queue_adjudication can route past the forced decision, and the
-    model may then answer with a task other than RANK -- which charges
-    nothing, so a baseline-derived deferral had no bound on that path.
-    """
-    from co_scientist.agents.supervisor.supervisor_decision import _hard_stop
-    from co_scientist.scheduling import (
-        Budget,
-        SchedulerStats,
-        SupervisorDecision,
-        TaskType,
-        TerminationReason,
-    )
-
-    budget = Budget(max_iterations=5, max_llm_calls=10)
-    reflecting = SupervisorDecision(
-        next_task=TaskType.REFLECT, reason="review backlog"
-    )
-    owed = SchedulerStats(
-        pool_size=6,
-        rankable_count=6,
-        unmatched_rankable_count=2,
-        owed_coverage_rounds=2,
-        llm_calls=99,
-    )
-
-    assert _hard_stop(owed, budget, reflecting) is None
-
-    spent = SchedulerStats(
-        pool_size=6,
-        rankable_count=6,
-        unmatched_rankable_count=2,
-        owed_coverage_rounds=2,
-        settlement_allowance=0,
-        llm_calls=99,
-    )
-    stop = _hard_stop(
-        spent,
-        budget,
-        SupervisorDecision(next_task=TaskType.RANK, reason="settle"),
-    )
-
-    assert stop is not None
-    assert stop.termination_reason is TerminationReason.BUDGET
-
-
-def test_hard_stop_defers_for_an_under_covered_pool() -> None:
-    """The deferral reads the same owed-rounds figure the scheduler does.
-
-    _hard_stop runs before required_transition, so a pool that owes rounds
-    without holding a single unmatched idea -- every idea at one match of the
-    two -- was stopped here on the budget before the settlement round the
-    scheduler was about to force could ever run.
-    """
-    from co_scientist.agents.supervisor.supervisor_decision import _hard_stop
-    from co_scientist.scheduling import (
-        Budget,
-        SchedulerStats,
-        SupervisorDecision,
-        TaskType,
-    )
-
-    budget = Budget(max_iterations=5, max_llm_calls=10)
-    settling = SupervisorDecision(next_task=TaskType.RANK, reason="settle")
-    under_covered = SchedulerStats(
-        pool_size=10,
-        rankable_count=10,
-        unmatched_rankable_count=0,
-        owed_coverage_rounds=5,
-        llm_calls=99,
-    )
-
-    assert _hard_stop(under_covered, budget, settling) is None

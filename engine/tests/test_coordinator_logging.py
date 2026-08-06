@@ -31,13 +31,13 @@ def _stub_leaf_strategies(
     """Patch the three leaf strategies to return fixed hypothesis texts."""
 
     async def fake_tools(*_args: Any, **_kwargs: Any) -> Any:
-        return [make_hypothesis(text=t) for t in tools]
+        return [make_hypothesis(text=t) for t in tools], 0
 
     async def fake_debate(*_args: Any, **_kwargs: Any) -> Any:
-        return ([make_hypothesis(text=t) for t in debate], [])
+        return ([make_hypothesis(text=t) for t in debate], [], 0)
 
     async def fake_assumptions(*_args: Any, **_kwargs: Any) -> Any:
-        return [make_hypothesis(text=t) for t in assumptions]
+        return [make_hypothesis(text=t) for t in assumptions], 0
 
     monkeypatch.setattr(coordinator, "generate_with_tools", fake_tools)
     monkeypatch.setattr(coordinator, "generate_with_debate", fake_debate)

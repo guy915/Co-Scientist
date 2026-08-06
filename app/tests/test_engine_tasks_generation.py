@@ -32,7 +32,7 @@ _debate_calls: list[dict[str, Any]] = []
 
 async def _fake_debate(
     **kwargs: Any,
-) -> tuple[list[Hypothesis], list[dict[str, Any]]]:
+) -> tuple[list[Hypothesis], list[dict[str, Any]], int]:
     _debate_calls.append(kwargs)
     hypotheses = [
         Hypothesis(
@@ -41,17 +41,20 @@ async def _fake_debate(
         )
         for index in range(int(kwargs["count"]))
     ]
-    return hypotheses, [{"strategy": "debate"}]
+    return hypotheses, [{"strategy": "debate"}], len(hypotheses)
 
 
-async def _fake_assumptions(_state: Any, count: int) -> list[Hypothesis]:
-    return [
+async def _fake_assumptions(
+    _state: Any, count: int
+) -> tuple[list[Hypothesis], int]:
+    hypotheses = [
         Hypothesis(
             text=f"assumption-{index}",
             generation_method=GenerationMethod.ASSUMPTIONS,
         )
         for index in range(count)
     ]
+    return hypotheses, len(hypotheses)
 
 
 async def _advance_generation_node(
@@ -192,6 +195,12 @@ def _assert_generation_committed(run_id: str, db_path: str) -> None:
         hypothesis.generation_method for hypothesis in restored["hypotheses"]
     }
     assert methods == {GenerationMethod.DEBATE, GenerationMethod.ASSUMPTIONS}
+    # Every strategy item reported real llm_calls (finding L3); the
+    # aggregate must fold them into the committed metrics instead of
+    # discarding them the way it did before the fix. Each fake strategy
+    # reports one call per hypothesis it produced, so this sums to the
+    # same 8 hypotheses_generated asserted above.
+    assert restored["metrics"].llm_calls == 8
     assert _milestones(run_id, db_path=db_path) == [
         "3 hypotheses generated (initial)"
     ]

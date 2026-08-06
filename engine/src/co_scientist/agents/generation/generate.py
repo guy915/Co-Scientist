@@ -8,7 +8,7 @@ import logging
 from typing import Any
 
 from co_scientist.agents.generation.coordinator import generate_hypotheses
-from co_scientist.models import create_metrics_update
+from co_scientist.models import MetricDeltas, create_metrics_update
 from co_scientist.state import WorkflowState
 
 logger = logging.getLogger(__name__)
@@ -39,12 +39,20 @@ async def generate_node(state: WorkflowState) -> dict[str, Any]:
     # a partial result.
     result = await generate_hypotheses(state)
 
-    # Add metrics. The coordinator always returns hypothesis_count (or raises).
-    # create_metrics_update wraps it as a metrics delta; hypothesis_count
-    # uses max() in the merge_metrics reducer (it's a running total, not
-    # additive), so passing the coordinator's total here is correct even
-    # across iterations that re-invoke this node.
-    metrics = create_metrics_update(hypothesis_count=result["hypothesis_count"])
+    # Add metrics. The coordinator always returns hypothesis_count (or
+    # raises). create_metrics_update wraps it as a metrics delta;
+    # hypothesis_count uses max() in the merge_metrics reducer (it's a
+    # running total, not additive), so passing the coordinator's total here
+    # is correct even across iterations that re-invoke this node.
+    # llm_call_count is the real completions every strategy this cycle
+    # spent (debate turns, assumption-tree calls, tool-loop iterations);
+    # llm_calls is additive in the reducer, unlike hypothesis_count (finding
+    # L3 -- generation previously reported no llm_calls at all, so
+    # max_llm_calls never saw this node's real spend).
+    metrics = create_metrics_update(
+        hypothesis_count=result["hypothesis_count"],
+        deltas=MetricDeltas(llm_calls=result.get("llm_call_count", 0)),
+    )
     result["metrics"] = metrics
 
     logger.info(

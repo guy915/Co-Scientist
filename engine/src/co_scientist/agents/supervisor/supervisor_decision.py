@@ -288,7 +288,7 @@ async def choose_supervisor_task(
     state: WorkflowState,
     stats: SchedulerStats,
     budget: Budget,
-) -> tuple[SupervisorDecision, str]:
+) -> tuple[SupervisorDecision, str, int]:
     """Choose the next productive task, consulting the model only if needed.
 
     Hard cancellation, safety, and compute limits are enforced before the
@@ -310,7 +310,12 @@ async def choose_supervisor_task(
         budget: The run's hard compute limits.
 
     Returns:
-        The validated decision and its provenance label.
+        The validated decision, its provenance label, and the real LLM
+        calls this allocation spent -- 1 exactly when the planner was
+        actually consulted (whether it succeeded or fell back on
+        exception), 0 for a hard-stop or required transition, both decided
+        entirely in code (finding L3 -- orchestrator allocation previously
+        reported no llm_calls at all).
     """
     # The disclosed scheduler's decision for these stats/budget. Computed once
     # and reused for the hard-stop fall-through, the non-progress fallback, the
@@ -321,20 +326,21 @@ async def choose_supervisor_task(
 
     stop = _hard_stop(stats, budget, baseline)
     if stop is not None:
-        return stop, "hard-invariant"
+        return stop, "hard-invariant", 0
 
     if forced is not None and not _needs_queue_adjudication(state):
-        return validate_decision(forced, stats), "required-transition"
+        return validate_decision(forced, stats), "required-transition", 0
 
     try:
         validated = await _call_supervisor_planner(state, stats, budget)
-        return _resolve_planner_decision(
+        decision, provenance = _resolve_planner_decision(
             state, stats, budget, baseline, validated
         )
+        return decision, provenance, 1
     except Exception as exc:
         logger.warning("Supervisor allocation failed; using fallback: %s", exc)
         fallback = validate_decision(baseline, stats)
-        return fallback, "reconstructed-fallback"
+        return fallback, "reconstructed-fallback", 1
 
 
 async def _call_supervisor_planner(

@@ -65,6 +65,7 @@ from app.engine_tasks_support import (
 from app.engine_tasks_support import (
     _save_state_and_enqueue as _save_state_and_enqueue,
 )
+from app.engine_tasks_telemetry import merge_usage_snapshots
 from app.store import ScientificTask
 
 
@@ -137,7 +138,7 @@ def _apply_review_items(
     item_task_ids: Sequence[Any],
     db_path: str | None,
     criteria: list[str] | None = None,
-) -> tuple[int, int]:
+) -> tuple[int, int, dict[str, dict[str, Any]]]:
     """Apply each completed review item to its hypothesis; count failures.
 
     Mirrors the normal Review node's score update so tournament seeding
@@ -150,6 +151,7 @@ def _apply_review_items(
 
     successful = 0
     failed = 0
+    usage_snapshots: list[dict[str, Any]] = []
     for item_id in item_task_ids:
         item = _require_item_task(item_id, db_path, kind="review item")
         if item.status != "completed" or not item.result:
@@ -163,12 +165,16 @@ def _apply_review_items(
         hypothesis.reviews.append(review)
         hypothesis.score = review.overall_score
         _apply_initial_review_gate([hypothesis], [review], criteria)
+        usage_snapshots.append(item.result.get("model_usage") or {})
         successful += 1
-    return successful, failed
+    return successful, failed, merge_usage_snapshots(usage_snapshots)
 
 
 def _review_aggregate_update(
-    state: dict[str, Any], successful: int, failed: int
+    state: dict[str, Any],
+    successful: int,
+    failed: int,
+    model_usage: dict[str, dict[str, Any]],
 ) -> dict[str, Any]:
     """Build the review aggregate's workflow state update payload."""
     from co_scientist.models import (
@@ -182,7 +188,8 @@ def _review_aggregate_update(
         "metrics": create_metrics_update(
             deltas=MetricDeltas(
                 reviews=successful, llm_calls=successful + failed
-            )
+            ),
+            model_usage=model_usage,
         ),
         "messages": phase_message(
             "review",
@@ -197,6 +204,7 @@ async def _commit_review_aggregate(
     state: dict[str, Any],
     successful: int,
     failed: int,
+    model_usage: dict[str, dict[str, Any]],
 ) -> dict[str, Any]:
     """Checkpoint the committed reviews and advance the run.
 
@@ -205,6 +213,8 @@ async def _commit_review_aggregate(
         state: Restored workflow state the review items were applied to.
         successful: Reviews applied to their hypothesis.
         failed: Review items isolated as failures.
+        model_usage: Per-(phase, model) telemetry folded from every review
+            item's captured usage.
 
     Returns:
         The task result: committed checkpoint, successor, and review tally.
@@ -212,7 +222,8 @@ async def _commit_review_aggregate(
     from co_scientist.task_runtime import apply_task_update
 
     committed = apply_task_update(
-        state, _review_aggregate_update(state, successful, failed)
+        state,
+        _review_aggregate_update(state, successful, failed, model_usage),
     )
     checkpoint_seq, successor_id = await _checkpoint_and_advance(
         commit, committed, "review"
@@ -241,14 +252,18 @@ async def execute_review_aggregate(
         checkpoint["state"], tool_registry=generator.tool_registry
     )
     by_id = {hypothesis.id: hypothesis for hypothesis in state["hypotheses"]}
-    successful, failed = _apply_review_items(
+    successful, failed, model_usage = _apply_review_items(
         by_id,
         task.inputs.get("item_task_ids", []),
         db_path,
         criteria=state.get("criteria"),
     )
     return await _commit_review_aggregate(
-        TaskCommit(task, current_seq, db_path), state, successful, failed
+        TaskCommit(task, current_seq, db_path),
+        state,
+        successful,
+        failed,
+        model_usage,
     )
 
 
@@ -260,11 +275,17 @@ class _GenerationItems:
         buckets: Hypotheses per generation strategy.
         transcripts: Debate transcripts the strategies recorded.
         failed: Strategy tasks that never completed.
+        llm_calls: Real LLM calls summed across every completed strategy
+            item (finding L3).
+        model_usage: Per-(phase, model) telemetry folded from every
+            completed strategy item's captured usage.
     """
 
     buckets: dict[str, list[Any]]
     transcripts: list[dict[str, Any]]
     failed: int
+    llm_calls: int = 0
+    model_usage: dict[str, dict[str, Any]] = field(default_factory=dict)
 
 
 def _collect_generation_results(
@@ -282,6 +303,8 @@ def _collect_generation_results(
     }
     transcripts: list[dict[str, Any]] = []
     failed = 0
+    llm_calls = 0
+    usage_snapshots: list[dict[str, Any]] = []
     for item_id in item_task_ids:
         item = _require_item_task(item_id, db_path, kind="generation strategy")
         if item.status != "completed" or not item.result:
@@ -293,7 +316,15 @@ def _collect_generation_results(
             for payload in item.result.get("hypotheses", [])
         )
         transcripts.extend(item.result.get("transcripts", []))
-    return _GenerationItems(buckets, transcripts, failed)
+        llm_calls += int(item.result.get("llm_calls", 0))
+        usage_snapshots.append(item.result.get("model_usage") or {})
+    return _GenerationItems(
+        buckets,
+        transcripts,
+        failed,
+        llm_calls,
+        merge_usage_snapshots(usage_snapshots),
+    )
 
 
 async def _generation_aggregate_update(
@@ -309,7 +340,7 @@ async def _generation_aggregate_update(
     from co_scientist.agents.generation.coordinator_strategy import (
         GenerationCounts,
     )
-    from co_scientist.models import create_metrics_update
+    from co_scientist.models import MetricDeltas, create_metrics_update
 
     buckets = items.buckets
     counts = GenerationCounts(**task.inputs["counts"])
@@ -319,10 +350,18 @@ async def _generation_aggregate_update(
         debate_only_hypotheses=buckets["debate_only"],
         assumptions_hypotheses=buckets["assumptions"],
         debate_transcripts=items.transcripts,
+        llm_call_count=items.llm_calls,
     )
     update: dict[str, Any] = await _finalize_generation(state, counts, results)
+    # finding L3: every completed strategy item already reports its real
+    # llm_calls (engine_tasks_fanout_generation.py); a failed/isolated item
+    # contributes none, which under-reports by exactly the calls that item
+    # actually spent before failing -- the same convention the engine side
+    # uses for a call count that is real but not exhaustive.
     update["metrics"] = create_metrics_update(
-        hypothesis_count=update["hypothesis_count"]
+        hypothesis_count=update["hypothesis_count"],
+        deltas=MetricDeltas(llm_calls=update.get("llm_call_count", 0)),
+        model_usage=items.model_usage,
     )
     if items.failed:
         update["message"] += f"; {items.failed} strategy failure(s) isolated"

@@ -79,7 +79,7 @@ async def test_assumptions_grounds_in_supplied_literature(
         research_goal="A goal",
         model_name="fake-model",
     )
-    result = await assumptions_mod.generate_with_assumptions(
+    result, _ = await assumptions_mod.generate_with_assumptions(
         state,
         1,
         articles_with_reasoning="literature synthesis text",

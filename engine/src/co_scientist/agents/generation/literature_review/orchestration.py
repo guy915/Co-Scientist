@@ -5,6 +5,13 @@ phase sequence - paper collection and enrichment (Phases 2-2.6), collection
 edge-case handling, analysis and synthesis (Phases 3-4), article/KG-evidence
 finalization (Phase 5), and result caching - factored out purely to keep the
 orchestrator's phase sequence readable.
+
+The paper-collection group (``_CollectionResult``, ``_merge_private_sources``,
+``_log_collection_summary``, ``_collect_papers_with_diagnostics``,
+``_enrich_collected_papers``) lives in the sibling ``collection`` module and
+is re-exported here for compatibility; see that module's docstring for why
+two of its functions reach back into this one with a deferred import rather
+than a top-level one.
 """
 
 import asyncio
@@ -14,6 +21,21 @@ from typing import Any, cast
 
 from co_scientist.agents.generation.literature_review.analysis import (
     _phase3_analyze_papers,
+)
+from co_scientist.agents.generation.literature_review.collection import (
+    _collect_papers_with_diagnostics as _collect_papers_with_diagnostics,
+)
+from co_scientist.agents.generation.literature_review.collection import (
+    _CollectionResult as _CollectionResult,
+)
+from co_scientist.agents.generation.literature_review.collection import (
+    _enrich_collected_papers as _enrich_collected_papers,
+)
+from co_scientist.agents.generation.literature_review.collection import (
+    _log_collection_summary as _log_collection_summary,
+)
+from co_scientist.agents.generation.literature_review.collection import (
+    _merge_private_sources as _merge_private_sources,
 )
 from co_scientist.agents.generation.literature_review.content import (
     _phase2_4_discover_pdf_links,
@@ -26,12 +48,10 @@ from co_scientist.agents.generation.literature_review.enrichment import (
 from co_scientist.agents.generation.literature_review.helpers import (
     SearchConfig,
     build_articles_from_metadata,
-    count_papers_with_fulltext,
     get_papers_with_content,
     make_success_result,
 )
 from co_scientist.agents.generation.literature_review.outcomes import (
-    _emit_empty_search_diagnostics,
     _handle_no_fulltext_available,
     _handle_no_papers_found,
 )
@@ -234,111 +254,6 @@ def _build_and_cache_result(
     return result
 
 
-@dataclass
-class _CollectionResult:
-    """Bundled output of Phases 2 through 2.6 for the orchestrator.
-
-    Attributes:
-        all_paper_metadata: Collected paper metadata keyed by paper ID.
-        paper_source_map: Maps paper ID to the source name it came from.
-        search_errors: Error strings from any failed search calls.
-        background_context: Context-enrichment text for Phase 4 synthesis.
-        context_enrichment_sources: Raw KG source dicts for citation keys.
-    """
-
-    all_paper_metadata: dict[str, dict[str, Any]]
-    paper_source_map: dict[str, str]
-    search_errors: list[str]
-    background_context: str
-    context_enrichment_sources: list[dict[str, Any]]
-
-
-def _merge_private_sources(
-    state: WorkflowState,
-    background_context: str,
-    context_enrichment_sources: list[dict[str, Any]],
-) -> tuple[str, list[dict[str, Any]]]:
-    """Prepends any per-run private-corpus sources ahead of fetched ones."""
-    private_sources = state.get("context_enrichment_sources") or []
-    if not private_sources:
-        return background_context, context_enrichment_sources
-
-    context_enrichment_sources = [
-        *private_sources,
-        *context_enrichment_sources,
-    ]
-    private_context = "\n\n".join(
-        str(item.get("display") or "") for item in private_sources
-    )
-    background_context = "\n\n".join(
-        part for part in (private_context, background_context) if part
-    )
-    return background_context, context_enrichment_sources
-
-
-def _log_collection_summary(
-    all_paper_metadata: dict[str, dict[str, Any]],
-) -> None:
-    """Logs the fulltext / no-fulltext paper counts collected this run."""
-    with_fulltext, without_fulltext = count_papers_with_fulltext(
-        all_paper_metadata
-    )
-    # One line, both halves. A paper without a fulltext is the ordinary case
-    # -- most of the literature is paywalled and the review works from the
-    # abstract -- so it was raised as a warning on essentially every run, and
-    # a condition that is always true carries no information. The count is
-    # kept because the ratio is worth reading; it just is not a problem.
-    logger.info(
-        "Collected %s papers (%s with fulltext, %s abstract only)",
-        len(all_paper_metadata),
-        with_fulltext,
-        without_fulltext,
-    )
-
-
-async def _collect_papers_with_diagnostics(
-    queries: list[str],
-    state: WorkflowState,
-    config: SearchConfig,
-    mcp_client: MCPToolClient,
-) -> tuple[dict[str, dict[str, Any]], dict[str, str], list[str]]:
-    """Runs Phase 2 collection and emits diagnostics if it found nothing."""
-    search_errors: list[str] = []
-    all_paper_metadata, paper_source_map = await _phase2_collect_papers(
-        queries, state, config, mcp_client, search_errors
-    )
-    if not all_paper_metadata:
-        await _emit_empty_search_diagnostics(state, queries, search_errors)
-    return all_paper_metadata, paper_source_map, search_errors
-
-
-async def _enrich_collected_papers(
-    all_paper_metadata: dict[str, dict[str, Any]],
-    paper_source_map: dict[str, str],
-    config: SearchConfig,
-    mcp_client: MCPToolClient,
-    state: WorkflowState,
-) -> tuple[str, list[dict[str, Any]]]:
-    """Phases 2.4-2.6: discover PDFs, fetch content/enrichment, and merge.
-
-    Mutates all_paper_metadata in place via Phases 2.4/2.5 (a no-op when no
-    relevant tool is configured for any source).
-
-    Returns:
-        (background_context, context_enrichment_sources) ready for
-        synthesis, with any per-run private-corpus sources merged in.
-    """
-    (
-        background_context,
-        context_enrichment_sources,
-    ) = await _fetch_content_and_enrichment(
-        all_paper_metadata, paper_source_map, config, mcp_client, state
-    )
-    return _merge_private_sources(
-        state, background_context, context_enrichment_sources
-    )
-
-
 async def _collect_and_enrich_papers(
     queries: list[str],
     state: WorkflowState,
@@ -408,7 +323,7 @@ async def _analyze_and_synthesize(
     all_paper_metadata: dict[str, dict[str, Any]],
     state: WorkflowState,
     background_context: str,
-) -> str:
+) -> tuple[str, int]:
     """Phase 3 + 4: analyze papers for gaps/limitations, then synthesize.
 
     Guards against calling the synthesis LLM with an empty analyses list
@@ -416,13 +331,22 @@ async def _analyze_and_synthesize(
     call/log noise entirely when Phase 3 produced nothing).
 
     Returns:
-        The synthesis text, or the LITERATURE_REVIEW_FAILED sentinel if
-        Phase 3 produced no analyses.
+        Tuple of (synthesis text, llm_call_count). synthesis is the
+        LITERATURE_REVIEW_FAILED sentinel if Phase 3 produced no analyses.
+        llm_call_count is one real call per successfully-analyzed paper
+        (Phase 3 filters out failed attempts, so this is a floor, not an
+        exact total -- the same convention other nodes use for a call
+        count that is real but not exhaustive) plus one for the synthesis
+        call when Phase 3 produced anything to synthesize (finding L3 --
+        literature review previously reported no llm_calls at all).
     """
     paper_analyses = await _phase3_analyze_papers(all_paper_metadata, state)
     if not paper_analyses:
-        return LITERATURE_REVIEW_FAILED
-    return await _phase4_synthesize(paper_analyses, state, background_context)
+        return LITERATURE_REVIEW_FAILED, 0
+    synthesis = await _phase4_synthesize(
+        paper_analyses, state, background_context
+    )
+    return synthesis, len(paper_analyses) + 1
 
 
 def _finalize_synthesis_and_articles(

@@ -158,13 +158,17 @@ def _install_orchestration_fakes(
         assert kwargs["tool_registry"] is probe.registry
         return probe.client
 
-    async def fake_draft_hypotheses(**kwargs: Any) -> list[dict[str, Any]]:
+    async def fake_draft_hypotheses(
+        **kwargs: Any,
+    ) -> tuple[list[dict[str, Any]], int]:
         probe.draft_calls.append(kwargs)
-        return [{"text": "draft one"}]
+        return [{"text": "draft one"}], 2
 
-    async def fake_validate_hypotheses(**kwargs: Any) -> list[Hypothesis]:
+    async def fake_validate_hypotheses(
+        **kwargs: Any,
+    ) -> tuple[list[Hypothesis], int]:
         probe.validate_calls.append(kwargs)
-        return probe.final
+        return probe.final, 5
 
     monkeypatch.setattr(lit_tools_mod, "get_mcp_client", fake_get_mcp_client)
     monkeypatch.setattr(
@@ -190,11 +194,12 @@ async def test_generate_with_tools_orchestrates_both_phases(
         tool_registry=probe.registry,
         articles=[make_article(used_in_analysis=True)],
     )
-    result = await lit_tools_mod.generate_with_tools(
+    result, llm_calls = await lit_tools_mod.generate_with_tools(
         state, count=3, reference_index=None
     )
 
     assert result == probe.final
+    assert llm_calls == 2 + 5
     assert probe.draft_calls[0]["count"] == 3
     assert probe.draft_calls[0]["mcp_client"] is probe.client
     assert probe.draft_calls[0]["tool_registry"] is probe.registry

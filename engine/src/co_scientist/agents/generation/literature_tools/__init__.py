@@ -123,7 +123,7 @@ async def _run_draft_phase(
     mcp_client: Any,
     tool_registry: Any | None,
     reference_index: Optional["ReferenceIndex"],
-) -> list[dict[str, str]]:
+) -> tuple[list[dict[str, str]], int]:
     """Run Phase 1: draft hypotheses from identified literature gaps.
 
     Args:
@@ -136,9 +136,9 @@ async def _run_draft_phase(
             citations.
 
     Returns:
-        List of draft dicts from Phase 1.
+        Tuple of (draft dicts from Phase 1, real LLM calls made).
     """
-    draft_hyps = await draft_hypotheses(
+    draft_hyps, llm_calls = await draft_hypotheses(
         state=state,
         count=count,
         mcp_client=mcp_client,
@@ -146,7 +146,7 @@ async def _run_draft_phase(
         reference_index=reference_index,
     )
     logger.info("Phase 1 complete: drafted %s hypotheses", len(draft_hyps))
-    return draft_hyps
+    return draft_hyps, llm_calls
 
 
 async def _run_validate_phase(
@@ -155,7 +155,7 @@ async def _run_validate_phase(
     mcp_client: Any,
     tool_registry: Any | None,
     reference_index: Optional["ReferenceIndex"],
-) -> list[Hypothesis]:
+) -> tuple[list[Hypothesis], int]:
     """Run Phase 2: search competing work and decide approve/refine/pivot.
 
     Output is tagged GenerationMethod.LITERATURE_TOOLS inside
@@ -172,10 +172,10 @@ async def _run_validate_phase(
             citations.
 
     Returns:
-        List of validated hypotheses tagged
-        GenerationMethod.LITERATURE_TOOLS.
+        Tuple of (validated hypotheses tagged
+        GenerationMethod.LITERATURE_TOOLS, real LLM calls made).
     """
-    hypotheses = await validate_hypotheses(
+    hypotheses, llm_calls = await validate_hypotheses(
         state=state,
         draft_hypotheses=draft_hyps,
         mcp_client=mcp_client,
@@ -183,14 +183,14 @@ async def _run_validate_phase(
         reference_index=reference_index,
     )
     logger.info("Phase 2 complete: validated %s hypotheses", len(hypotheses))
-    return hypotheses
+    return hypotheses, llm_calls
 
 
 async def generate_with_tools(
     state: WorkflowState,
     count: int,
     reference_index: Optional["ReferenceIndex"] = None,
-) -> list[Hypothesis]:
+) -> tuple[list[Hypothesis], int]:
     """Generates hypotheses with a two-phase tool-based process.
 
     Phase 1: draft hypotheses by reading papers and identifying gaps
@@ -202,7 +202,9 @@ async def generate_with_tools(
         reference_index: Citation key → source mapping for structured citations
 
     Returns:
-        List of validated hypotheses with generation_method="literature_tools"
+        Tuple of (validated hypotheses with
+        generation_method="literature_tools", real LLM calls made across
+        both phases -- finding L3, this path previously reported none).
     """
     logger.info(
         "Generating %s hypotheses with two-phase tool-based process", count
@@ -215,17 +217,17 @@ async def generate_with_tools(
 
     _log_warm_start_diagnostics(state.get("articles", []))
 
-    draft_hyps = await _run_draft_phase(
+    draft_hyps, draft_calls = await _run_draft_phase(
         state, count, mcp_client, tool_registry, reference_index
     )
 
-    hypotheses = await _run_validate_phase(
+    hypotheses, validate_calls = await _run_validate_phase(
         state, draft_hyps, mcp_client, tool_registry, reference_index
     )
 
     _log_generated_hypothesis_methods(hypotheses)
 
-    return hypotheses
+    return hypotheses, draft_calls + validate_calls
 
 
 __all__ = ["draft_hypotheses", "generate_with_tools", "validate_hypotheses"]

@@ -9,6 +9,7 @@ from typing import Any
 import pytest
 from co_scientist.models import (
     Article,
+    ExecutionMetrics,
     Hypothesis,
     HypothesisReview,
 )
@@ -94,6 +95,69 @@ def test_orchestrator_priority_reaches_durable_successor(
     assert successor.priority == 97
     updated = store.get_task(deferred.id, db_path=isolated_db)
     assert updated is not None and updated.priority == 98
+
+
+def test_node_commit_persists_live_metrics(isolated_db: str) -> None:
+    """A node commit writes readable metrics before the run finalizes.
+
+    ``GET /api/runs/{id}/metrics`` (``store.get_run_metrics``) has exactly
+    one writer before this fix: the finalize drain. A run in the middle
+    of its work -- one node committed, nowhere near finalizing -- must
+    already show that node's real llm_calls, not null (finding L14).
+    """
+    run = store.create_run("Live metrics science", "standard", "engine", {})
+    task, deferred = _seed_orchestrator_task(run.id, isolated_db)
+    state = {
+        **_priority_state(run.id, deferred.id),
+        "metrics": ExecutionMetrics(llm_calls=7, hypothesis_count=3),
+    }
+
+    assert store.get_run_metrics(run.id, db_path=isolated_db) is None
+
+    engine_tasks._save_state_and_enqueue(
+        engine_tasks.TaskCommit(task, 1, isolated_db),
+        state,
+        "generate",
+    )
+
+    live = store.get_run_metrics(run.id, db_path=isolated_db)
+    assert live is not None
+    assert live["llm_calls"] == 7
+    assert live["hypothesis_count"] == 3
+
+
+def test_node_commit_persists_supervisor_performance_assessment(
+    isolated_db: str,
+) -> None:
+    """The Supervisor's performance_assessment reaches the metrics row.
+
+    Written at ``supervisor.py:254`` into ``supervisor_guidance`` and read
+    by nothing in production (finding F5). Persisting it onto the same
+    row the live-metrics fix (L14) already writes makes it inspectable
+    over the existing ``GET /api/runs/{id}/metrics`` endpoint without a
+    second persisted artifact -- and without building the weighted
+    allocator that would consume it (Stage 11, out of scope here).
+    """
+    run = store.create_run("Assessed science", "standard", "engine", {})
+    task, deferred = _seed_orchestrator_task(run.id, isolated_db)
+    assessment = {
+        "generation": {"yield": "high", "notes": "productive so far"},
+        "evolution": {"yield": "low", "notes": "little improvement"},
+    }
+    state = {
+        **_priority_state(run.id, deferred.id),
+        "supervisor_guidance": {"performance_assessment": assessment},
+    }
+
+    engine_tasks._save_state_and_enqueue(
+        engine_tasks.TaskCommit(task, 1, isolated_db),
+        state,
+        "generate",
+    )
+
+    live = store.get_run_metrics(run.id, db_path=isolated_db)
+    assert live is not None
+    assert live["performance_assessment"] == assessment
 
 
 @pytest.mark.asyncio

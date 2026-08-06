@@ -303,7 +303,7 @@ async def _run_debate_strategy(
     strategy: str,
     count: int,
     inputs: _StrategyRunInputs,
-) -> tuple[list[Any], list[dict[str, Any]]]:
+) -> tuple[list[Any], list[dict[str, Any]], int]:
     """Run one debate strategy task and return its hypotheses/transcripts.
 
     The task carries its position and batch size within the strategy's
@@ -327,14 +327,20 @@ async def _run_debate_strategy(
         batch_position = DebateBatchPosition(
             inputs.debate_index, inputs.debate_total
         )
-    hypotheses, transcripts = await generate_with_debate(
+    # The app's mypy config skips following co_scientist imports, so the
+    # engine's declared return type arrives here as Any; restate it on the
+    # binding rather than passing an unchecked value on (mirrors
+    # _checkpoint_and_advance's next_task_type cast in the sibling module).
+    result: tuple[
+        list[Any], list[dict[str, Any]], int
+    ] = await generate_with_debate(
         state=state,
         count=count,
         articles_with_reasoning=literature,
         reference_index=debate_reference,
         batch_position=batch_position,
     )
-    return hypotheses, transcripts
+    return result
 
 
 async def _run_generation_strategy(
@@ -342,8 +348,15 @@ async def _run_generation_strategy(
     strategy: str,
     count: int,
     inputs: _StrategyRunInputs,
-) -> tuple[list[Any], list[dict[str, Any]]]:
-    """Execute one generation strategy and return its hypotheses/transcripts."""
+) -> tuple[list[Any], list[dict[str, Any]], int]:
+    """Execute one generation strategy and return its hypotheses/transcripts.
+
+    Every branch returns ``(hypotheses, transcripts, llm_calls)``:
+    ``llm_calls`` is the real LLM completions the strategy spent (finding
+    L3), and every leaf strategy function already reports it -- only the
+    non-debate branches have no transcripts, so they pair their
+    ``(hypotheses, llm_calls)`` return with an empty transcript list here.
+    """
     from co_scientist.agents.generation.assumptions import (
         generate_with_assumptions,
     )
@@ -352,14 +365,15 @@ async def _run_generation_strategy(
     )
 
     if strategy == "tools":
-        return (
-            await generate_with_tools(state, count, inputs.reference_index),
-            [],
+        hypotheses, llm_calls = await generate_with_tools(
+            state, count, inputs.reference_index
         )
+        return hypotheses, [], llm_calls
     if strategy in {"debate_lit", "debate_only"}:
         return await _run_debate_strategy(state, strategy, count, inputs)
     if strategy == "assumptions":
-        return await generate_with_assumptions(state, count), []
+        hypotheses, llm_calls = await generate_with_assumptions(state, count)
+        return hypotheses, [], llm_calls
     raise ValueError(f"unsupported generation strategy: {strategy}")
 
 
@@ -368,6 +382,7 @@ async def execute_generation_strategy(
 ) -> dict[str, Any]:
     """Execute one generation strategy against a read-only plan checkpoint."""
     from co_scientist.agents.generation.citations import ReferenceIndex
+    from co_scientist.llm_telemetry import scoped_telemetry
 
     state, expected_seq = _restore_item_checkpoint(
         task, db_path, superseded="generation strategy"
@@ -381,20 +396,23 @@ async def execute_generation_strategy(
     # A debate task is one debate of the strategy's parallel batch; the
     # batch total defaults to the pre-E14 shape (a lone debate with no
     # siblings to diverge from) when the input predates the wiring.
-    hypotheses, transcripts = await _run_generation_strategy(
-        state,
-        strategy,
-        count,
-        _StrategyRunInputs(
-            reference_index=reference_index,
-            literature=task.inputs.get("literature"),
-            debate_index=int(task.inputs.get("strategy_index") or 0),
-            debate_total=int(task.inputs.get("debate_total") or count),
-        ),
-    )
+    with scoped_telemetry("generate") as telemetry:
+        hypotheses, transcripts, llm_calls = await _run_generation_strategy(
+            state,
+            strategy,
+            count,
+            _StrategyRunInputs(
+                reference_index=reference_index,
+                literature=task.inputs.get("literature"),
+                debate_index=int(task.inputs.get("strategy_index") or 0),
+                debate_total=int(task.inputs.get("debate_total") or count),
+            ),
+        )
     return {
         "strategy": strategy,
         "hypotheses": [hypothesis.to_dict() for hypothesis in hypotheses],
         "transcripts": transcripts,
+        "llm_calls": llm_calls,
+        "model_usage": telemetry.snapshot(),
         "checkpoint_seq": expected_seq,
     }

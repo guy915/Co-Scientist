@@ -113,7 +113,7 @@ async def test_draft_parses_plain_json(monkeypatch: pytest.MonkeyPatch) -> None:
     ]
     _stub_draft_llm(monkeypatch, json.dumps({"drafts": drafts}))
 
-    result = await draft_hypotheses(
+    result, _draft_calls = await draft_hypotheses(
         state=make_state(),
         count=2,
         mcp_client=FakeCallToolClient({}),
@@ -132,7 +132,7 @@ async def test_draft_strips_json_fence(monkeypatch: pytest.MonkeyPatch) -> None:
     fenced = "```json\n" + json.dumps({"drafts": drafts}) + "\n```"
     _stub_draft_llm(monkeypatch, fenced)
 
-    result = await draft_hypotheses(
+    result, _draft_calls = await draft_hypotheses(
         state=make_state(),
         count=1,
         mcp_client=FakeCallToolClient({}),
@@ -152,7 +152,7 @@ async def test_draft_repairs_trailing_comma(
     malformed = '{"drafts": [{"text": "repaired hypothesis"},]}'
     _stub_draft_llm(monkeypatch, malformed)
 
-    result = await draft_hypotheses(
+    result, _draft_calls = await draft_hypotheses(
         state=make_state(),
         count=1,
         mcp_client=FakeCallToolClient({}),
@@ -169,7 +169,7 @@ async def test_draft_missing_drafts_key_defaults_empty(
     _disable_registry(monkeypatch)
     _stub_draft_llm(monkeypatch, json.dumps({"notes": "no drafts here"}))
 
-    result = await draft_hypotheses(
+    result, _draft_calls = await draft_hypotheses(
         state=make_state(),
         count=2,
         mcp_client=FakeCallToolClient({}),
@@ -254,7 +254,7 @@ async def test_validate_builds_literature_tools_hypotheses(
         {"text": "draft two", "gap_reasoning": "gap b"},
     ]
 
-    result = await validate_hypotheses(
+    result, _validate_calls = await validate_hypotheses(
         state=make_state(),
         draft_hypotheses=drafts,
         mcp_client=FakeCallToolClient({}),
@@ -310,7 +310,7 @@ async def test_validate_runs_novelty_pass_when_papers_found(
     monkeypatch.setattr(validate_mod, "call_llm_json", fake_novelty)
     _stub_synthesis_llm(monkeypatch, _VALIDATED_ALPHA_SYNTHESIS)
 
-    result = await validate_hypotheses(
+    result, _validate_calls = await validate_hypotheses(
         state=make_state(),
         draft_hypotheses=[{"text": "alpha draft"}],
         mcp_client=FakeCallToolClient(_PRIOR_ALPHA_PAPERS),
@@ -338,7 +338,7 @@ async def test_validate_empty_drafts_returns_empty(
 
     monkeypatch.setattr(validate_mod, "call_llm_with_tools", fake_synth)
 
-    result = await validate_hypotheses(
+    result, _validate_calls = await validate_hypotheses(
         state=make_state(),
         draft_hypotheses=[],
         mcp_client=FakeCallToolClient({}),
@@ -365,7 +365,7 @@ async def test_validate_text_fallback_key(
         ],
     )
 
-    result = await validate_hypotheses(
+    result, _validate_calls = await validate_hypotheses(
         state=make_state(),
         draft_hypotheses=[{"text": "d"}],
         mcp_client=FakeCallToolClient({}),
@@ -398,7 +398,7 @@ async def test_validate_resolves_citation_map(
         sources={"C1": {"type": "paper", "title": "Smith 2020"}},
     )
 
-    result = await validate_hypotheses(
+    result, _validate_calls = await validate_hypotheses(
         state=make_state(),
         draft_hypotheses=[{"text": "d"}],
         mcp_client=FakeCallToolClient({}),

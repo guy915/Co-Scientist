@@ -139,7 +139,7 @@ def test_review_aggregate_gates_on_the_run_criteria(
         },
     )
 
-    gated, failed = aggregates._apply_review_items(
+    gated, failed, _usage = aggregates._apply_review_items(
         {hypothesis.id: hypothesis},
         ["item-review"],
         db_path=None,
@@ -174,7 +174,7 @@ def test_review_aggregate_without_criteria_keeps_the_default_gate(
         },
     )
 
-    gated, failed = aggregates._apply_review_items(
+    gated, failed, _usage = aggregates._apply_review_items(
         {hypothesis.id: hypothesis}, ["item-review"], db_path=None
     )
 
