@@ -26,8 +26,13 @@ from co_scientist.cache import (
     cache_enabled_override,
     get_cache,
 )
+from co_scientist.llm_credentials import (
+    current_api_key,
+    scoped_api_key,
+)
 from co_scientist.llm_request import (
     _acompletion_within_timeout,
+    _apply_api_key,
     _apply_thinking_args,
     _apply_timeout,
     _clamp_temperature,
@@ -196,6 +201,11 @@ def _build_tool_loop_completion_args(
     thinking on an answer-sized budget. The tool loop always thinks: nothing
     on this path exposes the opt-out.
 
+    The bring-your-own-key credential is read from the task context
+    (``llm_credentials.current_api_key``) rather than carried on
+    ``request``: the request doubles as the cache key and must stay
+    credential-free.
+
     Args:
         messages: The running conversation resent on every iteration.
         request: The tool-call request (model, tools, token, temperature).
@@ -215,6 +225,7 @@ def _build_tool_loop_completion_args(
         completion_args, request.model_name, enable_thinking=True
     )
     _apply_timeout(completion_args)
+    _apply_api_key(completion_args, current_api_key())
     return completion_args
 
 
@@ -409,18 +420,23 @@ async def call_llm_with_tools(
             ``LLMCallOptions()``.
     """
     opt = options if options is not None else LLMCallOptions()
-    request = LLMCacheRequest(
-        prompt=prompt,
-        model_name=spec.model_name,
-        temperature=spec.temperature,
-        max_tokens=spec.max_tokens,
-        tools=loop.tools,
-    )
-    request, cache, cached_result = await _prepare_tool_call(request, opt)
-    if cached_result is not None:
-        return cached_result
-    # Seed history with the initial user turn; resent in full each iteration.
-    messages = [{"role": "user", "content": prompt}]
-    return await _run_tool_call_loop(
-        request, messages, loop.executor, loop.max_iterations, cache
-    )
+    # An explicit spec key temporarily overrides any run-scoped key for
+    # this loop; every iteration reads the effective key back from the
+    # context (see _build_tool_loop_completion_args).
+    with scoped_api_key(spec.api_key):
+        request = LLMCacheRequest(
+            prompt=prompt,
+            model_name=spec.model_name,
+            temperature=spec.temperature,
+            max_tokens=spec.max_tokens,
+            tools=loop.tools,
+        )
+        request, cache, cached_result = await _prepare_tool_call(request, opt)
+        if cached_result is not None:
+            return cached_result
+        # Seed history with the initial user turn; resent in full each
+        # iteration.
+        messages = [{"role": "user", "content": prompt}]
+        return await _run_tool_call_loop(
+            request, messages, loop.executor, loop.max_iterations, cache
+        )

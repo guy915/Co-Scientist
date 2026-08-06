@@ -1,7 +1,13 @@
 import type {RefObject} from 'react';
 import {useEffect, useRef, useState} from 'react';
 import {Icon} from '@/components/icon';
-import {getStoredApiKey, setStoredApiKey} from '@/lib/api_key';
+import {
+  type ByokProvider,
+  getStoredApiKey,
+  getStoredApiProvider,
+  setStoredApiKey,
+  setStoredApiProvider,
+} from '@/lib/api_key';
 import {useEscapeKey} from '../hooks/use_escape_key';
 import {useToast, type ToastState} from '../hooks/use_toast';
 import {type Mode, useTheme} from '../theme_context';
@@ -32,13 +38,15 @@ function useFocusOnMount(ref: RefObject<HTMLElement | null>) {
   }, [ref]);
 }
 
-// Model section's API key field: a local editable copy of the persisted key
-// (written back to storage only on blur/Enter, not every keystroke) plus the
-// brief "Settings saved" confirmation toast.
+// Model section's BYOK fields: a local editable copy of the persisted key
+// (written back to storage only on blur/Enter, not every keystroke) plus
+// the provider choice (persisted on change, since a select commits whole
+// values) and the brief "Settings saved" confirmation toast.
 function useApiKeyField() {
   // Local editable copy of the persisted key; only written back to storage on
   // blur/Enter (see onSave), not on every keystroke.
   const [apiKey, setApiKey] = useState(getStoredApiKey);
+  const [provider, setProvider] = useState<ByokProvider>(getStoredApiProvider);
   const {toast: savedToast, setToast: setSavedToast} = useToast(2400);
 
   // Persists the API key (trimmed; a blank value clears it, see
@@ -51,7 +59,23 @@ function useApiKeyField() {
     setSavedToast('Settings saved');
   }
 
-  return {apiKey, onApiKeyChange: setApiKey, onSave, savedToast};
+  // Persists the provider choice immediately (a select commits whole
+  // values, unlike the free-text key field).
+  function onProviderChange(next: ByokProvider) {
+    if (next === getStoredApiProvider()) return;
+    setStoredApiProvider(next);
+    setProvider(getStoredApiProvider());
+    setSavedToast('Settings saved');
+  }
+
+  return {
+    apiKey,
+    onApiKeyChange: setApiKey,
+    provider,
+    onProviderChange,
+    onSave,
+    savedToast,
+  };
 }
 
 // Dialog header: title plus the close button that also anchors the
@@ -88,11 +112,7 @@ function SettingsPanel({
 }: {
   section: SettingsSection;
   theme: {mode: Mode; setMode: (mode: Mode) => void};
-  apiKeyField: {
-    apiKey: string;
-    onApiKeyChange: (value: string) => void;
-    onSave: () => void;
-  };
+  apiKeyField: ReturnType<typeof useApiKeyField>;
 }) {
   return (
     <div className="ucs-settings-dialog-panel">
@@ -103,6 +123,8 @@ function SettingsPanel({
         <ModelSection
           apiKey={apiKeyField.apiKey}
           onApiKeyChange={apiKeyField.onApiKeyChange}
+          provider={apiKeyField.provider}
+          onProviderChange={apiKeyField.onProviderChange}
           onSave={apiKeyField.onSave}
         />
       )}

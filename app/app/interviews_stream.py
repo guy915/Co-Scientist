@@ -1,0 +1,132 @@
+"""SSE transport for one interview turn's advancement.
+
+Split out of ``app.interviews`` (which re-exports every name here, so the
+``interviews._interview_stream`` import and monkeypatch paths survive):
+this module owns turning one Agent turn into an SSE stream -- the live
+reasoning relay, the closing interview/error frame, and the BYOK scoping
+the turn's model call runs under. The durable turn lifecycle and the HTTP
+surface stay in ``app.interviews``; the provider call itself in
+``app.interviews_model``.
+"""
+
+from __future__ import annotations
+
+import asyncio
+import logging
+from collections.abc import AsyncIterator
+from typing import Any
+
+from fastapi import HTTPException
+from fastapi.responses import StreamingResponse
+
+from app import credentials
+from app.interviews_model import ReasoningSink
+from app.sse import sse_frame
+
+logger = logging.getLogger(__name__)
+
+
+async def _advance(
+    interview_id: str, on_reasoning: ReasoningSink | None = None
+) -> dict[str, Any]:
+    """Run one Agent turn; late import keeps the split cycle-free.
+
+    Args:
+        interview_id: The interview to advance.
+        on_reasoning: Optional sink for live chain-of-thought fragments.
+
+    Returns:
+        The updated interview row.
+    """
+    from app.interviews import _advance as _advance_impl
+
+    return await _advance_impl(interview_id, on_reasoning)
+
+
+async def _advance_stream(
+    interview_id: str,
+    byok: credentials.ByokCredential | None = None,
+) -> AsyncIterator[str]:
+    """Advance one turn as SSE: live reasoning frames, then the interview.
+
+    The Agent's turn runs as a task that pushes chain-of-thought fragments
+    onto a queue while this generator drains it, so reasoning reaches the
+    scientist as the model produces it rather than after the answer lands.
+    The closing ``interview`` frame carries exactly what the turn resolved
+    to, including the deterministic fallback when the provider fails.
+
+    A bring-your-own-key credential is scoped around the whole turn (the
+    task created inside inherits it), so the turn's model call -- and only
+    it -- runs on the scientist's own key.
+
+    Args:
+        interview_id: The interview to advance.
+        byok: The request's credential, when one was sent.
+
+    Yields:
+        ``reasoning`` frames, then one terminal ``interview`` or ``error``
+        frame.
+    """
+    with credentials.scoped_byok(byok):
+        queue: asyncio.Queue[str | None] = asyncio.Queue()
+
+        async def _on_reasoning(fragment: str) -> None:
+            await queue.put(fragment)
+
+        task = asyncio.create_task(_advance(interview_id, _on_reasoning))
+        # Sentinel closes the drain loop whether the turn succeeded or
+        # raised; it queues behind any reasoning already emitted, so
+        # nothing is dropped.
+        task.add_done_callback(lambda _: queue.put_nowait(None))
+
+        while (fragment := await queue.get()) is not None:
+            yield sse_frame({"type": "reasoning", "content": fragment})
+
+        error_frame, updated = await _resolve_advance_task(task, interview_id)
+        if error_frame is not None:
+            yield error_frame
+            return
+        yield sse_frame({"type": "interview", "interview": updated})
+
+
+async def _resolve_advance_task(
+    task: asyncio.Task[dict[str, Any]], interview_id: str
+) -> tuple[str | None, dict[str, Any] | None]:
+    """Await the advance task, turning any failure into an error SSE frame.
+
+    Returns:
+        An ``(error_frame, updated_interview)`` pair, exactly one of which
+        is not None.
+    """
+    try:
+        return None, await task
+    except HTTPException as exc:
+        return sse_frame({"type": "error", "detail": str(exc.detail)}), None
+    except Exception:
+        logger.exception("Interview turn failed for %s", interview_id)
+        return (
+            sse_frame(
+                {"type": "error", "detail": "The interview Agent failed."}
+            ),
+            None,
+        )
+
+
+def _interview_stream(
+    interview_id: str,
+    byok: credentials.ByokCredential | None = None,
+) -> StreamingResponse:
+    """Wrap ``_advance_stream`` in a no-buffer SSE response.
+
+    Args:
+        interview_id: The interview to advance.
+        byok: The request's credential, when one was sent.
+
+    Returns:
+        The SSE response streaming the turn.
+    """
+    return StreamingResponse(
+        _advance_stream(interview_id, byok),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )

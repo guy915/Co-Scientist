@@ -141,6 +141,17 @@ class Settings(BaseSettings):
     researcher_access_codes: str = "{}"
     auth_session_hours: int = 12
 
+    # Bring-your-own-key (BYOK) support. A scientist may send a provider
+    # API key on run creation (X-LLM-API-Key / X-LLM-Provider headers);
+    # the key is validated live, then persisted encrypted for the run's
+    # lifetime (see app/credentials.py). This setting is the encryption
+    # secret. Deliberately NOT ``auth_secret``: that one signs researcher
+    # sessions, may legitimately stay empty in compatibility mode, and
+    # rotating one purpose should not rotate the other. Empty means BYOK
+    # is disabled on this deployment and key-carrying requests are
+    # rejected with a clear 503 at creation time.
+    byok_encryption_key: str = ""
+
     # Tools Configuration (optional)
     # Path to a YAML tools config file, or an HTTP(S) URL.
     # Relative paths resolve from the server working directory.
@@ -258,6 +269,65 @@ def any_provider_credential() -> bool:
         for names in PROVIDER_CREDENTIAL_ENV.values()
         for name in names
     )
+
+
+BYOK_PROVIDER_DEFAULT_MODELS: dict[str, str] = {
+    "anthropic": "anthropic/claude-sonnet-4-5",
+    # Azure additionally needs deployment routing (api_base/api_version)
+    # that BYOK does not carry, so its validation call fails until the
+    # deployment configures that; it stays listed because
+    # PROVIDER_CREDENTIAL_ENV knows it.
+    "azure": "azure/gpt-4o",
+    # DashScope serves the same DeepSeek V4 tiers this deployment runs,
+    # so a dashscope key gets the same worker model behind that route.
+    "dashscope": "dashscope/deepseek-v4-flash",
+    # Mirrors the app's own worker default: a DeepSeek key pointed at the
+    # model this deployment was built around.
+    "deepseek": "deepseek/deepseek-v4-flash",
+    "gemini": "gemini/gemini-2.5-flash",
+    # A non-reasoning model on purpose: reasoning models bill their chain
+    # of thought against max_tokens, and this table cannot revisit every
+    # call site's budget the way switching thinking on for one requires.
+    "openai": "openai/gpt-4o",
+}
+"""Default model each BYOK provider runs, in litellm format.
+
+A LOCAL CHOICE, not provider gospel: one entry per provider in
+``PROVIDER_CREDENTIAL_ENV`` (the closed set the Settings UI offers), each
+a mainstream model litellm routes for that provider. A bring-your-own-key
+run uses its provider's entry for EVERY tier -- worker, supervisor, and
+chat alike -- because the deployment cannot know what else the scientist's
+account may call, so one model per key keeps the run on ground the key is
+known to cover. Changing an entry changes what new BYOK runs for that
+provider use; runs already created keep the model recorded with their
+stored credential.
+"""
+
+
+def byok_default_model(provider: str) -> str | None:
+    """Return the default BYOK model for ``provider``, or None if unknown.
+
+    Args:
+        provider: Provider name as sent on the X-LLM-Provider header.
+
+    Returns:
+        The provider's default model in litellm format, or None when the
+        provider is not one ``BYOK_PROVIDER_DEFAULT_MODELS`` knows.
+    """
+    return BYOK_PROVIDER_DEFAULT_MODELS.get(provider)
+
+
+def byok_enabled() -> bool:
+    """Return whether this deployment can accept bring-your-own-key runs.
+
+    BYOK needs the encryption secret that protects stored keys; without
+    it, key-carrying requests are refused at creation time rather than
+    stored unprotected.
+
+    Returns:
+        True when ``byok_encryption_key`` is configured.
+    """
+    return bool(settings.byok_encryption_key)
 
 
 def _is_deepseek(model_name: str) -> bool:

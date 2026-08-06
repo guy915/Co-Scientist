@@ -1,8 +1,32 @@
-// Client-side storage for the user's LLM API key (Settings > Model). The key
-// never leaves the browser; runs use it only once the backend grows a
-// bring-your-own-key path.
+// Client-side storage for the user's bring-your-own-key (BYOK) LLM
+// credentials (Settings > Model). The key and the chosen provider live in
+// localStorage; they are sent to the backend as request headers
+// (X-LLM-API-Key / X-LLM-Provider, see api/runs_http.ts byokHeaders) on run
+// creation and on the interview/Q&A paths, where the key is validated and
+// stored encrypted for the run's lifetime.
 
 const STORAGE_KEY = 'cosci-api-key';
+const PROVIDER_KEY = 'cosci-api-provider';
+
+/**
+ * Providers the backend accepts for BYOK runs. Must stay within the
+ * backend's PROVIDER_CREDENTIAL_ENV set (app/app/config.py); the backend
+ * rejects anything else.
+ */
+export const BYOK_PROVIDERS = [
+  'anthropic',
+  'azure',
+  'dashscope',
+  'deepseek',
+  'gemini',
+  'openai',
+] as const;
+
+/** One provider a user may bring their own key for. */
+export type ByokProvider = (typeof BYOK_PROVIDERS)[number];
+
+/** The provider selected when the user has not chosen one. */
+export const DEFAULT_BYOK_PROVIDER: ByokProvider = 'deepseek';
 
 /**
  * Reads the stored API key.
@@ -27,4 +51,29 @@ export function setStoredApiKey(value: string): void {
   } else {
     window.localStorage.removeItem(STORAGE_KEY);
   }
+}
+
+/**
+ * Reads the stored BYOK provider choice.
+ *
+ * @returns The stored provider when it is a known one, else the default.
+ */
+export function getStoredApiProvider(): ByokProvider {
+  if (typeof window === 'undefined') return DEFAULT_BYOK_PROVIDER;
+  const stored = window.localStorage.getItem(PROVIDER_KEY) ?? '';
+  return (BYOK_PROVIDERS as readonly string[]).includes(stored)
+    ? (stored as ByokProvider)
+    : DEFAULT_BYOK_PROVIDER;
+}
+
+/**
+ * Persists the BYOK provider choice.
+ *
+ * @param provider The provider to store; unknown values store the default.
+ */
+export function setStoredApiProvider(provider: ByokProvider): void {
+  const known = (BYOK_PROVIDERS as readonly string[]).includes(provider)
+    ? provider
+    : DEFAULT_BYOK_PROVIDER;
+  window.localStorage.setItem(PROVIDER_KEY, known);
 }

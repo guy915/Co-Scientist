@@ -269,6 +269,13 @@
   font-weight: 500;
 }
 
+/* Second field label in a stacked pair (e.g. the key under the provider
+   chooser): restores the inter-field gap the first label's margin-bottom
+   does not cover from the preceding control. */
+.ucs-settings-field-label--spaced {
+  margin-top: 0.9rem;
+}
+
 .ucs-settings-field-input {
   box-sizing: border-box;
   width: 100%;
@@ -291,6 +298,12 @@
   margin: 0.55rem 0 0;
   color: var(--cosci-muted);
   font-size: 0.78rem;
+}
+
+/* Explanatory line in the key hint, stacked under the key-source link. */
+.ucs-settings-hint-copy {
+  display: block;
+  margin-top: 0.3rem;
 }
 
 .ucs-settings-field-link {

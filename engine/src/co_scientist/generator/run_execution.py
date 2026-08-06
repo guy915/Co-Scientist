@@ -18,6 +18,7 @@ from co_scientist.generator.streaming import (
     _merge_node_state_into_cumulative,
     cumulative_stream_state_from,
 )
+from co_scientist.llm_credentials import scoped_api_key
 from co_scientist.models import (
     run_scoped_hypothesis_ids,
     run_seed_material,
@@ -98,6 +99,7 @@ class StreamExecutionMixin:
     if TYPE_CHECKING:
         _graph: "CompiledWorkflow | None"
         enable_cache: bool | None
+        api_key: str | None
         _tool_registry: Any
 
         async def _prepare_generation(
@@ -132,7 +134,10 @@ class StreamExecutionMixin:
 
         Yields (node_name, state_dict) tuples after each node completes.
         """
-        with scoped_cache_override(self.enable_cache):
+        with (
+            scoped_cache_override(self.enable_cache),
+            scoped_api_key(self.api_key),
+        ):
             # Prepare generation (shared setup logic)
             initial_state = await self._prepare_generation(
                 research_goal=research_goal,
@@ -285,7 +290,10 @@ class StreamExecutionMixin:
             Tuple of (node_name, state_dict) after each remaining node.
         """
         opts = opts or {}
-        with scoped_cache_override(self.enable_cache):
+        with (
+            scoped_cache_override(self.enable_cache),
+            scoped_api_key(self.api_key),
+        ):
             restored_state = await self._prepare_resume(
                 restored_state, progress_callback, opts
             )

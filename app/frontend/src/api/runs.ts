@@ -18,6 +18,7 @@ import type {
 import {
   API_BASE_URL,
   authQuery,
+  byokHeaders,
   clientHeaders,
   fetchField,
   fetchJson,
@@ -65,6 +66,7 @@ export type {
   SupportSpan,
 } from './run_types';
 export {
+  byokHeaders,
   clientHeaders,
   exchangeAccessCode,
   fetchJson,
@@ -172,7 +174,16 @@ export async function createRun(input: {
   completion_email?: string;
   audience?: Audience;
 }): Promise<Run> {
-  return fetchJson('/api/runs', jsonRequest(input, true));
+  const init = jsonRequest(input, true);
+  // Bring-your-own-key: the stored key/provider ride along as request
+  // headers; the backend validates the pair before accepting the run.
+  return fetchJson('/api/runs', {
+    ...init,
+    headers: {
+      ...(init.headers as Record<string, string>),
+      ...byokHeaders(),
+    },
+  });
 }
 
 /**
@@ -250,10 +261,14 @@ export async function askRunQuestion(
   question: string,
   audience?: Audience,
 ): Promise<string> {
-  const res = await fetch(
-    `${API_BASE_URL}/api/runs/${id}/messages/ask`,
-    jsonRequest({question, audience}, true),
-  );
+  const init = jsonRequest({question, audience}, true);
+  const res = await fetch(`${API_BASE_URL}/api/runs/${id}/messages/ask`, {
+    ...init,
+    headers: {
+      ...(init.headers as Record<string, string>),
+      ...byokHeaders(),
+    },
+  });
   let answer = '';
   interface AnswerFrame {
     type: string;

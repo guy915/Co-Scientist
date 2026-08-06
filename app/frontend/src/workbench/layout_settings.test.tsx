@@ -65,3 +65,20 @@ it('opens the Settings dialog and switches sections', async () => {
   fireEvent.click(screen.getByRole('button', {name: 'Close settings'}));
   expect(screen.queryByRole('dialog', {name: 'Settings'})).toBeNull();
 });
+
+it('persists the BYOK provider choice in the Model section', async () => {
+  renderLayout();
+
+  fireEvent.click(screen.getByRole('button', {name: 'Settings'}));
+  fireEvent.click(screen.getByRole('menuitem', {name: 'Model'}));
+  await screen.findByRole('dialog', {name: 'Settings'});
+
+  // The key label follows the chosen provider; deepseek is the default.
+  expect(screen.getByLabelText('DeepSeek API key')).toBeInTheDocument();
+
+  const provider = screen.getByLabelText('Provider');
+  fireEvent.change(provider, {target: {value: 'openai'}});
+  expect(window.localStorage.getItem('cosci-api-provider')).toBe('openai');
+  expect(screen.getByLabelText('OpenAI API key')).toBeInTheDocument();
+  expect(screen.getByText('Settings saved')).toBeInTheDocument();
+});

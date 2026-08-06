@@ -8,7 +8,7 @@ pre-run steering queue, and constructs the per-run `HypothesisGenerator`.
 from __future__ import annotations
 
 import os
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from app import paper_corpus, run_corpus, store
 from app.config import settings
@@ -18,6 +18,9 @@ from app.run_modes import (
     normalize_run_focus,
     setup_guidance,
 )
+
+if TYPE_CHECKING:
+    from app.credentials import ByokCredential
 
 
 def _clean_list_field(setup: dict[str, Any], key: str) -> list[str]:
@@ -225,13 +228,17 @@ def _generator_kwargs(
     model_name: str,
     supervisor_model_name: str | None,
     enable_cache: bool | None,
+    api_key: str | None = None,
 ) -> dict[str, Any]:
     """Build the `HypothesisGenerator` constructor kwargs for one run.
 
     `cfg` went through `resolved_run_config` upstream, so every numeric key
     is present -- index directly rather than re-inventing defaults here.
     The four run-size knobs stay top-level; every other engine knob is
-    grouped into the engine's ``GeneratorOptions`` bundle.
+    grouped into the engine's ``GeneratorOptions`` bundle. ``api_key`` is
+    a bring-your-own-key credential (see ``GeneratorOptions.api_key``):
+    it rides the options bundle into the generator instance and is never
+    part of the run config or the workflow state.
     """
     from co_scientist import GeneratorOptions
 
@@ -263,12 +270,17 @@ def _generator_kwargs(
             # (see app.main lifespan).
             tools_config=settings.tools_config,
             disable_tools=_resolve_generator_disable_tools(cfg),
+            api_key=api_key,
         ),
     }
 
 
 def _build_generator(
-    generator_cls: Any, cfg: dict[str, Any], *, offline: bool = False
+    generator_cls: Any,
+    cfg: dict[str, Any],
+    *,
+    offline: bool = False,
+    byok: ByokCredential | None = None,
 ) -> Any:
     """Construct a fresh `HypothesisGenerator` from the run's resolved config.
 
@@ -280,15 +292,32 @@ def _build_generator(
         cfg: The run's resolved config.
         offline: When True the run is backed by the deterministic offline
             router; see ``_resolve_generator_models`` for what that pins.
+        byok: The run's bring-your-own-key credential, when it has one.
+            Forces the real backend (a validated user key must never be
+            shadowed by the offline router) and runs EVERY tier -- worker
+            and supervisor alike -- on the credential's model, since the
+            deployment cannot know what else the key may call.
 
     Returns:
         A constructed generator instance.
     """
-    model_name, supervisor_model_name, enable_cache = _resolve_generator_models(
-        offline
-    )
+    if byok is not None:
+        # One model for every tier (see the byok doc above); the cache
+        # override stays unset and the engine forces caching off itself
+        # once it sees the key (GeneratorOptions.api_key).
+        model_name: str = byok.model
+        supervisor_model_name: str | None = byok.model
+        enable_cache: bool | None = None
+    else:
+        model_name, supervisor_model_name, enable_cache = (
+            _resolve_generator_models(offline)
+        )
     return generator_cls(
         **_generator_kwargs(
-            cfg, model_name, supervisor_model_name, enable_cache
+            cfg,
+            model_name,
+            supervisor_model_name,
+            enable_cache,
+            api_key=byok.api_key if byok else None,
         )
     )

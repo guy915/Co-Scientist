@@ -31,6 +31,12 @@ from co_scientist.cache import get_cache as get_cache
 from co_scientist.constants import (
     EXTENDED_MAX_TOKENS as EXTENDED_MAX_TOKENS,
 )
+from co_scientist.llm_credentials import (
+    current_api_key as current_api_key,
+)
+from co_scientist.llm_credentials import (
+    scoped_api_key as scoped_api_key,
+)
 from co_scientist.llm_json import (
     _backfill_required_fields as _backfill_required_fields,
 )
@@ -97,6 +103,7 @@ from co_scientist.llm_request import (
 from co_scientist.llm_request import (
     CompletionShape,
     _acompletion_within_timeout,
+    _apply_api_key,
     _build_completion_args,
     _extract_completion_content,
 )
@@ -157,6 +164,12 @@ async def _call_llm_and_cache(
 
     ``request.temperature`` is assumed already clamped.
 
+    The credential is read from ``llm_credentials.current_api_key`` at
+    call time rather than passed in: ``request`` is deliberately
+    credential-free (it is the cache key), and the entry point already
+    scoped the effective key -- an explicit ``CompletionSpec.api_key``
+    or the run's scoped key -- into the current task's context.
+
     Args:
         request: The request to send, and the key its response is cached
             under.
@@ -178,6 +191,7 @@ async def _call_llm_and_cache(
             enable_thinking=enable_thinking,
         ),
     )
+    _apply_api_key(completion_args, current_api_key())
     response = await _acompletion_within_timeout(
         completion_args, request.model_name
     )
@@ -200,27 +214,33 @@ async def call_llm(
             ``LLMCallOptions()``.
     """
     opt = options if options is not None else LLMCallOptions()
-    request = LLMCacheRequest(
-        prompt=prompt,
-        model_name=spec.model_name,
-        temperature=spec.temperature,
-        max_tokens=spec.max_tokens,
-        json_schema=spec.json_schema,
-        force_json=spec.force_json,
-    )
-    request, cache, cached_response = await _prepare_llm_call(request, opt)
-    if cached_response is not None:
-        logger.debug("using cached llm response")
-        return cast(str, cached_response["text"])
-    # Never falls back/retries itself; nothing cached on failure.
-    try:
-        return await _call_llm_and_cache(request, opt.enable_thinking, cache)
-    except Exception as e:
-        logger.error("LLM call failed: %s", e)
-        logger.error(
-            "Model: %s, max_tokens: %s", spec.model_name, spec.max_tokens
+    # An explicit spec key temporarily overrides any run-scoped key for
+    # exactly this call; the completion args read the effective key back
+    # from the context (see _call_llm_and_cache).
+    with scoped_api_key(spec.api_key):
+        request = LLMCacheRequest(
+            prompt=prompt,
+            model_name=spec.model_name,
+            temperature=spec.temperature,
+            max_tokens=spec.max_tokens,
+            json_schema=spec.json_schema,
+            force_json=spec.force_json,
         )
-        raise
+        request, cache, cached_response = await _prepare_llm_call(request, opt)
+        if cached_response is not None:
+            logger.debug("using cached llm response")
+            return cast(str, cached_response["text"])
+        # Never falls back/retries itself; nothing cached on failure.
+        try:
+            return await _call_llm_and_cache(
+                request, opt.enable_thinking, cache
+            )
+        except Exception as e:
+            logger.error("LLM call failed: %s", e)
+            logger.error(
+                "Model: %s, max_tokens: %s", spec.model_name, spec.max_tokens
+            )
+            raise
 
 
 async def _call_llm_for_json(
@@ -315,26 +335,35 @@ async def call_llm_json(
             ``LLMCallOptions()``.
     """
     opt = options if options is not None else LLMCallOptions()
-    request = LLMCacheRequest(
-        prompt=prompt,
-        model_name=spec.model_name,
-        temperature=spec.temperature,
-        max_tokens=spec.max_tokens,
-        json_schema=spec.json_schema,
-    )
-    request, cache, cached_response = await _prepare_llm_call(request, opt)
-    if cached_response is not None:
-        logger.debug("using cached llm json response")
-        return cached_response
-    json_spec = _JsonCallSpec(
-        spec.model_name, spec.max_tokens, request.temperature, spec.json_schema
-    )
-
-    async def _call_for_json(attempt_prompt: str) -> str:
-        """Raw LLM call (via call_llm) for one attempt's prompt."""
-        return await _call_llm_for_json(
-            attempt_prompt, json_spec, enable_thinking=opt.enable_thinking
+    # The explicit spec key (when any) scopes over the whole retry loop,
+    # so every attempt's inner call_llm resolves the same effective key
+    # from the context without the credential entering _JsonCallSpec.
+    with scoped_api_key(spec.api_key):
+        request = LLMCacheRequest(
+            prompt=prompt,
+            model_name=spec.model_name,
+            temperature=spec.temperature,
+            max_tokens=spec.max_tokens,
+            json_schema=spec.json_schema,
+        )
+        request, cache, cached_response = await _prepare_llm_call(request, opt)
+        if cached_response is not None:
+            logger.debug("using cached llm json response")
+            return cached_response
+        json_spec = _JsonCallSpec(
+            spec.model_name,
+            spec.max_tokens,
+            request.temperature,
+            spec.json_schema,
         )
 
-    ctx = _JsonRetryContext(prompt, json_spec, cache, _call_for_json)
-    return await _run_call_llm_json_loop(prompt, ctx, max_attempts)
+        async def _call_for_json(attempt_prompt: str) -> str:
+            """Raw LLM call (via call_llm) for one attempt's prompt."""
+            return await _call_llm_for_json(
+                attempt_prompt,
+                json_spec,
+                enable_thinking=opt.enable_thinking,
+            )
+
+        ctx = _JsonRetryContext(prompt, json_spec, cache, _call_for_json)
+        return await _run_call_llm_json_loop(prompt, ctx, max_attempts)

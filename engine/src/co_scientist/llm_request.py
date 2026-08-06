@@ -372,6 +372,27 @@ def _base_completion_args(
     return completion_args
 
 
+def _apply_api_key(
+    completion_args: dict[str, Any], api_key: str | None
+) -> None:
+    """Sets a per-call provider credential, in place, when one is given.
+
+    litellm accepts ``api_key`` on the completion call and prefers it
+    over the provider credential read from the environment, which is
+    exactly the bring-your-own-key contract: the run's key overrides
+    the deployment's for this call only, without mutating any shared
+    state. Absent a key the argument is omitted entirely so the call
+    keeps litellm's normal environment resolution.
+
+    Args:
+        completion_args: The in-progress completion kwargs dict; mutated.
+        api_key: Provider key for this call, or None to leave env
+            resolution untouched.
+    """
+    if api_key:
+        completion_args["api_key"] = api_key
+
+
 @dataclass(frozen=True)
 class CompletionShape:
     """How one completion's response is shaped and reasoned about.
@@ -396,6 +417,10 @@ def _build_completion_args(
     shape: CompletionShape,
 ) -> dict[str, Any]:
     """Builds the keyword arguments for a ``litellm.acompletion`` call.
+
+    The bring-your-own-key credential is applied afterwards by the call
+    site (see ``_apply_api_key``): it rides the task-scoped context from
+    ``llm_credentials`` rather than this argument list.
 
     Args:
         prompt: The prompt to send to the LLM.

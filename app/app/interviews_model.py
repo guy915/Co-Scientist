@@ -17,6 +17,7 @@ from typing import Any
 
 from fastapi import HTTPException
 
+from app import credentials
 from app.config import (
     THINKING_FLOOR_TIMEOUT_SECONDS,
     deepseek_thinking_kwargs,
@@ -60,6 +61,9 @@ async def _stream_interview_content(
     import litellm
 
     model, messages, response_format = _interview_request(interview)
+    # A scoped bring-your-own-key credential overrides both the model and
+    # the deployment credential for this turn.
+    model, api_key = credentials.byok_model_and_key(model)
     response = await litellm.acompletion(
         model=model,
         messages=messages,
@@ -76,6 +80,7 @@ async def _stream_interview_content(
         timeout=_INTERVIEW_TOTAL_SECONDS,
         stream=True,
         **deepseek_thinking_kwargs(model),
+        **({"api_key": api_key} if api_key else {}),
     )
     return await _collect_stream_content(response, on_reasoning)
 
@@ -141,6 +146,9 @@ def _fallback_interview_response(
     The recovery path never infers scientific content. It assigns each new
     answer to the field the Agent most recently requested, preserving a usable
     and resumable interview when the configured model is temporarily absent.
+    The turns it authors are marked as fallback when persisted (see
+    ``interviews._resolved_turn``), so the UI can signal them as guided
+    questions rather than silently passing them off as model output.
     """
     fields = dict(interview["fields"])
     user_turns = [

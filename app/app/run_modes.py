@@ -345,6 +345,11 @@ _OVERRIDE_HANDLERS: dict[str, Callable[[dict[str, Any], str, Any], None]] = {
     "tier": _apply_tier_override,
     "focus": _apply_focus_override,
     "audience": _apply_verbatim_override,
+    # Provider flag of a bring-your-own-key run (the provider name only,
+    # never the key). Must survive every config round-trip verbatim:
+    # resolve_offline_backend reads it to keep the run real-backed, and
+    # the numeric fallback would silently drop a string value.
+    "byok_provider": _apply_verbatim_override,
     "enable_literature_review": _apply_bool_override,
     "llm_backend": _apply_llm_backend_override,
     "enable_web_search": _apply_bool_override,

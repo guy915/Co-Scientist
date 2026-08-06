@@ -47,6 +47,7 @@ from co_scientist.generator.run_setup import (
     _resolve_tool_calling_generation,
 )
 from co_scientist.generator.streaming import _build_generation_result
+from co_scientist.llm_credentials import scoped_api_key
 from co_scientist.models import (
     run_scoped_hypothesis_ids,
     run_seed_material,
@@ -66,10 +67,12 @@ class HypothesisGenerator(McpAvailabilityMixin, StreamExecutionMixin):
         evolution_max_count: Number of top hypotheses to evolve.
         options: Advanced configuration beyond the four run-size knobs
             above -- the supervisor model, Elo/tournament/literature
-            tuning, caching, tool configuration, and the scheduler budget.
-            Every field is documented on ``GeneratorOptions`` and defaults
-            to the generator's historical default; omit it entirely for the
-            all-defaults behavior.
+            tuning, caching, tool configuration, the scheduler budget,
+            and the bring-your-own-key provider credential
+            (``GeneratorOptions.api_key``). Every field is documented on
+            ``GeneratorOptions`` and defaults to the generator's
+            historical default; omit it entirely for the all-defaults
+            behavior.
 
     ``generate_hypotheses`` and ``resume_hypotheses`` accept an ``opts``
     dict with user preferences and inputs:
@@ -132,6 +135,11 @@ class HypothesisGenerator(McpAvailabilityMixin, StreamExecutionMixin):
             opts.elo_k_factor,
             opts.literature_review_papers_count,
         )
+        # Held as an instance attribute only: execution scopes it into a
+        # task-local contextvar (see _generate_hypotheses_*), and it is
+        # deliberately absent from _initial_config_fields so it can never
+        # reach the checkpointed workflow state.
+        self.api_key = opts.api_key
         self._init_cache_settings(opts.enable_cache, opts.cache_dir)
         # Bundled provider-neutral registry unless a custom config replaces
         # it (faithful runs must not silently collapse to a single source).
@@ -199,8 +207,14 @@ class HypothesisGenerator(McpAvailabilityMixin, StreamExecutionMixin):
         so it never mutates process-global state. cache_dir has no such
         per-run mechanism (nothing passes it today); it still configures the
         process-wide default the way it always has.
+
+        A bring-your-own-key run forces caching off: cache keys carry no
+        credential, so a shared cache could serve one tenant's responses
+        to another tenant's run.
         """
         self.enable_cache = enable_cache
+        if self.api_key:
+            self.enable_cache = False
         _configure_cache_dir_env(cache_dir)
 
     def _build_graph(
@@ -429,7 +443,10 @@ class HypothesisGenerator(McpAvailabilityMixin, StreamExecutionMixin):
 
         Returns final result dictionary.
         """
-        with scoped_cache_override(self.enable_cache):
+        with (
+            scoped_cache_override(self.enable_cache),
+            scoped_api_key(self.api_key),
+        ):
             # Prepare generation (shared setup logic)
             initial_state = await self._prepare_generation(
                 research_goal=research_goal,

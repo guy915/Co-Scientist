@@ -31,6 +31,23 @@ CREATE TABLE IF NOT EXISTS runs (
 CREATE INDEX IF NOT EXISTS idx_runs_status ON runs(status);
 CREATE INDEX IF NOT EXISTS idx_runs_created ON runs(created_at DESC);
 
+-- Bring-your-own-key credentials (see app/credentials.py). One encrypted
+-- credential per run, persisted for the run's lifetime because a run's
+-- durable tasks lease independently and may execute later or elsewhere
+-- than the request that created the run. `encrypted_key` holds a Fernet
+-- token -- never plaintext -- and the row cascades away with its run, so
+-- deleting a run deletes its key. `client_id` records the owning
+-- identity the key was accepted from.
+CREATE TABLE IF NOT EXISTS run_credentials (
+    run_id TEXT PRIMARY KEY,
+    client_id TEXT NOT NULL,
+    provider TEXT NOT NULL,          -- one of config.PROVIDER_CREDENTIAL_ENV
+    model TEXT NOT NULL,             -- litellm model the credential runs
+    encrypted_key TEXT NOT NULL,     -- Fernet token, never plaintext
+    created_at REAL NOT NULL,
+    FOREIGN KEY (run_id) REFERENCES runs(id) ON DELETE CASCADE
+);
+
 -- Durable pre-run Agent interview. The structured fields are derived from the
 -- append-only turn transcript and remain editable until finalized.
 CREATE TABLE IF NOT EXISTS interviews (

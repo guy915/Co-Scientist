@@ -1,4 +1,5 @@
 import {Icon, type IconName} from '@/components/icon';
+import {BYOK_PROVIDERS, type ByokProvider} from '@/lib/api_key';
 import {useAudience} from '../audience_context';
 import {AUDIENCE_OPTIONS} from '../audience_content';
 import {type Mode} from '../theme_context';
@@ -55,14 +56,18 @@ const FAQ: {question: string; answer: string}[] = [
   {
     question: 'Where does my API key go?',
     answer:
-      'The key you enter under Model is stored only in this browser and is ' +
-      'never uploaded. Clearing your browser storage removes it.',
+      'The key you enter under Model is stored in this browser and sent to ' +
+      'the server when you start a run or chat with the Agent. The server ' +
+      'checks it with the provider, then stores it encrypted for that run ' +
+      'only and never returns it. Clearing your browser storage removes the ' +
+      'local copy.',
   },
   {
     question: 'Which model does it use?',
     answer:
-      'Runs use the provider configured for the deployment (DeepSeek by ' +
-      'default). Model selection is managed server-side for now.',
+      'Runs use the model configured for the deployment (DeepSeek by ' +
+      'default). When you add your own API key under Model, runs use your ' +
+      "provider's default model instead.",
   },
 ];
 
@@ -107,31 +112,53 @@ export function AppearanceSection({
   );
 }
 
-// Static "Get a DeepSeek API key" link shown below the key field.
-function ApiKeyHint() {
+// Display names for the BYOK provider choices.
+const PROVIDER_LABELS: Record<ByokProvider, string> = {
+  anthropic: 'Anthropic',
+  azure: 'Azure',
+  dashscope: 'DashScope',
+  deepseek: 'DeepSeek',
+  gemini: 'Gemini',
+  openai: 'OpenAI',
+};
+
+// Hint under the key field: a key-source link for DeepSeek (the default),
+// plus what happens to the key once saved.
+function ApiKeyHint({provider}: {provider: ByokProvider}) {
   return (
     <p className="ucs-settings-field-hint">
-      <a
-        className="ucs-settings-field-link"
-        href="https://platform.deepseek.com/api_keys"
-        target="_blank"
-        rel="noreferrer"
-      >
-        Get a DeepSeek API key
-        <Icon aria-hidden="true" name="open_in_new" />
-      </a>
+      {provider === 'deepseek' && (
+        <a
+          className="ucs-settings-field-link"
+          href="https://platform.deepseek.com/api_keys"
+          target="_blank"
+          rel="noreferrer"
+        >
+          Get a DeepSeek API key
+          <Icon aria-hidden="true" name="open_in_new" />
+        </a>
+      )}
+      <span className="ucs-settings-hint-copy">
+        Sent with run requests; the server validates it and stores it encrypted
+        for that run only.
+      </span>
     </p>
   );
 }
 
-// Model section: browser-local API key entry, saved on blur or Enter.
+// Model section: bring-your-own-key provider choice and key entry. The key
+// saves on blur or Enter; the provider persists on change.
 export function ModelSection({
   apiKey,
   onApiKeyChange,
+  provider,
+  onProviderChange,
   onSave,
 }: {
   apiKey: string;
   onApiKeyChange: (value: string) => void;
+  provider: ByokProvider;
+  onProviderChange: (value: ByokProvider) => void;
   onSave: () => void;
 }) {
   return (
@@ -139,16 +166,34 @@ export function ModelSection({
       <h3 className="ucs-settings-card-title">Model</h3>
       <label
         className="ucs-settings-field-label"
+        htmlFor="cosci-settings-provider"
+      >
+        Provider
+      </label>
+      <select
+        id="cosci-settings-provider"
+        className="ucs-settings-field-input"
+        value={provider}
+        onChange={event => onProviderChange(event.target.value as ByokProvider)}
+      >
+        {BYOK_PROVIDERS.map(option => (
+          <option key={option} value={option}>
+            {PROVIDER_LABELS[option]}
+          </option>
+        ))}
+      </select>
+      <label
+        className="ucs-settings-field-label ucs-settings-field-label--spaced"
         htmlFor="cosci-settings-api-key"
       >
-        DeepSeek API key
+        {PROVIDER_LABELS[provider]} API key
       </label>
       <input
         id="cosci-settings-api-key"
         className="ucs-settings-field-input"
         type="password"
         autoComplete="off"
-        placeholder="Paste your DeepSeek API key"
+        placeholder={`Paste your ${PROVIDER_LABELS[provider]} API key`}
         value={apiKey}
         onChange={event => onApiKeyChange(event.target.value)}
         onBlur={onSave}
@@ -156,7 +201,7 @@ export function ModelSection({
           if (event.key === 'Enter') onSave();
         }}
       />
-      <ApiKeyHint />
+      <ApiKeyHint provider={provider} />
     </section>
   );
 }

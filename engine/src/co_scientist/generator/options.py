@@ -43,6 +43,16 @@ class GeneratorOptions:
             ``max_wall_clock_s``) giving the adaptive scheduler hard
             termination ceilings beyond ``max_iterations``. None derives a
             budget from ``max_iterations`` alone.
+        api_key: Bring-your-own-key provider credential for the run. When
+            set, every completion the run makes passes it to litellm as
+            the per-call ``api_key``, overriding the deployment's
+            environment credential for this generator's execution only --
+            no env mutation, no process-wide state. The key is held on the
+            instance and scoped into a task-local contextvar around
+            execution; it is never placed in the workflow state, so it
+            cannot enter a checkpoint. Caching is force-disabled for such
+            runs (cache keys carry no credential, so a shared cache could
+            replay one tenant's responses into another's run).
     """
 
     supervisor_model_name: str | None = None
@@ -54,3 +64,4 @@ class GeneratorOptions:
     tools_config: str | None = None
     disable_tools: list[str] | None = None
     budget: dict[str, Any] | None = field(default=None)
+    api_key: str | None = None

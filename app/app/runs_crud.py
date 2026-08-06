@@ -22,29 +22,72 @@ from fastapi import (
     Request,
 )
 
-from app import engine_adapter, store
+from app import credentials, engine_adapter, store
 from app.auth import client_id
+from app.config import byok_enabled
 from app.runs_models import CreateRunRequest, _build_create_run_config
 from app.runs_support import _run_or_404
 from app.store import RunStatus
 from app.title_gen import generate_run_title
 
 
-async def _populate_run_title(run_id: str, goal: str) -> None:
+async def _populate_run_title(
+    run_id: str,
+    goal: str,
+    byok: credentials.ByokCredential | None = None,
+) -> None:
     """Generate a run's short session title and persist it (best-effort).
 
     Runs after the create response as a background task, so the create call
     isn't blocked on a model round-trip. A None result (generation
     unavailable) leaves the title unset and surfaces fall back to a clause of
-    the goal.
+    the goal. A bring-your-own-key run titles under its own credential.
 
     Args:
         run_id: The run to title.
         goal: The run's research goal.
+        byok: The run's credential, when it was created with one.
     """
-    title = await generate_run_title(goal)
+    with credentials.scoped_byok(byok):
+        title = await generate_run_title(goal)
     if title:
         store.set_run_title(run_id, title)
+
+
+async def _resolve_byok(request: Request) -> credentials.ByokCredential | None:
+    """Parse and validate the BYOK headers, refusing bad pairs up front.
+
+    The cheap live validation call happens here, BEFORE any database
+    write, so a rejected key costs a run row nothing and the store's
+    writer is never held across the network call.
+
+    Args:
+        request: The create-run request carrying the BYOK headers.
+
+    Returns:
+        The validated credential, or None when no key was sent.
+
+    Raises:
+        HTTPException: 400 for a malformed pair or a key the provider
+            rejects (worded exactly as a rejection), 503 when this
+            deployment has no BYOK encryption secret configured.
+    """
+    try:
+        credential = credentials.credential_from_headers(request.headers)
+    except credentials.ByokRequestError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if credential is None:
+        return None
+    if not byok_enabled():
+        raise HTTPException(
+            status_code=503,
+            detail=("this deployment does not accept bring-your-own-key runs"),
+        )
+    try:
+        await credentials.validate_byok_credential(credential)
+    except credentials.ByokValidationError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return credential
 
 
 def _resolve_run_interview(
@@ -104,25 +147,38 @@ class _ResolvedRunSettings(NamedTuple):
 
 
 def _resolve_run_settings(
-    req: CreateRunRequest, interview: dict[str, Any] | None
+    req: CreateRunRequest,
+    interview: dict[str, Any] | None,
+    byok: credentials.ByokCredential | None = None,
 ) -> _ResolvedRunSettings:
     """Resolve the provider, LLM backend, and config for a new run.
 
     The engine is the only provider; select_provider() raises if it is not
     importable rather than falling back to anything else. The LLM backend is
     recorded separately: the process offline predicate decides whether this
-    run's science runs against the deterministic offline router.
+    run's science runs against the deterministic offline router -- except a
+    bring-your-own-key run, which is always real-backed (its validated key
+    must not be shadowed by the router) and records its provider in the
+    config so every later backend resolution sees it.
 
     Args:
         req: Request body with the research goal, run mode, and run config.
         interview: The merged goal interview, when the run came from one.
+        byok: The validated bring-your-own-key credential, when sent.
 
     Returns:
         Everything ``_persist_new_run`` writes onto the DRAFT row.
     """
     provider = engine_adapter.select_provider()
-    llm_backend = "offline" if engine_adapter.offline_mode() else "real"
+    if byok is not None:
+        llm_backend = "real"
+    else:
+        llm_backend = "offline" if engine_adapter.offline_mode() else "real"
     config, focus, tier = _build_run_config(req, interview)
+    if byok is not None:
+        # A flag only -- never the key. resolve_offline_backend and the
+        # generator construction both read it to keep the run real-backed.
+        config["byok_provider"] = byok.provider
     return _ResolvedRunSettings(
         config=config,
         run_mode=tier,
@@ -184,15 +240,24 @@ async def create_run(
     Returns:
         The created run serialized as a dict.
     """
+    # Validated BEFORE any database write: a rejected key must surface as
+    # a clean 4xx here, never as a stored run that fails mid-execution.
+    byok = await _resolve_byok(request)
     interview, req = _resolve_run_interview(req, request)
     run = _persist_new_run(
-        req, request, interview, _resolve_run_settings(req, interview)
+        req,
+        request,
+        interview,
+        _resolve_run_settings(req, interview, byok),
     )
-    # Title generation needs a real model, so only when a provider credential
-    # is configured: offline/keyless runs keep the goal-clause fallback.
-    if not engine_adapter.offline_mode():
+    if byok is not None:
+        credentials.store_run_credential(run.id, run.client_id, byok)
+    # Title generation needs a real model: either the run brought its own
+    # key or the deployment has one. Offline/keyless runs keep the
+    # goal-clause fallback.
+    if byok is not None or not engine_adapter.offline_mode():
         background_tasks.add_task(
-            _populate_run_title, run.id, req.research_goal
+            _populate_run_title, run.id, req.research_goal, byok
         )
     return run.to_dict()
 

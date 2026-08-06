@@ -15,7 +15,7 @@ import sys
 from typing import Any
 
 from app import store
-from app.config import any_provider_credential, settings
+from app.config import any_provider_credential, byok_enabled, settings
 
 # Editable-install .pth files aren't always processed in Python 3.12 venvs.
 # Inject the sibling engine src into sys.path at import time so that
@@ -97,14 +97,18 @@ def resolve_offline_backend(cfg: dict[str, Any]) -> bool:
     """Return whether this run's engine execution should be offline-backed.
 
     The resolved config's ``llm_backend`` key wins when a caller pinned it
-    explicitly ("offline" or "real"); otherwise falls back to the
-    process-level ``offline_mode()`` predicate, matching prior behavior for
-    any run that does not set the override.
+    explicitly ("offline" or "real"); a bring-your-own-key run is always
+    real-backed (its own validated key must not be shadowed by the
+    deterministic router just because the deployment itself is keyless);
+    otherwise falls back to the process-level ``offline_mode()`` predicate,
+    matching prior behavior for any run that does not set the override.
     """
     backend = cfg.get("llm_backend")
     if backend == "offline":
         return True
     if backend == "real":
+        return False
+    if cfg.get("byok_provider"):
         return False
     return offline_mode()
 
@@ -137,6 +141,10 @@ def system_status() -> dict[str, Any]:
         "provider": provider,
         "llm_backend": "offline" if offline_mode() else "real",
         "has_provider_key": has_key,
+        # Whether this deployment accepts bring-your-own-key runs (the
+        # encryption secret is configured). A boolean only: no credential
+        # material is ever reported.
+        "byok_enabled": byok_enabled(),
         "engine_importable": engine,
         "model_name": settings.model_name,
         # The generator falls back to model_name when supervisor_model_name is

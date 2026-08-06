@@ -14,9 +14,10 @@ from __future__ import annotations
 
 import logging
 from collections.abc import AsyncGenerator, AsyncIterator
+from dataclasses import dataclass
 from typing import Any
 
-from app import store
+from app import credentials, store
 from app.config import (
     THINKING_FLOOR_TIMEOUT_SECONDS,
     deepseek_thinking_kwargs,
@@ -38,6 +39,22 @@ _ANSWER_MAX_TOKENS = 4_000
 # thing that distinguishes a dead provider from a thorough one.
 _QA_STALL_SECONDS = 45.0
 _QA_TOTAL_SECONDS = THINKING_FLOOR_TIMEOUT_SECONDS + 60.0
+
+
+@dataclass(frozen=True)
+class QaQuestion:
+    """The persisted question one streamed answer replies to.
+
+    Groups the pair so ``stream_answer`` stays at the argument ceiling.
+
+    Attributes:
+        text: The scientist's question.
+        message_id: Message id of the persisted question row, echoed on
+            the answer's ``done`` frame and stored with the answer.
+    """
+
+    text: str
+    message_id: int
 
 
 def _offline_hypothesis_lines(
@@ -204,6 +221,8 @@ async def _stream_llm_deltas(
 
     Deferred import keeps module import cheap and lets the caller's except
     branch turn a missing/broken litellm into the Q&A fallback message.
+    A scoped bring-your-own-key credential overrides both the model and
+    the deployment credential for this call.
 
     Args:
         model: The model name to complete with.
@@ -215,6 +234,7 @@ async def _stream_llm_deltas(
     """
     import litellm
 
+    model, api_key = credentials.byok_model_and_key(model)
     response = await litellm.acompletion(
         model=model,
         messages=[
@@ -228,6 +248,7 @@ async def _stream_llm_deltas(
         timeout=_QA_TOTAL_SECONDS,
         stream=True,
         **deepseek_thinking_kwargs(model),
+        **({"api_key": api_key} if api_key else {}),
     )
     async for chunk in stream_chunks(
         response,
@@ -286,28 +307,31 @@ def _handle_qa_stream_error(run_id: str, exc: Exception) -> str:
 
 async def stream_answer(
     run_id: str,
-    question: str,
-    question_id: int,
+    question: QaQuestion,
     system_prompt: str,
     manifest: list[dict[str, Any]],
+    byok: credentials.ByokCredential | None = None,
 ) -> AsyncGenerator[str, None]:
     """Stream the LLM answer as SSE frames and persist the exchange.
 
     Emits the cited-source manifest first (so the UI can resolve ``[n]``
     references as the answer streams), then answer chunks, then a ``done``
-    frame. On any error, persists and emits a fallback message.
+    frame. On any error, persists and emits a fallback message. A
+    bring-your-own-key credential is scoped around the whole stream so the
+    answer is generated (and billed) on the run's own key.
 
     Yields:
         SSE ``data:`` frames.
     """
     try:
-        deltas = _stream_llm_deltas(
-            settings.effective_chat_model, system_prompt, question
-        )
-        async for frame in _framed_answer(
-            run_id, question_id, manifest, deltas
-        ):
-            yield frame
+        with credentials.scoped_byok(byok):
+            deltas = _stream_llm_deltas(
+                settings.effective_chat_model, system_prompt, question.text
+            )
+            async for frame in _framed_answer(
+                run_id, question.message_id, manifest, deltas
+            ):
+                yield frame
     except Exception as exc:
         fallback = _handle_qa_stream_error(run_id, exc)
         yield sse_frame({"type": "error", "message": fallback})

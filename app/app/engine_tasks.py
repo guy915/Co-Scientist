@@ -446,13 +446,35 @@ _ENGINE_TASK_DISPATCH: dict[str, Callable[..., Awaitable[dict[str, Any]]]] = {
 }
 
 
-async def execute_engine_task(
-    task: ScientificTask, *, db_path: str | None = None
+async def _dispatch_engine_task(
+    task: ScientificTask, *, db_path: str | None
 ) -> dict[str, Any]:
-    """Dispatch one leased engine task without executing unrelated nodes."""
+    """Route one engine task to its handler by task type."""
     handler = _ENGINE_TASK_DISPATCH.get(task.task_type)
     if handler is not None:
         return await handler(task, db_path=db_path)
     if task.task_type.startswith(NODE_TASK_PREFIX):
         return await execute_node_task(task, db_path=db_path)
     raise ValueError(f"unsupported engine task: {task.task_type}")
+
+
+async def execute_engine_task(
+    task: ScientificTask, *, db_path: str | None = None
+) -> dict[str, Any]:
+    """Dispatch one leased engine task without executing unrelated nodes.
+
+    A bring-your-own-key run's credential is scoped around the whole task
+    -- into the app context (the app's own LLM calls) and the engine
+    context (every agent completion) -- so it overrides the deployment
+    credential for this task only, without touching any shared state.
+    """
+    from co_scientist.llm_credentials import scoped_api_key
+
+    from app.credentials import get_run_credential, scoped_byok
+
+    credential = get_run_credential(task.run_id, db_path=db_path)
+    with (
+        scoped_byok(credential),
+        scoped_api_key(credential.api_key if credential else None),
+    ):
+        return await _dispatch_engine_task(task, db_path=db_path)

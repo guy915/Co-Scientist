@@ -166,13 +166,18 @@ def _call_llm_entailment(
     """Call the LLM entailment judge and return its raw reply, or None.
 
     Returns None (and logs a warning) on any provider failure, so the caller
-    can fall back to the deterministic assessor.
+    can fall back to the deterministic assessor. A scoped bring-your-own-key
+    credential overrides the model and the deployment credential; this runs
+    on an executor thread, which inherits the scoping context.
     """
     global _entailment_calls
     _entailment_calls += 1
     try:
         import litellm
 
+        from app import credentials
+
+        model, api_key = credentials.byok_model_and_key(model)
         response = litellm.completion(
             model=model,
             messages=_entailment_messages(claim, passages),
@@ -181,6 +186,7 @@ def _call_llm_entailment(
             timeout=thinking_safe_timeout(model, timeout),
             response_format={"type": "json_object"},
             **deepseek_thinking_kwargs(model),
+            **({"api_key": api_key} if api_key else {}),
         )
         return response.choices[0].message.content or ""
     except Exception as exc:

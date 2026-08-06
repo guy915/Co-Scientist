@@ -2,24 +2,23 @@
 
 This module owns the durable turn lifecycle and the HTTP surface. The
 provider call and its deterministic fallback live in ``interviews_model``,
-and the request-shaping half (schema, prompts, field normalization) in
-``interviews_prompts``; both are re-exported here, so ``app.interviews``
+the request-shaping half (schema, prompts, field normalization) in
+``interviews_prompts``, and the SSE transport for one turn's advancement
+in ``interviews_stream``; all are re-exported here, so ``app.interviews``
 remains the stable import and monkeypatch surface.
 """
 
 from __future__ import annotations
 
-import asyncio
 import dataclasses
 import logging
-from collections.abc import AsyncIterator
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
-from app import store
+from app import credentials, store
 from app.audience import AUDIENCE_PATTERN
 from app.auth import client_id
 from app.interviews_model import (
@@ -70,7 +69,15 @@ from app.interviews_prompts import (
 from app.interviews_prompts import (
     _system_prompt as _system_prompt,
 )
-from app.sse import sse_frame
+from app.interviews_stream import (
+    _advance_stream as _advance_stream,
+)
+from app.interviews_stream import (
+    _interview_stream as _interview_stream,
+)
+from app.interviews_stream import (
+    _resolve_advance_task as _resolve_advance_task,
+)
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/interviews", tags=["interviews"])
@@ -163,12 +170,18 @@ class _ResolvedTurn:
         fields: The four structured fields as this turn derived them.
         reasoning: The turn's whole chain of thought, as relayed.
         completed: Whether this turn completes the interview.
+        fallback: True when the deterministic recovery path authored this
+            turn because no model could be reached (neither the deployment
+            credential nor a scoped bring-your-own-key one answered it).
+            Persisted per turn so the UI signals exactly which turns are
+            scripted; see ``store.NewInterviewTurn.fallback``.
     """
 
     message: str
     fields: dict[str, Any]
     reasoning: str
     completed: bool
+    fallback: bool
 
 
 def _resolved_turn(
@@ -193,6 +206,7 @@ def _resolved_turn(
         fields=fields,
         reasoning=reasoning,
         completed=_interview_turn_completed(response, fields, used_fallback),
+        fallback=used_fallback,
     )
 
 
@@ -200,7 +214,9 @@ def _persist_interview_turn(interview_id: str, turn: _ResolvedTurn) -> None:
     """Append the Agent's turn and update the interview's derived fields."""
     store.append_interview_turn(
         interview_id,
-        store.NewInterviewTurn("agent", turn.message, turn.reasoning),
+        store.NewInterviewTurn(
+            "agent", turn.message, turn.reasoning, fallback=turn.fallback
+        ),
     )
     store.update_interview(
         interview_id,
@@ -214,6 +230,11 @@ async def _run_interview_turn(
     interview: dict[str, Any], on_reasoning: ReasoningSink | None
 ) -> tuple[dict[str, Any], bool]:
     """Call the interview model, falling back on a 503.
+
+    The flag is resolved per turn -- a deployment credential and a scoped
+    bring-your-own-key credential both count as "model reached" -- and is
+    persisted on the turn itself, so a mid-session credential change marks
+    only the turns it authors.
 
     Returns:
         A ``(response, used_fallback)`` pair.
@@ -241,69 +262,18 @@ def _interview_turn_completed(
     return bool(response.get("completed")) and _essentials_ready(fields)
 
 
-async def _advance_stream(interview_id: str) -> AsyncIterator[str]:
-    """Advance one turn as SSE: live reasoning frames, then the interview.
+def _request_byok(
+    request: Request,
+) -> credentials.ByokCredential | None:
+    """Parse optional BYOK headers for an interview turn, 400 if malformed.
 
-    The Agent's turn runs as a task that pushes chain-of-thought fragments
-    onto a queue while this generator drains it, so reasoning reaches the
-    scientist as the model produces it rather than after the answer lands.
-    The closing ``interview`` frame carries exactly what the turn resolved
-    to, including the deterministic fallback when the provider fails.
-
-    Yields:
-        ``reasoning`` frames, then one terminal ``interview`` or ``error``
-        frame.
-    """
-    queue: asyncio.Queue[str | None] = asyncio.Queue()
-
-    async def _on_reasoning(fragment: str) -> None:
-        await queue.put(fragment)
-
-    task = asyncio.create_task(_advance(interview_id, _on_reasoning))
-    # Sentinel closes the drain loop whether the turn succeeded or raised; it
-    # queues behind any reasoning already emitted, so nothing is dropped.
-    task.add_done_callback(lambda _: queue.put_nowait(None))
-
-    while (fragment := await queue.get()) is not None:
-        yield sse_frame({"type": "reasoning", "content": fragment})
-
-    error_frame, updated = await _resolve_advance_task(task, interview_id)
-    if error_frame is not None:
-        yield error_frame
-        return
-    yield sse_frame({"type": "interview", "interview": updated})
-
-
-async def _resolve_advance_task(
-    task: asyncio.Task[dict[str, Any]], interview_id: str
-) -> tuple[str | None, dict[str, Any] | None]:
-    """Await the advance task, turning any failure into an error SSE frame.
-
-    Returns:
-        An ``(error_frame, updated_interview)`` pair, exactly one of which
-        is not None.
+    Interviews predate any run, so their model calls can only ride a
+    per-request header credential (nothing is stored server-side).
     """
     try:
-        return None, await task
-    except HTTPException as exc:
-        return sse_frame({"type": "error", "detail": str(exc.detail)}), None
-    except Exception:
-        logger.exception("Interview turn failed for %s", interview_id)
-        return (
-            sse_frame(
-                {"type": "error", "detail": "The interview Agent failed."}
-            ),
-            None,
-        )
-
-
-def _interview_stream(interview_id: str) -> StreamingResponse:
-    """Wrap ``_advance_stream`` in a no-buffer SSE response."""
-    return StreamingResponse(
-        _advance_stream(interview_id),
-        media_type="text/event-stream",
-        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
-    )
+        return credentials.credential_from_headers(request.headers)
+    except credentials.ByokRequestError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @router.post("")
@@ -311,12 +281,13 @@ async def create_interview(
     body: CreateInterviewRequest, request: Request
 ) -> StreamingResponse:
     """Start a durable Agent interview and stream its opening turn."""
+    byok = _request_byok(request)
     interview = store.create_interview(
         client_id(request),
         body.research_challenge,
         audience=body.audience,
     )
-    return _interview_stream(str(interview["id"]))
+    return _interview_stream(str(interview["id"]), byok)
 
 
 @router.get("")
@@ -341,13 +312,14 @@ async def add_interview_turn(
     interview_id: str, body: InterviewTurnRequest, request: Request
 ) -> StreamingResponse:
     """Append a scientist answer and stream the Agent's next turn."""
+    byok = _request_byok(request)
     interview = _owned_interview(interview_id, request)
     if interview["status"] != "active":
         raise HTTPException(status_code=409, detail="interview is not active")
     store.append_interview_turn(
         interview_id, store.NewInterviewTurn("user", body.content)
     )
-    return _interview_stream(interview_id)
+    return _interview_stream(interview_id, byok)
 
 
 def _require_revisable_turn(
@@ -434,7 +406,7 @@ def _rewind_and_restream(
             interview_id, store.NewInterviewTurn("user", replacement)
         )
     _reset_derivation(interview_id)
-    return _interview_stream(interview_id)
+    return _interview_stream(interview_id, _request_byok(request))
 
 
 @router.put("/{interview_id}/turns/{turn_id}")

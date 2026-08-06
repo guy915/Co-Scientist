@@ -234,7 +234,14 @@ def test_stream_answer_happy_path_persists_and_yields_frames(
         {"n": 1, "evidence_id": "e1", "title": "T", "state": "verified"}
     ]
 
-    frames = _drain(qa.stream_answer(run_id, "Q?", 1, "sys prompt", manifest))
+    frames = _drain(
+        qa.stream_answer(
+            run_id,
+            qa.QaQuestion(text="Q?", message_id=1),
+            "sys prompt",
+            manifest,
+        )
+    )
 
     assert any('"type": "sources"' in f for f in frames)
     assert any('"type": "chunk"' in f and "Ans" in f for f in frames)
@@ -260,7 +267,11 @@ def test_stream_answer_without_manifest_skips_sources_and_meta(
     )
     run_id = store.list_runs(client_id="c2", db_path=isolated_db)[0].id
 
-    frames = _drain(qa.stream_answer(run_id, "Q?", 2, "sys prompt", []))
+    frames = _drain(
+        qa.stream_answer(
+            run_id, qa.QaQuestion(text="Q?", message_id=2), "sys prompt", []
+        )
+    )
 
     assert not any('"type": "sources"' in f for f in frames)
     msgs = store.list_messages(run_id, db_path=isolated_db)
@@ -284,7 +295,11 @@ def test_stream_answer_error_path_persists_and_emits_fallback(
     )
     run_id = store.list_runs(client_id="c3", db_path=isolated_db)[0].id
 
-    frames = _drain(qa.stream_answer(run_id, "Q?", 3, "sys prompt", []))
+    frames = _drain(
+        qa.stream_answer(
+            run_id, qa.QaQuestion(text="Q?", message_id=3), "sys prompt", []
+        )
+    )
 
     assert any('"type": "error"' in f for f in frames)
     msgs = store.list_messages(run_id, db_path=isolated_db)

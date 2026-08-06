@@ -61,22 +61,28 @@ async def _request_title_completion(goal: str) -> Any:
     """Call the chat model for a title completion.
 
     Bounded by :data:`_TITLE_TIMEOUT_SECONDS` so a slow/hung model never
-    blocks a run's title indefinitely; the caller catches any failure.
+    blocks a run's title indefinitely; the caller catches any failure. A
+    scoped bring-your-own-key credential overrides the model and the
+    deployment credential.
     """
     import litellm
 
+    from app import credentials
+
+    model, api_key = credentials.byok_model_and_key(
+        settings.effective_chat_model
+    )
     return await asyncio.wait_for(
         litellm.acompletion(
-            model=settings.effective_chat_model,
+            model=model,
             messages=[
                 {"role": "system", "content": _SYSTEM_PROMPT},
                 {"role": "user", "content": goal},
             ],
             temperature=0.3,
             max_tokens=_TITLE_MAX_TOKENS,
-            extra_body=deepseek_non_thinking_extra_body(
-                settings.effective_chat_model
-            ),
+            extra_body=deepseek_non_thinking_extra_body(model),
+            **({"api_key": api_key} if api_key else {}),
         ),
         timeout=_TITLE_TIMEOUT_SECONDS,
     )

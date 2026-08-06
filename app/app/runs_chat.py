@@ -12,10 +12,17 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import StreamingResponse
 
-from app import engine_adapter, engine_tasks, paper_corpus, qa, store
+from app import (
+    credentials,
+    engine_adapter,
+    engine_tasks,
+    paper_corpus,
+    qa,
+    store,
+)
 from app.audience import audience_chat_context
 from app.runs_models import AskRequest, SendMessageRequest
 from app.runs_support import _require_run, _run_or_404
@@ -97,8 +104,37 @@ def _offline_qa_response(
     )
 
 
+def _request_byok(
+    request: Request,
+) -> credentials.ByokCredential | None:
+    """Parse optional BYOK headers, raising 400 for a malformed pair.
+
+    A header key is only consulted by endpoints whose run has no stored
+    credential of its own; see ``_resolve_qa_byok``.
+    """
+    try:
+        return credentials.credential_from_headers(request.headers)
+    except credentials.ByokRequestError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+def _resolve_qa_byok(
+    run_id: str, request: Request
+) -> credentials.ByokCredential | None:
+    """Resolve the credential a Q&A answer runs under, if any.
+
+    The run's own stored credential wins -- Q&A must keep working on the
+    run's key across sessions; a header key only covers a run that has
+    none stored.
+    """
+    byok = credentials.get_run_credential(run_id)
+    return byok if byok is not None else _request_byok(request)
+
+
 @router.post("/{run_id}/messages/ask")
-async def ask_question(run_id: str, req: AskRequest) -> StreamingResponse:
+async def ask_question(
+    run_id: str, req: AskRequest, request: Request
+) -> StreamingResponse:
     """Answer a question about the run using a fast LLM.
 
     The response is streamed back to the caller.
@@ -115,8 +151,9 @@ async def ask_question(run_id: str, req: AskRequest) -> StreamingResponse:
     # Prompt assembly and streaming are delegated to qa.py; the endpoint
     # only gathers state and wires the SSE response.
     context = _gather_qa_context(run)
+    byok = _resolve_qa_byok(run_id, request)
 
-    if engine_adapter.offline_mode():
+    if engine_adapter.offline_mode() and byok is None:
         return _offline_qa_response(run_id, question_msg, context)
 
     system_prompt = qa.build_system_prompt(
@@ -127,10 +164,10 @@ async def ask_question(run_id: str, req: AskRequest) -> StreamingResponse:
     return StreamingResponse(
         qa.stream_answer(
             run_id,
-            req.question,
-            question_msg.id,
+            qa.QaQuestion(text=req.question, message_id=question_msg.id),
             system_prompt,
             context.manifest,
+            byok=byok,
         ),
         media_type="text/event-stream",
     )

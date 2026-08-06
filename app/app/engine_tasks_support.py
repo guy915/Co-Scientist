@@ -95,23 +95,29 @@ def _successor_task_type(successor: str | None) -> str:
 def _generator_and_opts(
     task: ScientificTask, db_path: str | None
 ) -> tuple[Any, dict[str, Any]]:
+    from app.credentials import get_run_credential
+
     run = _require_run(task, db_path)
     cfg = resolved_run_config(run.config)
     generator = _build_generator(
         _import_hypothesis_generator(),
         cfg,
         offline=store.run_used_offline(run),
+        byok=get_run_credential(task.run_id, db_path=db_path),
     )
     return generator, _build_engine_opts(cfg, run.id, db_path)
 
 
 def _generator_for_restore(task: ScientificTask, db_path: str | None) -> Any:
     """Build a registry-compatible generator without consuming steering."""
+    from app.credentials import get_run_credential
+
     run = _require_run(task, db_path)
     return _build_generator(
         _import_hypothesis_generator(),
         resolved_run_config(run.config),
         offline=store.run_used_offline(run),
+        byok=get_run_credential(task.run_id, db_path=db_path),
     )
 
 

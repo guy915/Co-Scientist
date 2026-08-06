@@ -25,6 +25,13 @@ class CompletionSpec:
         force_json: Request raw JSON output without a schema. Ignored by
             ``call_llm_json`` (which always parses JSON) and by the
             tool-calling path.
+        api_key: Provider credential for this call only (bring-your-own-
+            key), passed to litellm as ``api_key`` so it overrides the
+            deployment's environment credential without touching it.
+            None defers to a key scoped via
+            ``llm_credentials.scoped_api_key``, then to the environment.
+            Never stored on ``LLMCacheRequest``, so it cannot enter a
+            cache key or any persisted state.
     """
 
     model_name: str
@@ -32,6 +39,7 @@ class CompletionSpec:
     temperature: float = HIGH_TEMPERATURE
     json_schema: dict[str, Any] | None = None
     force_json: bool = False
+    api_key: str | None = None
 
 
 @dataclass(frozen=True)

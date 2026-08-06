@@ -78,7 +78,12 @@ def _rate_limit_backoff_seconds(attempt: int) -> float:
 
 @dataclass(frozen=True)
 class _JsonCallSpec:
-    """Bundles the model/token/schema fields shared by json-attempt helpers."""
+    """Bundles the model/token/schema fields shared by json-attempt helpers.
+
+    Deliberately credential-free: the effective bring-your-own-key is
+    scoped into the task context by ``call_llm_json`` before the retry
+    loop starts, so attempts resolve it without carrying it here.
+    """
 
     model_name: str
     max_tokens: int

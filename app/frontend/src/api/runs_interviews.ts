@@ -5,6 +5,7 @@
 import type {Audience, ChatSummary, Interview} from './run_types';
 import {
   API_BASE_URL,
+  byokHeaders,
   clientHeaders,
   fetchJson,
   jsonRequest,
@@ -57,9 +58,14 @@ async function streamInterviewTurn(
   onReasoning?: (fragment: string) => void,
   method = 'POST',
 ): Promise<Interview> {
+  const init = jsonRequest(body, true);
   const res = await fetch(`${API_BASE_URL}${path}`, {
-    ...jsonRequest(body, true),
+    ...init,
     method,
+    headers: {
+      ...(init.headers as Record<string, string>),
+      ...byokHeaders(),
+    },
   });
   let interview: Interview | undefined;
   for await (const frame of readSseFrames<InterviewFrame>(res)) {

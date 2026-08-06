@@ -127,9 +127,15 @@ def _semantic_credential_available(model: str) -> bool:
     own provider table. This module's copy had drifted apart from the
     offline-mode probe's, and a provider missing here does not raise -- the
     contextual screen just returns the deterministic baseline, so the
-    semantic layer reads as configured-but-never-winning.
+    semantic layer reads as configured-but-never-winning. A scoped
+    bring-your-own-key credential also satisfies the gate: a BYOK run
+    screens on its own key even when the deployment has none.
     """
-    return has_provider_credential(model)
+    from app import credentials
+
+    return credentials.current_byok() is not None or has_provider_credential(
+        model
+    )
 
 
 def _semantic_prompt(text: str, stage: str) -> str:
@@ -163,6 +169,11 @@ async def _call_semantic_safety_model(
     """Call the semantic safety model and return its parsed JSON response."""
     import litellm
 
+    from app import credentials
+
+    # A scoped bring-your-own-key credential overrides both the model and
+    # the deployment credential for this screen.
+    model, api_key = credentials.byok_model_and_key(model)
     # Sending no max_tokens was not "unbounded" -- it took the provider's
     # own default, small enough for thinking to exhaust before the verdict
     # is written. That failure is silent all the way to the outcome: empty
@@ -179,6 +190,7 @@ async def _call_semantic_safety_model(
         max_tokens=thinking_safe_max_tokens(model, 1_000),
         timeout=thinking_safe_timeout(model, 20),
         **deepseek_thinking_kwargs(model),
+        **({"api_key": api_key} if api_key else {}),
     )
     content = response.choices[0].message.content or "{}"
     parsed: dict[str, Any] = json.loads(content)

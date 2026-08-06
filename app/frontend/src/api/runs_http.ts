@@ -3,6 +3,7 @@
 // keep importing them from '@/api/runs'.
 
 import {clearAccessToken, getAccessToken, getClientId} from '@/lib/client_id';
+import {getStoredApiKey, getStoredApiProvider} from '@/lib/api_key';
 
 export const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string) || '';
 
@@ -26,6 +27,22 @@ export function clientHeaders(): Record<string, string> {
   return token
     ? {Authorization: `Bearer ${token}`}
     : {'X-Client-ID': getClientId()};
+}
+
+/**
+ * Bring-your-own-key headers for run creation and the interview/Q&A paths.
+ * Sent as request headers, never query parameters (URLs leak into history,
+ * logs, and referrers). Empty when no key is stored, so spreading is a
+ * no-op for runs that use the deployment credential. The backend validates
+ * the pair live and stores the key encrypted for the run's lifetime.
+ */
+export function byokHeaders(): Record<string, string> {
+  const apiKey = getStoredApiKey();
+  if (!apiKey) return {};
+  return {
+    'X-LLM-API-Key': apiKey,
+    'X-LLM-Provider': getStoredApiProvider(),
+  };
 }
 
 /**

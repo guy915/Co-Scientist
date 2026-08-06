@@ -126,6 +126,13 @@ class SystemStatusResponse(BaseModel):
     has_provider_key: bool = Field(
         False, description="any LLM provider key is set"
     )
+    byok_enabled: bool = Field(
+        False,
+        description=(
+            "whether this deployment accepts bring-your-own-key runs "
+            "(the credential encryption secret is configured)"
+        ),
+    )
     engine_importable: bool = Field(
         False, description="co_scientist package is importable"
     )
