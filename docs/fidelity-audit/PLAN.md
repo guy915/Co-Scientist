@@ -24,7 +24,7 @@ to be called done.
 | 6 | Durable state and safety | done |
 | 7 | Grounding | done |
 | 8 | Observability | done |
-| 9 | Security, privacy, packaging | large |
+| 9 | Security, privacy, packaging | done |
 | 10 | Accessibility and responsive | small |
 | 11 | Adaptive coalition | large |
 | 12 | Evaluation | external-dependent |
@@ -301,9 +301,10 @@ lookup, so a wedged run, failed task, stalled worker, and full disk all report
 
 ---
 
-## Stage 9 — Security, privacy, packaging
+## Stage 9 — Security, privacy, packaging (done)
 
-**Closes:** all remaining N
+**Closed:** every remaining N except the malware-scanning, archive-policy,
+at-rest-encryption and provider-disclosure parts of `N5`, which stay open
 
 Independent of everything else and separately shippable. Ordered by exposure:
 

@@ -287,42 +287,42 @@ surfaces.
 
 | ID | Sev | Class | Gap | St | Src |
 |---|---|---|---|---|---|
-| N1 | **Critical** | incorrect | Default `compatibility` auth trusts a caller-selected `X-Client-ID`; a missing header means all such callers share one empty subject; CORS defaults to `*` with credentials. The default running product is spoofable | | 20:OP-001/EB-053 |
-| N2 | High | incorrect | Bearer credentials accepted as an `access_token` **query parameter** and appended to download/SSE URLs, leaking through history, screenshots, proxy logs, and referrers | | 20:OP-046 |
-| N3 | High | missing | No run/report/document deletion API or UI — users cannot exercise the documented permanent-deletion right | | 20:OP-008 |
-| N4 | High | missing | No retention or cascade policy across events, tasks, checkpoints, reports, attachments, shares, logs, caches, notifications | | 20:OP-025 |
-| N5 | High | incorrect | Uploads: caller-supplied MIME, no signature or malware check, no archive policy, no per-document delete, no at-rest encryption, no provider disclosure | | 20:OP-047 |
-| N6 | High | incorrect | Audience is self-declared; the publicly selectable SBI/UCD mode sends committed paper text to every model surface, and the catalog carries no per-document license manifest | | 20:OP-050 |
-| N7 | High | incorrect | MCP server allows wildcard origins/headers/methods with credentials and no auth, relying entirely on network trust; dev Compose publishes port 8888 to the host | | 20:OP-031 |
+| N1 | **Critical** | incorrect | Default `compatibility` auth trusts a caller-selected `X-Client-ID`; a missing header means all such callers share one empty subject; CORS defaults to `*` with credentials. The default running product is spoofable | ✓ | 20:OP-001/EB-053 |
+| N2 | High | incorrect | Bearer credentials accepted as an `access_token` **query parameter** and appended to download/SSE URLs, leaking through history, screenshots, proxy logs, and referrers. Fixed at the server and on the remaining SSE URL; EventSource cannot set headers, so the credential is not simply moved but replaced on that path | ✓ | 20:OP-046 |
+| N3 | High | missing | No run/report/document deletion API or UI — users cannot exercise the documented permanent-deletion right | ✓ | 20:OP-008 |
+| N4 | High | missing | No retention or cascade policy across events, tasks, checkpoints, reports, attachments, shares, logs, caches, notifications | ✓ | 20:OP-025 |
+| N5 | High | incorrect | Uploads: caller-supplied MIME, no signature or malware check, no archive policy, no per-document delete, no at-rest encryption, no provider disclosure. Partly closed: the declared type is verified against the file's actual bytes and a mismatch is refused, and per-document deletion exists. Malware scanning, archive policy, at-rest encryption and provider disclosure remain open | ~ | 20:OP-047 |
+| N6 | High | incorrect | Audience is self-declared; the publicly selectable SBI/UCD mode sends committed paper text to every model surface, and the catalog carries no per-document license manifest | ✓ | 20:OP-050 |
+| N7 | High | incorrect | MCP server allows wildcard origins/headers/methods with credentials and no auth, relying entirely on network trust; dev Compose publishes port 8888 to the host | ✓ | 20:OP-031 |
 | N8 | High | incorrect | Root setup installs the app `--no-deps` then an incomplete manual subset, so `pypdf` is missing and PDF ingestion is silently unavailable despite setup "succeeding" | ✓ | 20:OP-010 |
 | N9 | High | incorrect | Forced offline mode still attempts the configured remote chat model for interviews before falling back — leaking goal text. Fixed: one predicate refuses remote chat before the request is shaped, at all three call sites (interview, Q&A, and titling -- titling had the goal as its whole prompt). Each site reuses its existing no-provider degradation rather than adding a second one, and a scientist's own scoped key stays exempt, since forced offline withholds the deployment's credential. Verified at the transport: with forced offline set and two provider keys present, driving all three surfaces produced no non-loopback connection attempt. Nine existing tests were asserting on the shape of a request the app must never make, which is why the suite never caught this | ✓ | 20:OP-013 |
-| N10 | High | partial | Production `/status` reported MCP/PubMed/literature/web up but `tools_config=null` and `enabled_tools=null`: specialized tools are registered but not authorized in live runs | | 20:OP-037 |
-| N11 | Medium | missing | No data-access/export request workflow | | 20:OP-009 |
-| N12 | Medium | incorrect | Feedback is a write-only sink with no privacy notice, triage, ownership, retention, or deletion | | 20:OP-048 |
-| N13 | Medium | incorrect | Log-ingestion rate limiting is keyed to caller-controlled ids, never evicts, and is not shared across replicas | | 20:OP-049 |
-| N14 | Medium | incorrect | Public MCP/API status/root/OpenAPI reveal internal hostname, model names, provider-key presence, and tool config | | 20:OP-038 |
-| N15 | Medium | incorrect | API Dockerfiles do not install Tesseract, so image OCR cannot work in the container; tests fake `pypdf` and miss it | | 20:OP-011 |
-| N16 | Medium | incorrect | Root setup writes a root `.env` while `make dev-api` runs from `app/`, whose settings load the cwd `.env` — generated configuration is silently ignored | | 20:OP-012 |
-| N17 | Medium | incorrect | MCP package: editable install succeeds but setuptools discovers no package; Make/CI change cwd into `engine` to shadow the defect | | 20:OP-028 |
-| N18 | Medium | incorrect | Floating Python base tags, broad unpinned ranges, mutable major Action tags, non-frozen Bun install — identical source can resolve different images | | 20:OP-029 |
+| N10 | High | partial | Production `/status` reported MCP/PubMed/literature/web up but `tools_config=null` and `enabled_tools=null`: specialized tools are registered but not authorized in live runs | ✓ | 20:OP-037 |
+| N11 | Medium | missing | No data-access/export request workflow | ✓ | 20:OP-009 |
+| N12 | Medium | incorrect | Feedback is a write-only sink with no privacy notice, triage, ownership, retention, or deletion | ✓ | 20:OP-048 |
+| N13 | Medium | incorrect | Log-ingestion rate limiting is keyed to caller-controlled ids, never evicts, and is not shared across replicas | ✓ | 20:OP-049 |
+| N14 | Medium | incorrect | Public MCP/API status/root/OpenAPI reveal internal hostname, model names, provider-key presence, and tool config | ✓ | 20:OP-038 |
+| N15 | Medium | incorrect | API Dockerfiles do not install Tesseract, so image OCR cannot work in the container; tests fake `pypdf` and miss it | ✓ | 20:OP-011 |
+| N16 | Medium | incorrect | Root setup writes a root `.env` while `make dev-api` runs from `app/`, whose settings load the cwd `.env` — generated configuration is silently ignored | ✓ | 20:OP-012 |
+| N17 | Medium | incorrect | MCP package: editable install succeeds but setuptools discovers no package; Make/CI change cwd into `engine` to shadow the defect | ✓ | 20:OP-028 |
+| N18 | Medium | incorrect | Floating Python base tags, broad unpinned ranges, mutable major Action tags, non-frozen Bun install — identical source can resolve different images | ✓ | 20:OP-029 |
 | N19 | Medium | incorrect | `make test-all` covers engine + app only; root lint omits frontend gts; typecheck omits engine mypy | ~ | 20:OP-015/OP-052 |
-| N20 | Medium | incorrect | CI path filters omit root Makefiles, Dockerfiles, Vercel config, docs, and corpus | | 20:OP-016 |
-| N21 | Medium | missing | No CI Docker build, Compose smoke, deployment verification, or migration-on-volume gate | | 20:OP-017 |
+| N20 | Medium | incorrect | CI path filters omit root Makefiles, Dockerfiles, Vercel config, docs, and corpus | ✓ | 20:OP-016 |
+| N21 | Medium | missing | No CI Docker build, Compose smoke, deployment verification, or migration-on-volume gate | ✓ | 20:OP-017 |
 | N22 | Medium | incorrect | A unit test asserts NotebookLM/Download are absent while E2E requires them — the two contracts cannot jointly pass | ✓ | 20:OP-018 |
-| N23 | Medium | incorrect | Concurrency lease tests use fixed 10-second thresholds, making the green/red signal load-dependent | | 20:OP-023 |
-| N24 | Medium | incorrect | E2E writes screenshots directly into tracked `docs/assets`, so running tests overwrites audit evidence; only one desktop project exists | | 20:OP-042 |
-| N25 | Medium | incorrect | Offline/demo runs are exempted from the empty-leaderboard scientific-readiness block, so demos pass a weaker publication condition | | 20:OP-041 |
-| N26 | Medium | incorrect | Docs describe retired tabs/controls; `FIDELITY.md` denies implemented auth/uploads/durable workers; `ARCHITECTURE.md` claims no durable browser state while four keys are stored | | 20:OP-019/OP-056 |
-| N27 | Medium | incorrect | `.env` templates omit auth, SMTP, quota, and worker settings and still describe retired Mock Mode | | 20:OP-027 |
-| N28 | Medium | incorrect | Dev Compose lacks an explicit SQLite volume, clones a mutable engine at startup, uses reload, and hard-codes the cancer tools config | | 20:OP-030 |
-| N29 | Medium | incorrect | Production images run as root; the API image lacks `HEALTHCHECK` and explicit persistent paths | | 20:OP-033 |
-| N30 | Medium | partial | The API embeds the worker by default while code comments recommend a separate production worker; deployed docs list only API + MCP | | 20:OP-034 |
-| N31 | Medium | divergent | SQLite WAL with one writer and up to eight workers per run; multi-replica support undefined and recent commits may be lost on power failure | | 20:OP-035 |
-| N32 | Medium | incorrect | Root Vercel config is a universal rewrite and a stale frontend config lists removed routes; the production response carried no CSP, nosniff, referrer, or permissions policy | | 20:OP-040 |
-| N33 | Medium | missing | No non-mutating deployed smoke of production auth, CORS, ownership, MCP, volume/migrations, SMTP, or sanitized share before release | | 20:OP-026/OP-022 |
-| N34 | Medium | partial | MCP CI uses fake HTTP clients; no live PubMed/OpenAlex/INDRA rate-limit or contract smoke | | 20:OP-039 |
+| N23 | Medium | incorrect | Concurrency lease tests use fixed 10-second thresholds, making the green/red signal load-dependent | ✓ | 20:OP-023 |
+| N24 | Medium | incorrect | E2E writes screenshots directly into tracked `docs/assets`, so running tests overwrites audit evidence; only one desktop project exists | ✓ | 20:OP-042 |
+| N25 | Medium | incorrect | Offline/demo runs are exempted from the empty-leaderboard scientific-readiness block, so demos pass a weaker publication condition | ✓ | 20:OP-041 |
+| N26 | Medium | incorrect | Docs describe retired tabs/controls; `FIDELITY.md` denies implemented auth/uploads/durable workers; `ARCHITECTURE.md` claims no durable browser state while four keys are stored | ✓ | 20:OP-019/OP-056 |
+| N27 | Medium | incorrect | `.env` templates omit auth, SMTP, quota, and worker settings and still describe retired Mock Mode | ✓ | 20:OP-027 |
+| N28 | Medium | incorrect | Dev Compose lacks an explicit SQLite volume, clones a mutable engine at startup, uses reload, and hard-codes the cancer tools config | ✓ | 20:OP-030 |
+| N29 | Medium | incorrect | Production images run as root; the API image lacks `HEALTHCHECK` and explicit persistent paths | ✓ | 20:OP-033 |
+| N30 | Medium | partial | The API embeds the worker by default while code comments recommend a separate production worker; deployed docs list only API + MCP | ✓ | 20:OP-034 |
+| N31 | Medium | divergent | SQLite WAL with one writer and up to eight workers per run; multi-replica support undefined and recent commits may be lost on power failure | ✓ | 20:OP-035 |
+| N32 | Medium | incorrect | Root Vercel config is a universal rewrite and a stale frontend config lists removed routes; the production response carried no CSP, nosniff, referrer, or permissions policy | ✓ | 20:OP-040 |
+| N33 | Medium | missing | No non-mutating deployed smoke of production auth, CORS, ownership, MCP, volume/migrations, SMTP, or sanitized share before release | ✓ | 20:OP-026/OP-022 |
+| N34 | Medium | partial | MCP CI uses fake HTTP clients; no live PubMed/OpenAlex/INDRA rate-limit or contract smoke | ✓ | 20:OP-039 |
 | N35 | Low | incorrect | Engine Compose healthcheck probes `/health`, which the MCP server does not define | ✓ | 20:OP-032 |
-| N36 | Low | incorrect | MCP package docs describe a narrower tool surface than what actually registers | | 20:OP-036 |
+| N36 | Low | incorrect | MCP package docs describe a narrower tool surface than what actually registers | ✓ | 20:OP-036 |
 
 ## O. Accessibility
 
