@@ -139,9 +139,7 @@ async def _gate_readiness_and_publish(
     independently readable; order matches the shared contract documented on
     ``finalize_report``.
     """
-    if _readiness_blocked(
-        built.payload, req.provider, run_id, db_path=req.db_path
-    ):
+    if _readiness_blocked(built.payload):
         async for event in _block_for_empty_leaderboard(
             run_id, req.provider, emit, db_path=req.db_path
         ):
@@ -269,29 +267,29 @@ async def _publish_report(
     yield await emit("status", {"status": "completed"})
 
 
-def _readiness_blocked(
-    payload: dict[str, Any],
-    provider: str,
-    run_id: str,
-    *,
-    db_path: str | None,
-) -> bool:
+def _readiness_blocked(payload: dict[str, Any]) -> bool:
     """Return whether the run's empty leaderboard should hard-block release.
 
     Under the rank-and-publish policy the leaderboard is empty only when
     every idea was withheld -- contradicted by the evidence or blocked by the
     safety review -- leaving nothing publishable. Unsupported (but
     non-contradicted) ideas are published with an "Unverified" badge, so they
-    never reach here. Only real-backed runs are hard-blocked: an
-    offline-backed run's deterministic science is illustrative, never
-    withheld for an empty board. Keyed on the run's persisted backend
-    (falling back to the provider when the row is gone), not the process
-    offline_mode().
+    never reach here.
+
+    Applies identically whether the run is backed by a real model or the
+    offline deterministic router: the offline backend still drives the same
+    graph end to end, so an empty leaderboard there is the same "nothing
+    survived review" outcome as a real run's, and it would be dishonest to
+    publish a completed-looking report over it. (An offline run this
+    happens to is rare in practice -- the offline router's canned content
+    reliably survives review -- but rare is not never, and when it does
+    happen the run should say so rather than paper over it.) The three
+    curated default demos never reach this function at all: they write
+    their report row directly (`seed.py`'s `_seed_curated_scenario`),
+    bypassing `finalize_report` entirely, so this gate cannot affect them
+    either way.
     """
-    offline = store.run_offline_backed(
-        run_id, missing_run_fallback=provider == "mock", db_path=db_path
-    )
-    return not offline and not payload.get("leaderboard")
+    return not payload.get("leaderboard")
 
 
 async def _block_for_empty_leaderboard(

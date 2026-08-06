@@ -38,6 +38,8 @@ const ICONS = {
   content_copy: 'content_copy',
   dark_mode: 'dark_mode',
   database: 'database',
+  // Trash-with-X glyph -- the run titlebar's permanent-delete action.
+  delete_forever: 'delete_forever',
   download: 'download',
   edit: 'edit',
   edit_square: 'edit_square',

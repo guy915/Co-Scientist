@@ -161,6 +161,9 @@ function FeedbackForm({
     >
       <h2 className="ucs-feedback-title">{PILOT_FEEDBACK.title}</h2>
       <p className="ucs-feedback-intro">{PILOT_FEEDBACK.intro}</p>
+      <p className="ucs-feedback-intro text-xs text-cosci-muted">
+        {PILOT_FEEDBACK.privacyNote}
+      </p>
       <CategoryChips category={form.category} onSelect={form.setCategory} />
       <FeedbackMessageField
         message={form.message}

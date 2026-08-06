@@ -51,12 +51,31 @@ that is what makes them deterministic and trustworthy as merge gates.
   `engine/mcp_server/tests/test_openalex.py` docstring).
 - Evaluations: `evaluations.smoke` is by construction the *offline* (no-LLM,
   no-network) subset; the expensive provider-backed suites stay opt-in and
-  are not in CI.
+  are not in CI. Two more live, opt-in exceptions exist purely for by-hand
+  release verification and are never invoked by any CI job:
+  `evaluations.prod_smoke` (non-mutating checks against a deployed API) and
+  `evaluations.mcp_live_smoke` (a live PubMed/OpenAlex/INDRA contract +
+  rate-limit check, since `engine/mcp_server`'s own suite fakes every HTTP
+  client). Both have their own hermetic unit tests, in CI, that exercise the
+  check *logic* against a mocked transport rather than the network.
 - Verified locally by running the app suite with a scrubbed environment
   (`env -i`, no `.env` file present): 231 passed.
 
 The only network CI uses is fetching the repo, actions, and packages
-(PyPI/npm registry via bun) — infrastructure, not test traffic.
+(PyPI/npm registry via bun, plus apt and the Docker base image inside
+`docker-build`) — infrastructure, not test traffic. `docker-build` builds
+both root Dockerfiles and never pushes or runs them (deploys stay manual);
+`root-config` runs `make setup`/`lint`/`typecheck` against the checkout
+itself, so it is exactly as hermetic as the jobs it exercises.
+
+Migrating a *populated* legacy-schema database is also covered, without a
+dedicated job: `app/tests/test_db_migration_on_volume.py` builds an
+on-disk SQLite file shaped like a pre-migration volume (the exact danger
+`app/app/store/db.py`'s migration comments call out — a column added by
+`_run_migrations` but referenced by an index or backfill that runs before
+it) and asserts the current store starts against it cleanly. It runs as
+part of `test-app` like any other app test; a migration ordering bug fails
+that job, not a separate one.
 
 ### Flake policy: no auto-retries; quarantine and track
 
@@ -98,7 +117,7 @@ change that added CI, so `make typecheck` and the CI job agree.
 
 | Pattern | Source example | Here |
 |---|---|---|
-| Separate lint / type / test jobs, one concern per job | googleapis `lint.yml` + `unittest.yml` | `format-lint`, `typecheck`, `test-engine`, `test-app`, `evaluations`, `frontend`, `mcp-server` |
+| Separate lint / type / test jobs, one concern per job | googleapis `lint.yml` + `unittest.yml` | `format-lint`, `typecheck`, `test-engine`, `test-app`, `evaluations`, `frontend`, `mcp-server`, `docker-build`, `root-config` |
 | `fail-fast: false` matrix over interpreter versions | abseil-py `test.yml` | `test-engine` on 3.10 + 3.12 |
 | Per-job `timeout-minutes` | adk-python `continuous-integration.yml` | every job (5–20 min) |
 | Concurrency group cancelling superseded runs | adk-python | `concurrency:` with `cancel-in-progress` only for `pull_request` |
@@ -117,10 +136,17 @@ the MCP server runs on 3.12 (its own floor — the package requires >=3.12).
   Google computes the affected set from the Bazel build graph; we declare
   the dependency edges by hand as path globs (`app` depends on `engine`;
   `evaluations` depends on nearly everything because the parity ledger cites
-  evidence files across `engine/`, `app/`, and the frontend). Filtering
-  happens at the job level rather than `on.paths` so skipped jobs still
-  report a `skipped` conclusion, which branch protection counts as passing —
-  workflow-level `paths:` would leave required checks pending forever.
+  evidence files across `engine/`, `app/`, and the frontend; `app` and
+  `mcp_server` both depend on `corpus/`, since the sbi_ucd catalog and
+  `fetch_paper` both read it straight off disk). Filtering happens at the
+  job level rather than `on.paths` so skipped jobs still report a `skipped`
+  conclusion, which branch protection counts as passing — workflow-level
+  `paths:` would leave required checks pending forever. Every path in the
+  repo is covered by at least one filter now: `docker` (root Dockerfiles,
+  `app/docker/`, `docker-compose.yml`) and `root_config` (`Makefile`,
+  `vercel.json`, the `.env.example` templates) exist specifically so a
+  change to those files is not silently invisible to every job — it used to
+  be, since none of the per-tree filters matched them.
 - **Presubmit and postsubmit run the same commands.** At Google, postsubmit
   runs strictly more (larger tests, more targets). This suite has no
   slower tier yet — the split here is filters/cancellation vs. full/kept.
@@ -166,6 +192,9 @@ For `main` (Settings → Branches → Add rule), recommend:
   - `Evaluations (parity + offline smoke)`
   - `Frontend (lint + test + build)`
   - `MCP server tests`
+  - `Browser e2e (Playwright)`
+  - `Docker build + Compose config smoke`
+  - `Root config smoke (Makefile, vercel.json)`
   (Jobs skipped by the path filter report `skipped`, which satisfies these.)
 - Require branches to be up to date before merging — the small-scale stand-in
   for testing against head; at higher merge volume switch to a merge queue.
@@ -180,9 +209,12 @@ Deliberately out of scope for CI: deployments. Railway (API/MCP) and Vercel
 
 - Every command CI runs is also runnable locally (`make lint`,
   `make typecheck`, `make test-engine`, `make test-app`, `make parity`,
-  `make eval-smoke`, `bun run lint|test|build`); CI encodes the same
-  commands directly rather than shelling to make, so a Makefile refactor
-  can't silently change the gate.
+  `make eval-smoke`, `bun run lint|test|build`); every job except
+  `root-config` encodes the same commands directly rather than shelling to
+  make, so a Makefile refactor can't silently change those gates.
+  `root-config` is the deliberate exception: it exists specifically to
+  catch a Makefile edit that breaks a target (nothing else in CI would),
+  so it has to actually invoke `make`.
 - Version pins to bump deliberately: `ruff==0.15.21` (ci.yml), bun `1.3.14`
   (ci.yml), action tags (`actions/checkout@v7`, `actions/setup-python@v6`,
   `actions/cache@v6`, `oven-sh/setup-bun@v2`, `dorny/paths-filter@v4`).

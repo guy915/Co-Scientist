@@ -289,10 +289,16 @@ internal hygiene; severity DECISION.*
   "five of the six report tab components… lists report_tab among them", but
   **`report_tab.tsx` does not exist on disk** (verified: `find … -name
   'report_tab*'` → none). Actual inventory: **6 real non-test `.tsx` files, 5
-  orphaned, 1 (`ideas_tab`) wired.** `CLAUDE.md` (line ≈154) is stale in **two**
-  ways: it lists the orphaned tabs as the live set, **and** it names a
-  `report_tab.tsx` that no longer exists. Action: retire the 5 dead files (+
-  tests) or wire them, and fix `CLAUDE.md` either way. → **Question Q3.**
+  orphaned, 1 (`ideas_tab`) wired.** `CLAUDE.md` (line ≈154) was stale in
+  **two** ways: it listed the orphaned tabs as the live set, **and** named a
+  `report_tab.tsx` that no longer existed. → **RESOLVED (Question Q3).** The 5
+  dead files were retired to
+  `references/ui-ux/legacy-workbench-ui/retired-orphan-tabs/`, and `CLAUDE.md`
+  now names the current wired set correctly (`run_detail_specifications.tsx`,
+  `run_detail_learning.tsx`, `run_detail_overview.tsx`,
+  `components/tabs/ideas_tab.tsx`) with no `report_tab.tsx` reference. This is
+  settled product structure now, not an open question — see AGENTS.md's
+  "Working in this repo" note on the UI's layout/navigation.
 
 **D6 — Public / landing routing vs. `CLAUDE.md` (F12).** *Confidence: high;
 doc-vs-code mismatch; severity DECISION.*
@@ -305,11 +311,14 @@ doc-vs-code mismatch; severity DECISION.*
   `no_index`/`not_found_page`/`public_link_button`/`seo`; `landing_page.tsx`,
   `demo_page.tsx`, `demo_manifest.ts` are **absent**; there is no standalone
   `dashboard.tsx`.
-- **Verifier note:** `CLAUDE.md` (Routing, lines ≈150,152) still documents
-  `/about`, `/demos/:slug`, and a `/runs` dashboard as live, and names the absent
-  `public/` files. Every factual claim checks out; the doc is stale. Fits the
-  owner's "trimmed surfaces" pattern → treat as INTENTIONAL removal and reconcile
-  the doc, pending a one-line confirm. → **Question Q8.**
+- **Verifier note:** `CLAUDE.md` (Routing, lines ≈150,152) used to document
+  `/about`, `/demos/:slug`, and a `/runs` dashboard as live, and named the
+  absent `public/` files. Every factual claim checked out; the doc was stale.
+  → **RESOLVED (Question Q8), INTENTIONAL removal.** `CLAUDE.md`'s Routing
+  section now states the old public surface was deliberately removed and
+  lists only the current routes (`/`, `/runs/:id/:tab`, `/proposals`,
+  `/access`, `/shared/:token`, `*`), with `/runs` and `/runs/new` documented
+  as redirects to `/`.
 
 ### POLISH (small cosmetic deltas — record for the final pass)
 
@@ -351,11 +360,12 @@ it resolves D2 and D3's scope.
   ArXiv / BioRxiv (all on) + an "Enable all connectors" master toggle
   (Calendar/Chat/Drive/Gmail off). Ours exposes only PubMed. Intentional
   single-agent trim, or surface the full multi-source menu + master toggle?
-- **Q3 — Orphaned tab components.** `overview_tab`, `evidence_tab`,
-  `tournament_tab`, `run_specifications_tab`, `chat_tab` are dead code (0
-  importers); only `IdeasTab` is wired and `RunDetail` renders the other tabs
-  inline. Delete them (and fix `CLAUDE.md`, which also references a nonexistent
-  `report_tab.tsx`), or re-wire them?
+- **Q3 — Orphaned tab components. RESOLVED: deleted, not re-wired.**
+  `overview_tab`, `evidence_tab`, `tournament_tab`, `run_specifications_tab`,
+  `chat_tab` were retired to
+  `references/ui-ux/legacy-workbench-ui/retired-orphan-tabs/`; `CLAUDE.md`
+  documents the current four-tab set correctly and no longer references the
+  nonexistent `report_tab.tsx`.
 - **Q4 — Home 3-step copy.** Real variants: *Create a Research goal / Generate
   hypotheses / Evaluate and rank* (footage) and *Getting started / Idea
   generation / Evaluation and ranking* (twin). Ours: *Frame the research goal /
@@ -377,10 +387,10 @@ it resolves D2 and D3's scope.
   + a "Winning ideas" list. Ours is a plain one-liner. Add the combined stat
   sentence (data is available in the payload), or is the simpler summary intended
   for the newer-era report?
-- **Q8 — Public/landing routing.** `CLAUDE.md` documents `/about`, `/demos/:slug`,
-  and a `/runs` dashboard, but the shipped app redirects `/runs` and `/runs/new`
-  to `/` and has no `/about` or `/demos` routes. Deliberately removed (update the
-  doc) or temporarily disabled?
+- **Q8 — Public/landing routing. RESOLVED: deliberately removed.** The
+  shipped app redirects `/runs` and `/runs/new` to `/` and has no `/about` or
+  `/demos` routes; `CLAUDE.md` now documents the current route set and the
+  removal as intentional.
 - **Q9 — Learning-tab typography (P1/P2).** Reference Knowledge Base uses **serif**
   section headings and an **outlined "Open" pill**; ours uses the global sans and
   a bare text link. Match the serif + pill, or keep the current chrome?

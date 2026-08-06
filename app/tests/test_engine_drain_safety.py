@@ -17,7 +17,11 @@ import pytest
 from co_scientist import models as engine_models
 
 from app import engine_adapter, report_render, store
-from tests._drain_helpers import _final_state_with_lineage, _held_final_state
+from tests._drain_helpers import (
+    _final_state_with_lineage,
+    _held_final_state,
+    _persist_and_finalize,
+)
 
 
 def _seed_gate_split(run: Any, db_path: str) -> tuple[str, str, str]:
@@ -445,3 +449,34 @@ def test_a_new_engine_blocking_disposition_reaches_the_drain(
         "superseded_by_evidence", isolated_db, "drifted gate goal"
     )
     assert status == "rejected"
+
+
+def test_offline_run_with_empty_leaderboard_is_blocked_like_a_real_run(
+    isolated_db: str,
+) -> None:
+    """The scientific-readiness gate applies to offline runs too.
+
+    The offline LLM backend still drives the real graph end to end, so an
+    empty leaderboard there means the same "nothing survived review" outcome
+    as a real run's -- publishing anyway would understate the failure. Only
+    the three curated default demos are exempt, and they bypass this gate
+    entirely by writing their report row directly (see ``seed.py``); an
+    ad-hoc offline run reaches the same ``finalize_report`` path a real run
+    does.
+    """
+    state = _final_state_with_lineage()
+    for hypothesis in state["hypotheses"]:
+        hypothesis["review_disposition"] = "unsafe"
+    run = store.create_run(
+        "offline empty leaderboard goal",
+        "standard",
+        "engine",
+        {},
+        store.RunCreateOptions(llm_backend="offline", db_path=isolated_db),
+    )
+
+    _persist_and_finalize(run, state, isolated_db)
+
+    settled = store.get_run(run.id, db_path=isolated_db)
+    assert settled.status == store.RunStatus.BLOCKED.value
+    assert store.get_latest_report(run.id, db_path=isolated_db) is None

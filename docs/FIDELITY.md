@@ -67,11 +67,24 @@ These features are described in the published material but are not implemented h
     MCP-unavailable fallback a real-provider run hits without a reachable MCP
     server -- no separate mock-evidence generator exists. No live retrieval is
     wired into the FastAPI runs adapter beyond what the engine already does.
--   **Distributed worker queue.** Runs execute in a FastAPI background task;
-    no Celery/Redis worker pool. The local FastAPI path is kept
-    viable deliberately rather than adopting an undisclosed Google stack.
--   **Multi-user collaboration, authentication, and project ownership.**
-    Local-first only.
+-   **Multi-replica distributed worker queue.** Runs execute through a
+    durable, persistent queue (`app/app/store/tasks.py`): every graph node,
+    fan-out item, and tournament match is its own leased, heartbeat-renewed,
+    idempotent row, resumable across process restarts (see AGENTS.md's
+    "Durable task execution" section) -- this is not a bare FastAPI
+    background task. What is out of scope is the *distributed* half: no
+    Celery/Redis broker, and the queue's single SQLite writer means no
+    multi-replica horizontal scaling (`N31` in the fidelity register) --
+    the local single-process path is kept viable deliberately rather than
+    adopting an undisclosed Google stack.
+-   **Multi-user collaboration and project-level ownership across
+    researchers.** Invite-based single-researcher authentication exists
+    (`app/app/auth.py` -- access-code exchange, bearer sessions,
+    `enforce_run_ownership` middleware scoping every `/api/*` request to its
+    owning client), so this is not local-first-only. What remains
+    unimplemented is collaboration on top of that identity layer: no shared
+    or team-owned runs, no per-project roles or permissions, no multiple
+    researchers viewing or steering the same run together.
 -   **Full Computational Discovery and Literature Insights surfaces from the
     Google Labs product family.** Only Hypothesis Generation is built.
 -   **PDF / LaTeX export.** Markdown + JSON only.

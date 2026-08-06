@@ -33,6 +33,22 @@ explicitly says otherwise; machine-readable results are written under
 - `release_gate.py` — fail-closed scientific publication readiness over claim,
   safety, and provenance artifacts.
 - `smoke.py` — the offline smoke suite with documented regression tolerances.
+- `prod_smoke.py` — the one deliberate exception to "runs offline": a
+  **non-mutating** live smoke against a deployed Co-Scientist API (auth,
+  CORS, ownership isolation, MCP/SMTP status disclosure, sanitized share
+  404). GET/OPTIONS only, never wired into CI (hermetic-CI forbids live
+  network -- see `docs/CI.md`); run it by hand before/after a release. Its
+  own unit tests (`tests/test_prod_smoke.py`) exercise the check logic
+  offline via `httpx.MockTransport`.
+- `mcp_live_smoke.py` — another deliberate exception: a live contract +
+  rate-limit smoke against the real PubMed (NCBI E-utilities), OpenAlex, and
+  INDRA CoGex APIs `engine/mcp_server`'s tools call, checking the response
+  shape those tools parse still holds and that a burst of calls degrades to
+  a well-formed HTTP response rather than a crash. `engine/mcp_server`'s own
+  suite fakes every HTTP client (correctly, for hermetic CI) and so cannot
+  catch either. Also never wired into CI; its own unit tests
+  (`tests/test_mcp_live_smoke.py`) exercise the check logic offline via a
+  monkeypatched transport.
 - `datasets/` — versioned, synthetic, legally shareable labeled sets.
 - `results/` — dated machine-readable result artifacts.
 - `tests/` — unit tests for every runner.
@@ -47,6 +63,9 @@ python -m evaluations.citation_eval         # writes results/citation-entailment
 python -m evaluations.citation_eval --challenge --llm  # adversarial panel, semantic assessor, enforces gates
 python -m evaluations.safety_eval           # writes results/hypothesis-safety-<date>.json
 python -m evaluations.scaling_eval path/to/controlled-runs.json
+python -m evaluations.prod_smoke            # LIVE, non-mutating; not in CI
+python -m evaluations.prod_smoke --base-url https://api.ai-co-scientist.com
+python -m evaluations.mcp_live_smoke        # LIVE, non-mutating; not in CI
 python -m pytest evaluations/tests -q       # harness unit tests
 
 # Or via make:

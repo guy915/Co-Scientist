@@ -22,8 +22,15 @@ from fastapi import (
     Request,
 )
 
-from app import credentials, documents, engine_adapter, run_corpus, store
-from app.auth import client_id
+from app import (
+    credentials,
+    documents,
+    engine_adapter,
+    paper_corpus,
+    run_corpus,
+    store,
+)
+from app.auth import client_id, principal_for_request
 from app.config import byok_enabled
 from app.runs_models import CreateRunRequest, _build_create_run_config
 from app.runs_support import _run_or_404
@@ -294,6 +301,18 @@ async def create_run(
     Returns:
         The created run serialized as a dict.
     """
+    # The corpus audience gates real content (see paper_corpus.py), so a
+    # claim the caller cannot back with a verified researcher session is
+    # downgraded before anything else reads req.audience -- the config,
+    # the injected catalog, and the persisted run row all derive from this.
+    principal = principal_for_request(request)
+    req = req.model_copy(
+        update={
+            "audience": paper_corpus.verified_audience(
+                req.audience, principal.method if principal else None
+            )
+        }
+    )
     # Validated BEFORE any database write: a rejected key must surface as
     # a clean 4xx here, never as a stored run that fails mid-execution.
     byok = await _resolve_byok(request)

@@ -76,6 +76,10 @@ export const GOOGLE_NOTE: {
 export const PILOT_FEEDBACK: {
   title: string;
   intro: string;
+  // What happens to a submitted note: who can see it and how long it is
+  // kept. Rendered under `intro`, in its own line so it stays skimmable
+  // rather than folded into the invitation-to-write copy above it.
+  privacyNote: string;
   placeholder: string;
   submit: string;
   sending: string;
@@ -86,6 +90,10 @@ export const PILOT_FEEDBACK: {
   intro:
     'You are an early tester. Tell us what broke, what confused you, or ' +
     'what you wish it did.',
+  privacyNote:
+    'Notes are stored against your browser identity and reviewed by the ' +
+    'team; they are kept for a limited time, not shared beyond the team, ' +
+    'and never shown back in the workspace.',
   placeholder: 'What would you like us to know?',
   submit: 'Send',
   sending: 'Sending...',

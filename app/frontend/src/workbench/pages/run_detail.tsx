@@ -3,6 +3,7 @@ import {useParams} from 'react-router-dom';
 import {
   type ChatSummary,
   isActiveStatus,
+  isTerminalStatus,
   type RunStatus,
   type RunWithSummary,
   runGoal,
@@ -14,7 +15,7 @@ import {ActiveRunView} from './run_detail_active';
 import {useRunDetailData} from './run_detail_data';
 import {LearningView} from './run_detail_learning';
 import {ResearchOverviewView} from './run_detail_overview';
-import {ReportActions} from './run_detail_report_actions';
+import {DeleteRunButton, ReportActions} from './run_detail_report_actions';
 import {
   isTerminalNonCompletedStatus,
   ReportErrorAlert,
@@ -124,12 +125,30 @@ function isInitialLoading(data: RunDetailData): boolean {
   return !data.loaded && !data.error;
 }
 
-// Download/share are properties of a finished report, so their controls
-// exist only once the run row says completed and its report has loaded —
-// the share endpoint 409s and the download 404s on anything less.
+// Download/share are properties of a finished report: they exist only once
+// the run row says completed and its report has loaded -- the share
+// endpoint 409s and the download 404s on anything less.
+function showsReportActions(data: RunDetailData): boolean {
+  return data.run?.status === 'completed' && data.report !== null;
+}
+
+// Delete is broader than the report actions above: any settled run can be
+// permanently removed (the API 409s an active one, matching the same
+// terminal-status contract as cancel/resume).
+function showsDelete(data: RunDetailData): boolean {
+  return isTerminalStatus(data.run?.status);
+}
+
 function reportActionsFor(id: string, data: RunDetailData): ReactNode {
-  if (data.run?.status !== 'completed' || data.report === null) return null;
-  return <ReportActions runId={id} runTitle={data.title} />;
+  const showReportActions = showsReportActions(data);
+  const showDelete = showsDelete(data);
+  if (!showReportActions && !showDelete) return null;
+  return (
+    <div className="flex items-center gap-1">
+      {showReportActions && <ReportActions runId={id} runTitle={data.title} />}
+      {showDelete && <DeleteRunButton runId={id} />}
+    </div>
+  );
 }
 
 // The conversation a run came from, when the rail knows of one.

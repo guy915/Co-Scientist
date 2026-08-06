@@ -18,6 +18,7 @@ _DOCS = pathlib.Path(__file__).resolve().parent.parent.parent / "docs"
 _FIDELITY = _DOCS / "FIDELITY.md"
 _VERIFICATION = _DOCS / "PARITY-VERIFICATION.md"
 _LEDGER = _DOCS / "PARITY.md"
+_ARCHITECTURE = _DOCS / "ARCHITECTURE.md"
 
 
 def test_verification_snapshot_matches_checker() -> None:
@@ -101,3 +102,49 @@ def test_fidelity_does_not_list_retired_tab_components_as_live() -> None:
     """
     text = _FIDELITY.read_text(encoding="utf-8")
     assert "ideas_tab.tsx" in text
+
+
+def test_fidelity_does_not_deny_implemented_auth() -> None:
+    """FIDELITY must not list invite-based researcher auth as out of scope.
+
+    Guards the N26 correction: the doc used to claim "Multi-user
+    collaboration, authentication, and project ownership. Local-first
+    only." while `app/app/auth.py` and `enforce_run_ownership` already
+    implement invite-based auth and per-client run ownership.
+    """
+    text = _FIDELITY.read_text(encoding="utf-8")
+    assert "local-first only" not in text.lower()
+    assert "app/app/auth.py" in text
+
+
+def test_fidelity_does_not_deny_the_durable_worker_queue() -> None:
+    """FIDELITY must not describe runs as a bare FastAPI background task.
+
+    Guards the N26 correction: the doc used to claim "Runs execute in a
+    FastAPI background task; no Celery/Redis worker pool," omitting the
+    durable, leased, resumable task queue (`app/app/store/tasks.py`) that
+    actually drives every run. What remains genuinely out of scope is the
+    *distributed* (multi-replica) half.
+    """
+    text = _FIDELITY.read_text(encoding="utf-8")
+    assert "runs execute in a fastapi background task" not in text.lower()
+    assert "store/tasks.py" in text
+
+
+def test_architecture_discloses_the_browser_storage_keys() -> None:
+    """ARCHITECTURE must not claim the workbench holds no durable state.
+
+    Guards the N26 correction: the doc used to state "The workbench holds
+    no durable state in the browser," while `client_id.ts`, `theme_context`,
+    `audience_context`, `api_key.ts`, and `layout_diagnostics_state.ts`
+    persist identity/preference keys to localStorage/sessionStorage.
+    """
+    text = _ARCHITECTURE.read_text(encoding="utf-8")
+    assert "holds no durable state in the browser" not in text
+    for key in (
+        "co_scientist_client_id",
+        "cosci-audience",
+        "cosci-theme",
+        "cosci-api-key",
+    ):
+        assert key in text, f"missing disclosed storage key: {key}"

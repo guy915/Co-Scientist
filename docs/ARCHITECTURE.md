@@ -109,14 +109,30 @@ An offline-backed run still executes the real engine graph; `co_scientist.offlin
 
 ## Frontend state
 
-The workbench holds no durable state in the browser. On mount it:
+The workbench caches no *run or hypothesis* data in the browser — nothing
+like a Redux store of fetched entities. On mount it:
 
 1. Calls `getRun(id)` for status + summary counts.
 2. Calls `getHypotheses / getEvidence / getMatches / getReviews / getClaimEvidence / getSafety / getReport` in parallel.
 3. Opens an `EventSource` on `/api/runs/{id}/events?after=0` which replays every event since the run started, then tails live.
 4. The chat workspace polls `/api/runs/{id}/messages` while a run is active and uses the streaming `/messages/ask` endpoint for Q&A responses.
 
-This means a hard refresh, a backend restart, or a new browser session all produce the same view.
+This means a hard refresh, a backend restart, or a new browser session all
+produce the same *content* — every run/hypothesis/report view is always
+re-fetched from the API, never read back from a client cache.
+
+It does persist a handful of small, non-content keys, all via
+`localStorage`/`sessionStorage` (not a state-management library): the
+client id and (when a researcher session is active) its bearer token
+(`lib/client_id.ts` — `co_scientist_client_id`, `co_scientist_access_token`),
+the self-declared audience (`workbench/audience_context.tsx` —
+`cosci-audience`), the light/dark theme (`workbench/theme_context.tsx` —
+`cosci-theme`), a scientist's own BYOK provider key when set
+(`lib/api_key.ts` — `cosci-api-key`, `cosci-api-provider`), and the Logs
+popover's per-session baseline row id (`workbench/layout_diagnostics_state.ts`
+— `cosci-logs-session-baseline`). These are identity, preference, and UI
+bookkeeping, not a cache of server content, which is why point 1-4 above
+still holds: nothing here lets a view render without hitting the API.
 
 ## Why this shape
 
