@@ -44,7 +44,11 @@ class HealthResponse(BaseModel):
         ..., description="active workflow provider (always 'engine')"
     )
     checks: dict[str, HealthCheckResult] = Field(
-        ..., description="individual check outcomes: store, engine"
+        ...,
+        description=(
+            "individual check outcomes: store, engine, queue, disk. Only "
+            "store can drive an unhealthy status (503); the rest degrade"
+        ),
     )
 
 
@@ -178,16 +182,23 @@ async def root() -> dict[str, str]:
 
 @router.get("/health", response_model=HealthResponse, tags=["health"])
 async def health(response: Response) -> HealthResponse:
-    """Health check: store reachability, engine importability, derived status.
+    """Health check: liveness plus a durable-queue and disk read.
 
-    Every check is local and fast (a SQLite round-trip and an import
-    lookup) because ``make start`` polls this endpoint as its readiness
-    gate. Responds 503 when unhealthy so ``curl -f``-style probes fail
-    until the store is reachable.
+    Every check is local and fast (a SQLite round-trip, an import lookup,
+    a read-only queue aggregate, a disk stat) because ``make start`` polls
+    this endpoint as its readiness gate and a deploy platform polls it
+    continuously thereafter. Only store unreachability drives a 503: a
+    wedged run, a terminally failed task, or low disk are real problems
+    worth surfacing, but a failed healthcheck kills the container
+    mid-run, so they report ``degraded`` at 200 rather than take the
+    process down.
     """
     store_check = diagnostics.check_store()
     engine_check = diagnostics.check_engine()
-    status = diagnostics.derive_health_status(store_check, engine_check)
+    queue_check, disk_check = diagnostics.queue_and_disk_health_cached()
+    status = diagnostics.derive_overall_health(
+        store_check, engine_check, queue_check, disk_check
+    )
     if status == diagnostics.UNHEALTHY:
         response.status_code = 503
     return HealthResponse(
@@ -201,6 +212,12 @@ async def health(response: Response) -> HealthResponse:
             ),
             "engine": HealthCheckResult(
                 ok=engine_check.ok, detail=engine_check.detail
+            ),
+            "queue": HealthCheckResult(
+                ok=queue_check.ok, detail=queue_check.detail
+            ),
+            "disk": HealthCheckResult(
+                ok=disk_check.ok, detail=disk_check.detail
             ),
         },
     )

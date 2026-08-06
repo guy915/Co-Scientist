@@ -22,7 +22,11 @@ def test_health_ok() -> None:
     assert data["checks"]["store"]["ok"] is True
     # Engine importability is environment-dependent; the check must be
     # present and well-formed either way.
-    assert set(data["checks"]) == {"store", "engine"}
+    assert set(data["checks"]) == {"store", "engine", "queue", "disk"}
+    # No active runs and plenty of disk in a test sandbox: both new checks
+    # pass, so the overall status is unaffected by their addition.
+    assert data["checks"]["queue"]["ok"] is True
+    assert data["checks"]["disk"]["ok"] is True
 
 
 def test_health_unhealthy_when_store_unreachable(

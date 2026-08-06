@@ -1,17 +1,27 @@
 """Health checks and availability probes for the diagnostics endpoints.
 
-Backs ``/health`` and ``/status`` in ``main.py``. Health checks are
-local and fast (a SQLite round-trip and an importability lookup), so the
-``make start`` readiness gate can poll them cheaply. The MCP/PubMed probes
-are network round-trips against an external server, so each one runs
-under a bounded timeout and the pair of results is cached for a short
-TTL to keep repeated ``/status`` calls from hammering the server.
+Backs ``/health`` and ``/status`` in ``main.py``. ``/health`` is what a
+deploy platform's healthcheck polls, and a failed healthcheck kills the
+container mid-run (see AGENTS.md's healthcheck-failure-spiral incident),
+so its checks split into two kinds: liveness (store reachability -- can
+this process serve at all) and degraded-but-serving conditions (engine
+importability, durable-queue health, free disk) that must never flip the
+response to ``unhealthy``. All of them are local and fast -- a SQLite
+round-trip, an importability lookup, a read-only queue aggregate, a stat
+call -- so the ``make start`` readiness gate can poll them cheaply, and
+the queue/disk pair is cached for a short TTL for the same reason the
+probes below are: ``/health`` is polled continuously. The MCP/PubMed
+probes are network round-trips against an external server, so each one
+runs under a bounded timeout and the pair of results is cached for a
+short TTL to keep repeated ``/status`` calls from hammering the server.
 """
 
 from __future__ import annotations
 
 import asyncio
 import logging
+import os
+import shutil
 import time
 from dataclasses import dataclass
 from typing import Any
@@ -19,6 +29,8 @@ from typing import Any
 from app import store
 from app.config import settings
 from app.engine_adapter.provider import _engine_importable, _has_provider_key
+from app.store.db import default_db_path
+from app.store.tasks import queue_health_snapshot
 
 logger = logging.getLogger(__name__)
 
@@ -95,6 +107,151 @@ def derive_health_status(
     if _has_provider_key() and not engine_check.ok:
         return DEGRADED
     return HEALTHY
+
+
+def check_queue(db_path: str | None = None) -> HealthCheck:
+    """Report whether the durable task queue is making progress.
+
+    Read-only: one aggregate query over active runs' tasks (see
+    :func:`app.store.tasks.queue_health_snapshot`), safe to run on every
+    ``/health`` poll. Only a stalled run -- one with no queued, in-flight,
+    or rescuable work, so nothing can ever advance it without operator
+    intervention -- flips this to ``ok=False``. A nonzero queue depth is
+    not itself a problem: a busy system is supposed to have one.
+
+    Args:
+        db_path: Optional override for the SQLite database path.
+
+    Returns:
+        The check outcome; ``detail`` names the stalled runs when it
+        fails.
+    """
+    try:
+        snapshot = queue_health_snapshot(db_path=db_path)
+    except Exception as exc:
+        logger.error("Queue health check failed: %s", exc)
+        return HealthCheck(ok=False, detail=f"{type(exc).__name__}: {exc}")
+    if not snapshot.stalled_run_ids:
+        return HealthCheck(ok=True)
+    ids = ", ".join(snapshot.stalled_run_ids[:5])
+    return HealthCheck(
+        ok=False,
+        detail=(
+            f"{len(snapshot.stalled_run_ids)} run(s) stalled with no "
+            f"claimable work: {ids}"
+        ),
+    )
+
+
+def check_disk(
+    db_path: str | None = None,
+    *,
+    min_free_bytes: int | None = None,
+) -> HealthCheck:
+    """Report whether the database's volume has enough free disk space.
+
+    Read-only and local (``shutil.disk_usage`` on the database file's
+    directory; no I/O against the database itself). A volume filling
+    silently while health stayed green is a recorded incident in this
+    repo, so this check exists to surface it -- but low disk degrades
+    rather than fails health: killing the container frees no space, and
+    the process can still serve reads off a full disk.
+
+    Args:
+        db_path: Optional override for the SQLite database path.
+        min_free_bytes: Free-space floor; defaults to
+            ``settings.health_check_min_free_disk_bytes``.
+
+    Returns:
+        The check outcome; ``detail`` carries the free-space reading when
+        it fails or the probe itself errors.
+    """
+    threshold = (
+        settings.health_check_min_free_disk_bytes
+        if min_free_bytes is None
+        else min_free_bytes
+    )
+    target = db_path or default_db_path() or "./coscientist.db"
+    directory = os.path.dirname(os.path.abspath(target)) or "."
+    try:
+        free = shutil.disk_usage(directory).free
+    except Exception as exc:
+        logger.error("Disk health check failed: %s", exc)
+        return HealthCheck(ok=False, detail=f"{type(exc).__name__}: {exc}")
+    if free < threshold:
+        return HealthCheck(
+            ok=False,
+            detail=f"{free} bytes free on {directory} (floor {threshold})",
+        )
+    return HealthCheck(ok=True)
+
+
+def derive_overall_health(
+    store_check: HealthCheck,
+    engine_check: HealthCheck,
+    queue_check: HealthCheck,
+    disk_check: HealthCheck,
+) -> str:
+    """Fold the queue and disk checks into the liveness verdict.
+
+    ``derive_health_status`` alone decides whether this process can serve
+    at all -- store reachability is its only ``unhealthy`` trigger.
+    Durable-queue backlog and disk pressure are conditions the process can
+    keep serving through, so they can only ever add ``degraded`` on top of
+    an otherwise-healthy verdict, never flip it to ``unhealthy``: a failed
+    healthcheck kills the container mid-run, which is exactly the outcome
+    a stalled-run or low-disk signal must not cause.
+
+    Args:
+        store_check: Outcome of the SQLite store check.
+        engine_check: Outcome of the engine importability check.
+        queue_check: Outcome of the durable-queue health check.
+        disk_check: Outcome of the free-disk-space check.
+
+    Returns:
+        One of ``healthy``, ``degraded``, or ``unhealthy``.
+    """
+    base = derive_health_status(store_check, engine_check)
+    if base == UNHEALTHY:
+        return UNHEALTHY
+    if not queue_check.ok or not disk_check.ok:
+        return DEGRADED
+    return base
+
+
+# TTL cache for the (queue, disk) health pair. Both checks are local and
+# read-only, so the cache exists to bound query volume against the single
+# SQLite writer on a continuously-polled endpoint, not to hide latency --
+# mirrors the probe cache below in shape, not in what it protects.
+_health_check_cache: tuple[float, tuple[HealthCheck, HealthCheck]] | None = None
+
+
+def clear_health_check_cache() -> None:
+    """Drop the cached queue/disk health pair (used by tests and reconfig)."""
+    global _health_check_cache
+    _health_check_cache = None
+
+
+def queue_and_disk_health_cached(
+    db_path: str | None = None,
+) -> tuple[HealthCheck, HealthCheck]:
+    """Return the ``(queue, disk)`` health pair, reusing a short-TTL cache.
+
+    Args:
+        db_path: Optional override for the SQLite database path.
+
+    Returns:
+        The cached or freshly computed ``(queue, disk)`` check pair, at
+        most ``settings.health_check_cache_ttl_seconds`` old.
+    """
+    global _health_check_cache
+    now = time.monotonic()
+    if _health_check_cache is not None and now < _health_check_cache[0]:
+        return _health_check_cache[1]
+    result = (check_queue(db_path), check_disk(db_path))
+    ttl = settings.health_check_cache_ttl_seconds
+    _health_check_cache = (now + ttl, result)
+    return result
 
 
 @dataclass

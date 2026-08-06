@@ -37,10 +37,16 @@ from app.store.tasks_probes import (
     _EXPIRED_LEASE_RESCUABLE as _EXPIRED_LEASE_RESCUABLE,
 )
 from app.store.tasks_probes import (
+    QueueHealthSnapshot as QueueHealthSnapshot,
+)
+from app.store.tasks_probes import (
     _has_claimable_task as _has_claimable_task,
 )
 from app.store.tasks_probes import cohort_poll as cohort_poll
 from app.store.tasks_probes import has_task_of_type as has_task_of_type
+from app.store.tasks_probes import (
+    queue_health_snapshot as queue_health_snapshot,
+)
 
 
 @dataclasses.dataclass(frozen=True)
