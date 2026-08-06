@@ -8,12 +8,16 @@ a scientist review lands in the shared reviews table attributed to its author.
 
 from __future__ import annotations
 
+from typing import Any
+
 from tests._client import make_client as _client
 
 
-def _new_run(client: object) -> str:
-    res = client.post(  # type: ignore[attr-defined]
-        "/api/runs", json={"research_goal": "Scientist-in-the-loop goal"}
+def _new_run(client: Any, headers: dict[str, str] | None = None) -> str:
+    res = client.post(
+        "/api/runs",
+        headers=headers,
+        json={"research_goal": "Scientist-in-the-loop goal"},
     )
     return str(res.json()["id"])
 
@@ -21,11 +25,22 @@ def _new_run(client: object) -> str:
 def test_scientist_hypothesis_admitted_with_authorship(
     isolated_db: str,
 ) -> None:
+    """A submitting caller's own identity attributes their contribution.
+
+    ``author`` in the body is a required field, but ``runs_contrib.py``
+    prefers the caller's own ``X-Client-ID`` over it whenever the caller
+    has one -- which every owner of a real run now does, run creation
+    itself refusing an identity-less caller (see
+    ``app.auth.require_client_scope``). The two must agree here for the
+    same reason they always have for any explicitly-identified caller.
+    """
+    headers = {"X-Client-ID": "dr-smith"}
     client = _client()
-    run_id = _new_run(client)
+    run_id = _new_run(client, headers)
 
     res = client.post(
         f"/api/runs/{run_id}/hypotheses",
+        headers=headers,
         json={
             "statement": "Inhibiting kinase X reduces AML growth by apoptosis.",
             "author": "dr-smith",
@@ -38,12 +53,16 @@ def test_scientist_hypothesis_admitted_with_authorship(
 
     # It appears in the run's hypotheses with scientist provenance + a screened
     # safety status (same path as generated hypotheses, not left 'pending').
-    hyps = client.get(f"/api/runs/{run_id}/hypotheses").json()["hypotheses"]
+    hyps = client.get(f"/api/runs/{run_id}/hypotheses", headers=headers).json()[
+        "hypotheses"
+    ]
     manual = next(h for h in hyps if h["id"] == body["id"])
     assert manual["created_by_agent"] == "scientist_manual"
     assert manual["author"] == "dr-smith"
     assert manual["safety_status"] == "allow"
-    pending = client.get(f"/api/runs/{run_id}/messages").json()["messages"]
+    pending = client.get(
+        f"/api/runs/{run_id}/messages", headers=headers
+    ).json()["messages"]
     assert pending[-1]["kind"] == "steering"
     assert pending[-1]["meta"]["kind"] == "manual_hypothesis"
 
@@ -74,15 +93,24 @@ def test_scientist_unsafe_hypothesis_is_blocked_not_persisted(
 
 
 def test_scientist_review_lands_in_reviews_table(isolated_db: str) -> None:
+    """A review lands attributed to the submitting caller's own identity.
+
+    See ``test_scientist_hypothesis_admitted_with_authorship`` on why the
+    caller's own identity, not the body's ``author`` field, is what lands
+    in the review summary -- the two are made to agree here.
+    """
+    headers = {"X-Client-ID": "dr-lee"}
     client = _client()
-    run_id = _new_run(client)
+    run_id = _new_run(client, headers)
     hyp = client.post(
         f"/api/runs/{run_id}/hypotheses",
+        headers=headers,
         json={"statement": "A safe, testable hypothesis.", "author": "dr-lee"},
     ).json()
 
     res = client.post(
         f"/api/runs/{run_id}/reviews",
+        headers=headers,
         json={
             "hypothesis_id": hyp["id"],
             "author": "dr-lee",
@@ -93,11 +121,15 @@ def test_scientist_review_lands_in_reviews_table(isolated_db: str) -> None:
     assert res.status_code == 200
     assert res.json()["recorded"] is True
 
-    reviews = client.get(f"/api/runs/{run_id}/reviews").json()["reviews"]
+    reviews = client.get(f"/api/runs/{run_id}/reviews", headers=headers).json()[
+        "reviews"
+    ]
     scientist = [r for r in reviews if r["reviewer_agent"] == "scientist"]
     assert len(scientist) == 1
     assert "dr-lee" in scientist[0]["summary"]
-    messages = client.get(f"/api/runs/{run_id}/messages").json()["messages"]
+    messages = client.get(
+        f"/api/runs/{run_id}/messages", headers=headers
+    ).json()["messages"]
     assert messages[-1]["meta"]["kind"] == "human_review"
     assert messages[-1]["applied"] is False
 

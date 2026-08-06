@@ -17,8 +17,9 @@ def _wait_owned_status(
 ) -> bool:
     """Poll ``GET /api/runs/{id}`` as ``_OWNER`` until it reaches ``status``.
 
-    ``tests._client.wait_for_status`` only polls headerless, so it cannot
-    see a run created under an explicit ``X-Client-ID`` like this suite's.
+    ``tests._client.wait_for_status`` only polls under the client's own
+    default identity, so it cannot see a run created under a different,
+    explicit ``X-Client-ID`` like this suite's.
     """
 
     def _reached() -> bool:

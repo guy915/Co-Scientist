@@ -128,9 +128,13 @@ def _build_headers(
 class ApiClient:
     """Synchronous httpx wrapper bound to one API base URL and client id.
 
-    The optional client id is sent as the ``X-Client-ID`` header, which scopes
-    run listings to the caller (see ``app.runs._client_id``); a missing id
-    shares the header-less pool, matching the API's own default.
+    The optional client id is sent as the ``X-Client-ID`` header, which
+    scopes run listings to the caller (see ``app.auth.client_id``); a
+    caller-supplied ``client_id`` of ``None``/empty sends no header at all,
+    which the API refuses for any creating call (see
+    ``app.auth.require_client_scope``) -- ``app.cli.main.main`` never
+    passes that through unresolved, always falling back to
+    ``app.cli.identity.default_client_id`` first.
     """
 
     def __init__(

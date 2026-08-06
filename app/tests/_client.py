@@ -14,6 +14,23 @@ from fastapi.testclient import TestClient
 
 _T = TypeVar("_T")
 
+# The identity every test client carries unless a request overrides
+# X-Client-ID itself. Real callers always carry *some* persistent identity
+# (the browser's localStorage id, the CLI's stored id -- see
+# app.cli.identity); a compatibility caller sending no header at all gets
+# no private scope (app.auth.require_client_scope), so a bare TestClient()
+# must mint one too, or the overwhelming majority of this suite -- which
+# creates a run with no header and reads it back the same way -- would 400
+# on every creation. A fixed constant (not a fresh id per instance) is
+# deliberate: several tests build a second client mid-test to simulate a
+# reconnect or a restart and expect it to see the first client's runs, and
+# per-test database isolation (see conftest.isolated_db) means the constant
+# never collides across tests. Pass an explicit ``headers={"X-Client-ID":
+# ...}`` on a request to act as a different caller -- request-level headers
+# override a client's own defaults for the same header name.
+DEFAULT_TEST_CLIENT_ID = "pytest-default-client"
+_DEFAULT_HEADERS = {"X-Client-ID": DEFAULT_TEST_CLIENT_ID}
+
 
 def drain(gen: AsyncIterator[_T]) -> list[_T]:
     """Collect every item an async generator yields into a list."""
@@ -25,14 +42,15 @@ def drain(gen: AsyncIterator[_T]) -> list[_T]:
 
 
 def make_client() -> TestClient:
-    """Return a TestClient bound to the app.
+    """Return a TestClient bound to the app, under a default test identity.
 
     A fresh instance per call, so tests that need to simulate a restart can
-    build a second client against the same (isolated) database.
+    build a second client against the same (isolated) database and still
+    see the first client's runs (see :data:`DEFAULT_TEST_CLIENT_ID`).
     """
     from app.main import app
 
-    return TestClient(app)
+    return TestClient(app, headers=_DEFAULT_HEADERS)
 
 
 def make_operator_client() -> TestClient:
@@ -42,11 +60,14 @@ def make_operator_client() -> TestClient:
     local CLI and agents -- and scope everyone else to their own
     records. Tests covering app-wide behaviour use this; tests covering
     remote access control use :func:`make_client`, whose requests report
-    a non-loopback host.
+    a non-loopback host. Carries the same default identity as
+    :func:`make_client` so an operator client can still create runs.
     """
     from app.main import app
 
-    return TestClient(app, client=("127.0.0.1", 50000))
+    return TestClient(
+        app, client=("127.0.0.1", 50000), headers=_DEFAULT_HEADERS
+    )
 
 
 def append_log_row(db_path: str, message: str, **fields: Any) -> int:
@@ -102,11 +123,12 @@ def wait_for_status(
 ) -> bool:
     """Poll ``GET /api/runs/{id}`` until the run reaches ``status``.
 
-    Polls headerless, i.e. under the default (empty) compatibility client
-    id -- every existing caller creates its run the same way. A caller that
-    created its run under an explicit ``X-Client-ID`` cannot use this
-    helper to poll it (ownership would hide the row behind a 404); write a
-    small local poll passing that header instead.
+    Polls under ``client``'s own default identity (see
+    :data:`DEFAULT_TEST_CLIENT_ID`) -- every caller that creates its run
+    through a bare :func:`make_client` shares it. A caller that created its
+    run under an explicit, different ``X-Client-ID`` cannot use this helper
+    to poll it (ownership would hide the row behind a 404); write a small
+    local poll passing that header instead.
     """
 
     def _reached() -> bool:

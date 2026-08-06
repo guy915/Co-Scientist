@@ -89,8 +89,9 @@ def _add_connection_options(common: argparse.ArgumentParser) -> None:
         default=os.environ.get("COSCIENTIST_CLIENT_ID"),
         metavar="ID",
         help=(
-            "X-Client-ID header scoping run listings "
-            "(env COSCIENTIST_CLIENT_ID)"
+            "X-Client-ID header scoping run listings (env "
+            "COSCIENTIST_CLIENT_ID); defaults to a persistent id generated "
+            "once per machine (see app.cli.identity)"
         ),
     )
     common.add_argument(

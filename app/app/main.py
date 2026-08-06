@@ -307,7 +307,12 @@ def _run_ownership_response(
 
     Non-owned runs are hidden as 404 rather than 403, and demo-owned runs
     are exempt, matching the ownership contract documented on the
-    middleware itself.
+    middleware itself. An empty subject (a compatibility caller sending no
+    ``X-Client-ID`` header) never matches, even a run whose own
+    ``client_id`` happens to be empty too (legacy data predating this
+    guard, or ``app.auth.require_client_scope`` would have refused its
+    creation) -- an identity-less caller owns nothing, the same rule
+    ``require_client_scope`` enforces at creation time.
     """
     parts = request.url.path.strip("/").split("/")
     if len(parts) < 3 or parts[:2] != ["api", "runs"]:
@@ -319,7 +324,7 @@ def _run_ownership_response(
     if run is None or run.client_id == store.DEMO_CLIENT_ID:
         return None
     client_id = principal.subject if principal else ""
-    if client_id == run.client_id:
+    if client_id and client_id == run.client_id:
         return None
     return JSONResponse({"detail": "run not found"}, status_code=404)
 

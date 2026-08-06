@@ -7,6 +7,7 @@ from typing import Any, ClassVar
 
 from fastapi.testclient import TestClient
 
+from tests._client import DEFAULT_TEST_CLIENT_ID
 from tests._client import make_client as _client
 from tests._client import wait_for_status as _wait_status
 
@@ -266,7 +267,7 @@ def test_legacy_profile_and_tiny_overrides_run_as_default(
     from app.runs_models import CreateRunRequest
 
     class _Request:
-        headers: ClassVar[dict[str, str]] = {}
+        headers: ClassVar[dict[str, str]] = {"X-Client-ID": "direct-call-test"}
 
     req = CreateRunRequest(
         research_goal="Map senescence escape mechanisms",
@@ -396,7 +397,9 @@ def test_run_reopens_after_restart(isolated_db: str) -> None:
     import app.main
 
     importlib.reload(app.main)
-    new_client = TestClient(app.main.app)
+    new_client = TestClient(
+        app.main.app, headers={"X-Client-ID": DEFAULT_TEST_CLIENT_ID}
+    )
 
     r = new_client.get(f"/api/runs/{run_id}")
     assert r.status_code == 200

@@ -23,7 +23,11 @@ from app.main import app
 
 _SECRET = "byok-flow-secret"
 _KEY = "sk-flow-abcdef123456"
-_HEADERS = {"X-LLM-API-Key": _KEY, "X-LLM-Provider": "deepseek"}
+_HEADERS = {
+    "X-LLM-API-Key": _KEY,
+    "X-LLM-Provider": "deepseek",
+    "X-Client-ID": "byok-flow-scientist",
+}
 
 
 @pytest.fixture
@@ -350,6 +354,7 @@ def test_qa_answers_with_the_runs_stored_key(
         captured.clear()
         response = client.post(
             f"/api/runs/{run['id']}/messages/ask",
+            headers=_HEADERS,
             json={"question": "what did you find?"},
         )
     assert response.status_code == 200

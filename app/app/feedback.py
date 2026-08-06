@@ -20,7 +20,7 @@ from pydantic import BaseModel, Field
 
 from app import store
 from app.audience import AUDIENCE_PATTERN
-from app.auth import client_id
+from app.auth import client_id, require_client_scope
 
 logger = logging.getLogger(__name__)
 
@@ -88,8 +88,15 @@ async def list_own_feedback(request: Request) -> dict[str, Any]:
     Scoped to the submitting client id, like every other read in this
     app -- there is no operator view here (that remains the out-of-band
     review the module used to require for every note).
+
+    An identity-less caller lists nothing rather than the pool of notes
+    every other identity-less caller also submitted: the empty subject is
+    not a scope, it is the absence of one (see ``require_client_scope``).
     """
-    return {"feedback": store.list_feedback_for_client(client_id(request))}
+    owner = client_id(request)
+    if not owner:
+        return {"feedback": []}
+    return {"feedback": store.list_feedback_for_client(owner)}
 
 
 @router.delete("/api/feedback/{feedback_id}", status_code=204)
@@ -100,7 +107,9 @@ async def delete_own_feedback(feedback_id: int, request: Request) -> Response:
         HTTPException: 404 if the note is unknown or was submitted by
             another client.
     """
-    deleted = store.delete_feedback(feedback_id, client_id(request))
+    # An empty subject must not match the notes pooled under it.
+    owner = client_id(request)
+    deleted = bool(owner) and store.delete_feedback(feedback_id, owner)
     if not deleted:
         raise HTTPException(status_code=404, detail="feedback note not found")
     return Response(status_code=204)
@@ -144,8 +153,16 @@ async def export_account_data(request: Request) -> dict[str, Any]:
     document embeds its extracted text. There is no operator/admin
     variant -- the export is always scoped to the requester's own id, the
     same identity every other endpoint in this app already trusts.
+
+    An identity-less caller is refused outright rather than handed the
+    pool of records under the empty subject. A silently empty export
+    would be worse than the refusal: it reads as "you have no data"
+    rather than "you did not say who you are".
+
+    Raises:
+        HTTPException: 400 when the caller declared no client identity.
     """
-    owner = client_id(request)
+    owner = require_client_scope(request)
     runs = [_run_export(run) for run in store.list_runs(owner, limit=10_000)]
     documents = [
         _staged_document_export(document)

@@ -28,7 +28,7 @@ from fastapi import (
 )
 
 from app import document_ingest, store
-from app.auth import client_id
+from app.auth import client_id, require_client_scope
 
 router = APIRouter(prefix="/api/documents", tags=["documents"])
 
@@ -63,9 +63,11 @@ async def stage_document(
         The staged document's id and extraction provenance.
 
     Raises:
-        HTTPException: 422 when consent is withheld or the document cannot
-            be extracted.
+        HTTPException: 400 when the caller carries no identity at all (see
+            ``app.auth.require_client_scope``); 422 when consent is
+            withheld or the document cannot be extracted.
     """
+    owner = require_client_scope(request)
     if not consent:
         raise HTTPException(
             status_code=422, detail="consent is required to index a document"
@@ -74,7 +76,7 @@ async def stage_document(
     title = (file.filename or "Uploaded document").strip()
     document_id = store.add_staged_document(
         store.NewStagedDocument(
-            client_id=client_id(request),
+            client_id=owner,
             title=title,
             text=extracted.text,
             mime_type=extracted.mime_type,
@@ -106,10 +108,14 @@ async def delete_document(document_id: str, request: Request) -> Response:
     removed.
 
     Raises:
-        HTTPException: 404 if the document is unknown or owned by another
-            client.
+        HTTPException: 404 if the document is unknown, owned by another
+            client, or the caller carries no identity at all -- an
+            identity-less caller owns nothing, so it can never delete a
+            document even one with the same empty subject (legacy data
+            predating ``stage_document``'s own-identity requirement).
     """
-    deleted = store.delete_staged_document(document_id, client_id(request))
+    owner = client_id(request)
+    deleted = owner and store.delete_staged_document(document_id, owner)
     if not deleted:
         raise HTTPException(status_code=404, detail="document not found")
     return Response(status_code=204)

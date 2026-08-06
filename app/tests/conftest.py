@@ -41,6 +41,12 @@ def _apply_offline_env(
     """Bind the store to a per-test db and force the hermetic offline path."""
     monkeypatch.setenv("COSCIENTIST_DB_PATH", db_path)
     monkeypatch.setenv("COSCIENTIST_REPORTS_DIR", reports_dir)
+    # app.cli.main runs in-process for the CLI suites (app.cli.main.main
+    # called directly, not spawned), so its default-identity file would
+    # otherwise land under this machine's real home directory every time a
+    # test invokes a command with no --client-id. Same tmp_path/db_path
+    # pairing the store gets, so it is wiped with everything else.
+    monkeypatch.setenv("COSCIENTIST_CLI_CONFIG_DIR", db_path + "-cli-config")
     # Hermetic + offline: strip any real provider credentials and force the
     # deterministic offline backend so tests never make a paid call and every
     # run is reproducible.

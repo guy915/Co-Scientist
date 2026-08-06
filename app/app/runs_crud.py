@@ -30,7 +30,7 @@ from app import (
     run_corpus,
     store,
 )
-from app.auth import client_id, principal_for_request
+from app.auth import client_id, principal_for_request, require_client_scope
 from app.config import byok_enabled
 from app.runs_models import CreateRunRequest, _build_create_run_config
 from app.runs_support import _run_or_404
@@ -300,7 +300,15 @@ async def create_run(
 
     Returns:
         The created run serialized as a dict.
+
+    Raises:
+        HTTPException: 400 when the caller carries no identity at all (a
+            compatibility caller sending no ``X-Client-ID`` header) --
+            checked first and before any other work, since a run created
+            under that scope would be invisible to its own creator (see
+            ``app.auth.require_client_scope``).
     """
+    require_client_scope(request)
     # The corpus audience gates real content (see paper_corpus.py), so a
     # claim the caller cannot back with a verified researcher session is
     # downgraded before anything else reads req.audience -- the config,
@@ -357,8 +365,17 @@ async def list_runs(
     request: Request,
     limit: int = Query(100, ge=1, le=1000),
 ) -> dict[str, Any]:
-    """List the requesting client's runs, most recent first."""
-    runs = store.list_runs(client_id=client_id(request), limit=limit)
+    """List the requesting client's runs, most recent first.
+
+    An identity-less compatibility caller (no ``X-Client-ID`` header) owns
+    nothing -- ``create_run`` refuses that caller a run of its own -- so
+    its list is always empty rather than querying a scope that could only
+    ever match legacy rows predating that guard.
+    """
+    subject = client_id(request)
+    if not subject:
+        return {"runs": []}
+    runs = store.list_runs(client_id=subject, limit=limit)
     return _runs_payload(runs)
 
 

@@ -33,6 +33,7 @@ from httpx import ASGITransport
 
 from app import store
 from app.config import settings
+from tests._client import DEFAULT_TEST_CLIENT_ID
 from tests._client import make_client as _client
 from tests._client import wait_for_status as _wait_status
 
@@ -95,7 +96,9 @@ async def _drive_replay_then_live_run(
 ) -> tuple[str, httpx.Response, httpx.Response, int]:
     """Start a run and capture its SSE stream opened mid-flight."""
     async with httpx.AsyncClient(
-        transport=ASGITransport(app=_asgi_app()), base_url="http://test"
+        transport=ASGITransport(app=_asgi_app()),
+        base_url="http://test",
+        headers={"X-Client-ID": DEFAULT_TEST_CLIENT_ID},
     ) as client:
         create = await client.post(
             "/api/runs",

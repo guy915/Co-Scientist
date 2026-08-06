@@ -20,10 +20,9 @@ import sys
 from typing import Any
 
 import pytest
-from fastapi.testclient import TestClient
 
 from app import credentials, qa, store, title_gen
-from app.main import app
+from tests._client import make_client
 
 from ._interviews_helpers import _interview_payload
 
@@ -64,7 +63,7 @@ def test_interview_turn_makes_no_outbound_request(
     attempts: list[dict[str, Any]],
 ) -> None:
     """The opening interview turn must not reach the configured model."""
-    with TestClient(app) as client:
+    with make_client() as client:
         response = client.post(
             "/api/interviews", json={"research_challenge": _GOAL}
         )
@@ -78,7 +77,7 @@ def test_qa_answer_makes_no_outbound_request(
     attempts: list[dict[str, Any]],
 ) -> None:
     """A run Q&A answer must not reach the configured chat model."""
-    with TestClient(app) as client:
+    with make_client() as client:
         created = client.post("/api/runs", json={"research_goal": _GOAL})
         assert created.status_code == 200
         run_id = created.json()["id"]
@@ -128,7 +127,7 @@ def test_qa_dispatch_stays_on_the_offline_answer(
     attempts: list[dict[str, Any]],
 ) -> None:
     """The offline Q&A answer is still grounded in the run's own artifacts."""
-    with TestClient(app) as client:
+    with make_client() as client:
         created = client.post("/api/runs", json={"research_goal": _GOAL})
         run_id = created.json()["id"]
         answered = client.post(

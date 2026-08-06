@@ -133,6 +133,39 @@ def client_id(request: Request) -> str:
     return require_principal(request).subject
 
 
+def require_client_scope(request: Request) -> str:
+    """Return the caller's non-empty scope, refusing an identity-less create.
+
+    A compatibility caller sending no ``X-Client-ID`` header resolves to
+    the empty-string subject (``principal_for_request``): allowing that
+    subject to create a private, caller-owned record would persist it
+    under the same empty subject every other identity-less caller also
+    resolves to, so anyone else who also sent no header could read, list,
+    or delete it right back. ``logs_api._scope_for`` already treats an
+    empty subject as a scope that must match nothing (a NUL-prefixed
+    sentinel) for the same reason on the read side; this is the
+    creation-time half of that rule -- refuse up front rather than
+    silently pooling the new record with every other anonymous caller's.
+
+    Returns:
+        The caller's non-empty subject.
+
+    Raises:
+        HTTPException: 400 naming the header a compatibility caller must
+            send to get a private scope of its own.
+    """
+    subject = client_id(request)
+    if not subject:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "an X-Client-ID header (or a researcher session) is "
+                "required to create this"
+            ),
+        )
+    return subject
+
+
 def _configured_codes() -> dict[str, str]:
     """Parse configured researcher-to-code mapping, failing closed."""
     try:

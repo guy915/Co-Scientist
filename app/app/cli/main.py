@@ -22,6 +22,7 @@ from typing import cast
 # is resolved when ``build_parser`` runs, not at import time).
 from app.cli import status_cmd as status_cmd
 from app.cli.http import ApiClient, ApiClientOptions, CliError
+from app.cli.identity import default_client_id
 from app.cli.parsers import (
     _add_config,
     _add_logs,
@@ -69,9 +70,12 @@ def main(argv: list[str] | None = None) -> int:
     if handler is None:
         parser.print_help(sys.stderr)
         return 2
+    # Resolved lazily, after the no-command/--help exits above, so those
+    # paths never touch disk; an explicit --client-id or
+    # COSCIENTIST_CLIENT_ID (already in args.client_id) still wins.
     client = ApiClient(
         args.api_url,
-        args.client_id,
+        args.client_id or default_client_id(),
         logs_token=args.logs_token,
         options=ApiClientOptions(timeout=args.timeout, verbose=args.verbose),
     )

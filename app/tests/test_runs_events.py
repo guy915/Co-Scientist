@@ -331,14 +331,16 @@ def test_events_endpoint_serves_json_snapshot_when_stream_false(
     ``test_integration_run_flow``; this covers the one-shot snapshot the
     workbench diagnostics popover consumes.
     """
-    from tests._client import make_client
+    from tests._client import DEFAULT_TEST_CLIENT_ID, make_client
 
     run = store.create_run(
         "JSON events goal",
         "default",
         "mock",
         {},
-        store.RunCreateOptions(db_path=isolated_db),
+        store.RunCreateOptions(
+            client_id=DEFAULT_TEST_CLIENT_ID, db_path=isolated_db
+        ),
     )
     store.append_event(run.id, "lifecycle", {"event": "created"})
     store.append_event(run.id, "status", {"status": "running"})

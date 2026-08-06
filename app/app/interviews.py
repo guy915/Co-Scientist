@@ -27,7 +27,7 @@ from app import (
     paper_corpus,
     store,
 )
-from app.auth import client_id, principal_for_request
+from app.auth import client_id, principal_for_request, require_client_scope
 from app.interviews_documents import (
     _attach_documents as _attach_documents,
 )
@@ -121,9 +121,17 @@ router = APIRouter(prefix="/api/interviews", tags=["interviews"])
 
 
 def _owned_interview(interview_id: str, request: Request) -> dict[str, Any]:
-    """Return an owned interview or raise without leaking its existence."""
+    """Return an owned interview or raise without leaking its existence.
+
+    An empty subject (no ``X-Client-ID`` header) never matches, even an
+    interview whose own ``client_id`` happens to be empty too -- the same
+    "an identity-less caller owns nothing" rule ``create_interview``
+    enforces at creation time and ``app.main._run_ownership_response``
+    enforces for runs.
+    """
     interview = store.get_interview(interview_id)
-    if interview is None or interview["client_id"] != client_id(request):
+    subject = client_id(request)
+    if not subject or interview is None or interview["client_id"] != subject:
         raise HTTPException(status_code=404, detail="interview not found")
     return _with_documents(interview)
 
@@ -302,17 +310,24 @@ async def create_interview(
 
     Any documents named in the body are attached before the opening turn is
     derived, so the Agent's first question is already scoped by them.
+
+    Raises:
+        HTTPException: 400 when the caller carries no identity at all (see
+            ``app.auth.require_client_scope``) -- checked first, since an
+            interview created under that scope would be invisible to its
+            own creator.
     """
+    owner = require_client_scope(request)
     byok = _request_byok(request)
     # Refused before the interview row exists, so a bad id leaves nothing.
-    documents.resolve_owned_documents(body.document_ids, client_id(request))
+    documents.resolve_owned_documents(body.document_ids, owner)
     # Same corpus-audience gate as run creation and Q&A (paper_corpus.py):
     # a claim the caller cannot back with a verified researcher session is
     # downgraded before it is persisted, since the stored value is what
     # later unlocks the catalog for every turn of this interview.
     principal = principal_for_request(request)
     interview = store.create_interview(
-        client_id(request),
+        owner,
         body.research_challenge,
         audience=paper_corpus.verified_audience(
             body.audience, principal.method if principal else None
@@ -328,9 +343,11 @@ async def list_interviews(request: Request) -> list[dict[str, Any]]:
 
     Scoped to the calling client exactly as ``_owned_interview`` is: a chat
     carries a scientist's unfinished research goal, so it is never listed
-    across clients.
+    across clients. An identity-less caller's list is always empty, same
+    as ``list_runs``.
     """
-    return store.list_interviews(client_id(request))
+    subject = client_id(request)
+    return store.list_interviews(subject) if subject else []
 
 
 @router.get("/{interview_id}")

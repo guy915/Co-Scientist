@@ -28,7 +28,11 @@ from ._interviews_helpers import (
 )
 
 _KEY = "sk-fallback-probe-123"
-_BYOK_HEADERS = {"X-LLM-API-Key": _KEY, "X-LLM-Provider": "deepseek"}
+_BYOK_HEADERS = {
+    "X-LLM-API-Key": _KEY,
+    "X-LLM-Provider": "deepseek",
+    "X-Client-ID": "byok-fallback-scientist",
+}
 
 
 def _flags(interview: dict[str, Any], role: str) -> list[bool]:
