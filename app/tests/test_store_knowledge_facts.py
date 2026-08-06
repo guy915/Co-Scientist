@@ -215,9 +215,16 @@ def test_finalize_report_persists_knowledge_facts(isolated_db: str) -> None:
     Drives the real ``finalize_report`` pipeline (safety gate included) --
     not a fixture -- against a run carrying one supports and one contradicts
     claim-evidence edge, then reads the rows back from the store.
+
+    The two edges sit on separate hypotheses on purpose. A contradicted
+    claim excludes its own hypothesis from synthesis, so putting both on one
+    idea leaves the leaderboard empty and the run is blocked from publishing
+    (finding N25 removed the offline exemption that used to let this
+    through), which would mean no report and so no facts to assert on.
     """
     run = store.create_run("kf e2e goal", "standard", "mock", {})
     hyp_id = _add(run.id, "Supported", _SUPPORTED, isolated_db)
+    contradicted_id = _add(run.id, "Contradicted", _SUPPORTED, isolated_db)
     store.add_claim_evidence(
         store.NewClaimEvidence(
             run_id=run.id,
@@ -233,7 +240,7 @@ def test_finalize_report_persists_knowledge_facts(isolated_db: str) -> None:
     store.add_claim_evidence(
         store.NewClaimEvidence(
             run_id=run.id,
-            hypothesis_id=hyp_id,
+            hypothesis_id=contradicted_id,
             claim="TREM2 has no role in this pathway.",
             label="contradicts",
             supporting=[],

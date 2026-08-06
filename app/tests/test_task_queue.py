@@ -2,12 +2,28 @@
 
 from __future__ import annotations
 
+import os
 import subprocess
 import sys
 import time
 
 from app import store
 from tests._task_queue_helpers import _enqueue, _run
+
+# `_parallel_scripts` spawns real Python subprocesses (each importing the
+# full app package -- FastAPI, pydantic, litellm, ...) to exercise
+# cross-process lease contention, which is the whole point: these tests
+# would not catch a real multi-process bug against in-process threads or
+# asyncio tasks sharing one interpreter's GIL-serialized view of the world.
+# But that means the timeout below competes for CPU with everything else on
+# the machine, not just with the lease semantics under test -- a fixed,
+# tight bound turns "the machine is busy" into a false red exactly the way
+# N23 flagged. Generous by default (a subprocess that hangs because lease
+# recovery is actually broken still gets caught well inside a minute);
+# override for a slower CI runner via env rather than editing the test.
+_SUBPROCESS_TIMEOUT_SECONDS = float(
+    os.getenv("COSCIENTIST_TEST_SUBPROCESS_TIMEOUT_SECONDS", "60")
+)
 
 _CLAIM_SCRIPT = """
 import sys
@@ -39,7 +55,7 @@ def _parallel_scripts(script: str, arguments: list[list[str]]) -> list[str]:
     ]
     outputs: list[str] = []
     for worker in workers:
-        stdout, stderr = worker.communicate(timeout=10)
+        stdout, stderr = worker.communicate(timeout=_SUBPROCESS_TIMEOUT_SECONDS)
         assert worker.returncode == 0, stderr
         outputs.append(stdout.strip())
     return outputs

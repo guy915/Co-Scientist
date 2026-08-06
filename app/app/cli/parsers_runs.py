@@ -170,6 +170,11 @@ def _add_run_lifecycle_commands(
             "resume a paused/interrupted run",
         ),
         ("cancel", runs_cmd.handle_cancel, "cancel a run"),
+        (
+            "delete",
+            runs_cmd.handle_delete,
+            "permanently delete a terminal run",
+        ),
     ):
         _add_run_id_command(runs_sub, common, name, handler, help_text)
 

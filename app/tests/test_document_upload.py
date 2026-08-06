@@ -142,6 +142,76 @@ def test_image_upload_is_ocr_extracted_with_multimodal_provenance(
     assert uploaded["extraction_tool"] == "tesseract-cli-v1"
 
 
+def test_pdf_bytes_declared_as_png_are_refused() -> None:
+    """A mislabeled upload is caught by its own signature, not trusted (N5)."""
+    from app.document_ingest import extract_document
+
+    pdf_bytes = b"%PDF-1.4\n%fake pdf body"
+
+    with pytest.raises(ValueError, match="does not match"):
+        extract_document(pdf_bytes, "image/png")
+
+
+def test_text_declared_as_a_mislabeled_pdf_is_refused() -> None:
+    """The check runs both directions: a binary file masquerading as text."""
+    from app.document_ingest import extract_document
+
+    jpeg_bytes = b"\xff\xd8\xff\xe0" + b"\x00" * 32
+
+    with pytest.raises(ValueError, match="does not match"):
+        extract_document(jpeg_bytes, "text/plain")
+
+
+def test_genuine_png_declared_as_png_is_accepted() -> None:
+    """The signature check is a mismatch guard, not a blanket refusal.
+
+    Exercises the check in isolation rather than through the full OCR
+    pipeline: the fixture bytes carry a real PNG signature but not a
+    decodable image, so going through ``extract_document`` would fail
+    downstream in OCR for a reason unrelated to what this test covers.
+    """
+    from app.document_ingest import _verify_declared_type
+
+    png_signature = b"\x89PNG\r\n\x1a\n" + b"\x00" * 32
+
+    _verify_declared_type(png_signature, "image/png")  # does not raise
+
+
+def test_plain_text_with_no_binary_signature_is_unaffected(
+    isolated_db: str,
+) -> None:
+    """Text formats have no magic bytes.
+
+    They are judged by decodability alone, exactly as before this check
+    existed.
+    """
+    client, run_id = _client_with_run("Plain text sanity check")
+
+    response = client.post(
+        f"/api/runs/{run_id}/attachments/upload",
+        files={"file": ("notes.txt", b"Just plain notes.", "text/plain")},
+        data={"consent": "true"},
+    )
+
+    assert response.status_code == 200
+
+
+def test_upload_endpoint_refuses_a_mislabeled_file(isolated_db: str) -> None:
+    """End-to-end: the multipart upload path rejects a mismatched MIME type."""
+    client, run_id = _client_with_run("Mislabeled upload check")
+    pdf_bytes = b"%PDF-1.4\n%mislabeled"
+
+    response = client.post(
+        f"/api/runs/{run_id}/attachments/upload",
+        files={"file": ("figure.png", pdf_bytes, "image/png")},
+        data={"consent": "true"},
+    )
+
+    assert response.status_code == 422
+    assert "does not match" in response.json()["detail"]
+    assert store.list_evidence(run_id, db_path=isolated_db) == []
+
+
 def test_invalid_image_is_rejected_without_persisting_evidence(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:

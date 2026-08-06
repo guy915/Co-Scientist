@@ -17,7 +17,15 @@ from __future__ import annotations
 
 from typing import Annotated, Any
 
-from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
+from fastapi import (
+    APIRouter,
+    File,
+    Form,
+    HTTPException,
+    Request,
+    Response,
+    UploadFile,
+)
 
 from app import document_ingest, store
 from app.auth import client_id
@@ -83,6 +91,28 @@ async def stage_document(
         "mime_type": extracted.mime_type,
         "extraction_tool": extracted.extraction_tool,
     }
+
+
+@router.delete("/{document_id}", status_code=204)
+async def delete_document(document_id: str, request: Request) -> Response:
+    """Permanently delete one document the caller staged (N3).
+
+    Owner-scoped like every other read of ``staged_documents``: a document
+    staged by another client is reported as not found rather than
+    disclosing that the id exists. Deletion does not cascade to any run
+    the document was carried into -- the run keeps the corpus text it
+    already indexed, since a run's evidence is its own row (see
+    ``mark_documents_used_by_run``), and only the staging record itself is
+    removed.
+
+    Raises:
+        HTTPException: 404 if the document is unknown or owned by another
+            client.
+    """
+    deleted = store.delete_staged_document(document_id, client_id(request))
+    if not deleted:
+        raise HTTPException(status_code=404, detail="document not found")
+    return Response(status_code=204)
 
 
 def resolve_owned_documents(

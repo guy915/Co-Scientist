@@ -24,6 +24,7 @@ from app import (
     store,
 )
 from app.audience import audience_chat_context
+from app.auth import principal_for_request
 from app.runs_models import AskRequest, SendMessageRequest
 from app.runs_support import _require_run, _run_or_404
 
@@ -134,31 +135,40 @@ def _resolve_qa_byok(
     return byok if byok is not None else _request_byok(request)
 
 
-@router.post("/{run_id}/messages/ask")
-async def ask_question(
-    run_id: str, req: AskRequest, request: Request
-) -> StreamingResponse:
-    """Answer a question about the run using a fast LLM.
+def _gated_ask_request(req: AskRequest, request: Request) -> AskRequest:
+    """Apply the corpus-audience gate to one question's audience claim.
 
-    The response is streamed back to the caller.
+    Same corpus-audience gate as run creation (paper_corpus.py): a
+    per-question audience claim of "sbi_ucd" is a separate opportunity to
+    pull the corpus into context and needs the same verified-session check.
     """
-    run = _run_or_404(run_id)
+    principal = principal_for_request(request)
+    return req.model_copy(
+        update={
+            "audience": paper_corpus.verified_audience(
+                req.audience, principal.method if principal else None
+            )
+        }
+    )
 
-    # Persist the question first so history survives even if streaming fails.
-    question_msg = store.append_message(
+
+def _persist_question(run_id: str, content: str) -> store.MessageRow:
+    """Persist a Q&A question so history survives even if streaming fails."""
+    return store.append_message(
         store.NewMessage(
-            run_id=run_id, sender="user", content=req.question, kind="qa"
+            run_id=run_id, sender="user", content=content, kind="qa"
         )
     )
 
-    # Prompt assembly and streaming are delegated to qa.py; the endpoint
-    # only gathers state and wires the SSE response.
-    context = _gather_qa_context(run)
-    byok = _resolve_qa_byok(run_id, request)
 
-    if engine_adapter.offline_mode() and byok is None:
-        return _offline_qa_response(run_id, question_msg, context)
-
+def _live_qa_response(
+    req: AskRequest,
+    run_id: str,
+    question_msg: store.MessageRow,
+    context: qa.QaRunContext,
+    byok: credentials.ByokCredential | None,
+) -> StreamingResponse:
+    """Stream a live LLM Q&A answer, prompted with the run's evidence."""
     system_prompt = qa.build_system_prompt(
         context,
         audience_context=audience_chat_context(req.audience),
@@ -174,3 +184,25 @@ async def ask_question(
         ),
         media_type="text/event-stream",
     )
+
+
+@router.post("/{run_id}/messages/ask")
+async def ask_question(
+    run_id: str, req: AskRequest, request: Request
+) -> StreamingResponse:
+    """Answer a question about the run using a fast LLM.
+
+    The response is streamed back to the caller.
+    """
+    run = _run_or_404(run_id)
+    req = _gated_ask_request(req, request)
+    question_msg = _persist_question(run_id, req.question)
+
+    # Prompt assembly and streaming are delegated to qa.py; the endpoint
+    # only gathers state and wires the SSE response.
+    context = _gather_qa_context(run)
+    byok = _resolve_qa_byok(run_id, request)
+
+    if engine_adapter.offline_mode() and byok is None:
+        return _offline_qa_response(run_id, question_msg, context)
+    return _live_qa_response(req, run_id, question_msg, context, byok)

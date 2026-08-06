@@ -225,6 +225,24 @@ def test_cancel_active_run(
     _wait_status(cli_server, run_id, "cancelled", "cancel-client")
 
 
+def test_delete_terminal_run(
+    cli_server: str, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """N3: the CLI can permanently delete a run once it has settled."""
+    run_id = _create(cli_server, "delete-client")
+
+    assert (
+        _invoke(cli_server, "runs", "delete", run_id, client_id="delete-client")
+        == 0
+    )
+    assert "deleted" in capsys.readouterr().out
+
+    resp = _api(
+        cli_server, "GET", f"/api/runs/{run_id}", client_id="delete-client"
+    )
+    assert resp.status_code == 404
+
+
 def test_missing_run_errors(
     cli_server: str, capsys: pytest.CaptureFixture[str]
 ) -> None:

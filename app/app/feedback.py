@@ -1,15 +1,21 @@
-"""Pilot feedback submission endpoint.
+"""Pilot feedback submission, plus account-level export and self-service.
 
-Feedback is written straight to the store; there is no read endpoint, since
-notes are reviewed out of band rather than shown back in the workspace.
+Feedback used to be written straight to the store with no read path at
+all, reviewed only out of band (N12). It now also carries a per-caller
+read/delete pair, and this module is where the account-level data export
+(N11) lives too -- both are owner-scoped the same way every other
+``client_id``-keyed endpoint in this app is, so both ride on this
+router's plain (unprefixed) path style rather than adding a new top-level
+router.
 """
 
 from __future__ import annotations
 
 import logging
+import time
 from typing import Any
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, HTTPException, Request, Response
 from pydantic import BaseModel, Field
 
 from app import store
@@ -73,3 +79,83 @@ async def submit_feedback(
         note["category"],
     )
     return note
+
+
+@router.get("/api/feedback")
+async def list_own_feedback(request: Request) -> dict[str, Any]:
+    """List the caller's own feedback notes, newest first (N12).
+
+    Scoped to the submitting client id, like every other read in this
+    app -- there is no operator view here (that remains the out-of-band
+    review the module used to require for every note).
+    """
+    return {"feedback": store.list_feedback_for_client(client_id(request))}
+
+
+@router.delete("/api/feedback/{feedback_id}", status_code=204)
+async def delete_own_feedback(feedback_id: int, request: Request) -> Response:
+    """Delete one feedback note the caller submitted (N12).
+
+    Raises:
+        HTTPException: 404 if the note is unknown or was submitted by
+            another client.
+    """
+    deleted = store.delete_feedback(feedback_id, client_id(request))
+    if not deleted:
+        raise HTTPException(status_code=404, detail="feedback note not found")
+    return Response(status_code=204)
+
+
+def _run_export(run: store.RunRow) -> dict[str, Any]:
+    """One run's exportable record, including its finalized report text."""
+    return {
+        "id": run.id,
+        "title": run.title,
+        "research_goal": run.research_goal,
+        "status": run.status,
+        "run_mode": run.profile,
+        "created_at": run.created_at,
+        "updated_at": run.updated_at,
+        "completed_at": run.completed_at,
+        "report_markdown": store.read_report_markdown(run.id),
+    }
+
+
+def _staged_document_export(document: dict[str, Any]) -> dict[str, Any]:
+    """One staged document's exportable record, including its full text."""
+    return {
+        "id": document["id"],
+        "title": document["title"],
+        "mime_type": document["mime_type"],
+        "byte_size": document["byte_size"],
+        "sha256": document["sha256"],
+        "text": document["text"],
+        "created_at": document["created_at"],
+    }
+
+
+@router.get("/api/account/export")
+async def export_account_data(request: Request) -> dict[str, Any]:
+    """Export every record owned by the caller's client identity (N11).
+
+    A genuine, self-contained export rather than an index back to other
+    endpoints: each run entry embeds its finalized report Markdown (the
+    same text ``GET /api/runs/{id}/report.md`` serves) and each staged
+    document embeds its extracted text. There is no operator/admin
+    variant -- the export is always scoped to the requester's own id, the
+    same identity every other endpoint in this app already trusts.
+    """
+    owner = client_id(request)
+    runs = [_run_export(run) for run in store.list_runs(owner, limit=10_000)]
+    documents = [
+        _staged_document_export(document)
+        for document in store.list_staged_documents_for_client(owner)
+    ]
+    return {
+        "client_id": owner,
+        "exported_at": time.time(),
+        "runs": runs,
+        "documents": documents,
+        "feedback": store.list_feedback_for_client(owner),
+        "interviews": store.list_interviews(owner),
+    }

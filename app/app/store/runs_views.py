@@ -12,7 +12,7 @@ from __future__ import annotations
 import sqlite3
 
 from app.store.db import _use_conn, connect
-from app.store.models import RunRow, _row_to_run
+from app.store.models import TERMINAL_STATUSES, RunRow, _row_to_run
 
 # Number of top hypotheses surfaced per run on list endpoints.
 _TOP_HYPOTHESES_CAP = 3
@@ -122,6 +122,35 @@ def _latest_stage_by_run(
         (*run_ids, *_STAGE_EVENT_TYPES),
     ).fetchall()
     return {row["run_id"]: row["type"] for row in rows}
+
+
+def list_expired_terminal_runs(
+    cutoff: float, db_path: str | None = None
+) -> list[RunRow]:
+    """Return every terminal run last settled before ``cutoff``.
+
+    Used by the retention sweep (``app.retention``), not by any live
+    endpoint: a run in a non-terminal status is never returned, regardless
+    of age, since it still has an active or resumable workflow.
+
+    Args:
+        cutoff: Unix timestamp; a run's ``completed_at`` (falling back to
+            ``updated_at`` for legacy rows with no completion timestamp)
+            must be older than this to be returned.
+        db_path: Optional override for the SQLite database path.
+
+    Returns:
+        Matching run rows, oldest settled first.
+    """
+    placeholders = ",".join("?" for _ in TERMINAL_STATUSES)
+    with connect(db_path) as conn:
+        rows = conn.execute(
+            "SELECT * FROM runs WHERE status IN "
+            f"({placeholders}) AND COALESCE(completed_at, updated_at) < ? "
+            "ORDER BY COALESCE(completed_at, updated_at) ASC",
+            (*(status.value for status in TERMINAL_STATUSES), cutoff),
+        ).fetchall()
+    return [_row_to_run(row) for row in rows]
 
 
 def list_runs(

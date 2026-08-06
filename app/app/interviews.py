@@ -3,9 +3,12 @@
 This module owns the durable turn lifecycle and the HTTP surface. The
 provider call and its deterministic fallback live in ``interviews_model``,
 the request-shaping half (schema, prompts, field normalization) in
-``interviews_prompts``, and the SSE transport for one turn's advancement
-in ``interviews_stream``; all are re-exported here, so ``app.interviews``
-remains the stable import and monkeypatch surface.
+``interviews_prompts``, the SSE transport for one turn's advancement in
+``interviews_stream``, the request bodies in ``interviews_models``, and
+the rewind/retry revision endpoints in ``interviews_revision`` (mounted
+via ``router.include_router`` so they keep their original paths); all
+are re-exported here, so ``app.interviews`` remains the stable import
+and monkeypatch surface.
 """
 
 from __future__ import annotations
@@ -16,11 +19,15 @@ from typing import Any
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel, Field
 
-from app import credentials, documents, store
-from app.audience import AUDIENCE_PATTERN
-from app.auth import client_id
+from app import (
+    credentials,
+    documents,
+    interviews_revision,
+    paper_corpus,
+    store,
+)
+from app.auth import client_id, principal_for_request
 from app.interviews_documents import (
     _attach_documents as _attach_documents,
 )
@@ -47,6 +54,15 @@ from app.interviews_model import (
 )
 from app.interviews_model import (
     _stream_interview_content as _stream_interview_content,
+)
+from app.interviews_models import (
+    CreateInterviewRequest as CreateInterviewRequest,
+)
+from app.interviews_models import (
+    InterviewFieldsRequest as InterviewFieldsRequest,
+)
+from app.interviews_models import (
+    InterviewTurnRequest as InterviewTurnRequest,
 )
 from app.interviews_prompts import (
     _RESPONSE_SCHEMA as _RESPONSE_SCHEMA,
@@ -75,6 +91,21 @@ from app.interviews_prompts import (
 from app.interviews_prompts import (
     _system_prompt as _system_prompt,
 )
+from app.interviews_revision import (
+    _require_revisable_turn as _require_revisable_turn,
+)
+from app.interviews_revision import (
+    _reset_derivation as _reset_derivation,
+)
+from app.interviews_revision import (
+    _rewind_and_restream as _rewind_and_restream,
+)
+from app.interviews_revision import (
+    edit_interview_turn as edit_interview_turn,
+)
+from app.interviews_revision import (
+    retry_interview_turn as retry_interview_turn,
+)
 from app.interviews_stream import (
     _advance_stream as _advance_stream,
 )
@@ -87,41 +118,6 @@ from app.interviews_stream import (
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/interviews", tags=["interviews"])
-
-
-class CreateInterviewRequest(BaseModel):
-    """Initial scientist challenge for a new interview.
-
-    ``document_ids`` names documents already staged through
-    ``/api/documents``. They are attached to the interview, so the very
-    first turn is scoped with the scientist's own material rather than
-    reaching the work only after the plan is fixed.
-    """
-
-    research_challenge: str = Field(..., min_length=1, max_length=20_000)
-    audience: str | None = Field(None, pattern=AUDIENCE_PATTERN)
-    document_ids: list[str] = Field(default_factory=list)
-
-
-class InterviewTurnRequest(BaseModel):
-    """One scientist answer or correction, with any newly attached documents."""
-
-    content: str = Field(..., min_length=1, max_length=20_000)
-    document_ids: list[str] = Field(default_factory=list)
-
-
-class InterviewFieldsRequest(BaseModel):
-    """Scientist-authored edits to the five structured fields.
-
-    ``lab_constraints`` (K5) defaults to empty so clients that predate
-    the field keep validating; omitting it records "no constraints".
-    """
-
-    research_challenge: str = Field(..., min_length=1, max_length=20_000)
-    focus_area: list[str]
-    preferences: list[str]
-    lab_constraints: list[str] = Field(default_factory=list)
-    title: str | None = Field(None, max_length=200)
 
 
 def _owned_interview(interview_id: str, request: Request) -> dict[str, Any]:
@@ -310,10 +306,17 @@ async def create_interview(
     byok = _request_byok(request)
     # Refused before the interview row exists, so a bad id leaves nothing.
     documents.resolve_owned_documents(body.document_ids, client_id(request))
+    # Same corpus-audience gate as run creation and Q&A (paper_corpus.py):
+    # a claim the caller cannot back with a verified researcher session is
+    # downgraded before it is persisted, since the stored value is what
+    # later unlocks the catalog for every turn of this interview.
+    principal = principal_for_request(request)
     interview = store.create_interview(
         client_id(request),
         body.research_challenge,
-        audience=body.audience,
+        audience=paper_corpus.verified_audience(
+            body.audience, principal.method if principal else None
+        ),
     )
     _attach_documents(str(interview["id"]), body.document_ids, request)
     return _interview_stream(str(interview["id"]), byok)
@@ -352,126 +355,11 @@ async def add_interview_turn(
     return _interview_stream(interview_id, byok)
 
 
-def _require_revisable_turn(
-    interview: dict[str, Any], turn_id: int, role: str
-) -> None:
-    """Check the turn a revision targets, or raise a 4xx explaining why not.
-
-    Raises:
-        HTTPException: 409 when the interview is closed to revision, 404 when
-            the turn is not one of its own, 409 when it is not the kind of
-            turn this revision applies to.
-    """
-    if interview["status"] == "cancelled":
-        raise HTTPException(status_code=409, detail="interview is cancelled")
-    turn = next(
-        (t for t in interview["turns"] if int(t["id"]) == turn_id), None
-    )
-    if turn is None:
-        raise HTTPException(status_code=404, detail="turn not found")
-    if turn["role"] != role:
-        raise HTTPException(
-            status_code=409, detail=f"turn is not a {role} turn"
-        )
-
-
-def _reset_derivation(interview_id: str) -> None:
-    """Re-baseline the five fields after a rewind, and reopen the interview.
-
-    The stored fields are the model's derivation from a transcript that no
-    longer exists, so keeping them would feed the next turn exactly the
-    conclusions the scientist just withdrew. They are cleared back to the
-    opening challenge -- whatever the first surviving user turn says -- and
-    the model re-derives the rest from what remains.
-    """
-    interview = store.get_interview(interview_id)
-    assert interview is not None
-    opening = next((t for t in interview["turns"] if t["role"] == "user"), None)
-    store.update_interview(
-        interview_id,
-        {
-            "research_challenge": str(opening["content"]) if opening else "",
-            "focus_area": [],
-            "preferences": [],
-            "lab_constraints": [],
-            "title": None,
-        },
-        "Continue the interview.",
-        completed=False,
-    )
-
-
-def _rewind_and_restream(
-    interview_id: str,
-    turn_id: int,
-    request: Request,
-    *,
-    role: str,
-    replacement: str | None = None,
-) -> StreamingResponse:
-    """Rewind an owned interview to ``turn_id`` and answer again from there.
-
-    The one revision path. Editing a scientist turn and retrying an Agent
-    turn differ only in which role they may target and whether a replacement
-    prompt takes the rewound turn's place; everything else -- ownership, the
-    revisability check, discarding the tail, re-deriving the four fields, and
-    streaming the next turn -- is the same, and has to stay the same.
-
-    Args:
-        interview_id: The interview being revised.
-        turn_id: The turn the revision targets; it and everything after it
-            are discarded.
-        request: Incoming request, used to check ownership.
-        role: The role the targeted turn must have.
-        replacement: Scientist text to append in the rewound turn's place,
-            or None to re-answer the surviving prompt unchanged.
-
-    Returns:
-        The SSE response streaming the re-derived turn.
-    """
-    interview = _owned_interview(interview_id, request)
-    _require_revisable_turn(interview, turn_id, role)
-    store.rewind_interview(interview_id, turn_id)
-    if replacement is not None:
-        store.append_interview_turn(
-            interview_id, store.NewInterviewTurn("user", replacement)
-        )
-    _reset_derivation(interview_id)
-    return _interview_stream(interview_id, _request_byok(request))
-
-
-@router.put("/{interview_id}/turns/{turn_id}")
-async def edit_interview_turn(
-    interview_id: str,
-    turn_id: int,
-    body: InterviewTurnRequest,
-    request: Request,
-) -> StreamingResponse:
-    """Replace one scientist turn in place and re-answer from there.
-
-    An edited prompt is a correction, not a new question: the turn is
-    rewritten where it stands and the Agent answers it again, rather than the
-    old wording staying in the transcript with the correction appended after
-    it -- which is what makes the two readings of "what did I ask?" disagree.
-    Everything the Agent said after it was derived from the old wording, so
-    it goes with it.
-    """
-    return _rewind_and_restream(
-        interview_id, turn_id, request, role="user", replacement=body.content
-    )
-
-
-@router.post("/{interview_id}/turns/{turn_id}/retry")
-async def retry_interview_turn(
-    interview_id: str, turn_id: int, request: Request
-) -> StreamingResponse:
-    """Discard one Agent turn and answer the same prompt again.
-
-    Retry has to remove the answer it is replacing. Re-running the model
-    with the rejected turn still in the transcript asks it to continue from
-    the answer rather than to reconsider it.
-    """
-    return _rewind_and_restream(interview_id, turn_id, request, role="agent")
+# The rewind/retry revision endpoints (PUT .../turns/{turn_id} and POST
+# .../turns/{turn_id}/retry) live in app.interviews_revision and are
+# mounted here so they keep their original paths under this router's
+# "/api/interviews" prefix.
+router.include_router(interviews_revision.router)
 
 
 @router.put("/{interview_id}/fields")

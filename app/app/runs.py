@@ -6,6 +6,7 @@ Endpoints:
 - GET    /api/runs/{id}                   read run + summary counts
 - POST   /api/runs/{id}/start             start the workflow (background)
 - POST   /api/runs/{id}/cancel            cancel a running workflow
+- DELETE /api/runs/{id}                   permanently delete a terminal run
 - GET    /api/runs/{id}/events         SSE stream (live + replay from `?after=`)
 - GET    /api/runs/{id}/hypotheses        list hypotheses with state + lineage
 - GET    /api/runs/{id}/evidence          list retrieved evidence
@@ -75,6 +76,7 @@ from app import (
     runs_collections,
     runs_contrib,
     runs_crud,
+    runs_deletion,
     runs_lifecycle,
     store,
 )
@@ -176,6 +178,9 @@ from app.runs_crud import (
 from app.runs_crud import (
     list_runs as list_runs,
 )
+from app.runs_deletion import (
+    delete_run as delete_run,
+)
 from app.runs_events import _event_stream
 from app.runs_lifecycle import (
     _check_startable as _check_startable,
@@ -257,6 +262,9 @@ router.get("/{run_id}")(runs_crud.get_run)
 
 # Lifecycle endpoints (start/cancel/pause/resume) live in runs_lifecycle.
 router.include_router(runs_lifecycle.router)
+
+# Permanent deletion lives in runs_deletion.
+router.include_router(runs_deletion.router)
 
 
 # ---------------------------------------------------------------------------

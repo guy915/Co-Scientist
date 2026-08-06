@@ -166,6 +166,74 @@ def interview_document_excerpts(
     return excerpts
 
 
+def list_staged_documents_for_client(
+    client_id: str,
+    *,
+    db_path: str | None = None,
+    conn: sqlite3.Connection | None = None,
+) -> list[dict[str, Any]]:
+    """Return every document the caller has staged, newest first.
+
+    Used by the account-level data export (N11): a scientist's own upload
+    is part of their data whether or not it was ever carried into a run.
+    """
+    with _use_conn(conn, db_path) as active:
+        rows = active.execute(
+            "SELECT * FROM staged_documents WHERE client_id=? "
+            "ORDER BY created_at DESC",
+            (client_id,),
+        ).fetchall()
+    return _rows_to_documents(rows)
+
+
+def delete_staged_document(
+    document_id: str, client_id: str, *, db_path: str | None = None
+) -> bool:
+    """Delete one staged document the caller owns.
+
+    A document belonging to another client is left untouched and the call
+    reports no deletion, matching ``get_staged_documents``' owner-scoping.
+
+    Args:
+        document_id: Id of the document to delete.
+        client_id: Owning identity; a mismatched row is not deleted.
+        db_path: Optional override for the SQLite database path.
+
+    Returns:
+        True if a row was deleted, False if unknown or owned by another
+        client.
+    """
+    with connect(db_path) as conn:
+        cur = conn.execute(
+            "DELETE FROM staged_documents WHERE id=? AND client_id=?",
+            (document_id, client_id),
+        )
+    return cur.rowcount > 0
+
+
+def delete_staged_documents_older_than(
+    cutoff: float, *, db_path: str | None = None
+) -> int:
+    """Delete every staged document created before ``cutoff``.
+
+    Used by the retention sweep (``app.retention``). Age is judged by
+    creation time, not last use, since a staged document is never updated
+    after its extraction is stored.
+
+    Args:
+        cutoff: Unix timestamp; older rows are deleted.
+        db_path: Optional override for the SQLite database path.
+
+    Returns:
+        How many rows were deleted.
+    """
+    with connect(db_path) as conn:
+        cur = conn.execute(
+            "DELETE FROM staged_documents WHERE created_at < ?", (cutoff,)
+        )
+    return cur.rowcount
+
+
 def mark_documents_used_by_run(
     run_id: str, document_ids: list[str], *, db_path: str | None = None
 ) -> None:

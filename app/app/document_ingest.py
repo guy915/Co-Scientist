@@ -20,6 +20,57 @@ _TEXT_TYPES = {
 MAX_UPLOAD_BYTES = 25 * 1024 * 1024
 _IMAGE_TYPES = {"image/png", "image/jpeg", "image/tiff", "image/webp"}
 
+# Leading-byte signatures for every binary type this ingester accepts. Text
+# formats (TXT/Markdown/CSV/JSON) have no reliable magic bytes, so they are
+# not sniffed here -- they are instead validated by decodability in
+# ``_extract_text_document``. WEBP's signature spans two non-adjacent
+# offsets (a RIFF container tagged WEBP at byte 8), so it is checked
+# separately rather than as a single prefix.
+_BINARY_SIGNATURES: tuple[tuple[bytes, str], ...] = (
+    (b"%PDF-", "application/pdf"),
+    (b"\x89PNG\r\n\x1a\n", "image/png"),
+    (b"\xff\xd8\xff", "image/jpeg"),
+    (b"II*\x00", "image/tiff"),
+    (b"MM\x00*", "image/tiff"),
+)
+
+
+def _sniff_binary_type(data: bytes) -> str | None:
+    """Identify a binary upload's real type from its leading signature.
+
+    Returns:
+        The sniffed MIME type, or None when the bytes carry no signature
+        this ingester recognizes (including every text-family format).
+    """
+    if data[:4] == b"RIFF" and data[8:12] == b"WEBP":
+        return "image/webp"
+    for signature, mime in _BINARY_SIGNATURES:
+        if data.startswith(signature):
+            return mime
+    return None
+
+
+def _verify_declared_type(data: bytes, declared_type: str) -> None:
+    """Refuse an upload whose bytes contradict its declared MIME type.
+
+    This is a signature check, not a malware scanner: it catches a
+    mislabeled file (a PDF renamed to report.png, a PNG declared as
+    text/plain) by comparing the bytes' own recognizable format against
+    what the caller claimed. A polyglot file that is validly both formats,
+    or a threat embedded inside an otherwise-genuine PDF/image, is not
+    something a signature check can see.
+
+    Raises:
+        ValueError: If the bytes carry a recognizable signature for a
+            binary format other than the one declared.
+    """
+    sniffed = _sniff_binary_type(data)
+    if sniffed is not None and sniffed != declared_type:
+        raise ValueError(
+            f"declared type '{declared_type}' does not match the "
+            f"file's actual contents (looks like '{sniffed}')"
+        )
+
 
 @dataclasses.dataclass(frozen=True)
 class ExtractedDocument:
@@ -51,6 +102,7 @@ def extract_document(data: bytes, mime_type: str) -> ExtractedDocument:
     if len(data) > MAX_UPLOAD_BYTES:
         raise ValueError("uploaded document exceeds the 25 MB limit")
     normalized_type = mime_type.split(";", 1)[0].strip().lower()
+    _verify_declared_type(data, normalized_type)
     text, tool = _extract_by_type(data, normalized_type)
     if not text.strip():
         raise ValueError("document contains no extractable text")

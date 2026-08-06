@@ -99,3 +99,59 @@ def test_notes_are_listed_newest_first() -> None:
         "second",
         "first",
     ]
+
+
+def test_a_submitter_can_read_back_their_own_notes() -> None:
+    """N12: feedback is no longer write-only for the person who sent it."""
+    client = make_client()
+    owner = {"X-Client-ID": "feedback-owner"}
+    other = {"X-Client-ID": "someone-else"}
+    client.post(
+        "/api/feedback",
+        headers=owner,
+        json={"message": "My note", "category": "bug"},
+    )
+    client.post(
+        "/api/feedback",
+        headers=other,
+        json={"message": "Not mine", "category": "bug"},
+    )
+
+    response = client.get("/api/feedback", headers=owner)
+
+    assert response.status_code == 200
+    messages = [n["message"] for n in response.json()["feedback"]]
+    assert messages == ["My note"]
+
+
+def test_a_submitter_can_delete_their_own_note() -> None:
+    client = make_client()
+    owner = {"X-Client-ID": "feedback-owner"}
+    created = client.post(
+        "/api/feedback",
+        headers=owner,
+        json={"message": "Delete me", "category": "bug"},
+    )
+    note_id = created.json()["id"]
+
+    response = client.delete(f"/api/feedback/{note_id}", headers=owner)
+
+    assert response.status_code == 204
+    assert store.list_feedback() == []
+
+
+def test_another_client_cannot_delete_someone_elses_note() -> None:
+    client = make_client()
+    owner = {"X-Client-ID": "feedback-owner"}
+    other = {"X-Client-ID": "someone-else"}
+    created = client.post(
+        "/api/feedback",
+        headers=owner,
+        json={"message": "Not yours", "category": "bug"},
+    )
+    note_id = created.json()["id"]
+
+    response = client.delete(f"/api/feedback/{note_id}", headers=other)
+
+    assert response.status_code == 404
+    assert len(store.list_feedback()) == 1
