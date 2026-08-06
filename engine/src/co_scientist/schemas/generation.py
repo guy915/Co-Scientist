@@ -7,7 +7,7 @@ generation, novelty analysis, and validation synthesis.
 
 from typing import Any
 
-from co_scientist.schemas.builders import obj
+from co_scientist.schemas.builders import obj, str_array
 
 # Field sub-schemas shared verbatim across the generation schemas below,
 # referenced by identity (nothing mutates schema dicts at runtime; sharing
@@ -189,6 +189,78 @@ HYPOTHESIS_VALIDATION_SYNTHESIS_SCHEMA: dict[str, Any] = {
                         ),
                     },
                     optional=("category",),
+                ),
+            }
+        }
+    ),
+}
+# Assumption-tree schemas (SSR §4, audit E12): the assumptions technique
+# builds an iterative assumption/sub-assumption tree before generating
+# hypotheses, in two bounded schema calls ahead of the final
+# GENERATION_SCHEMA call. The top level lists the area's taken-for-granted
+# assumptions and marks the load-bearing ones; the sub level decomposes
+# selected parents, identified by their POSITIONAL INDEX in the prompt's
+# numbered parent list -- never by echoing the parent's text back (an
+# echoing schema would scale the output with the input and truncate on
+# large trees, the way proximity's once did).
+ASSUMPTION_TREE_SCHEMA: dict[str, Any] = {
+    "name": "assumption_tree",
+    "strict": False,
+    "schema": obj(
+        {
+            "assumptions": {
+                "type": "array",
+                "description": ("The area's key taken-for-granted assumptions"),
+                "items": obj(
+                    {
+                        "assumption": {
+                            "type": "string",
+                            "description": (
+                                "One assumption currently taken for"
+                                " granted in this research area"
+                            ),
+                        },
+                        "load_bearing": {
+                            "type": "boolean",
+                            "description": (
+                                "True if this assumption is load-bearing:"
+                                " much of the area's reasoning depends on"
+                                " it, so challenging it would open new"
+                                " hypothesis space"
+                            ),
+                        },
+                    }
+                ),
+            }
+        }
+    ),
+}
+ASSUMPTION_SUB_SCHEMA: dict[str, Any] = {
+    "name": "assumption_sub_assumptions",
+    "strict": False,
+    "schema": obj(
+        {
+            "parents": {
+                "type": "array",
+                "description": (
+                    "Sub-assumption decompositions, one entry per"
+                    " expanded parent assumption"
+                ),
+                "items": obj(
+                    {
+                        "parent_index": {
+                            "type": "integer",
+                            "description": (
+                                "The 0-based index of the parent"
+                                " assumption in the numbered list the"
+                                " prompt supplied"
+                            ),
+                        },
+                        "sub_assumptions": str_array(
+                            "The finer-grained sub-assumptions the parent"
+                            " decomposes into"
+                        ),
+                    }
                 ),
             }
         }

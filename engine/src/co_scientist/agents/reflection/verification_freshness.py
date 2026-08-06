@@ -23,7 +23,10 @@ from co_scientist.models import Hypothesis, rank_by_elo
 # would produce a different answer to the same question. Verifications
 # carrying an older version are re-run rather than trusted, since the stored
 # probes were produced by a prompt this code no longer sends.
-DEEP_VERIFICATION_PROMPT_VERSION = 1
+# 2: the verification gained sub-assumption decomposition and
+# decontextualization (audit E4) and moved to post-tournament leaders with
+# a fail-closed ``unverified`` verdict (audit E9).
+DEEP_VERIFICATION_PROMPT_VERSION = 2
 
 
 def _cited_evidence_identities(hypothesis: Hypothesis) -> list[str]:

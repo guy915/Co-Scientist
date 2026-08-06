@@ -107,9 +107,12 @@ _NEXT_TASK_ROUTES: dict[
     "reflection": "review",
     "review": "comprehensive_reflection",
     "comprehensive_reflection": "safety_screen",
-    "safety_screen": "deep_verification",
-    "deep_verification": "ranking",
-    "ranking": "orchestrator",
+    "safety_screen": "ranking",
+    # Deep verification probes the post-tournament leaders (audit E9):
+    # after ranking, so the Elo ordering it selects by is the tournament's
+    # rather than the all-tied pool order of a pre-ranking pass.
+    "ranking": "deep_verification",
+    "deep_verification": "orchestrator",
     "proximity": "orchestrator",
     "meta_review": "evolve",
     "evolve": "review",

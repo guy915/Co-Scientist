@@ -17,6 +17,7 @@ import uuid
 from typing import Any
 
 from co_scientist.config.registry import parse_bool_env
+from co_scientist.offline_llm import is_offline_model
 
 logger = logging.getLogger(__name__)
 
@@ -25,66 +26,129 @@ def _resolve_tool_calling_generation(
     opts: dict[str, Any],
     mcp_available: bool,
     enable_literature_review_node: bool,
+    model_name: str,
 ) -> bool:
     """Determines whether tool-calling generation should be enabled.
 
-    Tool-calling generation requires MCP availability and the literature
-    review node; this validates the user's request against both,
-    disabling (or raising) when the requirement isn't met.
+    Tool-calling generation (the agentic literature-exploration draft
+    path) is on by default whenever the run has literature tools
+    available -- MCP reachable and the literature review node enabled --
+    because the model deciding when to search/read is the technique's
+    point, and no production caller opts in explicitly. A caller opt-out
+    (``enable_tool_calling_generation=False`` in opts) stays available.
+
+    Two conditions force the plain path regardless of the request:
+
+    - The offline backend answers completions locally and never emits
+      tool calls, so a tool loop would "finish" on its first free-text
+      reply and fail parsing. Offline runs stay deterministic.
+    - MCP or the literature review node is unavailable: the draft agent
+      would have no tools to call.
 
     Args:
         opts: Caller-supplied generation options.
         mcp_available: Whether the MCP server is available.
         enable_literature_review_node: Whether the literature review node
             will run for this call.
+        model_name: The worker model name for this run.
 
     Returns:
         Whether tool-calling generation should be enabled.
 
     Raises:
-        ValueError: If the user explicitly disabled the literature review
-            node while requesting tool-calling generation.
+        ValueError: If the caller explicitly disabled the literature
+            review node while explicitly requesting tool-calling
+            generation.
     """
-    # user can override via opts, default False
-    if not opts.get("enable_tool_calling_generation", False):
+    requested = opts.get("enable_tool_calling_generation")
+
+    if _tool_calling_disabled_before_availability(requested, model_name):
         return False
 
     # Check MCP availability first - if unavailable, disable tool calling
     if not mcp_available:
-        logger.warning(
-            "enable_tool_calling_generation=True but MCP server"
-            " unavailable - disabling tool-calling mode"
-        )
+        if requested:
+            logger.warning(
+                "enable_tool_calling_generation=True but MCP server"
+                " unavailable - disabling tool-calling mode"
+            )
         return False
 
     return _resolve_tool_calling_given_mcp_available(
-        opts, enable_literature_review_node
+        opts, enable_literature_review_node, requested
     )
+
+
+def _tool_calling_disabled_before_availability(
+    requested: bool | None, model_name: str
+) -> bool:
+    """Forces the plain path for offline backends and explicit opt-outs.
+
+    These two conditions hold regardless of tool availability: the
+    offline responder never emits tool calls (a tool loop would finish
+    on its first free-text reply), and an explicit False is the caller
+    opt-out the default-on resolution preserves.
+
+    Args:
+        requested: The caller's explicit tool-calling request, or None.
+        model_name: The worker model name for this run.
+
+    Returns:
+        True when tool-calling generation must stay off for this reason.
+    """
+    if is_offline_model(model_name):
+        if requested:
+            logger.warning(
+                "enable_tool_calling_generation=True but the offline"
+                " backend is active - disabling tool-calling mode"
+            )
+        return True
+
+    if requested is False:
+        logger.info("Tool-calling generation disabled by caller option")
+        return True
+
+    return False
 
 
 def _resolve_tool_calling_given_mcp_available(
     opts: dict[str, Any],
     enable_literature_review_node: bool,
+    requested: bool | None,
 ) -> bool:
     """Resolves tool-calling generation once MCP is known to be available.
 
     Still requires the literature review node; raises if the caller
-    explicitly disabled it while requesting tool-calling generation,
-    otherwise disables tool-calling with a warning.
+    explicitly disabled it while explicitly requesting tool-calling
+    generation, otherwise disables tool-calling (with a warning for an
+    explicit request, silently for the default-on resolution).
+
+    Args:
+        opts: Caller-supplied generation options.
+        enable_literature_review_node: Whether the literature review node
+            will run for this call.
+        requested: The caller's explicit tool-calling request, or None
+            when the option was omitted (default-on resolution).
 
     Returns:
         Whether tool-calling generation should be enabled.
 
     Raises:
-        ValueError: If the user explicitly disabled the literature review
-            node while requesting tool-calling generation.
+        ValueError: If the caller explicitly disabled the literature
+            review node while explicitly requesting tool-calling
+            generation.
     """
     if enable_literature_review_node:
+        if requested is None:
+            logger.info(
+                "Tool-calling generation enabled by default"
+                " (MCP server and literature review node available)"
+            )
         return True
 
     # Only raise error if user explicitly disabled literature review but
     # enabled tool calling
-    if opts.get("enable_literature_review_node") is False:
+    if requested and opts.get("enable_literature_review_node") is False:
         raise ValueError(
             "enable_tool_calling_generation requires"
             " enable_literature_review_node=True. "
@@ -92,12 +156,13 @@ def _resolve_tool_calling_given_mcp_available(
             " from the review node."
         )
 
-    # Literature review was disabled due to MCP unavailability, disable
-    # tool calling
-    logger.warning(
-        "enable_tool_calling_generation=True but literature"
-        " review node unavailable - disabling tool-calling mode"
-    )
+    # Literature review was disabled, so the draft agent would have no
+    # literature context; disable tool calling.
+    if requested:
+        logger.warning(
+            "enable_tool_calling_generation=True but literature"
+            " review node unavailable - disabling tool-calling mode"
+        )
     return False
 
 

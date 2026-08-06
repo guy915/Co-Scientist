@@ -37,6 +37,10 @@ The literature review node already analyzed papers and identified key themes. Us
 
 {{citation_reference_section}}
 
+{{research_expansion_section}}
+
+{{falsified_assumptions_section}}
+
 ## Your Task
 
 **Goal**: Draft {{hypotheses_count}} initial hypothesis ideas by examining relevant literature.

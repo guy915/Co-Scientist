@@ -61,8 +61,57 @@ def _build_ranking_deep_verification_variables(
     }
 
 
+# Governing-criteria section for the judge (finding A2/K4). The review
+# stage always scores its fixed eight axes (schemas/review.py) and this
+# section does not change them; it tells the judge how the scientist's
+# own criteria map onto the verdict when they were supplied:
+#
+# - Each criterion governs the verdict directly -- the comparison fields
+#   of the judgment schema stay the seven standard dimensions (the schema
+#   is static), but the judge is told to decide by the scientist's
+#   criteria first.
+# - Where a criterion overlaps a standard comparison dimension or a review
+#   score axis (e.g. a feasibility criterion with feasibility_comparison,
+#   a soundness criterion with scientific_soundness), the scientist's
+#   framing of that axis weighs heaviest.
+# Absent criteria render nothing and the judge keeps the built-in seven.
+_CRITERIA_PREAMBLE = (
+    "## Scientist Evaluation Criteria (governing)\n"
+    "The scientist who commissioned this research specified what matters "
+    "most for this goal. Treat these criteria as the governing standard "
+    "of your verdict: decide the comparison by them first, and where one "
+    "overlaps a standard comparison dimension or review score axis above "
+    "(for example a feasibility criterion with feasibility, or a "
+    "soundness criterion with scientific soundness), let the scientist's "
+    "framing of that axis weigh heaviest:\n"
+)
+
+
+def _format_ranking_evaluation_criteria(
+    criteria: list[str] | None,
+) -> str:
+    """Format the scientist's evaluation criteria for the ranking judge.
+
+    Renders nothing when no criteria were supplied, leaving the judge on
+    the template's built-in comparison criteria.
+    """
+    cleaned = [
+        str(item).strip() for item in criteria or [] if str(item).strip()
+    ]
+    if not cleaned:
+        return ""
+
+    sections = [_CRITERIA_PREAMBLE]
+    sections.extend(f"- {item}\n" for item in cleaned)
+    sections.append("\n")
+    return "".join(sections)
+
+
 def _build_ranking_prompt_variables(
-    research_goal: str, side_a: RankingSide, side_b: RankingSide
+    research_goal: str,
+    side_a: RankingSide,
+    side_b: RankingSide,
+    criteria: list[str] | None,
 ) -> dict[str, Any]:
     """Build the template variables for the ranking comparison prompt.
 
@@ -70,6 +119,8 @@ def _build_ranking_prompt_variables(
         research_goal: The run's research goal.
         side_a: The "A" side of the match.
         side_b: The "B" side of the match.
+        criteria: The scientist's evaluation criteria, if any (see the
+            ``_CRITERIA_PREAMBLE`` mapping comment).
 
     Returns:
         Dict of template variables for the ranking prompt.
@@ -85,6 +136,9 @@ def _build_ranking_prompt_variables(
         "hypothesis_b_reflection_notes": (
             side_b.reflection_notes or "No reflection notes available."
         ),
+        # Always produced (empty when absent) so the slot never renders as
+        # a {{MISSING:...}} sentinel.
+        "evaluation_criteria": _format_ranking_evaluation_criteria(criteria),
     }
     variables.update(_build_ranking_deep_verification_variables(side_a, side_b))
     return variables
@@ -101,6 +155,7 @@ def get_ranking_prompt(
     side_a: RankingSide,
     side_b: RankingSide,
     context: PromptRunContext | None = None,
+    criteria: list[str] | None = None,
 ) -> tuple[str, dict[str, Any] | None]:
     """Get the ranking (and tournament) comparison prompt and schema.
 
@@ -110,6 +165,8 @@ def get_ranking_prompt(
         side_b: The "B" side of the match.
         context: Run-scoped prompt context (supervisor guidance,
             meta-review, tool registry, run setup/focus guidance).
+        criteria: The scientist's evaluation criteria, if any; when
+            present they govern the judge's verdict (finding A2/K4).
 
     Returns:
         Tuple of (rendered prompt string, JSON schema dict or None).
@@ -117,7 +174,9 @@ def get_ranking_prompt(
     ctx = context or PromptRunContext()
     return _build_prompt(
         "ranking",
-        _build_ranking_prompt_variables(research_goal, side_a, side_b),
+        _build_ranking_prompt_variables(
+            research_goal, side_a, side_b, criteria
+        ),
         sections=PromptSections(
             supervisor_guidance=_format_supervisor_guidance_for_ranking(
                 ctx.supervisor_guidance

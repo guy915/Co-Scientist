@@ -22,6 +22,11 @@ from co_scientist.schemas.generation import _EXPERIMENT_FIELD
 # single refined hypothesis (evolution runs one hypothesis at a time);
 # refinement_summary
 # is a human-readable diff-style note, not used for further LLM prompting.
+#
+# Multi-parent combination identifies the partners it merged by the
+# positional index the prompt assigned them -- never by echoing their text,
+# which would scale the response with the partners' length (the same trap
+# proximity clustering hit; see proximity_dedup._match_cluster_member).
 EVOLUTION_SCHEMA: dict[str, Any] = {
     "name": "hypothesis_evolution",
     "strict": False,
@@ -49,7 +54,20 @@ EVOLUTION_SCHEMA: dict[str, Any] = {
                 ),
             },
             "experiment": _EXPERIMENT_FIELD,
-        }
+            "combined_partners": {
+                "type": "array",
+                "items": {"type": "integer"},
+                "description": (
+                    "Combination operator only: the 1-based positional "
+                    "indices of the partner hypotheses whose mechanisms "
+                    "this refinement merges. Omit for every other operator "
+                    "and never repeat a partner's text."
+                ),
+            },
+        },
+        # Identification only, and only for the combination operator; every
+        # other operator omits it.
+        optional=("combined_partners",),
     ),
 }
 # Research-overview schema

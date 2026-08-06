@@ -1,33 +1,64 @@
-"""Distinct, disclosed hypothesis-evolution operators and instructions."""
+"""Distinct, disclosed hypothesis-evolution operators and instructions.
+
+The operator portfolio covers all six strategies the paper discloses for
+the Evolution agent (SSR §4): enhancement through grounding; coherence,
+practicality and feasibility improvement; inspiration from existing
+hypotheses; combination; simplification; and out-of-box thinking. The
+engine additionally keeps analogy, which the expanded operator specs
+carry ("the paper's six; some specs expand to eight").
+
+Coherence/feasibility is its own operator rather than part of
+ENHANCEMENT: the paper lists it as a distinct strategy with its own
+feasibility-improvement prompt (SI Note 9.4), and folding it into
+enhancement left enhancement doing two jobs while the paper's grounding
+strategy (live retrieval, see ``evolve_grounding``) went unrepresented.
+"""
 
 from __future__ import annotations
 
 import enum
+import random
 
 
 class EvolutionOperator(str, enum.Enum):
     """Published evolution strategies represented as executable operators."""
 
     ENHANCEMENT = "enhancement"
-    SIMPLIFICATION = "simplification"
+    COHERENCE_FEASIBILITY = "coherence_feasibility"
+    INSPIRATION = "inspiration"
     COMBINATION = "combination"
+    SIMPLIFICATION = "simplification"
     ANALOGY = "analogy"
     OUT_OF_BOX = "out_of_box"
 
 
 _INSTRUCTIONS = {
     EvolutionOperator.ENHANCEMENT: (
-        "Strengthen grounding, coherence, practicality, feasibility, and "
-        "falsifiability while retaining the scientifically valuable premise."
+        "Strengthen the hypothesis's grounding in evidence: identify its "
+        "weaknesses and reasoning gaps, and elaborate details using the "
+        "targeted literature supplied for this refinement, while retaining "
+        "the scientifically valuable premise."
+    ),
+    EvolutionOperator.COHERENCE_FEASIBILITY: (
+        "Improve coherence, practicality, and feasibility: rectify invalid "
+        "initial assumptions, tighten the internal logic, and refine the "
+        "proposal so it is implementable with contemporary technological "
+        "capabilities, retaining its novelty and specific articulation."
+    ),
+    EvolutionOperator.INSPIRATION: (
+        "Evolve the idea by borrowing the mechanism or structure of one of "
+        "the existing top-ranked approaches supplied as partners into this "
+        "hypothesis's target context. State what was borrowed, from which "
+        "approach, and what was adapted rather than replicated."
+    ),
+    EvolutionOperator.COMBINATION: (
+        "Synthesize complementary mechanisms or experiments from the parent "
+        "and the combination partners supplied. Combination is required; do "
+        "not merely polish the parent in isolation."
     ),
     EvolutionOperator.SIMPLIFICATION: (
         "Remove unnecessary assumptions and experimental complexity. Produce "
         "the smallest mechanism and decisive experiment that can test it."
-    ),
-    EvolutionOperator.COMBINATION: (
-        "Synthesize complementary mechanisms or experiments from the parent "
-        "and relevant peer hypotheses. Combination is required; do not merely "
-        "polish the parent in isolation."
     ),
     EvolutionOperator.ANALOGY: (
         "Transfer a defensible mechanism or experimental pattern from a "
@@ -47,7 +78,33 @@ def operator_instruction(operator: EvolutionOperator) -> str:
     return _INSTRUCTIONS[operator]
 
 
-def select_operator(index: int, iteration: int) -> EvolutionOperator:
-    """Select a reproducible portfolio member across parents and iterations."""
-    operators = tuple(EvolutionOperator)
-    return operators[(index + iteration) % len(operators)]
+def select_operators(
+    count: int, iteration: int, seed_material: str
+) -> list[EvolutionOperator]:
+    """Assign this round's operators with coverage across the portfolio.
+
+    Deals from a per-run shuffled deck of every operator, rotating the deal
+    position each round, so every operator gains coverage across rounds
+    whatever the tier's parent count. The old ``(index + iteration) % len``
+    round-robin structurally skipped operators a small parent set never
+    reached -- on an express-tier round the position of ENHANCEMENT in the
+    cycle decided whether enhancement (and the live retrieval it carries)
+    happened at all.
+
+    Args:
+        count: Number of parents to assign operators to.
+        iteration: This evolution round's iteration number; rotates which
+            operators a round of a given size reaches.
+        seed_material: Run-scoped seed text; the assignment is fully
+            deterministic for a given (seed_material, iteration, count).
+
+    Returns:
+        One operator per parent, in parent order.
+    """
+    if count <= 0:
+        return []
+    deck = list(EvolutionOperator)
+    rng = random.Random(f"{seed_material}:evolution-operators")
+    rng.shuffle(deck)
+    offset = (iteration * count) % len(deck)
+    return [deck[(offset + index) % len(deck)] for index in range(count)]

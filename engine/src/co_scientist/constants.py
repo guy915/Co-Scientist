@@ -24,9 +24,6 @@ from co_scientist.constants_tournament import (
     INITIAL_ELO_RATING as INITIAL_ELO_RATING,
 )
 from co_scientist.constants_tournament import (
-    MULTI_TURN_DEBATE_TURNS as MULTI_TURN_DEBATE_TURNS,
-)
-from co_scientist.constants_tournament import (
     RANKING_WAVE_MIN_SIZE as RANKING_WAVE_MIN_SIZE,
 )
 from co_scientist.constants_tournament import (
@@ -172,28 +169,6 @@ MAX_CONCURRENT_LLM_CALLS: Final = 5
 DEFAULT_MAX_ITERATIONS: Final = 1
 """Default number of refinement iterations."""
 
-# Debate generation parameters
-DEBATE_MAX_TURNS: Final = 3
-"""Ceiling on debate turns; a converged panel stops before reaching it.
-
-The prompt asks the panel to declare convergence by writing "HYPOTHESIS",
-and ``debate._debate_converged`` reads that signal, so this bounds a debate
-that never agrees rather than sizing every debate.
-
-This is the deepest serial chain in a run and therefore sets the generation
-stage's wall clock outright. Turns cannot overlap -- each one is handed the
-previous turn's reply as its transcript -- so the stage costs this many
-call latencies however many debates run at once, and however many workers
-the cohort has. Widening concurrency cannot touch it; only the ceiling can.
-
-Lowered from five. The non-final turns are undifferentiated: they share one
-prompt and one instruction set, so a turn is another round of the same
-argument rather than a distinct stage, and the prompt's own termination
-condition puts convergence at "typically 3-5 conversational turns". Two
-rounds of discussion followed by the schema-constrained synthesis keeps the
-panel's disagreement and drops the tail it spends restating agreement.
-"""
-
 DEFAULT_INITIAL_HYPOTHESES_COUNT: Final = 5
 """Default number of initial hypotheses to generate."""
 
@@ -234,11 +209,12 @@ PROGRESS_REVIEW_START: Final = 25
 PROGRESS_REVIEW_COMPLETE: Final = 40
 PROGRESS_SAFETY_SCREEN_START: Final = 41
 PROGRESS_SAFETY_SCREEN_COMPLETE: Final = 42
-# Deep verification precedes every tournament.
-PROGRESS_DEEP_VERIFICATION_START: Final = 45
-PROGRESS_DEEP_VERIFICATION_COMPLETE: Final = 50
 PROGRESS_TOURNAMENT_START: Final = 55
 PROGRESS_TOURNAMENT_COMPLETE: Final = 70
+# Deep verification probes the post-tournament leaders, so its band sits
+# between the tournament and the post-tournament decision (audit E9).
+PROGRESS_DEEP_VERIFICATION_START: Final = 71
+PROGRESS_DEEP_VERIFICATION_COMPLETE: Final = 72
 # The post-tournament band; the shared value is explained above.
 PROGRESS_ORCHESTRATOR_DECISION: Final = 75
 PROGRESS_PROXIMITY_START: Final = 75

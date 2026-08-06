@@ -2,53 +2,35 @@
 
 import asyncio
 import logging
+import random
 from collections.abc import Coroutine
 from typing import Any
 
 from co_scientist.agents.evolution.evolution_operators import (
-    select_operator,
+    EvolutionOperator,
+    select_operators,
 )
 from co_scientist.agents.evolution.evolve_context import (
-    _find_most_similar as _find_most_similar,
+    combination_partners as combination_partners,
 )
 from co_scientist.agents.evolution.evolve_context import (
-    _hypothesis_texts as _hypothesis_texts,
-)
-from co_scientist.agents.evolution.evolve_context import (
-    _sample_up_to as _sample_up_to,
-)
-from co_scientist.agents.evolution.evolve_context import (
-    calculate_text_similarity as calculate_text_similarity,
+    find_nearest_peer as find_nearest_peer,
 )
 from co_scientist.agents.evolution.evolve_context import (
     sample_context_hypotheses as sample_context_hypotheses,
 )
-from co_scientist.agents.evolution.evolve_feedback import (
-    _debates_for as _debates_for,
-)
-from co_scientist.agents.evolution.evolve_feedback import (
-    _proximity_neighbors_for as _proximity_neighbors_for,
+from co_scientist.agents.evolution.evolve_context import (
+    token_coverage as token_coverage,
 )
 from co_scientist.agents.evolution.evolve_feedback import (
     _specialist_feedback_for as _specialist_feedback_for,
 )
-from co_scientist.agents.evolution.evolve_feedback import (
-    _tournament_matches_for as _tournament_matches_for,
+from co_scientist.agents.evolution.evolve_grounding import (
+    enhancement_grounding_block,
+    grounding_metrics_extra,
 )
 from co_scientist.agents.evolution.evolve_prompt import (
     _build_evolution_prompt as _build_evolution_prompt,
-)
-from co_scientist.agents.evolution.evolve_prompt import (
-    _build_evolution_variables as _build_evolution_variables,
-)
-from co_scientist.agents.evolution.evolve_prompt import (
-    _build_meta_review_insights as _build_meta_review_insights,
-)
-from co_scientist.agents.evolution.evolve_prompt import (
-    _build_review_feedback as _build_review_feedback,
-)
-from co_scientist.agents.evolution.evolve_prompt import (
-    _build_supervisor_guidance_text as _build_supervisor_guidance_text,
 )
 from co_scientist.agents.evolution.evolve_prompt import (
     _EvolutionContext as _EvolutionContext,
@@ -56,26 +38,8 @@ from co_scientist.agents.evolution.evolve_prompt import (
 from co_scientist.agents.evolution.evolve_prompt import (
     _EvolutionOperation as _EvolutionOperation,
 )
-from co_scientist.agents.evolution.evolve_prompt import (
-    _format_diversity_instruction as _format_diversity_instruction,
-)
-from co_scientist.agents.evolution.evolve_prompt import (
-    _format_evolution_guidance_lines as _format_evolution_guidance_lines,
-)
-from co_scientist.agents.evolution.evolve_prompt import (
-    _format_iteration_strategy as _format_iteration_strategy,
-)
-from co_scientist.agents.evolution.evolve_prompt import (
-    _format_refinement_priorities as _format_refinement_priorities,
-)
-from co_scientist.agents.evolution.evolve_prompt import (
-    _log_meta_review_debug as _log_meta_review_debug,
-)
 from co_scientist.agents.evolution.evolve_results import (
     _apply_evolution_result as _apply_evolution_result,
-)
-from co_scientist.agents.evolution.evolve_results import (
-    _apply_refined_hypothesis as _apply_refined_hypothesis,
 )
 from co_scientist.agents.evolution.evolve_results import (
     _build_evolve_state_delta as _build_evolve_state_delta,
@@ -119,6 +83,12 @@ logger = logging.getLogger(__name__)
 # Shared default operation (frozen/immutable): the enhancement operator with
 # no specialist feedback, used when a caller does not specify one.
 _DEFAULT_EVOLUTION_OPERATION = _EvolutionOperation()
+
+# Operators whose brief draws on designated top-ranked partners: combination
+# merges them, inspiration borrows from them.
+_PARTNER_OPERATORS = frozenset(
+    {EvolutionOperator.COMBINATION, EvolutionOperator.INSPIRATION}
+)
 
 
 def _evolve_token_budget(other_hypotheses_texts: list[str]) -> int:
@@ -187,7 +157,7 @@ async def _call_evolution_llm(
 
 async def evolve_single_hypothesis(
     hypothesis: Hypothesis,
-    other_hypotheses_texts: list[str],
+    other_hypotheses: list[Hypothesis],
     context: _EvolutionContext,
     hypothesis_index: int | None = None,
     operation: _EvolutionOperation = _DEFAULT_EVOLUTION_OPERATION,
@@ -195,36 +165,48 @@ async def evolve_single_hypothesis(
     """Evolve a single hypothesis into a new child with sampled context.
 
     ``context`` bundles the run/round-invariant inputs (model, meta-review,
-    removed duplicates, guidance) and ``operation`` the per-hypothesis
-    operator and specialist feedback. Returns ``(child, detail)`` on
-    acceptance, else ``(None, None)``.
+    removed duplicates, guidance, and -- for the enhancement operator's
+    live grounding retrieval -- the workflow state) and ``operation`` the
+    per-hypothesis operator and specialist feedback. Returns
+    ``(child, detail)`` on acceptance, else ``(None, None)``.
+
+    Args:
+        hypothesis: The hypothesis to evolve.
+        other_hypotheses: Sampled pool peers; their texts form the
+            anti-convergence context and the near-duplicate rejection set.
+        context: Run-level evolution context.
+        hypothesis_index: Optional index for naming saved prompts.
+        operation: The operator and its inputs for this hypothesis.
     """
     response = await _evolve_llm_response(
         hypothesis,
-        other_hypotheses_texts,
+        other_hypotheses,
         context,
         hypothesis_index,
         operation,
     )
     return _apply_evolution_result(
-        hypothesis,
-        response,
-        other_hypotheses_texts,
-        context.creation_iteration,
+        hypothesis, response, other_hypotheses, context, operation
     )
 
 
 async def _evolve_llm_response(
     hypothesis: Hypothesis,
-    other_hypotheses_texts: list[str],
+    other_hypotheses: list[Hypothesis],
     context: _EvolutionContext,
     hypothesis_index: int | None,
     operation: _EvolutionOperation,
 ) -> dict[str, Any]:
     """Builds the prompt, calls the evolution LLM, tags the operator used."""
-    _log_meta_review_debug(context.meta_review)
+    other_hypotheses_texts = [peer.text for peer in other_hypotheses]
+    grounding = ""
+    if (
+        operation.operator is EvolutionOperator.ENHANCEMENT
+        and context.state is not None
+    ):
+        grounding = await enhancement_grounding_block(context.state, hypothesis)
     full_prompt, schema = _build_evolution_prompt(
-        hypothesis, other_hypotheses_texts, context, operation
+        hypothesis, other_hypotheses_texts, context, operation, grounding
     )
     response = await _call_evolution_llm(
         full_prompt,
@@ -236,39 +218,69 @@ async def _evolve_llm_response(
     return {**response, "_evolution_operator": operation.operator.value}
 
 
+def _context_sample_seed(
+    context: _EvolutionContext, hypothesis: Hypothesis
+) -> str:
+    """Run-scoped seed for one parent's diversity-context sample.
+
+    Threaded from the run id so a round's sampling is reproducible (and so
+    concurrent runs draw from their own RNG rather than perturbing a shared
+    global one). The hypothesis id keeps each parent's sample independent;
+    ids are stable across a durable task's retries, so a re-executed task
+    samples the same context it did before.
+    """
+    return f"{context.run_id or 'evolution'}:context:{hypothesis.id}"
+
+
+def _sampled_context(
+    state: WorkflowState, context: _EvolutionContext, hyp: Hypothesis
+) -> list[Hypothesis]:
+    """Samples the near-duplicate rejection context for one parent.
+
+    Sampled from the whole pool, not just the top_k being evolved this
+    round. These hypotheses are the near-duplicate *rejection* set (see
+    _apply_evolution_result), so anything missing from them is something
+    a child is free to re-derive: scoping to top_k left the guard blind
+    to most of the run's ideas, and a child duplicating one of them
+    passed here only for proximity to archive it later. A run that ends
+    with a dozen near-identical ideas has usually been through exactly
+    that.
+
+    It also makes sample_context_hypotheses do the job it was written
+    for. Against top_k the pool never exceeded max_context, so the
+    top-5-by-Elo-plus-random sampling never ran and the cap never bound;
+    against the full pool it does both.
+    """
+    return sample_context_hypotheses(
+        all_hypotheses=state["hypotheses"],
+        exclude_hypothesis=hyp,
+        max_context=15,  # cap at 15 for fixed token budget
+        ranked_hypotheses=list(context.ranked_hypotheses),
+        rng=random.Random(_context_sample_seed(context, hyp)),
+    )
+
+
 def _build_single_evolution_task(
     state: WorkflowState,
     i: int,
     hyp: Hypothesis,
     context: _EvolutionContext,
-    ranked_hypotheses: list[Hypothesis],
+    operator: EvolutionOperator,
 ) -> Coroutine[Any, Any, tuple[Hypothesis | None, dict[str, Any] | None]]:
     """Builds the evolve_single_hypothesis coroutine for one pool member."""
+    partners = (
+        tuple(combination_partners(context.ranked_hypotheses, hyp))
+        if operator in _PARTNER_OPERATORS
+        else ()
+    )
     operation = _EvolutionOperation(
-        operator=select_operator(i, context.creation_iteration or 0),
+        operator=operator,
         specialist_feedback=_specialist_feedback_for(state, hyp),
+        partners=partners,
     )
     return evolve_single_hypothesis(
         hypothesis=hyp,
-        # Sampled from the whole pool, not just the top_k being evolved this
-        # round. These texts are the near-duplicate *rejection* set (see
-        # _apply_evolution_result), so anything missing from them is
-        # something a child is free to re-derive: scoping to top_k left the
-        # guard blind to most of the run's ideas, and a child duplicating
-        # one of them passed here only for proximity to archive it later.
-        # A run that ends with a dozen near-identical ideas has usually
-        # been through exactly that.
-        #
-        # It also makes sample_context_hypotheses do the job it was written
-        # for. Against top_k the pool never exceeded max_context, so the
-        # top-5-by-Elo-plus-random sampling never ran and the cap never
-        # bound; against the full pool it does both.
-        other_hypotheses_texts=sample_context_hypotheses(
-            all_hypotheses=state["hypotheses"],
-            exclude_hypothesis=hyp,
-            max_context=15,  # cap at 15 for fixed token budget
-            ranked_hypotheses=ranked_hypotheses,
-        ),
+        other_hypotheses=_sampled_context(state, context, hyp),
         context=context,
         hypothesis_index=i,
         operation=operation,
@@ -292,6 +304,9 @@ def _build_evolution_context(
         tool_registry=state.get("tool_registry"),
         run_setup_guidance=state.get("run_setup_guidance"),
         run_focus_guidance=state.get("run_focus_guidance"),
+        proximity_graph=state.get("proximity_graph"),
+        ranked_hypotheses=tuple(rank_by_elo(state["hypotheses"])),
+        state=state,
     )
 
 
@@ -300,6 +315,7 @@ def _build_evolution_tasks(
     top_k: list[Hypothesis],
     removed_duplicates: list[str],
     supervisor_guidance: dict[str, Any] | None,
+    operators: list[EvolutionOperator],
 ) -> list[Coroutine[Any, Any, tuple[Hypothesis | None, dict[str, Any] | None]]]:
     """Builds the per-hypothesis evolution coroutines for this round.
 
@@ -312,6 +328,8 @@ def _build_evolution_tasks(
         top_k: Hypotheses selected for evolution this round.
         removed_duplicates: Flattened previously removed duplicate texts.
         supervisor_guidance: Supervisor guidance for the evolution phase.
+        operators: The per-parent operator assignment for this round (one
+            per member of top_k, in order).
 
     Returns:
         List of evolve_single_hypothesis coroutines, one per hypothesis in
@@ -320,13 +338,12 @@ def _build_evolution_tasks(
     context = _build_evolution_context(
         state, removed_duplicates, supervisor_guidance
     )
-    # Rank the pool once for the whole round rather than once per member:
-    # every member samples its context from the same pool minus itself, and
-    # dropping one member cannot reorder the rest.
-    ranked_hypotheses = rank_by_elo(state["hypotheses"])
+    # The pool is ranked once for the whole round in the context (see
+    # _build_evolution_context): every member samples its context from the
+    # same pool minus itself, and dropping one member cannot reorder the rest.
     return [
-        _build_single_evolution_task(state, i, hyp, context, ranked_hypotheses)
-        for i, hyp in enumerate(top_k)
+        _build_single_evolution_task(state, i, hyp, context, operator)
+        for i, (hyp, operator) in enumerate(zip(top_k, operators, strict=True))
     ]
 
 
@@ -352,8 +369,17 @@ async def evolve_node(state: WorkflowState) -> dict[str, Any]:
         supervisor_guidance,
     ) = await _prepare_evolution_round(state, hypotheses)
 
+    # One seeded operator assignment for the round: every parent gets an
+    # explicit operator and the portfolio gains coverage across rounds
+    # whatever the tier's parent count.
+    operators = select_operators(
+        len(top_k),
+        state.get("current_iteration", 0),
+        state.get("run_id") or "evolution",
+    )
+
     evolution_tasks = _build_evolution_tasks(
-        state, top_k, removed_duplicates, supervisor_guidance
+        state, top_k, removed_duplicates, supervisor_guidance, operators
     )
     results = await asyncio.gather(*evolution_tasks)
 
@@ -362,5 +388,11 @@ async def evolve_node(state: WorkflowState) -> dict[str, Any]:
     children, evolution_details = _collect_evolution_results(results)
 
     return await _finalize_evolve_result(
-        state, children, evolution_details, attempt_count=len(top_k)
+        state,
+        children,
+        evolution_details,
+        attempt_count=len(top_k),
+        extra_llm_calls=grounding_metrics_extra(
+            state, [operator.value for operator in operators]
+        ),
     )

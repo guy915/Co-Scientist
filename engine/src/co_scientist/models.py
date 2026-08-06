@@ -228,6 +228,10 @@ class Hypothesis:
     # default so older cached payloads without these keys still deserialize
     # (see from_dict).
     parent_id: str | None = field(default=None, compare=False)
+    # Every parent merged into this hypothesis (multi-parent combination);
+    # parent_id stays the primary parent so lineage consumers are unchanged.
+    # Empty for hypotheses with no recorded multi-parent lineage.
+    parent_ids: list[str] = field(default_factory=list, compare=False)
     generation: int = field(default=0, compare=False)
     origin: HypothesisOrigin = field(
         default=HypothesisOrigin.GENERATION, compare=False
@@ -351,6 +355,7 @@ class Hypothesis:
         return {
             "id": self.id,
             "parent_id": self.parent_id,
+            "parent_ids": list(self.parent_ids),
             "generation": self.generation,
             "origin": self.origin.value,
             "creation_iteration": self.creation_iteration,

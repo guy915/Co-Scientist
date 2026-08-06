@@ -28,6 +28,7 @@ class _MatchupPromptContext:
     tool_registry: Any | None = None
     run_setup_guidance: str | None = None
     run_focus_guidance: str | None = None
+    criteria: list[str] | None = None
 
 
 @dataclasses.dataclass(frozen=True)
@@ -230,6 +231,7 @@ def _render_matchup_prompt(
             run_setup_guidance=context.run_setup_guidance,
             run_focus_guidance=context.run_focus_guidance,
         ),
+        criteria=context.criteria,
     )
 
 

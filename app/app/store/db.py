@@ -324,6 +324,18 @@ def _migrate_proximity_and_evidence_columns(
     _add_column_if_missing(conn, "evidence", "extraction_tool", "TEXT")
 
 
+def _migrate_hypothesis_parent_ids(conn: sqlite3.Connection) -> None:
+    """Add the multi-parent lineage column to hypotheses.
+
+    Evolution's combination operator merges several parents into one child.
+    ``parent_id`` keeps the primary parent so existing lineage consumers are
+    unaffected; this column records the full parent list as a JSON array.
+    Rows written before the column existed read back as NULL (single-parent
+    lineage), which is the only state they could represent.
+    """
+    _add_column_if_missing(conn, "hypotheses", "parent_ids", "TEXT")
+
+
 def _run_migrations(conn: sqlite3.Connection) -> None:
     """Apply idempotent in-place schema migrations to an open connection."""
     _migrate_client_isolation(conn)
@@ -331,6 +343,7 @@ def _run_migrations(conn: sqlite3.Connection) -> None:
     _migrate_interview_message_hypothesis_columns(conn)
     _migrate_match_and_safety_columns(conn)
     _migrate_proximity_and_evidence_columns(conn)
+    _migrate_hypothesis_parent_ids(conn)
 
 
 def checkpoint_wal(db_path: str | None = None) -> None:

@@ -26,43 +26,44 @@ from tests._stream import collect_stream_events
 
 # The node execution order for one max_iterations=1 run in LLM-only mode
 # (literature_review/reflection are absent -- see tests/test_generator.py's
-# _SIMPLE_NODES). One full pass through generate/review/deep_verification/
-# ranking reaches the orchestrator, which schedules one evolve cycle,
-# then a proximity refresh, then terminates (converged) into research_overview.
+# _SIMPLE_NODES). One full pass through generate/review/ranking reaches the
+# orchestrator, which schedules one evolve cycle, then a proximity refresh,
+# then terminates (converged) into research_overview. Deep verification
+# follows every ranking pass, probing the tournament's leaders (audit E9).
 # The orchestrator is the loop point that appears before each routed phase.
 #
 # Each tournament is followed by a second ranking pass: this pool holds two
 # rankable ideas, so one pairing leaves both at one match of the
 # TOURNAMENT_MIN_MATCHES_PER_HYPOTHESIS the tournament's coverage floor asks
 # for, and the orchestrator's owed-coverage check settles the shortfall before
-# moving on. The settlement round re-enters through safety_screen and
-# deep_verification like any other routed ranking phase. It fires once per
-# tournament, not repeatedly: settling brings the pool to the minimum, which
-# closes the settlement episode.
+# moving on. The settlement round re-enters through safety_screen and ranking
+# like any other routed ranking phase. It fires once per tournament, not
+# repeatedly: settling brings the pool to the minimum, which closes the
+# settlement episode.
 _EXPECTED_NODE_SEQUENCE = [
     "supervisor",
     "generate",
     "review",
     "comprehensive_reflection",
     "safety_screen",
-    "deep_verification",
     "ranking",
+    "deep_verification",
     "orchestrator",
     "safety_screen",
-    "deep_verification",
     "ranking",
+    "deep_verification",
     "orchestrator",
     "meta_review",
     "evolve",
     "review",
     "comprehensive_reflection",
     "safety_screen",
-    "deep_verification",
     "ranking",
+    "deep_verification",
     "orchestrator",
     "safety_screen",
-    "deep_verification",
     "ranking",
+    "deep_verification",
     "orchestrator",
     "proximity",
     "orchestrator",
@@ -164,8 +165,8 @@ async def test_generate_hypotheses_streaming_event_progression(
     assert all(isinstance(h, dict) for h in generate_state["hypotheses"])
 
     # The first "ranking" pass has already recorded tournament matchups.
-    first_ranking_state = events[6][1]
-    assert events[6][0] == "ranking"
+    first_ranking_state = events[5][1]
+    assert events[5][0] == "ranking"
     assert first_ranking_state["tournament_matchups"]
 
     # "meta_review" carries a populated meta_review payload from that

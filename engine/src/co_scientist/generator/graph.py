@@ -136,13 +136,10 @@ def _add_generation_phase_edges(
 
 
 def _add_review_and_ranking_edges(workflow: _WorkflowBuilder) -> None:
-    """Wires the review phase through safety/verification into ranking."""
+    """Wires the review phase through the safety screen into ranking."""
     workflow.add_edge("review", "comprehensive_reflection")
     workflow.add_edge("comprehensive_reflection", "safety_screen")
-    workflow.add_edge("safety_screen", "deep_verification")
-    # Verification precedes every tournament so contradicted fundamentals
-    # do not contaminate Elo.
-    workflow.add_edge("deep_verification", "ranking")
+    workflow.add_edge("safety_screen", "ranking")
 
 
 def _add_evolution_edges(workflow: _WorkflowBuilder) -> None:
@@ -160,7 +157,10 @@ def _add_loop_and_terminal_edges(workflow: _WorkflowBuilder) -> None:
     replacing the fixed post-ranking/post-proximity iteration-count edges.
     Every completion path flows through research-overview before ending.
     """
-    workflow.add_edge("ranking", "orchestrator")
+    # Deep verification follows ranking so it probes the tournament's
+    # leaders (audit E9), not an all-tied pre-ranking pool.
+    workflow.add_edge("ranking", "deep_verification")
+    workflow.add_edge("deep_verification", "orchestrator")
     workflow.add_edge("proximity", "orchestrator")
     workflow.add_conditional_edges(
         "orchestrator", _route_next_task, _TASK_ROUTE_NODES

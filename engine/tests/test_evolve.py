@@ -2,15 +2,15 @@
 
 The node's only external dependency is a per-hypothesis ``call_llm_json`` call
 that returns the refined hypothesis. These tests stub that out and assert on the
-deterministic top-k selection, the construction of immutable child Hypothesis
-objects (new id, parent link, Elo 1200, zero matches) from the canned response,
-and the recorded ``evolution_details``.
+deterministic top-5 parent selection, the construction of immutable child
+Hypothesis objects (new id, parent link, Elo 1200, zero matches) from the canned
+response, and the recorded ``evolution_details``.
 
 evolve_node returns ``{"hypotheses": AppendHypotheses(children), ...}``: the
 children are APPENDED to the pool by the reducer, and the parents are left
 unchanged (paper invariant SSR §4, §12). Use ``_children`` to unwrap them.
 
-To keep the stub's evolved text below the 0.95 near-duplicate guard
+To keep the stub's evolved text below the near-duplicate guard
 (``DUPLICATE_SIMILARITY_THRESHOLD``) and distinct from each original, the input
 hypotheses and the canned responses use disjoint vocabularies.
 """
@@ -60,14 +60,30 @@ _MAX_COUNT_TEXTS = [
 # the pool is sliced in list order rather than ranked.
 _MAX_COUNT_ELOS = [1000, 1100, 1200, 1300, 1400]
 
-# A distinct, disjoint evolved text per top-k original so neither the
-# unchanged guard nor the 0.95 near-duplicate guard fires.
-_MAX_COUNT_EVOLVED = {
+# Two more disjoint-vocabulary ideas that rank below _MAX_COUNT_TEXTS, used
+# to build seven-hypothesis pools for the fixed top-5 selection tests.
+_EXTRA_TEXTS = [
+    "foxtrot scaffold stabilizes microtubule assembly",
+    "golf ligand quenches reactive oxygen species",
+]
+
+# A distinct, disjoint evolved text per top-5 original so neither the
+# unchanged guard nor the near-duplicate guard fires.
+_TOP_FIVE_EVOLVED = {
+    "alpha membrane channel governs sodium": (
+        "hotel peptide blocks vesicle fusion irreversibly"
+    ),
+    "bravo cytokine triggers inflammation cascade": (
+        "india cofactor rescues folding intermediates rapidly"
+    ),
+    "charlie enzyme catalyzes lipid breakdown": (
+        "juliet chaperone prevents aggregation of nascent chains"
+    ),
     "delta receptor binds dopamine selectively": (
-        "foxtrot scaffold stabilizes microtubule assembly"
+        "kilo antisense oligo silences the splice variant cleanly"
     ),
     "echo transporter shuttles glucose intracellularly": (
-        "golf ligand quenches reactive oxygen species"
+        "lima nanoparticle ferries the payload across the membrane"
     ),
 }
 
@@ -269,36 +285,86 @@ async def test_evolution_noop_produces_no_child(
     assert original.deep_verification_verdict == "holds"
 
 
-async def test_respects_evolution_max_count(
+async def test_evolution_breeds_the_paper_fixed_top_five(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """With more hypotheses than the cap, only the top-k are evolved/kept.
+    """Evolution breeds the top-5 ranked hypotheses, not a tier-scaled set.
 
-    Five disjoint-vocabulary hypotheses with a cap of 2 must yield exactly two
-    evolved hypotheses and two evolution details; the lower ranked three are
-    discarded. The two strongest sit at the *end* of the input list, so "top"
-    can only mean the Elo ranking -- read off the first two positions this
-    passes whatever the ratings say.
+    Seven disjoint-vocabulary hypotheses must yield exactly five evolved
+    children; the two lowest-ranked ideas are never bred. The strongest five
+    sit at the *end* of the input list, so "top" can only mean the Elo
+    ranking -- read off the first five positions this passes whatever the
+    ratings say.
+    """
+    texts = [*_MAX_COUNT_TEXTS, _EXTRA_TEXTS[0], _EXTRA_TEXTS[1]]
+    elos = [*_MAX_COUNT_ELOS, 900, 800]  # the extras rank below the five
+    hypotheses = [
+        make_hypothesis(text=text, elo_rating=elo)
+        for text, elo in zip(texts, elos, strict=True)
+    ]
+    state = make_state(hypotheses=hypotheses)
+    _stub_llm_from_prompt(monkeypatch, _make_top_k_builder(_TOP_FIVE_EVOLVED))
+
+    result = await evolve_node(state)
+
+    children = _children(result)
+    assert len(children) == 5
+    assert len(result["evolution_details"]) == 5
+    evolved_texts = {h.text for h in children}
+    assert evolved_texts == set(_TOP_FIVE_EVOLVED.values())
+    top_five_ids = {hypotheses[i].id for i in range(5)}
+    assert {c.parent_id for c in children} == top_five_ids
+
+
+async def test_evolution_ignores_the_tier_scaled_evolution_max_count(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The state's evolution_max_count no longer sizes the parent set.
+
+    Regression guard: a tier-scaled envelope (4/8/12/16) once decided how
+    many parents were bred; the parent set is the paper's fixed top-5, so a
+    pool of five rankable ideas yields five children even when the state
+    still carries a smaller legacy value.
     """
     hypotheses = [
         make_hypothesis(text=text, elo_rating=elo)
         for text, elo in zip(_MAX_COUNT_TEXTS, _MAX_COUNT_ELOS, strict=True)
     ]
-    state = make_state(hypotheses=hypotheses, evolution_max_count=2)
-    _stub_llm_from_prompt(monkeypatch, _make_top_k_builder(_MAX_COUNT_EVOLVED))
+    state = make_state(hypotheses=hypotheses, evolution_max_count=1)
+    _stub_llm_from_prompt(monkeypatch, _make_top_k_builder(_TOP_FIVE_EVOLVED))
 
     result = await evolve_node(state)
 
-    children = _children(result)
-    assert len(children) == 2
-    assert len(result["evolution_details"]) == 2
-    evolved_texts = {h.text for h in children}
-    assert evolved_texts == set(_MAX_COUNT_EVOLVED.values())
-    # Only the top-2 were evolved; the children are new-text entrants and each
-    # links back to one of the top-2 parents.
-    assert not (evolved_texts & set(_MAX_COUNT_TEXTS))
-    top_two_ids = {hypotheses[3].id, hypotheses[4].id}
-    assert {c.parent_id for c in children} == top_two_ids
+    assert len(_children(result)) == 5
+
+
+async def test_evolution_small_pool_breeds_every_rankable_idea(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Fewer than five rankable hypotheses evolve all of them.
+
+    Express-tier runs can hold fewer than five ideas; the slice then returns
+    every rankable hypothesis rather than padding or failing.
+    """
+    state = make_state(
+        hypotheses=[
+            make_hypothesis(text=_MAX_COUNT_TEXTS[0], elo_rating=1200),
+            make_hypothesis(text=_MAX_COUNT_TEXTS[1], elo_rating=1100),
+        ]
+    )
+    _stub_llm_from_prompt(
+        monkeypatch,
+        _make_top_k_builder(
+            {
+                _MAX_COUNT_TEXTS[0]: _TOP_FIVE_EVOLVED[_MAX_COUNT_TEXTS[0]],
+                _MAX_COUNT_TEXTS[1]: _TOP_FIVE_EVOLVED[_MAX_COUNT_TEXTS[1]],
+            }
+        ),
+    )
+
+    result = await evolve_node(state)
+
+    assert len(_children(result)) == 2
 
 
 async def test_evolution_parents_are_ranked_survivors_not_the_list_head(
@@ -336,7 +402,7 @@ async def test_evolution_parents_are_ranked_survivors_not_the_list_head(
 
     # Asserted on the selection itself so a regression names the parents it
     # picked, not just the stub guard the wrong parent trips downstream.
-    parents = _select_evolution_pool(state, state["hypotheses"])
+    parents = _select_evolution_pool(state["hypotheses"])
     assert [h.text for h in parents] == [survivors[1].text, survivors[0].text]
 
     result = await evolve_node(state)
@@ -412,7 +478,7 @@ async def test_duplicate_guard_sees_ideas_outside_the_evolution_pool(
 ) -> None:
     """A child duplicating any pool member is rejected, not just a top-k one.
 
-    ``other_hypotheses_texts`` is the near-duplicate rejection set (see
+    ``other_hypotheses`` is the near-duplicate rejection set (see
     ``_apply_evolution_result``), so anything absent from it is something a
     child may freely re-derive. Scoping it to the hypotheses being evolved
     this round left the guard blind to the rest of the pool: the child

@@ -8,6 +8,8 @@ pair a markdown prompt template with its response schema.
 from typing import Any
 
 from co_scientist.schemas.generation import (
+    ASSUMPTION_SUB_SCHEMA,
+    ASSUMPTION_TREE_SCHEMA,
     GENERATION_DRAFT_SCHEMA,
     GENERATION_SCHEMA,
     HYPOTHESIS_NOVELTY_ANALYSIS_SCHEMA,
@@ -44,6 +46,8 @@ from co_scientist.schemas.synthesis import (
 _PROMPT_SCHEMA_MAP: dict[str, dict[str, Any]] = {
     "generation_draft_with_tools": GENERATION_DRAFT_SCHEMA,
     "generation_assumptions": GENERATION_SCHEMA,
+    "generation_assumption_tree": ASSUMPTION_TREE_SCHEMA,
+    "generation_assumption_sub": ASSUMPTION_SUB_SCHEMA,
     "generation_debate_and_literature": GENERATION_SCHEMA,
     "generation_after_debate": GENERATION_SCHEMA,
     "review": REVIEW_SCHEMA,

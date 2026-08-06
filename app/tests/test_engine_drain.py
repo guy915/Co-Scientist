@@ -8,9 +8,11 @@ returning the report inputs. The report itself is built and persisted by the
 shared ``report_render.finalize_report`` path.
 
 This module holds the core drain, research-overview, lineage, matchup, and
-synthesis-exclusion cases. Citation classification and deep-verification
-reviews live in ``test_engine_drain_citations.py``; the pre-tournament safety
-screen and rank-and-publish gating live in ``test_engine_drain_safety.py``.
+synthesis-exclusion cases. Multi-parent (combination) lineage lives in
+``test_engine_drain_lineage.py``; citation classification and
+deep-verification reviews live in ``test_engine_drain_citations.py``; the
+pre-tournament safety screen and rank-and-publish gating live in
+``test_engine_drain_safety.py``.
 Shared synthetic-state builders live in ``tests/_drain_helpers.py``. The
 adapter's canonical event vocabulary is covered separately in
 ``test_engine_adapter_events``.

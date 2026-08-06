@@ -150,6 +150,10 @@ CREATE TABLE IF NOT EXISTS hypotheses (
     id TEXT PRIMARY KEY,
     run_id TEXT NOT NULL,
     parent_id TEXT,                  -- NULL for generation-0; set by evolve
+    -- JSON array of every parent id for multi-parent combination children;
+    -- NULL when a single parent_id is the whole lineage. parent_id stays the
+    -- primary parent so existing lineage consumers are unaffected.
+    parent_ids TEXT,
     generation INTEGER NOT NULL DEFAULT 0,
     category TEXT,                   -- short classification label (breadcrumb)
     title TEXT NOT NULL,

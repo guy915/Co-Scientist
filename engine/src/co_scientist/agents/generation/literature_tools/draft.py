@@ -37,6 +37,10 @@ from co_scientist.agents.generation.literature_tools.draft_tools import (
 from co_scientist.agents.generation.literature_tools.draft_tools import (
     _setup_tool_provider as _setup_tool_provider,
 )
+from co_scientist.agents.generation.research_expansion import (
+    EXPANSION_EXTRA_DRAFT_ITERATIONS,
+    is_research_expansion,
+)
 from co_scientist.constants import (
     DRAFT_MAX_TOKENS_CAP,
     DRAFT_TOKENS_PER_HYPOTHESIS,
@@ -248,19 +252,28 @@ def _log_draft_completion(tool_call_counts: dict[str, int]) -> None:
     )
 
 
-def _compute_draft_iteration_budget(count: int) -> int:
+def _compute_draft_iteration_budget(
+    count: int, is_expansion: bool = False
+) -> int:
     """Scale and log the draft phase's iteration budget for this call.
 
     Args:
         count: Number of hypotheses being drafted.
+        is_expansion: Whether this draft is a research-expansion cycle
+            (E11b); broad exploratory retrieval gets extra round-trips.
 
     Returns:
         The iteration budget for the draft tool-calling loop.
     """
     # Calculate dynamic iteration budget based on hypotheses count
     max_iterations = get_draft_max_iterations(count)
+    if is_expansion:
+        max_iterations += EXPANSION_EXTRA_DRAFT_ITERATIONS
     logger.info(
-        "Draft budget: %s iterations for %s hypotheses", max_iterations, count
+        "Draft budget: %s iterations for %s hypotheses%s",
+        max_iterations,
+        count,
+        " (research expansion)" if is_expansion else "",
     )
     return max_iterations
 
@@ -291,7 +304,9 @@ def _prepare_draft_call(
         mcp_client, tool_registry, "draft_generation", "draft", logger
     )
 
-    max_iterations = _compute_draft_iteration_budget(count)
+    max_iterations = _compute_draft_iteration_budget(
+        count, is_expansion=is_research_expansion(state)
+    )
 
     prompt = _build_draft_prompt(
         state, count, max_iterations, tool_registry, reference_index

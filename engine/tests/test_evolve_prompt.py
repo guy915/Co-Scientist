@@ -11,12 +11,16 @@ plus the review-feedback formatter's "has reviews" path.
 
 from typing import Any
 
+from co_scientist.agents.evolution.evolution_operators import (
+    EvolutionOperator,
+)
 from co_scientist.agents.evolution.evolve_prompt import (
     _build_review_feedback,
     _build_supervisor_guidance_text,
     _format_diversity_instruction,
     _format_evolution_guidance_lines,
     _format_iteration_strategy,
+    _format_partner_context,
     _format_refinement_priorities,
     _log_meta_review_debug,
 )
@@ -109,14 +113,81 @@ def test_diversity_instruction_empty_lists_render_none_provided() -> None:
     other prompt uses for an absent list.
     """
     result = _format_diversity_instruction([], [])
-    assert (
-        "**Other hypotheses being evolved simultaneously:**\n"
-        "None provided" in result
-    )
+    assert "**Other hypotheses in the active pool:**\nNone provided" in result
     assert (
         "**Previously removed duplicates (DO NOT recreate these):**\n"
         "None provided" in result
     )
+
+
+def test_combination_diversity_instruction_exempts_partners() -> None:
+    """Combination exempts its partners from the stay-distinct rule.
+
+    The result must stay distinct from non-partner hypotheses but is
+    required to synthesize the designated partners, so the blanket
+    "remain distinct from all" requirement is replaced.
+    """
+    result = _format_diversity_instruction(
+        ["a peer hypothesis"],
+        ["a removed duplicate"],
+        EvolutionOperator.COMBINATION,
+    )
+    assert "MUST synthesize the designated" in result
+    assert "designated partner" in result.replace("\n", " ")
+    # The contradictory blanket "distinct from all" requirement is gone.
+    assert "MUST remain DISTINCT from:\n1. All other hypotheses" not in result
+    # Recreating removed duplicates stays forbidden.
+    assert "NOT recreate any previously removed duplicate" in result
+
+
+def test_non_combination_diversity_instruction_keeps_blanket_rule() -> None:
+    """Every other operator still demands distinction from all peers."""
+    result = _format_diversity_instruction(
+        ["a peer hypothesis"], [], EvolutionOperator.ENHANCEMENT
+    )
+    assert "MUST remain DISTINCT from" in result
+
+
+# --- _format_partner_context -------------------------------------------------
+
+
+def test_partner_context_renders_full_fields_for_combination() -> None:
+    """Combination partners render whole, never truncated."""
+    partner = make_hypothesis(
+        text="partner mechanism " + "x" * 300,
+        explanation="a full explanation",
+        literature_grounding="full grounding text",
+        experiment="a full experiment design",
+    )
+    result = _format_partner_context((partner,), EvolutionOperator.COMBINATION)
+    assert "## Combination Partners" in result
+    assert "### Partner 1" in result
+    assert partner.text in result  # untruncated
+    assert "a full explanation" in result
+    assert "full grounding text" in result
+    assert "a full experiment design" in result
+    assert "positional index" in result
+
+
+def test_partner_context_inspiration_header() -> None:
+    """Inspiration renders the same full fields under its own header."""
+    partner = make_hypothesis(text="an existing top-ranked approach")
+    result = _format_partner_context((partner,), EvolutionOperator.INSPIRATION)
+    assert "## Inspiration Sources" in result
+    assert partner.text in result
+
+
+def test_partner_context_placeholder_for_other_operators() -> None:
+    """Operators without partners render an explicit placeholder."""
+    result = _format_partner_context((), EvolutionOperator.SIMPLIFICATION)
+    assert "No partners are assigned" in result
+
+
+def test_partner_context_empty_pool_for_combination() -> None:
+    """A one-idea pool still renders the header with an empty note."""
+    result = _format_partner_context((), EvolutionOperator.COMBINATION)
+    assert "## Combination Partners" in result
+    assert "No partners are available" in result
 
 
 # --- _format_refinement_priorities / _format_iteration_strategy ------------

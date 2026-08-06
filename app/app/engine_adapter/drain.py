@@ -45,6 +45,9 @@ from app.engine_adapter.drain_hypotheses import (
     _HypothesisSink as _HypothesisSink,
 )
 from app.engine_adapter.drain_hypotheses import (
+    _payload_parent_ids as _payload_parent_ids,
+)
+from app.engine_adapter.drain_hypotheses import (
     _persist_engine_evidence as _persist_engine_evidence,
 )
 from app.engine_adapter.drain_hypotheses import (
@@ -58,6 +61,9 @@ from app.engine_adapter.drain_hypotheses import (
 )
 from app.engine_adapter.drain_hypotheses import (
     _resolve_persisted_parent_id as _resolve_persisted_parent_id,
+)
+from app.engine_adapter.drain_hypotheses import (
+    _resolve_persisted_parent_ids as _resolve_persisted_parent_ids,
 )
 from app.engine_adapter.drain_matches import (
     _matchup_loser_engine_id as _matchup_loser_engine_id,

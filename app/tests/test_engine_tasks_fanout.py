@@ -206,9 +206,11 @@ async def test_verification_fanout_materializes_one_task_per_top_candidate(
 
 
 async def _fake_verify(*_: Any, **__: Any) -> dict[str, Any]:
+    # "holds" is a real DEEP_VERIFICATION_SCHEMA verdict: the aggregate
+    # fails closed on anything outside the schema enum (audit E9).
     return {
         "probes": [{"question": "q"}],
-        "verdict": "supported",
+        "verdict": "holds",
         "retrieval_queries": ["probe query"],
         "retrieved_articles": [
             Article(
@@ -292,7 +294,7 @@ def _assert_verification_committed(run_id: str, db_path: str) -> None:
     assert latest is not None
     restored = latest["state"]["state"]["hypotheses"]
     assert all(
-        item["deep_verification_verdict"] == "supported" for item in restored
+        item["deep_verification_verdict"] == "holds" for item in restored
     )
     assert latest["state"]["state"]["articles"][-1]["source_id"] == "probe-1"
     assert restored[0]["enrichments"]["deep_verification"][
@@ -303,7 +305,9 @@ def _assert_verification_committed(run_id: str, db_path: str) -> None:
         run_id, "deep_verification", db_path=db_path
     )
     assert len(verification_events) == 1
-    assert verification_events[0]["payload"]["successor"] == "ranking"
+    # Verification now follows the tournament, so it hands back to the
+    # loop point rather than into ranking (audit E9).
+    assert verification_events[0]["payload"]["successor"] == "orchestrator"
 
 
 def _assert_fingerprints_survive_the_checkpoint(
@@ -347,3 +351,56 @@ async def test_verification_children_commit_through_single_aggregator(
 
     _assert_verification_committed(run.id, isolated_db)
     _assert_fingerprints_survive_the_checkpoint(run.id, isolated_db)
+
+
+@pytest.mark.asyncio
+async def test_failed_verification_items_record_explicit_unverified(
+    isolated_db: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A provider failure fails closed at the aggregate boundary (audit E9).
+
+    Errored verification items must not leave their ideas merely untouched
+    -- that read as an implicit pass. The aggregate stamps the explicit
+    ``unverified`` verdict, keeps the fingerprints stale so the next cycle
+    re-attempts, and the ideas remain rankable.
+    """
+    run = store.create_run("Task-level science", "standard", "engine", {})
+    await _advance_verification_node(run.id, monkeypatch, isolated_db)
+
+    for index in range(3):
+        item = store.claim_task(
+            f"child-{index}", run_id=run.id, db_path=isolated_db
+        )
+        assert item is not None
+        assert store.fail_task(
+            item.id,
+            f"child-{index}",
+            "provider failed",
+            retryable=False,
+            db_path=isolated_db,
+        )
+
+    aggregate = store.claim_task(
+        "aggregate", run_id=run.id, db_path=isolated_db
+    )
+    assert aggregate is not None
+    result = await engine_tasks.execute_verification_aggregate(
+        aggregate, db_path=isolated_db
+    )
+    assert result["successful_verifications"] == 0
+    assert result["failed_verifications"] == 3
+    assert store.complete_task(
+        aggregate.id, "aggregate", result, db_path=isolated_db
+    )
+
+    latest = store.get_latest_checkpoint(run.id, db_path=isolated_db)
+    assert latest is not None
+    restored = latest["state"]["state"]["hypotheses"]
+    assert all(
+        item["deep_verification_verdict"] == "unverified" for item in restored
+    )
+    assert all(item["deep_verification_probes"] == [] for item in restored)
+    # Stale fingerprints: the next pass re-attempts rather than trusting it.
+    assert all(
+        item["deep_verification_fingerprint"] is None for item in restored
+    )

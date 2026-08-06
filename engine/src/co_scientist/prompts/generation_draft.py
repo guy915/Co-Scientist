@@ -44,6 +44,12 @@ class DraftPromptRequest:
         instructions: Custom drafting instructions.
         max_iterations: The agent's max tool iterations.
         reference_list: The ``[C*]`` citation reference list.
+        research_expansion_section: Rendered research-expansion guidance
+            for post-iteration generate cycles (E11b); empty on the
+            initial cycle, which keeps focused-grounding behavior.
+        falsified_assumptions_section: Rendered avoid-or-rework guidance
+            for assumptions verification found incorrect (K9); empty
+            until deep verification records one.
         context: Run-scoped prompt context (supervisor guidance,
             meta-review, tool registry, run setup/focus guidance).
     """
@@ -58,6 +64,8 @@ class DraftPromptRequest:
     instructions: str | None = None
     max_iterations: int = 8
     reference_list: str = ""
+    research_expansion_section: str = ""
+    falsified_assumptions_section: str = ""
     context: PromptRunContext = field(default_factory=PromptRunContext)
 
 
@@ -86,6 +94,10 @@ def _build_draft_prompt_variables(req: DraftPromptRequest) -> dict[str, Any]:
         "tool_instructions": _resolve_draft_tool_instructions(
             req.context.tool_registry
         ),
+        # Empty outside their conditions, so the initial-cycle prompt
+        # renders exactly what it did before these sections existed.
+        "research_expansion_section": req.research_expansion_section,
+        "falsified_assumptions_section": req.falsified_assumptions_section,
     }
 
 

@@ -4,7 +4,11 @@ import dataclasses
 import logging
 from typing import Any
 
-from co_scientist.agents.evolution.evolve_context import _find_most_similar
+from co_scientist.agents.evolution.evolve_context import find_nearest_peer
+from co_scientist.agents.evolution.evolve_prompt import (
+    _EvolutionContext,
+    _EvolutionOperation,
+)
 from co_scientist.constants import (
     DUPLICATE_SIMILARITY_THRESHOLD,
     INITIAL_ELO_RATING,
@@ -60,8 +64,60 @@ def _extract_evolution_fields(
     )
 
 
+def _resolve_parents(
+    hypothesis: Hypothesis,
+    response: dict[str, Any],
+    partners: tuple[Hypothesis, ...],
+) -> list[Hypothesis]:
+    """The child's parent list: the primary parent plus combined partners.
+
+    Combination identifies the partners it merged by the positional index
+    the prompt assigned (never by echoed text), so the response schema stays
+    bounded whatever the partners' length. Invalid indices are dropped and
+    an unresolvable response degrades to the single primary parent -- a
+    combination that names no partner is still a valid refinement.
+    """
+    if not partners or response.get("_evolution_operator") != "combination":
+        return [hypothesis]
+    merged = _merged_partners(hypothesis, response, partners)
+    return [hypothesis, *merged]
+
+
+def _merged_partners(
+    hypothesis: Hypothesis,
+    response: dict[str, Any],
+    partners: tuple[Hypothesis, ...],
+) -> list[Hypothesis]:
+    """Resolve a combination response's partner indices, in order, deduped."""
+    resolved: list[Hypothesis] = []
+    seen: set[str] = set()
+    for raw in response.get("combined_partners") or []:
+        partner = _partner_at(partners, raw)
+        if partner is None or partner.id == hypothesis.id:
+            continue
+        if partner.id not in seen:
+            seen.add(partner.id)
+            resolved.append(partner)
+    return resolved
+
+
+def _partner_at(
+    partners: tuple[Hypothesis, ...], raw: Any
+) -> Hypothesis | None:
+    """Resolve one response index to its partner, or None if invalid.
+
+    Indices are the 1-based positions the prompt assigned; anything else
+    (a non-int, or an out-of-range value) is dropped rather than raising.
+    """
+    if not isinstance(raw, int) or isinstance(raw, bool):
+        return None
+    if not 1 <= raw <= len(partners):
+        return None
+    return partners[raw - 1]
+
+
 def _build_evolution_child(
-    parent: Hypothesis,
+    parents: list[Hypothesis],
     fields: _RefinedFields,
     creation_iteration: int | None,
 ) -> Hypothesis:
@@ -69,26 +125,32 @@ def _build_evolution_child(
 
     Paper invariant (SSR §4, §12; TE §5): the Evolution agent *generates a new
     hypothesis*; it never modifies or replaces its parent. The child therefore
-    gets a fresh id, points at its parent, increments the generation depth,
+    gets a fresh id, points at its parents, increments the generation depth,
     resets Elo to the initial rating with zero matches, and starts with no
     reviews or deep-verification state so it must be reviewed before it can be
-    ranked. The parent object is not touched.
+    ranked. The parents are not touched.
+
+    Lineage for a multi-parent combination: ``parent_id`` keeps the primary
+    parent (the hypothesis that was evolved) so existing lineage consumers
+    are unchanged, while ``parent_ids`` records every parent merged.
 
     Returns:
-        A new child ``Hypothesis`` linked to ``parent``.
+        A new child ``Hypothesis`` linked to ``parents``.
     """
+    primary = parents[0]
     return Hypothesis(
         text=fields.refined_text,
-        parent_id=parent.id,
-        generation=parent.generation + 1,
+        parent_id=primary.id,
+        parent_ids=[parent.id for parent in parents],
+        generation=primary.generation + 1,
         origin=HypothesisOrigin.EVOLUTION,
         creation_iteration=creation_iteration,
-        category=parent.category,
+        category=primary.category,
         explanation=fields.explanation,
         experiment=fields.experiment,
         # Inherit grounding context, but not competition state.
-        literature_grounding=parent.literature_grounding,
-        citation_map=dict(parent.citation_map),
+        literature_grounding=primary.literature_grounding,
+        citation_map=dict(primary.citation_map),
         # Fresh tournament entrant: Elo 1200, zero matches, unreviewed.
         elo_rating=INITIAL_ELO_RATING,
         win_count=0,
@@ -96,20 +158,20 @@ def _build_evolution_child(
         reviews=[],
         # evolution_history records the derivation chain without mutating the
         # parent: the parent's prior texts plus the parent's own text.
-        evolution_history=[*parent.evolution_history, parent.text],
+        evolution_history=[*primary.evolution_history, primary.text],
     )
 
 
 def _build_evolution_detail(
-    hypothesis: Hypothesis,
+    parents: list[Hypothesis],
     child: Hypothesis,
     fields: _RefinedFields,
 ) -> dict[str, Any]:
     """Builds the evolution_detail record for an accepted refinement.
 
     Feeds evolution_details in evolve_node's state delta, which the UI
-    surfaces as the rationale for each change; records both parent and
-    child ids so the lineage edge is explicit.
+    surfaces as the rationale for each change; records every parent and the
+    child id so the lineage edges are explicit.
 
     The ``operator`` field is not set here: it is carried on the LLM
     response rather than on the refined fields, so ``_apply_evolution_result``
@@ -117,29 +179,30 @@ def _build_evolution_detail(
     non-enhancement operator was written twice and read once.
     """
     return {
-        "parent_id": hypothesis.id,
+        "parent_id": parents[0].id,
+        "parent_ids": [parent.id for parent in parents],
         "child_id": child.id,
-        "original": hypothesis.text,
+        "original": parents[0].text,
         "evolved": fields.refined_text,
         "rationale": fields.refinement_summary,
     }
 
 
 def _apply_refined_hypothesis(
-    hypothesis: Hypothesis,
+    parents: list[Hypothesis],
     fields: _RefinedFields,
     max_similarity: float,
     creation_iteration: int | None = None,
 ) -> tuple[Hypothesis, dict[str, Any]]:
     """Builds an immutable child for an accepted refinement and its detail.
 
-    ``hypothesis`` is NOT mutated. ``max_similarity`` is the max similarity
+    The parents are NOT mutated. ``max_similarity`` is the max similarity
     to the sampled peer hypotheses, used only for the debug log.
 
     Returns:
         The new child hypothesis, and its evolution detail.
     """
-    child = _build_evolution_child(hypothesis, fields, creation_iteration)
+    child = _build_evolution_child(parents, fields, creation_iteration)
 
     logger.debug(
         "evolved hypothesis into child %s (max similarity: %.2f)",
@@ -147,7 +210,7 @@ def _apply_refined_hypothesis(
         max_similarity,
     )
 
-    evolution_detail = _build_evolution_detail(hypothesis, child, fields)
+    evolution_detail = _build_evolution_detail(parents, child, fields)
     return child, evolution_detail
 
 
@@ -167,17 +230,30 @@ def _rejected_as_unchanged(hypothesis: Hypothesis, refined_text: str) -> bool:
 def _near_duplicate_similarity(
     hypothesis: Hypothesis,
     refined_text: str,
-    other_hypotheses_texts: list[str],
+    peers: list[Hypothesis],
+    proximity_graph: dict[str, Any] | None,
+    excluded_ids: frozenset[str],
 ) -> float | None:
     """Max similarity to a peer, or None if it crosses the reject threshold.
 
-    DUPLICATE_SIMILARITY_THRESHOLD (0.95) is the same bound proximity.py
-    uses for its high-similarity duplicate clusters; crossing it here means
-    the refinement converged onto a peer, so the evolution is rejected and
-    no child is minted.
+    DUPLICATE_SIMILARITY_THRESHOLD (0.95) bounds the same decision proximity
+    uses for high-similarity clusters; crossing it here means the refinement
+    converged onto a peer, so no child is minted. The estimate per peer
+    prefers the persisted proximity graph's weighted (LLM-judged) similarity
+    and falls back to token coverage -- never union-based Jaccard -- and the
+    threshold is only reachable through the strongest signals (a weight-1.0
+    edge or near-total coverage). The guard stays deliberately conservative:
+    a false duplicate silently and permanently drops a distinct idea, while
+    a genuine duplicate that slips through is archived, labelled, and traced
+    by the next proximity pass. Combination partners are exempt: a faithful
+    merge necessarily resembles the ideas it merges.
+
+    Returns:
+        The max peer similarity on acceptance, None when rejected.
     """
-    max_similarity, most_similar_text = _find_most_similar(
-        refined_text, other_hypotheses_texts
+    guarded_peers = [peer for peer in peers if peer.id not in excluded_ids]
+    max_similarity, nearest = find_nearest_peer(
+        refined_text, hypothesis.id, guarded_peers, proximity_graph
     )
     if max_similarity <= DUPLICATE_SIMILARITY_THRESHOLD:
         return max_similarity
@@ -187,16 +263,17 @@ def _near_duplicate_similarity(
         max_similarity,
     )
     logger.debug("original: %s...", hypothesis.text[:100])
-    assert most_similar_text is not None
-    logger.debug("similar to: %s...", most_similar_text[:100])
+    if nearest is not None:
+        logger.debug("similar to: %s...", nearest.text[:100])
     return None
 
 
 def _apply_evolution_result(
     hypothesis: Hypothesis,
     response: dict[str, Any],
-    other_hypotheses_texts: list[str],
-    creation_iteration: int | None = None,
+    peers: list[Hypothesis],
+    context: _EvolutionContext,
+    operation: _EvolutionOperation,
 ) -> tuple[Hypothesis | None, dict[str, Any] | None]:
     """Turns an LLM evolution response into a child hypothesis, if acceptable.
 
@@ -205,6 +282,14 @@ def _apply_evolution_result(
     converged too closely onto one of the peer hypotheses shown as diversity
     context.
 
+    Args:
+        hypothesis: The hypothesis being evolved (the primary parent).
+        response: Parsed LLM response, tagged with the operator used.
+        peers: Sampled pool hypotheses forming the duplicate-rejection set.
+        context: Run-level evolution context (creation iteration and the
+            persisted proximity graph).
+        operation: The per-hypothesis operation (its combination partners).
+
     Returns:
         A ``(child, detail)`` pair on acceptance, or ``(None, None)`` when the
         refinement is rejected (no child created).
@@ -212,13 +297,18 @@ def _apply_evolution_result(
     fields = _extract_evolution_fields(hypothesis, response)
     if _rejected_as_unchanged(hypothesis, fields.refined_text):
         return None, None
+    parents = _resolve_parents(hypothesis, response, operation.partners)
     max_similarity = _near_duplicate_similarity(
-        hypothesis, fields.refined_text, other_hypotheses_texts
+        hypothesis,
+        fields.refined_text,
+        peers,
+        context.proximity_graph,
+        frozenset(parent.id for parent in parents[1:]),
     )
     if max_similarity is None:
         return None, None
     child, detail = _apply_refined_hypothesis(
-        hypothesis, fields, max_similarity, creation_iteration
+        parents, fields, max_similarity, context.creation_iteration
     )
     detail["operator"] = str(
         response.get("_evolution_operator") or "enhancement"
@@ -258,12 +348,13 @@ def _collect_evolution_results(
 def _build_evolve_state_delta(
     children: list[Hypothesis],
     evolution_details: list[dict[str, Any]],
-    attempt_count: int,
+    llm_call_count: int,
 ) -> dict[str, Any]:
     """Builds the evolve_node state delta: metrics update plus payload.
 
-    ``attempt_count`` is the number of parents evolution attempted this
-    round (one LLM call each), used for the llm_calls metric.
+    ``llm_call_count`` is every LLM call the round spent: one evolution
+    attempt per parent plus the query-generation calls the enhancement
+    retrievals make when the MCP server is up.
 
     Returns:
         The evolve_node state delta dictionary.
@@ -271,12 +362,12 @@ def _build_evolve_state_delta(
     # llm_calls counts every attempt (one LLM call per parent, regardless of
     # accept/reject); evolutions_count counts children actually created.
     metrics = create_metrics_update(
-        deltas=MetricDeltas(llm_calls=attempt_count, evolutions=len(children))
+        deltas=MetricDeltas(llm_calls=llm_call_count, evolutions=len(children))
     )
     logger.debug(
         "evolve node creating metrics delta: children=%s, llm_calls=%s",
         len(children),
-        attempt_count,
+        llm_call_count,
     )
 
     # AppendHypotheses tells the reducer to ADD these children to the pool

@@ -1,9 +1,12 @@
-"""Tests for tournament debate depth (Milestone 3).
+"""Tests for the tournament debate judge (Milestone 3).
 
 Paper invariant (SSR §4, §12): top-ranked comparisons run a multi-turn
-scientific debate; lower-ranked comparisons run a single-turn comparison. Both
-end in a winner verdict, and the complete debate turns plus provenance are
-persisted on the matchup detail.
+scientific debate; lower-ranked comparisons run a single-turn comparison.
+The multi-turn loop is adaptive within the paper's envelope (typically
+3-5 turns, max 10 -- SSR note 9.3): it settles on a position-balanced
+consensus and caps at the envelope maximum. Both end in a winner verdict,
+and the complete debate turns plus provenance are persisted on the
+matchup detail.
 """
 
 from typing import Any
@@ -12,16 +15,14 @@ import pytest
 
 from co_scientist.agents.ranking import ranking_debate
 from co_scientist.agents.ranking.ranking_debate import (
+    _RANKING_DEBATE_MAX_TURNS,
     _balanced_invalid_fallback,
     _DebateContext,
     _matchup_debate_turns,
     _median_elo,
     judge_matchup,
 )
-from co_scientist.constants import (
-    MULTI_TURN_DEBATE_TURNS,
-    SINGLE_TURN_DEBATE_TURNS,
-)
+from co_scientist.constants import SINGLE_TURN_DEBATE_TURNS
 from tests._state import make_hypothesis
 
 
@@ -35,14 +36,17 @@ def test_median_elo_of_pool() -> None:
     assert _median_elo([a, c]) == 1200.0
 
 
-def test_top_ranked_matchup_uses_multi_turn() -> None:
-    """A matchup with a hypothesis at/above the median uses multi-turn."""
+def test_top_ranked_matchup_budgets_the_envelope_maximum() -> None:
+    """A top-ranked matchup budgets the envelope max; the loop adapts.
+
+    The depth handed to the judge is a ceiling (paper: max 10), not a
+    quota -- consensus stops the debate early (finding E13).
+    """
     top = make_hypothesis(text="top")
     low = make_hypothesis(text="low")
     top.elo_rating, low.elo_rating = 1400, 1000
-    assert (
-        _matchup_debate_turns(top, low, median_elo=1200.0)
-        == MULTI_TURN_DEBATE_TURNS
+    assert _matchup_debate_turns(top, low, median_elo=1200.0) == (
+        _RANKING_DEBATE_MAX_TURNS
     )
 
 
@@ -78,27 +82,32 @@ async def test_multi_turn_debate_runs_multiple_calls_and_persists_transcript(
 ) -> None:
     """A multi-turn debate makes one LLM call per turn and records each.
 
-    The scripted raw winners flip with the presentation order, so both turns
-    vote for the same hypothesis and the verdict is unanimous.
+    The scripted raw winners flip with the presentation order, so every
+    turn votes for the same hypothesis; the unanimous consensus settles
+    the debate at the envelope's typical-minimum floor.
     """
-    calls = _stub_fixed_winners(monkeypatch, ["a", "b"])
+    calls = _stub_fixed_winners(monkeypatch, ["a", "b", "a"])
     a = make_hypothesis(text="alpha hypothesis")
     b = make_hypothesis(text="beta hypothesis")
 
     ctx = _DebateContext(a, b, "goal", "fake/model")
     winner, response = await judge_matchup(
-        ctx, debate_turns=MULTI_TURN_DEBATE_TURNS
+        ctx, debate_turns=_RANKING_DEBATE_MAX_TURNS
     )
 
     assert winner == "a"
-    assert len(calls) == MULTI_TURN_DEBATE_TURNS
-    assert response["debate_turns"] == MULTI_TURN_DEBATE_TURNS
+    assert len(calls) == 3
+    assert response["debate_turns"] == 3
     transcript = response["debate_transcript"]
-    assert len(transcript) == MULTI_TURN_DEBATE_TURNS
-    assert [t["turn"] for t in transcript] == [1, 2]
-    # Opposite presentation orders, so the agreement is position-bias-free.
-    assert [t["presentation_order"] for t in transcript] == ["ab", "ba"]
-    assert response["consensus_votes"] == ["a", "a"]
+    assert len(transcript) == 3
+    assert [t["turn"] for t in transcript] == [1, 2, 3]
+    # Alternating presentation orders: the agreement is position-bias-free.
+    assert [t["presentation_order"] for t in transcript] == [
+        "ab",
+        "ba",
+        "ab",
+    ]
+    assert response["consensus_votes"] == ["a", "a", "a"]
     assert response["position_balanced"] is True
     assert response["judge_model"] == "fake/model"
 
@@ -122,16 +131,19 @@ def _stub_fixed_winners(
     return calls
 
 
-async def test_agreeing_turns_end_the_debate_before_its_budget(
+async def test_consensus_ends_the_debate_long_before_its_budget(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Two turns that agree decide the majority, so the third never runs.
+    """A conclusive consensus retires the rest of the envelope budget.
 
-    Turn 2 is presented in the opposite A/B order, so a raw "b" there is a
-    vote for the same hypothesis turn 1 raw-picked as "a". The verdict is
-    settled and the budgeted third call is skipped.
+    Every scripted turn votes the same hypothesis (raw winners flip with
+    the alternating presentation order), so the debate settles at the
+    typical-minimum floor -- three turns -- rather than spending the
+    ten-turn ceiling. Two consecutive agreeing votes are agreement from
+    opposite A/B orders, the position-bias-free consensus the loop waits
+    for (findings E13/E16).
     """
-    calls = _stub_fixed_winners(monkeypatch, ["a", "b", "a"])
+    calls = _stub_fixed_winners(monkeypatch, ["a", "b", "a", "b", "a"])
     ctx = _DebateContext(
         make_hypothesis(text="alpha"),
         make_hypothesis(text="beta"),
@@ -140,28 +152,55 @@ async def test_agreeing_turns_end_the_debate_before_its_budget(
     )
 
     winner, response = await judge_matchup(
-        ctx, debate_turns=MULTI_TURN_DEBATE_TURNS
+        ctx, debate_turns=_RANKING_DEBATE_MAX_TURNS
     )
 
     assert winner == "a"
-    assert len(calls) == 2
-    assert response["consensus_votes"] == ["a", "a"]
+    assert len(calls) == 3
+    assert response["consensus_votes"] == ["a", "a", "a"]
     # Provenance and the LLM meter report the turns judged, not the budget.
-    assert response["debate_turns"] == 2
-    assert len(response["debate_transcript"]) == 2
-    # Two turns still alternated presentation order, so the verdict is
+    assert response["debate_turns"] == 3
+    assert len(response["debate_transcript"]) == 3
+    # Consecutive turns alternated presentation order, so the consensus is
     # position-balanced despite stopping early.
     assert response["position_balanced"] is True
+
+
+async def test_contested_debate_extends_past_the_typical_range(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A judge that keeps flipping with the order runs deeper.
+
+    The scripted votes alternate sides, so no two consecutive turns ever
+    agree and consensus is never reached: the debate runs its whole
+    budget and resolves through the identity-stable balanced fallback,
+    exactly as the pre-envelope tie did -- just deeper in the envelope.
+    """
+    alpha = make_hypothesis(text="alpha")
+    beta = make_hypothesis(text="beta")
+    # Raw "a" every turn votes alternately a/b/a/b... under the swap.
+    calls = _stub_fixed_winners(monkeypatch, ["a"] * 10)
+    ctx = _DebateContext(alpha, beta, "goal", "fake/model")
+
+    winner, response = await judge_matchup(
+        ctx, debate_turns=_RANKING_DEBATE_MAX_TURNS
+    )
+
+    assert len(calls) == _RANKING_DEBATE_MAX_TURNS
+    assert response["debate_turns"] == _RANKING_DEBATE_MAX_TURNS
+    assert response["consensus_votes"] == ["a", "b"] * 5
+    assert winner == _balanced_invalid_fallback(alpha, beta, None)
+    assert response["invalid_output_fallback"] is False
 
 
 async def test_split_turns_still_run_the_tiebreaker(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A one-all split is undecided, so a deeper budget is spent in full.
+    """A split verdict spends its whole budget; the consensus rule adapts.
 
-    Depth is passed explicitly rather than read from
-    ``MULTI_TURN_DEBATE_TURNS``: this pins the majority rule itself, which
-    must hold at whatever depth the tournament is configured for.
+    Depth is passed explicitly so this pins the loop at a caller-chosen
+    budget: a one-all split never puts two consecutive votes on one side,
+    so every budgeted turn runs and the majority picks the winner.
     """
     calls = _stub_fixed_winners(monkeypatch, ["a", "a", "a"])
     ctx = _DebateContext(
@@ -277,3 +316,87 @@ def test_wave_narrows_once_the_provider_throttles(
 
     monkeypatch.setattr(llm_json_retry, "_rate_limited_attempts", 1)
     assert ranking_debate.effective_ranking_wave_size() == RANKING_WAVE_MIN_SIZE
+
+
+async def test_judge_prompt_carries_scientist_criteria(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The scientist's criteria govern the judge when supplied (A2/K4).
+
+    Absent criteria must leave the prompt unchanged, so the offline
+    pipeline and criteria-free runs keep their historical behavior.
+    """
+    prompts: list[str] = []
+
+    async def fake(**kwargs: Any) -> dict[str, Any]:
+        prompts.append(str(kwargs["prompt"]))
+        return {"winner": "a", "confidence_level": "High"}
+
+    monkeypatch.setattr(ranking_debate, "call_llm_json", fake)
+    ctx = _DebateContext(
+        make_hypothesis(text="alpha"),
+        make_hypothesis(text="beta"),
+        "goal",
+        "fake/model",
+        criteria=["Cost of the experimental validation"],
+    )
+
+    await judge_matchup(ctx, debate_turns=1)
+
+    assert "Scientist Evaluation Criteria (governing)" in prompts[0]
+    assert "Cost of the experimental validation" in prompts[0]
+
+    prompts.clear()
+    plain_ctx = _DebateContext(
+        make_hypothesis(text="alpha"),
+        make_hypothesis(text="beta"),
+        "goal",
+        "fake/model",
+    )
+    await judge_matchup(plain_ctx, debate_turns=1)
+
+    assert "Scientist Evaluation Criteria" not in prompts[0]
+    assert "{{MISSING" not in prompts[0]
+
+
+async def test_followup_turns_carry_the_envelope_guidance(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Follow-up judge turns state the envelope the loop enforces (E13).
+
+    The figures are asserted against the same constants the loop uses,
+    so a drift between prose and behavior fails here.
+    """
+    from co_scientist.agents.ranking.ranking_debate_turns import (
+        _RANKING_DEBATE_MAX_TURNS as MAX_TURNS,
+    )
+    from co_scientist.agents.ranking.ranking_debate_turns import (
+        _RANKING_DEBATE_TYPICAL_MAX_TURNS as TYPICAL_MAX,
+    )
+    from co_scientist.agents.ranking.ranking_debate_turns import (
+        _RANKING_DEBATE_TYPICAL_MIN_TURNS as TYPICAL_MIN,
+    )
+
+    prompts: list[str] = []
+
+    async def fake(**kwargs: Any) -> dict[str, Any]:
+        prompts.append(str(kwargs["prompt"]))
+        return {"winner": "a", "confidence_level": "High"}
+
+    monkeypatch.setattr(ranking_debate, "call_llm_json", fake)
+    ctx = _DebateContext(
+        make_hypothesis(text="alpha"),
+        make_hypothesis(text="beta"),
+        "goal",
+        "fake/model",
+    )
+
+    await judge_matchup(ctx, debate_turns=MAX_TURNS)
+
+    # The first turn carries no prior context; every follow-up does.
+    assert "Prior Debate Turns" not in prompts[0]
+    guidance = (
+        f"typically settles in {TYPICAL_MIN}-{TYPICAL_MAX} turns and "
+        f"never runs past {MAX_TURNS}"
+    )
+    assert all(guidance in prompt for prompt in prompts[1:])

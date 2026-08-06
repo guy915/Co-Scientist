@@ -11,7 +11,6 @@ here for compatibility.
 
 import asyncio
 import logging
-import re
 from collections.abc import Coroutine
 from dataclasses import dataclass
 from typing import Any
@@ -24,7 +23,13 @@ from co_scientist.agents.generation.debate_support import (
     _DEBATE_DIVERSITY_ANGLES as _DEBATE_DIVERSITY_ANGLES,
 )
 from co_scientist.agents.generation.debate_support import (
+    DebateBatchPosition as DebateBatchPosition,
+)
+from co_scientist.agents.generation.debate_support import (
     _append_diversity_instruction as _append_diversity_instruction,
+)
+from co_scientist.agents.generation.debate_support import (
+    _debate_converged as _debate_converged,
 )
 from co_scientist.agents.generation.debate_support import (
     _debate_diversity_instruction as _debate_diversity_instruction,
@@ -36,7 +41,6 @@ from co_scientist.agents.generation.debate_support import (
     _final_turn_prompt_metadata as _final_turn_prompt_metadata,
 )
 from co_scientist.constants import (
-    DEBATE_MAX_TURNS,
     EXTENDED_MAX_TOKENS,
     HIGH_TEMPERATURE,
 )
@@ -52,6 +56,9 @@ from co_scientist.prompts import (
     DebatePromptRequest,
     PromptRunContext,
     get_debate_generation_prompt,
+)
+from co_scientist.prompts.generation_debate import (
+    _DEBATE_MAX_DISCUSSION_TURNS,
 )
 from co_scientist.state import WorkflowState
 
@@ -189,6 +196,7 @@ def _build_debate_turn_prompt(
             preferences=ctx.preferences,
             attributes=ctx.attributes,
             user_hypotheses=state.get("starting_hypotheses"),
+            criteria=ctx.criteria,
             is_final_turn=is_final,
             articles_with_reasoning=ctx.articles_with_reasoning,
             articles=state.get("articles"),
@@ -244,6 +252,7 @@ class _DebateContext:
     preferences: str | None
     attributes: Any
     articles_with_reasoning: str | None
+    criteria: list[str] | None = None
     count: int = 1  # each debate generates exactly 1 hypothesis
 
 
@@ -286,70 +295,47 @@ def _build_debate_context(
         ),
         attributes=state.get("attributes"),
         articles_with_reasoning=articles_with_reasoning,
+        criteria=state.get("criteria"),
     )
-
-
-# The debate prompt's stated termination condition: a panel that has
-# resolved its disagreement concludes by writing "HYPOTHESIS" in capitals
-# before the finalized idea (generation_debate_and_literature.md, and the
-# "typically 3-5 conversational turns" it expects that to take).
-_DEBATE_TERMINATOR = re.compile(r"\bHYPOTHESIS\b")
-
-
-def _debate_converged(response_text: str) -> bool:
-    """True when a free-form turn declared the debate concluded.
-
-    The termination condition has always been in the prompt and the turn
-    loop only ever honoured its budget, so a panel that agreed at turn two
-    still paid for every remaining turn. Debate turns are strictly serial
-    and generation is the deepest serial chain in a run, which makes them
-    among the most expensive calls it makes.
-
-    Matched case-sensitively as a whole word. The sentinel is the all-caps
-    token the prompt reserves for it; discussing "the hypothesis" is the
-    ordinary content of every turn and must not end the debate.
-    """
-    return bool(_DEBATE_TERMINATOR.search(response_text))
 
 
 async def _run_debate_turns(
     state: WorkflowState,
     ctx: _DebateContext,
-    num_turns: int,
 ) -> tuple[Hypothesis, str]:
-    """Run one debate's turns, returning its hypothesis and transcript.
+    """Run one debate's discussion turns, then its synthesis turn.
 
-    Earlier turns produce free-form dialogue that accumulates into the
-    transcript, giving each later prompt the full debate history so far.
-    Only the final turn is structured JSON, parsed into the Hypothesis.
-
-    ``num_turns`` is a ceiling, not a quota: a turn that signals
-    convergence (see ``_debate_converged``) makes the next turn the final
-    structured one, so the panel still synthesizes but stops arguing.
-
-    Raises:
-        GenerationError: if the loop exits without hitting the final turn;
-            unreachable normally, guards a misconfigured num_turns <= 0.
+    The panel debates for up to ``_DEBATE_MAX_DISCUSSION_TURNS`` free-form
+    turns -- the paper's envelope is typically 3-5 conversational turns,
+    never more than 10 -- and stops as soon as a turn declares consensus
+    with the HYPOTHESIS termination token (see ``_debate_converged``).
+    The schema-constrained synthesis turn always runs afterwards, so a
+    panel that never agrees still yields a hypothesis; it simply spends
+    the whole envelope arguing. Each turn's prompt carries the full
+    transcript accumulated so far.
     """
     transcript = ""
-    converged = False
-    for turn in range(1, num_turns + 1):
-        is_final = turn == num_turns or converged
-        prompt, schema = _build_debate_turn_prompt(
-            state, ctx, transcript, is_final
+    turns_run = 0
+    for turn in range(1, _DEBATE_MAX_DISCUSSION_TURNS + 1):
+        prompt, _ = _build_debate_turn_prompt(
+            state, ctx, transcript, is_final=False
         )
-
-        if is_final:
-            hypothesis = await _run_final_debate_turn(
-                state, ctx, turn, prompt, schema
-            )
-            return hypothesis, transcript
-
         response_text = await _run_intermediate_debate_turn(state, prompt)
         transcript += f"\n\nTurn {turn}:\n{response_text}"
-        converged = _debate_converged(response_text)
+        turns_run = turn
+        if _debate_converged(response_text):
+            logger.info(
+                "%s declared consensus after turn %s", ctx.debate_label, turn
+            )
+            break
 
-    raise GenerationError(f"{ctx.debate_label} ended without final turn")
+    prompt, schema = _build_debate_turn_prompt(
+        state, ctx, transcript, is_final=True
+    )
+    hypothesis = await _run_final_debate_turn(
+        state, ctx, turns_run + 1, prompt, schema
+    )
+    return hypothesis, transcript
 
 
 def _unpack_debate_results(
@@ -369,7 +355,16 @@ def _unpack_debate_results(
     debate_hypotheses = [hyp for hyp, _ in debate_results]
     debate_transcripts = [
         {
-            "debate_id": i,
+            # The id stamped on the hypothesis is the debate's own
+            # (its index within the whole parallel batch), which differs
+            # from the enumerate position when a durable task runs one
+            # debate of a larger fan-out; fall back to the position only
+            # for a hypothesis that carries no debate id at all.
+            "debate_id": (
+                debate_hypotheses[i].debate_id
+                if debate_hypotheses[i].debate_id is not None
+                else i
+            ),
             "transcript": transcript,
             "hypothesis_text": debate_hypotheses[i].text,
         }
@@ -383,20 +378,25 @@ def _build_debate_tasks(
     count: int,
     articles_with_reasoning: str | None,
     reference_index: ReferenceIndex | None,
+    batch_position: DebateBatchPosition,
 ) -> list[Coroutine[Any, Any, tuple[Hypothesis, str]]]:
     """Build one debate-turn-loop coroutine per debate in this batch.
 
-    debate_id=i doubles as both a diversity-angle selector (see
-    _debate_diversity_instruction) and a stable identifier for pairing each
-    resulting hypothesis back to its transcript in _unpack_debate_results.
+    debate_id=debate_index+i doubles as both a diversity-angle selector
+    (see _debate_diversity_instruction) and a stable identifier for
+    pairing each resulting hypothesis back to its transcript in
+    _unpack_debate_results.
     """
     return [
         _run_debate_turns(
             state,
             _build_debate_context(
-                state, i, count, articles_with_reasoning, reference_index
+                state,
+                batch_position.debate_index + i,
+                batch_position.total_debates,
+                articles_with_reasoning,
+                reference_index,
             ),
-            DEBATE_MAX_TURNS,
         )
         for i in range(count)
     ]
@@ -407,6 +407,7 @@ async def generate_with_debate(
     count: int,
     articles_with_reasoning: str | None = None,
     reference_index: ReferenceIndex | None = None,
+    batch_position: DebateBatchPosition | None = None,
 ) -> tuple[list[Hypothesis], list[dict[str, Any]]]:
     """Generate hypotheses using parallel debate strategy.
 
@@ -417,6 +418,11 @@ async def generate_with_debate(
         count: number of debates to run (= number of hypotheses to generate)
         articles_with_reasoning: optional literature review context for debates
         reference_index: citation key → source mapping for structured citations
+        batch_position: this call's position within a larger parallel
+            batch (default: this call IS the whole batch, ids 0..count-1).
+            The durable path runs each debate as its own task and passes
+            the task's index plus the family's batch total so every task
+            angles its debate distinctly (finding E14).
 
     Returns:
         tuple of (debate_hypotheses, debate_transcripts)
@@ -429,8 +435,22 @@ async def generate_with_debate(
 
     logger.info("Running %s parallel debates", count)
 
+    if batch_position is None:
+        position = DebateBatchPosition(0, count)
+    else:
+        position = DebateBatchPosition(
+            max(0, batch_position.debate_index),
+            max(
+                batch_position.total_debates,
+                batch_position.debate_index + count,
+            ),
+        )
     debate_tasks = _build_debate_tasks(
-        state, count, articles_with_reasoning, reference_index
+        state,
+        count,
+        articles_with_reasoning,
+        reference_index,
+        position,
     )
     debate_results = await asyncio.gather(*debate_tasks)
     debate_hypotheses, debate_transcripts = _unpack_debate_results(

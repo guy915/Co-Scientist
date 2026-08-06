@@ -1,9 +1,8 @@
 """Prompt builders for the debate-based hypothesis generation flow."""
 
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Final
 
-from co_scientist.constants import DEBATE_MAX_TURNS
 from co_scientist.prompts._common import (
     PromptRunContext,
     _csv_value,
@@ -233,6 +232,8 @@ class DebatePromptRequest:
         attributes: Desired hypothesis attributes, as text or a list.
         user_hypotheses: Seed hypotheses supplied by the user.
         instructions: Custom task instructions for the debate, if any.
+        criteria: The scientist's evaluation criteria for the run, if any;
+            they steer what the panel argues for (finding A2).
         is_final_turn: Whether this is the schema-constrained final turn.
         articles_with_reasoning: The literature-review synthesis text; its
             presence also selects the literature-aware template.
@@ -249,6 +250,7 @@ class DebatePromptRequest:
     attributes: str | list[str] | None = None
     user_hypotheses: list[str] | None = None
     instructions: str | None = None
+    criteria: list[str] | None = None
     is_final_turn: bool = False
     articles_with_reasoning: str | None = None
     articles: list[Any] | None = None
@@ -256,20 +258,67 @@ class DebatePromptRequest:
     context: PromptRunContext = field(default_factory=PromptRunContext)
 
 
-def _discussion_turn_budget() -> int:
-    """Return how many conversational turns a debate gets before synthesis.
+# The paper's generation-debate turn envelope (SSR note 9.1): sufficient
+# discussion "typically 3-5 conversational turns, with a maximum of 10",
+# concluded by the panel writing the HYPOTHESIS termination token. These
+# live here, not in constants.py, because the debate turn loop
+# (agents/generation/debate.py) and the template prose below must share a
+# single source: the panel paces itself against whatever number it is
+# told, so a stale figure in the template reads as a real instruction.
+# constants.py holds values shared across nodes; this envelope belongs to
+# the debate alone.
+_DEBATE_TYPICAL_MIN_TURNS: Final = 3
+"""Lower end of the paper's typical convergence range for a debate."""
 
-    Derived from ``DEBATE_MAX_TURNS`` rather than written into the template,
-    because the panel paces itself against whatever number it is told. The
-    templates used to state "typically 3-5 conversational turns" as prose
-    while the loop ran a fixed five, and the two then drifted independently
-    -- a stale figure here reads as a real instruction to the model, so it
-    has to be single-sourced from the constant the loop actually enforces.
+_DEBATE_TYPICAL_MAX_TURNS: Final = 5
+"""Upper end of the paper's typical convergence range for a debate."""
 
-    The last turn is the schema-constrained synthesis, so the discussion
-    budget is one short of the ceiling.
+_DEBATE_MAX_DISCUSSION_TURNS: Final = 10
+"""Hard ceiling on free-form discussion turns before the synthesis turn."""
+
+
+def _debate_turn_envelope() -> dict[str, int]:
+    """Return the debate turn envelope as template variables.
+
+    Single-sources the envelope so the template's prose figures and the
+    loop that enforces them (agents/generation/debate.py) cannot drift:
+    the discussion runs up to ``_DEBATE_MAX_DISCUSSION_TURNS`` free-form
+    turns, with the panel told to converge within the typical range and
+    declare consensus with the HYPOTHESIS token when it does. The
+    schema-constrained synthesis turn runs after the discussion, on top
+    of this budget.
     """
-    return max(1, DEBATE_MAX_TURNS - 1)
+    return {
+        "discussion_typical_min_turns": _DEBATE_TYPICAL_MIN_TURNS,
+        "discussion_typical_max_turns": _DEBATE_TYPICAL_MAX_TURNS,
+        "discussion_max_turns": _DEBATE_MAX_DISCUSSION_TURNS,
+    }
+
+
+def _format_debate_evaluation_criteria(
+    criteria: list[str] | None,
+) -> str:
+    """Format the scientist's evaluation criteria for the debate panel.
+
+    Renders nothing when no criteria were supplied, leaving the panel on
+    the template's built-in quality criteria.
+    """
+    cleaned = [
+        str(item).strip() for item in criteria or [] if str(item).strip()
+    ]
+    if not cleaned:
+        return ""
+
+    sections = [
+        "## Scientist Evaluation Criteria\n",
+        "The scientist who commissioned this research specified how the "
+        "outcome will be judged. Let these criteria steer the debate -- "
+        "weigh arguments, refinements, and the final hypothesis against "
+        "them:\n",
+    ]
+    sections.extend(f"- {item}\n" for item in cleaned)
+    sections.append("\n")
+    return "".join(sections)
 
 
 def _build_debate_base_variables(req: DebatePromptRequest) -> dict[str, Any]:
@@ -281,10 +330,9 @@ def _build_debate_base_variables(req: DebatePromptRequest) -> dict[str, Any]:
     instructions fall back to the default task instruction -- neither may
     render as a {{MISSING:...}} sentinel.
     """
-    return {
+    variables = {
         "goal": req.research_goal,
         "hypotheses_count": req.hypotheses_count,
-        "discussion_turns": _discussion_turn_budget(),
         "transcript": req.transcript or "",
         "preferences": req.preferences
         or "Novel, testable, scientifically sound, specific, and diverse"
@@ -292,7 +340,12 @@ def _build_debate_base_variables(req: DebatePromptRequest) -> dict[str, Any]:
         "attributes": _format_debate_attributes(req.attributes),
         "user_hypotheses": format_user_hypotheses(req.user_hypotheses),
         "instructions": req.instructions or _DEFAULT_DEBATE_INSTRUCTIONS,
+        # Always produced (empty when absent) so the slot never renders as
+        # a {{MISSING:...}} sentinel.
+        "evaluation_criteria": _format_debate_evaluation_criteria(req.criteria),
     }
+    variables.update(_debate_turn_envelope())
+    return variables
 
 
 def _build_debate_guidance_variables(

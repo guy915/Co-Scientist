@@ -8,7 +8,7 @@ from co_scientist.agents.evolution import evolve
 from co_scientist.agents.evolution.evolution_operators import (
     EvolutionOperator,
     operator_instruction,
-    select_operator,
+    select_operators,
 )
 from co_scientist.agents.evolution.evolve import evolve_single_hypothesis
 from co_scientist.agents.evolution.evolve_prompt import (
@@ -17,6 +17,18 @@ from co_scientist.agents.evolution.evolve_prompt import (
     _EvolutionOperation,
 )
 from tests._state import make_hypothesis
+
+# The six strategies the paper discloses for the Evolution agent, plus the
+# analogy operator the engine carries from the expanded operator specs.
+_DISCLOSED_OPERATORS = {
+    "enhancement",
+    "coherence_feasibility",
+    "inspiration",
+    "combination",
+    "simplification",
+    "analogy",
+    "out_of_box",
+}
 
 
 def _operator_child_payload(operator: EvolutionOperator) -> dict[str, Any]:
@@ -33,22 +45,69 @@ def _operator_child_payload(operator: EvolutionOperator) -> dict[str, Any]:
 
 
 def test_portfolio_contains_every_disclosed_operator() -> None:
-    """All material evolution strategies are executable and distinct."""
-    assert {operator.value for operator in EvolutionOperator} == {
-        "enhancement",
-        "simplification",
-        "combination",
-        "analogy",
-        "out_of_box",
+    """All paper evolution strategies are executable and distinct."""
+    assert {operator.value for operator in EvolutionOperator} == (
+        _DISCLOSED_OPERATORS
+    )
+    assert len({operator_instruction(op) for op in EvolutionOperator}) == len(
+        EvolutionOperator
+    )
+
+
+def test_coherence_feasibility_is_split_from_enhancement() -> None:
+    """Coherence/feasibility is its own operator with its own brief."""
+    enhancement = operator_instruction(EvolutionOperator.ENHANCEMENT)
+    coherence = operator_instruction(EvolutionOperator.COHERENCE_FEASIBILITY)
+    assert "feasibility" not in enhancement.lower()
+    assert "coherence" not in enhancement.lower()
+    assert "feasibility" in coherence.lower()
+    assert "coherence" in coherence.lower()
+
+
+def test_selection_covers_every_operator_across_rounds() -> None:
+    """Consecutive rounds of a tier-sized parent set cover the portfolio.
+
+    The old ``(index + iteration) % len`` round-robin left operators a
+    small parent count never reached structurally unselected. Dealing from
+    a rotated deck covers all seven operators within two five-parent rounds
+    whatever the deck order.
+    """
+    covered = {
+        operator
+        for iteration in range(2)
+        for operator in select_operators(5, iteration, "coverage-run")
     }
-    assert len({operator_instruction(op) for op in EvolutionOperator}) == 5
+    assert covered == set(EvolutionOperator)
 
 
-def test_selection_rotates_across_parent_and_iteration() -> None:
-    """The task portfolio does not collapse every parent into one rewrite."""
-    selected = {select_operator(index, 0) for index in range(5)}
-    assert selected == set(EvolutionOperator)
-    assert select_operator(0, 1) is EvolutionOperator.SIMPLIFICATION
+def test_selection_is_deterministic_under_the_seed() -> None:
+    """The same (seed, iteration, count) always assigns the same operators."""
+    first = select_operators(5, 0, "seeded-run")
+    again = select_operators(5, 0, "seeded-run")
+    assert first == again
+    assert len(first) == 5
+
+
+def test_selection_rotates_across_iterations() -> None:
+    """Later rounds deal different portfolio positions, not the same five."""
+    round_zero = select_operators(5, 0, "rotating-run")
+    round_one = select_operators(5, 1, "rotating-run")
+    assert round_zero != round_one
+
+
+def test_selection_small_pool_and_empty_pool() -> None:
+    """Fewer parents than operators deals distinct operators; zero is safe."""
+    two = select_operators(2, 0, "express-run")
+    assert len(two) == 2
+    assert len(set(two)) == 2
+    assert select_operators(0, 0, "empty") == []
+
+
+def test_selection_wraps_when_parents_exceed_operators() -> None:
+    """More parents than operators wraps the deck without dropping any."""
+    nine = select_operators(9, 0, "wrapping-run")
+    assert len(nine) == 9
+    assert set(nine) == set(EvolutionOperator)
 
 
 def test_prompt_requires_assigned_operator() -> None:
@@ -101,7 +160,7 @@ async def test_every_operator_executes_as_a_distinct_evolution_task(
 
     child, detail = await evolve_single_hypothesis(
         parent,
-        other_hypotheses_texts=[],
+        other_hypotheses=[],
         context=_EvolutionContext(
             model_name="fake/model",
             meta_review={},
@@ -117,5 +176,6 @@ async def test_every_operator_executes_as_a_distinct_evolution_task(
     assert operator_instruction(operator) in observed_prompt
     assert detail["operator"] == operator.value
     assert child.parent_id == parent.id
+    assert child.parent_ids == [parent.id]
     assert child.generation == parent.generation + 1
     assert child.creation_iteration == 2

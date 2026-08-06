@@ -24,10 +24,16 @@ from tests._engine_tasks_helpers import (
     _task_state,
 )
 
+# Records every generate_with_debate call the strategy executor makes, so
+# the E14 diversity wiring (index + batch total per durable task) can be
+# asserted end to end.
+_debate_calls: list[dict[str, Any]] = []
+
 
 async def _fake_debate(
     **kwargs: Any,
 ) -> tuple[list[Hypothesis], list[dict[str, Any]]]:
+    _debate_calls.append(kwargs)
     hypotheses = [
         Hypothesis(
             text=f"debate-{index}",
@@ -86,6 +92,34 @@ async def _advance_generation_node(
     assert store.complete_task(leased.id, "planner", planned, db_path=db_path)
 
 
+def _assert_debate_fanout_carries_the_batch_shape(
+    strategies: list[Any],
+) -> None:
+    """Each debate task knows its position and the whole batch (E14).
+
+    Without the batch total every per-debate task would angle its debate
+    as debate 1 of 1 and the parallel debates would collapse onto one
+    diversity angle (finding E14).
+    """
+    debate_tasks = [
+        item
+        for item in strategies
+        if item is not None
+        and str(item.inputs["strategy"]).startswith("debate")
+    ]
+    assert debate_tasks, "expected debate strategy tasks in the fan-out"
+    by_strategy: dict[str, list[Any]] = {}
+    for item in debate_tasks:
+        by_strategy.setdefault(str(item.inputs["strategy"]), []).append(item)
+    for strategy, items in by_strategy.items():
+        assert all(
+            int(item.inputs["debate_total"]) == len(items) for item in items
+        ), f"{strategy} tasks must carry the family's batch size"
+        assert sorted(
+            int(item.inputs["strategy_index"]) for item in items
+        ) == list(range(len(items)))
+
+
 async def _run_generation_strategies_and_aggregate(
     run_id: str, db_path: str
 ) -> None:
@@ -100,6 +134,8 @@ async def _run_generation_strategies_and_aggregate(
         and item.task_type == engine_tasks.GENERATION_STRATEGY_TASK
         for item in strategies
     )
+    _assert_debate_fanout_carries_the_batch_shape(strategies)
+    _debate_calls.clear()
     strategy_results = await asyncio.gather(
         *[
             engine_tasks.execute_generation_strategy(item, db_path=db_path)
@@ -107,6 +143,26 @@ async def _run_generation_strategies_and_aggregate(
             if item is not None
         ]
     )
+    # Every debate task handed the engine its own position in the batch
+    # and the batch's full size, so each debate gets a distinct angle.
+    debate_tasks = [
+        item
+        for item in strategies
+        if item is not None
+        and str(item.inputs["strategy"]).startswith("debate")
+    ]
+    # This degraded-mode scenario plans a single debate family, so the
+    # batch below is unambiguous; a lit/no-lit split would assert per
+    # family instead.
+    assert len({str(item.inputs["strategy"]) for item in debate_tasks}) == 1
+    assert len(_debate_calls) == len(debate_tasks)
+    batch_size = len(debate_tasks)
+    positions = [call["batch_position"] for call in _debate_calls]
+    assert all(position is not None for position in positions)
+    assert sorted(
+        (position.debate_index, position.total_debates)
+        for position in positions
+    ) == [(index, batch_size) for index in range(batch_size)]
     for index, (item, result) in enumerate(
         zip(strategies, strategy_results, strict=True)
     ):

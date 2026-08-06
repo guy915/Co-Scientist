@@ -46,24 +46,32 @@ class _GenerationPlan:
     """The fan-out's shape, decided before any durable row is written.
 
     Attributes:
-        task_specs: (strategy, count, index) spec per durable strategy task.
+        task_specs: (strategy, count, index, total) spec per durable
+            strategy task. Debate strategies get one task per hypothesis,
+            so index is the debate's position and total the family's whole
+            batch size (the diversity-angle denominator, finding E14);
+            other strategies run as one task where index is 0 and total
+            equals count.
         inputs: Literature and reference index every strategy task reads.
         aggregate_spec: Spec for the aggregate that folds the strategies in.
     """
 
-    task_specs: list[tuple[str, int, int]]
+    task_specs: list[tuple[str, int, int, int]]
     inputs: _StrategyInputs
     aggregate_spec: _AggregateSpec
 
 
 def _generation_task_specs(
     strategy_counts: dict[str, int],
-) -> list[tuple[str, int, int]]:
-    """Return (strategy, count, index) specs for each strategy's durable tasks.
+) -> list[tuple[str, int, int, int]]:
+    """Return (strategy, count, index, total) specs per durable task.
 
     Debate strategies get one task per hypothesis so debates run
     independently; every other strategy gets a single task producing its
-    whole count.
+    whole count. ``total`` carries the strategy's whole batch size to
+    every task: the engine assigns each debate a diversity angle from its
+    index modulo the batch, and a per-debate task that only knew its own
+    count of 1 could never diverge from its siblings (finding E14).
 
     Splitting the non-debate strategies per hypothesis was tried and
     reverted. It looked like it should help -- uniform items let the worker
@@ -77,12 +85,12 @@ def _generation_task_specs(
     """
     debate_strategies = {"debate_lit", "debate_only"}
     return [
-        (strategy, 1, index)
+        (strategy, 1, index, count)
         for strategy, count in strategy_counts.items()
         if strategy in debate_strategies
         for index in range(count)
     ] + [
-        (strategy, count, 0)
+        (strategy, count, 0, count)
         for strategy, count in strategy_counts.items()
         if strategy not in debate_strategies and count > 0
     ]
@@ -116,7 +124,7 @@ def _save_generation_plan_checkpoint(
 def _enqueue_generation_strategy_tasks(
     task: ScientificTask,
     planned_seq: int,
-    task_specs: Sequence[tuple[str, int, int]],
+    task_specs: Sequence[tuple[str, int, int, int]],
     inputs: _StrategyInputs,
     conn: sqlite3.Connection,
 ) -> list[ScientificTask]:
@@ -125,7 +133,7 @@ def _enqueue_generation_strategy_tasks(
     Args:
         task: The generation node task scheduling the fan-out.
         planned_seq: Checkpoint sequence the plan committed at.
-        task_specs: (strategy, count, index) spec per durable task.
+        task_specs: (strategy, count, index, total) spec per durable task.
         inputs: Literature and reference index every strategy reads.
         conn: Open connection of the caller's transaction.
 
@@ -142,6 +150,11 @@ def _enqueue_generation_strategy_tasks(
                     "strategy": strategy,
                     "count": count,
                     "strategy_index": index,
+                    # The strategy's whole batch size, so a per-debate
+                    # task can angle its debate against the full sibling
+                    # set (finding E14). Tasks enqueued before this input
+                    # existed simply run without a diversity angle.
+                    "debate_total": total,
                     "literature": inputs.literature,
                     "reference_text": inputs.reference_index.text,
                     "reference_sources": inputs.reference_index.sources,
@@ -157,7 +170,7 @@ def _enqueue_generation_strategy_tasks(
             ),
             conn=conn,
         )
-        for strategy, count, index in task_specs
+        for strategy, count, index, total in task_specs
     ]
 
 
@@ -267,39 +280,84 @@ async def _enqueue_generation_fanout(
     }
 
 
+@dataclass(frozen=True)
+class _StrategyRunInputs:
+    """Per-task inputs one generation strategy executes against.
+
+    Attributes:
+        reference_index: The run's citation reference index.
+        literature: Retrieved literature synthesis, debate_lit only.
+        debate_index: This task's position in the strategy's parallel
+            debate batch (finding E14); None predates the wiring.
+        debate_total: The debate batch's whole size; see debate_index.
+    """
+
+    reference_index: Any
+    literature: Any
+    debate_index: int | None = None
+    debate_total: int | None = None
+
+
+async def _run_debate_strategy(
+    state: dict[str, Any],
+    strategy: str,
+    count: int,
+    inputs: _StrategyRunInputs,
+) -> tuple[list[Any], list[dict[str, Any]]]:
+    """Run one debate strategy task and return its hypotheses/transcripts.
+
+    The task carries its position and batch size within the strategy's
+    parallel debates (finding E14), which the engine turns into a
+    distinct diversity angle per task.
+    """
+    from co_scientist.agents.generation.citations import ReferenceIndex
+    from co_scientist.agents.generation.debate import (
+        DebateBatchPosition,
+        generate_with_debate,
+    )
+
+    literature = inputs.literature if strategy == "debate_lit" else None
+    debate_reference = (
+        inputs.reference_index
+        if strategy == "debate_lit"
+        else ReferenceIndex(text="", sources={})
+    )
+    batch_position = None
+    if inputs.debate_index is not None and inputs.debate_total is not None:
+        batch_position = DebateBatchPosition(
+            inputs.debate_index, inputs.debate_total
+        )
+    hypotheses, transcripts = await generate_with_debate(
+        state=state,
+        count=count,
+        articles_with_reasoning=literature,
+        reference_index=debate_reference,
+        batch_position=batch_position,
+    )
+    return hypotheses, transcripts
+
+
 async def _run_generation_strategy(
     state: dict[str, Any],
     strategy: str,
     count: int,
-    reference_index: Any,
-    literature_raw: Any,
+    inputs: _StrategyRunInputs,
 ) -> tuple[list[Any], list[dict[str, Any]]]:
     """Execute one generation strategy and return its hypotheses/transcripts."""
     from co_scientist.agents.generation.assumptions import (
         generate_with_assumptions,
     )
-    from co_scientist.agents.generation.citations import ReferenceIndex
-    from co_scientist.agents.generation.debate import generate_with_debate
     from co_scientist.agents.generation.literature_tools import (
         generate_with_tools,
     )
 
     if strategy == "tools":
-        return await generate_with_tools(state, count, reference_index), []
+        return (
+            await generate_with_tools(state, count, inputs.reference_index),
+            [],
+        )
     if strategy in {"debate_lit", "debate_only"}:
-        literature = literature_raw if strategy == "debate_lit" else None
-        debate_reference = (
-            reference_index
-            if strategy == "debate_lit"
-            else ReferenceIndex(text="", sources={})
-        )
-        hypotheses, transcripts = await generate_with_debate(
-            state=state,
-            count=count,
-            articles_with_reasoning=literature,
-            reference_index=debate_reference,
-        )
-        return hypotheses, transcripts
+        return await _run_debate_strategy(state, strategy, count, inputs)
     if strategy == "assumptions":
         return await generate_with_assumptions(state, count), []
     raise ValueError(f"unsupported generation strategy: {strategy}")
@@ -320,8 +378,19 @@ async def execute_generation_strategy(
         text=str(task.inputs.get("reference_text") or ""),
         sources=dict(task.inputs.get("reference_sources") or {}),
     )
+    # A debate task is one debate of the strategy's parallel batch; the
+    # batch total defaults to the pre-E14 shape (a lone debate with no
+    # siblings to diverge from) when the input predates the wiring.
     hypotheses, transcripts = await _run_generation_strategy(
-        state, strategy, count, reference_index, task.inputs.get("literature")
+        state,
+        strategy,
+        count,
+        _StrategyRunInputs(
+            reference_index=reference_index,
+            literature=task.inputs.get("literature"),
+            debate_index=int(task.inputs.get("strategy_index") or 0),
+            debate_total=int(task.inputs.get("debate_total") or count),
+        ),
     )
     return {
         "strategy": strategy,

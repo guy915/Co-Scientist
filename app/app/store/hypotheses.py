@@ -11,6 +11,7 @@ and ``conn`` (an open connection to reuse, e.g. from ``transaction``).
 
 from __future__ import annotations
 
+import json
 import sqlite3
 import uuid
 from dataclasses import dataclass
@@ -31,7 +32,9 @@ class NewHypothesis:
     classification label that drives the viewer breadcrumb;
     ``created_by_agent`` names the creating agent (e.g. 'generation');
     ``author`` records authorship provenance for a scientist-contributed
-    hypothesis and stays empty for agent-generated ones.
+    hypothesis and stays empty for agent-generated ones. ``parent_ids`` is
+    the full multi-parent lineage for combination children (JSON-encoded on
+    write); it stays None when ``parent_id`` alone is the whole lineage.
     """
 
     run_id: str
@@ -39,6 +42,7 @@ class NewHypothesis:
     statement: str
     hypothesis_id: str | None = None
     parent_id: str | None = None
+    parent_ids: list[str] | None = None
     generation: int = 0
     category: str | None = None
     mechanism: str = ""
@@ -48,19 +52,27 @@ class NewHypothesis:
     author: str = ""
 
 
+def _parent_ids_json(parent_ids: list[str] | None) -> str | None:
+    """Encode a multi-parent lineage list for storage, or None."""
+    if not parent_ids:
+        return None
+    return json.dumps(parent_ids)
+
+
 def _insert_hypothesis_rows(
     conn: sqlite3.Connection, hyp_id: str, f: NewHypothesis, now: float
 ) -> None:
     """Insert the hypothesis row and its initial mutable-state row."""
     conn.execute(
-        "INSERT INTO hypotheses (id, run_id, parent_id, generation, "
-        "category, title, statement, mechanism, expected_effect, "
+        "INSERT INTO hypotheses (id, run_id, parent_id, parent_ids, "
+        "generation, category, title, statement, mechanism, expected_effect, "
         "experimental_context, created_by_agent, author, created_at) "
-        "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
         (
             hyp_id,
             f.run_id,
             f.parent_id,
+            _parent_ids_json(f.parent_ids),
             f.generation,
             f.category,
             f.title,
@@ -251,6 +263,24 @@ _HYP_SELECT = (
 )
 
 
+def _decode_parent_ids(row: dict[str, Any]) -> dict[str, Any]:
+    """Decode the stored parent_ids JSON into a list (or leave it None).
+
+    The column stores a JSON array for multi-parent combination children and
+    NULL otherwise, so a row's lineage reaches API consumers as a real list
+    rather than an opaque string. A value that fails to parse degrades to
+    None rather than raising on read.
+    """
+    raw = row.get("parent_ids")
+    if raw is None:
+        return row
+    try:
+        row["parent_ids"] = json.loads(raw)
+    except (TypeError, ValueError):
+        row["parent_ids"] = None
+    return row
+
+
 def list_hypotheses(
     run_id: str,
     db_path: str | None = None,
@@ -265,7 +295,7 @@ def list_hypotheses(
             + "WHERE h.run_id=? ORDER BY s.elo_rating DESC, h.created_at ASC",
             (run_id,),
         ).fetchall()
-        return [dict(r) for r in rows]
+        return [_decode_parent_ids(dict(r)) for r in rows]
 
 
 def get_hypothesis(
@@ -279,4 +309,4 @@ def get_hypothesis(
             _HYP_SELECT + "WHERE h.id=?",
             (hypothesis_id,),
         ).fetchone()
-        return dict(row) if row else None
+        return _decode_parent_ids(dict(row)) if row else None

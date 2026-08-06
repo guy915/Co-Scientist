@@ -5,9 +5,23 @@ import dataclasses
 import logging
 from typing import Any
 
+from co_scientist.agents.reflection.deep_verification_evidence import (
+    _MAX_PROBE_SOURCES as _MAX_PROBE_SOURCES,
+)
+from co_scientist.agents.reflection.deep_verification_evidence import (
+    _probe_queries as _probe_queries,
+)
+from co_scientist.agents.reflection.deep_verification_evidence import (
+    _retrieve_probe_evidence as _retrieve_probe_evidence,
+)
+from co_scientist.agents.reflection.deep_verification_evidence import (
+    _retrieved_evidence_context as _retrieved_evidence_context,
+)
+from co_scientist.agents.reflection.deep_verification_evidence import (
+    merge_retrieved_articles as merge_retrieved_articles,
+)
 from co_scientist.agents.reflection.evidence_context import (
     PUBLIC_SNIPPET_CHARS,
-    RETRIEVED_LABEL,
     EvidenceCaps,
     build_evidence_context,
 )
@@ -42,12 +56,22 @@ from co_scientist.models import (
 from co_scientist.progress import emit_progress
 from co_scientist.prompts import get_deep_verification_prompt
 from co_scientist.prompts._common import _format_meta_review_context
+from co_scientist.schemas.review import (
+    DEEP_VERIFICATION_MAX_DECONTEXTUALIZATIONS,
+    DEEP_VERIFICATION_MAX_SUB_ASSUMPTIONS,
+)
 from co_scientist.state import WorkflowState
 
 logger = logging.getLogger(__name__)
 
-_MAX_PROBE_QUERIES = 3
-_MAX_PROBE_SOURCES = 6
+# The verdict a verification explicitly carries when it could not be
+# produced (provider failure, or output that did not survive validation).
+# Never model output -- the schema enum has no such value -- and never
+# blocking: an unverified idea still ranks and publishes, mirroring the
+# "Unverified" badge policy for merely-unsupported claims. Only
+# "undermined" bars ranking (audit E9).
+VERDICT_UNVERIFIED = "unverified"
+_VALID_VERDICTS = frozenset({"holds", "weakened", "undermined"})
 
 # Ceiling on the opening evidence block, before the probe block is appended
 # to it. Eight full-length sources' worth (PUBLIC_SNIPPET_CHARS), so it trims
@@ -67,88 +91,6 @@ class _VerificationContext:
     model_name: str
     tool_registry: Any | None
     state: WorkflowState
-
-
-def _probe_queries(result: dict[str, Any]) -> list[str]:
-    """Return the keyword searches for the load-bearing probing questions.
-
-    Each probe carries its own ``search_query`` because the question it was
-    written from is prose, and the literature back end ANDs every term of it:
-    asking "Does tamoxifen reduce acrB transcript levels by >=50% within 1-2
-    hours?" demands a paper containing "does", "1-2" and "50", which matches
-    nothing. A probe that omitted the query falls back to its question, which
-    at least preserves the old behaviour rather than dropping the search.
-    """
-    probes = result.get("probes") or []
-    ordered = sorted(
-        probes,
-        key=lambda probe: not bool(probe.get("assumption_is_fundamental")),
-    )
-    queries: list[str] = []
-    seen: set[str] = set()
-    for probe in ordered:
-        raw = probe.get("search_query") or probe.get("question") or ""
-        query = " ".join(str(raw).split())
-        key = query.casefold()
-        if not query or key in seen:
-            continue
-        seen.add(key)
-        queries.append(query)
-        if len(queries) == _MAX_PROBE_QUERIES:
-            break
-    return queries
-
-
-async def _retrieve_probe_evidence(
-    state: WorkflowState, queries: list[str]
-) -> tuple[list[Article], list[str]]:
-    """Execute targeted literature searches for verification questions."""
-    if not queries or not state.get("mcp_available"):
-        return [], []
-
-    from co_scientist.agents.generation.literature_review.helpers import (
-        build_articles_from_metadata,
-    )
-    from co_scientist.agents.generation.literature_review.orchestration import (
-        _phase2_collect_papers,
-    )
-    from co_scientist.agents.generation.literature_review.run_config import (
-        _get_search_config,
-    )
-    from co_scientist.mcp_client import get_mcp_client
-
-    config = dataclasses.replace(
-        _get_search_config(state), papers_to_read_count=_MAX_PROBE_SOURCES
-    )
-    errors: list[str] = []
-    try:
-        client = await get_mcp_client(tool_registry=config.tool_registry)
-        metadata, _ = await _phase2_collect_papers(
-            queries, state, config, client, errors
-        )
-    except Exception as exc:
-        logger.warning("Probe evidence retrieval unavailable: %s", exc)
-        return [], [*errors, str(exc)]
-
-    articles = build_articles_from_metadata(metadata, config.source_name)
-    usable = [
-        article
-        for article in articles
-        if not article.is_retracted and (article.abstract or article.content)
-    ]
-    return usable[:_MAX_PROBE_SOURCES], errors
-
-
-def _retrieved_evidence_context(articles: list[Article]) -> str:
-    """Format newly retrieved sources with stable verification keys.
-
-    Keyed ``V`` because this block is appended to the opening evidence in
-    one prompt, so the two must not share key space. Uncapped in
-    aggregate: the probe cap already bounds the list.
-    """
-    return build_evidence_context(
-        articles, require_analyzed=False, article_label=RETRIEVED_LABEL
-    )
 
 
 async def _call_verification(
@@ -210,7 +152,8 @@ async def _verify_within_semaphore(
 
     Bounds concurrent verifications across the whole top-k batch. Broad
     except by design: one hypothesis's failure should not abort the batch;
-    None means "leave its probes/verdict untouched."
+    None means the batch records an explicit ``unverified`` verdict for it
+    (audit E9) rather than passing it silently.
     """
     async with semaphore:
         try:
@@ -287,17 +230,56 @@ def _verification_evidence_context(state: WorkflowState) -> str:
     return context or "No retrieved evidence available."
 
 
+def mark_hypothesis_unverified(hypothesis: Hypothesis) -> None:
+    """Record the explicit ``unverified`` state on one hypothesis.
+
+    The fingerprint is deliberately left stale so the next deep-verification
+    pass re-attempts instead of trusting the failure. Unverified is not
+    blocking -- the idea still ranks and publishes (``is_rankable`` bars
+    only ``undermined``); it just carries the explicit state, mirroring the
+    "Unverified" badge policy for merely-unsupported claims (audit E9).
+    """
+    hypothesis.deep_verification_probes = []
+    hypothesis.deep_verification_verdict = VERDICT_UNVERIFIED
+    hypothesis.enrichments.pop("deep_verification", None)
+
+
+def _bounded_verification(result: dict[str, Any]) -> dict[str, Any]:
+    """The storable verification record, decomposition lists bounded.
+
+    The schema caps both lists already; this is the second bound on the
+    stored side, so a response that slipped a lax provider cannot grow the
+    checkpoint indefinitely.
+    """
+    bounded = dict(result)
+    bounded["sub_assumptions"] = list(
+        (result.get("sub_assumptions") or [])[
+            :DEEP_VERIFICATION_MAX_SUB_ASSUMPTIONS
+        ]
+    )
+    bounded["decontextualizations"] = list(
+        (result.get("decontextualizations") or [])[
+            :DEEP_VERIFICATION_MAX_DECONTEXTUALIZATIONS
+        ]
+    )
+    return bounded
+
+
 def _apply_verification_results(
     to_verify: list[Hypothesis],
     results: list[dict[str, Any] | None],
     model_name: str,
-) -> int:
+) -> tuple[int, int]:
     """Applies deep-verification results onto their hypotheses in place.
 
-    A None result (call failed, see _verify_one) is silently skipped,
-    leaving that hypothesis's prior probes/verdict unchanged rather than
-    raising -- and crucially leaving its fingerprint unchanged too, so the
-    next cycle retries it instead of recording a failure as current.
+    Fails closed (audit E9): a None result (provider failure, see
+    _verify_one) or one without a usable verdict (output that never
+    survived validation) records an explicit ``unverified`` verdict rather
+    than passing silently. Either failure also leaves the fingerprint
+    stale, so the next cycle retries instead of recording the failure as
+    current -- but the stale probes of the attempt being replaced are
+    cleared, since carrying them would read as a verdict this attempt
+    never produced.
 
     The fingerprint is recomputed here rather than reused from selection:
     probe retrieval can add citations mid-verification, and storing the
@@ -310,51 +292,39 @@ def _apply_verification_results(
         model_name: Verifier model the batch ran on.
 
     Returns:
-        Count of hypotheses whose probes/verdict were updated.
+        Counts of (verified, unverified) hypotheses.
     """
     verified_count = 0
+    unverified_count = 0
     for hypothesis, result in zip(to_verify, results, strict=True):
-        if result:
-            hypothesis.deep_verification_probes = result.get("probes", [])
-            hypothesis.deep_verification_verdict = result.get("verdict")
-            hypothesis.deep_verification_fingerprint = verification_fingerprint(
-                hypothesis, model_name
-            )
-            verified_count += 1
-    return verified_count
-
-
-def merge_retrieved_articles(
-    existing: list[Article] | None,
-    results: list[dict[str, Any] | None],
-) -> list[Article]:
-    """Merge targeted verification sources into the run evidence corpus."""
-    merged = list(existing or [])
-    identities = {
-        (article.source, article.source_id or article.doi or article.url)
-        for article in merged
-    }
-    for result in results:
-        if not result:
+        if result is None or result.get("verdict") not in _VALID_VERDICTS:
+            mark_hypothesis_unverified(hypothesis)
+            unverified_count += 1
             continue
-        for payload in result.get("retrieved_articles") or []:
-            article = Article.from_dict(payload)
-            identity = (
-                article.source,
-                article.source_id or article.doi or article.url,
-            )
-            if identity in identities:
-                continue
-            identities.add(identity)
-            merged.append(article)
-    return merged
+        hypothesis.deep_verification_probes = result.get("probes", [])
+        hypothesis.deep_verification_verdict = result.get("verdict")
+        hypothesis.enrichments["deep_verification"] = _bounded_verification(
+            result
+        )
+        hypothesis.deep_verification_fingerprint = verification_fingerprint(
+            hypothesis, model_name
+        )
+        verified_count += 1
+    return verified_count, unverified_count
 
 
 async def deep_verification_node(state: WorkflowState) -> dict[str, Any]:
-    """Probing-question deep verification of the top-k hypotheses by Elo.
+    """Deep verification of the post-tournament leaders, top-k by Elo.
 
-    Runs after ranking. Already-verified leaders whose text has not changed
-    keep their probes and are skipped; evolution clears the probes of any
+    Runs after each ranking pass (audit E9), so the Elo ordering it
+    selects by is the tournament's, not the arbitrary all-tied pool order
+    of a pre-ranking pass. Verification decomposes each leader into
+    sub-assumptions, probes them, and decontextualizes its context-bound
+    claims (audit E4); a verification that cannot be produced records an
+    explicit ``unverified`` verdict rather than passing silently.
+
+    Already-verified leaders whose inputs have not changed keep their
+    verification and are skipped; evolution clears the probes of any
     hypothesis whose text it rewrites, so freshly-evolved leaders are
     re-verified here.
 
@@ -362,7 +332,8 @@ async def deep_verification_node(state: WorkflowState) -> dict[str, Any]:
         state: The current workflow state.
 
     Returns:
-        A state delta with verified hypotheses, metrics, and a status message.
+        A state delta with verified hypotheses, metrics, and a status
+        message.
     """
     hypotheses = state["hypotheses"]
     # Edge case: nothing to verify yet (e.g. called before generation).
@@ -387,9 +358,11 @@ async def deep_verification_node(state: WorkflowState) -> dict[str, Any]:
         )
         return {}
 
-    verified_count, llm_calls = await _run_verification_batch(state, to_verify)
+    verified, unverified, llm_calls = await _run_verification_batch(
+        state, to_verify
+    )
     return _deep_verification_result(
-        hypotheses, state["articles"], verified_count, llm_calls
+        hypotheses, state["articles"], verified, unverified, llm_calls
     )
 
 
@@ -397,26 +370,34 @@ def _deep_verification_result(
     hypotheses: list[Hypothesis],
     articles: list[Article] | None,
     verified_count: int,
+    unverified_count: int,
     llm_calls: int,
 ) -> dict[str, Any]:
     """Builds the deep_verification_node state delta after a batch runs."""
-    logger.info("Deep verification complete: %s hypotheses", verified_count)
+    logger.info(
+        "Deep verification complete: %s hypotheses, %s unverified",
+        verified_count,
+        unverified_count,
+    )
+    message = f"Deep-verified {verified_count} top hypotheses"
+    if unverified_count:
+        message += (
+            f"; {unverified_count} left explicitly unverified after a"
+            " verification failure"
+        )
     metrics = create_metrics_update(deltas=MetricDeltas(llm_calls=llm_calls))
     return {
         "hypotheses": hypotheses,
         "articles": articles,
         "metrics": metrics,
-        "messages": phase_message(
-            "deep_verification",
-            f"Deep-verified {verified_count} top hypotheses",
-        ),
+        "messages": phase_message("deep_verification", message),
     }
 
 
 async def _run_verification_batch(
     state: WorkflowState,
     to_verify: list[Hypothesis],
-) -> tuple[int, int]:
+) -> tuple[int, int, int]:
     """Runs deep verification for a batch of hypotheses and applies results.
 
     Verifies concurrently (semaphore-bounded), applies results in place on
@@ -427,7 +408,8 @@ async def _run_verification_batch(
         to_verify: Hypotheses to verify.
 
     Returns:
-        Count of updated hypotheses and actual verification LLM calls.
+        Verified count, explicitly-unverified count, and actual
+        verification LLM calls.
     """
     await emit_progress(
         state,
@@ -441,7 +423,7 @@ async def _run_verification_batch(
     results = await _gather_verification_results(
         to_verify, state, tool_registry, evidence_context
     )
-    verified_count, llm_calls = _finalize_verification_batch(
+    verified_count, unverified_count, llm_calls = _finalize_verification_batch(
         to_verify, results, state
     )
 
@@ -452,7 +434,7 @@ async def _run_verification_batch(
         PROGRESS_DEEP_VERIFICATION_COMPLETE,
     )
 
-    return verified_count, llm_calls
+    return verified_count, unverified_count, llm_calls
 
 
 async def _gather_verification_results(
@@ -485,15 +467,21 @@ def _finalize_verification_batch(
     to_verify: list[Hypothesis],
     results: list[dict[str, Any] | None],
     state: WorkflowState,
-) -> tuple[int, int]:
-    """Applies results, merges retrieved articles, and tallies LLM calls."""
-    verified_count = _apply_verification_results(
+) -> tuple[int, int, int]:
+    """Applies results, merges retrieved articles, and tallies LLM calls.
+
+    Returns:
+        Verified count, explicitly-unverified count, and LLM calls. A
+        degraded (empty-dict) result still spent its initial call, so it
+        is billed even though it lands as unverified.
+    """
+    verified_count, unverified_count = _apply_verification_results(
         to_verify, results, state["model_name"]
     )
     state["articles"] = merge_retrieved_articles(state.get("articles"), results)
     llm_calls = sum(
         int(result.get("verification_llm_calls", 1))
         for result in results
-        if result
+        if result is not None
     )
-    return verified_count, llm_calls
+    return verified_count, unverified_count, llm_calls

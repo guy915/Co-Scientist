@@ -130,3 +130,48 @@ def test_connect_upgrades_old_interview_turns_table(
 
     assert "fallback" in _columns(path, "interview_turns")
     assert [row[0] for row in rows] == [0]
+
+
+# The hypotheses table exactly as builds before the multi-parent lineage
+# change created it: no parent_ids column.
+_OLD_HYPOTHESES = """
+CREATE TABLE hypotheses (
+    id TEXT PRIMARY KEY,
+    run_id TEXT NOT NULL,
+    parent_id TEXT,
+    generation INTEGER NOT NULL DEFAULT 0,
+    category TEXT,
+    title TEXT NOT NULL,
+    statement TEXT NOT NULL,
+    mechanism TEXT,
+    expected_effect TEXT,
+    experimental_context TEXT,
+    created_by_agent TEXT NOT NULL,
+    created_at REAL NOT NULL
+);
+"""
+
+
+def test_connect_upgrades_old_hypotheses_table(tmp_path: object) -> None:
+    """Hypotheses written before multi-parent lineage open with NULL parents.
+
+    A deployed volume holds hypotheses predating the combination operator;
+    the upgrade adds the column and those rows read back as NULL parent_ids,
+    since a missing column can only mean single-parent lineage.
+    """
+    path = str(tmp_path / "old_hyps.db")  # type: ignore[operator]
+    conn = sqlite3.connect(path)
+    conn.executescript(_OLD_HYPOTHESES)
+    conn.execute(
+        "INSERT INTO hypotheses (id, run_id, title, statement, "
+        "created_by_agent, created_at) "
+        "VALUES ('h1', 'r1', 'T', 'S', 'generation', 1.0)"
+    )
+    conn.commit()
+    conn.close()
+
+    with db.connect(path) as conn:
+        rows = conn.execute("SELECT parent_ids FROM hypotheses").fetchall()
+
+    assert "parent_ids" in _columns(path, "hypotheses")
+    assert [row[0] for row in rows] == [None]

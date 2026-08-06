@@ -81,10 +81,13 @@ class HypothesisGenerator(McpAvailabilityMixin, StreamExecutionMixin):
         - constraints: Requirements or boundaries.
         - enable_literature_review_node: Whether to include the literature
           review node (default: auto-detect MCP availability).
-        - enable_tool_calling_generation: Enable tool-calling generation
-          where the generate node queries literature tools directly
-          (requires enable_literature_review_node=True + MCP server,
-          default: False).
+        - enable_tool_calling_generation: Tool-calling generation where
+          the generate node's draft agent queries literature tools
+          directly. Defaults ON whenever the run has literature tools
+          available (MCP server + enable_literature_review_node=True,
+          and not the offline backend); pass False to opt out of it, or
+          True to request it explicitly (still validated against
+          availability).
         - dev_test_lit_tools_isolation: Dev mode - force lit review cache,
           all hypotheses to lit tools (default: False).
         - dev_mode: Dev mode - read a far smaller number of papers in the
@@ -317,7 +320,10 @@ class HypothesisGenerator(McpAvailabilityMixin, StreamExecutionMixin):
             mcp_available=mcp_available,
             pubmed_available=pubmed_available,
             enable_tool_calling_generation=_resolve_tool_calling_generation(
-                opts, mcp_available, enable_literature_review_node
+                opts,
+                mcp_available,
+                enable_literature_review_node,
+                self.model_name,
             ),
             # These flags are threaded through to the initial state and the
             # consuming nodes branch on them directly.

@@ -244,6 +244,7 @@ async def _judge_and_commit_matchup(
         run_focus_guidance=ctx.run_focus_guidance,
         run_id=state.get("run_id"),
         matchup_index=index,
+        criteria=state.get("criteria"),
     )
     winner, response = await judge_matchup(debate_ctx, debate_turns=depth)
     outcome = _apply_matchup_elo(

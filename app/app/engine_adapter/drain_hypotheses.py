@@ -52,7 +52,8 @@ class _HypIdentity(NamedTuple):
 
     Bundles the fields the drain derives once from an engine hypothesis dict
     and threads into the store row: the statement text, a derived title, and
-    the explicit lineage (generation, creating agent, engine id, parent id).
+    the explicit lineage (generation, creating agent, engine id, parent id,
+    and the full multi-parent list).
     """
 
     text: str
@@ -61,6 +62,7 @@ class _HypIdentity(NamedTuple):
     agent: str
     engine_id: str | None
     parent_id: str | None
+    parent_ids: list[str] | None
 
 
 def _article_coalesced_fields(
@@ -146,7 +148,30 @@ def _derive_hypothesis_identity(h: dict[str, Any]) -> _HypIdentity:
         parent_id = None
         agent = "evolution" if is_evolved else "generation"
 
-    return _HypIdentity(text, title, generation, agent, engine_id, parent_id)
+    return _HypIdentity(
+        text,
+        title,
+        generation,
+        agent,
+        engine_id,
+        parent_id,
+        _payload_parent_ids(h),
+    )
+
+
+def _payload_parent_ids(h: dict[str, Any]) -> list[str] | None:
+    """Extract a payload's multi-parent lineage list, or None.
+
+    Only a combination child carries ``parent_ids``; every other hypothesis
+    (and any pre-multi-parent payload) reads back as None, which keeps
+    ``parent_id`` the sole lineage signal. Non-string entries are dropped
+    defensively rather than persisted.
+    """
+    raw = h.get("parent_ids")
+    if not isinstance(raw, list):
+        return None
+    parent_ids = [pid for pid in raw if isinstance(pid, str) and pid]
+    return parent_ids or None
 
 
 # Excluded from the ranked report, but not by a judgement on the idea: a
@@ -251,6 +276,29 @@ def _resolve_persisted_parent_id(
     return parent_id
 
 
+def _resolve_persisted_parent_ids(
+    identity: _HypIdentity,
+    parent_id: str | None,
+    persisted_engine_ids: set[str],
+) -> list[str] | None:
+    """Return the multi-parent list to persist, or None.
+
+    Drops any parent pruned before the drain (absent from
+    ``persisted_engine_ids``) and keeps the resolved ``parent_id`` leading,
+    so the stored list agrees with the primary-parent column. Returns None
+    when a single parent remains (``parent_id`` already conveys it, and the
+    column is reserved for genuine multi-parent lineage) or when the primary
+    parent was itself pruned (``parent_id`` resolved to None), since the
+    child is then stored as a root with no lineage anchor.
+    """
+    if parent_id is None or not identity.parent_ids:
+        return None
+    kept = [pid for pid in identity.parent_ids if pid in persisted_engine_ids]
+    if parent_id not in kept:
+        kept.insert(0, parent_id)
+    return kept if len(kept) > 1 else None
+
+
 def _persist_engine_hypothesis_row(
     run_id: str,
     h: dict[str, Any],
@@ -264,13 +312,17 @@ def _persist_engine_hypothesis_row(
     matchups resolve by id rather than by fragile text-prefix matching.
     ``parent_id`` is carried through (store rows share the engine id, so a
     child's engine parent_id already equals the parent's store row id) via
-    ``_resolve_persisted_parent_id``.
+    ``_resolve_persisted_parent_id``; the multi-parent ``parent_ids`` list is
+    resolved the same way.
 
     Returns:
         A tuple of (persisted store row id, the engine's own id or None).
     """
     identity = _derive_hypothesis_identity(h)
     parent_id = _resolve_persisted_parent_id(identity, persisted_engine_ids)
+    parent_ids = _resolve_persisted_parent_ids(
+        identity, parent_id, persisted_engine_ids
+    )
     hyp_id = store.add_hypothesis(
         store.NewHypothesis(
             run_id=run_id,
@@ -278,6 +330,7 @@ def _persist_engine_hypothesis_row(
             statement=identity.text,
             hypothesis_id=identity.engine_id,
             parent_id=parent_id,
+            parent_ids=parent_ids,
             generation=identity.generation,
             category=h.get("category") or None,
             mechanism=h.get("literature_grounding") or "",

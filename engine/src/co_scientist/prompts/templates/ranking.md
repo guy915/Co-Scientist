@@ -22,6 +22,8 @@ For each pair of hypotheses, carefully analyze and compare them based on the sev
 
 These seven are the whole of `judgment_explanation`. Anything else worth saying belongs in `decision_summary`, not in a key of your own.
 
+{{evaluation_criteria}}
+
 ## Your Task
 
 Make a clear decision on which hypothesis wins the comparison based on these criteria.

@@ -14,6 +14,8 @@ node modules that call the LLM, bypassing the name-based lookup.
 """
 
 from co_scientist.schemas.generation import (
+    ASSUMPTION_SUB_SCHEMA,
+    ASSUMPTION_TREE_SCHEMA,
     GENERATION_DRAFT_SCHEMA,
     GENERATION_SCHEMA,
     HYPOTHESIS_NOVELTY_ANALYSIS_SCHEMA,
@@ -46,6 +48,8 @@ from co_scientist.schemas.synthesis import (
 )
 
 __all__ = [
+    "ASSUMPTION_SUB_SCHEMA",
+    "ASSUMPTION_TREE_SCHEMA",
     "DEEP_VERIFICATION_SCHEMA",
     "EVOLUTION_SCHEMA",
     "FULL_REVIEW_SCHEMA",

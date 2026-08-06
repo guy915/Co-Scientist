@@ -279,3 +279,82 @@ async def test_tool_calling_with_lit_disabled_does_not_raise(
     )
     assert state["enable_tool_calling_generation"] is False
     assert state["mcp_available"] is False
+
+
+# --- E11a: tool-calling generation is default-on when tools are available ---
+
+
+async def test_tool_calling_enabled_by_default_when_tools_available(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """With MCP + lit review available and no opt, agentic drafting is on.
+
+    The durable path exercises the tool-calling draft generator only when
+    this state flag is set, and no production caller passes the option --
+    so the default itself is what makes the technique live (audit E11).
+    """
+    stub_mcp_availability(monkeypatch, available=True)
+    gen = HypothesisGenerator()
+    state = await gen._prepare_generation("goal")
+    assert state["enable_tool_calling_generation"] is True
+
+
+async def test_tool_calling_default_on_survives_prepare_task_state(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The durable-task entry point carries the default-on flag too.
+
+    ``prepare_task_state`` is the exact call the app's durable executor
+    makes before enqueueing node tasks, so the flag it writes decides
+    whether the generation fan-out allocates the tool-based strategy.
+    """
+    stub_mcp_availability(monkeypatch, available=True)
+    gen = HypothesisGenerator()
+    state = await gen.prepare_task_state("goal")
+    assert state["enable_tool_calling_generation"] is True
+
+
+async def test_tool_calling_explicit_opt_out_honored(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An explicit False opts out even when tools are available."""
+    stub_mcp_availability(monkeypatch, available=True)
+    gen = HypothesisGenerator()
+    state = await gen._prepare_generation(
+        "goal", opts={"enable_tool_calling_generation": False}
+    )
+    assert state["enable_tool_calling_generation"] is False
+
+
+async def test_tool_calling_stays_off_by_default_without_mcp(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Without MCP there are no literature tools, so the default is off."""
+    stub_mcp_availability(monkeypatch, available=False)
+    gen = HypothesisGenerator()
+    state = await gen._prepare_generation("goal")
+    assert state["enable_tool_calling_generation"] is False
+
+
+async def test_tool_calling_forced_off_for_offline_model(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Offline runs keep the plain deterministic path even with MCP.
+
+    The offline responder never emits tool calls, so a tool loop would
+    "finish" on its first canned reply and fail parsing; the capability
+    default must not admit that.
+    """
+    from co_scientist.offline_llm import DEFAULT_OFFLINE_MODEL
+
+    stub_mcp_availability(monkeypatch, available=True)
+    gen = HypothesisGenerator(model_name=DEFAULT_OFFLINE_MODEL)
+    state = await gen._prepare_generation("goal")
+    assert state["enable_tool_calling_generation"] is False
+
+    # An explicit request cannot override the offline backend either.
+    gen2 = HypothesisGenerator(model_name=DEFAULT_OFFLINE_MODEL)
+    state2 = await gen2._prepare_generation(
+        "goal", opts={"enable_tool_calling_generation": True}
+    )
+    assert state2["enable_tool_calling_generation"] is False

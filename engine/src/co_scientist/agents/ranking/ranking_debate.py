@@ -14,6 +14,9 @@ import weakref
 from typing import Any
 
 from co_scientist.agents.ranking.ranking_debate_turns import (
+    _RANKING_DEBATE_MAX_TURNS as _RANKING_DEBATE_MAX_TURNS,
+)
+from co_scientist.agents.ranking.ranking_debate_turns import (
     _append_debate_context as _append_debate_context,
 )
 from co_scientist.agents.ranking.ranking_debate_turns import (
@@ -35,13 +38,13 @@ from co_scientist.agents.ranking.ranking_debate_turns import (
     _finalize_debate_response as _finalize_debate_response,
 )
 from co_scientist.agents.ranking.ranking_debate_turns import (
-    _majority_decided as _majority_decided,
-)
-from co_scientist.agents.ranking.ranking_debate_turns import (
     _MatchupPrompt as _MatchupPrompt,
 )
 from co_scientist.agents.ranking.ranking_debate_turns import (
     _parse_matchup_winner as _parse_matchup_winner,
+)
+from co_scientist.agents.ranking.ranking_debate_turns import (
+    _ranking_debate_consensus as _ranking_debate_consensus,
 )
 from co_scientist.agents.ranking.ranking_debate_turns import (
     _resolve_turn_winner as _resolve_turn_winner,
@@ -49,7 +52,6 @@ from co_scientist.agents.ranking.ranking_debate_turns import (
 from co_scientist.agents.ranking.ranking_results import _extract_reasoning
 from co_scientist.constants import (
     LOW_TEMPERATURE,
-    MULTI_TURN_DEBATE_TURNS,
     RANKING_WAVE_MIN_SIZE,
     RANKING_WAVE_SIZE,
     SINGLE_TURN_DEBATE_TURNS,
@@ -235,7 +237,7 @@ async def _run_debate_turns(
     base: _MatchupPrompt,
     fallback: str,
 ) -> tuple[list[str], _DebateRun, dict[str, Any]]:
-    """Runs debate turns until the majority is decided, alternating order.
+    """Runs debate turns until consensus is reached, alternating order.
 
     Folds the matchup index into the starting presentation order so a
     single-turn (lower-ranked) comparison does not always present
@@ -243,10 +245,12 @@ async def _run_debate_turns(
 
     Turns are strictly serial -- each one re-examines the transcript so far
     -- so this loop is the deepest part of the run's critical path, and
-    ranking is its highest-volume stage. It therefore stops as soon as
-    ``_majority_decided`` holds: the remaining turns cannot change the
-    verdict, and at the default depth of three that retires a full third of
-    the judge calls whenever the first two turns agree.
+    ranking is its highest-volume stage. It is adaptive within the paper's
+    envelope (typically 3-5 turns, max 10): it stops as soon as
+    ``_ranking_debate_consensus`` holds -- at earliest once the
+    typical-minimum floor has run, at latest when the budget is spent --
+    so a settled verdict retires the remaining judge calls while a
+    genuinely contested one buys more depth.
 
     Returns:
         Tuple of (votes, debate run with the accumulated transcript, final
@@ -264,7 +268,7 @@ async def _run_debate_turns(
         winner, entry, response = await _execute_debate_turn(ctx, turn, run)
         votes.append(winner)
         run.transcript.append(entry)
-        if _majority_decided(votes, turns):
+        if _ranking_debate_consensus(votes, turn + 1, turns):
             break
     return votes, run, response
 
@@ -277,15 +281,20 @@ async def judge_matchup(
 
     Single-turn for ``debate_turns == 1`` (lower-ranked matchups); a
     position-balanced multi-turn scientific debate otherwise (mechanics in
-    ``_run_debate_turns``). Returns a ``(winner, full_response)`` tuple
-    where winner is "a" or "b" -- the majority identity-normalized verdict
-    -- and the response carries ``debate_turns``, ``debate_transcript``,
-    and ``judge_model`` provenance keys for persistence. ``ctx`` bundles the
-    two hypotheses, the research goal, model name, and the optional guidance,
-    tool registry, and prompt-naming (``run_id``/``matchup_index``) fields.
+    ``_run_debate_turns``), capped at the paper's envelope maximum of
+    ``_RANKING_DEBATE_MAX_TURNS`` judged turns. Returns a
+    ``(winner, full_response)`` tuple where winner is "a" or "b" -- the
+    majority identity-normalized verdict -- and the response carries
+    ``debate_turns``, ``debate_transcript``, and ``judge_model``
+    provenance keys for persistence. ``ctx`` bundles the two hypotheses,
+    the research goal, model name, and the optional guidance, tool
+    registry, evaluation criteria, and prompt-naming
+    (``run_id``/``matchup_index``) fields.
     """
     base = _build_matchup_prompt_from_ctx(ctx)
     turns = max(SINGLE_TURN_DEBATE_TURNS, debate_turns)
+    if turns > SINGLE_TURN_DEBATE_TURNS:
+        turns = min(turns, _RANKING_DEBATE_MAX_TURNS)
     fallback = _balanced_invalid_fallback(
         ctx.hypothesis_a, ctx.hypothesis_b, ctx.matchup_index
     )
@@ -304,13 +313,20 @@ def _median_elo(hypotheses: list[Hypothesis]) -> float:
 def _matchup_debate_turns(
     hyp_a: Hypothesis, hyp_b: Hypothesis, median_elo: float
 ) -> int:
-    """Return the debate depth for a matchup.
+    """Return the debate depth budget for a matchup.
 
     Top-ranked comparisons (at least one hypothesis at or above the pool's
     median Elo) use a multi-turn scientific debate; comparisons between two
     lower-ranked hypotheses use a single-turn comparison (SSR §4, §12).
+
+    The multi-turn budget is the paper's envelope maximum: the judge loop
+    itself is adaptive (see ``_ranking_debate_consensus``) and settles as
+    soon as the debate is conclusive, so the budget is a ceiling on
+    contested matchups, not the cost of every one.
     """
     top_ranked = (
         hyp_a.elo_rating >= median_elo or hyp_b.elo_rating >= median_elo
     )
-    return MULTI_TURN_DEBATE_TURNS if top_ranked else SINGLE_TURN_DEBATE_TURNS
+    if top_ranked:
+        return _RANKING_DEBATE_MAX_TURNS
+    return SINGLE_TURN_DEBATE_TURNS

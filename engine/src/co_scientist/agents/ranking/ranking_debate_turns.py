@@ -10,7 +10,7 @@ in ``ranking_debate.py``, which re-exports these names for compatibility.
 import dataclasses
 import hashlib
 import logging
-from typing import Any, NamedTuple
+from typing import Any, Final, NamedTuple
 
 from co_scientist.agents.ranking.ranking_prompt import (
     _build_matchup_prompt,
@@ -19,6 +19,25 @@ from co_scientist.agents.ranking.ranking_prompt import (
 from co_scientist.models import Hypothesis
 
 logger = logging.getLogger(__name__)
+
+# The paper's tournament-debate turn envelope (SSR note 9.3): the panel
+# discussion "typically rang[es] from 3 to 5, with a maximum of 10" and
+# ends with a conclusive judgment once sufficient depth is reached. These
+# live here, not in constants_tournament.py, because the judge loop
+# (ranking_debate.py) and the follow-up-turn prose in
+# ``_append_debate_context`` must share a single source -- the panel paces
+# itself against whatever number it is told, so a stale figure reads as a
+# real instruction. constants_tournament.py keeps the values that size the
+# tournament (Elo, match budgets, wave width); this envelope belongs to
+# the debate itself.
+_RANKING_DEBATE_TYPICAL_MIN_TURNS: Final = 3
+"""Turns a top-ranked debate is guaranteed before consensus is honoured."""
+
+_RANKING_DEBATE_TYPICAL_MAX_TURNS: Final = 5
+"""Upper end of the paper's typical settlement range for a debate."""
+
+_RANKING_DEBATE_MAX_TURNS: Final = 10
+"""Hard ceiling on judged turns for one multi-turn matchup."""
 
 
 @dataclasses.dataclass(frozen=True)
@@ -90,7 +109,9 @@ def _append_debate_context(
 
     Multi-turn scientific debate: each subsequent turn re-examines the prior
     turns' reasoning before delivering a refined verdict, spending more
-    test-time compute on the top-ranked comparisons (SSR §4).
+    test-time compute on the top-ranked comparisons (SSR §4). The turn
+    figures are single-sourced from the envelope constants the judge loop
+    enforces (see the module comment above).
     """
     lines = ["\n\n## Prior Debate Turns (re-examine and refine)\n"]
     for entry in transcript:
@@ -100,8 +121,13 @@ def _append_debate_context(
             f"{entry['reasoning']}\n"
         )
     lines.append(
-        "\nWeigh the debate so far, challenge weak arguments, and deliver "
-        "your refined final judgment.\n"
+        f"\nThis debate typically settles in "
+        f"{_RANKING_DEBATE_TYPICAL_MIN_TURNS}-"
+        f"{_RANKING_DEBATE_TYPICAL_MAX_TURNS} turns and never runs past "
+        f"{_RANKING_DEBATE_MAX_TURNS}. If the turns above already "
+        "establish a clear preference that does not depend on which "
+        "hypothesis was presented first, confirm that verdict decisively; "
+        "otherwise challenge the weak arguments before deciding.\n"
     )
     return prompt + "".join(lines)
 
@@ -124,6 +150,7 @@ class _DebateContext(NamedTuple):
     run_focus_guidance: str | None = None
     run_id: str | None = None
     matchup_index: int | None = None
+    criteria: list[str] | None = None
 
 
 def _prompt_context(ctx: _DebateContext) -> _MatchupPromptContext:
@@ -135,6 +162,7 @@ def _prompt_context(ctx: _DebateContext) -> _MatchupPromptContext:
         tool_registry=ctx.tool_registry,
         run_setup_guidance=ctx.run_setup_guidance,
         run_focus_guidance=ctx.run_focus_guidance,
+        criteria=ctx.criteria,
     )
 
 
@@ -181,21 +209,25 @@ def _build_turn_prompt(
     return turn_prompt
 
 
-def _majority_decided(votes: list[str], turns: int) -> bool:
-    """True once no remaining turn can change the majority verdict.
+def _ranking_debate_consensus(
+    votes: list[str], turns_run: int, turn_budget: int
+) -> bool:
+    """True once the debate has reached a conclusive judgment.
 
-    A debate's winner is the majority of its turn votes, so a side holding
-    more than half of the budgeted turns has already won and the turns left
-    are pure latency: they cannot flip the verdict, only restate it. This
-    matters most in the case it fires on -- turns alternate A/B presentation
-    order, so two agreeing turns agreed from *opposite* orders, which is the
-    position-bias-free evidence the third turn exists to supply.
-
-    A split (one vote each) is not decided, so the tie-breaking turn still
-    runs. Single-turn comparisons are decided by their only turn.
+    Adaptive within the paper's envelope (typically 3-5 turns, max 10):
+    turns alternate A/B presentation order, so two CONSECUTIVE agreeing
+    votes agreed from *opposite* orders -- the position-bias-free
+    evidence the debate exists to produce -- and the verdict is
+    conclusive. The typical-minimum floor guarantees a real exchange
+    before any consensus is honoured, and a debate that never settles
+    runs to the budget (capped at the envelope maximum) and resolves by
+    majority of all votes, ties through the balanced fallback.
     """
-    needed = turns // 2 + 1
-    return votes.count("a") >= needed or votes.count("b") >= needed
+    if turns_run >= min(turn_budget, _RANKING_DEBATE_MAX_TURNS):
+        return True
+    if turns_run < min(_RANKING_DEBATE_TYPICAL_MIN_TURNS, turn_budget):
+        return False
+    return len(votes) >= 2 and votes[-1] == votes[-2]
 
 
 def _resolve_turn_winner(
@@ -219,9 +251,9 @@ def _finalize_debate_response(
     """Determines the debate's overall winner and attaches provenance fields.
 
     ``debate_turns`` records the turns actually judged rather than the depth
-    the matchup was budgeted, since a decided majority stops the debate
-    early (see ``_majority_decided``). It is persisted as provenance and
-    metered as the matchup's LLM spend, so reporting the budget would
+    the matchup was budgeted, since a conclusive consensus stops the debate
+    early (see ``_ranking_debate_consensus``). It is persisted as provenance
+    and metered as the matchup's LLM spend, so reporting the budget would
     overstate both.
     """
     turns = len(votes)

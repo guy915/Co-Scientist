@@ -20,6 +20,7 @@ from tests._state import make_review
 _HYPOTHESIS_DICT_KEYS = {
     "id",
     "parent_id",
+    "parent_ids",
     "generation",
     "origin",
     "creation_iteration",
@@ -127,6 +128,33 @@ def test_evolved_hypothesis_records_lineage() -> None:
     assert evolved.creation_iteration == 2
     # The child has a distinct id from its parent.
     assert evolved.id != parent.id
+
+
+def test_multi_parent_lineage_records_every_parent() -> None:
+    """A combination child keeps parent_id primary and parent_ids all."""
+    primary = Hypothesis(text="primary parent")
+    partner = Hypothesis(text="partner parent")
+    child = Hypothesis(
+        text="combined child",
+        parent_id=primary.id,
+        parent_ids=[primary.id, partner.id],
+        generation=1,
+        origin=HypothesisOrigin.EVOLUTION,
+    )
+    assert child.parent_id == primary.id
+    assert child.parent_ids == [primary.id, partner.id]
+    # The full parent list survives serialization round-trips (checkpoints).
+    restored = Hypothesis.from_dict(child.to_dict())
+    assert restored.parent_id == primary.id
+    assert restored.parent_ids == [primary.id, partner.id]
+
+
+def test_parent_ids_default_empty_and_legacy_payloads_load() -> None:
+    """parent_ids defaults to empty; pre-lineage payloads still load."""
+    assert Hypothesis(text="x").parent_ids == []
+    legacy = Hypothesis(text="x").to_dict()
+    legacy.pop("parent_ids")  # a cached payload from before the field
+    assert Hypothesis.from_dict(legacy).parent_ids == []
 
 
 # --- Hypothesis: computed properties ----------------------------------------

@@ -28,27 +28,9 @@ ELO_K_FACTOR: Final = 24
 # Debate depth for a tournament matchup (paper invariant SSR §4, §12): top-
 # ranked comparisons use a multi-turn scientific debate, lower-ranked ones a
 # single-turn comparison. A matchup is "top-ranked" when at least one
-# hypothesis is at or above the pool's median Elo. The depth is a documented
-# clone choice (Google specifies "multi-turn" but not the count).
-MULTI_TURN_DEBATE_TURNS: Final = 2
-"""Number of debate turns for a top-ranked matchup (clone-defined).
-
-Sets the tournament's wall clock outright. Turns are serial -- each re-reads
-the transcript so far -- while the matchups of a wave are judged
-concurrently, so a wave costs this many call latencies no matter how wide it
-is. Ranking is the run's highest-volume LLM stage, which makes this the
-single most expensive number in the pipeline.
-
-Lowered from three. Two is the smallest depth that still spends real
-test-time compute *and* keeps the position-bias guard intact: the turns
-present the pair in opposite A/B orders, so a two-turn agreement is a
-verdict both orderings reached independently, which is the property the
-depth exists to buy. What the third turn added was a tiebreak; a split now
-resolves through the identity-stable balanced fallback in
-``_balanced_invalid_fallback`` instead, which alternates across matchups and
-so does not bias the tournament in either hypothesis's favour.
-"""
-
+# hypothesis is at or above the pool's median Elo. The multi-turn envelope
+# itself (3-5 typical, 10 max, early stop on consensus) lives with the loop
+# that enforces it: agents/ranking/ranking_debate_turns.py.
 SINGLE_TURN_DEBATE_TURNS: Final = 1
 """Number of turns for a lower-ranked (single-turn) matchup."""
 

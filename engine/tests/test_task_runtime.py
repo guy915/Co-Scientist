@@ -44,7 +44,11 @@ def test_apply_task_update_uses_graph_state_reducers() -> None:
         ("supervisor", False, None, "generate"),
         ("generate", True, None, "reflection"),
         ("generate", False, None, "review"),
-        ("ranking", False, None, "orchestrator"),
+        ("safety_screen", False, None, "ranking"),
+        # Deep verification probes the post-tournament leaders (audit E9),
+        # so ranking runs first and the loop point comes after it.
+        ("ranking", False, None, "deep_verification"),
+        ("deep_verification", False, None, "orchestrator"),
         ("orchestrator", False, "evolve", "meta_review"),
         ("orchestrator", False, "terminate", "research_overview"),
         ("research_overview", False, None, None),

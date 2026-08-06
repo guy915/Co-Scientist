@@ -8,6 +8,12 @@ its call_llm_with_tools seam remains monkeypatchable on that namespace.
 import logging
 from typing import TYPE_CHECKING, Any, NamedTuple, Optional
 
+from co_scientist.agents.generation.assumption_feedback import (
+    build_falsified_assumptions_section,
+)
+from co_scientist.agents.generation.research_expansion import (
+    build_expansion_section,
+)
 from co_scientist.constants import corpus_slug
 from co_scientist.prompts import (
     DraftPromptRequest,
@@ -59,6 +65,8 @@ class _DraftStateContext(NamedTuple):
     articles: list[Any]
     run_setup_guidance: Any
     run_focus_guidance: Any
+    research_expansion_section: str
+    falsified_assumptions_section: str
 
 
 def _gather_draft_state_context(state: WorkflowState) -> _DraftStateContext:
@@ -94,6 +102,14 @@ def _gather_draft_state_context(state: WorkflowState) -> _DraftStateContext:
         articles=articles,
         run_setup_guidance=state.get("run_setup_guidance"),
         run_focus_guidance=state.get("run_focus_guidance"),
+        # Research expansion (E11b) and verified-wrong assumptions (K9)
+        # render as self-contained prompt sections; both are empty
+        # strings outside their conditions, so the initial cycle's prompt
+        # is unchanged.
+        research_expansion_section=build_expansion_section(state),
+        falsified_assumptions_section=build_falsified_assumptions_section(
+            state.get("hypotheses")
+        ),
     )
 
 
@@ -128,6 +144,8 @@ def _invoke_draft_prompt_builder(
             user_hypotheses=ctx.user_hypotheses,
             max_iterations=max_iterations,
             reference_list=ref_text,
+            research_expansion_section=ctx.research_expansion_section,
+            falsified_assumptions_section=ctx.falsified_assumptions_section,
             context=PromptRunContext(
                 supervisor_guidance=ctx.supervisor_guidance,
                 meta_review=ctx.meta_review,

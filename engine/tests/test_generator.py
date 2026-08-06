@@ -236,19 +236,28 @@ def test_build_graph_without_literature_review_omits_nodes() -> None:
     assert "reflection" not in graph.nodes
 
 
-def test_deep_verification_precedes_ranking() -> None:
-    """Safety routes through verification before ranking can update Elo."""
+def test_deep_verification_follows_ranking() -> None:
+    """Verification probes the post-tournament leaders (audit E9).
+
+    Ranking runs first so the Elo ordering deep verification selects its
+    top-k by is the tournament's, and verification hands on to the loop
+    point rather than into the tournament.
+    """
     gen = HypothesisGenerator()
     graph = gen._build_graph(enable_literature_review_node=False)
     drawable = graph.get_graph()
     safety_targets = {
         e.target for e in drawable.edges if e.source == "safety_screen"
     }
+    ranking_targets = {
+        e.target for e in drawable.edges if e.source == "ranking"
+    }
     verification_targets = {
         e.target for e in drawable.edges if e.source == "deep_verification"
     }
-    assert safety_targets == {"deep_verification"}
-    assert verification_targets == {"ranking"}
+    assert safety_targets == {"ranking"}
+    assert ranking_targets == {"deep_verification"}
+    assert verification_targets == {"orchestrator"}
 
 
 def test_research_overview_is_the_only_terminal_node() -> None:
@@ -264,7 +273,7 @@ def test_research_overview_is_the_only_terminal_node() -> None:
 
 
 def test_graph_includes_deep_verification_node() -> None:
-    """The graph registers a pre-tournament deep_verification node."""
+    """The graph registers a post-tournament deep_verification node."""
     gen = HypothesisGenerator(model_name="test/model")
     graph = gen._build_graph(enable_literature_review_node=False)
     assert "deep_verification" in graph.nodes

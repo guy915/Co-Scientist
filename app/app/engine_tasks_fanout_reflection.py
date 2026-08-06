@@ -228,6 +228,31 @@ async def execute_mature_reflection_aggregate(
     )
 
 
+def _mark_failed_item_unverified(by_id: dict[str, Any], item: Any) -> None:
+    """Stamp the explicit unverified state for a failed verification item.
+
+    Fails closed (audit E9): an item that never completed, or completed
+    without a usable verdict, must not leave its hypothesis merely
+    untouched -- that read as an implicit pass. The fingerprint stays
+    stale, so the next deep-verification pass re-attempts.
+    """
+    from co_scientist.agents.reflection.deep_verification import (
+        mark_hypothesis_unverified,
+    )
+
+    hypothesis = by_id.get(str(item.inputs.get("hypothesis_id") or ""))
+    if hypothesis is not None:
+        mark_hypothesis_unverified(hypothesis)
+
+
+def _completed_verification(item: Any) -> dict[str, Any] | None:
+    """The item's verification payload, or None when it never completed."""
+    if item.status != "completed" or not item.result:
+        return None
+    verification = item.result.get("verification")
+    return verification if isinstance(verification, dict) else None
+
+
 def _apply_verification_items(
     by_id: dict[str, Any],
     item_task_ids: Sequence[Any],
@@ -242,6 +267,10 @@ def _apply_verification_items(
     library -- so omitting it here would leave every leader unfingerprinted
     and re-verified on every cycle for the life of the run.
 
+    Fails closed (audit E9): an item that never completed, or whose result
+    carries no usable verdict, records an explicit ``unverified`` verdict
+    on its hypothesis rather than leaving it implicitly passed.
+
     Args:
         by_id: The run's hypotheses, keyed by id.
         item_task_ids: Ids of the family's per-item tasks.
@@ -253,21 +282,24 @@ def _apply_verification_items(
         raw per-item verifications.
     """
     from co_scientist.agents.reflection.deep_verification import (
+        _VALID_VERDICTS,
         verification_fingerprint,
     )
 
-    successful = 0
-    failed = 0
-    llm_calls = 0
+    successful = failed = llm_calls = 0
     verification_results: list[dict[str, Any]] = []
     for item_id in item_task_ids:
         item = _require_item_task(item_id, db_path, kind="verification item")
-        if item.status != "completed" or not item.result:
+        verification = _completed_verification(item)
+        if verification is not None:
+            verification_results.append(verification)
+        if verification is None or (
+            verification.get("verdict") not in _VALID_VERDICTS
+        ):
             failed += 1
+            _mark_failed_item_unverified(by_id, item)
             continue
-        hypothesis = by_id[str(item.result["hypothesis_id"])]
-        verification = item.result["verification"]
-        verification_results.append(verification)
+        hypothesis = by_id[str((item.result or {})["hypothesis_id"])]
         hypothesis.deep_verification_probes = verification.get("probes", [])
         hypothesis.deep_verification_verdict = verification.get("verdict")
         hypothesis.deep_verification_fingerprint = verification_fingerprint(

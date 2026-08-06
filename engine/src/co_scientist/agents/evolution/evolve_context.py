@@ -1,47 +1,55 @@
-"""Context sampling and text-similarity helpers for the Evolve node."""
+"""Context sampling, partner selection, and similarity helpers for Evolve."""
 
 import logging
 import random
+from collections.abc import Sequence
+from typing import Any
 
+from co_scientist.agents.evolution.evolution_operators import (
+    EvolutionOperator,
+)
 from co_scientist.models import Hypothesis, rank_by_elo
 
 logger = logging.getLogger(__name__)
 
 
-def _hypothesis_texts(hypotheses: list[Hypothesis]) -> list[str]:
-    """Extract the .text field from a list of hypotheses."""
-    return [h.text for h in hypotheses]
-
-
-def _sample_up_to(pool: list[Hypothesis], count: int) -> list[Hypothesis]:
-    """Randomly sample up to count items from pool (all of it if smaller).
+def _sample_up_to(
+    pool: list[Hypothesis], count: int, rng: random.Random
+) -> list[Hypothesis]:
+    """Sample up to count items from pool (all of it if smaller).
 
     No-op (returns []) on an empty pool, matching the caller's original
     `... if pool else []` short-circuit so no random state is consumed when
-    there is nothing to sample from.
+    there is nothing to sample from. Draws from the caller's seeded RNG
+    rather than the process-global one, so a run's sampling is reproducible
+    and concurrent runs cannot perturb each other's draws.
     """
     if not pool:
         return []
-    return random.sample(pool, min(count, len(pool)))
+    return rng.sample(pool, min(count, len(pool)))
 
 
 def _sample_top_and_random(
-    others_by_elo: list[Hypothesis], top_count: int, random_count: int
+    others_by_elo: list[Hypothesis],
+    top_count: int,
+    random_count: int,
+    rng: random.Random,
 ) -> list[Hypothesis]:
-    """Combine the top-Elo performers with a random sample of the rest.
+    """Combine the top-Elo performers with a seeded random sample of the rest.
 
     Args:
         others_by_elo: Candidate hypotheses, already ranked by Elo.
         top_count: Number of top-Elo performers to keep unconditionally.
         random_count: Number of additional hypotheses to sample randomly
             from the remainder.
+        rng: Seeded RNG the random draw uses.
 
     Returns:
         The top performers followed by the randomly sampled remainder.
     """
     top_performers = others_by_elo[:top_count]
     remaining = others_by_elo[top_count:]
-    sampled_others = _sample_up_to(remaining, random_count)
+    sampled_others = _sample_up_to(remaining, random_count, rng)
 
     logger.debug(
         "sampled %s context hypotheses (top %s + %s random) from %s total",
@@ -59,8 +67,9 @@ def sample_context_hypotheses(
     exclude_hypothesis: Hypothesis,
     max_context: int = 15,
     ranked_hypotheses: list[Hypothesis] | None = None,
-) -> list[str]:
-    """Strategically sample a subset of other hypotheses for evolution context.
+    rng: random.Random | None = None,
+) -> list[Hypothesis]:
+    """Strategically sample the other hypotheses for evolution context.
 
     To prevent token explosion with large hypothesis pools, we sample:
     - Top 5 by Elo rating (avoid copying winners)
@@ -76,16 +85,19 @@ def sample_context_hypotheses(
             ranks it once here rather than once per member. Ranked locally
             when omitted, and only consulted on the large-pool branch --
             the small-pool branch deliberately keeps the caller's order.
+        rng: Seeded RNG for the random half of the sample. Callers thread a
+            run-scoped seed so the diversity context is reproducible; an
+            unseeded RNG is created only when none is supplied.
 
     Returns:
-        List of hypothesis texts to use as context
+        The sampled hypotheses (objects, not texts) to use as context.
     """
     # Filter out the current hypothesis
     others = [h for h in all_hypotheses if h.text != exclude_hypothesis.text]
 
     if len(others) <= max_context:
         # Small pool, include all
-        return _hypothesis_texts(others)
+        return others
 
     if ranked_hypotheses is None:
         others_by_elo = rank_by_elo(others)
@@ -95,65 +107,167 @@ def sample_context_hypotheses(
         ]
 
     # Top 5 by Elo (avoid copying winners) + up to 10 random (diversity).
-    context_hypotheses = _sample_top_and_random(others_by_elo, 5, 10)
+    draw = rng if rng is not None else random.Random()
+    return _sample_top_and_random(others_by_elo, 5, 10, draw)
 
-    return _hypothesis_texts(context_hypotheses)
 
+def combination_partners(
+    ranked_hypotheses: Sequence[Hypothesis],
+    parent: Hypothesis,
+    max_partners: int = 2,
+) -> list[Hypothesis]:
+    """Select the top-ranked peers a parent may combine with or borrow from.
 
-def calculate_text_similarity(text1: str, text2: str) -> float:
-    """Calculates simple similarity between two texts.
-
-    This is a basic implementation using word overlap; embeddings or a more
-    sophisticated similarity metric would be a production-grade upgrade.
+    The paper's combination and inspiration strategies operate on the
+    top-ranked hypotheses, so partners are simply the strongest peers other
+    than the parent itself, in Elo order. Deterministic -- no sampling.
 
     Args:
-        text1: First text
-        text2: Second text
+        ranked_hypotheses: The whole pool, ordered by rank_by_elo.
+        parent: The hypothesis being evolved; never its own partner.
+        max_partners: Most partners to return (default 2).
 
     Returns:
-        Similarity score between 0 and 1
+        Up to ``max_partners`` peers; empty only for a one-idea pool.
     """
-    words1 = set(text1.lower().split())
-    words2 = set(text2.lower().split())
+    partners = [h for h in ranked_hypotheses if h.text != parent.text]
+    return partners[:max_partners]
 
-    # Degenerate case: an empty text has no words to overlap with, so
-    # treat it as maximally dissimilar rather than dividing by zero below.
-    if not words1 or not words2:
+
+def _tokens(text: str) -> set[str]:
+    """Return the lowercased word-token set of a text."""
+    return set(text.lower().split())
+
+
+def token_coverage(text: str, reference: str) -> float:
+    """Fraction of ``text``'s unique tokens that also appear in ``reference``.
+
+    Coverage, not Jaccard: a union denominator is dominated by the longer
+    side, so a short text perfectly contained in a long one still scores
+    near ``len(text) / len(reference)`` -- which is how both duplicate bands
+    became unreachable and every real refinement read as distinct. Dividing
+    by the derived text's own tokens measures how much of it the peer
+    already says, whatever the peer's length.
+
+    Args:
+        text: The derived text whose coverage is measured (the refinement).
+        reference: The peer text checked for containing it.
+
+    Returns:
+        Coverage score between 0 and 1; 0.0 for an empty ``text``.
+    """
+    words = _tokens(text)
+    if not words:
         return 0.0
-
-    # Jaccard similarity: size of the word-set intersection over the
-    # word-set union. Cheap and order-insensitive, but purely lexical (no
-    # synonym/paraphrase awareness) -- see the docstring note about
-    # upgrading to embeddings.
-    intersection = words1.intersection(words2)
-    union = words1.union(words2)
-
-    return len(intersection) / len(union) if union else 0.0
+    return len(words & _tokens(reference)) / len(words)
 
 
-def _find_most_similar(
-    refined_text: str, other_hypotheses_texts: list[str]
-) -> tuple[float, str | None]:
-    """Finds the other hypothesis text most similar to the refined text.
+def proximity_weights_for(
+    proximity_graph: dict[str, Any] | None, hypothesis_id: str
+) -> dict[str, float]:
+    """Map one hypothesis's proximity-graph neighbors to their edge weights.
 
-    Guards against evolution converging this hypothesis toward one of the
-    peers it was shown as diversity context, using the same word-overlap
-    metric as calculate_text_similarity.
+    The persisted graph is undirected, so both edge orientations resolve.
+    """
+    weights: dict[str, float] = {}
+    for edge in (proximity_graph or {}).get("edges", []):
+        source = edge.get("source")
+        target = edge.get("target")
+        similarity = edge.get("similarity")
+        if source == hypothesis_id and target is not None:
+            weights[target] = float(similarity or 0.0)
+        elif target == hypothesis_id and source is not None:
+            weights[source] = float(similarity or 0.0)
+    return weights
+
+
+def find_nearest_peer(
+    refined_text: str,
+    parent_id: str,
+    peers: list[Hypothesis],
+    proximity_graph: dict[str, Any] | None = None,
+) -> tuple[float, Hypothesis | None]:
+    """The peer a refinement is most similar to, and how similar.
+
+    Per peer the similarity prefers the persisted proximity graph's
+    weighted, LLM-judged edge between the parent and that neighbor when one
+    exists -- the child of a refinement stays in its parent's semantic
+    neighborhood, and the graph's judgement is what proximity dedup itself
+    trusts. Peers without an edge fall back to token coverage of the
+    refined text by the peer's text (never union-based Jaccard, which the
+    longer side dominates).
 
     Args:
         refined_text: The newly evolved hypothesis text.
-        other_hypotheses_texts: Strategically sampled subset of other
-            hypotheses (max 15).
+        parent_id: Id of the hypothesis the refinement was evolved from.
+        peers: Candidate peers to compare against.
+        proximity_graph: The run's persisted proximity graph, when built.
 
     Returns:
-        Tuple of (max_similarity, most_similar_text); most_similar_text is
-        None if other_hypotheses_texts is empty.
+        Tuple of (max_similarity, nearest peer); the peer is None when
+        ``peers`` is empty.
     """
+    weights = proximity_weights_for(proximity_graph, parent_id)
     max_similarity = 0.0
-    most_similar_text = None
-    for other_text in other_hypotheses_texts:
-        similarity = calculate_text_similarity(refined_text, other_text)
+    nearest: Hypothesis | None = None
+    for peer in peers:
+        weight = weights.get(peer.id)
+        similarity = (
+            weight
+            if weight is not None
+            else token_coverage(refined_text, peer.text)
+        )
         if similarity > max_similarity:
             max_similarity = similarity
-            most_similar_text = other_text
-    return max_similarity, most_similar_text
+            nearest = peer
+    return max_similarity, nearest
+
+
+_PARTNER_SECTION_HEADERS = {
+    EvolutionOperator.COMBINATION: (
+        "## Combination Partners\n"
+        "These top-ranked hypotheses are designated to be merged with the "
+        "parent. Their full fields follow, untruncated. Identify any partner "
+        "you merge by its positional index in your response; never echo a "
+        "partner's text back."
+    ),
+    EvolutionOperator.INSPIRATION: (
+        "## Inspiration Sources\n"
+        "These top-ranked hypotheses are existing approaches you may borrow "
+        "mechanism or structure from. Their full fields follow, untruncated."
+    ),
+}
+
+
+def _format_partner_context(
+    partners: tuple[Hypothesis, ...], operator: EvolutionOperator
+) -> str:
+    """Render the full-field reference block for this task's partners.
+
+    Whole fields, never truncated: combination and inspiration operate on
+    the partners' actual mechanisms and experiments, and a snippet view was
+    one of the ways multi-parent combination stayed structurally crippled.
+
+    Returns:
+        The partner section, or a placeholder when the task has no partners.
+    """
+    header = _PARTNER_SECTION_HEADERS.get(operator)
+    if header is None:
+        return "(No partners are assigned to this operator.)"
+    if not partners:
+        return (
+            f"{header}\n\n"
+            "(No partners are available in this pool; work from the parent "
+            "and the context already provided.)"
+        )
+    sections = [header]
+    for index, partner in enumerate(partners, start=1):
+        sections.append(
+            f"### Partner {index}\n"
+            f"**Hypothesis:** {partner.text}\n"
+            f"**Explanation:** {partner.explanation or 'Not provided.'}\n"
+            f"**Mechanism grounding:** "
+            f"{partner.literature_grounding or 'Not provided.'}\n"
+            f"**Experiment:** {partner.experiment or 'Not provided.'}"
+        )
+    return "\n\n".join(sections)

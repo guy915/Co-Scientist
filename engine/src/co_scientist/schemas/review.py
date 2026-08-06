@@ -197,12 +197,23 @@ REFLECTION_SCHEMA: dict[str, Any] = {
 }
 # Deep-verification schema
 # Shapes the "deep_verification" prompt output, consumed by
-# agents/reflection/deep_verification.py, which probes a hypothesis's
-# fundamental
-# assumptions with targeted questions. "verdict" is a closed enum
-# ("holds"/"weakened"/"undermined") read back later by
-# _format_deep_verification_context() in prompts.py to inject this
-# hypothesis's probing history into subsequent ranking (tournament) prompts.
+# agents/reflection/deep_verification.py. Beyond probing a hypothesis's
+# fundamental assumptions with targeted questions, it carries the two
+# other defining deep-verification behaviors (audit E4): the hypothesis
+# decomposed into sub-assumptions with each one verified, and
+# context-bound claims restated in general form (decontextualization).
+# "verdict" is a closed enum ("holds"/"weakened"/"undermined") read back
+# later by _format_deep_verification_context() in prompts.py to inject
+# this hypothesis's verification into subsequent ranking (tournament)
+# prompts. The code-side "unverified" verdict (a failed verification,
+# audit E9) is never model output, so it is deliberately absent here.
+
+# Bounds the decomposition lists. Both are model output, so they are
+# bounded in the schema itself rather than by trimming the hypothesis the
+# verifier is asked about.
+DEEP_VERIFICATION_MAX_SUB_ASSUMPTIONS = 5
+DEEP_VERIFICATION_MAX_DECONTEXTUALIZATIONS = 3
+
 DEEP_VERIFICATION_SCHEMA: dict[str, Any] = {
     "name": "deep_verification",
     "schema": obj(
@@ -221,6 +232,35 @@ DEEP_VERIFICATION_SCHEMA: dict[str, Any] = {
                         # few terms a relevant paper would actually contain,
                         # produced by the same call rather than a second one.
                         "search_query": {"type": "string"},
+                    }
+                ),
+            },
+            "sub_assumptions": {
+                "type": "array",
+                "maxItems": DEEP_VERIFICATION_MAX_SUB_ASSUMPTIONS,
+                "items": obj(
+                    {
+                        "assumption": {"type": "string"},
+                        "verification": {"type": "string"},
+                        "status": {
+                            "type": "string",
+                            "enum": [
+                                "supported",
+                                "uncertain",
+                                "unsupported",
+                            ],
+                        },
+                    }
+                ),
+            },
+            "decontextualizations": {
+                "type": "array",
+                "maxItems": DEEP_VERIFICATION_MAX_DECONTEXTUALIZATIONS,
+                "items": obj(
+                    {
+                        "context_bound_claim": {"type": "string"},
+                        "general_claim": {"type": "string"},
+                        "assessment": {"type": "string"},
                     }
                 ),
             },

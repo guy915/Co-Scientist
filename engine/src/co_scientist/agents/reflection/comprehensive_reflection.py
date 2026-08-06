@@ -157,14 +157,17 @@ async def _hypothesis_search_queries(
         hypothesis: The hypothesis whose mechanism the queries must target.
 
     Returns:
-        Up to ``_MAX_HYPOTHESIS_QUERIES`` keyword queries; empty when there is
-        no search back end to spend them on, or when the model call fails,
+        Up to ``_MAX_HYPOTHESIS_QUERIES`` keyword queries; empty only when
+        there is nothing to spend them on -- no live search back end *and*
+        no run corpus to ground against -- or when the model call fails,
         which leaves the review ungrounded rather than sending a query that
         cannot match.
     """
-    # Mirrors _retrieve_probe_evidence's own guard: without MCP the searches
-    # never run, so formulating queries would just burn a call per review.
-    if not state.get("mcp_available"):
+    # Without MCP the queries feed the corpus-grounding fallback in
+    # _retrieve_probe_evidence (audit E8), so they are still worth a call
+    # whenever the run retrieved anything. Only a run with no search back
+    # end *and* no corpus has nothing to ground against either way.
+    if not state.get("mcp_available") and not state.get("articles"):
         return []
     result = await _call_hypothesis_query_llm(state, hypothesis)
     if result is None:

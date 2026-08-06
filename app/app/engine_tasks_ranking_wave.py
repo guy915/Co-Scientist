@@ -153,7 +153,8 @@ def _prepare_ranking_wave(
     to skip. A short wave is not lost work, it is another sequential durable
     task: the ultra run spent about two hours across 178 of them.
 
-    A matchup is three debate turns of real model work (~45s), so
+    A matchup is a multi-turn scientific debate of real model work (up to
+    ten judged turns, settled early on consensus), so
     one-per-task ran a 128-match round at a concurrency of one -- about 94
     minutes of wall clock for ~20 minutes of work. Judging a wave instead
     draws every pairing in it from the same Elo snapshot, which is the cost
@@ -228,6 +229,10 @@ async def _judge_one_matchup(
         run_focus_guidance=focus,
         run_id=state.get("run_id"),
         matchup_index=judge_context.index + offset,
+        # The scientist's evaluation criteria govern the judge's verdict
+        # (finding A2); read here because the durable wave path, not the
+        # engine node, is where this run's judging happens.
+        criteria=state.get("criteria"),
     )
     judgement: tuple[str, dict[str, Any]] = await judge_matchup(
         debate_ctx, debate_turns=debate_turns

@@ -57,7 +57,12 @@ class RunCapabilities:
         mcp_available: Whether the MCP server is available.
         pubmed_available: Whether PubMed is available via MCP.
         enable_tool_calling_generation: Whether tool-calling generation is
-            enabled for this run.
+            enabled for this run. Resolved upstream (see
+            ``run_setup._resolve_tool_calling_generation``): on by
+            default when literature tools are available, with a caller
+            opt-out. The dataclass default stays False so a capabilities
+            value assembled without that resolution never silently turns
+            the agentic path on.
         dev_test_lit_tools_isolation: Whether dev lit-tools isolation is
             enabled for this run.
         dev_mode: Whether dev mode (reduced literature budget) is enabled for

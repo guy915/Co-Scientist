@@ -8,7 +8,7 @@ re-exports these names so the original
 """
 
 import logging
-from typing import Any
+from typing import Any, Final
 
 from co_scientist.agents.evolution.evolve_results import (
     _build_evolve_state_delta,
@@ -23,9 +23,17 @@ from co_scientist.state import WorkflowState
 
 logger = logging.getLogger(__name__)
 
+# The parent set is the paper's fixed top-5 ranked hypotheses (SSR §4), not
+# the tier-scaled envelope (4/8/12/16) the app once threaded through state:
+# that scaling was a compute-envelope accretion the paper does not describe,
+# and it changed which ideas got bred per tier. Small pools are handled by
+# the slice itself -- an express-tier run may hold fewer than five rankable
+# ideas, and it then evolves every one it has. Defined here (not in
+# constants.py) because it belongs to evolution's contract alone.
+EVOLUTION_PARENT_COUNT: Final = 5
+
 
 def _select_evolution_pool(
-    state: WorkflowState,
     hypotheses: list[Hypothesis],
 ) -> list[Hypothesis]:
     """Selects the strongest rankable hypotheses to evolve.
@@ -45,25 +53,22 @@ def _select_evolution_pool(
     repetitive, not as the parents being wrong.
 
     Args:
-        state: Current workflow state.
         hypotheses: Hypothesis pool entering evolution, in whatever order
             the node that last wrote the pool left it.
 
     Returns:
-        The top_k rankable hypotheses by Elo. ``len(top_k)`` is the real
-        attempt count -- below the configured maximum when fewer
+        The top EVOLUTION_PARENT_COUNT rankable hypotheses by Elo.
+        ``len(top_k)`` is the real attempt count -- below five when fewer
         hypotheses qualify, and zero when none do -- so callers report
         progress off it.
     """
-    evolution_max_count = state.get("evolution_max_count", 10)
-
     rankable = [hyp for hyp in hypotheses if hyp.is_rankable()]
     if not rankable:
         logger.warning(
             "Evolution has no parents: 0 of %s hypotheses are rankable",
             len(hypotheses),
         )
-    return rank_by_elo(rankable)[:evolution_max_count]
+    return rank_by_elo(rankable)[:EVOLUTION_PARENT_COUNT]
 
 
 async def _emit_evolution_start(
@@ -101,7 +106,7 @@ async def _prepare_evolution_round(
         Tuple of (top_k hypotheses to evolve, flattened previously removed
         duplicate texts, supervisor guidance for the evolution phase).
     """
-    top_k = _select_evolution_pool(state, hypotheses)
+    top_k = _select_evolution_pool(hypotheses)
     await _emit_evolution_start(state, len(top_k))
 
     # Flatten proximity.py's removed_duplicates dicts down to bare text;
@@ -120,6 +125,7 @@ async def _finalize_evolve_result(
     children: list[Hypothesis],
     evolution_details: list[dict[str, Any]],
     attempt_count: int,
+    extra_llm_calls: int = 0,
 ) -> dict[str, Any]:
     """Appends the evolution children and builds the evolve_node state delta.
 
@@ -130,6 +136,9 @@ async def _finalize_evolve_result(
         children: New immutable children produced by this round's evolution.
         evolution_details: Evolution detail entries, one per created child.
         attempt_count: Number of parents evolution attempted this round.
+        extra_llm_calls: LLM calls spent beside the per-parent refinements
+            (the enhancement retrievals' query generation, when the MCP
+            server is up).
 
     Returns:
         The evolve_node state delta dictionary.
@@ -152,4 +161,6 @@ async def _finalize_evolve_result(
         evolved_count=len(children),
     )
 
-    return _build_evolve_state_delta(children, evolution_details, attempt_count)
+    return _build_evolve_state_delta(
+        children, evolution_details, attempt_count + extra_llm_calls
+    )

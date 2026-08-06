@@ -188,6 +188,44 @@ def test_evolved_hypothesis_has_parent_and_higher_generation(db: str) -> None:
     assert by_id[parent]["generation"] == 0
 
 
+def test_multi_parent_hypothesis_records_every_parent(db: str) -> None:
+    """A combination child keeps parent_id primary and parent_ids all."""
+    run = store.create_run("multi-parent", "standard", "mock", {})
+    primary = store.add_hypothesis(
+        store.NewHypothesis(
+            run_id=run.id, title="P1", statement="p1", hypothesis_id="p1"
+        )
+    )
+    partner = store.add_hypothesis(
+        store.NewHypothesis(
+            run_id=run.id, title="P2", statement="p2", hypothesis_id="p2"
+        )
+    )
+    child = store.add_hypothesis(
+        store.NewHypothesis(
+            run_id=run.id,
+            title="C",
+            statement="cs",
+            hypothesis_id="c1",
+            parent_id=primary,
+            parent_ids=[primary, partner],
+            generation=1,
+            created_by_agent="evolution",
+        )
+    )
+
+    rows = {r["id"]: r for r in store.list_hypotheses(run.id)}
+    # Lineage listing carries the full parent list, primary leading.
+    assert rows[child]["parent_id"] == primary
+    assert rows[child]["parent_ids"] == [primary, partner]
+    # Single-parent rows read back no multi-parent list.
+    assert rows[primary]["parent_ids"] is None
+    assert rows[partner]["parent_ids"] is None
+    # get_hypothesis agrees with the listing.
+    single = store.get_hypothesis(child)
+    assert single is not None and single["parent_ids"] == [primary, partner]
+
+
 def test_redact_hypothesis_fields_overwrites_detail_columns(db: str) -> None:
     run = store.create_run("redact", "standard", "mock", {})
     hid = store.add_hypothesis(

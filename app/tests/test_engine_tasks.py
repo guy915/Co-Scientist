@@ -343,7 +343,8 @@ async def _finalize_and_assert_ranking(
     ]
     ranking_events = _task_events(run_id, "ranking", db_path=db_path)
     assert len(ranking_events) == 1
-    assert ranking_events[0]["payload"]["successor"] == "orchestrator"
+    # Deep verification probes the post-tournament leaders (audit E9).
+    assert ranking_events[0]["payload"]["successor"] == "deep_verification"
 
 
 @pytest.mark.asyncio
