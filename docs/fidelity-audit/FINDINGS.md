@@ -43,9 +43,9 @@ change made staleness likely. A blank `St` on a Medium/Low row therefore means
 | A6 | Medium | missing | No AI/medical disclaimer anywhere ("AI can be inaccurate…" / "Consult a professional…") | | 12:J08/M03, 20:F-HOME-04, 21:R22 |
 | A7 | Medium | partial | Mid-run steering changes agent behavior but no UI calls `sendRunSteering` | | 12:A11/I05, 20:F-RUN-04, 21:R23 |
 | A8 | Medium | partial | Scientist hypotheses/reviews: endpoints and safety admission exist, no UI | | 12:A12/A13, 20:F-AGENT-03, 21:A10 |
-| A9 | Medium | partial | Attachments upload only *after* run creation and never ground the interview or plan, though the UI implies they do | | 20:F-HOME-05, 20:EB-025 |
+| A9 | Medium | partial | Attachments upload only *after* run creation and never ground the interview or plan, though the UI implies they do | ✓ | 20:F-HOME-05, 20:EB-025 |
 | A10 | Medium | partial | Private corpus is run-scoped BM25 keyword search — not an indexed hundreds-of-PDFs, multimodal, agent-searchable repository | | 12:A09/A10/G19/G20, 20:EB-025, 21:G9 |
-| A11 | Medium | incorrect | Create → upload → start is non-transactional; partial failure neither rolls back nor surfaces the orphan draft | | 20:F-INTERVIEW-12 |
+| A11 | Medium | incorrect | Create → upload → start is non-transactional; partial failure neither rolls back nor surfaces the orphan draft | ✓ | 20:F-INTERVIEW-12 |
 | A12 | Low | partial | Field vocabulary drift: "Focus Area" singular vs Google's "Focus Areas"; extra Title field | = | 12:A04, 20:F-INTERVIEW-07, 21:R42 |
 | A13 | Low | missing | No thumbs up/down on interview turns | | 12:M03, 21:R53 |
 | A14 | Low | divergent | Composer copy differs ("What breakthrough should we make today?" vs "What's your research challenge?"); a decorative lock icon implies encryption that does not exist | = | 12:M02, 20:F-HOME-01, 21:A1 |
@@ -53,6 +53,7 @@ change made staleness likely. A blank `St` on a Medium/Low row therefore means
 | A16 | Low | incorrect | Keyless/offline interview silently degrades to a canned 3-question script with no UI signal | ✓ | 12:A05, 21:R56 |
 | A17 | Low | incorrect | Home composer stays active after start and keeps posting turns to the completed interview | ✓ | 20:F-AGENT-02 |
 | A18 | Low | note | No interview turn cap; a model that never sets `completed` interviews indefinitely | | 21:R58 |
+| A19 | Low | partial | `cosci runs create` has no `--attach`; the document-staging path that grounds the interview is reachable only from the browser | | observed during A9 fix, 2026-08-06 |
 
 ## B. Run configuration and lifecycle
 
@@ -60,9 +61,9 @@ change made staleness likely. A blank `St` on a Medium/Low row therefore means
 |---|---|---|---|---|---|
 | B1 | High | ext | Four tiers (`express/standard/extended/ultra`) replace Google's exactly-two Standard/Advanced; Google's config is conversational, with no settings form | = | 12:B01/B03, 20:F-INTERVIEW-08/EB-005, 21:R8 |
 | B2 | Medium | ext | Four-way focus selector (evidence/balance/novelty/breakthrough) has no Google basis | = | 12:A15, 21:R8 |
-| B3 | Medium | missing | Concurrency quota is one aggregate ceiling, not Google's 3 Standard + 1 Advanced; counted per spoofable client id *and* per profile, so one id can reserve 40 | | 12:B04, 20:OP-002/OP-054 |
+| B3 | Medium | missing | Concurrency quota is one aggregate ceiling, not Google's 3 Standard + 1 Advanced; counted per spoofable client id *and* per profile, so one id can reserve 40 | ~ | 12:B04, 20:OP-002/OP-054 |
 | B4 | Medium | divergent | Compute envelope far below Google's several-hour scale | | 12:B07, 20:EB-011 |
-| B5 | Medium | incorrect | The generator caches its compiled graph and MCP availability, so configuration changes silently execute a stale topology | | 20:EB-012 |
+| B5 | Medium | incorrect | The generator caches its compiled graph and MCP availability, so configuration changes silently execute a stale topology. Re-scoped and fixed: the app side was already sound (each durable task builds its own generator and tool registry, so per-run connector toggles never shared a topology). The real staleness was engine-side -- the compiled graph was built once and never rechecked, so a reused generator ran the first call's topology forever in both directions, and `get_mcp_client` keyed its process-wide singleton on nothing, so a second caller resolving different servers silently talked to the first one's deployment. The graph is now shape-keyed, and `reload_tool_registry` drops the graph and the availability answers together because the probe is what decides the shape | ✓ | 20:EB-012 |
 | B6 | Low | ext | Connector toggles (PubMed / Web / Lab papers) — Google's agent selects sources, naming them in plan prose | = | 20:F-HOME-06, 21:B5 |
 | B7 | Low | missing | No credit / charge / refund / account-ledger concept | | 12:B05, 20:OP-003 |
 | B8 | Low | partial | Completion email is implemented but delivery unproven; SMTP unset in production | | 12:B06, 20:F-INTERVIEW-10/OP-004 |
@@ -143,19 +144,22 @@ change made staleness likely. A blank `St` on a Medium/Low row therefore means
 | ID | Sev | Class | Gap | St | Src |
 |---|---|---|---|---|---|
 | F1 | **Critical** | incorrect | **A durable task that exhausts its retries leaves the run stuck in `running` forever** — no `failed` transition, SSE never closes, `cosci runs wait` hangs until a process restart | ✓ | 20:EB-015 (reproduced), 21:R18 |
-| F2 | High | incorrect | An approved intake/final safety hold has **no claimable successor task** — the holding task already succeeded, so approval reuses a completed idempotency key and nothing resumes | | 12:J06, 20:EB-016 (reproduced) |
-| F3 | High | incorrect | A scientist-submitted hypothesis **collides with itself** during final persistence (`UNIQUE constraint failed: hypotheses.id`), preventing completion | | 20:EB-003 (reproduced) |
+| F2 | High | incorrect | An approved intake/final safety hold has **no claimable successor task** — the holding task already succeeded, so approval reuses a completed idempotency key and nothing resumes. Fixed: the hold is an explicit durable waiting state. The holding task is parked (leased -> paused, lease cleared, attempt reset) rather than recorded as succeeded, so approval releases a real row through the existing resume path instead of re-enqueueing a spent idempotency key | ✓ | 12:J06, 20:EB-016 (reproduced) |
+| F3 | High | incorrect | A scientist-submitted hypothesis **collides with itself** during final persistence (`UNIQUE constraint failed: hypotheses.id`), preventing completion. Fixed: the hypothesis insert is an upsert whose conflict path keeps the stored row's id, run, author, `created_by_agent`, generation, parent lineage, title and statement, and fills only the engine-derived detail columns the row lacks; the state insert leaves an existing row (and its screened `safety_status`) alone, and the publication reset zeroes the retained row's win/loss counters so a replayed finalize does not add the same tournament twice | ✓ | 20:EB-003 (reproduced) |
 | F4 | High | divergent | Supervisor is not an allocator — its own prompt says it must **not** plan workflow execution; execution is a fixed serial spine that picks one successor at a time | | 12:E02/F04, 20:EB-008, 21:F1 |
 | F5 | High | partial | No weighted sampling or dynamic re-weighting; the per-agent `performance_assessment` that would drive it is computed and unused | | 12:E04/F05, 20:EB-009, 21:R31 |
-| F6 | Medium | incorrect | Steering is marked applied **before** the consuming checkpoint commits, so a crash can lose acknowledged steering | | 20:EB-002/EB-017 |
-| F7 | Medium | incorrect | Human review score is reconstructed as 20/60/90 from summary words and re-drained as a generic `review`, losing authorship and semantics | | 20:EB-004 |
+| F6 | Medium | incorrect | Steering is marked applied **before** the consuming checkpoint commits, so a crash can lose acknowledged steering | ✓ | 20:EB-002/EB-017 |
+| F7 | Medium | incorrect | Human review score is reconstructed as 20/60/90 from summary words and re-drained as a generic `review`, losing authorship and semantics. Fixed: the review row carries `author` and `verdict` as columns, so nothing is recovered by scanning prose (the word scan survives only as a fallback for rows written before the columns); the verdict maps onto the engine's own 1-10 review rubric rather than a 0-100 scale of its own, which matters because the merged review is the *latest* one and the ranking prompt reads its score beside the agents'; and the drain leaves the authored row alone instead of adding a second `review`-labelled copy, restoring it with author and verdict only where a replay cascade removed it | ✓ | 20:EB-004 |
 | F8 | Medium | incorrect | Foreign keys are declared but `PRAGMA foreign_keys=ON` runs only on the schema-init connection, so runtime FKs are off | ✓ | 20:EB-018, 21:M6 |
-| F9 | Medium | incorrect | Several fan-outs abort the whole batch on one item failure instead of committing successful siblings | | 12:F09/L08, 20:EB-010/EB-043 |
+| F9 | Medium | incorrect | Several fan-outs abort the whole batch on one item failure instead of committing successful siblings | ✓ | 12:F09/L08, 20:EB-010/EB-043 |
 | F10 | Medium | partial | Evolution is not strictly stagnation-gated — on the common both-zero tie it alternates, so it fires without stagnation | | 21:R32 |
 | F11 | Low | divergent | Termination is iteration budget / convergence / LLM-call budget, not the paper's `MaxIdeas` and `MaxMatchesPerIdea` | | 12:F06, 20:EB-011, 21:F6 |
 | F12 | Low | note | Dead termination reasons (`CANCELLED`/`SAFETY`/`MAX_TASKS`/`WALL_CLOCK`) exist but their state keys are never written | | 21:F8 |
 | F13 | Low | note | The compiled LangGraph was built on every bootstrap but never invoked for real runs | ✓ | 20:EB-007, 21:R54 |
 | F14 | Low | note | A queued task whose dependency failed (without `allow_failed_dependencies`) is not claimable yet still blocks run settlement and keeps the cohort polling — a dependency livelock; settlement conservatively treats queued as claimable | | observed during F1 fix, 2026-08-05 |
+| F15 | Medium | incorrect | `mcp_client._global_client` holds an `asyncio.Lock()` created at construction — the process-global asyncio primitive `AGENTS.md` records as a production failure for the ranking semaphore. Latent only because `initialize()` short-circuits once `_tools_dict` is set, so the lock is rarely awaited | | observed during B5 fix, 2026-08-06 |
+| F16 | Medium | incorrect | `config/registry.get_tool_registry()` is first-caller-wins and is called with no arguments by three fallback sites (`literature_tools/draft_tools.py`, `prompts/generation_tools.py`, `prompts/loading.py`), so a run reaching them silently uses the bundled default topology rather than its own | | observed during B5 fix, 2026-08-06 |
+| F17 | Low | note | Safety holds created before the `F2` fix cannot be released: their holding task is already `succeeded`, so approval has no parked row to resume. Affects only rows already in a deployed database | | observed during F2 fix, 2026-08-06 |
 
 ## G. Retrieval, grounding, citations
 
@@ -207,17 +211,18 @@ change made staleness likely. A blank `St` on a Medium/Low row therefore means
 
 | ID | Sev | Class | Gap | St | Src |
 |---|---|---|---|---|---|
-| J1 | High | incorrect | The **intake** content policy is materially weaker than the per-hypothesis policy — "design a bioweapon for mass-casualty deployment" blocks per-hypothesis but is only dual-use (a no-op in standard mode) at intake | | 21:R16 |
-| J2 | High | incorrect | Semantic safety **fails open silently** when the configured model's provider key is absent: regex-only, no log line. A DashScope deployment without `DEEPSEEK_API_KEY` is regex-only | ~ | 20:EB-048, 21:R17 |
-| J3 | High | incorrect | A `redact` decision records the label but persists the original content — the gate proceeds with the same goal and report Markdown | ~ | 12:J07, 20:EB-050 |
-| J4 | High | partial | The primary classifier is a regex list; the LLM is an optional escalation. Google's is model-based | | 12:J04, 20:EB-048/EB-049, 21:J2 |
+| J1 | High | incorrect | The **intake** content policy is materially weaker than the per-hypothesis policy — "design a bioweapon for mass-casualty deployment" blocks per-hypothesis but is only dual-use (a no-op in standard mode) at intake. Fixed: intake now also runs the canonical per-hypothesis classifier and keeps the stricter verdict, so the two agree by construction rather than by two lists kept in step by hand. Measured against the committed adversarial set, intake was worse than this row recorded -- the bioweapon item returned `allow`, not dual-use, and 6 of 7 unsafe items were false negatives; 7/7 are now withheld with no new false positives on the benign controls | ✓ | 21:R16 |
+| J2 | High | incorrect | Semantic safety **fails open silently** when the configured model's provider key is absent: regex-only, no log line. A DashScope deployment without `DEEPSEEK_API_KEY` is regex-only. Fixed closed: a configured semantic screen that cannot reach its model now refuses (`hold`, `requires_review`) and logs at WARNING, sharing one refusal builder with the provider-error path. The offline carve-out is scoped to a process pinned to the offline backend -- that is a deployment mode, not a missing control -- so a partially configured deployment (a provider key present but not the screen's) still refuses | ✓ | 20:EB-048, 21:R17 |
+| J3 | High | incorrect | A `redact` decision records the label but persists the original content — the gate proceeds with the same goal and report Markdown. Fixed: redaction is now an effect of the decision rather than something each caller must remember. The intake gate rewrites the persisted goal and the title generated from it; the report path scrubs payload and markdown before publish. A `redact` naming no removable span becomes a `hold` instead of passing the original through under a redaction label. Verified absent from the run row, report markdown, every API payload, SSE and replayed events, the log table, the share payload, and the export; it survives only in the audit record's `matches`, deliberately | ✓ | 12:J07, 20:EB-050 |
+| J4 | High | partial | The primary classifier is a regex list; the LLM is an optional escalation. Google's is model-based. Closed within the evidence boundary (safety classifiers and thresholds are withheld, so this matches the invariant and the auditability, never the policy): the model is primary wherever it is stricter, and the deterministic rules are pre-blocks bounding it from below. Previously a permissive model assessment wholly replaced the baseline and could clear a rule-matched `redact`; it may now raise a verdict and never lower one | ✓ | 12:J04, 20:EB-048/EB-049, 21:J2 |
 | J5 | Medium | incorrect | `UNCERTAIN` hypotheses are dropped from the pool into `held_for_review`, which is never wired to the app or UI — they vanish silently | ✓ | 12:J06, 21:R34 |
-| J6 | Medium | partial | No mid-flight safety monitoring or halt; `safety_blocked` is read but never written, and the meta-review overview is not used as a monitor | | 12:J12, 20:EB-051, 21:J5 |
+| J6 | Medium | partial | No mid-flight safety monitoring or halt; `safety_blocked` is read but never written, and the meta-review overview is not used as a monitor | ✓ | 12:J12, 20:EB-051, 21:J5 |
 | J7 | Medium | partial | Adversarial suite is 13 hand-written, near-tautological items against Google's 1,200 goals / 40 topics plus ~2,000 safe controls | | 12:J03, 20:EB-067, 21:R51 |
-| J8 | Low | partial | The reviewer `safety` score is collected but no code reads it to reject | | 21:R52 |
+| J8 | Low | partial | The reviewer `safety` score is collected but no code reads it to reject | ✓ | 21:R52 |
 | J9 | Low | missing | MCP / web / PubMed tool calls pass through no safety filter (unattested for Google too) | | 21:J8 |
-| J10 | Low | partial | A non-null safety status prevents re-screening after context changes | | 20:EB-049 |
+| J10 | Low | partial | A non-null safety status prevents re-screening after context changes. Not a defect, on evidence: only `redact` and `dual_use` are sticky, and every other status -- including `allow` -- is re-screened when context changes (verified by re-screening an `allow` hypothesis into `prohibited` after its mechanism changed). The remaining skip is deliberate and tested: a redacted hypothesis keeps its verdict because its trigger text is gone, so a fresh review would read ALLOW and silently downgrade an audited decision | = | 20:EB-049 |
 | J11 | Low | note | App and engine carry parallel regex implementations that the code itself says should be consolidated | | 12:J09 |
+| J12 | Low | note | `hypothesis_state` records no policy version, so bumping `POLICY_VERSION` cannot force a re-screen of hypotheses whose status is sticky (`redact`/`dual_use`) | | observed during J10 verification, 2026-08-06 |
 
 ## K. Scientific output quality
 
@@ -285,7 +290,7 @@ surfaces.
 | N6 | High | incorrect | Audience is self-declared; the publicly selectable SBI/UCD mode sends committed paper text to every model surface, and the catalog carries no per-document license manifest | | 20:OP-050 |
 | N7 | High | incorrect | MCP server allows wildcard origins/headers/methods with credentials and no auth, relying entirely on network trust; dev Compose publishes port 8888 to the host | | 20:OP-031 |
 | N8 | High | incorrect | Root setup installs the app `--no-deps` then an incomplete manual subset, so `pypdf` is missing and PDF ingestion is silently unavailable despite setup "succeeding" | ✓ | 20:OP-010 |
-| N9 | High | incorrect | Forced offline mode still attempts the configured remote chat model for interviews before falling back — leaking goal text | | 20:OP-013 |
+| N9 | High | incorrect | Forced offline mode still attempts the configured remote chat model for interviews before falling back — leaking goal text. Fixed: one predicate refuses remote chat before the request is shaped, at all three call sites (interview, Q&A, and titling -- titling had the goal as its whole prompt). Each site reuses its existing no-provider degradation rather than adding a second one, and a scientist's own scoped key stays exempt, since forced offline withholds the deployment's credential. Verified at the transport: with forced offline set and two provider keys present, driving all three surfaces produced no non-loopback connection attempt. Nine existing tests were asserting on the shape of a request the app must never make, which is why the suite never caught this | ✓ | 20:OP-013 |
 | N10 | High | partial | Production `/status` reported MCP/PubMed/literature/web up but `tools_config=null` and `enabled_tools=null`: specialized tools are registered but not authorized in live runs | | 20:OP-037 |
 | N11 | Medium | missing | No data-access/export request workflow | | 20:OP-009 |
 | N12 | Medium | incorrect | Feedback is a write-only sink with no privacy notice, triage, ownership, retention, or deletion | | 20:OP-048 |
@@ -379,13 +384,12 @@ that decided the verdict.
 | ID | What moved | What remains |
 |---|---|---|
 | A2 | `criteria` is collected and threaded into engine opts | not confirmed to reach ranking or debate prompts |
+| B3 | The ceiling is one total per identity; it was multiplied per tier, so one id held four times its allowance | the 3 Standard + 1 Advanced split stays a deliberate divergence (see `B1`), and the spoofable `X-Client-ID` half is `N1` |
 | G1 | Contradicted ideas are now withheld; merely-unsupported ones publish with an "Unverified" badge | this is a **re-scope, not a fix** — a claim-gate block still does not suppress release, it relabels it. Confirm the badge is the intended policy |
 | G2 | A progressive broadening ladder retries queries that return nothing | still no MeSH, OR expansion, or field tags; prose-goal fallback unre-checked |
 | G6 | Retraction detection exists across metadata shapes | the reserved-slot and underfilled-budget admission paths were not re-traced |
-| J2 | The provider-credential table is unified, so a DashScope deployment resolves correctly | still fails open to regex-only, still with no log line |
-| J3 | The engine redacts hypothesis fields in place | app-side goal and report-Markdown redaction not confirmed |
 | L2 | `prompt_tokens`/`completion_tokens` are parsed off the response | nothing persists or surfaces them; no cost accounting |
-| M3 | A labelled Back control exists in the run shell | not confirmed as the mobile idea-detail escape |
+| M3 | A labelled Back control exists in the run shell | confirmed **not** the mobile idea-detail escape — it leaves the run for the conversation or home and never returns to the ranked list |
 | N19 | `test-all` now covers mcp + parity; `typecheck` covers engine mypy | root `lint` still omits frontend gts |
 | O2 | Idea rows carry `aria-current` | still no listbox/option semantics relating list to detail pane |
 

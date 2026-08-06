@@ -21,7 +21,7 @@ to be called done.
 | 3 | Make every control do what it claims | medium |
 | 4 | Wire what is already built | small |
 | 5 | Engine reasoning | large |
-| 6 | Durable state and safety | medium |
+| 6 | Durable state and safety | done |
 | 7 | Grounding | medium |
 | 8 | Observability | small |
 | 9 | Security, privacy, packaging | large |
@@ -220,9 +220,11 @@ stage 9.
 
 ---
 
-## Stage 6 — Durable state and safety
+## Stage 6 — Durable state and safety — **done**
 
-**Closes:** F2, F3, F6, F7, F9, J1, J2, J3, J4, J6, J8, J10, B3, B5, A9, A11, N9
+**Closed:** F2, F3, F6, F7, F9, J1, J2, J3, J4, J6, J8, B3 (partial, by
+design), B5, A9, A11, N9. `J10` closed as not-a-defect: only `redact` and
+`dual_use` are sticky, and that stickiness is deliberate and tested.
 
 1. A safety hold has no claimable successor — the holding task already
    succeeded, so approval reuses a completed idempotency key and nothing
