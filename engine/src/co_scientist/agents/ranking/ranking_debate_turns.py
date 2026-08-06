@@ -10,6 +10,7 @@ in ``ranking_debate.py``, which re-exports these names for compatibility.
 import dataclasses
 import hashlib
 import logging
+import re
 from typing import Any, Final, NamedTuple
 
 from co_scientist.agents.ranking.ranking_prompt import (
@@ -66,14 +67,55 @@ class _DebateRun:
     start_parity: int
 
 
+# The paper's judge protocol ends the rationale with a literal verdict
+# line -- "better idea: <1 or 2>" (the A.4 template also spells it
+# "better hypothesis"); the ranking prompt asks for the same line as the
+# final line of decision_summary. Case-insensitive; only a lone 1/2/a/b
+# token counts, and ``_parse_verdict_line`` reads matches last-first and
+# skips the quoted format ("better idea: 1 or 2") so prose describing the
+# protocol cannot pose as a verdict.
+_VERDICT_LINE_RE = re.compile(
+    r"better\s+(?:idea|hypothesis)\s*:\s*([12ab])(?![\w])",
+    re.IGNORECASE,
+)
+
+
+def _parse_verdict_line(text: str) -> str | None:
+    """Parses the paper's literal verdict line from the judge's text.
+
+    The concluding verdict wins: a rationale may quote the format before
+    stating its conclusion, so matches are read last-first; a match
+    immediately followed by "or" is the format quoted ("better idea: 1
+    or 2"), not a decision, and is skipped (audit E17).
+
+    Args:
+        text: The judge's rationale text (its decision_summary).
+
+    Returns:
+        The presentation-order side the verdict picks ("a"/"b": the
+        prompt's Hypothesis A is 1, Hypothesis B is 2), or None when no
+        valid verdict line is present.
+    """
+    for match in reversed(list(_VERDICT_LINE_RE.finditer(text or ""))):
+        if re.match(r"\s*or\b", text[match.end() :], re.IGNORECASE):
+            continue
+        token = match.group(1).lower()
+        return {"1": "a", "2": "b"}.get(token, token)
+    return None
+
+
 def _parse_matchup_winner(
     response: dict[str, Any], *, fallback: str
 ) -> tuple[str, bool]:
     """Extracts and validates the winner side from a judge response.
 
-    Guards against a malformed/off-schema LLM judgment: if the model
-    returns anything other than "a" or "b" for the winner field, uses the
-    caller's position-balanced fallback and marks the judgment invalid.
+    The primary verdict is the paper's literal "better idea: <1 or 2>"
+    line concluding the judge's decision_summary (audit E17); the JSON
+    "winner" enum is the fallback for responses without the line --
+    including the deterministic offline backend, which answers in the
+    JSON shape. Guards against a malformed/off-schema judgment either
+    way: anything other than a valid verdict picks the caller's
+    position-balanced fallback and marks the judgment invalid.
 
     Args:
         response: Parsed JSON response from the judge LLM call.
@@ -82,6 +124,9 @@ def _parse_matchup_winner(
     Returns:
         The selected side and whether the model output was valid.
     """
+    verdict = _parse_verdict_line(str(response.get("decision_summary") or ""))
+    if verdict is not None:
+        return verdict, True
     winner = str(response.get("winner") or "").lower()
     if winner not in ["a", "b"]:
         logger.warning("Invalid winner '%s'; using balanced fallback", winner)

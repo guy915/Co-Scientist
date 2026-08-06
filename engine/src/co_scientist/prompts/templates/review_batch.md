@@ -58,6 +58,8 @@ Provide comprehensive comparative reviews for all hypotheses, evaluating each on
 
 ## Output Format
 
+Identify each review with its `hypothesis_index`: the number assigned to the hypothesis above (1 for Hypothesis 1, 2 for Hypothesis 2, and so on). Provide one review for every hypothesis, in any order.
+
 **Text formatting guidelines:**
 - Use standard scientific notation and symbols (Greek letters like τ, β, α, mathematical operators like ≥, ≤, ±)
 - Do NOT use LaTeX commands (e.g., use 'τ' not '\tau', use '≥' not '\geq')

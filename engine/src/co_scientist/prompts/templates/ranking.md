@@ -62,3 +62,5 @@ The following reflection notes analyze how each hypothesis relates to observatio
 ## Output Format
 
 Provide your judgment in JSON format. The winner must be "a" or "b" (just the letter), and confidence_level must be exactly "High", "Medium", or "Low" — how sure you are of the winner, not how good either hypothesis is.
+
+End `decision_summary` with your verdict as a literal final line, exactly in this form: "better idea: 1" or "better idea: 2", where 1 means Hypothesis A and 2 means Hypothesis B as presented above. Keep it consistent with the `winner` field.

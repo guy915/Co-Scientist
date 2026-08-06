@@ -171,7 +171,8 @@ def validate_json_schema(
 # no hypotheses there is no run, so they fail loud. Each fallback is shaped so
 # the consuming node's ``.get(field, default)`` logic yields a sensible empty or
 # neutral result (e.g. evolution returns ``{}`` -> the node keeps the original
-# hypothesis; batch review returns no rows -> "Review unavailable" stubs).
+# hypothesis; batch review returns no rows -> every review is counted as failed
+# and its hypothesis stays unreviewed for the next pass).
 _ENHANCEMENT_NODE_FALLBACKS: dict[str, dict[str, Any]] = {
     "proximity_analysis": {
         "similarity_clusters": [],

@@ -136,10 +136,11 @@ async def test_offline_acompletion_sizes_batch_review_to_hypothesis_count() -> (
 ):
     """The batch-review "reviews" array is sized from the prompt's markers.
 
-    ``review_node`` maps array entries back to hypotheses by position, so a
-    short response is invalid; this proves the ``_ARRAY_LENGTH_HINTS`` wiring
-    ported from the test fake still recovers the count from
-    "**Hypothesis N:**" markers in the prompt.
+    ``review_node`` maps array entries back to hypotheses (by their
+    ``hypothesis_index`` when valid, else by position), so a short response
+    is invalid; this proves the ``_ARRAY_LENGTH_HINTS`` wiring ported from
+    the test fake still recovers the count from "**Hypothesis N:**" markers
+    in the prompt.
     """
     schema = REVIEW_BATCH_SCHEMA["schema"]
     prompt = (
@@ -166,8 +167,10 @@ async def test_offline_acompletion_sizes_batch_review_to_hypothesis_count() -> (
     # Every review's string leaves are unique within this one response, even
     # though the whole response is a deterministic function of its inputs:
     # the dedup reducer collapses hypotheses with equal normalized text, so
-    # colliding leaves across array entries would be a real defect.
-    texts = [review["hypothesis_text"] for review in parsed["reviews"]]
+    # colliding leaves across array entries would be a real defect. The
+    # entries no longer echo the hypothesis text (audit E15), so uniqueness
+    # is checked on the summary leaf instead.
+    texts = [review["review_summary"] for review in parsed["reviews"]]
     assert len(set(texts)) == len(texts)
 
 

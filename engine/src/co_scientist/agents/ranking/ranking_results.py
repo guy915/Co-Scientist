@@ -16,6 +16,7 @@ from co_scientist.models import (
     create_metrics_update,
     phase_message,
 )
+from co_scientist.schemas.ranking import RANKING_COMPARISON_CRITERIA
 
 logger = logging.getLogger(__name__)
 
@@ -23,6 +24,34 @@ logger = logging.getLogger(__name__)
 def _format_judgment_explanation(judgment: dict[str, Any]) -> str:
     """Combine a judgment_explanation dict's truthy values into one line."""
     return " | ".join(f"{k}: {v}" for k, v in judgment.items() if v)
+
+
+def _extract_criteria_comparisons(
+    response: dict[str, Any],
+) -> dict[str, str]:
+    """Collects the judge's seven criterion assessments for the record.
+
+    The prompt collects one comparison per criterion under
+    judgment_explanation, but nothing read them back before (audit E17);
+    the match record now carries them so a verdict is inspectable
+    criterion by criterion. Only the seven canonical keys are kept -- a
+    closed schema means anything else is model invention -- and empty
+    assessments are dropped.
+
+    Args:
+        response: Full judge response for one matchup.
+
+    Returns:
+        Criterion-name -> assessment, possibly empty.
+    """
+    explanation = response.get("judgment_explanation")
+    if not isinstance(explanation, dict):
+        return {}
+    return {
+        name: str(explanation[name])
+        for name in RANKING_COMPARISON_CRITERIA
+        if explanation.get(name)
+    }
 
 
 def _extract_reasoning(response: dict[str, Any]) -> str:
@@ -193,7 +222,8 @@ def _build_matchup_detail(
 
     Returns:
         Matchup detail dict for this pairing, for the UI's "Performance
-        against other ideas" view.
+        against other ideas" view. ``criteria_comparisons`` carries the
+        judge's seven per-criterion assessments (audit E17).
     """
     return {
         "hypothesis_a": truncate(hyp_a.text),
@@ -211,6 +241,7 @@ def _build_matchup_detail(
             outcome.loser_elo_before,
             response.get("confidence_level", ""),
         ),
+        "criteria_comparisons": _extract_criteria_comparisons(response),
         **_debate_provenance_fields(response, winner),
         **_elo_transition_fields(outcome),
     }

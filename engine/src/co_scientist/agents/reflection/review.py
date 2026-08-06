@@ -25,10 +25,13 @@ from co_scientist.agents.reflection.review_helpers import (
     _BatchReviewCall as _BatchReviewCall,
 )
 from co_scientist.agents.reflection.review_helpers import (
-    _build_reviews_with_placeholders as _build_reviews_with_placeholders,
+    _convert_matched_entry as _convert_matched_entry,
 )
 from co_scientist.agents.reflection.review_helpers import (
     _log_batch_review_response_shape as _log_batch_review_response_shape,
+)
+from co_scientist.agents.reflection.review_helpers import (
+    _match_batch_entries_to_hypotheses as _match_batch_entries_to_hypotheses,
 )
 from co_scientist.agents.reflection.review_helpers import (
     _parse_batch_review_response as _parse_batch_review_response,
@@ -40,10 +43,13 @@ from co_scientist.agents.reflection.review_helpers import (
     _review_from_response as _review_from_response,
 )
 from co_scientist.agents.reflection.review_helpers import (
+    _sanitize_review_scores as _sanitize_review_scores,
+)
+from co_scientist.agents.reflection.review_helpers import (
     _select_review_strategy as _select_review_strategy,
 )
 from co_scientist.agents.reflection.review_helpers import (
-    _validate_reviews as _validate_reviews,
+    _split_reviews_by_result as _split_reviews_by_result,
 )
 from co_scientist.constants import (
     EXTENDED_MAX_TOKENS,
@@ -108,10 +114,10 @@ async def _call_review_llm(
 ) -> dict[str, Any]:
     """Calls the LLM to review a single hypothesis.
 
-    Unlike analyze_single_hypothesis in reflection.py, this call is not
-    wrapped in a try/except: a failure here raises out of this coroutine
-    and, via asyncio.gather in review_parallel_individual, aborts the
-    whole review batch rather than degrading to a per-hypothesis fallback.
+    Failures raise out of this coroutine; review_parallel_individual
+    gathers with return_exceptions and records the failure against that
+    one hypothesis, so a single failed call no longer aborts the rest of
+    the batch (audit E15).
     """
     return await call_llm_json(
         prompt=prompt,
@@ -137,19 +143,41 @@ async def _call_review_llm(
 async def review_parallel_individual(
     hypotheses: list[Hypothesis],
     context: ReviewContext,
-) -> list[HypothesisReview]:
+) -> list[HypothesisReview | None]:
     """Reviews hypotheses in parallel (original approach), one call each.
+
+    Per-hypothesis failures are isolated (audit E15): gather collects
+    exceptions instead of letting one raise abort the whole batch, and a
+    failed call is recorded as None for its hypothesis while the other
+    reviews still apply.
 
     Args:
         hypotheses: List of hypotheses to review
         context: Run-level review context threaded into every review
 
     Returns:
-        List of reviews (one per hypothesis). No concurrency semaphore is
-        applied; gather preserves order so results align with `hypotheses`.
+        One review per hypothesis (None where the call failed), aligned
+        with `hypotheses`. No concurrency semaphore is applied.
     """
     review_tasks = _build_parallel_review_tasks(hypotheses, context)
-    return await asyncio.gather(*review_tasks)
+    results = await asyncio.gather(*review_tasks, return_exceptions=True)
+    return [
+        _individual_review_result(result, index)
+        for index, result in enumerate(results)
+    ]
+
+
+def _individual_review_result(
+    result: HypothesisReview | BaseException,
+    hypothesis_index: int,
+) -> HypothesisReview | None:
+    """Maps one gathered individual-review result, logging failures."""
+    if isinstance(result, BaseException):
+        logger.warning(
+            "Review failed for hypothesis %s: %s", hypothesis_index, result
+        )
+        return None
+    return result
 
 
 def _build_parallel_review_tasks(
@@ -170,14 +198,15 @@ def _build_parallel_review_tasks(
 async def review_comparative_batch(
     hypotheses: list[Hypothesis],
     context: ReviewContext,
-) -> list[HypothesisReview]:
+) -> list[HypothesisReview | None]:
     """Reviews hypotheses in a single comparative batch (one LLM call).
 
     All hypotheses are shown together for relative comparison, producing
     more differentiated scores but limited by token constraints. Returns
-    one review per hypothesis. ``context`` supplies the research goal,
-    guidance, and tool registry as prompt context; its ``run_id`` only
-    names saved prompts.
+    one review per hypothesis, None where an entry was missing or
+    malformed (audit E15 -- the rest of the batch still applies).
+    ``context`` supplies the research goal, guidance, and tool registry
+    as prompt context; its ``run_id`` only names saved prompts.
     """
     response = await _run_batch_review_call(hypotheses, context)
     return _parse_batch_review_response(response, hypotheses, context.run_id)
@@ -223,7 +252,7 @@ async def _run_review_strategy(
     state: WorkflowState,
     hypotheses: list[Hypothesis],
     use_comparative: bool,
-) -> tuple[list[HypothesisReview], int]:
+) -> tuple[list[HypothesisReview | None], int]:
     """Gathers guidance from state and runs the chosen review strategy.
 
     Args:
@@ -233,7 +262,7 @@ async def _run_review_strategy(
             parallel individual review.
 
     Returns:
-        Tuple of (reviews, llm_calls_used).
+        Tuple of (one review or None per hypothesis, llm_calls_used).
     """
     context = ReviewContext.from_state(state)
     if use_comparative:
@@ -271,20 +300,26 @@ async def review_node(state: WorkflowState) -> dict[str, Any]:
     if not unreviewed:
         return _skipped_review_result(hypotheses)
 
-    reviews, llm_calls, strategy_name = await _run_review_phase(
+    reviews, llm_calls, strategy_name, failed_count = await _run_review_phase(
         state, unreviewed
     )
 
-    return _review_node_result(hypotheses, reviews, llm_calls, strategy_name)
+    return _review_node_result(
+        hypotheses, reviews, llm_calls, strategy_name, failed_count
+    )
 
 
 async def _run_review_phase(
     state: WorkflowState, unreviewed: list[Hypothesis]
-) -> tuple[list[HypothesisReview], int, str]:
+) -> tuple[list[HypothesisReview], int, str, int]:
     """Selects a strategy, runs it, and finalizes the review results.
 
     Emits progress before and after; emit_progress is a no-op unless a
     progress_callback was wired into state.
+
+    Returns:
+        Tuple of (successfully attached reviews, llm_calls_used,
+        strategy_name, count of hypotheses whose review failed).
     """
     use_comparative, strategy_name = _select_review_strategy(len(unreviewed))
 
@@ -299,17 +334,19 @@ async def _run_review_phase(
         state, unreviewed, use_comparative
     )
 
-    _finalize_reviews(unreviewed, reviews, strategy_name, state.get("criteria"))
+    attached, failed_count = _finalize_reviews(
+        unreviewed, reviews, strategy_name, state.get("criteria")
+    )
 
     await emit_progress(
         state,
         "review_complete",
-        f"Completed {len(reviews)} reviews",
+        f"Completed {len(attached)} reviews",
         PROGRESS_REVIEW_COMPLETE,
-        reviews_count=len(reviews),
+        reviews_count=len(attached),
     )
 
-    return reviews, llm_calls, strategy_name
+    return attached, llm_calls, strategy_name, failed_count
 
 
 def _log_review_intake(
@@ -338,22 +375,43 @@ def _skipped_review_result(hypotheses: list[Hypothesis]) -> dict[str, Any]:
 
 def _finalize_reviews(
     unreviewed: list[Hypothesis],
-    reviews: list[HypothesisReview],
+    reviews: list[HypothesisReview | None],
     strategy_name: str,
     criteria: list[str] | None = None,
-) -> None:
-    """Validates, attaches, and gates completed reviews in place.
+) -> tuple[list[HypothesisReview], int]:
+    """Attaches and gates the successful reviews, counting the failures.
+
+    A hypothesis whose review failed (None) gets nothing attached and
+    keeps no disposition, so it stays unreviewed for the next review
+    pass instead of aborting the whole batch (audit E15) or entering the
+    tournament on a zero-scored placeholder.
 
     ``criteria`` are the scientist's evaluation criteria, which select the
     scored axes the gate consults (finding K4); absent criteria keep the
     built-in soundness/novelty pair.
+
+    Returns:
+        Tuple of (the attached reviews, count of failed reviews).
     """
-    _validate_reviews(reviews)
-    _attach_reviews_to_hypotheses(unreviewed, reviews)
-    _apply_initial_review_gate(unreviewed, reviews, criteria)
+    reviewed_pairs, failed_count = _split_reviews_by_result(unreviewed, reviews)
+    if failed_count:
+        logger.warning(
+            "%s/%s reviews failed using %s strategy; those hypotheses"
+            " stay unreviewed for the next review pass",
+            failed_count,
+            len(unreviewed),
+            strategy_name,
+        )
+    reviewed_hypotheses = [hypothesis for hypothesis, _ in reviewed_pairs]
+    attached_reviews = [review for _, review in reviewed_pairs]
+    _attach_reviews_to_hypotheses(reviewed_hypotheses, attached_reviews)
+    _apply_initial_review_gate(reviewed_hypotheses, attached_reviews, criteria)
     logger.info(
-        "Completed %s reviews using %s strategy", len(reviews), strategy_name
+        "Completed %s reviews using %s strategy",
+        len(attached_reviews),
+        strategy_name,
     )
+    return attached_reviews, failed_count
 
 
 def _review_node_result(
@@ -361,6 +419,7 @@ def _review_node_result(
     reviews: list[HypothesisReview],
     llm_calls: int,
     strategy_name: str,
+    failed_count: int = 0,
 ) -> dict[str, Any]:
     """Builds the final review_node state delta with metrics."""
     # Update metrics (deltas only, merge_metrics will add to existing state)
@@ -373,12 +432,17 @@ def _review_node_result(
         llm_calls,
     )
 
+    summary = f"Reviewed {len(reviews)} hypotheses ({strategy_name})"
+    if failed_count:
+        summary += f"; {failed_count} review(s) failed and will be retried"
+
     return {
         "hypotheses": hypotheses,
         "metrics": metrics,
         "messages": phase_message(
             "review",
-            f"Reviewed {len(reviews)} hypotheses ({strategy_name})",
+            summary,
             strategy=strategy_name,
+            review_failures=failed_count,
         ),
     }

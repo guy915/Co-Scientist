@@ -23,12 +23,28 @@ _SCORE_CRITERIA: tuple[str, ...] = (
     "potential_impact",
 )
 
+# The review rubric's integer range, as both review prompts state it
+# ("score 1-10 for each", bands 1-2 "not viable" through 9-10
+# "outstanding"). Declared here so the schema bounds and the parse-time
+# validation in agents/reflection/review_helpers.py share one source --
+# the initial review gate's thresholds (constants.py) are calibrated
+# against these same bands.
+REVIEW_SCORE_MINIMUM: int = 1
+REVIEW_SCORE_MAXIMUM: int = 10
+
 # Sub-schemas shared by REVIEW_SCHEMA and REVIEW_BATCH_SCHEMA, referenced
 # by identity from both (nothing mutates schema dicts at runtime; sharing
 # schema objects across registry entries is the established pattern -- see
 # GENERATION_SCHEMA's reuse in schemas/registry.py).
 _SCORES_SCHEMA: dict[str, Any] = obj(
-    {name: {"type": "integer"} for name in _SCORE_CRITERIA}
+    {
+        name: {
+            "type": "integer",
+            "minimum": REVIEW_SCORE_MINIMUM,
+            "maximum": REVIEW_SCORE_MAXIMUM,
+        }
+        for name in _SCORE_CRITERIA
+    }
 )
 
 _FEEDBACK_DESCRIPTIONS: dict[str, str] = {
@@ -98,14 +114,17 @@ REVIEW_SCHEMA: dict[str, Any] = {
 # Batch review schema - for reviewing multiple hypotheses together
 # Shapes the "review_batch" prompt output, consumed by the comparative
 # batch review path in agents/reflection/review.py. Per-item structure
-# mirrors
-# REVIEW_SCHEMA above (same shared scores/detailed_feedback sub-schemas)
-# plus a comparative_notes field.
-# Note: hypothesis_index is informational only;
-# agents/reflection/review.py matches each response entry back to
-# its source hypothesis by array position
-# (reviews_data[i]), not by reading this field, so a wrong index value from
-# the LLM does not break the mapping.
+# mirrors REVIEW_SCHEMA above (same shared scores/detailed_feedback
+# sub-schemas) plus a comparative_notes field.
+#
+# hypothesis_index identifies which hypothesis an entry belongs to: it is
+# the number the prompt assigned (Hypothesis 1, Hypothesis 2, ...), and
+# review_helpers._match_batch_entries_to_hypotheses reads it to map
+# entries back to hypotheses (falling back to list order only for
+# entries whose index is absent, invalid, or duplicated). The hypothesis
+# text is deliberately NOT echoed back: echoing scaled the response with
+# the batch and is forbidden by the schema contract (see the proximity
+# schema's identical rationale).
 REVIEW_BATCH_SCHEMA: dict[str, Any] = {
     "name": "hypothesis_batch_review",
     "strict": False,
@@ -119,13 +138,10 @@ REVIEW_BATCH_SCHEMA: dict[str, Any] = {
                         "hypothesis_index": {
                             "type": "integer",
                             "description": (
-                                "Index of the hypothesis being reviewed"
-                                " (0-based)"
+                                "The number assigned to the hypothesis in"
+                                " the prompt: 1 for Hypothesis 1, 2 for"
+                                " Hypothesis 2, and so on"
                             ),
-                        },
-                        "hypothesis_text": {
-                            "type": "string",
-                            "description": "The hypothesis being reviewed",
                         },
                         "review_summary": {
                             "type": "string",

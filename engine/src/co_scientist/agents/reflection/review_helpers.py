@@ -18,9 +18,12 @@ from co_scientist.constants import (
     THINKING_MAX_TOKENS,
     scaled_max_tokens,
 )
-from co_scientist.exceptions import GenerationError
 from co_scientist.models import Hypothesis, HypothesisReview
 from co_scientist.prompts import PromptRunContext, get_review_batch_prompt
+from co_scientist.schemas.review import (
+    REVIEW_SCORE_MAXIMUM,
+    REVIEW_SCORE_MINIMUM,
+)
 from co_scientist.state import WorkflowState
 
 logger = logging.getLogger(__name__)
@@ -69,6 +72,40 @@ class _BatchReviewCall:
     max_attempts: int
 
 
+def _sanitize_review_scores(scores: Any) -> dict[str, int]:
+    """Keeps only rubric-valid criterion scores from an LLM payload.
+
+    The schema bounds scores to the rubric's integer range, but
+    production routes structured output through providers whose
+    json_object mode does not enforce a schema, so out-of-range or
+    non-numeric values arrive anyway. An invalid value is dropped rather
+    than clamped: the initial review gate reads a missing score as
+    neutral, and clamping a schema violation onto the rubric floor would
+    let a parse defect masquerade as the worst possible review.
+
+    Args:
+        scores: The raw ``scores`` value from a review payload (any
+            shape; a non-dict yields no scores).
+
+    Returns:
+        Criterion -> integer score, restricted to the rubric range.
+    """
+    if not isinstance(scores, dict):
+        return {}
+    sanitized: dict[str, int] = {}
+    for name, value in scores.items():
+        if isinstance(value, bool) or not isinstance(value, (int, float)):
+            logger.debug("dropping non-numeric review score %s=%r", name, value)
+            continue
+        if not REVIEW_SCORE_MINIMUM <= value <= REVIEW_SCORE_MAXIMUM:
+            logger.debug(
+                "dropping out-of-range review score %s=%r", name, value
+            )
+            continue
+        sanitized[str(name)] = round(value)
+    return sanitized
+
+
 def _review_from_response(data: dict[str, Any]) -> HypothesisReview:
     """Builds a HypothesisReview from an LLM review payload.
 
@@ -82,7 +119,7 @@ def _review_from_response(data: dict[str, Any]) -> HypothesisReview:
     Returns:
         HypothesisReview object
     """
-    scores = data.get("scores", {})
+    scores = _sanitize_review_scores(data.get("scores"))
     if scores:
         # Deriving overall_score as the mean of the per-criterion scores
         # (rather than trusting an LLM-supplied overall_score) keeps the
@@ -146,9 +183,18 @@ def _prepare_batch_review_call(
 
 
 def _build_hypotheses_list_text(hypotheses: list[Hypothesis]) -> str:
-    """Formats hypotheses as a numbered list for the batch review prompt."""
+    """Formats hypotheses as a 1-based numbered list for the batch prompt.
+
+    The numbering is load-bearing: each review entry in the response names
+    its hypothesis by this number (``hypothesis_index``), and the parser
+    maps entries back by it. 1-based, like every scientist-facing label
+    (see meta_review's identical convention) -- never count from 0.
+    """
     return "\n\n".join(
-        [f"**Hypothesis {i}:**\n{hyp.text}" for i, hyp in enumerate(hypotheses)]
+        [
+            f"**Hypothesis {number}:**\n{hyp.text}"
+            for number, hyp in enumerate(hypotheses, start=1)
+        ]
     )
 
 
@@ -206,64 +252,110 @@ def _log_batch_review_response_shape(
         )
 
 
-def _build_reviews_with_placeholders(
-    hypotheses: list[Hypothesis],
+def _match_batch_entries_to_hypotheses(
     reviews_data: list[Any],
-) -> list[HypothesisReview]:
-    """Converts batch-review entries into HypothesisReview objects.
+    hypothesis_count: int,
+) -> list[Any]:
+    """Associates batch-review entries with hypotheses by their number.
 
-    Iterates by index over `hypotheses` (not `reviews_data`) so every
-    hypothesis gets a review object even if the LLM under-produced entries;
-    missing entries are padded with an "unavailable" placeholder rather than
-    raising here -- review_node detects that placeholder via its
-    review_summary text and raises instead of silently scoring the
-    hypothesis at 0.
+    Each entry's ``hypothesis_index`` is the number the prompt assigned
+    (1-based). Entries with a valid, not-yet-claimed number land on that
+    hypothesis regardless of list order; entries whose number is absent,
+    non-integer, out of range, or duplicated fall back to filling the
+    still-empty slots in list order. Surplus entries are dropped.
 
     Args:
-        hypotheses: hypotheses that were reviewed.
         reviews_data: the "reviews" list pulled from the batch response.
+        hypothesis_count: number of hypotheses in the batch.
 
     Returns:
-        List of reviews, one per hypothesis, in the same order.
+        One entry (raw item or None) per hypothesis, in hypothesis order.
     """
-    reviews = []
-    for i in range(len(hypotheses)):
-        if i < len(reviews_data):
-            reviews.append(_review_from_response(reviews_data[i]))
+    slots: list[Any] = [None] * hypothesis_count
+    unplaced: list[Any] = []
+    claimed: set[int] = set()
+    for entry in reviews_data:
+        number = (
+            entry.get("hypothesis_index") if isinstance(entry, dict) else None
+        )
+        if (
+            isinstance(number, int)
+            and not isinstance(number, bool)
+            and 1 <= number <= hypothesis_count
+            and number not in claimed
+        ):
+            slots[number - 1] = entry
+            claimed.add(number)
         else:
-            logger.error("No review data for hypothesis %s", i)
-            reviews.append(
-                HypothesisReview(
-                    review_summary="Review unavailable",
-                    scores={},
-                    safety_ethical_concerns="",
-                    detailed_feedback={},
-                    constructive_feedback="",
-                    overall_score=0.0,
-                )
-            )
+            unplaced.append(entry)
 
-    return reviews
+    remaining = iter(unplaced)
+    for index in range(hypothesis_count):
+        if slots[index] is None:
+            slots[index] = next(remaining, None)
+    return slots
+
+
+def _convert_matched_entry(
+    entry: Any, position: int
+) -> HypothesisReview | None:
+    """Converts one matched batch entry, isolating its parse failures.
+
+    A malformed entry (a non-dict item, an unparseable payload) is logged
+    and recorded as None rather than raised: one bad entry must not abort
+    the batch the other entries belong to (audit E15). The caller counts
+    the Nones and leaves those hypotheses for the next review pass.
+
+    Args:
+        entry: The batch entry matched to this position, or None when the
+            LLM produced no entry for it.
+        position: 1-based hypothesis number, for logging.
+
+    Returns:
+        The parsed review, or None when the entry is missing or malformed.
+    """
+    if entry is None:
+        logger.error("No review data for hypothesis %s", position)
+        return None
+    try:
+        return _review_from_response(entry)
+    except (AttributeError, KeyError, TypeError, ValueError):
+        logger.warning(
+            "Malformed review entry for hypothesis %s; recording it as"
+            " a failed review instead of aborting the batch",
+            position,
+        )
+        return None
 
 
 def _parse_batch_review_response(
     response: dict[str, Any],
     hypotheses: list[Hypothesis],
     run_id: str | None,
-) -> list[HypothesisReview]:
+) -> list[HypothesisReview | None]:
     """Parses a batch-review LLM response into per-hypothesis reviews.
+
+    Entries are associated with hypotheses by their ``hypothesis_index``
+    (the number the prompt assigned), not by list order; a missing or
+    malformed entry is recorded as None for its hypothesis while the rest
+    of the batch still applies (audit E15).
 
     Args:
         response: raw LLM JSON response from the batch review call.
-        hypotheses: hypotheses that were reviewed, for count/logging only.
+        hypotheses: hypotheses that were reviewed, in prompt order.
         run_id: optional run ID, referenced in the mismatch log message.
 
     Returns:
-        List of reviews, one per hypothesis, in the same order.
+        One review per hypothesis in hypothesis order, None where the
+        entry was missing or malformed.
     """
     reviews_data = response.get("reviews", [])
     _log_batch_review_response_shape(response, reviews_data, hypotheses, run_id)
-    return _build_reviews_with_placeholders(hypotheses, reviews_data)
+    matched = _match_batch_entries_to_hypotheses(reviews_data, len(hypotheses))
+    return [
+        _convert_matched_entry(entry, position)
+        for position, entry in enumerate(matched, start=1)
+    ]
 
 
 def _select_review_strategy(num_hypotheses: int) -> tuple[bool, str]:
@@ -299,31 +391,31 @@ def _select_review_strategy(num_hypotheses: int) -> tuple[bool, str]:
     return use_comparative, strategy_name
 
 
-def _validate_reviews(reviews: list[HypothesisReview]) -> None:
-    """Raises if any review is an unavailable placeholder.
+def _split_reviews_by_result(
+    hypotheses: list[Hypothesis],
+    reviews: list[HypothesisReview | None],
+) -> tuple[list[tuple[Hypothesis, HypothesisReview]], int]:
+    """Partitions reviewed hypotheses into successes and failures.
 
-    Unlike reflection_node/proximity_node, which degrade gracefully on
-    partial LLM failures, a hypothesis reaching ranking without a real
-    review would silently rank at score 0.0, so this fails loudly instead.
+    A None marks a hypothesis whose review failed (a missing or malformed
+    entry, or a failed individual call). Failed hypotheses get nothing
+    attached -- they stay unreviewed, so the next review pass picks them
+    up again rather than ranking them on a placeholder scored 0.0 (the
+    defect the old fail-loud placeholder validation existed to prevent).
 
     Args:
-        reviews: reviews to validate.
+        hypotheses: Hypotheses that went into this review pass.
+        reviews: One review (or None) per hypothesis, same order.
 
-    Raises:
-        GenerationError: if one or more reviews is unavailable.
+    Returns:
+        Tuple of (successful (hypothesis, review) pairs, failure count).
     """
-    invalid_reviews = [
-        i
-        for i, r in enumerate(reviews)
-        if r.review_summary == "Review unavailable"
+    pairs = [
+        (hypothesis, review)
+        for hypothesis, review in zip(hypotheses, reviews, strict=True)
+        if review is not None
     ]
-    if invalid_reviews:
-        error_msg = (
-            f"review node failed: {len(invalid_reviews)}"
-            f"/{len(reviews)} reviews invalid"
-        )
-        logger.error(error_msg)
-        raise GenerationError(error_msg)
+    return pairs, len(hypotheses) - len(pairs)
 
 
 def _attach_reviews_to_hypotheses(

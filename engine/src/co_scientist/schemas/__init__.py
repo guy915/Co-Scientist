@@ -31,6 +31,7 @@ from co_scientist.schemas.planning import (
 )
 from co_scientist.schemas.ranking import (
     PROXIMITY_SCHEMA,
+    RANKING_COMPARISON_CRITERIA,
     RANKING_SCHEMA,
 )
 from co_scientist.schemas.registry import get_schema_for_prompt
@@ -61,6 +62,7 @@ __all__ = [
     "LITERATURE_QUERY_SCHEMA",
     "META_REVIEW_SCHEMA",
     "PROXIMITY_SCHEMA",
+    "RANKING_COMPARISON_CRITERIA",
     "RANKING_SCHEMA",
     "REFLECTION_SCHEMA",
     "RESEARCH_OVERVIEW_SCHEMA",

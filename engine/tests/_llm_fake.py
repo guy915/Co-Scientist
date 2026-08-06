@@ -34,8 +34,9 @@ plain-text reply instead.
 One schema needs an array filled to a specific length rather than the
 generic filler's default of one item: the comparative batch-review
 response's "reviews" array must have exactly one entry per hypothesis in
-the batch, since ``review_node`` maps entries back to hypotheses by array
-position and rejects a short response as invalid. ``_ARRAY_LENGTH_HINTS``
+the batch, since ``review_node`` maps entries back to hypotheses (by
+their ``hypothesis_index`` when valid, else by array position) and
+counts a short response as failed reviews. ``_ARRAY_LENGTH_HINTS``
 (imported from ``co_scientist.offline_llm``) wires a prompt-derived count
 to the "hypothesis_batch_review" schema by name.
 

@@ -239,6 +239,14 @@ async def _run_debate_turns(
 ) -> tuple[list[str], _DebateRun, dict[str, Any]]:
     """Runs debate turns until consensus is reached, alternating order.
 
+    Deliberate local choice (finding E18): the "debate" is one judge
+    re-examining the accumulated verdicts each turn, not distinct
+    advocate/opponent personas. The paper specifies debate *turn counts*
+    only and never names personas for the ranking exchange -- the
+    Innovator/Pragmatist/Contrarian persona requirement appears solely in
+    the local reference corpus's clone-authored design and is not treated
+    as a fidelity target (see FINDINGS.md, Corpus-integrity corrections).
+
     Folds the matchup index into the starting presentation order so a
     single-turn (lower-ranked) comparison does not always present
     hypothesis A first (see ``_execute_debate_turn``).
