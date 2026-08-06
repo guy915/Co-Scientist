@@ -290,12 +290,19 @@ def test_diagnostics_never_report_key_material(
         _create_byok_run(client)
         status = client.get("/status")
         config = client.get("/config")
+    with TestClient(app, client=("127.0.0.1", 50000)) as operator:
+        operator_status = operator.get("/status")
+
     assert status.status_code == 200
-    assert status.json()["byok_enabled"] is True
-    assert _KEY not in status.text
-    assert _SECRET not in status.text
-    assert _KEY not in config.text
-    assert _SECRET not in config.text
+    # `byok_enabled` names the deployment's credential posture, so it is an
+    # operator-only field (finding N14); an anonymous caller sees it null.
+    assert operator_status.json()["byok_enabled"] is True
+    assert status.json()["byok_enabled"] is None
+    # Key material must be absent for *either* caller -- operator access
+    # widens what is disclosed about the deployment, never to a secret.
+    for response in (status, config, operator_status):
+        assert _KEY not in response.text
+        assert _SECRET not in response.text
 
 
 def _byok_qa_stream(**kwargs: Any) -> Any:

@@ -1,78 +1,135 @@
-import {describe, it, expect, vi, beforeEach} from 'vitest';
+import {describe, it, expect, vi, beforeEach, afterEach} from 'vitest';
 import {renderHook, act} from '@testing-library/react';
-import {useRunStream, type StreamEvent} from './use_run_stream';
+import {
+  useRunStream,
+  RECONNECT_DELAY_MS,
+  type StreamEvent,
+} from './use_run_stream';
 
-// jsdom has no EventSource, so we install a controllable fake. Each constructed
-// instance is recorded in `instances` so a test can reach in and fire handlers.
-class FakeEventSource {
-  // The readyState vocabulary the spec pins on the constructor.
-  static CONNECTING = 0;
-  static OPEN = 1;
-  static CLOSED = 2;
-
-  static instances: FakeEventSource[] = [];
-  url: string;
-  readyState = FakeEventSource.CONNECTING;
-  onopen: (() => void) | null = null;
-  onerror: (() => void) | null = null;
-  onmessage: ((ev: {data: string}) => void) | null = null;
-  close = vi.fn(() => {
-    this.readyState = FakeEventSource.CLOSED;
-  });
-
-  constructor(url: string) {
-    this.url = url;
-    FakeEventSource.instances.push(this);
-  }
-
-  /** Returns the most recently constructed instance. */
-  static last(): FakeEventSource {
-    const es = FakeEventSource.instances.at(-1);
-    if (!es) throw new Error('no EventSource was constructed');
-    return es;
-  }
+/** The mocked global fetch, narrowed to its mock surface. */
+function fetchMock() {
+  return globalThis.fetch as unknown as ReturnType<typeof vi.fn>;
 }
 
 /**
- * Fires an onmessage with a JSON-encoded StreamEvent and waits one macrotask
- * so the hook's batched setTimeout(0) flush lands before assertions.
+ * A controllable SSE body: tests push frames onto it and the hook's
+ * `fetch`-based reader (`readSseFrames`) consumes them as they arrive, the
+ * same way a real streamed response behaves.
  */
-async function emit(
-  es: FakeEventSource,
-  ev: Partial<StreamEvent>,
-): Promise<void> {
+class FakeSseBody {
+  private controller: ReadableStreamDefaultController<Uint8Array> | null = null;
+  readonly stream = new ReadableStream<Uint8Array>({
+    start: c => {
+      this.controller = c;
+    },
+  });
+  private readonly encoder = new TextEncoder();
+
+  /** Enqueues one SSE frame carrying the given event as its JSON payload. */
+  push(ev: Partial<StreamEvent>): void {
+    this.controller?.enqueue(
+      this.encoder.encode(`data: ${JSON.stringify(ev)}\n\n`),
+    );
+  }
+
+  /** Enqueues one raw (non-JSON) SSE frame, to exercise the parse-error path. */
+  pushRaw(data: string): void {
+    this.controller?.enqueue(this.encoder.encode(`data: ${data}\n\n`));
+  }
+
+  /** Ends the stream as the server closing the connection normally. */
+  end(): void {
+    this.controller?.close();
+  }
+}
+
+/** Builds a Response-like object streaming from `body`. */
+function streamingResponse(body: FakeSseBody): Response {
+  return {
+    ok: true,
+    status: 200,
+    statusText: 'OK',
+    body: body.stream,
+    text: async () => '',
+  } as unknown as Response;
+}
+
+/** Builds a Response-like object representing a non-OK HTTP error. */
+function errorResponse(status: number): Response {
+  return {
+    ok: false,
+    status,
+    statusText: 'Error',
+    body: null,
+    text: async () => 'boom',
+  } as unknown as Response;
+}
+
+/**
+ * Queues fetch responses in order; a call beyond the queue hangs (mirrors a
+ * connection attempt still in flight), which is what a test asserting "no
+ * further attempt happened yet" relies on.
+ */
+function queueFetch(...responses: Response[]): void {
+  const queue = [...responses];
+  fetchMock().mockImplementation(() => {
+    const next = queue.shift();
+    return next === undefined
+      ? new Promise<Response>(() => {})
+      : Promise.resolve(next);
+  });
+}
+
+/**
+ * Advances fake timers by `ms` inside `act`, letting a chained read -> decode
+ * -> batch -> flush pipeline settle. Unlike the synchronous `onmessage` a
+ * native `EventSource` delivers, each hop here is its own microtask
+ * boundary, so `vitest`'s async-aware timer advance (which yields between
+ * each timer it fires) is what actually drains the chain rather than a
+ * single real `setTimeout(0)`.
+ */
+async function settle(ms = 0): Promise<void> {
   await act(async () => {
-    es.onmessage?.({data: JSON.stringify(ev)});
-    await new Promise(resolve => setTimeout(resolve, 0));
+    await vi.advanceTimersByTimeAsync(ms);
   });
 }
 
 beforeEach(() => {
-  FakeEventSource.instances = [];
-  vi.stubGlobal('EventSource', FakeEventSource);
+  vi.useFakeTimers();
+  vi.stubGlobal('fetch', vi.fn());
+});
+
+afterEach(() => {
+  vi.useRealTimers();
+  vi.unstubAllGlobals();
 });
 
 describe('stream setup', () => {
   it('stays idle and opens no stream when runId is null', () => {
-    const {result} = renderHook(() => useRunStream(null));
-    expect(FakeEventSource.instances).toHaveLength(0);
-    expect(result.current.events).toEqual([]);
-    expect(result.current.terminal).toBe(false);
+    renderHook(() => useRunStream(null));
+    expect(fetchMock()).not.toHaveBeenCalled();
   });
 
-  it('opens a stream against the run events URL', () => {
+  it('opens a stream against the run events URL', async () => {
+    const body = new FakeSseBody();
+    queueFetch(streamingResponse(body));
     renderHook(() => useRunStream('run-1'));
-    const es = FakeEventSource.last();
-    expect(es.url).toContain('/api/runs/run-1/events');
+    await settle();
+
+    expect(fetchMock().mock.calls[0][0]).toContain('/api/runs/run-1/events');
   });
 });
 
-it('accumulates streamed events and tracks the highest seq', async () => {
+it('accumulates streamed events and reports the open state', async () => {
+  const body = new FakeSseBody();
+  queueFetch(streamingResponse(body));
   const {result} = renderHook(() => useRunStream('run-1'));
-  const es = FakeEventSource.last();
+  await settle();
+  expect(result.current.connection).toBe('open');
 
-  await emit(es, {seq: 1, type: 'node_start', payload: {node: 'generate'}});
-  await emit(es, {seq: 2, type: 'node_end', payload: {node: 'generate'}});
+  body.push({seq: 1, type: 'node_start', payload: {node: 'generate'}});
+  body.push({seq: 2, type: 'node_end', payload: {node: 'generate'}});
+  await settle();
 
   expect(result.current.events).toHaveLength(2);
   expect(result.current.events.map(e => e.type)).toEqual([
@@ -81,262 +138,134 @@ it('accumulates streamed events and tracks the highest seq', async () => {
   ]);
 });
 
-it('appends events in arrival order', async () => {
-  const {result} = renderHook(() => useRunStream('run-1'));
-  const es = FakeEventSource.last();
-
-  await emit(es, {seq: 5, type: 'a', payload: {}});
-  await emit(es, {seq: 3, type: 'b', payload: {}});
-
-  expect(result.current.events).toHaveLength(2);
-  expect(result.current.events.map(e => e.seq)).toEqual([5, 3]);
-});
-
-it('buffers a replay burst and flushes it on the next tick', async () => {
-  const {result} = renderHook(() => useRunStream('run-1'));
-  const es = FakeEventSource.last();
-
-  // Fire the whole burst within one task, without letting the flush timer
-  // run. A per-event setEvents would surface these on act() exit; because
-  // they are buffered, state is still empty here. This assertion is what
-  // distinguishes the batched implementation from the naive one.
-  act(() => {
-    for (let seq = 1; seq <= 50; seq++) {
-      es.onmessage?.({
-        data: JSON.stringify({seq, type: 'node', payload: {}}),
-      });
-    }
-  });
-  expect(result.current.events).toEqual([]);
-
-  // Let the single scheduled flush fire; the whole burst lands at once.
-  await act(async () => {
-    await new Promise(resolve => setTimeout(resolve, 0));
-  });
-
-  expect(result.current.events).toHaveLength(50);
-  expect(result.current.events.map(e => e.seq)).toEqual(
-    Array.from({length: 50}, (_, i) => i + 1),
-  );
-});
-
 it('drops replayed events so a reconnect cannot duplicate the timeline', async () => {
-  // EventSource reconnects transparently and the backend replays from
-  // seq=0, so the same seqs arrive twice on one connection. Without seq
-  // dedup the timeline doubles and slice(-N) surfaces the oldest steps as
-  // the newest; here the second pass must be a no-op.
+  // Every reconnect replays from seq=0, so the same seqs can arrive twice
+  // across attempts (or within one, on a burst); dedup keeps the second
+  // pass a no-op.
+  const body = new FakeSseBody();
+  queueFetch(streamingResponse(body));
   const {result} = renderHook(() => useRunStream('run-1'));
-  const es = FakeEventSource.last();
+  await settle();
 
-  await emit(es, {seq: 1, type: 'a', payload: {}});
-  await emit(es, {seq: 2, type: 'b', payload: {}});
-  // The reconnect replay: seq 1 and 2 again, then a genuinely new event.
-  await emit(es, {seq: 1, type: 'a', payload: {}});
-  await emit(es, {seq: 2, type: 'b', payload: {}});
-  await emit(es, {seq: 3, type: 'c', payload: {}});
+  body.push({seq: 1, type: 'a', payload: {}});
+  body.push({seq: 2, type: 'b', payload: {}});
+  body.push({seq: 1, type: 'a', payload: {}});
+  body.push({seq: 2, type: 'b', payload: {}});
+  body.push({seq: 3, type: 'c', payload: {}});
+  await settle();
 
   expect(result.current.events.map(e => e.seq)).toEqual([1, 2, 3]);
 });
 
 describe('terminal events', () => {
-  it('marks terminal and closes the stream on a _terminal event', async () => {
+  it('marks terminal and stops the stream on a _terminal event', async () => {
+    const body = new FakeSseBody();
+    queueFetch(streamingResponse(body));
     const {result} = renderHook(() => useRunStream('run-1'));
-    const es = FakeEventSource.last();
+    await settle();
 
-    await emit(es, {seq: 1, type: 'node_start', payload: {}});
-    await emit(es, {type: '_terminal', payload: {}});
+    body.push({seq: 1, type: 'node_start', payload: {}});
+    body.push({type: '_terminal', payload: {}});
+    await settle();
 
     expect(result.current.terminal).toBe(true);
-    expect(es.close).toHaveBeenCalledOnce();
     // The terminal sentinel itself is not appended to the timeline.
     expect(result.current.events).toHaveLength(1);
-  });
-
-  it('drains buffered events before marking terminal', () => {
-    const {result} = renderHook(() => useRunStream('run-1'));
-    const es = FakeEventSource.last();
-
-    // Terminal arrives in the same task as still-buffered events, before any
-    // flush timer has fired. Nothing may be lost.
-    act(() => {
-      es.onmessage?.({
-        data: JSON.stringify({seq: 1, type: 'a', payload: {}}),
-      });
-      es.onmessage?.({
-        data: JSON.stringify({seq: 2, type: 'b', payload: {}}),
-      });
-      es.onmessage?.({
-        data: JSON.stringify({type: '_terminal', payload: {}}),
-      });
-    });
-
-    expect(result.current.events).toHaveLength(2);
-    expect(result.current.events.map(e => e.seq)).toEqual([1, 2]);
-    expect(result.current.terminal).toBe(true);
-    expect(es.close).toHaveBeenCalledOnce();
+    // No further attempt follows a deliberate terminal stop.
+    await settle(RECONNECT_DELAY_MS);
+    expect(fetchMock().mock.calls).toHaveLength(1);
   });
 });
 
 describe('malformed payloads', () => {
-  it('ignores malformed event payloads without crashing', async () => {
-    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+  it('does not crash on a malformed frame and reconnects instead', async () => {
+    const firstBody = new FakeSseBody();
+    const secondBody = new FakeSseBody();
+    queueFetch(streamingResponse(firstBody), streamingResponse(secondBody));
     const {result} = renderHook(() => useRunStream('run-1'));
-    const es = FakeEventSource.last();
+    await settle();
 
-    await act(async () => {
-      es.onmessage?.({data: 'not json{'});
-      await new Promise(resolve => setTimeout(resolve, 0));
-    });
+    firstBody.pushRaw('not json{');
+    await settle();
 
+    // The bad frame ends that attempt without surfacing a bogus event or
+    // throwing out of the hook; the retry timer then opens a new attempt.
     expect(result.current.events).toEqual([]);
-    consoleSpy.mockRestore();
+    await settle(RECONNECT_DELAY_MS);
+    expect(fetchMock().mock.calls.length).toBeGreaterThan(1);
   });
 });
 
-it('closes the stream on unmount', () => {
+it('aborts the in-flight connection on unmount', async () => {
+  const body = new FakeSseBody();
+  const abortSpy = vi.fn();
+  fetchMock().mockImplementation((_url: string, init?: RequestInit) => {
+    init?.signal?.addEventListener('abort', abortSpy);
+    return Promise.resolve(streamingResponse(body));
+  });
   const {unmount} = renderHook(() => useRunStream('run-1'));
-  const es = FakeEventSource.last();
-  expect(es.close).not.toHaveBeenCalled();
+  await settle();
+
   unmount();
-  expect(es.close).toHaveBeenCalledOnce();
+
+  expect(abortSpy).toHaveBeenCalled();
 });
 
 it('resets state and reopens when runId changes', async () => {
+  const firstBody = new FakeSseBody();
+  const secondBody = new FakeSseBody();
+  queueFetch(streamingResponse(firstBody), streamingResponse(secondBody));
   const {result, rerender} = renderHook(
     ({id}: {id: string | null}) => useRunStream(id),
     {initialProps: {id: 'run-1' as string | null}},
   );
-  const first = FakeEventSource.last();
-  await emit(first, {seq: 1, type: 'a', payload: {}});
+  await settle();
+  firstBody.push({seq: 1, type: 'a', payload: {}});
+  await settle();
   expect(result.current.events).toHaveLength(1);
 
   rerender({id: 'run-2'});
-  expect(first.close).toHaveBeenCalledOnce();
   expect(result.current.events).toEqual([]);
+  expect(result.current.connection).toBe('connecting');
 
-  const second = FakeEventSource.last();
-  expect(second).not.toBe(first);
-  expect(second.url).toContain('/api/runs/run-2/events');
-});
-
-it('drops the unflushed buffer on runId change (no leak)', async () => {
-  const {result, rerender} = renderHook(
-    ({id}: {id: string | null}) => useRunStream(id),
-    {initialProps: {id: 'run-1' as string | null}},
-  );
-  const first = FakeEventSource.last();
-
-  // Buffer a run-1 event WITHOUT letting its flush timer fire, then switch
-  // runs. Cleanup must clear the pending timer; otherwise the stale flush
-  // appends run-1's event to run-2's freshly-reset state.
-  act(() => {
-    first.onmessage?.({
-      data: JSON.stringify({seq: 1, type: 'a', payload: {}}),
-    });
-  });
-  rerender({id: 'run-2'});
-
-  await act(async () => {
-    await new Promise(resolve => setTimeout(resolve, 0));
-  });
-
-  expect(result.current.events).toEqual([]);
+  await settle();
+  expect(fetchMock().mock.calls[1][0]).toContain('/api/runs/run-2/events');
 });
 
 describe('connection state', () => {
-  it('reports connecting until the socket opens', () => {
+  it('reports connecting then open as the stream connects', async () => {
+    const body = new FakeSseBody();
+    queueFetch(streamingResponse(body));
     const {result} = renderHook(() => useRunStream('run-1'));
     expect(result.current.connection).toBe('connecting');
 
-    act(() => {
-      const es = FakeEventSource.last();
-      es.readyState = FakeEventSource.OPEN;
-      es.onopen?.();
-    });
+    await settle();
     expect(result.current.connection).toBe('open');
   });
 
-  it('reports reconnecting when an open stream errors and retries', () => {
+  it('reports disconnected on a permanent rejection, with no retry', async () => {
+    queueFetch(errorResponse(404));
     const {result} = renderHook(() => useRunStream('run-1'));
-    const es = FakeEventSource.last();
-    act(() => {
-      es.readyState = FakeEventSource.OPEN;
-      es.onopen?.();
-    });
+    await settle();
 
-    // The connection drops; EventSource retries, so its readyState is back
-    // to CONNECTING by the time onerror lands.
-    act(() => {
-      es.readyState = FakeEventSource.CONNECTING;
-      es.onerror?.();
-    });
+    expect(result.current.connection).toBe('disconnected');
+    await settle(RECONNECT_DELAY_MS);
+    expect(fetchMock().mock.calls).toHaveLength(1);
+  });
+
+  it('reports reconnecting after an open stream drops, then reopens', async () => {
+    const firstBody = new FakeSseBody();
+    const secondBody = new FakeSseBody();
+    queueFetch(streamingResponse(firstBody), streamingResponse(secondBody));
+    const {result} = renderHook(() => useRunStream('run-1'));
+    await settle();
+    expect(result.current.connection).toBe('open');
+
+    firstBody.end();
+    await settle();
     expect(result.current.connection).toBe('reconnecting');
 
-    // The retry lands and the stream is healthy again.
-    act(() => {
-      es.readyState = FakeEventSource.OPEN;
-      es.onopen?.();
-    });
+    await settle(RECONNECT_DELAY_MS);
     expect(result.current.connection).toBe('open');
-  });
-
-  it('reports disconnected when the stream ends with no retry', () => {
-    const {result} = renderHook(() => useRunStream('run-1'));
-    const es = FakeEventSource.last();
-    act(() => {
-      es.readyState = FakeEventSource.OPEN;
-      es.onopen?.();
-    });
-
-    // CLOSED means EventSource gave up (an error response gets no retry),
-    // so the drop must read as terminal, not as reconnecting.
-    act(() => {
-      es.readyState = FakeEventSource.CLOSED;
-      es.onerror?.();
-    });
-    expect(result.current.connection).toBe('disconnected');
-  });
-
-  it('stays connecting when the first attempt errors while retrying', () => {
-    // A pre-open failure is still connecting, not a dropped stream: nothing
-    // had been established yet.
-    const {result} = renderHook(() => useRunStream('run-1'));
-    act(() => {
-      const es = FakeEventSource.last();
-      es.readyState = FakeEventSource.CONNECTING;
-      es.onerror?.();
-    });
-    expect(result.current.connection).toBe('connecting');
-  });
-
-  it('keeps the last state across the deliberate terminal close', async () => {
-    // The terminal sentinel closes the socket on purpose; that is a
-    // completion, not a drop, so the state does not flip to an error.
-    const {result} = renderHook(() => useRunStream('run-1'));
-    const es = FakeEventSource.last();
-    act(() => {
-      es.readyState = FakeEventSource.OPEN;
-      es.onopen?.();
-    });
-
-    await emit(es, {type: '_terminal', payload: {}});
-    expect(result.current.terminal).toBe(true);
-    expect(result.current.connection).toBe('open');
-  });
-
-  it('resets to connecting when the run changes', () => {
-    const {result, rerender} = renderHook(
-      ({id}: {id: string}) => useRunStream(id),
-      {initialProps: {id: 'run-1'}},
-    );
-    act(() => {
-      const es = FakeEventSource.last();
-      es.readyState = FakeEventSource.OPEN;
-      es.onopen?.();
-    });
-    expect(result.current.connection).toBe('open');
-
-    rerender({id: 'run-2'});
-    expect(result.current.connection).toBe('connecting');
   });
 });

@@ -100,7 +100,14 @@ def wait_for_status(
     timeout: float = 15.0,
     interval: float = 0.05,
 ) -> bool:
-    """Poll ``GET /api/runs/{id}`` until the run reaches ``status``."""
+    """Poll ``GET /api/runs/{id}`` until the run reaches ``status``.
+
+    Polls headerless, i.e. under the default (empty) compatibility client
+    id -- every existing caller creates its run the same way. A caller that
+    created its run under an explicit ``X-Client-ID`` cannot use this
+    helper to poll it (ownership would hide the row behind a 404); write a
+    small local poll passing that header instead.
+    """
 
     def _reached() -> bool:
         response = client.get(f"/api/runs/{run_id}")

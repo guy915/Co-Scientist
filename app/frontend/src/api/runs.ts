@@ -17,7 +17,6 @@ import type {
 } from './run_types';
 import {
   API_BASE_URL,
-  authQuery,
   byokHeaders,
   clientHeaders,
   fetchField,
@@ -72,6 +71,7 @@ export {
   exchangeAccessCode,
   fetchJson,
   jsonRequest,
+  readSseFrames,
 } from './runs_http';
 export type {StagedDocument} from './documents';
 export {stageDocument} from './documents';
@@ -278,6 +278,22 @@ export async function cancelRun(
   return fetchJson(`/api/runs/${id}/cancel`, jsonRequest({}, true));
 }
 
+/**
+ * Permanently deletes a terminal run and every row scoped to it. Cannot be
+ * undone; the run must not be active (cancel it first).
+ *
+ * @param id Run identifier.
+ * @returns The deleted run's id and the per-table row counts removed.
+ */
+export async function deleteRun(
+  id: string,
+): Promise<{id: string; deleted: boolean; counts: Record<string, number>}> {
+  return fetchJson(`/api/runs/${id}`, {
+    method: 'DELETE',
+    headers: clientHeaders(),
+  });
+}
+
 /** Streams a grounded report-level or idea-level Agent answer to completion. */
 export async function askRunQuestion(
   id: string,
@@ -312,14 +328,20 @@ export function sendRunSteering(
 }
 
 /**
- * Builds the SSE events-stream URL for a run. The stream always replays from
- * the start; the backend treats a missing cursor as `after=0`.
+ * Builds the events-stream URL for a run. The stream always replays from the
+ * start; the backend treats a missing cursor as `after=0`.
+ *
+ * Carries no credential: unlike a browser-native `EventSource` (which cannot
+ * attach a header), the stream is opened over `fetch` with `clientHeaders()`
+ * (see `useRunStream`), so identity travels as a header rather than a query
+ * parameter that would otherwise leak into browser history, proxy logs, and
+ * referrers.
  *
  * @param id Run identifier.
  * @returns The absolute events endpoint URL.
  */
 export function eventsStreamUrl(id: string): string {
-  return `${API_BASE_URL}/api/runs/${id}/events?${authQuery()}`;
+  return `${API_BASE_URL}/api/runs/${id}/events`;
 }
 
 /** One persisted row of a run's append-only event log. */

@@ -98,19 +98,23 @@ def verify_session_token(token: str, now: int | None = None) -> Principal:
 
 
 def principal_for_request(request: Request) -> Principal | None:
-    """Resolve a verified bearer principal or compatibility client scope."""
+    """Resolve a verified bearer principal or compatibility client scope.
+
+    Identity is read from headers only. A signed session or the researcher
+    id must never travel in the query string: URLs are retained in browser
+    history, proxy access logs, and referrer headers long after the
+    request that carried them, so a query-string credential leaks on a
+    timeline a header credential does not. The one caller that used to
+    need a query-carried credential -- the SSE event stream, which
+    ``EventSource`` cannot attach a header to -- now opens the stream over
+    ``fetch`` instead, which can.
+    """
     authorization = request.headers.get("Authorization", "")
-    query_params = getattr(request, "query_params", {})
-    query_token = query_params.get("access_token", "")
     if authorization.startswith("Bearer "):
         return verify_session_token(authorization.removeprefix("Bearer "))
-    if query_token:
-        return verify_session_token(query_token)
     if auth_required():
         return None
-    client_id = request.headers.get("X-Client-ID") or query_params.get(
-        "client_id", ""
-    )
+    client_id = request.headers.get("X-Client-ID", "")
     return Principal(client_id, "compatibility")
 
 

@@ -25,6 +25,7 @@ from app.run_modes import DEFAULT_RUN_TIER, RUN_TIER_DEFAULTS
 from app.store import DEMO_CLIENT_ID
 from app.version import API_VERSION
 from tests._client import make_client as _client
+from tests._client import make_operator_client
 
 # The engine's example config: a real, readable YAML for the tools_config
 # startup path (validation must pass for it and reject a nonexistent path).
@@ -64,15 +65,41 @@ def _seed_interrupted_engine_run(isolated_db: str) -> str:
     return interrupted.id
 
 
-def test_root_endpoint_returns_api_metadata() -> None:
+def test_root_endpoint_hides_docs_pointer_from_non_operators() -> None:
+    """A non-operator caller gets no /docs pointer -- see `_is_operator`."""
     res = _client().get("/")
     assert res.status_code == 200
-    data = res.json()
-    assert data == {
+    assert res.json() == {
         "message": "Co-Scientist API",
         "version": API_VERSION,
-        "docs": "/docs",
+        "docs": None,
     }
+
+
+def test_root_endpoint_shows_docs_pointer_to_operators() -> None:
+    res = make_operator_client().get("/")
+    assert res.status_code == 200
+    assert res.json()["docs"] == "/docs"
+
+
+def test_docs_and_openapi_are_404_for_non_operators() -> None:
+    """Swagger, ReDoc, and the raw schema are hidden from an anonymous caller.
+
+    A 404 rather than a 401/403, so a probing caller cannot distinguish
+    "no docs route" from "docs exist but you may not see them".
+    """
+    client = _client()
+    for path in ("/docs", "/redoc", "/openapi.json"):
+        assert client.get(path).status_code == 404, path
+
+
+def test_docs_and_openapi_serve_for_operators() -> None:
+    client = make_operator_client()
+    assert client.get("/docs").status_code == 200
+    assert client.get("/redoc").status_code == 200
+    schema = client.get("/openapi.json")
+    assert schema.status_code == 200
+    assert schema.json()["info"]["title"] == "Co-Scientist API"
 
 
 def test_version_is_single_sourced_across_surfaces() -> None:
@@ -170,19 +197,61 @@ def test_lifespan_fails_on_unreadable_tools_config(
 def test_status_reports_effective_tools_config(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """/status discloses the configured tools_config and its enabled tools."""
+    """/status discloses the configured tools_config to an operator caller.
+
+    See `_is_operator`; every other caller sees this and the other
+    operator-only fields redacted to null, covered by
+    `test_status_redacts_operator_fields_from_non_operators` below.
+    """
     import app.main as main_module
     from app.config import settings
 
     monkeypatch.setattr(settings, "tools_config", _INDRA_CONFIG)
 
-    with TestClient(main_module.app) as client:
+    # A loopback client host, matching tests/_client.py's operator client:
+    # these fields are operator-only, so a default TestClient (host
+    # "testclient", not loopback) would see them redacted.
+    with TestClient(main_module.app, client=("127.0.0.1", 50000)) as client:
         res = client.get("/status")
         assert res.status_code == 200
         body = res.json()
         assert body["tools_config"] == _INDRA_CONFIG
         assert body["tools_config_valid"] is True
         assert "indra_statements" in body["enabled_tools"]
+
+
+def test_status_redacts_operator_fields_from_non_operators(
+    isolated_db: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A non-operator /status caller sees no deployment internals.
+
+    The internal MCP hostname, provider-key/BYOK/engine-importability
+    state, and the tools config are operator diagnostics with no product
+    use (nothing in the frontend reads them) -- so they come back null
+    rather than real values, while the fields the UI does read (the
+    availability booleans, `connectors`, and the offline-mode banner's
+    `provider`/`llm_backend`/`model_name`) stay populated.
+    """
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "tools_config", _INDRA_CONFIG)
+
+    body = _client().get("/status").json()
+
+    assert body["mcp_server_url"] is None
+    assert body["has_provider_key"] is None
+    assert body["byok_enabled"] is None
+    assert body["engine_importable"] is None
+    assert body["supervisor_model_name"] is None
+    assert body["tools_config"] is None
+    assert body["tools_config_valid"] is None
+    assert body["enabled_tools"] is None
+    assert body["probes"] is None
+    # Publicly-used fields survive redaction.
+    assert isinstance(body["connectors"], list)
+    assert body["provider"] == "engine"
+    assert "llm_backend" in body
+    assert "model_name" in body
 
 
 def test_status_reports_whether_email_can_actually_be_sent(

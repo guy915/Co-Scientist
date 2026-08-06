@@ -6,9 +6,10 @@ Probe logic lives in ``app.diagnostics``; this module only shapes the
 HTTP responses.
 """
 
+import hmac
 from typing import Any
 
-from fastapi import APIRouter, Response
+from fastapi import APIRouter, Request, Response
 from pydantic import BaseModel, Field
 
 from app import diagnostics, engine_adapter, paper_corpus
@@ -21,6 +22,38 @@ from app.run_modes import (
 from app.version import API_VERSION
 
 router = APIRouter()
+
+# Hosts whose requests are treated as operator access without a token: a
+# local CLI/agent session is already inside the trust boundary. Mirrors
+# ``app.logs_api``'s own loopback set independently rather than importing a
+# private name across a module boundary for one constant.
+_LOOPBACK_HOSTS = frozenset({"127.0.0.1", "::1", "localhost"})
+
+
+def _is_operator(request: Request) -> bool:
+    """Return whether this caller may see deployment-internal diagnostics.
+
+    ``/status``, ``/health``, and the API docs disclose infrastructure
+    details -- the internal MCP hostname, provider-key presence, BYOK and
+    engine-importability state, the tools config path and enabled-tool
+    list -- that help an operator diagnose a deployment and help an
+    anonymous internet caller do reconnaissance, and nothing in the
+    product's own UI reads them (verified: only ``provider``,
+    ``llm_backend``, ``model_name``, and the availability/connector fields
+    are consumed anywhere in the frontend). Operators are loopback callers
+    (the local CLI/agents) or holders of the configured admin token (ops
+    against a remote deployment) -- the same operator concept
+    ``app.logs_api._is_operator`` uses for the log endpoints, kept as an
+    independent definition here rather than an import so this module does
+    not reach into another module's private surface for one boolean.
+    """
+    token = settings.logs_admin_token
+    if token:
+        supplied = request.headers.get("X-Logs-Token", "")
+        if supplied and hmac.compare_digest(supplied, token):
+            return True
+    host = request.client.host if request.client else ""
+    return host in _LOOPBACK_HOSTS
 
 
 class HealthCheckResult(BaseModel):
@@ -39,7 +72,9 @@ class HealthResponse(BaseModel):
         ..., description="derived health: healthy | degraded | unhealthy"
     )
     version: str
-    model_name: str
+    model_name: str | None = Field(
+        None, description="configured worker model id (operator callers only)"
+    )
     provider: str = Field(
         ..., description="active workflow provider (always 'engine')"
     )
@@ -112,14 +147,23 @@ class SystemStatusResponse(BaseModel):
             "be opted in to a completion email"
         ),
     )
-    probes: dict[str, ProbeStatus] = Field(
-        ...,
+    # The fields below this point (through `enabled_tools`) are operator
+    # diagnostics: null for every other caller. None of them is read by the
+    # frontend -- only `provider`, `llm_backend`, `model_name`, and the
+    # availability/connector fields above are -- and each discloses a real
+    # piece of the deployment's internals (an internal hostname, whether a
+    # provider credential is configured, the tools config path). See
+    # `_is_operator`.
+    probes: dict[str, ProbeStatus] | None = Field(
+        None,
         description=(
             "per-probe detail (mcp, pubmed, web_search), distinguishing a "
-            "served 'down' from a probe error"
+            "served 'down' from a probe error; operator callers only"
         ),
     )
-    mcp_server_url: str = Field(..., description="configured mcp server url")
+    mcp_server_url: str | None = Field(
+        None, description="configured mcp server url; operator callers only"
+    )
     provider: str = Field(
         "engine", description="active workflow provider (always 'engine')"
     )
@@ -127,38 +171,47 @@ class SystemStatusResponse(BaseModel):
         "real",
         description="active LLM backend: 'offline' (deterministic) | 'real'",
     )
-    has_provider_key: bool = Field(
-        False, description="any LLM provider key is set"
+    has_provider_key: bool | None = Field(
+        None, description="any LLM provider key is set; operator callers only"
     )
-    byok_enabled: bool = Field(
-        False,
+    byok_enabled: bool | None = Field(
+        None,
         description=(
             "whether this deployment accepts bring-your-own-key runs "
-            "(the credential encryption secret is configured)"
+            "(the credential encryption secret is configured); operator "
+            "callers only"
         ),
     )
-    engine_importable: bool = Field(
-        False, description="co_scientist package is importable"
+    engine_importable: bool | None = Field(
+        None,
+        description="co_scientist package is importable; operator callers only",
     )
     model_name: str = Field("", description="configured worker model id")
-    supervisor_model_name: str = Field(
-        "", description="effective supervisor/meta-review model id"
+    supervisor_model_name: str | None = Field(
+        None,
+        description=(
+            "effective supervisor/meta-review model id; operator callers only"
+        ),
     )
     tools_config: str | None = Field(
-        None, description="configured tools YAML path/URL, or null for defaults"
+        None,
+        description=(
+            "configured tools YAML path/URL, or null for defaults/redacted; "
+            "operator callers only"
+        ),
     )
-    tools_config_valid: bool = Field(
-        True,
+    tools_config_valid: bool | None = Field(
+        None,
         description=(
             "false only when a configured local tools_config path is not "
-            "readable"
+            "readable; operator callers only"
         ),
     )
     enabled_tools: list[str] | None = Field(
         None,
         description=(
             "enabled tool ids for a readable local tools_config, else null "
-            "(unset/URL/engine-default)"
+            "(unset/URL/engine-default/redacted); operator callers only"
         ),
     )
     connectors: list[Connector] = Field(
@@ -171,17 +224,37 @@ class SystemStatusResponse(BaseModel):
 
 
 @router.get("/", tags=["root"])
-async def root() -> dict[str, str]:
-    """Root endpoint."""
+async def root(request: Request) -> dict[str, str | None]:
+    """Root endpoint.
+
+    ``docs`` only points anywhere for an operator: the Swagger UI and the
+    full OpenAPI schema it links to are themselves operator-gated (see
+    ``app.main``), so advertising the path to every caller would just be a
+    dead end that also confirms this is a FastAPI service.
+    """
     return {
         "message": "Co-Scientist API",
         "version": API_VERSION,
-        "docs": "/docs",
+        "docs": "/docs" if _is_operator(request) else None,
     }
 
 
+def _redact_health_check(
+    check: HealthCheckResult, operator: bool
+) -> HealthCheckResult:
+    """Drop a failing check's detail text for a non-operator caller.
+
+    ``ok`` alone is enough for a deploy probe or an anonymous status read;
+    ``detail`` can carry exception text, file paths, or run ids that are
+    operator diagnostics, not public information.
+    """
+    if operator:
+        return check
+    return HealthCheckResult(ok=check.ok, detail=None)
+
+
 @router.get("/health", response_model=HealthResponse, tags=["health"])
-async def health(response: Response) -> HealthResponse:
+async def health(request: Request, response: Response) -> HealthResponse:
     """Health check: liveness plus a durable-queue and disk read.
 
     Every check is local and fast (a SQLite round-trip, an import lookup,
@@ -191,8 +264,11 @@ async def health(response: Response) -> HealthResponse:
     wedged run, a terminally failed task, or low disk are real problems
     worth surfacing, but a failed healthcheck kills the container
     mid-run, so they report ``degraded`` at 200 rather than take the
-    process down.
+    process down. The deploy probe only ever reads the status code, so
+    gating check detail and the model name behind operator access below
+    does not touch what makes this endpoint useful as a healthcheck.
     """
+    operator = _is_operator(request)
     store_check = diagnostics.check_store()
     engine_check = diagnostics.check_engine()
     queue_check, disk_check = diagnostics.queue_and_disk_health_cached()
@@ -201,24 +277,26 @@ async def health(response: Response) -> HealthResponse:
     )
     if status == diagnostics.UNHEALTHY:
         response.status_code = 503
+    checks = {
+        "store": HealthCheckResult(
+            ok=store_check.ok, detail=store_check.detail
+        ),
+        "engine": HealthCheckResult(
+            ok=engine_check.ok, detail=engine_check.detail
+        ),
+        "queue": HealthCheckResult(
+            ok=queue_check.ok, detail=queue_check.detail
+        ),
+        "disk": HealthCheckResult(ok=disk_check.ok, detail=disk_check.detail),
+    }
     return HealthResponse(
         status=status,
         version=API_VERSION,
-        model_name=settings.model_name,
+        model_name=settings.model_name if operator else None,
         provider=engine_adapter.select_provider(),
         checks={
-            "store": HealthCheckResult(
-                ok=store_check.ok, detail=store_check.detail
-            ),
-            "engine": HealthCheckResult(
-                ok=engine_check.ok, detail=engine_check.detail
-            ),
-            "queue": HealthCheckResult(
-                ok=queue_check.ok, detail=queue_check.detail
-            ),
-            "disk": HealthCheckResult(
-                ok=disk_check.ok, detail=disk_check.detail
-            ),
+            name: _redact_health_check(check, operator)
+            for name, check in checks.items()
         },
     )
 
@@ -274,8 +352,47 @@ def _build_status_payload(
     }
 
 
+# Status fields visible to every caller regardless of operator status: the
+# product's own UI reads these -- the offline-mode banner and the
+# composer's connector list -- even for an anonymous visitor. Everything
+# else `_build_status_payload` assembles (the internal MCP hostname,
+# provider-key presence, BYOK/engine-importability state, per-probe error
+# text, the tools config) is an operator diagnostic with no product use.
+_PUBLIC_STATUS_FIELDS = frozenset(
+    {
+        "mcp_available",
+        "pubmed_available",
+        "literature_review_available",
+        "web_search_available",
+        "email_notifications_available",
+        "connectors",
+        "provider",
+        "llm_backend",
+        "model_name",
+    }
+)
+
+
+def _redact_status_payload(
+    payload: dict[str, Any], operator: bool
+) -> dict[str, Any]:
+    """Null out operator-only diagnostic fields for a non-operator caller.
+
+    Applied to the fully assembled payload rather than earlier:
+    ``connectors`` is itself derived from ``enabled_tools``, so the real
+    value has to survive long enough to compute that public summary before
+    the raw field it was computed from is redacted.
+    """
+    if operator:
+        return payload
+    return {
+        key: (value if key in _PUBLIC_STATUS_FIELDS else None)
+        for key, value in payload.items()
+    }
+
+
 @router.get("/status", response_model=SystemStatusResponse, tags=["system"])
-async def get_system_status() -> dict[str, Any]:
+async def get_system_status(request: Request) -> dict[str, Any]:
     """Checks system availability for literature review features.
 
     Returns availability status for mcp server and pubmed api, plus
@@ -283,6 +400,9 @@ async def get_system_status() -> dict[str, Any]:
     an "Offline mode" chip. Probes run under a bounded timeout and are
     cached for a short TTL (see app/diagnostics.py); the ``probes`` field
     distinguishes a server that answered "down" from a probe that errored.
+    Fields with no use in the product's own UI are visible only to an
+    operator caller (see ``_is_operator``); every other caller sees them
+    as null.
     """
     mcp, pubmed, web_search = await diagnostics.probe_literature_stack_cached()
 
@@ -292,6 +412,7 @@ async def get_system_status() -> dict[str, Any]:
     # up AND its PubMed-backed tools answering.
     literature_available = mcp.available and pubmed.available
 
-    return _build_status_payload(
+    payload = _build_status_payload(
         mcp, pubmed, web_search, literature_available, adapter_status
     )
+    return _redact_status_payload(payload, _is_operator(request))

@@ -406,10 +406,12 @@ describe('error message formatting', () => {
 });
 
 describe('url builders', () => {
-  it('eventsStreamUrl builds the run events endpoint', () => {
+  it('eventsStreamUrl builds the run events endpoint with no credential', () => {
+    // The stream is opened over `fetch` with `clientHeaders()` (see
+    // `useRunStream`), not `EventSource`, so identity never has to travel
+    // in the query string the way it did before.
     const url = eventsStreamUrl('run-42');
-    expect(url).toContain('run-42');
-    expect(url).toMatch(/^\/api\/runs\/run-42\/events\?client_id=.+/);
+    expect(url).toBe('/api/runs/run-42/events');
   });
 
   it('getRunEvents fetches the persisted JSON snapshot', async () => {

@@ -8,6 +8,7 @@ from app import diagnostics
 from app.diagnostics import HealthCheck, ProbeResult
 from app.version import API_VERSION
 from tests._client import make_client as _client
+from tests._client import make_operator_client
 
 
 def test_health_ok() -> None:
@@ -38,13 +39,33 @@ def test_health_unhealthy_when_store_unreachable(
         lambda db_path=None: HealthCheck(ok=False, detail="disk on fire"),
     )
 
-    res = _client().get("/health")
+    # An operator client: check detail text is operator-only (it can carry
+    # exception text or paths), so a non-operator caller sees `ok` but not
+    # `detail` -- covered by the hides-check-detail test below.
+    res = make_operator_client().get("/health")
 
     assert res.status_code == 503
     data = res.json()
     assert data["status"] == "unhealthy"
     assert data["checks"]["store"]["ok"] is False
     assert data["checks"]["store"]["detail"] == "disk on fire"
+
+
+def test_health_hides_check_detail_and_model_from_non_operators(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A non-operator caller sees `ok` but never `detail` or `model_name`."""
+    monkeypatch.setattr(
+        diagnostics,
+        "check_store",
+        lambda db_path=None: HealthCheck(ok=False, detail="disk on fire"),
+    )
+
+    data = _client().get("/health").json()
+
+    assert data["checks"]["store"]["ok"] is False
+    assert data["checks"]["store"]["detail"] is None
+    assert data["model_name"] is None
 
 
 def test_health_degraded_when_key_set_but_engine_missing(
@@ -85,23 +106,35 @@ def test_status_reports_offline_backend() -> None:
     assert res.status_code == 200
     data = res.json()
     # Every run is the engine provider now; the keyless test process runs
-    # the deterministic offline backend.
+    # the deterministic offline backend. `provider`/`llm_backend` are public
+    # (the offline-mode banner reads them); `probes` is operator-only, so
+    # it is checked via an operator client below instead.
     assert data["provider"] == "engine"
     assert data["llm_backend"] == "offline"
+    assert data["probes"] is None
+
+
+def test_status_reports_offline_backend_probes_to_operators() -> None:
+    data = make_operator_client().get("/status").json()
     assert set(data["probes"]) == {"mcp", "pubmed", "web_search"}
 
 
 def test_status_requires_both_probes_for_literature_review(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """MCP up with PubMed down must not report literature review available."""
+    """MCP up with PubMed down must not report literature review available.
+
+    `probes` detail is operator-only, so this reads it through an operator
+    client; `mcp_available`/`pubmed_available`/`literature_review_available`
+    stay public and are covered without one elsewhere in this file.
+    """
     _patch_probes(
         monkeypatch,
         ProbeResult(available=True, state="up"),
         ProbeResult(available=False, state="down"),
     )
 
-    data = _client().get("/status").json()
+    data = make_operator_client().get("/status").json()
 
     assert data["mcp_available"] is True
     assert data["pubmed_available"] is False
@@ -135,7 +168,7 @@ def test_status_distinguishes_probe_error_from_down(
         ProbeResult(available=False, state="down"),
     )
 
-    data = _client().get("/status").json()
+    data = make_operator_client().get("/status").json()
 
     assert data["mcp_available"] is False
     assert data["probes"]["mcp"]["state"] == "error"
@@ -147,12 +180,17 @@ def test_status_distinguishes_probe_error_from_down(
 def test_status_supervisor_model_falls_back_to_worker(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """With SUPERVISOR_MODEL_NAME unset, /status mirrors the engine fallback."""
+    """With SUPERVISOR_MODEL_NAME unset, /status mirrors the engine fallback.
+
+    ``supervisor_model_name`` is operator-only (unlike ``model_name``, it is
+    not read by any frontend surface), so this reads it through an operator
+    client.
+    """
     from app.config import settings
 
     monkeypatch.setattr(settings, "model_name", "worker/model")
     monkeypatch.setattr(settings, "supervisor_model_name", None)
-    data = _client().get("/status").json()
+    data = make_operator_client().get("/status").json()
     assert data["supervisor_model_name"] == "worker/model"
 
 
@@ -164,7 +202,7 @@ def test_status_reports_configured_supervisor_model(
 
     monkeypatch.setattr(settings, "model_name", "worker/model")
     monkeypatch.setattr(settings, "supervisor_model_name", "strategic/model")
-    data = _client().get("/status").json()
+    data = make_operator_client().get("/status").json()
     assert data["supervisor_model_name"] == "strategic/model"
     assert data["model_name"] == "worker/model"
 
@@ -180,7 +218,7 @@ def test_status_reports_web_search_available(
         ProbeResult(available=True, state="up"),
     )
 
-    data = _client().get("/status").json()
+    data = make_operator_client().get("/status").json()
 
     assert data["web_search_available"] is True
     assert data["probes"]["web_search"]["state"] == "up"

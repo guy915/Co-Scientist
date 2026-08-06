@@ -101,6 +101,87 @@ def test_run_ownership_allows_cors_preflight(isolated_db: str) -> None:
     )
 
     assert response.status_code == 200
-    assert response.headers["access-control-allow-origin"] == (
-        "http://localhost:5173"
+    # This process's CORS config depends on whether ALLOWED_ORIGINS is set
+    # in its environment (a real allowlist in CI/production; the wildcard
+    # fallback for a bare local checkout with no .env), so the header value
+    # itself is not pinned here -- see the two `_resolve_cors_config` unit
+    # tests below for that. What must hold in both cases is the invariant
+    # `_resolve_cors_config` exists to guarantee: an unreflected wildcard
+    # origin is never paired with an allow-credentials response, since that
+    # pairing is what let any origin on the internet ride compatibility
+    # auth's spoofable X-Client-ID header.
+    origin_header = response.headers["access-control-allow-origin"]
+    credentialed = "access-control-allow-credentials" in response.headers
+    assert (origin_header == "*") != credentialed
+
+
+def test_wildcard_cors_never_reflects_a_credentialed_origin() -> None:
+    """Deployments with no ALLOWED_ORIGINS must serve a real wildcard.
+
+    Exercises the exact ``CORSMiddleware`` configuration ``app.main``
+    builds from an unset ``ALLOWED_ORIGINS``, on a throwaway app rather
+    than the live ``app.main.app`` -- that instance's CORS config is fixed
+    at import time from *this test process's own* environment, which may
+    itself have ``ALLOWED_ORIGINS`` set (e.g. a developer's local ``.env``),
+    so asserting against it would not reliably exercise the fallback.
+    Before this fix, ``allow_credentials`` was unconditionally True, and
+    Starlette's ``CORSMiddleware`` reflects the requesting origin as an
+    explicit allow whenever credentials are on -- so a wildcard origin list
+    was not actually a wildcard: it granted a credentialed cross-origin
+    allow to literally any origin that asked, including this one.
+    """
+    from fastapi import FastAPI
+    from fastapi.middleware.cors import CORSMiddleware
+    from fastapi.testclient import TestClient as FastAPITestClient
+
+    from app.main import _resolve_cors_config
+
+    origins, allow_credentials = _resolve_cors_config("")
+    probe = FastAPI()
+    probe.add_middleware(
+        CORSMiddleware,
+        allow_origins=origins,
+        allow_credentials=allow_credentials,
+        allow_methods=["*"],
+        allow_headers=["*"],
     )
+
+    @probe.get("/x")
+    def _probe_route() -> dict[str, bool]:
+        return {"ok": True}
+
+    response = FastAPITestClient(probe).options(
+        "/x",
+        headers={
+            "Origin": "https://evil.example",
+            "Access-Control-Request-Method": "GET",
+        },
+    )
+
+    assert response.headers["access-control-allow-origin"] == "*"
+    assert "access-control-allow-credentials" not in response.headers
+
+
+def test_cors_config_wildcard_is_never_credentialed() -> None:
+    """The unset-env fallback is a real wildcard, not a reflected origin."""
+    from app.main import _resolve_cors_config
+
+    origins, allow_credentials = _resolve_cors_config("")
+
+    assert origins == ["*"]
+    assert allow_credentials is False
+
+
+def test_cors_config_explicit_allowlist_is_credentialed() -> None:
+    """A configured allowlist (e.g. production) keeps credentialed CORS."""
+    from app.main import _resolve_cors_config
+
+    origins, allow_credentials = _resolve_cors_config(
+        "https://ai-co-scientist.com, https://www.ai-co-scientist.com"
+    )
+
+    assert origins == [
+        "https://ai-co-scientist.com",
+        "https://www.ai-co-scientist.com",
+    ]
+    assert allow_credentials is True

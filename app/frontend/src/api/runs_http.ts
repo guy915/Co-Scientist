@@ -46,18 +46,6 @@ export function byokHeaders(): Record<string, string> {
 }
 
 /**
- * Auth query string for a direct browser navigation (download/SSE URLs that
- * carry no request headers): the signed session token when present, else the
- * client id, mirroring `clientHeaders`.
- */
-export function authQuery(): string {
-  const token = getAccessToken();
-  return token
-    ? `access_token=${encodeURIComponent(token)}`
-    : `client_id=${encodeURIComponent(getClientId())}`;
-}
-
-/**
  * Builds the error message for a non-ok response: a clearer message for an
  * empty-bodied 500 (the API process itself is typically unreachable, e.g.
  * cold start or a proxy with no upstream, rather than a handled application

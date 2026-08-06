@@ -1,9 +1,14 @@
-"""FastAPI application main module."""
+"""FastAPI application main module.
 
-import asyncio
+The startup/shutdown helper bodies the ``lifespan`` hook below calls
+live in ``app.main_lifespan`` and are re-exported here, so
+``main._launch_embedded_recovery_workers`` and friends keep resolving
+for the test suite; ``lifespan`` itself stays in this module -- see its
+own docstring and AGENTS.md's "Gotchas" section for why.
+"""
+
 import logging
 import os
-import sqlite3
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from typing import Any, cast
@@ -12,6 +17,7 @@ import uvicorn
 from dotenv import load_dotenv
 from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.openapi.docs import get_redoc_html, get_swagger_ui_html
 from fastapi.responses import JSONResponse
 
 # Load .env file before importing settings
@@ -19,7 +25,7 @@ from fastapi.responses import JSONResponse
 # import below), so .env must be loaded into os.environ before that import.
 load_dotenv()
 
-from app import engine_adapter, store
+from app import store
 from app.auth import (
     Principal,
     auth_required,
@@ -29,9 +35,6 @@ from app.auth import (
     router as auth_router,
 )
 from app.config import settings
-
-# Re-exports keep the diagnostics HTTP surface importable from app.main,
-# where it lived before moving to app.diagnostics_api.
 from app.diagnostics_api import (
     ConfigResponse as ConfigResponse,
 )
@@ -50,6 +53,10 @@ from app.diagnostics_api import (
 from app.diagnostics_api import (
     SystemStatusResponse as SystemStatusResponse,
 )
+
+# Re-exports keep the diagnostics HTTP surface importable from app.main,
+# where it lived before moving to app.diagnostics_api.
+from app.diagnostics_api import _is_operator
 from app.diagnostics_api import (
     get_config as get_config,
 )
@@ -75,6 +82,27 @@ from app.logging_setup import (
     shutdown_log_capture,
 )
 from app.logs_api import router as logs_router
+from app.main_lifespan import (
+    _launch_embedded_recovery_workers as _launch_embedded_recovery_workers,
+)
+from app.main_lifespan import (
+    _reclaim_disk_space as _reclaim_disk_space,
+)
+from app.main_lifespan import (
+    _reconcile_and_log_interrupted_runs as _reconcile_and_log_interrupted_runs,
+)
+from app.main_lifespan import (
+    _resume_checkpointed_runs as _resume_checkpointed_runs,
+)
+from app.main_lifespan import (
+    _shutdown_recovery as _shutdown_recovery,
+)
+from app.main_lifespan import (
+    _start_recovery_task as _start_recovery_task,
+)
+from app.main_lifespan import (
+    _startup_engine_setup as _startup_engine_setup,
+)
 from app.runs import (
     router as runs_router,
 )
@@ -130,175 +158,11 @@ else:
     logger.info("mcp_server_url not set - literature review will be disabled")
 
 
-def _reclaim_disk_space() -> None:
-    """Prune the checkpoint history no run could resume from.
-
-    Only the newest checkpoint per run is ever loaded, so the rest is
-    unreadable state that nonetheless filled the production volume until
-    every write failed. Runs remain resumable: each keeps its newest.
-
-    Deliberately does not VACUUM. Reclaiming the freed pages would shrink
-    the file, but VACUUM needs exclusive access and SQLite makes a writer
-    waiting for it block every other writer behind it -- and this process
-    can never grant it, because the log-capture thread writes a row for
-    every record the app emits. The VACUUM waits for a quiet moment that
-    never arrives, and while it waits nothing else can write. Production
-    wedged that way from both sides of the lifespan: an idle database, no
-    writes for minutes, and every run creation failing with "database is
-    locked". Pruning reclaims what actually grows without bound, commits in
-    small batches, and never blocks a reader; the file keeps its high-water
-    mark, which a 5 GB volume holding a 53 MB database can afford.
-
-    Never fatal. This is opportunistic housekeeping, and the disk-full state
-    it exists to relieve is exactly the state in which a DELETE cannot get
-    its journal written -- so the first deploy carrying this sweep crashed on
-    boot against the very database it was meant to reclaim. Serving with a
-    bloated table beats not serving at all.
-    """
-    try:
-        superseded = store.prune_superseded_checkpoints()
-    except sqlite3.Error:
-        logger.warning("Could not prune superseded checkpoints", exc_info=True)
-    else:
-        if superseded:
-            logger.info(
-                "Pruned %s superseded checkpoint(s) no run could resume from",
-                superseded,
-            )
-
-
-def _startup_engine_setup() -> None:
-    """Install the offline router, log engine config, validate tools_config.
-
-    The offline LLM router is installed unconditionally: it is a harmless
-    passthrough for real models -- only ``offline/``-prefixed calls are
-    answered locally -- so no offline traffic flows until a run requests
-    the offline backend. ``select_provider()`` always returns "engine" now
-    (or raises if the engine is not importable) -- there is no mock
-    fallback, logged once here. Validation fails loudly if a configured
-    tools_config path is unreadable rather than silently running the
-    engine's default tools (the historical bug: the setting was logged but
-    never forwarded to the generator, so a bad path went unnoticed); the
-    generator is built per run, so this is checked here at startup, once.
-    """
-    from co_scientist.offline_llm import install_offline_router
-
-    install_offline_router()
-    logger.info("Model: %s", settings.model_name)
-    if settings.tools_config:
-        logger.info("Tools config: %s", settings.tools_config)
-    else:
-        logger.info("Tools config: not set (generator defaults)")
-    provider = engine_adapter.select_provider()
-    logger.info("Workflow provider: %s", provider)
-    engine_adapter.validate_tools_config(settings.tools_config)
-
-
-def _reconcile_and_log_interrupted_runs() -> dict[str, list[str]]:
-    """Reconcile runs left non-terminal by a previous process, and log it.
-
-    A fresh process has no workflow tasks running, so anything still
-    queued/running was interrupted by a crash or restart and would
-    otherwise be stuck forever.
-    """
-    reconciled = store.reconcile_interrupted_runs()
-    if reconciled["failed"]:
-        logger.info(
-            "Reconciled %s interrupted run(s) to failed: %s",
-            len(reconciled["failed"]),
-            ", ".join(r[:8] for r in reconciled["failed"]),
-        )
-    if reconciled["resumable"]:
-        logger.info(
-            "Found %s resumable interrupted run(s) with a checkpoint: %s",
-            len(reconciled["resumable"]),
-            ", ".join(r[:8] for r in reconciled["resumable"]),
-        )
-    return reconciled
-
-
-async def _resume_checkpointed_runs(resumable: list[str]) -> None:
-    """Relaunch every run left with a resumable checkpoint.
-
-    Auto-resume launcher: relaunches each resumable run from its last
-    checkpoint so an interrupted run finishes rather than staying stuck.
-    """
-    if not resumable:
-        return
-    from app.runs import resume_interrupted_runs
-
-    await resume_interrupted_runs(resumable)
-
-
-def _launch_embedded_recovery_workers(
-    recovery_workers: list[asyncio.Task[None]],
-) -> None:
-    """Start one recovery worker-pool task per run with an active engine task.
-
-    A per-run recovery cohort waits out any unexpired lease and then
-    resumes the same durable queue. Scientific effects remain exactly-once
-    because every claim is lease- and checkpoint-gated. It runs on a
-    thread because the cohort's SQLite writes and state serialization are
-    synchronous: on the event loop they starve request handling, which is
-    how a boot with runs to recover stopped answering its healthcheck.
-    """
-    if not settings.coscientist_embedded_worker:
-        return
-    from app import task_worker
-
-    for run_id in store.list_active_engine_task_run_ids():
-        recovery_workers.append(
-            asyncio.create_task(
-                asyncio.to_thread(
-                    task_worker.run_run_worker_pool_sync,
-                    run_id,
-                    f"embedded-recovery:{os.getpid()}",
-                )
-            )
-        )
-
-
-async def _shutdown_recovery(
-    recovery: asyncio.Task[None],
-    recovery_workers: list[asyncio.Task[None]],
-) -> None:
-    """Cancel and await the recovery task and its embedded worker tasks."""
-    recovery.cancel()
-    await asyncio.gather(recovery, return_exceptions=True)
-    for worker in recovery_workers:
-        worker.cancel()
-    if recovery_workers:
-        await asyncio.gather(*recovery_workers, return_exceptions=True)
-
-
-def _start_recovery_task(
-    reconciled: dict[str, list[str]],
-) -> tuple[asyncio.Task[None], list[asyncio.Task[None]]]:
-    """Fire off the recovery task, off the startup critical path.
-
-    Returns the task itself alongside the (initially empty, later
-    populated) list of embedded recovery-worker tasks it launches, so the
-    caller can cancel and await both at shutdown.
-    """
-    recovery_workers: list[asyncio.Task[None]] = []
-
-    async def _recover_runs() -> None:
-        """Relaunch interrupted runs, off the startup critical path.
-
-        Restarting a run means executing it, so awaiting this before the
-        hook yields put provider calls ahead of binding a port. Production
-        deploys failed their five-minute healthcheck exactly that way, and
-        because a failed healthcheck kills the container mid-run, each
-        attempt left another interrupted run for the next boot to resume --
-        a spiral in which runs only ever advanced during the doomed startup
-        window. Recovery is not a precondition for serving, so it runs
-        alongside it.
-        """
-        await _resume_checkpointed_runs(reconciled["resumable"])
-        _launch_embedded_recovery_workers(recovery_workers)
-
-    recovery = asyncio.create_task(_recover_runs())
-    return recovery, recovery_workers
+# The startup/shutdown helpers the lifespan hook below calls
+# (_reclaim_disk_space, _startup_engine_setup,
+# _reconcile_and_log_interrupted_runs, _resume_checkpointed_runs,
+# _launch_embedded_recovery_workers, _shutdown_recovery,
+# _start_recovery_task) live in app.main_lifespan, re-exported above.
 
 
 @asynccontextmanager
@@ -349,23 +213,63 @@ app = FastAPI(
     description="FastAPI server for AI hypothesis generation",
     version=API_VERSION,
     lifespan=lifespan,
+    # FastAPI's built-in /docs, /redoc, and /openapi.json are disabled here
+    # and re-added below as operator-gated routes at the same paths: an
+    # anonymous internet caller gets a live Swagger UI and the full OpenAPI
+    # schema for free otherwise, which is a map of every endpoint and
+    # request/response shape this deployment has -- useful to whoever is
+    # running it, not to whoever finds it.
+    docs_url=None,
+    redoc_url=None,
+    openapi_url=None,
 )
 
-# CORS middleware
-# ALLOWED_ORIGINS is a comma-separated allowlist (e.g. the production
-# frontend origin); unset falls back to "*" for local/dev use. In practice
-# browsers ignore credentialed requests against a literal "*" origin, so
-# ALLOWED_ORIGINS should be set explicitly wherever cookies/auth matter.
-_allowed_origins_env = os.getenv("ALLOWED_ORIGINS", "")
-_allowed_origins = (
-    [o.strip() for o in _allowed_origins_env.split(",") if o.strip()]
-    if _allowed_origins_env
-    else ["*"]
+
+def _resolve_cors_config(env_value: str) -> tuple[list[str], bool]:
+    """Derive the CORS origin allowlist and credentials flag from the env.
+
+    ``ALLOWED_ORIGINS`` is a comma-separated allowlist (e.g. the production
+    frontend origin); unset falls back to a wildcard for local/dev use.
+
+    The returned credentials flag tracks whether an explicit allowlist was
+    given, rather than being unconditionally True. Nothing in this codebase
+    sends a credentialed fetch (no cookies; identity travels as a plain
+    Authorization or X-Client-ID header), so this is not a functional
+    requirement -- it closes a real hole instead. Starlette's
+    CORSMiddleware only sets a wildcard ``Access-Control-Allow-Origin`` when
+    ``allow_credentials`` is False; with it unconditionally True (the
+    previous behavior), the middleware reflects *any* requesting origin
+    back as an explicit allow, because a wildcard origin cannot legally
+    pair with credentials. Combined with the wildcard origin list and
+    ``allow_headers=["*"]``, that meant every origin on the internet could
+    already CORS-fetch this API and read the response -- an attacker's page
+    just has to send whatever ``X-Client-ID`` it wants to read under
+    compatibility auth, which is itself just a spoofable header. Tying
+    credentials to an explicit origin list restores the wildcard's actual
+    meaning (open, but never reflected as a credentialed peer) for
+    deployments that have not set ``ALLOWED_ORIGINS``, while production --
+    which does set it -- is unaffected.
+
+    Args:
+        env_value: The raw ``ALLOWED_ORIGINS`` environment value.
+
+    Returns:
+        The ``(allow_origins, allow_credentials)`` pair for
+        ``CORSMiddleware``.
+    """
+    if not env_value:
+        return ["*"], False
+    origins = [o.strip() for o in env_value.split(",") if o.strip()]
+    return origins, True
+
+
+_allowed_origins, _allow_credentials = _resolve_cors_config(
+    os.getenv("ALLOWED_ORIGINS", "")
 )
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_allowed_origins,
-    allow_credentials=True,
+    allow_credentials=_allow_credentials,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -451,6 +355,53 @@ app.include_router(auth_router)
 app.include_router(logs_router)
 # Diagnostics endpoints (/, /health, /config, /status).
 app.include_router(diagnostics_api_router)
+
+
+def _not_found_for_non_operator(request: Request) -> Response | None:
+    """Return a 404 for a docs route when the caller is not an operator.
+
+    A 404 rather than a 401/403: an anonymous caller should not be able to
+    distinguish "no docs here" from "docs exist but you may not see them",
+    since the latter confirms this is a FastAPI service worth probing
+    further.
+    """
+    if _is_operator(request):
+        return None
+    return JSONResponse({"detail": "not found"}, status_code=404)
+
+
+# The three routes below re-add FastAPI's built-in docs UI/schema at their
+# usual paths, gated to operator callers -- see `docs_url=None` etc. on the
+# FastAPI() constructor above for why they are not the framework defaults.
+@app.get("/docs", include_in_schema=False)
+async def _operator_swagger_ui(request: Request) -> Response:
+    """Swagger UI, visible only to an operator caller."""
+    gate = _not_found_for_non_operator(request)
+    if gate is not None:
+        return gate
+    return get_swagger_ui_html(
+        openapi_url="/openapi.json", title=f"{app.title} - Swagger UI"
+    )
+
+
+@app.get("/redoc", include_in_schema=False)
+async def _operator_redoc(request: Request) -> Response:
+    """ReDoc UI, visible only to an operator caller."""
+    gate = _not_found_for_non_operator(request)
+    if gate is not None:
+        return gate
+    return get_redoc_html(
+        openapi_url="/openapi.json", title=f"{app.title} - ReDoc"
+    )
+
+
+@app.get("/openapi.json", include_in_schema=False)
+async def _operator_openapi_schema(request: Request) -> Response:
+    """The full OpenAPI schema, visible only to an operator caller."""
+    gate = _not_found_for_non_operator(request)
+    if gate is not None:
+        return gate
+    return JSONResponse(app.openapi())
 
 
 if __name__ == "__main__":

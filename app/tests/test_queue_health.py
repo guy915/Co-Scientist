@@ -30,6 +30,7 @@ from app.config import settings
 from app.diagnostics import HealthCheck
 from app.store.tasks import QueueHealthSnapshot, queue_health_snapshot
 from tests._client import make_client as _client
+from tests._client import make_operator_client as _operator_client
 
 
 def _running_run(db_path: str, goal: str = "queue health goal") -> str:
@@ -329,7 +330,12 @@ def test_health_degrades_at_200_when_a_run_is_stalled(
     data = res.json()
     assert data["status"] == "degraded"
     assert data["checks"]["queue"]["ok"] is False
-    assert run_id in (data["checks"]["queue"]["detail"] or "")
+    # The run id names internal state, so the detail text is operator-only
+    # (finding N14); an anonymous caller still learns that the queue is
+    # degraded, which is what the deploy probe and a status page need.
+    operator = _operator_client().get("/health").json()
+    assert run_id in (operator["checks"]["queue"]["detail"] or "")
+    assert data["checks"]["queue"]["detail"] is None
 
 
 def test_health_degrades_at_200_when_disk_is_low(
