@@ -74,6 +74,7 @@ def test_execution_metrics_defaults() -> None:
     assert m.evolutions_count == 0
     assert m.llm_calls == 0
     assert m.phase_times == {}
+    assert m.model_usage == {}
 
 
 def test_execution_metrics_phase_times_not_shared() -> None:
@@ -82,6 +83,85 @@ def test_execution_metrics_phase_times_not_shared() -> None:
     b = ExecutionMetrics()
     a.phase_times["generate"] = 1.5
     assert b.phase_times == {}
+
+
+def test_execution_metrics_model_usage_not_shared() -> None:
+    """``model_usage`` uses a per-instance ``default_factory`` dict."""
+    a = ExecutionMetrics()
+    b = ExecutionMetrics()
+    a.model_usage["generate::m"] = {"calls": 1}
+    assert b.model_usage == {}
+
+
+def test_execution_metrics_round_trips_model_usage() -> None:
+    """``to_dict``/``from_dict`` preserve ``model_usage`` verbatim."""
+    usage = {"generate::m": {"calls": 2, "prompt_tokens": 30}}
+    m = ExecutionMetrics(model_usage=usage)
+    restored = ExecutionMetrics.from_dict(m.to_dict())
+    assert restored.model_usage == usage
+
+
+def test_merge_metrics_sums_model_usage_across_nodes() -> None:
+    """``merge_metrics`` sums per-(phase, model) usage across two deltas."""
+    from co_scientist.models import merge_metrics
+
+    first = ExecutionMetrics(
+        model_usage={
+            "generate::m": {
+                "calls": 1,
+                "prompt_tokens": 10,
+                "completion_tokens": 5,
+                "reasoning_tokens": 0,
+                "cost_usd": 0.01,
+                "latency_seconds": 1.0,
+                "retries": 0,
+                "cache_hits": 0,
+                "cache_misses": 1,
+                "errors": {},
+            }
+        }
+    )
+    second = ExecutionMetrics(
+        model_usage={
+            "generate::m": {
+                "calls": 1,
+                "prompt_tokens": 20,
+                "completion_tokens": 8,
+                "reasoning_tokens": 2,
+                "cost_usd": 0.02,
+                "latency_seconds": 1.5,
+                "retries": 1,
+                "cache_hits": 0,
+                "cache_misses": 1,
+                "errors": {"TimeoutError": 1},
+            },
+            "review::m": {
+                "calls": 1,
+                "prompt_tokens": 5,
+                "completion_tokens": 2,
+                "reasoning_tokens": 0,
+                "cost_usd": 0.0,
+                "latency_seconds": 0.5,
+                "retries": 0,
+                "cache_hits": 1,
+                "cache_misses": 0,
+                "errors": {},
+            },
+        }
+    )
+
+    merged = merge_metrics(first, second)
+
+    assert merged.model_usage["generate::m"]["calls"] == 2
+    assert merged.model_usage["generate::m"]["prompt_tokens"] == 30
+    assert merged.model_usage["generate::m"]["completion_tokens"] == 13
+    assert merged.model_usage["generate::m"]["reasoning_tokens"] == 2
+    assert merged.model_usage["generate::m"]["cost_usd"] == pytest.approx(0.03)
+    assert merged.model_usage["generate::m"]["cache_misses"] == 2
+    assert merged.model_usage["generate::m"]["errors"] == {"TimeoutError": 1}
+    assert merged.model_usage["review::m"]["cache_hits"] == 1
+    # Original operands are untouched (a new dict is built, not mutated).
+    assert first.model_usage["generate::m"]["calls"] == 1
 
 
 # --- Article ----------------------------------------------------------------

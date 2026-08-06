@@ -16,6 +16,7 @@ import asyncio
 import functools
 import json
 import logging
+import time
 import warnings
 from dataclasses import dataclass
 from typing import Any
@@ -36,6 +37,12 @@ from co_scientist.llm_response import (
 )
 from co_scientist.llm_response import (
     _extract_completion_content as _extract_completion_content,
+)
+from co_scientist.llm_telemetry import (
+    record_completion_failure as _record_completion_failure,
+)
+from co_scientist.llm_telemetry import (
+    record_completion_response as _record_completion_response,
 )
 from co_scientist.llm_thinking import (
     _JSON_OBJECT_ONLY_MODEL_FAMILIES as _JSON_OBJECT_ONLY_MODEL_FAMILIES,
@@ -116,6 +123,41 @@ async def _acompletion_within_timeout(
     coroutine is cancelled either way, which is what keeps a wedged provider
     from parking a durable task indefinitely. Both ``litellm.acompletion``
     call sites -- ``call_llm`` and the tool loop -- await through this.
+
+    This is also the single point that records per-call telemetry (tokens,
+    latency, error kind) into ``co_scientist.llm_telemetry`` -- see that
+    module's docstring for why an in-memory aggregate here rather than a
+    per-call log line or database row. A cache hit never reaches this
+    function, so every call recorded here is a genuine physical attempt.
+
+    Args:
+        completion_args: Keyword arguments for ``litellm.acompletion``.
+        model_name: Model name, for the error message.
+
+    Returns:
+        The completion response.
+
+    Raises:
+        LLMTimeoutError: If the call exceeds the configured ceiling.
+    """
+    start = time.monotonic()
+    try:
+        response = await _run_completion(completion_args, model_name)
+    except Exception as exc:
+        _record_completion_failure(model_name, exc, time.monotonic() - start)
+        raise
+    _record_completion_response(model_name, response, time.monotonic() - start)
+    return response
+
+
+async def _run_completion(
+    completion_args: dict[str, Any], model_name: str
+) -> Any:
+    """Awaits the completion call, translating a hung provider's timeout.
+
+    Split out of ``_acompletion_within_timeout`` so that function can wrap
+    exactly one try/except around this call for telemetry, regardless of
+    which branch below is taken.
 
     Args:
         completion_args: Keyword arguments for ``litellm.acompletion``.

@@ -7,7 +7,7 @@ Key features:
 - Drop-in replacement for the original AI-CoScientist
 - Prompts stored as markdown files for easy modification
 - Parallel execution of reviews and evolution
-- Native LangSmith integration for observability
+- In-memory LLM token/cost/latency telemetry (see ``llm_telemetry``)
 - Clean separation of concerns with typed state management
 
 Example usage:

@@ -4,6 +4,9 @@ from typing import Any
 
 import pytest
 
+from co_scientist import llm_tool_loop
+from co_scientist.cache import LLMCache
+from co_scientist.llm import CompletionSpec, call_llm
 from co_scientist.models import (
     Hypothesis,
     MetricDeltas,
@@ -15,6 +18,12 @@ from co_scientist.task_runtime import (
     apply_task_update,
     execute_task_node,
     next_task_type,
+)
+from tests._llm_wrapper_fakes import (
+    make_completion,
+    make_message,
+    make_usage,
+    patch_acompletion,
 )
 from tests._state import make_state
 
@@ -80,6 +89,54 @@ async def test_execute_task_node_runs_only_named_specialist(
     assert calls == ["review"]
     assert committed["current_iteration"] == 7
     assert successor == "comprehensive_reflection"
+
+
+async def test_execute_task_node_captures_llm_telemetry_by_phase(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Any
+) -> None:
+    """A node's real LLM calls are captured into its committed metrics.
+
+    Drives the actual dispatch boundary (``co_scientist.llm.call_llm`` ->
+    ``llm_request._acompletion_within_timeout``) with only the network
+    edge faked, the same convention every other engine LLM test uses --
+    not a fixture of this feature's own logic. Without
+    ``execute_task_node`` scoping telemetry around the handler call (and
+    without the dispatch boundary recording it), ``model_usage`` stays the
+    all-zero default forever, however many LLM calls a node makes. Uses a
+    real (empty, per-test-tmp-dir) ``LLMCache`` rather than
+    ``disable_llm_cache`` so the resulting cache-miss telemetry is also
+    exercised against genuine cache behavior, not a NullCache stand-in.
+    """
+    monkeypatch.setattr(
+        llm_tool_loop,
+        "get_cache",
+        lambda: LLMCache(cache_dir=str(tmp_path), enabled=True),
+    )
+    patch_acompletion(
+        monkeypatch,
+        [make_completion(make_message("ok"), usage=make_usage(100, 40, 5))],
+    )
+
+    async def handler(state: Any) -> dict[str, Any]:
+        await call_llm(
+            "a prompt", CompletionSpec(model_name="task-runtime-test-model")
+        )
+        return {"current_iteration": 1}
+
+    monkeypatch.setitem(TASK_NODES, "review", handler)
+    committed, _ = await execute_task_node("review", make_state())
+
+    usage = committed["metrics"].model_usage
+    assert set(usage) == {"review::task-runtime-test-model"}
+    entry = usage["review::task-runtime-test-model"]
+    assert entry["calls"] == 1
+    assert entry["prompt_tokens"] == 100
+    assert entry["completion_tokens"] == 40
+    assert entry["reasoning_tokens"] == 5
+    assert entry["cache_misses"] == 1
+    assert entry["cache_hits"] == 0
+    assert entry["latency_seconds"] >= 0
+    assert entry["errors"] == {}
 
 
 def test_durable_path_accumulates_tournament_matchups() -> None:

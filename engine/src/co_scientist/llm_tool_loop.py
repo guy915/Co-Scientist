@@ -38,6 +38,7 @@ from co_scientist.llm_request import (
     _clamp_temperature,
     _save_prompt_if_named,
 )
+from co_scientist.llm_telemetry import record_cache_result
 from co_scientist.llm_types import CompletionSpec, LLMCallOptions
 
 logger = logging.getLogger(__name__)
@@ -100,6 +101,14 @@ async def _prepare_llm_call(
     cache = _resolve_cache(opts.use_cache)
     cached_response = cache.get(request)
     _log_cache_lookup(request.prompt, cached_response)
+    # Only a genuinely active cache is worth a hit/miss telemetry record.
+    # ``call_llm_json``'s retry loop deliberately calls back into
+    # ``call_llm`` with ``use_cache=False`` for every attempt (see that
+    # module's docstring): a NullCache lookup there always "misses" by
+    # construction, and counting it would double-count one logical request
+    # as two cache attempts for no informative reason.
+    if isinstance(cache, LLMCache):
+        record_cache_result(request.model_name, hit=cached_response is not None)
     return request, cache, cached_response
 
 

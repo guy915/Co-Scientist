@@ -15,6 +15,7 @@ import pytest
 from co_scientist import llm, llm_json_retry, llm_request
 from co_scientist.exceptions import LLMTimeoutError
 from co_scientist.llm import CompletionSpec, LLMCallOptions, ToolLoop
+from co_scientist.llm_telemetry import scoped_telemetry
 
 
 def test_timeout_defaults_when_unset(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -93,11 +94,21 @@ async def test_hung_call_raises_timeout_error(
 
     monkeypatch.setattr(litellm, "acompletion", never_answers)
 
-    with pytest.raises(LLMTimeoutError) as excinfo:
+    with (
+        scoped_telemetry("test_phase") as telemetry,
+        pytest.raises(LLMTimeoutError) as excinfo,
+    ):
         await llm_request._acompletion_within_timeout(
             {}, "deepseek/deepseek-v4-pro"
         )
     assert "deepseek/deepseek-v4-pro" in str(excinfo.value)
+
+    # A failed physical call is still telemetry: calls=1, latency measured,
+    # and classified under the exception's own kind rather than dropped.
+    entry = telemetry.snapshot()["test_phase::deepseek/deepseek-v4-pro"]
+    assert entry["calls"] == 1
+    assert entry["errors"] == {"LLMTimeoutError": 1}
+    assert entry["latency_seconds"] > 0
 
 
 async def test_hung_tool_loop_call_raises_timeout_error(

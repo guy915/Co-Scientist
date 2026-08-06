@@ -157,6 +157,7 @@ def test_build_stream_state_dict_serializes_hypotheses_and_articles() -> None:
         "llm_calls": 5,
         "total_time": 6.5,
         "phase_times": {"generate": 1.25},
+        "model_usage": {},
     }
 
 

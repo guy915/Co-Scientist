@@ -28,7 +28,6 @@ dependencies = [
     # hence the whole app -- died on ImportError. Raise this only together
     # with an adapter release that supports the new major.
     "mcp>=1.24.0,<2",
-    "langsmith~=0.6.2",
     "litellm~=1.80.16",
     "typing-extensions~=4.15.0",
     "jsonschema~=4.26.0",

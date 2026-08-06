@@ -119,6 +119,7 @@ from co_scientist.llm_request import (
 from co_scientist.llm_request import (
     _save_prompt_if_named as _save_prompt_if_named,
 )
+from co_scientist.llm_telemetry import record_retry as _record_retry
 from co_scientist.llm_tool_loop import (
     ToolLoop as ToolLoop,
 )
@@ -303,6 +304,7 @@ async def _run_call_llm_json_loop(
             logger.debug(
                 "retrying llm call (attempt %s/%s)", number, max_attempts
             )
+            _record_retry(ctx.spec.model_name)
         outcome = await _run_json_attempt(
             prompt, ctx, _JsonAttempt(number, number == max_attempts)
         )

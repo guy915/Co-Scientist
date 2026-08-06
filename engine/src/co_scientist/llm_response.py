@@ -8,9 +8,57 @@ that module's namespace is unchanged.
 
 import contextlib
 import logging
+from dataclasses import dataclass
 from typing import Any, cast
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True)
+class TokenUsage:
+    """Token counts read off one completion response's ``usage`` field.
+
+    Every field defaults to zero, which is also what a response carrying
+    no ``usage`` at all naturally produces (the offline backend never
+    populates one -- see ``offline_llm``) -- there is no separate
+    "unknown" state a caller needs to check for.
+
+    Attributes:
+        prompt_tokens: Prompt (input) tokens the provider billed.
+        completion_tokens: Completion (output) tokens the provider billed.
+        reasoning_tokens: Reasoning tokens billed separately from
+            ``completion_tokens``, when the provider reports them.
+    """
+
+    prompt_tokens: int = 0
+    completion_tokens: int = 0
+    reasoning_tokens: int = 0
+
+
+def extract_token_usage(response: Any) -> TokenUsage:
+    """Reads prompt/completion/reasoning token counts off a response.
+
+    Every field is read defensively, the same way
+    ``_empty_content_diagnosis`` reads them: this runs on both a healthy
+    and an already-failing response, and a reader that raises would turn
+    a telemetry gap into a request failure.
+
+    Args:
+        response: The raw response returned by ``litellm.acompletion``.
+
+    Returns:
+        The token counts reported, defaulting to zero for anything absent.
+    """
+    usage = getattr(response, "usage", None)
+    prompt_tokens = getattr(usage, "prompt_tokens", None) or 0
+    completion_tokens = getattr(usage, "completion_tokens", None) or 0
+    details = getattr(usage, "completion_tokens_details", None)
+    reasoning_tokens = getattr(details, "reasoning_tokens", None) or 0
+    return TokenUsage(
+        prompt_tokens=prompt_tokens,
+        completion_tokens=completion_tokens,
+        reasoning_tokens=reasoning_tokens,
+    )
 
 
 def _empty_content_diagnosis(response: Any) -> str:

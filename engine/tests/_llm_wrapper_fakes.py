@@ -37,16 +37,48 @@ def make_message(
     return SimpleNamespace(role=role, content=content, tool_calls=tool_calls)
 
 
-def make_completion(message: SimpleNamespace) -> SimpleNamespace:
+def make_usage(
+    prompt_tokens: int, completion_tokens: int, reasoning_tokens: int = 0
+) -> SimpleNamespace:
+    """Build a litellm-shaped ``response.usage`` object.
+
+    Args:
+        prompt_tokens: Prompt tokens to report.
+        completion_tokens: Completion tokens to report.
+        reasoning_tokens: Reasoning tokens to report under
+            ``completion_tokens_details.reasoning_tokens``; 0 omits nothing
+            (the field is still present, just zero).
+
+    Returns:
+        A namespace exposing ``prompt_tokens``, ``completion_tokens``, and
+        ``completion_tokens_details.reasoning_tokens``.
+    """
+    return SimpleNamespace(
+        prompt_tokens=prompt_tokens,
+        completion_tokens=completion_tokens,
+        completion_tokens_details=SimpleNamespace(
+            reasoning_tokens=reasoning_tokens
+        ),
+    )
+
+
+def make_completion(
+    message: SimpleNamespace, usage: SimpleNamespace | None = None
+) -> SimpleNamespace:
     """Wrap a message in the ``choices[0].message`` envelope litellm returns.
 
     Args:
         message: The message namespace from :func:`make_message`.
+        usage: Optional token-usage namespace from :func:`make_usage`;
+            omitted (``None``) mirrors a response with no usage reported.
 
     Returns:
-        A response namespace with a single choice carrying ``message``.
+        A response namespace with a single choice carrying ``message``,
+        plus ``usage`` when given.
     """
-    return SimpleNamespace(choices=[SimpleNamespace(message=message)])
+    return SimpleNamespace(
+        choices=[SimpleNamespace(message=message)], usage=usage
+    )
 
 
 def make_tool_call(call_id: str, name: str, arguments: str) -> SimpleNamespace:

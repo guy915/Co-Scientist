@@ -387,11 +387,11 @@ class WorkflowState(TypedDict):
     progress_callback: None | (Callable[[str, dict[str, Any]], Awaitable[None]])
     """Optional async callback for progress updates."""
 
-    # Messages (for LangSmith tracing)
+    # Messages (the run's own narrative, not a tracing integration)
     # add_messages is LangGraph's own builtin reducer (id-based append/
     # merge), unlike the two custom reducers above.
     messages: Annotated[list[dict[str, Any]], add_messages]
-    """Message history for LangSmith observability."""
+    """Message history for the workflow's progress narrative."""
 
     # Optional User Preferences and Inputs
     preferences: str | None

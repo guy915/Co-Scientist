@@ -16,7 +16,8 @@ from langgraph.graph import add_messages
 
 from co_scientist.agents import NODE_REGISTRY
 from co_scientist.generator.graph import _TASK_ROUTES as _ORCHESTRATOR_ROUTES
-from co_scientist.models import merge_metrics
+from co_scientist.llm_telemetry import scoped_telemetry
+from co_scientist.models import create_metrics_update, merge_metrics
 from co_scientist.state import (
     WorkflowState,
     accumulate_matchups,
@@ -147,6 +148,39 @@ def next_task_type(completed: str, state: WorkflowState) -> str | None:
     return route(state) if callable(route) else route
 
 
+def _fold_telemetry_into_update(
+    update: dict[str, Any], usage: dict[str, dict[str, Any]]
+) -> dict[str, Any]:
+    """Merge one node's captured LLM telemetry into its state update.
+
+    ``handler`` below may already return its own "metrics" delta
+    (llm_calls, phase_times, ...); this folds in the token/cost/latency
+    delta ``scoped_telemetry`` captured during that same call, using the
+    same reducer WorkflowState already merges concurrent node metrics
+    with -- so a node that sets no "metrics" key at all still gets one.
+
+    Args:
+        update: The node's own state-update dict, returned unmodified when
+            there was no telemetry to fold in.
+        usage: The (phase, model) usage snapshot captured during the
+            node's execution.
+
+    Returns:
+        ``update``, with "metrics" replaced by the merge of its own value
+        (if any) and the captured telemetry.
+    """
+    if not usage:
+        return update
+    telemetry_metrics = create_metrics_update(model_usage=usage)
+    existing_metrics = update.get("metrics")
+    merged_metrics = (
+        merge_metrics(existing_metrics, telemetry_metrics)
+        if existing_metrics is not None
+        else telemetry_metrics
+    )
+    return {**update, "metrics": merged_metrics}
+
+
 async def execute_task_node(
     task_type: str, state: WorkflowState
 ) -> tuple[WorkflowState, str | None]:
@@ -155,7 +189,9 @@ async def execute_task_node(
         handler = TASK_NODES[task_type]
     except KeyError as exc:
         raise ValueError(f"unsupported task node: {task_type}") from exc
-    update = await handler(state)
+    with scoped_telemetry(task_type) as telemetry:
+        update = await handler(state)
+    update = _fold_telemetry_into_update(update, telemetry.snapshot())
     committed = apply_task_update(state, update)
     return committed, next_task_type(task_type, committed)
 

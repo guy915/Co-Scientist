@@ -41,6 +41,17 @@ class ExecutionMetrics:
     # Keyed by workflow phase/node name (e.g. "generate", "review");
     # wall-clock seconds spent in that phase, summed across calls.
     phase_times: dict[str, float] = field(default_factory=dict)
+    # Keyed by "{phase}::{model}" (the durable task/node name and the
+    # litellm model name); each value is a plain dict of the fields on
+    # ``llm_telemetry.ModelCallStats`` (calls, prompt/completion/reasoning
+    # tokens, cost_usd, latency_seconds, retries, cache_hits/misses, and an
+    # errors dict keyed by error kind). Populated by
+    # ``task_runtime.execute_task_node`` from the in-memory telemetry
+    # captured during that node's LLM calls -- see
+    # ``co_scientist.llm_telemetry`` for why this is aggregated in memory
+    # rather than written per call (AGENTS.md: a per-call database row or
+    # persisted log record starves the single SQLite writer).
+    model_usage: dict[str, dict[str, Any]] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize for checkpoint transport (all fields are plain data)."""
@@ -76,6 +87,66 @@ def _merge_phase_times(
         )
 
     return merged_phase_times
+
+
+def _merge_error_counts(
+    existing_errors: dict[str, int], new_errors: dict[str, int]
+) -> dict[str, int]:
+    """Merge two error-kind -> count dicts, summing shared kinds."""
+    merged = dict(existing_errors)
+    for kind, count in new_errors.items():
+        merged[kind] = merged.get(kind, 0) + count
+    return merged
+
+
+def _merge_usage_entry(
+    existing_entry: dict[str, Any], new_entry: dict[str, Any]
+) -> dict[str, Any]:
+    """Sum one (phase, model) usage entry's numeric fields and errors.
+
+    Every field a ``ModelCallStats.as_dict()`` entry carries is additive
+    (see that dataclass), so this is a plain field-by-field sum with the
+    "errors" sub-dict merged by ``_merge_error_counts``.
+    """
+    numeric_fields = (
+        "calls",
+        "prompt_tokens",
+        "completion_tokens",
+        "reasoning_tokens",
+        "cost_usd",
+        "latency_seconds",
+        "retries",
+        "cache_hits",
+        "cache_misses",
+    )
+    merged = {
+        field_name: existing_entry.get(field_name, 0)
+        + new_entry.get(field_name, 0)
+        for field_name in numeric_fields
+    }
+    merged["errors"] = _merge_error_counts(
+        existing_entry.get("errors", {}), new_entry.get("errors", {})
+    )
+    return merged
+
+
+def _merge_model_usage(
+    existing_usage: dict[str, dict[str, Any]],
+    new_usage: dict[str, dict[str, Any]],
+) -> dict[str, dict[str, Any]]:
+    """Merge two ``model_usage`` dicts, summing entries for shared keys.
+
+    Args:
+        existing_usage: Usage already accumulated in state.
+        new_usage: Usage from a node's telemetry snapshot.
+
+    Returns:
+        A new dict with combined per-(phase, model) usage.
+    """
+    merged = {key: dict(entry) for key, entry in existing_usage.items()}
+    for key, new_entry in new_usage.items():
+        merged[key] = _merge_usage_entry(merged.get(key, {}), new_entry)
+    return merged
 
 
 def merge_metrics(
@@ -114,6 +185,7 @@ def merge_metrics(
         if new.total_time > 0
         else existing.total_time,
         phase_times=merged_phase_times,
+        model_usage=_merge_model_usage(existing.model_usage, new.model_usage),
     )
 
     return merged
@@ -144,6 +216,7 @@ def create_metrics_update(
     deltas: MetricDeltas | None = None,
     total_time: float | None = None,
     phase_times: dict[str, float] | None = None,
+    model_usage: dict[str, dict[str, Any]] | None = None,
 ) -> ExecutionMetrics:
     """Create new ExecutionMetrics with ONLY the deltas (not cumulative).
 
@@ -157,6 +230,8 @@ def create_metrics_update(
             evolutions/llm_calls); defaults to all-zero.
         total_time: new total time (only set if > 0)
         phase_times: new phase times dict (merged with existing)
+        model_usage: new per-(phase, model) LLM call usage (merged with
+            existing); see ``ExecutionMetrics.model_usage``.
 
     Returns:
         new ExecutionMetrics object with ONLY deltas
@@ -172,6 +247,7 @@ def create_metrics_update(
         llm_calls=d.llm_calls,
         total_time=total_time if total_time is not None else 0.0,
         phase_times=phase_times if phase_times is not None else {},
+        model_usage=model_usage if model_usage is not None else {},
     )
 
 
