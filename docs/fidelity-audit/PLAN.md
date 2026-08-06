@@ -23,7 +23,7 @@ to be called done.
 | 5 | Engine reasoning | large |
 | 6 | Durable state and safety | done |
 | 7 | Grounding | done |
-| 8 | Observability | small |
+| 8 | Observability | done |
 | 9 | Security, privacy, packaging | large |
 | 10 | Accessibility and responsive | small |
 | 11 | Adaptive coalition | large |
@@ -285,9 +285,9 @@ ranking deliberately keeps reading persisted state.
 
 ---
 
-## Stage 8 — Observability
+## Stage 8 — Observability (done)
 
-**Closes:** L2–L6, L14, plus the metrics half of F5
+**Closed:** L2, L3, L4, L5, L6, L14, plus the metrics half of F5
 
 `prompt_tokens`/`completion_tokens` are parsed off the response
 (`llm_response.py:45`) and then discarded — nothing persists or surfaces them,
