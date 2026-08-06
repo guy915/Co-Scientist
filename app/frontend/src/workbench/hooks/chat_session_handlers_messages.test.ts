@@ -124,3 +124,21 @@ test('handleEditMessage ignores an empty revision', () => {
   expect(editInterviewTurn).not.toHaveBeenCalled();
   expect(deps.setMessages).not.toHaveBeenCalled();
 });
+
+test('revisions are closed once a run has started', () => {
+  // The timeline hides edit/retry affordances from the moment a run starts;
+  // the handlers enforce the same state so no path rewinds the interview a
+  // started run was created from.
+  const deps = makeDeps({
+    interview: makeInterview(),
+    startedSession: {id: 'run-1', title: 'Started', at: 1},
+  });
+  const handlers = buildChatHandlers(deps);
+
+  handlers.handleRetryMessage(makeMessage({role: 'assistant', turnId: 7}));
+  handlers.handleEditMessage(makeMessage({turnId: 3}), 'Revised prompt');
+
+  expect(retryInterviewTurn).not.toHaveBeenCalled();
+  expect(editInterviewTurn).not.toHaveBeenCalled();
+  expect(deps.setMessages).not.toHaveBeenCalled();
+});

@@ -247,3 +247,47 @@ it('opens the started run detail from the session card', async () => {
     );
   });
 });
+
+it('locks the composer once the run starts and posts no further turns', async () => {
+  await driveToRunSpec();
+  await startRunFromSpec();
+
+  // The interview the composer posts to is completed server-side once the
+  // run starts, so every affordance that would create another turn locks,
+  // and the placeholder says why.
+  const composer = screen.getByRole('textbox');
+  expect(composer).toBeDisabled();
+  expect(screen.getByRole('button', {name: 'Send'})).toBeDisabled();
+  expect(screen.getByRole('button', {name: 'Files'})).toBeDisabled();
+  expect(screen.getByRole('button', {name: 'Connectors'})).toBeDisabled();
+  expect(
+    screen.getByText('Session started — start a new chat'),
+  ).toBeInTheDocument();
+
+  // Even a direct form submission (bypassing the disabled controls) never
+  // reaches the interview-turn API. Call counts are compared against the
+  // baseline because this suite's api mock accumulates calls across tests.
+  const interviewCalls = apiMock.createInterview.mock.calls.length;
+  fireEvent.submit(composer.closest('form')!);
+  expect(apiMock.addInterviewTurn).not.toHaveBeenCalled();
+  expect(apiMock.createInterview).toHaveBeenCalledTimes(interviewCalls);
+});
+
+it('re-enables the composer when a started session starts a new chat', async () => {
+  await driveToRunSpec();
+  await startRunFromSpec();
+  expect(screen.getByRole('textbox')).toBeDisabled();
+
+  fireEvent.click(
+    screen.getByRole('button', {
+      name: 'Start a new research goal session on a new topic',
+    }),
+  );
+
+  // The reset returns the workspace to the home stage with a live composer.
+  const composer = screen.getByRole('textbox');
+  expect(composer).toBeEnabled();
+  expect(
+    screen.getByText('Start a new research goal to begin'),
+  ).toBeInTheDocument();
+});

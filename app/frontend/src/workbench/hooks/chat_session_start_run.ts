@@ -60,6 +60,10 @@ async function executeStart(deps: ExecuteStartDeps): Promise<StartedSession> {
   }
   await startRun(created.id);
   deps.setPendingAttachments([]);
+  // The interview is closed server-side from here on, so drop whatever was
+  // typed meanwhile (the textarea stays live across the start round trip by
+  // design); the composer locks in the same transition (see ComposerSection).
+  deps.setInput('');
   deps.setStartedSession(session);
   await deps.reloadHistory();
   // Announce both lists: the home cards show the new run, and the rail's chat

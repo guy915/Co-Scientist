@@ -94,6 +94,10 @@ interface SourceControlsProps {
   fileInputRef: RefObject<HTMLInputElement | null>;
   onFilesChanged: (e: ChangeEvent<HTMLInputElement>) => void;
   connectors: ConnectorToggleProps;
+  // Locks both trigger buttons while the parent composer is disabled (a
+  // started session), so nothing can be attached or toggled into a chat that
+  // no longer posts turns.
+  disabled?: boolean;
 }
 
 /**
@@ -109,6 +113,7 @@ export function SourceControls(props: SourceControlsProps) {
     fileInputRef,
     onFilesChanged,
     connectors,
+    disabled = false,
   } = props;
   return (
     <div className={COMPOSER_SOURCE_CONTROLS_CLASSES} ref={sourceControlsRef}>
@@ -124,12 +129,14 @@ export function SourceControls(props: SourceControlsProps) {
       <SourceToolbarButton
         label="Files"
         icon="add"
+        disabled={disabled}
         onClick={() => fileInputRef.current?.click()}
       />
       <SourceToolbarButton
         label="Connectors"
         icon="database"
         expanded={connectorsOpen}
+        disabled={disabled}
         onClick={onToggleConnectors}
       />
       {connectorsOpen ? <ConnectorsMenu connectors={connectors} /> : null}
@@ -145,11 +152,13 @@ function SourceToolbarButton({
   label,
   icon,
   expanded,
+  disabled,
   onClick,
 }: {
   label: string;
   icon: IconName;
   expanded?: boolean;
+  disabled?: boolean;
   onClick: () => void;
 }) {
   return (
@@ -162,6 +171,7 @@ function SourceToolbarButton({
       aria-label={label}
       aria-expanded={expanded}
       data-tooltip={label}
+      disabled={disabled}
       onClick={onClick}
     >
       <Icon

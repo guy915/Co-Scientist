@@ -50,6 +50,27 @@ test('conducts the interview under the declared audience', async () => {
   );
 });
 
+test('posts no turn once a run has started', async () => {
+  // The started session is the state the start round trip actually writes;
+  // the composer is disabled in the UI and this guard keeps the handler
+  // aligned with it, so nothing reaches the completed interview.
+  vi.clearAllMocks();
+  const deps = makeDeps({
+    input: 'one more thing',
+    interview: makeInterview({status: 'completed'}),
+    startedSession: {id: 'run-1', title: 'Started', at: 1},
+  });
+
+  await buildChatHandlers(deps).handleSubmit({
+    preventDefault: vi.fn(),
+  } as never);
+
+  expect(addInterviewTurn).not.toHaveBeenCalled();
+  expect(createInterview).not.toHaveBeenCalled();
+  expect(deps.setMessages).not.toHaveBeenCalled();
+  expect(deps.setInput).not.toHaveBeenCalled();
+});
+
 test('stages only a completed persisted interview derivation', async () => {
   const active = makeInterview();
   const completed = makeInterview({

@@ -33,6 +33,7 @@ function deps(): HandlerDeps {
     setToast: () => {},
     setConfirmed: () => {},
     setDraft: () => {},
+    setInput: () => {},
     setMessages: () => {},
     setStartedSession: () => {},
     pendingAttachments: [],

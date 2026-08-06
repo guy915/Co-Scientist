@@ -70,6 +70,7 @@ export type ExecuteStartDeps = Pick<
   | 'reloadHistory'
   | 'setConfirmed'
   | 'setDraft'
+  | 'setInput'
   | 'setStartedSession'
   | 'setMessages'
   | 'pendingAttachments'
@@ -89,6 +90,10 @@ export interface HandlerDeps {
   setInput: (value: string) => void;
   draft: SpecStage | null;
   interview: Interview | null;
+  // The run started by this session, once the create+start round trip has
+  // succeeded. Its presence closes the interview server-side, so every path
+  // that would post another turn reads it and refuses.
+  startedSession: StartedSession | null;
   setInterview: (interview: Interview | null) => void;
   setDraft: (stage: SpecStage | null) => void;
   setConfirmed: (stage: SpecStage | null) => void;

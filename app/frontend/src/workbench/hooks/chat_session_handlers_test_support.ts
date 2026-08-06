@@ -35,6 +35,7 @@ export function makeDeps(overrides: Partial<HandlerDeps> = {}): HandlerDeps {
   return {
     input: '',
     interview: null,
+    startedSession: null,
     setInterview: vi.fn(),
     onChatStarted: vi.fn(),
     setInput: vi.fn(),

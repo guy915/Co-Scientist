@@ -5,6 +5,7 @@ import {
   type KeyboardEvent,
   type RefObject,
   type SetStateAction,
+  useEffect,
   useLayoutEffect,
   useRef,
 } from 'react';
@@ -49,19 +50,24 @@ const COMPOSER_MAX_HEIGHT_LARGE = 146;
  * wording while a draft/confirmed run spec or started session is showing.
  * `busy` blocks submitting (the send button and Enter) and nothing else: the
  * textarea stays typeable and focused so the next message can be written
- * while the current one is still being answered. `large` selects the roomier
- * home-stage sizing/layout. `autoFocus` takes focus on mount; set on the
- * in-conversation composer, which replaces the home-stage one when the first
- * message is sent, since that swap unmounts the focused textarea and would
- * otherwise drop the caret to the body, forcing a click to carry on typing.
- * `connectors` carries each connector's toggled state and change callback.
- * `onSubmit` handles Enter or the send button.
+ * while the current one is still being answered. `disabled` locks the whole
+ * composer — textarea, send, and the file/connector controls — once the
+ * session has started a run and its interview is closed server-side; the
+ * placeholder explains why, and only a session reset (new chat) re-enables
+ * it. `large` selects the roomier home-stage sizing/layout. `autoFocus` takes
+ * focus on mount; set on the in-conversation composer, which replaces the
+ * home-stage one when the first message is sent, since that swap unmounts
+ * the focused textarea and would otherwise drop the caret to the body,
+ * forcing a click to carry on typing. `connectors` carries each connector's
+ * toggled state and change callback. `onSubmit` handles Enter or the send
+ * button.
  */
 export interface ComposerProps {
   input: string;
   setInput: (value: string) => void;
   setupDraftMode?: boolean;
   busy: boolean;
+  disabled?: boolean;
   large?: boolean;
   autoFocus?: boolean;
   connectors?: ConnectorToggleProps;
@@ -78,25 +84,34 @@ const DEFAULT_CONNECTORS: ConnectorToggleProps = {
 };
 
 // The optional presentation props, resolved to their defaults in one place so
-// Composer itself reads as wiring rather than as a run of fallbacks.
+// Composer itself reads as wiring rather than as a run of fallbacks. The
+// behavioral props (busy/disabled) are destructured by Composer itself.
 function composerOptions(props: ComposerProps) {
-  return {
-    large: props.large ?? false,
-    setupDraftMode: props.setupDraftMode ?? false,
-    autoFocus: props.autoFocus ?? false,
-    connectors: props.connectors ?? DEFAULT_CONNECTORS,
-  };
+  const {
+    large = false,
+    setupDraftMode = false,
+    autoFocus = false,
+    connectors = DEFAULT_CONNECTORS,
+  } = props;
+  return {large, setupDraftMode, autoFocus, connectors};
 }
 
 // Composer's <form onSubmit>: forwards the staged attachments' files to the
 // caller's onSubmit, then clears them once the message is actually sent
-// (`input.trim()`, since a blank submit is a no-op the caller ignores).
+// (`input.trim()`, since a blank submit is a no-op the caller ignores). A
+// disabled composer sends nothing at all — requestSubmit() and the Enter
+// handler are gated on the same state, but the form itself is the last line.
 function handleComposerFormSubmit(
   event: FormEvent<HTMLFormElement>,
   input: string,
   state: ComposerState,
+  disabled: boolean,
   onSubmit: (e: FormEvent<HTMLFormElement>, files: File[]) => void,
 ): void {
+  if (disabled) {
+    event.preventDefault();
+    return;
+  }
   onSubmit(
     event,
     state.attachments.map(attachment => attachment.file),
@@ -111,19 +126,26 @@ function handleComposerFormSubmit(
  * compact composer overlaid on the in-conversation timeline.
  */
 export function Composer(props: ComposerProps) {
-  const {input, setInput, busy, onSubmit} = props;
+  const {input, setInput, busy, disabled = false, onSubmit} = props;
   const {large, setupDraftMode, autoFocus, connectors} = composerOptions(props);
   const state = useComposerState(input, large);
-  const referenceLabel = composerReferenceLabel(setupDraftMode);
+  // A session that starts while the connectors menu is open locks the whole
+  // composer; close the menu so no dangling control survives the transition.
+  useEffect(() => {
+    if (disabled) state.setConnectorsOpen(false);
+  }, [disabled, state.setConnectorsOpen]);
+  const referenceLabel = composerReferenceLabel(setupDraftMode, disabled);
   // There is nothing to send while the input is blank, and nothing to send it
-  // to while the session is still answering. Both gate submission only; the
-  // textarea is never disabled, so typing and focus survive either state.
-  const submitDisabled = !input.trim() || busy;
+  // to while the session is still answering — both gate submission only, and
+  // the textarea is never disabled for them, so typing and focus survive. A
+  // disabled composer is the one locked state: the run has started, so the
+  // input itself is disabled too and nothing here posts another turn.
+  const submitDisabled = disabled || !input.trim() || busy;
 
   return (
     <form
       onSubmit={event =>
-        handleComposerFormSubmit(event, input, state, onSubmit)
+        handleComposerFormSubmit(event, input, state, disabled, onSubmit)
       }
       className={composerFormClassName(
         input,
@@ -135,6 +157,7 @@ export function Composer(props: ComposerProps) {
         input={input}
         setInput={setInput}
         submitDisabled={submitDisabled}
+        disabled={disabled}
         large={large}
         autoFocus={autoFocus}
         referenceLabel={referenceLabel}
@@ -160,10 +183,11 @@ function composerFormClassName(
   );
 }
 
-// The floating-label copy shown above the textarea: "edit session details"
-// wording while a draft/confirmed run spec or started session is showing,
-// otherwise the initial call-to-action.
-function composerReferenceLabel(setupDraftMode: boolean) {
+// The floating-label copy shown above the textarea: a locked composer states
+// why, otherwise "edit session details" wording while a draft/confirmed run
+// spec or started session is showing, else the initial call-to-action.
+function composerReferenceLabel(setupDraftMode: boolean, disabled: boolean) {
+  if (disabled) return 'Session started — start a new chat';
   return setupDraftMode
     ? 'Type to edit session details'
     : 'Start a new research goal to begin';
@@ -258,6 +282,7 @@ interface ComposerTextareaFieldProps {
   input: string;
   setInput: (value: string) => void;
   submitDisabled: boolean;
+  disabled: boolean;
   large: boolean;
   autoFocus: boolean;
   referenceLabel: string;
@@ -271,6 +296,7 @@ function ComposerTextareaField(props: ComposerTextareaFieldProps) {
     input,
     setInput,
     submitDisabled,
+    disabled,
     large,
     autoFocus,
     referenceLabel,
@@ -286,6 +312,7 @@ function ComposerTextareaField(props: ComposerTextareaFieldProps) {
         // force the empty box several lines tall.
         rows={1}
         value={input}
+        disabled={disabled}
         // Restores the focus the home-to-conversation composer swap takes
         // away (see `autoFocus`); it does not take focus from elsewhere on
         // the page, and the home composer leaves it unset.
@@ -293,6 +320,10 @@ function ComposerTextareaField(props: ComposerTextareaFieldProps) {
         className={joinClasses(
           COMPOSER_TEXTAREA_CLASSES,
           large && HOME_COMPOSER_TEXTAREA_CLASSES,
+          // A locked composer reads as inactive text, per the muted tone the
+          // design reserves for secondary copy; the I-beam cursor goes with
+          // the typing the field no longer accepts.
+          disabled && 'disabled:cursor-default disabled:text-cosci-muted',
         )}
         onChange={e => setInput(e.target.value)}
         onKeyDown={e => handleComposerKeyDown(e, submitDisabled)}
@@ -311,6 +342,7 @@ interface ComposerFooterProps {
   onFilesChanged: (e: ChangeEvent<HTMLInputElement>) => void;
   connectors: ConnectorToggleProps;
   submitDisabled: boolean;
+  disabled: boolean;
 }
 
 // The footer controls row: the file/connector source controls plus the
@@ -324,6 +356,7 @@ function ComposerFooter(props: ComposerFooterProps) {
     onFilesChanged,
     connectors,
     submitDisabled,
+    disabled,
   } = props;
   return (
     <div className={COMPOSER_ACTIONS_CLASSES}>
@@ -334,6 +367,7 @@ function ComposerFooter(props: ComposerFooterProps) {
         fileInputRef={fileInputRef}
         onFilesChanged={onFilesChanged}
         connectors={connectors}
+        disabled={disabled}
       />
       <button
         type="submit"
@@ -361,6 +395,7 @@ interface ComposerBodyProps {
   input: string;
   setInput: (value: string) => void;
   submitDisabled: boolean;
+  disabled: boolean;
   large: boolean;
   autoFocus: boolean;
   referenceLabel: string;
@@ -376,6 +411,7 @@ function ComposerBody(props: ComposerBodyProps) {
     input,
     setInput,
     submitDisabled,
+    disabled,
     large,
     autoFocus,
     referenceLabel,
@@ -392,6 +428,7 @@ function ComposerBody(props: ComposerBodyProps) {
         input={input}
         setInput={setInput}
         submitDisabled={submitDisabled}
+        disabled={disabled}
         large={large}
         autoFocus={autoFocus}
         referenceLabel={referenceLabel}
@@ -405,6 +442,7 @@ function ComposerBody(props: ComposerBodyProps) {
         onFilesChanged={state.onFilesChanged}
         connectors={connectors}
         submitDisabled={submitDisabled}
+        disabled={disabled}
       />
     </>
   );

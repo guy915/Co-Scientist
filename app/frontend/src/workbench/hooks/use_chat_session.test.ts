@@ -216,6 +216,74 @@ it('starting a run creates it and reloads history', async () => {
   expect(deps.reloadHistory).toHaveBeenCalled();
 });
 
+it('posts no further interview turns once the run has started', async () => {
+  vi.mocked(runsApi.createRun).mockResolvedValue({
+    id: 'run-xyz',
+  } as Awaited<ReturnType<typeof runsApi.createRun>>);
+  vi.mocked(runsApi.startRun).mockResolvedValue({
+    id: 'run-xyz',
+    status: 'running',
+  });
+  const {result} = renderSession();
+
+  act(() => result.current.setInput('Study liver fibrosis'));
+  await act(async () => {
+    await result.current.handleSubmit(submitEvent());
+  });
+  await act(async () => {
+    await result.current.handleStartRun();
+  });
+  expect(result.current.startedSession?.id).toBe('run-xyz');
+  // Starting clears whatever was typed: the interview the composer posts to
+  // is closed server-side from here on.
+  expect(result.current.input).toBe('');
+  const messagesAfterStart = result.current.messages.length;
+
+  act(() => result.current.setInput('one more thing'));
+  await act(async () => {
+    await result.current.handleSubmit(submitEvent());
+  });
+
+  // The turn never reaches the completed interview, nor starts a new one.
+  expect(runsApi.addInterviewTurn).not.toHaveBeenCalled();
+  expect(runsApi.createInterview).toHaveBeenCalledOnce();
+  expect(result.current.messages).toHaveLength(messagesAfterStart);
+});
+
+it('resetting a started session reopens the composer for a new chat', async () => {
+  vi.mocked(runsApi.createRun).mockResolvedValue({
+    id: 'run-xyz',
+  } as Awaited<ReturnType<typeof runsApi.createRun>>);
+  vi.mocked(runsApi.startRun).mockResolvedValue({
+    id: 'run-xyz',
+    status: 'running',
+  });
+  const {result} = renderSession();
+
+  act(() => result.current.setInput('Study liver fibrosis'));
+  await act(async () => {
+    await result.current.handleSubmit(submitEvent());
+  });
+  await act(async () => {
+    await result.current.handleStartRun();
+  });
+  expect(result.current.startedSession).not.toBeNull();
+
+  act(() => result.current.resetSession());
+  act(() => result.current.setInput('A brand new goal'));
+  await act(async () => {
+    await result.current.handleSubmit(submitEvent());
+  });
+
+  // The fresh session talks to a fresh interview again.
+  expect(runsApi.createInterview).toHaveBeenCalledTimes(2);
+  expect(runsApi.createInterview).toHaveBeenLastCalledWith(
+    'A brand new goal',
+    expect.any(Function),
+    undefined,
+  );
+});
+
 it('uploads staged scientific files before starting the run', async () => {
   const file = new File(['private result'], 'result.txt', {
     type: 'text/plain',

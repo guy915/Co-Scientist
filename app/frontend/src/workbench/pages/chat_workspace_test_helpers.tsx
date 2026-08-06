@@ -34,6 +34,7 @@ const apiMock = vi.hoisted(() => {
     );
   });
   return {
+    addInterviewTurn: vi.fn(),
     createInterview: vi.fn(),
     createRun: vi.fn(),
     getHypotheses: vi.fn(),

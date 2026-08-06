@@ -23,6 +23,7 @@ type SubmitComposerDeps = Pick<
   HandlerDeps,
   | 'input'
   | 'interview'
+  | 'startedSession'
   | 'audience'
   | 'setInput'
   | 'setError'
@@ -103,6 +104,12 @@ function describeSubmitError(error: unknown): string {
 // response can complete the setup and produce a runnable specification.
 async function submitComposerMessage(deps: SubmitComposerDeps): Promise<void> {
   deps.e.preventDefault();
+  // A started run consumed the interview: the server completed it when the
+  // run was created, so it rejects further turns. The composer is disabled
+  // in the UI from the moment the start round trip succeeds; this guard
+  // keys off that same started-session state so no path posts another turn
+  // until the session resets to a new chat.
+  if (deps.startedSession) return;
   const text = beginComposerTurn(deps);
   if (text === null) return;
 
@@ -268,12 +275,17 @@ async function reviseInterviewTurn(
   }
 }
 
-// The durable turn a revision targets, or null when there is nothing on the
-// server to revise (an optimistic bubble, or a locally-authored line).
+// The durable turn a revision targets, or null when there is nothing to
+// revise: an optimistic bubble, a locally-authored line — or a session that
+// has already started a run. A started run locks the transcript it was
+// created from: the timeline hides edit/retry from that moment, and this
+// check (which both callers run before their optimistic truncation) keeps
+// the handlers aligned with it.
 function revisableTurn(
   deps: HandlerDeps,
   message: ChatEntry,
 ): {interviewId: string; turnId: number} | null {
+  if (deps.startedSession) return null;
   const interviewId = deps.interview?.id;
   if (!interviewId || !message.turnId) return null;
   return {interviewId, turnId: message.turnId};
@@ -306,17 +318,32 @@ function retryAssistantMessage(deps: HandlerDeps, message: ChatEntry): void {
   emitDiagnosticEvent({stage: 'CHAT', payload: {event: 'response_retried'}});
 }
 
+// The durable turn a plan re-derivation targets, or null when the staged
+// plan carries no turn to retry.
+function draftRevisionTarget(deps: HandlerDeps): {
+  interviewId: string;
+  turnId: number;
+} | null {
+  const interviewId = deps.interview?.id;
+  const turnId = deps.draft?.turnId;
+  if (!interviewId || !turnId) return null;
+  return {interviewId, turnId};
+}
+
 // Re-derives the staged plan by retrying the Agent turn that produced it.
 // The plan is that turn's answer, so "retry" here means the same thing it
 // means on any other response; re-staging the spec already in hand looked
 // like a dead control because nothing about it could change.
 function retryDraftSpec(deps: HandlerDeps): void {
-  const interviewId = deps.interview?.id;
-  const turnId = deps.draft?.turnId;
-  if (!interviewId || !turnId) return;
+  // Locked once a run has started; see revisableTurn. Rehydration can leave
+  // a draft staged alongside a started session, so the check is not redundant
+  // with the draft being null.
+  if (deps.startedSession) return;
+  const target = draftRevisionTarget(deps);
+  if (!target) return;
   deps.setDraft(null);
   void reviseInterviewTurn(deps, onReasoning =>
-    retryInterviewTurn(interviewId, turnId, onReasoning),
+    retryInterviewTurn(target.interviewId, target.turnId, onReasoning),
   );
   emitDiagnosticEvent({stage: 'CHAT', payload: {event: 'plan_retried'}});
 }
@@ -366,6 +393,7 @@ export function toHandlerDeps(
     setInput: composer.setInput,
     draft: lifecycle.draft,
     interview: lifecycle.interview,
+    startedSession: lifecycle.startedSession,
     setInterview: lifecycle.setInterview,
     setDraft: lifecycle.setDraft,
     setConfirmed: lifecycle.setConfirmed,

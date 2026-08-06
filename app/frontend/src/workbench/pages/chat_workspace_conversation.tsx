@@ -94,7 +94,12 @@ export interface ConversationViewProps {
   composerRef: RefObject<HTMLDivElement | null>;
   session: Pick<
     ReturnType<typeof useChatSession>,
-    'input' | 'setInput' | 'error' | 'isStarting' | 'handleSubmit'
+    | 'input'
+    | 'setInput'
+    | 'error'
+    | 'isStarting'
+    | 'startedSession'
+    | 'handleSubmit'
   >;
   setupDraftMode: boolean;
   connectors: ConnectorToggleProps;
@@ -166,17 +171,20 @@ interface ComposerSectionProps {
   composerRef: RefObject<HTMLDivElement | null>;
   session: Pick<
     ReturnType<typeof useChatSession>,
-    'input' | 'setInput' | 'isStarting' | 'handleSubmit'
+    'input' | 'setInput' | 'isStarting' | 'startedSession' | 'handleSubmit'
   >;
   setupDraftMode: boolean;
   connectors: ConnectorToggleProps;
 }
 
 // Overlaid, non-scrolling composer; setupDraftMode swaps its placeholder
-// copy while a draft/confirmed spec or started session is in view, and
-// disabled locks input while starting.
+// copy while a draft/confirmed spec or started session is in view, busy
+// blocks submits while starting, and a started session locks the composer
+// outright — its interview is completed server-side, so the only way back to
+// a live composer is the session reset (new chat).
 function ComposerSection(props: ComposerSectionProps) {
-  const {input, setInput, isStarting, handleSubmit} = props.session;
+  const {input, setInput, isStarting, startedSession, handleSubmit} =
+    props.session;
   return (
     <div ref={props.composerRef} className={CHAT_COMPOSER_CLASSES}>
       <div className={CHAT_COLUMN_CLASSES}>
@@ -185,6 +193,7 @@ function ComposerSection(props: ComposerSectionProps) {
           setInput={setInput}
           setupDraftMode={props.setupDraftMode}
           busy={isStarting}
+          disabled={Boolean(startedSession)}
           autoFocus
           connectors={props.connectors}
           onSubmit={handleSubmit}

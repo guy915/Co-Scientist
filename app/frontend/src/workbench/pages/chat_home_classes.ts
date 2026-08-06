@@ -161,14 +161,16 @@ export const ICON_BUTTON_CLASSES =
 
 // Round source-control button (Files, Connectors), built on
 // ICON_BUTTON_CLASSES; stays visibly "on" via aria-expanded while its menu
-// is open.
+// is open. Dims via the same disabled-text color as the send button when the
+// composer is locked (a started session).
 export const COMPOSER_SOURCE_BUTTON_CLASSES =
   ICON_BUTTON_CLASSES +
   ' reference-composer-source-button size-8 text-cosci-source-button ' +
   'enabled:hover:text-cosci-source-button-hover ' +
   'enabled:focus-visible:text-cosci-source-button-hover ' +
   'aria-expanded:bg-cosci-icon-button-hover-bg ' +
-  'aria-expanded:text-cosci-source-button-hover';
+  'aria-expanded:text-cosci-source-button-hover ' +
+  'disabled:text-cosci-composer-submit-disabled';
 
 export const COMPOSER_SOURCE_ICON_CLASSES = 'text-xl';
 

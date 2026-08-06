@@ -110,3 +110,49 @@ test('submits again on Enter once the session is no longer busy', () => {
   fireEvent.keyDown(screen.getByRole('textbox'), {key: 'Enter'});
   expect(props.onSubmit).toHaveBeenCalledOnce();
 });
+
+test('locks every control once the session has started a run', () => {
+  // A started run closes the interview server-side, so the composer must
+  // stop accepting anything that would become another turn.
+  renderComposer({disabled: true});
+  expect(screen.getByRole('textbox')).toBeDisabled();
+  expect(
+    screen.getByRole('button', {name: /send|start|research/i}),
+  ).toBeDisabled();
+  expect(screen.getByRole('button', {name: 'Files'})).toBeDisabled();
+  expect(screen.getByRole('button', {name: 'Connectors'})).toBeDisabled();
+});
+
+test('shows why the composer is locked in its placeholder', () => {
+  renderComposer({disabled: true});
+  expect(
+    screen.getByText('Session started — start a new chat'),
+  ).toBeInTheDocument();
+});
+
+test('does not submit on Enter while disabled', () => {
+  const {onSubmit} = renderComposer({input: 'a goal', disabled: true});
+  fireEvent.keyDown(screen.getByRole('textbox'), {key: 'Enter'});
+  expect(onSubmit).not.toHaveBeenCalled();
+});
+
+test('ignores a programmatic form submission while disabled', () => {
+  const {onSubmit} = renderComposer({input: 'a goal', disabled: true});
+  fireEvent.submit(screen.getByRole('textbox').closest('form')!);
+  expect(onSubmit).not.toHaveBeenCalled();
+});
+
+test('submits again once the session resets and re-enables it', () => {
+  const props = {
+    input: 'a goal',
+    setInput: vi.fn(),
+    busy: false,
+    disabled: true,
+    onSubmit: vi.fn((e: {preventDefault: () => void}) => e.preventDefault()),
+  };
+  const {rerender} = render(<Composer {...props} />);
+  rerender(<Composer {...props} disabled={false} />);
+  expect(screen.getByRole('textbox')).toBeEnabled();
+  fireEvent.keyDown(screen.getByRole('textbox'), {key: 'Enter'});
+  expect(props.onSubmit).toHaveBeenCalledOnce();
+});
