@@ -287,12 +287,11 @@ Both Railway services build from `guy915/Co-Scientist` using repo-root Dockerfil
 Env var *names* set on the Railway **api** service (values are secrets — read them from Railway, never commit them):
 
 ```
-MODEL_NAME=dashscope/deepseek-v4-flash     # worker tier
-SUPERVISOR_MODEL_NAME=dashscope/deepseek-v4-pro
-CHAT_MODEL_NAME=dashscope/deepseek-v4-pro
-SEMANTIC_SAFETY_MODEL=dashscope/deepseek-v4-flash
-DASHSCOPE_API_KEY=<secret>
-DASHSCOPE_API_BASE=https://dashscope-intl.aliyuncs.com/compatible-mode/v1
+MODEL_NAME=deepseek/deepseek-v4-flash     # worker tier
+SUPERVISOR_MODEL_NAME=deepseek/deepseek-v4-pro
+CHAT_MODEL_NAME=deepseek/deepseek-v4-pro
+SEMANTIC_SAFETY_MODEL=deepseek/deepseek-v4-flash
+DEEPSEEK_API_KEY=<secret>
 LOGS_ADMIN_TOKEN=<secret>
 MCP_SERVER_URL=http://mcp.railway.internal:8888/mcp
 COSCIENTIST_DB_PATH=/app/data/coscientist.db
@@ -305,7 +304,7 @@ PORT=8008
 
 The **mcp** service carries `BRAVE_API_KEY` (which is what registers `search_web` at all), `ENTREZ_EMAIL`/`ENTREZ_API_KEY`, `COSCIENTIST_MCP_PORT=8888`, and `SBI_CORPUS_DIR`.
 
-Production runs DeepSeek models routed through Alibaba **DashScope** (`dashscope/` prefix). `app/app/config.py` branches on that prefix because DashScope controls thinking with `enable_thinking` instead of DeepSeek's native `thinking` object and has no `reasoning_effort` tiers.
+Production calls DeepSeek directly (`deepseek/` prefix), the same tiers the local defaults use, so there is one thinking contract everywhere: DeepSeek's native `thinking` object plus `reasoning_effort`. The DashScope route this deployment previously used is gone from config, env templates, and tests.
 
 Vercel reads `VITE_API_BASE_URL=https://api-production-97eb.up.railway.app` (set in production environment).
 
@@ -335,9 +334,9 @@ Each of these was a production outage or a silent data-correctness failure. The 
 
 ## Required environment
 
-Both projects use **LiteLLM** for model dispatch. Set the relevant provider key (`DEEPSEEK_API_KEY`, `DASHSCOPE_API_KEY`, `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, …) and `MODEL_NAME` before running.
+Both projects use **LiteLLM** for model dispatch. Set the relevant provider key (`DEEPSEEK_API_KEY`, `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, …) and `MODEL_NAME` before running.
 
-The app's model defaults live in `app/app/config.py` and are DeepSeek on every tier: `MODEL_NAME=deepseek/deepseek-v4-flash` (worker — generation, review, ranking, reflection, evolve, proximity, literature review, safety screening), `SUPERVISOR_MODEL_NAME=deepseek/deepseek-v4-pro` (planning + final synthesis), `CHAT_MODEL_NAME=deepseek/deepseek-v4-pro` (interview, Q&A, titling), `SEMANTIC_SAFETY_MODEL=deepseek/deepseek-v4-flash`. Production routes the same tiers through DashScope via the `dashscope/` prefix.
+The app's model defaults live in `app/app/config.py` and are DeepSeek on every tier: `MODEL_NAME=deepseek/deepseek-v4-flash` (worker — generation, review, ranking, reflection, evolve, proximity, literature review, safety screening), `SUPERVISOR_MODEL_NAME=deepseek/deepseek-v4-pro` (planning + final synthesis), `CHAT_MODEL_NAME=deepseek/deepseek-v4-pro` (interview, Q&A, titling), `SEMANTIC_SAFETY_MODEL=deepseek/deepseek-v4-flash`. Production runs those same defaults.
 
 The viewer also reads `MCP_SERVER_URL` (default `http://localhost:8888/mcp`), `TOOLS_CONFIG` (path or http URL to a YAML tools config), `CLAIM_ASSESSOR` (default `llm`), `FORCE_LITERATURE_REVIEW` (`0` is a hard kill switch for tests/dev), and `SBI_CORPUS_DIR` (default `corpus/sbi_ucd`). Most viewer env vars are documented in `app/.env.example` — but not `SBI_CORPUS_DIR`. The reference MCP server has a **separate** env surface (`engine/mcp_server/.env.example`); setting those vars in the app's `.env` does nothing.
 

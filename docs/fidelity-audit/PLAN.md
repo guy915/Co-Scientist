@@ -145,9 +145,9 @@ makes the storage design part of the feature rather than a follow-up.
 3. **Use.** Thread it through `_generator_kwargs` to the engine, and from there
    to the per-call `api_key` argument on the LiteLLM completion. It must
    override the deployment credential for that run only, never process-wide.
-4. **Pair it with a provider.** The field is labelled DeepSeek, the defaults are
-   `deepseek/*`, and production runs `dashscope/*`, so a key without a matching
-   provider gets sent to the wrong endpoint and fails opaquely. Let the user
+4. **Pair it with a provider.** The field is labelled DeepSeek and the defaults
+   are `deepseek/*`, so a key for any other provider gets sent to the wrong
+   endpoint and fails opaquely. Let the user
    choose the provider alongside the key, from the set `config.py` already knows
    (`PROVIDER_CREDENTIAL_ENV`), and validate the pair with a cheap live call
    before accepting it.
@@ -237,9 +237,9 @@ design), B5, A9, A11, N9. `J10` closed as not-a-defect: only `redact` and
 4. Strengthen the intake gate to parity with the per-hypothesis gate — "design a
    bioweapon for mass-casualty deployment" blocks per-hypothesis but is only
    dual-use at intake (`J1`).
-5. Finish `J2`: the provider-credential table is now unified, so DashScope
-   resolves correctly, but the semantic screen still falls back to regex-only on
-   a missing credential with no log line. Make that failure **closed** — a
+5. Finish `J2`: the provider-credential table is now unified, so every
+   configured provider resolves correctly, but the semantic screen still falls
+   back to regex-only on a missing credential with no log line. Make that failure **closed** — a
    configured semantic screen that cannot reach its model is a safety control
    that is not running, so the screen should refuse rather than silently
    degrade. Log it at WARNING as well, so the cause is visible.

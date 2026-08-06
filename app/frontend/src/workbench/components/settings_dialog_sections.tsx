@@ -116,7 +116,6 @@ export function AppearanceSection({
 const PROVIDER_LABELS: Record<ByokProvider, string> = {
   anthropic: 'Anthropic',
   azure: 'Azure',
-  dashscope: 'DashScope',
   deepseek: 'DeepSeek',
   gemini: 'Gemini',
   openai: 'OpenAI',

@@ -16,7 +16,6 @@ const PROVIDER_KEY = 'cosci-api-provider';
 export const BYOK_PROVIDERS = [
   'anthropic',
   'azure',
-  'dashscope',
   'deepseek',
   'gemini',
   'openai',

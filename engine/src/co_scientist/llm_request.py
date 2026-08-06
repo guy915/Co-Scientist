@@ -44,9 +44,6 @@ from co_scientist.llm_thinking import (
     _apply_thinking_args as _apply_thinking_args,
 )
 from co_scientist.llm_thinking import (
-    _is_dashscope as _is_dashscope,
-)
-from co_scientist.llm_thinking import (
     deepseek_thinking_extra_body as deepseek_thinking_extra_body,
 )
 from co_scientist.llm_thinking import (

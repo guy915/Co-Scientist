@@ -30,14 +30,20 @@ def _clear_credentials(monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.delenv(key, raising=False)
 
 
-def test_dashscope_key_counts_as_provider_credential(
+def test_a_non_default_provider_key_counts_as_a_credential(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A DashScope key alone must not silently fall back to mock mode."""
+    """A key for any known provider must not read as keyless.
+
+    The defaults are DeepSeek on every tier, so a deployment credentialed
+    through some other provider is the case where a second, narrower
+    notion of "has a key" would silently route every run to the offline
+    backend.
+    """
     _clear_credentials(monkeypatch)
     assert provider._has_provider_key() is False
 
-    monkeypatch.setenv("DASHSCOPE_API_KEY", "sk-test")
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test")
     assert provider._has_provider_key() is True
 
 

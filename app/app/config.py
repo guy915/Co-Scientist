@@ -201,7 +201,6 @@ settings = Settings()
 PROVIDER_CREDENTIAL_ENV: dict[str, tuple[str, ...]] = {
     "anthropic": ("ANTHROPIC_API_KEY",),
     "azure": ("AZURE_API_KEY",),
-    "dashscope": ("DASHSCOPE_API_KEY",),
     "deepseek": ("DEEPSEEK_API_KEY",),
     "gemini": ("GEMINI_API_KEY", "GOOGLE_API_KEY"),
     "openai": ("OPENAI_API_KEY",),
@@ -281,9 +280,6 @@ BYOK_PROVIDER_DEFAULT_MODELS: dict[str, str] = {
     # deployment configures that; it stays listed because
     # PROVIDER_CREDENTIAL_ENV knows it.
     "azure": "azure/gpt-4o",
-    # DashScope serves the same DeepSeek V4 tiers this deployment runs,
-    # so a dashscope key gets the same worker model behind that route.
-    "dashscope": "dashscope/deepseek-v4-flash",
     # Mirrors the app's own worker default: a DeepSeek key pointed at the
     # model this deployment was built around.
     "deepseek": "deepseek/deepseek-v4-flash",
@@ -338,20 +334,6 @@ def _is_deepseek(model_name: str) -> bool:
     return "deepseek" in model_name.lower()
 
 
-def _is_dashscope(model_name: str) -> bool:
-    """Whether ``model_name`` routes through Alibaba Cloud DashScope.
-
-    DashScope serves the same DeepSeek V4 tiers behind its OpenAI-compatible
-    endpoint but controls thinking with ``enable_thinking`` (bool) instead of
-    DeepSeek's native ``thinking`` object, so the toggle has to be written
-    differently per route. Model Studio does accept ``reasoning_effort``
-    (``high``/``max``, defaulting to ``high``); it is left off the DashScope
-    route because the only value we want there is that default, so sending it
-    would add a per-provider difference that buys nothing.
-    """
-    return model_name.lower().startswith("dashscope/")
-
-
 def deepseek_non_thinking_extra_body(model_name: str) -> dict[str, object]:
     """Return an ``extra_body`` that disables DeepSeek V4 thinking mode.
 
@@ -367,13 +349,11 @@ def deepseek_non_thinking_extra_body(model_name: str) -> dict[str, object]:
         model_name: Model name in litellm format.
 
     Returns:
-        ``{"thinking": {"type": "disabled"}}`` for DeepSeek models,
-        ``{"enable_thinking": False}`` for DeepSeek-on-DashScope, else ``{}``.
+        ``{"thinking": {"type": "disabled"}}`` for DeepSeek models, else
+        ``{}``.
     """
     if not _is_deepseek(model_name):
         return {}
-    if _is_dashscope(model_name):
-        return {"enable_thinking": False}
     return {"thinking": {"type": "disabled"}}
 
 
@@ -406,13 +386,10 @@ def deepseek_thinking_kwargs(model_name: str) -> dict[str, object]:
 
     Returns:
         ``{"extra_body": {"thinking": {"type": "enabled"}}, "reasoning_effort":
-        "high"}`` for DeepSeek models, ``{"extra_body": {"enable_thinking":
-        True}}`` for DeepSeek-on-DashScope, else ``{}``.
+        "high"}`` for DeepSeek models, else ``{}``.
     """
     if not _is_deepseek(model_name):
         return {}
-    if _is_dashscope(model_name):
-        return {"extra_body": {"enable_thinking": True}}
     return {
         "extra_body": {"thinking": {"type": "enabled"}},
         "reasoning_effort": "high",

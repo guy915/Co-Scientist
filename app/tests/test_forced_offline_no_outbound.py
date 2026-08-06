@@ -16,12 +16,13 @@ attempt and raises; "no outbound request" means that recorder stayed empty.
 
 from __future__ import annotations
 
+import sys
 from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
 
-from app import credentials, qa, runs_chat, store, title_gen
+from app import credentials, qa, store, title_gen
 from app.main import app
 
 from ._interviews_helpers import _interview_payload
@@ -138,5 +139,8 @@ def test_qa_dispatch_stays_on_the_offline_answer(
     assert attempts == []
     assert store.list_messages(run_id)
     # The refusal has to come from the answer path itself, so pin that the
-    # router still dispatches into the module the guard lives in.
-    assert getattr(runs_chat, "qa") is qa
+    # router still dispatches into the module the guard lives in. Read
+    # through sys.modules: app.runs_chat imports qa for its own use and does
+    # not re-export it, so reaching for the attribute directly is a private
+    # access the typechecker is right to reject.
+    assert sys.modules["app.runs_chat"].qa is qa

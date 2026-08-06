@@ -1,10 +1,9 @@
 """Thinking/reasoning-mode argument shaping for LiteLLM completion calls.
 
-Split from ``co_scientist.llm_request``: selects the provider-specific
-thinking knob (DeepSeek's native ``thinking`` object, DashScope's
-``enable_thinking`` boolean), the reasoning tier, and the ``max_tokens``
-floor a thinking call needs. Every name here is re-exported from
-``co_scientist.llm_request`` so that module's namespace is unchanged.
+Split from ``co_scientist.llm_request``: selects the thinking knob
+(DeepSeek's native ``thinking`` object), the reasoning tier, and the
+``max_tokens`` floor a thinking call needs. Every name here is re-exported
+from ``co_scientist.llm_request`` so that module's namespace is unchanged.
 """
 
 import logging
@@ -30,11 +29,6 @@ logger = logging.getLogger(__name__)
 _JSON_OBJECT_ONLY_MODEL_FAMILIES: tuple[str, ...] = ("deepseek",)
 
 
-def _is_dashscope(model_name: str) -> bool:
-    """Whether ``model_name`` routes through Alibaba Cloud DashScope."""
-    return model_name.lower().startswith("dashscope/")
-
-
 def deepseek_thinking_extra_body(
     model_name: str, *, enabled: bool = True
 ) -> dict[str, Any]:
@@ -57,11 +51,6 @@ def deepseek_thinking_extra_body(
     runs once per loop point on the run's serial spine where nothing else is
     executing (``agents/supervisor/supervisor_decision.py``).
 
-    DashScope (Alibaba Cloud) serves the same DeepSeek models behind its
-    OpenAI-compatible endpoint but controls thinking with a different knob:
-    ``enable_thinking`` (bool), with thinking OFF by default. The explicit
-    field below covers both providers' defaults.
-
     Args:
         model_name: Model name in litellm format.
         enabled: Whether to request thinking mode. False explicitly disables
@@ -70,12 +59,10 @@ def deepseek_thinking_extra_body(
 
     Returns:
         ``{"thinking": {"type": "enabled"|"disabled"}}`` for DeepSeek models,
-        ``{"enable_thinking": bool}`` for DeepSeek-on-DashScope, else ``{}``.
+        else ``{}``.
     """
     lowered = model_name.lower()
     if any(family in lowered for family in _JSON_OBJECT_ONLY_MODEL_FAMILIES):
-        if _is_dashscope(model_name):
-            return {"enable_thinking": enabled}
         return {"thinking": {"type": "enabled" if enabled else "disabled"}}
     return {}
 
@@ -96,10 +83,8 @@ def reasoning_effort_args(
     since the value equals the default, that bug is inert. Sending it keeps
     the intent explicit and the call correct once the fix lands.
 
-    Empty for models without a thinking mode, when thinking is disabled for
-    the call, and on DashScope -- Model Studio does accept the parameter
-    (``high``/``max``, default ``high``), but the only value wanted there is
-    that default.
+    Empty for models without a thinking mode, and when thinking is disabled
+    for the call.
 
     Args:
         model_name: Model name in litellm format.
@@ -108,11 +93,7 @@ def reasoning_effort_args(
     Returns:
         ``{"reasoning_effort": "high"}`` when the tier applies, else ``{}``.
     """
-    if (
-        enabled
-        and deepseek_thinking_extra_body(model_name)
-        and not _is_dashscope(model_name)
-    ):
+    if enabled and deepseek_thinking_extra_body(model_name):
         return {"reasoning_effort": "high"}
     return {}
 

@@ -145,10 +145,9 @@ async def test_tool_loop_applies_provider_quirks(
 ) -> None:
     """The tool loop's turn carries the same provider handling as call_llm.
 
-    DashScope's compatible-mode endpoint does not support
-    ``reasoning_effort`` (the guard lives in
-    ``llm_request.reasoning_effort_args``), and every turn asks the
-    provider client to give up on its own via the ``timeout`` argument.
+    The thinking knob and the reasoning tier come from the shared helpers
+    in ``llm_request`` rather than being rebuilt here, and every turn asks
+    the provider client to give up on its own via the ``timeout`` argument.
     """
     _disable_cache(monkeypatch)
     captured: dict[str, Any] = {}
@@ -159,11 +158,11 @@ async def test_tool_loop_applies_provider_quirks(
 
     await call_llm_with_tools(
         "a prompt",
-        CompletionSpec(model_name="dashscope/deepseek-v4-pro"),
+        CompletionSpec(model_name="deepseek/deepseek-v4-pro"),
         ToolLoop(tools=_SEARCH_TOOL, executor=_raising_tool_executor),
     )
-    assert captured["extra_body"] == {"enable_thinking": True}
-    assert "reasoning_effort" not in captured
+    assert captured["extra_body"] == {"thinking": {"type": "enabled"}}
+    assert captured["reasoning_effort"] == "high"
     assert captured["timeout"] > 0
 
     await call_llm_with_tools(
@@ -212,7 +211,7 @@ async def test_tool_loop_turn_raised_to_the_token_floor(
     from co_scientist.constants import THINKING_FLOOR_MAX_TOKENS
 
     captured = await _captured_tool_loop_args(
-        monkeypatch, "dashscope/deepseek-v4-flash", 4000
+        monkeypatch, "deepseek/deepseek-v4-flash", 4000
     )
 
     assert captured["max_tokens"] == THINKING_FLOOR_MAX_TOKENS

@@ -184,10 +184,9 @@ def test_verdict_call_thinks(
 ) -> None:
     """The entailment judge reasons, like every other app call.
 
-    Thinking is requested explicitly rather than left to the provider: the
-    native DeepSeek API defaults it on, DashScope defaults it off, so an
-    omitted field would mean a judge that reasons locally and silently stops
-    reasoning in production.
+    Thinking is requested explicitly rather than left to the provider's
+    default, which is not ours to rely on: an omitted field is how a judge
+    ends up reasoning locally and silently not reasoning in production.
     """
     seen: dict[str, Any] = {}
 

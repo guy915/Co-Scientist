@@ -2,10 +2,9 @@
 
 Split from ``test_llm_wrappers.py``: covers how
 ``co_scientist.llm_request._build_completion_args`` maps the thinking
-opt-in/opt-out onto DeepSeek's native ``thinking`` object, DashScope's
-``enable_thinking`` boolean, and ``reasoning_effort``. Every engine node
-thinks; the opt-out cases below cover the seam itself, which no call site
-uses today.
+opt-in/opt-out onto DeepSeek's ``thinking`` object and
+``reasoning_effort``. Every engine node thinks; the opt-out cases below
+cover the seam itself, which no call site uses today.
 """
 
 from types import SimpleNamespace
@@ -62,47 +61,6 @@ def test_thinking_disabled_drops_reasoning_effort() -> None:
     assert "reasoning_effort" not in args
 
 
-def test_dashscope_deepseek_uses_enable_thinking_flag() -> None:
-    """DeepSeek-on-DashScope thinks via the provider's own boolean knob.
-
-    DashScope's compatible-mode endpoint ignores DeepSeek's native
-    ``thinking`` object, so the native format would leave thinking to the
-    provider's default rather than requesting it. ``reasoning_effort`` is
-    omitted on this route: Model Studio accepts it, but the only value
-    wanted is its default.
-    """
-    from co_scientist.llm_request import (
-        CompletionShape,
-        _build_completion_args,
-    )
-
-    args = _build_completion_args(
-        "prompt", "dashscope/deepseek-v4-flash", 100, 0.5, CompletionShape()
-    )
-
-    assert args["extra_body"] == {"enable_thinking": True}
-    assert "reasoning_effort" not in args
-
-
-def test_dashscope_deepseek_thinking_opt_out() -> None:
-    """The thinking opt-out maps to enable_thinking=False on DashScope."""
-    from co_scientist.llm_request import (
-        CompletionShape,
-        _build_completion_args,
-    )
-
-    args = _build_completion_args(
-        "prompt",
-        "dashscope/deepseek-v4-pro",
-        100,
-        0.5,
-        CompletionShape(enable_thinking=False),
-    )
-
-    assert args["extra_body"] == {"enable_thinking": False}
-    assert "reasoning_effort" not in args
-
-
 def test_thinking_params_absent_for_non_deepseek_models() -> None:
     """The thinking params are DeepSeek-specific and never sent elsewhere."""
     from co_scientist.llm_request import (
@@ -135,7 +93,7 @@ def test_thinking_call_raised_to_the_token_floor() -> None:
     )
 
     args = _build_completion_args(
-        "prompt", "dashscope/deepseek-v4-flash", 4000, 0.5, CompletionShape()
+        "prompt", "deepseek/deepseek-v4-flash", 4000, 0.5, CompletionShape()
     )
 
     assert args["max_tokens"] == THINKING_FLOOR_MAX_TOKENS
@@ -157,7 +115,7 @@ def test_token_floor_never_lowers_a_larger_budget() -> None:
     above_floor = THINKING_FLOOR_MAX_TOKENS + 6000
     args = _build_completion_args(
         "prompt",
-        "dashscope/deepseek-v4-flash",
+        "deepseek/deepseek-v4-flash",
         above_floor,
         0.5,
         CompletionShape(),
@@ -175,7 +133,7 @@ def test_token_floor_not_applied_when_thinking_is_off() -> None:
 
     args = _build_completion_args(
         "prompt",
-        "dashscope/deepseek-v4-flash",
+        "deepseek/deepseek-v4-flash",
         4000,
         0.5,
         CompletionShape(enable_thinking=False),

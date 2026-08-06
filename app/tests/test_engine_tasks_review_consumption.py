@@ -24,12 +24,12 @@ def _make_item(result: dict[str, Any]) -> Any:
 
     class _Item:
         status = "completed"
-        inputs: dict[str, Any] = {}
-        result: dict[str, Any] = {}
 
-    item = _Item()
-    item.result = result
-    return item
+        def __init__(self, payload: dict[str, Any]) -> None:
+            self.inputs: dict[str, Any] = {}
+            self.result: dict[str, Any] = payload
+
+    return _Item(result)
 
 
 def _patch_items(
