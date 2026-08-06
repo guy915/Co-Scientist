@@ -20,7 +20,10 @@ classifiers = [
 dependencies = [
     "langgraph~=1.0.6",
     "langchain-core~=1.2.7",
-    "langchain-mcp-adapters>=0.2.1",
+    # Pinned to the compatible-release granularity every other dependency
+    # here uses (N18) -- an unbounded lower-only range let a fresh resolve
+    # pick up a future major with no local signal that anything changed.
+    "langchain-mcp-adapters~=0.3.0",
     # Pinned below 2.0 because langchain-mcp-adapters asks only for
     # `mcp>=1.24.0`: mcp 2.0.0 moved `RequestContext` out of
     # `mcp.shared.context`, which the adapter imports at module scope, so a
@@ -31,7 +34,7 @@ dependencies = [
     "litellm~=1.80.16",
     "typing-extensions~=4.15.0",
     "jsonschema~=4.26.0",
-    "pyyaml>=6.0",
+    "pyyaml~=6.0.3",
 ]
 
 [project.optional-dependencies]

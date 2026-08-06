@@ -8,16 +8,27 @@
 # file builds from engine/, ships no corpus, and binds 0.0.0.0. A change to the
 # server install, bind host, or healthcheck here usually needs a mirrored change
 # there.
-FROM python:3.12-slim
+# Pinned by digest so the same source always builds the same base
+# image (N18) -- python:3.12-slim is a mutable tag that moves under
+# it on rebuild. Update deliberately: `docker pull python:3.12-slim`
+# then `docker inspect --format='{{index .RepoDigests 0}}' python:3.12-slim`.
+FROM python:3.12-slim@sha256:646fb0bca3dd3ea1bcc6feb72c17ed16eed6e10cffc732fcc1478bd3e7f02d7b
 
 WORKDIR /app
 
 RUN apt-get update && apt-get install -y build-essential && rm -rf /var/lib/apt/lists/*
 
 # Dependencies from metadata alone, so editing server source does not
-# recompile biopython/lxml; the source tree lands in the next COPY.
+# recompile biopython/lxml; the source tree lands in the next COPY. The
+# editable build maps the `mcp_server` package onto this directory
+# (pyproject.toml's `package-dir`) and lists its subpackages explicitly, so
+# setuptools' egg_info step needs those subpackage directories to exist even
+# though their contents arrive later -- same reason the engine install below
+# pre-creates an empty src/.
 COPY engine/mcp_server/pyproject.toml ./mcp_server/
-RUN pip install --no-cache-dir -e ./mcp_server
+RUN mkdir -p ./mcp_server/tools/indra_cogex ./mcp_server/tools/lit_review \
+        ./mcp_server/tools/web \
+    && pip install --no-cache-dir -e ./mcp_server
 COPY engine/mcp_server/ ./mcp_server/
 
 # The research group's own papers, as sanitized text. Copied after the install
@@ -30,6 +41,14 @@ COPY corpus/ ./corpus/
 ENV SBI_CORPUS_DIR=/app/corpus/sbi_ucd
 
 ENV PYTHONUNBUFFERED=1
+
+# Run as a non-root user. Ownership must be set before dropping root -- a
+# later `chown` from an unprivileged user would fail. 8888 is unprivileged
+# so a non-root user can still bind it.
+RUN groupadd --system coscientist \
+    && useradd --system --gid coscientist --home-dir /app coscientist \
+    && chown -R coscientist:coscientist /app
+USER coscientist
 
 EXPOSE 8888
 

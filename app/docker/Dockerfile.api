@@ -6,12 +6,17 @@
 # the Railway file bakes both the engine source and the corpus into the image
 # at build time. A change to app deps, corpus handling, or the run command here
 # usually needs a mirrored change there.
-FROM python:3.12-slim
+# Pinned by digest so the same source always builds the same base
+# image (N18) -- python:3.12-slim is a mutable tag that moves under
+# it on rebuild. Update deliberately: `docker pull python:3.12-slim`
+# then `docker inspect --format='{{index .RepoDigests 0}}' python:3.12-slim`.
+FROM python:3.12-slim@sha256:646fb0bca3dd3ea1bcc6feb72c17ed16eed6e10cffc732fcc1478bd3e7f02d7b
 
 WORKDIR /app
 
 RUN apt-get update && apt-get install -y \
     git \
+    tesseract-ocr \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy and install viewer deps first (layer cache before source copy).

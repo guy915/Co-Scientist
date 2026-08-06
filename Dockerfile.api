@@ -7,9 +7,20 @@
 # startup from a mounted checkout (entrypoint.sh) and mounts the corpus. A
 # change to app deps, corpus handling, or the run command here usually needs a
 # mirrored change there.
-FROM python:3.12-slim
+# Pinned by digest so the same source always builds the same base
+# image (N18) -- python:3.12-slim is a mutable tag that moves under
+# it on rebuild. Update deliberately: `docker pull python:3.12-slim`
+# then `docker inspect --format='{{index .RepoDigests 0}}' python:3.12-slim`.
+FROM python:3.12-slim@sha256:646fb0bca3dd3ea1bcc6feb72c17ed16eed6e10cffc732fcc1478bd3e7f02d7b
 
 WORKDIR /app
+
+# tesseract-ocr backs document_ingest.py's image OCR
+# ("tesseract-cli-v1") and the PDF-figure OCR fallback
+# ("pypdf-layout+tesseract-fallback-v2") -- without it, image ingestion
+# raises "image OCR is unavailable" for every upload in this image.
+RUN apt-get update && apt-get install -y tesseract-ocr \
+    && rm -rf /var/lib/apt/lists/*
 
 # Engine dependencies first, from metadata alone, so editing engine source
 # does not re-install langgraph/litellm/langchain. The editable install of a
@@ -40,8 +51,27 @@ COPY app/app/ ./app/
 COPY corpus/ ./corpus/
 ENV SBI_CORPUS_DIR=/app/corpus/sbi_ucd
 
-RUN mkdir -p /app/data
+# Explicit persistent-path defaults so the image is correct even when a
+# deployment forgets to set them: /app/data is where the Railway volume
+# mounts (COSCIENTIST_DB_PATH), /app/cache is a plain container path for
+# the LLM cache (deliberately not on the volume -- see AGENTS.md). Railway
+# sets both explicitly today and its values simply override these.
+ENV COSCIENTIST_DB_PATH=/app/data/coscientist.db
+ENV COSCIENTIST_CACHE_DIR=/app/cache
+RUN mkdir -p /app/data /app/cache
+
+# Run as a non-root user. Ownership must be set before dropping root --
+# a later `chown` from an unprivileged user would fail.
+RUN groupadd --system coscientist \
+    && useradd --system --gid coscientist --home-dir /app coscientist \
+    && chown -R coscientist:coscientist /app
+USER coscientist
 
 EXPOSE ${PORT:-8008}
+
+# start-period is generous: startup runs the checkpoint sweep and launches
+# recovery cohorts before the port is bound (see AGENTS.md Gotchas).
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:${PORT:-8008}/health', timeout=5)" || exit 1
 
 CMD ["sh", "-c", "python -m uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8008}"]

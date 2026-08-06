@@ -32,7 +32,7 @@ help:
 	@echo "  make e2e          Run the browser end-to-end suite (headless, isolated stack)"
 	@echo "  make parity       Check the docs/PARITY.md evidence gate + its tests"
 	@echo "  make eval-smoke   Run the offline evaluation smoke suite (no LLM, no network)"
-	@echo "  make lint         Lint backend (ruff format --check + ruff check)"
+	@echo "  make lint         Lint backend (ruff) + frontend (gts)"
 	@echo "  make typecheck    Typecheck backend (mypy: app, engine, evaluations)"
 	@echo "  make build        Build frontend (tsc + vite build + prerender)"
 	@echo "  make clean        Remove .venv, caches, frontend dist"
@@ -52,8 +52,18 @@ setup: $(VENV)/bin/activate
 	@$(PIP) install pytest pytest-asyncio ruff mypy
 	@# Reference MCP server is optional and pins Python 3.12, so we don't install it here.
 	@echo ">> Installing frontend (bun preferred, npm fallback)"
-	@cd "$(FRONTEND)" && if command -v bun >/dev/null 2>&1; then bun install; else echo "bun not found; using npm"; npm install --no-audit --no-fund --silent; fi
+	@# --frozen-lockfile matches CI (ci.yml) exactly: install precisely what
+	@# bun.lock records rather than letting a local resolve drift from what
+	@# CI and production actually build against (N18). A dependency bump
+	@# still needs an explicit `bun install` to update the committed lock.
+	@cd "$(FRONTEND)" && if command -v bun >/dev/null 2>&1; then bun install --frozen-lockfile; else echo "bun not found; using npm"; npm install --no-audit --no-fund --silent; fi
 	@test -f "$(ROOT)/.env" || cp "$(ROOT)/.env.example" "$(ROOT)/.env"
+	@# dev-api runs with cwd=app/, and Settings loads ".env" relative to cwd
+	@# (app/app/config.py), so a root-only .env is invisible to it. Symlink
+	@# app/.env at the root file so there is one file, not two to keep in
+	@# sync -- and it happens to be exactly where docker-compose's own
+	@# `env_file: .env` (relative to its app/ context) already looks.
+	@test -e "$(APP)/.env" || ln -s ../.env "$(APP)/.env"
 	@echo ""
 	@echo "Setup complete. Next:"
 	@echo "  make start      # MCP + API + UI in one command, then opens the browser"
@@ -90,12 +100,15 @@ preflight:
 
 ensure-deps:
 	@test -f "$(ROOT)/.env" || { echo ">> No .env found — copying .env.example"; cp "$(ROOT)/.env.example" "$(ROOT)/.env"; }
+	@# See the matching comment in `setup` -- one env file, symlinked so
+	@# dev-api's cwd=app/ Settings load actually sees it.
+	@test -e "$(APP)/.env" || ln -s ../.env "$(APP)/.env"
 	@if ! { test -x "$(PY)" && "$(PY)" -c "import uvicorn, fastapi, pydantic_settings, co_scientist" >/dev/null 2>&1; }; then \
 		echo ">> Backend deps missing or broken — running setup"; \
 		$(MAKE) setup; \
 	elif [ ! -d "$(FRONTEND)/node_modules" ]; then \
 		echo ">> Frontend deps missing — installing"; \
-		cd "$(FRONTEND)" && if command -v bun >/dev/null 2>&1; then bun install; else npm install --no-audit --no-fund; fi; \
+		cd "$(FRONTEND)" && if command -v bun >/dev/null 2>&1; then bun install --frozen-lockfile; else npm install --no-audit --no-fund; fi; \
 	fi
 
 dev-all:
@@ -248,9 +261,11 @@ parity:
 eval-smoke:
 	@cd "$(ROOT)" && "$(PY)" -m evaluations.smoke
 
-# Mirrors the CI format-lint job: CI runs `ruff format --check` alongside
-# `ruff check` for all three trees, so run both here or a formatting-only
-# failure stays invisible until CI.
+# Mirrors CI's format-lint job (ruff format --check + ruff check for all
+# three Python trees) plus its frontend job's lint step (gts), so a
+# formatting or gts-only failure cannot stay invisible until CI. Assumes
+# `make setup` has already installed the frontend's node_modules, same as
+# `make typecheck`/`test-app` assume the backend venv exists.
 lint:
 	@cd "$(ENGINE)" && "$(PY)" -m ruff format --check .
 	@cd "$(APP)" && "$(PY)" -m ruff format --check .
@@ -258,6 +273,9 @@ lint:
 	@cd "$(APP)" && "$(PY)" -m ruff check app tests
 	@cd "$(ENGINE)" && "$(PY)" -m ruff check .
 	@cd "$(ROOT)" && "$(PY)" -m ruff check evaluations
+	@test -d "$(FRONTEND)/node_modules" || { echo ">> Frontend deps missing — run 'make setup' first"; exit 1; }
+	@echo ">> Linting frontend (gts)"
+	@cd "$(FRONTEND)" && if command -v bun >/dev/null 2>&1; then bun run lint; else npx gts lint; fi
 
 # Mirrors the CI typecheck job, which covers engine/ as well as app/ and
 # evaluations/.
