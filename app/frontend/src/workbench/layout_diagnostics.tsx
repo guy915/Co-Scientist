@@ -30,15 +30,15 @@ import {
 
 // Sizing/positioning for the logs popover: the shared header-control
 // positioning prefix plus a logs-specific body capped to the viewport (dvh),
-// with a narrower width override under the 720px breakpoint. The `!`
+// with a narrower width override under the 700px breakpoint. The `!`
 // overrides beat the shared .ucs-popover defaults applied by the parent's
 // ShellPopover.
 const LOGS_POPOVER_CLASSES = joinClasses(
   headerControlPopoverClasses('!w-[min(32rem,calc(100vw-2rem))]'),
   'max-h-[min(32rem,calc(100dvh-6rem))] grid-rows-[auto_auto_minmax(0,1fr)]',
   '!gap-0 overflow-hidden !border-cosci-logs-border !bg-cosci-logs-surface',
-  'max-[720px]:right-[-0.5rem] ' +
-    'max-[720px]:!w-[min(18.5rem,calc(100vw-1.5rem))]',
+  'max-[700px]:right-[-0.5rem] ' +
+    'max-[700px]:!w-[min(18.5rem,calc(100vw-1.5rem))]',
 );
 
 // The shared pill chrome, with the right side tightened around the badge.
@@ -70,12 +70,12 @@ const DIAGNOSTIC_ENTRY_META_CLASSES =
   'grid-cols-[auto_auto_auto_minmax(0,1fr)_minmax(0,auto)] ' +
   'items-center gap-2 text-[0.72rem] font-semibold ' +
   'text-cosci-logs-meta ' +
-  'max-[720px]:grid-cols-[auto_auto_auto_minmax(0,1fr)]';
+  'max-[700px]:grid-cols-[auto_auto_auto_minmax(0,1fr)]';
 
 const DIAGNOSTIC_ENTRY_RUN_CLASSES = 'truncate';
 
 const DIAGNOSTIC_ENTRY_STAGE_CLASSES =
-  'min-w-0 truncate max-[720px]:col-start-2 max-[720px]:col-end-[-1]';
+  'min-w-0 truncate max-[700px]:col-start-2 max-[700px]:col-end-[-1]';
 
 // Payload blocks grow with their content: text wraps (including long
 // unbroken tokens) and nothing scrolls inside an entry.
@@ -242,6 +242,7 @@ export function DiagnosticsControl({
             onReport={() => void report.send({entries, total, counts})}
           />,
           LOGS_POPOVER_CLASSES,
+          'Diagnostic logs',
         )}
     </>
   );

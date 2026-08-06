@@ -55,8 +55,10 @@ function AudienceHeaderControl({
     <Control
       open={activePanel === panel}
       onToggle={() => onTogglePanel(panel)}
-      renderPopover={(children, className) => (
-        <ShellPopover className={className}>{children}</ShellPopover>
+      renderPopover={(children, className, ariaLabel) => (
+        <ShellPopover className={className} role="group" ariaLabel={ariaLabel}>
+          {children}
+        </ShellPopover>
       )}
     />
   );

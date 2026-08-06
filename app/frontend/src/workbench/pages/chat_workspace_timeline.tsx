@@ -129,8 +129,19 @@ function AgentThinking({reasoning}: {reasoning: string}) {
   }, [reasoning]);
 
   return (
-    <div className="px-1 py-2" role="status" aria-live="polite">
-      <span className="animate-pulse text-sm text-th-muted-fg">Thinking…</span>
+    <div className="px-1 py-2">
+      {/* The only thing announced: a single stable message that never
+          changes per token. The streamed reasoning below is real,
+          model-authored chain of thought -- putting it in a live region too
+          would re-announce the whole trail to a screen reader on every
+          token, which is unusable. It stays visible, just not spoken. */}
+      <span
+        className="animate-pulse text-sm text-th-muted-fg"
+        role="status"
+        aria-live="polite"
+      >
+        Thinking…
+      </span>
       {reasoning && (
         <div
           ref={trailRef}

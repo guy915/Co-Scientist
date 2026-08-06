@@ -204,6 +204,7 @@ export function PilotControl({
         renderPopover(
           <FeedbackForm form={form} sending={sending} />,
           POPOVER_CLASSES,
+          PILOT_FEEDBACK.title,
         )}
     </>
   );

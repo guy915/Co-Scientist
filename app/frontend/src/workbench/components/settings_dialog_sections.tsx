@@ -69,6 +69,14 @@ const FAQ: {question: string; answer: string}[] = [
       'default). When you add your own API key under Model, runs use your ' +
       "provider's default model instead.",
   },
+  {
+    question: 'Are there keyboard shortcuts?',
+    answer:
+      'Press g then n from anywhere to jump to the home screen. On a ' +
+      "run's report page, the left and right arrow keys move between " +
+      "tabs. Shortcuts don't fire while you're typing in a text field or " +
+      'using another control.',
+  },
 ];
 
 // Appearance section: theme mode segmented control (system/light/dark).

@@ -7,13 +7,27 @@ import {
 import {TABS, normalizeTab, type TabName} from '../run_tabs';
 
 /**
- * Global keyboard shortcuts:
+ * Global keyboard shortcuts, bound on `document` regardless of what has
+ * focus (this is deliberate -- see the ArrowLeft/ArrowRight note below, not
+ * a roving-tabindex widget reimplemented at the document level):
  *   g n  -> /
  *   ←/→  -> cycle tabs on /runs/:id
- * Inputs and textareas are ignored so typing doesn't trigger the bindings.
+ * Inputs, textareas, and widgets that already own arrow-key behavior are
+ * exempted so typing or operating a control doesn't trigger the bindings.
  */
 // Keys that cycle tabs; any other key is left alone by nextTabPath.
 const TAB_CYCLE_KEYS: readonly string[] = ['ArrowLeft', 'ArrowRight'];
+
+// ARIA widget roles that consume arrow keys themselves (an open listbox/
+// combobox moves its highlighted option, a slider changes its value, a
+// radiogroup moves selection between radios) -- the global tab-cycle
+// shortcut must not steal them out from under the widget.
+const ARROW_OWNING_WIDGET_ROLES: readonly string[] = [
+  'listbox',
+  'combobox',
+  'slider',
+  'radiogroup',
+];
 
 // True when the key event originated in an editable control (input,
 // textarea, contenteditable), in which case shortcuts must not fire.
@@ -24,10 +38,28 @@ function isTextEditingTarget(t: EventTarget | null): boolean {
   return tag === 'INPUT' || tag === 'TEXTAREA' || el.isContentEditable;
 }
 
+// True when the key event originated on a native <select> or an ARIA widget
+// that owns its own arrow-key behavior (see ARROW_OWNING_WIDGET_ROLES) --
+// e.g. the bring-your-own-key provider <select>, whose Left/Right cycles its
+// options and must not also advance the report tab underneath it.
+function isWidgetTarget(t: EventTarget | null): boolean {
+  if (!(t instanceof Element)) return false;
+  if (t.tagName === 'SELECT') return true;
+  const role = t.getAttribute('role');
+  return role !== null && ARROW_OWNING_WIDGET_ROLES.includes(role);
+}
+
 // True when the shortcuts must not fire at all: typing in an editable
-// control, or a modifier held (leaving browser/OS shortcuts alone).
+// control, operating a widget that owns its own arrow keys, or a modifier
+// held (leaving browser/OS shortcuts alone).
 function shouldIgnoreShortcut(e: KeyboardEvent): boolean {
-  return isTextEditingTarget(e.target) || e.metaKey || e.ctrlKey || e.altKey;
+  return (
+    isTextEditingTarget(e.target) ||
+    isWidgetTarget(e.target) ||
+    e.metaKey ||
+    e.ctrlKey ||
+    e.altKey
+  );
 }
 
 // True when this keydown is the "n" completing a "g n" sequence, i.e. it

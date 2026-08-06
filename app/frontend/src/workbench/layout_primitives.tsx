@@ -4,10 +4,16 @@ import {tooltipClassNames} from './tooltip';
 
 const SHELL_POPOVER_CLASSES = 'ucs-popover';
 
-/** Wraps popover content in the shell's positioned popover container. */
+/**
+ * Wraps popover content in the shell's positioned popover container,
+ * naming it for assistive tech (see ShellPopover -- these panels are
+ * interactive content, not a status announcement, so the name has to come
+ * from a real accessible name rather than an implicit live-region role).
+ */
 export type RenderPopover = (
   children: ReactNode,
   className: string,
+  ariaLabel: string,
 ) => ReactNode;
 
 /**
@@ -127,21 +133,40 @@ export function headerControlPopoverClasses(width: string): string {
 }
 
 /**
- * Shared popover shell for both the Settings menu and the Logs panel; the
- * caller supplies extra positioning/sizing classes via `className`.
+ * Shared popover shell for the Settings menu, the Logs panel, and the
+ * audience-specific header controls; the caller supplies extra
+ * positioning/sizing classes via `className`.
+ *
+ * Every one of these panels is interactive content the person opened on
+ * purpose (a menu, a log list with its own controls, a form), not a status
+ * message -- `role="status"` would make it an implicit live region, so a
+ * screen reader announces the whole panel on open and again on every
+ * change inside it. A caller that needs the panel named for assistive tech
+ * passes `role`/`ariaLabel`; the rail's Settings menu needs neither, since
+ * its own `role="menu"` child already carries the semantics.
  *
  * @param children The popover's content.
  * @param className Extra positioning/sizing classes for this popover.
+ * @param role The container's accessible role, when it needs one.
+ * @param ariaLabel The container's accessible name, paired with `role`.
  */
 export function ShellPopover({
   children,
   className,
+  role,
+  ariaLabel,
 }: {
   children: ReactNode;
   className: string;
+  role?: 'group' | 'dialog';
+  ariaLabel?: string;
 }) {
   return (
-    <div className={`${SHELL_POPOVER_CLASSES} ${className}`} role="status">
+    <div
+      className={`${SHELL_POPOVER_CLASSES} ${className}`}
+      role={role}
+      aria-label={ariaLabel}
+    >
       {children}
     </div>
   );

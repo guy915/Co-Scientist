@@ -84,6 +84,28 @@ it('shows only the label until the first reasoning arrives', () => {
   expect(container.querySelector('.border-l-2')).toBeNull();
 });
 
+it('keeps the streamed reasoning out of the announced live region', () => {
+  renderItems(
+    buildTimelineItems(
+      baseArgs({
+        isAwaitingAgent: true,
+        agentReasoning: 'The scientist named no mechanism, so ask for one.',
+      }),
+    ),
+  );
+
+  const label = screen.getByText('Thinking…');
+  expect(label.closest('[role="status"], [aria-live]')).not.toBeNull();
+
+  const trail = screen.getByText(
+    'The scientist named no mechanism, so ask for one.',
+  );
+  // Announcing this too would re-read the whole raw chain of thought to a
+  // screen reader on every streamed token -- it must stay visible without
+  // being wired into any live region.
+  expect(trail.closest('[role="status"], [aria-live]')).toBeNull();
+});
+
 it('renders nothing once the turn resolves', () => {
   renderItems(
     buildTimelineItems(

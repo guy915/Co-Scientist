@@ -64,7 +64,8 @@ export function GoogleTeamControl({
         open={open}
         onToggle={onToggle}
       />
-      {open && renderPopover(<GoogleTeamNote />, POPOVER_CLASSES)}
+      {open &&
+        renderPopover(<GoogleTeamNote />, POPOVER_CLASSES, GOOGLE_NOTE.label)}
     </>
   );
 }

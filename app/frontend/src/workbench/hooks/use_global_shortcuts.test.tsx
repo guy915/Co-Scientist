@@ -99,6 +99,28 @@ it('ignores shortcuts when a modifier key is held', () => {
   expect(navigateMock).not.toHaveBeenCalled();
 });
 
+it('ignores arrow-key shortcuts when a <select> is focused', () => {
+  renderHook(() => useGlobalShortcuts(), {wrapper: wrapperAt('/runs/abc')});
+  const select = document.createElement('select');
+  document.body.appendChild(select);
+  // The bring-your-own-key provider <select> uses Left/Right to cycle its
+  // own options; the global tab-cycle shortcut must not also fire.
+  keyDown('ArrowRight', select);
+  expect(navigateMock).not.toHaveBeenCalled();
+});
+
+it.each(['listbox', 'combobox', 'slider', 'radiogroup'])(
+  'ignores arrow-key shortcuts when a role="%s" widget is focused',
+  role => {
+    renderHook(() => useGlobalShortcuts(), {wrapper: wrapperAt('/runs/abc')});
+    const el = document.createElement('div');
+    el.setAttribute('role', role);
+    document.body.appendChild(el);
+    keyDown('ArrowRight', el);
+    expect(navigateMock).not.toHaveBeenCalled();
+  },
+);
+
 it('removes its keydown listener on unmount', () => {
   const {unmount} = renderHook(() => useGlobalShortcuts(), {
     wrapper: wrapperAt('/runs'),

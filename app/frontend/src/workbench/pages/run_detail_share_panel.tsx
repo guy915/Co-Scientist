@@ -12,10 +12,10 @@ import {tooltipClassNames} from '../tooltip';
 
 // The panel floats off the titlebar's share button, reusing the shell's
 // popover chrome (positioned ancestor is the actions row). Width overrides
-// the .ucs-popover default; under 720px it hugs the viewport edge instead.
+// the .ucs-popover default; under 700px it hugs the viewport edge instead.
 const SHARE_POPOVER_CLASSES =
   'ucs-popover right-0 top-[calc(100%+0.55rem)] gap-3 ' +
-  '!w-[min(22rem,calc(100vw-2rem))] max-[720px]:right-[-0.5rem]';
+  '!w-[min(22rem,calc(100vw-2rem))] max-[700px]:right-[-0.5rem]';
 
 const SHARE_TITLE_CLASSES = 'font-gsans m-0 text-[16.8px] font-medium';
 
@@ -114,7 +114,11 @@ export function ShareReportPanel({runId}: {runId: string}) {
   }, [loadShares]);
 
   return (
-    <div className={SHARE_POPOVER_CLASSES} role="status">
+    <div
+      className={SHARE_POPOVER_CLASSES}
+      role="dialog"
+      aria-label="Share report"
+    >
       <h3 className={SHARE_TITLE_CLASSES}>Share report</h3>
       <p className={SHARE_DESCRIPTION_CLASSES}>
         Anyone with a link can view this goal report. Revoking a link removes

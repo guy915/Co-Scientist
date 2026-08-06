@@ -8,7 +8,10 @@ import {
   setStoredApiKey,
   setStoredApiProvider,
 } from '@/lib/api_key';
+import {useBackgroundInert} from '../hooks/use_background_inert';
 import {useEscapeKey} from '../hooks/use_escape_key';
+import {useFocusTrap} from '../hooks/use_focus_trap';
+import {useRestoreFocusOnClose} from '../hooks/use_restore_focus_on_close';
 import {useToast, type ToastState} from '../hooks/use_toast';
 import {type Mode, useTheme} from '../theme_context';
 import {
@@ -279,8 +282,18 @@ export function SettingsDialog({
   const theme = useTheme();
   const closeRef = useRef<HTMLButtonElement>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
+  const rootRef = useRef<HTMLDivElement>(null);
   const apiKeyField = useApiKeyField();
 
+  // Declared before useFocusOnMount so its capture effect runs first and
+  // sees the real opener rather than the close button useFocusOnMount is
+  // about to focus (see useRestoreFocusOnClose's own doc comment).
+  useRestoreFocusOnClose();
+  // Keyboard/screen-reader users can't reach the page behind the dialog
+  // (Tab is trapped) or perceive it (it's marked inert) while this is open;
+  // both apply in locked mode too, which has the same escape-to-page risk.
+  useFocusTrap(rootRef);
+  useBackgroundInert(rootRef);
   // Locked, there is no close button to land on, so focus the dialog itself.
   useFocusOnMount(dismissible ? closeRef : dialogRef);
   // A locked dialog has no close affordance at all: no Escape, no scrim
@@ -289,7 +302,7 @@ export function SettingsDialog({
   useEscapeKey(onClose, dismissible);
 
   return (
-    <div className="ucs-settings-dialog-root">
+    <div className="ucs-settings-dialog-root" ref={rootRef}>
       <SettingsDialogScrim onClose={onClose} dismissible={dismissible} />
       <SettingsDialogWindow
         dismissible={dismissible}
