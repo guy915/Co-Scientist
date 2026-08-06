@@ -16,7 +16,11 @@ from typing import Any
 from app import store
 from app.engine_adapter.opts import _build_engine_opts, _build_generator
 from app.engine_adapter.provider import _import_hypothesis_generator
-from app.engine_tasks_context import ExactSuccessor, TaskCommit
+from app.engine_tasks_context import (
+    ExactSuccessor,
+    TaskCommit,
+    _ack_consumed_steering,
+)
 from app.engine_tasks_emit import (
     NodeCompletion as NodeCompletion,
 )
@@ -65,6 +69,19 @@ MATURE_REFLECTION_AGGREGATE_TASK = "engine.fanout.reflection.aggregate"
 
 class SupersededTaskError(RuntimeError):
     """Signals that a newer checkpoint made a leased task obsolete."""
+
+
+class SafetyHoldError(RuntimeError):
+    """Signals that a safety gate held the run pending human adjudication.
+
+    Neither a failure nor a completion. The gate did its job, so retrying
+    the task cannot change the outcome -- only a reviewer can -- but the
+    boundary's work is not done either, and recording it as succeeded is
+    what left an approved hold with nothing to claim (a succeeded row is
+    never revived, and its idempotency key cannot change while the run
+    makes no progress). The worker parks the task instead; approving the
+    hold releases it through the ordinary resume path.
+    """
 
 
 def _require_run(task: ScientificTask, db_path: str | None) -> store.RunRow:
@@ -200,16 +217,14 @@ def _save_node_checkpoint(
 
 
 def _save_state_and_enqueue(
-    task: ScientificTask,
+    commit: TaskCommit,
     state: dict[str, Any],
     successor: str | None,
-    *,
-    expected_checkpoint_seq: int,
-    db_path: str | None,
 ) -> tuple[int, str | None]:
     """Atomically checkpoint one node effect and enqueue its successor."""
     from co_scientist.checkpoint import serialize_workflow_state
 
+    task, db_path = commit.task, commit.db_path
     envelope = serialize_workflow_state(
         state,
         last_event_seq=store.latest_event_seq(task.run_id, db_path=db_path),
@@ -217,11 +232,12 @@ def _save_state_and_enqueue(
     successor_type = _successor_task_type(successor)
     with store.transaction(db_path) as conn:
         checkpoint_seq = _save_node_checkpoint(
-            task, envelope, successor_type, expected_checkpoint_seq, conn
+            task, envelope, successor_type, commit.current_seq, conn
         )
         successor_task = _enqueue_node_successor(
             task, state, successor_type, checkpoint_seq, conn
         )
+        _ack_consumed_steering(commit, conn)
     return checkpoint_seq, successor_task.id
 
 
@@ -363,19 +379,21 @@ def _save_state_and_enqueue_exact(
 
 
 def _save_paused_state(
-    task: ScientificTask,
+    commit: TaskCommit,
     state: dict[str, Any],
     resume_successor: str,
-    *,
-    expected_checkpoint_seq: int,
-    db_path: str | None,
 ) -> int:
-    """Checkpoint an in-flight task without making successor work claimable."""
+    """Checkpoint an in-flight task without making successor work claimable.
+
+    A pause commits the guidance-carrying state as durably as a successor
+    commit does, so it retires the same steering in the same transaction.
+    """
     from co_scientist.checkpoint import (
         CHECKPOINT_VERSION,
         serialize_workflow_state,
     )
 
+    task, db_path = commit.task, commit.db_path
     envelope = serialize_workflow_state(
         state,
         last_event_seq=store.latest_event_seq(task.run_id, db_path=db_path),
@@ -383,8 +401,9 @@ def _save_paused_state(
     with store.transaction(db_path) as conn:
         latest = store.get_latest_checkpoint(task.run_id, conn=conn)
         latest_seq = int(latest["seq"]) if latest else 0
-        if latest_seq != expected_checkpoint_seq:
+        if latest_seq != commit.current_seq:
             raise RuntimeError("checkpoint changed while pausing task")
+        _ack_consumed_steering(commit, conn)
         return store.save_checkpoint(
             task.run_id,
             store.NewCheckpoint(

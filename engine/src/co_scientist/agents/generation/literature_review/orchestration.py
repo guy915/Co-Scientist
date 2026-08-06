@@ -158,8 +158,17 @@ async def _fetch_content_and_enrichment(
     shaves wall-clock time off the node, which sits on the run's serial
     spine.
 
+    Because they are independent, they also fail independently: an
+    exception out of either one is isolated rather than allowed to cancel
+    the other mid-flight. Running them concurrently must not make one
+    branch's fault discard the other's finished work -- retrieval's output
+    is the papers it already wrote into ``all_paper_metadata``, and
+    enrichment's absence is a state the synthesis already handles (it is
+    the same ("", []) an unconfigured domain returns).
+
     Returns:
-        (background_context, context_enrichment_sources) from Phase 2.6.
+        (background_context, context_enrichment_sources) from Phase 2.6,
+        or ("", []) when enrichment failed.
     """
     retrieval_task = _discover_then_fetch_content(
         all_paper_metadata, paper_source_map, config, mcp_client, state
@@ -167,7 +176,14 @@ async def _fetch_content_and_enrichment(
     enrichment_task = _phase2_6_fetch_context_enrichment(
         state, config, mcp_client
     )
-    _, enrichment_result = await asyncio.gather(retrieval_task, enrichment_task)
+    retrieval_result, enrichment_result = await asyncio.gather(
+        retrieval_task, enrichment_task, return_exceptions=True
+    )
+    if isinstance(retrieval_result, BaseException):
+        logger.error("Paper retrieval failed: %s", retrieval_result)
+    if isinstance(enrichment_result, BaseException):
+        logger.error("Context enrichment failed: %s", enrichment_result)
+        return "", []
     return cast(tuple[str, list[dict[str, Any]]], enrichment_result)
 
 

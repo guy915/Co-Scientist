@@ -4,14 +4,18 @@ Two small frozen records the ``engine_tasks_*`` commit helpers share:
 where a task commits (``TaskCommit``) and what it enqueues next when the
 successor is not a graph node (``ExactSuccessor``). They live in their own
 module so ``engine_tasks_support`` and the fan-out/ranking modules can
-import them without an import cycle.
+import them without an import cycle. The two helpers that build a commit
+target and settle what it owes at commit time live here with it.
 """
 
 from __future__ import annotations
 
+import sqlite3
 from dataclasses import dataclass
 from typing import Any
 
+from app import store
+from app.engine_adapter.opts import CONSUMED_STEERING_IDS_OPT
 from app.store import ScientificTask
 
 
@@ -28,11 +32,18 @@ class TaskCommit:
         task: The leased scientific task being committed.
         current_seq: Checkpoint sequence the task was scheduled against.
         db_path: Optional override for the SQLite database path.
+        steering_ids: Steering messages whose guidance this task's state
+            already carries. They are acknowledged inside the checkpoint
+            transaction, never before it, so a crash mid-task leaves the
+            steer claimable rather than applied to nothing. Empty for every
+            task that does not read the steering queue (only bootstrap and
+            node tasks do).
     """
 
     task: ScientificTask
     current_seq: int
     db_path: str | None
+    steering_ids: tuple[int, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -50,3 +61,34 @@ class ExactSuccessor:
     task_type: str
     inputs: dict[str, Any]
     idempotency_key: str
+
+
+def _task_commit(
+    task: ScientificTask,
+    current_seq: int,
+    db_path: str | None,
+    opts: dict[str, Any],
+) -> TaskCommit:
+    """Bind a task's commit target to the steering its opts folded in.
+
+    Only the two executors that read the steering queue (bootstrap and node
+    tasks) build their commit this way; every other commit target carries
+    no steering and acknowledges none.
+    """
+    consumed = opts.get(CONSUMED_STEERING_IDS_OPT) or []
+    return TaskCommit(
+        task, current_seq, db_path, tuple(int(item) for item in consumed)
+    )
+
+
+def _ack_consumed_steering(
+    commit: TaskCommit, conn: sqlite3.Connection
+) -> None:
+    """Retire the steering this commit's state carries, in its transaction.
+
+    Called from inside every checkpoint transaction rather than where the
+    guidance was read: the acknowledgement and the state that honors it
+    have to land or roll back together, or a worker lost between them
+    retires a steer the run never acted on.
+    """
+    store.mark_steering_applied(list(commit.steering_ids), conn=conn)

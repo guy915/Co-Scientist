@@ -60,7 +60,7 @@ async def _schedule_successor(
     """
     if node == "ranking":
         result = await engine_tasks_ranking._commit_ranking_finalize(
-            commit.task, state, {}, commit.current_seq, commit.db_path
+            commit, state, {}
         )
         return str(result["successor_task_id"])
     advance = engine_tasks_fanout_reflection._checkpoint_and_advance

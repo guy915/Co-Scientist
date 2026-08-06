@@ -260,6 +260,38 @@ def _sampled_context(
     )
 
 
+async def _evolve_or_none(
+    hypothesis: Hypothesis,
+    other_hypotheses: list[Hypothesis],
+    context: _EvolutionContext,
+    hypothesis_index: int,
+    operation: _EvolutionOperation,
+) -> tuple[Hypothesis | None, dict[str, Any] | None]:
+    """Evolve one parent, isolating any failure to that parent.
+
+    Returns ``(None, None)`` instead of raising, which is already the
+    node's vocabulary for "this parent produced no child" (an unchanged or
+    near-duplicate refinement). Letting the exception out of the
+    ``asyncio.gather`` in ``evolve_node`` instead cancelled every sibling
+    refinement mid-call and aborted the round, discarding children that
+    had already been generated and paid for; on the durable path the whole
+    evolution task then failed and re-ran every parent from scratch.
+    """
+    try:
+        return await evolve_single_hypothesis(
+            hypothesis=hypothesis,
+            other_hypotheses=other_hypotheses,
+            context=context,
+            hypothesis_index=hypothesis_index,
+            operation=operation,
+        )
+    except Exception as e:
+        logger.error(
+            "Evolution failed for hypothesis %s: %s", hypothesis_index, e
+        )
+        return None, None
+
+
 def _build_single_evolution_task(
     state: WorkflowState,
     i: int,
@@ -267,7 +299,7 @@ def _build_single_evolution_task(
     context: _EvolutionContext,
     operator: EvolutionOperator,
 ) -> Coroutine[Any, Any, tuple[Hypothesis | None, dict[str, Any] | None]]:
-    """Builds the evolve_single_hypothesis coroutine for one pool member."""
+    """Builds the per-parent evolution coroutine for one pool member."""
     partners = (
         tuple(combination_partners(context.ranked_hypotheses, hyp))
         if operator in _PARTNER_OPERATORS
@@ -278,12 +310,12 @@ def _build_single_evolution_task(
         specialist_feedback=_specialist_feedback_for(state, hyp),
         partners=partners,
     )
-    return evolve_single_hypothesis(
-        hypothesis=hyp,
-        other_hypotheses=_sampled_context(state, context, hyp),
-        context=context,
-        hypothesis_index=i,
-        operation=operation,
+    return _evolve_or_none(
+        hyp,
+        _sampled_context(state, context, hyp),
+        context,
+        i,
+        operation,
     )
 
 

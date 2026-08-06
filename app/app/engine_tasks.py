@@ -29,6 +29,9 @@ from app.engine_tasks_context import (
 from app.engine_tasks_context import (
     TaskCommit as TaskCommit,
 )
+from app.engine_tasks_context import (
+    _task_commit as _task_commit,
+)
 from app.engine_tasks_fanout import (
     _enqueue_generation_fanout as _enqueue_generation_fanout,
 )
@@ -102,6 +105,12 @@ from app.engine_tasks_node import (
     _emit_finalize_stage_events as _emit_finalize_stage_events,
 )
 from app.engine_tasks_node import (
+    _finalize_replay_or_none as _finalize_replay_or_none,
+)
+from app.engine_tasks_node import (
+    _halt_finalize_if_blocked as _halt_finalize_if_blocked,
+)
+from app.engine_tasks_node import (
     _pause_finalize_if_requested as _pause_finalize_if_requested,
 )
 from app.engine_tasks_node import (
@@ -111,7 +120,16 @@ from app.engine_tasks_node import (
     _require_active_run as _require_active_run,
 )
 from app.engine_tasks_node import (
+    _restore_finalize_checkpoint as _restore_finalize_checkpoint,
+)
+from app.engine_tasks_node import (
     _restore_node_task_state as _restore_node_task_state,
+)
+from app.engine_tasks_node import (
+    _settle_finalize_outcome as _settle_finalize_outcome,
+)
+from app.engine_tasks_node import (
+    execute_finalize as execute_finalize,
 )
 from app.engine_tasks_ranking import (
     RANKING_WAVE_SIZE as RANKING_WAVE_SIZE,
@@ -183,6 +201,9 @@ from app.engine_tasks_support import (
     NodeCompletion as NodeCompletion,
 )
 from app.engine_tasks_support import (
+    SafetyHoldError as SafetyHoldError,
+)
+from app.engine_tasks_support import (
     SupersededTaskError as SupersededTaskError,
 )
 from app.engine_tasks_support import (
@@ -230,8 +251,8 @@ from app.engine_tasks_support import (
 from app.engine_tasks_support import (
     _successor_task_type as _successor_task_type,
 )
-from app.report_render import ReportRequest, finalize_report, make_emitter
-from app.run_modes import normalize_run_tier, resolved_run_config
+from app.report_render import make_emitter
+from app.run_modes import resolved_run_config
 from app.safety import (
     ScreenSubject,
     apply_safety_gate,
@@ -255,8 +276,14 @@ async def _screen_bootstrap_intake(
     otherwise let a fresh contextual verdict re-hold an approved run on
     every resume).
 
-    Returns a withheld result if the goal was blocked or held, else
-    ``None`` to let the caller proceed.
+    Returns a withheld result if the goal was blocked, else ``None`` to
+    let the caller proceed.
+
+    Raises:
+        SafetyHoldError: If the goal was held for human adjudication. A
+            block is terminal, so the task is genuinely done; a hold is a
+            wait, and must leave this bootstrap claimable again for when a
+            reviewer approves it.
     """
     decision = await screen_with_escalation(
         run.id,
@@ -268,18 +295,22 @@ async def _screen_bootstrap_intake(
     )
     async for _ in apply_safety_gate(run.id, decision, emit, db_path=db_path):
         pass
-    if decision.decision in {"block", "hold"}:
+    if decision.decision == "hold":
+        raise SafetyHoldError(f"intake held for review: {decision.reason}")
+    if decision.decision == "block":
         return {"run_id": run.id, "status": "withheld", "terminal": True}
     return None
 
 
 async def _prepare_bootstrap_state(
     task: ScientificTask, run: store.RunRow, db_path: str | None
-) -> tuple[dict[str, Any], dict[str, Any] | None]:
+) -> tuple[dict[str, Any], TaskCommit, dict[str, Any] | None]:
     """Build initial workflow state, honoring a cancel/pause during prep.
 
-    Returns the prepared state and, if the run was paused meanwhile, the
-    checkpointed-pause result the caller must return instead of continuing.
+    Returns the prepared state, the commit target carrying whatever
+    steering this state folded in, and -- if the run was paused meanwhile
+    -- the checkpointed-pause result the caller must return instead of
+    continuing.
     """
     generator, opts = _generator_and_opts(task, db_path)
     state = await generator.prepare_task_state(
@@ -287,19 +318,17 @@ async def _prepare_bootstrap_state(
         opts=opts,
         run_id=run.id,
     )
+    commit = _task_commit(task, 0, db_path, opts)
     refreshed = store.get_run(run.id, db_path=db_path)
     if refreshed is None or refreshed.status == RunStatus.CANCELLED.value:
         raise RuntimeError("run cancelled during bootstrap")
     if refreshed.status == RunStatus.PAUSED.value:
         checkpoint_seq = _save_paused_state(
-            task,
-            state,
-            f"{NODE_TASK_PREFIX}supervisor",
-            expected_checkpoint_seq=0,
-            db_path=db_path,
+            commit, state, f"{NODE_TASK_PREFIX}supervisor"
         )
-        return state, {"checkpoint_seq": checkpoint_seq, "status": "paused"}
-    return state, None
+        paused = {"checkpoint_seq": checkpoint_seq, "status": "paused"}
+        return state, commit, paused
+    return state, commit, None
 
 
 async def execute_bootstrap(
@@ -311,21 +340,18 @@ async def execute_bootstrap(
     withheld = await _screen_bootstrap_intake(run, emit, db_path)
     if withheld is not None:
         return withheld
+    run = _require_run(task, db_path)  # the gate may have redacted the goal
 
     store.update_run_status(run.id, RunStatus.RUNNING, db_path=db_path)
     # Sync the run row before the generator is built (_generator_and_opts
     # reads it back via run_used_offline), so a config-pinned llm_backend
     # takes effect on this boundary.
     sync_engine_llm_backend(run.id, resolved_run_config(run.config), db_path)
-    state, paused = await _prepare_bootstrap_state(task, run, db_path)
+    state, commit, paused = await _prepare_bootstrap_state(task, run, db_path)
     if paused is not None:
         return paused
     checkpoint_seq, successor_id = _save_state_and_enqueue(
-        task,
-        state,
-        "supervisor",
-        expected_checkpoint_seq=0,
-        db_path=db_path,
+        commit, state, "supervisor"
     )
     await emit(
         "scientific_task",
@@ -360,7 +386,7 @@ async def execute_node_task(
         state["durable_task_queue"] = _durable_queue_snapshot(
             task.run_id, db_path
         )
-    commit = TaskCommit(task, current_seq, db_path)
+    commit = _task_commit(task, current_seq, db_path, opts)
     paused = _pause_node_task_if_requested(commit, run, node_name, state)
     if paused is not None:
         return paused
@@ -375,58 +401,6 @@ async def execute_node_task(
     return await _commit_node_result(
         commit, run, node_name, committed, successor
     )
-
-
-def _restore_finalize_checkpoint(
-    task: ScientificTask, db_path: str | None
-) -> tuple[dict[str, Any], dict[str, Any]]:
-    """Restore the workflow state the run's last committed checkpoint holds."""
-    from co_scientist.checkpoint import restore_workflow_state
-
-    checkpoint, _ = _latest_task_checkpoint(task, db_path)
-    generator = _generator_for_restore(task, db_path)
-    state = restore_workflow_state(
-        checkpoint["state"], tool_registry=generator.tool_registry
-    )
-    return checkpoint, state
-
-
-async def execute_finalize(
-    task: ScientificTask, *, db_path: str | None = None
-) -> dict[str, Any]:
-    """Drain the final checkpoint and publish through the shared report gate."""
-    run = _require_run(task, db_path)
-    if run.status == RunStatus.CANCELLED.value:
-        raise RuntimeError("run cancelled before finalization")
-    if (
-        run.status == RunStatus.COMPLETED.value
-        and store.get_latest_report(run.id, db_path=db_path) is not None
-    ):
-        return {"run_id": run.id, "status": "completed", "replayed": True}
-    checkpoint, state = _restore_finalize_checkpoint(task, db_path)
-    paused = _pause_finalize_if_requested(task, run, checkpoint, state, db_path)
-    if paused is not None:
-        return paused
-    drained, execution_time = _drain_and_persist_final_state(
-        run, state, db_path
-    )
-    emit = make_emitter(run.id, db_path=db_path)
-    await _emit_finalize_stage_events(emit, drained)
-    async for _ in finalize_report(
-        run.id,
-        ReportRequest(
-            research_goal=run.research_goal,
-            run_mode=normalize_run_tier(run.profile),
-            provider="engine",
-            execution_time=execution_time,
-            db_path=db_path,
-            **drained.report_inputs,
-        ),
-        emit,
-    ):
-        pass
-    final = store.get_run(run.id, db_path=db_path)
-    return {"run_id": run.id, "status": final.status if final else "missing"}
 
 
 # Non-node task types, by exact match (node/unrecognized: see below).

@@ -84,11 +84,9 @@ def test_orchestrator_priority_reaches_durable_successor(
     task, deferred = _seed_orchestrator_task(run.id, isolated_db)
 
     engine_tasks._save_state_and_enqueue(
-        task,
+        engine_tasks.TaskCommit(task, 1, isolated_db),
         _priority_state(run.id, deferred.id),
         "generate",
-        expected_checkpoint_seq=1,
-        db_path=isolated_db,
     )
 
     successor = store.list_tasks(run.id, db_path=isolated_db)[-1]

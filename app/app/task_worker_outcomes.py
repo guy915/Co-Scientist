@@ -52,6 +52,25 @@ def _complete_superseded_task(
         logger.info("Task %s superseded by a newer checkpoint", task.id)
 
 
+def _park_held_task(
+    task: ScientificTask, worker_id: str, exc: Exception, db_path: str | None
+) -> None:
+    """Park a task a safety gate held, awaiting a reviewer's decision.
+
+    Not a failure: nothing this worker can do resolves a hold, so the
+    wait must not spend the retry budget. Not a success either --
+    recording it as one is what stranded the run, since a succeeded row is
+    never revived and the boundary's idempotency key cannot change while
+    the run makes no progress, so approval re-enqueued nothing. Parked,
+    the row is what ``resume_run_tasks`` releases once the hold is
+    approved.
+    """
+    if not store.park_task(task.id, worker_id, str(exc), db_path=db_path):
+        logger.warning("Task %s lost its lease while held", task.id)
+    else:
+        logger.info("Task %s parked pending safety review", task.id)
+
+
 def _fail_unsupported_task(
     task: ScientificTask, worker_id: str, exc: Exception, db_path: str | None
 ) -> None:
@@ -87,12 +106,14 @@ def _handle_task_failure(
     """Classify one task failure and record its outcome accordingly.
 
     Preserves the original except-clause priority exactly: a superseded
-    checkpoint is a successful idempotent outcome, an unsupported task type
-    is the one permanent failure, and everything else keeps its retry
-    budget.
+    checkpoint is a successful idempotent outcome, a safety hold is a
+    durable wait, an unsupported task type is the one permanent failure,
+    and everything else keeps its retry budget.
     """
     if isinstance(exc, engine_tasks.SupersededTaskError):
         _complete_superseded_task(task, worker_id, exc, db_path)
+    elif isinstance(exc, engine_tasks.SafetyHoldError):
+        _park_held_task(task, worker_id, exc, db_path)
     elif isinstance(exc, UnsupportedTaskError):
         _fail_unsupported_task(task, worker_id, exc, db_path)
     else:

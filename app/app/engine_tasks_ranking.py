@@ -316,11 +316,9 @@ async def execute_ranking_match(
 
 
 async def _commit_ranking_finalize(
-    task: ScientificTask,
+    commit: TaskCommit,
     committed: dict[str, Any],
     update: dict[str, Any],
-    current_seq: int,
-    db_path: str | None,
 ) -> dict[str, Any]:
     """Checkpoint the finalized tournament and report matches committed.
 
@@ -335,17 +333,13 @@ async def _commit_ranking_finalize(
     # ``Any``; restate the engine's declared type on the binding.
     successor: str | None = next_task_type("ranking", committed)
     checkpoint_seq, successor_id = _save_state_and_enqueue(
-        task,
-        committed,
-        successor,
-        expected_checkpoint_seq=current_seq,
-        db_path=db_path,
+        commit, committed, successor
     )
     await _emit_node_completion(
-        task.run_id,
+        commit.task.run_id,
         NodeCompletion("ranking", successor, checkpoint_seq),
         committed,
-        db_path,
+        commit.db_path,
     )
     return {
         "checkpoint_seq": checkpoint_seq,
@@ -376,5 +370,5 @@ async def execute_ranking_finalize(
     committed = apply_task_update(state, update)
     committed.pop("pending_ranking_matchups", None)
     return await _commit_ranking_finalize(
-        task, committed, update, current_seq, db_path
+        TaskCommit(task, current_seq, db_path), committed, update
     )

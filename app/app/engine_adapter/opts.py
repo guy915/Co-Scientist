@@ -22,6 +22,16 @@ from app.run_modes import (
 if TYPE_CHECKING:
     from app.credentials import ByokCredential
 
+# Opts key carrying the ids of the steering messages whose text this opts
+# dict folded in. It is app bookkeeping, not engine input -- the engine
+# reads opts by explicit key and never sees it. The durable executor takes
+# it off the opts and acknowledges those ids inside the transaction that
+# commits the checkpoint carrying the guidance, so the acknowledgement and
+# the state that honors it are one write. Acknowledging at build time
+# instead put minutes of provider work between the two, and a worker that
+# died in that window retired a steer nothing had acted on.
+CONSUMED_STEERING_IDS_OPT = "consumed_steering_ids"
+
 
 def _clean_list_field(setup: dict[str, Any], key: str) -> list[str]:
     """Return a setup dict's list field, stringified and cleaned."""
@@ -54,37 +64,30 @@ def _append_if(parts: list[str], value: str | None) -> None:
 
 
 def _steering_preference_part(
-    db_path: str | None, pending_steering: list[store.MessageRow]
+    pending_steering: list[store.MessageRow],
 ) -> str | None:
-    """Return the queued-steering preference text, marking it applied.
+    """Return the queued-steering preference text, acknowledging nothing.
 
-    Returns None (and leaves the queue untouched) when there is nothing
-    pending.
+    Returns None when there is nothing pending. Acknowledgement is
+    deliberately not done here: see ``CONSUMED_STEERING_IDS_OPT``.
     """
     if not pending_steering:
         return None
     guidance = "\n".join(f"- {m.content}" for m in pending_steering)
-    store.mark_steering_applied(
-        [m.id for m in pending_steering], db_path=db_path
-    )
     return f"User steering guidance:\n{guidance}"
 
 
 def _fold_steering_preferences(
-    db_path: str | None,
     setup_text: str,
     pending_steering: list[store.MessageRow],
 ) -> str | None:
     """Fold setup guidance and queued user steering into one "preferences" opt.
 
-    Steering consumed here is marked applied so a later iteration does not
-    replay the same message. Returns None when there is nothing to fold.
+    Returns None when there is nothing to fold.
     """
     preference_parts: list[str] = []
     _append_if(preference_parts, setup_text)
-    _append_if(
-        preference_parts, _steering_preference_part(db_path, pending_steering)
-    )
+    _append_if(preference_parts, _steering_preference_part(pending_steering))
     return "\n\n".join(preference_parts) if preference_parts else None
 
 
@@ -165,19 +168,22 @@ def _build_engine_opts(
 
     Folds the composer "setup" (focus/attributes/requirements/criteria), any
     queued user steering, the literature-review toggle, and the interview's
-    lab constraints (K5) into one opts dict. Steering consumed here is marked
-    applied so a later iteration does not replay the same message.
+    lab constraints (K5) into one opts dict. Steering read here is reported
+    under ``CONSUMED_STEERING_IDS_OPT`` for the caller to acknowledge at its
+    commit; nothing is acknowledged here.
     """
     initial_opts = _setup_opts_from_cfg(cfg.get("setup"))
-    # Flag queued steering as a durable high-priority task BEFORE folding it
-    # (folding marks it applied): the engine's orchestrator then schedules a
-    # high-priority GENERATE to incorporate it at the next safe boundary,
-    # rather than the steering only appearing as initial preference text.
+    # Flag queued steering as a durable high-priority task as well as folding
+    # its text in: the engine's orchestrator then schedules a high-priority
+    # GENERATE to incorporate it at the next safe boundary, rather than the
+    # steering only appearing as initial preference text.
     pending_steering = store.get_pending_steering(run_id, db_path=db_path)
     if pending_steering:
         initial_opts["pending_steering"] = True
+        initial_opts[CONSUMED_STEERING_IDS_OPT] = [
+            message.id for message in pending_steering
+        ]
     preferences = _fold_steering_preferences(
-        db_path,
         str(initial_opts.get("run_setup_guidance") or ""),
         pending_steering,
     )

@@ -10,6 +10,7 @@ re-exports every name here so its namespace keeps resolving.
 from __future__ import annotations
 
 import asyncio
+import logging
 from dataclasses import dataclass
 from typing import Any
 
@@ -21,6 +22,8 @@ from co_scientist.constants import (
 )
 
 from app.store import ScientificTask
+
+logger = logging.getLogger(__name__)
 
 
 def _wave_size() -> int:
@@ -69,6 +72,21 @@ class _WaveResult:
     total_calls: int
     next_index: int
     last_pair: list[str]
+
+
+@dataclass(frozen=True)
+class _JudgedWave:
+    """The subset of a wave that produced a verdict, in wave order.
+
+    Attributes:
+        pairs: Matchups whose judge returned; never the ones that raised.
+        judgements: Each surviving matchup's (winner, response) verdict.
+        depths: Each surviving matchup's budgeted debate depth.
+    """
+
+    pairs: list[Any]
+    judgements: list[tuple[str, dict[str, Any]]]
+    depths: list[int]
 
 
 @dataclass(frozen=True)
@@ -240,15 +258,47 @@ async def _judge_one_matchup(
     return judgement
 
 
+def _surviving_judgements(
+    wave: list[Any],
+    judged: list[Any],
+    depths: list[int],
+) -> _JudgedWave:
+    """Drop the matchups whose judge raised, keeping their siblings.
+
+    A judge failure is per-matchup -- a throttled call, a malformed verdict
+    after every retry -- and the wave's other comparisons are finished and
+    paid for. Letting one exception out of the gather cancelled them all,
+    failed the wave task, and spent one of its three attempts re-judging
+    work that had already succeeded.
+    """
+    pairs: list[Any] = []
+    judgements: list[tuple[str, dict[str, Any]]] = []
+    kept_depths: list[int] = []
+    for offset, result in enumerate(judged):
+        if isinstance(result, BaseException):
+            logger.warning(
+                "Ranking matchup %s failed and was dropped from its wave: %s",
+                offset,
+                result,
+            )
+            continue
+        pairs.append(wave[offset])
+        judgements.append(result)
+        kept_depths.append(depths[offset])
+    return _JudgedWave(pairs, judgements, kept_depths)
+
+
 async def _judge_wave_matchups(
     plan: _WavePlan,
     state: dict[str, Any],
     eligible: list[Any],
-) -> tuple[list[tuple[str, dict[str, Any]]], list[int]]:
+) -> _JudgedWave:
     """Judge one wave of matchups concurrently against a shared Elo snapshot.
 
     The engine's ranking semaphore bounds the real fan-out; gather only
-    offers it more than one call to bound.
+    offers it more than one call to bound. Per-matchup failures are
+    isolated (see ``_surviving_judgements``) rather than raised, so the
+    return is the *surviving* subset, not the whole wave.
 
     Args:
         plan: The wave to judge and its position in the round.
@@ -256,7 +306,8 @@ async def _judge_wave_matchups(
         eligible: Hypotheses eligible for a matchup (the Elo snapshot).
 
     Returns:
-        A tuple of (judgements in wave order, per-matchup debate depths).
+        The matchups that produced a verdict, with their judgements and
+        debate depths, in wave order.
     """
     from co_scientist.agents.ranking.ranking import (
         _gather_tournament_context,
@@ -274,9 +325,10 @@ async def _judge_wave_matchups(
         *(
             _judge_one_matchup(pair, offset, judge_context, depths[offset])
             for offset, pair in enumerate(wave)
-        )
+        ),
+        return_exceptions=True,
     )
-    return list(judged), depths
+    return _surviving_judgements(wave, list(judged), depths)
 
 
 def _apply_wave_elo(
@@ -351,10 +403,13 @@ async def _advance_ranking_wave(
         return _WaveResult(
             carried.details, carried.total_calls, plan.rounds, []
         )
-    judged, depths = await _judge_wave_matchups(plan, state, eligible)
+    survived = await _judge_wave_matchups(plan, state, eligible)
     new_details, calls_delta, last_pair = _apply_wave_elo(
-        plan.wave, judged, depths, state
+        survived.pairs, survived.judgements, survived.depths, state
     )
+    # The round index advances by the whole wave, not by what survived: a
+    # dropped matchup consumed its slot in the budget, and rewinding the
+    # index would re-offer the same pairing to the next task forever.
     return _WaveResult(
         details=carried.details + new_details,
         total_calls=carried.total_calls + calls_delta,

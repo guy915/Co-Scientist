@@ -24,9 +24,10 @@ def _make_item(result: dict[str, Any]) -> Any:
 
     class _Item:
         status = "completed"
+        inputs: dict[str, Any] = {}
+        result: dict[str, Any] = {}
 
     item = _Item()
-    item.inputs = {}
     item.result = result
     return item
 

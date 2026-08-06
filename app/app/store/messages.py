@@ -118,14 +118,25 @@ def get_pending_steering(
         return [_row_to_message(r) for r in rows]
 
 
-def mark_steering_applied(ids: list[int], db_path: str | None = None) -> None:
-    """Mark steering messages as consumed so they are not applied twice."""
+def mark_steering_applied(
+    ids: list[int],
+    db_path: str | None = None,
+    conn: sqlite3.Connection | None = None,
+) -> None:
+    """Mark steering messages as consumed so they are not applied twice.
+
+    ``conn`` exists so the acknowledgement can join the transaction that
+    commits the checkpoint carrying the guidance. Acknowledging on its own
+    connection meant the two committed separately: a worker that died
+    between them left the message applied and its guidance in a state that
+    was never written, so the scientist's steer was silently dropped.
+    """
     if not ids:
         return
     # Message ids are integers from our own DB, so building the IN list via
     # placeholders (one '?' per id) stays fully parameterized.
     placeholders = ",".join("?" * len(ids))
-    with connect(db_path) as conn:
+    with _use_conn(conn, db_path) as conn:
         conn.execute(
             f"UPDATE messages SET applied=1 WHERE id IN ({placeholders})", ids
         )

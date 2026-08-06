@@ -9,6 +9,7 @@ ranking-tournament, and dispatch clusters.
 from typing import Any
 
 import pytest
+from co_scientist.constants import NOT_VIABLE_SCORE
 from co_scientist.models import (
     Article,
     Hypothesis,
@@ -84,6 +85,8 @@ def test_scientist_inputs_merge_into_engine_state_once(
         ),
         db_path=isolated_db,
     )
+    # No verdict column: a row written before the review gained one, so the
+    # merge recovers the verdict from the summary prose (the legacy path).
     store.add_review(
         store.NewReview(
             run_id=run.id,
@@ -103,7 +106,10 @@ def test_scientist_inputs_merge_into_engine_state_once(
     assert [hypothesis.id for hypothesis in merged] == [hypothesis_id]
     assert merged[0].origin.value == "scientist_manual"
     assert len(merged[0].reviews) == 1
-    assert merged[0].reviews[0].overall_score == 20
+    # On the engine's own 1-10 review rubric, not a separate 0-100 scale:
+    # the ranking prompt reads this score beside the agents' (see
+    # human_input.VERDICT_REVIEW_SCORES).
+    assert merged[0].reviews[0].overall_score == NOT_VIABLE_SCORE
     assert "cannot distinguish" in merged[0].reviews[0].constructive_feedback
 
 

@@ -14,6 +14,7 @@ from typing import Any
 from app import store
 from app.elo import INITIAL_ELO
 from app.engine_tasks_support import BOOTSTRAP_TASK, NODE_TASK_PREFIX
+from app.human_input import VERDICT_REVIEW_SCORES
 from app.store import RunStatus, ScientificTask
 
 
@@ -97,44 +98,78 @@ def _merge_scientist_hypotheses(
         by_id[hypothesis_id] = hypothesis
 
 
+def _row_verdict(row: dict[str, Any]) -> str:
+    """Return a scientist review row's verdict.
+
+    Reads the stored ``verdict`` column. Rows written before that column
+    existed carry the verdict only inside their summary prose, so those fall
+    back to the original word scan; "revise" is the neutral landing for a
+    row whose verdict cannot be recovered either way, because it neither
+    endorses nor condemns the idea.
+    """
+    verdict = str(row.get("verdict") or "").strip().lower()
+    if verdict in VERDICT_REVIEW_SCORES:
+        return verdict
+    summary = str(row.get("summary") or "").lower()
+    return next(
+        (value for value in VERDICT_REVIEW_SCORES if value in summary),
+        "revise",
+    )
+
+
+def _scientist_hypothesis_review(row: dict[str, Any]) -> Any:
+    """Build the engine-side review for one persisted scientist review row.
+
+    Authorship, the verdict, and the source row id ride in
+    ``detailed_feedback`` because the engine's ``HypothesisReview`` has no
+    fields for them -- which is why a human review used to come back out of
+    the drain as an anonymous agent review. The drain reads them back (see
+    ``drain_reviews._persist_scientist_review``).
+    """
+    from co_scientist.models import HypothesisReview
+
+    verdict = _row_verdict(row)
+    score = VERDICT_REVIEW_SCORES[verdict]
+    critique = str(row.get("critique") or "")
+    summary = str(row.get("summary") or "")
+    return HypothesisReview(
+        review_summary=f"{_review_marker(row)} {summary}",
+        scores={"scientist_assessment": score},
+        safety_ethical_concerns="",
+        detailed_feedback={
+            "scientist_critique": critique,
+            "scientist_author": str(row.get("author") or ""),
+            "scientist_verdict": verdict,
+            "scientist_review_id": str(row["id"]),
+        },
+        constructive_feedback=critique,
+        overall_score=float(score),
+    )
+
+
+def _review_marker(row: dict[str, Any]) -> str:
+    """Return the summary marker identifying a merged scientist review."""
+    return f"[scientist-review:{row['id']}]"
+
+
 def _merge_scientist_reviews(
     by_id: dict[str, Any],
     run_id: str,
     db_path: str | None,
 ) -> None:
     """Append durable scientist reviews not yet reflected on the hypothesis."""
-    from co_scientist.models import HypothesisReview
-
-    verdict_scores = {"support": 90, "revise": 60, "oppose": 20}
     for row in store.list_reviews(run_id, db_path=db_path):
         if row.get("reviewer_agent") != "scientist":
             continue
         hypothesis = by_id.get(str(row.get("hypothesis_id")))
         if hypothesis is None:
             continue
-        marker = f"[scientist-review:{row['id']}]"
+        marker = _review_marker(row)
         if any(
             marker in review.review_summary for review in hypothesis.reviews
         ):
             continue
-        summary = str(row.get("summary") or "")
-        verdict = next(
-            (value for value in verdict_scores if value in summary.lower()),
-            "revise",
-        )
-        score = verdict_scores[verdict]
-        hypothesis.reviews.append(
-            HypothesisReview(
-                review_summary=f"{marker} {summary}",
-                scores={"scientist_assessment": score},
-                safety_ethical_concerns="",
-                detailed_feedback={
-                    "scientist_critique": str(row.get("critique") or "")
-                },
-                constructive_feedback=str(row.get("critique") or ""),
-                overall_score=float(score),
-            )
-        )
+        hypothesis.reviews.append(_scientist_hypothesis_review(row))
 
 
 def _merge_scientist_inputs(

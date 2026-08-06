@@ -142,6 +142,52 @@ def pause_run_tasks(run_id: str, *, db_path: str | None = None) -> int:
     return int(changed)
 
 
+def park_task(
+    task_id: str,
+    worker_id: str,
+    reason: str,
+    *,
+    db_path: str | None = None,
+) -> bool:
+    """Park one leased task as paused work awaiting an external release.
+
+    The waiting half of the durable queue. A task that stops because a
+    person has to decide something has neither failed (retrying cannot
+    supply the decision) nor succeeded (its work is not done), and
+    recording it as either strands the run: a succeeded row can never be
+    revived -- ``revive_task_for_retry`` deliberately refuses it -- and the
+    ``{task_type}:{checkpoint_seq}`` idempotency key cannot change while
+    the run makes no progress, so re-enqueueing the boundary hits ON
+    CONFLICT DO NOTHING and creates nothing to claim. Parking leaves the
+    row exactly where ``resume_run_tasks`` finds it.
+
+    The attempt counter is reset for the reason
+    :func:`revive_task_for_retry` records: release is a fresh operator
+    intent, not a continuation of a retry sequence. Spending the budget on
+    holds instead would strand a run held more than twice at exactly the
+    silent dead end this function exists to prevent, and the loop is
+    bounded by how often a person adjudicates rather than by the worker.
+
+    Args:
+        task_id: The leased task to park.
+        worker_id: Identity that must still own the lease.
+        reason: Human-readable reason recorded on the row.
+        db_path: Optional override for the SQLite database path.
+
+    Returns:
+        True when this worker still owned the lease and parked the task.
+    """
+    now = _now()
+    with transaction(db_path) as conn:
+        changed = conn.execute(
+            "UPDATE scientific_tasks SET status='paused', attempt=0, "
+            "lease_owner=NULL, lease_expires_at=NULL, error=?, updated_at=? "
+            "WHERE id=? AND lease_owner=? AND status='leased'",
+            (reason, now, task_id, worker_id),
+        ).rowcount
+    return bool(changed)
+
+
 def resume_run_tasks(run_id: str, *, db_path: str | None = None) -> int:
     """Return paused queued work to the global ready queue."""
     now = _now()

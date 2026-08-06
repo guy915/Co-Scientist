@@ -25,6 +25,7 @@ from app.store.tasks_lifecycle import cancel_task as cancel_task
 from app.store.tasks_lifecycle import (
     clamp_task_priority as clamp_task_priority,
 )
+from app.store.tasks_lifecycle import park_task as park_task
 from app.store.tasks_lifecycle import pause_run_tasks as pause_run_tasks
 from app.store.tasks_lifecycle import reprioritize_task as reprioritize_task
 from app.store.tasks_lifecycle import resume_run_tasks as resume_run_tasks

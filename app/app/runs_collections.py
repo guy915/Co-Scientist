@@ -85,37 +85,52 @@ async def get_safety(run_id: str) -> dict[str, Any]:
     return {"safety": store.list_safety_decisions(run_id)}
 
 
-def _apply_adjudication_lifecycle(
+async def _apply_adjudication_lifecycle(
     run: store.RunRow, decision: dict[str, Any], resolution: str
 ) -> None:
     """Apply the run-lifecycle consequence of one adjudicated decision.
 
     Intake/final holds gate the run's whole goal or report, so a rejection
-    blocks the run. A hypothesis-stage hold concerns one idea the engine
-    already kept out of the pool and the report; rejecting it confirms the
-    exclusion, and the recorded resolution is the verdict -- the run's
-    lifecycle is untouched. Approved intake holds return to draft; approved
-    final holds retain a checkpoint and can resume through the ordinary
-    recovery path.
+    blocks the run and an approval releases it. A hypothesis-stage hold
+    concerns one idea the engine already kept out of the pool and the
+    report; rejecting it confirms the exclusion, and the recorded
+    resolution is the verdict -- the run's lifecycle is untouched.
 
     Args:
         run: The run whose decision was adjudicated.
         decision: The resolved decision row (carries its ``stage``).
         resolution: ``"approved"`` or ``"rejected"``.
     """
-    if resolution == "rejected" and decision["stage"] != "hypothesis":
+    if decision["stage"] == "hypothesis":
+        return
+    if resolution == "rejected":
         store.update_run_status(
             run.id,
             RunStatus.BLOCKED,
             error="Safety reviewer rejected held content.",
         )
-    elif resolution == "approved" and run.status == RunStatus.PAUSED.value:
-        target = (
-            RunStatus.DRAFT
-            if decision["stage"] == "intake"
-            else RunStatus.PAUSED
-        )
-        store.update_run_status(run.id, target, error=None)
+    elif run.status == RunStatus.PAUSED.value:
+        await _release_approved_hold(run.id)
+
+
+async def _release_approved_hold(run_id: str) -> None:
+    """Relaunch a run whose intake or final hold a reviewer just approved.
+
+    The gate that held the run parked its task rather than completing it
+    (``engine_tasks.SafetyHoldError``), so the boundary the run stopped at
+    is still on the queue waiting to be released -- which is exactly what
+    the resume path does. Approval used to only rewrite the run's status,
+    which left the queue untouched: the holding task had already succeeded,
+    re-enqueueing its boundary hit the same idempotency key and created
+    nothing, and the run sat with no claimable work forever.
+
+    The stage is not re-screened on the way back through: the escalation
+    wrapper skips a stage a reviewer approved (``screen_with_escalation``),
+    so a fresh contextual verdict cannot re-hold what a person released.
+    """
+    from app.runs_lifecycle import _launch_resume
+
+    await _launch_resume(run_id)
 
 
 @router.post("/{run_id}/safety/{decision_id}/adjudicate")
@@ -142,7 +157,7 @@ async def adjudicate_safety(
         )
     decisions = store.list_safety_decisions(run_id)
     decision = next(item for item in decisions if item["id"] == decision_id)
-    _apply_adjudication_lifecycle(run, decision, body.resolution)
+    await _apply_adjudication_lifecycle(run, decision, body.resolution)
     return {"resolution": body.resolution, "decision_id": decision_id}
 
 

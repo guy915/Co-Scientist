@@ -74,11 +74,7 @@ async def _checkpoint_and_advance(
     # the binding rather than passing an unchecked value on.
     successor: str | None = next_task_type(node_name, committed)
     checkpoint_seq, successor_id = _save_state_and_enqueue(
-        commit.task,
-        committed,
-        successor,
-        expected_checkpoint_seq=commit.current_seq,
-        db_path=commit.db_path,
+        commit, committed, successor
     )
     await _emit_node_completion(
         commit.task.run_id,
