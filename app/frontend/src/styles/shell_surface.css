@@ -46,6 +46,13 @@
 .ucs-page--report {
   min-height: 0;
   overflow: hidden;
+  /* Horizontal-scroll fallback: report content (titlebar, tab strip) can
+     shrink below what it contains at narrow widths, and this was the
+     ancestor whose unconditional overflow: hidden clipped that overflow away
+     with nothing to make it reachable. Vertical scrolling is unaffected --
+     it stays owned by the inner .cosci-report-scroll region -- so only the x
+     axis is relaxed here. */
+  overflow-x: auto;
 }
 
 .ucs-nav-panel {

@@ -61,6 +61,8 @@ vi.mock('@/api/runs', async importActual => {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  // A stubbed viewport must not leak into the next test's breakpoint.
+  vi.unstubAllGlobals();
   setStream([]);
   vi.mocked(runsApi.getRun).mockResolvedValue(makeRun('Study pathway X'));
   // Reset per-run collection mocks so overrides do not leak between tests.
@@ -96,6 +98,62 @@ it('sends the back arrow to the conversation this run came from', async () => {
 
 it('falls back to the workspace when no conversation started the run', async () => {
   renderAt('/runs/run-1/details');
+
+  expect(await screen.findByRole('link', {name: 'Back'})).toHaveAttribute(
+    'href',
+    '/',
+  );
+});
+
+/**
+ * Pins the viewport to one side of the phone breakpoint for a single test.
+ *
+ * `useIsMobile` reads `matchMedia`, which jsdom does not implement, so an
+ * unstubbed test is always "desktop" -- which would let the mobile-only
+ * assertion below pass for the wrong reason.
+ *
+ * @param mobile Whether the viewport should match the phone breakpoint.
+ */
+function stubViewport(mobile: boolean) {
+  vi.stubGlobal(
+    'matchMedia',
+    vi.fn(() => ({
+      matches: mobile,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+    })),
+  );
+}
+
+// MobileIdeaView (the ideas tab's mobile detail view) has no back control of
+// its own -- the titlebar's back arrow is its only visible escape back to
+// the ranked list, so an open idea must redirect it rather than leave the
+// run entirely.
+it('returns to the ranked ideas list when an idea is open', async () => {
+  stubViewport(true);
+  renderAt('/runs/run-1/ideas?idea=h-1');
+
+  expect(
+    await screen.findByRole('link', {name: 'Back to ranked ideas'}),
+  ).toHaveAttribute('href', '/runs/run-1/ideas');
+});
+
+// The desktop split-pane shows the ranked list and the detail together, so
+// the list is never somewhere the reader has navigated away from. Back keeps
+// meaning "leave the run" there; retargeting it on every `?idea=` would
+// strand a reader who pressed Back to get out of the run.
+it('still leaves the run with an idea open on desktop', async () => {
+  stubViewport(false);
+  renderAt('/runs/run-1/ideas?idea=h-1');
+
+  expect(await screen.findByRole('link', {name: 'Back'})).toHaveAttribute(
+    'href',
+    '/',
+  );
+});
+
+it('still leaves the run from the ideas tab when no idea is open', async () => {
+  renderAt('/runs/run-1/ideas');
 
   expect(await screen.findByRole('link', {name: 'Back'})).toHaveAttribute(
     'href',
@@ -194,4 +252,20 @@ it('renders the cancelled end state without report tabs', async () => {
   expect(await screen.findByText('Run cancelled')).toBeInTheDocument();
   expect(screen.queryByRole('link', {name: 'Goal Details'})).toBeNull();
   expect(screen.queryByText('Run Specifications')).toBeNull();
+});
+
+// The report page grid is nested inside .ucs-page--report, an ancestor whose
+// own overflow: hidden was relaxed to allow horizontal scrolling (see
+// shell_surface.css) -- an unconditional overflow-hidden here would keep
+// clipping locally before that ancestor ever saw the overflow, making the
+// ancestor fix inert. Vertical scrolling stays owned by the inner
+// .cosci-report-scroll region, so only the x axis is relaxed.
+it('lets report-page content scroll horizontally on phone instead of clipping it', async () => {
+  renderAt('/runs/run-1/details');
+  await screen.findByText('Run Specifications');
+
+  const page = document.querySelector('.cosci-report-page');
+  expect(page?.className).toContain('max-[700px]:overflow-x-auto');
+  expect(page?.className).toContain('max-[700px]:overflow-y-hidden');
+  expect(page?.className).not.toContain('max-[700px]:overflow-hidden');
 });

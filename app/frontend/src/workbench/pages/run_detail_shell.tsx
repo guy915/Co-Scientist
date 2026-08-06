@@ -1,8 +1,9 @@
 import {useCallback, useState, type ReactNode} from 'react';
-import {Link, useParams} from 'react-router-dom';
+import {Link, useParams, useSearchParams} from 'react-router-dom';
 import {type RunStatus} from '@/api/runs';
 import {Icon, type IconName} from '@/components/icon';
 import {TruncatedLabel} from '../components/truncated_label';
+import {useIsMobile} from '../hooks/use_is_mobile';
 import {TABS, tabPath, type TabName} from '../run_tabs';
 import {
   REPORT_DOCUMENT_CLASSES,
@@ -18,14 +19,26 @@ const TAB_META: Record<TabName, {icon: IconName; label: string}> = {
   ideas: {icon: 'lightbulb', label: 'All Ideas'},
 };
 
+/**
+ * Accessible name for a tab's content region, matching the label shown for
+ * it in the nav strip. `ReportTabNav` is a `<nav>` of real, deep-linkable
+ * `<Link>`s (not a tablist) so the content below carries no `aria-controls`/
+ * `role="tabpanel"` relationship to it -- but a screen-reader user landing
+ * in the region still needs to know which section they arrived in, hence
+ * this label rather than that wiring.
+ */
+export function reportSectionLabel(tab: TabName): string {
+  return TAB_META[tab].label;
+}
+
 const REPORT_TITLEBAR_CLASSES =
   'cosci-report-titlebar flex min-w-0 items-center justify-between gap-6 ' +
-  'border-b border-cosci-border px-9 max-[720px]:gap-[0.35rem] ' +
-  'max-[720px]:px-[0.7rem]';
+  'border-b border-cosci-border px-9 max-[700px]:gap-[0.35rem] ' +
+  'max-[700px]:px-[0.7rem]';
 
 const REPORT_TITLE_LEFT_CLASSES =
   'cosci-report-title-left flex min-w-0 items-center gap-4 ' +
-  'max-[720px]:gap-[0.45rem]';
+  'max-[700px]:gap-[0.45rem]';
 
 const REPORT_BACK_CLASSES =
   'cosci-report-back grid h-10 w-10 shrink-0 ' +
@@ -34,14 +47,14 @@ const REPORT_BACK_CLASSES =
 
 const REPORT_TITLE_CLASSES =
   'm-0 min-w-0 overflow-hidden text-[1.2rem] leading-[1.25] ' +
-  'font-normal tracking-normal max-[720px]:text-[0.9rem]';
+  'font-normal tracking-normal max-[700px]:text-[0.9rem]';
 
 const REPORT_TITLE_TEXT_CLASSES =
   'block min-w-0 overflow-hidden whitespace-nowrap';
 
 const REPORT_TABS_CLASSES =
   'reference-report-tabs grid grid-cols-4 border-b border-cosci-border ' +
-  'max-[720px]:min-w-0 max-[720px]:overflow-x-hidden';
+  'max-[700px]:min-w-0 max-[700px]:overflow-x-hidden';
 
 // The tabs are anchors (so a middle/cmd-click opens the tab in a new browser
 // tab), hence the explicit no-underline: everything else here matches the
@@ -51,17 +64,24 @@ const REPORT_TABS_CLASSES =
 const REPORT_TAB_BUTTON_BASE_CLASSES =
   'reference-report-tab relative grid min-w-0 cursor-pointer content-center ' +
   'justify-items-center gap-[0.35rem] border-0 bg-transparent ' +
-  'font-[inherit] text-sm no-underline max-[720px]:gap-[0.2rem] ' +
-  'max-[720px]:text-[0.68rem]';
+  'font-[inherit] text-sm no-underline max-[700px]:gap-[0.2rem] ' +
+  'max-[700px]:text-[0.68rem]';
 
 const REPORT_TAB_SELECTED_CLASSES =
   'text-cosci-blue after:absolute after:right-[1.1rem] after:bottom-0 ' +
   'after:left-[1.1rem] after:h-[0.18rem] after:rounded-t-full ' +
   "after:bg-cosci-blue-strong after:content-['']";
 
-const REPORT_TAB_ICON_CLASSES = 'text-[1.35rem] max-[720px]:text-[1.12rem]';
+const REPORT_TAB_ICON_CLASSES = 'text-[1.35rem] max-[700px]:text-[1.12rem]';
 
-const REPORT_TAB_LABEL_CLASSES = 'max-[720px]:text-[0.75rem]';
+// min-w-0/overflow-hidden/whitespace-nowrap constrain the axis TruncatedLabel
+// measures against (see its own docstring); without them it has nothing to
+// fit to and never truncates. A grid-cols-4 cell easily fits every label at
+// its normal width, so these apply unconditionally without visibly changing
+// anything above the phone breakpoint -- they only matter once a column
+// actually runs out of room.
+const REPORT_TAB_LABEL_CLASSES =
+  'min-w-0 overflow-hidden whitespace-nowrap max-[700px]:text-[0.75rem]';
 
 const REPORT_ALERT_CLASSES =
   'cosci-report-alert mx-8 mt-4 rounded-xl border border-cosci-danger-border ' +
@@ -74,16 +94,18 @@ const REPORT_TOAST_CLASSES =
 
 const REPORT_SKELETON_CLASSES =
   'cosci-report-skeleton mx-auto my-9 grid w-[min(100%_-_3rem,58rem)] gap-4 ' +
-  'max-[720px]:mt-5 max-[720px]:mb-12 ' +
-  'max-[720px]:w-[min(100%_-_1.2rem,100%)] max-[720px]:max-w-none';
+  'max-[700px]:mt-5 max-[700px]:mb-12 ' +
+  'max-[700px]:w-[min(100%_-_1.2rem,100%)] max-[700px]:max-w-none';
 
 /**
  * Tab-switch side effects. The tabs themselves are links, so the route change
  * is the browser's (or the router's) job; what is left here is the special
  * case: bumping ideasViewKey when "All Ideas" is re-tapped while already
  * active, so IdeasTab remounts and resets its mobile master-detail selection
- * back to the list (that view has no back button of its own — see
- * MobileIdeaView).
+ * back to the list. This is a second, independent escape alongside the
+ * titlebar's own Back arrow (see reportBackTarget below) — MobileIdeaView
+ * itself still renders no back control of its own (see MobileIdeaView in
+ * ideas_tab.tsx).
  */
 export function useTabNavigation(id: string | undefined, activeTab: TabName) {
   // Bumped when "All Ideas" is re-tapped, remounting IdeasTab to reset its
@@ -103,6 +125,27 @@ export function useTabNavigation(id: string | undefined, activeTab: TabName) {
   return {ideasViewKey, onTabChange};
 }
 
+// Where the titlebar's back control goes, and how it is labelled. An open
+// idea (?idea= on the ideas tab) wins: on mobile that detail view has no
+// back control of its own (see MobileIdeaView in ideas_tab.tsx), so this is
+// its only escape back to the ranked list short of the browser's own back
+// gesture. With no idea open, the control falls back to its original job of
+// leaving the run entirely -- the conversation it started from, or the
+// workspace.
+function reportBackTarget(
+  id: string | undefined,
+  chatId: string | undefined,
+  selectedIdeaId: string | null,
+): {to: string; label: string} {
+  if (id && selectedIdeaId) {
+    return {to: tabPath(id, 'ideas'), label: 'Back to ranked ideas'};
+  }
+  return {
+    to: chatId ? `/chats/${chatId}` : '/',
+    label: chatId ? 'Back to conversation' : 'Back',
+  };
+}
+
 /**
  * Titlebar: back link plus the run's (possibly domain-overridden) title.
  *
@@ -110,26 +153,43 @@ export function useTabNavigation(id: string | undefined, activeTab: TabName) {
  * @param chatId The conversation this run was started from, when the rail
  *   knows of one. The rail sends such a session straight to its run, so
  *   this arrow is what keeps the transcript reachable; without a chat it
- *   falls back to the workspace, as it always did.
+ *   falls back to the workspace, as it always did -- unless an idea is open
+ *   (see reportBackTarget), in which case the arrow stays inside the run.
+ * @param activeTab The currently active report tab, so the back control
+ *   knows whether an `?idea=` param belongs to the ideas tab (and is thus a
+ *   live detail selection) or is stale from a different tab.
  * @param actions Optional report-level actions (download/share) rendered on
  *   the titlebar's right edge; only a completed run with a report gets any.
  */
 export function ReportTitlebar({
   title,
   chatId,
+  activeTab,
   actions,
 }: {
   title: string;
   chatId?: string;
+  activeTab?: TabName;
   actions?: ReactNode;
 }) {
+  const {id} = useParams<{id: string}>();
+  const [searchParams] = useSearchParams();
+  const isMobile = useIsMobile();
+  // Only the phone breakpoint replaces the ranked list with the detail, so
+  // only there is the list somewhere the reader needs a way back to. The
+  // desktop split-pane shows both at once and its Back control keeps
+  // meaning "leave the run" -- retargeting it there would strand a reader
+  // who pressed Back to get out.
+  const selectedIdeaId =
+    isMobile && activeTab === 'ideas' ? searchParams.get('idea') : null;
+  const back = reportBackTarget(id, chatId, selectedIdeaId);
   return (
     <header className={REPORT_TITLEBAR_CLASSES}>
       <div className={REPORT_TITLE_LEFT_CLASSES}>
         <Link
-          to={chatId ? `/chats/${chatId}` : '/'}
+          to={back.to}
           className={REPORT_BACK_CLASSES}
-          aria-label={chatId ? 'Back to conversation' : 'Back'}
+          aria-label={back.label}
         >
           <Icon aria-hidden="true" name="arrow_back" />
         </Link>
@@ -146,6 +206,19 @@ export function ReportTitlebar({
  * Tab nav: one link per TABS entry. Each tab is a real href, so a middle- or
  * cmd-click opens it in a new browser tab like any other link; onTabChange
  * still fires on a plain click for the ideas-remount side effect.
+ *
+ * This is deliberately a navigation landmark, not a tablist: the tabs are
+ * real, deep-linkable URLs with working back/forward, so there is no
+ * `role="tablist"`/`"tab"`/`"tabpanel"` triad, no `aria-selected`, and no
+ * roving tabindex here -- each link is independently reachable by Tab like
+ * any other link, and `aria-current="page"` (not `aria-selected`) marks the
+ * active one, matching a nav rather than a widget. The content region below
+ * carries its own accessible name instead of an `aria-controls` back to
+ * this strip (see `reportSectionLabel`), since it is not this nav's
+ * tabpanel. The ArrowLeft/ArrowRight tab-cycling shortcut lives entirely
+ * outside this component, in `useGlobalShortcuts` -- it is a document-level
+ * "next/previous page" shortcut deliberately independent of focus, not
+ * roving-tabindex keyboard behavior for this strip.
  */
 export function ReportTabNav({
   activeTab,
@@ -165,6 +238,7 @@ export function ReportTabNav({
           to={tabPath(id ?? '', tabName)}
           className={reportTabButtonClass(tabName === activeTab)}
           aria-current={tabName === activeTab ? 'page' : undefined}
+          aria-label={TAB_META[tabName].label}
           onClick={() => onTabChange(tabName)}
         >
           <Icon
@@ -172,9 +246,10 @@ export function ReportTabNav({
             aria-hidden="true"
             name={TAB_META[tabName].icon}
           />
-          <span className={REPORT_TAB_LABEL_CLASSES}>
-            {TAB_META[tabName].label}
-          </span>
+          <TruncatedLabel
+            className={REPORT_TAB_LABEL_CLASSES}
+            text={TAB_META[tabName].label}
+          />
         </Link>
       ))}
     </nav>
@@ -297,8 +372,8 @@ export function RunEndState({
 const UNGROUNDED_NOTICE_CLASSES =
   'mx-auto mt-9 flex w-[min(100%_-_3rem,58rem)] items-start gap-3 rounded-md ' +
   'bg-th-warning-container px-4 py-3 text-th-on-warning-container ' +
-  'max-[720px]:mt-5 max-[720px]:w-[min(100%_-_1.2rem,100%)] ' +
-  'max-[720px]:max-w-none';
+  'max-[700px]:mt-5 max-[700px]:w-[min(100%_-_1.2rem,100%)] ' +
+  'max-[700px]:max-w-none';
 
 /**
  * Report-level notice for a completed run whose literature retrieval

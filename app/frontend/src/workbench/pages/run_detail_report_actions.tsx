@@ -113,7 +113,7 @@ export function ReportActions({
 // popover's positioning and width behavior.
 const DELETE_POPOVER_CLASSES =
   'ucs-popover right-0 top-[calc(100%+0.55rem)] gap-3 ' +
-  '!w-[min(20rem,calc(100vw-2rem))] max-[720px]:right-[-0.5rem]';
+  '!w-[min(20rem,calc(100vw-2rem))] max-[700px]:right-[-0.5rem]';
 
 const DELETE_CONFIRM_BUTTON_CLASSES =
   'inline-flex min-h-[2.25rem] cursor-pointer items-center justify-center ' +

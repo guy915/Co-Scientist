@@ -56,7 +56,7 @@ function RunMetrics({
   // progress header above and the activity log below by 44px instead — the
   // one place on the page whose vertical rhythm did not match the rest of it.
   return (
-    <dl className="my-0 grid grid-cols-3 gap-3 max-[720px]:grid-cols-1">
+    <dl className="my-0 grid grid-cols-3 gap-3 max-[700px]:grid-cols-1">
       <RunMetric label="Time elapsed" value={elapsed} />
       <RunMetric label="Sources Analyzed" value={String(evidenceCount)} />
       <RunMetric label="Ideas explored" value={String(ideaCount)} />
@@ -86,7 +86,7 @@ export function ActiveRunView({
     [events],
   );
   return (
-    <main className="min-h-0 overflow-auto px-8 py-7 max-[720px]:px-4">
+    <main className="min-h-0 overflow-auto px-8 py-7 max-[700px]:px-4">
       {/* The section's three children are the progress header, the metric
           cards, and the activity log, so this gap *is* the space above and
           below the cards. 24px rather than 28: the cards sit 12px apart

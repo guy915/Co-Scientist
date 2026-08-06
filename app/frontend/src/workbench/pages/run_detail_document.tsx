@@ -10,17 +10,17 @@ import {joinClasses} from '../classes';
 
 export const REPORT_DOCUMENT_CLASSES =
   'cosci-report-document mx-auto mt-9 mb-24 w-[min(100%_-_3rem,58rem)] ' +
-  'text-base leading-[1.5] max-[720px]:mt-5 max-[720px]:mb-12 ' +
-  'max-[720px]:w-[min(100%_-_1.2rem,100%)] max-[720px]:max-w-none';
+  'text-base leading-[1.5] max-[700px]:mt-5 max-[700px]:mb-12 ' +
+  'max-[700px]:w-[min(100%_-_1.2rem,100%)] max-[700px]:max-w-none';
 
 export const REPORT_H2_CLASSES =
   'font-gsans mt-9 mb-6 text-[2rem] leading-10 font-normal tracking-normal ' +
-  'max-[720px]:mt-6 max-[720px]:mb-4 ' +
-  'max-[720px]:text-[clamp(1.5rem,6.8vw,2rem)] max-[720px]:leading-[1.2]';
+  'max-[700px]:mt-6 max-[700px]:mb-4 ' +
+  'max-[700px]:text-[clamp(1.5rem,6.8vw,2rem)] max-[700px]:leading-[1.2]';
 
 export const REPORT_H3_CLASSES =
   'font-gsans mt-[1.4rem] mb-3 text-[1.75rem] leading-9 font-normal ' +
-  'max-[720px]:text-[clamp(1.35rem,6.5vw,1.75rem)] max-[720px]:leading-[1.2]';
+  'max-[700px]:text-[clamp(1.35rem,6.5vw,1.75rem)] max-[700px]:leading-[1.2]';
 
 export const REPORT_H4_CLASSES = 'mt-4 mb-[0.35rem] text-base font-medium';
 

@@ -135,6 +135,18 @@ it('navigates when a tab is clicked', async () => {
   );
 });
 
+// The nav strip is a real <nav> of links, not a tablist, so the content
+// region below it carries its own accessible name instead of an
+// aria-controls/tabpanel relationship -- otherwise a screen-reader user
+// landing in the region has no way to tell which section they arrived in.
+it("labels the content region with the active tab's name", async () => {
+  renderAt('/runs/run-1/overview');
+  await screen.findByText('Summary');
+  expect(
+    screen.getByRole('main', {name: 'Research Overview'}),
+  ).toBeInTheDocument();
+});
+
 const UNGROUNDED_NOTICE = /No literature was retrieved for this run/;
 
 const EVIDENCE_ROW = {

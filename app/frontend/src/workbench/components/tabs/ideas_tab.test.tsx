@@ -1,5 +1,5 @@
 import type {ReactElement} from 'react';
-import {it, expect} from 'vitest';
+import {afterEach, it, expect, vi} from 'vitest';
 import {render, screen, within} from '@testing-library/react';
 import {MemoryRouter} from 'react-router-dom';
 import {IdeasTab} from './ideas_tab';
@@ -11,6 +11,31 @@ import {makeHypothesis} from '@/test_fixtures';
 function renderIdeas(ui: ReactElement, path = '/runs/run-1/ideas') {
   return render(<MemoryRouter initialEntries={[path]}>{ui}</MemoryRouter>);
 }
+
+/**
+ * Pins the viewport to one side of the phone breakpoint for a single test.
+ *
+ * `useIsMobile` reads `matchMedia`, which jsdom does not implement, so an
+ * unstubbed test is always "desktop" -- which would let a mobile-only
+ * assertion pass for the wrong reason. Mirrors the stub in
+ * run_detail.test.tsx.
+ *
+ * @param mobile Whether the viewport should match the phone breakpoint.
+ */
+function stubViewport(mobile: boolean) {
+  vi.stubGlobal(
+    'matchMedia',
+    vi.fn(() => ({
+      matches: mobile,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+    })),
+  );
+}
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
 
 it('shows the empty state when there are no hypotheses', () => {
   renderIdeas(<IdeasTab hypotheses={[]} reviews={[]} />);
@@ -95,12 +120,25 @@ it('opens the idea named by the ?idea= param', () => {
   );
 
   // The detail pane follows the URL rather than the default top-ranked pick.
+  // "page" (not "true") is the accurate value here: the row is a real link
+  // to the currently-shown page-within-a-page, same as the report tab strip.
   expect(screen.getByRole('link', {name: /Second idea/})).toHaveAttribute(
     'aria-current',
-    'true',
+    'page',
   );
   const detail = screen.getByLabelText('Hypothesis detail');
   expect(within(detail).getByText('Second idea')).toBeInTheDocument();
+  // The selected row states the relationship explicitly: it points at the
+  // detail pane it drives via aria-controls, rather than leaving the two
+  // regions with no stated connection.
+  expect(screen.getByRole('link', {name: /Second idea/})).toHaveAttribute(
+    'aria-controls',
+    detail.id,
+  );
+  expect(detail.id).toBeTruthy();
+  expect(screen.getByRole('link', {name: /Top idea/})).not.toHaveAttribute(
+    'aria-controls',
+  );
 });
 
 it('flags an evidence-less idea with the "Unverified" chip', () => {
@@ -217,4 +255,61 @@ it('says so when every idea a run explored was withdrawn', () => {
   expect(
     screen.getByText(/was ruled out or folded into another/),
   ).toBeVisible();
+});
+
+// MobileIdeaView renders no back control of its own; the titlebar's Back
+// arrow is retargeted to the ranked list while an idea is open on phone (see
+// reportBackTarget in run_detail_shell.tsx), but nothing said so from inside
+// this view itself. A screen-reader user landing here has no way to
+// discover that escape without this hint.
+it('tells the reader the titlebar Back arrow returns to the ranked list', () => {
+  stubViewport(true);
+  renderIdeas(
+    <IdeasTab
+      hypotheses={[makeHypothesis({id: 'h-top', title: 'Top idea'})]}
+      reviews={[]}
+    />,
+    '/runs/run-1/ideas?idea=h-top',
+  );
+
+  expect(screen.getByText(/Back button in the title bar/i)).toBeInTheDocument();
+});
+
+// The list view (nothing selected yet) carries no such hint -- there is
+// nothing to escape from.
+it('omits the back hint when the mobile list has no idea open', () => {
+  stubViewport(true);
+  renderIdeas(
+    <IdeasTab
+      hypotheses={[makeHypothesis({id: 'h-top', title: 'Top idea'})]}
+      reviews={[]}
+    />,
+  );
+
+  expect(
+    screen.queryByText(/Back button in the title bar/i),
+  ).not.toBeInTheDocument();
+});
+
+// The split grid stacks on its own boundary, NOT the phone breakpoint. Its
+// three columns have a 656px non-shrinkable floor (24rem list + 17rem rail),
+// so the detail column -- the content the reader came for -- gets only what
+// is left over. Measured in a browser at the 720px this used to carry, and
+// at the 700px that replaced it: the detail rendered 0px wide at a 701px
+// viewport and 56px at 721px, i.e. the split could not show its own content
+// anywhere near either number. It first becomes readable around 1024px,
+// which is where the columns now stack below.
+it('stacks the split grid below the width its columns actually need', () => {
+  const {container} = renderIdeas(
+    <IdeasTab
+      hypotheses={[makeHypothesis({id: 'h-top', title: 'Top idea'})]}
+      reviews={[]}
+    />,
+  );
+
+  const grid = container.querySelector('.idea-split-grid');
+  expect(grid?.className).toContain('max-[1023px]:grid-cols-1');
+  // Neither of the two boundaries that left this band unreadable.
+  expect(grid?.className).not.toContain('720px');
+  expect(grid?.className).not.toContain('max-[700px]:grid-cols-1');
 });

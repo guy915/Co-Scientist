@@ -26,7 +26,7 @@ const REFERENCE_LIST_CLASSES = 'm-0 grid list-none gap-0 p-0';
 const REFERENCE_LIST_ITEM_CLASSES =
   'grid min-h-[3.8rem] grid-cols-[2.2rem_minmax(0,1fr)_auto] items-center ' +
   'gap-[0.8rem] border-b border-cosci-border text-[0.86rem] ' +
-  'max-[720px]:grid-cols-[2rem_minmax(0,1fr)]';
+  'max-[700px]:grid-cols-[2rem_minmax(0,1fr)]';
 
 const REFERENCE_LIST_INDEX_CLASSES = 'text-cosci-muted';
 
@@ -38,8 +38,8 @@ const REFERENCE_LIST_LINK_CLASSES =
   'py-[0.3rem] text-[0.78rem] font-medium text-cosci-reference-open-fg ' +
   'no-underline transition-colors ' +
   'hover:border-cosci-reference-open-hover-border ' +
-  'hover:bg-cosci-reference-open-hover-bg max-[720px]:col-start-2 ' +
-  'max-[720px]:w-fit';
+  'hover:bg-cosci-reference-open-hover-bg max-[700px]:col-start-2 ' +
+  'max-[700px]:w-fit';
 
 const REFERENCE_LIST_LINK_ICON_CLASSES = 'text-base';
 
@@ -51,7 +51,7 @@ const REFERENCE_UNAVAILABLE_CLASSES =
   'reference-unavailable-pill inline-flex items-center gap-[0.35rem] ' +
   'rounded-full border border-cosci-border bg-transparent px-[0.7rem] ' +
   'py-[0.3rem] text-[0.78rem] font-medium text-cosci-muted ' +
-  'max-[720px]:col-start-2 max-[720px]:w-fit';
+  'max-[700px]:col-start-2 max-[700px]:w-fit';
 
 const REFERENCE_UNAVAILABLE_TEXT = 'Unavailable';
 

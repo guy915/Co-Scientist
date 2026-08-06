@@ -19,6 +19,7 @@ import {DeleteRunButton, ReportActions} from './run_detail_report_actions';
 import {
   isTerminalNonCompletedStatus,
   ReportErrorAlert,
+  reportSectionLabel,
   ReportTabNav,
   ReportTitlebar,
   ReportUngroundedNotice,
@@ -31,15 +32,22 @@ import {
 import {RunSpecificationsView} from './run_detail_specifications';
 import {normalizeTab, type TabName} from '../run_tabs';
 
+// max-[700px]:overflow-x-auto (not overflow-hidden): the ancestor .ucs-page
+// --report was given a horizontal-scroll fallback for content that shrinks
+// below what it contains (see shell_surface.css); an unconditional
+// overflow-hidden here would keep clipping locally before that ancestor ever
+// saw the overflow. overflow-y stays hidden -- vertical scrolling is owned
+// by the inner .cosci-report-scroll region below.
 const REPORT_PAGE_CLASSES =
   'cosci-report-page grid h-full min-h-0 ' +
   'grid-rows-[3.75rem_5rem_minmax(0,1fr)] bg-cosci-bg text-cosci-fg ' +
-  'max-[720px]:min-w-0 max-[720px]:overflow-hidden';
+  'max-[700px]:min-w-0 max-[700px]:overflow-x-auto ' +
+  'max-[700px]:overflow-y-hidden';
 
 const REPORT_SCROLL_CLASSES =
-  'cosci-report-scroll min-h-0 overflow-auto max-[720px]:overflow-x-hidden';
+  'cosci-report-scroll min-h-0 overflow-auto max-[700px]:overflow-x-hidden';
 
-const ALL_IDEAS_CLASSES = 'cosci-all-ideas h-full p-0 max-[720px]:h-auto';
+const ALL_IDEAS_CLASSES = 'cosci-all-ideas h-full p-0 max-[700px]:h-auto';
 
 type RunDetailData = ReturnType<typeof useRunDetailData>;
 
@@ -185,6 +193,7 @@ export function RunDetail() {
       <ReportTitlebar
         title={data.title}
         chatId={chatId}
+        activeTab={activeTab}
         actions={reportActionsFor(id, data)}
       />
 
@@ -323,7 +332,11 @@ function RunDetailTabContent({
   data,
 }: Omit<RunDetailBodyProps, 'active'>) {
   return (
-    <main className={REPORT_SCROLL_CLASSES} key={activeTab}>
+    <main
+      className={REPORT_SCROLL_CLASSES}
+      key={activeTab}
+      aria-label={reportSectionLabel(activeTab)}
+    >
       {reportIsUngrounded(data) && <ReportUngroundedNotice />}
       {tabSection(activeTab, ideasViewKey, data)}
     </main>

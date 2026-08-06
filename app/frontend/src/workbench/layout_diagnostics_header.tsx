@@ -5,7 +5,7 @@ import {tooltipClassNames} from './tooltip';
 const DIAGNOSTIC_HEADER_CLASSES =
   'ucs-diagnostic-header flex items-center justify-between gap-3 border-b ' +
   'border-cosci-logs-border px-4 py-3 ' +
-  'max-[720px]:flex-col max-[720px]:items-start';
+  'max-[700px]:flex-col max-[700px]:items-start';
 
 const DIAGNOSTIC_TITLE_CLASSES =
   'm-0 text-base font-semibold leading-tight text-cosci-logs-heading';

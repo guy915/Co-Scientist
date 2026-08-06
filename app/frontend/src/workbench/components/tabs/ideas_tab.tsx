@@ -10,20 +10,40 @@ import {Icon} from '@/components/icon';
 import {useIsMobile} from '../../hooks/use_is_mobile';
 import {TruncatedLabel} from '../truncated_label';
 import {EmptyState} from '../empty_state';
-import {HypothesisDetail, SectionsRail} from './ideas_detail_pane';
+import {
+  DETAIL_PANE_ID,
+  HypothesisDetail,
+  SectionsRail,
+} from './ideas_detail_pane';
 
 const IDEA_SPLIT_SHELL_CLASSES =
   'idea-split-shell flex h-full min-h-0 flex-col overflow-hidden ' +
   'rounded-none border-0 bg-cosci-bg';
 
+// The three-column split has a hard, non-shrinkable floor: a 24rem (384px)
+// ranked list plus a 17rem (272px) sections rail, so the detail column --
+// the one the reader is actually here for -- gets whatever is left. Measured
+// in a browser: 0px at a 701px viewport, 56px at 721px, 172px at 900px, and
+// only 296px at 1024px. Below roughly 1024 the split therefore cannot render
+// its own content, so the columns stack instead. This is deliberately NOT
+// the phone breakpoint (`MOBILE_MEDIA_QUERY`, 700px): that one chooses
+// between two interaction models (master-detail on a phone versus the split
+// pane), while this one is a pure question of whether three columns fit.
+// One number cannot answer both, and using the phone value for both is what
+// left the 701-1023 band rendering an unreadable sliver.
+//
+// The `max-[1023px]:` variants below are written out in full on purpose:
+// Tailwind scans source for literal class strings, so building them from a
+// shared constant would compile to no CSS at all and silently restore the
+// broken layout.
 const IDEAS_REPORT_CLASSES =
   'flex h-full min-h-0 flex-col overflow-hidden bg-cosci-bg ' +
-  'max-[720px]:h-auto max-[720px]:overflow-visible';
+  'max-[1023px]:h-auto max-[1023px]:overflow-visible';
 
 const IDEA_SPLIT_GRID_CLASSES =
   'idea-split-grid reference grid min-h-0 min-w-0 flex-1 ' +
   'grid-cols-[minmax(24rem,0.66fr)_minmax(0,1.25fr)_17rem] ' +
-  'max-[720px]:grid-cols-1';
+  'max-[1023px]:grid-cols-1';
 
 const IDEA_RANK_LIST_CLASSES =
   'idea-rank-list m-0 grid content-start gap-[0.7rem] overflow-y-auto ' +
@@ -76,8 +96,11 @@ const IDEA_RANK_PREVIEW_CLASSES =
   'text-[0.75rem] leading-4 tracking-[0.1px] text-cosci-idea-preview-text';
 
 // Mobile master-detail: the ideas tab is a plain list that swaps to a single
-// idea's detail on tap (rather than the desktop split view), with a back
-// affordance to return to the list.
+// idea's detail on tap (rather than the desktop split view). Visually hidden
+// so it reaches only assistive technology -- the titlebar arrow itself is
+// the one visible back control (see IDEA_MOBILE_BACK_HINT_CLASSES below).
+const IDEA_MOBILE_BACK_HINT_CLASSES = 'sr-only';
+
 const IDEA_MOBILE_VIEW_CLASSES =
   'idea-mobile-view flex h-auto min-h-0 flex-none flex-col ' +
   'overflow-visible bg-cosci-bg';
@@ -194,10 +217,14 @@ interface IdeaViewProps {
   claimEvidence: ClaimEvidenceRow[];
 }
 
-// Master-detail: the list swaps to a single idea on tap. There is no back
-// affordance here — the browser's own back gesture returns to the list (each
-// idea is a URL), as does re-tapping the "All Ideas" tab, whose link carries
-// no ?idea= param.
+// Master-detail: the list swaps to a single idea on tap. This view renders no
+// back control of its own; the visible escape is the titlebar's Back arrow,
+// which run_detail_shell.tsx's reportBackTarget retargets to the ranked list
+// while an idea is open here (a sighted reader sees that arrow regardless).
+// The sr-only hint below makes that relationship discoverable from inside
+// the view itself, since nothing else here says so. The browser's own back
+// gesture (each idea is a URL) and re-tapping the "All Ideas" tab (whose
+// link carries no ?idea= param) still work as further escapes.
 function MobileIdeaView({
   sorted,
   selected,
@@ -208,12 +235,18 @@ function MobileIdeaView({
   return (
     <div className={IDEA_MOBILE_VIEW_CLASSES}>
       {selected ? (
-        <HypothesisDetail
-          hypothesis={selected}
-          reviews={reviews}
-          matches={matches}
-          claimEvidence={claimEvidence}
-        />
+        <>
+          <p className={IDEA_MOBILE_BACK_HINT_CLASSES}>
+            Use the Back button in the title bar to return to the ranked ideas
+            list.
+          </p>
+          <HypothesisDetail
+            hypothesis={selected}
+            reviews={reviews}
+            matches={matches}
+            claimEvidence={claimEvidence}
+          />
+        </>
       ) : (
         <ol
           className={IDEA_MOBILE_LIST_CLASSES}
@@ -318,11 +351,17 @@ function IdeaListItem({
   return (
     <li>
       {/* No `replace`: on mobile the list is the previous entry, so the
-          browser's back gesture returns to it. */}
+          browser's back gesture returns to it. A real navigation link to a
+          page-within-a-page, exactly like the report tab strip, so the
+          selected row carries `aria-current="page"` (not the vaguer "true")
+          plus `aria-controls` naming the detail pane it drives -- the
+          relationship a listbox/option pair would otherwise imply, without
+          taking on that widget's keyboard contract. */}
       <Link
         to={ideaSearch(hypothesis.id)}
         className={ideaRowClassName(selected)}
-        aria-current={selected ? 'true' : undefined}
+        aria-current={selected ? 'page' : undefined}
+        aria-controls={selected ? DETAIL_PANE_ID : undefined}
       >
         <IdeaRankHead rank={rank} hypothesis={hypothesis} />
         <TruncatedLabel

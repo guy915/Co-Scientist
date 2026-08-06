@@ -1,7 +1,7 @@
-import {useMemo, type MouseEvent, type ReactNode} from 'react';
+import {useMemo, type ReactNode} from 'react';
 import type {ClaimEvidenceRow, Hypothesis, MatchRow, Review} from '@/api/runs';
 import {Icon} from '@/components/icon';
-import {smoothScrollToSection} from '@/lib/smooth_scroll';
+import {SECTIONS, sectionSlug, SectionsRail} from './ideas_detail_rail';
 import {
   claimEvidenceSummary,
   debateDepthLabel,
@@ -18,17 +18,25 @@ import {
   tournamentSummaryText,
 } from './ideas_detail_data';
 
+// The rail moved to ideas_detail_rail.tsx when this module reached the
+// 500-line ceiling; re-exported here so callers keep importing both halves
+// of the detail view from one place.
+export {SectionsRail};
+
+// Anchor for the selected rank-list row's aria-controls (an explicit "drives
+// this pane" relation). Shared by the populated and empty-state renders below
+// (mutually exclusive, never duplicated), distinct from any sectionSlug()
+// output.
+export const DETAIL_PANE_ID = 'hypothesis-detail-pane';
+
 const IDEA_DETAIL_PANE_CLASSES =
   'idea-detail-pane grid min-h-0 min-w-0 flex-1 content-start gap-[1.35rem] ' +
   'overflow-x-hidden overflow-y-auto border-r-0 bg-transparent px-7 ' +
-  'pt-[1.45rem] pb-14 max-[720px]:flex-none max-[720px]:overflow-y-visible ' +
-  'max-[720px]:px-4';
-
-// The scroll pane a section rail jump targets: the detail pane itself (which
-// scrolls below 720px) or its `.cosci-report-scroll` ancestor (the desktop
-// scroller, owned by run_detail.tsx). Passed to the generic smoothScroll
-// helper so that lib carries no app-specific class knowledge.
-const IDEA_SCROLL_PANE_SELECTOR = '.idea-detail-pane, .cosci-report-scroll';
+  // Below 1024 the columns stack (see IDEA_SPLIT_GRID_CLASSES), so the pane
+  // grows with its content rather than scrolling inside a fixed height that
+  // would trap the detail in a sliver. 700px is the separate phone gutter.
+  'pt-[1.45rem] pb-14 max-[1023px]:flex-none ' +
+  'max-[1023px]:overflow-y-visible max-[700px]:px-4';
 
 // `text-th-muted-fg` is the named alias of --md-sys-color-on-surface-variant
 // (see theme_tokens.css); DESIGN.md keeps arbitrary token references out of
@@ -41,51 +49,13 @@ const IDEA_DETAIL_SECTION_CLASSES =
   'idea-detail-section grid gap-[0.45rem] border-t-0 pt-0 ' +
   '[&_h2]:m-0 [&_h2]:mb-2 [&_h2]:font-gsans [&_h2]:text-[2rem] ' +
   '[&_h2]:leading-10 [&_h2]:font-normal ' +
-  'max-[720px]:[&_h2]:text-[clamp(1.5rem,6.8vw,2rem)] ' +
-  'max-[720px]:[&_h2]:leading-[1.2] ' +
+  'max-[700px]:[&_h2]:text-[clamp(1.5rem,6.8vw,2rem)] ' +
+  'max-[700px]:[&_h2]:leading-[1.2] ' +
   '[&_h2]:text-cosci-idea-title-text [&_h3]:m-0 ' +
   '[&_h3]:text-base [&_h3]:font-semibold [&_h3]:normal-case ' +
   '[&_h3]:text-cosci-idea-title-text [&_p]:m-0 ' +
   '[&_p]:[overflow-wrap:anywhere] [&_p]:text-base ' +
   '[&_p]:leading-6 [&_p]:text-cosci-idea-detail-text';
-
-const IDEA_SECTIONS_RAIL_CLASSES =
-  'idea-sections-rail m-5 min-w-0 min-w-[12.5rem] self-start ' +
-  'rounded-[10px] bg-cosci-panel p-5 max-[720px]:hidden';
-
-const IDEA_SECTIONS_LABEL_CLASSES =
-  'text-[0.9rem] tracking-[0.1px] text-cosci-idea-title-text';
-
-// Reference: ul with 20px above the first link, then li+li margin-top 24px.
-const IDEA_SECTIONS_LIST_CLASSES = 'mt-5 grid gap-6';
-
-// Slightly smaller than the body so the longest link ("Tournament
-// performance >") fits on one line without widening the rail.
-const IDEA_SECTION_LINK_CLASSES =
-  'block whitespace-nowrap text-[0.85rem] leading-6 font-medium ' +
-  'text-cosci-blue no-underline';
-
-// Detail section titles, in render order. Single source of truth so the
-// section headings and the SectionsRail links can't drift apart.
-const SECTIONS = {
-  overview: 'Hypothesis overview',
-  description: 'Description',
-  provenance: 'Provenance & lineage',
-  reviewSummary: 'Review summary',
-  reviewCritiques: 'Review critiques',
-  tournament: 'Tournament performance',
-  matchSummary: 'Match summary',
-} as const;
-
-// The rail links every section except "Match summary" (shown inline only).
-const RAIL_SECTIONS: readonly string[] = [
-  SECTIONS.overview,
-  SECTIONS.description,
-  SECTIONS.provenance,
-  SECTIONS.reviewSummary,
-  SECTIONS.reviewCritiques,
-  SECTIONS.tournament,
-];
 
 /**
  * Detail pane for one hypothesis: overview/description, review summary and
@@ -149,7 +119,7 @@ export function HypothesisDetail({
 
   if (!hypothesis) {
     return (
-      <section className={IDEA_DETAIL_EMPTY_CLASSES}>
+      <section id={DETAIL_PANE_ID} className={IDEA_DETAIL_EMPTY_CLASSES}>
         <Icon aria-hidden="true" name="format_list_numbered" />
         <p>Select a hypothesis to inspect the review and tournament details.</p>
       </section>
@@ -186,6 +156,7 @@ function HypothesisDetailSections({
 }: DetailSectionsProps) {
   return (
     <section
+      id={DETAIL_PANE_ID}
       className={IDEA_DETAIL_PANE_CLASSES}
       aria-label="Hypothesis detail"
     >
@@ -429,11 +400,6 @@ function MatchSummaryContent({
   );
 }
 
-/** Anchor id for a detail section, shared by the section and its rail link. */
-function sectionSlug(title: string): string {
-  return title.toLowerCase().replaceAll(' ', '-');
-}
-
 // One titled block within the detail pane. `id` (from sectionSlug) is the
 // anchor target for SectionsRail's links and the deep-link hash.
 function DetailSection({
@@ -449,45 +415,4 @@ function DetailSection({
       <div>{children}</div>
     </section>
   );
-}
-
-/**
- * Right-hand jump-to-section links (desktop only, see
- * IDEA_SECTIONS_RAIL_CLASSES). Built from RAIL_SECTIONS, so it always mirrors
- * the actual DetailSection ids without needing to be kept in sync by hand.
- */
-export function SectionsRail() {
-  return (
-    <aside className={IDEA_SECTIONS_RAIL_CLASSES} aria-label="Sections">
-      <span className={IDEA_SECTIONS_LABEL_CLASSES}>Sections</span>
-      <nav className={IDEA_SECTIONS_LIST_CLASSES}>
-        {RAIL_SECTIONS.map(item => (
-          <a
-            key={item}
-            href={`#${sectionSlug(item)}`}
-            className={IDEA_SECTION_LINK_CLASSES}
-            onClick={event => smoothSectionClick(event, sectionSlug(item))}
-          >
-            {item} &gt;
-          </a>
-        ))}
-      </nav>
-    </aside>
-  );
-}
-
-// Intercepts a rail-link click to smooth-scroll to its section (with a 16px
-// offset) instead of the browser's default instant-jump anchor navigation.
-// Falls through to the default behavior when the target isn't found.
-function smoothSectionClick(
-  event: MouseEvent<HTMLAnchorElement>,
-  sectionId: string,
-) {
-  const didScroll = smoothScrollToSection(
-    sectionId,
-    16,
-    IDEA_SCROLL_PANE_SELECTOR,
-  );
-  if (!didScroll) return;
-  event.preventDefault();
 }
