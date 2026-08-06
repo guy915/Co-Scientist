@@ -50,8 +50,8 @@ change made staleness likely. A blank `St` on a Medium/Low row therefore means
 | A13 | Low | missing | No thumbs up/down on interview turns | | 12:M03, 21:R53 |
 | A14 | Low | divergent | Composer copy differs ("What breakthrough should we make today?" vs "What's your research challenge?"); a decorative lock icon implies encryption that does not exist | = | 12:M02, 20:F-HOME-01, 21:A1 |
 | A15 | Low | incorrect | Retry duplicates the same assistant string instead of re-running the model | | 20:F-INTERVIEW-06 |
-| A16 | Low | incorrect | Keyless/offline interview silently degrades to a canned 3-question script with no UI signal | | 12:A05, 21:R56 |
-| A17 | Low | incorrect | Home composer stays active after start and keeps posting turns to the completed interview | | 20:F-AGENT-02 |
+| A16 | Low | incorrect | Keyless/offline interview silently degrades to a canned 3-question script with no UI signal | ✓ | 12:A05, 21:R56 |
+| A17 | Low | incorrect | Home composer stays active after start and keeps posting turns to the completed interview | ✓ | 20:F-AGENT-02 |
 | A18 | Low | note | No interview turn cap; a model that never sets `completed` interviews indefinitely | | 21:R58 |
 
 ## B. Run configuration and lifecycle
@@ -267,7 +267,7 @@ change made staleness likely. A blank `St` on a Medium/Low row therefore means
 | M8 | Low | ext | Dark theme has no Google product evidence | = | 12:M09, 20:F-EXT-03 |
 | M9 | Low | ext | `/proposals` renders a static authored graph that can read as scientific Proximity output | = | 20:F-EXT-01 |
 | M10 | Low | incorrect | Feedback is SBI-only; the general audience gets no Product Feedback path, no privacy notice, no screenshot option | | 20:F-EXT-02/OP-007 |
-| M11 | Low | incorrect | Settings stores a DeepSeek key in the browser and confirms success, but nothing reads it | | 20:F-HOME-07 |
+| M11 | Low | incorrect | Settings stores a DeepSeek key in the browser and confirms success, but nothing reads it | ✓ | 20:F-HOME-07 |
 | M12 | Low | divergent | Undiscoverable global shortcuts (`g n`, arrow tab cycling) may intercept expected navigation | | 20:F-A11Y-08, 21:C11 |
 
 ## N. Operations, privacy, packaging, deployment
