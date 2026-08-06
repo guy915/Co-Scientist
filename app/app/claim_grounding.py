@@ -98,18 +98,26 @@ def evidence_passages(
 ) -> list[EvidencePassage]:
     """Return the run's evidence passages (with provenance) for grounding.
 
-    Each passage is the evidence row's title + abstract, carrying the source
-    evidence id, source, and url so a support span located inside it can be
-    traced back to (and opened at) its exact source. Callers pass either
-    ``conn`` (the engine drain reuses its open transaction) or ``db_path``.
+    Each passage is the evidence row's ``passage_text`` -- title + abstract,
+    materialized once at insert time (``store.records._evidence_passage_text``)
+    so a support span's offsets always index the exact text stored on the
+    row rather than a value reconstructed fresh on every read. Rows written
+    before that column existed fall back to reconstructing it the same way,
+    since their stored ``title``/``abstract`` are all that survives. Carries
+    the source evidence id, source, and url so a support span located
+    inside it can be traced back to (and opened at) its exact source.
+    Callers pass either ``conn`` (the engine drain reuses its open
+    transaction) or ``db_path``.
     """
     passages: list[EvidencePassage] = []
     for ev in store.list_evidence(run_id, conn=conn, db_path=db_path):
         if not ev.get("available"):
             continue
-        text = " ".join(
-            str(ev.get(k) or "") for k in ("title", "abstract")
-        ).strip()
+        text = str(ev.get("passage_text") or "").strip()
+        if not text:
+            text = " ".join(
+                str(ev.get(k) or "") for k in ("title", "abstract")
+            ).strip()
         if not text:
             continue
         passages.append(

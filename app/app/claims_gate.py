@@ -103,8 +103,9 @@ class CitationMetadata:
 
 
 # A resolver maps citation metadata to a resolvability verdict. The default is
-# offline (reads the supplied metadata); a live resolver performs URL/DOI
-# resolution and a retraction lookup (see app/citation_resolver.py).
+# offline (reads the supplied metadata); the engine drain's evidence-identity
+# availability check instead calls the live resolver in
+# app/citation_resolver.py, which actually dereferences the DOI/PMID/URL.
 Resolver = Callable[[CitationMetadata], Resolvability]
 
 

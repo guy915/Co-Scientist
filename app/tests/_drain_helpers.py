@@ -198,7 +198,7 @@ def _final_state_with_features() -> dict[str, Any]:
 
 def _build_report(run: Any, db_path: str) -> tuple[dict[str, Any], str]:
     """Build report content for a run with the drain's default (None) inputs."""
-    return report_render._build_report_content(
+    built = report_render._build_report_content(
         run.id,
         report_render.ReportRequest(
             research_goal=run.research_goal,
@@ -208,6 +208,7 @@ def _build_report(run: Any, db_path: str) -> tuple[dict[str, Any], str]:
             db_path=db_path,
         ),
     )
+    return built.payload, built.markdown
 
 
 def _persist_and_finalize(

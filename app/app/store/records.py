@@ -66,11 +66,21 @@ class NewEvidence:
 
     ``source`` names where the evidence came from (e.g. 'pubmed', 'arxiv',
     or 'mock') and ``available`` records whether its full text is
-    available. The last five fields are upload/extraction provenance for
+    available. The next five fields are upload/extraction provenance for
     attached documents: the original media type, content digest (immutable
     document identity), upload size in bytes, version label for
     extraction/cache provenance, and the extractor (with version) that
-    produced the text.
+    produced the text. ``doi``/``pmid`` are canonical identifiers, when the
+    source has them, and ``retrieved_at`` is when the article was retrieved
+    -- distinct from the row's ``created_at`` insert stamp. ``passage_text``
+    is not a constructor field: it is always materialized from ``title`` +
+    ``abstract`` at insert time, so it is exactly the text a claim-evidence
+    span's offsets index, never a value a caller could pass out of sync
+    with the row it describes. ``retrieval_score``/``retrieval_rationale``/
+    ``retriever_version`` are the persisted hybrid-retrieval provenance
+    (see ``search_support.py``'s scorer): the combined lexical+semantic
+    score, the semantic pass's stated reason, and the method/version that
+    produced both.
     """
 
     run_id: str
@@ -86,6 +96,21 @@ class NewEvidence:
     byte_size: int | None = None
     document_version: str | None = None
     extraction_tool: str | None = None
+    doi: str | None = None
+    pmid: str | None = None
+    retrieved_at: float | None = None
+    retrieval_score: float | None = None
+    retrieval_rationale: str | None = None
+    retriever_version: str | None = None
+
+
+def _evidence_passage_text(f: NewEvidence) -> str:
+    """Materialize the exact passage a claim-evidence span indexes.
+
+    Mirrors ``app.claim_grounding.evidence_passages``' text formula so the
+    stored column and the text a span was located in never drift apart.
+    """
+    return " ".join(str(part or "") for part in (f.title, f.abstract)).strip()
 
 
 def _insert_evidence_row(
@@ -95,8 +120,10 @@ def _insert_evidence_row(
     conn.execute(
         "INSERT INTO evidence (id, run_id, title, source, url, "
         "authors_json, year, abstract, available, mime_type, sha256, "
-        "byte_size, document_version, extraction_tool, created_at) "
-        "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        "byte_size, document_version, extraction_tool, doi, pmid, "
+        "passage_text, retrieved_at, retrieval_score, retrieval_rationale, "
+        "retriever_version, created_at) "
+        "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
         (
             ev_id,
             f.run_id,
@@ -112,6 +139,13 @@ def _insert_evidence_row(
             f.byte_size,
             f.document_version,
             f.extraction_tool,
+            f.doi,
+            f.pmid,
+            _evidence_passage_text(f),
+            f.retrieved_at,
+            f.retrieval_score,
+            f.retrieval_rationale,
+            f.retriever_version,
             _now(),
         ),
     )

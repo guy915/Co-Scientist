@@ -56,6 +56,9 @@ def _apply_offline_env(
     from app.config import settings
 
     monkeypatch.setattr(settings, "claim_assessor", "deterministic")
+    # Same reasoning for evidence availability: offline tests never leave
+    # the process to dereference a DOI/PMID.
+    monkeypatch.setattr(settings, "evidence_resolver", "offline")
 
 
 @pytest.fixture(autouse=True)

@@ -206,6 +206,28 @@ async def get_claim_evidence(run_id: str) -> dict[str, Any]:
     return {"claim_evidence": store.list_claim_evidence(run_id)}
 
 
+@router.get("/{run_id}/knowledge-facts")
+async def get_knowledge_facts(
+    run_id: str,
+    kind: str | None = None,
+    entity: str | None = None,
+) -> dict[str, Any]:
+    """Return the run's durable structured facts and contradictions (G14).
+
+    One row per settled claim-evidence edge (``supports`` -> a fact,
+    ``contradicts`` -> a contradiction), tagged with the entities its claim
+    text mentions. Populated once the run's report is finalized; empty
+    before then. Optional ``kind`` (``fact``/``contradiction``) and
+    ``entity`` query params filter the result.
+    """
+    _require_run(run_id)
+    return {
+        "knowledge_facts": store.list_knowledge_facts(
+            run_id, kind=kind, entity=entity
+        )
+    }
+
+
 @router.get("/{run_id}/report")
 async def get_report(run_id: str) -> dict[str, Any]:
     """Return the latest structured report, or 404 before synthesis."""

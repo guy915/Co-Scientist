@@ -158,10 +158,61 @@ def test_manifest_keeps_strongest_state_per_evidence() -> None:
 
 
 def test_manifest_marks_uncited_availability() -> None:
-    """Uncited evidence is labelled by availability, not a citation state."""
+    """Uncited, available evidence is labelled by its availability flag."""
+    evidence = [_evidence("e1", available=True)]
+    manifest = build_evidence_manifest(evidence, [])
+    assert manifest[0]["state"] == "available"
+
+
+def test_manifest_withholds_unavailable_evidence() -> None:
+    """Uncited evidence that could not be resolved is withheld, not listed.
+
+    An unavailable source has no content the model could ground a citation
+    in, so it must not enter the numbered list at all -- there is nothing
+    for [n] to point at.
+    """
     evidence = [_evidence("e1", available=False)]
     manifest = build_evidence_manifest(evidence, [])
-    assert manifest[0]["state"] == "unavailable"
+    assert manifest == []
+
+
+def test_manifest_withholds_unsupported_citations() -> None:
+    """A citation checked and found not to support its claim is withheld.
+
+    Letting it into the context under the "unsupported" label still invites
+    the model to cite it as though it were evidence.
+    """
+    evidence = [_evidence("e1"), _evidence("e2")]
+    citations = [_citation("e1", "unsupported"), _citation("e2", "verified")]
+    manifest = build_evidence_manifest(evidence, citations)
+    assert [m["evidence_id"] for m in manifest] == ["e2"]
+
+
+def test_manifest_includes_grounding_passage() -> None:
+    """A source with an abstract carries a bounded passage to cite against.
+
+    Not just a title.
+    """
+    evidence = [_evidence("e1", abstract="This paper shows X causes Y.")]
+    manifest = build_evidence_manifest(evidence, [])
+    assert manifest[0]["passage"] == "This paper shows X causes Y."
+
+
+def test_manifest_passage_is_none_without_an_abstract() -> None:
+    """A source with no abstract carries no passage, rather than a blank."""
+    evidence = [_evidence("e1")]
+    manifest = build_evidence_manifest(evidence, [])
+    assert manifest[0]["passage"] is None
+
+
+def test_manifest_passage_is_truncated() -> None:
+    """A very long abstract is bounded so it cannot dominate the prompt."""
+    evidence = [_evidence("e1", abstract="x" * 2000)]
+    manifest = build_evidence_manifest(evidence, [])
+    passage = manifest[0]["passage"]
+    assert passage is not None
+    assert len(passage) < 700
+    assert passage.endswith("…")
 
 
 def test_manifest_is_capped() -> None:

@@ -13,6 +13,7 @@ callers keep importing from this module, as is the shared SSE encoder
 from __future__ import annotations
 
 import logging
+import re
 from collections.abc import AsyncGenerator, AsyncIterator
 from dataclasses import dataclass
 from typing import Any
@@ -57,6 +58,64 @@ class QaQuestion:
     message_id: int
 
 
+_WORD_RE = re.compile(r"[a-z0-9]+")
+
+
+def _tokenize(text: str) -> frozenset[str]:
+    """Split text into lowercase word tokens, dropping short noise words."""
+    return frozenset(t for t in _WORD_RE.findall(text.lower()) if len(t) > 3)
+
+
+def _question_ranked_hypotheses(
+    question: str, hypotheses: list[dict[str, Any]]
+) -> list[dict[str, Any]]:
+    """Reorder hypotheses so ones matching the question's terms lead.
+
+    A hypothesis whose title shares vocabulary with the question is
+    surfaced first, so the offline answer actually responds to what was
+    asked rather than always reciting the top-Elo summary. When nothing
+    matches (including an empty question), the stable sort's index
+    tiebreak reproduces the input's own order -- the prior, question-blind
+    behavior -- exactly.
+
+    Returns:
+        ``hypotheses`` reordered by (question-term overlap desc, original
+        index asc).
+    """
+    q_tokens = _tokenize(question)
+    if not q_tokens:
+        return hypotheses
+    scored = sorted(
+        enumerate(hypotheses),
+        key=lambda pair: (
+            -len(q_tokens & _tokenize(pair[1].get("title") or "")),
+            pair[0],
+        ),
+    )
+    return [hyp for _, hyp in scored]
+
+
+def _question_relevant_review(
+    question: str, reviews: list[dict[str, Any]]
+) -> dict[str, Any] | None:
+    """Pick the review whose note best matches the question's terms.
+
+    Ties -- including no review matching at all, or an empty question --
+    fall back to the latest review, the prior unconditional behavior.
+
+    Returns:
+        The best-matching review, or None if there are no reviews.
+    """
+    if not reviews:
+        return None
+    q_tokens = _tokenize(question)
+    best_overlap, best_index = max(
+        (len(q_tokens & _tokenize(r.get("summary") or "")), i)
+        for i, r in enumerate(reviews)
+    )
+    return reviews[best_index] if best_overlap > 0 else reviews[-1]
+
+
 def _offline_hypothesis_lines(
     hypotheses: list[dict[str, Any]], has_sources: bool
 ) -> list[str]:
@@ -88,32 +147,45 @@ def build_offline_answer(
     hypotheses: list[dict[str, Any]],
     reviews: list[dict[str, Any]],
     manifest: list[dict[str, Any]],
+    question: str,
 ) -> str:
     """Compose a deterministic, grounded Q&A answer without a language model.
 
     Used for the keyless demo posture: instead of returning an API-key error,
-    the run's own persisted artifacts (top hypotheses by Elo, the latest
+    the run's own persisted artifacts (top hypotheses, the most relevant
     reviewer note, and the numbered evidence manifest) are synthesized into a
-    plain grounded summary. The synthesis is a function of the run state only;
-    it deliberately does not interpret or key off the question text, so it
-    never fabricates a question-specific claim.
+    plain grounded summary. The synthesis stays a deterministic function of
+    the run state -- it never invents a claim the state does not contain --
+    but the question's own vocabulary steers which hypotheses and review lead
+    the answer, so it responds to what was asked instead of always reciting
+    the same top-Elo summary regardless of the question.
 
     Returns:
         The grounded answer text.
     """
     parts: list[str] = [
         "Answering from this run's own artifacts (offline mode, no "
-        "language model configured).",
-        f"Research goal: {research_goal}",
+        "language model configured)."
     ]
-    parts.extend(_offline_hypothesis_summary(hypotheses, manifest))
-    parts.extend(_offline_review_note(reviews))
+    stripped_question = question.strip()
+    if stripped_question:
+        parts.append(f'Question asked: "{stripped_question}"')
+    parts.append(f"Research goal: {research_goal}")
+    ranked = _question_ranked_hypotheses(question, hypotheses)
+    parts.extend(
+        _offline_hypothesis_summary(ranked, manifest, ranked != hypotheses)
+    )
+    parts.extend(
+        _offline_review_note(_question_relevant_review(question, reviews))
+    )
     parts.extend(_offline_manifest_note(manifest))
     return "\n".join(parts)
 
 
 def _offline_hypothesis_summary(
-    hypotheses: list[dict[str, Any]], manifest: list[dict[str, Any]]
+    hypotheses: list[dict[str, Any]],
+    manifest: list[dict[str, Any]],
+    question_matched: bool,
 ) -> list[str]:
     """Render the hypothesis-summary lines of the offline answer."""
     if not hypotheses:
@@ -121,19 +193,21 @@ def _offline_hypothesis_summary(
             "No hypotheses have been generated for this run yet, so there "
             "is nothing to summarize."
         ]
-    lines = [
-        f"The run produced {len(hypotheses)} hypotheses; the "
-        f"top-ranked by Elo are:"
-    ]
+    lead = (
+        "the following most closely match your question:"
+        if question_matched
+        else "the top-ranked by Elo are:"
+    )
+    lines = [f"The run produced {len(hypotheses)} hypotheses; {lead}"]
     lines.extend(_offline_hypothesis_lines(hypotheses, bool(manifest)))
     return lines
 
 
-def _offline_review_note(reviews: list[dict[str, Any]]) -> list[str]:
-    """Render the latest-reviewer-note line, or nothing when absent."""
-    if not reviews:
+def _offline_review_note(review: dict[str, Any] | None) -> list[str]:
+    """Render the most relevant reviewer-note line, or nothing when absent."""
+    if review is None:
         return []
-    summary = (reviews[-1].get("summary") or "").strip()
+    summary = (review.get("summary") or "").strip()
     return [f"Latest reviewer note: {summary}"] if summary else []
 
 

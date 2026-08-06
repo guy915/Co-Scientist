@@ -66,6 +66,10 @@ from app.store.interviews import (
     rewind_interview,
     update_interview,
 )
+from app.store.knowledge_facts import (
+    list_knowledge_facts,
+    replace_knowledge_facts,
+)
 from app.store.logs import (
     LogFilters,
     NewLogRecord,
@@ -259,6 +263,7 @@ __all__ = [
     "list_hypotheses",
     "list_interview_documents",
     "list_interviews",
+    "list_knowledge_facts",
     "list_logs",
     "list_matches",
     "list_messages",
@@ -279,6 +284,7 @@ __all__ = [
     "redact_hypothesis_fields",
     "redact_run_goal",
     "renew_task_lease",
+    "replace_knowledge_facts",
     "reprioritize_task",
     "reserve_run_capacity",
     "resolve_report_share",

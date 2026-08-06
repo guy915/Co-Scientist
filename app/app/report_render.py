@@ -7,20 +7,25 @@ implementation.
 
 The report content builders live in ``report_markdown``, the event-payload
 helpers in ``report_events``, the content-derivation helpers (topics,
-insights, buckets, claim filters) in ``report_content``, and the
-completion-email scheduling in ``report_notify``; their names are
-re-exported here so callers keep a single ``app.report_render`` import
-surface.
+insights, buckets, claim filters) in ``report_content``, the gathering and
+assembly of the payload/markdown pair (``ReportRequest``, ``_BuiltReport``,
+``_build_report_content``) in ``report_build``, and the completion-email
+scheduling in ``report_notify``; their names are re-exported here so
+callers keep a single ``app.report_render`` import surface.
 """
 
 from __future__ import annotations
 
 import logging
 from collections.abc import AsyncIterator
-from typing import Any, NamedTuple
+from typing import Any
 
 from app import store
-from app.elo import live_leaderboard
+from app.report_build import ReportRequest as ReportRequest
+from app.report_build import _build_report_content as _build_report_content
+from app.report_build import _BuiltReport as _BuiltReport
+from app.report_build import _ReportBuildArgs as _ReportBuildArgs
+from app.report_build import _ReportData as _ReportData
 from app.report_content import _agent_insights as _agent_insights
 from app.report_content import (
     _contradicted_hypothesis_ids as _contradicted_hypothesis_ids,
@@ -41,21 +46,12 @@ from app.report_content import (
 from app.report_content import (
     _unverified_hypothesis_ids as _unverified_hypothesis_ids,
 )
-from app.report_content import (
-    _verified_hypothesis_count as _verified_hypothesis_count,
-)
 from app.report_events import EmitFn as EmitFn
 from app.report_events import article_stub as article_stub
 from app.report_events import emit_cancel_or_pause as emit_cancel_or_pause
 from app.report_events import hypothesis_stub as hypothesis_stub
 from app.report_events import make_emitter as make_emitter
 from app.report_events import match_stub as match_stub
-from app.report_markdown import (
-    ReportMarkdownInputs,
-    ReportPayloadInputs,
-    build_report_payload,
-    render_report_markdown,
-)
 from app.report_markdown import (
     format_deep_verification_critique as format_deep_verification_critique,
 )
@@ -80,174 +76,6 @@ from app.safety import (
 from app.store import RunStatus
 
 logger = logging.getLogger(__name__)
-
-
-class ReportRequest(NamedTuple):
-    """Everything ``finalize_report`` needs besides the run id and emitter.
-
-    Both providers build this from their drained final state -- the run's
-    identity and tier, the synthesized sections, and where to persist -- and
-    it is threaded unchanged through the whole finalize pipeline.
-
-    Attributes:
-        research_goal: The run's research goal.
-        run_mode: The run's normalized tier.
-        provider: The active workflow provider.
-        citation_summary: Per-state citation counts, when audited.
-        meta_review: The meta-review agent's synthesis, when produced.
-        research_overview: The research-overview synthesis, when produced.
-        degraded_sections: Engine nodes whose output degraded to a
-            placeholder fallback after repeated parse failures; the report
-            carries the list so a blank section can explain itself.
-        execution_time: Wall-clock seconds the run took, when measured.
-        summary: Optional summary paragraph for the markdown header.
-        db_path: Optional override for the SQLite database path.
-    """
-
-    research_goal: str
-    run_mode: str
-    provider: str
-    citation_summary: dict[str, int] | None = None
-    meta_review: dict[str, Any] | None = None
-    research_overview: dict[str, Any] | None = None
-    degraded_sections: list[str] | None = None
-    execution_time: float | None = None
-    summary: str | None = None
-    db_path: str | None = None
-
-
-# The pre-bundle name, kept so existing imports and monkeypatch seams keep
-# resolving.
-_ReportBuildArgs = ReportRequest
-
-
-class _ReportData(NamedTuple):
-    """Gathered hypotheses, evidence, reviews, and counts for a run."""
-
-    hyps: list[dict[str, Any]]
-    all_hyps: list[dict[str, Any]]
-    claim_edges: list[dict[str, Any]]
-    released_claim_edges: list[dict[str, Any]]
-    evidence: list[dict[str, Any]]
-    match_count: int
-    reviews: list[dict[str, Any]]
-
-
-class _BuiltReport(NamedTuple):
-    """One run's report in both persisted forms."""
-
-    payload: dict[str, Any]
-    markdown: str
-
-
-def _build_report_content(run_id: str, req: _ReportBuildArgs) -> _BuiltReport:
-    """Gather store data and build the report payload and markdown.
-
-    Leaderboard, top hypotheses, and every row count are read from the store
-    -- the drain has already persisted everything the payload counts, so the
-    counts have one definition across providers.
-
-    Args:
-        run_id: Identifier of the run being reported on.
-        req: The finalize request's descriptive inputs (goal, tier,
-            provider, synthesized sections, and the store path).
-
-    Returns:
-        The report payload and its rendered markdown.
-    """
-    data = _gather_report_data(run_id, req.db_path)
-    return _BuiltReport(
-        payload=_assemble_report_payload(data, req),
-        markdown=_render_report_content_markdown(data, req),
-    )
-
-
-def _render_report_content_markdown(
-    data: _ReportData, req: _ReportBuildArgs
-) -> str:
-    """Render the report markdown from already-gathered store data."""
-    return render_report_markdown(
-        ReportMarkdownInputs(
-            research_goal=req.research_goal,
-            provider=req.provider,
-            # Report body is capped to the top 5 by Elo; the full set remains
-            # available via the leaderboard and the hypotheses API endpoint.
-            top_hypotheses=data.hyps[:5],
-            meta_review=req.meta_review,
-            citation_summary=req.citation_summary,
-            research_overview=req.research_overview,
-            summary=req.summary,
-            claim_evidence=data.released_claim_edges,
-        )
-    )
-
-
-def _gather_report_data(run_id: str, db_path: str | None) -> _ReportData:
-    """Load and safety-filter a run's hypotheses, evidence, and claim edges."""
-    all_hyps = store.list_hypotheses(run_id, db_path=db_path)
-    claim_edges = store.list_claim_evidence(run_id, db_path=db_path)
-    # Exclude any hypothesis a per-hypothesis safety review blocks (recorded as
-    # an audit decision) before it can appear in the leaderboard or top ideas.
-    hyps = _exclude_unsafe_hypotheses(run_id, all_hyps, db_path, claim_edges)
-    evidence = store.list_evidence(run_id, db_path=db_path)
-    released_claim_edges = _released_claim_evidence(hyps, claim_edges, evidence)
-    # The payload wants two numbers, and one of them is already in hand:
-    # ``summary_counts`` exists to avoid materializing tables the caller has,
-    # and asking it here re-counted evidence beside three tables the report
-    # never reads.
-    return _ReportData(
-        hyps=hyps,
-        all_hyps=all_hyps,
-        claim_edges=claim_edges,
-        released_claim_edges=released_claim_edges,
-        evidence=evidence,
-        match_count=store.count_matches(run_id, db_path=db_path),
-        # The reader's copy of every review row -- initial, deep
-        # verification, and the mature cascade's distinctly labeled
-        # full/simulation/recurrent results (audit E1).
-        reviews=store.list_reviews(run_id, db_path=db_path),
-    )
-
-
-def _assemble_report_payload(
-    data: _ReportData, req: _ReportBuildArgs
-) -> dict[str, Any]:
-    """Build the report payload dict from already-gathered store data."""
-    hyps, all_hyps, claim_edges = data.hyps, data.all_hyps, data.claim_edges
-    synthesized_topics = _synthesized_knowledge_base_topics(
-        req.research_overview, data.evidence
-    )
-    payload = build_report_payload(
-        ReportPayloadInputs(
-            research_goal=req.research_goal,
-            run_mode=req.run_mode,
-            provider=req.provider,
-            leaderboard=live_leaderboard(hyps),
-            hypothesis_count=len(hyps),
-            idea_count=len(all_hyps),
-            verified_count=_verified_hypothesis_count(hyps, claim_edges),
-            evidence_count=len(data.evidence),
-            match_count=data.match_count,
-            citation_summary=req.citation_summary,
-            meta_review=req.meta_review,
-            research_overview=req.research_overview,
-            knowledge_base=(
-                synthesized_topics or _knowledge_base_topics(hyps, claim_edges)
-            ),
-            agent_insights=_agent_insights(hyps, claim_edges, req.meta_review),
-            idea_buckets=_idea_buckets(hyps, all_hyps, claim_edges),
-            claim_evidence=data.released_claim_edges,
-            execution_time=req.execution_time,
-        )
-    )
-    # A section left blank by a fallback reads as missing data unless the
-    # report says generation failed; the engine records the degraded nodes.
-    payload["degraded_sections"] = list(req.degraded_sections or [])
-    # Every review row the drain persisted, so the report carries the
-    # initial, deep-verification, and mature-cascade reviews to the reader
-    # (audit E1); the ideas view reads the same rows from /reviews.
-    payload["reviews"] = list(data.reviews)
-    return payload
 
 
 async def finalize_report(
@@ -381,6 +209,10 @@ def _redacted_report(
     return _BuiltReport(
         payload=redact_payload_text(built.payload, matches),
         markdown=redact_matched_spans(built.markdown, matches),
+        # Facts are derived from claim text already persisted (unredacted)
+        # in claim_evidence and reachable via /claim-evidence regardless, so
+        # redacting the report's prose does not need to also redact these.
+        facts=built.facts,
     )
 
 
@@ -422,6 +254,10 @@ async def _publish_report(
     """Save the report, emit it, mark the run completed, and notify."""
     payload = built.payload
     saved = store.save_report(run_id, payload, built.markdown, db_path=db_path)
+    # Only reached once the report is actually publishing (not blocked or
+    # held), so a run whose report never publishes leaves no knowledge-base
+    # rows behind either.
+    store.replace_knowledge_facts(run_id, built.facts, db_path=db_path)
     yield await emit("report", {**payload, "report_id": saved["id"]})
     store.update_run_status(run_id, RunStatus.COMPLETED, db_path=db_path)
     _enqueue_completion_notification(

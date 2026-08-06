@@ -331,7 +331,7 @@ def test_build_offline_answer_grounds_in_run_hypotheses_and_sources() -> None:
     ]
 
     answer = qa.build_offline_answer(
-        "Investigate ferroptosis", hyps, reviews, manifest
+        "Investigate ferroptosis", hyps, reviews, manifest, "Summarize this"
     )
 
     assert "Investigate ferroptosis" in answer
@@ -341,18 +341,61 @@ def test_build_offline_answer_grounds_in_run_hypotheses_and_sources() -> None:
     assert "Key paper" in answer
 
 
-def test_build_offline_answer_does_not_key_off_the_question() -> None:
-    """The answer is identical regardless of the question text."""
-    hyps = [{"title": "H1", "elo_rating": 1300, "win_count": 1}]
+def test_build_offline_answer_echoes_the_question() -> None:
+    """The offline answer states the question it is responding to."""
+    answer = qa.build_offline_answer("Goal", [], [], [], "What about X?")
+    assert "What about X?" in answer
 
-    assert qa.build_offline_answer("Goal", hyps, [], []) == (
-        qa.build_offline_answer("Goal", hyps, [], [])
+
+def test_build_offline_answer_surfaces_question_matching_hypothesis() -> None:
+    """A hypothesis matching the question's terms leads, even if lower-Elo.
+
+    The offline answer must respond to what was asked rather than always
+    reciting the same top-Elo summary regardless of the question.
+    """
+    hyps = [
+        {
+            "title": "H1: broad rescue pathway",
+            "elo_rating": 1400,
+            "win_count": 5,
+        },
+        {
+            "title": "H2: ferroptosis specific mechanism",
+            "elo_rating": 1200,
+            "win_count": 1,
+        },
+    ]
+
+    answer = qa.build_offline_answer(
+        "Investigate cell death", hyps, [], [], "What about ferroptosis?"
     )
+
+    lines = answer.splitlines()
+    h1_line = next(i for i, line in enumerate(lines) if "H1:" in line)
+    h2_line = next(i for i, line in enumerate(lines) if "H2:" in line)
+    assert h2_line < h1_line
+
+
+def test_offline_answer_falls_back_to_input_order_when_unrelated() -> None:
+    """A question sharing no vocabulary reproduces the original ordering."""
+    hyps = [
+        {"title": "H1: alpha", "elo_rating": 1400, "win_count": 5},
+        {"title": "H2: beta", "elo_rating": 1200, "win_count": 1},
+    ]
+
+    answer = qa.build_offline_answer(
+        "Goal", hyps, [], [], "totally unrelated wombat"
+    )
+
+    lines = answer.splitlines()
+    h1_line = next(i for i, line in enumerate(lines) if "H1:" in line)
+    h2_line = next(i for i, line in enumerate(lines) if "H2:" in line)
+    assert h1_line < h2_line
 
 
 def test_build_offline_answer_handles_a_run_with_no_hypotheses() -> None:
     """With no hypotheses yet, the answer says so plainly rather than faking."""
-    answer = qa.build_offline_answer("Goal", [], [], [])
+    answer = qa.build_offline_answer("Goal", [], [], [], "Any results?")
     assert "no hypotheses" in answer.lower()
 
 

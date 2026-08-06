@@ -16,6 +16,17 @@ from typing import Any
 
 from app.citations import STATE_RANK
 
+# States a Q&A answer must not treat as support: "unsupported" means the
+# claim was checked against the source and the source did not back it, and
+# "unavailable" means the source could not be resolved at all. Both are
+# withheld from the manifest entirely rather than shown-but-labelled, so the
+# model can never cite one as [n] -- there is no [n] to cite.
+_UNCITABLE_STATES = frozenset({"unsupported", "unavailable"})
+
+# Evidence rows carry a full abstract; only a bounded excerpt goes into the
+# prompt so one long abstract cannot dominate the manifest's token budget.
+_PASSAGE_MAX_CHARS = 600
+
 
 def _eligible_citations(
     citations: list[dict[str, Any]],
@@ -95,6 +106,45 @@ def _resolve_entry_state(row: dict[str, Any], entry_state: str | None) -> str:
     return "available" if row.get("available", True) else "unavailable"
 
 
+def _passage(row: dict[str, Any]) -> str | None:
+    """Return a bounded excerpt of the evidence's abstract, or None.
+
+    This is the content a citation actually grounds against: without it the
+    model is told to cite ``[n]`` sources it was never shown the substance
+    of, which invites fabricating what they say.
+    """
+    abstract = (row.get("abstract") or "").strip()
+    if not abstract:
+        return None
+    if len(abstract) <= _PASSAGE_MAX_CHARS:
+        return abstract
+    return abstract[:_PASSAGE_MAX_CHARS].rstrip() + "…"
+
+
+def _withhold_uncitable(
+    ordered_ids: list[str],
+    by_id: dict[str, dict[str, Any]],
+    cited_state: dict[str, str],
+) -> list[str]:
+    """Drop ids whose resolved state cannot ground an answer.
+
+    Args:
+        ordered_ids: Evidence ids, cited items first, in manifest order.
+        by_id: Evidence rows for the run, keyed by string id.
+        cited_state: Strongest citation state seen for each cited id.
+
+    Returns:
+        ``ordered_ids`` with every ``unsupported``/``unavailable`` id
+        removed, order otherwise preserved.
+    """
+    return [
+        eid
+        for eid in ordered_ids
+        if _resolve_entry_state(by_id[eid], cited_state.get(eid))
+        not in _UNCITABLE_STATES
+    ]
+
+
 def _build_manifest_entries(
     ordered_ids: list[str],
     by_id: dict[str, dict[str, Any]],
@@ -110,7 +160,8 @@ def _build_manifest_entries(
         cap: Maximum number of sources to include.
 
     Returns:
-        A list of ``{n, evidence_id, title, url, source, year, state}`` dicts.
+        A list of ``{n, evidence_id, title, url, source, year, state,
+        passage}`` dicts.
     """
     manifest: list[dict[str, Any]] = []
     # 1-based numbering matches the [n] citation markers in the prompt.
@@ -125,6 +176,7 @@ def _build_manifest_entries(
                 "source": row.get("source"),
                 "year": row.get("year"),
                 "state": _resolve_entry_state(row, cited_state.get(eid)),
+                "passage": _passage(row),
             }
         )
     return manifest
@@ -138,9 +190,13 @@ def build_evidence_manifest(
     """Build a numbered, deterministic source list for grounded Q&A.
 
     Cited evidence comes first (in citation order, keeping the strongest state
-    when an item is cited by several claims), then any remaining evidence, all
-    capped to keep the prompt bounded. Each entry carries the fields the model
-    needs to cite and the UI needs to render a reference chip.
+    when an item is cited by several claims), then any remaining evidence.
+    Sources classified ``unsupported`` or ``unavailable`` are withheld
+    entirely -- they were checked against a claim and found not to back it,
+    or could not be resolved at all, so nothing about them belongs in a
+    grounded answer's context. What remains is capped to keep the prompt
+    bounded. Each entry carries the fields the model needs to cite (title,
+    a grounding passage) and the UI needs to render a reference chip.
 
     Args:
         evidence: Evidence rows for the run.
@@ -148,7 +204,8 @@ def build_evidence_manifest(
         cap: Maximum number of sources to include.
 
     Returns:
-        A list of ``{n, evidence_id, title, url, source, year, state}`` dicts.
+        A list of ``{n, evidence_id, title, url, source, year, state,
+        passage}`` dicts.
     """
     by_id: dict[str, dict[str, Any]] = {
         str(e["id"]): e for e in evidence if e.get("id") is not None
@@ -156,11 +213,17 @@ def build_evidence_manifest(
     cited_order, cited_state = _rank_cited_evidence(citations, by_id)
     # Uncited evidence trails the cited items, in retrieval (dict) order.
     ordered_ids = cited_order + [eid for eid in by_id if eid not in cited_state]
-    return _build_manifest_entries(ordered_ids, by_id, cited_state, cap)
+    usable_ids = _withhold_uncitable(ordered_ids, by_id, cited_state)
+    return _build_manifest_entries(usable_ids, by_id, cited_state, cap)
 
 
 def _format_manifest_for_prompt(manifest: list[dict[str, Any]]) -> str:
-    """Render the manifest as numbered lines for the system prompt."""
+    """Render the manifest as numbered lines for the system prompt.
+
+    A source's passage (when one was retrieved) is rendered as a quoted
+    line under its heading, so a citation has actual text to ground
+    against rather than only a title.
+    """
     lines = []
     for entry in manifest:
         meta = ", ".join(
@@ -172,6 +235,9 @@ def _format_manifest_for_prompt(manifest: list[dict[str, Any]]) -> str:
         lines.append(
             f"[{entry['n']}] {entry['title']}{suffix} — {entry['state']}"
         )
+        passage = entry.get("passage")
+        if passage:
+            lines.append(f'    "{passage}"')
     return "\n".join(lines)
 
 

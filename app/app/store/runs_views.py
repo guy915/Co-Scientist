@@ -40,13 +40,18 @@ _STAGE_EVENT_TYPES: tuple[str, ...] = (
 
 # Run-scoped tables whose rows are all deterministically reconstructed by the
 # final drain, so both the full and publication-only resets delete them
-# wholesale.
+# wholesale. knowledge_facts is derived from claim_evidence at report
+# finalize (audit G14) rather than by the drain itself, but the shape is the
+# same: without it here, a reset that clears claim_evidence but never
+# reaches a fresh finalize would leave knowledge_facts pointing at claims
+# that no longer exist.
 _REPLAYABLE_ARTIFACT_TABLES: tuple[str, ...] = (
     "matches",
     "citations",
     "claim_evidence",
     "proximity_edges",
     "run_metrics",
+    "knowledge_facts",
 )
 
 

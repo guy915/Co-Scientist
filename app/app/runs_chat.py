@@ -97,6 +97,7 @@ def _offline_qa_response(
         context.hypotheses,
         context.reviews,
         context.manifest,
+        question_msg.content,
     )
     return StreamingResponse(
         qa.stream_offline_answer(

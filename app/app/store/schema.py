@@ -6,7 +6,11 @@ stays in ``db.py``. Inline comments document each table's role and the
 compatibility notes behind non-obvious column choices.
 """
 
-SCHEMA = """
+from app.store.schema_knowledge_facts import (
+    KNOWLEDGE_FACTS_SCHEMA as KNOWLEDGE_FACTS_SCHEMA,
+)
+
+_SCHEMA_HEAD = """
 -- Primary lifecycle record for a single hypothesis-generation run.
 CREATE TABLE IF NOT EXISTS runs (
     id TEXT PRIMARY KEY,
@@ -233,6 +237,16 @@ CREATE TABLE IF NOT EXISTS evidence (
     byte_size INTEGER,
     document_version TEXT,
     extraction_tool TEXT,
+    doi TEXT,                        -- canonical DOI, when the source has one
+    pmid TEXT,                       -- canonical PubMed id, when applicable
+    passage_text TEXT,                -- exact text (title + abstract) a
+                                       -- claim-evidence span's offsets index
+    retrieved_at REAL,                 -- when the engine retrieved this
+                                        -- article, distinct from created_at
+    retrieval_score REAL,               -- hybrid lexical+semantic score
+    retrieval_rationale TEXT,           -- the semantic pass's stated reason
+    retriever_version TEXT,             -- method/version that produced the
+                                         -- score (see relevance.py)
     created_at REAL NOT NULL,
     FOREIGN KEY (run_id) REFERENCES runs(id) ON DELETE CASCADE
 );
@@ -419,7 +433,11 @@ CREATE INDEX IF NOT EXISTS idx_claim_ev_hyp ON claim_evidence(hypothesis_id);
 -- this graph per run, and the hypothesis_id index above cannot serve that.
 CREATE INDEX IF NOT EXISTS idx_claim_ev_run
     ON claim_evidence(run_id, created_at);
+"""
 
+# The knowledge_facts DDL lives in its own module (see there for why) and is
+# spliced in here so the executed script is unchanged.
+_SCHEMA_TAIL = """
 -- Persisted application log records captured from the Python root logger
 -- (see app/logging_setup.py). App-wide: run_id is NULL for records emitted
 -- outside any run context. Deliberately no FK to runs -- log history
@@ -464,3 +482,8 @@ CREATE TABLE IF NOT EXISTS proximity_edges (
 );
 CREATE INDEX IF NOT EXISTS idx_proximity_run ON proximity_edges(run_id);
 """
+
+# Concatenated (not interpolated) so knowledge_facts' CREATE TABLE runs
+# right after claim_evidence's -- adjacent in the executed script to the
+# table it derives from, matching the story an on-disk schema dump tells.
+SCHEMA = _SCHEMA_HEAD + KNOWLEDGE_FACTS_SCHEMA + _SCHEMA_TAIL

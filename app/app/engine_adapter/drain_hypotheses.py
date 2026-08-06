@@ -19,6 +19,7 @@ from co_scientist.models import Hypothesis
 
 from app import store
 from app.elo import INITIAL_ELO
+from app.engine_adapter.drain_evidence_resolution import ResolvedArticle
 from app.engine_adapter.drain_reviews import (
     _CitationSink,
     _persist_engine_citations,
@@ -83,6 +84,7 @@ def _article_coalesced_fields(
 def _persist_engine_evidence(
     run_id: str,
     articles: list[dict[str, Any]],
+    resolved: list[ResolvedArticle],
     citations: _CitationSink,
     conn: sqlite3.Connection,
 ) -> None:
@@ -96,12 +98,16 @@ def _persist_engine_evidence(
     Args:
         run_id: Run the evidence belongs to.
         articles: The engine's retrieved articles.
+        resolved: Each article's identity/availability, same order as
+            ``articles`` (see ``drain_evidence_resolution.resolve_articles``
+            -- must be computed before any transaction opens, since it may
+            perform network I/O).
         citations: The drain's citation lookups, filled in place.
         conn: Open connection of the caller's transaction.
     """
     ev_id_by_title = citations.ev_id_by_title
     abstract_by_title = citations.abstract_by_title
-    for art in articles:
+    for art, res in zip(articles, resolved, strict=True):
         url, authors, abstract = _article_coalesced_fields(art)
         ev_id = store.add_evidence(
             store.NewEvidence(
@@ -112,12 +118,56 @@ def _persist_engine_evidence(
                 authors=authors,
                 year=art.get("year"),
                 abstract=abstract,
-                available=bool(url) and not bool(art.get("is_retracted")),
+                available=res.available,
+                doi=res.doi,
+                pmid=res.pmid,
+                retrieved_at=art.get("retrieved_at"),
+                retrieval_score=art.get("retrieval_score"),
+                retrieval_rationale=art.get("retrieval_rationale"),
+                retriever_version=art.get("retriever_version"),
             ),
             conn=conn,
         )
         ev_id_by_title[art.get("title", "")] = ev_id
         abstract_by_title[art.get("title", "")] = abstract
+
+
+class ResolvedEvidenceBatch(NamedTuple):
+    """A run's retrieved articles paired with their resolved availability.
+
+    Bundled into one parameter (rather than two positional lists callers
+    must keep in step) so ``_persist_evidence_and_hypotheses`` stays inside
+    the five-parameter limit.
+    """
+
+    articles: list[dict[str, Any]]
+    resolved: list[ResolvedArticle]
+
+
+def _persist_evidence_and_hypotheses(
+    run_id: str,
+    evidence: ResolvedEvidenceBatch,
+    hyps_parents_first: list[dict[str, Any]],
+    sink: _HypothesisSink,
+    conn: sqlite3.Connection,
+) -> None:
+    """Persist retrieved evidence, then hypotheses parents before children.
+
+    Mutates the sink in place (see `_persist_engine_hypothesis`).
+
+    Args:
+        run_id: Run the drained state belongs to.
+        evidence: The engine's retrieved articles and their resolved
+            identity/availability (see ``_persist_engine_evidence``).
+        hyps_parents_first: Hypotheses ordered so parents insert first.
+        sink: The drain's hypothesis and citation lookups.
+        conn: Open connection of the caller's transaction.
+    """
+    _persist_engine_evidence(
+        run_id, evidence.articles, evidence.resolved, sink.citations, conn
+    )
+    for h in hyps_parents_first:
+        _persist_engine_hypothesis(run_id, h, sink, conn)
 
 
 def _derive_hypothesis_identity(h: dict[str, Any]) -> _HypIdentity:

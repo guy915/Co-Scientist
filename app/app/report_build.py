@@ -1,0 +1,214 @@
+"""Report content gathering and assembly, split out of ``report_render``.
+
+Holds the "build" half of report finalization -- loading a run's store
+data and shaping it into the payload/markdown pair -- kept separate from
+the "publish" half (the safety gate, persistence, and event emission) so
+each stays independently sized and testable. Every name is re-exported
+from ``app.report_render``, which remains the stable import and
+monkeypatch surface.
+"""
+
+from __future__ import annotations
+
+from typing import Any, NamedTuple
+
+from app import store
+from app.elo import live_leaderboard
+from app.knowledge_facts import derive_knowledge_facts
+from app.report_content import (
+    _agent_insights,
+    _exclude_unsafe_hypotheses,
+    _idea_buckets,
+    _knowledge_base_topics,
+    _released_claim_evidence,
+    _synthesized_knowledge_base_topics,
+    _verified_hypothesis_count,
+)
+from app.report_markdown import (
+    ReportMarkdownInputs,
+    ReportPayloadInputs,
+    build_report_payload,
+    render_report_markdown,
+)
+
+
+class ReportRequest(NamedTuple):
+    """Everything ``finalize_report`` needs besides the run id and emitter.
+
+    Both providers build this from their drained final state -- the run's
+    identity and tier, the synthesized sections, and where to persist -- and
+    it is threaded unchanged through the whole finalize pipeline.
+
+    Attributes:
+        research_goal: The run's research goal.
+        run_mode: The run's normalized tier.
+        provider: The active workflow provider.
+        citation_summary: Per-state citation counts, when audited.
+        meta_review: The meta-review agent's synthesis, when produced.
+        research_overview: The research-overview synthesis, when produced.
+        degraded_sections: Engine nodes whose output degraded to a
+            placeholder fallback after repeated parse failures; the report
+            carries the list so a blank section can explain itself.
+        execution_time: Wall-clock seconds the run took, when measured.
+        summary: Optional summary paragraph for the markdown header.
+        db_path: Optional override for the SQLite database path.
+    """
+
+    research_goal: str
+    run_mode: str
+    provider: str
+    citation_summary: dict[str, int] | None = None
+    meta_review: dict[str, Any] | None = None
+    research_overview: dict[str, Any] | None = None
+    degraded_sections: list[str] | None = None
+    execution_time: float | None = None
+    summary: str | None = None
+    db_path: str | None = None
+
+
+# The pre-bundle name, kept so existing imports and monkeypatch seams keep
+# resolving.
+_ReportBuildArgs = ReportRequest
+
+
+class _ReportData(NamedTuple):
+    """Gathered hypotheses, evidence, reviews, and counts for a run."""
+
+    hyps: list[dict[str, Any]]
+    all_hyps: list[dict[str, Any]]
+    claim_edges: list[dict[str, Any]]
+    released_claim_edges: list[dict[str, Any]]
+    evidence: list[dict[str, Any]]
+    match_count: int
+    reviews: list[dict[str, Any]]
+
+
+class _BuiltReport(NamedTuple):
+    """One run's report in both persisted forms.
+
+    Attributes:
+        payload: The JSON report payload.
+        markdown: The rendered Markdown report.
+        facts: Durable knowledge-base rows derived from this run's claim-
+            evidence graph (audit G14), persisted once the report actually
+            publishes; see ``report_render._publish_report``.
+    """
+
+    payload: dict[str, Any]
+    markdown: str
+    facts: list[dict[str, Any]]
+
+
+def _build_report_content(run_id: str, req: _ReportBuildArgs) -> _BuiltReport:
+    """Gather store data and build the report payload and markdown.
+
+    Leaderboard, top hypotheses, and every row count are read from the store
+    -- the drain has already persisted everything the payload counts, so the
+    counts have one definition across providers.
+
+    Args:
+        run_id: Identifier of the run being reported on.
+        req: The finalize request's descriptive inputs (goal, tier,
+            provider, synthesized sections, and the store path).
+
+    Returns:
+        The report payload and its rendered markdown.
+    """
+    data = _gather_report_data(run_id, req.db_path)
+    return _BuiltReport(
+        payload=_assemble_report_payload(data, req),
+        markdown=_render_report_content_markdown(data, req),
+        # Derived from the run's whole claim-evidence graph, not the
+        # released subset the payload/markdown are scoped to -- the
+        # knowledge base records everything the run found (see
+        # app.knowledge_facts).
+        facts=derive_knowledge_facts(data.claim_edges),
+    )
+
+
+def _render_report_content_markdown(
+    data: _ReportData, req: _ReportBuildArgs
+) -> str:
+    """Render the report markdown from already-gathered store data."""
+    return render_report_markdown(
+        ReportMarkdownInputs(
+            research_goal=req.research_goal,
+            provider=req.provider,
+            # Report body is capped to the top 5 by Elo; the full set remains
+            # available via the leaderboard and the hypotheses API endpoint.
+            top_hypotheses=data.hyps[:5],
+            meta_review=req.meta_review,
+            citation_summary=req.citation_summary,
+            research_overview=req.research_overview,
+            summary=req.summary,
+            claim_evidence=data.released_claim_edges,
+        )
+    )
+
+
+def _gather_report_data(run_id: str, db_path: str | None) -> _ReportData:
+    """Load and safety-filter a run's hypotheses, evidence, and claim edges."""
+    all_hyps = store.list_hypotheses(run_id, db_path=db_path)
+    claim_edges = store.list_claim_evidence(run_id, db_path=db_path)
+    # Exclude any hypothesis a per-hypothesis safety review blocks (recorded as
+    # an audit decision) before it can appear in the leaderboard or top ideas.
+    hyps = _exclude_unsafe_hypotheses(run_id, all_hyps, db_path, claim_edges)
+    evidence = store.list_evidence(run_id, db_path=db_path)
+    released_claim_edges = _released_claim_evidence(hyps, claim_edges, evidence)
+    # The payload wants two numbers, and one of them is already in hand:
+    # ``summary_counts`` exists to avoid materializing tables the caller has,
+    # and asking it here re-counted evidence beside three tables the report
+    # never reads.
+    return _ReportData(
+        hyps=hyps,
+        all_hyps=all_hyps,
+        claim_edges=claim_edges,
+        released_claim_edges=released_claim_edges,
+        evidence=evidence,
+        match_count=store.count_matches(run_id, db_path=db_path),
+        # The reader's copy of every review row -- initial, deep
+        # verification, and the mature cascade's distinctly labeled
+        # full/simulation/recurrent results (audit E1).
+        reviews=store.list_reviews(run_id, db_path=db_path),
+    )
+
+
+def _assemble_report_payload(
+    data: _ReportData, req: _ReportBuildArgs
+) -> dict[str, Any]:
+    """Build the report payload dict from already-gathered store data."""
+    hyps, all_hyps, claim_edges = data.hyps, data.all_hyps, data.claim_edges
+    synthesized_topics = _synthesized_knowledge_base_topics(
+        req.research_overview, data.evidence
+    )
+    payload = build_report_payload(
+        ReportPayloadInputs(
+            research_goal=req.research_goal,
+            run_mode=req.run_mode,
+            provider=req.provider,
+            leaderboard=live_leaderboard(hyps),
+            hypothesis_count=len(hyps),
+            idea_count=len(all_hyps),
+            verified_count=_verified_hypothesis_count(hyps, claim_edges),
+            evidence_count=len(data.evidence),
+            match_count=data.match_count,
+            citation_summary=req.citation_summary,
+            meta_review=req.meta_review,
+            research_overview=req.research_overview,
+            knowledge_base=(
+                synthesized_topics or _knowledge_base_topics(hyps, claim_edges)
+            ),
+            agent_insights=_agent_insights(hyps, claim_edges, req.meta_review),
+            idea_buckets=_idea_buckets(hyps, all_hyps, claim_edges),
+            claim_evidence=data.released_claim_edges,
+            execution_time=req.execution_time,
+        )
+    )
+    # A section left blank by a fallback reads as missing data unless the
+    # report says generation failed; the engine records the degraded nodes.
+    payload["degraded_sections"] = list(req.degraded_sections or [])
+    # Every review row the drain persisted, so the report carries the
+    # initial, deep-verification, and mature-cascade reviews to the reader
+    # (audit E1); the ideas view reads the same rows from /reviews.
+    payload["reviews"] = list(data.reviews)
+    return payload

@@ -24,6 +24,12 @@ from app.claim_grounding import (
 from app.claims import EvidencePassage
 from app.config import settings
 from app.elo import INITIAL_ELO as INITIAL_ELO
+from app.engine_adapter.drain_evidence_resolution import (
+    resolve_articles as resolve_articles,
+)
+from app.engine_adapter.drain_hypotheses import (
+    ResolvedEvidenceBatch as ResolvedEvidenceBatch,
+)
 
 # Evidence/hypothesis, review/citation, and match/proximity persistence
 # moved verbatim to sibling modules; every moved name is re-exported so this
@@ -55,6 +61,9 @@ from app.engine_adapter.drain_hypotheses import (
 )
 from app.engine_adapter.drain_hypotheses import (
     _persist_engine_hypothesis_row as _persist_engine_hypothesis_row,
+)
+from app.engine_adapter.drain_hypotheses import (
+    _persist_evidence_and_hypotheses as _persist_evidence_and_hypotheses,
 )
 from app.engine_adapter.drain_hypotheses import (
     _persist_hypothesis_state as _persist_hypothesis_state,
@@ -142,29 +151,6 @@ def _final_state_list(
 def _final_state_dict(final_state: dict[str, Any], key: str) -> dict[str, Any]:
     """Return a dict-valued key from the engine's final state, or empty."""
     return final_state.get(key) or {}
-
-
-def _persist_evidence_and_hypotheses(
-    run_id: str,
-    articles: list[dict[str, Any]],
-    hyps_parents_first: list[dict[str, Any]],
-    sink: _HypothesisSink,
-    conn: sqlite3.Connection,
-) -> None:
-    """Persist retrieved evidence, then hypotheses parents before children.
-
-    Mutates the sink in place (see `_persist_engine_hypothesis`).
-
-    Args:
-        run_id: Run the drained state belongs to.
-        articles: The engine's retrieved articles.
-        hyps_parents_first: Hypotheses ordered so parents insert first.
-        sink: The drain's hypothesis and citation lookups.
-        conn: Open connection of the caller's transaction.
-    """
-    _persist_engine_evidence(run_id, articles, sink.citations, conn)
-    for h in hyps_parents_first:
-        _persist_engine_hypothesis(run_id, h, sink, conn)
 
 
 def _screen_and_collect_grounding_inputs(
@@ -408,10 +394,17 @@ def _persist_evidence_hypotheses_and_screen(
     individually. Mutates `citation_summary` and `store_id_by_engine_id` in
     place.
 
+    Evidence availability is resolved before the transaction opens:
+    dereferencing a DOI/PMID is network I/O, and this function must never
+    hold the write lock across it (see AGENTS.md).
+
     Returns:
         The (screening result, evidence passages, grounding candidates)
         tuple `_screen_and_collect_grounding_inputs` produces.
     """
+    evidence = ResolvedEvidenceBatch(
+        articles=inputs.articles, resolved=resolve_articles(inputs.articles)
+    )
     sink = _HypothesisSink(
         citations=_CitationSink(
             ev_id_by_title={},
@@ -424,7 +417,7 @@ def _persist_evidence_hypotheses_and_screen(
     with store.transaction(db_path) as conn:
         _persist_evidence_and_hypotheses(
             run_id,
-            inputs.articles,
+            evidence,
             inputs.hyps_parents_first,
             sink,
             conn,

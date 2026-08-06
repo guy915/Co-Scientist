@@ -331,6 +331,39 @@ def _migrate_proximity_and_evidence_columns(
     _add_column_if_missing(conn, "evidence", "extraction_tool", "TEXT")
 
 
+def _migrate_evidence_identity_columns(conn: sqlite3.Connection) -> None:
+    """Add evidence identity/passage/retrieval-time columns (G12).
+
+    ``doi``/``pmid`` are the canonical identifiers a live availability check
+    dereferences; ``passage_text`` is the exact stored text a claim-evidence
+    span's offsets index (title + abstract, materialized at insert time
+    rather than reconstructed per read); ``retrieved_at`` is when the engine
+    retrieved the article, distinct from ``created_at`` (the drain's insert
+    time, which can trail retrieval by the rest of a run's duration).
+    """
+    _add_column_if_missing(conn, "evidence", "doi", "TEXT")
+    _add_column_if_missing(conn, "evidence", "pmid", "TEXT")
+    _add_column_if_missing(conn, "evidence", "passage_text", "TEXT")
+    _add_column_if_missing(conn, "evidence", "retrieved_at", "REAL")
+
+
+def _migrate_evidence_retrieval_scoring_columns(
+    conn: sqlite3.Connection,
+) -> None:
+    """Add persisted hybrid-retrieval scoring columns to evidence (G5).
+
+    ``retrieval_score`` combines the deterministic lexical heuristic with a
+    model-judged relevance pass (see ``search_support.py``'s hybrid scorer);
+    ``retrieval_rationale`` is the semantic pass's stated reason;
+    ``retriever_version`` names and versions the algorithm that produced
+    them, so a persisted score can always be traced to the method that made
+    it.
+    """
+    _add_column_if_missing(conn, "evidence", "retrieval_score", "REAL")
+    _add_column_if_missing(conn, "evidence", "retrieval_rationale", "TEXT")
+    _add_column_if_missing(conn, "evidence", "retriever_version", "TEXT")
+
+
 def _migrate_hypothesis_parent_ids(conn: sqlite3.Connection) -> None:
     """Add the multi-parent lineage column to hypotheses.
 
@@ -351,6 +384,8 @@ def _run_migrations(conn: sqlite3.Connection) -> None:
     _migrate_match_and_safety_columns(conn)
     _migrate_proximity_and_evidence_columns(conn)
     _migrate_hypothesis_parent_ids(conn)
+    _migrate_evidence_identity_columns(conn)
+    _migrate_evidence_retrieval_scoring_columns(conn)
 
 
 def checkpoint_wal(db_path: str | None = None) -> None:
