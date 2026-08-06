@@ -303,6 +303,10 @@ class NewReview:
 
     ``reviewer_agent`` names the agent that produced the review (e.g.
     'reflection'); the four reviewer-assigned scores are optional.
+    ``author`` and ``verdict`` carry a scientist reviewer's identity and
+    categorical judgement as their own columns, so neither has to be
+    recovered by reading the summary prose; both stay empty for an agent
+    review.
     """
 
     run_id: str
@@ -314,6 +318,8 @@ class NewReview:
     plausibility: float | None = None
     testability: float | None = None
     overall: float | None = None
+    author: str = ""
+    verdict: str | None = None
 
 
 def _insert_review_row(conn: sqlite3.Connection, review: NewReview) -> None:
@@ -321,8 +327,8 @@ def _insert_review_row(conn: sqlite3.Connection, review: NewReview) -> None:
     conn.execute(
         "INSERT INTO reviews (run_id, hypothesis_id, "
         "reviewer_agent, summary, critique, "
-        "novelty, plausibility, testability, overall, created_at) "
-        "VALUES (?,?,?,?,?,?,?,?,?,?)",
+        "novelty, plausibility, testability, overall, author, verdict, "
+        "created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
         (
             review.run_id,
             review.hypothesis_id,
@@ -333,6 +339,8 @@ def _insert_review_row(conn: sqlite3.Connection, review: NewReview) -> None:
             review.plausibility,
             review.testability,
             review.overall,
+            review.author,
+            review.verdict,
             _now(),
         ),
     )
@@ -362,3 +370,21 @@ def list_reviews(
 ) -> list[dict[str, Any]]:
     """Return a run's review rows ordered by creation time."""
     return _list_by_run("reviews", run_id, db_path, conn)
+
+
+def review_exists(
+    review_id: int,
+    db_path: str | None = None,
+    conn: sqlite3.Connection | None = None,
+) -> bool:
+    """Return whether a review row is still stored under this id.
+
+    Review ids are AUTOINCREMENT, so a deleted row's id is never handed to a
+    later review; a scientist review carried in engine state can therefore
+    ask by id whether its own row survived the run's resets.
+    """
+    with _use_conn(conn, db_path) as conn:
+        row = conn.execute(
+            "SELECT 1 FROM reviews WHERE id=?", (review_id,)
+        ).fetchone()
+        return row is not None

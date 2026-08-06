@@ -196,6 +196,29 @@ def _delete_agent_derived_rows(conn: sqlite3.Connection, run_id: str) -> None:
         "DELETE FROM evidence WHERE run_id=? AND source != ?",
         (run_id, _HUMAN_EVIDENCE_SOURCE),
     )
+    _reset_retained_hypothesis_state(conn, run_id)
+
+
+def _reset_retained_hypothesis_state(
+    conn: sqlite3.Connection, run_id: str
+) -> None:
+    """Zero the tournament counters on the hypothesis rows that survive.
+
+    An agent hypothesis is deleted and re-inserted by the next drain, so its
+    counters start from zero on their own. A scientist hypothesis is kept,
+    and the drain adds the run's win/loss counts as *deltas* (relative
+    updates, so concurrent match writers cannot clobber each other) -- which
+    on a replayed finalize would add the same tournament twice. Resetting
+    here, at the point the replay is being prepared, keeps the retained row
+    on exactly the same footing as the re-inserted ones. safety_status and
+    Elo are left alone: the drain writes Elo absolutely, and the screen
+    re-runs over every persisted row.
+    """
+    conn.execute(
+        "UPDATE hypothesis_state SET win_count=0, loss_count=0 "
+        "WHERE hypothesis_id IN (SELECT id FROM hypotheses WHERE run_id=?)",
+        (run_id,),
+    )
 
 
 def clear_run_derived_data(

@@ -273,6 +273,13 @@ def _migrate_interview_message_hypothesis_columns(
     # Authorship provenance for scientist-contributed hypotheses (Milestone 7);
     # empty for agent-generated ones.
     _add_column_if_missing(conn, "hypotheses", "author", "TEXT")
+    # The same two facts for a scientist-contributed *review*. They were
+    # previously readable only by scanning the summary prose for a verdict
+    # word, which the engine round trip then dropped entirely -- so a human
+    # review came back out of the drain as an anonymous agent review. Empty
+    # on every agent-authored row.
+    _add_column_if_missing(conn, "reviews", "author", "TEXT")
+    _add_column_if_missing(conn, "reviews", "verdict", "TEXT")
 
 
 def _migrate_match_and_safety_columns(conn: sqlite3.Connection) -> None:

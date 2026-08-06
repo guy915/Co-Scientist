@@ -186,6 +186,12 @@ def _persist_and_notify_human_review(
             reviewer_agent="scientist",
             summary=f"Scientist verdict: {review.verdict} (by {review.author})",
             critique=review.critique,
+            # The same two facts as their own columns. The summary above is
+            # for a reader; recovering the verdict by searching it for a
+            # verdict word (which is how the engine merge used to score a
+            # human review) reads authored prose as structure.
+            author=review.author,
+            verdict=review.verdict,
         )
     )
     continuation = _steer_and_continue(

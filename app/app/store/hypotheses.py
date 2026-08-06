@@ -59,15 +59,55 @@ def _parent_ids_json(parent_ids: list[str] | None) -> str | None:
     return json.dumps(parent_ids)
 
 
+# Re-persisting a row the store already holds is normal, not an error: a
+# scientist-contributed hypothesis is written at POST time, merged into
+# engine state, and then arrives again in the final-state drain -- which
+# used to fail the whole finalize with "UNIQUE constraint failed:
+# hypotheses.id" and leave the run unable to complete. The row that is
+# already there wins on everything that identifies it (id, run, author,
+# created_by_agent, generation, parent lineage, title, statement): the
+# engine round trip cannot carry authorship at all, and it never rewrites a
+# hypothesis in place -- evolution mints a child with a new id -- so a
+# conflicting id is the same idea, not a revision of it. Only the
+# engine-derived detail columns are filled, and only where the stored row
+# has nothing, so a drain adds what the run learned without overwriting
+# what the scientist wrote.
+_HYPOTHESIS_UPSERT = (
+    "INSERT INTO hypotheses (id, run_id, parent_id, parent_ids, "
+    "generation, category, title, statement, mechanism, expected_effect, "
+    "experimental_context, created_by_agent, author, created_at) "
+    "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?) "
+    "ON CONFLICT(id) DO UPDATE SET "
+    "category=COALESCE(hypotheses.category, excluded.category), "
+    "mechanism=COALESCE(NULLIF(hypotheses.mechanism, ''), "
+    "excluded.mechanism), "
+    "expected_effect=COALESCE(NULLIF(hypotheses.expected_effect, ''), "
+    "excluded.expected_effect), "
+    "experimental_context=COALESCE("
+    "NULLIF(hypotheses.experimental_context, ''), "
+    "excluded.experimental_context)"
+)
+
+# The mutable-state row is created once and thereafter only updated, so a
+# re-persisted hypothesis keeps the safety_status its screening set and the
+# tournament counters it has accumulated. The drain writes Elo and status
+# immediately afterwards (see drain_hypotheses._persist_hypothesis_state).
+_HYPOTHESIS_STATE_INSERT = (
+    "INSERT INTO hypothesis_state (hypothesis_id, elo_rating, updated_at) "
+    "VALUES (?,?,?) ON CONFLICT(hypothesis_id) DO NOTHING"
+)
+
+
 def _insert_hypothesis_rows(
     conn: sqlite3.Connection, hyp_id: str, f: NewHypothesis, now: float
 ) -> None:
-    """Insert the hypothesis row and its initial mutable-state row."""
+    """Insert the hypothesis row and its initial mutable-state row.
+
+    Both statements tolerate a row that already exists; see
+    ``_HYPOTHESIS_UPSERT`` for which columns a re-persist may fill.
+    """
     conn.execute(
-        "INSERT INTO hypotheses (id, run_id, parent_id, parent_ids, "
-        "generation, category, title, statement, mechanism, expected_effect, "
-        "experimental_context, created_by_agent, author, created_at) "
-        "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        _HYPOTHESIS_UPSERT,
         (
             hyp_id,
             f.run_id,
@@ -85,11 +125,7 @@ def _insert_hypothesis_rows(
             now,
         ),
     )
-    conn.execute(
-        "INSERT INTO hypothesis_state (hypothesis_id, elo_rating, "
-        "updated_at) VALUES (?,?,?)",
-        (hyp_id, INITIAL_ELO, now),
-    )
+    conn.execute(_HYPOTHESIS_STATE_INSERT, (hyp_id, INITIAL_ELO, now))
 
 
 def add_hypothesis(

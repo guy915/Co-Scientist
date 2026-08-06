@@ -18,6 +18,8 @@ from __future__ import annotations
 
 import dataclasses
 
+from co_scientist.constants import NEEDS_REVISION_SCORE, NOT_VIABLE_SCORE
+
 from app.hypothesis_safety import (
     HypothesisSafetyReview,
     review_hypothesis_safety,
@@ -123,7 +125,27 @@ class HumanReview:
         }
 
 
-_VALID_VERDICTS = frozenset({"support", "oppose", "revise"})
+# A scientist verdict is categorical, but the engine hands every review to
+# the tournament as a number: `Hypothesis.review_summary()` projects the
+# *latest* review's `overall_score` into the ranking and evolution prompts.
+# A merged human review is that latest review, so its score is read side by
+# side with the agents' -- and those come from the 1-10 rubric the review
+# prompts hand the model (co_scientist.constants documents the bands). The
+# earlier 20/60/90 was off that scale entirely, so a supported idea arrived
+# at the judge claiming a score no agent review could reach, and an opposed
+# one still outscored every agent review. These map each verdict onto the
+# band of the same rubric that means it: "not viable" for oppose, "needs
+# substantial rework" for revise, and the good-to-outstanding band for
+# support.
+_SUPPORTED_SCORE = 8
+
+VERDICT_REVIEW_SCORES: dict[str, int] = {
+    "support": _SUPPORTED_SCORE,
+    "revise": NEEDS_REVISION_SCORE,
+    "oppose": NOT_VIABLE_SCORE,
+}
+
+_VALID_VERDICTS = frozenset(VERDICT_REVIEW_SCORES)
 
 
 def build_human_review(

@@ -105,6 +105,9 @@ from app.engine_adapter.drain_reviews import (
     _persist_engine_reviews as _persist_engine_reviews,
 )
 from app.engine_adapter.drain_reviews import (
+    _persist_scientist_review as _persist_scientist_review,
+)
+from app.engine_adapter.drain_reviews import (
     _score_or_none as _score_or_none,
 )
 from app.engine_adapter.drain_safety import (

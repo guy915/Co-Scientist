@@ -56,11 +56,73 @@ def _score_or_none(value: Any) -> float | None:
     return float(value or 0) or None
 
 
+# Reviewer label for a scientist-authored review, matching the row
+# `runs_contrib.add_human_review` writes. Kept apart from the engine's
+# "review" agent so a human review never reaches a reader as an anonymous
+# agent one.
+_SCIENTIST_REVIEWER = "scientist"
+
+
+def _scientist_review_row_survives(
+    source_id: str, conn: sqlite3.Connection
+) -> bool:
+    """Return whether the review's own stored row is still there.
+
+    An unparseable id cannot name a row, so it reads as gone and the review
+    is restored -- losing a human review is the worse of the two failures.
+    """
+    if not source_id.isdigit():
+        return False
+    return store.review_exists(int(source_id), conn=conn)
+
+
+def _persist_scientist_review(
+    run_id: str, hyp_id: str, rv: dict[str, Any], conn: sqlite3.Connection
+) -> bool:
+    """Restore a merged scientist review, or report that it needs no row.
+
+    A scientist review reaches the drain because the merge carried it into
+    engine state (``engine_tasks_inputs._scientist_hypothesis_review``),
+    which is also where its author and verdict ride. Its own row usually
+    survived the run's resets untouched -- scientist rows are deliberately
+    retained -- so the drain must not write a second, differently-attributed
+    copy of it. The one case that does need a row back is a review of an
+    *agent* hypothesis: deleting that hypothesis for the replay cascades the
+    human review away with it, and only engine state still holds it.
+
+    Returns:
+        Whether this review was handled here, so the generic per-review
+        insert must skip it.
+    """
+    feedback = rv.get("detailed_feedback") or {}
+    source_id = str(feedback.get("scientist_review_id") or "")
+    if not source_id:
+        return False
+    if _scientist_review_row_survives(source_id, conn):
+        return True
+    store.add_review(
+        store.NewReview(
+            run_id=run_id,
+            hypothesis_id=hyp_id,
+            reviewer_agent=_SCIENTIST_REVIEWER,
+            summary=rv.get("review_summary", ""),
+            critique=str(feedback.get("scientist_critique") or ""),
+            overall=_score_or_none(rv.get("overall_score", 0)),
+            author=str(feedback.get("scientist_author") or ""),
+            verdict=str(feedback.get("scientist_verdict") or "") or None,
+        ),
+        conn=conn,
+    )
+    return True
+
+
 def _persist_engine_review_rows(
     run_id: str, hyp_id: str, h: dict[str, Any], conn: sqlite3.Connection
 ) -> None:
     """Persist a hypothesis's per-review rows from the engine's reviews list."""
     for rv in h.get("reviews") or []:
+        if _persist_scientist_review(run_id, hyp_id, rv, conn):
+            continue
         scores = rv.get("scores", {})
         store.add_review(
             store.NewReview(
