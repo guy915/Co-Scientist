@@ -72,6 +72,8 @@ from app.safety import (
     SafetyDecision,
     ScreenSubject,
     apply_safety_gate,
+    redact_matched_spans,
+    redact_payload_text,
     screen_final,
     screen_with_escalation,
 )
@@ -336,6 +338,8 @@ async def _build_and_gate_report(
     final = await _screen_final_report(
         run_id, built.markdown, req.provider, db_path=req.db_path
     )
+    if final.decision == "redact":
+        built = _redacted_report(built, final)
     gate_events = [
         event
         async for event in apply_safety_gate(
@@ -349,6 +353,35 @@ async def _build_and_gate_report(
             run_id,
         )
     return built, blocked, gate_events
+
+
+def _redacted_report(
+    built: _BuiltReport, decision: SafetyDecision
+) -> _BuiltReport:
+    """Apply a redact decision to both persisted forms of the report.
+
+    The payload and the markdown are two renderings of the same content, and
+    both are saved and emitted, so scrubbing one would leave the original
+    readable through the other -- through ``/report``, the ``report`` event,
+    the run's event log, and the public share built from the same row.
+
+    Args:
+        built: The report as built, before publication.
+        decision: The final-stage decision naming the spans to remove.
+
+    Returns:
+        The report with every matched span replaced in payload and markdown.
+    """
+    matches = list(decision.matches)
+    logger.warning(
+        "Redacting %d matched span(s) from the report under the final "
+        "safety gate.",
+        len(matches),
+    )
+    return _BuiltReport(
+        payload=redact_payload_text(built.payload, matches),
+        markdown=redact_matched_spans(built.markdown, matches),
+    )
 
 
 def _report_already_published(run_id: str, *, db_path: str | None) -> bool:

@@ -158,3 +158,64 @@ def test_canonical_axes_keep_their_disposition_names_under_criteria() -> None:
 
     assert unsound.review_disposition == "inaccurate"
     assert stale.review_disposition == "non_novel"
+
+
+def test_a_serious_safety_score_blocks_without_criteria() -> None:
+    """The reviewer's safety verdict rejects, on every run (J8).
+
+    The rubric hands the model "10 = no concern, low = serious concern"
+    on the safety axis and reserves 1-2 for "fundamentally flawed, not
+    viable". A review saying both is a rejection, and it must not depend
+    on the scientist having named safety among the run's criteria.
+    """
+    hypothesis = make_hypothesis(text="idea")
+    review = _review_with_scores(
+        {"scientific_soundness": 8, "novelty": 8, "safety": 1}
+    )
+
+    _apply_initial_review_gate([hypothesis], [review], criteria=None)
+
+    assert hypothesis.review_disposition == "unsafe"
+    assert not hypothesis.is_rankable()
+
+
+def test_a_missing_safety_score_does_not_block() -> None:
+    """An omitted safety score is a review defect, not a safety verdict.
+
+    Production routes structured output through json_object mode, which
+    does not enforce the schema, so the key can simply be absent. Reading
+    that as the worst score is how the previous gate disqualified whole
+    pools.
+    """
+    hypothesis = make_hypothesis(text="idea")
+    review = _review_with_scores({"scientific_soundness": 8, "novelty": 8})
+
+    _apply_initial_review_gate([hypothesis], [review], criteria=None)
+
+    assert hypothesis.review_disposition == "viable"
+    assert hypothesis.is_rankable()
+
+
+def test_a_safety_score_in_the_rework_band_still_ranks() -> None:
+    """Only the not-viable band blocks, exactly as for the other axes."""
+    hypothesis = make_hypothesis(text="idea")
+    review = _review_with_scores(
+        {"scientific_soundness": 8, "novelty": 8, "safety": 4}
+    )
+
+    _apply_initial_review_gate([hypothesis], [review], criteria=None)
+
+    assert hypothesis.review_disposition == "viable"
+    assert hypothesis.is_rankable()
+
+
+def test_a_safety_rejection_outranks_a_soundness_rejection() -> None:
+    """An idea rejected on safety is reported as unsafe, not inaccurate."""
+    hypothesis = make_hypothesis(text="idea")
+    review = _review_with_scores(
+        {"scientific_soundness": 1, "novelty": 1, "safety": 1}
+    )
+
+    _apply_initial_review_gate([hypothesis], [review], criteria=None)
+
+    assert hypothesis.review_disposition == "unsafe"

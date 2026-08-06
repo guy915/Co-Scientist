@@ -136,6 +136,13 @@ def next_task_type(completed: str, state: WorkflowState) -> str | None:
     """
     if completed not in _NEXT_TASK_ROUTES:
         raise ValueError(f"unsupported completed task node: {completed}")
+    # A halt written by the mid-flight safety monitor (J6) ends the run from
+    # whichever node observed it, rather than letting the rest of the cycle
+    # run and stopping only at the next orchestrator loop point. The
+    # scheduler's own safety stop still covers the graph path, which has no
+    # equivalent of this table.
+    if state.get("safety_blocked"):
+        return None
     route = _NEXT_TASK_ROUTES[completed]
     return route(state) if callable(route) else route
 

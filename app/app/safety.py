@@ -1,53 +1,63 @@
-"""Lightweight safety filter for intake and final output.
+"""Content safety policy for a run's intake goal and final output.
 
 Goals:
-- Block obviously hazardous CBRN / weaponization asks at intake.
-- Redact or annotate dual-use scientific content at final-output stage.
-- Keep allow lists explicit; default to allow.
-- Determinism: same input always yields the same decision.
+- Block obviously hazardous CBRN / weaponization asks at intake, on the same
+  policy the per-hypothesis gate applies to generated ideas.
+- Redact dual-use scientific content at the final-output stage, and make the
+  redaction real (``safety_redaction`` removes the matched spans).
+- Determinism: the rule layer always yields the same decision for the same
+  input, and bounds the contextual model from below rather than replacing it.
+
+Recording a decision and gating the run on it lives in ``safety_gate``; the
+text-scrubbing helpers live in ``safety_redaction``. Both are re-exported
+here, which stays the import surface for callers.
 """
 
 from __future__ import annotations
 
-import enum
-import json
 import logging
-from collections.abc import AsyncIterator, Awaitable, Callable
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any
 
-from co_scientist.safety import POLICY_VERSION, review_content_safety
+from co_scientist.safety import (
+    POLICY_VERSION,
+    SafetyOutcome,
+    review_content_safety,
+    review_hypothesis_safety,
+)
 
 from app import store
-from app.config import (
-    deepseek_thinking_kwargs,
-    has_provider_credential,
-    settings,
-    thinking_safe_max_tokens,
-    thinking_safe_timeout,
+from app.config import has_provider_credential, settings
+from app.safety_gate import apply_safety_gate as apply_safety_gate
+from app.safety_redaction import REDACTED_PLACEHOLDER as REDACTED_PLACEHOLDER
+from app.safety_redaction import redact_matched_spans as redact_matched_spans
+from app.safety_redaction import redact_payload_text as redact_payload_text
+from app.safety_semantic import (
+    run_semantic_safety_model,
+    semantic_credential_missing_decision,
+    semantic_safety_error_decision,
 )
-from app.store import RunStatus
+from app.safety_types import SafetyDecision as SafetyDecision
+from app.safety_types import SafetyMode as SafetyMode
 
 logger = logging.getLogger(__name__)
 
 __all__ = [
     "POLICY_VERSION",
+    "REDACTED_PLACEHOLDER",
     "SAFETY_MODE",
     "SafetyDecision",
     "SafetyMode",
     "ScreenSubject",
+    "apply_safety_gate",
+    "ensure_redactable",
+    "redact_matched_spans",
+    "redact_payload_text",
     "screen_contextual",
     "screen_final",
     "screen_intake",
     "screen_with_escalation",
 ]
-
-
-class SafetyMode(str, enum.Enum):
-    """How aggressively the safety filter treats dual-use content."""
-
-    STANDARD = "standard"
-    STRICT = "strict"
 
 
 def _resolve_safety_mode() -> SafetyMode:
@@ -59,35 +69,6 @@ def _resolve_safety_mode() -> SafetyMode:
 
 
 SAFETY_MODE = _resolve_safety_mode()
-
-
-@dataclass
-class SafetyDecision:
-    """Outcome of a safety pass."""
-
-    stage: str  # "intake" | "final"
-    decision: str  # "allow" | "redact" | "block"
-    reason: str = ""
-    matches: list[str] = field(default_factory=list)
-    category: str = "allowed"
-    policy_version: str = POLICY_VERSION
-    risk_domains: list[str] = field(default_factory=list)
-    requires_review: bool = False
-    assessor: str = "deterministic"
-
-    def to_dict(self) -> dict[str, str | list[str] | bool]:
-        """Serialize this decision for the `safety.{stage}` event payload."""
-        return {
-            "stage": self.stage,
-            "decision": self.decision,
-            "reason": self.reason,
-            "matches": self.matches,
-            "category": self.category,
-            "policy_version": self.policy_version,
-            "risk_domains": self.risk_domains,
-            "requires_review": self.requires_review,
-            "assessor": self.assessor,
-        }
 
 
 def _decision_from_review(stage: str, review: Any) -> SafetyDecision:
@@ -104,14 +85,91 @@ def _decision_from_review(stage: str, review: Any) -> SafetyDecision:
     )
 
 
+# Ordered least to most restrictive; used to keep the strictest verdict when
+# two classifiers see the same text. A later assessment may raise the
+# severity, never lower it.
+_DECISION_SEVERITY = {"allow": 0, "redact": 1, "hold": 2, "block": 3}
+
+
+def _severity(decision: SafetyDecision) -> int:
+    """Return the ordering rank of a decision, unknown values reading lowest."""
+    return _DECISION_SEVERITY.get(decision.decision, 0)
+
+
+def _more_severe(
+    first: SafetyDecision, second: SafetyDecision
+) -> SafetyDecision:
+    """Return the decision that withholds more, preferring ``first`` on ties."""
+    return second if _severity(second) > _severity(first) else first
+
+
+# How a blocking per-hypothesis outcome reads as a content-stage decision.
+# Only the outcomes that exclude a hypothesis from the pool are carried over:
+# dual-use and redact are non-blocking there too, so the content policy's own
+# handling of them already matches.
+_OUTCOME_TO_CONTENT_DECISION: dict[SafetyOutcome, tuple[str, str, str]] = {
+    SafetyOutcome.PROHIBITED: (
+        "block",
+        "prohibited",
+        "cbrn_weaponization",
+    ),
+    SafetyOutcome.ETHICAL_CONCERN: (
+        "block",
+        "ethical_concern",
+        "research_ethics",
+    ),
+    SafetyOutcome.UNCERTAIN: (
+        "hold",
+        "uncertain",
+        "obfuscated_intent",
+    ),
+}
+
+
+def _hypothesis_policy_decision(stage: str, text: str) -> SafetyDecision | None:
+    """Apply the canonical per-hypothesis policy to intake/final content.
+
+    The narrow content policy only prohibits a harmful verb and a named agent
+    in the same clause, so a bare "design a bioweapon for mass-casualty
+    deployment" cleared it while the per-hypothesis gate disqualified the same
+    sentence. Running the canonical classifier here makes the two agree by
+    construction rather than by two lists being kept in step by hand.
+
+    Args:
+        stage: Safety stage being screened (``"intake"`` or ``"final"``).
+        text: The content to classify.
+
+    Returns:
+        The decision when the per-hypothesis policy withholds the content,
+        else ``None``.
+    """
+    review = review_hypothesis_safety(text or "")
+    mapped = _OUTCOME_TO_CONTENT_DECISION.get(review.outcome)
+    if mapped is None:
+        return None
+    decision, category, risk_domain = mapped
+    return SafetyDecision(
+        stage=stage,
+        decision=decision,
+        reason=f"Content {review.reason}.",
+        matches=list(review.matches),
+        category=category,
+        risk_domains=[risk_domain],
+        requires_review=decision == "hold",
+        policy_version=review.policy_version,
+    )
+
+
 def screen_intake(goal: str) -> SafetyDecision:
-    """Run the input gate. Returns block / redact / allow."""
+    """Run the input gate. Returns block / hold / redact / allow."""
     review = review_content_safety(
         goal or "",
         "intake",
         strict_intake=SAFETY_MODE == SafetyMode.STRICT,
     )
-    return _decision_from_review("intake", review)
+    baseline = _decision_from_review("intake", review)
+    parity = _hypothesis_policy_decision("intake", goal)
+    return baseline if parity is None else _more_severe(baseline, parity)
 
 
 def screen_final(report_markdown: str) -> SafetyDecision:
@@ -125,9 +183,10 @@ def _semantic_credential_available(model: str) -> bool:
 
     Delegates to ``config.PROVIDER_CREDENTIAL_ENV`` rather than carrying its
     own provider table. This module's copy had drifted apart from the
-    offline-mode probe's, and a provider missing here does not raise -- the
-    contextual screen just returns the deterministic baseline, so the
-    semantic layer reads as configured-but-never-winning. A scoped
+    offline-mode probe's, and a provider missing here does not raise, so a
+    drifted table read as a semantic layer that was configured and never
+    won. It is now visible either way: the screen refuses and logs rather
+    than falling back to the deterministic rules alone. A scoped
     bring-your-own-key credential also satisfies the gate: a BYOK run
     screens on its own key even when the deployment has none.
     """
@@ -138,114 +197,21 @@ def _semantic_credential_available(model: str) -> bool:
     )
 
 
-def _semantic_prompt(text: str, stage: str) -> str:
-    """Build a bounded contextual-risk classification prompt."""
-    return (
-        "Classify the scientific content under a research safety policy. "
-        "Return JSON only with category, reason, risk_domains, and "
-        "operational_detail. category must be one of prohibited, "
-        "ethical_concern, uncertain, redacted, allowed. Treat requests that "
-        "meaningfully enable weaponization, harmful pathogen enhancement, "
-        "mass-casualty capability, non-consensual human experimentation, or "
-        "evasion as prohibited or ethical_concern. Legitimate dual-use work "
-        "with actionable harmful operational detail is redacted. Ambiguous "
-        "risk is uncertain. Do not reproduce or elaborate unsafe detail.\n"
-        f"Stage: {stage}\nContent:\n{text[:16000]}"
-    )
+def _offline_pinned_process() -> bool:
+    """Return whether every model call in this process is offline-routed.
 
+    A forced-offline or keyless process pins the engine to the deterministic
+    offline backend, so no contextual screen is expected to run: that is a
+    deployment mode, not a safety control that failed, and it must not hold
+    every run for review. It is the carve-out the escalation check already
+    makes for an offline-backed run, at process rather than run scope.
+    A *partially* configured deployment -- one holding a provider
+    credential but not the safety model's -- is the opposite case and still
+    refuses, which is the failure this guard must not swallow.
+    """
+    from app.engine_adapter.provider import offline_mode
 
-_SEMANTIC_CATEGORY_TO_DECISION = {
-    "prohibited": "block",
-    "ethical_concern": "block",
-    "uncertain": "hold",
-    "redacted": "redact",
-    "allowed": "allow",
-}
-
-
-async def _call_semantic_safety_model(
-    text: str, stage: str, model: str
-) -> dict[str, Any]:
-    """Call the semantic safety model and return its parsed JSON response."""
-    import litellm
-
-    from app import credentials
-
-    # A scoped bring-your-own-key credential overrides both the model and
-    # the deployment credential for this screen.
-    model, api_key = credentials.byok_model_and_key(model)
-    # Sending no max_tokens was not "unbounded" -- it took the provider's
-    # own default, small enough for thinking to exhaust before the verdict
-    # is written. That failure is silent all the way to the outcome: empty
-    # content parses to {}, {} carries no category, and a missing category
-    # is "uncertain", which is hold-plus-human-review. Runs would park for
-    # adjudication on a truncated call rather than on their content. The
-    # 20s clock could not fund the reasoning either; both gates run inside
-    # durable tasks, so neither ceiling is blocking a request.
-    response = await litellm.acompletion(
-        model=model,
-        messages=[{"role": "user", "content": _semantic_prompt(text, stage)}],
-        response_format={"type": "json_object"},
-        temperature=0,
-        max_tokens=thinking_safe_max_tokens(model, 1_000),
-        timeout=thinking_safe_timeout(model, 20),
-        **deepseek_thinking_kwargs(model),
-        **({"api_key": api_key} if api_key else {}),
-    )
-    content = response.choices[0].message.content or "{}"
-    parsed: dict[str, Any] = json.loads(content)
-    return parsed
-
-
-def _build_semantic_decision(
-    stage: str, model: str, parsed: dict[str, Any]
-) -> SafetyDecision:
-    """Turn a parsed semantic-model response into a :class:`SafetyDecision`."""
-    category = str(parsed.get("category") or "uncertain")
-    if category not in _SEMANTIC_CATEGORY_TO_DECISION:
-        category = "uncertain"
-    decision = _SEMANTIC_CATEGORY_TO_DECISION[category]
-    domains = parsed.get("risk_domains")
-    return SafetyDecision(
-        stage=stage,
-        decision=decision,
-        reason=str(parsed.get("reason") or "Contextual safety assessment."),
-        category=category,
-        risk_domains=(
-            [str(item) for item in domains] if isinstance(domains, list) else []
-        ),
-        requires_review=decision in {"hold", "redact"},
-        assessor=f"semantic:{model}",
-    )
-
-
-async def _run_semantic_safety_model(
-    text: str, stage: str, model: str
-) -> SafetyDecision:
-    """Call the semantic safety model and turn its category into a decision."""
-    parsed = await _call_semantic_safety_model(text, stage, model)
-    return _build_semantic_decision(stage, model, parsed)
-
-
-def _semantic_safety_error_decision(
-    stage: str, model: str, baseline: SafetyDecision, exc: Exception
-) -> SafetyDecision:
-    """Build the fallback decision when the semantic safety call fails."""
-    logger.warning("Contextual safety assessment failed: %s", exc)
-    if baseline.decision == "redact":
-        return baseline
-    return SafetyDecision(
-        stage=stage,
-        decision="hold",
-        reason=(
-            "Contextual safety assessment was unavailable; human review "
-            "required."
-        ),
-        category="uncertain",
-        risk_domains=["assessment_unavailable"],
-        requires_review=True,
-        assessor=f"semantic:{model}:error",
-    )
+    return offline_mode()
 
 
 async def screen_contextual(
@@ -254,7 +220,13 @@ async def screen_contextual(
     *,
     deterministic: SafetyDecision | None = None,
 ) -> SafetyDecision:
-    """Combine hard deterministic rules with contextual model assessment."""
+    """Assess content contextually, behind the deterministic hard pre-blocks.
+
+    The model is the primary classifier: it sees content the pattern rules
+    cannot describe and its verdict is what the caller gates on. The rules run
+    first and bound it from below -- a rule-level block short-circuits before
+    any call, and nothing the model returns can lower a rule-level verdict.
+    """
     baseline = deterministic or (
         screen_intake(text) if stage == "intake" else screen_final(text)
     )
@@ -265,15 +237,18 @@ async def screen_contextual(
         or settings.supervisor_model_name
         or settings.model_name
     )
-    if (
-        not settings.semantic_safety_enabled
-        or not _semantic_credential_available(model)
-    ):
+    if not settings.semantic_safety_enabled or _offline_pinned_process():
         return baseline
+    if not _semantic_credential_available(model):
+        return semantic_credential_missing_decision(stage, model, baseline)
     try:
-        return await _run_semantic_safety_model(text, stage, model)
+        assessment = await run_semantic_safety_model(text, stage, model)
     except Exception as exc:  # Provider failure must not silently clear risk.
-        return _semantic_safety_error_decision(stage, model, baseline, exc)
+        return semantic_safety_error_decision(stage, model, baseline, exc)
+    # The model is the primary classifier, but the deterministic rules are
+    # hard pre-blocks: the model may raise the verdict and never lower it, so
+    # a rule-matched redaction cannot be cleared by a permissive assessment.
+    return _more_severe(assessment, baseline)
 
 
 def _should_escalate_to_semantic(
@@ -344,103 +319,44 @@ async def screen_with_escalation(
     if _should_escalate_to_semantic(
         run_id, subject.stage, provider, db_path=db_path
     ):
-        return await screen_contextual(
-            subject.text, subject.stage, deterministic=subject.deterministic
+        return ensure_redactable(
+            await screen_contextual(
+                subject.text,
+                subject.stage,
+                deterministic=subject.deterministic,
+            )
         )
-    return subject.deterministic
+    return ensure_redactable(subject.deterministic)
 
 
-def _record_safety_decision(
-    run_id: str, result: SafetyDecision, *, db_path: str | None
-) -> None:
-    """Persist the decision and log it at a level matching its severity."""
-    store.add_safety_decision(
-        store.NewSafetyDecision(
-            run_id=run_id,
-            stage=result.stage,
-            decision=result.decision,
-            reason=result.reason,
-            matches=result.matches,
-            category=result.category,
-            policy_version=result.policy_version,
-            risk_domains=result.risk_domains,
-            requires_review=result.requires_review,
-            assessor=result.assessor,
-        ),
-        db_path=db_path,
-    )
-    if result.decision in {"block", "hold"}:
-        logger.warning(
-            "Safety gate withheld run %s at %s stage: %s",
-            run_id,
-            result.stage,
-            result.reason,
-        )
-    else:
-        logger.info(
-            "Safety gate %s run %s at %s stage.",
-            result.decision,
-            run_id,
-            result.stage,
-        )
+def ensure_redactable(decision: SafetyDecision) -> SafetyDecision:
+    """Hold a redaction the app has no way to apply.
 
-
-async def _yield_terminal_status_event(
-    run_id: str,
-    result: SafetyDecision,
-    emit: Callable[[str, dict[str, Any]], Awaitable[dict[str, Any]]],
-    *,
-    db_path: str | None,
-) -> AsyncIterator[dict[str, Any]]:
-    """Update the run's status and yield its event when the result is final."""
-    if result.decision == "block":
-        store.update_run_status(
-            run_id, RunStatus.BLOCKED, error=result.reason, db_path=db_path
-        )
-        yield await emit(
-            "status", {"status": "blocked", "error": result.reason}
-        )
-    elif result.decision == "hold":
-        store.update_run_status(
-            run_id, RunStatus.PAUSED, error=result.reason, db_path=db_path
-        )
-        yield await emit(
-            "status",
-            {
-                "status": "paused",
-                "reason": "safety_review",
-                "error": result.reason,
-            },
-        )
-
-
-async def apply_safety_gate(
-    run_id: str,
-    result: SafetyDecision,
-    emit: Callable[[str, dict[str, Any]], Awaitable[dict[str, Any]]],
-    *,
-    db_path: str | None = None,
-) -> AsyncIterator[dict[str, Any]]:
-    """Record a safety decision, emit it, and gate the run on a hard block.
-
-    Shared by the intake and final safety gates so the record -> emit ->
-    block-and-stop sequence lives in one place. Yields the events to forward
-    on the workflow's stream: the ``safety.{stage}`` decision, plus a
-    blocked ``status`` event when the decision blocks. The caller must
-    return from its workflow when ``result.decision == "block"``.
+    Redaction removes the spans the policy matched. A ``redact`` verdict
+    naming no span -- which is every redaction the contextual model returns,
+    since it reports a category rather than offsets -- leaves nothing to
+    remove, and proceeding would publish the original under a redaction
+    label. That is the exact shape of the defect this guards: the record said
+    redacted and the content was untouched.
 
     Args:
-        run_id: Identifier of the run being gated.
-        result: The safety screening outcome to record and act on.
-        emit: The provider's event emitter, called as ``emit(type, payload)``.
-        db_path: Optional override for the SQLite database path.
+        decision: The decision both content gates are about to act on.
 
-    Yields:
-        Event dicts to forward on the workflow's event stream.
+    Returns:
+        The decision unchanged, or a hold when it cannot be applied.
     """
-    _record_safety_decision(run_id, result, db_path=db_path)
-    yield await emit(f"safety.{result.stage}", result.to_dict())
-    async for event in _yield_terminal_status_event(
-        run_id, result, emit, db_path=db_path
-    ):
-        yield event
+    if decision.decision != "redact" or decision.matches:
+        return decision
+    return SafetyDecision(
+        stage=decision.stage,
+        decision="hold",
+        reason=(
+            "Content was marked for redaction but no removable span was "
+            "identified; human review required."
+        ),
+        category=decision.category,
+        policy_version=decision.policy_version,
+        risk_domains=list(decision.risk_domains) or ["unredactable"],
+        requires_review=True,
+        assessor=decision.assessor,
+    )

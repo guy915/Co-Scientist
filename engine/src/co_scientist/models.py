@@ -154,9 +154,14 @@ def _assessment_fields(hypothesis: "Hypothesis") -> dict[str, Any]:
 
 
 # Review dispositions that keep a hypothesis out of the Elo tournament: the
-# initial peer-review gate (inaccurate / non-novel) and the pre-ranking
-# evidence gate (evidence_blocked). Shared by ranking and the scheduler so
-# tournament-coverage accounting matches tournament eligibility.
+# initial peer-review gate (inaccurate / non-novel / unsafe) and the
+# pre-ranking evidence gate (evidence_blocked). Shared by ranking and the
+# scheduler so tournament-coverage accounting matches tournament eligibility.
+#
+# "unsafe" is the reviewer's own safety axis reaching the not-viable band
+# (finding J8). It is kept apart from the two quality dispositions because
+# the reader is owed the actual reason: an idea withheld for a safety
+# concern is not an inaccurate one.
 #
 # Note what is deliberately absent: "needs_revision" and "duplicate". A
 # weak-but-not-fatal idea still competes and publishes -- the tournament,
@@ -169,6 +174,7 @@ BLOCKING_REVIEW_DISPOSITIONS = frozenset(
         "inaccurate",
         "non_novel",
         "inaccurate_and_non_novel",
+        "unsafe",
         "evidence_blocked",
     }
 )

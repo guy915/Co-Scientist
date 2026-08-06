@@ -8,6 +8,9 @@ from typing import Any
 from co_scientist.agents.reflection.mature_reviews import (
     mature_review_summary,
 )
+from co_scientist.agents.safety.safety_monitor import (
+    monitor_research_direction,
+)
 from co_scientist.constants import (
     PROGRESS_META_REVIEW_COMPLETE,
     PROGRESS_META_REVIEW_START,
@@ -89,7 +92,12 @@ async def _run_meta_review_phase(
         recommendations_count=len(meta_review["strategic_recommendations"]),
     )
 
-    return _build_meta_review_result(meta_review)
+    # The overview is the run's own account of where its ideas are heading,
+    # which is what makes it the thing to monitor (J6). Empty for a run the
+    # monitor does not halt, so a healthy synthesis returns exactly what it
+    # always did.
+    halt = await monitor_research_direction(state, meta_review)
+    return {**_build_meta_review_result(meta_review), **halt}
 
 
 async def _synthesize_meta_review(

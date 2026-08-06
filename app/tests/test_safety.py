@@ -119,6 +119,9 @@ async def test_contextual_screen_holds_ambiguous_risk(
             ]
         )
 
+    # The suite process is offline-pinned, which is its own deliberate
+    # carve-out; these exercise a configured deployment's contextual screen.
+    monkeypatch.setattr(safety, "_offline_pinned_process", lambda: False)
     monkeypatch.setattr(
         safety, "_semantic_credential_available", lambda _: True
     )
@@ -142,6 +145,9 @@ async def test_contextual_failure_fails_closed(
     async def failed_completion(**_: object) -> None:
         raise RuntimeError("provider unavailable")
 
+    # The suite process is offline-pinned, which is its own deliberate
+    # carve-out; these exercise a configured deployment's contextual screen.
+    monkeypatch.setattr(safety, "_offline_pinned_process", lambda: False)
     monkeypatch.setattr(
         safety, "_semantic_credential_available", lambda _: True
     )

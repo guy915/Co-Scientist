@@ -4,7 +4,8 @@ Classifies freshly reviewed ideas against the review prompt's own quality
 bands (finding K4's review half): only the "fundamentally flawed, not
 viable" band blocks, and when the scientist supplied evaluation criteria
 for the run those criteria select which scored axes the gate consults
-instead of the built-in soundness/novelty pair.
+instead of the built-in soundness/novelty pair. The reviewer's safety
+axis is consulted on every run whatever the criteria (finding J8).
 """
 
 from collections.abc import Sequence
@@ -20,6 +21,22 @@ from co_scientist.models import Hypothesis, HypothesisReview
 # historical default -- do not change it without also changing the rubric
 # the review prompt hands the model.
 _DEFAULT_GATE_AXES: tuple[str, ...] = ("scientific_soundness", "novelty")
+
+# The one axis gated on every run, whatever criteria the scientist named
+# (finding J8). The reviewer scored safety on all eight axes from the
+# start and nothing read the score, so a review saying an idea carries a
+# serious safety concern still sent it to the tournament. It is checked
+# ahead of the rest so a rejection on safety is reported as such rather
+# than as a soundness failure.
+#
+# The band is the same one every other axis blocks in, and it is the band
+# the prompt itself defines: the rubric hands the model "10 = no concern,
+# low = serious concern" for this axis and reserves 1-2 for "fundamentally
+# flawed, not viable". This is deliberately not a second, independently
+# tuned gate -- an idea in the rework band ranks and publishes here as
+# everywhere else, and an omitted score reads as neutral (see
+# ``_gate_score``), never as the worst one.
+_SAFETY_AXIS = "safety"
 
 # Keyword -> scored-axis table resolving a scientist criterion (free text)
 # onto the review's eight scored axes (schemas/review.py). A criterion may
@@ -100,10 +117,13 @@ def _disposition_for(review: HypothesisReview, axes: Sequence[str]) -> str:
         axes: The scored axes the gate consults for this run.
 
     Returns:
-        The blocking disposition when any consulted axis falls in the
-        "not viable" band, ``needs_revision`` when the weakest consulted
-        axis falls in the rework band, and ``viable`` otherwise.
+        ``unsafe`` when the reviewer scored safety in the "not viable"
+        band, the blocking disposition when any consulted axis falls in
+        that band, ``needs_revision`` when the weakest consulted axis
+        falls in the rework band, and ``viable`` otherwise.
     """
+    if _gate_score(review, _SAFETY_AXIS) <= NOT_VIABLE_SCORE:
+        return "unsafe"
     scores = {axis: _gate_score(review, axis) for axis in axes}
     fatal = [axis for axis in axes if scores[axis] <= NOT_VIABLE_SCORE]
     if fatal:
@@ -138,6 +158,11 @@ def _apply_initial_review_gate(
     publishable, so the tournament decides their fate on the evidence, but
     still excluded from the deep-review cascade so the run does not spend
     its budget on its weakest ideas.
+
+    The reviewer's safety score is read on every run (J8) and blocks in
+    that same not-viable band, as ``unsafe``. It is the only axis gated
+    unconditionally: which quality axes matter is the scientist's call,
+    while a review reporting a serious safety concern is not.
 
     When the run carries scientist evaluation criteria (K4), the criteria
     select which scored axes are gated -- a feasibility-focused goal gates

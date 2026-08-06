@@ -345,6 +345,17 @@ class WorkflowState(TypedDict):
     Accumulated across safety screen passes (initial + each evolution cycle).
     """
 
+    safety_blocked: bool | None
+    """True once the mid-flight safety monitor halted the run (J6).
+
+    Written by ``agents/safety/safety_monitor.py`` when the meta-review
+    overview -- the run's own account of where its ideas are heading --
+    reaches prohibited content, and read as a hard stop by the scheduler
+    (``scheduling.policy_checks``) and by the durable runtime, which
+    schedules no further science once it is set. Absent on every run the
+    monitor has not halted.
+    """
+
     held_for_review: list[dict[str, Any]]
     """Full hypothesis dicts for UNCERTAIN outcomes, preserved for manual
     review by the app layer. Distinct from the hypothesis pool (which no

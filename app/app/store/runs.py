@@ -275,6 +275,30 @@ def set_run_title(run_id: str, title: str, db_path: str | None = None) -> None:
         conn.execute("UPDATE runs SET title = ? WHERE id = ?", (title, run_id))
 
 
+def redact_run_goal(
+    run_id: str, goal: str, title: str, db_path: str | None = None
+) -> None:
+    """Overwrite a run's goal and title with their redacted forms.
+
+    An intake ``redact`` decision used to record the label and leave the
+    original goal in the row, where it stayed readable through the run API,
+    the run list, and every surface built from them. The title is rewritten
+    in the same statement because it is generated from the goal and would
+    otherwise carry the same span.
+
+    Args:
+        run_id: Identifier of the run to update.
+        goal: The redacted research goal to persist.
+        title: The redacted session title to persist.
+        db_path: Optional override for the SQLite database path.
+    """
+    with connect(db_path) as conn:
+        conn.execute(
+            "UPDATE runs SET research_goal = ?, title = ? WHERE id = ?",
+            (goal, title, run_id),
+        )
+
+
 def set_run_config(
     run_id: str, config: dict[str, Any], db_path: str | None = None
 ) -> None:
@@ -305,14 +329,20 @@ def get_run(
 
 
 def _count_other_active_runs(
-    conn: sqlite3.Connection, run_id: str, profile: str, client_id: str
+    conn: sqlite3.Connection, run_id: str, client_id: str
 ) -> int:
-    """Count the client's other in-flight runs of this profile."""
+    """Count the client's other in-flight runs, whatever tier they are.
+
+    Deliberately blind to ``profile``: the quota is one ceiling per
+    identity. Partitioning the count by tier as well made the effective
+    allowance ``max_concurrent_runs`` per tier -- four times what is
+    advertised, and reachable simply by naming a different tier each time.
+    """
     return int(
         conn.execute(
-            "SELECT COUNT(*) FROM runs WHERE client_id=? AND profile=? "
+            "SELECT COUNT(*) FROM runs WHERE client_id=? "
             "AND status IN (?,?,?) AND id!=?",
-            (client_id, profile, *_ACTIVE_RUN_STATUSES, run_id),
+            (client_id, *_ACTIVE_RUN_STATUSES, run_id),
         ).fetchone()[0]
     )
 
@@ -339,18 +369,19 @@ def _queue_run_if_startable(
 def reserve_run_capacity(
     run_id: str,
     *,
-    profile: str,
     client_id: str,
     limit: int,
     db_path: str | None = None,
 ) -> bool:
-    """Atomically reserve one Standard/Advanced concurrency slot.
+    """Atomically reserve one of the scientist's concurrency slots.
+
+    One ceiling per identity, counted over every tier together: a caller
+    that spreads its runs across tiers gets no extra allowance.
 
     Args:
         run_id: Draft run to transition to queued.
-        profile: Faithful run mode whose active rows consume the quota.
         client_id: Scientist ownership scope.
-        limit: Maximum concurrent runs of this mode for the scientist.
+        limit: Maximum concurrent runs for the scientist.
         db_path: Optional override for the SQLite database path.
 
     Returns:
@@ -358,7 +389,7 @@ def reserve_run_capacity(
         quota was already full or the run was no longer startable.
     """
     with transaction(db_path) as conn:
-        count = _count_other_active_runs(conn, run_id, profile, client_id)
+        count = _count_other_active_runs(conn, run_id, client_id)
         if count >= limit:
             return False
         changed = _queue_run_if_startable(conn, run_id, _now())
