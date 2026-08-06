@@ -34,8 +34,10 @@ router = APIRouter()
 async def send_message(run_id: str, req: SendMessageRequest) -> dict[str, Any]:
     """Queue scientist steering and continue a completed engine run."""
     _require_run(run_id)
-    # Stored with applied=0; the workflow drains pending steering messages
-    # between iterations (store.get_pending_steering) and marks them applied.
+    # Stored with applied=0; each durable task boundary reads the pending
+    # queue (store.get_pending_steering) and acknowledges what it read only
+    # inside the transaction that commits the checkpoint honoring it, so a
+    # worker lost mid-task leaves this message claimable by the next one.
     msg = store.append_message(
         store.NewMessage(
             run_id=run_id, sender="user", content=req.content, kind="steering"

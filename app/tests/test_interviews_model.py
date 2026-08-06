@@ -18,7 +18,7 @@ from ._interviews_helpers import _fake_stream, _response
 
 
 async def test_interview_downgrades_response_format_for_deepseek(
-    monkeypatch: pytest.MonkeyPatch,
+    monkeypatch: pytest.MonkeyPatch, reachable_provider: None
 ) -> None:
     """DeepSeek rejects json_schema, so the interview must use json_object.
 
@@ -53,7 +53,7 @@ async def test_interview_downgrades_response_format_for_deepseek(
 
 
 async def test_interview_keeps_json_schema_for_supporting_model(
-    monkeypatch: pytest.MonkeyPatch,
+    monkeypatch: pytest.MonkeyPatch, reachable_provider: None
 ) -> None:
     """A model that supports json_schema still gets the native schema format."""
     import json
@@ -79,7 +79,7 @@ async def test_interview_keeps_json_schema_for_supporting_model(
 
 
 async def test_interview_carries_audience_lab_context(
-    monkeypatch: pytest.MonkeyPatch,
+    monkeypatch: pytest.MonkeyPatch, reachable_provider: None
 ) -> None:
     """The SBI/UCD interview is briefed on the group it is interviewing.
 
@@ -117,7 +117,7 @@ async def test_interview_carries_audience_lab_context(
 
 
 async def test_interview_without_audience_is_unchanged(
-    monkeypatch: pytest.MonkeyPatch,
+    monkeypatch: pytest.MonkeyPatch, reachable_provider: None
 ) -> None:
     """A general-audience interview gets no injected lab context."""
     import json

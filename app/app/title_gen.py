@@ -67,8 +67,13 @@ async def _request_title_completion(goal: str) -> Any:
     """
     import litellm
 
-    from app import credentials
+    from app import credentials, offline_guard
 
+    # The goal itself is the prompt here, so titling leaks exactly what
+    # forced offline exists to keep in: refuse before the call. The caller
+    # already treats any failure as "no title", so the run keeps its
+    # goal-clause fallback.
+    offline_guard.require_remote_chat("run titling")
     model, api_key = credentials.byok_model_and_key(
         settings.effective_chat_model
     )

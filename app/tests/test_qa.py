@@ -174,7 +174,7 @@ def test_citation_meta_is_none_for_empty_manifest() -> None:
 
 
 def test_stream_llm_deltas_yields_only_nonempty_chunks(
-    monkeypatch: pytest.MonkeyPatch,
+    monkeypatch: pytest.MonkeyPatch, reachable_provider: None
 ) -> None:
     monkeypatch.setitem(
         sys.modules, "litellm", _fake_litellm(["Hello", "", " world"])
@@ -219,7 +219,9 @@ def test_handle_qa_stream_error_persists_fallback_and_logs(
 
 
 def test_stream_answer_happy_path_persists_and_yields_frames(
-    isolated_db: str, monkeypatch: pytest.MonkeyPatch
+    isolated_db: str,
+    monkeypatch: pytest.MonkeyPatch,
+    reachable_provider: None,
 ) -> None:
     monkeypatch.setitem(sys.modules, "litellm", _fake_litellm(["Ans", "wer"]))
     store.create_run(

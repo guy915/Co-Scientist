@@ -229,6 +229,29 @@ async def check_mcp_available(
         return False
 
 
+def _servers_changed(
+    server_url: str | None,
+    tool_registry: Optional["ToolRegistry"],
+) -> bool:
+    """Return whether these arguments resolve to servers the cache lacks.
+
+    Args:
+        server_url: URL of a single MCP server (legacy mode), if given.
+        tool_registry: ToolRegistry for the config-driven multi-server mode.
+
+    Returns:
+        True when the cached client was built for a different server set.
+    """
+    if _global_client is None:
+        return False
+    if server_url is None and tool_registry is None:
+        # No configuration was requested, so nothing can have changed; the
+        # caller is asking for whatever session the process already has.
+        return False
+    requested = _resolve_server_configs(tool_registry, None, server_url)
+    return requested != _global_client._server_configs
+
+
 async def get_mcp_client(
     server_url: str | None = None,
     tool_registry: Optional["ToolRegistry"] = None,
@@ -246,10 +269,18 @@ async def get_mcp_client(
     """
     global _global_client
 
-    # force_new bypasses the cache (e.g. tests, or reconfiguring server_url
-    # / tool_registry mid-process); otherwise the first caller's arguments
-    # win and later callers just get that same client re-initialized below.
-    if _global_client is None or force_new:
+    # The cache is keyed on the servers the arguments resolve to, not merely
+    # on "a client exists". Sharing one session across a run's nodes is the
+    # point of the singleton, and that still happens whenever the resolved
+    # servers match; but a caller that resolves *different* servers was
+    # previously handed the first caller's client and silently talked to the
+    # wrong deployment. force_new rebuilds unconditionally (tests, or a
+    # caller that wants a session of its own).
+    if (
+        _global_client is None
+        or force_new
+        or _servers_changed(server_url, tool_registry)
+    ):
         _global_client = MCPToolClient(
             server_url=server_url, tool_registry=tool_registry
         )

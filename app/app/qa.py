@@ -17,7 +17,7 @@ from collections.abc import AsyncGenerator, AsyncIterator
 from dataclasses import dataclass
 from typing import Any
 
-from app import credentials, store
+from app import credentials, offline_guard, store
 from app.config import (
     THINKING_FLOOR_TIMEOUT_SECONDS,
     deepseek_thinking_kwargs,
@@ -234,6 +234,12 @@ async def _stream_llm_deltas(
     """
     import litellm
 
+    # The endpoint already routes an offline process to the deterministic
+    # grounded answer, so this never fires from there. It is here so the
+    # invariant belongs to the call that makes the request rather than to
+    # one caller that remembers to check -- any later caller of
+    # stream_answer inherits it.
+    offline_guard.require_remote_chat("Q&A")
     model, api_key = credentials.byok_model_and_key(model)
     response = await litellm.acompletion(
         model=model,

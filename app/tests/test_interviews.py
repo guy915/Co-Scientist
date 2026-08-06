@@ -289,7 +289,9 @@ def test_scientist_can_edit_and_finalize_fields(
 
 
 def test_turn_streams_real_reasoning_before_resolving(
-    isolated_db: str, monkeypatch: pytest.MonkeyPatch
+    isolated_db: str,
+    monkeypatch: pytest.MonkeyPatch,
+    reachable_provider: None,
 ) -> None:
     """The thinking shown to the scientist is the model's own reasoning.
 
@@ -332,7 +334,9 @@ def test_turn_streams_real_reasoning_before_resolving(
 
 
 def test_persisted_reasoning_returns_to_the_model_next_turn(
-    isolated_db: str, monkeypatch: pytest.MonkeyPatch
+    isolated_db: str,
+    monkeypatch: pytest.MonkeyPatch,
+    reachable_provider: None,
 ) -> None:
     """A chat's own thinking stays in the context its next turn builds on.
 

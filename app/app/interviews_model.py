@@ -17,7 +17,7 @@ from typing import Any
 
 from fastapi import HTTPException
 
-from app import credentials
+from app import credentials, offline_guard
 from app.config import (
     THINKING_FLOOR_TIMEOUT_SECONDS,
     deepseek_thinking_kwargs,
@@ -60,6 +60,12 @@ async def _stream_interview_content(
     """
     import litellm
 
+    # Refuse before the request is shaped, not after: the prompt carries the
+    # scientist's research goal verbatim, and forced offline means it does
+    # not leave the process. The raise lands in _call_interview_model's
+    # except branch, which is the same 503 -> scripted-turn path an absent
+    # provider already takes.
+    offline_guard.require_remote_chat("the interview")
     model, messages, response_format = _interview_request(interview)
     # A scoped bring-your-own-key credential overrides both the model and
     # the deployment credential for this turn.

@@ -13,8 +13,6 @@ import time
 from collections.abc import AsyncIterator, Awaitable, Callable
 from typing import Any, Literal, cast, overload
 
-from langgraph.graph import StateGraph
-
 from co_scientist.cache import scoped_cache_override
 from co_scientist.constants import (
     DEFAULT_EVOLUTION_MAX_COUNT,
@@ -22,11 +20,7 @@ from co_scientist.constants import (
     DEFAULT_MAX_ITERATIONS,
 )
 from co_scientist.generator.availability import McpAvailabilityMixin
-from co_scientist.generator.graph import (
-    CompiledWorkflow,
-    _add_workflow_edges,
-    _add_workflow_nodes,
-)
+from co_scientist.generator.configuration import GraphCacheMixin
 from co_scientist.generator.initial_state import (
     RunCallbacks,
     RunCapabilities,
@@ -57,7 +51,9 @@ from co_scientist.state import WorkflowState
 logger = logging.getLogger(__name__)
 
 
-class HypothesisGenerator(McpAvailabilityMixin, StreamExecutionMixin):
+class HypothesisGenerator(
+    McpAvailabilityMixin, GraphCacheMixin, StreamExecutionMixin
+):
     """Async wrapper for hypothesis generation using LangGraph.
 
     Args:
@@ -149,9 +145,11 @@ class HypothesisGenerator(McpAvailabilityMixin, StreamExecutionMixin):
         self._tool_registry = _build_tool_registry(
             opts.tools_config, opts.disable_tools
         )
-        self._graph: CompiledWorkflow | None = None  # built lazily
-        self._mcp_available: bool | None = None
-        self._pubmed_available: bool | None = None
+        # The graph and the availability answers start empty for the same
+        # reason a configuration change clears them: both are built lazily
+        # from the registry above, and both are rebuilt whenever the shape
+        # they were compiled for stops matching. See GraphCacheMixin.
+        self.invalidate_configuration_caches()
 
     def _init_model_and_budget(
         self,
@@ -219,50 +217,6 @@ class HypothesisGenerator(McpAvailabilityMixin, StreamExecutionMixin):
         if self.api_key:
             self.enable_cache = False
         _configure_cache_dir_env(cache_dir)
-
-    def _build_graph(
-        self, enable_literature_review_node: bool = True
-    ) -> CompiledWorkflow:
-        """Build the LangGraph workflow.
-
-        Complete workflow:
-        1. SUPERVISOR → creates research plan
-        2. LITERATURE_REVIEW → search and analyze literature (optional, if MCP
-        available)
-        3. GENERATE → initial hypotheses
-        4. REFLECTION → analyze hypotheses against literature (skipped if no lit
-        review)
-        5. REVIEW → parallel peer reviews
-        6. RANKING → sort by score, then run Elo tournaments
-        7. ITERATIONS (if max_iterations > 0):
-           - META_REVIEW → synthesize insights
-           - EVOLVE → refine top-k hypotheses
-           - REVIEW → re-review evolved hypotheses
-           - RANKING → update Elo ratings
-           - PROXIMITY → deduplicate similar hypotheses
-           - Loop back or END
-        8. END → return top hypotheses
-
-        Args:
-            enable_literature_review_node: Whether to include literature
-                review node (requires MCP server)
-        """
-        workflow = StateGraph(WorkflowState)
-        _add_workflow_nodes(workflow, enable_literature_review_node)
-        _add_workflow_edges(workflow, enable_literature_review_node)
-        return workflow.compile()
-
-    def _ensure_graph_built(self, enable_literature_review_node: bool) -> None:
-        """Builds and caches self._graph on first call; a no-op afterward.
-
-        Args:
-            enable_literature_review_node: Whether the literature review node
-                should be included if the graph is being built now.
-        """
-        if self._graph is None:
-            self._graph = self._build_graph(
-                enable_literature_review_node=enable_literature_review_node
-            )
 
     async def _prepare_generation(
         self,

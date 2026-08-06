@@ -88,6 +88,27 @@ def isolated_db(
     shutdown_log_capture()
 
 
+@pytest.fixture
+def reachable_provider(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Lift the suite's forced-offline posture for one test.
+
+    The suite runs hermetically offline, and ``offline_guard`` refuses an
+    outbound chat completion in that posture, so a test that asserts on the
+    *shape* of a request the app would send has to say that a provider is
+    reachable -- otherwise it is asserting on a request the app is not
+    supposed to make at all, which is the defect the guard exists to close.
+
+    Faking litellm alone is not enough and should not be: the guard runs
+    before the request is built, exactly so a fake transport cannot stand in
+    for a reachable provider. The key here is a placeholder; every one of
+    these tests replaces the transport, so it is never used to authenticate
+    anything.
+    """
+    monkeypatch.delenv("COSCIENTIST_FORCE_OFFLINE", raising=False)
+    monkeypatch.delenv("COSCIENTIST_FORCE_MOCK", raising=False)
+    monkeypatch.setenv("DEEPSEEK_API_KEY", "sk-placeholder-for-shape-tests")
+
+
 @pytest.fixture(autouse=True)
 def _fresh_probe_cache() -> None:
     """Start every test with an empty /status probe cache.

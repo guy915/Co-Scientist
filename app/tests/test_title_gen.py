@@ -63,7 +63,7 @@ def test_set_run_title_missing_run_is_noop(isolated_db: str) -> None:
 
 
 async def test_title_call_does_not_think_and_stays_within_its_budget(
-    monkeypatch: pytest.MonkeyPatch,
+    monkeypatch: pytest.MonkeyPatch, reachable_provider: None
 ) -> None:
     """Titling opts out of thinking, and its token budget assumes that.
 
