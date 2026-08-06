@@ -7,7 +7,13 @@ only pure functions - no LLM calls and therefore no mocking are involved.
 
 import pytest
 
+from co_scientist.agents.ranking import ranking_elo
 from co_scientist.agents.ranking.ranking import calculate_elo_update
+from co_scientist.agents.ranking.ranking_elo import (
+    annealed_k_factor,
+    effective_k_factor,
+    margin_scaled_k_factor,
+)
 from co_scientist.agents.ranking.ranking_results import _apply_matchup_elo
 from co_scientist.constants import ELO_K_FACTOR, INITIAL_ELO_RATING
 from co_scientist.models import Hypothesis
@@ -293,3 +299,148 @@ def test_returns_two_python_ints(winner_elo: int, loser_elo: int) -> None:
     new_winner, new_loser = result
     assert isinstance(new_winner, int)
     assert isinstance(new_loser, int)
+
+
+# --- K-annealing and margin-scaling reconstruction knobs --------------------
+#
+# Both knobs are paper-unspecified local reconstruction choices (the paper
+# names neither a K-factor nor any schedule for it). They default to OFF so
+# every rating a run produces today is byte-for-byte unchanged; the tests
+# below pin both the off-default and the opt-in behavior.
+
+
+def test_knobs_default_to_off_and_preserve_the_fixed_k() -> None:
+    """With both knobs at their defaults the effective K is the base K.
+
+    This is the default-preserving guarantee: a deployment that never touches
+    the knobs computes exactly the historical update for every match.
+    """
+    assert annealed_k_factor(24, matches_played=500) == 24
+    assert margin_scaled_k_factor(24, "High") == 24
+    assert margin_scaled_k_factor(24, None) == 24
+    assert effective_k_factor(24, matches_played=500, confidence="High") == 24
+
+
+def test_annealing_disabled_by_a_nonpositive_half_life() -> None:
+    """An explicit 0 (or negative) half-life leaves K untouched."""
+    assert annealed_k_factor(24, 100, half_life=0) == 24
+    assert annealed_k_factor(24, 100, half_life=-5) == 24
+    # No matches played means nothing to anneal against either.
+    assert annealed_k_factor(24, 0, half_life=30) == 24
+
+
+def test_annealing_halves_k_per_half_life_of_matches() -> None:
+    """Enabled annealing decays K as a hypothesis accumulates matches."""
+    assert annealed_k_factor(24, 0, half_life=30) == 24
+    assert annealed_k_factor(24, 29, half_life=30) == 24
+    assert annealed_k_factor(24, 30, half_life=30) == 12
+    assert annealed_k_factor(24, 59, half_life=30) == 12
+    assert annealed_k_factor(24, 60, half_life=30) == 6
+
+
+def test_annealing_floors_at_the_annealed_minimum() -> None:
+    """Annealing never freezes a rating: K stops at the documented floor."""
+    # 24 -> 12 -> 6; the floor is 6, so further halvings stay put.
+    assert annealed_k_factor(24, 90, half_life=30) == 6
+    assert annealed_k_factor(24, 10_000, half_life=30) == 6
+
+
+def test_margin_scaling_disabled_by_a_nonpositive_scale() -> None:
+    """An explicit 0 (or negative) scale leaves K untouched at any verdict."""
+    assert margin_scaled_k_factor(24, "High", scale=0.0) == 24
+    assert margin_scaled_k_factor(24, "High", scale=-1.0) == 24
+    # No confidence reported means no margin signal either.
+    assert margin_scaled_k_factor(24, None, scale=1.0) == 24
+    assert margin_scaled_k_factor(24, "", scale=1.0) == 24
+
+
+def test_margin_scaling_grows_k_with_decisiveness() -> None:
+    """Enabled scaling weights a decisive verdict more than a narrow one."""
+    assert margin_scaled_k_factor(24, "High", scale=1.0) == 48
+    assert margin_scaled_k_factor(24, "Medium", scale=1.0) == 36
+    # Low / unrecognized confidence carries no margin.
+    assert margin_scaled_k_factor(24, "Low", scale=1.0) == 24
+    assert margin_scaled_k_factor(24, "Unknown", scale=1.0) == 24
+
+
+def test_margin_scaling_is_capped_at_the_multiplier_ceiling() -> None:
+    """A decisive verdict cannot move a rating past the capped multiplier."""
+    # scale 100 would be 1 + 100*1.0 without the cap; the cap is 5x.
+    assert margin_scaled_k_factor(24, "High", scale=100.0) == 24 * 5
+
+
+def test_effective_k_anneals_then_scales() -> None:
+    """Composition: annealing first, the margin multiplier second."""
+    # 30 matches halves 24 to 12; a High verdict at scale 1.0 doubles it.
+    assert effective_k_factor(24, 30, confidence="High") == (
+        margin_scaled_k_factor(annealed_k_factor(24, 30), "High")
+    )
+
+
+def test_apply_matchup_elo_default_is_unchanged_with_confidence() -> None:
+    """Passing a verdict confidence does nothing while the knobs are off."""
+    hyp_a = Hypothesis(text="A")
+    hyp_b = Hypothesis(text="B")
+    outcome = _apply_matchup_elo(
+        hyp_a, hyp_b, "a", k_factor=24, confidence="High"
+    )
+    assert (outcome.winner_elo_after, outcome.loser_elo_after) == (1212, 1188)
+
+
+def test_per_side_k_factor_updates_each_side_independently() -> None:
+    """A distinct loser K-factor weights only the loser's update.
+
+    Winner at K=24 and loser at K=12 from equal ratings: the winner still
+    gains the full 12 (24 * 0.5) while the loser drops only 6 (12 * 0.5).
+    """
+    new_winner, new_loser = calculate_elo_update(
+        1200, 1200, 24, loser_k_factor=12
+    )
+    assert (new_winner, new_loser) == (1212, 1194)
+
+
+def test_annealing_applies_per_side_from_each_own_record(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """With annealing on, each side's update uses its own match count.
+
+    A well-played loser (rating already settled) moves less than a fresh
+    winner, because the loser's K has annealed while the winner's has not.
+    """
+    monkeypatch.setattr(ranking_elo, "ELO_K_ANNEALING_HALF_LIFE", 2)
+    winner = Hypothesis(text="fresh winner")  # 0 matches -> K stays 24
+    loser = Hypothesis(text="veteran loser")
+    loser.win_count = 2  # 2 matches -> one halving -> K drops to 12
+    loser.loss_count = 0
+
+    outcome = _apply_matchup_elo(winner, loser, "a", k_factor=24)
+
+    # Winner gains the full equal-rating step (24 * 0.5 = 12).
+    assert outcome.winner_elo_after == 1212
+    # Loser drops half as much (12 * 0.5 = 6) because its K annealed.
+    assert outcome.loser_elo_after == 1194
+
+
+def test_margin_scaling_applies_from_the_verdict_confidence(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """With margin scaling on, a decisive verdict moves ratings further."""
+    monkeypatch.setattr(ranking_elo, "ELO_MARGIN_VICTORY_SCALE", 1.0)
+    decisive_a = Hypothesis(text="decisive A")
+    decisive_b = Hypothesis(text="decisive B")
+    outcome = _apply_matchup_elo(
+        decisive_a, decisive_b, "a", k_factor=24, confidence="High"
+    )
+    # High confidence doubles the effective K (24 -> 48): equal ratings now
+    # swing 24 points instead of 12.
+    assert outcome.winner_elo_after == 1224
+    assert outcome.loser_elo_after == 1176
+
+    # A narrow verdict (no margin) keeps the base K even while enabled.
+    narrow_a = Hypothesis(text="narrow A")
+    narrow_b = Hypothesis(text="narrow B")
+    narrow = _apply_matchup_elo(
+        narrow_a, narrow_b, "a", k_factor=24, confidence="Low"
+    )
+    assert narrow.winner_elo_after == 1212
+    assert narrow.loser_elo_after == 1188

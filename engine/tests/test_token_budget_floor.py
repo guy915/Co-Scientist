@@ -91,11 +91,10 @@ def test_base_budgets_below_the_floor_are_the_designed_case() -> None:
 def test_the_draft_budget_never_reaches_its_own_cap() -> None:
     """The draft cap is a runaway backstop, not a ceiling runs meet.
 
-    Drafts are the cheapest output this engine produces, and the base
-    dominates the sum at every count a run tier can ask for -- so the cap's
-    value is free to be chosen for coherence with the floor and its sibling
-    caps rather than tuned. Pinned because that freedom is exactly what
-    stops holding if per-hypothesis pricing is ever raised.
+    The base dominates the sum at every count a run tier can ask for, so
+    the cap's value is free to be chosen for coherence with the floor and
+    its sibling caps rather than tuned. Pinned because that freedom is
+    exactly what stops holding if per-hypothesis pricing is ever raised.
 
     The count is the largest tier's ``initial_hypotheses_count`` (ultra, in
     the app's ``run_modes.RUN_TIER_DEFAULTS``), restated rather than
@@ -105,7 +104,7 @@ def test_the_draft_budget_never_reaches_its_own_cap() -> None:
     """
     largest_tier_count = 16
     budget = constants.scaled_max_tokens(
-        constants.EXTENDED_MAX_TOKENS,
+        constants.DEEP_HYPOTHESIS_MAX_TOKENS,
         largest_tier_count,
         per_item=constants.DRAFT_TOKENS_PER_HYPOTHESIS,
         cap=constants.DRAFT_MAX_TOKENS_CAP,
@@ -113,3 +112,32 @@ def test_the_draft_budget_never_reaches_its_own_cap() -> None:
 
     assert budget < constants.DRAFT_MAX_TOKENS_CAP
     assert budget < THINKING_FLOOR_MAX_TOKENS
+
+
+def test_deep_hypothesis_budget_is_a_base_below_the_floor() -> None:
+    """The K6 generation budget funds the answer; the floor funds thinking.
+
+    ``DEEP_HYPOTHESIS_MAX_TOKENS`` raised the generation family's answer
+    budget above ``EXTENDED_MAX_TOKENS`` without becoming a ceiling on a
+    thinking model: it must stay below the floor so ``_apply_thinking_args``
+    still replaces it there, exactly like the other answer bases, while
+    non-thinking providers honor the larger answer allowance.
+    """
+    assert constants.EXTENDED_MAX_TOKENS < constants.DEEP_HYPOTHESIS_MAX_TOKENS
+    assert constants.DEEP_HYPOTHESIS_MAX_TOKENS < THINKING_FLOOR_MAX_TOKENS
+
+
+def test_research_overview_budget_clears_the_floor() -> None:
+    """The K6 overview budget must bind on thinking models too.
+
+    The overview's depth guidance asks for a multi-paragraph strategy
+    document plus an NIH aims page; on a thinking model the chain of
+    thought and that answer share one allowance, so a budget at or below
+    the floor would leave the answer whatever the reasoning did not spend.
+    The budget sits at the largest scaled batch cap already proven in
+    production, nowhere beyond it.
+    """
+    assert THINKING_FLOOR_MAX_TOKENS < constants.RESEARCH_OVERVIEW_MAX_TOKENS
+    assert constants.RESEARCH_OVERVIEW_MAX_TOKENS <= (
+        constants.REVIEW_BATCH_MAX_TOKENS_CAP
+    )

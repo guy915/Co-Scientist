@@ -252,6 +252,8 @@ async def _judge_and_commit_matchup(
         hyp_b,
         winner,
         k_factor=int(state.get("elo_k_factor") or ELO_K_FACTOR),
+        # Feeds only the margin-scaling reconstruction knob (off by default).
+        confidence=response.get("confidence_level"),
     )
     detail = _build_matchup_detail(hyp_a, hyp_b, winner, response, outcome)
     # The turns actually judged, not the depth budgeted: a debate whose

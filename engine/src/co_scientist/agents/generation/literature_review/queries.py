@@ -65,14 +65,16 @@ async def _generate_queries_via_mcp(
         return []
 
 
-async def _generate_queries_via_llm(
+def _build_query_generation_prompt(
     state: WorkflowState,
     config: SearchConfig,
-) -> list[str]:
-    """Generate queries using LLM with source-aware prompt."""
-    # source_type steers the prompt wording (e.g. "academic" boolean search
-    # phrasing vs "knowledge_graph" entity-oriented phrasing) so the LLM
-    # produces queries that suit whatever source(s) are actually configured.
+) -> str:
+    """Build the source-aware query-generation prompt.
+
+    source_type steers the prompt wording (e.g. "academic" boolean search
+    phrasing vs "knowledge_graph" entity-oriented phrasing) so the LLM
+    produces queries that suit whatever source(s) are actually configured.
+    """
     source_type = determine_query_source_type(
         config.workflow,
         config.tool_registry,
@@ -80,8 +82,7 @@ async def _generate_queries_via_llm(
         config.is_multi_source,
     )
     logger.debug("Using %s query generation prompt", source_type)
-
-    prompt = get_literature_review_query_generation_prompt(
+    return get_literature_review_query_generation_prompt(
         research_goal=state["research_goal"],
         source_type=source_type,
         inputs=LiteratureQueryInputs(
@@ -90,8 +91,18 @@ async def _generate_queries_via_llm(
             user_literature=state.get("literature", []),
             user_hypotheses=state.get("starting_hypotheses", []),
         ),
+        # Audit E7: search what the meta-review says is missing or weak.
+        # Empty on iteration 1, when no critique exists yet.
+        meta_review=state.get("meta_review"),
     )
 
+
+async def _generate_queries_via_llm(
+    state: WorkflowState,
+    config: SearchConfig,
+) -> list[str]:
+    """Generate queries using LLM with source-aware prompt."""
+    prompt = _build_query_generation_prompt(state, config)
     try:
         result = await call_llm_json(
             prompt=prompt,

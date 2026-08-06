@@ -9,6 +9,10 @@ User Attributes (if any): {{attributes}}
 User-provided Literature (if any): {{user_literature}}
 User-provided Hypotheses (if any): {{user_hypotheses}}
 
+{{meta_review_context}}
+
+When a meta-review context is present, also target the gaps and weaknesses it flags — prefer gene/protein queries that retrieve the mechanisms the critique says are missing or weak.
+
 Instructions:
 1. Extract 2-4 sets of relevant genes/proteins from the research goal
 2. Each query should be 1-3 gene symbols separated by spaces

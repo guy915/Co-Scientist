@@ -22,6 +22,13 @@ from co_scientist.agents.reflection.evidence_context import (
     build_evidence_context,
     showable_articles,
 )
+from co_scientist.agents.reflection.mature_reviews import (
+    store_mature_review_result,
+)
+from co_scientist.agents.reflection.observation_feedback import (
+    apply_observation_result,
+    store_indra_enrichment,
+)
 from co_scientist.agents.reflection.reflection import (
     _ReflectionContext,
     analyze_single_hypothesis,
@@ -389,7 +396,11 @@ def _apply_review_results(
     iteration: int,
     results: list[tuple[ReviewType, dict[str, Any] | None]],
 ) -> int:
-    """Store each successful review result on the hypothesis's enrichments.
+    """Store each successful review result, reconciling dispositions.
+
+    Storage goes through ``store_mature_review_result`` -- the write path
+    shared with the durable fan-out -- so a fatal finding changes the
+    review disposition on both execution paths (audit E1).
 
     Returns:
         The number of results that were not None.
@@ -398,9 +409,7 @@ def _apply_review_results(
     for review_type, result in results:
         if result is None:
             continue
-        hypothesis.enrichments[review_type.value] = result
-        if review_type is ReviewType.RECURRENT:
-            hypothesis.enrichments["recurrent_review_iteration"] = iteration
+        store_mature_review_result(hypothesis, review_type, result, iteration)
         successful += 1
     return successful
 
@@ -458,12 +467,8 @@ async def _run_missing_observation_reviews(
     for hypothesis, result in zip(pending, results, strict=True):
         if result is None:
             continue
-        classification = result.get("classification", "neutral")
-        reasoning = result.get("reasoning", "")
-        hypothesis.reflection_notes = (
-            f"{reasoning}\n\nClassification: {classification}"
-        )
-        hypothesis.enrichments[ReviewType.OBSERVATION.value] = result
+        apply_observation_result(hypothesis, result)
+        store_indra_enrichment(hypothesis, result)
         successful += 1
     return successful
 

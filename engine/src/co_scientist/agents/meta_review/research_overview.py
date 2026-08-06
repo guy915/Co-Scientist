@@ -9,8 +9,8 @@ from co_scientist.constants import (
     MEDIUM_TEMPERATURE,
     PROGRESS_RESEARCH_OVERVIEW_COMPLETE,
     PROGRESS_RESEARCH_OVERVIEW_START,
+    RESEARCH_OVERVIEW_MAX_TOKENS,
     RESEARCH_OVERVIEW_TOP_K,
-    THINKING_MAX_TOKENS,
 )
 from co_scientist.llm import (
     CompletionSpec,
@@ -156,10 +156,8 @@ async def _synthesize_research_overview(
 ) -> dict[str, Any]:
     """Builds the research-overview prompt, calls the LLM, and formats it.
 
-    Uses the supervisor model (strategic synthesis, not a worker task) and
-    the larger THINKING_MAX_TOKENS budget, since the roadmap and Specific
-    Aims sections can each be long structured output. meta_review and the
-    durable run guidance fields steer the synthesis toward the same
+    Uses the supervisor model (strategic synthesis, not a worker task);
+    meta_review and the durable run guidance steer it toward the same
     strategic themes used elsewhere in the workflow.
 
     Args:
@@ -169,9 +167,8 @@ async def _synthesize_research_overview(
         evidence_corpus: Analyzed sources keyed by a stable evidence id.
 
     Returns:
-        Dict with "overview" and "nih_specific_aims" keys, defaulting to
-        empty dicts if the LLM omits either section so downstream consumers
-        always see a well-formed research_overview shape.
+        "overview" and "nih_specific_aims" dicts, each defaulting to empty
+        so consumers always see a well-formed research_overview shape.
     """
     prompt, schema = get_research_overview_prompt(
         research_goal=state["research_goal"],
@@ -194,12 +191,16 @@ async def _synthesize_research_overview(
 async def _call_research_overview_llm(
     state: WorkflowState, prompt: str, schema: dict[str, Any] | None
 ) -> dict[str, Any]:
-    """Calls the supervisor model to synthesize the research overview."""
+    """Calls the supervisor model to synthesize the research overview.
+
+    Budgeted above the thinking floor: the multi-paragraph strategy
+    document and the chain of thought must share one allowance.
+    """
     return await call_llm_json(
         prompt=prompt,
         spec=CompletionSpec(
             model_name=state["supervisor_model_name"],
-            max_tokens=THINKING_MAX_TOKENS,
+            max_tokens=RESEARCH_OVERVIEW_MAX_TOKENS,
             temperature=MEDIUM_TEMPERATURE,
             json_schema=schema,
         ),

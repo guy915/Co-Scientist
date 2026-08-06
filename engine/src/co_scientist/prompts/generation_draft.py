@@ -8,6 +8,7 @@ from co_scientist.prompts._common import (
     PromptSections,
     _format_meta_review_context,
     _run_guidance_section,
+    format_lab_constraints_section,
 )
 from co_scientist.prompts.generation_formatting import (
     _build_citation_reference_section,
@@ -50,6 +51,8 @@ class DraftPromptRequest:
         falsified_assumptions_section: Rendered avoid-or-rework guidance
             for assumptions verification found incorrect (K9); empty
             until deep verification records one.
+        lab_constraints: The scientist's lab constraints elicited by
+            the goal interview (K5); empty or absent renders no section.
         context: Run-scoped prompt context (supervisor guidance,
             meta-review, tool registry, run setup/focus guidance).
     """
@@ -66,6 +69,7 @@ class DraftPromptRequest:
     reference_list: str = ""
     research_expansion_section: str = ""
     falsified_assumptions_section: str = ""
+    lab_constraints: list[str] | None = None
     context: PromptRunContext = field(default_factory=PromptRunContext)
 
 
@@ -98,6 +102,9 @@ def _build_draft_prompt_variables(req: DraftPromptRequest) -> dict[str, Any]:
         # renders exactly what it did before these sections existed.
         "research_expansion_section": req.research_expansion_section,
         "falsified_assumptions_section": req.falsified_assumptions_section,
+        "lab_constraints_section": format_lab_constraints_section(
+            req.lab_constraints
+        ),
     }
 
 

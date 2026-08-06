@@ -140,6 +140,9 @@ def _literature_cache_params(
         "run_setup_guidance": state.get("run_setup_guidance"),
         "run_focus_guidance": state.get("run_focus_guidance"),
         "preferences": state.get("preferences"),
+        # The query/synthesis prompts now carry the meta-review critique
+        # (audit E7), so a different critique cannot replay stale results.
+        "meta_review": state.get("meta_review"),
     }
 
 

@@ -385,6 +385,45 @@ def test_ranking_prompt_reflection_notes_default_when_absent() -> None:
     assert "No reflection notes available." in prompt
 
 
+def test_ranking_prompt_renders_mature_review_findings() -> None:
+    """Mature-review verdicts reach the judge through the side summary."""
+    prompt, _ = get_ranking_prompt(
+        research_goal="g",
+        side_a=RankingSide(
+            text="a",
+            mature_reviews={
+                "full": {
+                    "verdict": "rejected",
+                    "justification": "circular pathway",
+                },
+                "simulation": {
+                    "verdict": "breaks_down",
+                    "decisive_step": "binding fails",
+                },
+            },
+        ),
+        side_b=RankingSide(text="b"),
+    )
+    assert "Hypothesis A Mature Review Findings" in prompt
+    assert "Full review verdict: rejected" in prompt
+    assert "circular pathway" in prompt
+    assert "Simulation review verdict: breaks_down" in prompt
+    assert "Decisive step: binding fails" in prompt
+    assert "Hypothesis B Mature Review Findings" not in prompt
+    assert "{{MISSING" not in prompt
+
+
+def test_ranking_prompt_has_no_mature_review_block_without_reviews() -> None:
+    """Before the mature cascade the prompt renders no findings block."""
+    prompt, _ = get_ranking_prompt(
+        research_goal="g",
+        side_a=RankingSide(text="a"),
+        side_b=RankingSide(text="b"),
+    )
+    assert "Mature Review Findings" not in prompt
+    assert "{{MISSING" not in prompt
+
+
 # --- domain injection ------------------------------------------------------
 
 

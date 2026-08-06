@@ -89,6 +89,33 @@ async def _checkpoint_and_advance(
     return checkpoint_seq, successor_id
 
 
+def _apply_one_reflection_item(
+    hypothesis: Any,
+    mode: Any,
+    review: dict[str, Any],
+    current_iteration: int,
+) -> None:
+    """Apply one completed mature-reflection item to its hypothesis."""
+    from co_scientist.agents.reflection.mature_reviews import (
+        store_mature_review_result,
+    )
+    from co_scientist.agents.reflection.observation_feedback import (
+        apply_observation_result,
+    )
+    from co_scientist.agents.reflection.review_types import ReviewType
+
+    if mode is ReviewType.OBSERVATION:
+        # The shared engine seam, so confirmed strengths reach the
+        # hypothesis notes on the durable path exactly as they do in the
+        # in-process node (audit K8).
+        apply_observation_result(hypothesis, review)
+        return
+    # The shared engine write path, so a fatal full/simulation/recurrent
+    # finding changes the disposition here exactly as it does in the
+    # in-process node (audit E1).
+    store_mature_review_result(hypothesis, mode, review, current_iteration)
+
+
 def _apply_mature_reflection_items(
     by_id: dict[str, Any],
     item_task_ids: Sequence[Any],
@@ -120,17 +147,7 @@ def _apply_mature_reflection_items(
         mode = ReviewType(str(item.result["review_mode"]))
         review = item.result["review"]
         reflection_results.append(review)
-        if mode is ReviewType.OBSERVATION:
-            classification = review.get("classification", "neutral")
-            reasoning = review.get("reasoning", "")
-            hypothesis.reflection_notes = (
-                f"{reasoning}\n\nClassification: {classification}"
-            )
-        hypothesis.enrichments[mode.value] = review
-        if mode is ReviewType.RECURRENT:
-            hypothesis.enrichments["recurrent_review_iteration"] = (
-                current_iteration
-            )
+        _apply_one_reflection_item(hypothesis, mode, review, current_iteration)
         successful += 1
     return _AppliedItems(
         successful=successful,

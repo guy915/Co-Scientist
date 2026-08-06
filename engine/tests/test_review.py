@@ -190,6 +190,39 @@ def _assert_batch_review(
     assert hyp.score == pytest.approx(overall)
 
 
+async def test_review_node_gates_on_the_run_criteria(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The scientist's criteria govern the node's gate decision (K4).
+
+    Every axis scores strongly except testability, which is fatally weak:
+    with a testability criterion the run blocks the idea, and the same
+    scores without criteria keep the historical soundness/novelty gate,
+    which passes it.
+    """
+    scores = {
+        "scientific_soundness": 9,
+        "novelty": 9,
+        "testability": 1,
+    }
+    stub_call_llm_json(monkeypatch, review, {"reviews": [_batch_entry(scores)]})
+    with_criteria = make_hypothesis(text="idea")
+    without_criteria = make_hypothesis(text="idea")
+
+    await review_node(
+        state=make_state(
+            hypotheses=[with_criteria],
+            criteria=["Discriminating experimental design"],
+        )
+    )
+    await review_node(state=make_state(hypotheses=[without_criteria]))
+
+    assert with_criteria.review_disposition == "inaccurate"
+    assert not with_criteria.is_rankable()
+    assert without_criteria.review_disposition == "viable"
+    assert without_criteria.is_rankable()
+
+
 async def test_comparative_batch_attaches_reviews(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

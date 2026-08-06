@@ -4,6 +4,9 @@ import dataclasses
 import logging
 from typing import Any
 
+from co_scientist.agents.reflection.mature_reviews import (
+    mature_review_summary,
+)
 from co_scientist.models import Hypothesis
 from co_scientist.prompts import (
     PromptRunContext,
@@ -33,7 +36,7 @@ class _MatchupPromptContext:
 
 @dataclasses.dataclass(frozen=True)
 class _MatchupSummaries:
-    """Per-side review, deep-verification, and reflection-note context."""
+    """Per-side review, verification, mature-review, and reflection context."""
 
     review_a: dict[str, Any] | None
     review_b: dict[str, Any] | None
@@ -41,6 +44,8 @@ class _MatchupSummaries:
     deep_verification_b: dict[str, Any] | None
     reflection_notes_a: str | None
     reflection_notes_b: str | None
+    mature_reviews_a: dict[str, dict[str, Any]] | None = None
+    mature_reviews_b: dict[str, dict[str, Any]] | None = None
 
 
 def _review_summary(hypothesis: Hypothesis) -> dict[str, Any] | None:
@@ -217,12 +222,14 @@ def _render_matchup_prompt(
             review=summaries.review_a,
             reflection_notes=summaries.reflection_notes_a,
             deep_verification=summaries.deep_verification_a,
+            mature_reviews=summaries.mature_reviews_a,
         ),
         side_b=RankingSide(
             text=hypothesis_b.text,
             review=summaries.review_b,
             reflection_notes=summaries.reflection_notes_b,
             deep_verification=summaries.deep_verification_b,
+            mature_reviews=summaries.mature_reviews_b,
         ),
         context=PromptRunContext(
             supervisor_guidance=context.supervisor_guidance,
@@ -238,7 +245,7 @@ def _render_matchup_prompt(
 def _gather_matchup_side_summaries(
     hypothesis_a: Hypothesis, hypothesis_b: Hypothesis
 ) -> _MatchupSummaries:
-    """Bundles review, deep-verification, and reflection-note context."""
+    """Bundles review, verification, mature-review, and reflection context."""
     review_a, review_b, deep_verification_a, deep_verification_b = (
         _gather_matchup_summaries(hypothesis_a, hypothesis_b)
     )
@@ -252,6 +259,11 @@ def _gather_matchup_side_summaries(
         deep_verification_b=deep_verification_b,
         reflection_notes_a=reflection_notes_a,
         reflection_notes_b=reflection_notes_b,
+        # The mature Reflection cascade's findings reach the judge here,
+        # so a fatal full/simulation/recurrent result can weigh on the
+        # verdict (audit E1); None before the cascade has run.
+        mature_reviews_a=mature_review_summary(hypothesis_a.enrichments),
+        mature_reviews_b=mature_review_summary(hypothesis_b.enrichments),
     )
 
 

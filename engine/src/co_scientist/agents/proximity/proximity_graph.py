@@ -7,10 +7,30 @@ a *persisted weighted graph* rather than cluster labels alone: edges carry a
 similarity score, the method/model/version that produced them, the goal
 context, and an update time.
 
+Local algorithm (fidelity-audit H2, documented local choice)
+============================================================
+
+The paper's similarity step says "e.g. text embeddings" without specifying a
+method, so the similarity metric is a permitted local choice. This
+deployment's first-class algorithm is ``llm-cluster`` version 1:
+
+1. An LLM judges pairwise similarity qualitatively, emitting clusters whose
+   members carry a ``similarity_degree`` of ``high`` / ``medium`` / ``low``
+   (``PROXIMITY_SCHEMA``).
+2. :func:`build_proximity_graph` turns each cluster into pairwise edges,
+   mapping the qualitative degree to a fixed numeric weight via
+   ``_DEGREE_WEIGHT`` (high 1.0, medium 0.6, low 0.3) and keeping the
+   strongest weight per unordered pair.
+
+Given a fixed clustering output the graph is fully deterministic: the same
+input yields the same edges, weights, and provenance metadata. Every
+persisted graph records its provenance — ``method``, ``version``, ``model``,
+goal, and update time — so a reader can always tell which algorithm and
+model produced it, and a future metric (embeddings included) can be
+introduced as a new method/version without silently re-labeling old edges.
+
 :func:`build_proximity_graph` is a pure function of the clustering output, so
-the edge set and weights are testable without an LLM. Google does not publish
-the embedding/similarity method, so the degree→score mapping here is a
-documented clone choice.
+the edge set, weights, and determinism are testable without an LLM.
 """
 
 from __future__ import annotations
@@ -19,9 +39,12 @@ import dataclasses
 import itertools
 from typing import Any
 
-# Clone-defined mapping from the LLM's qualitative similarity degree to a
-# numeric edge weight in [0, 1]. Google leaves the proximity similarity metric
-# unspecified (SSR §12); this is the documented choice.
+# The documented local algorithm's fixed degree->weight mapping (see the
+# module docstring): the LLM judges similarity qualitatively, and these
+# weights are the numeric edge values the rest of the system consumes.
+# Google leaves the proximity similarity metric unspecified (SSR §12), so
+# these values are the documented local choice; tests pin them and the
+# graph's determinism on fixed inputs.
 _DEGREE_WEIGHT: dict[str, float] = {
     "high": 1.0,
     "medium": 0.6,
@@ -29,7 +52,9 @@ _DEGREE_WEIGHT: dict[str, float] = {
 }
 
 # Identifies how these edges were produced, versioned so a persisted graph
-# records its provenance and can be recomputed/migrated later.
+# records its provenance and can be recomputed/migrated later. A future
+# similarity metric registers as a new method/version rather than redefining
+# what "llm-cluster" version 1 means.
 PROXIMITY_METHOD = "llm-cluster"
 PROXIMITY_METHOD_VERSION = "1"
 

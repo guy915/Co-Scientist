@@ -42,9 +42,9 @@ from co_scientist.agents.generation.research_expansion import (
     is_research_expansion,
 )
 from co_scientist.constants import (
+    DEEP_HYPOTHESIS_MAX_TOKENS,
     DRAFT_MAX_TOKENS_CAP,
     DRAFT_TOKENS_PER_HYPOTHESIS,
-    EXTENDED_MAX_TOKENS,
     HIGH_TEMPERATURE,
     get_draft_max_iterations,
     scaled_max_tokens,
@@ -115,10 +115,12 @@ def _compute_draft_max_tokens(count: int, max_iterations: int) -> int:
     Returns:
         The scaled max-tokens budget for the draft agent call.
     """
-    # scale token budget based on hypotheses count (~200 tokens per
-    # hypothesis)
+    # Scale the token budget with the hypotheses count (~200 tokens per
+    # hypothesis). K6: the base is the deep-generation budget because the
+    # draft prompt now requires full-depth ideas (a shallow draft becomes
+    # a shallow final hypothesis).
     draft_max_tokens = scaled_max_tokens(
-        EXTENDED_MAX_TOKENS,
+        DEEP_HYPOTHESIS_MAX_TOKENS,
         count,
         per_item=DRAFT_TOKENS_PER_HYPOTHESIS,
         cap=DRAFT_MAX_TOKENS_CAP,

@@ -120,7 +120,7 @@ _ReportBuildArgs = ReportRequest
 
 
 class _ReportData(NamedTuple):
-    """Gathered hypotheses, evidence, claim edges, and counts for a run."""
+    """Gathered hypotheses, evidence, reviews, and counts for a run."""
 
     hyps: list[dict[str, Any]]
     all_hyps: list[dict[str, Any]]
@@ -128,6 +128,7 @@ class _ReportData(NamedTuple):
     released_claim_edges: list[dict[str, Any]]
     evidence: list[dict[str, Any]]
     match_count: int
+    reviews: list[dict[str, Any]]
 
 
 class _BuiltReport(NamedTuple):
@@ -199,6 +200,10 @@ def _gather_report_data(run_id: str, db_path: str | None) -> _ReportData:
         released_claim_edges=released_claim_edges,
         evidence=evidence,
         match_count=store.count_matches(run_id, db_path=db_path),
+        # The reader's copy of every review row -- initial, deep
+        # verification, and the mature cascade's distinctly labeled
+        # full/simulation/recurrent results (audit E1).
+        reviews=store.list_reviews(run_id, db_path=db_path),
     )
 
 
@@ -236,6 +241,10 @@ def _assemble_report_payload(
     # A section left blank by a fallback reads as missing data unless the
     # report says generation failed; the engine records the degraded nodes.
     payload["degraded_sections"] = list(req.degraded_sections or [])
+    # Every review row the drain persisted, so the report carries the
+    # initial, deep-verification, and mature-cascade reviews to the reader
+    # (audit E1); the ideas view reads the same rows from /reviews.
+    payload["reviews"] = list(data.reviews)
     return payload
 
 

@@ -78,7 +78,7 @@ Output your hypotheses in JSON format. Provide a list of {{hypotheses_count}} hy
 A densely formulated, falsifiable mechanistic proposition with explicit context and predicted outcome.
 - Include specific technical details: algorithms, mechanisms, mathematical formulations, layer specifications, etc.
 - Be precise about what will be developed and the technical approach
-- 2-4 sentences maximum
+- Preserve and deepen the draft's mechanism specificity and quantitative predictions; do not flatten a detailed draft into a shorter claim
 - Use technical terminology appropriately
 
 **Example:**
@@ -90,6 +90,7 @@ A clear explanation of the approach for technical audiences (e.g., DARPA program
 - Explain why key mechanisms work
 - How the components interact
 - Practical advantages
+- Trace each mechanistic step from intervention to outcome; a full paragraph, not a summary
 - Avoid cartoonish analogies; use domain terminology appropriately
 
 ### 3. Literature Grounding (required)
@@ -110,7 +111,7 @@ A clear explanation of the approach for technical audiences (e.g., DARPA program
 - 2-4 sentences with inline citation keys
 
 ### 4. Practical Experiment (required)
-A concrete, actionable experiment design to test the hypothesis. Structure with clear sections:
+A concrete, actionable experiment design to test the hypothesis, at full depth: model system, comparison groups and controls, quantitative measurements with expected effect sizes or thresholds, and the criteria distinguishing support from falsification. Structure with clear sections:
 
 **Format:**
 ```
@@ -131,6 +132,10 @@ Validation: [What results would validate/invalidate the hypothesis]
 - Prioritize hypotheses that address stated limitations or future work
 - Keep hypothesis text concise and clear - use plain text with standard punctuation
 
+## Novelty Language
+
+Novelty claims must be hedged unless grounded in retrieved evidence. The novelty analyses above examine a bounded retrieval, not the entire current corpus, so the final hypotheses must never assert that an idea is the first of its kind, unprecedented, or that no prior work exists. Where the analyses or cited `[C*]` sources establish a gap, cite them; otherwise use hedged phrasing such as "within the retrieved literature", "to our knowledge", or "appears unexplored among the sources examined".
+
 ## Output Format
 
 **CRITICAL**: After using tools (if needed), respond with ONLY the raw JSON object. Do NOT wrap it in markdown code blocks (no ``` or ```json). Start your response directly with { and end with }.
@@ -142,9 +147,10 @@ Validation: [What results would validate/invalidate the hypothesis]
   "hypotheses": [
     {
       "hypothesis": "Final dense, falsifiable mechanistic proposition with explicit context and predicted outcome",
-      "explanation": "Step-by-step layman explanation breaking down the technical hypothesis (4-6 sentences)",
-      "literature_grounding": "Explicit citations in (Author et al., year) format connecting specific findings to hypothesis. 2-4 sentences with citations.",
-      "experiment": "Concrete experiment design with models, datasets, metrics, and validation criteria (4-6 sentences)",
+      "explanation": "Step-by-step layman explanation tracing each mechanistic step from intervention to outcome (a full paragraph)",
+      "literature_grounding": "Grounding that cites ONLY the [C*] keys from the Citation Reference List when one is provided. 2-4 sentences with citation keys.",
+      "experiment": "Complete experiment design: model system, groups and controls, quantitative readouts with expected effect sizes or thresholds, and validation criteria (a full paragraph)",
+      "category": "Short (2-4 word) mechanism-family label, e.g. 'Metabolic reprogramming'",
       "novelty_validation": {
         "decision": "approved|refined|pivoted"
       }
@@ -156,8 +162,9 @@ Validation: [What results would validate/invalidate the hypothesis]
 **Field requirements:**
 - `hypothesis`: Technical, falsifiable formulation approved, refined, or pivoted from the draft; do not force a fixed sentence template
 - `explanation`: Clear explanation for technical audiences in layman terms
-- `literature_grounding`: **CRITICAL - Use proper citations in (Author et al., year) format. Include papers from draft's literature_sources plus any papers found via tools.**
+- `literature_grounding`: **CRITICAL - Cite ONLY the `[C*]` keys from the Citation Reference List (never author-year text). Include the draft's literature_sources keys plus any papers found via tools.**
 - `experiment`: Concrete, actionable experiment design to test the hypothesis
+- `category`: Short (2-4 word) classification label naming the mechanism family or research sub-area this hypothesis belongs to (e.g. "Metabolic reprogramming", "Epitope editing"). Hypotheses from the same mechanism family must carry the same label; reuse a label already introduced in this batch where it applies, and coin a precise new one otherwise. Required for every hypothesis
 - `novelty_validation.decision`: Must be one of "approved", "refined", or "pivoted"
 
 Output {{hypotheses_count}} validated hypotheses now. Output raw JSON with "hypotheses" array containing objects with all required fields above.

@@ -191,3 +191,48 @@ def test_unrankable_ideas_do_not_hold_the_coverage_floor_open() -> None:
     )
 
     assert _tournament_round_count(spent, hypotheses) == 0
+
+
+def test_floor_counts_a_lone_undercovered_idea_s_own_rounds() -> None:
+    """A single idea can only settle one of its owed slots per round.
+
+    ``ceil(owed / 2)`` assumes every match pairs two under-covered ideas, so
+    each round settles two owed slots. Once the pool is down to ONE idea below
+    the minimum, each of its matches settles a single slot of its own, and it
+    needs as many rounds as it owes matches. The old ``ceil(owed / 2)`` gave a
+    lone idea owing two matches a single round: it played once, stayed one
+    match short of the minimum, and the tournament stopped. The floor must be
+    at least the largest individual debt.
+    """
+    from co_scientist.agents.ranking.ranking_lifecycle import _coverage_floor
+
+    lone_fresh = make_hypothesis(text="fresh")
+    covered = [
+        make_hypothesis(text=f"c{i}", win_count=1, loss_count=1)
+        for i in range(4)
+    ]
+
+    # One idea owes two matches; the rest are covered. ceil(2/2)=1 is too
+    # few -- the idea can play only one of those matches per round.
+    assert _coverage_floor([lone_fresh, *covered]) == 2
+
+
+def test_floor_is_at_least_the_largest_individual_debt() -> None:
+    """The round count is bounded below by the most-indebted idea.
+
+    Two ideas each owing two matches need two rounds even though their four
+    owed slots divide into two pairings: they cannot face each other twice in
+    one build, so the second round pairs each with a covered idea instead.
+    The two bounds (ceil of the slots, largest single debt) agree here; the
+    point is the floor never reports less than either.
+    """
+    from co_scientist.agents.ranking.ranking_lifecycle import _coverage_floor
+
+    two_fresh = [make_hypothesis(text=f"new{i}") for i in range(2)]
+    covered = [
+        make_hypothesis(text=f"c{i}", win_count=1, loss_count=1)
+        for i in range(3)
+    ]
+
+    # Four owed slots -> ceil(4/2)=2; largest debt is 2. Floor is 2.
+    assert _coverage_floor([*two_fresh, *covered]) == 2

@@ -24,6 +24,7 @@ from co_scientist.prompts import (
     _format_bullet_list,
     _format_run_guidance,
     _get_domain_variables,
+    format_lab_constraints_section,
     load_prompt_with_schema,
 )
 from co_scientist.prompts._common import _csv_value
@@ -366,11 +367,25 @@ def _build_evolution_variables(
     variables["falsified_assumptions_section"] = _falsified_assumptions_section(
         context
     )
+    variables["lab_constraints_section"] = _lab_constraints_section(context)
     variables["specialist_feedback"] = (
         operation.specialist_feedback or "No prior specialist feedback."
     )
     variables.update(_get_domain_variables(context.tool_registry))
     return variables
+
+
+def _lab_constraints_section(context: _EvolutionContext) -> str:
+    """Renders the scientist's lab constraints for this refinement (K5).
+
+    Feasibility improvements must respect what the scientist's lab can
+    actually do. The block renders its own header and is empty when the
+    run carries no lab constraints, which keeps the prompt byte-identical
+    to its pre-K5 shape.
+    """
+    if context.state is None:
+        return ""
+    return format_lab_constraints_section(context.state.get("lab_constraints"))
 
 
 def _falsified_assumptions_section(context: _EvolutionContext) -> str:

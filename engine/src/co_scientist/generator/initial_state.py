@@ -169,6 +169,9 @@ def _initial_user_and_literature_fields(
         "pending_steering": bool(opts.get("pending_steering")),
         "attributes": opts.get("attributes"),
         "constraints": opts.get("constraints"),
+        # Lab constraints elicited by the app's goal interview (K5); the
+        # generation and evolution feasibility prompts render them.
+        "lab_constraints": opts.get("lab_constraints"),
         "criteria": opts.get("criteria"),
         "run_focus_guidance": opts.get("run_focus_guidance"),
         "run_setup_guidance": opts.get("run_setup_guidance"),

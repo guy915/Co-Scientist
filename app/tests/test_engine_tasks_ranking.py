@@ -230,3 +230,39 @@ async def test_partial_budget_schedules_only_what_is_left(
     scheduled = await _run_ranking_node(run.id, isolated_db)
 
     assert int(scheduled["tournament_rounds"]) == 3
+
+
+def test_wave_elo_is_applied_sequentially_within_the_round() -> None:
+    """A later match in a wave sees the Elo the earlier match committed.
+
+    Judgments in a wave run concurrently, but rating application is not a
+    judgment input -- it lands one match at a time, in wave order, so each
+    match's displayed before/after ratings and upset margin reflect every
+    match applied before it (finding H7). Two matches sharing hypothesis A:
+    the second must start from the rating the first left A at, not from the
+    pre-wave snapshot both were drawn from.
+    """
+    from co_scientist.models import Hypothesis
+
+    from app.engine_tasks_ranking_wave import _apply_wave_elo
+
+    hyp_a = Hypothesis(text="shared A")
+    hyp_b = Hypothesis(text="opponent B")
+    hyp_c = Hypothesis(text="opponent C")
+    wave = [(hyp_a, hyp_b), (hyp_a, hyp_c)]
+    verdict = {"decision_summary": "A wins.", "confidence_level": "High"}
+    judged = [
+        ("a", dict(verdict, debate_turns=1)),
+        ("a", dict(verdict, debate_turns=1)),
+    ]
+
+    details, _, _ = _apply_wave_elo(wave, judged, [1, 1], {})
+
+    first, second = details
+    # A wins match 1 at 1200 -> 1212 ...
+    assert first["winner_elo_before"] == 1200
+    assert first["winner_elo_after"] == 1212
+    # ... and match 2 starts from 1212, not the pre-wave 1200.
+    assert second["winner_elo_before"] == first["winner_elo_after"]
+    assert second["winner_elo_after"] == 1223
+    assert hyp_a.total_matches == 2

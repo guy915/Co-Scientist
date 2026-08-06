@@ -111,19 +111,29 @@ def _coverage_floor(hypotheses: list[Hypothesis]) -> int:
     the floor permanently above zero and loop the orchestrator on ranking
     forever. Bounded by the distinct pairs the pool admits for the same
     reason -- a floor the pool cannot satisfy never falls.
+
+    Two lower bounds, and the larger wins. ``ceil(owed / 2)`` is the count
+    if every match settled two owed slots -- true only while at least two
+    under-covered ideas can face each other. A match pairs at most one
+    under-covered idea once a pool is down to its last one, so each of its
+    remaining matches settles a single slot; the idea that owes the most
+    therefore needs that many rounds on its own, which ``ceil(owed / 2)``
+    undercounts (a lone idea owing two got one round, played once, and left
+    the tournament still short of the minimum).
     """
     rankable = [h for h in hypotheses if h.is_rankable()]
     if len(rankable) < 2:
         return 0
-    owed = sum(
+    owed_per_idea = [
         max(0, TOURNAMENT_MIN_MATCHES_PER_HYPOTHESIS - h.total_matches)
         for h in rankable
-    )
+    ]
+    owed = sum(owed_per_idea)
     if not owed:
         return 0
     max_pairs = len(rankable) * (len(rankable) - 1) // 2
-    # Each match settles two of the owed slots.
-    return min((owed + 1) // 2, max_pairs)
+    rounds = max((owed + 1) // 2, max(owed_per_idea))
+    return min(rounds, max_pairs)
 
 
 def _tournament_budget(

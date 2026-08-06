@@ -71,6 +71,37 @@ async def test_later_cycle_runs_recurrent_review_with_tournament_context(
     assert hypothesis.enrichments["recurrent_review_iteration"] == 2
 
 
+async def test_a_fatal_full_review_changes_the_disposition(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A fatal finding is no longer write-only (audit E1).
+
+    The cascade reviews ideas the initial gate marked viable; when the
+    full review then rejects one, the disposition flips to a blocking
+    value and the idea leaves the tournament, exactly as if the initial
+    gate had scored it not viable. The sound simulation beside it cannot
+    outvote the rejection.
+    """
+
+    async def fake_llm(**kwargs: object) -> dict[str, object]:
+        prompt = str(kwargs.get("prompt", ""))
+        if "simulation review" in prompt:
+            return {"verdict": "holds"}
+        return {"verdict": "rejected", "justification": "circular mechanism"}
+
+    monkeypatch.setattr(cr, "call_llm_json", AsyncMock(side_effect=fake_llm))
+    hypothesis = make_hypothesis(text="idea")
+    hypothesis.review_disposition = "viable"
+
+    await cr.comprehensive_reflection_node(
+        make_state(hypotheses=[hypothesis], current_iteration=0)
+    )
+
+    assert hypothesis.enrichments["full"]["verdict"] == "rejected"
+    assert hypothesis.review_disposition == "inaccurate"
+    assert not hypothesis.is_rankable()
+
+
 async def test_evolved_hypothesis_receives_missing_observation_review(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -101,6 +132,41 @@ async def test_evolved_hypothesis_receives_missing_observation_review(
         == "missing_piece"
     )
     assert "explains x" in (hypothesis.reflection_notes or "")
+
+
+async def test_missing_observation_review_appends_confirmed_strengths(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Post-evolution observation positives reach the idea too (K8)."""
+    hypothesis = make_hypothesis(text="evolved child")
+    hypothesis.review_disposition = "viable"
+    hypothesis.enrichments.update({"full": {}, "simulation": {}})
+    observation = AsyncMock(
+        return_value={
+            "classification": "missing_piece",
+            "reasoning": "explains x",
+            "positive_observations": ["accounts for the late onset"],
+        }
+    )
+    monkeypatch.setattr(cr, "analyze_single_hypothesis", observation)
+    monkeypatch.setattr(cr, "call_llm_json", AsyncMock(return_value={}))
+
+    await cr.comprehensive_reflection_node(
+        make_state(
+            hypotheses=[hypothesis],
+            current_iteration=0,
+            articles_with_reasoning="retrieved observations",
+        )
+    )
+
+    notes = hypothesis.reflection_notes or ""
+    assert "accounts for the late onset" in notes
+    assert notes.index("accounts for the late onset") < notes.index(
+        "Classification: missing_piece"
+    )
+    assert hypothesis.enrichments["observation"]["positive_observations"] == [
+        "accounts for the late onset"
+    ]
 
 
 @pytest.mark.asyncio

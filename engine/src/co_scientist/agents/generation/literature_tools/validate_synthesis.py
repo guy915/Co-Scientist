@@ -20,7 +20,7 @@ from co_scientist.agents.generation.literature_tools.draft import (
     _setup_tool_provider,
 )
 from co_scientist.constants import (
-    EXTENDED_MAX_TOKENS,
+    DEEP_HYPOTHESIS_MAX_TOKENS,
     VALIDATION_SYNTHESIS_MAX_TOKENS_CAP,
     VALIDATION_SYNTHESIS_TOKENS_PER_HYPOTHESIS,
     get_validate_max_iterations,
@@ -137,8 +137,11 @@ def _compute_synthesis_max_tokens(
     Returns:
         The scaled max-tokens budget for this batch's synthesis call.
     """
+    # K6: the synthesis writes the final hypotheses at full depth, so the
+    # base is the deep-generation budget rather than the generic extended
+    # one.
     synthesis_max_tokens = scaled_max_tokens(
-        EXTENDED_MAX_TOKENS,
+        DEEP_HYPOTHESIS_MAX_TOKENS,
         len(batch),
         per_item=VALIDATION_SYNTHESIS_TOKENS_PER_HYPOTHESIS,
         cap=VALIDATION_SYNTHESIS_MAX_TOKENS_CAP,

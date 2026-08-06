@@ -40,6 +40,9 @@ def _build_synthesis_prompt(
         research_goal=state["research_goal"],
         paper_analyses=paper_analyses,
         background_context=background_context,
+        # Audit E7: focus the gap analysis on what the meta-review flags
+        # as missing or weak. Empty on iteration 1.
+        meta_review=state.get("meta_review"),
     )
 
     logger.info(

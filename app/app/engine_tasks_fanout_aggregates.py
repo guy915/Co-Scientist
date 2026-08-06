@@ -136,11 +136,14 @@ def _apply_review_items(
     by_id: dict[str, Any],
     item_task_ids: Sequence[Any],
     db_path: str | None,
+    criteria: list[str] | None = None,
 ) -> tuple[int, int]:
     """Apply each completed review item to its hypothesis; count failures.
 
     Mirrors the normal Review node's score update so tournament seeding
-    observes peer-review quality.
+    observes peer-review quality. ``criteria`` are the scientist's
+    evaluation criteria, which select the scored axes the gate consults
+    (finding K4) -- the durable path is where production runs review.
     """
     from co_scientist.agents.reflection.review import _apply_initial_review_gate
     from co_scientist.models import HypothesisReview
@@ -159,7 +162,7 @@ def _apply_review_items(
         review = HypothesisReview(**item.result["review"])
         hypothesis.reviews.append(review)
         hypothesis.score = review.overall_score
-        _apply_initial_review_gate([hypothesis], [review])
+        _apply_initial_review_gate([hypothesis], [review], criteria)
         successful += 1
     return successful, failed
 
@@ -239,7 +242,10 @@ async def execute_review_aggregate(
     )
     by_id = {hypothesis.id: hypothesis for hypothesis in state["hypotheses"]}
     successful, failed = _apply_review_items(
-        by_id, task.inputs.get("item_task_ids", []), db_path
+        by_id,
+        task.inputs.get("item_task_ids", []),
+        db_path,
+        criteria=state.get("criteria"),
     )
     return await _commit_review_aggregate(
         TaskCommit(task, current_seq, db_path), state, successful, failed

@@ -31,17 +31,24 @@ _EXPLANATION_FIELD: dict[str, Any] = {
     "type": "string",
     "description": (
         "Step-by-step layman explanation breaking"
-        " down the technical hypothesis"
-        " (4-6 sentences)"
+        " down the technical hypothesis: trace"
+        " each mechanistic step from intervention"
+        " to outcome and say why each step is"
+        " expected to hold. Depth over brevity;"
+        " a full paragraph, not a summary"
     ),
 }
 
 _EXPERIMENT_FIELD: dict[str, Any] = {
     "type": "string",
     "description": (
-        "Concrete experiment design with models,"
-        " datasets, metrics, and validation"
-        " criteria (4-6 sentences)"
+        "Complete experiment design: model system,"
+        " groups and controls, quantitative"
+        " readouts with expected effect sizes or"
+        " thresholds, and validation criteria"
+        " distinguishing support from falsification."
+        " Depth over brevity; a full paragraph,"
+        " not a sketch"
     ),
 }
 
@@ -76,6 +83,10 @@ GENERATION_SCHEMA: dict[str, Any] = {
                         "explanation": _EXPLANATION_FIELD,
                         "literature_grounding": _LITERATURE_GROUNDING_FIELD,
                         "experiment": _EXPERIMENT_FIELD,
+                        # Required (K7): categorization was inconsistent
+                        # while the field was optional and absent from the
+                        # prompt body; the templates now present the value
+                        # contract alongside this schema.
                         "category": {
                             "type": "string",
                             "description": (
@@ -84,10 +95,11 @@ GENERATION_SCHEMA: dict[str, Any] = {
                                 " this hypothesis belongs to, e.g."
                                 " 'Metabolic reprogramming' or 'Epitope"
                                 " editing'. Used to group and label ideas."
+                                " Hypotheses from the same mechanism family"
+                                " must carry the same label."
                             ),
                         },
                     },
-                    optional=("category",),
                 ),
             }
         }
@@ -170,12 +182,17 @@ HYPOTHESIS_VALIDATION_SYNTHESIS_SCHEMA: dict[str, Any] = {
                         "explanation": _EXPLANATION_FIELD,
                         "literature_grounding": _LITERATURE_GROUNDING_FIELD,
                         "experiment": _EXPERIMENT_FIELD,
+                        # Required (K7): the same contract as the generation
+                        # schema's category, which this final hypothesis is
+                        # published with.
                         "category": {
                             "type": "string",
                             "description": (
                                 "Short (2-4 word) classification label naming"
                                 " the mechanism family or research sub-area"
-                                " this hypothesis belongs to."
+                                " this hypothesis belongs to. Hypotheses from"
+                                " the same mechanism family must carry the"
+                                " same label."
                             ),
                         },
                         "novelty_validation": obj(
@@ -188,7 +205,6 @@ HYPOTHESIS_VALIDATION_SYNTHESIS_SCHEMA: dict[str, Any] = {
                             }
                         ),
                     },
-                    optional=("category",),
                 ),
             }
         }

@@ -159,6 +159,42 @@ def test_review_collection_numbers_hypotheses_from_one() -> None:
     assert [record["hypothesis_index"] for record in records] == [1, 2, 3]
 
 
+def test_review_collection_includes_mature_review_findings() -> None:
+    """Full/simulation/recurrent outputs join the synthesis (audit E1).
+
+    They were computed at LLM + retrieval cost but read by nothing before
+    this; the meta-review must see their verdicts like any other review.
+    """
+    hypothesis = make_hypothesis(text="reviewed hyp", reviews=[make_review()])
+    hypothesis.enrichments["full"] = {
+        "verdict": "rejected",
+        "justification": "circular pathway",
+        "retrieved_articles": [{"title": "not for the synthesis"}],
+    }
+    hypothesis.enrichments["simulation"] = {
+        "verdict": "breaks_down",
+        "decisive_step": "binding fails",
+    }
+
+    [record] = _collect_review_summaries([hypothesis])
+
+    assert record["mature_reviews"]["full"]["verdict"] == "rejected"
+    assert record["mature_reviews"]["full"]["justification"] == (
+        "circular pathway"
+    )
+    assert record["mature_reviews"]["simulation"]["verdict"] == "breaks_down"
+    assert "retrieved_articles" not in str(record["mature_reviews"])
+
+
+def test_review_collection_omits_mature_reviews_before_the_cascade() -> None:
+    """No mature review has run -> no hollow mature_reviews block."""
+    hypothesis = make_hypothesis(text="reviewed hyp", reviews=[make_review()])
+
+    [record] = _collect_review_summaries([hypothesis])
+
+    assert "mature_reviews" not in record
+
+
 def test_feedback_collection_keeps_full_debate_transcript() -> None:
     """Every ranking debate turn reaches Meta-review unchanged."""
     transcript = [

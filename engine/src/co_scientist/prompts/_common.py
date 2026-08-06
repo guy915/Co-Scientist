@@ -159,6 +159,39 @@ def _format_run_guidance(
     return "\n".join(sections).strip()
 
 
+def format_lab_constraints_section(
+    lab_constraints: list[str] | None,
+) -> str:
+    """Render the scientist's lab constraints for feasibility prompts (K5).
+
+    Feasibility judgments must reflect the scientist's actual laboratory,
+    which the goal interview elicits as explicit constraints. The section
+    renders only when constraints exist: an empty list (the scientist
+    declared none, or no interview supplied the field) leaves the prompt
+    exactly as it was before this section existed.
+
+    Args:
+        lab_constraints: Lab constraints elicited during the goal
+            interview (equipment, model systems, budget, capabilities).
+
+    Returns:
+        The rendered section, or an empty string when there are no
+        constraints.
+    """
+    if not lab_constraints:
+        return ""
+    items = "\n".join(f"- {constraint}" for constraint in lab_constraints)
+    return (
+        "## Scientist's Lab Constraints\n\n"
+        "The scientist supplied these lab constraints. Respect them when"
+        " proposing experiments and judging feasibility: an experiment is"
+        " feasible only if it can be run within these constraints, and a"
+        " proposal that requires equipment, model systems, or resources"
+        " excluded here must say so and offer an alternative that fits.\n\n"
+        f"{items}\n"
+    )
+
+
 def _format_bullet_list(
     items: list[str] | None, *, truncate_chars: int | None = None
 ) -> str:

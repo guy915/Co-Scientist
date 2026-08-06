@@ -76,6 +76,8 @@ async def test_prepare_generation_passes_through_opts(
         "preferences": "pref-X",
         "attributes": ["attr-Y"],
         "constraints": ["cons-Z"],
+        # K5: the interview's lab constraints thread opts -> state -> prompts.
+        "lab_constraints": ["zebrafish only"],
         "user_inputs": {
             "starting_hypotheses": ["h1"],
             "literature": ["lit1"],
@@ -85,6 +87,7 @@ async def test_prepare_generation_passes_through_opts(
     assert state["preferences"] == "pref-X"
     assert state["attributes"] == ["attr-Y"]
     assert state["constraints"] == ["cons-Z"]
+    assert state["lab_constraints"] == ["zebrafish only"]
     assert state["starting_hypotheses"] == ["h1"]
     assert state["literature"] == ["lit1"]
 
@@ -99,6 +102,7 @@ async def test_prepare_generation_opt_defaults(
     assert state["preferences"] is None
     assert state["attributes"] is None
     assert state["constraints"] is None
+    assert state["lab_constraints"] is None
     assert state["starting_hypotheses"] is None
     assert state["literature"] is None
     assert state["enable_tool_calling_generation"] is False

@@ -56,7 +56,7 @@ For each draft hypothesis, decide whether to **approve**, **refine**, or **pivot
 
 ## Output format
 
-**CRITICAL: Each hypothesis MUST include ALL FIVE components below:**
+**CRITICAL: Each hypothesis MUST include ALL SIX components below:**
 
 Output your hypotheses in JSON format. Provide a list of {{hypotheses_count}} hypotheses, each with:
 
@@ -64,7 +64,7 @@ Output your hypotheses in JSON format. Provide a list of {{hypotheses_count}} hy
 A densely formulated, falsifiable mechanistic proposition with explicit context and predicted outcome.
 - Include specific technical details: algorithms, mechanisms, mathematical formulations, layer specifications, etc.
 - Be precise about what will be developed and the technical approach
-- 2-4 sentences maximum
+- Preserve and deepen the draft's mechanism specificity and quantitative predictions; do not flatten a detailed draft into a shorter claim
 - Use technical terminology appropriately
 
 **Example:**
@@ -76,6 +76,7 @@ A clear explanation of the approach for technical audiences (e.g., DARPA program
 - Explain why key mechanisms work
 - How the components interact
 - Practical advantages
+- Trace each mechanistic step from intervention to outcome; a full paragraph, not a summary
 - Avoid cartoonish analogies; use domain terminology appropriately
 
 **Example:**
@@ -103,7 +104,7 @@ A clear explanation of the approach for technical audiences (e.g., DARPA program
 "This approach builds on sparse autoencoder analysis [C1] and circuit tracing work [C2]. The velocity monitoring concept addresses a gap where current methods focus on static activation analysis [C3]. Additional mechanistic evidence supports the causal pathway [C4]."
 
 ### 4. Practical Experiment (required)
-A concrete, actionable experiment design to test the hypothesis. Structure with clear sections:
+A concrete, actionable experiment design to test the hypothesis, at full depth: model system, comparison groups and controls, quantitative measurements with expected effect sizes or thresholds, and the criteria distinguishing support from falsification. Structure with clear sections:
 
 **Format:**
 ```
@@ -134,6 +135,9 @@ Validation: Success requires >90% detection rate, <5% false positive rate, >50% 
 - `refined` - the draft was adjusted to avoid overlap with the literature
 - `pivoted` - the draft was redirected to a different, unexplored angle
 
+### 6. Category (required)
+`category` is a short (2-4 word) classification label naming the mechanism family or research sub-area the hypothesis belongs to (e.g. "Metabolic reprogramming", "Epitope editing"). Hypotheses from the same mechanism family must carry the same label; reuse a label already introduced in this batch where it applies, and coin a precise new one otherwise. Every hypothesis must carry a category.
+
 ## Guidelines
 
 - Be honest about overlap - better to pivot than claim false novelty
@@ -143,3 +147,7 @@ Validation: Success requires >90% detection rate, <5% false positive rate, >50% 
 - Prioritize hypotheses that address stated limitations or future work
 - Keep hypothesis text concise and clear - use plain text with standard punctuation
 - Avoid decorative Unicode characters or special formatting symbols in your output
+
+## Novelty Language
+
+Novelty claims must be hedged unless grounded in retrieved evidence. The novelty analyses above examine a bounded retrieval, not the entire current corpus, so the final hypotheses must never assert that an idea is the first of its kind, unprecedented, or that no prior work exists. Where the analyses or cited `[C*]` sources establish a gap, cite them; otherwise use hedged phrasing such as "within the retrieved literature", "to our knowledge", or "appears unexplored among the sources examined".

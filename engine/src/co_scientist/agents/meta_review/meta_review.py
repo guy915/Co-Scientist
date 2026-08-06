@@ -5,6 +5,9 @@ import json
 import logging
 from typing import Any
 
+from co_scientist.agents.reflection.mature_reviews import (
+    mature_review_summary,
+)
 from co_scientist.constants import (
     PROGRESS_META_REVIEW_COMPLETE,
     PROGRESS_META_REVIEW_START,
@@ -250,6 +253,12 @@ def _collect_review_summaries(
             "win_loss_record": f"{hyp.win_count}W-{hyp.loss_count}L",
             "deep_verification_verdict": hyp.deep_verification_verdict,
         }
+        # The mature Reflection cascade's full/simulation/recurrent
+        # findings join the synthesis under the same omit-when-absent
+        # convention (audit E1): they are review output like the rest.
+        mature_reviews = mature_review_summary(hyp.enrichments)
+        if mature_reviews is not None:
+            review_data["mature_reviews"] = mature_reviews
         all_reviews.append(review_data)
     return all_reviews
 

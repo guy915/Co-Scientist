@@ -10,6 +10,9 @@ unaffected.
 import json
 from typing import Any
 
+from co_scientist.agents.reflection.mature_reviews import (
+    mature_review_summary,
+)
 from co_scientist.models import Hypothesis
 from co_scientist.state import WorkflowState
 
@@ -91,4 +94,10 @@ def _specialist_feedback_for(
     deep_verification = hypothesis.deep_verification_summary()
     if deep_verification is not None:
         ledger["deep_verification"] = deep_verification
+    # The parent's full/simulation/recurrent review findings, under the
+    # same omit-when-absent convention: a fatal finding here is exactly
+    # the weakness evolution must refine away (audit E1).
+    mature_reviews = mature_review_summary(hypothesis.enrichments)
+    if mature_reviews is not None:
+        ledger["mature_reviews"] = mature_reviews
     return json.dumps(ledger, indent=2)[:8000]

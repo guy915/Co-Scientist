@@ -105,15 +105,152 @@ def _persist_deep_verification_review(
     )
 
 
+# Enrichment key -> persisted reviewer_agent for the mature Reflection
+# cascade's reviews (audit E1). Distinct agents keep the results apart in
+# the UI instead of collapsing them under a single "Full review" row.
+_MATURE_REVIEW_AGENTS: tuple[tuple[str, str, str], ...] = (
+    ("full", "full_review", "Full review verdict"),
+    ("simulation", "simulation_review", "Simulation review verdict"),
+    ("recurrent", "recurrent_review", "Recurrent review verdict"),
+)
+
+
+def _format_mature_critique(key: str, review: dict[str, Any]) -> str:
+    """Render one mature review result as the persisted critique text.
+
+    Reads only the schema's content fields, so the retrieval bookkeeping
+    the engine stores alongside each result never reaches the row.
+    """
+    lines: list[str] = []
+    if key == "simulation":
+        _append_simulation_critique(lines, review)
+    else:
+        _append_full_critique(lines, review)
+    return "\n".join(lines).strip()
+
+
+def _labeled_lines(pairs: tuple[tuple[str, Any], ...]) -> list[str]:
+    """Render the non-empty members of (label, value) pairs as lines."""
+    lines = []
+    for label, value in pairs:
+        text = str(value or "").strip()
+        if text:
+            lines.append(f"{label}: {text}")
+    return lines
+
+
+def _assumption_line(item: dict[str, Any]) -> str | None:
+    """Render one full-review assumption entry, or None when empty."""
+    assumption = str(item.get("assumption") or "").strip()
+    if not assumption:
+        return None
+    support = str(item.get("support") or "").strip()
+    return f"Assumption ({support or 'unrated'}): {assumption}"
+
+
+def _append_full_critique(lines: list[str], review: dict[str, Any]) -> None:
+    """Render the full/recurrent review's content fields."""
+    lines += _labeled_lines(
+        (
+            ("Correctness", review.get("correctness")),
+            ("Quality and novelty", review.get("quality_and_novelty")),
+            ("Literature grounding", review.get("literature_grounding")),
+            ("Justification", review.get("justification")),
+        )
+    )
+    for item in review.get("assumptions") or []:
+        if isinstance(item, dict) and (line := _assumption_line(item)):
+            lines.append(line)
+
+
+def _simulation_step_line(index: int, item: dict[str, Any]) -> str | None:
+    """Render one simulation step entry, or None when empty."""
+    step = str(item.get("step") or "").strip()
+    if not step:
+        return None
+    plausible = "plausible" if item.get("plausible") else "implausible"
+    return f"Step {index} ({plausible}): {step}"
+
+
+def _simulation_step_lines(review: dict[str, Any]) -> list[str]:
+    """Render the simulation review's numbered steps."""
+    lines = []
+    for index, item in enumerate(review.get("steps") or [], start=1):
+        if isinstance(item, dict) and (
+            line := _simulation_step_line(index, item)
+        ):
+            lines.append(line)
+    return lines
+
+
+def _failure_point_lines(review: dict[str, Any]) -> list[str]:
+    """Render the simulation review's failure points."""
+    lines = []
+    for point in review.get("failure_points") or []:
+        text = str(point).strip()
+        if text:
+            lines.append(f"Failure point: {text}")
+    return lines
+
+
+def _append_simulation_critique(
+    lines: list[str], review: dict[str, Any]
+) -> None:
+    """Render the simulation review's content fields."""
+    model = str(review.get("model") or "").strip()
+    if model:
+        lines.append(f"Simulated model: {model}")
+    lines += _simulation_step_lines(review)
+    lines += _failure_point_lines(review)
+    lines += _labeled_lines(
+        (
+            ("Robustness", review.get("robustness")),
+            ("Decisive step", review.get("decisive_step")),
+        )
+    )
+
+
+def _persist_mature_review_rows(
+    run_id: str,
+    hyp_id: str,
+    h: dict[str, Any],
+    conn: sqlite3.Connection,
+) -> None:
+    """Persist the mature cascade's reviews as distinctly-labeled rows.
+
+    The full, simulation, and recurrent reviews used to stop at the
+    engine's enrichments (audit E1): the report reader never saw them.
+    Each result present at drain time becomes its own review row under a
+    distinct reviewer_agent, with the verdict as the row's summary.
+    """
+    enrichments = h.get("enrichments") or {}
+    for key, reviewer_agent, verdict_label in _MATURE_REVIEW_AGENTS:
+        review = enrichments.get(key)
+        if not isinstance(review, dict):
+            continue
+        verdict = str(review.get("verdict") or "unspecified")
+        store.add_review(
+            store.NewReview(
+                run_id=run_id,
+                hypothesis_id=hyp_id,
+                reviewer_agent=reviewer_agent,
+                summary=f"{verdict_label}: {verdict}",
+                critique=_format_mature_critique(key, review),
+            ),
+            conn=conn,
+        )
+
+
 def _persist_engine_reviews(
     run_id: str,
     hyp_id: str,
     h: dict[str, Any],
     conn: sqlite3.Connection,
 ) -> None:
-    """Persist a hypothesis's per-review rows plus its deep-verification row."""
+    """Persist every review row one drained hypothesis carries."""
     _persist_engine_review_rows(run_id, hyp_id, h, conn)
     _persist_deep_verification_review(run_id, hyp_id, h, conn)
+    _persist_mature_review_rows(run_id, hyp_id, h, conn)
 
 
 def _ensure_citation_evidence_id(

@@ -233,6 +233,73 @@ it('renders the matching review and filters out unrelated reviews', () => {
   expect(screen.queryByText('Unrelated.')).not.toBeInTheDocument();
 });
 
+it('labels each review row by its reviewer instead of one Full review', () => {
+  // Finding D13/E1: the initial, deep, and full/simulation/recurrent
+  // results are independent reviews and must stay visibly distinct.
+  const hypothesis = makeHypothesis({id: 'h1'});
+  const reviews: Review[] = [
+    {
+      id: 1,
+      hypothesis_id: 'h1',
+      reviewer_agent: 'review',
+      summary: 'Initial review verdict: viable',
+      critique: 'The initial peer critique.',
+      novelty: null,
+      plausibility: null,
+      testability: null,
+      overall: null,
+    },
+    {
+      id: 2,
+      hypothesis_id: 'h1',
+      reviewer_agent: 'full_review',
+      summary: 'Full review verdict: sound',
+      critique: 'The full review critique.',
+      novelty: null,
+      plausibility: null,
+      testability: null,
+      overall: null,
+    },
+    {
+      id: 3,
+      hypothesis_id: 'h1',
+      reviewer_agent: 'simulation_review',
+      summary: 'Simulation review verdict: holds',
+      critique: 'The simulation critique.',
+      novelty: null,
+      plausibility: null,
+      testability: null,
+      overall: null,
+    },
+    {
+      id: 4,
+      hypothesis_id: 'h1',
+      reviewer_agent: 'deep_verification',
+      summary: 'Deep verification verdict: holds',
+      critique: 'The deep verification critique.',
+      novelty: null,
+      plausibility: null,
+      testability: null,
+      overall: null,
+    },
+  ];
+
+  render(
+    <HypothesisDetail hypothesis={hypothesis} reviews={reviews} matches={[]} />,
+  );
+
+  expect(screen.getByText('Initial peer review')).toBeInTheDocument();
+  expect(screen.getByText('Full review')).toBeInTheDocument();
+  expect(screen.getByText('Simulation review')).toBeInTheDocument();
+  expect(screen.getByText('Deep verification')).toBeInTheDocument();
+  expect(screen.getByText('The initial peer critique.')).toBeInTheDocument();
+  expect(screen.getByText('The full review critique.')).toBeInTheDocument();
+  expect(screen.getByText('The simulation critique.')).toBeInTheDocument();
+  expect(
+    screen.getByText('The deep verification critique.'),
+  ).toBeInTheDocument();
+});
+
 it('renders tournament stats and the most recent matching match', () => {
   renderFullDetail();
 
@@ -271,7 +338,7 @@ it('falls back to placeholder copy when there is no data', () => {
     ),
   ).toBeInTheDocument();
   expect(
-    screen.getByText('No full review has been recorded yet.'),
+    screen.getByText('No review critiques have been recorded yet.'),
   ).toBeInTheDocument();
   expect(
     screen.getByText('No tournament matches have been recorded yet.'),
@@ -293,7 +360,7 @@ it('renders a link for every rail section', () => {
     'Description',
     'Provenance & lineage',
     'Review summary',
-    'Full review',
+    'Review critiques',
     'Tournament performance',
   ]) {
     expect(

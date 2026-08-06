@@ -103,6 +103,7 @@ def _input_and_literature_defaults() -> dict[str, Any]:
         "preferences": None,
         "attributes": None,
         "constraints": None,
+        "lab_constraints": None,
         "starting_hypotheses": None,
         "literature": None,
         "articles_with_reasoning": None,

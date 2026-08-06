@@ -27,12 +27,16 @@ class RankingSide:
         reflection_notes: This hypothesis's reflection notes, if any.
         deep_verification: This hypothesis's deep-verification result
             (``probes`` and ``verdict``), blank before the first pass.
+        mature_reviews: This hypothesis's full/simulation/recurrent review
+            summary (``mature_review_summary`` shape), blank before the
+            mature Reflection cascade has run.
     """
 
     text: str
     review: dict[str, Any] | None = None
     reflection_notes: str | None = None
     deep_verification: dict[str, Any] | None = None
+    mature_reviews: dict[str, dict[str, Any]] | None = None
 
 
 def _build_ranking_deep_verification_variables(
@@ -57,6 +61,31 @@ def _build_ranking_deep_verification_variables(
         ),
         "hypothesis_b_deep_verification": _format_deep_verification_context(
             dv_b.get("probes"), dv_b.get("verdict"), "B"
+        ),
+    }
+
+
+def _build_ranking_mature_review_variables(
+    side_a: RankingSide, side_b: RankingSide
+) -> dict[str, Any]:
+    """Build the mature-review template variables for ranking prompts.
+
+    Blank before the mature Reflection cascade (full/simulation/recurrent
+    reviews) has run on either side.
+
+    Args:
+        side_a: The "A" side of the match.
+        side_b: The "B" side of the match.
+
+    Returns:
+        Dict of the two mature-review template variables.
+    """
+    return {
+        "hypothesis_a_mature_reviews": _format_mature_reviews_context(
+            side_a.mature_reviews, "A"
+        ),
+        "hypothesis_b_mature_reviews": _format_mature_reviews_context(
+            side_b.mature_reviews, "B"
         ),
     }
 
@@ -141,6 +170,7 @@ def _build_ranking_prompt_variables(
         "evaluation_criteria": _format_ranking_evaluation_criteria(criteria),
     }
     variables.update(_build_ranking_deep_verification_variables(side_a, side_b))
+    variables.update(_build_ranking_mature_review_variables(side_a, side_b))
     return variables
 
 
@@ -309,6 +339,64 @@ def _format_deep_verification_context(
     ]
     for probe in probes:
         sections.extend(_format_probe_lines(probe))
+
+    return "".join(sections)
+
+
+_MATURE_REVIEW_SECTION_LABELS: dict[str, str] = {
+    "full": "Full review",
+    "simulation": "Simulation review",
+    "recurrent": "Recurrent review",
+}
+
+
+def _format_mature_review_lines(
+    section: str, review: dict[str, Any]
+) -> list[str]:
+    """Format one full/simulation/recurrent review summary as bullets."""
+    lines = [f"- {section} verdict: {review.get('verdict', 'unknown')}\n"]
+    justification = review.get("justification")
+    if justification:
+        lines.append(f"  Justification: {justification}\n")
+    for assumption in review.get("assumptions_likely_false") or []:
+        lines.append(f"  Assumption likely false: {assumption}\n")
+    decisive_step = review.get("decisive_step")
+    if decisive_step:
+        lines.append(f"  Decisive step: {decisive_step}\n")
+    for point in review.get("failure_points") or []:
+        lines.append(f"  Failure point: {point}\n")
+    return lines
+
+
+def _format_mature_reviews_context(
+    mature_reviews: dict[str, dict[str, Any]] | None, label: str
+) -> str:
+    """Format mature-review findings for one hypothesis in ranking prompts.
+
+    A fatal finding here -- a full or recurrent review that rejected the
+    idea, or a simulation whose mechanism broke down -- must be able to
+    influence the verdict (audit E1), so the judge reads each mature
+    review's verdict and its decisive findings.
+
+    Returns an empty string when no mature review has run, leaving the
+    prompt unchanged before the first mature Reflection cascade.
+
+    Args:
+        mature_reviews: The ``mature_review_summary`` projection for this
+            hypothesis, or None.
+        label: The hypothesis label ("A" or "B") for the section header.
+
+    Returns:
+        A formatted block with a leading separator, or an empty string.
+    """
+    if not mature_reviews:
+        return ""
+
+    sections = [f"\n\n**Hypothesis {label} Mature Review Findings:**\n"]
+    for key, section_label in _MATURE_REVIEW_SECTION_LABELS.items():
+        review = mature_reviews.get(key)
+        if review:
+            sections.extend(_format_mature_review_lines(section_label, review))
 
     return "".join(sections)
 

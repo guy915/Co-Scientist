@@ -41,8 +41,8 @@ from co_scientist.agents.generation.research_expansion import (
     build_expansion_section,
 )
 from co_scientist.constants import (
+    DEEP_HYPOTHESIS_MAX_TOKENS,
     DEFAULT_MAX_TOKENS,
-    EXTENDED_MAX_TOKENS,
     LOW_TEMPERATURE,
     MEDIUM_TEMPERATURE,
 )
@@ -52,7 +52,10 @@ from co_scientist.llm import (
     call_llm_json,
 )
 from co_scientist.models import GenerationMethod, Hypothesis
-from co_scientist.prompts._common import _format_meta_review_context
+from co_scientist.prompts._common import (
+    _format_meta_review_context,
+    format_lab_constraints_section,
+)
 from co_scientist.prompts.generation_formatting import (
     _build_citation_reference_section,
 )
@@ -112,9 +115,13 @@ _SUB_LEVEL_PARAMS = _AssumptionCallParams(
     max_tokens=DEFAULT_MAX_TOKENS,
     temperature=LOW_TEMPERATURE,
 )
+# K6: the final ideation call writes the hypotheses at full depth
+# (mechanism specificity, quantitative predictions, complete experiment
+# detail), so it is funded by the deep-generation budget rather than the
+# generic extended one.
 _FINAL_LEVEL_PARAMS = _AssumptionCallParams(
     prompt_name="generation_assumptions",
-    max_tokens=EXTENDED_MAX_TOKENS,
+    max_tokens=DEEP_HYPOTHESIS_MAX_TOKENS,
     temperature=MEDIUM_TEMPERATURE,
 )
 
@@ -325,6 +332,11 @@ def _build_assumptions_prompt(
             "domain_context": "",
             "citation_reference_section": _build_citation_reference_section(
                 reference_text
+            ),
+            # Empty when the run carries no lab constraints (K5), which
+            # leaves the prompt exactly as it rendered before.
+            "lab_constraints_section": format_lab_constraints_section(
+                state.get("lab_constraints")
             ),
             "literature_context": literature_context,
             "assumption_tree_section": tree_section,

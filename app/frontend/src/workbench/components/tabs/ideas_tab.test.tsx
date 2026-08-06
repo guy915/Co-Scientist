@@ -153,7 +153,9 @@ it('renders reference detail sections without the legacy detail link', () => {
     />,
   );
   expect(screen.getByText('Review summary')).toBeInTheDocument();
-  expect(screen.getByText('Full review')).toBeInTheDocument();
+  expect(screen.getByText('Review critiques')).toBeInTheDocument();
+  // The reviewer's own label heads its critique (finding D13).
+  expect(screen.getByText('Reflection review')).toBeInTheDocument();
   expect(screen.getByText('Reasonable.')).toBeInTheDocument();
   expect(screen.getByText('Needs a control arm.')).toBeInTheDocument();
   expect(screen.queryByText('Full legacy detail')).not.toBeInTheDocument();

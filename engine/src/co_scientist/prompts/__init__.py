@@ -17,6 +17,7 @@ importing from ``co_scientist.prompts``.
 # Not part of the public API.
 from co_scientist.prompts._common import (
     PromptRunContext,
+    format_lab_constraints_section,
 )
 from co_scientist.prompts._common import (
     _format_bullet_list as _format_bullet_list,
@@ -93,6 +94,7 @@ __all__ = [
     "build_tool_instructions",
     "format_articles_metadata",
     "format_attributes",
+    "format_lab_constraints_section",
     "format_preferences",
     "format_supervisor_guidance_for_generation",
     "format_user_hypotheses",

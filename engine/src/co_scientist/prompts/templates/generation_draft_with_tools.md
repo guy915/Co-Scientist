@@ -37,6 +37,8 @@ The literature review node already analyzed papers and identified key themes. Us
 
 {{citation_reference_section}}
 
+{{lab_constraints_section}}
+
 {{research_expansion_section}}
 
 {{falsified_assumptions_section}}
@@ -70,6 +72,7 @@ The literature review node already analyzed papers and identified key themes. Us
    - Include brief reasoning for why this gap exists
    - **Cite using the `[C*]` keys from the Citation Reference List** (if provided) that informed your gap
    - Don't worry about novelty validation yet - focus on creative, diverse ideas
+   - Draft each idea to full depth already: the validation phase preserves what you write, so a shallow draft becomes a shallow final hypothesis. Name concrete entities, mechanisms, and directions of effect; give quantitative predictions where the domain allows; and specify a complete experiment (model system, groups and controls, quantitative readouts, support/falsification criteria)
 
 ## Available Tools
 
@@ -92,6 +95,10 @@ The literature review node already analyzed papers and identified key themes. Us
 4. Explore a UNIQUE approach compared to other drafts
 5. Include brief reasoning about the gap it addresses
 6. **Cite using `[C*]` keys from the Citation Reference List** (if provided) that informed the gap
+
+## Novelty Language
+
+Novelty claims must be hedged unless grounded in retrieved evidence. The literature available to this run is a bounded retrieval, not the entire current corpus, so never assert that an idea is the first of its kind, unprecedented, or that no prior work exists. When the retrieved evidence establishes a gap, cite the relevant `[C*]` keys; otherwise use hedged phrasing such as "within the retrieved literature", "to our knowledge", or "appears unexplored among the sources examined".
 
 {{instructions}}
 

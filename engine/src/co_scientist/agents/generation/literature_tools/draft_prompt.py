@@ -67,6 +67,7 @@ class _DraftStateContext(NamedTuple):
     run_focus_guidance: Any
     research_expansion_section: str
     falsified_assumptions_section: str
+    lab_constraints: list[str] | None
 
 
 def _gather_draft_state_context(state: WorkflowState) -> _DraftStateContext:
@@ -110,6 +111,9 @@ def _gather_draft_state_context(state: WorkflowState) -> _DraftStateContext:
         falsified_assumptions_section=build_falsified_assumptions_section(
             state.get("hypotheses")
         ),
+        # Lab constraints elicited by the goal interview (K5); None or
+        # empty renders no section.
+        lab_constraints=state.get("lab_constraints"),
     )
 
 
@@ -146,6 +150,7 @@ def _invoke_draft_prompt_builder(
             reference_list=ref_text,
             research_expansion_section=ctx.research_expansion_section,
             falsified_assumptions_section=ctx.falsified_assumptions_section,
+            lab_constraints=ctx.lab_constraints,
             context=PromptRunContext(
                 supervisor_guidance=ctx.supervisor_guidance,
                 meta_review=ctx.meta_review,

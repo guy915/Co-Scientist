@@ -7,7 +7,9 @@ User Attributes (if any): {{attributes}}
 User-provided Literature (if any): {{user_literature}}
 User-provided Hypotheses (if any): {{user_hypotheses}}
 
-Your task is to generate 2-4 search queries that retrieve papers on the different aspects of this research goal.
+{{meta_review_context}}
+
+Your task is to generate 2-4 search queries that retrieve papers on the different aspects of this research goal. When a meta-review context is present, also target the gaps and weaknesses it flags — retrieve the evidence the critique says is missing.
 
 The queries go to a keyword index that requires EVERY term to appear in a paper. Each extra word shrinks the result set, and a query that reads like a sentence returns nothing at all.
 

@@ -26,6 +26,18 @@ servers:
 # means declaring it here with a matching mcp_tool_name (and adding it to the
 # relevant workflow / draft_generation whitelist); config/examples/indra_hfpef.yaml
 # is a complete worked example that wires all eight in.
+#
+# Deliberately omitted (fidelity-audit G13): specialized structure-prediction
+# retrieval -- AlphaFold and similar protein-structure models -- is not
+# integrated. Google's public evidence that Co-Scientist consults such models
+# is qualitative only, and the evidence-boundary register's rule is that
+# undisclosed retrieval providers must not be invented; adding one here would
+# take on an external scientific dependency for fidelity evidence that cannot
+# be verified. This comment is the documented extension point: should a
+# deployment want structure retrieval, register the tool on the MCP server,
+# declare it under search_tools with a matching mcp_tool_name, and add it to
+# the literature_review/validation workflow search_sources below -- no engine
+# change is needed.
 tools:
   search_tools:
     # The research group's own papers, held as sanitized full text on the MCP

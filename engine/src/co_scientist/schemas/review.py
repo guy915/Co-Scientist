@@ -158,6 +158,11 @@ REVIEW_BATCH_SCHEMA: dict[str, Any] = {
         }
     ),
 }
+# Bounds the confirmed-strengths list (audit K8). Model output, so it is
+# bounded in the schema itself -- the same policy the deep-verification
+# decomposition lists below apply.
+REFLECTION_MAX_POSITIVE_OBSERVATIONS = 5
+
 # Reflection schema
 # Shapes the "reflection_observations" prompt output, consumed by
 # agents/reflection/reflection.py, which checks each hypothesis
@@ -165,6 +170,13 @@ REVIEW_BATCH_SCHEMA: dict[str, Any] = {
 # literature/knowledge-graph evidence. "classification" is a closed enum
 # the rest of the pipeline treats as a categorical verdict (e.g. surfaced
 # verbatim in reflection notes shown to ranking/evolution).
+# "positive_observations" carries the review's confirmed strengths (audit
+# K8): the observation review both critiques and confirms, and the paper
+# appends positive observations to the hypothesis
+# (agents/reflection/observation_feedback.py does the appending).
+# Optional, because the review often completes without any important
+# findings and a missing field must read as "none found", not as a
+# failure.
 REFLECTION_SCHEMA: dict[str, Any] = {
     "name": "reflection_observations",
     "strict": False,
@@ -192,7 +204,17 @@ REFLECTION_SCHEMA: dict[str, Any] = {
                     " observations"
                 ),
             },
-        }
+            "positive_observations": {
+                **str_array(
+                    "Observations the hypothesis genuinely explains well:"
+                    " confirmed strengths where it provides a superior or"
+                    " mechanistically distinct explanation. Leave empty"
+                    " when the review found none."
+                ),
+                "maxItems": REFLECTION_MAX_POSITIVE_OBSERVATIONS,
+            },
+        },
+        optional=("positive_observations",),
     ),
 }
 # Deep-verification schema

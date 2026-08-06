@@ -6,13 +6,41 @@ import type {
   SupportSpan,
 } from '@/api/runs';
 
-// The one review recorded for a hypothesis, if any. At most one review per
-// hypothesis is expected, so find() is fine here.
+// The first review recorded for a hypothesis, if any: the initial
+// peer-review row behind the "Review summary" section.
 export function findHypothesisReview(
   hypothesis: Hypothesis,
   reviews: Review[],
 ): Review | undefined {
   return reviews.find(r => r.hypothesis_id === hypothesis.id);
+}
+
+// Every review row recorded for a hypothesis: the initial peer review plus
+// whichever of the deep-verification and full/simulation/recurrent reviews
+// ran. Order follows the store's creation order (audit E1/D13).
+export function findHypothesisReviews(
+  hypothesis: Hypothesis,
+  reviews: Review[],
+): Review[] {
+  return reviews.filter(r => r.hypothesis_id === hypothesis.id);
+}
+
+// Reader-facing labels for the reviewer agents a review row can carry, so
+// the initial, full, simulation, recurrent, and deep results stay visibly
+// distinct instead of collapsing under a single "Full review" heading
+// (finding D13). Unknown agents fall back to their raw name.
+const REVIEWER_LABELS: Readonly<Record<string, string>> = {
+  review: 'Initial peer review',
+  reflection: 'Reflection review',
+  full_review: 'Full review',
+  simulation_review: 'Simulation review',
+  recurrent_review: 'Recurrent review',
+  deep_verification: 'Deep verification',
+  scientist: 'Scientist review',
+};
+
+export function reviewerLabel(reviewerAgent: string): string {
+  return REVIEWER_LABELS[reviewerAgent] || reviewerAgent || 'Unknown reviewer';
 }
 
 // Most recent match involving a hypothesis on either side, used for the
@@ -128,10 +156,14 @@ export function reviewSummaryText(review: Review | undefined): string {
   );
 }
 
-// "Full review" section text, falling back to a placeholder until the review
-// node has run.
-export function reviewCritiqueText(review: Review | undefined): string {
-  return review?.critique || 'No full review has been recorded yet.';
+// Placeholder for the review-critiques section until any review has run.
+export const NO_REVIEW_CRITIQUES_TEXT =
+  'No review critiques have been recorded yet.';
+
+// One review row's critique, falling back to an explicit empty marker so a
+// row with no critique text still reads as recorded-but-empty.
+export function reviewCritiqueText(review: Review): string {
+  return review.critique || 'No critique text was recorded.';
 }
 
 // "Tournament performance" section text: the win/loss record and win rate,

@@ -6,11 +6,14 @@ import {
   claimEvidenceSummary,
   debateDepthLabel,
   findHypothesisReview,
+  findHypothesisReviews,
   findLatestMatch,
+  NO_REVIEW_CRITIQUES_TEXT,
   normalizeSpans,
   type NormalizedSpan,
   originLabel,
   reviewCritiqueText,
+  reviewerLabel,
   reviewSummaryText,
   tournamentSummaryText,
 } from './ideas_detail_data';
@@ -69,7 +72,7 @@ const SECTIONS = {
   description: 'Description',
   provenance: 'Provenance & lineage',
   reviewSummary: 'Review summary',
-  fullReview: 'Full review',
+  reviewCritiques: 'Review critiques',
   tournament: 'Tournament performance',
   matchSummary: 'Match summary',
 } as const;
@@ -80,7 +83,7 @@ const RAIL_SECTIONS: readonly string[] = [
   SECTIONS.description,
   SECTIONS.provenance,
   SECTIONS.reviewSummary,
-  SECTIONS.fullReview,
+  SECTIONS.reviewCritiques,
   SECTIONS.tournament,
 ];
 
@@ -113,6 +116,10 @@ function useHypothesisRecords(
     () => (hypothesis ? findHypothesisReview(hypothesis, reviews) : undefined),
     [hypothesis, reviews],
   );
+  const allReviews = useMemo(
+    () => (hypothesis ? findHypothesisReviews(hypothesis, reviews) : []),
+    [hypothesis, reviews],
+  );
   const latestMatch = useMemo(
     () => (hypothesis ? findLatestMatch(hypothesis, matches) : undefined),
     [hypothesis, matches],
@@ -124,7 +131,7 @@ function useHypothesisRecords(
         : [],
     [hypothesis, claimEvidence],
   );
-  return {review, latestMatch, claims};
+  return {review, allReviews, latestMatch, claims};
 }
 
 export function HypothesisDetail({
@@ -133,7 +140,7 @@ export function HypothesisDetail({
   matches,
   claimEvidence = [],
 }: HypothesisDetailProps) {
-  const {review, latestMatch, claims} = useHypothesisRecords(
+  const {review, allReviews, latestMatch, claims} = useHypothesisRecords(
     hypothesis,
     reviews,
     matches,
@@ -153,6 +160,7 @@ export function HypothesisDetail({
     <HypothesisDetailSections
       hypothesis={hypothesis}
       review={review}
+      allReviews={allReviews}
       latestMatch={latestMatch}
       claims={claims}
     />
@@ -162,6 +170,7 @@ export function HypothesisDetail({
 interface DetailSectionsProps {
   hypothesis: Hypothesis;
   review: Review | undefined;
+  allReviews: Review[];
   latestMatch: MatchRow | undefined;
   claims: ClaimEvidenceRow[];
 }
@@ -171,6 +180,7 @@ interface DetailSectionsProps {
 function HypothesisDetailSections({
   hypothesis,
   review,
+  allReviews,
   latestMatch,
   claims,
 }: DetailSectionsProps) {
@@ -193,8 +203,8 @@ function HypothesisDetailSections({
       <DetailSection title={SECTIONS.reviewSummary}>
         <p>{reviewSummaryText(review)}</p>
       </DetailSection>
-      <DetailSection title={SECTIONS.fullReview}>
-        <p>{reviewCritiqueText(review)}</p>
+      <DetailSection title={SECTIONS.reviewCritiques}>
+        <ReviewCritiquesContent reviews={allReviews} />
       </DetailSection>
       <DetailSection title={SECTIONS.tournament}>
         <p>{tournamentSummaryText(hypothesis)}</p>
@@ -203,6 +213,27 @@ function HypothesisDetailSections({
         <MatchSummaryContent latestMatch={latestMatch} />
       </DetailSection>
     </section>
+  );
+}
+
+// "Review critiques" section body: every review row recorded for the idea,
+// each under its reviewer's own heading, so the initial peer review, the
+// deep verification, and the full/simulation/recurrent results stay
+// visibly distinct findings (audit E1/D13) instead of one collapsed block.
+// Props-only (no hooks).
+function ReviewCritiquesContent({reviews}: {reviews: Review[]}) {
+  if (!reviews.length) {
+    return <p>{NO_REVIEW_CRITIQUES_TEXT}</p>;
+  }
+  return (
+    <>
+      {reviews.map(item => (
+        <div key={item.id} className="mb-3 last:mb-0">
+          <h3>{reviewerLabel(item.reviewer_agent)}</h3>
+          <p>{reviewCritiqueText(item)}</p>
+        </div>
+      ))}
+    </>
   );
 }
 

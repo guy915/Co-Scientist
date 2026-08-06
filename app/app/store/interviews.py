@@ -73,6 +73,10 @@ def create_interview(
         "research_challenge": challenge.strip(),
         "focus_area": [],
         "preferences": [],
+        # K5: lab constraints are elicited during the interview; the empty
+        # list is the "none declared" state and threads to the engine as
+        # "no constraints" (the prompts render unchanged).
+        "lab_constraints": [],
         "title": None,
     }
     with connect(db_path) as conn:

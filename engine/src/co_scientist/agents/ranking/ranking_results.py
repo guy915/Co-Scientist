@@ -5,9 +5,10 @@ from typing import Any, NamedTuple
 
 from co_scientist.agents.ranking.ranking_elo import (
     calculate_elo_update,
+    effective_k_factor,
     match_tier,
 )
-from co_scientist.constants import truncate
+from co_scientist.constants import ELO_K_FACTOR, truncate
 from co_scientist.models import (
     ExecutionMetrics,
     Hypothesis,
@@ -57,18 +58,27 @@ class _MatchupOutcome(NamedTuple):
 
 
 def _compute_elo_update(
-    winner_hyp: Hypothesis, loser_hyp: Hypothesis, k_factor: int | None
+    winner_hyp: Hypothesis,
+    loser_hyp: Hypothesis,
+    k_factor: int | None,
+    confidence: str | None = None,
 ) -> tuple[int, int]:
     """Computes and applies the post-match Elo ratings, logging the update.
 
     Mutates winner_hyp/loser_hyp's elo_rating and win/loss counters in
-    place.
+    place. Each side's update is scaled by its own effective K-factor
+    (``ranking_elo.effective_k_factor``): the K-annealing and margin-scaling
+    reconstruction knobs, both off by default, so with them off both sides
+    use exactly the run's configured K and the update is the historical one.
     """
-    elo_kwargs = {"k_factor": k_factor} if k_factor is not None else {}
+    base_k = k_factor if k_factor is not None else ELO_K_FACTOR
+    winner_k = effective_k_factor(base_k, winner_hyp.total_matches, confidence)
+    loser_k = effective_k_factor(base_k, loser_hyp.total_matches, confidence)
     new_winner_elo, new_loser_elo = calculate_elo_update(
         winner_elo=winner_hyp.elo_rating,
         loser_elo=loser_hyp.elo_rating,
-        **elo_kwargs,
+        k_factor=winner_k,
+        loser_k_factor=loser_k,
     )
     logger.debug(
         "Matchup result: Winner %s -> %s, Loser %s -> %s",
@@ -97,6 +107,7 @@ def _apply_matchup_elo(
     winner: str,
     *,
     k_factor: int | None = None,
+    confidence: str | None = None,
 ) -> _MatchupOutcome:
     """Resolves the winner/loser of one matchup and applies its Elo update.
 
@@ -109,6 +120,9 @@ def _apply_matchup_elo(
         hyp_b: Second hypothesis in the pairing.
         winner: Side the judge picked, "a" or "b".
         k_factor: Optional run-specific Elo sensitivity.
+        confidence: The judge's confidence level for the verdict, if any.
+            Feeds only the margin-scaling reconstruction knob (off by
+            default), so it is inert unless that knob is enabled.
 
     Returns:
         The pre/post Elo ratings for the winner and loser.
@@ -118,7 +132,7 @@ def _apply_matchup_elo(
     old_loser_elo = loser_hyp.elo_rating
 
     new_winner_elo, new_loser_elo = _compute_elo_update(
-        winner_hyp, loser_hyp, k_factor
+        winner_hyp, loser_hyp, k_factor, confidence
     )
 
     return _MatchupOutcome(

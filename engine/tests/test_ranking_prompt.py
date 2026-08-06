@@ -22,9 +22,11 @@ import logging
 import pytest
 
 from co_scientist.agents.ranking.ranking_prompt import (
+    _build_matchup_prompt,
     _deep_verification_summary,
     _log_reflection_coverage,
     _log_reflection_debug,
+    _MatchupPromptContext,
     _review_summary,
     _warn_if_reflection_notes_dropped,
 )
@@ -219,3 +221,56 @@ def test_warn_if_reflection_notes_dropped_missing_from_prompt(
         "warning: Reflection notes provided but not found in prompt"
         in caplog.text
     )
+
+
+# --- mature review findings (audit E1) ----------------------------------
+
+
+def _matchup_context() -> _MatchupPromptContext:
+    """Build the minimal run-level context a matchup prompt needs."""
+    return _MatchupPromptContext(research_goal="test goal")
+
+
+def test_matchup_prompt_surfaces_fatal_mature_review_findings() -> None:
+    """A fatal full/simulation result reaches the judge's prompt (E1).
+
+    The reviews were computed at LLM + retrieval cost but read by nothing
+    before this; the verdict and its decisive findings must appear on the
+    affected side so they can influence the outcome.
+    """
+    hypothesis_a = make_hypothesis(text="idea A")
+    hypothesis_a.enrichments["full"] = {
+        "verdict": "rejected",
+        "justification": "the proposed pathway is circular",
+        "retrieved_articles": [{"title": "never shown to a judge"}],
+    }
+    hypothesis_a.enrichments["simulation"] = {
+        "verdict": "breaks_down",
+        "decisive_step": "ligand binding never occurs",
+        "failure_points": ["step two"],
+    }
+    hypothesis_b = make_hypothesis(text="idea B")
+
+    prompt, _, _, _ = _build_matchup_prompt(
+        hypothesis_a, hypothesis_b, _matchup_context()
+    )
+
+    assert "Hypothesis A Mature Review Findings" in prompt
+    assert "Full review verdict: rejected" in prompt
+    assert "the proposed pathway is circular" in prompt
+    assert "Simulation review verdict: breaks_down" in prompt
+    assert "ligand binding never occurs" in prompt
+    # Side B has no mature reviews: no block, and no retrieval internals.
+    assert "Hypothesis B Mature Review Findings" not in prompt
+    assert "never shown to a judge" not in prompt
+
+
+def test_matchup_prompt_is_unchanged_before_the_cascade_runs() -> None:
+    """No mature reviews means no findings block on either side."""
+    prompt, _, _, _ = _build_matchup_prompt(
+        make_hypothesis(text="idea A"),
+        make_hypothesis(text="idea B"),
+        _matchup_context(),
+    )
+
+    assert "Mature Review Findings" not in prompt

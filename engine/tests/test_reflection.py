@@ -100,3 +100,114 @@ async def test_empty_llm_response_defaults_gracefully(
         "\n\nClassification: neutral"
     )
     assert "indra_evidence" not in result["hypotheses"][0].enrichments
+
+
+async def test_positive_observations_accumulate_on_hypothesis(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Confirmed strengths are appended to the idea's stored notes (K8).
+
+    The paper's observation review both critiques and confirms: positive
+    observations are summarized and appended to the hypothesis. They land
+    in reflection_notes -- the accumulated-feedback field the ranking
+    prompts read -- ahead of the "Classification:" suffix that
+    agents/ranking/ranking_prompt.py parses back out, and are recorded
+    under enrichments["observation"].
+    """
+    hyp = make_hypothesis(text="alpha pathway drives growth")
+    state = make_state(hypotheses=[hyp], articles_with_reasoning=_ARTICLES)
+    stub_call_llm_json(
+        monkeypatch,
+        reflection,
+        {
+            "classification": "missing piece",
+            "reasoning": "fills a gap",
+            "positive_observations": ["explains the resistance phenotype"],
+        },
+    )
+
+    result = await reflection_node(state)
+
+    returned = result["hypotheses"][0]
+    notes = returned.reflection_notes or ""
+    assert "fills a gap" in notes
+    assert "explains the resistance phenotype" in notes
+    # The strengths accumulate ahead of the parseable classification suffix.
+    assert notes.index("explains the resistance phenotype") < notes.index(
+        "Classification: missing piece"
+    )
+    assert notes.endswith("Classification: missing piece")
+    assert returned.enrichments["observation"]["positive_observations"] == [
+        "explains the resistance phenotype"
+    ]
+
+
+async def test_no_positive_observations_keeps_notes_byte_identical(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Without confirmed strengths the notes are unchanged (no-op)."""
+    hyp = make_hypothesis(text="alpha pathway drives growth")
+    state = make_state(hypotheses=[hyp], articles_with_reasoning=_ARTICLES)
+    stub_call_llm_json(
+        monkeypatch,
+        reflection,
+        {"classification": "missing piece", "reasoning": "fills a gap"},
+    )
+
+    result = await reflection_node(state)
+
+    returned = result["hypotheses"][0]
+    assert returned.reflection_notes == (
+        "fills a gap\n\nClassification: missing piece"
+    )
+    assert "positive_observations" not in returned.enrichments["observation"]
+
+
+async def test_blank_positive_observations_are_discarded(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Blank or whitespace-only positives never reach the notes."""
+    hyp = make_hypothesis(text="alpha pathway drives growth")
+    state = make_state(hypotheses=[hyp], articles_with_reasoning=_ARTICLES)
+    stub_call_llm_json(
+        monkeypatch,
+        reflection,
+        {
+            "classification": "neutral",
+            "reasoning": "no signal",
+            "positive_observations": ["", "   "],
+        },
+    )
+
+    result = await reflection_node(state)
+
+    returned = result["hypotheses"][0]
+    assert returned.reflection_notes == "no signal\n\nClassification: neutral"
+    assert "positive_observations" not in returned.enrichments["observation"]
+
+
+def test_observation_schema_bounds_positive_observations() -> None:
+    """The positives field is a bounded optional string array (K8)."""
+    from co_scientist.schemas.review import (
+        REFLECTION_MAX_POSITIVE_OBSERVATIONS,
+        REFLECTION_SCHEMA,
+    )
+
+    properties = REFLECTION_SCHEMA["schema"]["properties"]
+    field = properties["positive_observations"]
+    assert field["type"] == "array"
+    assert field["items"] == {"type": "string"}
+    assert field["maxItems"] == REFLECTION_MAX_POSITIVE_OBSERVATIONS
+    assert (
+        "positive_observations" not in REFLECTION_SCHEMA["schema"]["required"]
+    )
+
+
+def test_observation_prompt_asks_for_positive_observations() -> None:
+    """The observation prompt instructs the model to confirm strengths."""
+    from co_scientist.prompts import get_reflection_prompt
+
+    prompt, _ = get_reflection_prompt(
+        articles_with_reasoning="lit", hypothesis_text="H"
+    )
+    assert "Positive observations" in prompt

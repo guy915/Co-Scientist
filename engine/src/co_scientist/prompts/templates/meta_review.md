@@ -17,6 +17,7 @@ You are an expert in scientific research and meta-analysis. Synthesize a compreh
 - Areas where the generation process could be improved
 - Potential gaps in the review criteria or approach
 - Consistency and quality of reviews
+- Where present, each review history's ``mature_reviews`` block carries the full, simulation, and recurrent review findings for that hypothesis; treat their verdicts and failure points as reviewer feedback alongside the initial reviews
 
 ### 3. Provide strategic guidance for hypothesis refinement
 

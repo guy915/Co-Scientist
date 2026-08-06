@@ -141,14 +141,17 @@ async def _call_interview_model(
 def _fallback_interview_response(
     interview: dict[str, Any],
 ) -> dict[str, Any]:
-    """Advance the four-field interview from explicit scientist answers.
+    """Advance the five-field interview from explicit scientist answers.
 
     The recovery path never infers scientific content. It assigns each new
     answer to the field the Agent most recently requested, preserving a usable
     and resumable interview when the configured model is temporarily absent.
-    The turns it authors are marked as fallback when persisted (see
-    ``interviews._resolved_turn``), so the UI can signal them as guided
-    questions rather than silently passing them off as model output.
+    The scripted sequence completes without eliciting lab constraints (K5):
+    the field stays at its empty "none declared" state, which the engine
+    treats as "no constraints". The turns it authors are marked as fallback
+    when persisted (see ``interviews._resolved_turn``), so the UI can signal
+    them as guided questions rather than silently passing them off as model
+    output.
     """
     fields = dict(interview["fields"])
     user_turns = [

@@ -10,6 +10,7 @@ empty.
 
 from co_scientist.agents.proximity.proximity_graph import (
     PROXIMITY_METHOD,
+    PROXIMITY_METHOD_VERSION,
     SurvivorIndex,
     build_proximity_graph,
     member_match_key,
@@ -118,6 +119,72 @@ def test_empty_clusters_yield_empty_graph() -> None:
     assert graph["edges"] == []
     assert graph["meta"]["edge_count"] == 0
     assert graph["meta"]["node_count"] == 0
+
+
+def test_documented_local_algorithm_identity_and_weights() -> None:
+    """The H2 documented local choice: llm-cluster v1, fixed degree weights.
+
+    The paper leaves the similarity metric open ("e.g. text embeddings"),
+    so this deployment's first-class algorithm is the LLM-judged cluster
+    with the fixed qualitative-degree mapping. Pinning the identity and
+    the weights keeps the documented algorithm and the implemented one the
+    same thing; a future metric must register as a new method/version.
+    """
+    assert PROXIMITY_METHOD == "llm-cluster"
+    assert PROXIMITY_METHOD_VERSION == "1"
+
+    graph = build_proximity_graph(
+        [
+            {
+                "cluster_id": "c1",
+                "similar_hypotheses": [
+                    {"index": 0, "similarity_degree": "high"},
+                    {"index": 1, "similarity_degree": "medium"},
+                    {"index": 2, "similarity_degree": "low"},
+                ],
+            }
+        ],
+        _survivors("h-a", "h-b", "h-c"),
+        research_goal="goal",
+        model="m",
+        updated_at=1.0,
+    )
+    weights = {
+        frozenset((edge["source"], edge["target"])): edge["similarity"]
+        for edge in graph["edges"]
+    }
+    # The stronger of each pair's degrees sets the weight: high/medium and
+    # high/low pairs both read 1.0, the medium/low pair reads 0.6.
+    assert weights[frozenset({"h-a", "h-b"})] == 1.0
+    assert weights[frozenset({"h-a", "h-c"})] == 1.0
+    assert weights[frozenset({"h-b", "h-c"})] == 0.6
+    assert graph["meta"]["method"] == PROXIMITY_METHOD
+    assert graph["meta"]["version"] == PROXIMITY_METHOD_VERSION
+
+
+def test_graph_is_deterministic_on_fixed_inputs() -> None:
+    """Two builds from identical inputs are identical, edges and meta.
+
+    The documented algorithm promises reproducibility: given a fixed
+    clustering output, the persisted graph -- edge set, weights, order,
+    and provenance -- is a pure function of it.
+    """
+    clusters = _clusters()
+    first = build_proximity_graph(
+        clusters,
+        _SURVIVORS,
+        research_goal="goal",
+        model="fake/model",
+        updated_at=42.0,
+    )
+    second = build_proximity_graph(
+        clusters,
+        _SURVIVORS,
+        research_goal="goal",
+        model="fake/model",
+        updated_at=42.0,
+    )
+    assert first == second
 
 
 def test_resolves_member_text_drifted_beyond_prefix() -> None:

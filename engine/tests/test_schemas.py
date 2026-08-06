@@ -88,14 +88,31 @@ def test_research_overview_enforces_nih_specific_aims_format() -> None:
 
 
 def test_optional_properties_stay_out_of_required() -> None:
-    """The six deliberately-optional schema keys must not become required.
+    """The deliberately-optional schema keys must not become required.
 
     ``schemas.builders.obj`` derives ``required`` from ``properties``, which
-    is right for 54 of the 60 object nodes here; these are the exceptions,
-    and nothing else notices if an ``optional=`` argument is dropped -- the
-    model simply starts being rejected for omitting a field it was told it
-    could omit. Each is closed (``additionalProperties: False``), so the key
-    must stay declared as well as stay out of ``required``.
+    is right for all but a few of the object nodes here; these are the
+    exceptions, and nothing else notices if an ``optional=`` argument is
+    dropped -- the model simply starts being rejected for omitting a field
+    it was told it could omit. Each is closed
+    (``additionalProperties: False``), so the key must stay declared as
+    well as stay out of ``required``.
+    """
+    review_item = REVIEW_BATCH_SCHEMA["schema"]["properties"]["reviews"][
+        "items"
+    ]
+    optional = ((review_item, "comparative_notes"),)
+    for node, name in optional:
+        assert name in node["properties"], f"{name} no longer declared"
+        assert name not in node["required"], f"{name} became required"
+
+
+def test_generation_category_is_required() -> None:
+    """Category is required in both generation schemas that carry it (K7).
+
+    Categorization was inconsistent while the field was optional and absent
+    from the prompt body. The field is now required, and the templates
+    present its value contract (see the prompt-contract tests).
     """
     generation_item = GENERATION_SCHEMA["schema"]["properties"]["hypotheses"][
         "items"
@@ -103,14 +120,6 @@ def test_optional_properties_stay_out_of_required() -> None:
     synthesis_item = HYPOTHESIS_VALIDATION_SYNTHESIS_SCHEMA["schema"][
         "properties"
     ]["hypotheses"]["items"]
-    review_item = REVIEW_BATCH_SCHEMA["schema"]["properties"]["reviews"][
-        "items"
-    ]
-    optional = (
-        (generation_item, "category"),
-        (synthesis_item, "category"),
-        (review_item, "comparative_notes"),
-    )
-    for node, name in optional:
-        assert name in node["properties"], f"{name} no longer declared"
-        assert name not in node["required"], f"{name} became required"
+    for node in (generation_item, synthesis_item):
+        assert "category" in node["properties"], "category no longer declared"
+        assert "category" in node["required"], "category no longer required"

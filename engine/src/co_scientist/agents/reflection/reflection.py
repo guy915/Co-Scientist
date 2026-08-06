@@ -6,6 +6,10 @@ import logging
 from collections.abc import Coroutine
 from typing import Any
 
+from co_scientist.agents.reflection.observation_feedback import (
+    apply_observation_result,
+    store_indra_enrichment,
+)
 from co_scientist.constants import (
     EXTENDED_MAX_TOKENS,
     LOW_TEMPERATURE,
@@ -178,7 +182,8 @@ def _format_reflection_result(
         hypothesis_index: Index for logging (1-based).
 
     Returns:
-        Dict with classification, reasoning, and indra_enrichment_items.
+        Dict with classification, reasoning, positive_observations, and
+        indra_enrichment_items.
     """
     # Default to "neutral"/empty if the LLM response omits a field, since
     # json_schema validation may still let optional keys through.
@@ -192,6 +197,9 @@ def _format_reflection_result(
     return {
         "classification": classification,
         "reasoning": reasoning,
+        # Optional schema field (audit K8): absent until the review
+        # records confirmed strengths.
+        "positive_observations": response.get("positive_observations", []),
         "indra_enrichment_items": indra_data.get("enrichment_items", []),
     }
 
@@ -401,11 +409,11 @@ def _apply_reflection_results(
 ) -> None:
     """Applies per-hypothesis reflection results onto their hypotheses.
 
-    Mutates each hypothesis in place: sets reflection_notes (including the
-    "Classification: <value>" suffix that agents/ranking/ranking_prompt.py
-    later parses back out of reflection_notes to show reflection context in
-    tournament matchup prompts) and, when present, merges INDRA enrichment
-    items.
+    Mutates each hypothesis in place through the shared observation-
+    feedback seam (which folds the critique and the confirmed strengths
+    into reflection_notes, keeping the "Classification: <value>" suffix
+    agents/ranking/ranking_prompt.py parses back out) and merges INDRA
+    enrichment items when present.
 
     Args:
         hypotheses: hypotheses analyzed, in the same order as
@@ -414,27 +422,9 @@ def _apply_reflection_results(
             analyze_single_hypothesis, or None where analysis failed.
     """
     for hypothesis, result in zip(hypotheses, analysis_results, strict=True):
+        apply_observation_result(hypothesis, result)
         if result:
-            classification = result.get("classification", "neutral")
-            reasoning = result.get("reasoning", "")
-            hypothesis.reflection_notes = (
-                f"{reasoning}\n\nClassification: {classification}"
-            )
-            hypothesis.enrichments["observation"] = {
-                "classification": classification,
-                "reasoning": reasoning,
-            }
-            # Store knowledge graph evidence in enrichments (yaml-driven,
-            # only present for biomedical configs)
-            enrichment_items = result.get("indra_enrichment_items", [])
-            if enrichment_items:
-                hypothesis.enrichments["indra_evidence"] = enrichment_items
-        else:
-            # Keep the same "Classification: neutral" suffix even on
-            # failure so the ranking.py parser above never breaks.
-            hypothesis.reflection_notes = (
-                "Analysis failed\n\nClassification: neutral"
-            )
+            store_indra_enrichment(hypothesis, result)
 
 
 async def _fetch_indra_for_hypothesis(

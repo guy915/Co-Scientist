@@ -24,6 +24,7 @@ from co_scientist.constants import (
 )
 from co_scientist.models import Hypothesis, create_metrics_update, phase_message
 from co_scientist.progress import emit_progress
+from co_scientist.prompts._common import _format_meta_review_context
 from co_scientist.safety import (
     SafetyOutcome,
     redact_hypothesis_fields,
@@ -44,17 +45,38 @@ def _screen_text(h: Hypothesis) -> str:
     return " ".join(parts)
 
 
-def _build_safety_decision(review: Any, h: Hypothesis) -> dict[str, Any] | None:
+def _meta_review_context(state: WorkflowState) -> str:
+    """Render the run's meta-review critique as safety adjudication context.
+
+    Audit E7. The screen is deterministic, so the critique is threaded as
+    context for the humans who adjudicate its holds and blocks -- never
+    as an input that can move an outcome: policy stays conservative and
+    fails closed. Renders "" on iteration 1, when no critique exists yet.
+    """
+    return _format_meta_review_context(state.get("meta_review"))
+
+
+def _build_safety_decision(
+    review: Any, h: Hypothesis, meta_review_context: str = ""
+) -> dict[str, Any] | None:
     """Build the audit-trail decision entry for an UNCERTAIN/blocked review.
+
+    The meta-review critique (audit E7) rides on the entry as adjudication
+    context only; it plays no part in the outcome. The key is omitted on
+    iteration 1, when there is no critique yet, keeping those records
+    byte-identical to the pre-E7 shape.
 
     Returns None for a review outcome that neither holds nor blocks.
     """
     if review.outcome == SafetyOutcome.UNCERTAIN or review.blocks_tournament:
-        return {
+        decision: dict[str, Any] = {
             "hypothesis_id": h.id,
             "text_prefix": h.text[:120],
             **review.to_dict(),
         }
+        if meta_review_context:
+            decision["meta_review_context"] = meta_review_context
+        return decision
     return None
 
 
@@ -67,12 +89,18 @@ def _redact_if_needed(h: Hypothesis, review: Any) -> None:
 
 
 def _screen_one_hypothesis(
-    h: Hypothesis,
+    h: Hypothesis, meta_review_context: str = ""
 ) -> tuple[bool, dict[str, Any] | None, dict[str, Any] | None]:
     """Screen one hypothesis, applying redaction as a side effect.
 
     Mutates h.safety_status, and h.explanation/h.experiment for a
     DUAL_USE/REDACT outcome that stays in the pool.
+
+    Args:
+        h: Hypothesis to screen.
+        meta_review_context: Rendered meta-review critique (audit E7);
+            recorded on any decision for adjudication, never consulted
+            by the outcome.
 
     Returns:
         Tuple of (is_safe, decision, held): decision is None unless
@@ -83,7 +111,7 @@ def _screen_one_hypothesis(
 
     review = review_hypothesis_safety(_screen_text(h))
     h.safety_status = review.outcome.value
-    decision = _build_safety_decision(review, h)
+    decision = _build_safety_decision(review, h, meta_review_context)
 
     if review.outcome == SafetyOutcome.UNCERTAIN:
         logger.warning(
@@ -122,9 +150,14 @@ class _ScreenOutcome(NamedTuple):
 
 
 def _screen_hypothesis_pool(
-    hypotheses: list[Hypothesis],
+    hypotheses: list[Hypothesis], meta_review_context: str = ""
 ) -> _ScreenOutcome:
     """Screen every hypothesis in the pool, splitting safe from blocked/held.
+
+    Args:
+        hypotheses: Hypotheses to screen.
+        meta_review_context: Rendered meta-review critique (audit E7)
+            recorded on any decision, for adjudication.
 
     Returns:
         The pass's safe hypotheses, decision records, and held records.
@@ -134,7 +167,7 @@ def _screen_hypothesis_pool(
     new_held: list[dict[str, Any]] = []
 
     for h in hypotheses:
-        is_safe, decision, held = _screen_one_hypothesis(h)
+        is_safe, decision, held = _screen_one_hypothesis(h, meta_review_context)
         if decision is not None:
             new_decisions.append(decision)
         if held is not None:
@@ -218,7 +251,7 @@ async def safety_screen_node(
         hypotheses_count=len(hypotheses),
     )
 
-    outcome = _screen_hypothesis_pool(hypotheses)
+    outcome = _screen_hypothesis_pool(hypotheses, _meta_review_context(state))
     safe = outcome.safe
     blocked_count = len(hypotheses) - len(safe)
     held_count = len(outcome.held)

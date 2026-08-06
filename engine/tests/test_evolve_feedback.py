@@ -73,6 +73,51 @@ def test_specialist_feedback_joins_prior_agent_outputs() -> None:
     assert "one causal claim lacks support" in feedback
 
 
+def test_specialist_feedback_carries_mature_review_findings() -> None:
+    """The parent's full/simulation reviews steer evolution (audit E1).
+
+    A fatal finding on the parent is exactly the weakness the child must
+    refine away, so its verdict and findings join the specialist ledger.
+    """
+    hypothesis = make_hypothesis(text="a hypothesis with mature reviews")
+    hypothesis.enrichments["full"] = {
+        "verdict": "rejected",
+        "justification": "circular pathway",
+        "retrieved_articles": [{"title": "not for the ledger"}],
+    }
+    hypothesis.enrichments["simulation"] = {
+        "verdict": "breaks_down",
+        "decisive_step": "binding fails",
+        "failure_points": ["step two"],
+    }
+    state = _feedback_state(hypothesis)
+
+    feedback = _specialist_feedback_for(state, hypothesis)
+
+    ledger = json.loads(feedback)
+    assert ledger["mature_reviews"]["full"]["verdict"] == "rejected"
+    assert ledger["mature_reviews"]["full"]["justification"] == (
+        "circular pathway"
+    )
+    assert ledger["mature_reviews"]["simulation"]["verdict"] == "breaks_down"
+    # Retrieval bookkeeping stays out of the prompt context.
+    assert "retrieved_articles" not in feedback
+
+
+def test_specialist_feedback_omits_mature_reviews_before_the_cascade() -> None:
+    """No mature review has run -> no "mature_reviews" key at all.
+
+    Same omit-rather-than-hollow convention as deep verification: a
+    present-but-empty block would read as "reviewed, nothing found".
+    """
+    hypothesis = make_hypothesis(text="a hypothesis awaiting review")
+    state = _feedback_state(hypothesis)
+
+    feedback = _specialist_feedback_for(state, hypothesis)
+
+    assert "mature_reviews" not in json.loads(feedback)
+
+
 def test_specialist_feedback_omits_deep_verification_before_it_has_run() -> (
     None
 ):

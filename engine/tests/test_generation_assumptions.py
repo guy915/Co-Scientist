@@ -93,6 +93,40 @@ async def test_assumptions_grounds_in_supplied_literature(
     assert "C1" in result[0].citation_map
 
 
+async def test_assumptions_live_prompt_hedges_and_threads_constraints(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The live technique prompt hedges novelty and threads constraints.
+
+    No reference index is supplied, i.e. the degraded LLM-only run whose
+    novelty claims are the least verified (K3) -- its prompt must still
+    carry the hedging contract, and the state's lab constraints (K5) must
+    reach the final generation call.
+    """
+    from co_scientist.agents.generation import assumptions as assumptions_mod
+
+    captured: dict[str, str] = {}
+
+    async def _fake_call_llm_json(prompt: str, *_a: Any, **_k: Any) -> Any:
+        captured["prompt"] = prompt
+        return _one_hypothesis_payload()
+
+    monkeypatch.setattr(assumptions_mod, "call_llm_json", _fake_call_llm_json)
+
+    await assumptions_mod.generate_with_assumptions(
+        make_state(
+            research_goal="A goal",
+            model_name="fake-model",
+            lab_constraints=["Zebrafish facility only"],
+        ),
+        1,
+    )
+
+    assert "Novelty claims must be hedged" in captured["prompt"]
+    assert "## Scientist's Lab Constraints" in captured["prompt"]
+    assert "Zebrafish facility only" in captured["prompt"]
+
+
 async def test_assumptions_generation_is_never_cached(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

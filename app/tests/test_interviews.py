@@ -140,6 +140,7 @@ def test_interview_persists_turns_progress_and_final_plan(
             "research_challenge",
             "focus_area",
             "preferences",
+            "lab_constraints",
             "title",
         }
         assert [turn["role"] for turn in payload["turns"]] == [
@@ -410,7 +411,11 @@ def test_interview_completes_when_model_reports_no_preferences(
 def test_interview_remains_usable_during_model_outage(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Explicit answers populate the four fields when the model is absent."""
+    """Explicit answers populate the fields when the model is absent.
+
+    The scripted flow completes without eliciting lab constraints (K5):
+    the field records its empty "none declared" state.
+    """
     _patch_model_raising(
         monkeypatch, HTTPException(status_code=503, detail="unavailable")
     )
@@ -443,5 +448,6 @@ def test_interview_remains_usable_during_model_outage(
         "research_challenge": "Test astrocyte lactate transport",
         "focus_area": ["Prioritize MCT1 and MCT4 mechanisms."],
         "preferences": ["Use human organoids and exclude animal work."],
+        "lab_constraints": [],
         "title": None,
     }

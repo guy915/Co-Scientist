@@ -9,6 +9,10 @@ User Attributes (if any): {{attributes}}
 User-provided Literature (if any): {{user_literature}}
 User-provided Hypotheses (if any): {{user_hypotheses}}
 
+{{meta_review_context}}
+
+When a meta-review context is present, also target the gaps and weaknesses it flags — retrieve the evidence the critique says is missing.
+
 Instructions:
 1. Generate 2-4 natural language search phrases for PubMed
 2. Each query should target a distinct aspect of the research goal (methods, biomarkers, mechanisms, applications, etc.)

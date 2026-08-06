@@ -103,6 +103,39 @@ def _resolve_literature_review_toggle(cfg: dict[str, Any]) -> bool:
     return enable_literature_review
 
 
+def _lab_constraints_for_run(
+    cfg: dict[str, Any], db_path: str | None
+) -> list[str]:
+    """Resolve the interview-elicited lab constraints for a run (K5).
+
+    Runs created from a goal interview carry its id in the run config; the
+    interview's ``lab_constraints`` field is the scientist's statement of
+    what their laboratory can do, and it threads to the engine's
+    generation/evolution feasibility prompts. Resolved here -- at the opts
+    boundary -- because the interview merge into the create request only
+    maps the goal/requirements/attributes fields, and this field must not
+    depend on that path.
+
+    Args:
+        cfg: The run's resolved config (``interview_id`` when it came from
+            an interview).
+        db_path: Optional database override.
+
+    Returns:
+        The cleaned lab-constraint strings, empty when the run has no
+        interview, the interview is gone, or no constraints were declared.
+        An empty result leaves the engine prompts exactly as they were.
+    """
+    interview_id = cfg.get("interview_id")
+    if not interview_id:
+        return []
+    interview = store.get_interview(str(interview_id), db_path=db_path)
+    if interview is None:
+        return []
+    raw = interview["fields"].get("lab_constraints") or []
+    return clean_string_list([str(value) for value in raw])
+
+
 def _apply_private_sources(
     initial_opts: dict[str, Any], run_id: str, goal: str, db_path: str | None
 ) -> None:
@@ -131,9 +164,9 @@ def _build_engine_opts(
     """Translate a run's durable config into the engine's `opts` vocabulary.
 
     Folds the composer "setup" (focus/attributes/requirements/criteria), any
-    queued user steering, and the literature-review toggle into one opts
-    dict. Steering consumed here is marked applied so a later iteration does
-    not replay the same message.
+    queued user steering, the literature-review toggle, and the interview's
+    lab constraints (K5) into one opts dict. Steering consumed here is marked
+    applied so a later iteration does not replay the same message.
     """
     initial_opts = _setup_opts_from_cfg(cfg.get("setup"))
     # Flag queued steering as a durable high-priority task BEFORE folding it
@@ -153,6 +186,11 @@ def _build_engine_opts(
     initial_opts["enable_literature_review_node"] = (
         _resolve_literature_review_toggle(cfg)
     )
+    # K5: thread the interview's lab constraints to the engine's
+    # generation/evolution feasibility prompts; empty renders no section.
+    lab_constraints = _lab_constraints_for_run(cfg, db_path)
+    if lab_constraints:
+        initial_opts["lab_constraints"] = lab_constraints
     goal = str((cfg.get("setup") or {}).get("goal") or "")
     _apply_private_sources(initial_opts, run_id, goal, db_path)
     return initial_opts

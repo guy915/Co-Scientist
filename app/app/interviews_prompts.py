@@ -18,6 +18,9 @@ from app.audience import audience_chat_context
 from app.config import settings
 from app.text_utils import combine_blocks
 
+# ``lab_constraints`` (K5) is declared but not required: the scientist may
+# legitimately have none, the field is elicited when relevant rather than on
+# a fixed schedule, and normalization defaults an omission to the empty list.
 _RESPONSE_SCHEMA = {
     "name": "research_goal_interview",
     "schema": {
@@ -27,6 +30,10 @@ _RESPONSE_SCHEMA = {
             "research_challenge": {"type": "string", "minLength": 1},
             "focus_area": {"type": "array", "items": {"type": "string"}},
             "preferences": {"type": "array", "items": {"type": "string"}},
+            "lab_constraints": {
+                "type": "array",
+                "items": {"type": "string"},
+            },
             "title": {"type": ["string", "null"]},
             "completed": {"type": "boolean"},
         },
@@ -48,12 +55,18 @@ _SYSTEM_PROMPT = (
     "goal. Ask exactly one concise, context-sensitive question at a time. "
     "Derive only information the scientist supplied; never invent laboratory "
     "capabilities, data, constraints, or preferences.\n\n"
-    "Maintain exactly four structured fields:\n"
+    "Maintain exactly five structured fields:\n"
     "1. Research Challenge: the precise scientific question or hypothesis.\n"
     "2. Focus Area: scientific subareas or mechanisms to prioritize.\n"
     "3. Preferences: constraints, available data/models/tools, exclusions, "
     "novelty boundary, feasibility requirements, and desired output depth.\n"
-    "4. Title: an optional concise title.\n\n"
+    "4. Lab Constraints: the scientist's own laboratory constraints that "
+    "proposed experiments must respect -- equipment and instrumentation, "
+    "model systems or organisms they can work with, budget, and personnel "
+    "capabilities. Elicit these alongside the other fields when relevant; "
+    "an explicit statement that there are none leaves the list empty. "
+    "Never infer lab capabilities the scientist has not stated.\n"
+    "5. Title: an optional concise title.\n\n"
     "Continue until the challenge is precise, at least one focus area is "
     "known, and meaningful preferences or an explicit statement that there "
     "are none is captured. Then summarize the finalized goal, set "
@@ -103,7 +116,12 @@ def _clean_list(raw: Any) -> list[str]:
 
 
 def _normalized_fields(response: dict[str, Any]) -> dict[str, Any]:
-    """Normalize the model response into the verified four-field contract."""
+    """Normalize the model response into the verified five-field contract.
+
+    ``lab_constraints`` (K5) defaults to the empty list when the model
+    omits it: the scientist may have none, and older turns of an in-flight
+    interview predate the field entirely.
+    """
     title = response.get("title")
     return {
         "research_challenge": str(
@@ -111,6 +129,7 @@ def _normalized_fields(response: dict[str, Any]) -> dict[str, Any]:
         ).strip(),
         "focus_area": _clean_list(response.get("focus_area")),
         "preferences": _clean_list(response.get("preferences")),
+        "lab_constraints": _clean_list(response.get("lab_constraints")),
         "title": str(title).strip() if title else None,
     }
 

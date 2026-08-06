@@ -14,7 +14,8 @@ Instructions:
     d. If established mechanisms already account for it, or if a simpler/better-supported explanation exists, state: "not a missing piece."
 3. Causal analysis (summary): on balance, does the hypothesis provide a novel causal explanation that existing mechanisms from the literature cannot adequately account for? Include explicit reasoning about what established mechanisms do and do not explain. Start with: "taken as a whole, does the hypothesis explain observations that known mechanisms cannot:".
 4. Disproof analysis: determine if any observations contradict the hypothesis. Start with: "does some observations disprove the hypothesis:".
-5. Conclusion: state: "hypothesis: <already explained, other explanations more likely, missing piece, neutral, or disproved>".
+5. Positive observations: list the observations the hypothesis genuinely explains well — confirmed strengths where it provides a superior or mechanistically distinct explanation over established mechanisms. Leave the list empty when the review found none; do not invent strengths to be agreeable.
+6. Conclusion: state: "hypothesis: <already explained, other explanations more likely, missing piece, neutral, or disproved>".
 
 Scoring:
 

@@ -171,6 +171,49 @@ async def test_offline_acompletion_sizes_batch_review_to_hypothesis_count() -> (
     assert len(set(texts)) == len(texts)
 
 
+async def test_offline_filler_supplies_the_required_category() -> None:
+    """Making ``category`` required made the offline filler deterministic (K7).
+
+    The filler satisfies every required property, so a required category
+    comes back filled -- and identically filled on every identical call.
+    While the field was optional the filler omitted it, and an offline run
+    produced hypotheses with no category at all.
+    """
+    kwargs: dict[str, Any] = {
+        "model": offline_llm.DEFAULT_OFFLINE_MODEL,
+        "messages": [
+            {"role": "user", "content": "Generate hypotheses for goal G."}
+        ],
+        "response_format": {
+            "type": "json_schema",
+            "json_schema": {
+                "name": "hypothesis_generation",
+                "schema": GENERATION_SCHEMA["schema"],
+            },
+        },
+    }
+
+    first = json.loads(
+        (await offline_llm.offline_acompletion(**kwargs))
+        .choices[0]
+        .message.content
+    )
+    second = json.loads(
+        (await offline_llm.offline_acompletion(**kwargs))
+        .choices[0]
+        .message.content
+    )
+
+    assert first["hypotheses"], "filler must produce at least one hypothesis"
+    for entry in first["hypotheses"]:
+        assert isinstance(entry["category"], str)
+        assert entry["category"]
+    assert (
+        first["hypotheses"][0]["category"]
+        == second["hypotheses"][0]["category"]
+    )
+
+
 async def test_offline_acompletion_is_deterministic_for_identical_calls() -> (
     None
 ):

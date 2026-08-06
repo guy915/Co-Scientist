@@ -75,7 +75,7 @@ def test_a_revision_re_derives_from_what_survives(
 ) -> None:
     """The model answers the rewound conversation, not the withdrawn one.
 
-    The stored four fields are a derivation of a transcript that no longer
+    The stored five fields are a derivation of a transcript that no longer
     exists, so carrying them into the next turn would hand the model back
     exactly the conclusions the scientist just withdrew.
     """
@@ -105,6 +105,7 @@ def test_a_revision_re_derives_from_what_survives(
         "research_challenge": "How do fungi regain susceptibility?",
         "focus_area": [],
         "preferences": [],
+        "lab_constraints": [],
         "title": None,
     }
 

@@ -39,6 +39,87 @@ def test_persist_writes_deep_verification_reviews(isolated_db: str) -> None:
     assert deep[0]["overall"] is None
 
 
+def _final_state_with_mature_reviews() -> dict[str, Any]:
+    """A final state whose hypothesis carries all three mature reviews."""
+    return {
+        "hypotheses": [
+            _engine_hypothesis(
+                "eng-hyp-m",
+                "Blocking CXCR1 suppresses breast cancer stem cells.",
+                enrichments={
+                    "full": {
+                        "verdict": "rejected",
+                        "correctness": "The pathway claim is circular.",
+                        "quality_and_novelty": "Incremental.",
+                        "literature_grounding": "Thin.",
+                        "justification": "Circular pathway reasoning.",
+                        "assumptions": [
+                            {
+                                "assumption": "CXCR1 is the only driver",
+                                "support": "likely_false",
+                            }
+                        ],
+                        "retrieved_articles": [{"title": "not persisted"}],
+                    },
+                    "simulation": {
+                        "verdict": "breaks_down",
+                        "model": "Xenograft simulation",
+                        "steps": [{"step": "ligand binds", "plausible": False}],
+                        "failure_points": ["binding never occurs"],
+                        "robustness": "Fragile.",
+                        "decisive_step": "Step one fails.",
+                    },
+                    "recurrent": {
+                        "verdict": "needs_revision",
+                        "justification": "Still circular after review.",
+                    },
+                },
+            )
+        ],
+        "articles": [],
+        "tournament_matchups": [],
+        "meta_review": {},
+        "research_overview": {},
+    }
+
+
+def test_persist_writes_distinct_mature_review_rows(isolated_db: str) -> None:
+    """Full/simulation/recurrent results reach the reader as labeled rows.
+
+    They used to stop at the engine's enrichments (audit E1): nothing the
+    report reader could see. Each becomes its own review row under a
+    distinct reviewer_agent, with the verdict as the summary.
+    """
+    run = store.create_run("CSC goal", "standard", "engine", {})
+    engine_adapter._persist_final_state(
+        run_id=run.id,
+        final_state=_final_state_with_mature_reviews(),
+        db_path=isolated_db,
+    )
+
+    reviews = store.list_reviews(run.id, db_path=isolated_db)
+    by_agent = {r["reviewer_agent"]: r for r in reviews}
+    assert set(by_agent) == {
+        "full_review",
+        "simulation_review",
+        "recurrent_review",
+    }
+    assert by_agent["full_review"]["summary"] == (
+        "Full review verdict: rejected"
+    )
+    assert "Circular pathway reasoning." in by_agent["full_review"]["critique"]
+    assert "CXCR1 is the only driver" in by_agent["full_review"]["critique"]
+    assert by_agent["simulation_review"]["summary"] == (
+        "Simulation review verdict: breaks_down"
+    )
+    assert "binding never occurs" in by_agent["simulation_review"]["critique"]
+    assert by_agent["recurrent_review"]["summary"] == (
+        "Recurrent review verdict: needs_revision"
+    )
+    # Retrieval bookkeeping never reaches the persisted row.
+    assert "not persisted" not in str(by_agent)
+
+
 def _citations_citation_map() -> dict[str, Any]:
     """Three citations engineered to land in three distinct citation states.
 

@@ -15,8 +15,11 @@ from co_scientist.agents.evolution.evolution_operators import (
     EvolutionOperator,
 )
 from co_scientist.agents.evolution.evolve_prompt import (
+    _build_evolution_prompt,
     _build_review_feedback,
     _build_supervisor_guidance_text,
+    _EvolutionContext,
+    _EvolutionOperation,
     _format_diversity_instruction,
     _format_evolution_guidance_lines,
     _format_iteration_strategy,
@@ -25,7 +28,7 @@ from co_scientist.agents.evolution.evolve_prompt import (
     _log_meta_review_debug,
 )
 from co_scientist.models import HypothesisReview
-from tests._state import make_hypothesis
+from tests._state import make_hypothesis, make_state
 
 # --- _log_meta_review_debug (covers the _log_debug_items body) -------------
 
@@ -281,3 +284,53 @@ def test_build_supervisor_guidance_text_renders_evolution_phase() -> None:
         "**Iteration Strategy:** converge on the strongest mechanism" in result
     )
     assert "Use this guidance to align your refinement" in result
+
+
+# --- _build_evolution_prompt: K3 novelty contract / K5 lab constraints ------
+
+
+def _evolution_context(**state_overrides: Any) -> _EvolutionContext:
+    """A minimal evolution context carrying a full workflow state."""
+    return _EvolutionContext(
+        model_name="test-model",
+        meta_review={},
+        removed_duplicates=[],
+        state=make_state(**state_overrides),
+    )
+
+
+def test_evolution_prompt_hedges_novelty_claims() -> None:
+    """Refinements must not assert definitive novelty (K3)."""
+    prompt, _ = _build_evolution_prompt(
+        make_hypothesis(text="the parent hypothesis"),
+        ["a peer hypothesis"],
+        _evolution_context(),
+        _EvolutionOperation(),
+    )
+    assert "Novelty claims must be hedged" in prompt
+    assert "to our knowledge" in prompt
+    assert "{{MISSING" not in prompt
+
+
+def test_evolution_prompt_renders_lab_constraints() -> None:
+    """State lab constraints reach the feasibility guidance (K5)."""
+    prompt, _ = _build_evolution_prompt(
+        make_hypothesis(text="the parent hypothesis"),
+        ["a peer hypothesis"],
+        _evolution_context(lab_constraints=["No mammalian cell culture"]),
+        _EvolutionOperation(),
+    )
+    assert "## Scientist's Lab Constraints" in prompt
+    assert "No mammalian cell culture" in prompt
+
+
+def test_evolution_prompt_unchanged_without_lab_constraints() -> None:
+    """Empty constraints render no section and no MISSING sentinel (K5)."""
+    prompt, _ = _build_evolution_prompt(
+        make_hypothesis(text="the parent hypothesis"),
+        ["a peer hypothesis"],
+        _evolution_context(),
+        _EvolutionOperation(),
+    )
+    assert "Lab Constraints" not in prompt
+    assert "{{MISSING" not in prompt

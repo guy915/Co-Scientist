@@ -7,6 +7,7 @@ from co_scientist.prompts._common import (
     _format_authors,
     _format_bullet_list,
     _format_csv_list,
+    _format_meta_review_context,
     _format_year,
 )
 from co_scientist.prompts.loading import load_prompt
@@ -30,7 +31,9 @@ class LiteratureQueryInputs:
 
 
 def _format_query_generation_variables(
-    research_goal: str, inputs: LiteratureQueryInputs
+    research_goal: str,
+    inputs: LiteratureQueryInputs,
+    meta_review: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Build the shared template variables for query-generation prompts.
 
@@ -40,6 +43,10 @@ def _format_query_generation_variables(
     Args:
         research_goal: The research goal the queries must explore.
         inputs: The user-supplied run inputs steering query generation.
+        meta_review: Meta-review synthesis from the previous iteration
+            (audit E7); the queries should also retrieve what the
+            critique flags as missing or weak. Renders "" on iteration 1,
+            so the placeholder never falls back to a MISSING sentinel.
 
     Returns:
         Dict of template variables for a query-generation prompt.
@@ -50,6 +57,7 @@ def _format_query_generation_variables(
         "attributes": _format_csv_list(inputs.attributes),
         "user_literature": _format_bullet_list(inputs.user_literature),
         "user_hypotheses": _format_bullet_list(inputs.user_hypotheses),
+        "meta_review_context": _format_meta_review_context(meta_review),
     }
 
 
@@ -57,13 +65,17 @@ def _format_query_generation_variables(
 # goes through the source-aware getter below, which dispatches to the same
 # template when source_type is "pubmed".
 def get_literature_review_query_generation_pubmed_prompt(
-    research_goal: str, inputs: LiteratureQueryInputs | None = None
+    research_goal: str,
+    inputs: LiteratureQueryInputs | None = None,
+    meta_review: dict[str, Any] | None = None,
 ) -> str:
     """Get the PubMed query generation prompt.
 
     Args:
         research_goal: The research goal the queries must explore.
         inputs: The user-supplied run inputs steering query generation.
+        meta_review: Meta-review synthesis from the previous iteration
+            (audit E7); renders nothing on iteration 1.
 
     Returns:
         Formatted prompt string.
@@ -71,7 +83,7 @@ def get_literature_review_query_generation_pubmed_prompt(
     return load_prompt(
         "literature_review_query_generation_pubmed",
         _format_query_generation_variables(
-            research_goal, inputs or LiteratureQueryInputs()
+            research_goal, inputs or LiteratureQueryInputs(), meta_review
         ),
     )
 
@@ -99,6 +111,7 @@ def get_literature_review_query_generation_prompt(
     research_goal: str,
     source_type: str = "academic",
     inputs: LiteratureQueryInputs | None = None,
+    meta_review: dict[str, Any] | None = None,
 ) -> str:
     """Get source-aware query generation prompt.
 
@@ -109,6 +122,10 @@ def get_literature_review_query_generation_prompt(
         research_goal: The research goal
         source_type: Type of literature source (from ToolConfig.source_type)
         inputs: The user-supplied run inputs steering query generation.
+        meta_review: Meta-review synthesis from the previous iteration
+            (audit E7); the queries should also retrieve what the
+            critique flags as missing or weak. Renders nothing on
+            iteration 1.
 
     Returns:
         Formatted prompt string
@@ -117,7 +134,7 @@ def get_literature_review_query_generation_prompt(
     return load_prompt(
         template_name,
         _format_query_generation_variables(
-            research_goal, inputs or LiteratureQueryInputs()
+            research_goal, inputs or LiteratureQueryInputs(), meta_review
         ),
     )
 
@@ -217,8 +234,21 @@ def get_literature_review_synthesis_prompt(
     research_goal: str,
     paper_analyses: list[dict[str, Any]],
     background_context: str = "",
+    meta_review: dict[str, Any] | None = None,
 ) -> str:
-    """Get the prompt for synthesizing paper analyses."""
+    """Get the prompt for synthesizing paper analyses.
+
+    Args:
+        research_goal: The research goal the synthesis must inform.
+        paper_analyses: Per-paper analyses produced by Phase 3.
+        background_context: Optional knowledge-graph background text.
+        meta_review: Meta-review synthesis from the previous iteration
+            (audit E7); focuses the gap analysis on what the critique
+            flags as missing or weak. Renders nothing on iteration 1.
+
+    Returns:
+        Formatted prompt string.
+    """
     background_context_section = (
         "\n## Mechanistic Background (Knowledge Graph)\n\n"
         "The following structured evidence was retrieved from external"
@@ -237,5 +267,6 @@ def get_literature_review_synthesis_prompt(
             "research_goal": research_goal,
             "paper_analyses": _format_paper_analyses(paper_analyses),
             "background_context_section": background_context_section,
+            "meta_review_context": _format_meta_review_context(meta_review),
         },
     )

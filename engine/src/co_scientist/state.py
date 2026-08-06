@@ -392,6 +392,14 @@ class WorkflowState(TypedDict):
     constraints: list[str] | None
     """Optional: Requirements or boundaries for hypothesis generation."""
 
+    lab_constraints: list[str] | None
+    """Optional: The scientist's lab constraints elicited by the goal
+    interview (K5) -- equipment, model systems, budget, capabilities.
+    Threaded into the generation and evolution feasibility prompts so
+    proposed experiments respect what the lab can actually do. Empty or
+    absent leaves those prompts unchanged.
+    """
+
     criteria: list[str] | None
     """Optional: Explicit success criteria for judging hypotheses."""
 

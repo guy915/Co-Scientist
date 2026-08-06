@@ -34,6 +34,10 @@ Use the applicable approaches below in service of the assigned operator:
 5. **Address safety/ethical concerns** - Integrate concerns relevant to the resulting proposal
 6. **Simplify and focus on practical utility** - Remove unnecessary complexity and emphasize what will be developed and why it's useful
 
+## Novelty Language
+
+Novelty claims must be hedged unless grounded in retrieved evidence. The literature supplied to this refinement is a bounded retrieval, not the entire current corpus, so the refined proposal must never assert that the idea is the first of its kind, unprecedented, or that no prior work exists. Where the supplied literature or its citation keys establish a gap, cite them; otherwise use hedged phrasing such as "within the retrieved literature", "to our knowledge", or "appears unexplored among the sources examined".
+
 ## DIVERSITY CHECK
 
 Before finalizing, verify:
@@ -58,6 +62,8 @@ Before finalizing, verify:
 {{supervisor_guidance}}
 
 {{run_guidance}}
+
+{{lab_constraints_section}}
 
 {{falsified_assumptions_section}}
 

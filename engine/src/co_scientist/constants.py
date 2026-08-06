@@ -66,6 +66,31 @@ EXTENDED_MAX_TOKENS: Final = 8000
 LONG_MAX_TOKENS: Final = 10000
 """Max tokens for complex multi-hypothesis operations."""
 
+DEEP_HYPOTHESIS_MAX_TOKENS: Final = 12000
+"""Answer budget for the hypothesis-writing generation calls (K6).
+
+The generation family's depth guidance asks for full mechanism
+specificity, quantitative predictions, and complete experiment detail,
+which costs more answer than the generic ``EXTENDED_MAX_TOKENS`` funds.
+Sits below ``THINKING_FLOOR_MAX_TOKENS`` by design, the same way the
+other answer budgets do: on a thinking model the floor replaces it, and
+on a provider without a thinking mode it is the operative ceiling.
+"""
+
+RESEARCH_OVERVIEW_MAX_TOKENS: Final = 24000
+"""Total budget for the terminal research-overview synthesis (K6).
+
+Deliberately above ``THINKING_FLOOR_MAX_TOKENS``: the overview is the
+one output asked to be a multi-paragraph research strategy document
+plus an NIH Specific Aims page, so on a thinking model its chain of
+thought and its long structured answer must both fit the same
+allowance. A floor-sized budget funds the reasoning and leaves the
+answer truncated -- the exact failure the thinking-budget gotcha
+describes. 24000 matches the largest scaled batch cap already proven
+in production. The floor only ever raises, so every other call is
+unaffected.
+"""
+
 THINKING_MAX_TOKENS: Final = 18000
 """Max tokens for extended thinking + long responses.
 

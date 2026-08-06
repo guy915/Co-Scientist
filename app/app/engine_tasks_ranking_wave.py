@@ -312,7 +312,13 @@ def _apply_wave_elo(
     ):
         hypothesis_a, hypothesis_b = pair
         outcome = _apply_matchup_elo(
-            hypothesis_a, hypothesis_b, winner, k_factor=k_factor
+            hypothesis_a,
+            hypothesis_b,
+            winner,
+            k_factor=k_factor,
+            # Feeds only the margin-scaling reconstruction knob (off by
+            # default), so it is inert unless that knob is enabled.
+            confidence=response.get("confidence_level"),
         )
         details.append(
             _build_matchup_detail(

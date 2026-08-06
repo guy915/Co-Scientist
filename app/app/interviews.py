@@ -97,11 +97,16 @@ class InterviewTurnRequest(BaseModel):
 
 
 class InterviewFieldsRequest(BaseModel):
-    """Scientist-authored edits to the four structured fields."""
+    """Scientist-authored edits to the five structured fields.
+
+    ``lab_constraints`` (K5) defaults to empty so clients that predate
+    the field keep validating; omitting it records "no constraints".
+    """
 
     research_challenge: str = Field(..., min_length=1, max_length=20_000)
     focus_area: list[str]
     preferences: list[str]
+    lab_constraints: list[str] = Field(default_factory=list)
     title: str | None = Field(None, max_length=200)
 
 
@@ -167,7 +172,7 @@ class _ResolvedTurn:
 
     Attributes:
         message: The Agent's message to the scientist.
-        fields: The four structured fields as this turn derived them.
+        fields: The five structured fields as this turn derived them.
         reasoning: The turn's whole chain of thought, as relayed.
         completed: Whether this turn completes the interview.
         fallback: True when the deterministic recovery path authored this
@@ -346,7 +351,7 @@ def _require_revisable_turn(
 
 
 def _reset_derivation(interview_id: str) -> None:
-    """Re-baseline the four fields after a rewind, and reopen the interview.
+    """Re-baseline the five fields after a rewind, and reopen the interview.
 
     The stored fields are the model's derivation from a transcript that no
     longer exists, so keeping them would feed the next turn exactly the
@@ -363,6 +368,7 @@ def _reset_derivation(interview_id: str) -> None:
             "research_challenge": str(opening["content"]) if opening else "",
             "focus_area": [],
             "preferences": [],
+            "lab_constraints": [],
             "title": None,
         },
         "Continue the interview.",
@@ -452,6 +458,7 @@ async def edit_interview_fields(
     fields = body.model_dump()
     fields["focus_area"] = _clean_list(fields["focus_area"])
     fields["preferences"] = _clean_list(fields["preferences"])
+    fields["lab_constraints"] = _clean_list(fields["lab_constraints"])
     completed = _ready(fields)
     store.update_interview(
         interview_id,

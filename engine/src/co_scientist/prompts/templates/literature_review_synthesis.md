@@ -5,6 +5,7 @@ You are synthesizing biomedical literature to guide novel hypothesis generation.
 ## Research Goal
 {{research_goal}}
 {{background_context_section}}
+{{meta_review_context}}
 
 ## Analyzed Papers
 

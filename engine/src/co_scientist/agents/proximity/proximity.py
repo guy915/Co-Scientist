@@ -33,6 +33,7 @@ from co_scientist.models import (
 )
 from co_scientist.progress import emit_progress
 from co_scientist.prompts import get_proximity_prompt
+from co_scientist.prompts._common import _format_meta_review_context
 from co_scientist.state import WorkflowState
 
 logger = logging.getLogger(__name__)
@@ -105,6 +106,19 @@ async def _call_proximity_llm(
     )
 
 
+def _meta_review_section(state: WorkflowState) -> str:
+    """Build the meta-review critique block for the clustering prompt (E7).
+
+    Appended after the rendered prompt -- the pattern evolution's
+    diversity directive establishes for blocks the shared builder does
+    not own -- so the similarity judgment knows which directions the
+    meta-review considers worth keeping distinct. Renders "" on
+    iteration 1 (no critique yet), leaving the prompt byte-identical.
+    """
+    section = _format_meta_review_context(state.get("meta_review"))
+    return f"\n{section}" if section else ""
+
+
 async def _fetch_similarity_clusters(
     state: WorkflowState, hypotheses: list[Hypothesis]
 ) -> list[dict[str, Any]]:
@@ -127,6 +141,7 @@ async def _fetch_similarity_clusters(
     prompt, schema = get_proximity_prompt(
         hypotheses_for_analysis, supervisor_guidance=supervisor_guidance
     )
+    prompt += _meta_review_section(state)
 
     response = await _call_proximity_llm(state, prompt, schema, len(hypotheses))
 
