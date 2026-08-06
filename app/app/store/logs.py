@@ -281,3 +281,39 @@ def latest_log_id(
     with _use_conn(conn, db_path) as c:
         row = c.execute("SELECT MAX(id) AS max_id FROM app_logs").fetchone()
     return int(row["max_id"] or 0)
+
+
+def count_logs_for_run(
+    run_id: str,
+    *,
+    db_path: str | None = None,
+    conn: sqlite3.Connection | None = None,
+) -> int:
+    """Count log rows bound to ``run_id``, for a run-deletion accounting.
+
+    ``app_logs`` carries no foreign key to ``runs`` (log history survives
+    run deletion by default), so a permanent deletion must count and clear
+    this table itself rather than relying on ``ON DELETE CASCADE``.
+    """
+    with _use_conn(conn, db_path) as c:
+        row = c.execute(
+            "SELECT COUNT(*) AS n FROM app_logs WHERE run_id=?", (run_id,)
+        ).fetchone()
+    return int(row["n"])
+
+
+def delete_logs_for_run(
+    run_id: str,
+    *,
+    db_path: str | None = None,
+    conn: sqlite3.Connection | None = None,
+) -> int:
+    """Delete every log row bound to ``run_id`` and return the count.
+
+    Scoped by ``run_id`` alone, like :func:`clear_logs`'s ``scope_client_id``
+    branch: the shared ``id`` sequence and every other tenant's rows are
+    left untouched.
+    """
+    with _use_conn(conn, db_path) as c:
+        cur = c.execute("DELETE FROM app_logs WHERE run_id=?", (run_id,))
+        return int(cur.rowcount or 0)

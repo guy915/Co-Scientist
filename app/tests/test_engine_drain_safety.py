@@ -478,5 +478,6 @@ def test_offline_run_with_empty_leaderboard_is_blocked_like_a_real_run(
     _persist_and_finalize(run, state, isolated_db)
 
     settled = store.get_run(run.id, db_path=isolated_db)
+    assert settled is not None
     assert settled.status == store.RunStatus.BLOCKED.value
     assert store.get_latest_report(run.id, db_path=isolated_db) is None

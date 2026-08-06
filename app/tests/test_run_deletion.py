@@ -9,7 +9,7 @@ from fastapi.testclient import TestClient
 
 from app import store
 from app.store.db import _reports_dir
-from tests._client import make_client, wait_for
+from tests._client import append_log_row, make_client, wait_for
 
 _OWNER = {"X-Client-ID": "delete-owner"}
 _OTHER = {"X-Client-ID": "someone-else"}
@@ -20,8 +20,8 @@ def _wait_owned_status(
 ) -> bool:
     """Poll ``GET /api/runs/{id}`` as ``_OWNER`` until it reaches ``status``.
 
-    ``tests._client.wait_for_status`` only polls headerless (the default
-    empty compatibility client), so it cannot see a run created under an
+    ``tests._client.wait_for_status`` only polls under the client's own
+    default identity, so it cannot see a run created under a different,
     explicit ``X-Client-ID`` like the one this suite uses throughout.
     """
 
@@ -140,6 +140,64 @@ def test_delete_cascades_across_every_run_scoped_table(
     assert all(count == 0 for count in after.values()), after
     assert not store.run_exists(run_id)
     assert client.get(f"/api/runs/{run_id}").status_code == 404
+
+
+def test_delete_removes_the_runs_persisted_log_rows(
+    isolated_db: str,
+) -> None:
+    """Deletion must also clear ``app_logs``, goal text included (N4).
+
+    ``app_logs`` carries a ``run_id`` column but no foreign key to
+    ``runs`` (see ``app.store.logs``), so it does not cascade away with
+    the rest of the run's tables and has to be cleared explicitly. Left
+    behind, a deleted run's stage narrative -- its research goal
+    verbatim, mirrored from ``run_events`` by ``app.store.events`` --
+    would survive a deletion whose whole purpose is to remove it.
+    """
+    client = make_client()
+    created = client.post(
+        "/api/runs",
+        headers=_OWNER,
+        json={"research_goal": "deletion cascade probe"},
+    )
+    run_id = created.json()["id"]
+
+    append_log_row(
+        isolated_db,
+        "Supervisor analyzing research goal: deletion cascade probe",
+        run_id=run_id,
+    )
+    append_log_row(
+        isolated_db,
+        "report research_goal=deletion cascade probe run_mode=standard",
+        run_id=run_id,
+    )
+    # A different tenant's run-scoped row, and an app-wide row with no run
+    # at all, must both survive this run's deletion untouched.
+    other_run = client.post(
+        "/api/runs",
+        headers=_OTHER,
+        json={"research_goal": "a different tenant's goal"},
+    ).json()["id"]
+    other_row_id = append_log_row(
+        isolated_db, "other tenant's line", run_id=other_run
+    )
+    app_wide_row_id = append_log_row(isolated_db, "app-wide line")
+
+    assert store.count_logs_for_run(run_id, db_path=isolated_db) == 2
+
+    response = client.delete(f"/api/runs/{run_id}", headers=_OWNER)
+    assert response.status_code == 200, response.text
+    assert response.json()["counts"]["app_logs"] == 2
+
+    assert store.count_logs_for_run(run_id, db_path=isolated_db) == 0
+    remaining = store.list_logs(db_path=isolated_db)
+    assert "deletion cascade probe" not in " ".join(
+        row["message"] for row in remaining
+    )
+    remaining_ids = {row["id"] for row in remaining}
+    assert other_row_id in remaining_ids
+    assert app_wide_row_id in remaining_ids
 
 
 def test_delete_clears_but_does_not_remove_a_carried_document(

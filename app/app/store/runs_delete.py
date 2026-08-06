@@ -18,6 +18,17 @@ explicitly rather than left dangling; the document itself survives, since
 it may be the caller's only copy and is deletable on its own via
 ``delete_staged_document``. The on-disk Markdown report copy is removed the
 same best-effort way ``app.store.reports`` writes it.
+
+``app_logs`` carries a ``run_id`` column but likewise no foreign key --
+log history is app-wide and meant to survive a run's normal lifecycle (see
+``app.store.logs``) -- so a run's own log rows are not covered by the
+cascade above. A *permanent* deletion is different: it exists so a
+scientist can remove a run's data entirely, and the run's stage narrative
+(its research goal included -- ``app.store.events`` mirrors every
+``run_events`` row here) is exactly the kind of content that purpose
+covers. Deletion therefore clears it explicitly, the same way
+``app.logs_api``'s scoped ``DELETE /api/logs`` clears one client's rows
+without touching the shared id sequence.
 """
 
 from __future__ import annotations
@@ -25,6 +36,7 @@ from __future__ import annotations
 import logging
 
 from app.store.db import _reports_dir, connect
+from app.store.logs import count_logs_for_run, delete_logs_for_run
 
 logger = logging.getLogger(__name__)
 
@@ -89,6 +101,7 @@ def count_run_rows(
         counts["staged_documents"] = conn.execute(
             "SELECT COUNT(*) FROM staged_documents WHERE run_id=?", (run_id,)
         ).fetchone()[0]
+        counts["app_logs"] = count_logs_for_run(run_id, conn=conn)
     return counts
 
 
@@ -118,6 +131,7 @@ def delete_run(run_id: str, *, db_path: str | None = None) -> dict[str, int]:
             "UPDATE staged_documents SET run_id=NULL WHERE run_id=?",
             (run_id,),
         )
+        delete_logs_for_run(run_id, conn=conn)
         conn.execute("DELETE FROM runs WHERE id=?", (run_id,))
     _delete_report_markdown_file(run_id)
     return before
