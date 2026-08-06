@@ -36,7 +36,7 @@ change made staleness likely. A blank `St` on a Medium/Low row therefore means
 | ID | Sev | Class | Gap | St | Src |
 |---|---|---|---|---|---|
 | A1 | High | missing | No **Interview Progress** rail — Google shows 3 numbered steps → green checks; our only in-flight signal is "Thinking…" and fields are invisible until completion | | 12:A03, 20:F-INTERVIEW-02, 21:R7 |
-| A2 | High | missing | Custom evaluation criteria never collected; `criteria: []` hard-coded, so no rubric governs ranking, debates, or self-improvement | ~ | 12:A08, 20:F-INTERVIEW-09/EB-006, 21:K1 |
+| A2 | High | missing | Custom evaluation criteria never collected; `criteria: []` hard-coded, so no rubric governs ranking, debates, or self-improvement | ✓ | 12:A08, 20:F-INTERVIEW-09/EB-006, 21:K1 |
 | A3 | Medium | incorrect | Plan fields read-only; "Edit research plan" opens no editor and `editInterviewFields` is unused | | 12:A06, 20:F-INTERVIEW-05, 21:R38 |
 | A4 | Medium | missing | Interview lives only in React route state; reload discards it although the server still has it (`getInterview` never called) | ✓ | 20:F-INTERVIEW-04/F-STATE-01 |
 | A5 | Medium | incorrect | Raw provider chain-of-thought streamed to the user; Google's footage shows only a "Thinking" status | = | 20:F-INTERVIEW-03/U23 |
@@ -120,19 +120,19 @@ change made staleness likely. A blank `St` on a Medium/Low row therefore means
 | E1 | **Critical** | incorrect | **Full / simulation / recurrent reviews are computed at LLM + retrieval cost and read by nothing** — not ranking, evolution, meta-review, report, or UI. Even fatal findings change no disposition | | 12:E13/E14, 20:EB-035, 21:R3 |
 | E2 | **Critical** | incorrect | **The grounded-debate prompt renders `{{MISSING:user_hypotheses}}` and `{{MISSING:instructions}}` on every turn of the production path**, dropping user-supplied starting hypotheses and leaving the instruction slot empty | ✓ | 21:R5 |
 | E3 | **Critical** | incorrect | **Assumptions generation runs ungrounded on the durable path** even when literature is available, and is cache-enabled — byte-identical output across identical goals | ✓ | 21:R21 |
-| E4 | High | partial | Deep verification omits **sub-assumption decomposition** and **decontextualization**, two of its three defining behaviors | | 12:E11, 20:EB-036, 21:R9 |
-| E5 | High | partial | Only 5 evolution operators (paper: 6); "inspiration from existing" absent, coherence/feasibility folded into ENHANCEMENT, and round-robin selection means ENHANCEMENT never fires on express | | 12:E24/K07, 20:EB-041, 21:R10 |
-| E6 | High | missing | Enhancement-through-grounding performs **no literature retrieval** — only stale run-wide synthesis text | | 12:E24, 20:EB-041, 21:R11 |
+| E4 | High | partial | Deep verification omits **sub-assumption decomposition** and **decontextualization**, two of its three defining behaviors | ✓ | 12:E11, 20:EB-036, 21:R9 |
+| E5 | High | partial | Only 5 evolution operators (paper: 6); "inspiration from existing" absent, coherence/feasibility folded into ENHANCEMENT, and round-robin selection means ENHANCEMENT never fires on express | ✓ | 12:E24/K07, 20:EB-041, 21:R10 |
+| E6 | High | missing | Enhancement-through-grounding performs **no literature retrieval** — only stale run-wide synthesis text | ✓ | 12:E24, 20:EB-041, 21:R11 |
 | E7 | High | partial | Meta-review critique reaches ~9 of 12 prompt surfaces; **not** Proximity, Literature Review, or Safety, and never the observation node in practice | | 12:E28/I04, 20:EB-045, 21:R15 |
-| E8 | High | partial | Full-review novelty grounding happens only when MCP is up; when it is down the system reproduces exactly the un-tooled failure mode Google measured (6.14 → 2.38/10) | | 12:E10/G08/K02, 20:EB-033, 21:K2 |
-| E9 | Medium | incorrect | Deep verification runs **before first ranking** (all Elo tied, so "top three" is arbitrary) and fails open on provider error, leaving the idea rankable | | 20:EB-036 |
-| E10 | Medium | partial | Multi-parent combination is structurally crippled: single `parent_id`, 200-char peer snippets, a contradictory "stay distinct" directive, and a 0.95 Jaccard rejection gate | | 12:E25, 20:EB-043, 21:R27 |
-| E11 | Medium | partial | Agentic literature-exploration generation is dead code (`enable_tool_calling_generation` never set); research-expansion is a relabel with no distinct prompt — confirmed empirically | | 12:E05/E08, 20:EB-019, 21:R33 |
-| E12 | Medium | partial | Assumptions generation is one structured call, not an iterative assumption/sub-assumption tree | | 12:E07, 20:EB-021, 21:E2 |
-| E13 | Medium | partial | Debate turn counts fixed (5 generation / 3 ranking) vs the paper's 3–5 typical, max 10; the prompt says "max 10" while hard-coding 5 | ~ | 12:E06, 20:EB-020, 21:R26 |
-| E14 | Medium | incorrect | Parallel-debate diversity angles are inert on the durable path — each debate task runs with `total_debates=1` | | 21:R28 |
+| E8 | High | partial | Full-review novelty grounding happens only when MCP is up; when it is down the system reproduces exactly the un-tooled failure mode Google measured (6.14 → 2.38/10) | ✓ | 12:E10/G08/K02, 20:EB-033, 21:K2 |
+| E9 | Medium | incorrect | Deep verification runs **before first ranking** (all Elo tied, so "top three" is arbitrary) and fails open on provider error, leaving the idea rankable | ✓ | 20:EB-036 |
+| E10 | Medium | partial | Multi-parent combination is structurally crippled: single `parent_id`, 200-char peer snippets, a contradictory "stay distinct" directive, and a 0.95 Jaccard rejection gate | ✓ | 12:E25, 20:EB-043, 21:R27 |
+| E11 | Medium | partial | Agentic literature-exploration generation is dead code (`enable_tool_calling_generation` never set); research-expansion is a relabel with no distinct prompt — confirmed empirically | ✓ | 12:E05/E08, 20:EB-019, 21:R33 |
+| E12 | Medium | partial | Assumptions generation is one structured call, not an iterative assumption/sub-assumption tree | ✓ | 12:E07, 20:EB-021, 21:E2 |
+| E13 | Medium | partial | Debate turn counts fixed (5 generation / 3 ranking) vs the paper's 3–5 typical, max 10; the prompt says "max 10" while hard-coding 5 | ✓ | 12:E06, 20:EB-020, 21:R26 |
+| E14 | Medium | incorrect | Parallel-debate diversity angles are inert on the durable path — each debate task runs with `total_debates=1` | ✓ | 21:R28 |
 | E15 | Medium | incorrect | Initial-review batch has no 1..5 schema bounds, associates results by order, and lets one exception abort a large batch | | 20:EB-034 |
-| E16 | Low | divergent | The debate `HYPOTHESIS` termination token is instructed but never parsed — the loop runs a fixed turn count then re-asks for JSON | | 21:R24 |
+| E16 | Low | divergent | The debate `HYPOTHESIS` termination token is instructed but never parsed — the loop runs a fixed turn count then re-asks for JSON | ✓ | 21:R24 |
 | E17 | Low | divergent | Ranking verdict is a JSON enum, not the literal `better idea: <1 or 2>`; the 7 comparison criteria are collected but never parsed | | 12:E18, 21:R25/R47 |
 | E18 | Low | partial | Ranking "debate" is one judge re-running the same prompt with prior verdicts; no distinct advocate/opponent roles (correctly, the paper specifies turn counts only) | | 12:E17 |
 | E19 | Low | partial | Supervisor plan fields are stored but never re-read (3 of 6 guidance blocks unused) | | 12:E32, 21:E13 |
@@ -183,12 +183,12 @@ change made staleness likely. A blank `St` on a Medium/Low row therefore means
 | H1 | **Critical** | incorrect | **The persisted proximity graph was always empty** — the builder resolved members by a `text` field the schema no longer emitted, so `edges=[]` every run, making `proximity_neighbors` in evolution and the event `clusters` map permanently empty. Reproduced independently by two audits | ✓ | 12:H07/E20/E21, 20:EB-040 (reproduced), 21:R14 (observed `edges=0`) |
 | H2 | Medium | partial | Proximity similarity is LLM-judged qualitative (high/medium/low → 0.3/0.6/1.0); no embeddings (the paper says "e.g. text embeddings", so this is a permitted local choice) | | 12:E22, 20:U07, 21:H6 |
 | H3 | Medium | incorrect | Proximity dedup rematched cluster members by fragile 100-character text prefix, deleting distinct hypotheses on a false match | ✓ | 12:E21, 20:EB-040 |
-| H4 | Medium | partial | Evolution diversity is computed only within the selected top-k and its sampling is unseeded | | 20:EB-043, 21:R28 |
+| H4 | Medium | partial | Evolution diversity is computed only within the selected top-k and its sampling is unseeded | ✓ | 20:EB-043, 21:R28 |
 | H5 | Medium | partial | Ideas can finish with roughly one average match; tournament coverage is thin | | 12:H02 |
 | H6 | Low | note | Elo K fixed at 24 — no annealing, margin scaling, draws, or tie policy. Paper-unspecified, so a permitted local choice, but it departs from the schedule the local corpus documents | | 12:H03, 20:U08, 21:R48 |
 | H7 | Low | incorrect | Match judgments are computed concurrently from pre-round ratings, so later matches in a round cannot observe earlier Elo changes | | 12:H04 |
-| H8 | Low | partial | Evolution reads a tier-scaled set (4/8/12/16), not the paper's fixed top-5 (the research overview's top-10 does match) | | 12:H09, 21:H10 |
-| H9 | Low | partial | The near-duplicate guard is lexical Jaccard | | 21:K7 |
+| H8 | Low | partial | Evolution reads a tier-scaled set (4/8/12/16), not the paper's fixed top-5 (the research overview's top-10 does match) | ✓ | 12:H09, 21:H10 |
+| H9 | Low | partial | The near-duplicate guard is lexical Jaccard | ✓ | 21:K7 |
 
 ## I. Memory and feedback propagation
 
@@ -226,12 +226,12 @@ change made staleness likely. A blank `St` on a Medium/Low row therefore means
 | K1 | **Critical** | incorrect | Reports state mechanisms categorically while the citation audit shows zero verified claims. One real-provider run: 5 published ideas, 3 PubMed records, **0 verified / 0 partial / 13 unsupported** | | 12:K03/K10/D22, 20:EB-029 |
 | K2 | High | incorrect | The early review gate is set once from the **first** review and never revisited; a blocking value bars the idea from the tournament for the whole run, hides it as "Disqualified", and shrinks the pool evolution breeds from | ✓ | 12:H11, repo `_apply_initial_review_gate` |
 | K3 | High | incorrect | Novelty claims are not verified against a broad current corpus, yet output still uses definitive novelty language | | 12:K08, 21:K2 |
-| K4 | Medium | partial | Five default criteria are embedded in prompts and reviews score 8 axes, but only soundness and novelty gate | | 12:K01, 21:K1 |
+| K4 | Medium | partial | Five default criteria are embedded in prompts and reviews score 8 axes, but only soundness and novelty gate | ~ | 12:K01, 21:K1 |
 | K5 | Medium | incorrect | Feasibility does not reflect the scientist's lab constraints; intake never elicits them and prompts invent feasible-looking methods | | 12:K05 |
 | K6 | Medium | partial | Output is far shorter and shallower than Google's published examples (multi-thousand-word overviews, a 60,000-word MASH export) | | 12:K11/D18 |
 | K7 | Low | partial | The `category` field is optional and absent from the prompt body, so categorization is inconsistent | | 12:K13, 21:R57 |
 | K8 | Low | incorrect | Observation-review positives are stored separately, never appended to the hypothesis as the paper describes | | 12:H17 |
-| K9 | Low | incorrect | Incorrect non-fundamental assumptions do not feed refinement | | 12:H18 |
+| K9 | Low | incorrect | Incorrect non-fundamental assumptions do not feed refinement | ✓ | 12:H18 |
 
 ## L. Observability and evaluation
 
