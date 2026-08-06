@@ -86,6 +86,7 @@ export {
   addScientistReview,
   adjudicateSafety,
   createReportShare,
+  fetchReportMarkdown,
   getClaimEvidence,
   getEvidence,
   getHypotheses,
@@ -96,7 +97,6 @@ export {
   getSafety,
   getSharedGoalReport,
   listReportShares,
-  reportMarkdownUrl,
   revokeReportShare,
   uploadRunDocument,
 } from './runs_collections';

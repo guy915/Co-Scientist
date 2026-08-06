@@ -1,3 +1,4 @@
+import {type ReactNode} from 'react';
 import {useParams} from 'react-router-dom';
 import {
   type ChatSummary,
@@ -13,6 +14,7 @@ import {ActiveRunView} from './run_detail_active';
 import {useRunDetailData} from './run_detail_data';
 import {LearningView} from './run_detail_learning';
 import {ResearchOverviewView} from './run_detail_overview';
+import {ReportActions} from './run_detail_report_actions';
 import {
   isTerminalNonCompletedStatus,
   ReportErrorAlert,
@@ -122,6 +124,14 @@ function isInitialLoading(data: RunDetailData): boolean {
   return !data.loaded && !data.error;
 }
 
+// Download/share are properties of a finished report, so their controls
+// exist only once the run row says completed and its report has loaded —
+// the share endpoint 409s and the download 404s on anything less.
+function reportActionsFor(id: string, data: RunDetailData): ReactNode {
+  if (data.run?.status !== 'completed' || data.report === null) return null;
+  return <ReportActions runId={id} runTitle={data.title} />;
+}
+
 // The conversation a run came from, when the rail knows of one.
 function chatIdForRun(
   chats: readonly ChatSummary[],
@@ -153,7 +163,11 @@ export function RunDetail() {
   const chatId = chatIdForRun(chats, id);
   return (
     <div className={reportPageClasses(showTabs)}>
-      <ReportTitlebar title={data.title} chatId={chatId} />
+      <ReportTitlebar
+        title={data.title}
+        chatId={chatId}
+        actions={reportActionsFor(id, data)}
+      />
 
       {showTabs && (
         <ReportTabNav activeTab={activeTab} onTabChange={onTabChange} />

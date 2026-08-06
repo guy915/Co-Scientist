@@ -291,6 +291,37 @@ def _add_run_interaction_commands(
     )
 
 
+def _add_run_share_commands(
+    runs_sub: argparse._SubParsersAction[argparse.ArgumentParser],
+    common: argparse.ArgumentParser,
+) -> None:
+    """Register the ``runs share`` subgroup (create/list/revoke)."""
+    share = runs_sub.add_parser("share", help="manage public Goal Report links")
+    share_sub = share.add_subparsers(dest="share_command", metavar="ACTION")
+    _add_run_id_command(
+        share_sub,
+        common,
+        "create",
+        runs_cmd.handle_share_create,
+        "create a public report link",
+    )
+    _add_run_id_command(
+        share_sub,
+        common,
+        "list",
+        runs_cmd.handle_share_list,
+        "list active public report links",
+    )
+    revoke_parser = _add_run_id_command(
+        share_sub,
+        common,
+        "revoke",
+        runs_cmd.handle_share_revoke,
+        "revoke a public report link",
+    )
+    revoke_parser.add_argument("share_id", help="the share identifier")
+
+
 def _add_runs(
     sub: argparse._SubParsersAction[argparse.ArgumentParser],
     common: argparse.ArgumentParser,
@@ -305,3 +336,4 @@ def _add_runs(
     _add_run_wait_command(runs_sub, common)
     _add_run_read_commands(runs_sub, common)
     _add_run_interaction_commands(runs_sub, common)
+    _add_run_share_commands(runs_sub, common)

@@ -2,6 +2,7 @@ import {describe, it, expect} from 'vitest';
 import {
   capitalizeTerm,
   conciseTitle,
+  filenameSlug,
   readableText,
   readableTextList,
 } from './text';
@@ -124,5 +125,29 @@ describe('capitalizeTerm', () => {
     expect(capitalizeTerm('Prioritize mechanistic novelty.')).toBe(
       'Prioritize mechanistic novelty.',
     );
+  });
+});
+
+describe('filenameSlug', () => {
+  it('lowercases and dash-separates words', () => {
+    expect(filenameSlug('Glucose Homeostasis Study')).toBe(
+      'glucose-homeostasis-study',
+    );
+  });
+
+  it('strips punctuation and collapses separator runs', () => {
+    expect(filenameSlug('Cold stress: a  model?!')).toBe('cold-stress-a-model');
+  });
+
+  it('caps the slug length on a separator boundary', () => {
+    const slug = filenameSlug('word '.repeat(60).trim());
+    expect(slug.length).toBeLessThanOrEqual(80);
+    expect(slug.endsWith('-')).toBe(false);
+  });
+
+  it('returns an empty string when nothing slug-worthy remains', () => {
+    expect(filenameSlug('')).toBe('');
+    expect(filenameSlug('  ')).toBe('');
+    expect(filenameSlug('///')).toBe('');
   });
 });

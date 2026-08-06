@@ -17,7 +17,6 @@ import type {
 import {
   API_BASE_URL,
   assertOk,
-  authQuery,
   clientHeaders,
   fetchField,
   fetchJson,
@@ -175,9 +174,23 @@ export async function getReport(id: string): Promise<Report | null> {
   return parseJson<Report>(res);
 }
 
-/** Returns the browser-download URL for a persisted Markdown Goal Report. */
-export function reportMarkdownUrl(id: string): string {
-  return `${API_BASE_URL}/api/runs/${id}/report.md?${authQuery()}`;
+/**
+ * Fetches the Markdown Goal Report through the authenticated API.
+ *
+ * The download surface uses this rather than a direct URL: the endpoint
+ * accepts the standard auth headers, so no credential ever rides in a query
+ * string (where it would leak into history, screenshots, and proxy logs).
+ *
+ * @param id Run identifier.
+ * @returns The report Markdown, or null when no report exists yet (404).
+ */
+export async function fetchReportMarkdown(id: string): Promise<string | null> {
+  const res = await fetch(`${API_BASE_URL}/api/runs/${id}/report.md`, {
+    headers: clientHeaders(),
+  });
+  if (res.status === 404) return null; // no report yet, not an error
+  await assertOk(res);
+  return res.text();
 }
 
 /** Enables public read-only access and returns the one-time bearer token. */

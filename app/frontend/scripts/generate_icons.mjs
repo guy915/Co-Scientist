@@ -80,6 +80,8 @@ const ICONS = {
   search: 'search',
   send: 'send-fill',
   settings: 'settings',
+  // Share-node glyph — the goal-report titlebar's share-report action.
+  share: 'share',
   stars: 'stars',
   summarize: 'summarize',
   warning: 'warning',

@@ -314,6 +314,111 @@ def test_report_json(
 
 
 # ---------------------------------------------------------------------------
+# Shares
+# ---------------------------------------------------------------------------
+
+
+def _kv_value(output: str, key: str) -> str:
+    """Read one ``key : value`` line out of format_kv text output."""
+    for line in output.splitlines():
+        if line.startswith(key):
+            return line.split(" : ", 1)[1].strip()
+    raise AssertionError(f"no {key!r} line in output:\n{output}")
+
+
+def test_share_create_list_revoke_round_trip(
+    completed_run: tuple[str, str, str], capsys: pytest.CaptureFixture[str]
+) -> None:
+    base, run_id, client_id = completed_run
+    code = _invoke(base, "runs", "share", "create", run_id, client_id=client_id)
+    assert code == 0
+    created = capsys.readouterr().out
+    share_id = _kv_value(created, "id")
+    token = _kv_value(created, "token")
+    assert share_id and token
+
+    # The token reads the report publicly, without any ownership header.
+    assert _api(base, "GET", f"/api/shared/{token}").status_code == 200
+
+    assert (
+        _invoke(base, "runs", "share", "list", run_id, client_id=client_id) == 0
+    )
+    listing = capsys.readouterr()
+    assert share_id in listing.out
+    # The list never discloses tokens.
+    assert token not in listing.out
+
+    code = _invoke(
+        base,
+        "runs",
+        "share",
+        "revoke",
+        run_id,
+        share_id,
+        client_id=client_id,
+    )
+    assert code == 0
+    assert "revoked" in capsys.readouterr().out
+
+    assert (
+        _invoke(base, "runs", "share", "list", run_id, client_id=client_id) == 0
+    )
+    assert capsys.readouterr().out.strip() == ""
+
+    # Revocation takes effect immediately.
+    assert _api(base, "GET", f"/api/shared/{token}").status_code == 404
+
+
+def test_share_create_json(
+    completed_run: tuple[str, str, str], capsys: pytest.CaptureFixture[str]
+) -> None:
+    base, run_id, client_id = completed_run
+    code = _invoke(
+        base,
+        "runs",
+        "share",
+        "create",
+        run_id,
+        "--json",
+        client_id=client_id,
+    )
+    assert code == 0
+    data = json.loads(capsys.readouterr().out)
+    assert data["run_id"] == run_id
+    assert data["token"]
+
+    # Leave the run as it was for any later tests: revoke what was created.
+    code = _invoke(
+        base,
+        "runs",
+        "share",
+        "revoke",
+        run_id,
+        data["id"],
+        "--json",
+        client_id=client_id,
+    )
+    assert code == 0
+    assert json.loads(capsys.readouterr().out)["revoked"] is True
+
+
+def test_share_create_requires_a_report(
+    cli_server: str, capsys: pytest.CaptureFixture[str]
+) -> None:
+    run_id = _create(cli_server, "share-no-report")
+    code = _invoke(
+        cli_server,
+        "runs",
+        "share",
+        "create",
+        run_id,
+        client_id="share-no-report",
+    )
+    assert code == 1
+    assert "Goal Report not ready" in capsys.readouterr().err
+
+
+# ---------------------------------------------------------------------------
 # Q&A
 # ---------------------------------------------------------------------------
 

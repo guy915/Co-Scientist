@@ -409,6 +409,67 @@ def _print_report_summary(body: Any) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Shares
+# ---------------------------------------------------------------------------
+
+
+def handle_share_create(args: argparse.Namespace, client: ApiClient) -> int:
+    """Create a public Goal Report link (POST /shares).
+
+    The response carries the capability token for the only time the API
+    ever discloses it — the list command never returns tokens — so the
+    text output prints it alongside the share id.
+    """
+    run_id: str = args.run_id
+    as_json: bool = args.json
+    path = _run_path(run_id, "/shares")
+    body = client.request_json("POST", path, json_body={})
+    if as_json:
+        emit_json(body)
+        return 0
+    body = expect_object(body, path)
+    pairs: list[tuple[str, Any]] = [
+        ("id", body.get("id")),
+        ("token", body.get("token")),
+        ("created_at", body.get("created_at")),
+    ]
+    print(format_kv(pairs))
+    return 0
+
+
+def handle_share_list(args: argparse.Namespace, client: ApiClient) -> int:
+    """List a run's active public links (GET /shares)."""
+    run_id: str = args.run_id
+    as_json: bool = args.json
+    path = _run_path(run_id, "/shares")
+    body = client.request_json("GET", path)
+    if as_json:
+        emit_json(body)
+        return 0
+    shares = body.get("shares", []) if isinstance(body, dict) else []
+    for share in shares:
+        if isinstance(share, dict):
+            print(format_record_line(share, (("id",), ("created_at",))))
+    return 0
+
+
+def handle_share_revoke(args: argparse.Namespace, client: ApiClient) -> int:
+    """Revoke one public link immediately (DELETE /shares/SHARE_ID)."""
+    run_id: str = args.run_id
+    share_id: str = args.share_id
+    as_json: bool = args.json
+    path = _run_path(run_id, f"/shares/{share_id}")
+    # The endpoint answers 204 with no body; --json emits a synthetic
+    # confirmation so scripted callers still parse a JSON document.
+    client.request_text("DELETE", path)
+    if as_json:
+        emit_json({"id": share_id, "revoked": True})
+    else:
+        print(f"{share_id}\trevoked")
+    return 0
+
+
+# ---------------------------------------------------------------------------
 # Steering
 # ---------------------------------------------------------------------------
 

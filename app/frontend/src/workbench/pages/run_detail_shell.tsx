@@ -1,4 +1,4 @@
-import {useCallback, useState} from 'react';
+import {useCallback, useState, type ReactNode} from 'react';
 import {Link, useParams} from 'react-router-dom';
 import {type RunStatus} from '@/api/runs';
 import {Icon, type IconName} from '@/components/icon';
@@ -111,13 +111,17 @@ export function useTabNavigation(id: string | undefined, activeTab: TabName) {
  *   knows of one. The rail sends such a session straight to its run, so
  *   this arrow is what keeps the transcript reachable; without a chat it
  *   falls back to the workspace, as it always did.
+ * @param actions Optional report-level actions (download/share) rendered on
+ *   the titlebar's right edge; only a completed run with a report gets any.
  */
 export function ReportTitlebar({
   title,
   chatId,
+  actions,
 }: {
   title: string;
   chatId?: string;
+  actions?: ReactNode;
 }) {
   return (
     <header className={REPORT_TITLEBAR_CLASSES}>
@@ -133,6 +137,7 @@ export function ReportTitlebar({
           <TruncatedLabel className={REPORT_TITLE_TEXT_CLASSES} text={title} />
         </h1>
       </div>
+      {actions}
     </header>
   );
 }
