@@ -24,6 +24,7 @@ from app.claim_grounding import (
 from app.claims import EvidencePassage
 from app.config import settings
 from app.elo import INITIAL_ELO as INITIAL_ELO
+from app.engine_adapter import drain_escalation
 from app.engine_adapter.drain_evidence_resolution import (
     resolve_articles as resolve_articles,
 )
@@ -162,10 +163,9 @@ def _screen_and_collect_grounding_inputs(
     """Run the per-hypothesis safety screen and gather claim-grounding inputs.
 
     The engine ran its tournament internally, so the safety screen enforces
-    the guarantee at the app boundary -- blocked hypotheses are marked and
-    the report path (finalize_report) excludes them from ranking/synthesis
-    exposure. Grounding inputs are read here (inside the transaction) but the
-    claim assessment itself runs later, outside any transaction.
+    the guarantee at the app boundary. Deterministic only -- see
+    ``drain_escalation`` for the model-escalation phase a held UNCERTAIN
+    still gets, later and lock-free.
 
     Returns:
         A tuple of (screening result, evidence passages, grounding
@@ -433,16 +433,19 @@ def _persist_evidence_hypotheses_and_screen(
 
 def _persist_grounding_matches_proximity_txn(
     run_id: str,
-    assessed: Any,
+    provider_outputs: tuple[Any, list[Any]],
     inputs: _FinalStateInputs,
     store_id_by_engine_id: dict[str, str],
     db_path: str | None,
 ) -> Any:
-    """Run the drain's second transaction: grounding, matches, proximity."""
+    """Run the drain's 2nd transaction: grounding, matches, and escalation."""
+    assessed, escalated = provider_outputs
     with store.transaction(db_path) as conn:
-        return _persist_grounding_matches_and_proximity(
+        grounding_result = _persist_grounding_matches_and_proximity(
             run_id, assessed, inputs, store_id_by_engine_id, conn
         )
+        drain_escalation._persist_escalated_verdicts(run_id, escalated, conn)
+        return grounding_result
 
 
 def _persist_final_state(
@@ -455,12 +458,9 @@ def _persist_final_state(
 
     Writes evidence, hypotheses (with reviews, deep-verification reviews,
     and citations), and tournament matches; the report is built separately
-    by ``finalize_report``, which consumes the returned inputs.
-
-    Claim assessment (provider work, no DB) runs between the two
-    transactions, via ``_assess_claims``: it used to run inside one
-    transaction, holding SQLite's write lock across minutes of network I/O.
-    Never reorder a store call relative to it, or extend a transaction.
+    by ``finalize_report``, which consumes the returned inputs. Claim
+    assessment and safety escalation both run between transactions,
+    holding no connection -- see ``drain_escalation``.
 
     Returns:
         A :class:`DrainResult`: the ``finalize_report`` kwargs plus the
@@ -479,8 +479,11 @@ def _persist_final_state(
         passages,
         _gate_records_by_store_id(inputs, store_id_by_engine_id),
     )
+    escalated = drain_escalation._escalate_screened_hypotheses(
+        run_id, screening_result.escalatable, db_path
+    )
     grounding_result = _persist_grounding_matches_proximity_txn(
-        run_id, assessed, inputs, store_id_by_engine_id, db_path
+        run_id, (assessed, escalated), inputs, store_id_by_engine_id, db_path
     )
     return _build_drain_result(
         final_state,
