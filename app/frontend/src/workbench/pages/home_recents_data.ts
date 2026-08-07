@@ -2,20 +2,26 @@ import {isActiveStatus, type Run} from '@/api/runs';
 import {formatDurationPhrase} from '@/lib/duration';
 import {capitalizeTerm} from '@/lib/text';
 
-// Formats a run's creation date for the meta chip, e.g. "July 8, 2026".
+// Formats a run's creation date for the meta chip, e.g. "Jul 8, 2026".
 // Timestamps on Run are Unix seconds, hence the *1000 to build a Date.
+//
+// Abbreviated month, not the full name: the meta row is two chips side by
+// side in a 19rem column, which leaves ~232px of text budget, and a long
+// month spent enough of it that a routine pair ("August 7, 2026" +
+// "Time elapsed: 3 minutes", 235.6px measured) wrapped the second chip onto
+// its own line while the card still looked half empty.
 const HOME_RUN_DATE_FMT = new Intl.DateTimeFormat(undefined, {
-  month: 'long',
+  month: 'short',
   day: 'numeric',
   year: 'numeric',
 });
 
 /**
  * Formats a run's creation date for the recents-card meta chip, e.g.
- * "July 8, 2026".
+ * "Jul 8, 2026".
  *
  * @param timestamp The run's creation time in Unix seconds.
- * @returns The localized long-form date string.
+ * @returns The localized short-form date string.
  */
 export function formatHomeRunDate(timestamp: number): string {
   return HOME_RUN_DATE_FMT.format(new Date(timestamp * 1000));

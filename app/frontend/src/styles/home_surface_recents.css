@@ -153,6 +153,9 @@
   gap: 0.35rem;
 }
 
+/* nowrap so a chip only ever wraps as a whole (the flex row above handles
+   that): breaking "Time elapsed: 3 minutes" across two lines inside its own
+   pill would be worse than moving the pill down. */
 .reference-recent-meta-chip {
   border-radius: 0.3125rem;
   background: var(--cosci-recent-meta-bg);
@@ -161,6 +164,7 @@
   font-weight: 500;
   letter-spacing: 0.1px;
   padding: 0.25rem 0.5rem;
+  white-space: nowrap;
 }
 
 .reference-recent-title {
