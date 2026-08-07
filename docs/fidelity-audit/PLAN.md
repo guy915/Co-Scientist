@@ -357,7 +357,7 @@ capture rather than by eye.
 
 ---
 
-## Stage 11 — Adaptive coalition
+## Stage 11 — Adaptive coalition (done)
 
 **Closes:** F4, F5, F10, F11, F12, E19, I2, I3
 
@@ -380,6 +380,26 @@ itself — leases, heartbeats, idempotency, per-node checkpoints, working resume
    mature review outputs causally effective (`I3`, with `E1` from stage 5).
 4. Make evolution stagnation-gated (`F10`); persist the plan, allocations,
    observations, and terminal rationale (`E19`).
+
+**What this stage actually found.** Three of the items above rested on premises
+that no longer held, and the record is in FINDINGS.md rather than here:
+
+- The queue was **already** dependency-aware and the orchestrator **already** an
+  adaptive per-cycle scheduler. The real gap in `F4` was allocating more than
+  one task at a time, which is what shipped.
+- `F5` was closed by **declining** to wire `performance_assessment`. The
+  Supervisor runs once, at graph entry, before any hypothesis or review exists,
+  so the assessment is a paraphrase of the goal. A measured signal was wired
+  instead.
+- `F12`'s premise was mostly wrong: three of its four "dead" reasons are live or
+  are public library options. Only `CANCELLED` was dead.
+- `I2` is closed behaviorally through `meta_review`, the channel that already
+  reached generation, and the `research_overview` node stays terminal by design.
+
+**Deliberately not built:** concurrent node-level branching. The single linear
+checkpoint chain means two node tasks committing in parallel guarantees one
+loses as superseded; real branching needs per-branch chains, which is a
+durability-model change this stage's own scope excludes.
 
 ---
 
