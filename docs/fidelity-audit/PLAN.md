@@ -16,22 +16,29 @@ to be called done.
 
 | Stage | Theme | Size |
 |---|---|---|
-| 1 | Five correctness bugs | medium |
-| 2 | Stop presenting degraded state as normal | small |
-| 3 | Make every control do what it claims | medium |
-| 4 | Wire what is already built | small |
-| 5 | Engine reasoning | large |
+| 1 | Five correctness bugs | done |
+| 2 | Stop presenting degraded state as normal | done |
+| 3 | Make every control do what it claims | done |
+| 4 | Wire what is already built | done |
+| 5 | Engine reasoning | done |
 | 6 | Durable state and safety | done |
 | 7 | Grounding | done |
 | 8 | Observability | done |
 | 9 | Security, privacy, packaging | done |
 | 10 | Accessibility and responsive | done |
-| 11 | Adaptive coalition | large |
-| 12 | Evaluation | external-dependent |
+| 11 | Adaptive coalition | done |
+| 12 | Evaluation | done |
 | 13 | Documentation | ongoing |
 
-Stages 1–4 are the near-term queue: independent of each other apart from one
-noted dependency. Everything after is sequenced by dependency, not urgency.
+Stages 1–12 are closed; stage 13 is upkeep and has no end state. Each stage
+below keeps its original brief, so this file reads as what was asked for, not
+as a description of the current tree — several stages found their premise had
+moved, and where that happened the stage carries a note saying so. The
+per-finding outcomes are in [FINDINGS.md](FINDINGS.md), which is the register
+to trust.
+
+The order was: 1–4 independent of each other apart from one noted dependency,
+everything after sequenced by dependency rather than urgency.
 
 Check `AGENTS.md` before editing. Several of the modules below have a current
 shape that is a recorded production incident fix — the SQLite write lock,
@@ -41,7 +48,7 @@ them rather than re-deriving from first principles.
 
 ---
 
-## Stage 1 — Five correctness bugs
+## Stage 1 — Five correctness bugs (done)
 
 **Closes:** D5, F1, E2, I1, J5
 
@@ -83,7 +90,7 @@ hypotheses proves they reach the debate prompt.
 
 ---
 
-## Stage 2 — Stop presenting degraded state as normal
+## Stage 2 — Stop presenting degraded state as normal (done)
 
 **Closes:** B9, C1, C6, D18, G11, L7
 
@@ -111,7 +118,7 @@ is exactly the kind of confident-but-false signal this stage exists to remove.
 
 ---
 
-## Stage 3 — Make every control do what it claims
+## Stage 3 — Make every control do what it claims (done)
 
 **Closes:** M11, A16, A17
 
@@ -166,7 +173,7 @@ to keep the value out of logs, payloads, and checkpoints.
 
 ---
 
-## Stage 4 — Wire what is already built
+## Stage 4 — Wire what is already built (done)
 
 **Closes:** D11, D12
 
@@ -187,7 +194,7 @@ stage 9.
 
 ---
 
-## Stage 5 — Engine reasoning
+## Stage 5 — Engine reasoning (done)
 
 **Closes:** E1, E4–E20, H2, H4–H9, K3–K9, G13, A2
 
@@ -403,7 +410,7 @@ durability-model change this stage's own scope excludes.
 
 ---
 
-## Stage 12 — Evaluation
+## Stage 12 — Evaluation (done)
 
 **Closes:** L8, L9, L11, L12, J7, K3
 
@@ -416,6 +423,23 @@ an absolute developer path (`L12`). Expand the adversarial safety set beyond its
 current corpus rather than asserting them (`K3`).
 
 These are harnesses that produce measurements. Report whatever they measure.
+
+**What this stage actually found.** The harnesses exist and drive the real
+durable path, but every number they have produced so far is offline. That is a
+real limit, not a formality: the offline backend is deterministic, so a scaling
+curve or an ablation measured against it characterises the harness and the
+scheduler, not the model. Live curves need a provider key and a reachable MCP
+server, which is why `L8`, `L9` and `L11` stay `~` rather than closing.
+
+Two of the six moved on their own terms. `J7` closed and immediately produced
+`J13`: giving the false-positive rate a denominator for the first time showed
+the deterministic safety layer misses most adversarial paraphrases and blocks
+most legitimate near-boundary controls. `K3` was reopened here after its
+checkmark proved unearned — `validate_novelty` runs only under
+`enable_tool_calling_generation`, which defaults false and the app never sets —
+and closed by removing the unearned claim rather than by building the search.
+`L8` carries a permanent caveat independent of all this: it substitutes a local
+expert-labelled set for GPQA.
 
 ---
 
