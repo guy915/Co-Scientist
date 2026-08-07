@@ -28,6 +28,10 @@ Instructions:
 5. Remain testable without presenting unsupported details as established facts.
 6. Explore a UNIQUE approach and preserve meaningful diversity throughout selection and refinement.
 
+## Novelty Language
+
+This discussion has no retrieved literature to check against, so novelty claims must stay hedged. Never assert that a hypothesis is the first of its kind, unprecedented, or that no prior work exists; use hedged phrasing such as "to our knowledge" or "based on the discussion so far" instead.
+
 ## Procedure
 
 Initial contribution (if initiating the discussion):

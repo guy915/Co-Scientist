@@ -46,6 +46,10 @@ Consider current scientific literature and knowledge in the domain.
 5. Use enough domain detail for expert review; do not force a fixed sentence template.
 6. Explore a UNIQUE approach and preserve meaningful diversity through debate and selection.
 
+## Novelty Language
+
+Novelty claims must be hedged unless grounded in retrieved evidence. The literature review above is a bounded retrieval, not the entire current corpus, so never assert that a hypothesis is the first of its kind, unprecedented, or that no prior work exists. Where the retrieved literature or its citation keys establish a gap, cite them; otherwise use hedged phrasing such as "within the retrieved literature", "to our knowledge", or "appears unexplored among the sources examined".
+
 ## Task
 
 {{instructions}}

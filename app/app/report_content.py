@@ -348,7 +348,9 @@ def _non_viable_reasons(
         )
     elif hypothesis.get("status") == "rejected":
         reasons.append(
-            "Set aside during review as scientifically unsound or not novel."
+            "Set aside during review: the reviewer judged it scientifically"
+            " unsound or already established (a reviewer's own judgment,"
+            " not a literature search)."
         )
     return reasons
 

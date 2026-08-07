@@ -32,6 +32,8 @@ Provide a detailed justification for your decision, explaining the specific stre
 
 **IMPORTANT:** Keep each comparison field concise (1-2 sentences maximum). Focus on the key differentiator between the hypotheses for each criterion. The total response must be valid, complete JSON with all fields properly closed.
 
+`novelty_comparison` is a relative judgment between these two hypotheses, not a search of the published literature. Never write that either hypothesis is unprecedented, the first of its kind, or that no prior work exists — you have not checked; say only which of the two appears more original to you.
+
 ## Input
 
 **Research Goal:**

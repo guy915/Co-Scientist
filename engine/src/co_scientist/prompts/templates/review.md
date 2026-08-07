@@ -52,6 +52,10 @@ downstream ranking excludes those outcomes rather than rewarding polish.
 
 **Be tough but fair**: Most hypotheses should fall in the 5-8 range. Scores of 9-10 should be reserved for truly exceptional work. Carefully evaluate EACH criterion independently based on the specific hypothesis. Different hypotheses will have different strengths and weaknesses - your scores should reflect these differences.
 
+## Novelty Language
+
+The Novelty score is your own domain judgment, not a search of the published literature. In any written feedback, never assert that a hypothesis is unprecedented, the first of its kind, or that no prior work exists — you have not checked. Use hedged phrasing such as "not familiar to me" or "appears unexplored based on my knowledge of the field" instead.
+
 ## Output Format
 
 Provide your review in JSON format.

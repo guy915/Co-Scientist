@@ -331,6 +331,44 @@ def _render_hypothesis_entry(
     return lines
 
 
+# K3: novelty scores/language throughout the review, ranking, and
+# generation prompts are the reviewing model's own unaided judgment --
+# grounding that judgment in an actual literature search
+# (novelty_validation, populated by
+# co_scientist.agents.generation.literature_tools.validate_novelty) only
+# runs on the tool-calling generation path, which the app never enables for
+# a real run (see engine_adapter/opts.py). A reader must never be left with
+# definitive novelty language on the strength of an unverified judgment, so
+# this note renders whenever nothing in the report was actually corpus-
+# checked -- which today is every run.
+_NOVELTY_DISCLOSURE = (
+    "_Novelty above reflects the reviewing model's own judgment, not a"
+    " search of the published literature. Treat any claim that an idea is"
+    " original, unprecedented, or unexplored as directional, not verified._"
+)
+
+
+def _any_novelty_verified(top_hypotheses: list[dict[str, Any]]) -> bool:
+    """Return whether any hypothesis carries a corpus-checked novelty result.
+
+    Real today only via the tool-calling generation path the app never
+    enables (see the module-level note above), so this stays a genuine
+    check -- not a hardcoded True -- so a future run that does enable that
+    path stops rendering an inaccurate blanket disclosure without a code
+    change here.
+    """
+    return any(hyp.get("novelty_validation") for hyp in top_hypotheses)
+
+
+def _render_novelty_disclosure(
+    top_hypotheses: list[dict[str, Any]],
+) -> list[str]:
+    """Render the novelty-unverified disclosure, unless corpus-checked."""
+    if not top_hypotheses or _any_novelty_verified(top_hypotheses):
+        return []
+    return [_NOVELTY_DISCLOSURE, ""]
+
+
 def _render_top_hypotheses_markdown(
     top_hypotheses: list[dict[str, Any]],
     claim_evidence: list[dict[str, Any]],
@@ -338,6 +376,7 @@ def _render_top_hypotheses_markdown(
     """Render the numbered 'Top hypotheses' section."""
     edges_by_hypothesis = _claim_evidence_by_hypothesis(claim_evidence)
     lines: list[str] = ["## Top hypotheses", ""]
+    lines += _render_novelty_disclosure(top_hypotheses)
     for i, hyp in enumerate(top_hypotheses, 1):
         lines += _render_hypothesis_entry(
             i, hyp, edges_by_hypothesis.get(str(hyp.get("id") or ""), [])

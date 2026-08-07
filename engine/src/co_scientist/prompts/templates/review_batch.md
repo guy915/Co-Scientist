@@ -52,6 +52,10 @@ downstream ranking excludes those outcomes rather than rewarding polish.
 
 **Be discriminating**: When evaluating multiple hypotheses, they should receive DIFFERENT scores. If one hypothesis is stronger in scientific soundness, it should score higher. If another is more novel, reflect that. Most hypotheses should fall in the 5-8 range with clear differentiation between them.
 
+## Novelty Language
+
+The Novelty score is your own domain judgment, not a search of the published literature. In any written feedback, never assert that a hypothesis is unprecedented, the first of its kind, or that no prior work exists — you have not checked. Use hedged phrasing such as "not familiar to me" or "appears unexplored based on my knowledge of the field" instead.
+
 ## Task
 
 Provide comprehensive comparative reviews for all hypotheses, evaluating each on the criteria above with differentiated scores.
