@@ -294,6 +294,97 @@
   outline-offset: 0;
 }
 
+/* Provider chooser (settings_provider_select.tsx). Sized to its content
+   rather than the panel: a full-width control put the chevron a whole panel
+   away from the value it opens, which read as a rendering fault. The menu is
+   positioned off this wrapper so it opens directly under the trigger. */
+.ucs-provider-select {
+  position: relative;
+  display: inline-grid;
+  justify-items: start;
+}
+
+.ucs-provider-trigger {
+  box-sizing: border-box;
+  display: inline-flex;
+  min-width: 10.5rem;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  border: 1px solid var(--cosci-border);
+  border-radius: 0.75rem;
+  background: var(--cosci-menu-bg);
+  color: var(--cosci-menu-text);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.9rem;
+  padding: 0.65rem 0.9rem;
+  text-align: left;
+}
+
+.ucs-provider-trigger:hover {
+  background: var(--cosci-menu-row-hover);
+}
+
+.ucs-provider-trigger:focus-visible {
+  border-color: var(--cosci-blue);
+  outline: 1px solid var(--cosci-blue);
+  outline-offset: 0;
+}
+
+.ucs-provider-chevron {
+  flex: 0 0 auto;
+  color: var(--cosci-menu-icon);
+  font-size: 1.15rem;
+}
+
+.ucs-provider-trigger[aria-expanded='true'] .ucs-provider-chevron {
+  transform: rotate(180deg);
+}
+
+.ucs-provider-menu {
+  position: absolute;
+  z-index: 40;
+  top: calc(100% + 0.35rem);
+  left: 0;
+  display: grid;
+  width: max-content;
+  min-width: 100%;
+  gap: 0.15rem;
+  border: 1px solid var(--cosci-menu-border);
+  border-radius: 0.75rem;
+  background: var(--cosci-menu-bg);
+  padding: 0.35rem;
+}
+
+.ucs-provider-option {
+  display: flex;
+  min-height: 2.4rem;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.25rem;
+  border: 0;
+  border-radius: 0.5rem;
+  background: transparent;
+  color: var(--cosci-menu-text);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.875rem;
+  padding-inline: 0.7rem;
+  text-align: left;
+}
+
+.ucs-provider-option:hover,
+.ucs-provider-option:focus-visible {
+  background: var(--cosci-menu-row-hover);
+}
+
+.ucs-provider-option-check {
+  flex: 0 0 auto;
+  color: var(--cosci-blue);
+  font-size: 1.05rem;
+}
+
 .ucs-settings-field-hint {
   margin: 0.55rem 0 0;
   color: var(--cosci-muted);

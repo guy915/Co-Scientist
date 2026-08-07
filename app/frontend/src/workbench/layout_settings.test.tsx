@@ -76,9 +76,38 @@ it('persists the BYOK provider choice in the Model section', async () => {
   // The key label follows the chosen provider; deepseek is the default.
   expect(screen.getByLabelText('DeepSeek API key')).toBeInTheDocument();
 
-  const provider = screen.getByLabelText('Provider');
-  fireEvent.change(provider, {target: {value: 'openai'}});
+  // The chooser is our own menu, not a native select: nothing is in the DOM
+  // to pick from until the trigger opens it.
+  const trigger = screen.getByRole('button', {name: 'Provider'});
+  expect(screen.queryByRole('menuitemradio', {name: 'OpenAI'})).toBeNull();
+  fireEvent.click(trigger);
+
+  // Azure is deliberately not offered (see BYOK_PROVIDERS).
+  expect(screen.queryByRole('menuitemradio', {name: 'Azure'})).toBeNull();
+  expect(screen.getByRole('menuitemradio', {name: 'DeepSeek'})).toHaveAttribute(
+    'aria-checked',
+    'true',
+  );
+
+  fireEvent.click(screen.getByRole('menuitemradio', {name: 'OpenAI'}));
   expect(window.localStorage.getItem('cosci-api-provider')).toBe('openai');
   expect(screen.getByLabelText('OpenAI API key')).toBeInTheDocument();
   expect(screen.getByText('Settings saved')).toBeInTheDocument();
+  // Choosing closes the menu.
+  expect(screen.queryByRole('menuitemradio', {name: 'OpenAI'})).toBeNull();
+});
+
+it('closes the provider menu on Escape without closing Settings', async () => {
+  renderLayout();
+
+  fireEvent.click(screen.getByRole('button', {name: 'Settings'}));
+  fireEvent.click(screen.getByRole('menuitem', {name: 'Model'}));
+  const dialog = await screen.findByRole('dialog', {name: 'Settings'});
+
+  fireEvent.click(screen.getByRole('button', {name: 'Provider'}));
+  const option = screen.getByRole('menuitemradio', {name: 'OpenAI'});
+  fireEvent.keyDown(option, {key: 'Escape'});
+
+  expect(screen.queryByRole('menuitemradio', {name: 'OpenAI'})).toBeNull();
+  expect(dialog).toBeInTheDocument();
 });

@@ -1,8 +1,13 @@
 import {Icon, type IconName} from '@/components/icon';
-import {BYOK_PROVIDERS, type ByokProvider} from '@/lib/api_key';
+import {type ByokProvider} from '@/lib/api_key';
 import {useAudience} from '../audience_context';
 import {AUDIENCE_OPTIONS} from '../audience_content';
 import {type Mode} from '../theme_context';
+import {
+  PROVIDER_LABELS,
+  ProviderSelect,
+  ProviderSelectLabel,
+} from './settings_provider_select';
 
 /**
  * The dialog's section rail options; also the type of the currently-open
@@ -120,15 +125,6 @@ export function AppearanceSection({
   );
 }
 
-// Display names for the BYOK provider choices.
-const PROVIDER_LABELS: Record<ByokProvider, string> = {
-  anthropic: 'Anthropic',
-  azure: 'Azure',
-  deepseek: 'DeepSeek',
-  gemini: 'Gemini',
-  openai: 'OpenAI',
-};
-
 // Hint under the key field: a key-source link for DeepSeek (the default),
 // plus what happens to the key once saved.
 function ApiKeyHint({provider}: {provider: ByokProvider}) {
@@ -171,24 +167,8 @@ export function ModelSection({
   return (
     <section className="ucs-settings-card">
       <h3 className="ucs-settings-card-title">Model</h3>
-      <label
-        className="ucs-settings-field-label"
-        htmlFor="cosci-settings-provider"
-      >
-        Provider
-      </label>
-      <select
-        id="cosci-settings-provider"
-        className="ucs-settings-field-input"
-        value={provider}
-        onChange={event => onProviderChange(event.target.value as ByokProvider)}
-      >
-        {BYOK_PROVIDERS.map(option => (
-          <option key={option} value={option}>
-            {PROVIDER_LABELS[option]}
-          </option>
-        ))}
-      </select>
+      <ProviderSelectLabel />
+      <ProviderSelect provider={provider} onChange={onProviderChange} />
       <label
         className="ucs-settings-field-label ucs-settings-field-label--spaced"
         htmlFor="cosci-settings-api-key"

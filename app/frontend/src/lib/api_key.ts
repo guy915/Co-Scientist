@@ -9,13 +9,14 @@ const STORAGE_KEY = 'cosci-api-key';
 const PROVIDER_KEY = 'cosci-api-provider';
 
 /**
- * Providers the backend accepts for BYOK runs. Must stay within the
- * backend's PROVIDER_CREDENTIAL_ENV set (app/app/config.py); the backend
- * rejects anything else.
+ * Providers offered for BYOK runs. Must stay within the backend's
+ * PROVIDER_CREDENTIAL_ENV set (app/app/config.py); the backend rejects
+ * anything else. A subset is fine -- azure is deliberately not offered
+ * here (a single API key is not enough to reach an Azure deployment), and
+ * a stored `azure` choice from before falls back to the default below.
  */
 export const BYOK_PROVIDERS = [
   'anthropic',
-  'azure',
   'deepseek',
   'gemini',
   'openai',
