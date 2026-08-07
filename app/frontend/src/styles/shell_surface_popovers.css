@@ -45,33 +45,6 @@
   background: color-mix(in srgb, var(--cosci-hover) 76%, var(--cosci-text));
 }
 
-/* Row of actions under the note. Wraps rather than overflowing: the panel is
-   capped at 28rem and the labels are translated. */
-.ucs-team-note-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-}
-
-/* Hebrew note to the Google team. `justify-items: start` resolves against
-   the inline direction, so under dir="rtl" the button hugs the right edge
-   without any RTL-specific rule. */
-.ucs-team-note {
-  display: grid;
-  gap: 0.85rem;
-  justify-items: start;
-  padding: 1rem;
-}
-
-/* The UA's default paragraph margin would pad the text top and bottom
-   inside the panel, reading as vertical centering. Zeroed here rather than
-   globally: a global reset collapses the rendered Goal Report markdown. */
-.ucs-team-note p {
-  margin: 0;
-  font-size: 0.9rem;
-  line-height: 1.6;
-}
-
 /* Pilot feedback form in the SBI/UCD header popover. Reuses the settings
    dialog's field and selection vocabulary so the panel reads as part of the
    same product surface. */

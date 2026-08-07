@@ -25,51 +25,14 @@ export const AUDIENCE_OPTIONS: {
   },
 ];
 
-// The address the contact button writes to, and the compose window it opens.
-// A Gmail compose link rather than a `mailto:`: the reviewers write from
-// their Google accounts, so composing in Gmail puts the right sender on the
-// message and opens in a tab, which `mailto:` cannot do.
-const CONTACT_ADDRESS = 'guybarel2006@gmail.com';
-const CONTACT_SUBJECT = 'AI Co-Scientist';
-
-function composeUrl(to: string, subject: string): string {
-  const query = new URLSearchParams({
-    view: 'cm',
-    fs: '1',
-    to,
-    su: subject,
-  });
-  return `https://mail.google.com/mail/?${query}`;
-}
-
-// DRAFT: personal note shown to the Google team in the header popover. The
-// reviewing team is Israeli, so the note itself is in Hebrew and renders RTL
-// (see GoogleTeamControl, which sets dir/lang). The header button that opens
-// it stays in English, as does the affiliation chooser: both are read before
-// anyone has been addressed as part of the team.
-export const GOOGLE_NOTE: {
-  label: string;
-  message: string;
-  linkLabel: string;
-  aboutLabel: string;
-  aboutUrl: string;
-  contactLabel: string;
-  contactUrl: string;
-} = {
-  label: 'Message to the team',
-  // English source, kept alongside the translation so the wording can be
-  // revised without back-translating: "This is an independent recreation of
-  // AI Co-Scientist, built to learn how the system works. After reading the
-  // paper and researching competitors, I've added a few suggestions for the
-  // official product."
-  message:
-    'זה שחזור עצמאי של AI Co-Scientist, שנבנה כדי ללמוד איך המערכת עובדת. ' +
-    'לאחר שקראתי את המאמר וחקרתי על מתחרים, הוספתי כמה הצעות למוצר הרשמי.',
-  linkLabel: 'לצפייה בהצעות',
-  aboutLabel: 'קצת עליי',
-  aboutUrl: 'https://guybarel.me/',
-  contactLabel: 'צרו קשר',
-  contactUrl: composeUrl(CONTACT_ADDRESS, CONTACT_SUBJECT),
+// The Google team's header control: a link straight to the proposals graph,
+// which is what the note it replaced existed to point at. The label keeps
+// the Hebrew wording the note's own link used ("view the proposals") -- the
+// reviewing team is Israeli -- so the destination reads the same as it did
+// inside the popover, only reached in one click instead of two.
+export const GOOGLE_PROPOSALS: {label: string; to: string} = {
+  label: 'לצפייה בהצעות',
+  to: '/proposals',
 };
 
 // DRAFT: copy for the SBI/UCD feedback form in the header popover.

@@ -2,7 +2,7 @@ import {render, screen} from '@testing-library/react';
 import {MemoryRouter} from 'react-router-dom';
 import {beforeEach, expect, it} from 'vitest';
 import {type Audience, AudienceProvider} from './audience_context';
-import {GOOGLE_NOTE} from './audience_content';
+import {GOOGLE_PROPOSALS} from './audience_content';
 import {ShellHeader} from './layout_header';
 
 // The audience is declared to the provider directly rather than seeded into
@@ -46,32 +46,20 @@ it('shows the pilot Feedback control for sbi_ucd instead of Logs', () => {
   expect(screen.queryByRole('button', {name: /Logs/i})).not.toBeInTheDocument();
 });
 
-it('shows the team control for google instead of Logs', () => {
+it('sends google straight to the proposals, instead of Logs', () => {
   renderHeader('google');
   expect(
-    screen.getByRole('button', {name: GOOGLE_NOTE.label}),
-  ).toBeInTheDocument();
+    screen.getByRole('link', {name: GOOGLE_PROPOSALS.label}),
+  ).toHaveAttribute('href', '/proposals');
   expect(screen.queryByRole('button', {name: /Logs/i})).not.toBeInTheDocument();
 });
 
-it('offers the note, the site, and a way to reply', () => {
-  renderHeader('google', 'audience');
-  expect(
-    screen.getByRole('link', {name: GOOGLE_NOTE.linkLabel}),
-  ).toHaveAttribute('href', '/proposals');
-  // Both leave the app, so both open in their own tab.
-  for (const [label, href] of [
-    [GOOGLE_NOTE.aboutLabel, GOOGLE_NOTE.aboutUrl],
-    [GOOGLE_NOTE.contactLabel, GOOGLE_NOTE.contactUrl],
-  ]) {
-    const link = screen.getByRole('link', {name: label});
-    expect(link).toHaveAttribute('href', href);
-    expect(link).toHaveAttribute('target', '_blank');
-  }
-});
-
-it('addresses the reply to the maintainer with a subject', () => {
-  const url = new URL(GOOGLE_NOTE.contactUrl);
-  expect(url.searchParams.get('to')).toBe('guybarel2006@gmail.com');
-  expect(url.searchParams.get('su')).toBeTruthy();
+it('navigates on the first click, with no panel in the way', () => {
+  // The control replaced a popover, so the regression to guard is it
+  // behaving like one again: a link that only opens something is a click
+  // the reader has to spend before reaching what they asked for.
+  renderHeader('google');
+  const link = screen.getByRole('link', {name: GOOGLE_PROPOSALS.label});
+  expect(link).not.toHaveAttribute('aria-expanded');
+  expect(screen.queryByRole('group')).not.toBeInTheDocument();
 });
