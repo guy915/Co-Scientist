@@ -27,6 +27,7 @@ from co_scientist.exceptions import (
     LLMBudgetExhaustedError,
     LLMThinkingOnlyError,
     LLMTimeoutError,
+    short_error_text,
 )
 from co_scientist.llm_json import (
     _backfill_required_fields,
@@ -549,7 +550,17 @@ async def _handle_json_call_failure(
     Returns:
         An outcome carrying the error, for the retry loop to continue from.
     """
-    logger.error("LLM call failed on attempt %s: %s", attempt.number, error)
+    # This is the one layer that knows whether the failure is terminal, so
+    # it is the one that decides the severity: an attempt another attempt
+    # will answer is a warning, and only giving up is an error. Logging
+    # every attempt at error made a run that recovered read as a broken one
+    # -- one recovered answerless completion produced four ERROR records.
+    log = logger.error if attempt.is_final else logger.warning
+    log(
+        "LLM call failed on attempt %s: %s",
+        attempt.number,
+        short_error_text(error),
+    )
     if attempt.is_final:
         raise
     if _is_rate_limited(error):

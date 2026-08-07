@@ -153,22 +153,28 @@ async def test_an_empty_response_with_no_reasoning_stays_ordinary(
 async def test_the_failure_log_reports_the_budget_actually_sent(
     monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ) -> None:
-    """The error line names the floored budget, not the call site's number.
+    """The failure line names the floored budget, not the call site's number.
 
-    An 8000-token call site logging "max_tokens: 8000" beside
+    An 8000-token call site logging "max_tokens 8000" beside
     "reasoning_tokens=18001" reads as a provider fault. The wire carried
     the floor.
+
+    Captured at WARNING because that is what this layer logs: ``call_llm``
+    re-raises unconditionally and cannot know whether a retry follows, so
+    the error belongs to the attempt that gives up (see
+    ``test_llm_failure_logging``). The budget reported is the property
+    under test either way.
     """
     _disable_cache(monkeypatch)
     _record_acompletion(monkeypatch, [_exhausted(THINKING_FLOOR_MAX_TOKENS)])
 
-    with caplog.at_level("ERROR"), pytest.raises(LLMBudgetExhaustedError):
+    with caplog.at_level("WARNING"), pytest.raises(LLMBudgetExhaustedError):
         await call_llm(
             "a prompt", CompletionSpec(model_name=_MODEL, max_tokens=8000)
         )
 
     logged = "\n".join(record.getMessage() for record in caplog.records)
-    assert f"max_tokens: {THINKING_FLOOR_MAX_TOKENS}" in logged
+    assert f"max_tokens {THINKING_FLOOR_MAX_TOKENS}" in logged
     assert "call site asked for 8000" in logged
 
 

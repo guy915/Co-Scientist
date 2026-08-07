@@ -31,6 +31,7 @@ from co_scientist.cache import get_cache as get_cache
 from co_scientist.constants import (
     EXTENDED_MAX_TOKENS as EXTENDED_MAX_TOKENS,
 )
+from co_scientist.exceptions import short_error_text
 from co_scientist.llm_credentials import (
     current_api_key as current_api_key,
 )
@@ -247,18 +248,29 @@ async def call_llm(
                 request, opt.enable_thinking, cache
             )
         except Exception as e:
-            logger.error("LLM call failed: %s", e)
-            # The budget sent, not the one the call site asked for: the
-            # thinking floor raises it before the request goes out, and
-            # logging the pre-floor number next to a reasoning-token count
-            # that exceeds it made a budget failure read as a provider one.
-            logger.error(
-                "Model: %s, max_tokens: %s (call site asked for %s)",
+            # One record, at warning. This layer re-raises unconditionally
+            # and cannot know whether a retry follows -- call_llm_json's
+            # ladder recovers most of what lands here -- so logging it as
+            # an error reported a healthy run as a broken one: a single
+            # recovered answerless completion put four ERROR rows in the
+            # diagnostics panel, and eight of one export's ten errors were
+            # this. The attempt that actually gives up logs the error, in
+            # llm_json_retry, which is the layer that knows.
+            #
+            # The budget reported is the one sent, not the one the call
+            # site asked for: the thinking floor raises it before the
+            # request goes out, and logging the pre-floor number next to a
+            # reasoning-token count that exceeds it made a budget failure
+            # read as a provider one.
+            logger.warning(
+                "LLM call failed (model %s, max_tokens %s, call site asked "
+                "for %s): %s",
                 spec.model_name,
                 effective_max_tokens(
                     spec.model_name, spec.max_tokens, opt.enable_thinking
                 ),
                 spec.max_tokens,
+                short_error_text(e),
             )
             raise
 
@@ -291,7 +303,9 @@ async def _call_llm_for_json(
         LLMCallOptions(use_cache=False, enable_thinking=enable_thinking),
     )
     if not response_text:
-        logger.error("LLM returned None or empty response")
+        # Warning, not error: the raise below is what carries this, and the
+        # retry loop decides whether it was terminal.
+        logger.warning("LLM returned None or empty response")
         raise ValueError(
             "LLM returned None or empty response. "
             "Check API keys, rate limits, and model availability."

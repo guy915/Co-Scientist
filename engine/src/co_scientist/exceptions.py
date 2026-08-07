@@ -80,3 +80,35 @@ class LLMThinkingOnlyError(CoScientistError, ValueError):
 # catch this and carry on without that source.
 class MCPToolTimeoutError(CoScientistError):
     """An MCP tool call exceeded its wall-clock budget without responding."""
+
+
+# The longest a provider error may be when it reaches a log line. Not a
+# style preference: litellm reports a DeepSeek json-mode parse failure by
+# appending the entire completion to the message ("Unable to get json
+# response - Unterminated string ... Original Response: {8KB}"), and the
+# wrappers log the same exception twice -- once where the call failed and
+# once in the retry loop. Whole, that is multiple kilobytes per occurrence
+# into a store whose single writer this codebase has already had starved by
+# log volume, and it buries the clause that says what actually went wrong.
+_MAX_LOGGED_ERROR_CHARS = 400
+
+
+def short_error_text(error: BaseException) -> str:
+    """Render an exception for a log line, bounded in length.
+
+    The head is kept rather than the tail: a provider error states the
+    failure first and echoes the payload afterwards, so the first few
+    hundred characters are the diagnosis and the rest is the evidence that
+    already reached the caller as the exception itself.
+
+    Args:
+        error: The exception to render.
+
+    Returns:
+        The exception's text, truncated with a count of what was dropped.
+    """
+    text = str(error).strip()
+    dropped = len(text) - _MAX_LOGGED_ERROR_CHARS
+    if dropped <= 0:
+        return text
+    return f"{text[:_MAX_LOGGED_ERROR_CHARS]}... (+{dropped} more chars)"
