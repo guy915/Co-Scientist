@@ -1,12 +1,88 @@
-"""Scientific release gate over a completed run artifact."""
+"""Scientific release gate over a completed run artifact.
+
+**This gate applies the rules the app actually publishes by.** It used to
+apply its own, which is the defect recorded as ``L1``: an evaluator that
+invents thresholds proves only that the evaluator is self-consistent, and
+a green run of it said nothing about whether live finalization withholds
+anything. Every predicate below is imported from the modules the live
+finalize path calls (``app.report_content_gates``,
+``app.hypothesis_safety``), so a change to publication behavior either
+shows up here or is not a change to publication behavior.
+
+The live rules, in the order finalization applies them
+(``app.report_render._finalize_report_pipeline``):
+
+1. The final report-level safety screen withholds the whole report on a
+   ``block`` or a ``hold``. An unresolved safety review is the artifact
+   form of that.
+2. Each hypothesis is dropped if it was rejected or deduplicated, if the
+   evidence *contradicts* it, or if its safety status blocks.
+3. If nothing survives, the report is withheld for an empty leaderboard.
+
+Two rules this file used to enforce are deliberately **not** gates, and
+are reported as observations instead:
+
+- **Verified-claim ratio.** Production publishes an unsupported (but
+  uncontradicted) idea with an explicit "Unverified" badge rather than
+  withholding it -- see ``_unverified_hypothesis_ids``. A gate demanding
+  80% supported claims would withhold essentially every real run, and
+  asserting it here while production does the opposite is exactly the
+  divergence ``L1`` is about. The ratio is still computed and returned,
+  because it is the number a reader should judge a report by.
+- **Provenance completeness.** Worth reporting, never a reason to
+  withhold science; nothing in the live path treats it as one.
+"""
 
 from __future__ import annotations
 
+import pathlib
+import sys
 from typing import Any
+
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent / "app"))
+
+from app.hypothesis_safety import is_blocking_status
+from app.report_content_gates import (
+    EXCLUDED_HYPOTHESIS_STATUSES,
+)
+
+_REQUIRED_PROVENANCE = ("model", "policy_version", "retrieval_sources")
+
+
+def _contradicted_ids(claims: list[dict[str, Any]]) -> set[str]:
+    """Ids the evidence contradicts, by the live rule.
+
+    Mirrors ``report_content_gates._contradicted_hypothesis_ids`` over an
+    already-fetched edge list, which is the same shape that function
+    accepts via its ``claim_edges`` argument.
+    """
+    return {
+        str(claim.get("hypothesis_id"))
+        for claim in claims
+        if claim.get("label") == "contradicts"
+    }
+
+
+def _releasable(
+    hypotheses: list[dict[str, Any]], contradicted: set[str]
+) -> list[dict[str, Any]]:
+    """Apply the live per-hypothesis publication gate."""
+    return [
+        hyp
+        for hyp in hypotheses
+        if hyp.get("status") not in EXCLUDED_HYPOTHESIS_STATUSES
+        and str(hyp.get("id")) not in contradicted
+        and not is_blocking_status(str(hyp.get("safety_status") or ""))
+    ]
 
 
 def _safety_reasons(safety: list[dict[str, Any]]) -> list[str]:
-    """Flags an unresolved safety review, if any."""
+    """Flags an unresolved safety review, if any.
+
+    The artifact form of the live report-level gate, which withholds on a
+    ``block`` or a ``hold`` -- a review still requiring adjudication is a
+    hold that nobody has cleared.
+    """
     if any(
         item.get("requires_review") and not item.get("resolution")
         for item in safety
@@ -15,59 +91,47 @@ def _safety_reasons(safety: list[dict[str, Any]]) -> list[str]:
     return []
 
 
-def _claims_reasons(
-    claims: list[dict[str, Any]], minimum_verified_ratio: float
-) -> tuple[list[str], float]:
-    """Flags contradicted claims and an under-threshold verified ratio.
-
-    Args:
-        claims: Per-claim entailment records.
-        minimum_verified_ratio: Minimum fraction of claims that must be
-            labeled "supports" for release.
-
-    Returns:
-        A (reasons, verified_claim_ratio) pair.
-    """
-    reasons = []
-    if any(item.get("label") == "contradicts" for item in claims):
-        reasons.append("contradicted scientific claim")
-    assessed = len(claims)
-    verified = sum(item.get("label") == "supports" for item in claims)
-    ratio = verified / assessed if assessed else 0.0
-    if ratio < minimum_verified_ratio:
-        reasons.append(
-            "verified claim ratio "
-            f"{ratio:.3f} below {minimum_verified_ratio:.3f}"
-        )
-    return reasons, ratio
+def _verified_claim_ratio(claims: list[dict[str, Any]]) -> float:
+    """Fraction of assessed claims the evidence supports. Reported only."""
+    if not claims:
+        return 0.0
+    supported = sum(1 for claim in claims if claim.get("label") == "supports")
+    return supported / len(claims)
 
 
-def _provenance_reasons(provenance: dict[str, Any]) -> list[str]:
-    """Flags each required provenance field that is missing."""
+def _missing_provenance(provenance: dict[str, Any]) -> list[str]:
+    """Names each absent provenance field. Reported, never a gate reason."""
     return [
-        f"missing provenance: {field}"
-        for field in ("model", "policy_version", "retrieval_sources")
-        if not provenance.get(field)
+        field for field in _REQUIRED_PROVENANCE if not provenance.get(field)
     ]
 
 
-def scientific_release_gate(
-    artifact: dict[str, Any], *, minimum_verified_ratio: float = 0.8
-) -> dict[str, Any]:
-    """Return a fail-closed publication decision with explicit reasons."""
-    reasons: list[str] = []
-    hypotheses = artifact.get("hypotheses") or []
-    if not hypotheses:
+def scientific_release_gate(artifact: dict[str, Any]) -> dict[str, Any]:
+    """Return a fail-closed publication decision with explicit reasons.
+
+    Args:
+        artifact: A completed run's hypotheses, safety decisions, claim
+            edges, and provenance.
+
+    Returns:
+        The decision, the reasons behind it, and the observations that are
+        reported rather than enforced.
+    """
+    claims = artifact.get("claims") or []
+    contradicted = _contradicted_ids(claims)
+    releasable = _releasable(artifact.get("hypotheses") or [], contradicted)
+
+    reasons = _safety_reasons(artifact.get("safety") or [])
+    if not releasable:
         reasons.append("no releasable hypotheses")
-    reasons.extend(_safety_reasons(artifact.get("safety") or []))
-    claim_reasons, ratio = _claims_reasons(
-        artifact.get("claims") or [], minimum_verified_ratio
-    )
-    reasons.extend(claim_reasons)
-    reasons.extend(_provenance_reasons(artifact.get("provenance") or {}))
+
     return {
         "decision": "release" if not reasons else "withhold",
         "reasons": reasons,
-        "verified_claim_ratio": round(ratio, 4),
-        "minimum_verified_ratio": minimum_verified_ratio,
+        "releasable_hypotheses": len(releasable),
+        "contradicted_hypotheses": len(contradicted),
+        "verified_claim_ratio": round(_verified_claim_ratio(claims), 4),
+        "missing_provenance": _missing_provenance(
+            artifact.get("provenance") or {}
+        ),
     }
