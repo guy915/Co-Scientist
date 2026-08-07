@@ -45,6 +45,30 @@ def test_extracts_atomic_claims_and_drops_fragments() -> None:
     ]
 
 
+def test_extraction_drops_sentences_asserting_an_evidence_gap() -> None:
+    """Novelty statements about the corpus are not empirical claims.
+
+    A sentence asserting that prior work is absent is a negative existential
+    over the very corpus the assessor entails against: no passage can confirm
+    it, and any topical passage reads as contradicting it. Every example here
+    is verbatim from a run whose ideas were withheld on exactly one such
+    sentence apiece.
+    """
+    text = (
+        "Menin inhibition destabilizes c-Myc in KMT2A-rearranged AML. "
+        "Within the retrieved literature, no source tests whether PI3K "
+        "inhibition alone reactivates the composite program. "
+        "This interaction appears unexplored in the retrieved literature. "
+        "This hypothesis is formulated without access to a literature "
+        "review; no citation keys are available. "
+        "The apoptotic mechanism is not systematically characterized. "
+        "Dual blockade has not been tested in this subtype."
+    )
+    assert extract_atomic_claims(text) == [
+        "Menin inhibition destabilizes c-Myc in KMT2A-rearranged AML."
+    ]
+
+
 # A full-length title+abstract -- the shape an EvidencePassage carries in a run
 # (claim_grounding.evidence_passages joins an evidence row's title and
 # abstract). The length is the point: a one-sentence claim against a passage

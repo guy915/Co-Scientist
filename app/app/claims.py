@@ -111,13 +111,51 @@ from app.claims_gate import (
 # A claim must have some substance; drop fragments below this word count.
 _MIN_CLAIM_WORDS = 4
 
+# A sentence asserting that prior work is *absent* -- "no source tests X",
+# "unexplored in the retrieved literature", "has not been tested" -- is a
+# novelty statement about the corpus, not an empirical claim about the world.
+# It must never reach the entailment layer: it is a negative existential over
+# the very passages the assessor entails against, so no passage can confirm it
+# and any topical passage reads as contradicting it. A generation prompt asks
+# for exactly these sentences (the literature-grounding rationale is meant to
+# name the gap the idea fills), which is why they arrive on nearly every
+# hypothesis rather than occasionally.
+#
+# The cost of leaving them in was the run collapsing: once literature
+# retrieval started returning full-text papers, six of eight ideas in an
+# express run were quarantined ``evidence_blocked`` on one such sentence
+# apiece, the pool fell below two rankable ideas, and the scheduler answered
+# by generating more ideas that died the same way. Novelty is judged on the
+# reviewers' own novelty axis (and the ``non_novel`` disposition), never here.
+_EVIDENCE_GAP_CLAIM = re.compile(
+    r"""
+      \bun(?:explored|examined|tested|studied|addressed|proven
+            |characteri[sz]ed)\b
+    | \b(?:has|have|had)\ not\ been\b
+    | \bnot\ (?:yet\ )?(?:been\ )?(?:\w+ly\ )?
+        (?:tested|explored|examined|studied|addressed|established|proven
+          |demonstrated|reported|characteri[sz]ed|investigated)\b
+    | \bno\ (?:source|sources|study|studies|paper|papers|report|reports
+          |trial|trials|prior\ work|published|evidence|citation|citations
+          |data)\b
+    | \bremains?\ to\ be\b
+    | \bnever\ been\b
+    | \bto\ (?:our|the)\ knowledge\b
+    | \bgaps?\ in\ (?:the\ )?(?:literature|evidence|knowledge)\b
+    | \bwithout\ access\ to\ a\ literature\ review\b
+    """,
+    re.IGNORECASE | re.VERBOSE,
+)
+
 
 def extract_atomic_claims(text: str) -> list[str]:
     """Split a passage into atomic claims (sentence-level), de-noised.
 
     Sentences shorter than ``_MIN_CLAIM_WORDS`` words (headings, fragments) are
-    dropped. Order is preserved and duplicates removed, so the claim list is a
-    stable, auditable decomposition of the source text.
+    dropped, as are sentences asserting an absence of prior work (see
+    ``_EVIDENCE_GAP_CLAIM``), which entailment cannot assess. Order is
+    preserved and duplicates removed, so the claim list is a stable, auditable
+    decomposition of the source text.
 
     Args:
         text: The hypothesis / mechanism / experiment / report text.
@@ -130,6 +168,8 @@ def extract_atomic_claims(text: str) -> list[str]:
     for raw in _SENTENCE_SPLIT.split(text or ""):
         claim = raw.strip()
         if len(claim.split()) < _MIN_CLAIM_WORDS:
+            continue
+        if _EVIDENCE_GAP_CLAIM.search(claim):
             continue
         key = claim.lower()
         if key in seen:
