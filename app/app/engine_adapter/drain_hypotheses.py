@@ -24,7 +24,6 @@ from app.engine_adapter.drain_reviews import (
     _CitationSink,
     _persist_engine_citations,
     _persist_engine_reviews,
-    _score_or_none,
 )
 from app.text_utils import first_sentence
 
@@ -288,6 +287,27 @@ def _is_rejected(h: dict[str, Any]) -> bool:
     return _hypothesis_status(h) != "active"
 
 
+def _mean_review_novelty(h: dict[str, Any]) -> float | None:
+    """Mean of the reviewers' own novelty scores, or None if none scored it.
+
+    ``hypothesis_state.novelty_score`` used to be filled from ``h["score"]``,
+    the engine's *overall* score, so the column held a different quantity
+    than its name (K10). Reviewers score novelty on their own axis
+    (``HypothesisReview.scores["novelty"]``), which is what the name
+    promises, so read that instead. Averaging across reviews rather than
+    taking the newest keeps a single harsh or generous reviewer from
+    defining the value on its own.
+    """
+    scores = [
+        float(value)
+        for review in h.get("reviews") or []
+        if isinstance(review, dict)
+        for value in [(review.get("scores") or {}).get("novelty")]
+        if isinstance(value, (int, float)) and value
+    ]
+    return sum(scores) / len(scores) if scores else None
+
+
 def _persist_hypothesis_state(
     hyp_id: str, h: dict[str, Any], conn: sqlite3.Connection
 ) -> None:
@@ -298,7 +318,7 @@ def _persist_hypothesis_state(
             elo_rating=int(h.get("elo_rating", INITIAL_ELO)),
             win_delta=int(h.get("win_count", 0)),
             loss_delta=int(h.get("loss_count", 0)),
-            novelty=_score_or_none(h.get("score", 0)),
+            novelty=_mean_review_novelty(h),
             status=_hypothesis_status(h),
         ),
         conn=conn,
