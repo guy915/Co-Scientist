@@ -94,6 +94,46 @@ def test_wall_clock_exhausted_terminates() -> None:
     assert decision.termination_reason is TerminationReason.WALL_CLOCK
 
 
+def test_max_ideas_exhausted_terminates() -> None:
+    """Hitting the paper's MaxIdeas ceiling terminates (F11)."""
+    budget = Budget(max_iterations=100, max_ideas=10)
+    stats = healthy_stats(pool_size=10, unreviewed_count=0)
+    decision = decide_next_task(stats, budget)
+    assert decision.terminate
+    assert decision.termination_reason is TerminationReason.MAX_IDEAS
+
+
+def test_max_ideas_defers_to_review_backlog() -> None:
+    """A pool at the MaxIdeas ceiling still drains unreviewed work first.
+
+    ``_budget_termination`` (step 4) runs ahead of the review-backlog step
+    (step 6); without the gate this would strand the freshest ideas
+    unreviewed the moment the pool crossed the ceiling.
+    """
+    budget = Budget(max_iterations=100, max_ideas=10)
+    stats = healthy_stats(pool_size=10, unreviewed_count=2)
+    decision = decide_next_task(stats, budget)
+    assert not decision.terminate
+    assert decision.next_task is TaskType.REFLECT
+
+
+def test_max_matches_per_idea_exhausted_terminates() -> None:
+    """Hitting the paper's MaxMatchesPerIdea ceiling terminates (F11)."""
+    budget = Budget(max_iterations=100, max_matches_per_idea=3.0)
+    stats = healthy_stats(rankable_count=6, match_coverage=3.0)
+    decision = decide_next_task(stats, budget)
+    assert decision.terminate
+    assert decision.termination_reason is TerminationReason.MAX_MATCHES_PER_IDEA
+
+
+def test_max_matches_per_idea_below_threshold_continues() -> None:
+    """Below the MaxMatchesPerIdea ceiling, the ceiling does not fire."""
+    budget = Budget(max_iterations=100, max_matches_per_idea=3.0)
+    stats = healthy_stats(rankable_count=6, match_coverage=2.0)
+    decision = decide_next_task(stats, budget)
+    assert not decision.terminate
+
+
 def test_steered_state_generates() -> None:
     """Pending user steering is a high-priority request to generate anew."""
     stats = healthy_stats(pending_steering=True, evolution_yield=0.9)
@@ -110,12 +150,18 @@ def test_retry_state_reschedules_failed_task() -> None:
     assert "retry" in decision.reason.lower()
 
 
-def test_cancelled_state_terminates() -> None:
-    """External cancellation terminates immediately."""
+def test_stale_cancelled_flag_does_not_terminate() -> None:
+    """``SchedulerStats.cancelled`` is no longer read by the policy.
+
+    Cancellation is enforced by the durable executor never dispatching
+    another node, not by a termination reason this policy produces (finding
+    F12). The field itself is retained -- the orchestrator still constructs
+    ``SchedulerStats`` with it -- so this pins that setting it True has no
+    effect rather than force-terminating.
+    """
     stats = healthy_stats(cancelled=True)
     decision = decide_next_task(stats, BUDGET)
-    assert decision.terminate
-    assert decision.termination_reason is TerminationReason.CANCELLED
+    assert not decision.terminate
 
 
 def test_safety_block_terminates() -> None:
@@ -126,41 +172,78 @@ def test_safety_block_terminates() -> None:
     assert decision.termination_reason is TerminationReason.SAFETY
 
 
-def test_yield_tie_after_evolution_generates() -> None:
-    """On a yield tie, alternate to GENERATE after the last cycle evolved.
+def test_yield_tie_without_stagnation_generates() -> None:
+    """On a yield tie with no measured stagnation, generate (F10).
 
-    Guarantees later cycles keep exploring new regions rather than only ever
-    evolving (M2 acceptance: new Generation work after the first tournament).
+    Covers the common both-zero tie, including a pool that just evolved:
+    evolution must not fire on a tie without a measured leaderboard-stability
+    signal, whatever the last work task was.
     """
     stats = healthy_stats(
         generation_yield=0.0,
         evolution_yield=0.0,
+        rank_stable_cycles=0,
         last_work_task=TaskType.EVOLVE,
     )
     decision = decide_next_task(stats, BUDGET)
     assert decision.next_task is TaskType.GENERATE
 
 
-def test_yield_tie_after_generation_evolves() -> None:
-    """On a yield tie, evolve the leaders after the last cycle generated."""
+def test_yield_tie_with_stagnation_evolves() -> None:
+    """On a yield tie, evolve on the transition into leaderboard stagnation.
+
+    ``rank_stable_cycles`` is a real, measured per-cycle signal from the
+    ranking agent's own Elo output -- the substitute this audit item wires
+    in for the untrustworthy ``performance_assessment`` field (F5), which is
+    produced once before any hypothesis exists and cannot measure anything.
+    The last work task was GENERATE, so this is a fresh transition into
+    stagnation, not a repeat.
+    """
     stats = healthy_stats(
         generation_yield=0.0,
         evolution_yield=0.0,
+        rank_stable_cycles=1,
         last_work_task=TaskType.GENERATE,
     )
     decision = decide_next_task(stats, BUDGET)
     assert decision.next_task is TaskType.EVOLVE
+    assert "stagnant" in decision.reason
+
+
+def test_yield_tie_with_standing_stagnation_generates() -> None:
+    """A tie does not evolve twice in a row off standing stagnation (F10).
+
+    ``rank_stable_cycles`` does not reset once the leaderboard settles -- it
+    stays >= 1 for every later cycle until the Elo ordering next changes. If
+    evolution already had its turn (``last_work_task`` is EVOLVE) and the
+    leaderboard is still tied and still stagnant, the policy must generate
+    instead of evolving again: repeated evolution of an already-converged
+    pool breeds from the same narrow set of survivors on every pass, the
+    same failure mode already seen in production. This is what keeps
+    generation from being starved for the rest of a long run.
+    """
+    stats = healthy_stats(
+        generation_yield=0.0,
+        evolution_yield=0.0,
+        rank_stable_cycles=3,
+        last_work_task=TaskType.EVOLVE,
+    )
+    decision = decide_next_task(stats, BUDGET)
+    assert decision.next_task is TaskType.GENERATE
+    assert "already had its turn" in decision.reason
 
 
 # --- Precedence / ordering --------------------------------------------------
 
 
-def test_cancellation_outranks_budget_and_backlog() -> None:
-    """Cancellation is checked before budget and productive work."""
+def test_safety_outranks_budget_and_backlog() -> None:
+    """A safety block is checked before budget and productive work."""
     budget = Budget(max_iterations=100, max_llm_calls=1)
-    stats = healthy_stats(cancelled=True, llm_calls=100, unreviewed_count=5)
+    stats = healthy_stats(
+        safety_blocked=True, llm_calls=100, unreviewed_count=5
+    )
     decision = decide_next_task(stats, budget)
-    assert decision.termination_reason is TerminationReason.CANCELLED
+    assert decision.termination_reason is TerminationReason.SAFETY
 
 
 def test_budget_outranks_backlog() -> None:
@@ -349,3 +432,57 @@ def _terminate_decision() -> SupervisorDecision:
         terminate=True,
         termination_reason=TerminationReason.CONVERGED,
     )
+
+
+# --- Durability across the F11/F12 schema change -----------------------------
+
+
+def test_budget_from_dict_tolerates_a_pre_f11_checkpoint() -> None:
+    """A checkpoint's ``budget`` dict from before F11 still loads.
+
+    ``Budget.from_dict`` only reads keys that are dataclass fields, so a
+    payload written before ``max_ideas``/``max_matches_per_idea`` existed
+    loads with both defaulting to None (no limit) rather than raising.
+    """
+    pre_f11_payload = {
+        "max_iterations": 5,
+        "max_llm_calls": 1000,
+        "max_tasks": 100,
+        "max_wall_clock_s": None,
+    }
+    budget = Budget.from_dict(pre_f11_payload)
+    assert budget.max_ideas is None
+    assert budget.max_matches_per_idea is None
+    # And it still enforces the fields it did carry.
+    stats = healthy_stats(tasks_run=100)
+    decision = decide_next_task(stats, budget)
+    assert decision.termination_reason is TerminationReason.MAX_TASKS
+
+
+def test_stale_cancelled_termination_reason_string_is_inert_data() -> None:
+    """A pre-F12 checkpoint's stored ``"cancelled"`` reason never re-parses.
+
+    ``TerminationReason`` no longer has a ``CANCELLED`` member, but a run
+    that genuinely terminated with that reason before this change has it
+    sitting in persisted ``task_history``/``termination_reason`` state as a
+    plain string -- never reconstructed back into the enum anywhere in the
+    engine (state.py types both as ``str``). Resuming such a run must not
+    raise; this pins that the enum's remaining members are unaffected by an
+    unrelated stale string coexisting in state.
+    """
+    stale_history_entry = {
+        "task_type": "generate",
+        "status": "completed",
+        "reason": "done",
+        "iteration": 3,
+        "termination_reason": "cancelled",
+    }
+    # Nothing in the scheduling module parses this back into an enum; it is
+    # opaque data that a resumed run only ever carries forward or displays.
+    assert stale_history_entry["termination_reason"] == "cancelled"
+    # The current enum has no such member, confirming removal is complete.
+    assert "cancelled" not in {r.value for r in TerminationReason}
+    # A fresh decision on the same (now-resumed) run is unaffected.
+    stats = healthy_stats()
+    decision = decide_next_task(stats, BUDGET)
+    assert decision.termination_reason != "cancelled"

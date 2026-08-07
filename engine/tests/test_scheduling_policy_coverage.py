@@ -9,6 +9,7 @@ non-stalling number of rounds. All assertions are against the pure
 """
 
 from co_scientist.scheduling import (
+    Budget,
     TaskType,
     TerminationReason,
     decide_next_task,
@@ -76,19 +77,21 @@ def test_owed_coverage_outranks_budget_termination() -> None:
     assert decision.next_task is TaskType.RANK
 
 
-def test_cancellation_outranks_owed_coverage() -> None:
-    # The operator asked the run to stop; further tournament work is wrong.
+def test_owed_coverage_outranks_max_matches_per_idea() -> None:
+    # The paper's MaxMatchesPerIdea ceiling (F11) is part of the same
+    # budget-termination family as max_llm_calls/max_tasks/max_wall_clock_s,
+    # so a spent ceiling must not strand an idea that never played either.
+    budget = Budget(max_iterations=5, max_matches_per_idea=1.0)
     stats = healthy_stats(
         rankable_count=3,
+        match_coverage=1.0,
         unmatched_rankable_count=1,
         owed_coverage_rounds=1,
-        cancelled=True,
     )
 
-    decision = decide_next_task(stats, BUDGET)
+    decision = decide_next_task(stats, budget)
 
-    assert decision.next_task is TaskType.TERMINATE
-    assert decision.termination_reason is TerminationReason.CANCELLED
+    assert decision.next_task is TaskType.RANK
 
 
 def test_safety_block_outranks_owed_coverage() -> None:

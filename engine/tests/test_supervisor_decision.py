@@ -136,7 +136,9 @@ async def test_provider_failure_records_fallback(
 
     monkeypatch.setattr(supervisor_decision, "call_llm_json", _failed)
     # Open choice: no required transition fires, so the model is consulted
-    # and its failure is what the fallback has to absorb.
+    # and its failure is what the fallback has to absorb. Default stats are a
+    # yield tie with no measured leaderboard stagnation, so the deterministic
+    # fallback generates.
     stats = SchedulerStats(pool_size=4, reviewed_count=4, iteration=1)
     (
         decision,
@@ -145,7 +147,7 @@ async def test_provider_failure_records_fallback(
     ) = await supervisor_decision.choose_supervisor_task(
         _state(), stats, Budget(max_iterations=4)
     )
-    assert decision.next_task is TaskType.EVOLVE
+    assert decision.next_task is TaskType.GENERATE
     assert provenance == "reconstructed-fallback"
 
 
@@ -422,5 +424,10 @@ async def test_repeated_maintenance_cannot_stall_iteration_budget(
         state, stats, Budget(max_iterations=2)
     )
 
-    assert decision.next_task is TaskType.EVOLVE
+    # A yield tie with no measured leaderboard stagnation (rank_stable_cycles
+    # defaults to 0) falls back to GENERATE; the invariant under test is that
+    # the model's repeated "reflect" is overruled, not the specific baseline
+    # task, so this only needs to match whatever the deterministic policy
+    # picks for these stats.
+    assert decision.next_task is TaskType.GENERATE
     assert provenance == "hard-invariant"

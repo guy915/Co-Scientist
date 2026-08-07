@@ -21,6 +21,88 @@ from co_scientist.scheduling.models import (
 )
 
 
+def _llm_call_budget_check(
+    stats: SchedulerStats, budget: Budget
+) -> SupervisorDecision | None:
+    """Terminate once the LLM-call ceiling is reached."""
+    max_calls = budget.max_llm_calls
+    if max_calls is None or stats.llm_calls < max_calls:
+        return None
+    return _terminate(
+        TerminationReason.BUDGET,
+        f"LLM-call budget exhausted ({stats.llm_calls}/{max_calls})",
+    )
+
+
+def _task_budget_check(
+    stats: SchedulerStats, budget: Budget
+) -> SupervisorDecision | None:
+    """Terminate once the task ceiling is reached."""
+    max_tasks = budget.max_tasks
+    if max_tasks is None or stats.tasks_run < max_tasks:
+        return None
+    return _terminate(
+        TerminationReason.MAX_TASKS,
+        f"task budget exhausted ({stats.tasks_run}/{max_tasks})",
+    )
+
+
+def _wall_clock_budget_check(
+    stats: SchedulerStats, budget: Budget
+) -> SupervisorDecision | None:
+    """Terminate once the wall-clock ceiling is reached."""
+    limit = budget.max_wall_clock_s
+    if limit is None or stats.elapsed_s < limit:
+        return None
+    return _terminate(
+        TerminationReason.WALL_CLOCK,
+        f"wall-clock budget exhausted ({stats.elapsed_s:.0f}s/{limit:.0f}s)",
+    )
+
+
+def _max_ideas_check(
+    stats: SchedulerStats, budget: Budget
+) -> SupervisorDecision | None:
+    """Terminate once the idea-pool ceiling (paper's ``MaxIdeas``) is hit.
+
+    Gated on ``unreviewed_count == 0``: this check runs before the review
+    backlog step (``_check_review_backlog``), so a bare pool-size ceiling
+    would strand the freshest, still-unreviewed ideas at the moment the pool
+    crosses it. Requiring the backlog drained first lets that step run on a
+    later cycle before this one fires.
+    """
+    limit = budget.max_ideas
+    if limit is None or stats.unreviewed_count > 0 or stats.pool_size < limit:
+        return None
+    return _terminate(
+        TerminationReason.MAX_IDEAS,
+        f"idea-pool budget exhausted ({stats.pool_size}/{limit})",
+    )
+
+
+def _max_matches_per_idea_check(
+    stats: SchedulerStats, budget: Budget
+) -> SupervisorDecision | None:
+    """Terminate once coverage hits the paper's ``MaxMatchesPerIdea``.
+
+    Measured on the same average-coverage observable
+    ``_check_tournament_coverage`` reads (``match_coverage``), not a true
+    per-idea maximum -- see the ``Budget`` docstring for why.
+    """
+    limit = budget.max_matches_per_idea
+    if (
+        limit is None
+        or stats.rankable_count < 2
+        or stats.match_coverage < limit
+    ):
+        return None
+    return _terminate(
+        TerminationReason.MAX_MATCHES_PER_IDEA,
+        f"match budget exhausted (avg {stats.match_coverage:.2f}/"
+        f"{limit:.2f} matches per idea)",
+    )
+
+
 def _budget_termination(
     stats: SchedulerStats, budget: Budget
 ) -> SupervisorDecision | None:
@@ -29,26 +111,16 @@ def _budget_termination(
     Checked before any productive task so an exhausted run always stops with a
     precise, recorded reason rather than scheduling more work it cannot afford.
     """
-    max_calls = budget.max_llm_calls
-    if max_calls is not None and stats.llm_calls >= max_calls:
-        return _terminate(
-            TerminationReason.BUDGET,
-            f"LLM-call budget exhausted ({stats.llm_calls}/{max_calls})",
-        )
-    if budget.max_tasks is not None and stats.tasks_run >= budget.max_tasks:
-        return _terminate(
-            TerminationReason.MAX_TASKS,
-            f"task budget exhausted ({stats.tasks_run}/{budget.max_tasks})",
-        )
-    if (
-        budget.max_wall_clock_s is not None
-        and stats.elapsed_s >= budget.max_wall_clock_s
+    for check in (
+        _llm_call_budget_check,
+        _task_budget_check,
+        _wall_clock_budget_check,
+        _max_ideas_check,
+        _max_matches_per_idea_check,
     ):
-        return _terminate(
-            TerminationReason.WALL_CLOCK,
-            f"wall-clock budget exhausted ({stats.elapsed_s:.0f}s/"
-            f"{budget.max_wall_clock_s:.0f}s)",
-        )
+        decision = check(stats, budget)
+        if decision is not None:
+            return decision
     return None
 
 
@@ -76,11 +148,9 @@ def _generation_vs_evolution(stats: SchedulerStats) -> SupervisorDecision:
     """Choose GENERATE vs EVOLVE from the relative yields (Supervisor §4).
 
     The paper's Supervisor weights the *relative effectiveness of generation
-    vs. evolution*. A clear yield edge decides directly. On a tie (including
-    the common both-zero case), alternate off the last work task so later
-    cycles still explore new regions rather than only ever evolving — the
-    first loop after the initial generation evolves the leaders, and the cycle
-    after that generates into unexplored space.
+    vs. evolution*. A clear yield edge decides directly; a tie defers to
+    :func:`_tie_break`, which is strictly stagnation-gated rather than
+    alternating blind.
     """
     gen_y, evo_y = stats.generation_yield, stats.evolution_yield
     can_evolve = stats.reviewed_count >= 2
@@ -94,20 +164,58 @@ def _generation_vs_evolution(stats: SchedulerStats) -> SupervisorDecision:
             f"generation out-yields evolution (gen={gen_y:.2f} > "
             f"evo={evo_y:.2f}); generate new regions"
         )
-    # Tie: alternate off the last work task to keep exploring.
-    if stats.last_work_task is TaskType.EVOLVE:
-        return _generate(
-            "alternating after evolution; generate unexplored regions"
+    return _tie_break(stats, can_evolve)
+
+
+def _tie_break(stats: SchedulerStats, can_evolve: bool) -> SupervisorDecision:
+    """Break a generate/evolve yield tie on measured leaderboard stagnation.
+
+    Evolution earns the tie only on the *transition* into stagnation --
+    ``rank_stable_cycles >= 1`` and the last work task was not already an
+    evolve -- not on standing stagnation. ``rank_stable_cycles`` does not
+    reset once the leaderboard settles; it stays >= 1 for every subsequent
+    cycle until the Elo ordering next changes. Evolving on the bare level
+    condition would therefore evolve every remaining tie for the rest of the
+    run, breeding the evolution pool from an already-converged set of
+    survivors on each pass -- the same narrowing failure mode already seen
+    in production (repeated evolution of a stagnant pool converges on
+    near-identical descendants). Requiring ``last_work_task`` not to already
+    be EVOLVE makes the trigger fire once per stagnation episode: the first
+    stagnant tie evolves, and the very next tie -- stagnant or not --
+    generates instead, exploring a new region rather than re-breeding a
+    leaderboard that evolution has already had one uncontested attempt to
+    move. This also covers the common both-zero tie, including the seeded
+    first decision where ``rank_stable_cycles`` starts at 0 because no match
+    has been played yet, so evolution never fires on a tie without evidence
+    the leaderboard has actually settled.
+    """
+    just_evolved = stats.last_work_task is TaskType.EVOLVE
+    if can_evolve and stats.rank_stable_cycles >= 1 and not just_evolved:
+        return _evolve(
+            f"yield tie (gen=evo={stats.generation_yield:.2f}) on the "
+            f"transition into a stagnant leaderboard "
+            f"({stats.rank_stable_cycles} stable cycle(s)); evolve leaders"
         )
-    if can_evolve:
-        return _evolve("alternating after generation; evolve leaders")
-    return _generate("too few reviewed leaders to evolve; generate")
+    if stats.rank_stable_cycles >= 1:
+        return _generate(
+            f"yield tie (gen=evo={stats.generation_yield:.2f}) with a "
+            "leaderboard still stagnant after evolution already had its "
+            "turn; generate new regions instead of re-breeding it"
+        )
+    return _generate(
+        f"yield tie (gen=evo={stats.generation_yield:.2f}) with no measured "
+        "leaderboard stagnation; generate new regions"
+    )
 
 
 def _check_stop_signals(stats: SchedulerStats) -> SupervisorDecision | None:
-    """Step 1: external stop signals (cancellation, safety) win outright."""
-    if stats.cancelled:
-        return _terminate(TerminationReason.CANCELLED, "run cancelled")
+    """Step 1: an external safety stop wins outright.
+
+    Cancellation is not checked here: the durable executor enforces it by
+    never dispatching another node once a run is marked cancelled, so there
+    is no graph-internal signal for this policy to read (see
+    ``TerminationReason``'s docstring).
+    """
     if stats.safety_blocked:
         return _terminate(
             TerminationReason.SAFETY, "safety block halted the run"
@@ -120,15 +228,15 @@ def _check_owed_coverage(
 ) -> SupervisorDecision | None:
     """Step 3: settle hypotheses the tournament still owes matches to.
 
-    Ranked above the budget ceilings and below the cancel/safety stops and
-    scientist steering. A hypothesis that leaves a run under-covered has no
-    tournament result worth reading, which is a worse outcome than a small,
-    bounded overshoot of a ceiling that exists to catch runaways rather
-    than to meter work. Cancellation and safety blocks still win outright:
-    the operator asked to stop, or the content is unsafe, and more work is
-    wrong in both cases. Steering wins because the orchestrator consumes a
-    steering message on the cycle it observes it, so losing that cycle to
-    ranking would drop the scientist's message entirely.
+    Ranked above the budget ceilings and below the safety stop and scientist
+    steering. A hypothesis that leaves a run under-covered has no tournament
+    result worth reading, which is a worse outcome than a small, bounded
+    overshoot of a ceiling that exists to catch runaways rather than to
+    meter work. A safety block still wins outright: the content is unsafe,
+    and more work is wrong regardless of coverage. Steering wins because the
+    orchestrator consumes a steering message on the cycle it observes it, so
+    losing that cycle to ranking would drop the scientist's message
+    entirely.
 
     Per-hypothesis rather than the average used by
     :func:`_check_tournament_coverage`, which cannot represent this state:

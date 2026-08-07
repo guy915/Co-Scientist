@@ -40,14 +40,15 @@ _PRODUCTIVE_TASKS = (
 # iteration bookkeeping and the post-budget growth guard here agree on the set.
 WORK_TASKS = frozenset({TaskType.GENERATE, TaskType.EVOLVE})
 
-# Stops no amount of owed tournament coverage may defer. The operator asked
-# the run to stop, or the content is unsafe; more work is wrong either way.
-# The budget family defers instead, because a hypothesis stranded without any
-# tournament result is a worse outcome than a bounded overshoot of a ceiling
-# that exists to catch runaways.
-_IMMEDIATE_STOP_REASONS = frozenset(
-    {TerminationReason.CANCELLED, TerminationReason.SAFETY}
-)
+# Stops no amount of owed tournament coverage may defer. The content is
+# unsafe, and more work is wrong regardless of coverage. The budget family
+# (including MAX_IDEAS/MAX_MATCHES_PER_IDEA) defers instead, because a
+# hypothesis stranded without any tournament result is a worse outcome than
+# a bounded overshoot of a ceiling that exists to catch runaways. There is no
+# CANCELLED entry: cancellation is enforced by the durable executor never
+# dispatching another node, not by a decision this policy makes (see
+# ``scheduling.TerminationReason``'s docstring).
+_IMMEDIATE_STOP_REASONS = frozenset({TerminationReason.SAFETY})
 
 # Every constraint below is executable, not documentation. Production's
 # provider enforces none of it -- DeepSeek only accepts json_object, where
@@ -181,6 +182,36 @@ def _budget_exceeded(limit: float | None, value: float) -> bool:
     return limit is not None and value >= limit
 
 
+def _max_ideas_exceeded(stats: SchedulerStats, budget: Budget) -> bool:
+    """Return whether the idea-pool ceiling is hit with no review owed.
+
+    Mirrors ``policy_checks._max_ideas_check``'s gate: this runs ahead of
+    the review-backlog step, so a bare pool-size ceiling would otherwise
+    strand the freshest, still-unreviewed ideas.
+    """
+    limit = budget.max_ideas
+    return (
+        limit is not None
+        and stats.unreviewed_count == 0
+        and stats.pool_size >= limit
+    )
+
+
+def _max_matches_per_idea_exceeded(
+    stats: SchedulerStats, budget: Budget
+) -> bool:
+    """Return whether average tournament coverage hit its ceiling.
+
+    Mirrors ``policy_checks._max_matches_per_idea_check``.
+    """
+    limit = budget.max_matches_per_idea
+    return (
+        limit is not None
+        and stats.rankable_count >= 2
+        and stats.match_coverage >= limit
+    )
+
+
 # Ordered (triggered, reason, message) checks for _hard_stop_reason: the
 # first true entry wins, matching the original if/elif precedence exactly.
 def _hard_stop_checks(
@@ -188,7 +219,6 @@ def _hard_stop_checks(
 ) -> tuple[tuple[bool, TerminationReason, str], ...]:
     """Build the ordered hard-stop predicates for these stats/budget."""
     return (
-        (stats.cancelled, TerminationReason.CANCELLED, "run cancelled"),
         (
             stats.safety_blocked,
             TerminationReason.SAFETY,
@@ -208,6 +238,16 @@ def _hard_stop_checks(
             _budget_exceeded(budget.max_wall_clock_s, stats.elapsed_s),
             TerminationReason.WALL_CLOCK,
             "wall-clock budget exhausted",
+        ),
+        (
+            _max_ideas_exceeded(stats, budget),
+            TerminationReason.MAX_IDEAS,
+            "idea-pool budget exhausted",
+        ),
+        (
+            _max_matches_per_idea_exceeded(stats, budget),
+            TerminationReason.MAX_MATCHES_PER_IDEA,
+            "match budget exhausted",
         ),
     )
 
@@ -291,8 +331,8 @@ async def choose_supervisor_task(
 ) -> tuple[SupervisorDecision, str, int]:
     """Choose the next productive task, consulting the model only if needed.
 
-    Hard cancellation, safety, and compute limits are enforced before the
-    model call. A malformed or unavailable planning call falls back to the
+    Hard safety and compute limits are enforced before the model call. A
+    malformed or unavailable planning call falls back to the
     existing deterministic policy and records that provenance explicitly.
 
     Most loop points do not present a choice. The disclosed scheduler's

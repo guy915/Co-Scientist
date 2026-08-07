@@ -45,17 +45,28 @@ class TerminationReason(str, enum.Enum):
     """Why the workflow stopped.
 
     ``BUDGET``/``WALL_CLOCK``/``MAX_TASKS`` are hard resource limits;
-    ``COMPLETED`` is the satisfied iteration budget; ``CONVERGED`` is the
-    clone-defined stability predicate; ``CANCELLED`` is external cancellation;
-    ``SAFETY`` is a safety block (Milestone 6 hook).
+    ``MAX_IDEAS``/``MAX_MATCHES_PER_IDEA`` are the paper's own named
+    termination predicates (Supervisor §4: ``MaxIdeas``,
+    ``MaxMatchesPerIdea``); ``COMPLETED`` is the satisfied iteration budget;
+    ``CONVERGED`` is the clone-defined stability predicate; ``SAFETY`` is a
+    safety block (Milestone 6 hook).
+
+    There is deliberately no ``CANCELLED`` member: the durable executor
+    (``app/app/engine_tasks_node.py``) enforces cancellation by never
+    dispatching another node once a run is marked cancelled, so a
+    graph-internal predicate for it would be a second, weaker enforcement
+    point rather than a real signal -- no writer anywhere in this codebase
+    ever set the ``cancel_requested`` state key the old predicate read, so
+    it could never fire on a real run. See ``docs/fidelity-audit`` (F12).
     """
 
     BUDGET = "budget"
     WALL_CLOCK = "wall_clock"
     MAX_TASKS = "max_tasks"
+    MAX_IDEAS = "max_ideas"
+    MAX_MATCHES_PER_IDEA = "max_matches_per_idea"
     COMPLETED = "completed"
     CONVERGED = "converged"
-    CANCELLED = "cancelled"
     SAFETY = "safety"
 
 
@@ -67,12 +78,26 @@ class Budget:
     The others are optional hard ceilings; ``None`` means "no limit". The
     scheduler enforces all of them as real termination predicates, not just
     ``max_iterations``.
+
+    ``max_ideas``/``max_matches_per_idea`` are the paper's own named limits
+    (Supervisor §4). ``max_ideas`` caps the hypothesis pool
+    (``SchedulerStats.pool_size``); ``max_matches_per_idea`` caps average
+    tournament participation (``SchedulerStats.match_coverage``) rather than
+    a true per-idea maximum, matching the average-coverage observable the
+    rest of the scheduler already reads (see
+    ``policy_checks._check_tournament_coverage``). Setting
+    ``max_matches_per_idea`` at or below ``min_match_coverage`` is a
+    degenerate configuration: the run would hit this ceiling before the
+    tournament ever reaches its own minimum-coverage requirement, so a
+    caller combining both should keep this one strictly larger.
     """
 
     max_iterations: int
     max_llm_calls: int | None = None
     max_tasks: int | None = None
     max_wall_clock_s: float | None = None
+    max_ideas: int | None = None
+    max_matches_per_idea: float | None = None
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize for state/checkpoint transport."""
@@ -155,8 +180,14 @@ class SchedulerStats:
     evolution_yield: float = 0.0
     # Loop bookkeeping.
     iteration: int = 0
-    # The last GENERATE/EVOLVE work task run, used to break a yield tie by
-    # alternating so later cycles still explore new regions (not only evolve).
+    # The last GENERATE/EVOLVE work task run. The orchestrator uses this to
+    # attribute a pool-size delta to the right yield counter above. The
+    # scheduling policy also reads it in ``policy_checks._tie_break``: a
+    # yield tie evolves only on the transition into a stagnant leaderboard
+    # (``rank_stable_cycles >= 1`` and this field is not already EVOLVE), so
+    # stagnation triggers at most one evolve before the next tie generates
+    # instead -- a standing (rather than edge-triggered) stagnation reading
+    # would otherwise evolve every remaining tie for the rest of the run.
     last_work_task: TaskType | None = None
     # Budget counters.
     llm_calls: int = 0
@@ -164,6 +195,13 @@ class SchedulerStats:
     elapsed_s: float = 0.0
     # External signals.
     pending_steering: bool = False
+    # Unread by the scheduling policy: no writer anywhere sets the
+    # ``cancel_requested`` state key this is built from
+    # (``agents.supervisor.orchestrator_stats``), so it is always False on a
+    # real run (finding F12). Retained here rather than removed because that
+    # orchestrator-side constructor call is out of this module's ownership;
+    # a false-positive stop is worse than an inert field, so nothing in
+    # ``policy_checks``/``supervisor_decision`` reads it any longer.
     cancelled: bool = False
     safety_blocked: bool = False
     last_task_failed: TaskType | None = None

@@ -119,8 +119,8 @@ def validate_decision(
     never the iteration counter, and never any allowance the termination
     predicates read.
 
-    Terminating decisions return untouched above, so no stop -- cancellation,
-    safety, or a spent budget -- ever carries actions through here; those are
+    Terminating decisions return untouched above, so no stop -- a safety
+    block or a spent budget -- ever carries actions through here; those are
     built fresh by ``policy_checks`` and ``supervisor_decision._hard_stop``
     and never pass a ``_correct_*`` helper.
 
