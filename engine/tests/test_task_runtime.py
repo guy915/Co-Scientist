@@ -18,6 +18,7 @@ from co_scientist.task_runtime import (
     apply_task_update,
     execute_task_node,
     next_task_type,
+    plan_portfolio,
 )
 from tests._llm_wrapper_fakes import (
     make_completion,
@@ -137,6 +138,80 @@ async def test_execute_task_node_captures_llm_telemetry_by_phase(
     assert entry["cache_hits"] == 0
     assert entry["latency_seconds"] >= 0
     assert entry["errors"] == {}
+
+
+@pytest.mark.parametrize(
+    ("start", "mcp", "expected"),
+    [
+        # A fanning node is included as the chain's own head but never
+        # walked past -- its real successor is unknowable until its
+        # dynamically sized fan-out aggregate commits (finding F4).
+        ("generate", True, ["generate"]),
+        ("ranking", False, ["ranking"]),
+        # A resolver route (mcp_available-gated) is walkable once its
+        # state key is already committed, and the walk continues past the
+        # resolved hop until it reaches a fanning node.
+        ("generate", False, ["generate"]),
+        ("reflection", False, ["reflection", "review"]),
+        ("safety_screen", False, ["safety_screen", "ranking"]),
+        # orchestrator is a stop node in its own right: never resolved
+        # into, and never resolved past when it is reached mid-walk.
+        ("orchestrator", False, ["orchestrator"]),
+        ("proximity", False, ["proximity", "orchestrator"]),
+        ("evolve", False, ["evolve", "review"]),
+        ("meta_review", False, ["meta_review", "evolve", "review"]),
+        # The terminal node has no successor to walk to.
+        ("research_overview", False, ["research_overview"]),
+    ],
+)
+def test_plan_portfolio_walks_the_deterministic_tail(
+    start: str, mcp: bool, expected: list[str]
+) -> None:
+    state = make_state(mcp_available=mcp)
+    assert plan_portfolio(start, state) == expected
+
+
+def test_plan_portfolio_walks_supervisor_when_mcp_is_known() -> None:
+    """Supervisor's own resolver route is walkable once bootstrap sets it.
+
+    ``mcp_available`` is populated in the very first state a run ever
+    commits (finding F4 relies on this key being present, not on
+    supervisor having already run).
+    """
+    state = make_state(mcp_available=True)
+    assert plan_portfolio("supervisor", state) == [
+        "supervisor",
+        "literature_review",
+        "generate",
+    ]
+
+
+def test_plan_portfolio_stops_at_an_unresolvable_resolver_route() -> None:
+    """A resolver walk never guesses the falsy branch of a missing key.
+
+    Absence, not falsiness, is what stops the walk: guessing the falsy
+    branch of a route whose state has genuinely not been decided yet
+    would let a portfolio plan a node the run may never actually reach.
+    """
+    state = make_state()
+    del state["mcp_available"]  # type: ignore[misc]
+    assert plan_portfolio("supervisor", state) == ["supervisor"]
+
+
+def test_plan_portfolio_never_calls_the_orchestrator_resolver() -> None:
+    """Orchestrator's route reads state a portfolio walk must never guess.
+
+    ``next_task`` carries the *previous* orchestrator cycle's decision
+    until the orchestrator itself runs again and overwrites it, so
+    resolving through it ahead of time would silently plan off a stale
+    decision instead of stopping. A stale value here must not change the
+    walk's outcome.
+    """
+    state = make_state(mcp_available=False, next_task="evolve")
+    assert plan_portfolio("proximity", state) == [
+        "proximity",
+        "orchestrator",
+    ]
 
 
 def test_durable_path_accumulates_tournament_matchups() -> None:

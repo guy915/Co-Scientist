@@ -186,13 +186,26 @@ async def test_worker_consumes_independent_specialist_task_chain(
     await task_worker.run_run_until_idle(run.id, "worker", db_path=isolated_db)
 
     tasks = store.list_tasks(run.id, db_path=isolated_db)
+    # Bootstrap's real commit plans its own portfolio (finding F4) from the
+    # real route table before this fixture's `execute` ever runs: with
+    # `mcp_available=False`, supervisor's real successor is `generate`, so
+    # bootstrap enqueues it as a lookahead row chained behind supervisor.
+    # The fixture then hands supervisor a fictional successor
+    # (`research_overview`) to exercise independent task leasing without
+    # the full real graph, which supersedes that lookahead guess -- cancelled
+    # in the same transaction as the real "research_overview" successor
+    # (`app.engine_tasks_portfolio._cancel_stale_planned_row`), not removed
+    # from the row history `list_tasks` returns.
     assert [task.task_type for task in tasks] == [
         "engine.bootstrap",
         "engine.node.supervisor",
+        "engine.node.generate",
         "engine.node.research_overview",
         "engine.finalize",
     ]
-    assert all(task.status == "completed" for task in tasks)
+    by_type = {task.task_type: task.status for task in tasks}
+    assert by_type.pop("engine.node.generate") == "cancelled"
+    assert all(status == "completed" for status in by_type.values())
     # Milestones append once in commit order, from the canonical
     # `supervisor.plan` and `research_overview` builders (see events.py).
     assert _milestones(run.id, db_path=isolated_db) == [

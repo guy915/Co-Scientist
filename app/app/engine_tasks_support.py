@@ -42,6 +42,9 @@ from app.engine_tasks_metrics import (
 from app.engine_tasks_metrics import (
     _plain_metrics as _plain_metrics,
 )
+from app.engine_tasks_portfolio import (
+    _enqueue_node_portfolio as _enqueue_node_portfolio,
+)
 from app.engine_tasks_queue_actions import (
     _apply_single_queue_action as _apply_single_queue_action,
 )
@@ -156,40 +159,6 @@ def _generator_for_restore(task: ScientificTask, db_path: str | None) -> Any:
     )
 
 
-def _enqueue_node_successor(
-    task: ScientificTask,
-    state: dict[str, Any],
-    successor_type: str,
-    checkpoint_seq: int,
-    conn: sqlite3.Connection,
-) -> ScientificTask:
-    """Enqueue a node's successor, applying any Supervisor queue actions.
-
-    Supervisor queue mutations are applied inside the same transaction as
-    the successor enqueue so both observe the same checkpoint commit.
-    """
-    is_orchestrator = task.task_type == f"{NODE_TASK_PREFIX}orchestrator"
-    if is_orchestrator:
-        _apply_supervisor_queue_actions(
-            task.run_id, state.get("supervisor_queue_actions") or [], conn
-        )
-    priority = (
-        int(state.get("next_task_priority", 90)) if is_orchestrator else 90
-    )
-    return store.enqueue_task(
-        store.NewTask(
-            run_id=task.run_id,
-            task_type=successor_type,
-            inputs={"checkpoint_seq": checkpoint_seq},
-            idempotency_key=f"{successor_type}:{checkpoint_seq}",
-            priority=store.clamp_task_priority(priority),
-            dependencies=(task.id,),
-            provenance={"scheduled_by": task.task_type},
-        ),
-        conn=conn,
-    )
-
-
 def _save_node_checkpoint(
     task: ScientificTask,
     envelope: dict[str, Any],
@@ -202,12 +171,13 @@ def _save_node_checkpoint(
     ``resume_successor`` names the task that this checkpoint's committed
     state feeds into next, so a crash-resume re-enqueues the right node
     rather than the orchestrator default in
-    ``task_worker.enqueue_run_workflow``. It matches the successor enqueued
-    right after (same type, same checkpoint_seq), so its idempotency key is
-    identical and resume resolves to that exact already-queued task instead
-    of creating a second one. Without it, a run interrupted right after
-    bootstrap resumed at the orchestrator with no supervisor_guidance in
-    state and failed in generation. The cooperative-pause path
+    ``task_worker.enqueue_run_workflow``. Its own resume-side enqueue
+    derives the same predecessor-anchored idempotency key
+    (``app.engine_tasks_portfolio``) from this checkpoint's ``stage``, so
+    resume resolves to the exact already-queued task instead of creating
+    a second one. Without it, a run interrupted right after bootstrap
+    resumed at the orchestrator with no supervisor_guidance in state and
+    failed in generation. The cooperative-pause path
     (``_save_paused_state``) already records this; this closes that gap.
     """
     from co_scientist.checkpoint import CHECKPOINT_VERSION
@@ -246,6 +216,13 @@ def _save_state_and_enqueue(
     fan-out-aggregate commit routes through this one function, so a
     single hook here gives a running run's ``GET /api/runs/{id}/metrics``
     live numbers without a second transaction or a poll-driven write.
+
+    The successor enqueue (``app.engine_tasks_portfolio``) also chains
+    however much further of the deterministic node run
+    ``co_scientist.task_runtime.plan_portfolio`` can already resolve from
+    ``state`` (finding F4): a bounded portfolio rather than one task at a
+    time, without changing that this transaction still advances the
+    checkpoint chain by exactly one commit.
     """
     from co_scientist.checkpoint import serialize_workflow_state
 
@@ -259,8 +236,8 @@ def _save_state_and_enqueue(
         checkpoint_seq = _save_node_checkpoint(
             task, envelope, successor_type, commit.current_seq, conn
         )
-        successor_task = _enqueue_node_successor(
-            task, state, successor_type, checkpoint_seq, conn
+        successor_task = _enqueue_node_portfolio(
+            task, state, successor, successor_type, conn
         )
         _ack_consumed_steering(commit, conn)
         store.save_run_metrics(task.run_id, _metrics_snapshot(state), conn=conn)

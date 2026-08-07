@@ -148,6 +148,92 @@ def next_task_type(completed: str, state: WorkflowState) -> str | None:
     return route(state) if callable(route) else route
 
 
+# Nodes whose real successor is decided only once their own execution
+# commits: the fan-out family (its aggregate is created dynamically, at a
+# size unknown until the node runs) plus the orchestrator (whose successor
+# is the adaptive decision made during its own run, never a fixed route --
+# see _route_after_orchestrator). A portfolio plan may include one of these
+# as its last entry, but must never resolve what follows it (finding F4).
+FANNING_NODES = frozenset(
+    {
+        "generate",
+        "ranking",
+        "review",
+        "comprehensive_reflection",
+        "deep_verification",
+    }
+)
+_PORTFOLIO_STOP_NODES = FANNING_NODES | {"orchestrator"}
+
+# The longest deterministic run observed in this table today is three hops
+# (meta_review -> evolve -> review); this leaves headroom without letting a
+# future routing change walk unbounded.
+_MAX_PORTFOLIO_DEPTH = 4
+
+# Resolver routes that read live state instead of naming a fixed successor,
+# keyed by the completed node, mapped to the state key that must already be
+# present for a portfolio walk to resolve them ahead of that node's own
+# execution. Absent means walkable only once the node commits for real.
+_RESOLVER_REQUIRES: dict[str, str] = {
+    "supervisor": "mcp_available",
+    "generate": "mcp_available",
+}
+
+
+def _resolve_walkable_hop(current: str, state: WorkflowState) -> str | None:
+    """Resolve one portfolio hop, or None where it cannot be known yet.
+
+    Mirrors the lookup inside ``next_task_type`` for a state-dependent
+    resolver, but refuses to guess: a resolver named in
+    ``_RESOLVER_REQUIRES`` only resolves once its state key is present, so
+    a plan built before that key exists stops there rather than walking
+    the falsy branch of a route that has not actually been decided.
+    """
+    required = _RESOLVER_REQUIRES.get(current)
+    if required is not None and required not in state:
+        return None
+    route = _NEXT_TASK_ROUTES.get(current)
+    if route is None:
+        return None
+    return route(state) if callable(route) else route
+
+
+def plan_portfolio(start: str, state: WorkflowState) -> list[str]:
+    """Return the deterministic node run starting at ``start`` (finding F4).
+
+    Execution otherwise enqueues one successor at a time even across a run
+    of nodes whose outcome the route table already fixes. This walks
+    ``_NEXT_TASK_ROUTES`` forward from ``start`` using only state already
+    committed, stopping at a fanning node (its own successor cannot be
+    known until its dynamically sized fan-out aggregate commits), at
+    ``orchestrator`` (an adaptive decision made during its own run, never
+    resolved ahead of it), at the terminal node, at an unresolvable
+    resolver route, or after ``_MAX_PORTFOLIO_DEPTH`` hops -- whichever
+    comes first. ``start`` is always included, even when it is itself a
+    stop node, so a caller never special-cases a portfolio of one.
+
+    Args:
+        start: The node about to be scheduled.
+        state: Workflow state committed so far. Read only.
+
+    Returns:
+        The deterministic chain from ``start``, one to
+        ``_MAX_PORTFOLIO_DEPTH`` entries long.
+    """
+    chain = [start]
+    current = start
+    while (
+        current not in _PORTFOLIO_STOP_NODES
+        and len(chain) < _MAX_PORTFOLIO_DEPTH
+    ):
+        next_hop = _resolve_walkable_hop(current, state)
+        if next_hop is None:
+            break
+        chain.append(next_hop)
+        current = next_hop
+    return chain
+
+
 def _fold_telemetry_into_update(
     update: dict[str, Any], usage: dict[str, dict[str, Any]]
 ) -> dict[str, Any]:
@@ -197,8 +283,10 @@ async def execute_task_node(
 
 
 __all__ = [
+    "FANNING_NODES",
     "TASK_NODES",
     "apply_task_update",
     "execute_task_node",
     "next_task_type",
+    "plan_portfolio",
 ]

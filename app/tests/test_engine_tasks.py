@@ -160,9 +160,20 @@ async def test_bootstrap_commits_state_and_enqueues_supervisor(
     checkpoint = store.get_latest_checkpoint(run.id, db_path=isolated_db)
     assert checkpoint is not None and checkpoint["seq"] == 1
     tasks = store.list_tasks(run.id, db_path=isolated_db)
+    # The commit also plans as much of supervisor's own deterministic
+    # successor as it can resolve without running it (finding F4): with
+    # `mcp_available=False` (the fixture state), that is `generate`,
+    # chained behind supervisor rather than reactively enqueued once
+    # supervisor itself runs.
     assert [task.task_type for task in tasks] == [
         "engine.bootstrap",
         "engine.node.supervisor",
+        "engine.node.generate",
+    ]
+    assert [task.dependencies for task in tasks] == [
+        (),
+        (bootstrap.id,),
+        (tasks[1].id,),
     ]
 
 
@@ -386,9 +397,17 @@ async def test_ranking_matches_are_separate_sequential_checkpointed_tasks(
 async def test_inflight_pause_checkpoints_exact_successor(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A node finishing after pause commits state but enqueues no next work."""
+    """A node finishing after pause commits state but enqueues no next work.
+
+    Bootstrap's own commit already planned `generate` as supervisor's
+    resolvable successor (finding F4's portfolio lookahead), so that row
+    exists before the pause; the pause path itself must still enqueue
+    nothing further, and resume must land on that same pre-planned row
+    rather than create a second one.
+    """
     run = store.create_run("Task-level science", "standard", "engine", {})
     supervisor = await _advance_to_supervisor(run.id, monkeypatch, isolated_db)
+    before_pause = store.list_tasks(run.id, db_path=isolated_db)
 
     async def execute(
         _name: str, state: dict[str, Any]
@@ -406,9 +425,14 @@ async def test_inflight_pause_checkpoints_exact_successor(
     checkpoint = store.get_latest_checkpoint(run.id, db_path=isolated_db)
     assert checkpoint is not None
     assert checkpoint["state"]["resume_successor"] == "engine.node.generate"
-    assert len(store.list_tasks(run.id, db_path=isolated_db)) == 2
+    # The pause enqueues nothing itself: the task count is unchanged from
+    # before it (bootstrap, supervisor, and the pre-planned generate row).
+    assert len(store.list_tasks(run.id, db_path=isolated_db)) == len(
+        before_pause
+    )
 
     resumed = task_worker.enqueue_run_workflow(
         run.id, resume=True, db_path=isolated_db
     )
     assert resumed.task_type == "engine.node.generate"
+    assert resumed.id == before_pause[-1].id, "reuses the pre-planned row"

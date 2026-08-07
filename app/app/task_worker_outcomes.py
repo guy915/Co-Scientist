@@ -15,6 +15,7 @@ import logging
 from typing import Any
 
 from app import engine_tasks, store
+from app.engine_tasks_portfolio import cancel_downstream_portfolio_chain
 from app.store import ScientificTask
 
 logger = logging.getLogger(__name__)
@@ -71,6 +72,37 @@ def _park_held_task(
         logger.info("Task %s parked pending safety review", task.id)
 
 
+def _is_terminal_failure(task: ScientificTask, *, retryable: bool) -> bool:
+    """Mirror ``app.store.tasks.fail_task``'s own retry-left formula.
+
+    That function decides queued-for-retry versus failed from this exact
+    task snapshot and ``retryable`` flag, inside its own transaction this
+    module has no access to. Computing the same answer here, read-only,
+    lets a permanently failing task's downstream portfolio chain
+    (finding F4) be cancelled *before* ``fail_task`` commits, so its own
+    "settle the run if nothing claimable remains" check
+    (``app.store.runs_reconcile``) sees the cancelled chain already gone
+    rather than finding a queued row and silently declining to settle --
+    its one chance to fire, since nothing revisits that decision later.
+    """
+    return not retryable or task.attempt >= task.max_attempts
+
+
+def _cancel_downstream_before_terminal_failure(
+    task: ScientificTask, *, retryable: bool, db_path: str | None
+) -> None:
+    """Cancel a permanently failing task's downstream chain, if any.
+
+    Skipped for an ordinary retry: cancelling ahead of one would strand
+    the chain a *successful* retry still needs to reuse, since a
+    cancelled row is never revived by a later idempotent enqueue attempt
+    (finding F4's terminal-path gap -- see ``cancel_downstream_
+    portfolio_chain``).
+    """
+    if _is_terminal_failure(task, retryable=retryable):
+        cancel_downstream_portfolio_chain(task, db_path)
+
+
 def _fail_unsupported_task(
     task: ScientificTask, worker_id: str, exc: Exception, db_path: str | None
 ) -> None:
@@ -81,6 +113,9 @@ def _fail_unsupported_task(
     engine raises as a bare ValueError -- falls through to the retryable
     branch instead.
     """
+    _cancel_downstream_before_terminal_failure(
+        task, retryable=False, db_path=db_path
+    )
     store.fail_task(
         task.id, worker_id, str(exc), retryable=False, db_path=db_path
     )
@@ -94,6 +129,9 @@ def _fail_retryable_task(
 
     Worker boundary isolates one task failure from the rest of the cohort.
     """
+    _cancel_downstream_before_terminal_failure(
+        task, retryable=True, db_path=db_path
+    )
     store.fail_task(
         task.id, worker_id, str(exc), retryable=True, db_path=db_path
     )

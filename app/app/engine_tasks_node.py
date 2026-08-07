@@ -54,17 +54,68 @@ def _check_node_task_checkpoint(
 
     Raises when a different task advanced it, or when the leased checkpoint
     does not match what this task was scheduled against.
+
+    A task enqueued with a ``dependencies`` entry (every portfolio row --
+    finding F4 -- both the immediate successor and any lookahead hop
+    chained behind it) validates against its named predecessor instead of
+    a pre-recorded checkpoint sequence: that sequence cannot be known for
+    a lookahead row planned before its predecessor has run. A task with no
+    dependencies (bootstrap, resume, scientist-directed continuation) is
+    unaffected and keeps the original sequence check.
     """
-    expected_seq = int(task.inputs.get("checkpoint_seq", -1))
     # Redelivery after the checkpoint commit but before task completion is an
-    # acknowledgement replay, never a second scientific effect.
+    # acknowledgement replay, never a second scientific effect -- true
+    # regardless of which validation branch below applies.
+    if checkpoint["stage"] == f"engine_task:{task.id}":
+        return {"checkpoint_seq": current_seq, "replayed": True}
+    if task.dependencies:
+        _check_portfolio_predecessor(task, checkpoint)
+        return None
+    expected_seq = int(task.inputs.get("checkpoint_seq", -1))
     if current_seq > expected_seq:
-        if checkpoint["stage"] == f"engine_task:{task.id}":
-            return {"checkpoint_seq": current_seq, "replayed": True}
         raise SupersededTaskError("specialist task checkpoint was superseded")
     if current_seq != expected_seq:
         raise RuntimeError("specialist task checkpoint does not match input")
     return None
+
+
+def _check_portfolio_predecessor(
+    task: ScientificTask, checkpoint: dict[str, Any]
+) -> None:
+    """Confirm a portfolio row's named predecessor produced this checkpoint.
+
+    Verifies not just that the predecessor committed, but that its own
+    recorded successor names this exact task -- a plan can still turn out
+    wrong (most often a mid-run safety halt, finding J6, that routes the
+    predecessor to finalize instead of the node this row was planned as).
+    Checking only the predecessor's identity would let that stale row run
+    anyway, since the predecessor genuinely did commit; the recorded
+    successor is what ``app.engine_tasks_portfolio`` also compares to
+    decide whether a queued row is a reuse target or a stale plan to
+    cancel, so a row that slips past that cancellation still cannot run
+    here -- it settles as superseded instead, the durable worker's benign
+    idempotent outcome for an obsolete branch.
+
+    A checkpoint saved mid-pause (``engine_task_paused:{id}``, from
+    ``_save_paused_state``) names its predecessor the same way a normal
+    commit does; a portfolio row anchored to it by a resumed run's
+    ``_enqueue_resume_task`` (``app.task_worker_enqueue``) validates
+    identically either way.
+
+    Raises:
+        SupersededTaskError: If the predecessor's real successor was not
+            this task.
+    """
+    predecessor_id = task.dependencies[0]
+    resume_successor = checkpoint.get("state", {}).get("resume_successor")
+    stage = checkpoint["stage"]
+    predecessor_stages = {
+        f"engine_task:{predecessor_id}",
+        f"engine_task_paused:{predecessor_id}",
+    }
+    if stage in predecessor_stages and resume_successor == task.task_type:
+        return
+    raise SupersededTaskError("portfolio task checkpoint was superseded")
 
 
 def _restore_node_task_state(

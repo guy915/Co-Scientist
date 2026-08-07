@@ -17,28 +17,100 @@ from app.store import ScientificTask
 logger = logging.getLogger(__name__)
 
 
+def _resume_predecessor_id(
+    checkpoint: dict[str, Any], db_path: str | None
+) -> str | None:
+    """Return the real task id that produced a checkpoint, if any.
+
+    ``stage`` is ``engine_task:{id}`` (a normal commit) or
+    ``engine_task_paused:{id}`` (a cooperative pause) for every checkpoint
+    ``_save_node_checkpoint``/``_save_paused_state`` write -- the only
+    producers of a ``resume_successor`` field in production -- so the
+    trailing segment is exactly the predecessor a portfolio row would
+    name in ``dependencies`` (finding F4) had this checkpoint's
+    committing task run one commit later instead of crashing.
+
+    That segment is verified against the store rather than trusted on
+    format alone: a stage that merely looks like the pattern but names no
+    real task (a hand-built checkpoint, in a test or otherwise) would
+    anchor the resumed row to a dependency that can never complete,
+    wedging it forever behind a gate nothing will ever satisfy.
+    """
+    stage = str(checkpoint["stage"])
+    if not (
+        stage.startswith("engine_task:")
+        or stage.startswith("engine_task_paused:")
+    ):
+        return None
+    candidate = stage.rsplit(":", 1)[-1]
+    return candidate if store.get_task(candidate, db_path=db_path) else None
+
+
 def _enqueue_resume_task(
     run_id: str,
     checkpoint: dict[str, Any],
     db_path: str | None,
 ) -> ScientificTask:
-    """Re-enqueue the task a checkpoint recorded as its own resume point."""
+    """Re-enqueue the task a checkpoint recorded as its own resume point.
+
+    A checkpoint whose stage names a real predecessor task is keyed and
+    anchored exactly as ``app.engine_tasks_portfolio`` would key the same
+    edge had the committing task's own worker lived to enqueue it
+    (predecessor id, not checkpoint sequence): the same logical successor
+    enqueued through two different formats would create two claimable
+    rows for one node instead of colliding on ``ON CONFLICT DO NOTHING``,
+    and ``app.engine_tasks_node._check_node_task_checkpoint`` validates a
+    dependency-anchored row against the checkpoint's recorded successor.
+
+    Every other checkpoint -- one that recorded no ``resume_successor``
+    (pre-fix, before that field existed) or whose stage names no real
+    task -- has nothing a predecessor-anchored row could validate against,
+    so it stays on the original checkpoint-sequence scheme, unchanged
+    from before this function had a predecessor-anchored branch at all.
+    """
     checkpoint_seq = int(checkpoint["seq"])
     recorded_successor = checkpoint["state"].get("resume_successor")
     task_type = str(recorded_successor or "") or (
         f"{engine_tasks.NODE_TASK_PREFIX}orchestrator"
     )
-    idempotency_key = f"{task_type}:{checkpoint_seq}"
-    # Revive first, then enqueue. The key names the boundary the run
-    # stopped at, and it cannot change while the run makes no progress --
-    # so if that task already died, the enqueue below is a no-op against
-    # the existing row and the run would be wedged forever, announcing a
-    # resume it never performs. Reviving is a no-op unless there is a dead
-    # task under this key.
-    if store.revive_task_for_retry(run_id, idempotency_key, db_path=db_path):
-        logger.info(
-            "Resume revived a dead %s task for run %s", task_type, run_id
+    predecessor_id = _resume_predecessor_id(checkpoint, db_path)
+    if recorded_successor and predecessor_id is not None:
+        return _enqueue_resume_successor(
+            run_id, task_type, predecessor_id, checkpoint_seq, db_path
         )
+    return _enqueue_resume_fallback(run_id, task_type, checkpoint_seq, db_path)
+
+
+def _enqueue_resume_successor(
+    run_id: str,
+    task_type: str,
+    predecessor_id: str,
+    checkpoint_seq: int,
+    db_path: str | None,
+) -> ScientificTask:
+    """Resume a checkpoint whose stage names a real predecessor task."""
+    idempotency_key = f"{task_type}:after:{predecessor_id}"
+    _revive_dead_resume_target(run_id, task_type, idempotency_key, db_path)
+    return store.enqueue_task(
+        store.NewTask(
+            run_id=run_id,
+            task_type=task_type,
+            inputs={"checkpoint_seq": checkpoint_seq},
+            idempotency_key=idempotency_key,
+            priority=100,
+            dependencies=(predecessor_id,),
+            provenance={"scheduled_by": "resume"},
+        ),
+        db_path=db_path,
+    )
+
+
+def _enqueue_resume_fallback(
+    run_id: str, task_type: str, checkpoint_seq: int, db_path: str | None
+) -> ScientificTask:
+    """Resume a checkpoint on the original checkpoint-sequence scheme."""
+    idempotency_key = f"{task_type}:{checkpoint_seq}"
+    _revive_dead_resume_target(run_id, task_type, idempotency_key, db_path)
     return store.enqueue_task(
         store.NewTask(
             run_id=run_id,
@@ -50,6 +122,24 @@ def _enqueue_resume_task(
         ),
         db_path=db_path,
     )
+
+
+def _revive_dead_resume_target(
+    run_id: str, task_type: str, idempotency_key: str, db_path: str | None
+) -> None:
+    """Revive a dead task under this key before re-enqueuing over it.
+
+    The key names the boundary the run stopped at, and it cannot change
+    while the run makes no progress -- so if that task already died, an
+    enqueue against the same key is a no-op against the existing row and
+    the run would be wedged forever, announcing a resume it never
+    performs. Reviving is a no-op unless there is a dead task under this
+    key.
+    """
+    if store.revive_task_for_retry(run_id, idempotency_key, db_path=db_path):
+        logger.info(
+            "Resume revived a dead %s task for run %s", task_type, run_id
+        )
 
 
 def enqueue_run_workflow(
