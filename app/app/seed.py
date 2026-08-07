@@ -19,6 +19,7 @@ from typing import Any
 
 from app import store, task_worker
 from app.demo_seed_data import DEMO_SCENARIOS, DEMO_SEED_VERSION
+from app.litellm_shutdown import run_in_scoped_loop
 from app.run_modes import resolved_run_config, setup_config
 from app.seed_overview import (
     _curated_meta_review as _curated_meta_review,
@@ -110,7 +111,7 @@ def _drive_demo_run(run_id: str, db_path: str | None) -> None:
     demo run being complete when this returns.
     """
     policy = task_worker.WorkerPolicy(db_path=db_path)
-    asyncio.run(
+    run_in_scoped_loop(
         task_worker.run_run_worker_pool(
             run_id,
             f"demo-seed:{run_id[:8]}",

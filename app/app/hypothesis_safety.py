@@ -7,7 +7,6 @@ there is one policy definition rather than two regex copies that can drift.
 
 from __future__ import annotations
 
-import asyncio
 import dataclasses
 import logging
 from collections.abc import Sequence
@@ -21,6 +20,8 @@ from co_scientist.safety import (
     is_blocking_status,
     review_hypothesis_safety,
 )
+
+from app.litellm_shutdown import run_in_scoped_loop
 
 # Compatibility names retained for existing API/store callers. They are aliases
 # of the canonical engine types, not parallel policy implementations.
@@ -149,14 +150,16 @@ def _escalate_one_on_worker_thread(
     """Run one hypothesis's escalation on a fresh, thread-local event loop.
 
     A ``ThreadPoolExecutor`` worker owns no event loop of its own, so
-    ``asyncio.run`` here starts and tears down one scoped to this single
-    call -- it never touches the run's own per-run event loop (AGENTS.md:
-    "No process-global asyncio primitives"). Mirrors how
+    ``run_in_scoped_loop`` here starts and tears down one scoped to this
+    single call -- it never touches the run's own per-run event loop
+    (AGENTS.md: "No process-global asyncio primitives"), and it closes
+    litellm's logging worker with it (see ``app.litellm_shutdown``).
+    Mirrors how
     ``app.claim_grounding_assess`` drives its own LLM assessor from a
     synchronous ``ThreadPoolExecutor.map`` call, for the same reason: the
     engine drain that calls this is itself synchronous.
     """
-    escalated = asyncio.run(
+    escalated = run_in_scoped_loop(
         escalate_review(item.review, item.text, run_id=run_id, db_path=db_path)
     )
     return EscalatedVerdict(

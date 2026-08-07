@@ -16,6 +16,7 @@ from typing import Any
 
 from app import engine_tasks, store
 from app.config import settings
+from app.litellm_shutdown import run_in_scoped_loop
 from app.logging_setup import run_log_context
 from app.notifications import deliver_completion_notification
 from app.store import ScientificTask
@@ -332,7 +333,7 @@ async def run_run_worker_pool(
 
 def run_run_worker_pool_sync(run_id: str, worker_prefix: str) -> None:
     """Run the embedded cohort on a worker thread, outside the API loop."""
-    asyncio.run(run_run_worker_pool(run_id, worker_prefix))
+    run_in_scoped_loop(run_run_worker_pool(run_id, worker_prefix))
 
 
 async def _heartbeat_lease(
@@ -415,7 +416,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--worker-id", default=_worker_id())
     parser.add_argument("--poll-seconds", type=float, default=0.5)
     args = parser.parse_args(argv)
-    asyncio.run(run_forever(args.worker_id, poll_seconds=args.poll_seconds))
+    run_in_scoped_loop(
+        run_forever(args.worker_id, poll_seconds=args.poll_seconds)
+    )
     return 0
 
 
