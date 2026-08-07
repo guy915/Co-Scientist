@@ -11,6 +11,8 @@ import logging
 from dataclasses import dataclass
 from typing import Any, cast
 
+from co_scientist.exceptions import LLMBudgetExhaustedError
+
 logger = logging.getLogger(__name__)
 
 
@@ -103,6 +105,24 @@ def _empty_content_diagnosis(response: Any) -> str:
     return ", ".join(parts) if parts else "no usage reported"
 
 
+def _finish_reason(response: Any) -> str | None:
+    """The provider's finish reason for a response, or None if unreadable.
+
+    Read defensively for the same reason ``_empty_content_diagnosis`` is:
+    this runs on an already-failing response, and a reader that raises
+    would replace a diagnosable failure with an ``AttributeError``.
+
+    Args:
+        response: The raw response returned by ``litellm.acompletion``.
+
+    Returns:
+        The first choice's ``finish_reason``, or None when absent.
+    """
+    with contextlib.suppress(Exception):
+        return cast("str | None", response.choices[0].finish_reason)
+    return None
+
+
 def _extract_completion_content(response: Any, model_name: str) -> str:
     """Extracts and validates the text content of a completion response.
 
@@ -115,16 +135,32 @@ def _extract_completion_content(response: Any, model_name: str) -> str:
         The non-empty response content.
 
     Raises:
-        ValueError: If the response has no non-whitespace content.
+        LLMBudgetExhaustedError: If the response is empty because the whole
+            token budget went on the chain of thought
+            (``finish_reason="length"``). A subclass of ``ValueError``, so
+            callers written against the general case still catch it.
+        ValueError: If the response has no non-whitespace content for any
+            other reason.
     """
     content = response.choices[0].message.content
 
     if content is None or not content.strip():
+        diagnosis = _empty_content_diagnosis(response)
         logger.error(
             "LLM returned None or empty content. Model: %s (%s)",
             model_name,
-            _empty_content_diagnosis(response),
+            diagnosis,
         )
+        # Split by finish reason, not by token counts: "length" is the
+        # provider stating it stopped at the ceiling, which is the one
+        # empty response a different budget can fix. Everything else --
+        # a filtered response, a provider hiccup, an empty answer the
+        # model chose -- is answered by a plain retry.
+        if _finish_reason(response) == "length":
+            raise LLMBudgetExhaustedError(
+                "LLM spent its entire token budget without answering. "
+                f"Model: {model_name} ({diagnosis})"
+            )
         raise ValueError(
             f"LLM returned None or empty content. Model: {model_name}"
         )

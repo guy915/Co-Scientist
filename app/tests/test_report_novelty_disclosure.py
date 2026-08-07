@@ -14,7 +14,9 @@ novelty language when verification did not run is the defect this pins.
 from app import report_content, report_markdown
 
 
-def _hypothesis(identifier: str, title: str, **extra: object) -> dict:
+def _hypothesis(
+    identifier: str, title: str, **extra: object
+) -> dict[str, object]:
     """Build one report-ready hypothesis fixture."""
     return {
         "id": identifier,

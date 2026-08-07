@@ -98,6 +98,33 @@ def reasoning_effort_args(
     return {}
 
 
+def effective_max_tokens(
+    model_name: str, max_tokens: int, enable_thinking: bool
+) -> int:
+    """The ``max_tokens`` a call actually goes out with, after the floor.
+
+    The single answer to "what budget did the wire carry", shared by
+    ``_apply_thinking_args`` (which imposes it) and the failure logging in
+    ``call_llm`` (which reports it). They were two numbers once: the error
+    log printed the call site's own ``max_tokens`` while the request carried
+    the floored value, so a budget-exhausted DeepSeek call logged
+    "max_tokens: 8000" beside "reasoning_tokens=18001" and read as a
+    provider fault rather than a budget one.
+
+    Args:
+        model_name: Model name in litellm format.
+        max_tokens: The budget the call site asked for.
+        enable_thinking: Whether thinking mode is requested for this call.
+
+    Returns:
+        ``max_tokens`` raised to ``THINKING_FLOOR_MAX_TOKENS`` when this
+        call will reason, otherwise ``max_tokens`` unchanged.
+    """
+    if enable_thinking and deepseek_thinking_extra_body(model_name):
+        return max(max_tokens, THINKING_FLOOR_MAX_TOKENS)
+    return max_tokens
+
+
 def _apply_thinking_args(
     completion_args: dict[str, Any], model_name: str, enable_thinking: bool
 ) -> None:
@@ -127,7 +154,6 @@ def _apply_thinking_args(
         reasoning_effort_args(model_name, enabled=enable_thinking)
     )
 
-    if enable_thinking:
-        completion_args["max_tokens"] = max(
-            completion_args["max_tokens"], THINKING_FLOOR_MAX_TOKENS
-        )
+    completion_args["max_tokens"] = effective_max_tokens(
+        model_name, completion_args["max_tokens"], enable_thinking
+    )

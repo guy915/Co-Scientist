@@ -73,11 +73,15 @@ from co_scientist.llm_json_errors import (
     _raise_validation_error as _raise_validation_error,
 )
 from co_scientist.llm_json_retry import (
+    BudgetEscalation as BudgetEscalation,
+)
+from co_scientist.llm_json_retry import (
     _apply_json_attempt_outcome,
     _JsonAttempt,
     _JsonCallSpec,
     _JsonRetryContext,
     _run_json_attempt,
+    escalated_spec,
 )
 from co_scientist.llm_json_retry import (
     _attempt_call_llm_json as _attempt_call_llm_json,
@@ -96,6 +100,9 @@ from co_scientist.llm_json_retry import (
 )
 from co_scientist.llm_json_retry import (
     _parse_or_repair_json as _parse_or_repair_json,
+)
+from co_scientist.llm_json_retry import (
+    escalation_after as escalation_after,
 )
 from co_scientist.llm_request import (
     _JSON_OBJECT_ONLY_MODEL_FAMILIES as _JSON_OBJECT_ONLY_MODEL_FAMILIES,
@@ -118,6 +125,9 @@ from co_scientist.llm_request import (
 )
 from co_scientist.llm_request import (
     _save_prompt_if_named as _save_prompt_if_named,
+)
+from co_scientist.llm_request import (
+    effective_max_tokens as effective_max_tokens,
 )
 from co_scientist.llm_telemetry import record_retry as _record_retry
 from co_scientist.llm_tool_loop import (
@@ -238,8 +248,17 @@ async def call_llm(
             )
         except Exception as e:
             logger.error("LLM call failed: %s", e)
+            # The budget sent, not the one the call site asked for: the
+            # thinking floor raises it before the request goes out, and
+            # logging the pre-floor number next to a reasoning-token count
+            # that exceeds it made a budget failure read as a provider one.
             logger.error(
-                "Model: %s, max_tokens: %s", spec.model_name, spec.max_tokens
+                "Model: %s, max_tokens: %s (call site asked for %s)",
+                spec.model_name,
+                effective_max_tokens(
+                    spec.model_name, spec.max_tokens, opt.enable_thinking
+                ),
+                spec.max_tokens,
             )
             raise
 
@@ -299,6 +318,7 @@ async def _run_call_llm_json_loop(
     """
     last_error: Exception | None = None
     last_response_text: str | None = None
+    escalation = BudgetEscalation.NONE
     for number in range(1, max_attempts + 1):
         if number > 1:
             logger.debug(
@@ -306,11 +326,14 @@ async def _run_call_llm_json_loop(
             )
             _record_retry(ctx.spec.model_name)
         outcome = await _run_json_attempt(
-            prompt, ctx, _JsonAttempt(number, number == max_attempts)
+            prompt,
+            ctx,
+            _JsonAttempt(number, number == max_attempts, escalation),
         )
         if outcome.value is not None:
             return outcome.value
         last_error = outcome.error
+        escalation = escalation_after(outcome, escalation)
         prompt, last_response_text = _apply_json_attempt_outcome(
             outcome, prompt, last_response_text
         )
@@ -359,12 +382,22 @@ async def call_llm_json(
             spec.json_schema,
         )
 
-        async def _call_for_json(attempt_prompt: str) -> str:
-            """Raw LLM call (via call_llm) for one attempt's prompt."""
+        async def _call_for_json(
+            attempt_prompt: str, escalation: BudgetEscalation
+        ) -> str:
+            """Raw LLM call (via call_llm) for one attempt's prompt.
+
+            ``escalation`` is the loop's answer to a previous attempt that
+            spent its whole budget reasoning: it raises this attempt's
+            token budget and, at the top rung, turns thinking off.
+            """
             return await _call_llm_for_json(
                 attempt_prompt,
-                json_spec,
-                enable_thinking=opt.enable_thinking,
+                escalated_spec(json_spec, escalation),
+                enable_thinking=(
+                    opt.enable_thinking
+                    and escalation is not BudgetEscalation.NO_THINKING
+                ),
             )
 
         ctx = _JsonRetryContext(prompt, json_spec, cache, _call_for_json)

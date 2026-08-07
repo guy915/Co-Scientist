@@ -63,7 +63,9 @@ def make_usage(
 
 
 def make_completion(
-    message: SimpleNamespace, usage: SimpleNamespace | None = None
+    message: SimpleNamespace,
+    usage: SimpleNamespace | None = None,
+    finish_reason: str | None = None,
 ) -> SimpleNamespace:
     """Wrap a message in the ``choices[0].message`` envelope litellm returns.
 
@@ -71,14 +73,19 @@ def make_completion(
         message: The message namespace from :func:`make_message`.
         usage: Optional token-usage namespace from :func:`make_usage`;
             omitted (``None``) mirrors a response with no usage reported.
+        finish_reason: Why the provider stopped. Omitted (``None``) leaves
+            the attribute off the choice entirely, mirroring a provider
+            that does not report one -- which is what the readers in
+            ``llm_response`` are written to tolerate.
 
     Returns:
         A response namespace with a single choice carrying ``message``,
         plus ``usage`` when given.
     """
-    return SimpleNamespace(
-        choices=[SimpleNamespace(message=message)], usage=usage
-    )
+    choice = SimpleNamespace(message=message)
+    if finish_reason is not None:
+        choice.finish_reason = finish_reason
+    return SimpleNamespace(choices=[choice], usage=usage)
 
 
 def make_tool_call(call_id: str, name: str, arguments: str) -> SimpleNamespace:

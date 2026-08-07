@@ -10,6 +10,8 @@ the ``call_llm`` seam keeps resolving through ``co_scientist.llm``.
 """
 
 import asyncio
+import dataclasses
+import enum
 import json
 import logging
 from collections.abc import Awaitable, Callable
@@ -20,7 +22,8 @@ from jsonschema.exceptions import ValidationError
 
 from co_scientist.backoff import jittered_backoff_seconds
 from co_scientist.cache import LLMCache, LLMCacheRequest, NullCache
-from co_scientist.exceptions import LLMTimeoutError
+from co_scientist.constants import BUDGET_ESCALATION_MAX_TOKENS
+from co_scientist.exceptions import LLMBudgetExhaustedError, LLMTimeoutError
 from co_scientist.llm_json import (
     _backfill_required_fields,
     _validation_feedback,
@@ -76,6 +79,70 @@ def _rate_limit_backoff_seconds(attempt: int) -> float:
     )
 
 
+class BudgetEscalation(enum.Enum):
+    """How far a retry has escalated after a budget-exhausted attempt.
+
+    A call that came back empty with ``finish_reason="length"`` reasoned
+    until it hit its ceiling. Retrying it unchanged reproduces that
+    exactly -- in production the same request burned all five attempts,
+    each one paid for in full -- so each budget-exhausted attempt moves
+    one rung up this ladder instead:
+
+    * ``NONE``: the call as its node sized it.
+    * ``RAISED_BUDGET``: resent at ``BUDGET_ESCALATION_MAX_TOKENS``, in
+      case the chain of thought was close to finishing.
+    * ``NO_THINKING``: resent with thinking off, which removes the
+      unbounded side of the budget altogether.
+
+    The last rung is what makes the ladder terminate: reasoning ends at
+    the ceiling, so its natural length is unknown and no finite budget is
+    provably enough. Escalation is one-way within a call and never leaves
+    the retry loop -- the node's own budget is unchanged for the next
+    call.
+    """
+
+    NONE = "none"
+    RAISED_BUDGET = "raised_budget"
+    NO_THINKING = "no_thinking"
+
+
+_ESCALATION_LADDER: dict[BudgetEscalation, BudgetEscalation] = {
+    BudgetEscalation.NONE: BudgetEscalation.RAISED_BUDGET,
+    BudgetEscalation.RAISED_BUDGET: BudgetEscalation.NO_THINKING,
+    BudgetEscalation.NO_THINKING: BudgetEscalation.NO_THINKING,
+}
+
+
+def escalation_after(
+    outcome: "_JsonAttemptOutcome", current: BudgetEscalation
+) -> BudgetEscalation:
+    """The escalation the next attempt should use, given this one's outcome.
+
+    Only a budget-exhausted attempt escalates. A schema failure, a parse
+    failure or a provider error all keep the current rung: they say nothing
+    about the budget, and raising it would spend more tokens per attempt on
+    a problem more tokens do not solve.
+
+    Args:
+        outcome: The outcome of the attempt that just ran.
+        current: The escalation that attempt was made at.
+
+    Returns:
+        The next rung when the attempt exhausted its budget, else
+        ``current`` unchanged.
+    """
+    if not isinstance(outcome.error, LLMBudgetExhaustedError):
+        return current
+    escalated = _ESCALATION_LADDER[current]
+    logger.warning(
+        "LLM spent its whole token budget reasoning; retrying with %s",
+        "thinking disabled"
+        if escalated is BudgetEscalation.NO_THINKING
+        else "a raised token budget",
+    )
+    return escalated
+
+
 @dataclass(frozen=True)
 class _JsonCallSpec:
     """Bundles the model/token/schema fields shared by json-attempt helpers.
@@ -91,6 +158,31 @@ class _JsonCallSpec:
     json_schema: dict[str, Any] | None
 
 
+def escalated_spec(
+    spec: _JsonCallSpec, escalation: BudgetEscalation
+) -> _JsonCallSpec:
+    """The call spec to send at a given escalation rung.
+
+    Raises the budget rather than replacing it, so a node that already
+    sized itself above ``BUDGET_ESCALATION_MAX_TOKENS`` is not cut down by
+    the very step meant to give it room.
+
+    Args:
+        spec: The call spec as the node sized it.
+        escalation: The rung this attempt is being made at.
+
+    Returns:
+        ``spec`` unchanged at ``NONE``, otherwise a copy with the raised
+        budget. Whether thinking is also disabled is the caller's to apply
+        -- it is a completion option, not part of the spec.
+    """
+    if escalation is BudgetEscalation.NONE:
+        return spec
+    return dataclasses.replace(
+        spec, max_tokens=max(spec.max_tokens, BUDGET_ESCALATION_MAX_TOKENS)
+    )
+
+
 @dataclass(frozen=True)
 class _JsonRetryContext:
     """The per-call state every attempt of one retry loop shares.
@@ -100,13 +192,14 @@ class _JsonRetryContext:
             build the next retry prompt after a schema failure.
         spec: The model/token/schema fields of the call.
         cache: The cache tier a validated result is stored in.
-        call_for_json: Injected raw LLM call for one attempt's prompt.
+        call_for_json: Injected raw LLM call for one attempt's prompt and
+            budget escalation.
     """
 
     original_prompt: str
     spec: _JsonCallSpec
     cache: LLMCache | NullCache
-    call_for_json: Callable[[str], Awaitable[str]]
+    call_for_json: Callable[[str, BudgetEscalation], Awaitable[str]]
 
 
 @dataclass(frozen=True)
@@ -116,10 +209,13 @@ class _JsonAttempt:
     Attributes:
         number: The 1-indexed attempt number, used for logging.
         is_final: Whether this is the last attempt the loop will make.
+        escalation: The budget escalation this attempt is made at; see
+            ``BudgetEscalation``.
     """
 
     number: int
     is_final: bool
+    escalation: BudgetEscalation = BudgetEscalation.NONE
 
 
 @dataclass(frozen=True)
@@ -382,7 +478,7 @@ async def _attempt_call_llm_json(
     Returns:
         The outcome telling the retry loop how to continue.
     """
-    response_text = await ctx.call_for_json(prompt)
+    response_text = await ctx.call_for_json(prompt, attempt.escalation)
 
     # Parse response text as JSON, repairing if needed (minor repairs always
     # tried, major repairs only on the final attempt).

@@ -101,6 +101,25 @@ every other thinking call in the engine, so change the two together
 deliberately or not at all.
 """
 
+BUDGET_ESCALATION_MAX_TOKENS: Final = 24000
+"""Budget a retry uses after a call spent its whole allowance reasoning.
+
+The floor below is a floor, not a guarantee: a chain of thought is free to
+fill whatever it is given, and in production these calls came back with
+``reasoning_tokens`` sitting exactly on ``THINKING_FLOOR_MAX_TOKENS`` and
+``content`` empty -- then did it again on all five ``call_llm_json``
+attempts, because every attempt re-sent the same budget.
+``llm_json_retry.BudgetEscalation`` answers the second attempt with this
+number instead, and the third by turning thinking off, so the ladder
+terminates whether or not the reasoning would ever have finished.
+
+24000 rather than something larger because it is the budget already proven
+in production (``RESEARCH_OVERVIEW_MAX_TOKENS`` and the scaled batch caps
+run at it); the provider's own output ceiling is far above either. A bigger
+first rung would buy a longer chain of thought on the same wall, which is
+the failure, not the fix.
+"""
+
 THINKING_FLOOR_MAX_TOKENS: Final = THINKING_MAX_TOKENS
 """Smallest total budget any thinking-enabled call may be sent with.
 

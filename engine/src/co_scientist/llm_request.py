@@ -54,6 +54,9 @@ from co_scientist.llm_thinking import (
     deepseek_thinking_extra_body as deepseek_thinking_extra_body,
 )
 from co_scientist.llm_thinking import (
+    effective_max_tokens as effective_max_tokens,
+)
+from co_scientist.llm_thinking import (
     reasoning_effort_args as reasoning_effort_args,
 )
 

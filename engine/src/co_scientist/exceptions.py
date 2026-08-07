@@ -43,6 +43,21 @@ class LLMTimeoutError(CoScientistError):
     """An LLM call exceeded its wall-clock budget without responding."""
 
 
+# Raised by call_llm when a completion comes back empty because the whole
+# max_tokens allowance went on the chain of thought (finish_reason="length"
+# with no content). Distinct from a generic empty response because the
+# answer is deterministic rather than incidental: the same request repeated
+# at the same budget reasons its way into the same wall, so the JSON retry
+# loop answers it by changing the budget instead (see
+# llm_json_retry.BudgetEscalation).
+#
+# Also a ValueError: an empty completion has raised one from
+# _extract_completion_content since before this subclass existed, and
+# callers were written against that contract.
+class LLMBudgetExhaustedError(CoScientistError, ValueError):
+    """An LLM spent its whole token budget reasoning and answered nothing."""
+
+
 # Raised when an MCP tool accepts a call and never returns. The LLM timeout
 # covers litellm.acompletion only, which left tool invocations unbounded: a
 # server whose stream broke mid-call parked the awaiting run forever, with no
