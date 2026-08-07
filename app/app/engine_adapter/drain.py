@@ -122,6 +122,9 @@ from app.engine_adapter.drain_reviews import (
 from app.engine_adapter.drain_safety import (
     _persist_held_for_review as _persist_held_for_review,
 )
+from app.engine_adapter.drain_supervisor_plan import (
+    _persist_supervisor_plan as _persist_supervisor_plan,
+)
 from app.hypothesis_screening import screen_hypotheses
 from app.text_utils import first_sentence as first_sentence
 
@@ -424,6 +427,7 @@ def _persist_evidence_hypotheses_and_screen(
         )
         result = _screen_and_collect_grounding_inputs(run_id, conn)
         _persist_held_for_review(run_id, inputs.final_state, conn)
+        _persist_supervisor_plan(run_id, inputs.final_state, conn)
         return result
 
 

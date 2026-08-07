@@ -170,6 +170,13 @@ from app.store.shares import (
     resolve_report_share,
     revoke_report_share,
 )
+from app.store.supervisor_plan import (
+    NewSupervisorPlan,
+    get_supervisor_plan,
+    list_supervisor_allocations,
+    replace_supervisor_allocations,
+    save_supervisor_plan,
+)
 from app.store.tasks import (
     NewTask,
     ScientificTask,
@@ -215,6 +222,7 @@ __all__ = [
     "NewReview",
     "NewSafetyDecision",
     "NewStagedDocument",
+    "NewSupervisorPlan",
     "NewTask",
     "RunCreateOptions",
     "RunRow",
@@ -270,6 +278,7 @@ __all__ = [
     "get_run",
     "get_run_metrics",
     "get_staged_documents",
+    "get_supervisor_plan",
     "get_task",
     "has_checkpoint",
     "has_task_of_type",
@@ -297,6 +306,7 @@ __all__ = [
     "list_runs",
     "list_safety_decisions",
     "list_staged_documents_for_client",
+    "list_supervisor_allocations",
     "list_tasks",
     "mark_documents_used_by_run",
     "mark_steering_applied",
@@ -310,6 +320,7 @@ __all__ = [
     "redact_run_goal",
     "renew_task_lease",
     "replace_knowledge_facts",
+    "replace_supervisor_allocations",
     "reprioritize_task",
     "reserve_run_capacity",
     "resolve_report_share",
@@ -327,6 +338,7 @@ __all__ = [
     "save_checkpoint",
     "save_report",
     "save_run_metrics",
+    "save_supervisor_plan",
     "set_run_config",
     "set_run_llm_backend",
     "set_run_timing",

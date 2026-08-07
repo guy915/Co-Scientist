@@ -16,6 +16,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from app.store.db import _now, _use_conn, checkpoint_wal, connect
+from app.store.supervisor_plan import sync_supervisor_ledger_from_checkpoint
 
 
 @dataclass(frozen=True)
@@ -103,6 +104,12 @@ def save_checkpoint(
     with _use_conn(conn, db_path) as conn:
         seq = _insert_checkpoint_row(conn, run_id, checkpoint)
         _prune_older_checkpoints(conn, run_id, seq)
+        # Durable-ledger hook (audit E19): every checkpoint -- not only the
+        # final one -- carries whatever Supervisor plan/allocations the run
+        # has accumulated so far, so a run that never reaches finalize
+        # still leaves a record behind. See
+        # ``supervisor_plan.sync_supervisor_ledger_from_checkpoint``.
+        sync_supervisor_ledger_from_checkpoint(run_id, checkpoint.state, conn)
     return seq
 
 

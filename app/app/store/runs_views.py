@@ -44,7 +44,9 @@ _STAGE_EVENT_TYPES: tuple[str, ...] = (
 # finalize (audit G14) rather than by the drain itself, but the shape is the
 # same: without it here, a reset that clears claim_evidence but never
 # reaches a fresh finalize would leave knowledge_facts pointing at claims
-# that no longer exist.
+# that no longer exist. supervisor_plan/supervisor_allocations (audit E19)
+# are reconstructed from the final checkpoint state the same way run_metrics
+# is, so a re-finalized resumed run replaces rather than accumulates them.
 _REPLAYABLE_ARTIFACT_TABLES: tuple[str, ...] = (
     "matches",
     "citations",
@@ -52,6 +54,8 @@ _REPLAYABLE_ARTIFACT_TABLES: tuple[str, ...] = (
     "proximity_edges",
     "run_metrics",
     "knowledge_facts",
+    "supervisor_plan",
+    "supervisor_allocations",
 )
 
 

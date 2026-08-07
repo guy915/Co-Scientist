@@ -9,6 +9,9 @@ compatibility notes behind non-obvious column choices.
 from app.store.schema_knowledge_facts import (
     KNOWLEDGE_FACTS_SCHEMA as KNOWLEDGE_FACTS_SCHEMA,
 )
+from app.store.schema_supervisor_plan import (
+    SUPERVISOR_PLAN_SCHEMA as SUPERVISOR_PLAN_SCHEMA,
+)
 
 _SCHEMA_HEAD = """
 -- Primary lifecycle record for a single hypothesis-generation run.
@@ -486,4 +489,11 @@ CREATE INDEX IF NOT EXISTS idx_proximity_run ON proximity_edges(run_id);
 # Concatenated (not interpolated) so knowledge_facts' CREATE TABLE runs
 # right after claim_evidence's -- adjacent in the executed script to the
 # table it derives from, matching the story an on-disk schema dump tells.
-SCHEMA = _SCHEMA_HEAD + KNOWLEDGE_FACTS_SCHEMA + _SCHEMA_TAIL
+# supervisor_plan/supervisor_allocations are spliced in right after, for the
+# same reason: both are derived at the same finalize drain.
+SCHEMA = (
+    _SCHEMA_HEAD
+    + KNOWLEDGE_FACTS_SCHEMA
+    + SUPERVISOR_PLAN_SCHEMA
+    + _SCHEMA_TAIL
+)

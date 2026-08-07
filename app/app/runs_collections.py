@@ -232,6 +232,26 @@ async def get_knowledge_facts(
     }
 
 
+@router.get("/{run_id}/supervisor-plan")
+async def get_supervisor_plan(run_id: str) -> dict[str, Any]:
+    """Return the Supervisor's durable plan and allocation ledger (E19).
+
+    ``plan`` carries the six planning blocks from the Supervisor's initial
+    research plan; ``orchestrator_state``, ``decision_provenance``, and
+    ``termination_reason`` describe how the run's scheduling ended.
+    ``allocations`` is the append-only ledger of every task the adaptive
+    orchestrator scheduled, in the order it scheduled them, each with the
+    observable statistics behind that decision. Both are populated once the
+    run finalizes; null/empty before then.
+    """
+    _require_run(run_id)
+    plan = store.get_supervisor_plan(run_id)
+    return {
+        "plan": plan,
+        "allocations": store.list_supervisor_allocations(run_id),
+    }
+
+
 @router.get("/{run_id}/report")
 async def get_report(run_id: str) -> dict[str, Any]:
     """Return the latest structured report, or 404 before synthesis."""
