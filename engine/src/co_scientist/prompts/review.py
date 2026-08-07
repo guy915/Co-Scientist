@@ -13,12 +13,24 @@ from co_scientist.prompts.loading import _build_prompt
 
 
 def _review_sections(context: PromptRunContext) -> PromptSections:
-    """Build the shared context blocks for the two review prompts."""
+    """Build the shared context blocks for the two review prompts.
+
+    Deliberately excludes the meta-review's "already covered" / "open
+    directions" sections (``include_coverage_sections=False``): this
+    prompt's score feeds the sticky, never-revisited initial review gate
+    on its ``novelty`` axis (``review_gate._DEFAULT_GATE_AXES``), and
+    "this area is already covered" is a direct novelty cue that would
+    bias against an Evolution-origin refinement of a leading idea for
+    living in the area it was bred to strengthen -- see
+    ``_format_meta_review_context``'s docstring for the full reasoning.
+    """
     return PromptSections(
         supervisor_guidance=_format_supervisor_guidance_for_review(
             context.supervisor_guidance
         ),
-        meta_review_context=_format_meta_review_context(context.meta_review),
+        meta_review_context=_format_meta_review_context(
+            context.meta_review, include_coverage_sections=False
+        ),
         run_guidance=_run_guidance_section(context),
     )
 

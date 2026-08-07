@@ -56,8 +56,9 @@ async def test_with_reviews_maps_response_fields(
 ) -> None:
     """A populated review triggers the LLM and maps its response fields.
 
-    summary/strengths/weaknesses/strategic_recommendations are copied through
-    to their meta_review keys, and the LLM is called exactly once.
+    summary/strengths/weaknesses/strategic_recommendations/
+    potential_connections are copied through to their meta_review keys,
+    and the LLM is called exactly once.
     """
     calls = stub_call_llm_json(
         monkeypatch,
@@ -68,6 +69,13 @@ async def test_with_reviews_maps_response_fields(
             "weaknesses": ["narrow scope"],
             "strategic_recommendations": ["broaden the cohort"],
             "recurring_themes": [],
+            "potential_connections": [
+                {
+                    "related_hypotheses": ["Hypothesis 1", "Hypothesis 2"],
+                    "connection_type": "complementary_mechanism",
+                    "synthesis_opportunity": "combine both interventions",
+                }
+            ],
         },
     )
     state = make_state(
@@ -84,6 +92,11 @@ async def test_with_reviews_maps_response_fields(
     assert mr["common_strengths"] == ["clear mechanism", "testable"]
     assert mr["common_weaknesses"] == ["narrow scope"]
     assert mr["strategic_recommendations"] == ["broaden the cohort"]
+    # I2: potential_connections (the field closest to "which directions
+    # remain open") is threaded into state, not discarded.
+    assert mr["potential_connections"][0]["synthesis_opportunity"] == (
+        "combine both interventions"
+    )
     # The with-reviews branch carries metrics and a message.
     assert "metrics" in result
     assert result["messages"][0]["metadata"]["phase"] == "meta_review"

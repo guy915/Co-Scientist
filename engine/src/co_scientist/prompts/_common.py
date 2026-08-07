@@ -96,38 +96,105 @@ def _format_recommendation(rec: Any) -> str:
     return str(rec)
 
 
+def _format_connection(connection: Any) -> str:
+    """Format one potential-connection entry as bullet text.
+
+    ``related_hypotheses`` names its subjects by the free-text label the
+    meta-review prompt asks for (e.g. "Hypothesis 1"), never full
+    hypothesis text, so quoting it back here does not echo pool input.
+    """
+    if not isinstance(connection, dict):
+        return str(connection)
+    opportunity = str(connection.get("synthesis_opportunity") or "").strip()
+    kind = str(connection.get("connection_type") or "").strip()
+    if opportunity and kind:
+        return f"{kind}: {opportunity}"
+    return opportunity or kind or str(connection)
+
+
+def _covered_areas_section(meta_review: dict[str, Any]) -> str:
+    """Render the recurring themes as the areas already explored."""
+    return _format_bullet_section(
+        "Research Areas Already Covered (Recurring Themes)",
+        meta_review.get("emerging_themes", []),
+    )
+
+
+def _open_directions_section(meta_review: dict[str, Any]) -> str:
+    """Render the potential connections as directions still open."""
+    return _format_bullet_section(
+        "Open Directions Flagged for Further Exploration",
+        meta_review.get("potential_connections", []),
+        _format_connection,
+    )
+
+
+def _meta_review_closing(include_coverage_sections: bool) -> str:
+    """Closing instruction, which changes when coverage sections render."""
+    closing = "Use these insights to provide more informed and consistent"
+    if include_coverage_sections:
+        return closing + (
+            " reviews, and -- when generating new hypotheses -- to"
+            " explore directions distinct from the areas already covered"
+            " above.\n"
+        )
+    return closing + " reviews.\n"
+
+
 # Reads the state dict shaped by
 # agents/meta_review/meta_review.py (which renames the
 # schema's strengths/weaknesses fields to common_strengths/
 # common_weaknesses when storing state), not the raw META_REVIEW_SCHEMA
 # output.
-def _format_meta_review_context(meta_review: dict[str, Any] | None) -> str:
-    """Format meta-review insights for review prompts.
+def _format_meta_review_context(
+    meta_review: dict[str, Any] | None,
+    *,
+    include_coverage_sections: bool = True,
+) -> str:
+    """Format meta-review insights for downstream prompts.
 
-    Used when re-reviewing evolved hypotheses.
+    Spliced into review, ranking, proximity, safety, literature-review, and
+    every generation strategy's prompt (I2): the run's own synthesis of
+    which areas are already covered and which directions remain open feeds
+    back into the next cycle rather than only informing the terminal
+    report.
+
+    ``include_coverage_sections`` gates the two "already covered" /
+    "open directions" sections specifically (not the strengths/weaknesses/
+    recommendations sections, present since before I2). The initial peer-
+    review score is the one prompt where this framing is a bad idea to
+    default on: its ``novelty`` axis is one of the two the sticky,
+    never-revisited review gate consults (``review_gate._DEFAULT_GATE_
+    AXES``), and "this area is already covered" reads as a direct novelty
+    cue -- which would penalize an Evolution-origin refinement of a
+    leading idea for being in the area it was deliberately bred to
+    strengthen, at the exact gate a permissive score can never undo (see
+    AGENTS.md's "early gate decides the whole run"). ``review.py``'s two
+    review-scoring prompt builders (``get_review_prompt``,
+    ``get_review_batch_prompt``) pass ``include_coverage_sections=False``;
+    every other caller -- generation, ranking (a reversible Elo signal,
+    not a gate), proximity (redundancy is exactly what "already covered"
+    should flag), literature review, safety, comprehensive reflection, and
+    deep verification -- keeps the default.
     """
     if not meta_review or not isinstance(meta_review, dict):
         return ""
 
-    sections = []
-    sections.append("## Meta-Review Context\n")
-    sections.append(
+    sections = [
+        "## Meta-Review Context\n",
         "The following insights were synthesized from previous reviews"
-        " of all hypotheses:\n\n"
-    )
-
-    sections.append(
+        " of all hypotheses:\n\n",
         _format_bullet_section(
             "Common Strengths Across Hypotheses",
             meta_review.get("common_strengths", []),
-        )
-    )
-    sections.append(
+        ),
         _format_bullet_section(
             "Common Weaknesses to Watch For",
             meta_review.get("common_weaknesses", []),
-        )
-    )
+        ),
+    ]
+    if include_coverage_sections:
+        sections.append(_covered_areas_section(meta_review))
     sections.append(
         _format_bullet_section(
             "Strategic Recommendations",
@@ -135,11 +202,9 @@ def _format_meta_review_context(meta_review: dict[str, Any] | None) -> str:
             _format_recommendation,
         )
     )
-
-    sections.append(
-        "Use these insights to provide more informed and consistent reviews.\n"
-    )
-
+    if include_coverage_sections:
+        sections.append(_open_directions_section(meta_review))
+    sections.append(_meta_review_closing(include_coverage_sections))
     return "".join(sections)
 
 

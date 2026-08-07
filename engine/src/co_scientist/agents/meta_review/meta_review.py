@@ -313,9 +313,20 @@ def _build_meta_review(response: dict[str, Any]) -> dict[str, Any]:
     """Assembles the meta_review state dict from the LLM response.
 
     This dict becomes state["meta_review"], consumed downstream by the
-    evolve node (to steer refinement) and by ranking's judge_matchup
-    (included in the tournament-judging prompt), so its shape is a de
-    facto cross-node contract.
+    evolve node (to steer refinement), by ranking's judge_matchup
+    (included in the tournament-judging prompt), and -- via
+    ``prompts._common._format_meta_review_context`` -- by every generation
+    strategy's next cycle (debate, assumptions, tool-based drafting, and
+    literature-review query/synthesis), so its shape is a de facto
+    cross-node contract.
+
+    ``potential_connections`` is kept alongside the strengths/weaknesses/
+    recommendations fields already threaded into generation: it is the
+    field closest to the paper's "areas already covered / directions
+    flagged as open" feedback (I2), and reusing this periodic synthesis
+    call is what keeps that feedback bounded -- no extra LLM call is
+    added to carry it forward (see the terminal, unconsumed
+    research_overview by contrast).
 
     Args:
         response: raw LLM JSON response from the meta-review call.
@@ -341,4 +352,5 @@ def _build_meta_review(response: dict[str, Any]) -> dict[str, Any]:
         "strategic_recommendations": response.get(
             "strategic_recommendations", []
         ),
+        "potential_connections": response.get("potential_connections", []),
     }
