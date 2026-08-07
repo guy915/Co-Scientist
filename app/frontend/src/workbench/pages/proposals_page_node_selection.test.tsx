@@ -12,9 +12,11 @@ it('opens the detail for a node named in the query string', () => {
 });
 
 it('closes the detail when the open node is chosen again', async () => {
-  const {container} = renderPage('/proposals?node=live-session');
+  const {container} = renderPage('/proposals?node=lab-integration');
   expect(container.querySelector('.proposals-detail')).toBeInTheDocument();
-  await userEvent.click(screen.getByRole('link', {name: /^Live sessions\./}));
+  await userEvent.click(
+    screen.getByRole('link', {name: /^Lab system integration\./}),
+  );
   // The panel stays mounted while it slides back out, so dismissal shows
   // up as the leaving state rather than as an immediate unmount.
   expect(
@@ -23,21 +25,21 @@ it('closes the detail when the open node is chosen again', async () => {
 });
 
 it('lights only the relationships the selected node leads with', () => {
-  // Live sessions has three outgoing "enables" arrows and one mutual
-  // tension authored from the other end; all four lead away from it.
-  const {container} = renderPage('/proposals?node=live-session');
+  // Lab system integration authors three synergies and one
+  // "compensates"; all four lead away from it.
+  const {container} = renderPage('/proposals?node=lab-integration');
   expect(container.querySelectorAll('.proposals-edge.is-lit')).toHaveLength(4);
 });
 
 it('leaves an incoming arrow unlit at its target', () => {
-  // Question generation only receives an "enables" arrow, so selecting it
-  // lights nothing: the arrow is a statement about Live sessions.
-  const {container} = renderPage('/proposals?node=question-generation');
+  // Unreinforced model eval only receives an "enables" arrow, so selecting
+  // it lights nothing: the arrow is a statement about Model fusion.
+  const {container} = renderPage('/proposals?node=unreinforced-eval');
   expect(container.querySelectorAll('.proposals-edge.is-lit')).toHaveLength(0);
 });
 
 it('hides the legends while a detail is open', () => {
-  const {container} = renderPage('/proposals?node=live-session');
+  const {container} = renderPage('/proposals?node=lab-integration');
   expect(container.querySelector('.proposals-legend')).toBeNull();
 });
 
@@ -59,11 +61,11 @@ it('walks to a related proposal from the detail panel', async () => {
   const detail = screen.getByLabelText('Transitivity flagging detail');
   await userEvent.click(
     within(detail).getAllByRole('button', {
-      name: 'Persistent knowledge base',
+      name: 'OKF knowledge export',
     })[0],
   );
   expect(
-    await screen.findByLabelText('Persistent knowledge base detail'),
+    await screen.findByLabelText('OKF knowledge export detail'),
   ).toBeInTheDocument();
 });
 

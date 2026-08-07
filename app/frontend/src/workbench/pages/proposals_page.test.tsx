@@ -41,9 +41,9 @@ describe('keyboard access', () => {
     // to pin here is that the focusable control is a real link to the
     // proposal — the URL whose detail panel the test above renders.
     renderPage();
-    const node = screen.getByRole('link', {name: /^Live sessions\./});
+    const node = screen.getByRole('link', {name: /^Lab system integration\./});
     node.focus();
     expect(document.activeElement).toBe(node);
-    expect(node).toHaveAttribute('href', '/proposals?node=live-session');
+    expect(node).toHaveAttribute('href', '/proposals?node=lab-integration');
   });
 });

@@ -39,28 +39,12 @@ export const edges: Edge[] = [
       'cannot express.',
   },
   {
-    from: 'granular-scoring',
-    to: 'multi-dim-ranking',
-    kind: 'synergy',
-    note:
-      'A matrix view needs resolution per axis; a 1-5 scale collapses ' +
-      'cells that should differ.',
-  },
-  {
     from: 'embedding-proximity',
     to: 'multi-dim-ranking',
     kind: 'synergy',
     note:
       'Embedding distance from the population gives a novelty axis for ' +
       'free.',
-  },
-  {
-    from: 'hypothesis-injection',
-    to: 'multi-dim-ranking',
-    kind: 'synergy',
-    note:
-      "Per-axis scores show where a scientist's hypothesis beats the " +
-      "machine's, which one Elo number hides.",
   },
   {
     from: 'data-requests',
@@ -135,28 +119,6 @@ export const edges: Edge[] = [
       'is little left to parse.',
   },
   {
-    from: 'live-session',
-    to: 'hypothesis-injection',
-    kind: 'enables',
-    note: 'Injection requires a run that accepts input after it has started.',
-  },
-  {
-    from: 'live-session',
-    to: 'data-requests',
-    kind: 'enables',
-    note:
-      'The system needs an open channel to ask a question and receive an ' +
-      'answer.',
-  },
-  {
-    from: 'live-session',
-    to: 'question-generation',
-    kind: 'enables',
-    note:
-      'Refining the question is a negotiation, and a batch job cannot ' +
-      'negotiate.',
-  },
-  {
     from: 'persistent-kb',
     to: 'transitivity',
     kind: 'enables',
@@ -195,14 +157,6 @@ export const edges: Edge[] = [
     note:
       'Six review passes per hypothesis is the wall volume hits first; ' +
       'fewer passes moves the wall.',
-  },
-  {
-    from: 'granular-scoring',
-    to: 'review-consolidation',
-    kind: 'compensates',
-    note:
-      'Fewer passes means each score carries more weight, so each score ' +
-      'needs more resolution.',
   },
   {
     from: 'transitivity',
@@ -246,14 +200,6 @@ export const edges: Edge[] = [
   },
   {
     from: 'brute-force',
-    to: 'live-session',
-    kind: 'tension',
-    note:
-      'A long asynchronous batch run is the opposite of a responsive ' +
-      'session.',
-  },
-  {
-    from: 'brute-force',
     to: 'bio-simulation',
     kind: 'tension',
     note:
@@ -283,13 +229,5 @@ export const edges: Edge[] = [
     note:
       "Higher temperature raises the adversary's kill rate, so compute is " +
       'spent generating and then refuting.',
-  },
-  {
-    from: 'model-fusion',
-    to: 'granular-scoring',
-    kind: 'tension',
-    note:
-      'Models calibrate a 1-10 scale differently, so cross-model scores ' +
-      'are not comparable without normalization.',
   },
 ];

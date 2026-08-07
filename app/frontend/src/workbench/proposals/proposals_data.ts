@@ -82,17 +82,6 @@ export const nodes: ProposalNode[] = [
     featured: true,
   },
   {
-    id: 'granular-scoring',
-    label: '1-10 scoring',
-    cluster: 'evaluation',
-    summary: 'Widen internal review scoring from a 1-5 scale to 1-10.',
-    problem:
-      'A 1-5 scale collapses genuinely different hypotheses onto the same ' +
-      'value, making downstream filtering arbitrary.',
-    source: '§4.5.1',
-    origin: 'critique',
-  },
-  {
     id: 'multi-dim-ranking',
     label: 'Multi-dimensional ranking',
     cluster: 'evaluation',
@@ -117,33 +106,6 @@ export const nodes: ProposalNode[] = [
       'acknowledges. Six passes per hypothesis is a fixed cost paid ' +
       'whether or not each earns its place.',
     source: 'p. 11',
-    origin: 'critique',
-  },
-  {
-    id: 'live-session',
-    label: 'Live sessions',
-    cluster: 'interaction',
-    summary:
-      'Keep the run conversational and interruptible instead of ' +
-      'fire-and-forget.',
-    problem:
-      'The paper claims expert-in-the-loop, but the system launches from ' +
-      'a single prompt and runs to completion asynchronously. The expert ' +
-      'is in the loop exactly once.',
-    source: 'p. 4',
-    origin: 'critique',
-  },
-  {
-    id: 'hypothesis-injection',
-    label: 'Hypothesis injection',
-    cluster: 'interaction',
-    summary:
-      'Let the scientist enter their own hypotheses into the tournament ' +
-      'mid-run.',
-    problem:
-      'The paper supports this in principle but leaves the interaction ' +
-      "undefined, so in practice the scientist's own ideas never compete.",
-    source: '§3.4',
     origin: 'critique',
   },
   {
@@ -189,14 +151,20 @@ export const nodes: ProposalNode[] = [
   },
   {
     id: 'persistent-kb',
-    label: 'Persistent knowledge base',
+    label: 'OKF knowledge export',
     cluster: 'knowledge',
     summary:
-      'Write everything a run reads into an exportable structured wiki ' +
-      'that outlives the run.',
+      'Emit everything a run reads and concludes as an Open Knowledge ' +
+      'Format bundle — the markdown-and-frontmatter wiki Google Cloud ' +
+      'published as a portable standard for agent knowledge — so it can be ' +
+      'downloaded as a zip, dropped into NotebookLM as sources, or handed ' +
+      'to a coding agent.',
     problem:
-      'A run performs a broad literature review and then discards it. The ' +
-      'next run on an adjacent topic starts from nothing.',
+      'A run spends real compute compiling a literature review, evidence ' +
+      'and findings, then keeps none of it: the report is the only ' +
+      'artifact, and everything behind it is thrown away. The next run on ' +
+      'an adjacent topic starts from nothing, and the work cannot leave ' +
+      'the product in a form any other tool can read.',
     origin: 'extension',
     featured: true,
   },
@@ -247,7 +215,10 @@ export const nodes: ProposalNode[] = [
     cluster: 'capabilities',
     summary:
       'Give agents tool access to domain models for structure and ' +
-      'interaction prediction.',
+      "interaction prediction — the ready-made route being DeepMind's " +
+      'Antigravity Science Skills bundle, which packages AlphaFold, ' +
+      'AlphaGenome, Foldseek, PyMOL and the sequence, variant and compound ' +
+      'databases as agent-callable skills.',
     problem:
       'Hypotheses about physical systems are evaluated purely on textual ' +
       'plausibility, with no check against the models that could falsify ' +

@@ -113,8 +113,7 @@ it('separates the edges of a doubled pair', () => {
 
 it('draws a lone edge straight', () => {
   const single = edgeGeometry.find(
-    ({edge}) =>
-      edge.from === 'live-session' && edge.to === 'question-generation',
+    ({edge}) => edge.from === 'model-fusion' && edge.to === 'unreinforced-eval',
   );
   expect(single?.path).toContain('L');
   expect(single?.path).not.toContain('Q');
@@ -130,13 +129,13 @@ it('makes brute-force the most connected proposal', () => {
 });
 
 it('reverses directed phrasing for the inbound side', () => {
-  // live-session enables question-generation, so the relationship reads
+  // model-fusion enables unreinforced-eval, so the relationship reads
   // one way from each end.
-  const outbound = relationsOf('live-session').find(
-    relation => relation.other.id === 'question-generation',
+  const outbound = relationsOf('model-fusion').find(
+    relation => relation.other.id === 'unreinforced-eval',
   );
-  const inbound = relationsOf('question-generation').find(
-    relation => relation.other.id === 'live-session',
+  const inbound = relationsOf('unreinforced-eval').find(
+    relation => relation.other.id === 'model-fusion',
   );
   expect(outbound?.phrase).toBe('is a prerequisite for');
   expect(inbound?.phrase).toBe('depends on');
@@ -145,9 +144,9 @@ it('reverses directed phrasing for the inbound side', () => {
 it('reads undirected kinds the same from both ends', () => {
   const forward = relationsOf('brute-force').find(
     relation =>
-      relation.other.id === 'live-session' && relation.kind === 'tension',
+      relation.other.id === 'bio-simulation' && relation.kind === 'tension',
   );
-  const back = relationsOf('live-session').find(
+  const back = relationsOf('bio-simulation').find(
     relation =>
       relation.other.id === 'brute-force' && relation.kind === 'tension',
   );

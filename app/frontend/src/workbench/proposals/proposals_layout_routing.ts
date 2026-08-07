@@ -178,7 +178,7 @@ function bestRoute(
   edge: Edge,
   positions: Record<string, Point>,
   scale: number,
-  placed: Route[],
+  placed: PlacedRoute[],
 ): Route {
   const from = positions[edge.from];
   const to = positions[edge.to];
@@ -188,12 +188,14 @@ function bestRoute(
   let bestCost = Infinity;
   for (const offset of OFFSETS) {
     const candidate = route(from, to, offset * scale, scale);
-    const alongside = placed.filter(other =>
-      runsAlongside(candidate, other),
-    ).length;
+    const overlaps = placed.filter(other =>
+      runsAlongside(candidate, other.route),
+    );
+    const twin = overlaps.some(other => sameEndpoints(other.edge, edge));
     const cost =
       nodeHits(candidate, edge, positions, scale) * 100 +
-      alongside * 60 +
+      overlaps.length * 60 +
+      (twin ? TWIN_OVERLAP_COST : 0) +
       Math.abs(offset) / 100;
     if (cost < bestCost) {
       best = candidate;
@@ -204,11 +206,32 @@ function bestRoute(
   return best;
 }
 
+/** Whether two edges join the same pair of nodes, in either direction. */
+function sameEndpoints(a: Edge, b: Edge): boolean {
+  return (
+    (a.from === b.from && a.to === b.to) || (a.from === b.to && a.to === b.from)
+  );
+}
+
+// An edge running alongside an unrelated one is a legibility cost the router
+// trades against passing through a node. Running alongside its own twin --
+// the second edge of a doubled pair, which by construction shares both
+// endpoints and therefore its whole length -- is not a degree of that: it
+// hides one of the two relationships completely. Priced above a node hit so
+// the twin always takes the detour.
+const TWIN_OVERLAP_COST = 400;
+
+/** A routed edge and the edge it belongs to, for twin/overlap scoring. */
+interface PlacedRoute {
+  edge: Edge;
+  route: Route;
+}
+
 export function edgeGeometry(
   positions: Record<string, Point>,
   scale: number,
 ): EdgeGeometry[] {
-  const placed: Route[] = [];
+  const placed: PlacedRoute[] = [];
   const routed: string[] = [];
   // Hardest first: the longest edges are the ones that have to cross a
   // cluster, and they need the widest choice of bends. Placing in array
@@ -226,7 +249,7 @@ export function edgeGeometry(
     .sort((a, b) => b.span - a.span || a.index - b.index);
   for (const {index} of order) {
     const best = bestRoute(edges[index], positions, scale, placed);
-    placed.push(best);
+    placed.push({edge: edges[index], route: best});
     routed[index] = best.path;
   }
   // Drawing order stays authoring order, so the SVG is unchanged in
