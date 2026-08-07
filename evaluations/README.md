@@ -44,6 +44,42 @@ explicitly says otherwise; machine-readable results are written under
 - `metrics.py` — pure hypothesis-quality metrics (diversity;
   generation-vs-evolution yield/diversity). Does **not** use the engine's own
   Elo as ground truth.
+- `_run_driver.py` — shared plumbing the two controlled-experiment drivers
+  below use to persist a research goal through the real durable path
+  (`store.create_run` -> `task_worker` -> `engine_tasks` -> engine -> drain
+  -> report) and read back the resulting artifacts. Not a runner itself.
+- `scaling_budget_driver.py` (L9) — drives the SAME research goal across the
+  run tiers (express/standard/extended/ultra), differing only in tier, and
+  feeds `scaling_eval.scaling_curve()`. **Offline by default (the only mode
+  CI or the committed test exercises):** proves the driver's wiring and that
+  each tier really does request more compute — it is NOT evidence that a
+  real model's output quality scales with budget, since the offline backend
+  answers every call identically regardless of tier; every offline artifact
+  carries an explicit `offline_disclaimer` field saying so. `--live` (opt-in,
+  never automatic, needs a provider key) runs the real four-tier sweep; no
+  live sweep has been recorded yet.
+- `ablation_driver.py` (L11) — drives paired arms (`baseline`,
+  `no_web_search`, `no_literature_review`) across a small goal set through
+  the real durable path and feeds `scaling_eval.ablation_summary()`. Only
+  arms with an actual engine-level toggle are reachable this way; a
+  meta-review or debate-strategy ablation is not (neither has a
+  `GeneratorOptions` seam), and the driver records that as
+  `unreachable_arms` rather than faking it. Offline by default — proves
+  wiring only, since without a reachable MCP server every arm's literature
+  review already degrades to LLM-only and the arms look near-identical
+  regardless of the toggle. `--live` (opt-in) makes the toggles actually
+  bite; no live sweep has been recorded yet.
+- `elo_concordance_eval.py` (L8) — round-robins graded candidate answers
+  through the exact production Elo update math and scores the result against
+  known correctness with Kendall's tau-b. This is explicitly **not** GPQA:
+  GPQA is a licensed, gated benchmark and is not reproduced here, so the
+  harness runs against a small (8-item), hand-authored synthetic substitute
+  instead, and every report says so via its `external_gap` field. Passing
+  here shows only that the Elo mechanism recovers a coarse ordering over a
+  handful of candidates per question — not concordance at GPQA difficulty.
+  The default comparator is a deterministic stub (never calls a model);
+  `--llm` (opt-in) scores the engine's real pairwise ranking judge instead;
+  no `--llm` run has been recorded yet.
 - `expert_review.py` — the blinded expert-review export/import schema
   (alignment/plausibility/novelty/testability/safety/impact/preference),
   validated round-trip, with per-axis confidence intervals and transparent
@@ -85,6 +121,12 @@ python -m evaluations.citation_eval         # writes results/citation-entailment
 python -m evaluations.citation_eval --challenge --llm  # adversarial panel, semantic assessor, enforces gates
 python -m evaluations.safety_eval           # writes results/hypothesis-safety-<date>.json
 python -m evaluations.scaling_eval path/to/controlled-runs.json
+python -m evaluations.scaling_budget_driver              # offline; writes results/scaling-budget-curve-<date>.json
+python -m evaluations.scaling_budget_driver --live        # needs DEEPSEEK_API_KEY; real spend/time
+python -m evaluations.ablation_driver                     # offline; writes results/ablation-sweep-<date>.json
+python -m evaluations.ablation_driver --live               # needs DEEPSEEK_API_KEY + reachable MCP
+python -m evaluations.elo_concordance_eval                 # offline stub; writes results/elo-concordance-<date>.json
+python -m evaluations.elo_concordance_eval --llm            # needs DEEPSEEK_API_KEY; scores the real judge
 python -m evaluations.prod_smoke            # LIVE, non-mutating; not in CI
 python -m evaluations.prod_smoke --base-url https://api.ai-co-scientist.com
 python -m evaluations.mcp_live_smoke        # LIVE, non-mutating; not in CI
@@ -130,15 +172,59 @@ reconstructed gates, not Google's undisclosed production thresholds. The panel
 is synthetic and legally shareable; a human-audited representative sample and
 calibrated thresholds remain an external gap.
 
+## Safety evaluation splits
+
+`safety_eval.py` scores the deterministic-regex hypothesis-safety layer only
+(never the optional semantic/LLM escalation) over `easy` (the literal-trigger
+regression floor) and `hard` (genuinely adversarial paraphrase/synonym/
+padding/spacing evasion, vocabulary the classifier has no pattern for, and
+legitimate near-boundary research that happens to use a trigger phrase)
+items, combined from the adversarial and controls datasets.
+
+Latest recorded results (2026-08-07, `results/hypothesis-safety-2026-08-07.json`):
+
+| Split | n | false-negative rate | false-positive rate |
+|---|---|---|---|
+| easy | 31 | 0.00 | 0.00 |
+| hard | 18 | 1.00 | 0.833 |
+
+The `easy` split being clean is why this gap was invisible before the `hard`
+split existed: every one of the 12 hard adversarial items evaded the
+deterministic layer, and 5 of the 6 hard legitimate-research controls were
+wrongly blocked. This is not a threshold-tuning problem — it is a
+deterministic-regex layer being asked to do semantic work it structurally
+cannot do. The `hard` split is measured and reported, never gated to pass.
+See `J13` in `docs/fidelity-audit/FINDINGS.md` for the finding this measured.
+
 ## External gaps (not reproducible here)
 
 These need unavailable data / credentials / expert panels / wet
 labs and are recorded honestly rather than fabricated:
 
-- **Elo-vs-known-answer calibration** and **test-time-compute scaling curves**
-  need an appropriately licensed question set (e.g. GPQA) and provider
-  credentials. The tractable offline metrics (`metrics.py`) are provided; the
-  credentialed curves are external.
+- **Elo-vs-known-answer calibration** (`elo_concordance_eval.py`,
+  **test-time-compute scaling curves** (`scaling_budget_driver.py`), and
+  **strategy/tool ablations** (`ablation_driver.py`) all now have runnable
+  drivers in-tree, driving the real durable path end to end — that part is
+  no longer a gap. What remains external in each is different, and stays
+  three separate facts rather than one:
+  - The drivers are **offline-proven only** so far (the only mode CI or the
+    committed tests exercise): the deterministic offline LLM backend answers
+    every call identically regardless of tier or arm, so an offline run
+    demonstrates the harness's *wiring* — that tiers really do request more
+    compute, that arms really do differ in config — and is explicitly NOT
+    evidence that a real model's output quality scales with budget, that an
+    ablated feature changes real output, or that a real judge's Elo
+    concordance holds. Every offline artifact says so in its own
+    `offline_disclaimer`/`external_gap` field.
+  - Each driver also supports a `--live`/`--llm` opt-in path against a real
+    provider (and, for the ablation driver, a reachable MCP server for the
+    toggles to bite) — but **no live run has been recorded yet**; that
+    credentialed measurement is still to be taken, not merely unbuilt.
+  - The concordance harness's substitute dataset is a separate, permanent
+    gap independent of live/offline: GPQA itself is a licensed, gated
+    benchmark this repository cannot commit, so even a `--llm` run only
+    measures concordance on an 8-item hand-authored synthetic set — never
+    GPQA-difficulty concordance.
 - **Expert ratings** — the schema (`expert_review.py`) is here; the actual
   ratings require a recruited expert panel (external).
 - **Google's private 1,200-goal safety benchmark** and **203-goal scaling

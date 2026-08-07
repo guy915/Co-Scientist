@@ -48,8 +48,10 @@ configurable.</sub>
 <td width="33%" valign="top">
 
 **Dual safety gates**<br/>
-<sub>Intake and final-output safety screening. Blocks weaponisation
-patterns.</sub>
+<sub>Intake and final-output safety screening against literal
+weaponisation patterns. The deterministic layer is measurably porous to
+paraphrase and over-blocks legitimate near-boundary research — see
+[`FIDELITY.md`](docs/FIDELITY.md).</sub>
 
 </td>
 <td width="33%" valign="top">

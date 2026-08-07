@@ -24,9 +24,9 @@ The layered stack: React workbench talks to FastAPI over HTTP + SSE; FastAPI per
 
 | Layer | Lives in | Role |
 | --- | --- | --- |
-| Workbench UI | `app/frontend/src/workbench/` | React 19 + Vite 7 + Tailwind v4 + MD3. Renders run tabs (overview, ideas, evidence, tournament, report, chat). Holds no durable state — rebuilds from API + SSE on mount. |
-| FastAPI | `app/app/` | `/api/runs/*` lifecycle, SSE event stream, SQLite persistence, provider selection. Single `HypothesisGenerator` instance built in `lifespan`. |
-| Engine | `engine/src/co_scientist/` | LangGraph `StateGraph` of 9–11 nodes. Selected by `engine_adapter.select_provider()`. |
+| Workbench UI | `app/frontend/src/workbench/` | React 19 + Vite 7 + Tailwind v4 + MD3. Renders the four run-detail tabs (details, learning, overview, ideas) plus the chat workspace. Caches no *run or hypothesis* content — rebuilds from API + SSE on mount; it does persist a handful of small identity/preference keys (client id, audience, theme, BYOK key) to `localStorage`/`sessionStorage`, see `docs/ARCHITECTURE.md`'s "Frontend state". |
+| FastAPI | `app/app/` | `/api/runs/*` lifecycle, SSE event stream, SQLite persistence, provider selection. No generator is held across requests — every durable task (`engine_tasks.py`) builds its own `HypothesisGenerator`. |
+| Engine | `engine/src/co_scientist/` | LangGraph `StateGraph` of 14 registered nodes (12 when MCP is unavailable — `literature_review`/`reflection` are excluded from the graph, not skipped at runtime). Selected by `engine_adapter.select_provider()`. |
 | MCP server | `engine/mcp_server/` | FastMCP + Biopython. PubMed search/fulltext + INDRA CoGex. Python 3.12 only. |
 
 Provider selection (`app/app/engine_adapter/provider.py`): `select_provider()` always returns `"engine"` — the engine is a hard runtime dependency now. What varies is the LLM backend: `offline_mode()` returns `True` when `COSCIENTIST_FORCE_OFFLINE=1` (or the deprecated `COSCIENTIST_FORCE_MOCK=1`) is set, or no provider key is present, in which case `co_scientist.offline_llm.install_offline_router()` answers `offline/`-prefixed model calls deterministically instead of calling a real provider — the same graph emits the identical event sequence either way, so the UI and tests work with zero external dependencies.
@@ -46,11 +46,13 @@ This is the core of the system. A linear **first pass** feeds a conditional **it
 ### First pass (always runs)
 
 ```
-supervisor → literature_review → generate → reflection → review → ranking → deep_verification
+supervisor → literature_review → generate → reflection → review
+  → comprehensive_reflection → safety_screen → ranking → deep_verification
 ```
 
 - **Supervisor** builds a research plan and strategy (`agents/supervisor/supervisor.py`).
-- **Literature Review** + **Reflection** are MCP-gated (dashed in the diagram). When MCP is unavailable the graph is built *without* those two nodes and the first pass collapses to `supervisor → generate → review` (the dashed bypass arrow in the SVG).
+- **Literature Review** + **Reflection** are MCP-gated (dashed in the diagram). When MCP is unavailable the graph is built *without* those two nodes and the first pass collapses to `supervisor → generate → review → …` (the dashed bypass arrow in the SVG).
+- **Comprehensive Reflection** and the pre-ranking **Safety screen** sit between Review and Ranking on every path — including the orchestrator's direct re-rank route (`generator/graph.py::_add_review_and_ranking_edges`) — so a blocked hypothesis never reaches the tournament, evolution, or meta-review (`agents/safety/safety_screen.py`).
 - **Deep Verification** runs *after* Ranking, probing the top-3 by Elo (`agents/reflection/deep_verification.py`). It is not a separate tournament round.
 
 ### Iteration cycle (runs up to `max_iterations` times)
@@ -75,17 +77,17 @@ Loop continuation is decided by a dedicated **orchestrator node** (`agents/super
 ```mermaid
 flowchart TD
   SUP["supervisor"] --> LR["literature_review"] --> GEN["generate"] --> REF["reflection"] --> REV["review"]
-  REV --> RK["ranking"]
+  REV --> CR["comprehensive_reflection"] --> SS["safety_screen"] --> RK["ranking"]
   RK --> DV["deep_verification"]
   DV --> ORCH{"orchestrator<br/><i>agents/supervisor/orchestrator.py</i>"}
   PROX["proximity"] --> ORCH
 
   ORCH -->|generate| GEN
-  ORCH -->|review| REV
-  ORCH -->|ranking| RK
-  ORCH -->|meta_review| MR["meta_review"]
+  ORCH -->|reflect| REV
+  ORCH -->|rank| SS
+  ORCH -->|evolve| MR["meta_review"]
   ORCH -->|proximity| PROX
-  ORCH -->|research_overview| RO["research_overview"]
+  ORCH -->|terminate| RO["research_overview"]
 
   MR --> EV["evolve"]
   EV --> REV
@@ -99,7 +101,7 @@ flowchart TD
 
 Key facts:
 
-- Wiring lives in `generator/graph.py`: every work phase converges on `ranking → deep_verification → orchestrator`, and `proximity` returns to the orchestrator too. The orchestrator's decision routes to `generate`, `review`, `ranking`, `meta_review` (the head of the `meta_review → evolve → review` re-review branch), `proximity`, or the terminal `research_overview`.
+- Wiring lives in `generator/graph.py`: every work phase converges on `review → comprehensive_reflection → safety_screen → ranking → deep_verification → orchestrator`, and `proximity` returns to the orchestrator too. The orchestrator's decision (a `TaskType` value: `generate`/`reflect`/`rank`/`evolve`/`proximity`/`terminate`) maps through `_TASK_ROUTES` to the node that begins that task — note `rank` enters at `safety_screen`, not directly at `ranking`, and `evolve` enters at `meta_review` (whose critique feeds `evolve`), not at the `evolve` node itself.
 - The policy is a pure function of `SchedulerStats` and a `Budget` (`scheduling/policy.py`). An LLM supervisor may only *recommend* a next task; `validate_decision` enforces the allowed transitions and budget — the code decides, the model only advises.
 - `current_iteration` is incremented by the orchestrator when it schedules a work task (generate/evolve); maintenance tasks (proximity/rank/reflect) and termination do not advance it (`agents/supervisor/orchestrator.py`).
 - `max_iterations` defaults to `1` (`constants.py::DEFAULT_MAX_ITERATIONS`) and acts as the budget's satisfied-completion cap; runs can also terminate early on convergence (top Elo stable across cycles) or an exhausted budget (`scheduling/policy.py`).
@@ -132,9 +134,12 @@ All nodes are `async (state) -> dict[str, Any]`, implemented in the agent packag
 | `literature_review` | `literature_review/node.py:332` | `research_goal`, `tool_registry`, `literature_review_papers_count` | `articles_with_reasoning`, `articles`, `context_enrichment_sources`, `literature_review_queries` | generate |
 | `generate` | `generate.py:17` | `supervisor_guidance`, `articles_with_reasoning`, `enable_tool_calling_generation` | `hypotheses`, `debate_transcripts` | reflection (or review) |
 | `reflection` | `reflection.py:210` | `articles_with_reasoning`, `hypotheses` | `hypotheses` (+ `reflection_notes`, INDRA `enrichments`) | review |
-| `review` | `review.py:314` | `hypotheses`, `research_goal`, `supervisor_guidance` | `hypotheses` (+ `reviews`, `score`) | ranking |
+| `review` | `review.py:314` | `hypotheses`, `research_goal`, `supervisor_guidance` | `hypotheses` (+ `reviews`, `score`) | comprehensive_reflection |
+| `comprehensive_reflection` | `comprehensive_reflection.py:476` | `hypotheses`, `articles_with_reasoning` | `hypotheses` (+ deeper structured critique) | safety_screen |
+| `safety_screen` | `safety_screen.py:235` | `hypotheses` | `hypotheses` (blocked ones removed), `safety_decisions`, `held_for_review` | ranking |
 | `ranking` | `ranking.py:392` | `hypotheses`, `tournament_pairs`, `current_iteration` | `hypotheses` (sorted by Elo, + `win/loss_count`), `tournament_matchups` | deep_verification |
 | `deep_verification` | `deep_verification.py:353` | `hypotheses` (top-3 by Elo) | `hypotheses` (+ `deep_verification_probes`, `deep_verification_verdict`) | orchestrator |
+| `orchestrator` | `orchestrator.py:153` | `SchedulerStats` computed from state | `next_task`, decision + reason in the ledger | routes via `_TASK_ROUTES` to generate / review / safety_screen / meta_review / proximity / research_overview |
 | `meta_review` | `meta_review.py:32` | `hypotheses` (reviews, Elo, verdicts) | `meta_review` | evolve |
 | `evolve` | `evolve.py:347` | `hypotheses`, `evolution_max_count`, `meta_review` | `hypotheses` (evolved subset), `evolution_details` | review (re-review) |
 | `proximity` | `proximity.py:328` | `hypotheses`, `current_iteration` | `hypotheses` (deduped), `removed_duplicates`, `similarity_clusters` | orchestrator |

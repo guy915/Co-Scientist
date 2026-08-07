@@ -21,7 +21,7 @@ Each agent is a package under [`co_scientist.agents`](../src/co_scientist/agents
 
 ## Workflow Graph
 
-The workflow consists of specialized nodes that handle different aspects of hypothesis generation and refinement:
+The workflow consists of specialized nodes that handle different aspects of hypothesis generation and refinement, wired in `generator/graph.py`. Every work phase converges on the same review-through-ranking spine, and every completion path (a work phase's own end, or a maintenance task) returns to a single **orchestrator** loop point rather than following a fixed iteration count:
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
@@ -30,6 +30,7 @@ The workflow consists of specialized nodes that handle different aspects of hypo
 
                               START
                                 │
+                 (resume=True: re-enter at ORCHESTRATOR instead)
                                 ▼
                          ┌─────────────┐
                          │ SUPERVISOR  │  Creates research plan
@@ -40,73 +41,70 @@ The workflow consists of specialized nodes that handle different aspects of hypo
                      ▼                     ▼
           ┌──────────────────┐      ┌─────────────┐
           │ LITERATURE REVIEW│      │  GENERATE   │
-          │(Yes, Recommended)│      │             │
           └────────┬─────────┘      └──────┬──────┘
-                   │                       │
                    ▼                       │
-          ┌─────────────────┐              │
-          │    GENERATE     │              │
-          │                 │              │
-          └────────┬────────┘              │
-                   │                       │
+          ┌──────────────────┐             │
+          │    GENERATE      │             │
+          └────────┬─────────┘             │
                    ▼                       │
           ┌──────────────────┐             │
           │   REFLECTION     │             │
           │ (uses literature)│             │
           └────────┬─────────┘             │
-                   │                       │
-                   └──────────┬────────────┘
+                   └──────────┬─────────────┘
                               ▼
-                       ┌─────────────┐
-                       │   REVIEW    │  Parallel peer review
-                       └──────┬──────┘  with scoring
-                              │
-                              ▼
-                       ┌─────────────┐
-                       │    RANK     │  LLM-based ranking, runs Elo-based pairwise comparisons,
-                       └──────┬──────┘  considering all criteria
-                              │
-                  ┌───────────┴───────────┐
-                  │                       │
-       [max_iterations > 0]      [max_iterations = 0]
-                  │                       │
-                  ▼                       ▼
-           ┌─────────────┐              END
-           │ META-REVIEW │  Synthesize
-           └──────┬──────┘  cross-hypothesis review
-                  │         insights
-                  ▼
-           ┌─────────────┐
-           │   EVOLVE    │  Refine up to evolution_max_count
-           └──────┬──────┘  with diversity
-                  │         preservation
-                  ▼
-           ┌─────────────┐
-           │  RE-REVIEW  │  Review evolved
-           └──────┬──────┘  hypotheses
-                  │
-                  ▼
-           ┌─────────────┐
-           │  RE-RANK    │  Re-rank after
-           └──────┬──────┘  evolution with re-tournament and elo ratings
-                  │
-                  ▼
-           ┌─────────────┐
-           │  PROXIMITY  │  Deduplicate
-           └──────┬──────┘  similar hypotheses
-                  │
-                  │  [increment iteration]
-                  │
-                  └─────────┐
-                            │
-                  ┌─────────┴────────┐
-                  │                  │
-       [iteration < max]    [iteration >= max]
-                  │                  │
-                  └─────► LOOP       └─────► END
-                         BACK TO
-                       META-REVIEW
+                       ┌──────────────┐
+                       │   REVIEW     │◄────────────────────┐  re-review after
+                       └──────┬───────┘                      │  evolution
+                              ▼                               │
+                 ┌─────────────────────────┐                  │
+                 │ COMPREHENSIVE REFLECTION│                  │
+                 └────────────┬────────────┘                  │
+                              ▼                                │
+                       ┌──────────────┐                        │
+                       │ SAFETY SCREEN│  removes blocked        │
+                       └──────┬───────┘  hypotheses first       │
+                              ▼                                  │
+                       ┌──────────────┐                          │
+                       │    RANKING   │  Elo tournament            │
+                       └──────┬───────┘                            │
+                              ▼                                     │
+                     ┌──────────────────┐                           │
+                     │ DEEP VERIFICATION│  probes top-3 by Elo        │
+                     └────────┬─────────┘                            │
+                              ▼                                       │
+                      ┌────────────────┐        ┌─────────────┐       │
+       ┌─────────────►│  ORCHESTRATOR  │◄───────┤  PROXIMITY  │       │
+       │              └───────┬────────┘        └──────┬──────┘       │
+       │   picks the next task from live SchedulerStats  │             │
+       │   (pool growth, Elo stability, match/proximity   ▲             │
+       │    backlog) via the deterministic scheduling      │             │
+       │    policy — an LLM may only recommend              │             │
+       │                    │                                │             │
+       │        ┌───────────┼──────────┬──────────┐          │             │
+       │        ▼           ▼          ▼          ▼          │             │
+       │   [generate]  [reflect]   [proximity] [evolve]───────┘             │
+       │        │           │          │          │                        │
+       │        ▼           └──────────┘          ▼                        │
+       │   GENERATE       (loops to REVIEW)  ┌─────────────┐                │
+       │   (new iteration)                   │ META-REVIEW │                │
+       │                                      └──────┬──────┘                │
+       │                                             ▼                       │
+       │                                       ┌─────────────┐               │
+       │                                       │   EVOLVE    │               │
+       │                                       └──────┬──────┘               │
+       │                                              └──────────────────────┘
+       │
+       └──── [terminate] ────► RESEARCH OVERVIEW ────► END
 ```
+
+A rendered (mermaid) version of the same graph, plus the exact orchestrator routing table (`_TASK_ROUTES`), is in [`docs/EXPLAINER.md`](../../docs/EXPLAINER.md) §4.
+
+### Dynamic orchestration
+
+The **orchestrator node** (`agents/supervisor/orchestrator.py`) is the graph's single adaptive loop point. Each time it fires it computes `SchedulerStats` from live state (pool growth, Elo stability, tournament match coverage, proximity backlog), passes them to a deterministic scheduling policy (`scheduling/policy.py::decide_next_task`, validated by `validate_decision`), records the decision and its reason in the run's Supervisor allocation ledger, and sets `next_task`. An LLM supervisor may *recommend* a task; the policy — not the model — decides and enforces the allowed transitions and budget. A fifth route, `rank`, is omitted from the diagram above for space: it re-enters the spine directly at `safety_screen` (not at `review` or `ranking`), the same node the main pipeline reaches after `comprehensive_reflection`. Termination fires on Elo convergence (top hypothesis stable across cycles) or an exhausted iteration/task budget, never on a fixed `max_iterations` branch hard-coded after ranking. `current_iteration` only advances when the orchestrator schedules a work task (`generate`/`evolve`); scheduling a maintenance task (`reflect`/`proximity`/`rank`) does not.
+
+One node commit can also enqueue more than one future task at once: `task_runtime.plan_portfolio` resolves however much of a node's successor chain is knowable without running it, and the app's durable executor chains that lookahead through the queue's existing dependency gate (`app/app/engine_tasks_portfolio.py`) rather than enqueueing one task at a time and waiting on each. This changes *when* work is queued, not what the orchestrator decides — the routing above is unaffected.
 
 ## Adaptive Review Strategy
 

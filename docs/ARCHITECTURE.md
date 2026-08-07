@@ -25,10 +25,14 @@ This document describes the current runtime shape of the Co-Scientist workspace.
 |   main.py        — composes router, CORS, lifespan                 |
 |   config.py      — pydantic-settings                               |
 |   runs.py        — /api/runs/* lifecycle, read, messages, and SSE   |
+|   engine_tasks.py — durable node/fan-out/match executor; the only  |
+|                     way any run advances (no in-process workflow)  |
+|   task_worker.py — leased worker cohort draining scientific_tasks  |
 |   engine_adapter/ — provider selection + offline/real LLM backend  |
 |                     switch; bridges to the engine                  |
 |   store/         — SQLite store (runs/events/hypotheses/evidence/  |
-|                    citations/matches/reviews/reports/safety)       |
+|                    citations/matches/reviews/reports/safety/       |
+|                    scientific_tasks/checkpoints/supervisor_plan)   |
 |   elo.py         — pure Elo helpers (initial=1200, configurable K) |
 |   safety.py      — intake + final regex-based gate                 |
 |   citations.py   — verified|partial|unsupported|unavailable        |
@@ -93,6 +97,9 @@ Tables (SQLite, WAL):
 | `safety_decisions` | append-only | intake + final |
 | `reports` | append-only | structured JSON + path to `reports/<run>.md` |
 | `messages` | append-only | steering, milestone, and Q&A chat messages |
+| `scientific_tasks` | mutable (leases/status) | the durable queue itself — every graph node, fan-out item, and tournament match is a leased, idempotent row here; this is the only path a run executes through |
+| `checkpoints` | append-only, pruned | `WorkflowState` snapshot after each committed task, the resume point |
+| `supervisor_plan` / `supervisor_allocations` | replaced wholesale at finalize, plus synced on every checkpoint | the Supervisor's plan and terminal rationale, and an append-only-per-run ledger of every task the orchestrator scheduled with the observed stats behind each decision; readable via `GET /api/runs/{id}/supervisor-plan` |
 
 `hypothesis_state` is the critical decoupling: it holds the values that *must* change as the run progresses (Elo, win counts) without violating the rule that an original hypothesis row is the historical record of what was generated.
 
