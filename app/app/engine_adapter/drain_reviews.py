@@ -8,13 +8,18 @@ original module namespace keeps resolving.
 
 from __future__ import annotations
 
+import re
 import sqlite3
 from dataclasses import dataclass
 from typing import Any
 
 from app import store
 from app.citations import CitationRecord, classify_citation
+from app.claims_assessor import _SENTENCE_SPLIT
 from app.report_render import format_deep_verification_critique
+
+# Bracketed citation groups inside a grounding sentence: "[C1]", "[C1, C3]".
+_BRACKET_GROUP = re.compile(r"\[([^\[\]]+)\]")
 
 
 @dataclass(frozen=True)
@@ -364,6 +369,45 @@ def _hypothesis_grounding_text(h: dict[str, Any]) -> str:
     return str(h.get("literature_grounding") or h.get("text") or "")
 
 
+def _claim_cited_by(grounding: str, cite_key: str) -> str:
+    """The part of a grounding paragraph that actually cites ``cite_key``.
+
+    A grounding is a synthesis spanning every source the hypothesis rests on,
+    and each source backs one or two of its sentences. ``_token_overlap``
+    measures coverage over the *claim's* vocabulary, so handing a single
+    paper's abstract the whole paragraph divides its real overlap by every
+    other source's words as well -- which puts the upper states out of reach
+    however well the paper supports what it was cited for. On one live run
+    the best of 27 citations scored 0.23 against a 0.30 "partial" line, and
+    the audit reported 0 verified, 0 partial, 33 unsupported: the same
+    unreachable-upper-states failure the coverage metric was introduced to
+    fix, arriving through the claim side instead of the metric.
+
+    Args:
+        grounding: The hypothesis's whole literature-grounding text.
+        cite_key: The engine's key for one citation (e.g. ``C1``).
+
+    Returns:
+        The grounding sentences carrying a ``[C1]``-style marker for this
+        key, or the whole grounding when the key is not marked inline (a
+        knowledge-graph source, or a payload that never inlined markers).
+    """
+    marker = f"[{cite_key}]"
+    cited = [
+        sentence
+        for sentence in _SENTENCE_SPLIT.split(grounding)
+        # A sentence may list several keys ("[C1, C3]"), so match the key
+        # inside a bracket group rather than only a lone marker.
+        if marker in sentence
+        or any(
+            cite_key == part.strip()
+            for group in _BRACKET_GROUP.findall(sentence)
+            for part in group.split(",")
+        )
+    ]
+    return " ".join(cited).strip() or grounding
+
+
 def _citation_map(h: dict[str, Any]) -> dict[str, Any]:
     """Return a hypothesis's raw engine citation map, defaulting to empty."""
     return h.get("citation_map") or {}
@@ -422,7 +466,7 @@ def _persist_one_citation(
         CitationRecord(
             url=cite_url,
             abstract=sink.abstract_by_title.get(cite_title, ""),
-            claim=target.grounding,
+            claim=_claim_cited_by(target.grounding, cite_key),
             available=_citation_available(cite_info, cite_url),
         )
     )

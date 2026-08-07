@@ -201,3 +201,90 @@ def test_persist_classifies_citations_via_shared_classifier(
         "[C2] cited in hypothesis": "unsupported",
         "[C3] cited in hypothesis": "unavailable",
     }
+
+
+def _final_state_with_multi_source_grounding() -> dict[str, Any]:
+    """A run-shaped grounding: several sentences, each citing its own paper.
+
+    The single-sentence fixture above cannot distinguish a citation matched
+    against the sentence that cites it from one matched against the whole
+    paragraph, because there is only one sentence. A real grounding is a
+    synthesis paragraph spanning every source, and each abstract restates
+    only its own sentence.
+    """
+    grounding = (
+        "CXCR1 signaling drives breast cancer stem cell renewal [C1]. "
+        "Hypoxia-inducible factor stabilization expands the perivascular "
+        "niche in glioma [C2]. "
+        "The proposed coupling between the two is an extension of both."
+    )
+    return {
+        "hypotheses": [
+            _engine_hypothesis(
+                "eng-hyp-a",
+                "Blocking CXCR1 suppresses breast cancer stem cells.",
+                literature_grounding=grounding,
+                citation_map={
+                    "C1": {
+                        "type": "paper",
+                        "title": "CXCR1 drives CSC renewal",
+                        "url": "https://example.org/c1",
+                    },
+                    "C2": {
+                        "type": "paper",
+                        "title": "HIF expands the glioma niche",
+                        "url": "https://example.org/c2",
+                    },
+                },
+            )
+        ],
+        "articles": [
+            {
+                "title": "CXCR1 drives CSC renewal",
+                "url": "https://example.org/c1",
+                "abstract": (
+                    "CXCR1 signaling drives breast cancer stem cell renewal "
+                    "across xenograft models."
+                ),
+            },
+            {
+                "title": "HIF expands the glioma niche",
+                "url": "https://example.org/c2",
+                "abstract": (
+                    "Hypoxia-inducible factor stabilization expands the "
+                    "perivascular niche in glioma xenografts."
+                ),
+            },
+        ],
+        "tournament_matchups": [],
+        "meta_review": {},
+        "research_overview": {},
+    }
+
+
+def test_each_citation_is_scored_against_the_sentence_that_cites_it(
+    isolated_db: str,
+) -> None:
+    """A multi-source grounding must not make every citation unsupported.
+
+    Coverage is measured over the claim's own vocabulary, so handing the
+    classifier the whole grounding paragraph divides each source's real
+    overlap by every other source's words too. In one live run the best of
+    27 citations scored 0.23 against a 0.30 "partial" line, so a run whose
+    every citation was retrieved and on-point still reported 0 verified,
+    0 partial, 33 unsupported -- the same unreachable-upper-states failure
+    the Jaccard fix removed, arriving by a different route.
+    """
+    run = store.create_run("CSC goal", "standard", "engine", {})
+    engine_adapter._persist_final_state(
+        run_id=run.id,
+        final_state=_final_state_with_multi_source_grounding(),
+        db_path=isolated_db,
+    )
+
+    citations = store.list_citations(run.id, db_path=isolated_db)
+    states = {c["claim"]: c["state"] for c in citations}
+    assert states == {
+        "[C1] cited in hypothesis": "verified",
+        "[C2] cited in hypothesis": "verified",
+    }
