@@ -286,3 +286,43 @@ def test_escalation_does_not_hold_the_write_lock(
         release_call.set()
         worker.join(timeout=5)
     assert not errors, errors
+
+
+async def test_a_cleared_hold_is_audited_as_an_allow_not_a_block(
+    monkeypatch: pytest.MonkeyPatch, isolated_db: str
+) -> None:
+    """The audit row must say what happened, not what usually happens.
+
+    The audit recorder wrote a hardcoded ``decision="block"``, which was
+    correct while resolution could only raise a verdict. Now that a Tier B
+    hold can also be cleared, that hardcoded value would file a block row
+    for a hypothesis the same pass published -- and the adjudication UI
+    reads these rows, so it would show a reviewer a block that never
+    happened.
+    """
+    import litellm
+
+    _stub_eligible(monkeypatch)
+
+    async def _allow(**_: object) -> SimpleNamespace:
+        return _fake_semantic_response("allowed")
+
+    monkeypatch.setattr(litellm, "acompletion", _allow)
+    run = _real_run("cleared hold audit")
+
+    engine_adapter._persist_final_state(
+        run_id=run.id,
+        final_state=_escalation_state(),
+        db_path=isolated_db,
+    )
+
+    decisions = store.list_safety_decisions(run.id, db_path=isolated_db)
+    held_rows = [
+        row
+        for row in decisions
+        if row["stage"] == "hypothesis" and "uncertain" not in row["reason"]
+    ]
+    assert held_rows, "the resolution must leave an audit row"
+    assert all(row["decision"] == "allow" for row in held_rows), (
+        f"a cleared hold was audited as a block: {held_rows}"
+    )

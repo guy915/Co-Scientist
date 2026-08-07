@@ -56,11 +56,16 @@ _REDACTING_OUTCOMES = frozenset(
 # A redaction wipes the trigger text, so a fresh review over the (now
 # redacted) text would misread it as ALLOW and silently downgrade the
 # recorded status. A certain block (prohibited/ethical_concern) can also
-# carry a contextual escalation's raise -- escalation moves a held UNCERTAIN
+# carry a contextual resolution's raise -- resolution moves a held UNCERTAIN
 # up to prohibited (see hypothesis_safety.escalate_review), but the
 # hypothesis's underlying text is unchanged, so a fresh deterministic pass
 # would re-derive the same Tier B UNCERTAIN it started from and silently
-# undo the raise. Re-screening the whole pool happens whenever a scientist
+# undo the raise. A resolution in the *other* direction (a hold cleared to
+# allow) is deliberately not sticky: for a Tier B hit a re-screen re-holds
+# and re-resolves, which reaches the same answer again rather than losing
+# it, and paying one assessor call to re-confirm a clear is the cheaper
+# mistake than making a clear permanent across text the scientist edited.
+# Re-screening the whole pool happens whenever a scientist
 # adds an input, so preserving a prior blocking/redacting status keeps the
 # audited decision truthful (and skips redundant re-work / duplicate audit
 # rows). UNCERTAIN itself is deliberately excluded: it must stay open to a
@@ -138,6 +143,33 @@ def _changed_redacted_fields(hyp: Mapping[str, Any]) -> dict[str, str]:
     return {k: v for k, v in redacted.items() if v != fields[k]}
 
 
+def _hypothesis_decision_row(
+    run_id: str,
+    hyp_id: Any,
+    review: HypothesisSafetyReview,
+    decision: str,
+) -> store.NewSafetyDecision:
+    """Build one hypothesis's ``safety_decisions`` audit row.
+
+    ``decision`` is a parameter rather than always ``"block"`` because a
+    contextual assessment can now resolve a held verdict *downward* as
+    well as upward (``app.hypothesis_safety_resolve``). Writing a clear
+    through a hardcoded ``"block"`` would put a block row in the audit
+    trail for a hypothesis that was published -- the adjudication UI reads
+    these rows, so that is a lie about what happened, not a label
+    mismatch.
+    """
+    return store.NewSafetyDecision(
+        run_id=run_id,
+        stage="hypothesis",
+        decision=decision,
+        reason=(
+            f"hypothesis {hyp_id}: {review.outcome.value} ({review.reason})"
+        ),
+        matches=list(review.matches),
+    )
+
+
 def record_hypothesis_block(
     run_id: str,
     hyp_id: Any,
@@ -148,26 +180,13 @@ def record_hypothesis_block(
 ) -> None:
     """Record the ``safety_decisions`` audit row for a blocked hypothesis.
 
-    Shared by the pre-tournament screen and the report path's legacy fallback
-    so the block decision's stage/reason/matches shape has a single definition.
-
-    Args:
-        run_id: Identifier of the run being screened.
-        hyp_id: The blocked hypothesis's id, interpolated into the reason.
-        review: The blocking safety review supplying the outcome and matches.
-        conn: Optional open connection to reuse (e.g. from ``transaction``).
-        db_path: Optional override for the SQLite database path.
+    Shared by the pre-tournament screen and the report path's legacy
+    fallback so the block decision's stage/reason/matches shape has a
+    single definition. Both callers only ever record blocks; the
+    resolution path builds its own row so it can record a clear.
     """
     store.add_safety_decision(
-        store.NewSafetyDecision(
-            run_id=run_id,
-            stage="hypothesis",
-            decision="block",
-            reason=(
-                f"hypothesis {hyp_id}: {review.outcome.value} ({review.reason})"
-            ),
-            matches=list(review.matches),
-        ),
+        _hypothesis_decision_row(run_id, hyp_id, review, "block"),
         db_path=db_path,
         conn=conn,
     )
@@ -340,25 +359,42 @@ def persist_escalated_verdicts(
     Returns:
         The number of verdicts actually raised and persisted.
     """
-    raised = 0
+    resolved = 0
     for verdict in verdicts:
         if not verdict.raised:
             continue
-        store.update_hypothesis_state(
+        _persist_one_resolved_verdict(run_id, verdict, conn, db_path)
+        resolved += 1
+    return resolved
+
+
+def _persist_one_resolved_verdict(
+    run_id: str,
+    verdict: EscalatedVerdict,
+    conn: sqlite3.Connection | None,
+    db_path: str | None,
+) -> None:
+    """Persist one resolved verdict's status and its audit row."""
+    outcome = verdict.review.outcome.value
+    blocking = is_blocking_status(outcome)
+    store.update_hypothesis_state(
+        verdict.hyp_id,
+        store.HypothesisStateChanges(safety_status=outcome),
+        db_path=db_path,
+        conn=conn,
+    )
+    store.add_safety_decision(
+        _hypothesis_decision_row(
+            run_id,
             verdict.hyp_id,
-            store.HypothesisStateChanges(
-                safety_status=verdict.review.outcome.value
-            ),
-            db_path=db_path,
-            conn=conn,
-        )
-        record_hypothesis_block(
-            run_id, verdict.hyp_id, verdict.review, conn=conn, db_path=db_path
-        )
-        logger.warning(
-            "Escalation raised hypothesis %s from held to %s.",
-            verdict.hyp_id,
-            verdict.review.outcome.value,
-        )
-        raised += 1
-    return raised
+            verdict.review,
+            "block" if blocking else "allow",
+        ),
+        db_path=db_path,
+        conn=conn,
+    )
+    logger.warning(
+        "Contextual assessment resolved held hypothesis %s to %s.",
+        verdict.hyp_id,
+        outcome,
+    )

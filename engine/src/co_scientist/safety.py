@@ -46,31 +46,31 @@ to fix.
   version of this module cleared a Tier B hit to ALLOW whenever a
   meta-research marker was present and no listed verb matched, which let
   "A historical review of how to make a nerve agent" and "Improve the
-  yield of a bioweapon" both pass. **A Tier B category-only match is
-  therefore never cleared to ALLOW by this layer, full stop, regardless of
-  any meta-research marker.** Absent an operational verb, it resolves to
-  UNCERTAIN (held for manual review) whether or not a meta-research marker
-  is present -- the marker only changes the recorded *reason* text, never
-  the outcome, since a meta-research framing is corroborating context for a
-  human reviewer, not a machine-verifiable clearance. This is weaker than
-  the false-positive fix this module originally shipped with (a genuinely
-  benign hard-control item now reads UNCERTAIN, not ALLOW, and both are
-  blocking outcomes) but it cannot be bypassed by vocabulary choice the way
-  the ALLOW-clearing version could. Every Tier B verdict carries
-  ``needs_context=True`` so a caller with a contextual model available may
-  still raise it further (never lower it -- see the "model may raise,
-  never lower" contract used elsewhere in this policy); UNCERTAIN is a
-  hold, not a clear, and only human adjudication clears a hold.
-- **The deterministic ALLOW this module returns is the final verdict on the
-  engine's bulk hypothesis-generation path today.** ``app/app/engine_adapter
-  /drain.py`` screens every engine-generated hypothesis with this module
-  and nothing else -- no contextual model sits behind it there (see that
-  module's own docstring). Only the app's scientist-authored-hypothesis
-  admission path (``app/app/human_input.py``) escalates a held verdict to a
-  model. Since Tier B can no longer produce ALLOW, this mostly matters for
-  the plain no-match ALLOW and for Tier A: neither passes through any
-  context check, so a gap in either is not caught by anything downstream on
-  most of a run's hypotheses.
+  yield of a bioweapon" both pass. **This layer therefore still never
+  clears a Tier B match to ALLOW on its own, regardless of any
+  meta-research marker.** Absent an operational verb it resolves to
+  UNCERTAIN, and the marker only changes the recorded *reason* text.
+- What resolves that hold is a reader, not a wider pattern. Every Tier B
+  verdict carries ``needs_context=True``, and
+  ``app/app/hypothesis_safety_resolve.py`` puts exactly those verdicts to a
+  contextual assessor which may answer in *either* direction -- clearing
+  the hold or raising it to prohibited. That is a deliberate departure from
+  the "model may raise, never lower" contract the intake and final gates
+  apply, and the reason is what the two verdicts mean: a hit at those gates
+  asserts risk, so a model may only add to it, while a Tier B hold asserts
+  that the rules *cannot tell*, which is a question. Leaving it
+  permanently held is what blocked five of six legitimate near-boundary
+  control items. Every failure of that assessor -- disabled, offline,
+  uncredentialed, erroring, or answering anything but a clean allow --
+  leaves the hold standing.
+- **The consequence for this module: what stays in Tier B is only as safe
+  as that assessor.** Anything whose danger is not a judgment call must
+  therefore be named in Tier A, where no assessor can reach it, which is
+  why acquisition ("make/obtain/acquire ... a nerve agent"), yield or
+  potency improvement, and a synthesis procedure named against a weapon
+  class are Tier A patterns rather than corroborating verbs. Choose the
+  tier by asking whether a careful reader could legitimately disagree --
+  not by how dangerous the words sound.
 - What this does not fix: genuine paraphrase or synonym substitution (no
   literal trigger token at all) is outside what a regex layer can safely
   chase without turning into the whack-a-mole broadening that makes the
@@ -129,7 +129,7 @@ from co_scientist.safety_patterns import (
     _patterns as _patterns,
 )
 
-POLICY_VERSION = "coscientist-safety-v4"
+POLICY_VERSION = "coscientist-safety-v5"
 
 REDACTED_PLACEHOLDER = "[REDACTED FOR SAFETY]"
 

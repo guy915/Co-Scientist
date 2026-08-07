@@ -50,7 +50,7 @@ def _seed_halted_finalize(
                 "outcome": "prohibited",
                 "reason": "Content matches a prohibited policy rule.",
                 "matches": ["engineer smallpox for greater transmiss"],
-                "policy_version": "coscientist-safety-v4",
+                "policy_version": "coscientist-safety-v5",
             }
         ]
     _seed_checkpoint(run_id, state, db_path=db_path)

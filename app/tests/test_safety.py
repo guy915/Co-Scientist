@@ -58,7 +58,7 @@ def test_safety_decision_serializes_cleanly() -> None:
     assert out["stage"] == "intake"
     assert out["decision"] == "allow"
     assert "matches" in out
-    assert out["policy_version"] == "coscientist-safety-v4"
+    assert out["policy_version"] == "coscientist-safety-v5"
     assert out["category"] == "allowed"
 
 

@@ -22,13 +22,6 @@ from co_scientist.safety import (
     review_hypothesis_safety,
 )
 
-# Leaf module (only imports co_scientist.safety itself), so this is safe at
-# module scope unlike app.safety below -- app.safety pulls in app.store,
-# and app.store.hypotheses imports this module, which would be a real
-# import cycle if app.safety were imported here eagerly instead of lazily
-# inside escalate_review.
-from app.safety_types import SafetyDecision
-
 # Compatibility names retained for existing API/store callers. They are aliases
 # of the canonical engine types, not parallel policy implementations.
 HypothesisSafetyOutcome = SafetyOutcome
@@ -46,29 +39,6 @@ def redact_fields(fields: dict[str, str]) -> dict[str, str]:
     }
 
 
-def _held_baseline_decision(review: SafetyReview) -> SafetyDecision:
-    """Build the SafetyDecision baseline for an escalated held review.
-
-    ``decision="hold"`` (not "allow"): the deterministic layer never clears
-    a Tier B match, so nothing reaching this function is a clean allow to
-    begin with -- see the module docstring on ``escalate_review``. A "hold"
-    baseline is what makes ``app.safety``'s severity ordering
-    (allow < redact < hold < block) do the right thing automatically: the
-    model may raise it to "block", but nothing it reports -- "allow"
-    included -- can ever read as lower severity than "hold", so this call
-    can raise the verdict and can never clear it.
-    """
-    return SafetyDecision(
-        stage="hypothesis",
-        decision="hold",
-        reason=review.reason,
-        matches=list(review.matches),
-        category=review.outcome.value,
-        policy_version=review.policy_version,
-        requires_review=True,
-    )
-
-
 async def escalate_review(
     review: SafetyReview,
     text: str,
@@ -76,26 +46,30 @@ async def escalate_review(
     run_id: str,
     db_path: str | None = None,
 ) -> SafetyReview:
-    """Give a contextual model a chance to raise a held Tier B verdict.
+    """Resolve a held Tier B verdict with a contextual assessment.
 
     Only meaningful for a review the deterministic layer held as UNCERTAIN
-    on a Tier B category-only match (``review.needs_context``): the
-    deterministic layer never clears such a match to ALLOW by itself (see
-    the module docstring in ``co_scientist.safety`` -- an earlier version
-    of this design did, and it was a bypass, not a fix). A Tier A certain
-    verdict is already at the ceiling escalation could report, since a
-    contextual assessment may raise a verdict but never lower one (the same
-    "model may raise, never lower" contract ``app.safety.screen_with_
-    escalation`` applies to intake/final, reused here rather than
-    re-implemented). This call cannot clear a hold to allow either --
-    "hold" is baselined, and the severity ordering only lets the model raise
-    it to "block". Only human adjudication clears a hold. Callers should
-    only invoke this for a ``needs_context`` UNCERTAIN; other reviews pass
-    through unchanged if called anyway.
+    on a Tier B category-only match (``review.needs_context``). A Tier A
+    certain verdict never carries that flag and is refused here, which is
+    the property that keeps this from becoming the bypass an earlier
+    version of the policy shipped -- see
+    ``app.hypothesis_safety_resolve``, which owns the resolution and the
+    reasoning. Every other review passes through unchanged if called
+    anyway.
 
-    Fails closed: an offline-backed run, a missing credential, or a
-    provider error all leave the held verdict unchanged rather than
-    inventing a new one (``screen_with_escalation`` already encodes this).
+    Resolution runs in both directions, unlike the intake/final gates.
+    Those apply "the model may raise, never lower", because a
+    deterministic hit there asserts risk. A Tier B hold asserts the
+    opposite -- that the rules *cannot tell* what the sentence asks for --
+    so leaving it permanently held made legitimate near-boundary research
+    (disaster triage, detection assays, treaty history, research-ethics
+    review) indistinguishable from an attack, which is the false-positive
+    half of ``J13``. The model may clear such a hold to ALLOW or raise it
+    to PROHIBITED; only a Tier B hold is eligible either way.
+
+    Fails closed: an offline-backed run, a disabled contextual screen, a
+    missing credential, a provider error, and any answer that is not a
+    clean allow or block all leave the held verdict exactly as it was.
     Runs no store write and holds no transaction; the caller decides when
     to persist the result.
 
@@ -114,28 +88,14 @@ async def escalate_review(
         db_path: Optional override for the SQLite database path.
 
     Returns:
-        The escalated :class:`SafetyReview`, or ``review`` unchanged when
-        escalation does not apply or does not raise the verdict.
+        The resolved :class:`SafetyReview`, or ``review`` unchanged when
+        resolution does not apply or did not answer the question.
     """
     if not review.needs_context or review.outcome != SafetyOutcome.UNCERTAIN:
         return review
-    from app.safety import ScreenSubject, screen_with_escalation
+    from app.hypothesis_safety_resolve import resolve_hold
 
-    decision = await screen_with_escalation(
-        run_id,
-        ScreenSubject("hypothesis", text, _held_baseline_decision(review)),
-        provider="engine",
-        db_path=db_path,
-    )
-    if decision.decision != "block":
-        return review
-    return SafetyReview(
-        SafetyOutcome.PROHIBITED,
-        decision.reason,
-        tuple(decision.matches) or review.matches,
-        review.policy_version,
-        True,
-    )
+    return await resolve_hold(review, text, run_id=run_id, db_path=db_path)
 
 
 @dataclasses.dataclass(frozen=True)
@@ -160,11 +120,13 @@ class HeldHypothesis:
 class EscalatedVerdict:
     """One held hypothesis's outcome after a contextual escalation attempt.
 
-    ``raised`` is True only when the model actually moved the verdict off
-    its deterministic hold -- escalation can raise a verdict, never lower
-    it (see :func:`escalate_review`), so an unraised verdict is exactly the
-    held outcome the first screening pass already persisted and needs no
-    further write.
+    ``raised`` is True whenever the assessment moved the verdict off its
+    deterministic hold, in either direction -- a Tier B hold may be
+    cleared to allow as well as raised to prohibited (see
+    :func:`escalate_review`). The name predates the downward case and is
+    kept because callers key on it; read it as "resolved". An unmoved
+    verdict is exactly the held outcome the first screening pass already
+    persisted and needs no further write.
     """
 
     hyp_id: str

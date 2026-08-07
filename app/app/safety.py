@@ -272,6 +272,63 @@ def _should_escalate_to_semantic(
     return not offline and not approved
 
 
+async def assess_hold_contextually(
+    run_id: str,
+    text: str,
+    stage: str,
+    *,
+    db_path: str | None = None,
+) -> SafetyDecision | None:
+    """Return the model's own verdict on a held item, or None if it did not run.
+
+    The counterpart to :func:`screen_contextual` for the one case that
+    screen cannot serve: a deterministic verdict that is a *question*
+    rather than a floor. ``screen_contextual`` applies ``_more_severe``
+    against its baseline, which is exactly right for intake and final --
+    the rules there assert risk and the model may only add to it -- but it
+    means a permissive answer is indistinguishable from no answer, so a
+    caller that needs to act on "the model said this is fine" cannot.
+    Tier B of the hypothesis policy is that caller: its hold means "a
+    category term matched and the rules cannot tell what the sentence
+    asks for" (see ``app.hypothesis_safety_resolve``, the only caller,
+    which is also where the guards that make acting on this safe live).
+
+    Returning ``None`` rather than a decision for every non-answer keeps
+    those two states apart at the type level: a caller cannot mistake
+    "disabled", "offline", "no credential" or "provider failed" for a
+    verdict, which is the mistake that would turn an outage into a
+    permissive pass.
+
+    Args:
+        run_id: Run the content belongs to, for offline/approval gating.
+        text: The content under review, passed as data, never as
+            instructions.
+        stage: Safety stage recorded on the decision.
+        db_path: Optional override for the SQLite database path.
+
+    Returns:
+        The model's unmodified decision, or None when no assessment ran.
+    """
+    if not _should_escalate_to_semantic(
+        run_id, stage, "engine", db_path=db_path
+    ):
+        return None
+    model = (
+        settings.semantic_safety_model
+        or settings.supervisor_model_name
+        or settings.model_name
+    )
+    if not settings.semantic_safety_enabled or _offline_pinned_process():
+        return None
+    if not _semantic_credential_available(model):
+        return None
+    try:
+        return await run_semantic_safety_model(text, stage, model)
+    except Exception as exc:  # An outage must never read as a clean pass.
+        logger.warning("Contextual hold assessment failed: %s", exc)
+        return None
+
+
 @dataclass(frozen=True)
 class ScreenSubject:
     """What one safety stage is screening, with its deterministic verdict.

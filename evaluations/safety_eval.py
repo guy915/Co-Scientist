@@ -1,8 +1,6 @@
 """Per-hypothesis safety evaluation.
 
-Runs the per-hypothesis safety reviewer (``app.hypothesis_safety``) --
-the deterministic-regex layer (``co_scientist.safety.review_hypothesis_safety``,
-policy version below), never the semantic/LLM escalation -- over two
+Runs the per-hypothesis safety reviewer (``app.hypothesis_safety``) over two
 versioned sets and reports false-positive rate (safe items wrongly blocked)
 and false-negative rate (unsafe items wrongly allowed), plus per-category and
 per-difficulty breakdowns:
@@ -44,12 +42,17 @@ _DATASETS_DIR = _ROOT / "evaluations" / "datasets"
 _ADVERSARIAL_DATASET = _DATASETS_DIR / "hypothesis_safety_adversarial_v1.json"
 _CONTROLS_DATASET = _DATASETS_DIR / "hypothesis_safety_controls_v1.json"
 
-# The deterministic layer this eval exercises. Recorded in every artifact so
-# a reader never mistakes it for the semantic/LLM escalation layered on top
-# in the app (``semantic_safety_enabled``), which this eval does not call.
+# What the headline numbers measure, recorded in every artifact. No LLM is
+# called here: the headline arm is the deterministic layer alone, which is
+# also what ships whenever the contextual assessor cannot run. The shipped
+# system's other bound is reported separately as
+# ``permissive_assessor_ceiling`` -- see :func:`_blocked`. Neither arm is a
+# measurement of a real assessor's judgment; that needs a provider and is
+# not what this offline harness claims.
 _LAYER = (
     "deterministic (regex, no LLM call) -- "
-    "co_scientist.safety.review_hypothesis_safety"
+    "co_scientist.safety.review_hypothesis_safety; the contextual "
+    "assessor is bounded, not measured (see permissive_assessor_ceiling)"
 )
 
 sys.path.insert(0, str(_ROOT / "app"))
@@ -70,16 +73,47 @@ class _ScoredItem:
         return self.blocked == self.should_block
 
 
-def _score(items: list[dict[str, Any]]) -> list[_ScoredItem]:
-    """Run the reviewer over every item once, returning scored rows."""
-    from app.hypothesis_safety import review_hypothesis_safety
+def _blocked(text: str, *, permissive_assessor: bool) -> bool:
+    """Return whether this text is withheld, under one assessor assumption.
 
+    Two arms, both measurable without a provider, which together bound
+    what the contextual resolution layer can do to these numbers:
+
+    - ``permissive_assessor=False`` is the deterministic layer alone, and
+      also exactly what ships when no contextual assessor is reachable
+      (disabled, offline, uncredentialed, or erroring) -- every one of
+      those paths leaves the hold standing, so this arm is the floor.
+    - ``permissive_assessor=True`` is the worst case in the permissive
+      direction: an assessor that clears every hold put to it, whether
+      because it is weak, captured, or talked into it by the text it is
+      reading. This is the ceiling, and the number to look at when asking
+      what the layer risks rather than what it hopes for.
+
+    The eligibility gate is the real one (``is_resolvable_hold``), so the
+    arm cannot clear anything the shipped code would refuse to put to an
+    assessor; only the assessor's answer is assumed.
+    """
+    from app.hypothesis_safety import review_hypothesis_safety
+    from app.hypothesis_safety_resolve import is_resolvable_hold
+
+    review = review_hypothesis_safety(text)
+    if permissive_assessor and is_resolvable_hold(review):
+        return False
+    return bool(review.blocks_tournament)
+
+
+def _score(
+    items: list[dict[str, Any]], *, permissive_assessor: bool = False
+) -> list[_ScoredItem]:
+    """Run the reviewer over every item once, returning scored rows."""
     return [
         _ScoredItem(
             category=item["category"],
             difficulty=item.get("difficulty", "easy"),
             should_block=bool(item["should_block"]),
-            blocked=review_hypothesis_safety(item["text"]).blocks_tournament,
+            blocked=_blocked(
+                item["text"], permissive_assessor=permissive_assessor
+            ),
         )
         for item in items
     ]
@@ -119,11 +153,40 @@ def _grouped(rows: list[_ScoredItem], key: str) -> dict[str, dict[str, int]]:
     return dict(groups)
 
 
+def _by_difficulty(rows: list[_ScoredItem]) -> dict[str, Any]:
+    """Per-difficulty confusion breakdown."""
+    return {
+        difficulty: _confusion([r for r in rows if r.difficulty == difficulty])
+        for difficulty in sorted({r.difficulty for r in rows})
+    }
+
+
+def _metrics(
+    rows: list[_ScoredItem], permissive: list[_ScoredItem]
+) -> dict[str, Any]:
+    """Headline (no-assessor) metrics plus the permissive-assessor bound.
+
+    The two arms bracket the shipped system: ``rows`` is what ships when
+    no contextual assessor can run, and ``permissive`` is what ships if
+    one clears every hold put to it. The gap between them is the whole
+    reach of the resolution layer, in both directions.
+    """
+    return {
+        **_confusion(rows),
+        "by_difficulty": _by_difficulty(rows),
+        "per_category": _grouped(rows, "category"),
+        "permissive_assessor_ceiling": {
+            **_confusion(permissive),
+            "by_difficulty": _by_difficulty(permissive),
+        },
+    }
+
+
 def run() -> dict[str, Any]:
     """Evaluate the reviewer over both sets and return the report."""
     adversarial = json.loads(_ADVERSARIAL_DATASET.read_text(encoding="utf-8"))
     controls = json.loads(_CONTROLS_DATASET.read_text(encoding="utf-8"))
-    rows = _score(adversarial["items"]) + _score(controls["items"])
+    items = adversarial["items"] + controls["items"]
 
     return {
         "layer": _LAYER,
@@ -132,16 +195,9 @@ def run() -> dict[str, Any]:
         "controls_dataset": controls["name"],
         "controls_dataset_version": controls["version"],
         "policy_version": _policy_version(),
-        "metrics": {
-            **_confusion(rows),
-            "by_difficulty": {
-                difficulty: _confusion(
-                    [r for r in rows if r.difficulty == difficulty]
-                )
-                for difficulty in sorted({r.difficulty for r in rows})
-            },
-            "per_category": _grouped(rows, "category"),
-        },
+        "metrics": _metrics(
+            _score(items), _score(items, permissive_assessor=True)
+        ),
         "external_gap": (
             "Does not reproduce Google's private 1,200-goal safety benchmark "
             "(request-only); synthetic sets for false-positive / "

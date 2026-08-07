@@ -148,14 +148,20 @@ async def test_provider_error_holds_rather_than_allows(
     assert result.blocks_tournament
 
 
-async def test_model_agreeing_it_is_fine_does_not_clear_the_hold(
+async def test_model_agreeing_it_is_fine_clears_a_tier_b_hold(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A model saying "allowed" cannot clear a hold -- only raise it.
+    """A model saying "allowed" resolves a Tier B hold to allow.
 
-    This is the severity-ordering guarantee (allow < redact < hold <
-    block), not a special case in this module: "hold" is the escalation
-    baseline, so nothing the model reports can read as lower severity.
+    This deliberately reverses what this test asserted when the hold was
+    one-way. A Tier B hold means the rules cannot tell what the sentence
+    asks for, so a contextual assessment is the answer to it, not a
+    suggestion it may only agree with upward -- leaving it held is the
+    false-positive half of J13, which blocked legitimate near-boundary
+    research. The guarantee that replaces the old severity floor is
+    narrower and stronger: only a Tier B hold is resolvable at all, which
+    ``test_hypothesis_safety_resolve.py`` proves by running the whole
+    adversarial set past an assessor that approves everything.
     """
     import litellm
 
@@ -174,8 +180,8 @@ async def test_model_agreeing_it_is_fine_does_not_clear_the_hold(
 
     result = await escalate_review(review, _HELD_TEXT, run_id="r1")
 
-    assert result.outcome == SafetyOutcome.UNCERTAIN
-    assert result.blocks_tournament
+    assert result.outcome == SafetyOutcome.ALLOW
+    assert not result.blocks_tournament
 
 
 async def test_model_raises_a_held_verdict(

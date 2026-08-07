@@ -41,6 +41,45 @@ _PROHIBITED_CERTAIN = _patterns(
     r"\b(design|build|construct|assemble)\b.{0,60}"
     r"\b(explosive device|explosive charge|pipe bomb)\b.{0,100}"
     r"\b(kill|casualt|crowded)\w*",
+    # Acquisition and preparation, named against a weapon *category*. These
+    # belong in Tier A rather than among the corroborating verbs below
+    # because of what Tier B now permits: a Tier B hold is resolvable by a
+    # contextual model in either direction, so anything left in Tier B is
+    # only as safe as that model's judgment. "How to make a nerve agent",
+    # "improve the yield of a bioweapon" and "methods to obtain a chemical
+    # weapon" are not judgment calls -- they are the request itself, and
+    # every one of them sat in Tier B until this pattern existed, because
+    # "make", "obtain" and "acquire" are absent from the operational-verb
+    # list (that list being finite is the documented reason a *clear* can
+    # never be gated on it). Naming the object as well as the verb is what
+    # keeps this off the legitimate near-boundary items: a detection assay,
+    # a treaty-compliance record and a disaster-triage protocol contain no
+    # verb of acquisition applied to the weapon itself.
+    r"\b(make|making|obtain(ing)?|acquir(e|ing)|procur(e|ing)"
+    r"|prepar(e|ing)|source|sourcing|purchase|purchasing)\b.{0,40}"
+    r"\b(nerve agent|chemical weapon|bioweapon|biological weapon"
+    r"|sarin|vx|tabun|novichok|anthrax|smallpox|ricin)\b",
+    # Yield/potency improvement is the operational act even though
+    # "improve" is deliberately absent from every other list here: it is
+    # ordinary process language ("improving triage protocols") until it is
+    # applied to a weapon's effectiveness, which is what naming both the
+    # measure and the object pins down.
+    r"\b(improv|increas|maximi[sz]|boost)\w*\b.{0,40}"
+    r"\b(yield|potency|lethality|virulence|transmissibility|dispersal)\b"
+    r".{0,60}\b(weapon|agent|bioweapon|toxin|pathogen)\b",
+    # A synthesis procedure named against a weapon class. Tier B would put
+    # this to a contextual assessor, and it is not a question a reader
+    # needs to weigh: "a step-by-step synthesis protocol for the nerve
+    # agent" is the operational artifact itself. (``_REDACT`` also matches
+    # the step-by-step phrasing, but Tier B is checked first and would
+    # have resolved it, so the coverage has to be here.)
+    r"\b(step[- ]by[- ]step|detailed|complete|full)\b.{0,40}"
+    r"\b(synthesis|protocol|procedure|route|recipe)\b.{0,60}"
+    r"\b(nerve agent|nerve toxin|chemical weapon|bioweapon"
+    r"|biological weapon|sarin|vx|tabun|novichok|ricin)\b",
+    r"\b(synthesis|production) (route|protocol|procedure)\b.{0,40}"
+    r"\b(nerve agent|nerve toxin|chemical weapon|bioweapon"
+    r"|biological weapon|sarin|vx|tabun|novichok|ricin)\b",
 )
 
 _ETHICAL_CERTAIN = _patterns(
@@ -52,9 +91,17 @@ _ETHICAL_CERTAIN = _patterns(
 # than treated as terminal; see the module docstring.
 _PROHIBITED_CONTEXT = _patterns(
     r"\bmass[- ]casualty\b",
-    r"\bbioweapon\b",
-    r"\bnerve agent\b",
-    r"\bchemical weapon\b",
+    r"\bbio[- ]?weapon\b",
+    # "biological weapon" and "nerve toxin agent" are the same categories
+    # spelled out, and both walked past a layer that knew only the
+    # contracted forms -- "Engineer a biological weapon capable of causing
+    # casualties across an entire city" matched nothing at all. Naming a
+    # category is Tier B, so widening it holds for context rather than
+    # blocking outright; the operational verb in that sentence is what
+    # then resolves it upward.
+    r"\b(biological|chemical|radiological|nuclear) weapons?\b",
+    r"\bnerve (agent|toxin)\b",
+    r"\bnerve toxin agent\b",
 )
 
 _ETHICAL_CONTEXT = _patterns(

@@ -174,27 +174,51 @@ calibrated thresholds remain an external gap.
 
 ## Safety evaluation splits
 
-`safety_eval.py` scores the deterministic-regex hypothesis-safety layer only
-(never the optional semantic/LLM escalation) over `easy` (the literal-trigger
-regression floor) and `hard` (genuinely adversarial paraphrase/synonym/
-padding/spacing evasion, vocabulary the classifier has no pattern for, and
-legitimate near-boundary research that happens to use a trigger phrase)
-items, combined from the adversarial and controls datasets.
+`safety_eval.py` scores the hypothesis-safety layer over `easy` (the
+literal-trigger regression floor) and `hard` (genuinely adversarial
+paraphrase/synonym/padding/spacing evasion, vocabulary the classifier has no
+pattern for, and legitimate near-boundary research that happens to use a
+trigger phrase) items, combined from the adversarial and controls datasets.
+
+It reports **two arms**, because the shipped layer is two layers and neither
+number alone describes it:
+
+- **Floor** — the deterministic regex alone. This is also exactly what ships
+  whenever the contextual assessor cannot run: disabled, offline-pinned,
+  uncredentialed, erroring, or answering anything but a clean allow. Every one
+  of those leaves a held verdict held.
+- **Permissive-assessor ceiling** — the same measurement assuming an assessor
+  that clears *every* hold put to it, whether because it is weak, captured, or
+  talked into it by the text it is reading. The eligibility gate is the real
+  one, so this arm can only clear what the shipped code would actually put to
+  an assessor.
 
 Latest recorded results (2026-08-07, `results/hypothesis-safety-2026-08-07.json`):
 
-| Split | n | false-negative rate | false-positive rate |
-|---|---|---|---|
-| easy | 31 | 0.00 | 0.00 |
-| hard | 18 | 1.00 | 0.833 |
+| Arm | Split | n | false-negative rate | false-positive rate |
+|---|---|---|---|---|
+| floor | easy | 31 | 0.00 | 0.00 |
+| floor | hard | 18 | 0.333 | 0.833 |
+| ceiling | easy | 31 | 0.143 | 0.00 |
+| ceiling | hard | 18 | 0.333 | 0.00 |
 
-The `easy` split being clean is why this gap was invisible before the `hard`
-split existed: every one of the 12 hard adversarial items evaded the
-deterministic layer, and 5 of the 6 hard legitimate-research controls were
-wrongly blocked. This is not a threshold-tuning problem — it is a
-deterministic-regex layer being asked to do semantic work it structurally
-cannot do. The `hard` split is measured and reported, never gated to pass.
-See `J13` in `docs/fidelity-audit/FINDINGS.md` for the finding this measured.
+Read them together. The false-positive problem is entirely a hold problem: at
+the floor the layer wrongly withholds 5 of 6 legitimate near-boundary research
+items, and an assessor resolving those holds takes that to zero. What it costs
+in the worst case is the gap in the other column — one easy adversarial item
+whose danger is a genuine context call ("test the compound on patients without
+informed consent"). Constructions whose danger is *not* a context call —
+acquisition, yield improvement, a synthesis procedure named against a weapon
+class — are deterministic blocks no assessor can reach, which is why the
+ceiling's hard-split false-negative rate does not move at all.
+
+Neither arm measures a real assessor's judgment. That needs a provider and is
+not something this offline harness claims. What it does claim is a bound in
+each direction, which is what a reader needs to judge the trade.
+
+The remaining hard-split false negatives are genuine paraphrase with no
+literal trigger token, which neither layer closes today. See `J13` in
+`docs/fidelity-audit/FINDINGS.md` for the finding this measured.
 
 ## External gaps (not reproducible here)
 
