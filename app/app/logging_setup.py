@@ -331,6 +331,35 @@ class _RepeatSuppressor:
             self._seen.clear()
 
 
+# The one asyncio record this app cannot prevent and must not surface.
+# See app.litellm_shutdown for the mechanism: litellm's process-global
+# logging worker orphans its own task on every event-loop rebind, and the
+# garbage collector destroys it while pending, long after the loop that
+# owned it and against whatever run is executing at that moment. Matched
+# on both halves so a genuine destroyed-pending task of ours -- which
+# would be a real leak -- still reaches the log.
+_ORPHANED_WORKER_MARKERS = (
+    "Task was destroyed but it is pending",
+    "LoggingWorker._worker_loop",
+)
+
+
+def _drop_orphaned_logging_worker_noise(record: logging.LogRecord) -> bool:
+    """Keep litellm's orphaned logging-worker tasks out of the database.
+
+    Capture only: the record still prints to stdout, where it is one line
+    among a dependency's own output rather than an ERROR attributed to a
+    scientific run.
+    """
+    if record.name != "asyncio":
+        return True
+    try:
+        message = record.getMessage()
+    except Exception:
+        return True
+    return not all(marker in message for marker in _ORPHANED_WORKER_MARKERS)
+
+
 def _drop_self_noise(record: logging.LogRecord) -> bool:
     """Filter out access records for the log-polling endpoint itself.
 
@@ -390,6 +419,7 @@ def _build_capture_pipeline(
     handler.addFilter(_byok_redaction_filter())
     handler.addFilter(_drop_self_noise)
     handler.addFilter(_drop_dependency_chatter)
+    handler.addFilter(_drop_orphaned_logging_worker_noise)
     # Last in the chain, and after RunIdFilter: the key it builds includes
     # the run id that filter stamps on.
     handler.addFilter(_RepeatSuppressor())

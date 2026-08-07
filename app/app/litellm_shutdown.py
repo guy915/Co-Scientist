@@ -2,22 +2,40 @@
 
 LiteLLM keeps one process-global ``LoggingWorker`` whose ``_worker_loop``
 task is created lazily on whichever event loop first makes a completion
-call, and it is never stopped on its own. This process runs many
-short-lived loops -- one per durable-run cohort thread, plus the scoped
-``asyncio.run`` calls that drive provider work off a ``ThreadPoolExecutor``
--- so that task routinely outlives the loop that owns it. When the worker
-later rebinds to a new loop it drops the old task, which is then garbage
-collected while still pending and logs an ERROR through ``asyncio``:
+call, and it is never stopped on its own. This process runs many loops --
+uvicorn's, plus one per durable-run cohort thread -- so the worker rebinds
+constantly. Closing a loop while it still owns that task is one way to
+leak it, and ``run_in_scoped_loop`` below closes that door: every loop
+this module opens stops the worker on its way out, which also drains the
+queued callbacks instead of dropping them.
+
+That is *not*, however, where the
 
     Task was destroyed but it is pending!
     task: <Task pending name='Task-1676'
       coro=<LoggingWorker._worker_loop() ...>>
 
-Nothing is actually broken when that fires -- the worker only carries
-best-effort logging callbacks -- but it lands in the persisted app log at
-ERROR against whatever run happened to be executing, which is exactly the
-signal an operator is meant to trust. Stopping the worker before its loop
-closes removes the pending task instead of hiding the message.
+records come from, and this module cannot stop them. ``asyncio.run``
+already cancels every pending task before closing its loop, so a task
+destroyed pending was never reachable from a loop teardown. What actually
+happens is a rebind: ``LoggingWorker._ensure_queue`` nulls ``_queue``,
+``_sem`` and ``_worker_task`` when it sees a new loop, while the previous
+task is still suspended on ``_sem.acquire()``. Semaphore, waiter future
+and task then reference only each other -- an unreachable cycle in a loop
+that is still running -- so the garbage collector takes them at an
+arbitrary later moment and ``Task.__del__`` logs the record. It fires in
+bursts (five at once in production, task numbers spread across the whole
+process lifetime), nowhere near the loop that owned them, and by then
+``_bound_loop`` names a different loop entirely.
+
+Nothing is broken when it fires -- the worker carries best-effort logging
+callbacks -- but it lands in the persisted log at ERROR against whatever
+run happened to be executing. Since no teardown hook can reach an object
+the collector is already holding, the record is filtered out of capture
+instead (``logging_setup._drop_orphaned_logging_worker_noise``); it still
+prints to stdout. Removing the cause would mean cancelling the old task
+inside ``_ensure_queue``, i.e. monkeypatching a private vendor method on
+the hot path of every completion -- a worse trade for a message.
 """
 
 from __future__ import annotations

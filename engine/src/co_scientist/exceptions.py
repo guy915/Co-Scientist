@@ -58,6 +58,20 @@ class LLMBudgetExhaustedError(CoScientistError, ValueError):
     """An LLM spent its whole token budget reasoning and answered nothing."""
 
 
+# Raised when a completion ends normally (finish_reason is not "length")
+# having produced reasoning tokens and no answer tokens at all -- the model
+# thought, decided it was finished, and wrote nothing. Distinct from budget
+# exhaustion because a bigger allowance is not the remedy: production saw a
+# call reason for 1149 tokens against an 18000 budget and return empty, then
+# do the same on attempts 2 and 3, so a plain retry is not the remedy
+# either. The retry loop answers it by turning thinking off (see
+# llm_json_retry.BudgetEscalation).
+#
+# Also a ValueError, for the same reason LLMBudgetExhaustedError is.
+class LLMThinkingOnlyError(CoScientistError, ValueError):
+    """An LLM finished its chain of thought and wrote no answer at all."""
+
+
 # Raised when an MCP tool accepts a call and never returns. The LLM timeout
 # covers litellm.acompletion only, which left tool invocations unbounded: a
 # server whose stream broke mid-call parked the awaiting run forever, with no

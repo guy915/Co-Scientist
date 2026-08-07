@@ -23,7 +23,11 @@ from jsonschema.exceptions import ValidationError
 from co_scientist.backoff import jittered_backoff_seconds
 from co_scientist.cache import LLMCache, LLMCacheRequest, NullCache
 from co_scientist.constants import BUDGET_ESCALATION_MAX_TOKENS
-from co_scientist.exceptions import LLMBudgetExhaustedError, LLMTimeoutError
+from co_scientist.exceptions import (
+    LLMBudgetExhaustedError,
+    LLMThinkingOnlyError,
+    LLMTimeoutError,
+)
 from co_scientist.llm_json import (
     _backfill_required_fields,
     _validation_feedback,
@@ -82,11 +86,12 @@ def _rate_limit_backoff_seconds(attempt: int) -> float:
 class BudgetEscalation(enum.Enum):
     """How far a retry has escalated after a budget-exhausted attempt.
 
-    A call that came back empty with ``finish_reason="length"`` reasoned
-    until it hit its ceiling. Retrying it unchanged reproduces that
-    exactly -- in production the same request burned all five attempts,
-    each one paid for in full -- so each budget-exhausted attempt moves
-    one rung up this ladder instead:
+    A call that came back with no answer -- because it reasoned until it
+    hit its ceiling, or because it stopped after reasoning and wrote
+    nothing -- does the same thing again if the request does not change.
+    Production saw both shapes burn every attempt they were given, each
+    one paid for in full, so an answerless attempt moves up this ladder
+    instead of being re-sent:
 
     * ``NONE``: the call as its node sized it.
     * ``RAISED_BUDGET``: resent at ``BUDGET_ESCALATION_MAX_TOKENS``, in
@@ -118,19 +123,30 @@ def escalation_after(
 ) -> BudgetEscalation:
     """The escalation the next attempt should use, given this one's outcome.
 
-    Only a budget-exhausted attempt escalates. A schema failure, a parse
-    failure or a provider error all keep the current rung: they say nothing
-    about the budget, and raising it would spend more tokens per attempt on
-    a problem more tokens do not solve.
+    Only an answerless attempt escalates, and the two kinds enter the
+    ladder at different points. Budget exhaustion climbs one rung, because
+    a chain of thought cut off at the ceiling may genuinely have been close
+    to finishing. A thinking-only response skips straight to the top:
+    the model *chose* to stop, so it did not want for room, and the
+    intermediate rung would spend a whole attempt proving that.
+
+    A schema failure, a parse failure or an ordinary provider error all
+    keep the current rung: they say nothing about thinking, and changing
+    the request would spend more tokens on a problem tokens do not solve.
 
     Args:
         outcome: The outcome of the attempt that just ran.
         current: The escalation that attempt was made at.
 
     Returns:
-        The next rung when the attempt exhausted its budget, else
-        ``current`` unchanged.
+        The rung for the next attempt, or ``current`` unchanged.
     """
+    if isinstance(outcome.error, LLMThinkingOnlyError):
+        logger.warning(
+            "LLM finished thinking without answering; retrying with "
+            "thinking disabled"
+        )
+        return BudgetEscalation.NO_THINKING
     if not isinstance(outcome.error, LLMBudgetExhaustedError):
         return current
     escalated = _ESCALATION_LADDER[current]

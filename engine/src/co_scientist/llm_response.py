@@ -11,7 +11,10 @@ import logging
 from dataclasses import dataclass
 from typing import Any, cast
 
-from co_scientist.exceptions import LLMBudgetExhaustedError
+from co_scientist.exceptions import (
+    LLMBudgetExhaustedError,
+    LLMThinkingOnlyError,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -139,6 +142,8 @@ def _extract_completion_content(response: Any, model_name: str) -> str:
             token budget went on the chain of thought
             (``finish_reason="length"``). A subclass of ``ValueError``, so
             callers written against the general case still catch it.
+        LLMThinkingOnlyError: If the response ended normally having spent
+            reasoning tokens and written no answer. Also a ``ValueError``.
         ValueError: If the response has no non-whitespace content for any
             other reason.
     """
@@ -151,18 +156,45 @@ def _extract_completion_content(response: Any, model_name: str) -> str:
             model_name,
             diagnosis,
         )
-        # Split by finish reason, not by token counts: "length" is the
-        # provider stating it stopped at the ceiling, which is the one
-        # empty response a different budget can fix. Everything else --
-        # a filtered response, a provider hiccup, an empty answer the
-        # model chose -- is answered by a plain retry.
-        if _finish_reason(response) == "length":
-            raise LLMBudgetExhaustedError(
-                "LLM spent its entire token budget without answering. "
-                f"Model: {model_name} ({diagnosis})"
-            )
-        raise ValueError(
-            f"LLM returned None or empty content. Model: {model_name}"
-        )
+        raise _empty_content_error(response, model_name, diagnosis)
 
     return cast(str, content)
+
+
+def _empty_content_error(
+    response: Any, model_name: str, diagnosis: str
+) -> ValueError:
+    """Classify an empty completion by what would answer it.
+
+    Three outcomes, and the split is by remedy rather than by severity:
+
+    * ``finish_reason="length"`` -- the provider stopped at the ceiling, so
+      the request needs a different budget.
+    * Reasoning spent, no answer, stopped normally -- the model finished
+      thinking and wrote nothing, so the request needs thinking off. More
+      budget is beside the point (production spent 1149 of 18000), and so
+      is a plain retry (attempts 2 and 3 did exactly the same).
+    * Anything else, including an empty response with no reasoning at all --
+      an ordinary provider hiccup, which a plain retry does recover.
+
+    Args:
+        response: The raw response returned by ``litellm.acompletion``.
+        model_name: Model name in litellm format, named in the message.
+        diagnosis: The already-computed ``key=value`` usage summary.
+
+    Returns:
+        The error to raise; every kind is a ``ValueError`` subclass.
+    """
+    if _finish_reason(response) == "length":
+        return LLMBudgetExhaustedError(
+            "LLM spent its entire token budget without answering. "
+            f"Model: {model_name} ({diagnosis})"
+        )
+    if extract_token_usage(response).reasoning_tokens > 0:
+        return LLMThinkingOnlyError(
+            "LLM finished its chain of thought and wrote no answer. "
+            f"Model: {model_name} ({diagnosis})"
+        )
+    return ValueError(
+        f"LLM returned None or empty content. Model: {model_name}"
+    )

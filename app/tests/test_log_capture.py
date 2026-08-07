@@ -272,3 +272,35 @@ def test_repeated_identical_records_are_persisted_once(
     )
     # A different message from the same logger is its own condition.
     assert "MCP server responded but provided no tools" in messages
+
+
+def test_orphaned_litellm_worker_tasks_are_not_persisted(
+    isolated_db: str,
+) -> None:
+    """A destroyed litellm logging-worker task stays out of the database.
+
+    The message is an ERROR emitted by asyncio's garbage collector, from
+    a task litellm orphaned on an event-loop rebind (see
+    ``app.litellm_shutdown``). Nothing is wrong when it fires and nothing
+    in this app can prevent it, but it lands against whatever run is
+    executing at collection time and reads as that run failing.
+    """
+    configure_log_capture()
+    asyncio_logger = logging.getLogger("asyncio")
+    asyncio_logger.setLevel(logging.INFO)
+    with run_log_context("run-orphan"):
+        asyncio_logger.error(
+            "Task was destroyed but it is pending!\ntask: <Task pending "
+            "name='Task-1676' coro=<LoggingWorker._worker_loop() running "
+            "at /x/litellm/litellm_core_utils/logging_worker.py:121>>"
+        )
+        asyncio_logger.error(
+            "Task was destroyed but it is pending!\ntask: <Task pending "
+            "name='Task-9' coro=<run_run_worker_pool() running at x.py:1>>"
+        )
+    _flush()
+
+    messages = {row["message"] for row in store.list_logs(db_path=isolated_db)}
+    assert not [m for m in messages if "LoggingWorker._worker_loop" in m]
+    # A destroyed task of ours is a real leak and must still surface.
+    assert len([m for m in messages if "run_run_worker_pool" in m]) == 1
