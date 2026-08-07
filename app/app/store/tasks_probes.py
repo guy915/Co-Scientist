@@ -31,6 +31,23 @@ _EXPIRED_LEASE_RESCUABLE = (
     "status='leased' AND lease_expires_at<=? AND attempt<max_attempts"
 )
 
+# The complement of the fragment above, and the reason it needs a name: an
+# expired lease whose retry budget is *spent* is claimable by nobody and
+# owned by nobody. The worker that took it is provably gone (the lease
+# outlived it), so no ``fail_task`` call is ever coming, and the rescue
+# UPDATE skips it by design. Left untreated the row sits ``leased``
+# forever, which counted as live work to both the cohort's idle tick and
+# ``_settle_run_out_of_work`` -- so the cohort never exited and the run
+# never settled, the exact "non-terminal with no claimable work" state
+# ``F1`` was meant to make impossible. Call it dead, not active:
+# ``abandon_dead_leases`` fails such rows explicitly and settles the run.
+# A NULL expiry is not dead -- it is a lease that was never given a
+# deadline, not one that outlived its owner.
+_DEAD_LEASE = (
+    "status='leased' AND lease_expires_at IS NOT NULL "
+    "AND lease_expires_at<=? AND attempt>=max_attempts"
+)
+
 
 def _has_claimable_task(run_id: str | None, db_path: str | None) -> bool:
     """Return whether a claim attempt could plausibly find work.
@@ -160,15 +177,18 @@ def queue_health_snapshot(
     within its retry budget: nothing a worker cohort or a fresh claim
     could ever pick up.
 
-    That is a real gap the F1 fix
-    (``app.store.runs_reconcile._settle_run_out_of_work``) leaves open: it
+    This used to describe a gap the F1 fix
+    (``app.store.runs_reconcile._settle_run_out_of_work``) left open: it
     only settles a run when ``fail_task`` explicitly marks a task
-    ``failed``, but a lease that expires *after* its retry budget is spent
+    ``failed``, and a lease that expires *after* its retry budget is spent
     is never explicitly failed -- nobody still holds it to call
-    ``fail_task`` -- so the row stays ``leased`` forever. That stale row
-    still counts as active work to ``_settle_run_out_of_work``'s own
-    query, so the run is left ``running`` with no worker that will ever
-    touch it again.
+    ``fail_task`` -- so the row stayed ``leased`` forever, counted as
+    active work to ``_settle_run_out_of_work``'s own query, and left the
+    run ``running`` with no worker that would ever touch it again.
+    ``tasks_lifecycle.abandon_dead_leases`` closes it: the cohort now
+    reaches idle-exit over such a row (see ``cohort_poll``) and fails it
+    there. This probe stays as the independent check that it worked --
+    a stalled run reported here is now a bug rather than a known state.
 
     Args:
         db_path: Optional override for the SQLite database path.
@@ -203,6 +223,15 @@ def cohort_poll(run_id: str, db_path: str | None = None) -> tuple[bool, bool]:
     more". Asking them separately opened two connections per tick per
     worker, sustained for the whole wall clock of every run; one read-only
     connection answers both from a single consistent snapshot.
+
+    A *dead* lease (see ``_DEAD_LEASE``) is excluded from the active
+    answer. It is not a sibling that may fan out more work: its owner is
+    provably gone and its retry budget is spent, so nothing will ever
+    acknowledge it. Counting it as active kept every cohort member
+    polling for the life of the process over a task none of them could
+    ever claim -- the run neither progressed nor ended. Excluding it lets
+    the cohort reach idle-exit, which is where ``abandon_dead_leases``
+    settles the run.
     """
     query = (
         "SELECT"
@@ -211,8 +240,11 @@ def cohort_poll(run_id: str, db_path: str | None = None) -> tuple[bool, bool]:
         " OR EXISTS(SELECT 1 FROM scientific_tasks WHERE run_id=?"
         f"        AND {_EXPIRED_LEASE_RESCUABLE}) AS claimable,"
         " EXISTS(SELECT 1 FROM scientific_tasks"
-        "        WHERE run_id=? AND status='leased') AS active"
+        "        WHERE run_id=? AND status='leased'"
+        "        AND (lease_expires_at IS NULL OR lease_expires_at>?"
+        "             OR attempt<max_attempts)) AS active"
     )
+    now = _now()
     with connect(db_path) as conn:
-        row = conn.execute(query, (run_id, run_id, _now(), run_id)).fetchone()
+        row = conn.execute(query, (run_id, run_id, now, run_id, now)).fetchone()
     return bool(row["claimable"]), bool(row["active"])

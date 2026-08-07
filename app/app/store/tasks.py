@@ -20,6 +20,9 @@ from app.store.db import _now, _use_conn, connect, transaction
 from app.store.runs_reconcile import (
     _settle_run_for_failed_task as _settle_run_for_failed_task,
 )
+from app.store.tasks_lifecycle import (
+    abandon_dead_leases as abandon_dead_leases,
+)
 from app.store.tasks_lifecycle import cancel_run_tasks as cancel_run_tasks
 from app.store.tasks_lifecycle import cancel_task as cancel_task
 from app.store.tasks_lifecycle import (

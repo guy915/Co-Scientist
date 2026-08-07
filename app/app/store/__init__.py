@@ -180,6 +180,7 @@ from app.store.supervisor_plan import (
 from app.store.tasks import (
     NewTask,
     ScientificTask,
+    abandon_dead_leases,
     cancel_run_tasks,
     cancel_task,
     claim_task,
@@ -228,6 +229,7 @@ __all__ = [
     "RunRow",
     "RunStatus",
     "ScientificTask",
+    "abandon_dead_leases",
     "add_citation",
     "add_claim_evidence",
     "add_evidence",

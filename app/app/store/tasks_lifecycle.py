@@ -14,6 +14,7 @@ import json
 import sqlite3
 
 from app.store.db import _now, _use_conn, transaction
+from app.store.tasks_probes import _DEAD_LEASE
 
 
 def clamp_task_priority(priority: int) -> int:
@@ -266,3 +267,79 @@ def revive_task_for_retry(
     with transaction(db_path) as conn:
         changed = _revive_task_row(conn, run_id, idempotency_key, now)
     return changed > 0
+
+
+_DEAD_LEASE_ERROR = (
+    "The worker holding this task's lease stopped responding, and the "
+    "task's retry budget was already spent."
+)
+
+
+def _fail_dead_lease_rows(
+    conn: sqlite3.Connection, run_id: str, now: float
+) -> list[str]:
+    """Mark this run's dead leases failed; return their task types.
+
+    Ordinary failure runs through ``fail_task``, which requires the
+    worker to still own the lease and call it. A dead lease is precisely
+    the case where that never happens, so the transition is made here
+    instead -- to the same ``failed`` status, with an error saying why.
+    """
+    rows = conn.execute(
+        f"SELECT id, task_type FROM scientific_tasks WHERE run_id=? "
+        f"AND {_DEAD_LEASE}",
+        (run_id, now),
+    ).fetchall()
+    for row in rows:
+        conn.execute(
+            "UPDATE scientific_tasks SET status='failed', error=?, "
+            "lease_owner=NULL, lease_expires_at=NULL, completed_at=?, "
+            "updated_at=? WHERE id=?",
+            (_DEAD_LEASE_ERROR, now, now, row["id"]),
+        )
+    return [str(row["task_type"]) for row in rows]
+
+
+def abandon_dead_leases(
+    run_id: str,
+    *,
+    db_path: str | None = None,
+    conn: sqlite3.Connection | None = None,
+) -> int:
+    """Fail leases whose owner is gone and whose retries are spent.
+
+    The missing half of ``F1``. ``fail_task`` settles a run when a task
+    dies past its retry budget, but it can only run if someone still
+    holds the lease to call it. When a worker dies holding a lease whose
+    attempts are already spent, nobody calls it and ``claim_task``'s
+    rescue skips the row by design -- so it stayed ``leased`` forever,
+    blocked ``_settle_run_out_of_work`` (which treats any lease as live
+    work), and left the run running with nothing that could advance it.
+
+    Called once when a cohort reaches idle-exit, never on a poll tick:
+    it opens a write transaction, and the single SQLite writer cannot
+    afford one of those per tick per worker.
+
+    Args:
+        run_id: Run whose dead leases should be abandoned.
+        db_path: Optional override for the SQLite database path.
+        conn: Optional open connection to join an existing transaction.
+
+    Returns:
+        The number of dead leases failed.
+    """
+    from app.store.runs_reconcile import _settle_run_for_failed_task
+
+    now = _now()
+    with _use_conn(conn, db_path) as active:
+        task_types = _fail_dead_lease_rows(active, run_id, now)
+        if not task_types:
+            return 0
+        _settle_run_for_failed_task(
+            active,
+            run_id,
+            task_types[0],
+            _DEAD_LEASE_ERROR,
+            retryable=True,
+        )
+    return len(task_types)

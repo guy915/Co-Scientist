@@ -272,6 +272,30 @@ async def _cohort_worker_step(
     return False
 
 
+def _abandon_dead_leases_at_exit(run_id: str, db_path: str | None) -> None:
+    """Settle the run if idle-exit left a lease nobody will ever finish.
+
+    The cohort exits when no claimable work and no live lease remain. A
+    lease that outlived its worker with its retry budget spent satisfies
+    that condition while still sitting ``leased``, and nothing else will
+    ever touch it -- so this is the last moment anything can. Best
+    effort: a run is already ending here, and a store error must not
+    replace that outcome with a worker crash.
+    """
+    try:
+        abandoned = store.abandon_dead_leases(run_id, db_path=db_path)
+    except Exception:
+        logger.exception("Abandoning dead leases failed for run %s", run_id)
+        return
+    if abandoned:
+        logger.warning(
+            "Run %s: failed %d task(s) whose lease outlived its worker "
+            "with no retries left.",
+            run_id,
+            abandoned,
+        )
+
+
 async def run_run_worker_pool(
     run_id: str,
     worker_prefix: str,
@@ -303,6 +327,7 @@ async def run_run_worker_pool(
             continue
 
     await asyncio.gather(*(_worker(index) for index in range(worker_count)))
+    _abandon_dead_leases_at_exit(run_id, policy.db_path)
 
 
 def run_run_worker_pool_sync(run_id: str, worker_prefix: str) -> None:
