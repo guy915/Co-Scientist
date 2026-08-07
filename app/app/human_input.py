@@ -22,6 +22,7 @@ from co_scientist.constants import NEEDS_REVISION_SCORE, NOT_VIABLE_SCORE
 
 from app.hypothesis_safety import (
     HypothesisSafetyReview,
+    escalate_review,
     review_hypothesis_safety,
 )
 from app.text_utils import first_sentence
@@ -66,29 +67,10 @@ def _build_admitted_hypothesis(
     }
 
 
-def admit_human_hypothesis(
-    *,
-    text: str,
-    author: str,
-    title: str = "",
+def _admission_from_review(
+    text: str, author: str, title: str, review: HypothesisSafetyReview
 ) -> HumanHypothesisAdmission:
-    """Admit a scientist-authored hypothesis through the shared safety path.
-
-    Runs the same per-hypothesis safety review generated hypotheses pass. If
-    the review blocks (prohibited/ethical/uncertain), the hypothesis is not
-    admitted (no bypass for human authorship). Otherwise it returns an admitted
-    hypothesis payload stamped with `origin="scientist_manual"` and the author,
-    ready to enter the normal review/proximity/tournament path.
-
-    Args:
-        text: The scientist's hypothesis statement.
-        author: Opaque author identifier (for authorship provenance).
-        title: Optional short title; derived from the text when omitted.
-
-    Returns:
-        The :class:`HumanHypothesisAdmission`.
-    """
-    review = review_hypothesis_safety(text)
+    """Build the admission decision for an already-computed safety review."""
     if review.blocks_tournament:
         return HumanHypothesisAdmission(
             admitted=False,
@@ -103,6 +85,73 @@ def admit_human_hypothesis(
         author=author,
         hypothesis=hypothesis,
     )
+
+
+def admit_human_hypothesis(
+    *,
+    text: str,
+    author: str,
+    title: str = "",
+) -> HumanHypothesisAdmission:
+    """Admit a scientist-authored hypothesis through the shared safety path.
+
+    Runs the same per-hypothesis safety review generated hypotheses pass. If
+    the review blocks (prohibited/ethical/uncertain), the hypothesis is not
+    admitted (no bypass for human authorship). Otherwise it returns an admitted
+    hypothesis payload stamped with `origin="scientist_manual"` and the author,
+    ready to enter the normal review/proximity/tournament path.
+
+    Deterministic only -- see :func:`admit_human_hypothesis_with_escalation`
+    for the contextual-model-aware variant this endpoint actually uses.
+
+    Args:
+        text: The scientist's hypothesis statement.
+        author: Opaque author identifier (for authorship provenance).
+        title: Optional short title; derived from the text when omitted.
+
+    Returns:
+        The :class:`HumanHypothesisAdmission`.
+    """
+    review = review_hypothesis_safety(text)
+    return _admission_from_review(text, author, title, review)
+
+
+async def admit_human_hypothesis_with_escalation(
+    *,
+    text: str,
+    author: str,
+    run_id: str,
+    title: str = "",
+    db_path: str | None = None,
+) -> HumanHypothesisAdmission:
+    """Admit a scientist-authored hypothesis, giving a held verdict a model.
+
+    Same deterministic screen as :func:`admit_human_hypothesis`, which never
+    clears a Tier B sensitive-category match to ALLOW -- it holds it as
+    UNCERTAIN instead (``needs_context``). A contextual model, when one is
+    configured and reachable for this run, then gets a chance to raise that
+    hold to a certain block; it cannot clear it, and an offline-backed run,
+    a missing credential, or a provider error all leave the held verdict
+    unchanged (see ``hypothesis_safety.escalate_review``). No store write
+    happens here, so this never holds the SQLite write lock across the
+    model call. This does not change whether the hypothesis is admitted --
+    UNCERTAIN already blocks admission the same as a raised PROHIBITED --
+    only the recorded outcome and reason.
+
+    Args:
+        text: The scientist's hypothesis statement.
+        author: Opaque author identifier (for authorship provenance).
+        run_id: Run the hypothesis is being admitted into.
+        title: Optional short title; derived from the text when omitted.
+        db_path: Optional override for the SQLite database path.
+
+    Returns:
+        The :class:`HumanHypothesisAdmission`.
+    """
+    review = await escalate_review(
+        review_hypothesis_safety(text), text, run_id=run_id, db_path=db_path
+    )
+    return _admission_from_review(text, author, title, review)
 
 
 @dataclasses.dataclass(frozen=True)

@@ -132,8 +132,8 @@ async def add_human_hypothesis(
     """
     _require_run(run_id)
     author = client_id(request) or req.author
-    admission = human_input.admit_human_hypothesis(
-        text=req.statement, author=author, title=req.title
+    admission = await human_input.admit_human_hypothesis_with_escalation(
+        text=req.statement, author=author, run_id=run_id, title=req.title
     )
     if not admission.admitted or admission.hypothesis is None:
         return {"admitted": False, "safety": admission.safety_review.to_dict()}

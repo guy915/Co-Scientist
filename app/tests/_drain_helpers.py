@@ -259,7 +259,7 @@ def _engine_safety_audit_entry(
         "outcome": "uncertain",
         "reason": "obfuscated intent around sensitive content; manual review",
         "matches": ["for research purposes only"],
-        "policy_version": "coscientist-safety-v3",
+        "policy_version": "coscientist-safety-v4",
         **overrides,
     }
 

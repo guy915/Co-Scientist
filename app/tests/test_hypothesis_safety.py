@@ -29,8 +29,12 @@ from app.hypothesis_safety import (
             True,
         ),
         # A norms-violating hypothesis is ETHICAL_CONCERN and excluded.
+        # "Non-consensual" is a Tier A action description (a certain
+        # block); a bare "without informed consent" category term is
+        # covered separately below since it resolves to UNCERTAIN, not a
+        # certain ETHICAL_CONCERN, absent an operational verb.
         (
-            "Test the compound on patients without informed consent.",
+            "A non-consensual protocol testing the compound on patients.",
             HypothesisSafetyOutcome.ETHICAL_CONCERN,
             True,
         ),
@@ -63,6 +67,19 @@ def test_review_outcome_and_tournament_blocking(
     review = review_hypothesis_safety(text)
     assert review.outcome is outcome
     assert review.blocks_tournament is blocks
+
+
+def test_bare_category_term_holds_not_certain_blocks() -> None:
+    """A Tier B category-only match holds as UNCERTAIN, not a certain block.
+
+    Never cleared to ALLOW either -- see co_scientist.safety's docstring
+    on the false-positive fix that must not become a bypass.
+    """
+    review = review_hypothesis_safety(
+        "Test the compound on patients without informed consent."
+    )
+    assert review.outcome is HypothesisSafetyOutcome.UNCERTAIN
+    assert review.blocks_tournament
 
 
 def test_prohibited_review_records_policy_and_matches() -> None:

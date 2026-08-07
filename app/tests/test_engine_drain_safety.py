@@ -286,7 +286,7 @@ def test_drain_persists_held_hypotheses_as_reviewable_decisions(
         assert row["stage"] == "hypothesis"
         assert row["requires_review"] is True
         assert row["resolution"] is None
-        assert row["policy_version"] == "coscientist-safety-v3"
+        assert row["policy_version"] == "coscientist-safety-v4"
         assert row["matches"] == ["for research purposes only"]
         # Identity + rationale: the engine's reason and the held idea's text.
         assert "uncertain" in row["reason"]
