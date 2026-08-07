@@ -1,0 +1,444 @@
+{
+  "goal": "Identify a novel small-molecule strategy to restore chemosensitivity in platinum-resistant high-grade serous ovarian cancer.",
+  "goal_id": "scaling-budget-curve-goal",
+  "mode": "offline",
+  "offline_disclaimer": "This curve ran against the deterministic offline LLM backend (COSCIENTIST offline router). It demonstrates the driver's wiring end-to-end and that each tier really does request more compute (hypotheses/tournament pairs/evidence). It is NOT evidence that a real model's output quality scales with budget: the offline backend answers every call the same canned way regardless of tier, so 'best_elo' and 'top10_diversity' differences here reflect pool size, not model behavior.",
+  "tiers": [
+    "express",
+    "standard"
+  ],
+  "arms": [
+    {
+      "run_id": "1ef4cbe6-171f-4fe7-a6b9-09bf97b219e4",
+      "tier": "express",
+      "overrides": {},
+      "completed": true,
+      "used_real_backend": false,
+      "events": 27,
+      "hypotheses": [
+        {
+          "id": "0c06bcc1-0ea6-46aa-9c3e-e0643a954bf7",
+          "text": "",
+          "elo_rating": 1234,
+          "assessed_claims": 5,
+          "verified_claims": 0
+        },
+        {
+          "id": "cd51d102-9462-4da3-8d5d-709b6213c199",
+          "text": "",
+          "elo_rating": 1212,
+          "assessed_claims": 5,
+          "verified_claims": 0
+        },
+        {
+          "id": "da85bc44-d2e4-4154-bd7a-84394836b715",
+          "text": "",
+          "elo_rating": 1211,
+          "assessed_claims": 5,
+          "verified_claims": 0
+        },
+        {
+          "id": "676288a0-2d2b-45e4-868c-65ac8f35afe0",
+          "text": "",
+          "elo_rating": 1188,
+          "assessed_claims": 5,
+          "verified_claims": 0
+        },
+        {
+          "id": "44364ee6-2848-4351-abc5-2e2726418672",
+          "text": "",
+          "elo_rating": 1188,
+          "assessed_claims": 5,
+          "verified_claims": 0
+        },
+        {
+          "id": "e2300d0e-d045-475c-af81-449c54a91671",
+          "text": "",
+          "elo_rating": 1187,
+          "assessed_claims": 5,
+          "verified_claims": 0
+        },
+        {
+          "id": "f46dee60-b0b0-406a-8ca0-5dfd6b1e3da2",
+          "text": "",
+          "elo_rating": 1187,
+          "assessed_claims": 5,
+          "verified_claims": 0
+        },
+        {
+          "id": "8da15243-de45-43bc-9101-4dcfa44cc74d",
+          "text": "",
+          "elo_rating": 1187,
+          "assessed_claims": 5,
+          "verified_claims": 0
+        }
+      ],
+      "metrics": {
+        "llm_calls": 178,
+        "tasks": 49,
+        "cost_usd": 0.0,
+        "latency_seconds": 1.481
+      }
+    },
+    {
+      "run_id": "a40746d1-efa8-43f7-83eb-09259163487e",
+      "tier": "standard",
+      "overrides": {},
+      "completed": true,
+      "used_real_backend": false,
+      "events": 40,
+      "hypotheses": [
+        {
+          "id": "081e9e62-8ae4-4c0e-b997-7bd85289d5a6",
+          "text": "",
+          "elo_rating": 1255,
+          "assessed_claims": 5,
+          "verified_claims": 0
+        },
+        {
+          "id": "0800b83c-ad4a-489e-8a38-6f526028a0db",
+          "text": "",
+          "elo_rating": 1224,
+          "assessed_claims": 5,
+          "verified_claims": 0
+        },
+        {
+          "id": "7f155a95-aa3c-48bf-b7bc-34d1c630d800",
+          "text": "",
+          "elo_rating": 1223,
+          "assessed_claims": 5,
+          "verified_claims": 0
+        },
+        {
+          "id": "0270cafb-4699-416c-8afa-086d0a7f2af3",
+          "text": "",
+          "elo_rating": 1211,
+          "assessed_claims": 5,
+          "verified_claims": 0
+        },
+        {
+          "id": "a4e49645-13f2-4cee-b465-3a105f45a419",
+          "text": "",
+          "elo_rating": 1210,
+          "assessed_claims": 5,
+          "verified_claims": 0
+        },
+        {
+          "id": "d801f61d-a0d3-4e3f-80d0-1376c85b87b7",
+          "text": "",
+          "elo_rating": 1201,
+          "assessed_claims": 5,
+          "verified_claims": 0
+        },
+        {
+          "id": "bf2d5151-98aa-4749-8149-69ec4fd48907",
+          "text": "",
+          "elo_rating": 1200,
+          "assessed_claims": 5,
+          "verified_claims": 0
+        },
+        {
+          "id": "0688071c-57ef-4b74-8241-de6e9a1c7de9",
+          "text": "",
+          "elo_rating": 1198,
+          "assessed_claims": 5,
+          "verified_claims": 0
+        },
+        {
+          "id": "992a2cb1-820f-4871-8226-0b669491cc34",
+          "text": "",
+          "elo_rating": 1198,
+          "assessed_claims": 5,
+          "verified_claims": 0
+        },
+        {
+          "id": "58b01ff4-8bcc-4a41-b4d7-75609901909e",
+          "text": "",
+          "elo_rating": 1189,
+          "assessed_claims": 5,
+          "verified_claims": 0
+        },
+        {
+          "id": "798579a0-3958-4d76-8074-073b099cf53a",
+          "text": "",
+          "elo_rating": 1188,
+          "assessed_claims": 5,
+          "verified_claims": 0
+        },
+        {
+          "id": "717dec30-5937-43eb-a7ac-b081f2c829ab",
+          "text": "",
+          "elo_rating": 1188,
+          "assessed_claims": 5,
+          "verified_claims": 0
+        },
+        {
+          "id": "0f0ea5f1-08eb-457c-bfdc-4501347ab163",
+          "text": "",
+          "elo_rating": 1175,
+          "assessed_claims": 5,
+          "verified_claims": 0
+        },
+        {
+          "id": "af177459-e3d5-4e32-b498-f62ffcc0993d",
+          "text": "",
+          "elo_rating": 1164,
+          "assessed_claims": 5,
+          "verified_claims": 0
+        },
+        {
+          "id": "2066cf84-bb96-4bbc-8d00-cd437cf7ad5c",
+          "text": "",
+          "elo_rating": 1164,
+          "assessed_claims": 5,
+          "verified_claims": 0
+        }
+      ],
+      "metrics": {
+        "llm_calls": 400,
+        "tasks": 88,
+        "cost_usd": 0.0,
+        "latency_seconds": 2.545
+      }
+    }
+  ],
+  "snapshots": [
+    {
+      "run_id": "1ef4cbe6-171f-4fe7-a6b9-09bf97b219e4",
+      "goal_id": "scaling-budget-curve-goal",
+      "metrics": {
+        "llm_calls": 178,
+        "tasks": 49,
+        "cost_usd": 0.0,
+        "latency_seconds": 1.481
+      },
+      "hypotheses": [
+        {
+          "id": "0c06bcc1-0ea6-46aa-9c3e-e0643a954bf7",
+          "text": "",
+          "elo_rating": 1234,
+          "assessed_claims": 5,
+          "verified_claims": 0
+        },
+        {
+          "id": "cd51d102-9462-4da3-8d5d-709b6213c199",
+          "text": "",
+          "elo_rating": 1212,
+          "assessed_claims": 5,
+          "verified_claims": 0
+        },
+        {
+          "id": "da85bc44-d2e4-4154-bd7a-84394836b715",
+          "text": "",
+          "elo_rating": 1211,
+          "assessed_claims": 5,
+          "verified_claims": 0
+        },
+        {
+          "id": "676288a0-2d2b-45e4-868c-65ac8f35afe0",
+          "text": "",
+          "elo_rating": 1188,
+          "assessed_claims": 5,
+          "verified_claims": 0
+        },
+        {
+          "id": "44364ee6-2848-4351-abc5-2e2726418672",
+          "text": "",
+          "elo_rating": 1188,
+          "assessed_claims": 5,
+          "verified_claims": 0
+        },
+        {
+          "id": "e2300d0e-d045-475c-af81-449c54a91671",
+          "text": "",
+          "elo_rating": 1187,
+          "assessed_claims": 5,
+          "verified_claims": 0
+        },
+        {
+          "id": "f46dee60-b0b0-406a-8ca0-5dfd6b1e3da2",
+          "text": "",
+          "elo_rating": 1187,
+          "assessed_claims": 5,
+          "verified_claims": 0
+        },
+        {
+          "id": "8da15243-de45-43bc-9101-4dcfa44cc74d",
+          "text": "",
+          "elo_rating": 1187,
+          "assessed_claims": 5,
+          "verified_claims": 0
+        }
+      ]
+    },
+    {
+      "run_id": "a40746d1-efa8-43f7-83eb-09259163487e",
+      "goal_id": "scaling-budget-curve-goal",
+      "metrics": {
+        "llm_calls": 400,
+        "tasks": 88,
+        "cost_usd": 0.0,
+        "latency_seconds": 2.545
+      },
+      "hypotheses": [
+        {
+          "id": "081e9e62-8ae4-4c0e-b997-7bd85289d5a6",
+          "text": "",
+          "elo_rating": 1255,
+          "assessed_claims": 5,
+          "verified_claims": 0
+        },
+        {
+          "id": "0800b83c-ad4a-489e-8a38-6f526028a0db",
+          "text": "",
+          "elo_rating": 1224,
+          "assessed_claims": 5,
+          "verified_claims": 0
+        },
+        {
+          "id": "7f155a95-aa3c-48bf-b7bc-34d1c630d800",
+          "text": "",
+          "elo_rating": 1223,
+          "assessed_claims": 5,
+          "verified_claims": 0
+        },
+        {
+          "id": "0270cafb-4699-416c-8afa-086d0a7f2af3",
+          "text": "",
+          "elo_rating": 1211,
+          "assessed_claims": 5,
+          "verified_claims": 0
+        },
+        {
+          "id": "a4e49645-13f2-4cee-b465-3a105f45a419",
+          "text": "",
+          "elo_rating": 1210,
+          "assessed_claims": 5,
+          "verified_claims": 0
+        },
+        {
+          "id": "d801f61d-a0d3-4e3f-80d0-1376c85b87b7",
+          "text": "",
+          "elo_rating": 1201,
+          "assessed_claims": 5,
+          "verified_claims": 0
+        },
+        {
+          "id": "bf2d5151-98aa-4749-8149-69ec4fd48907",
+          "text": "",
+          "elo_rating": 1200,
+          "assessed_claims": 5,
+          "verified_claims": 0
+        },
+        {
+          "id": "0688071c-57ef-4b74-8241-de6e9a1c7de9",
+          "text": "",
+          "elo_rating": 1198,
+          "assessed_claims": 5,
+          "verified_claims": 0
+        },
+        {
+          "id": "992a2cb1-820f-4871-8226-0b669491cc34",
+          "text": "",
+          "elo_rating": 1198,
+          "assessed_claims": 5,
+          "verified_claims": 0
+        },
+        {
+          "id": "58b01ff4-8bcc-4a41-b4d7-75609901909e",
+          "text": "",
+          "elo_rating": 1189,
+          "assessed_claims": 5,
+          "verified_claims": 0
+        },
+        {
+          "id": "798579a0-3958-4d76-8074-073b099cf53a",
+          "text": "",
+          "elo_rating": 1188,
+          "assessed_claims": 5,
+          "verified_claims": 0
+        },
+        {
+          "id": "717dec30-5937-43eb-a7ac-b081f2c829ab",
+          "text": "",
+          "elo_rating": 1188,
+          "assessed_claims": 5,
+          "verified_claims": 0
+        },
+        {
+          "id": "0f0ea5f1-08eb-457c-bfdc-4501347ab163",
+          "text": "",
+          "elo_rating": 1175,
+          "assessed_claims": 5,
+          "verified_claims": 0
+        },
+        {
+          "id": "af177459-e3d5-4e32-b498-f62ffcc0993d",
+          "text": "",
+          "elo_rating": 1164,
+          "assessed_claims": 5,
+          "verified_claims": 0
+        },
+        {
+          "id": "2066cf84-bb96-4bbc-8d00-cd437cf7ad5c",
+          "text": "",
+          "elo_rating": 1164,
+          "assessed_claims": 5,
+          "verified_claims": 0
+        }
+      ]
+    }
+  ],
+  "curve": [
+    {
+      "run_id": "1ef4cbe6-171f-4fe7-a6b9-09bf97b219e4",
+      "goal_id": "scaling-budget-curve-goal",
+      "compute": {
+        "llm_calls": 178,
+        "tasks": 49
+      },
+      "best_elo": 1234,
+      "top10_expert_quality": null,
+      "top10_diversity": 1.0,
+      "verified_claim_ratio": 0.0,
+      "cost_usd": 0.0,
+      "latency_seconds": 1.481,
+      "hypothesis_count": 8
+    },
+    {
+      "run_id": "a40746d1-efa8-43f7-83eb-09259163487e",
+      "goal_id": "scaling-budget-curve-goal",
+      "compute": {
+        "llm_calls": 400,
+        "tasks": 88
+      },
+      "best_elo": 1255,
+      "top10_expert_quality": null,
+      "top10_diversity": 1.0,
+      "verified_claim_ratio": 0.0,
+      "cost_usd": 0.0,
+      "latency_seconds": 2.545,
+      "hypothesis_count": 15
+    }
+  ],
+  "provenance": {
+    "source": {
+      "git_commit": "5aae1c214ad26cdcbb1f4c4e29b184f35bf7b3f7",
+      "git_branch": "main",
+      "git_dirty": true
+    },
+    "environment": {
+      "python_version": "3.12.12",
+      "platform": "macOS-26.6-arm64-arm-64bit"
+    },
+    "prompts": {
+      "templates_dir": "engine/src/co_scientist/prompts/templates",
+      "digest": "93663ca33ff443e2338f0b4a6c29bf13edd36f9626a3372eba4a86955526c38a",
+      "file_count": 29
+    },
+    "model": null,
+    "seed": null,
+    "cost": null,
+    "captured_at": "2026-08-07T11:36:29"
+  }
+}

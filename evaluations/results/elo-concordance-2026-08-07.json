@@ -1,0 +1,483 @@
+{
+  "dataset": "hypothesis_correctness_concordance_v1",
+  "dataset_version": 1,
+  "external_gap": "Not GPQA: GPQA is a licensed, gated benchmark and is not reproduced here. This is a small (8-item), hand-authored, synthetic substitute with an unambiguous graded-correctness ground truth; it establishes only that the Elo mechanism recovers a coarse ordering over a few candidates per question, not concordance at GPQA-difficulty or research-frontier correctness judgments.",
+  "results": {
+    "correctness_preferring": {
+      "comparator": "correctness_preferring",
+      "n_items": 8,
+      "mean_tau_b": 0.9129,
+      "top1_accuracy": 1.0,
+      "per_item": [
+        {
+          "item_id": "concordance-001",
+          "domain": "molecular_biology",
+          "tau_b": 0.9129,
+          "top1_correct": true,
+          "ratings": {
+            "a": 1233,
+            "b": 1210,
+            "c": 1164,
+            "d": 1188
+          },
+          "correctness": {
+            "a": 3,
+            "b": 1,
+            "c": 0,
+            "d": 0
+          }
+        },
+        {
+          "item_id": "concordance-002",
+          "domain": "biochemistry",
+          "tau_b": 0.9129,
+          "top1_correct": true,
+          "ratings": {
+            "a": 1233,
+            "b": 1210,
+            "c": 1188,
+            "d": 1165
+          },
+          "correctness": {
+            "a": 3,
+            "b": 1,
+            "c": 0,
+            "d": 0
+          }
+        },
+        {
+          "item_id": "concordance-003",
+          "domain": "physics",
+          "tau_b": 0.9129,
+          "top1_correct": true,
+          "ratings": {
+            "a": 1233,
+            "b": 1165,
+            "c": 1188,
+            "d": 1210
+          },
+          "correctness": {
+            "a": 3,
+            "b": 0,
+            "c": 0,
+            "d": 1
+          }
+        },
+        {
+          "item_id": "concordance-004",
+          "domain": "pharmacology",
+          "tau_b": 0.9129,
+          "top1_correct": true,
+          "ratings": {
+            "a": 1234,
+            "b": 1187,
+            "c": 1164,
+            "d": 1211
+          },
+          "correctness": {
+            "a": 3,
+            "b": 0,
+            "c": 0,
+            "d": 2
+          }
+        },
+        {
+          "item_id": "concordance-005",
+          "domain": "immunology",
+          "tau_b": 0.9129,
+          "top1_correct": true,
+          "ratings": {
+            "a": 1187,
+            "b": 1233,
+            "c": 1210,
+            "d": 1165
+          },
+          "correctness": {
+            "a": 0,
+            "b": 3,
+            "c": 1,
+            "d": 0
+          }
+        },
+        {
+          "item_id": "concordance-006",
+          "domain": "genetics",
+          "tau_b": 0.9129,
+          "top1_correct": true,
+          "ratings": {
+            "a": 1234,
+            "b": 1164,
+            "c": 1211,
+            "d": 1188
+          },
+          "correctness": {
+            "a": 3,
+            "b": 0,
+            "c": 1,
+            "d": 1
+          }
+        },
+        {
+          "item_id": "concordance-007",
+          "domain": "chemistry",
+          "tau_b": 0.9129,
+          "top1_correct": true,
+          "ratings": {
+            "a": 1233,
+            "b": 1211,
+            "c": 1188,
+            "d": 1163
+          },
+          "correctness": {
+            "a": 3,
+            "b": 1,
+            "c": 0,
+            "d": 0
+          }
+        },
+        {
+          "item_id": "concordance-008",
+          "domain": "cell_biology",
+          "tau_b": 0.9129,
+          "top1_correct": true,
+          "ratings": {
+            "a": 1234,
+            "b": 1188,
+            "c": 1163,
+            "d": 1211
+          },
+          "correctness": {
+            "a": 3,
+            "b": 0,
+            "c": 0,
+            "d": 1
+          }
+        }
+      ]
+    },
+    "inverting": {
+      "comparator": "inverting",
+      "n_items": 8,
+      "mean_tau_b": -0.9129,
+      "top1_accuracy": 0.0,
+      "per_item": [
+        {
+          "item_id": "concordance-001",
+          "domain": "molecular_biology",
+          "tau_b": -0.9129,
+          "top1_correct": false,
+          "ratings": {
+            "a": 1164,
+            "b": 1187,
+            "c": 1211,
+            "d": 1234
+          },
+          "correctness": {
+            "a": 3,
+            "b": 1,
+            "c": 0,
+            "d": 0
+          }
+        },
+        {
+          "item_id": "concordance-002",
+          "domain": "biochemistry",
+          "tau_b": -0.9129,
+          "top1_correct": false,
+          "ratings": {
+            "a": 1164,
+            "b": 1188,
+            "c": 1233,
+            "d": 1210
+          },
+          "correctness": {
+            "a": 3,
+            "b": 1,
+            "c": 0,
+            "d": 0
+          }
+        },
+        {
+          "item_id": "concordance-003",
+          "domain": "physics",
+          "tau_b": -0.9129,
+          "top1_correct": false,
+          "ratings": {
+            "a": 1164,
+            "b": 1210,
+            "c": 1233,
+            "d": 1188
+          },
+          "correctness": {
+            "a": 3,
+            "b": 0,
+            "c": 0,
+            "d": 1
+          }
+        },
+        {
+          "item_id": "concordance-004",
+          "domain": "pharmacology",
+          "tau_b": -0.9129,
+          "top1_correct": false,
+          "ratings": {
+            "a": 1164,
+            "b": 1234,
+            "c": 1211,
+            "d": 1187
+          },
+          "correctness": {
+            "a": 3,
+            "b": 0,
+            "c": 0,
+            "d": 2
+          }
+        },
+        {
+          "item_id": "concordance-005",
+          "domain": "immunology",
+          "tau_b": -0.9129,
+          "top1_correct": false,
+          "ratings": {
+            "a": 1234,
+            "b": 1164,
+            "c": 1188,
+            "d": 1211
+          },
+          "correctness": {
+            "a": 0,
+            "b": 3,
+            "c": 1,
+            "d": 0
+          }
+        },
+        {
+          "item_id": "concordance-006",
+          "domain": "genetics",
+          "tau_b": -0.9129,
+          "top1_correct": false,
+          "ratings": {
+            "a": 1164,
+            "b": 1234,
+            "c": 1210,
+            "d": 1187
+          },
+          "correctness": {
+            "a": 3,
+            "b": 0,
+            "c": 1,
+            "d": 1
+          }
+        },
+        {
+          "item_id": "concordance-007",
+          "domain": "chemistry",
+          "tau_b": -0.9129,
+          "top1_correct": false,
+          "ratings": {
+            "a": 1163,
+            "b": 1188,
+            "c": 1234,
+            "d": 1211
+          },
+          "correctness": {
+            "a": 3,
+            "b": 1,
+            "c": 0,
+            "d": 0
+          }
+        },
+        {
+          "item_id": "concordance-008",
+          "domain": "cell_biology",
+          "tau_b": -0.9129,
+          "top1_correct": false,
+          "ratings": {
+            "a": 1164,
+            "b": 1234,
+            "c": 1211,
+            "d": 1187
+          },
+          "correctness": {
+            "a": 3,
+            "b": 0,
+            "c": 0,
+            "d": 1
+          }
+        }
+      ]
+    },
+    "coin_flip_seed0": {
+      "comparator": "coin_flip_seed0",
+      "n_items": 8,
+      "mean_tau_b": -0.0051,
+      "top1_accuracy": 0.0,
+      "per_item": [
+        {
+          "item_id": "concordance-001",
+          "domain": "molecular_biology",
+          "tau_b": -0.5477,
+          "top1_correct": false,
+          "ratings": {
+            "a": 1186,
+            "b": 1210,
+            "c": 1211,
+            "d": 1188
+          },
+          "correctness": {
+            "a": 3,
+            "b": 1,
+            "c": 0,
+            "d": 0
+          }
+        },
+        {
+          "item_id": "concordance-002",
+          "domain": "biochemistry",
+          "tau_b": -0.1826,
+          "top1_correct": false,
+          "ratings": {
+            "a": 1211,
+            "b": 1164,
+            "c": 1234,
+            "d": 1187
+          },
+          "correctness": {
+            "a": 3,
+            "b": 1,
+            "c": 0,
+            "d": 0
+          }
+        },
+        {
+          "item_id": "concordance-003",
+          "domain": "physics",
+          "tau_b": 0.5477,
+          "top1_correct": false,
+          "ratings": {
+            "a": 1209,
+            "b": 1189,
+            "c": 1188,
+            "d": 1210
+          },
+          "correctness": {
+            "a": 3,
+            "b": 0,
+            "c": 0,
+            "d": 1
+          }
+        },
+        {
+          "item_id": "concordance-004",
+          "domain": "pharmacology",
+          "tau_b": 0.0,
+          "top1_correct": false,
+          "ratings": {
+            "a": 1187,
+            "b": 1188,
+            "c": 1187,
+            "d": 1233
+          },
+          "correctness": {
+            "a": 3,
+            "b": 0,
+            "c": 0,
+            "d": 2
+          }
+        },
+        {
+          "item_id": "concordance-005",
+          "domain": "immunology",
+          "tau_b": 0.5477,
+          "top1_correct": false,
+          "ratings": {
+            "a": 1188,
+            "b": 1210,
+            "c": 1211,
+            "d": 1187
+          },
+          "correctness": {
+            "a": 0,
+            "b": 3,
+            "c": 1,
+            "d": 0
+          }
+        },
+        {
+          "item_id": "concordance-006",
+          "domain": "genetics",
+          "tau_b": -0.1826,
+          "top1_correct": false,
+          "ratings": {
+            "a": 1210,
+            "b": 1233,
+            "c": 1188,
+            "d": 1165
+          },
+          "correctness": {
+            "a": 3,
+            "b": 0,
+            "c": 1,
+            "d": 1
+          }
+        },
+        {
+          "item_id": "concordance-007",
+          "domain": "chemistry",
+          "tau_b": 0.0,
+          "top1_correct": false,
+          "ratings": {
+            "a": 1210,
+            "b": 1211,
+            "c": 1211,
+            "d": 1163
+          },
+          "correctness": {
+            "a": 3,
+            "b": 1,
+            "c": 0,
+            "d": 0
+          }
+        },
+        {
+          "item_id": "concordance-008",
+          "domain": "cell_biology",
+          "tau_b": -0.2236,
+          "top1_correct": false,
+          "ratings": {
+            "a": 1187,
+            "b": 1211,
+            "c": 1187,
+            "d": 1211
+          },
+          "correctness": {
+            "a": 3,
+            "b": 0,
+            "c": 0,
+            "d": 1
+          }
+        }
+      ]
+    }
+  },
+  "provenance": {
+    "source": {
+      "git_commit": "5aae1c214ad26cdcbb1f4c4e29b184f35bf7b3f7",
+      "git_branch": "main",
+      "git_dirty": true
+    },
+    "environment": {
+      "python_version": "3.12.12",
+      "platform": "macOS-26.6-arm64-arm-64bit"
+    },
+    "prompts": {
+      "templates_dir": "engine/src/co_scientist/prompts/templates",
+      "digest": "93663ca33ff443e2338f0b4a6c29bf13edd36f9626a3372eba4a86955526c38a",
+      "file_count": 29
+    },
+    "model": null,
+    "seed": null,
+    "cost": null,
+    "captured_at": "2026-08-07T11:36:14"
+  }
+}

@@ -223,6 +223,27 @@ def _collect(run_id: str, db_path: str) -> dict[str, Any]:
         "report": report,
         "hypotheses": hypotheses,
         "run": store.get_run(run_id, db_path=db_path),
+        "metrics": store.get_run_metrics(run_id, db_path=db_path),
+    }
+
+
+def _cost_summary(metrics: dict[str, Any] | None) -> dict[str, Any]:
+    """Roll the run's persisted ``model_usage`` telemetry into a cost total.
+
+    ``model_usage`` is keyed ``"{phase}::{model}"`` (see
+    ``co_scientist.models_metrics.ExecutionMetrics``); this sums the
+    ``cost_usd`` every key carries so the golden-run artifact records what
+    the run actually cost rather than leaving cost as an external unknown.
+    """
+    usage = (metrics or {}).get("model_usage") or {}
+    total = sum(float(v.get("cost_usd") or 0.0) for v in usage.values())
+    return {
+        "total_usd": round(total, 6),
+        "llm_calls": (metrics or {}).get("llm_calls"),
+        "by_phase_model": {
+            key: round(float(v.get("cost_usd") or 0.0), 6)
+            for key, v in usage.items()
+        },
     }
 
 
@@ -351,6 +372,7 @@ def _build_report(
         "report_hypothesis_count": (report_row.get("payload") or {}).get(
             "hypothesis_count"
         ),
+        "cost": _cost_summary(collected["metrics"]),
         "reproduce": (
             "DEEPSEEK_API_KEY=... .venv/bin/python -m evaluations.golden_run"
         ),
@@ -384,10 +406,29 @@ def run() -> dict[str, Any]:
     return _build_report(run_id, events, collected, assessment)
 
 
+# The engine seeds nothing globally: tournament pairing derives a
+# deterministic per-call seed from `md5(research_goal + iteration)` (see
+# `agents/ranking/ranking.py::_build_tournament_pairings`), and every LLM
+# completion is otherwise provider-default (unseeded). Recorded as a
+# description, not a number, since there is no single seed value for the
+# run.
+_SEED_DESCRIPTION = (
+    "no global seed; tournament pairing is deterministic from "
+    "hash(research_goal, iteration) -- see ranking.py; LLM sampling is "
+    "provider-default (unseeded)"
+)
+
+
 def main() -> int:
     """Run the golden run, write the artifact, print a compact summary."""
     report = run()
-    out = write_dated_artifact(report, "golden-run-indra")
+    out = write_dated_artifact(
+        report,
+        "golden-run-indra",
+        model=report["model"],
+        seed=_SEED_DESCRIPTION,
+        cost=report["cost"],
+    )
 
     a = report["acceptance"]
     print(f"golden run: {'PASS' if a['passed'] else 'FAIL'}")

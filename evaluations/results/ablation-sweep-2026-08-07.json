@@ -1,0 +1,626 @@
+{
+  "tier": "express",
+  "mode": "offline",
+  "goals": {
+    "ablation-goal-1": "Propose a mechanism by which senescent stromal cells promote pancreatic ductal adenocarcinoma chemoresistance.",
+    "ablation-goal-2": "Identify a combination strategy to overcome acquired resistance to BTK inhibitors in chronic lymphocytic leukemia."
+  },
+  "arms_run": [
+    "baseline",
+    "no_literature_review",
+    "no_web_search"
+  ],
+  "unreachable_arms": {
+    "no_meta_review": "No engine switch exists to skip meta-review; it runs unconditionally every cycle (agents/meta_review/meta_review.py).",
+    "no_debate_strategy": "The debate/tool-based generation mix is derived from literature/tool availability (agents/generation/coordinator.py), not exposed as an independent toggle; GeneratorOptions carries no such field."
+  },
+  "driven": [
+    {
+      "run_id": "a774f8a6-1400-4377-aa01-6b1a56eda2c3",
+      "tier": "express",
+      "overrides": {},
+      "completed": true,
+      "used_real_backend": false,
+      "events": 27,
+      "hypotheses": [
+        {
+          "id": "f01e914b-c7a3-4d29-a4f3-01ec06cdba08",
+          "text": "",
+          "elo_rating": 1235,
+          "assessed_claims": 5,
+          "verified_claims": 0
+        },
+        {
+          "id": "a86c1172-8913-44f3-acab-cd73258c0deb",
+          "text": "",
+          "elo_rating": 1224,
+          "assessed_claims": 5,
+          "verified_claims": 0
+        },
+        {
+          "id": "4da294db-9eec-45d2-b705-0b586e035a7f",
+          "text": "",
+          "elo_rating": 1221,
+          "assessed_claims": 5,
+          "verified_claims": 0
+        },
+        {
+          "id": "122217db-faf6-4903-b294-d7a20c3d99cb",
+          "text": "",
+          "elo_rating": 1211,
+          "assessed_claims": 5,
+          "verified_claims": 0
+        },
+        {
+          "id": "d5c9130d-6e8d-415a-ad08-1ac33252b3e7",
+          "text": "",
+          "elo_rating": 1200,
+          "assessed_claims": 5,
+          "verified_claims": 0
+        },
+        {
+          "id": "f21747f0-5d87-438e-ad31-817680089c09",
+          "text": "",
+          "elo_rating": 1176,
+          "assessed_claims": 5,
+          "verified_claims": 0
+        },
+        {
+          "id": "f89a8db8-4614-4dec-a848-981a1c750da5",
+          "text": "",
+          "elo_rating": 1165,
+          "assessed_claims": 5,
+          "verified_claims": 0
+        },
+        {
+          "id": "947144ed-3e0f-4d57-9c22-c767dd72491a",
+          "text": "",
+          "elo_rating": 1164,
+          "assessed_claims": 5,
+          "verified_claims": 0
+        }
+      ],
+      "metrics": {
+        "llm_calls": 177,
+        "tasks": 48,
+        "cost_usd": 0.0,
+        "latency_seconds": 1.382
+      },
+      "goal_id": "ablation-goal-1",
+      "arm": "baseline"
+    },
+    {
+      "run_id": "ce400daf-ab09-43e6-afba-0480e7abb218",
+      "tier": "express",
+      "overrides": {
+        "enable_web_search": false
+      },
+      "completed": true,
+      "used_real_backend": false,
+      "events": 27,
+      "hypotheses": [
+        {
+          "id": "75816525-2183-4a9a-94fa-ed28ada0ee39",
+          "text": "",
+          "elo_rating": 1223,
+          "assessed_claims": 5,
+          "verified_claims": 0
+        },
+        {
+          "id": "348f1b1e-bafc-4fc4-90c7-a85cc12088bf",
+          "text": "",
+          "elo_rating": 1211,
+          "assessed_claims": 5,
+          "verified_claims": 0
+        },
+        {
+          "id": "8670466a-1103-47ee-8434-7fe6a86dd75e",
+          "text": "",
+          "elo_rating": 1200,
+          "assessed_claims": 5,
+          "verified_claims": 0
+        },
+        {
+          "id": "1407d8e5-97cb-4094-aeb8-bc4cd007441c",
+          "text": "",
+          "elo_rating": 1199,
+          "assessed_claims": 5,
+          "verified_claims": 0
+        },
+        {
+          "id": "987a1599-9820-44e7-b515-97c02d242260",
+          "text": "",
+          "elo_rating": 1199,
+          "assessed_claims": 5,
+          "verified_claims": 0
+        },
+        {
+          "id": "833a0dbb-defb-4d26-901c-634592f7655c",
+          "text": "",
+          "elo_rating": 1164,
+          "assessed_claims": 5,
+          "verified_claims": 0
+        }
+      ],
+      "metrics": {
+        "llm_calls": 137,
+        "tasks": 47,
+        "cost_usd": 0.0,
+        "latency_seconds": 1.23
+      },
+      "goal_id": "ablation-goal-1",
+      "arm": "no_web_search"
+    },
+    {
+      "run_id": "a5ea2824-9ffe-4b54-b693-7d59c960dd54",
+      "tier": "express",
+      "overrides": {
+        "enable_literature_review": false
+      },
+      "completed": true,
+      "used_real_backend": false,
+      "events": 27,
+      "hypotheses": [
+        {
+          "id": "c88f9e09-3a26-4398-8c09-6b43a427d017",
+          "text": "",
+          "elo_rating": 1234,
+          "assessed_claims": 5,
+          "verified_claims": 0
+        },
+        {
+          "id": "2c19de30-f4c3-4f45-8d35-cb43e1c717c7",
+          "text": "",
+          "elo_rating": 1234,
+          "assessed_claims": 5,
+          "verified_claims": 0
+        },
+        {
+          "id": "b4fb171e-6f93-4b54-a411-14b8cee04df7",
+          "text": "",
+          "elo_rating": 1200,
+          "assessed_claims": 5,
+          "verified_claims": 0
+        },
+        {
+          "id": "9956846e-e594-4ddf-8eac-a7e3071e76b4",
+          "text": "",
+          "elo_rating": 1187,
+          "assessed_claims": 5,
+          "verified_claims": 0
+        },
+        {
+          "id": "35993e47-54bb-4d9c-bc8f-c0ecc7793e48",
+          "text": "",
+          "elo_rating": 1187,
+          "assessed_claims": 5,
+          "verified_claims": 0
+        },
+        {
+          "id": "97fb3f5e-b31a-49d8-82c0-def855928015",
+          "text": "",
+          "elo_rating": 1175,
+          "assessed_claims": 5,
+          "verified_claims": 0
+        },
+        {
+          "id": "d7f3ae1c-da1c-41e9-aac2-9dc587e04a79",
+          "text": "",
+          "elo_rating": 1175,
+          "assessed_claims": 5,
+          "verified_claims": 0
+        }
+      ],
+      "metrics": {
+        "llm_calls": 158,
+        "tasks": 48,
+        "cost_usd": 0.0,
+        "latency_seconds": 1.337
+      },
+      "goal_id": "ablation-goal-1",
+      "arm": "no_literature_review"
+    },
+    {
+      "run_id": "28715a8d-d92c-44d1-abd7-281e44dfa533",
+      "tier": "express",
+      "overrides": {},
+      "completed": true,
+      "used_real_backend": false,
+      "events": 27,
+      "hypotheses": [
+        {
+          "id": "0b9bf8f8-2eda-4a8c-8929-86a53c379fe8",
+          "text": "",
+          "elo_rating": 1221,
+          "assessed_claims": 5,
+          "verified_claims": 0
+        },
+        {
+          "id": "9806c74b-cd11-48f5-b617-f55af88df2ee",
+          "text": "",
+          "elo_rating": 1211,
+          "assessed_claims": 5,
+          "verified_claims": 0
+        },
+        {
+          "id": "a44b6e42-51d0-45e3-9a4b-f72be5e7528a",
+          "text": "",
+          "elo_rating": 1211,
+          "assessed_claims": 5,
+          "verified_claims": 0
+        },
+        {
+          "id": "e01ff632-77cd-427d-8a57-c4cdb7074f3d",
+          "text": "",
+          "elo_rating": 1200,
+          "assessed_claims": 5,
+          "verified_claims": 0
+        },
+        {
+          "id": "2d6cd85d-c97d-4696-9879-7296b715994e",
+          "text": "",
+          "elo_rating": 1200,
+          "assessed_claims": 5,
+          "verified_claims": 0
+        },
+        {
+          "id": "71b311c8-1f51-43e9-ada3-b3f85e00c043",
+          "text": "",
+          "elo_rating": 1199,
+          "assessed_claims": 5,
+          "verified_claims": 0
+        },
+        {
+          "id": "6a39ceac-1ab7-456a-9440-8a3a9364ba14",
+          "text": "",
+          "elo_rating": 1188,
+          "assessed_claims": 5,
+          "verified_claims": 0
+        },
+        {
+          "id": "0084610f-662b-40a1-be4b-befdb796e29d",
+          "text": "",
+          "elo_rating": 1164,
+          "assessed_claims": 5,
+          "verified_claims": 0
+        }
+      ],
+      "metrics": {
+        "llm_calls": 177,
+        "tasks": 48,
+        "cost_usd": 0.0,
+        "latency_seconds": 1.354
+      },
+      "goal_id": "ablation-goal-2",
+      "arm": "baseline"
+    },
+    {
+      "run_id": "255ddf2c-5c52-4fd6-b148-2d12cc5fde20",
+      "tier": "express",
+      "overrides": {
+        "enable_web_search": false
+      },
+      "completed": true,
+      "used_real_backend": false,
+      "events": 27,
+      "hypotheses": [
+        {
+          "id": "fe13e3d1-0fc2-41ee-87a6-cc061269f098",
+          "text": "",
+          "elo_rating": 1246,
+          "assessed_claims": 5,
+          "verified_claims": 0
+        },
+        {
+          "id": "42aa747e-304d-4334-99dc-dfba4cb1b4dd",
+          "text": "",
+          "elo_rating": 1200,
+          "assessed_claims": 5,
+          "verified_claims": 0
+        },
+        {
+          "id": "9a10a2b9-1419-4aa7-a2c1-baeca497812a",
+          "text": "",
+          "elo_rating": 1200,
+          "assessed_claims": 5,
+          "verified_claims": 0
+        },
+        {
+          "id": "d8a16f85-24ff-4f03-9368-a54626e30b55",
+          "text": "",
+          "elo_rating": 1188,
+          "assessed_claims": 5,
+          "verified_claims": 0
+        },
+        {
+          "id": "cac68ba6-3188-48fe-9751-2f3a5eb3cff8",
+          "text": "",
+          "elo_rating": 1187,
+          "assessed_claims": 5,
+          "verified_claims": 0
+        },
+        {
+          "id": "03b76062-f38b-4afb-a58f-34206df696e9",
+          "text": "",
+          "elo_rating": 1176,
+          "assessed_claims": 5,
+          "verified_claims": 0
+        }
+      ],
+      "metrics": {
+        "llm_calls": 145,
+        "tasks": 46,
+        "cost_usd": 0.0,
+        "latency_seconds": 1.246
+      },
+      "goal_id": "ablation-goal-2",
+      "arm": "no_web_search"
+    },
+    {
+      "run_id": "39595b46-c604-4355-b332-80ca36bed8d2",
+      "tier": "express",
+      "overrides": {
+        "enable_literature_review": false
+      },
+      "completed": true,
+      "used_real_backend": false,
+      "events": 27,
+      "hypotheses": [
+        {
+          "id": "bd32aee2-00db-484d-a677-718f8745ab4e",
+          "text": "",
+          "elo_rating": 1223,
+          "assessed_claims": 5,
+          "verified_claims": 0
+        },
+        {
+          "id": "6999d5d7-53ce-403b-952d-9983acf24f51",
+          "text": "",
+          "elo_rating": 1210,
+          "assessed_claims": 5,
+          "verified_claims": 0
+        },
+        {
+          "id": "07236450-770f-45cd-be3c-d77b473c36a9",
+          "text": "",
+          "elo_rating": 1201,
+          "assessed_claims": 5,
+          "verified_claims": 0
+        },
+        {
+          "id": "12dfebf2-cb6a-4e1d-a04b-933793b4a07f",
+          "text": "",
+          "elo_rating": 1198,
+          "assessed_claims": 5,
+          "verified_claims": 0
+        },
+        {
+          "id": "7f4cd41d-0aa5-462d-9cbc-1fcedefbda21",
+          "text": "",
+          "elo_rating": 1189,
+          "assessed_claims": 5,
+          "verified_claims": 0
+        },
+        {
+          "id": "561511aa-2b1d-4105-9322-b72d72ff346f",
+          "text": "",
+          "elo_rating": 1188,
+          "assessed_claims": 5,
+          "verified_claims": 0
+        },
+        {
+          "id": "1c74c023-8f1b-43a2-be00-fd390d09f518",
+          "text": "",
+          "elo_rating": 1186,
+          "assessed_claims": 5,
+          "verified_claims": 0
+        }
+      ],
+      "metrics": {
+        "llm_calls": 166,
+        "tasks": 47,
+        "cost_usd": 0.0,
+        "latency_seconds": 1.286
+      },
+      "goal_id": "ablation-goal-2",
+      "arm": "no_literature_review"
+    }
+  ],
+  "records": [
+    {
+      "goal_id": "ablation-goal-1",
+      "arm": "baseline",
+      "run_id": "a774f8a6-1400-4377-aa01-6b1a56eda2c3",
+      "completed": true,
+      "expert_quality": null,
+      "diversity": 1.0,
+      "verified_claim_ratio": 0.0,
+      "cost_usd": 0.0,
+      "latency_seconds": 1.382
+    },
+    {
+      "goal_id": "ablation-goal-1",
+      "arm": "no_web_search",
+      "run_id": "ce400daf-ab09-43e6-afba-0480e7abb218",
+      "completed": true,
+      "expert_quality": null,
+      "diversity": 1.0,
+      "verified_claim_ratio": 0.0,
+      "cost_usd": 0.0,
+      "latency_seconds": 1.23
+    },
+    {
+      "goal_id": "ablation-goal-1",
+      "arm": "no_literature_review",
+      "run_id": "a5ea2824-9ffe-4b54-b693-7d59c960dd54",
+      "completed": true,
+      "expert_quality": null,
+      "diversity": 1.0,
+      "verified_claim_ratio": 0.0,
+      "cost_usd": 0.0,
+      "latency_seconds": 1.337
+    },
+    {
+      "goal_id": "ablation-goal-2",
+      "arm": "baseline",
+      "run_id": "28715a8d-d92c-44d1-abd7-281e44dfa533",
+      "completed": true,
+      "expert_quality": null,
+      "diversity": 1.0,
+      "verified_claim_ratio": 0.0,
+      "cost_usd": 0.0,
+      "latency_seconds": 1.354
+    },
+    {
+      "goal_id": "ablation-goal-2",
+      "arm": "no_web_search",
+      "run_id": "255ddf2c-5c52-4fd6-b148-2d12cc5fde20",
+      "completed": true,
+      "expert_quality": null,
+      "diversity": 1.0,
+      "verified_claim_ratio": 0.0,
+      "cost_usd": 0.0,
+      "latency_seconds": 1.246
+    },
+    {
+      "goal_id": "ablation-goal-2",
+      "arm": "no_literature_review",
+      "run_id": "39595b46-c604-4355-b332-80ca36bed8d2",
+      "completed": true,
+      "expert_quality": null,
+      "diversity": 1.0,
+      "verified_claim_ratio": 0.0,
+      "cost_usd": 0.0,
+      "latency_seconds": 1.286
+    }
+  ],
+  "ablations": [
+    {
+      "goal_id": "ablation-goal-1",
+      "arm": "baseline",
+      "run_id": "a774f8a6-1400-4377-aa01-6b1a56eda2c3",
+      "completed": true,
+      "expert_quality": null,
+      "diversity": 1.0,
+      "verified_claim_ratio": 0.0,
+      "cost_usd": 0.0,
+      "latency_seconds": 1.382
+    },
+    {
+      "goal_id": "ablation-goal-1",
+      "arm": "no_web_search",
+      "run_id": "ce400daf-ab09-43e6-afba-0480e7abb218",
+      "completed": true,
+      "expert_quality": null,
+      "diversity": 1.0,
+      "verified_claim_ratio": 0.0,
+      "cost_usd": 0.0,
+      "latency_seconds": 1.23
+    },
+    {
+      "goal_id": "ablation-goal-1",
+      "arm": "no_literature_review",
+      "run_id": "a5ea2824-9ffe-4b54-b693-7d59c960dd54",
+      "completed": true,
+      "expert_quality": null,
+      "diversity": 1.0,
+      "verified_claim_ratio": 0.0,
+      "cost_usd": 0.0,
+      "latency_seconds": 1.337
+    },
+    {
+      "goal_id": "ablation-goal-2",
+      "arm": "baseline",
+      "run_id": "28715a8d-d92c-44d1-abd7-281e44dfa533",
+      "completed": true,
+      "expert_quality": null,
+      "diversity": 1.0,
+      "verified_claim_ratio": 0.0,
+      "cost_usd": 0.0,
+      "latency_seconds": 1.354
+    },
+    {
+      "goal_id": "ablation-goal-2",
+      "arm": "no_web_search",
+      "run_id": "255ddf2c-5c52-4fd6-b148-2d12cc5fde20",
+      "completed": true,
+      "expert_quality": null,
+      "diversity": 1.0,
+      "verified_claim_ratio": 0.0,
+      "cost_usd": 0.0,
+      "latency_seconds": 1.246
+    },
+    {
+      "goal_id": "ablation-goal-2",
+      "arm": "no_literature_review",
+      "run_id": "39595b46-c604-4355-b332-80ca36bed8d2",
+      "completed": true,
+      "expert_quality": null,
+      "diversity": 1.0,
+      "verified_claim_ratio": 0.0,
+      "cost_usd": 0.0,
+      "latency_seconds": 1.286
+    }
+  ],
+  "summary": {
+    "arms": {
+      "baseline": {
+        "n": 2,
+        "expert_quality": null,
+        "diversity": 1.0,
+        "verified_claim_ratio": 0.0,
+        "cost_usd": 0.0,
+        "latency_seconds": 1.368,
+        "goal_ids": [
+          "ablation-goal-1",
+          "ablation-goal-2"
+        ]
+      },
+      "no_literature_review": {
+        "n": 2,
+        "expert_quality": null,
+        "diversity": 1.0,
+        "verified_claim_ratio": 0.0,
+        "cost_usd": 0.0,
+        "latency_seconds": 1.3115,
+        "goal_ids": [
+          "ablation-goal-1",
+          "ablation-goal-2"
+        ]
+      },
+      "no_web_search": {
+        "n": 2,
+        "expert_quality": null,
+        "diversity": 1.0,
+        "verified_claim_ratio": 0.0,
+        "cost_usd": 0.0,
+        "latency_seconds": 1.238,
+        "goal_ids": [
+          "ablation-goal-1",
+          "ablation-goal-2"
+        ]
+      }
+    },
+    "paired_goal_count": 2
+  },
+  "provenance": {
+    "source": {
+      "git_commit": "5aae1c214ad26cdcbb1f4c4e29b184f35bf7b3f7",
+      "git_branch": "main",
+      "git_dirty": true
+    },
+    "environment": {
+      "python_version": "3.12.12",
+      "platform": "macOS-26.6-arm64-arm-64bit"
+    },
+    "prompts": {
+      "templates_dir": "engine/src/co_scientist/prompts/templates",
+      "digest": "93663ca33ff443e2338f0b4a6c29bf13edd36f9626a3372eba4a86955526c38a",
+      "file_count": 29
+    },
+    "model": null,
+    "seed": null,
+    "cost": null,
+    "captured_at": "2026-08-07T11:36:46"
+  }
+}

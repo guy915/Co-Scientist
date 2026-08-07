@@ -6,6 +6,12 @@ explicitly says otherwise; machine-readable results are written under
 
 ## Layout
 
+- `_artifacts.py` — shared result-artifact writer. Every artifact any runner
+  writes through it is stamped with a `provenance` block (source git
+  commit/branch/dirty, python/platform environment, a digest over the
+  engine's prompt templates, and whatever the runner knows about the model,
+  seed, and cost of its own measurement) automatically, so a result found
+  later carries what produced it rather than depending on memory.
 - `parity_check.py` — the parity-ledger CI gate (fails if a `verified` row in
   `docs/PARITY.md` cites no test/eval evidence).
 - `citation_eval.py` — claim/entailment metrics over
@@ -18,7 +24,23 @@ explicitly says otherwise; machine-readable results are written under
   and is retained only as a fallback baseline. See "Citation evaluation
   panels" below.
 - `safety_eval.py` — per-hypothesis safety false-positive / false-negative
-  rates over `datasets/hypothesis_safety_adversarial_v1.json`.
+  rates for the deterministic-regex reviewer layer
+  (`co_scientist.safety.review_hypothesis_safety`; never the optional
+  semantic/LLM escalation), over two datasets:
+  `datasets/hypothesis_safety_adversarial_v1.json` (must-block items; every
+  item's `should_block` is `true`) and
+  `datasets/hypothesis_safety_controls_v1.json` (must-allow items; every
+  item's `should_block` is `false`, including a broad domain-diverse sample,
+  not just adversarial near-misses). Each item also carries a `difficulty`:
+  `easy` is the literal-trigger regression floor the classifier was written
+  against (gated at 0 false positives/negatives by `smoke.py`); `hard` is
+  genuinely adversarial -- paraphrase/synonym evasion, character-gap
+  padding past the regex's window, a word-boundary spacing trick, and
+  vocabulary the classifier has no pattern for at all (nuclear, explosive),
+  plus legitimate research that happens to use a literal trigger phrase
+  ("mass casualty" disaster response, "nerve agent" detection assays,
+  "bioweapon" treaty-compliance history). The `hard` split is measured and
+  reported, never gated to pass -- see the eval's own module docstring.
 - `metrics.py` — pure hypothesis-quality metrics (diversity;
   generation-vs-evolution yield/diversity). Does **not** use the engine's own
   Elo as ground truth.
