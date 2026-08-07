@@ -1,4 +1,4 @@
-import {useCallback, useState, type ReactNode} from 'react';
+import {useCallback, useState} from 'react';
 import {Link, useParams, useSearchParams} from 'react-router-dom';
 import {type RunStatus} from '@/api/runs';
 import {Icon, type IconName} from '@/components/icon';
@@ -158,19 +158,15 @@ function reportBackTarget(
  * @param activeTab The currently active report tab, so the back control
  *   knows whether an `?idea=` param belongs to the ideas tab (and is thus a
  *   live detail selection) or is stale from a different tab.
- * @param actions Optional report-level actions (download/share) rendered on
- *   the titlebar's right edge; only a completed run with a report gets any.
  */
 export function ReportTitlebar({
   title,
   chatId,
   activeTab,
-  actions,
 }: {
   title: string;
   chatId?: string;
   activeTab?: TabName;
-  actions?: ReactNode;
 }) {
   const {id} = useParams<{id: string}>();
   const [searchParams] = useSearchParams();
@@ -197,7 +193,6 @@ export function ReportTitlebar({
           <TruncatedLabel className={REPORT_TITLE_TEXT_CLASSES} text={title} />
         </h1>
       </div>
-      {actions}
     </header>
   );
 }
