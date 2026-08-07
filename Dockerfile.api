@@ -62,6 +62,23 @@ RUN mkdir -p /app/data /app/cache
 
 # Run as a non-root user. Ownership must be set before dropping root --
 # a later `chown` from an unprivileged user would fail.
+#
+# This chown cannot reach /app/data in production, and nothing built here
+# can. Railway mounts the persistent volume over that path at *runtime*,
+# which replaces this image's directory (and its ownership) with a
+# root-owned filesystem -- so an unprivileged process cannot write the
+# SQLite database, and the app dies in its lifespan hook with "attempt to
+# write a readonly database" before it ever binds a port. The healthcheck
+# then fails for the full retry window and the deploy is rejected, which
+# took production down for ~20 hours after this USER switch first shipped.
+# Railway documents the caveat and its remedy: the api service therefore
+# sets RAILWAY_RUN_UID=0 (see AGENTS.md), which overrides this USER and
+# runs the container as root. Keep that variable and this line together --
+# removing the variable silently reintroduces the outage, and it is the
+# reason the api is *not* actually unprivileged in production despite what
+# the line below says. Making the api genuinely unprivileged needs a
+# root entrypoint that chowns the mounted volume and then drops
+# privileges; that is filed, not built.
 RUN groupadd --system coscientist \
     && useradd --system --gid coscientist --home-dir /app coscientist \
     && chown -R coscientist:coscientist /app

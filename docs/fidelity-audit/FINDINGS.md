@@ -318,7 +318,7 @@ surfaces.
 | N26 | Medium | incorrect | Docs describe retired tabs/controls; `FIDELITY.md` denies implemented auth/uploads/durable workers; `ARCHITECTURE.md` claims no durable browser state while four keys are stored | ✓ | 20:OP-019/OP-056 |
 | N27 | Medium | incorrect | `.env` templates omit auth, SMTP, quota, and worker settings and still describe retired Mock Mode | ✓ | 20:OP-027 |
 | N28 | Medium | incorrect | Dev Compose lacks an explicit SQLite volume, clones a mutable engine at startup, uses reload, and hard-codes the cancer tools config | ✓ | 20:OP-030 |
-| N29 | Medium | incorrect | Production images run as root; the API image lacks `HEALTHCHECK` and explicit persistent paths | ✓ | 20:OP-033 |
+| N29 | Medium | incorrect | Production images run as root; the API image lacks `HEALTHCHECK` and explicit persistent paths. `HEALTHCHECK` and persistent paths are closed. The non-root half is **reverted in production on the api**: the `USER` switch took the api down for ~20 hours (0/1 replicas, eight consecutive rejected deploys) because Railway mounts the volume over `/app/data` at runtime as root, so an unprivileged process cannot write the SQLite DB and the app dies in its lifespan hook. `RAILWAY_RUN_UID=0` restores service and is now required. Only the mcp image (no volume) actually runs unprivileged | ~ | 20:OP-033 |
 | N30 | Medium | partial | The API embeds the worker by default while code comments recommend a separate production worker; deployed docs list only API + MCP | ✓ | 20:OP-034 |
 | N31 | Medium | divergent | SQLite WAL with one writer and up to eight workers per run; multi-replica support undefined and recent commits may be lost on power failure | ✓ | 20:OP-035 |
 | N32 | Medium | incorrect | Root Vercel config is a universal rewrite and a stale frontend config lists removed routes; the production response carried no CSP, nosniff, referrer, or permissions policy | ✓ | 20:OP-040 |
@@ -326,6 +326,8 @@ surfaces.
 | N34 | Medium | partial | MCP CI uses fake HTTP clients; no live PubMed/OpenAlex/INDRA rate-limit or contract smoke | ✓ | 20:OP-039 |
 | N35 | Low | incorrect | Engine Compose healthcheck probes `/health`, which the MCP server does not define | ✓ | 20:OP-032 |
 | N36 | Low | incorrect | MCP package docs describe a narrower tool surface than what actually registers | ✓ | 20:OP-036 |
+| N37 | Medium | missing | The api runs as root in production (`RAILWAY_RUN_UID=0`, see N29) because a build-time `chown` cannot reach a runtime volume mount. Making it genuinely unprivileged needs a root entrypoint that chowns `/app/data` **after** the volume is mounted and then drops to `coscientist` (`gosu`/`setpriv`), with the `USER` line removed so the container starts as root. Deliberately not built during the outage fix: it is a new entrypoint on the only path that binds the port, so it must be proved on a deploy rather than reasoned about | | 08-07 outage |
+| N38 | Medium | missing | Nothing alerts on a failed deploy or a 0/1-replica api. Eight deploys were rejected over ~20 hours and every push in that window failed identically regardless of content; the outage surfaced only because a person opened the UI. A deployed smoke exists as N33 but does not run on deploy, and the frontend stays up and green while the api is gone, so the product looks alive | | 08-07 outage |
 
 ## O. Accessibility
 
