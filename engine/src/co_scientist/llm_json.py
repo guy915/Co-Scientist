@@ -104,11 +104,15 @@ def parse_tool_loop_json(
     )
 
     if response_data is None:
+        # One record, not two: the response excerpt is the evidence for the
+        # sentence above it, and splitting them meant a reader scanning by
+        # level had to notice that the line after an error belonged to it.
         logger.error(
-            "Failed to parse %s JSON response after all repair attempts",
+            "Failed to parse %s JSON response after all repair attempts. "
+            "Response: %s...",
             phase_label,
+            final_response[:500],
         )
-        logger.error("Response: %s...", final_response[:500])
         raise ResponseParseError(
             f"{phase_label} returned invalid JSON that could not be repaired"
         )

@@ -232,3 +232,31 @@ async def test_a_direct_call_llm_failure_still_logs_once(
     failures = [r for r in caplog.records if "LLM call failed" in r.message]
     assert len(failures) == 1
     assert failures[0].name == "co_scientist.llm"
+
+
+def test_a_repaired_truncation_reports_the_phase_once(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Two layers wrote down one truncated response; only one should.
+
+    The repair helper named the strategy index and its caller named the
+    phase, both at warning, so every truncated completion cost a reader
+    two records to learn one fact. The phase is the fact; the strategy
+    index is for someone debugging the repair strategies.
+    """
+    from co_scientist.llm_json import parse_tool_loop_json
+
+    truncated = '{"items": [{"a": 1}, {"a": 2'
+
+    with caplog.at_level(logging.DEBUG, logger="co_scientist"):
+        parsed = parse_tool_loop_json(truncated, "items", "Draft phase")
+
+    assert parsed
+    warnings = [r for r in caplog.records if r.levelno == logging.WARNING]
+    assert len(warnings) == 1
+    assert "Draft phase" in warnings[0].getMessage()
+    # The strategy index survives, at a level a reader is not paging past.
+    assert any(
+        "major repair strategy" in r.getMessage() and r.levelno == logging.DEBUG
+        for r in caplog.records
+    )

@@ -273,7 +273,12 @@ def _try_major_repairs(json_str: str) -> dict[str, Any] | None:
         try:
             result = repair_fn(json_str)
             if result:
-                logger.warning(
+                # Debug, not warning: which of the strategies worked is a
+                # detail for someone debugging the strategies. Both callers
+                # already report the repair with the thing a reader needs
+                # -- the phase whose response was truncated -- so warning
+                # here only made every truncation cost two records.
+                logger.debug(
                     "JSON repaired using major repair strategy %s "
                     "(indicates truncation/incomplete response)",
                     i,
