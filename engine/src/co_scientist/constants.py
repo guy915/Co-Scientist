@@ -6,6 +6,75 @@ Centralizes magic numbers and configuration values for better maintainability.
 import hashlib
 from typing import Final
 
+# Every ``max_tokens`` budget -- the answer bases, the thinking floor that
+# supersedes them, the escalation budget, and the per-node scaling inputs
+# and caps -- moved to a sibling module for the same reason: each of them
+# only means what it says relative to the floor, so they read as one
+# subject and were split as one. Re-exported here so
+# ``co_scientist.constants`` stays the single import path; the tournament
+# block below explains the redundant ``X as X`` alias form and why the
+# longest names cannot fit it in 80 columns.
+from co_scientist.constants_tokens import (
+    BUDGET_ESCALATION_MAX_TOKENS as BUDGET_ESCALATION_MAX_TOKENS,
+)
+from co_scientist.constants_tokens import (
+    DEBATE_FINAL_TURN_MAX_TOKENS_CAP as DEBATE_FINAL_TURN_MAX_TOKENS_CAP,
+)
+from co_scientist.constants_tokens import (
+    DEBATE_FINAL_TURN_TOKENS_PER_HYPOTHESIS as DEBATE_FINAL_TURN_TOKENS_PER_HYPOTHESIS,  # noqa: E501
+)
+from co_scientist.constants_tokens import (
+    DEEP_HYPOTHESIS_MAX_TOKENS as DEEP_HYPOTHESIS_MAX_TOKENS,
+)
+from co_scientist.constants_tokens import (
+    DEFAULT_MAX_TOKENS as DEFAULT_MAX_TOKENS,
+)
+from co_scientist.constants_tokens import (
+    DRAFT_MAX_TOKENS_CAP as DRAFT_MAX_TOKENS_CAP,
+)
+from co_scientist.constants_tokens import (
+    DRAFT_TOKENS_PER_HYPOTHESIS as DRAFT_TOKENS_PER_HYPOTHESIS,
+)
+from co_scientist.constants_tokens import (
+    EVOLVE_MAX_TOKENS_CAP as EVOLVE_MAX_TOKENS_CAP,
+)
+from co_scientist.constants_tokens import (
+    EVOLVE_TOKENS_PER_CONTEXT_HYPOTHESIS as EVOLVE_TOKENS_PER_CONTEXT_HYPOTHESIS,  # noqa: E501
+)
+from co_scientist.constants_tokens import (
+    EXTENDED_MAX_TOKENS as EXTENDED_MAX_TOKENS,
+)
+from co_scientist.constants_tokens import (
+    LONG_MAX_TOKENS as LONG_MAX_TOKENS,
+)
+from co_scientist.constants_tokens import (
+    RESEARCH_OVERVIEW_MAX_TOKENS as RESEARCH_OVERVIEW_MAX_TOKENS,
+)
+from co_scientist.constants_tokens import (
+    REVIEW_BATCH_FREE_HYPOTHESES as REVIEW_BATCH_FREE_HYPOTHESES,
+)
+from co_scientist.constants_tokens import (
+    REVIEW_BATCH_MAX_TOKENS_CAP as REVIEW_BATCH_MAX_TOKENS_CAP,
+)
+from co_scientist.constants_tokens import (
+    REVIEW_BATCH_TOKENS_PER_HYPOTHESIS as REVIEW_BATCH_TOKENS_PER_HYPOTHESIS,
+)
+from co_scientist.constants_tokens import (
+    THINKING_FLOOR_MAX_TOKENS as THINKING_FLOOR_MAX_TOKENS,
+)
+from co_scientist.constants_tokens import (
+    THINKING_MAX_TOKENS as THINKING_MAX_TOKENS,
+)
+from co_scientist.constants_tokens import (
+    VALIDATION_SYNTHESIS_MAX_TOKENS_CAP as VALIDATION_SYNTHESIS_MAX_TOKENS_CAP,
+)
+from co_scientist.constants_tokens import (
+    VALIDATION_SYNTHESIS_TOKENS_PER_HYPOTHESIS as VALIDATION_SYNTHESIS_TOKENS_PER_HYPOTHESIS,  # noqa: E501
+)
+from co_scientist.constants_tokens import (
+    scaled_max_tokens as scaled_max_tokens,
+)
+
 # Everything the Elo tournament is shaped by -- seed rating, K-factor, debate
 # depth, per-hypothesis match budgets, wave width -- moved to a sibling
 # module; each of those values carries its own incident history, and together
@@ -48,110 +117,6 @@ LITERATURE_REVIEW_FAILED: Final = "__LIT_REVIEW_FAILED__"
 generation.
 """
 
-# LLM API parameters
-# These four token budgets are the base values that scaled_max_tokens() below
-# scales up for count-dependent calls (e.g. batch review, evolution); simple
-# single-hypothesis calls use them directly.
-#
-# The first three sit below THINKING_FLOOR_MAX_TOKENS by design: they are
-# answer budgets, which the floor replaces outright on a thinking model. Read
-# them as what a call's answer costs, not as what the request carries. A
-# *cap* below the floor is the case that needs deliberating -- see below.
-DEFAULT_MAX_TOKENS: Final = 4000
-"""Default max tokens for standard LLM calls."""
-
-EXTENDED_MAX_TOKENS: Final = 8000
-"""Max tokens for detailed responses (reviews, evolution)."""
-
-LONG_MAX_TOKENS: Final = 10000
-"""Max tokens for complex multi-hypothesis operations."""
-
-DEEP_HYPOTHESIS_MAX_TOKENS: Final = 12000
-"""Answer budget for the hypothesis-writing generation calls (K6).
-
-The generation family's depth guidance asks for full mechanism
-specificity, quantitative predictions, and complete experiment detail,
-which costs more answer than the generic ``EXTENDED_MAX_TOKENS`` funds.
-Sits below ``THINKING_FLOOR_MAX_TOKENS`` by design, the same way the
-other answer budgets do: on a thinking model the floor replaces it, and
-on a provider without a thinking mode it is the operative ceiling.
-"""
-
-RESEARCH_OVERVIEW_MAX_TOKENS: Final = 24000
-"""Total budget for the terminal research-overview synthesis (K6).
-
-Deliberately above ``THINKING_FLOOR_MAX_TOKENS``: the overview is the
-one output asked to be a multi-paragraph research strategy document
-plus an NIH Specific Aims page, so on a thinking model its chain of
-thought and its long structured answer must both fit the same
-allowance. A floor-sized budget funds the reasoning and leaves the
-answer truncated -- the exact failure the thinking-budget gotcha
-describes. 24000 matches the largest scaled batch cap already proven
-in production. The floor only ever raises, so every other call is
-unaffected.
-"""
-
-THINKING_MAX_TOKENS: Final = 18000
-"""Max tokens for extended thinking + long responses.
-
-Also the value of ``THINKING_FLOOR_MAX_TOKENS`` below, by derivation rather
-than coincidence: the floor was set to the budget these nodes had already
-proven in production. Changing this number therefore moves the floor under
-every other thinking call in the engine, so change the two together
-deliberately or not at all.
-"""
-
-BUDGET_ESCALATION_MAX_TOKENS: Final = 24000
-"""Budget a retry uses after a call spent its whole allowance reasoning.
-
-The floor below is a floor, not a guarantee: a chain of thought is free to
-fill whatever it is given, and in production these calls came back with
-``reasoning_tokens`` sitting exactly on ``THINKING_FLOOR_MAX_TOKENS`` and
-``content`` empty -- then did it again on all five ``call_llm_json``
-attempts, because every attempt re-sent the same budget.
-``llm_json_retry.BudgetEscalation`` answers the second attempt with this
-number instead, and the third by turning thinking off, so the ladder
-terminates whether or not the reasoning would ever have finished.
-
-24000 rather than something larger because it is the budget already proven
-in production (``RESEARCH_OVERVIEW_MAX_TOKENS`` and the scaled batch caps
-run at it); the provider's own output ceiling is far above either. A bigger
-first rung would buy a longer chain of thought on the same wall, which is
-the failure, not the fix.
-"""
-
-THINKING_FLOOR_MAX_TOKENS: Final = THINKING_MAX_TOKENS
-"""Smallest total budget any thinking-enabled call may be sent with.
-
-On the providers this engine uses, ``max_tokens`` bounds reasoning *plus*
-answer, not the answer alone -- the chain of thought is billed and counted
-against the same allowance even though it is returned in a separate field.
-A budget sized for the answer therefore lets a long chain of thought consume
-the entire allowance, and the call returns ``finish_reason="length"`` with
-empty content: paid for in full, worth nothing, and retried four more times
-by ``call_llm_json``.
-
-The floor is set to ``THINKING_MAX_TOKENS`` because that is the budget the
-three nodes that were sized for thinking from the start (ranking debate,
-meta-review, research overview) already run against in production, so
-raising every other thinking call to it introduces no value this deployment
-has not already proven. It is a floor rather than a per-call reserve added
-on top precisely to avoid pushing the already-generous scaled batch caps
-(``REVIEW_BATCH_MAX_TOKENS_CAP`` and friends) into untested territory: a
-call whose budget already exceeds the floor is left exactly as its node
-sized it.
-
-It applies only where the call actually reasons, which is decided by the
-model, not the call site: ``_apply_thinking_args`` returns early for a model
-with no thinking mode, and no first-party call site passes
-``enable_thinking=False``. So every budget in this module lives in two
-regimes at once -- superseded by the floor on the DeepSeek-family models
-this engine deploys on, and operative as written on any other provider. That
-is why a cap below the floor is not merely inert: it is a ceiling that binds
-on one provider and silently does not on another. The caps block at the end
-of this module keeps every cap above the floor so each one means the same
-thing in both regimes; ``tests/test_token_budget_floor.py`` pins that.
-"""
 
 # Temperature settings
 LOW_TEMPERATURE: Final = 0.3
@@ -356,44 +321,6 @@ Smaller = less output per call, more reliable for models with tight output
 token budgets (e.g. gemini-3-pro). Trade-off: more parallel API calls.
 """
 
-# Token-budget scaling for count-dependent LLM calls. Each per-node pair
-# below feeds scaled_max_tokens() at exactly one call site; the cap keeps
-# large batches from requesting unbounded output budgets.
-
-
-def scaled_max_tokens(
-    base: int, count: int, *, per_item: int, cap: int, free_count: int = 0
-) -> int:
-    """Scales an LLM output-token budget with the number of items in a call.
-
-    Computes ``min(base + max(0, count - free_count) * per_item, cap)``:
-    the base budget covers the first ``free_count`` items, every further
-    item adds ``per_item`` tokens, and ``cap`` bounds the total.
-
-    Deliberately ignorant of ``THINKING_FLOOR_MAX_TOKENS``, so a returned
-    value can still be below it. Raising the result here, or rejecting a
-    ``cap`` beneath the floor, needs the one fact this function does not
-    have: whether the call reasons, which is a property of the model.
-    Applying the floor blind would raise budgets on providers that never
-    reason and have tighter output ceilings of their own (see
-    ``VALIDATION_SYNTHESIS_BATCH_SIZE``), and would give the floor a second
-    enforcement point that cannot see what the first one sees -- which is
-    how two copies of one rule drift apart. The floor keeps its single site
-    in ``_apply_thinking_args``; "no cap below the floor" is a static
-    property of the constants below, so a test pins it instead.
-
-    Args:
-        base: Base token budget for the call.
-        count: Number of items (hypotheses, context entries, ...) in the call.
-        per_item: Extra tokens granted per item beyond ``free_count``.
-        cap: Hard upper limit for the returned budget.
-        free_count: Number of items already covered by ``base``.
-
-    Returns:
-        The scaled token budget, never exceeding ``cap``.
-    """
-    return min(base + max(0, count - free_count) * per_item, cap)
-
 
 def truncate(text: str, limit: int = 200, suffix: str = "...") -> str:
     """Truncates text to ``limit`` characters, appending ``suffix`` if cut.
@@ -452,68 +379,3 @@ def corpus_slug(research_goal: str) -> str:
         A stable ``research_<hash>`` slug for the goal.
     """
     return "research_" + hashlib.md5(research_goal.encode()).hexdigest()[:8]
-
-
-# Scaled per-node budgets, one group per scaled_max_tokens call site. Every
-# *_CAP below is above THINKING_FLOOR_MAX_TOKENS by rule, not by accident: a
-# cap under the floor is overwritten wherever the model reasons and enforced
-# wherever it does not, i.e. a ceiling the deployed configuration can never
-# impose. Above the floor, each cap is the operative ceiling in both regimes.
-#
-# A cap is a runaway backstop, not a target. Counts come from the run tier's
-# initial_hypotheses_count (4/8/12/16, raisable per request), and at all of
-# those every scaled value here lands under both its cap and the floor -- so
-# on a thinking model these calls go out at the floor. Size a cap for the
-# pathological count, never for a plausible one, and keep it above the floor;
-# tests/test_token_budget_floor.py enforces the last part.
-
-REVIEW_BATCH_TOKENS_PER_HYPOTHESIS: Final = 1500
-"""Extra batch-review output tokens per hypothesis beyond the free count."""
-
-REVIEW_BATCH_FREE_HYPOTHESES: Final = 5
-"""Hypotheses already covered by the batch-review base budget."""
-
-REVIEW_BATCH_MAX_TOKENS_CAP: Final = 24000
-"""Upper limit for the batch-review output budget."""
-
-EVOLVE_TOKENS_PER_CONTEXT_HYPOTHESIS: Final = 800
-"""Extra evolution output tokens per context hypothesis (max 15 sampled)."""
-
-EVOLVE_MAX_TOKENS_CAP: Final = 20000
-"""Upper limit for the evolution output budget."""
-
-DEBATE_FINAL_TURN_TOKENS_PER_HYPOTHESIS: Final = 4000
-"""Extra final-debate-turn output tokens per generated hypothesis."""
-
-DEBATE_FINAL_TURN_MAX_TOKENS_CAP: Final = 20000
-"""Upper limit for the final-debate-turn output budget."""
-
-DRAFT_TOKENS_PER_HYPOTHESIS: Final = 200
-"""Extra draft-phase output tokens per requested hypothesis."""
-
-DRAFT_MAX_TOKENS_CAP: Final = 20000
-"""Upper limit for the draft-phase output budget.
-
-Raised from 16000, which was the one cap that sat below
-``THINKING_FLOOR_MAX_TOKENS``. The draft agent runs on the tool loop, which
-always reasons, so on every deployed model that cap was overwritten by the
-floor before the request went out, while on a non-reasoning provider it
-stayed enforced -- the same constant meaning two different things depending
-on who served the call.
-
-Nothing about the draft call argues for a number below its siblings. A draft
-is the cheapest thing this engine generates: ``DRAFT_TOKENS_PER_HYPOTHESIS``
-prices one at 200 tokens, so even the largest tier's 16 drafts ask for 11200
-against an 8000 base that already dominates the sum. The cap is unreachable
-at any count a run tier produces (it takes 60 drafts to reach this value, 40
-to reach the old one), which is what makes it a backstop against a caller
-raising ``initial_hypotheses_count`` rather than a ceiling any real run
-meets. Since no real run is affected either way, the value is chosen to
-agree with the other generation-family caps and to clear the floor.
-"""
-
-VALIDATION_SYNTHESIS_TOKENS_PER_HYPOTHESIS: Final = 2500
-"""Extra validation-synthesis output tokens per hypothesis in the batch."""
-
-VALIDATION_SYNTHESIS_MAX_TOKENS_CAP: Final = 20000
-"""Upper limit for the validation-synthesis output budget."""

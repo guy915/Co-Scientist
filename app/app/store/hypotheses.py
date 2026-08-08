@@ -160,7 +160,9 @@ class HypothesisStateChanges:
     value and is skipped while None. ``safety_status`` is the
     pre-tournament safety review's per-hypothesis status (e.g. 'allow',
     'redact', 'blocked'); ``status`` is the lifecycle status, such as
-    active or review-rejected.
+    active or review-rejected; ``verification_verdict`` is deep
+    verification's own verdict, which no longer decides ``status`` and so
+    has to travel on its own.
     """
 
     elo_rating: int | None = None
@@ -170,6 +172,7 @@ class HypothesisStateChanges:
     cluster_id: str | None = None
     safety_status: str | None = None
     status: str | None = None
+    verification_verdict: str | None = None
 
 
 def _hypothesis_state_updates(
@@ -191,6 +194,11 @@ def _hypothesis_state_updates(
         (c.cluster_id is not None, "cluster_id=?", c.cluster_id),
         (c.safety_status is not None, "safety_status=?", c.safety_status),
         (c.status is not None, "status=?", c.status),
+        (
+            c.verification_verdict is not None,
+            "verification_verdict=?",
+            c.verification_verdict,
+        ),
     )
     return [
         (fragment, value) for active, fragment, value in candidates if active
@@ -294,7 +302,8 @@ _HYP_SELECT = (
     "COALESCE(s.win_count, 0) AS win_count, "
     "COALESCE(s.loss_count, 0) AS loss_count, "
     "s.novelty_score, s.plausibility_score, "
-    "s.testability_score, s.safety_status, s.status, s.cluster_id "
+    "s.testability_score, s.safety_status, s.status, s.cluster_id, "
+    "s.verification_verdict "
     "FROM hypotheses h LEFT JOIN hypothesis_state s ON h.id=s.hypothesis_id "
 )
 

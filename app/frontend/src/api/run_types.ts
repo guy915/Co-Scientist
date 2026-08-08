@@ -233,6 +233,11 @@ export interface Hypothesis {
   // published under the rank-and-publish policy, but flagged "Unverified". Set
   // by GET /hypotheses.
   unverified?: boolean;
+  // deep verification's verdict: holds | weakened | undermined | unverified,
+  // null until it reaches the idea (it only probes the tournament's leaders).
+  // "undermined" no longer withholds an idea, so this is the only signal that
+  // a published one failed a probe on a fundamental assumption.
+  verification_verdict?: string | null;
 }
 
 /** A literature record cited as supporting or contextual evidence. */

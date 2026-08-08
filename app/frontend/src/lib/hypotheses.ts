@@ -11,6 +11,13 @@ import type {Hypothesis} from '@/api/runs';
 const WITHDRAWN_STATUSES = new Set(['duplicate', 'rejected']);
 
 /**
+ * Deep verification's verdict when a probe falsified a fundamental
+ * assumption. Not a withdrawn status: the idea is presented, demoted and
+ * chipped. Mirrors `models.UNDERMINED_VERDICT` in the engine.
+ */
+export const UNDERMINED_VERDICT = 'undermined';
+
+/**
  * Returns the ideas a run actually put forward.
  *
  * Deduplicated and disqualified ideas were previously listed at the bottom
@@ -34,19 +41,31 @@ export function presentedHypotheses(hypotheses: Hypothesis[]): Hypothesis[] {
  *
  * Canonical display ordering shared by the ideas and run-detail views so both
  * surfaces rank the same way and a change to the policy lives in one place.
+ * Mirrors the engine's `rank_for_publication` and the API's `live_leaderboard`
+ * — three surfaces, one order.
  *
- * Ideas that have played at least one match sort above ideas that have not,
- * whatever the numbers say. Every hypothesis starts at 1200, so an idea that
- * never entered the tournament outranks one that entered and lost — a run
+ * Ideas deep verification undermined sort below every other, whatever their
+ * rating. Their rating argues the opposite of their verdict: verification only
+ * probes the ideas leading the tournament, and its verdict lands after the
+ * matches that put them there, so on Elo alone a run opens its idea list with
+ * the one idea a probe found a fundamental flaw in. They are listed, and
+ * carry the "Undermined" chip; they are not presented as the best answer.
+ *
+ * Then ideas that have played at least one match sort above ideas that have
+ * not, whatever the numbers say. Every hypothesis starts at 1200, so an idea
+ * that never entered the tournament outranks one that entered and lost — a run
  * shipped six unplayed ideas at 1200 above the genuine runner-up at 1136,
  * presenting "never competed" as better than "competed and lost".
  *
  * @param hypotheses The hypotheses to rank (not mutated).
- * @returns A new array with played ideas first, each group by descending Elo.
+ * @returns A new array, sound ideas first, each group by descending Elo.
  */
 export function sortByEloDesc(hypotheses: Hypothesis[]): Hypothesis[] {
   const played = (h: Hypothesis) => h.win_count + h.loss_count > 0;
+  const undermined = (h: Hypothesis) =>
+    h.verification_verdict === UNDERMINED_VERDICT;
   return [...hypotheses].sort((a, b) => {
+    if (undermined(a) !== undermined(b)) return undermined(a) ? 1 : -1;
     if (played(a) !== played(b)) return played(a) ? -1 : 1;
     return b.elo_rating - a.elo_rating;
   });

@@ -170,6 +170,36 @@ it('flags an evidence-less idea with the "Unverified" chip', () => {
   expect(chips[0]).toHaveTextContent('Unverified');
 });
 
+it('flags a probe-falsified idea "Undermined", apart from "Unverified"', () => {
+  // Deep verification stopped withholding these ideas, so the chip is now
+  // the only thing telling a reader that evidence was found *against* this
+  // one -- a different fact from "no supporting evidence was found", which
+  // is why they are separate chips rather than one shared caution.
+  const {container} = renderIdeas(
+    <IdeasTab
+      hypotheses={[
+        makeHypothesis({
+          id: 'sound',
+          title: 'Sound idea',
+          elo_rating: 1300,
+          verification_verdict: 'holds',
+        }),
+        makeHypothesis({
+          id: 'doubted',
+          title: 'Doubted idea',
+          elo_rating: 1400,
+          verification_verdict: 'undermined',
+        }),
+      ]}
+      reviews={[]}
+    />,
+  );
+  expect(screen.getAllByText('Doubted idea').length).toBeGreaterThan(0);
+  const chips = container.querySelectorAll('.idea-undermined-chip');
+  expect(chips).toHaveLength(1);
+  expect(chips[0]).toHaveTextContent('Undermined');
+});
+
 it('renders reference detail sections without the legacy detail link', () => {
   const reviews: Review[] = [
     {

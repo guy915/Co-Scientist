@@ -4,8 +4,9 @@ These models maintain compatibility with the original AI-CoScientist
 while providing clean type safety for LangGraph.
 
 The execution-metrics models and node state-update helpers live in
-``models_metrics``, and hypothesis-id minting in ``models_ids``; both are
-re-exported here so import sites are unaffected by the split.
+``models_metrics``, hypothesis-id minting in ``models_ids``, and the
+literature-article record in ``models_article``; all three are re-exported
+here so import sites are unaffected by the split.
 """
 
 import dataclasses
@@ -14,6 +15,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from co_scientist.constants import INITIAL_ELO_RATING
+from co_scientist.models_article import Article as Article
 from co_scientist.models_ids import new_hypothesis_id as new_hypothesis_id
 from co_scientist.models_ids import (
     run_scoped_hypothesis_ids as run_scoped_hypothesis_ids,
@@ -21,7 +23,6 @@ from co_scientist.models_ids import (
 from co_scientist.models_ids import run_seed_material as run_seed_material
 from co_scientist.models_metrics import ExecutionMetrics as ExecutionMetrics
 from co_scientist.models_metrics import MetricDeltas as MetricDeltas
-from co_scientist.models_metrics import _known_field_kwargs
 from co_scientist.models_metrics import (
     create_metrics_update as create_metrics_update,
 )
@@ -169,6 +170,10 @@ def _assessment_fields(hypothesis: "Hypothesis") -> dict[str, Any]:
 # agents/reflection/review.py::_apply_initial_review_gate). A duplicate is
 # archived by proximity rather than judged, so it is excluded through its
 # own path and reported as a duplicate, not as a failed idea.
+#
+# Also deliberately absent, and for a third reason: the deep-verification
+# verdict "undermined". It is not a disposition at all, and it no longer
+# withholds an idea -- see Hypothesis.is_rankable / is_undermined.
 BLOCKING_REVIEW_DISPOSITIONS = frozenset(
     {
         "inaccurate",
@@ -178,6 +183,13 @@ BLOCKING_REVIEW_DISPOSITIONS = frozenset(
         "evidence_blocked",
     }
 )
+
+# The deep-verification verdict for a hypothesis whose fundamental
+# assumption failed a probe. Demoting, not blocking: the idea ranks last
+# among the sound ones and publishes carrying the verdict. Defined here
+# rather than in the verification node because the ordering, the persisted
+# state, and the node all have to agree on the exact string.
+UNDERMINED_VERDICT = "undermined"
 
 
 @dataclass
@@ -340,16 +352,34 @@ class Hypothesis:
     def is_rankable(self) -> bool:
         """Return whether this hypothesis may enter the Elo tournament.
 
-        A hypothesis is excluded from ranking if deep verification undermined
-        it or an initial review / pre-ranking evidence gate rejected it. The
-        scheduler must count tournament coverage over rankable hypotheses only,
-        otherwise a pool full of un-rankable ideas keeps average coverage below
-        the termination threshold and the orchestrator loops on ranking.
+        A hypothesis is excluded from ranking if an initial review or the
+        pre-ranking evidence gate rejected it. The scheduler must count
+        tournament coverage over rankable hypotheses only, otherwise a pool
+        full of un-rankable ideas keeps average coverage below the
+        termination threshold and the orchestrator loops on ranking.
+
+        A deep-verification verdict of "undermined" is deliberately *not*
+        one of these (superseding audit E9's exclusion, though not its
+        fail-closed "unverified" record). It used to bar ranking exactly
+        like a blocking disposition, which made it the second of two
+        terminal gates in series: once the evidence gate stopped blocking
+        on non-claims, undermined took over as the binding constraint and a
+        measured run still published one idea of four. It is a single LLM
+        call, delivered after ranking, on the ideas that led the tournament
+        -- too thin a basis to delete a run's leading work. It demotes
+        instead: ``is_undermined`` sorts those ideas below every sound one
+        and the reader sees the verdict on the idea.
         """
-        return (
-            self.deep_verification_verdict != "undermined"
-            and self.review_disposition not in BLOCKING_REVIEW_DISPOSITIONS
-        )
+        return self.review_disposition not in BLOCKING_REVIEW_DISPOSITIONS
+
+    def is_undermined(self) -> bool:
+        """Return whether deep verification found a fundamental flaw.
+
+        Rankable but demoted: see :meth:`is_rankable`. The one predicate the
+        ordering and the persisted state both read, so "undermined" cannot
+        come to mean two things.
+        """
+        return self.deep_verification_verdict == UNDERMINED_VERDICT
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for serialization."""
@@ -441,51 +471,27 @@ def rank_by_elo(hypotheses: list[Hypothesis]) -> list[Hypothesis]:
     )
 
 
-@dataclass
-class Article:
-    """A literature article with extracted content and metadata.
+def rank_for_publication(hypotheses: list[Hypothesis]) -> list[Hypothesis]:
+    """Return hypotheses in the order a reader should meet them.
 
-    Note: In PubMed-only mode, `content` and `pdf_links` are unused.
-    Fulltext content is accessed directly by PaperQA from HTML files.
+    :func:`rank_by_elo` with the deep-verification demotion composed on top:
+    ideas whose fundamental assumption failed a probe sort below every sound
+    one, keeping their relative Elo order among themselves.
+
+    Elo cannot express this on its own, and points the wrong way. Deep
+    verification only runs on the ideas that *led* the tournament, and its
+    verdict lands after the matches that earned them their rating -- so the
+    run's most doubted idea carries its highest score, and any surface
+    ordering on Elo alone puts it first. Every surface a reader sees the
+    order on (the ranking node's published pool, the research overview's
+    top-k) uses this; the matchmaker and the tournament's own pairing keep
+    the plain Elo comparison, which is a statement about strength of play,
+    not about what to show first.
+
+    Args:
+        hypotheses: The hypotheses to order (not mutated).
+
+    Returns:
+        A new list, sound ideas first, each band ordered by Elo.
     """
-
-    title: str
-    url: str | None = None
-    authors: list[str] = field(default_factory=list)
-    year: int | None = None
-    venue: str | None = None
-    citations: int = 0
-    abstract: str | None = None
-    # Unused in PubMed-only mode (PaperQA reads HTML files directly)
-    content: str | None = None
-    source_id: str | None = None
-    source: str = "pubmed"  # default changed to "pubmed" (was "google_scholar")
-    doi: str | None = None
-    is_retracted: bool = False
-    correction_status: str = "current"
-    publication_type: str | None = None
-    pdf_links: list[str] = field(
-        default_factory=list
-    )  # unused in PubMed-only mode (HTML-only)
-    # Flag indicating if this article was analyzed by the agent
-    used_in_analysis: bool = False
-    # When the engine retrieved this article (search-phase collection time),
-    # distinct from any downstream persistence timestamp a caller stamps on
-    # its own copy of the record.
-    retrieved_at: float | None = None
-    # Hybrid retrieval score (lexical heuristic + model-judged relevance,
-    # see search_support.py) and the provenance of how it was produced.
-    # None for an article that predates hybrid scoring or was never ranked
-    # this way (e.g. a directly fetched corpus paper).
-    retrieval_score: float | None = None
-    retrieval_rationale: str | None = None
-    retriever_version: str | None = None
-
-    def to_dict(self) -> dict[str, Any]:
-        """Convert to dictionary for serialization."""
-        return dataclasses.asdict(self)
-
-    @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "Article":
-        """Rebuild from a ``to_dict`` payload, ignoring unknown keys."""
-        return cls(**_known_field_kwargs(cls, data))
+    return sorted(rank_by_elo(hypotheses), key=lambda h: h.is_undermined())

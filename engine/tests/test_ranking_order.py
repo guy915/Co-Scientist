@@ -54,14 +54,36 @@ def test_unrankable_ideas_sort_last_without_a_second_comparison() -> None:
     blocked = make_hypothesis(
         text="zeta", review_disposition="evidence_blocked"
     )
+    rankable = [make_hypothesis(text=text) for text in ("alpha", "beta")]
+
+    ordered = _sort_hypotheses_by_elo([blocked, *rankable])
+
+    assert [h.text for h in ordered] == ["beta", "alpha", "zeta"]
+
+
+def test_an_undermined_idea_sorts_below_every_sound_one() -> None:
+    """Deep verification demotes an idea; it no longer removes it.
+
+    An undermined idea ranks and publishes, so nothing else keeps it off
+    the top of the list -- and it reached deep verification precisely by
+    leading the tournament, which means the Elo it carries would otherwise
+    put it first. ``yankee`` here holds the pool's highest rating and still
+    lands below both sound ideas, above only the idea a gate refused
+    outright.
+    """
     undermined = make_hypothesis(
-        text="yankee", deep_verification_verdict="undermined"
+        text="yankee",
+        deep_verification_verdict="undermined",
+        elo_rating=INITIAL_ELO_RATING + 300,
+    )
+    blocked = make_hypothesis(
+        text="zeta", review_disposition="evidence_blocked"
     )
     rankable = [make_hypothesis(text=text) for text in ("alpha", "beta")]
 
-    ordered = _sort_hypotheses_by_elo([blocked, *rankable, undermined])
+    ordered = _sort_hypotheses_by_elo([blocked, undermined, *rankable])
 
-    assert [h.text for h in ordered] == ["beta", "alpha", "zeta", "yankee"]
+    assert [h.text for h in ordered] == ["beta", "alpha", "yankee", "zeta"]
 
 
 def test_elo_outranks_the_text_tiebreak() -> None:

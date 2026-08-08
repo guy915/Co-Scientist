@@ -219,6 +219,7 @@ CREATE TABLE IF NOT EXISTS hypothesis_state (
     safety_status TEXT DEFAULT 'pending',
     status TEXT NOT NULL DEFAULT 'active',
     cluster_id TEXT,               -- proximity/dedup cluster, set by evolve
+    verification_verdict TEXT,     -- deep verification; see store/db.py
     updated_at REAL NOT NULL,
     FOREIGN KEY (hypothesis_id) REFERENCES hypotheses(id) ON DELETE CASCADE
 );

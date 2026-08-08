@@ -267,14 +267,16 @@ def test_drain_persists_evidence_quarantine_as_rejected(
     assert by_id["child-1"]["status"] == "active"
 
 
-def test_drain_persists_undermined_verdict_as_rejected(
+def test_drain_publishes_an_undermined_idea_but_records_the_verdict(
     isolated_db: str,
 ) -> None:
-    """Deep verification excludes on the merits, so it is not "Unranked".
+    """Deep verification demotes on the merits; it no longer disqualifies.
 
-    The UI reads ``status`` to tell "Disqualified" from "Unranked". An idea
-    deep verification undermined never enters the tournament, so recorded as
-    active it shows as merely unranked -- the conflation the status removes.
+    An undermined idea now ranks and publishes, so ``status`` says
+    ``active`` like any other. That is exactly why the verdict has to be
+    persisted alongside it: it is the only remaining record that the idea
+    is doubted, and without it a published idea reaches the reader looking
+    indistinguishable from a sound one.
     """
     state = _final_state_with_lineage()
     state["hypotheses"][0]["deep_verification_verdict"] = "undermined"
@@ -288,8 +290,10 @@ def test_drain_persists_undermined_verdict_as_rejected(
         hypothesis["id"]: hypothesis
         for hypothesis in store.list_hypotheses(run.id, db_path=isolated_db)
     }
-    assert by_id["parent-1"]["status"] == "rejected"
+    assert by_id["parent-1"]["status"] == "active"
+    assert by_id["parent-1"]["verification_verdict"] == "undermined"
     assert by_id["child-1"]["status"] == "active"
+    assert by_id["child-1"]["verification_verdict"] is None
 
 
 def test_unsafe_hypothesis_excluded_from_synthesis(isolated_db: str) -> None:

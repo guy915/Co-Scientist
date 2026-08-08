@@ -28,6 +28,25 @@ it('ranks an idea that lost a match above one that never played', () => {
   expect(ranked.map(h => h.id)).toEqual(['winner', 'loser', 'unplayed']);
 });
 
+it('sinks an undermined idea below every sound one', () => {
+  // Deep verification only probes the ideas leading the tournament, and its
+  // verdict lands after the matches that put them there, so an undermined
+  // idea carries the pool's top rating. On Elo alone the run would open its
+  // list with the one idea a probe found a fundamental flaw in.
+  const ranked = sortByEloDesc([
+    makeHypothesis({
+      id: 'doubted',
+      elo_rating: 1400,
+      win_count: 3,
+      verification_verdict: 'undermined',
+    }),
+    makeHypothesis({id: 'sound', elo_rating: 1150, loss_count: 1}),
+    makeHypothesis({id: 'unplayed', elo_rating: 1200}),
+  ]);
+
+  expect(ranked.map(h => h.id)).toEqual(['sound', 'unplayed', 'doubted']);
+});
+
 it('does not mutate the input array', () => {
   const input = [
     makeHypothesis({id: 'a', elo_rating: 1100, win_count: 1}),

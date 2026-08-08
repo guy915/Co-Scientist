@@ -200,15 +200,25 @@ async def test_decomposition_lists_are_bounded_on_store(
     )
 
 
-def test_unverified_verdict_does_not_block_ranking() -> None:
-    """Unverified ideas still rank; only 'undermined' bars the tournament."""
+def test_no_verification_verdict_bars_the_tournament() -> None:
+    """Every verdict ranks; the worst of them is demoted, not withheld.
+
+    "Unverified" is the fail-closed record for a verification that could
+    not be produced, so barring it would let a provider outage delete
+    ideas. "Undermined" is a real finding and used to bar the tournament,
+    which made deep verification a second terminal gate behind the
+    evidence gate; it now reports itself through ``is_undermined``, which
+    demotes the idea in the published order instead.
+    """
     h = make_hypothesis(text="leader", elo_rating=2000)
     h.review_disposition = "viable"
     h.deep_verification_verdict = dv.VERDICT_UNVERIFIED
     assert h.is_rankable()
+    assert not h.is_undermined()
 
     h.deep_verification_verdict = "undermined"
-    assert not h.is_rankable()
+    assert h.is_rankable()
+    assert h.is_undermined()
 
 
 def test_prompt_covers_decomposition_and_decontextualization() -> None:

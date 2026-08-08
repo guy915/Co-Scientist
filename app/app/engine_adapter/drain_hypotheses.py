@@ -267,13 +267,17 @@ def _hypothesis_status(h: dict[str, Any]) -> str:
     Three outcomes the UI must be able to tell apart:
 
     - ``rejected``: excluded from the tournament on merit -- whatever the
-      engine's ``Hypothesis.is_rankable`` refuses, which today is a blocking
-      review disposition or a deep-verification verdict of "undermined". An
-      undermined idea recorded as active would show as merely unranked,
-      which is exactly the conflation this status exists to remove.
+      engine's ``Hypothesis.is_rankable`` refuses, which today is a
+      blocking review disposition.
     - ``duplicate``: archived by proximity as redundant, not judged.
     - ``active``: everything else, including ideas the initial review
-      flagged as needing revision -- those still rank and publish.
+      flagged as needing revision and ideas deep verification undermined --
+      those still rank and publish.
+
+    An undermined idea used to land in ``rejected`` here. It is now
+    ``active``, which is why ``verification_verdict`` is persisted beside
+    this status: the doubt has to reach the reader on its own column, or a
+    published idea looks indistinguishable from a sound one.
     """
     if h.get("review_disposition") == DEDUPLICATED_REVIEW_DISPOSITION:
         return "duplicate"
@@ -320,6 +324,7 @@ def _persist_hypothesis_state(
             loss_delta=int(h.get("loss_count", 0)),
             novelty=_mean_review_novelty(h),
             status=_hypothesis_status(h),
+            verification_verdict=h.get("deep_verification_verdict"),
         ),
         conn=conn,
     )

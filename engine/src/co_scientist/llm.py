@@ -9,6 +9,7 @@ historical import paths keep working.
 """
 
 import logging
+from collections.abc import Awaitable, Callable
 from typing import Any, cast
 
 # Kept as a module attribute: tests patch the completion boundary via
@@ -212,6 +213,39 @@ async def _call_llm_and_cache(
     return content
 
 
+def _log_call_llm_failure(
+    spec: CompletionSpec, enable_thinking: bool, error: Exception
+) -> None:
+    """Records the one log line ``call_llm`` emits for a failed call.
+
+    One record, at warning. ``call_llm`` re-raises unconditionally and
+    cannot know whether a retry follows -- call_llm_json's ladder recovers
+    most of what lands here -- so logging it as an error reported a healthy
+    run as a broken one: a single recovered answerless completion put four
+    ERROR rows in the diagnostics panel, and eight of one export's ten
+    errors were this. The attempt that actually gives up logs the error, in
+    llm_json_retry, which is the layer that knows.
+
+    The budget reported is the one sent, not the one the call site asked
+    for: the thinking floor raises it before the request goes out, and
+    logging the pre-floor number next to a reasoning-token count that
+    exceeds it made a budget failure read as a provider one.
+
+    Args:
+        spec: The spec the failed call was made with.
+        enable_thinking: Whether thinking was requested, which decides
+            whether the floor applied to the budget actually sent.
+        error: The failure being reported.
+    """
+    logger.warning(
+        "LLM call failed (model %s, max_tokens %s, call site asked for %s): %s",
+        spec.model_name,
+        effective_max_tokens(spec.model_name, spec.max_tokens, enable_thinking),
+        spec.max_tokens,
+        short_error_text(error),
+    )
+
+
 async def call_llm(
     prompt: str,
     spec: CompletionSpec,
@@ -248,30 +282,7 @@ async def call_llm(
                 request, opt.enable_thinking, cache
             )
         except Exception as e:
-            # One record, at warning. This layer re-raises unconditionally
-            # and cannot know whether a retry follows -- call_llm_json's
-            # ladder recovers most of what lands here -- so logging it as
-            # an error reported a healthy run as a broken one: a single
-            # recovered answerless completion put four ERROR rows in the
-            # diagnostics panel, and eight of one export's ten errors were
-            # this. The attempt that actually gives up logs the error, in
-            # llm_json_retry, which is the layer that knows.
-            #
-            # The budget reported is the one sent, not the one the call
-            # site asked for: the thinking floor raises it before the
-            # request goes out, and logging the pre-floor number next to a
-            # reasoning-token count that exceeds it made a budget failure
-            # read as a provider one.
-            logger.warning(
-                "LLM call failed (model %s, max_tokens %s, call site asked "
-                "for %s): %s",
-                spec.model_name,
-                effective_max_tokens(
-                    spec.model_name, spec.max_tokens, opt.enable_thinking
-                ),
-                spec.max_tokens,
-                short_error_text(e),
-            )
+            _log_call_llm_failure(spec, opt.enable_thinking, e)
             raise
 
 
@@ -313,6 +324,47 @@ async def _call_llm_for_json(
 
     # Extract JSON from markdown code blocks if present.
     return extract_response_json(response_text)
+
+
+def _json_call_for_attempt(
+    json_spec: _JsonCallSpec, enable_thinking: bool
+) -> Callable[[str, BudgetEscalation], Awaitable[str]]:
+    """Builds the raw-call callable the retry loop injects into its context.
+
+    Defined here rather than in ``llm_json_retry`` so the inner call
+    resolves ``_call_llm_for_json`` through this module's globals: that name
+    is the raw-response seam tests install a fake at (see
+    ``tests/test_supervisor_decision_schema.py``), and a closure living in
+    another module would look it up somewhere the patch never reaches.
+
+    Args:
+        json_spec: The call spec as the calling node sized it.
+        enable_thinking: Whether the caller asked for thinking at all; the
+            top escalation rung turns it off regardless.
+
+    Returns:
+        A callable taking one attempt's prompt and escalation rung.
+    """
+
+    async def _call_for_json(
+        attempt_prompt: str, escalation: BudgetEscalation
+    ) -> str:
+        """Raw LLM call (via call_llm) for one attempt's prompt.
+
+        ``escalation`` is the loop's answer to a previous attempt that
+        spent its whole budget reasoning: it raises this attempt's
+        token budget and, at the top rung, turns thinking off.
+        """
+        return await _call_llm_for_json(
+            attempt_prompt,
+            escalated_spec(json_spec, escalation),
+            enable_thinking=(
+                enable_thinking
+                and escalation is not BudgetEscalation.NO_THINKING
+            ),
+        )
+
+    return _call_for_json
 
 
 async def _run_call_llm_json_loop(
@@ -396,23 +448,10 @@ async def call_llm_json(
             spec.json_schema,
         )
 
-        async def _call_for_json(
-            attempt_prompt: str, escalation: BudgetEscalation
-        ) -> str:
-            """Raw LLM call (via call_llm) for one attempt's prompt.
-
-            ``escalation`` is the loop's answer to a previous attempt that
-            spent its whole budget reasoning: it raises this attempt's
-            token budget and, at the top rung, turns thinking off.
-            """
-            return await _call_llm_for_json(
-                attempt_prompt,
-                escalated_spec(json_spec, escalation),
-                enable_thinking=(
-                    opt.enable_thinking
-                    and escalation is not BudgetEscalation.NO_THINKING
-                ),
-            )
-
-        ctx = _JsonRetryContext(prompt, json_spec, cache, _call_for_json)
+        ctx = _JsonRetryContext(
+            prompt,
+            json_spec,
+            cache,
+            _json_call_for_attempt(json_spec, opt.enable_thinking),
+        )
         return await _run_call_llm_json_loop(prompt, ctx, max_attempts)

@@ -68,8 +68,9 @@ logger = logging.getLogger(__name__)
 # produced (provider failure, or output that did not survive validation).
 # Never model output -- the schema enum has no such value -- and never
 # blocking: an unverified idea still ranks and publishes, mirroring the
-# "Unverified" badge policy for merely-unsupported claims. Only
-# "undermined" bars ranking (audit E9).
+# "Unverified" badge policy for merely-unsupported claims. No verdict bars
+# ranking any more; "undermined" (audit E9) now demotes instead, sorting
+# the idea below every sound one -- see models.UNDERMINED_VERDICT.
 VERDICT_UNVERIFIED = "unverified"
 _VALID_VERDICTS = frozenset({"holds", "weakened", "undermined"})
 
@@ -235,9 +236,9 @@ def mark_hypothesis_unverified(hypothesis: Hypothesis) -> None:
 
     The fingerprint is deliberately left stale so the next deep-verification
     pass re-attempts instead of trusting the failure. Unverified is not
-    blocking -- the idea still ranks and publishes (``is_rankable`` bars
-    only ``undermined``); it just carries the explicit state, mirroring the
-    "Unverified" badge policy for merely-unsupported claims (audit E9).
+    blocking -- the idea still ranks and publishes, as every verdict now
+    does; it just carries the explicit state, mirroring the "Unverified"
+    badge policy for merely-unsupported claims (audit E9).
     """
     hypothesis.deep_verification_probes = []
     hypothesis.deep_verification_verdict = VERDICT_UNVERIFIED

@@ -180,9 +180,7 @@ def test_unrankable_ideas_do_not_hold_the_coverage_floor_open() -> None:
     hypotheses = [
         make_hypothesis(text="played", win_count=1, loss_count=1),
         make_hypothesis(text="blocked", review_disposition="evidence_blocked"),
-        make_hypothesis(
-            text="undermined", deep_verification_verdict="undermined"
-        ),
+        make_hypothesis(text="rejected", review_disposition="non_novel"),
     ]
     spent = make_state(
         hypotheses=hypotheses,

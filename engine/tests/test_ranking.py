@@ -105,11 +105,11 @@ async def test_skipped_tournament_names_the_pool_and_the_gates(
     one fact that makes it actionable.
     """
     kept = make_hypothesis(text="the one survivor TXT alpha")
-    undermined = make_hypothesis(text="undermined idea TXT beta")
-    undermined.deep_verification_verdict = "undermined"
     rejected = make_hypothesis(text="rejected idea TXT gamma")
     rejected.review_disposition = "inaccurate"
-    state = make_state(hypotheses=[kept, undermined, rejected])
+    also_rejected = make_hypothesis(text="rejected idea TXT delta")
+    also_rejected.review_disposition = "evidence_blocked"
+    state = make_state(hypotheses=[kept, rejected, also_rejected])
 
     with caplog.at_level(logging.WARNING):
         result = await ranking_node(state)
@@ -117,8 +117,11 @@ async def test_skipped_tournament_names_the_pool_and_the_gates(
     assert "tournament_matchups" not in result
     message = caplog.text
     assert "1 of 3 hypotheses are rankable" in message
-    assert "1 undermined by deep verification" in message
-    assert "1 rejected in review" in message
+    assert "2 rejected in review" in message
+    # Deep verification is not named: its verdict demotes rather than
+    # withholds, so blaming a thin pool on it would point the reader at a
+    # gate that let every one of those ideas through.
+    assert "undermined" not in message
 
 
 async def test_empty_hypotheses_skips_tournament() -> None:
@@ -368,15 +371,10 @@ def _record_matchup_prompts(monkeypatch: pytest.MonkeyPatch) -> list[str]:
     return seen_prompts
 
 
-async def test_undermined_hypothesis_cannot_enter_tournament(
+async def test_a_rejected_hypothesis_cannot_enter_tournament(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A failed fundamental verification remains auditable but never pairs."""
-    undermined = make_hypothesis(
-        text="invalidated mechanism",
-        deep_verification_verdict="undermined",
-        elo_rating=1800,
-    )
+    """A review-rejected idea remains auditable but never pairs."""
     non_novel = make_hypothesis(
         text="already established mechanism",
         review_disposition="non_novel",
@@ -386,22 +384,47 @@ async def test_undermined_hypothesis_cannot_enter_tournament(
     eligible_b = make_hypothesis(text="supported mechanism beta")
     seen_prompts = _record_matchup_prompts(monkeypatch)
     state = make_state(
-        hypotheses=[undermined, non_novel, eligible_a, eligible_b],
+        hypotheses=[non_novel, eligible_a, eligible_b],
         tournament_pairs=2,
     )
 
     result = await ranking_node(state)
 
-    assert all("invalidated mechanism" not in prompt for prompt in seen_prompts)
     assert all(
         "already established mechanism" not in prompt for prompt in seen_prompts
     )
-    assert undermined.total_matches == 0
     assert non_novel.total_matches == 0
-    assert {hypothesis.id for hypothesis in result["hypotheses"][-2:]} == {
-        undermined.id,
-        non_novel.id,
-    }
+    assert result["hypotheses"][-1].id == non_novel.id
+
+
+async def test_an_undermined_hypothesis_competes_but_publishes_last(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Deep verification demotes a leader instead of deleting it.
+
+    The idea carries the pool's top rating -- it earned that by winning the
+    matches that promoted it to verification in the first place -- so
+    nothing but the explicit demotion keeps it off the head of the
+    published order.
+    """
+    undermined = make_hypothesis(
+        text="invalidated mechanism",
+        deep_verification_verdict="undermined",
+        elo_rating=1800,
+    )
+    eligible_a = make_hypothesis(text="supported mechanism alpha")
+    eligible_b = make_hypothesis(text="supported mechanism beta")
+    seen_prompts = _record_matchup_prompts(monkeypatch)
+    state = make_state(
+        hypotheses=[undermined, eligible_a, eligible_b],
+        tournament_pairs=2,
+    )
+
+    result = await ranking_node(state)
+
+    assert any("invalidated mechanism" in prompt for prompt in seen_prompts)
+    assert undermined.total_matches
+    assert result["hypotheses"][-1].id == undermined.id
 
 
 # --- match_tier: deterministic decisiveness classification ------------------

@@ -22,7 +22,7 @@ from co_scientist.models import (
     MetricDeltas,
     create_metrics_update,
     phase_message,
-    rank_by_elo,
+    rank_for_publication,
 )
 from co_scientist.progress import emit_progress
 from co_scientist.prompts import (
@@ -112,8 +112,8 @@ def _publishable_hypotheses(
 
     Mirrors the report's exclusions on engine-side state: the tournament's
     rankability test (``Hypothesis.is_rankable``) plus the blocking safety
-    outcomes. Ideas merely needing revision still publish, and
-    proximity-archived duplicates are pruned from the pool upstream.
+    outcomes. Ideas needing revision publish, as do undermined ones
+    (demoted, not withheld); duplicates are pruned upstream.
 
     Args:
         hypotheses: The hypothesis pool at the terminal node.
@@ -129,11 +129,14 @@ def _publishable_hypotheses(
 
 
 def _summarize_top_hypotheses(hypotheses: list[Hypothesis]) -> str:
-    """Ranks hypotheses by Elo and formats the top-k as a numbered summary.
+    """Ranks hypotheses for publication and formats the top-k summary.
 
     Re-ranks defensively (does not assume the incoming list is already
-    Elo-sorted) and keeps only the strongest ``RESEARCH_OVERVIEW_TOP_K``
+    sorted) and keeps only the strongest ``RESEARCH_OVERVIEW_TOP_K``
     hypotheses so the synthesis prompt stays a bounded size.
+    ``rank_for_publication``, not plain Elo: an undermined idea publishes
+    but must not headline the synthesis, and its Elo -- won before the
+    verdict doubting it -- is what would put it there.
 
     Args:
         hypotheses: The publishable hypothesis pool.
@@ -141,7 +144,7 @@ def _summarize_top_hypotheses(hypotheses: list[Hypothesis]) -> str:
     Returns:
         A newline-joined, numbered summary of the top-k hypotheses.
     """
-    ranked = rank_by_elo(hypotheses)
+    ranked = rank_for_publication(hypotheses)
     top = ranked[:RESEARCH_OVERVIEW_TOP_K]
     return "\n".join(
         f"{i + 1}. (Elo {h.elo_rating}) {h.text}" for i, h in enumerate(top)

@@ -58,23 +58,36 @@ def live_leaderboard(
         cap: Maximum number of standings to include.
 
     Returns:
-        A list of ``{rank, id, title, elo, wins, losses}`` dicts, ordered with
-        played hypotheses first and each group by descending Elo.
+        A list of ``{rank, id, title, elo, wins, losses}`` dicts, ordered
+        with sound played hypotheses first, then sound unplayed ones, then
+        the ideas deep verification undermined, each group by descending
+        Elo.
     """
 
     def _played(h: dict[str, Any]) -> int:
         return int(h.get("win_count") or 0) + int(h.get("loss_count") or 0)
 
-    # Hypotheses that played at least one match rank above those that did
-    # not, whatever the ratings say. Every hypothesis starts at INITIAL_ELO,
-    # so a pure Elo sort puts an idea that never entered the tournament above
-    # one that entered and lost: a run led its standings with six unplayed
-    # ideas at 1200 and buried the real runner-up at 1136 beneath them.
-    # Falsy ratings (0/None) still fall back to INITIAL_ELO rather than
-    # sorting to the very bottom.
+    def _undermined(h: dict[str, Any]) -> int:
+        return 1 if h.get("verification_verdict") == "undermined" else 0
+
+    # Undermined ideas sort below everything, mirroring the engine's
+    # rank_for_publication. They publish, but their Elo argues the opposite
+    # of their verdict: deep verification only probes the ideas leading the
+    # tournament, and the verdict lands after the matches that put them
+    # there, so on rating alone the run's most doubted idea heads its own
+    # standings.
+    #
+    # Then hypotheses that played at least one match rank above those that
+    # did not, whatever the ratings say. Every hypothesis starts at
+    # INITIAL_ELO, so a pure Elo sort puts an idea that never entered the
+    # tournament above one that entered and lost: a run led its standings
+    # with six unplayed ideas at 1200 and buried the real runner-up at 1136
+    # beneath them. Falsy ratings (0/None) still fall back to INITIAL_ELO
+    # rather than sorting to the very bottom.
     ordered = sorted(
         hyps,
         key=lambda h: (
+            _undermined(h),
             0 if _played(h) else 1,
             -int(h.get("elo_rating", INITIAL_ELO) or INITIAL_ELO),
         ),

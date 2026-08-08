@@ -95,6 +95,10 @@ def test_evidence_blocked_idea_is_excluded_from_ranking() -> None:
     supported.review_disposition = "viable"
     blocked = Hypothesis(text="Unsupported idea.")
     blocked.review_disposition = "evidence_blocked"
+    # Deep verification is the other way round: its verdict demotes rather
+    # than withholds, so an undermined idea keeps competing. The durable
+    # path must agree with the engine's own predicate about that, which is
+    # why it asks ``Hypothesis.is_rankable`` instead of restating the rule.
     undermined = Hypothesis(text="Undermined idea.")
     undermined.review_disposition = "viable"
     undermined.deep_verification_verdict = "undermined"
@@ -105,4 +109,4 @@ def test_evidence_blocked_idea_is_excluded_from_ranking() -> None:
 
     assert supported in eligible
     assert blocked not in eligible
-    assert undermined not in eligible
+    assert undermined in eligible

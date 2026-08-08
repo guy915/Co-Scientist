@@ -52,20 +52,32 @@ def _select_evolution_pool(
     re-deriving one drug, and it reads the same way -- as the ideas being
     repetitive, not as the parents being wrong.
 
+    Undermined ideas are dropped here even though they rank and publish.
+    The demotion that keeps them off the head of a *reader's* list is not
+    enough for a parent pool: an idea reaches deep verification by leading
+    the tournament, so it carries a top rating, and breeding by Elo would
+    make the ideas with a probe-falsified fundamental assumption the
+    preferred ancestors of every later generation -- the shrunken-pool
+    failure above, arriving through the other gate.
+
     Args:
         hypotheses: Hypothesis pool entering evolution, in whatever order
             the node that last wrote the pool left it.
 
     Returns:
-        The top EVOLUTION_PARENT_COUNT rankable hypotheses by Elo.
+        The top EVOLUTION_PARENT_COUNT eligible hypotheses by Elo.
         ``len(top_k)`` is the real attempt count -- below five when fewer
         hypotheses qualify, and zero when none do -- so callers report
         progress off it.
     """
-    rankable = [hyp for hyp in hypotheses if hyp.is_rankable()]
+    rankable = [
+        hyp
+        for hyp in hypotheses
+        if hyp.is_rankable() and not hyp.is_undermined()
+    ]
     if not rankable:
         logger.warning(
-            "Evolution has no parents: 0 of %s hypotheses are rankable",
+            "Evolution has no parents: 0 of %s hypotheses are eligible",
             len(hypotheses),
         )
     return rank_by_elo(rankable)[:EVOLUTION_PARENT_COUNT]

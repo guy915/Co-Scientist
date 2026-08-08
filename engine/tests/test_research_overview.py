@@ -122,14 +122,17 @@ async def test_produces_overview_and_aims(
 
 
 # One (field, value) pair per publication-gate exclusion category: the
-# blocking review dispositions, a deep-verification verdict that undermined
-# the idea, and the blocking safety outcomes.
+# blocking review dispositions and the blocking safety outcomes.
+#
+# A deep-verification "undermined" verdict is deliberately not here: it
+# demotes rather than withholds, so the synthesis sees the idea. What it
+# must not do is headline it -- pinned by
+# test_an_undermined_idea_never_headlines_the_synthesis below.
 _BLOCKED_HYPOTHESIS_FIELDS: list[tuple[str, str]] = [
     ("review_disposition", "inaccurate"),
     ("review_disposition", "non_novel"),
     ("review_disposition", "inaccurate_and_non_novel"),
     ("review_disposition", "evidence_blocked"),
-    ("deep_verification_verdict", "undermined"),
     ("safety_status", "prohibited"),
     ("safety_status", "ethical_concern"),
     ("safety_status", "uncertain"),
@@ -250,6 +253,41 @@ async def test_healthy_pool_keeps_top_k_elo_order(
     assert positions == sorted(positions)
     assert "idea-00" not in prompt
     assert "idea-01" not in prompt
+
+
+async def test_an_undermined_idea_never_headlines_the_synthesis(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """It reaches the synthesis, but below every sound idea.
+
+    Its Elo is the highest in the pool because deep verification only
+    probes the tournament's leaders and the verdict lands after the matches
+    that promoted it -- so plain Elo order would open the run's synthesis
+    with the one idea a probe found a fundamental flaw in.
+    """
+    fake = AsyncMock(return_value=_OVERVIEW_RESPONSE)
+    monkeypatch.setattr(ro, "call_llm_json", fake)
+
+    undermined = make_hypothesis(
+        text="undermined leader",
+        elo_rating=2000,
+        deep_verification_verdict="undermined",
+    )
+    sound = [
+        make_hypothesis(text=f"sound-{index}", elo_rating=1000 + index)
+        for index in range(2)
+    ]
+    state = make_state(
+        hypotheses=[undermined, *sound],
+        research_goal="g",
+        supervisor_model_name="test/model",
+        meta_review={},
+    )
+    await ro.research_overview_node(state)
+
+    assert fake.await_args is not None
+    prompt = fake.await_args.kwargs["prompt"]
+    assert prompt.index("undermined leader") > prompt.index("sound-0")
 
 
 def test_evidence_corpus_interleaves_sources() -> None:

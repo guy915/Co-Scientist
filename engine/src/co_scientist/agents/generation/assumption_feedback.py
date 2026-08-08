@@ -18,10 +18,12 @@ generation prompts splice in. Two probe records are admitted:
   wording for "non-fundamental gaps" -- its non-fundamental probes,
   which are exactly the assumptions the verdict says failed.
 
-Fundamental failures are excluded: they already kill the idea
-("undermined" hypotheses are not rankable), so they are not "assumptions
-that don't kill the idea". Evolution is the other intended consumer; it
-reads the same record through this module (see its prompt builder).
+Fundamental failures are excluded: this record is the "assumptions that
+don't kill the idea" channel, and a fundamental failure is reported
+through the verdict itself, which travels on the hypothesis and reaches
+the reader ("undermined" demotes the idea rather than removing it -- see
+``Hypothesis.is_undermined``). Evolution is the other intended consumer;
+it reads the same record through this module (see its prompt builder).
 """
 
 import logging

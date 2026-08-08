@@ -21,7 +21,7 @@ from co_scientist.constants import (
     TOURNAMENT_MIN_MATCHES_PER_HYPOTHESIS,
     truncate,
 )
-from co_scientist.models import Hypothesis, rank_by_elo
+from co_scientist.models import Hypothesis, rank_for_publication
 from co_scientist.progress import emit_progress
 from co_scientist.state import WorkflowState
 
@@ -106,11 +106,11 @@ def _coverage_floor(hypotheses: list[Hypothesis]) -> int:
     -- the same constant), and funding less than it asks for is what left the
     ideas evolution and the later generation waves add on exactly one match.
 
-    Counted over rankable hypotheses only. Quarantined and undermined ideas
-    are excluded from the tournament by design, so counting them would hold
-    the floor permanently above zero and loop the orchestrator on ranking
-    forever. Bounded by the distinct pairs the pool admits for the same
-    reason -- a floor the pool cannot satisfy never falls.
+    Counted over rankable hypotheses only. Quarantined ideas are excluded
+    from the tournament by design, so counting them would hold the floor
+    permanently above zero and loop the orchestrator on ranking forever.
+    Bounded by the distinct pairs the pool admits for the same reason -- a
+    floor the pool cannot satisfy never falls.
 
     Two lower bounds, and the larger wins. ``ceil(owed / 2)`` is the count
     if every match settled two owed slots -- true only while at least two
@@ -234,19 +234,25 @@ async def _prepare_ranking_round(
 def _sort_hypotheses_by_elo(
     hypotheses: list[Hypothesis],
 ) -> list[Hypothesis]:
-    """Sorts the pool by Elo rating (highest first), unrankable ones last.
+    """Sorts by Elo (highest first), demoted ideas last, in three bands.
 
     The Elo comparison is ``models.rank_by_elo``, the canonical ordering every
-    other node reads, and the unrankable-last rule is a stable partition
-    composed on top of it rather than a second comparison. Written as its own
-    key the two drifted: this one negated Elo and score to sort ascending,
-    which left its ``text`` tiebreak ascending, while ``rank_by_elo`` reverses
-    a whole key and so breaks the same tie descending. Ties are the common
-    case at the flat seed rating, so for exactly the hypotheses no tournament
-    had separated, this node's own output order and the top-k the research
-    overview re-derived from it were reverses of each other.
+    other node reads, and the banding is a stable partition composed on top of
+    it rather than a second comparison. Written as its own key the two
+    drifted: this one negated Elo and score to sort ascending, which left its
+    ``text`` tiebreak ascending, while ``rank_by_elo`` reverses a whole key and
+    so breaks the same tie descending. Ties are the common case at the flat
+    seed rating, so for exactly the hypotheses no tournament had separated,
+    this node's own output order and the top-k the research overview
+    re-derived from it were reverses of each other.
+
+    The middle band is the deep-verification demotion, which
+    ``rank_for_publication`` owns because the research overview needs the
+    same rule; see its docstring for why Elo cannot express it.
     """
-    return sorted(rank_by_elo(hypotheses), key=lambda h: not h.is_rankable())
+    return sorted(
+        rank_for_publication(hypotheses), key=lambda h: not h.is_rankable()
+    )
 
 
 async def _finalize_ranking_result(

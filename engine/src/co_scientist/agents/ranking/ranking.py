@@ -357,20 +357,19 @@ def _unrankable_reasons(hypotheses: list[Hypothesis]) -> str:
     """Return why the pool has too few rankable hypotheses to pair up.
 
     The count alone reads as a contradiction next to a run holding a dozen
-    ideas, so the skip names the gates that removed them instead.
+    ideas, so the skip names the gate that removed them instead.
+
+    Only review dispositions are counted, because only they withhold an
+    idea now: a deep-verification "undermined" verdict demotes rather than
+    excludes (``Hypothesis.is_rankable``), so naming it here would blame a
+    thin pool on a gate that let every one of those ideas through.
     """
-    undermined = sum(
-        1 for h in hypotheses if h.deep_verification_verdict == "undermined"
-    )
     blocked = sum(
         1
         for h in hypotheses
         if h.review_disposition in BLOCKING_REVIEW_DISPOSITIONS
     )
-    return (
-        f"{undermined} undermined by deep verification, "
-        f"{blocked} rejected in review"
-    )
+    return f"{blocked} rejected in review"
 
 
 async def _run_tournament(

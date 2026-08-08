@@ -139,9 +139,11 @@ def _rankable_coverage(
     """Return (rankable_count, average coverage, unmatched count).
 
     Coverage is measured over the rankable pool only. An un-rankable idea
-    (undermined or review/evidence-gate rejected) can never accrue matches,
+    (one a review or the evidence gate rejected) can never accrue matches,
     so counting it in the denominator would hold average coverage below the
-    gate forever and loop the orchestrator on ranking.
+    gate forever and loop the orchestrator on ranking. Deep-verification
+    "undermined" ideas *are* counted: they rank, so they accrue matches and
+    belong in both halves of the fraction.
 
     The unmatched count is reported separately because the average cannot
     represent it: a pool can clear its average threshold while individual

@@ -2,6 +2,7 @@ import {useMemo} from 'react';
 import {Link, useSearchParams} from 'react-router-dom';
 import type {ClaimEvidenceRow, Hypothesis, MatchRow, Review} from '@/api/runs';
 import {
+  UNDERMINED_VERDICT,
   presentedHypotheses,
   ratingLabel,
   sortByEloDesc,
@@ -85,6 +86,17 @@ const IDEA_UNVERIFIED_CHIP_CLASSES =
   'idea-unverified-chip inline-flex h-7 w-fit items-center gap-1 ' +
   'rounded-full bg-cosci-idea-chip-bg px-3 text-[0.8rem] font-medium ' +
   'text-cosci-idea-chip-text';
+
+// The stronger caution: deep verification probed a fundamental assumption of
+// this idea and found it false. Wears the error tone rather than the neutral
+// chip tone -- "Unverified" means nothing was found either way, this means
+// something was found against it, and one shared look would flatten the two.
+// The idea is still listed (it sorts below every sound one); the chip is what
+// stops it reading as sound.
+const IDEA_UNDERMINED_CHIP_CLASSES =
+  'idea-undermined-chip inline-flex h-7 w-fit items-center gap-1 ' +
+  'rounded-full bg-th-destructive-container px-3 text-[0.8rem] ' +
+  'font-medium text-th-destructive-on-container';
 
 const IDEA_RANK_TITLE_CLASSES =
   'idea-rank-title mt-[0.35rem] block min-w-0 overflow-hidden ' +
@@ -311,13 +323,18 @@ function ideaRowClassName(selected: boolean): string {
 
 // A single row in the ranked hypothesis list: rank badge, Elo chip, title,
 // and a truncated statement preview.
-// The rank/Elo/unverified chip row heading one idea in the list.
+// The rank/Elo/caution chip row heading one idea in the list.
 //
 // An idea with no matches shows why it has no rating rather than the rating
 // itself. Elo 1200 is where every hypothesis starts, so printing it for an
 // idea that never played reads as a result it earned; and "Disqualified" and
 // "Unranked" are different enough facts that one shared label for both
 // misleads (see ratingLabel).
+//
+// The two caution chips can both appear, and say different things:
+// "Undermined" is evidence found against the idea, "Unverified" is no
+// supporting evidence found for it. Undermined comes first because it is
+// the stronger claim.
 function IdeaRankHead({
   rank,
   hypothesis,
@@ -329,6 +346,12 @@ function IdeaRankHead({
     <span className={IDEA_RANK_HEAD_CLASSES}>
       <span className={`idea-rank-number ${IDEA_CHIP_CLASSES}`}>{rank}</span>
       <span className={IDEA_ELO_CHIP_CLASSES}>{ratingLabel(hypothesis)}</span>
+      {hypothesis.verification_verdict === UNDERMINED_VERDICT ? (
+        <span className={IDEA_UNDERMINED_CHIP_CLASSES}>
+          <Icon aria-hidden="true" name="warning" />
+          Undermined
+        </span>
+      ) : null}
       {hypothesis.unverified ? (
         <span className={IDEA_UNVERIFIED_CHIP_CLASSES}>
           <Icon aria-hidden="true" name="warning" />

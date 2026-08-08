@@ -244,10 +244,8 @@ def _migrate_run_and_report_columns(conn: sqlite3.Connection) -> None:
     _add_column_if_missing(conn, "reports", "markdown_text", "TEXT")
 
 
-def _migrate_interview_message_hypothesis_columns(
-    conn: sqlite3.Connection,
-) -> None:
-    """Add interview/message/hypothesis metadata columns."""
+def _migrate_interview_columns(conn: sqlite3.Connection) -> None:
+    """Add the durable goal interview's own metadata columns."""
     # The audience that opened the interview, so its every turn can carry the
     # same injected lab context the in-run Q&A gets. Persisted rather than
     # taken per turn: the interview is durable and resumable, and a resumed
@@ -266,6 +264,12 @@ def _migrate_interview_message_hypothesis_columns(
     _add_column_if_missing(
         conn, "interview_turns", "fallback", "INTEGER NOT NULL DEFAULT 0"
     )
+
+
+def _migrate_message_and_hypothesis_columns(
+    conn: sqlite3.Connection,
+) -> None:
+    """Add message, hypothesis, review, and verification-state columns."""
     # Structured metadata (e.g. Q&A cited sources) alongside message text.
     _add_column_if_missing(conn, "messages", "meta_json", "TEXT")
     # Short classification label surfaced as a breadcrumb in the viewer.
@@ -280,6 +284,16 @@ def _migrate_interview_message_hypothesis_columns(
     # on every agent-authored row.
     _add_column_if_missing(conn, "reviews", "author", "TEXT")
     _add_column_if_missing(conn, "reviews", "verdict", "TEXT")
+    # Deep verification's per-hypothesis verdict (holds | weakened |
+    # undermined | unverified). Persisted as state rather than left inside
+    # the review row because it is now the *only* record that an undermined
+    # idea is undermined: the verdict stopped excluding such ideas, so the
+    # lifecycle status no longer carries the fact and a published idea would
+    # otherwise reach the reader looking sound. NULL on rows written before
+    # this column, and on ideas verification never reached.
+    _add_column_if_missing(
+        conn, "hypothesis_state", "verification_verdict", "TEXT"
+    )
 
 
 def _migrate_match_and_safety_columns(conn: sqlite3.Connection) -> None:
@@ -380,7 +394,8 @@ def _run_migrations(conn: sqlite3.Connection) -> None:
     """Apply idempotent in-place schema migrations to an open connection."""
     _migrate_client_isolation(conn)
     _migrate_run_and_report_columns(conn)
-    _migrate_interview_message_hypothesis_columns(conn)
+    _migrate_interview_columns(conn)
+    _migrate_message_and_hypothesis_columns(conn)
     _migrate_match_and_safety_columns(conn)
     _migrate_proximity_and_evidence_columns(conn)
     _migrate_hypothesis_parent_ids(conn)
