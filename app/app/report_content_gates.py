@@ -32,11 +32,17 @@ def _contradicted_hypothesis_ids(
     db_path: str | None,
     claim_edges: list[dict[str, Any]] | None = None,
 ) -> set[str]:
-    """Ids of hypotheses with a claim the evidence contradicts.
+    """Ids of hypotheses with a *categorical* claim the evidence contradicts.
 
-    Contradicted ideas have evidence *against* them, so the rank-and-publish
-    policy withholds them from the report entirely -- unlike merely-unsupported
-    ideas, which are published with an "Unverified" badge.
+    An idea whose established-fact claims have evidence against them is
+    withheld from the report entirely -- unlike merely-unsupported ideas,
+    which are published with an "Unverified" badge.
+
+    Speculative claims are exempt, matching ``publication_gate``: a
+    contradicted *proposal* is a verdict on the idea rather than a reason to
+    hide it, and the two must agree or an idea the gate ranked would still
+    vanish here. Its contradicting spans stay on the claim edge, so the
+    report shows the contradiction beside the idea.
 
     ``claim_edges`` may be passed to reuse an already-fetched edge list;
     when omitted it is queried from the store.
@@ -50,6 +56,7 @@ def _contradicted_hypothesis_ids(
         str(edge["hypothesis_id"])
         for edge in edges
         if edge.get("label") == "contradicts"
+        and str(edge.get("claim_role") or "categorical") != "speculative"
     }
 
 

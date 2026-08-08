@@ -14,6 +14,7 @@ from __future__ import annotations
 from app.claims import (
     AssessorDraft,
     CitationMetadata,
+    ClaimAssessment,
     EntailmentLabel,
     EvidencePassage,
     GateDecision,
@@ -389,26 +390,87 @@ def test_resolvability_uses_swappable_resolver() -> None:
 # --- Publication gate -------------------------------------------------------
 
 
-def test_gate_blocks_contradicted_hypothesis() -> None:
-    """A contradicted fundamental claim blocks publication."""
-    assessments = [
+_CONTRADICTED_CLAIM = "Kinase X inhibition reduces AML tumor growth."
+
+
+def _contradicted_assessments() -> list[ClaimAssessment]:
+    """One claim the evidence flatly contradicts."""
+    return [
         assess_claim(
-            "Kinase X inhibition reduces AML tumor growth.",
+            _CONTRADICTED_CLAIM,
             as_passages(
                 ["Kinase X inhibition did not reduce AML tumor growth."]
             ),
         )
     ]
+
+
+def test_gate_blocks_contradicted_hypothesis() -> None:
+    """A contradicted fundamental claim blocks publication."""
+    assessments = _contradicted_assessments()
     result = publication_gate(assessments)
     assert result.decision is GateDecision.BLOCK
     assert result.contradicted_claims
     # The rank-and-publish config (the pre-ranking call site) loosens support
     # requirements but must still withhold a contradicted idea: contradiction
-    # is a hard block independent of allow_speculative/require_supported_claim.
+    # of a categorical claim is a hard block independent of
+    # allow_speculative/require_supported_claim. allow_speculative is a
+    # blanket "treat every insufficient claim as speculation" switch, so
+    # letting it soften contradictions too would delete contradiction
+    # blocking from the pre-ranking gate, which passes it True.
     loosened = publication_gate(
         assessments, allow_speculative=True, require_supported_claim=False
     )
     assert loosened.decision is GateDecision.BLOCK
+
+
+def test_gate_allows_a_contradicted_claim_the_idea_only_proposes() -> None:
+    """Contradicting a proposal is a verdict on it, not grounds to hide it.
+
+    Only a claim the hypothesis asserts as established fact -- its
+    literature grounding and mechanism -- blocks when the evidence goes
+    against it. The statement and expected effect are the idea itself:
+    evidence pointing the other way is exactly the finding the reader came
+    for, so the idea publishes carrying the contradiction rather than
+    disappearing from the report.
+    """
+    assessments = _contradicted_assessments()
+    result = publication_gate(
+        assessments,
+        explicitly_speculative_claims={_CONTRADICTED_CLAIM},
+    )
+    assert result.decision is GateDecision.ALLOW
+    # Still named on the result: the gate lets it through, it does not
+    # pretend the contradiction is absent.
+    assert result.contradicted_claims == (_CONTRADICTED_CLAIM,)
+    assert "contradicted" in result.reason
+
+
+def test_gate_blocks_a_categorical_contradiction_beside_a_speculative_one() -> (
+    None
+):
+    """One contradicted categorical claim blocks whatever else is proposed."""
+    grounding = "Kinase X inhibition reduces AML relapse rates."
+    assessments = [
+        *_contradicted_assessments(),
+        assess_claim(
+            grounding,
+            as_passages(
+                [
+                    "Kinase X inhibition did not reduce AML relapse rates; "
+                    "there was no significant effect on relapse."
+                ]
+            ),
+        ),
+    ]
+    result = publication_gate(
+        assessments,
+        explicitly_speculative_claims={_CONTRADICTED_CLAIM},
+    )
+    assert result.decision is GateDecision.BLOCK
+    # The block names the categorical claim it is actually about, not the
+    # proposal the gate just decided to tolerate.
+    assert result.failed_claims == (grounding,)
 
 
 def test_gate_blocks_unsupported_unless_speculative_allowed() -> None:

@@ -182,12 +182,16 @@ class _ClaimPartition:
         speculative: The ``unsupported`` claims presented as speculation.
         blocking_unsupported: The ``unsupported`` claims not covered by
             ``speculative``, which is what actually blocks.
+        blocking_contradicted: The ``contradicted`` claims the hypothesis
+            asserts as established fact, which is the contradiction that
+            actually blocks.
     """
 
     contradicted: tuple[str, ...]
     unsupported: tuple[str, ...]
     speculative: tuple[str, ...]
     blocking_unsupported: tuple[str, ...]
+    blocking_contradicted: tuple[str, ...]
 
 
 def _classify_gate_claims(
@@ -197,6 +201,14 @@ def _classify_gate_claims(
     explicitly_speculative_claims: Collection[str],
 ) -> _ClaimPartition:
     """Split claims into contradicted, unsupported, speculative, and blocking.
+
+    Note the asymmetry between the two blocking sets. An *unsupported* claim
+    is excused by ``allow_speculative`` as well as by its declared role,
+    since that switch exists to say "this caller treats every insufficient
+    claim as speculation". A *contradicted* claim is excused only by the
+    declared role: ``allow_speculative`` is a blanket setting the pre-ranking
+    gate passes True, so honoring it here would delete contradiction blocking
+    from that call site entirely rather than make it role-aware.
 
     Returns:
         The :class:`_ClaimPartition` the gate's rules are applied to.
@@ -217,11 +229,15 @@ def _classify_gate_claims(
     blocking_unsupported = tuple(
         claim for claim in unsupported if claim not in speculative_lookup
     )
+    blocking_contradicted = tuple(
+        claim for claim in contradicted if claim not in speculative_set
+    )
     return _ClaimPartition(
         contradicted=contradicted,
         unsupported=unsupported,
         speculative=speculative,
         blocking_unsupported=blocking_unsupported,
+        blocking_contradicted=blocking_contradicted,
     )
 
 
@@ -244,7 +260,7 @@ def _blocks_for_missing_support(
 
 def _gate_block_reason(
     assessments: list[ClaimAssessment],
-    contradicted: tuple[str, ...],
+    blocking_contradicted: tuple[str, ...],
     blocking_unsupported: tuple[str, ...],
     *,
     require_supported_claim: bool,
@@ -256,8 +272,8 @@ def _gate_block_reason(
     hypothesis with no supported claim of any kind, then any categorical
     claim left unsupported once speculative claims are set aside.
     """
-    if contradicted:
-        return f"{len(contradicted)} fundamental claim(s) contradicted"
+    if blocking_contradicted:
+        return f"{len(blocking_contradicted)} fundamental claim(s) contradicted"
     if not assessments:
         return "no atomic claims could be assessed"
     if _blocks_for_missing_support(
@@ -273,14 +289,16 @@ def _failed_claims(partition: _ClaimPartition) -> tuple[str, ...]:
     """The claims a block is about, in the order the gate's rules fire.
 
     Mirrors :func:`_gate_block_reason`'s priority: a contradiction names the
-    contradicted claims, otherwise the categorical claims left unsupported
+    contradicted claims the block was actually about -- the ones the
+    hypothesis asserts as fact, not a contradicted proposal the gate just
+    decided to tolerate -- otherwise the categorical claims left unsupported
     once speculation is set aside, and failing both (every unsupported claim
     was speculative, so the block was for having no supported claim at all)
     the unsupported claims themselves. A hypothesis with no assessable claims
     has nothing to name and yields an empty tuple.
     """
     return (
-        partition.contradicted
+        partition.blocking_contradicted
         or partition.blocking_unsupported
         or partition.unsupported
     )
@@ -300,7 +318,7 @@ def _decide_gate(
     )
     reason = _gate_block_reason(
         assessments,
-        partition.contradicted,
+        partition.blocking_contradicted,
         partition.blocking_unsupported,
         require_supported_claim=require_supported_claim,
     )
@@ -311,12 +329,29 @@ def _decide_gate(
             *claims,
             failed_claims=_failed_claims(partition),
         )
-    allow_reason = "all fundamental claims supported"
-    if partition.unsupported:
-        allow_reason = (
-            "categorical claims supported; novel claims labeled speculative"
+    return GateResult(GateDecision.ALLOW, _allow_reason(partition), *claims)
+
+
+def _allow_reason(partition: _ClaimPartition) -> str:
+    """Say what an allowing gate tolerated, not merely that it allowed.
+
+    Reached only when nothing categorical was contradicted, so any
+    contradiction left here is on a claim the hypothesis merely proposes.
+    Those pass -- the contradiction is a verdict on the proposal, which is
+    the report's business rather than grounds to hide it -- but the reason
+    has to name them, or the recorded decision reads as a clean pass over
+    evidence that pointed the other way.
+    """
+    notes = []
+    if partition.contradicted:
+        notes.append(
+            f"{len(partition.contradicted)} proposed claim(s) contradicted"
         )
-    return GateResult(GateDecision.ALLOW, allow_reason, *claims)
+    if partition.unsupported:
+        notes.append("novel claims labeled speculative")
+    if not notes:
+        return "all fundamental claims supported"
+    return "categorical claims supported; " + "; ".join(notes)
 
 
 def publication_gate(
@@ -329,18 +364,27 @@ def publication_gate(
     """Decide whether a hypothesis may be published from its claim assessments.
 
     A hypothesis whose fundamental claims are contradicted must not rank or
-    publish (BLOCK). Merely insufficient claims block only when speculation
-    is not explicitly permitted; with ``allow_speculative`` they pass so
-    clearly labeled speculative claims are allowed under policy (SSR §7). A
-    hypothesis with no claims is treated as unsupported.
+    publish (BLOCK). "Fundamental" is a claim's declared role, not any claim
+    it happens to carry: contradicting a claim the hypothesis asserts as
+    established fact -- its literature grounding and mechanism -- blocks,
+    while contradicting the idea it merely proposes is a verdict on that
+    proposal and publishes with it. Merely insufficient claims block only
+    when speculation is not explicitly permitted; with ``allow_speculative``
+    they pass so clearly labeled speculative claims are allowed under policy
+    (SSR §7). A hypothesis with no claims is treated as unsupported.
 
     Args:
         assessments: The per-claim assessments for the hypothesis.
         allow_speculative: Compatibility switch treating every insufficient
-            claim as speculative. Contradictions always block.
-        explicitly_speculative_claims: Insufficient claims whose source text
-            explicitly presents them as hypotheses/predictions/proposed
-            experiments, so they don't masquerade as categorical findings.
+            claim as speculative. Deliberately does *not* reach
+            contradictions: it is a blanket setting the pre-ranking gate
+            passes True, so honoring it there would leave that call site
+            with no contradiction blocking at all. Only a claim named in
+            ``explicitly_speculative_claims`` may be contradicted and pass.
+        explicitly_speculative_claims: Claims whose source text explicitly
+            presents them as hypotheses/predictions/proposed experiments, so
+            they don't masquerade as categorical findings. Excuses both an
+            insufficient verdict and a contradicted one.
         require_supported_claim: Whether at least one claim must have an
             evidence-supporting span before the proposal can pass.
 

@@ -33,6 +33,19 @@ _CONTRADICTING_EVIDENCE = (
 )
 # A benign claim the same evidence pool neither contradicts.
 _SUPPORTED = "A dietary change improves cardiovascular outcomes in adults."
+# Too short to yield an atomic claim, so a hypothesis built from it carries
+# exactly the one claim the test is about (see claims._MIN_CLAIM_WORDS).
+_NO_CLAIM = "Kinase X trial."
+
+
+def _add_categorical(run_id: str, title: str, claim: str, db: str) -> str:
+    """A hypothesis whose only claim is a categorical (mechanism) one.
+
+    Contradiction blocking is role-aware, so a fixture has to say which
+    role it is exercising; the mechanism field is what carries the
+    established-fact claims.
+    """
+    return _add(run_id, title, _NO_CLAIM, db, mechanism=claim)
 
 
 def _assert_contradicted_graph(
@@ -47,6 +60,7 @@ def _assert_contradicted_graph(
     labels = {e["hypothesis_id"]: e["label"] for e in edges}
     assert labels.get(bad_id) == "contradicts"
     contradicted_edge = next(e for e in edges if e["hypothesis_id"] == bad_id)
+    assert contradicted_edge["claim_role"] == "categorical"
     spans = contradicted_edge["contradicting"]
     assert spans  # spans recorded
     span = spans[0]
@@ -62,7 +76,9 @@ def test_ground_persists_graph_and_blocks_contradicted(
     isolated_db: str,
 ) -> None:
     run = store.create_run("grounding goal", "standard", "mock", {})
-    bad_id = _add(run.id, "Contradicted", _CONTRADICTED, isolated_db)
+    bad_id = _add_categorical(
+        run.id, "Contradicted", _CONTRADICTED, isolated_db
+    )
     ok_id = _add(run.id, "Benign", _SUPPORTED, isolated_db)
 
     result = ground_hypotheses(
@@ -116,20 +132,35 @@ def test_unsupported_categorical_rationale_is_quarantined(
     assert by_role["categorical"]["label"] == "insufficient"
 
 
-def test_contradicted_hypothesis_excluded_from_report(
-    isolated_db: str,
-) -> None:
-    """End-to-end: a grounded, contradicted hypothesis leaves the report."""
+def _seed_contradiction_report_run(
+    db_path: str, bad_claim_is_categorical: bool
+) -> tuple[Any, str, str]:
+    """Seed a two-idea run whose evidence contradicts one of them.
+
+    Args:
+        db_path: Per-test database.
+        bad_claim_is_categorical: Whether the contradicted claim is carried
+            as established-fact rationale (mechanism) or as the proposal
+            itself (statement). That role is the whole difference between
+            an idea the report withholds and one it publishes.
+
+    Returns:
+        The run, the contradicted hypothesis id, and the benign one's.
+    """
     run = store.create_run("grounding goal", "standard", "engine", {})
-    bad_id = _add(run.id, "Contradicted", _CONTRADICTED, isolated_db)
-    ok_id = _add(run.id, "Benign", _SUPPORTED, isolated_db)
+    bad_id = (
+        _add_categorical(run.id, "Contradicted", _CONTRADICTED, db_path)
+        if bad_claim_is_categorical
+        else _add(run.id, "Contradicted", _CONTRADICTED, db_path)
+    )
+    ok_id = _add(run.id, "Benign", _SUPPORTED, db_path)
     store.add_evidence(
         store.NewEvidence(
             run_id=run.id,
             title="Kinase X mouse study",
             abstract=_CONTRADICTING_EVIDENCE,
         ),
-        db_path=isolated_db,
+        db_path=db_path,
     )
     store.add_evidence(
         store.NewEvidence(
@@ -139,7 +170,7 @@ def test_contradicted_hypothesis_excluded_from_report(
                 "A dietary change improves cardiovascular outcomes in adults."
             ),
         ),
-        db_path=isolated_db,
+        db_path=db_path,
     )
 
     # Ground against the run's real evidence rows so the support spans carry a
@@ -147,8 +178,18 @@ def test_contradicted_hypothesis_excluded_from_report(
     ground_hypotheses(
         run.id,
         store.list_hypotheses(run.id),
-        evidence_passages(run.id, db_path=isolated_db),
-        target=GroundingTarget(db_path=isolated_db),
+        evidence_passages(run.id, db_path=db_path),
+        target=GroundingTarget(db_path=db_path),
+    )
+    return run, bad_id, ok_id
+
+
+def test_contradicted_hypothesis_excluded_from_report(
+    isolated_db: str,
+) -> None:
+    """End-to-end: a contradicted established-fact claim leaves the report."""
+    run, bad_id, ok_id = _seed_contradiction_report_run(
+        isolated_db, bad_claim_is_categorical=True
     )
 
     payload, markdown = _build_report(run, isolated_db)
@@ -157,6 +198,28 @@ def test_contradicted_hypothesis_excluded_from_report(
     assert bad_id not in leaderboard_ids
     assert ok_id in leaderboard_ids
     assert "kinase X reduces melanoma" not in markdown
+
+
+def test_a_contradicted_proposal_still_reaches_the_report(
+    isolated_db: str,
+) -> None:
+    """The same contradiction, on the idea itself, publishes instead.
+
+    Evidence against a *proposal* is a finding about that proposal, and the
+    report is where the reader is owed it; only a contradicted
+    established-fact claim withholds the idea. This has to agree with
+    ``publication_gate``, which stopped blocking on the speculative case --
+    otherwise an idea the gate ranked would still vanish here.
+    """
+    run, bad_id, ok_id = _seed_contradiction_report_run(
+        isolated_db, bad_claim_is_categorical=False
+    )
+
+    payload, _markdown = _build_report(run, isolated_db)
+
+    leaderboard_ids = {row["id"] for row in payload["leaderboard"]}
+    assert bad_id in leaderboard_ids
+    assert ok_id in leaderboard_ids
 
 
 def _seed_speculative_run(db_path: str) -> tuple[Any, str]:
