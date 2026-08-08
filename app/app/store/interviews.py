@@ -318,3 +318,47 @@ def update_interview(
                 interview_id,
             ),
         )
+
+
+def delete_interview(
+    interview_id: str, *, db_path: str | None = None
+) -> dict[str, int]:
+    """Permanently delete a chat and its transcript.
+
+    ``interview_turns`` declares ``ON DELETE CASCADE`` against this table
+    and foreign keys are enforced on every connection this store hands out
+    (see ``app.store.db._open_raw_connection``), so deleting the interview
+    row is enough to take the transcript with it.
+
+    ``staged_documents`` deliberately carries no foreign key -- a document
+    is staged before any interview or run exists (see
+    ``app.store.documents``) -- so a deleted chat's reference is cleared
+    explicitly rather than left dangling. The document itself survives: it
+    may be the caller's only copy, it is deletable on its own, and a chat
+    that was carried into a run left that run holding the same document.
+
+    Args:
+        interview_id: Identifier of the chat to delete.
+        db_path: Optional override for the SQLite database path.
+
+    Returns:
+        Table name -> rows removed, so a caller can prove the cascade ran.
+    """
+    with connect(db_path) as conn:
+        turns = conn.execute(
+            "SELECT COUNT(*) FROM interview_turns WHERE interview_id=?",
+            (interview_id,),
+        ).fetchone()[0]
+        detached = conn.execute(
+            "UPDATE staged_documents SET interview_id=NULL "
+            "WHERE interview_id=?",
+            (interview_id,),
+        ).rowcount
+        removed = conn.execute(
+            "DELETE FROM interviews WHERE id=?", (interview_id,)
+        ).rowcount
+    return {
+        "interviews": int(removed),
+        "interview_turns": int(turns),
+        "staged_documents_detached": int(detached),
+    }

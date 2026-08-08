@@ -356,6 +356,32 @@ async def get_interview(interview_id: str, request: Request) -> dict[str, Any]:
     return _owned_interview(interview_id, request)
 
 
+@router.delete("/{interview_id}")
+async def delete_interview(
+    interview_id: str, request: Request
+) -> dict[str, Any]:
+    """Permanently delete an owned chat and its transcript.
+
+    Unlike a run (see ``app.runs_deletion``) a chat has no worker that
+    could be mid-write, so there is no active state to refuse: an
+    interview is only ever advanced by a request the caller makes. A chat
+    already carried into a run is still deletable, and deleting it leaves
+    that run untouched -- the run holds its own copy of everything the
+    interview contributed.
+
+    Returns:
+        The deleted chat's id and the row counts removed, per table.
+
+    Raises:
+        HTTPException: 404 if the chat does not exist or is not owned by
+            the caller (the two are deliberately indistinguishable, see
+            ``_owned_interview``).
+    """
+    _owned_interview(interview_id, request)
+    counts = store.delete_interview(interview_id)
+    return {"id": interview_id, "deleted": True, "counts": counts}
+
+
 @router.post("/{interview_id}/turns")
 async def add_interview_turn(
     interview_id: str, body: InterviewTurnRequest, request: Request

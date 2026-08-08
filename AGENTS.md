@@ -179,7 +179,7 @@ Diagnostics (in `main.py`): `GET /health`, `/config`, `/status` — `/status` re
 
 Run lifecycle (in `runs.py`, mounted at `/api/runs`) — **primary API used by the frontend**:
 - `POST /api/runs` — create a draft run; `GET /api/runs` — list runs; `GET /api/runs/demo`.
-- `GET /api/runs/{id}` — details; `POST /{id}/start`, `/cancel`, `/pause`, `/resume`. Pause marks the run's queued/leased `engine.*` tasks paused (404 if not active); resume requires a checkpoint or a paused engine task (409 otherwise).
+- `GET /api/runs/{id}` — details; `PATCH /api/runs/{id}` — rename (title only; the research goal is deliberately not editable, and the shared demo run is 403 since the ownership middleware exempts it); `POST /{id}/start`, `/cancel`, `/pause`, `/resume`. Pause marks the run's queued/leased `engine.*` tasks paused (404 if not active); resume requires a checkpoint or a paused engine task (409 otherwise).
 - `GET /api/runs/{id}/events` — SSE stream (live + replay).
 - `GET /api/runs/{id}/hypotheses` — hypotheses with Elo + lineage.
 - `GET /api/runs/{id}/evidence`, `/reviews`, `/matches`, `/citations`, `/safety`, `/proximity`, `/metrics`, `/claim-evidence`.
@@ -191,7 +191,7 @@ Run lifecycle (in `runs.py`, mounted at `/api/runs`) — **primary API used by t
 - `POST|GET /api/runs/{id}/shares`, `DELETE /{id}/shares/{share_id}`, `GET /api/shared/{token}` — revocable public Goal Report links.
 - `GET /api/runs/{id}/supervisor-plan` — the durable Supervisor plan and per-cycle allocation ledger (`store/supervisor_plan.py`): the plan, terminal decision provenance and termination rationale, plus one row per orchestrator-scheduled task with the observed stats behind it. Synced from `save_checkpoint` on every commit (not only at finalize), so a failed/cancelled/safety-blocked run still leaves a record.
 
-Elsewhere: `POST /api/interviews`, `GET /{iid}`, `POST /{iid}/turns`, `PUT /{iid}/fields` (the goal interview that feeds `interview_id` on run create); `POST /api/feedback`; `POST /api/auth/exchange`.
+Elsewhere: `POST /api/interviews`, `GET /{iid}`, `DELETE /{iid}` (permanent, cascades to the transcript, detaches but keeps staged documents), `POST /{iid}/turns`, `PUT /{iid}/fields` (the goal interview that feeds `interview_id` on run create); `POST /api/feedback`; `POST /api/auth/exchange`.
 
 Additional routers mounted in `main.py`: `interviews`, `shares`, `feedback`, `auth`, and `logs` (see each module for its endpoint group).
 

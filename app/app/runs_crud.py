@@ -32,7 +32,11 @@ from app import (
 )
 from app.auth import client_id, principal_for_request, require_client_scope
 from app.config import byok_enabled
-from app.runs_models import CreateRunRequest, _build_create_run_config
+from app.runs_models import (
+    CreateRunRequest,
+    RenameRunRequest,
+    _build_create_run_config,
+)
 from app.runs_support import _run_or_404
 from app.store import RunStatus
 from app.title_gen import generate_run_title
@@ -415,3 +419,40 @@ async def get_run(run_id: str) -> dict[str, Any]:
         "summary": summary,
         "execution_progress": progress,
     }
+
+
+async def rename_run(run_id: str, body: RenameRunRequest) -> dict[str, Any]:
+    """Rename an owned run, replacing its generated session title.
+
+    The title is only ever a label: it is generated from the goal after
+    creation (see ``_populate_run_title``) and read by the sidebar, the run
+    titlebar and the report header, but nothing scientific derives from it.
+    Renaming therefore has no run-state precondition -- an active run is
+    renameable, and the new name is what its report carries when it lands.
+
+    The research goal is deliberately not editable here. It is the input
+    every hypothesis, review and tournament judgment was produced against,
+    so rewriting it would leave a run whose record no longer states what it
+    actually explored.
+
+    Returns:
+        The renamed run's details, in the same shape as ``get_run``.
+
+    Raises:
+        HTTPException: 404 if the run does not exist (or is not owned by
+            the caller -- ``app.main.enforce_run_ownership`` answers that
+            before this handler runs); 403 for a shared demo run, which
+            that middleware deliberately exempts from ownership so every
+            caller can read it, and which is therefore no one caller's to
+            rename (the same guard ``app.runs_deletion`` applies).
+    """
+    run = _run_or_404(run_id)
+    if run.client_id == store.DEMO_CLIENT_ID:
+        raise HTTPException(
+            status_code=403, detail="the demo run cannot be renamed"
+        )
+    title = " ".join(body.title.split())
+    if not title:
+        raise HTTPException(status_code=422, detail="title cannot be blank")
+    store.set_run_title(run_id, title)
+    return await get_run(run_id)

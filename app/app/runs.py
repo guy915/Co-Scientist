@@ -178,6 +178,9 @@ from app.runs_crud import (
 from app.runs_crud import (
     list_runs as list_runs,
 )
+from app.runs_crud import (
+    rename_run as rename_run,
+)
 from app.runs_deletion import (
     delete_run as delete_run,
 )
@@ -259,6 +262,7 @@ router.post("")(runs_crud.create_run)
 router.get("")(runs_crud.list_runs)
 router.get("/demo")(runs_crud.list_demo_runs)
 router.get("/{run_id}")(runs_crud.get_run)
+router.patch("/{run_id}")(runs_crud.rename_run)
 
 # Lifecycle endpoints (start/cancel/pause/resume) live in runs_lifecycle.
 router.include_router(runs_lifecycle.router)

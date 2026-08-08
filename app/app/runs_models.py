@@ -76,6 +76,17 @@ class StartRunRequest(BaseModel):
     """
 
 
+class RenameRunRequest(BaseModel):
+    """Body for PATCH /api/runs/{id} (rename).
+
+    ``max_length`` matches ``app.title_gen._MAX_TITLE_CHARS``, the ceiling
+    a generated title is held to, so a hand-written one cannot outgrow the
+    surfaces (sidebar rows, run titlebar, report header) built for it.
+    """
+
+    title: str = Field(..., min_length=1, max_length=80)
+
+
 class SendMessageRequest(BaseModel):
     """Body for POST /api/runs/{id}/messages (steering)."""
 
