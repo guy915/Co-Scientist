@@ -129,7 +129,7 @@ from co_scientist.llm_request import (
     _save_prompt_if_named as _save_prompt_if_named,
 )
 from co_scientist.llm_request import (
-    annotate_failure_budget as annotate_failure_budget,
+    annotate_failure_context as annotate_failure_context,
 )
 from co_scientist.llm_request import (
     effective_max_tokens as effective_max_tokens,
@@ -216,17 +216,39 @@ async def _call_llm_and_cache(
     return content
 
 
+def _failure_call_site(spec: CompletionSpec, opt: LLMCallOptions) -> str | None:
+    """Names the call for a failure record, as specifically as it can.
+
+    ``prompt_name`` is the better label where a node sets one -- it is
+    already per-hypothesis or per-matchup, so it distinguishes items within
+    a fan-out wave. The schema name is the fallback because every
+    structured call has one, and it still identifies the prompt family,
+    which is what separates the ten call sites sharing a budget constant.
+
+    Args:
+        spec: The spec the failed call was made with.
+        opt: The options it was made with.
+
+    Returns:
+        A short label, or ``None`` for an unnamed free-text call.
+    """
+    if opt.prompt_name:
+        return opt.prompt_name
+    schema_name = (spec.json_schema or {}).get("name")
+    return schema_name if isinstance(schema_name, str) else None
+
+
 def _report_call_llm_failure(
     spec: CompletionSpec,
     opt: LLMCallOptions,
     error: Exception,
 ) -> None:
-    """Annotates a failed call's budget, and logs it if nobody above will.
+    """Annotates a failed call's context, and logs it if nobody above will.
 
-    The annotation is unconditional: it records the budget the request
-    actually carried, so whichever layer ends up writing the record reports
-    the number that went out. The thinking floor raises it before the
-    request leaves, and printing the pre-floor number beside a
+    The annotation is unconditional: it records which call failed and the
+    budget the request actually carried, so whichever layer ends up writing
+    the record reports what went out. The thinking floor raises the budget
+    before the request leaves, and printing the pre-floor number beside a
     reasoning-token count that exceeds it made a budget failure read as a
     provider one.
 
@@ -247,8 +269,12 @@ def _report_call_llm_failure(
             decides the floor, and whether to log here at all.
         error: The failure being reported.
     """
-    annotate_failure_budget(
-        error, spec.model_name, spec.max_tokens, opt.enable_thinking
+    annotate_failure_context(
+        error,
+        spec.model_name,
+        spec.max_tokens,
+        opt.enable_thinking,
+        _failure_call_site(spec, opt),
     )
     if not opt.log_failures:
         return

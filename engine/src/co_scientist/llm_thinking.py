@@ -159,52 +159,61 @@ def _apply_thinking_args(
     )
 
 
-_BUDGET_ATTR: Final = "_co_scientist_failure_budget"
+_CONTEXT_ATTR: Final = "_co_scientist_failure_context"
 
 
-def annotate_failure_budget(
+def annotate_failure_context(
     error: Exception,
     model_name: str,
     max_tokens: int,
     enable_thinking: bool,
+    call_site: str | None = None,
 ) -> None:
-    """Record on ``error`` the token budget its request actually carried.
+    """Record on ``error`` which call failed and what budget it carried.
 
-    The number travels on the exception rather than being recomputed
-    wherever the failure is finally logged: the floor, and the retry
-    ladder's own escalations, both move it, and a reader comparing
-    ``max_tokens`` against ``reasoning_tokens`` is relying on the two
-    having come from the same request. A second computation is a second
-    chance to disagree with the wire.
+    Both facts travel on the exception rather than being recovered
+    wherever the failure is finally logged. The budget, because the floor
+    and the retry ladder's own escalations both move it, and a reader
+    comparing ``max_tokens`` against ``reasoning_tokens`` is relying on
+    the two having come from the same request -- a second computation is a
+    second chance to disagree with the wire. The call site, because the
+    layer that writes the record is shared by every node: a production
+    export of fifteen answerless completions could be narrowed to a
+    budget constant, and ten call sites share the commonest one.
 
     Args:
         error: The failure to annotate; annotating twice is harmless.
         model_name: Model name in litellm format.
         max_tokens: The budget the call site asked for.
         enable_thinking: Whether this call requested thinking.
+        call_site: Short label naming the call, or ``None`` when the
+            caller offered neither a prompt name nor a named schema.
     """
     setattr(
         error,
-        _BUDGET_ATTR,
+        _CONTEXT_ATTR,
         (
+            call_site,
             effective_max_tokens(model_name, max_tokens, enable_thinking),
             max_tokens,
         ),
     )
 
 
-def failure_budget_text(error: Exception) -> str:
-    """Render an annotated error's budget as a parenthetical, or "".
+def failure_context_text(error: Exception) -> str:
+    """Render an annotated error's call site and budget, or "".
 
     Args:
-        error: A failure that may carry a budget annotation.
+        error: A failure that may carry a context annotation.
 
     Returns:
-        " (max_tokens N, call site asked for M)", or the empty string when
-        the failure was raised somewhere that never sent a request.
+        " (label, max_tokens N, call site asked for M)" -- without the
+        leading label when the call was unnamed -- or the empty string
+        when the failure was raised somewhere that never sent a request.
     """
-    budget = getattr(error, _BUDGET_ATTR, None)
-    if budget is None:
+    context = getattr(error, _CONTEXT_ATTR, None)
+    if context is None:
         return ""
-    sent, asked = budget
-    return f" (max_tokens {sent}, call site asked for {asked})"
+    call_site, sent, asked = context
+    named = f"{call_site}, " if call_site else ""
+    return f" ({named}max_tokens {sent}, call site asked for {asked})"

@@ -64,7 +64,7 @@ from co_scientist.llm_json_escalation import (
 from co_scientist.llm_json_escalation import (
     escalated_spec as escalated_spec,
 )
-from co_scientist.llm_thinking import failure_budget_text
+from co_scientist.llm_thinking import failure_context_text
 
 logger = logging.getLogger(__name__)
 
@@ -205,14 +205,18 @@ async def _handle_json_call_failure(
     #
     # It is also the only layer that writes the record at all: llm_response
     # and call_llm both stay silent under this loop (see
-    # LLMCallOptions.log_failures), so this one line carries the budget
-    # they used to report -- read off the error, which was annotated with
-    # what the request actually sent rather than recomputed here.
+    # LLMCallOptions.log_failures), so this one line carries what they used
+    # to report -- read off the error, which was annotated with the call's
+    # own name and the budget it actually sent rather than recomputed here.
+    # The name is what makes a count of these attributable: this loop is
+    # shared by every node, and a production export of fifteen answerless
+    # completions could only be narrowed to a budget constant that ten
+    # call sites share.
     log = logger.error if attempt.is_final else logger.warning
     log(
         "LLM call failed on attempt %s%s: %s",
         attempt.number,
-        failure_budget_text(error),
+        failure_context_text(error),
         short_error_text(error),
     )
     if attempt.is_final:

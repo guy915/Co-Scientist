@@ -51,7 +51,7 @@ from co_scientist.llm_thinking import (
     _apply_thinking_args as _apply_thinking_args,
 )
 from co_scientist.llm_thinking import (
-    annotate_failure_budget as annotate_failure_budget,
+    annotate_failure_context as annotate_failure_context,
 )
 from co_scientist.llm_thinking import (
     deepseek_thinking_extra_body as deepseek_thinking_extra_body,
@@ -60,7 +60,7 @@ from co_scientist.llm_thinking import (
     effective_max_tokens as effective_max_tokens,
 )
 from co_scientist.llm_thinking import (
-    failure_budget_text as failure_budget_text,
+    failure_context_text as failure_context_text,
 )
 from co_scientist.llm_thinking import (
     reasoning_effort_args as reasoning_effort_args,

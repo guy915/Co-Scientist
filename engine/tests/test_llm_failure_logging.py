@@ -210,6 +210,33 @@ async def test_the_failure_record_carries_the_budget_actually_sent(
     assert "asked for 8000" in failure.getMessage()
 
 
+async def test_the_failure_record_names_the_call_that_failed(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """One shared loop logs every node's failures, so it must say which.
+
+    A production export of fifteen answerless completions could be
+    narrowed no further than the budget constant the request carried, and
+    ten call sites ask for the commonest one. The schema name is the
+    fallback label because every structured call has one.
+    """
+    _disable_cache(monkeypatch)
+    _serve(monkeypatch, [_answerless(), _completion(_message('{"a":1}'))])
+
+    with caplog.at_level(logging.DEBUG, logger="co_scientist"):
+        await call_llm_json(
+            "a prompt",
+            CompletionSpec(
+                model_name=_MODEL,
+                json_schema={"name": "ranking_judgment", **_INT_SCHEMA},
+            ),
+            max_attempts=5,
+        )
+
+    failure = next(r for r in caplog.records if "LLM call failed" in r.message)
+    assert "ranking_judgment" in failure.getMessage()
+
+
 async def test_a_direct_call_llm_failure_still_logs_once(
     monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ) -> None:
