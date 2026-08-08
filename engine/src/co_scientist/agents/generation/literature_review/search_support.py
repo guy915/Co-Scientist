@@ -50,6 +50,18 @@ class SearchConfig:
     # needs the goal to judge against and the model to judge with.
     research_goal: str = ""
     model_name: str = ""
+    # Whether the merged pool earns the model-judged relevance pass. The
+    # pass costs one LLM call per candidate (up to
+    # ``papers_to_read_count * 3``), which the run-level review spends
+    # once to pick the evidence every later agent reads. Targeted probe
+    # retrieval (deep verification, comprehensive reflection, evolution
+    # grounding) runs *per hypothesis*, so paying it there multiplied the
+    # same re-ranking by the pool size on every cycle -- ~18 calls per
+    # idea, in three agents, on top of the one review that already ran.
+    # A probe also has least use for it: the model already wrote the
+    # query it wants answered, so lexical ranking over those hits is what
+    # the probe asked for. Off means lexical-only, never fewer results.
+    semantic_relevance_enabled: bool = True
 
 
 def _quoted_field_mapping_source(tool_config: "ToolConfig") -> str | None:

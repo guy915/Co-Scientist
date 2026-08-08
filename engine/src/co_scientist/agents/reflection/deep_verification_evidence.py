@@ -181,7 +181,9 @@ async def _retrieve_probe_evidence(
     from co_scientist.mcp_client import get_mcp_client
 
     config = dataclasses.replace(
-        _get_search_config(state), papers_to_read_count=_MAX_PROBE_SOURCES
+        _get_search_config(state),
+        papers_to_read_count=_MAX_PROBE_SOURCES,
+        semantic_relevance_enabled=False,
     )
     errors: list[str] = []
     try:

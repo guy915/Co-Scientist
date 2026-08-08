@@ -16,6 +16,7 @@ from app.run_modes import (
     clean_string_list,
     focus_guidance,
     normalize_run_focus,
+    normalize_run_tier,
     setup_guidance,
 )
 
@@ -106,6 +107,37 @@ def _resolve_literature_review_toggle(cfg: dict[str, Any]) -> bool:
     return enable_literature_review
 
 
+# Tiers whose compute envelope funds the agentic draft path. Tool-calling
+# generation spends one LLM round-trip per tool call and carries every
+# prior tool result into the next prompt, so a single hypothesis costs
+# roughly nine calls on prompts that grow past 12k tokens -- and it runs
+# per hypothesis, per cycle. On express and standard that one technique
+# outweighed every other phase combined, which is not a trade those tiers
+# are offering: they promise a fast, cheap answer. The deep tiers are
+# where a scientist has already asked for depth over turnaround.
+_TOOL_CALLING_GENERATION_TIERS: frozenset[str] = frozenset(
+    {"extended", "ultra"}
+)
+
+
+def _resolve_tool_calling_generation_toggle(cfg: dict[str, Any]) -> bool:
+    """Decide whether this run funds the agentic literature-draft path.
+
+    Args:
+        cfg: The run's resolved config; ``resolved_run_config`` guarantees
+            a normalized ``tier``.
+
+    Returns:
+        True only for the deep tiers. The engine treats this as an
+        explicit request and still refuses it where the literature tools
+        or MCP are unavailable, so a True here is a ceiling, not a
+        guarantee.
+    """
+    return normalize_run_tier(cfg.get("tier")) in (
+        _TOOL_CALLING_GENERATION_TIERS
+    )
+
+
 def _lab_constraints_for_run(
     cfg: dict[str, Any], db_path: str | None
 ) -> list[str]:
@@ -191,6 +223,9 @@ def _build_engine_opts(
         initial_opts["preferences"] = preferences
     initial_opts["enable_literature_review_node"] = (
         _resolve_literature_review_toggle(cfg)
+    )
+    initial_opts["enable_tool_calling_generation"] = (
+        _resolve_tool_calling_generation_toggle(cfg)
     )
     # K5: thread the interview's lab constraints to the engine's
     # generation/evolution feasibility prompts; empty renders no section.

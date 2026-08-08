@@ -164,6 +164,29 @@ async def _search_all_sources(
     return await asyncio.gather(*tasks)
 
 
+async def _apply_semantic_relevance_if_enabled(
+    ranked: dict[str, dict[str, Any]],
+    config: SearchConfig,
+) -> dict[str, dict[str, Any]]:
+    """Re-rank by model-judged relevance when this search has earned it.
+
+    The pass spends one LLM call per candidate, so it belongs to searches
+    that run once for the whole run rather than once per hypothesis; see
+    ``SearchConfig.semantic_relevance_enabled`` for why probe retrieval
+    opts out. Skipping leaves the pool in its lexical order rather than
+    dropping anything, so the caller's budget still selects the same
+    number of papers.
+    """
+    if not config.semantic_relevance_enabled:
+        return ranked
+    return await apply_semantic_relevance(
+        ranked,
+        config.research_goal,
+        config.model_name,
+        config.papers_to_read_count,
+    )
+
+
 async def _merge_and_budget_multi_source(
     source_results: list[tuple[str, dict[str, dict[str, Any]]]],
     enabled_sources: list["SearchSourceConfig"],
@@ -185,11 +208,8 @@ async def _merge_and_budget_multi_source(
         source_results,
         deduplicate=config.workflow.deduplicate_across_sources,
     )
-    all_paper_metadata = await apply_semantic_relevance(
-        all_paper_metadata,
-        config.research_goal,
-        config.model_name,
-        config.papers_to_read_count,
+    all_paper_metadata = await _apply_semantic_relevance_if_enabled(
+        all_paper_metadata, config
     )
     selected_ids = select_within_budget(
         all_paper_metadata,
@@ -278,12 +298,7 @@ async def _combine_and_cap_single_source_results(
     ranked, _ = merge_search_results(
         [(config.search_tool_name, combined)], deduplicate=True
     )
-    ranked = await apply_semantic_relevance(
-        ranked,
-        config.research_goal,
-        config.model_name,
-        config.papers_to_read_count,
-    )
+    ranked = await _apply_semantic_relevance_if_enabled(ranked, config)
     return dict(list(ranked.items())[: config.papers_to_read_count])
 
 

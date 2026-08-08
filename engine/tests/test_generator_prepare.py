@@ -285,28 +285,31 @@ async def test_tool_calling_with_lit_disabled_does_not_raise(
     assert state["mcp_available"] is False
 
 
-# --- E11a: tool-calling generation is default-on when tools are available ---
+# --- E11a: tool-calling generation is opt-in, even where tools exist ---
 
 
-async def test_tool_calling_enabled_by_default_when_tools_available(
+async def test_tool_calling_off_by_default_when_tools_available(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """With MCP + lit review available and no opt, agentic drafting is on.
+    """Available tools are not on their own a request for the agentic path.
 
-    The durable path exercises the tool-calling draft generator only when
-    this state flag is set, and no production caller passes the option --
-    so the default itself is what makes the technique live (audit E11).
+    The draft agent spends one LLM round-trip per tool call and re-sends
+    every prior result, so it costs roughly nine calls per hypothesis on
+    prompts that grow past 12k tokens -- per hypothesis, per cycle. Live
+    telemetry had it as the largest single line in an express run's token
+    budget. Availability decides whether it *can* run; the caller decides
+    whether it *should*, and the app opts in only for the deep tiers.
     """
     stub_mcp_availability(monkeypatch, available=True)
     gen = HypothesisGenerator()
     state = await gen._prepare_generation("goal")
-    assert state["enable_tool_calling_generation"] is True
+    assert state["enable_tool_calling_generation"] is False
 
 
-async def test_tool_calling_default_on_survives_prepare_task_state(
+async def test_tool_calling_opt_in_survives_prepare_task_state(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The durable-task entry point carries the default-on flag too.
+    """The durable-task entry point carries an explicit opt-in through.
 
     ``prepare_task_state`` is the exact call the app's durable executor
     makes before enqueueing node tasks, so the flag it writes decides
@@ -314,7 +317,9 @@ async def test_tool_calling_default_on_survives_prepare_task_state(
     """
     stub_mcp_availability(monkeypatch, available=True)
     gen = HypothesisGenerator()
-    state = await gen.prepare_task_state("goal")
+    state = await gen.prepare_task_state(
+        "goal", opts={"enable_tool_calling_generation": True}
+    )
     assert state["enable_tool_calling_generation"] is True
 
 

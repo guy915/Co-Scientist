@@ -31,11 +31,13 @@ def _resolve_tool_calling_generation(
     """Determines whether tool-calling generation should be enabled.
 
     Tool-calling generation (the agentic literature-exploration draft
-    path) is on by default whenever the run has literature tools
-    available -- MCP reachable and the literature review node enabled --
-    because the model deciding when to search/read is the technique's
-    point, and no production caller opts in explicitly. A caller opt-out
-    (``enable_tool_calling_generation=False`` in opts) stays available.
+    path) is opt-in: the caller asks for it with
+    ``enable_tool_calling_generation=True`` in opts, and it then runs
+    only where the run has literature tools available -- MCP reachable
+    and the literature review node enabled. It is opt-in because the
+    model deciding when to search and read costs an LLM round-trip per
+    tool call, each carrying every prior result forward, which is worth
+    funding at the deep tiers and not at every tier.
 
     Two conditions force the plain path regardless of the request:
 
@@ -139,12 +141,15 @@ def _resolve_tool_calling_given_mcp_available(
             generation.
     """
     if enable_literature_review_node:
-        if requested is None:
-            logger.info(
-                "Tool-calling generation enabled by default"
-                " (MCP server and literature review node available)"
-            )
-        return True
+        # Opt-in, not default-on: an omitted option is not a request. The
+        # draft agent spends one LLM round-trip per tool call and carries
+        # every prior result into the next prompt, so one hypothesis
+        # costs ~9 calls on prompts that grow past 12k tokens -- per
+        # hypothesis, per cycle. Default-on put that on every run
+        # including express, where it became the single largest line in
+        # the token budget. Callers that want it ask for it, and the app
+        # asks only for the tiers whose envelope funds it.
+        return requested is True
 
     # Only raise error if user explicitly disabled literature review but
     # enabled tool calling
