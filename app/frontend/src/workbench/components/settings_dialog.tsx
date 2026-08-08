@@ -137,20 +137,13 @@ function SettingsPanel({
   );
 }
 
-// The dialog's translucent backdrop. Dismissible dialogs close on a click;
-// the locked affiliation chooser has no click-through at all.
-function SettingsDialogScrim({
-  onClose,
-  dismissible,
-}: {
-  onClose: () => void;
-  dismissible: boolean;
-}) {
+// The dialog's translucent backdrop; a click on it closes the dialog.
+function SettingsDialogScrim({onClose}: {onClose: () => void}) {
   return (
     <div
       className="ucs-settings-dialog-scrim"
       aria-hidden="true"
-      onClick={dismissible ? onClose : undefined}
+      onClick={onClose}
     />
   );
 }
@@ -167,30 +160,25 @@ function SettingsDialogToast({toast}: {toast: ToastState | null}) {
 }
 
 /**
- * Centered Settings dialog with a section rail (Appearance, Model, Help),
- * matching the reference product's settings window.
+ * Centered Settings dialog with a section rail (Appearance, Model,
+ * Affiliation, Help), matching the reference product's settings window.
  *
- * Doubles as the required first-visit affiliation chooser: passing
- * `dismissible={false}` strips every way out (close button, scrim click,
- * Escape, section rail) so the question has to be answered, and reduces the
- * dialog to the single open section.
+ * Doubles as the first-visit affiliation chooser, which AudienceGate opens
+ * on the Affiliation section -- as this same ordinary dialog, so the surface
+ * that asks the question is the one that later changes the answer.
  *
- * @param props The active section, change/close callbacks, and whether the
- *   dialog can be dismissed at all.
+ * @param props The active section and the change/close callbacks.
  */
 interface SettingsDialogProps {
   section: SettingsSection;
   onSectionChange: (section: SettingsSection) => void;
   onClose: () => void;
-  dismissible?: boolean;
 }
 
-// The dialog window itself: header (dismissible only), section rail
-// (dismissible only), active section panel, and the save-confirmation
-// toast. Split out of SettingsDialog so the component itself stays the
-// thin open/close/focus wiring documented there.
+// The dialog window itself: header, section rail, active section panel, and
+// the save-confirmation toast. Split out of SettingsDialog so the component
+// itself stays the thin open/close/focus wiring documented there.
 interface SettingsDialogWindowProps {
-  dismissible: boolean;
   dialogRef: RefObject<HTMLDivElement | null>;
   closeRef: RefObject<HTMLButtonElement | null>;
   section: SettingsSection;
@@ -200,32 +188,21 @@ interface SettingsDialogWindowProps {
   apiKeyField: ReturnType<typeof useApiKeyField>;
 }
 
-// The dialog body: section rail (dismissible only) plus the active section
-// panel.
+// The dialog body: section rail plus the active section panel.
 function SettingsDialogBody({
-  dismissible,
   section,
   onSectionChange,
   theme,
   apiKeyField,
 }: {
-  dismissible: boolean;
   section: SettingsSection;
   onSectionChange: (section: SettingsSection) => void;
   theme: {mode: Mode; setMode: (mode: Mode) => void};
   apiKeyField: ReturnType<typeof useApiKeyField>;
 }) {
   return (
-    <div
-      className={
-        dismissible
-          ? 'ucs-settings-dialog-body'
-          : 'ucs-settings-dialog-body ucs-settings-dialog-body--locked'
-      }
-    >
-      {dismissible && (
-        <SettingsNav section={section} onSectionChange={onSectionChange} />
-      )}
+    <div className="ucs-settings-dialog-body">
+      <SettingsNav section={section} onSectionChange={onSectionChange} />
       <SettingsPanel
         section={section}
         theme={theme}
@@ -236,7 +213,6 @@ function SettingsDialogBody({
 }
 
 function SettingsDialogWindow({
-  dismissible,
   dialogRef,
   closeRef,
   section,
@@ -248,21 +224,13 @@ function SettingsDialogWindow({
   return (
     <div
       ref={dialogRef}
-      tabIndex={dismissible ? undefined : -1}
-      className={
-        dismissible
-          ? 'ucs-settings-dialog'
-          : 'ucs-settings-dialog ucs-settings-dialog--locked'
-      }
+      className="ucs-settings-dialog"
       role="dialog"
       aria-modal="true"
-      aria-label={dismissible ? 'Settings' : 'Choose your affiliation'}
+      aria-label="Settings"
     >
-      {dismissible && (
-        <SettingsDialogHeader onClose={onClose} closeRef={closeRef} />
-      )}
+      <SettingsDialogHeader onClose={onClose} closeRef={closeRef} />
       <SettingsDialogBody
-        dismissible={dismissible}
         section={section}
         onSectionChange={onSectionChange}
         theme={theme}
@@ -277,7 +245,6 @@ export function SettingsDialog({
   section,
   onSectionChange,
   onClose,
-  dismissible = true,
 }: SettingsDialogProps) {
   const theme = useTheme();
   const closeRef = useRef<HTMLButtonElement>(null);
@@ -290,22 +257,16 @@ export function SettingsDialog({
   // about to focus (see useRestoreFocusOnClose's own doc comment).
   useRestoreFocusOnClose();
   // Keyboard/screen-reader users can't reach the page behind the dialog
-  // (Tab is trapped) or perceive it (it's marked inert) while this is open;
-  // both apply in locked mode too, which has the same escape-to-page risk.
+  // (Tab is trapped) or perceive it (it's marked inert) while this is open.
   useFocusTrap(rootRef);
   useBackgroundInert(rootRef);
-  // Locked, there is no close button to land on, so focus the dialog itself.
-  useFocusOnMount(dismissible ? closeRef : dialogRef);
-  // A locked dialog has no close affordance at all: no Escape, no scrim
-  // click, no close button, and no section rail to navigate away from the
-  // question. Leaving any one of them wired is a way past the gate.
-  useEscapeKey(onClose, dismissible);
+  useFocusOnMount(closeRef);
+  useEscapeKey(onClose, true);
 
   return (
     <div className="ucs-settings-dialog-root" ref={rootRef}>
-      <SettingsDialogScrim onClose={onClose} dismissible={dismissible} />
+      <SettingsDialogScrim onClose={onClose} />
       <SettingsDialogWindow
-        dismissible={dismissible}
         dialogRef={dialogRef}
         closeRef={closeRef}
         section={section}

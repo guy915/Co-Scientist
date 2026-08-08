@@ -75,12 +75,49 @@ it('commits nothing when the chooser closes unanswered', () => {
   expect(window.localStorage.getItem('cosci-audience')).toBeNull();
 });
 
-it('re-opens the chooser if it closes unanswered', () => {
+it('does not re-open a chooser the user closed unanswered', () => {
   const onOpen = vi.fn();
   const {setChooserOpen} = renderGate(onOpen, {chooserOpen: true});
   expect(onOpen).not.toHaveBeenCalled();
   setChooserOpen(false);
+  // The question was already put this page load; re-opening it here would
+  // fight the user's dismissal (and their move to another Settings section,
+  // which leaves the Affiliation section the same way).
+  expect(onOpen).not.toHaveBeenCalled();
+});
+
+it('asks once, not again after its own chooser is dismissed', () => {
+  const onOpen = vi.fn();
+  const {setChooserOpen} = renderGate(onOpen);
   expect(onOpen).toHaveBeenCalledTimes(1);
+  setChooserOpen(true);
+  setChooserOpen(false);
+  expect(onOpen).toHaveBeenCalledTimes(1);
+});
+
+it('leaves a self-opened Settings dialog alone once the gate is dismissed', async () => {
+  const onCloseChooser = vi.fn();
+  function Tree({open}: {open: boolean}) {
+    return (
+      <MemoryRouter>
+        <AudienceProvider>
+          <AudienceGate
+            onOpenAffiliation={vi.fn()}
+            onCloseChooser={onCloseChooser}
+            chooserOpen={open}
+          />
+          <AffiliationSection />
+        </AudienceProvider>
+      </MemoryRouter>
+    );
+  }
+  const view = render(<Tree open={false} />);
+  view.rerender(<Tree open={true} />); // the gate's own chooser opens
+  view.rerender(<Tree open={false} />); // the user closes it unanswered
+  view.rerender(<Tree open={true} />); // and later opens Settings themselves
+  // Answering in the dialog they opened must not tear it down under them.
+  await userEvent.click(screen.getByRole('radio', {name: /General/i}));
+  expect(onCloseChooser).not.toHaveBeenCalled();
 });
 
 it('closes the chooser it opened once the question is answered', async () => {

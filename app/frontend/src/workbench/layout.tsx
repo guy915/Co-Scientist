@@ -1,6 +1,5 @@
 import {type ReactNode} from 'react';
 import {useLocation} from 'react-router-dom';
-import {useAudience} from './audience_context';
 import {joinClasses} from './classes';
 import {AudienceGate} from './components/audience_gate';
 import {SettingsDialog} from './components/settings_dialog';
@@ -139,25 +138,22 @@ function DrawerScrim({
 }
 
 // The overlays that sit above the shell's own content: the full-screen
-// Settings dialog (or, before the first-visit affiliation question is
-// answered, the locked affiliation chooser rendered in its place) and the
-// AudienceGate that opens it. Kept out of Layout so the component itself
-// stays the thin render/wiring function documented there.
+// Settings dialog and the AudienceGate that opens it on its Affiliation
+// section for a first-time visitor. Kept out of Layout so the component
+// itself stays the thin render/wiring function documented there.
 interface ShellOverlaysProps {
   chrome: LayoutChrome;
-  affiliationRequired: boolean;
 }
 
-function ShellOverlays({chrome, affiliationRequired}: ShellOverlaysProps) {
+function ShellOverlays({chrome}: ShellOverlaysProps) {
   const {settingsSection, setSettingsSection, openSettings} = chrome;
   return (
     <>
       {settingsSection && (
         <SettingsDialog
-          section={affiliationRequired ? 'affiliation' : settingsSection}
+          section={settingsSection}
           onSectionChange={setSettingsSection}
           onClose={() => setSettingsSection(null)}
-          dismissible={!affiliationRequired}
         />
       )}
       <AudienceGate
@@ -234,8 +230,7 @@ function ShellWorkspace({
 
 // Everything Layout's render needs, derived from the current route: the
 // route-dependent presentation, the chat-history sidebar data, the shared
-// chrome state (rail/popovers/dialog), the shell root's class, and whether
-// the first-visit affiliation question still gates the Settings dialog.
+// chrome state (rail/popovers/dialog), and the shell root's class.
 function useLayoutState() {
   const location = useLocation();
   const {
@@ -250,10 +245,6 @@ function useLayoutState() {
   const {chats, showAllChats, toggleShowAllChats} = useChatHistory();
   const chrome = useLayoutChrome(location.pathname);
   const shellClass = shellClassFor(isRunRoute, chrome.navOpen);
-  // Until the first-visit question is answered the Settings dialog is the
-  // affiliation chooser and nothing else: locked open on that section, with
-  // no way to close it or navigate to another one.
-  const affiliationRequired = useAudience().audience === null;
   const startNewChat = createStartNewChatHandler(chrome.setNavOpen);
 
   return {
@@ -270,7 +261,6 @@ function useLayoutState() {
     headerTitle,
     workspaceClasses,
     pageClasses,
-    affiliationRequired,
   };
 }
 
@@ -298,10 +288,7 @@ export function Layout({children}: {children: ReactNode}) {
       >
         {children}
       </ShellWorkspace>
-      <ShellOverlays
-        chrome={state.chrome}
-        affiliationRequired={state.affiliationRequired}
-      />
+      <ShellOverlays chrome={state.chrome} />
     </div>
   );
 }

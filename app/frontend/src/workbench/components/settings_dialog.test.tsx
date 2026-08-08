@@ -6,14 +6,15 @@ import {AudienceProvider} from '../audience_context';
 import {ThemeProvider} from '../theme_context';
 import {SettingsDialog} from './settings_dialog';
 
-// O1: the Settings dialog (also the locked first-visit affiliation gate)
-// must trap Tab within itself, mark the page behind it inert, and hand
-// focus back to whatever opened it once it closes.
+// O1: the Settings dialog (also the first-visit affiliation chooser, which
+// AudienceGate opens on its Affiliation section) must trap Tab within
+// itself, mark the page behind it inert, and hand focus back to whatever
+// opened it once it closes.
 
 beforeEach(() => window.localStorage.clear());
 afterEach(() => window.localStorage.clear());
 
-function DialogHarness({dismissible = true}: {dismissible?: boolean}) {
+function DialogHarness() {
   const [open, setOpen] = useState(false);
   return (
     <ThemeProvider>
@@ -24,7 +25,6 @@ function DialogHarness({dismissible = true}: {dismissible?: boolean}) {
             section="appearance"
             onSectionChange={() => {}}
             onClose={() => setOpen(false)}
-            dismissible={dismissible}
           />
         )}
       </AudienceProvider>
@@ -45,16 +45,17 @@ it('returns focus to the control that opened it once it closes', async () => {
   await waitFor(() => expect(opener).toHaveFocus());
 });
 
-function renderOpenDialog(dismissible = true) {
+function renderOpenDialog(
+  section: 'appearance' | 'affiliation' = 'appearance',
+) {
   return render(
     <ThemeProvider>
       <AudienceProvider initialAudience="general">
         <button>Outside leading</button>
         <SettingsDialog
-          section={dismissible ? 'appearance' : 'affiliation'}
+          section={section}
           onSectionChange={vi.fn()}
           onClose={vi.fn()}
-          dismissible={dismissible}
         />
         <button>Outside trailing</button>
       </AudienceProvider>
@@ -92,15 +93,18 @@ it('traps backward Shift+Tab, wrapping past the first focusable element', async 
   expect(lastThemeButton).toHaveFocus();
 });
 
-it('still traps focus in the locked, non-dismissible affiliation gate', async () => {
+it('traps focus on the affiliation section the first-visit gate opens', async () => {
   const user = userEvent.setup();
-  renderOpenDialog(false);
+  renderOpenDialog('affiliation');
 
+  const closeButton = await screen.findByRole('button', {
+    name: 'Close settings',
+  });
   const radios = screen.getAllByRole('radio');
   radios[radios.length - 1].focus();
   await user.tab();
 
-  expect(radios[0]).toHaveFocus();
+  expect(closeButton).toHaveFocus();
 });
 
 function InertHarness() {

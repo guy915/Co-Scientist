@@ -3,14 +3,20 @@ import {useAudience} from '../audience_context';
 
 /**
  * First-visit gate. Renders nothing itself: while no audience has been chosen
- * it holds the Settings dialog open on its Affiliation section, so the chooser
- * is the same surface used to change the answer later.
+ * it opens the ordinary Settings dialog on its Affiliation section, so the
+ * chooser is the same surface — header, section rail and all — used to change
+ * the answer later.
  *
- * The question is asked on every route, and the chooser cannot be dismissed
- * unanswered — Layout marks it non-dismissible while the audience is unset
- * (see SettingsDialog's `dismissible` prop), and this effect re-opens it if it
- * closes anyway. Deep-linking to an inner route is therefore not a way around
- * the question.
+ * The question is asked once per page load, on every route, and it is asked
+ * as an ordinary dialog: it can be closed, Escaped, or navigated away from
+ * via the section rail. Leaving it unanswered commits nothing (see
+ * AudienceProvider, which has no default), so an unset audience reads as the
+ * plain general workspace and the question comes back on the next load.
+ *
+ * Asking only once per load is what makes that possible: `asked` marks the
+ * question as put, so closing the dialog — or switching to another Settings
+ * section, which likewise leaves the Affiliation section — is not fought by
+ * the gate re-opening it underneath the user.
  *
  * Answering dismisses it: the gate closes the chooser it opened, so picking
  * an option returns the user to the page they asked for rather than leaving
@@ -31,19 +37,38 @@ export function AudienceGate({
   chooserOpen: boolean;
 }) {
   const {audience} = useAudience();
-  // Only a chooser this gate forced open is auto-closed on an answer; a
-  // Settings dialog the user opened themselves is theirs to close.
-  const openedByGate = useRef(false);
+  // Whether the question has been put at all this page load; see above. A
+  // chooser already open at mount counts as having put it.
+  const asked = useRef(chooserOpen);
+  // Only a chooser this gate opened is auto-closed on an answer -- a Settings
+  // dialog the user opened themselves is theirs to close. Ownership ends when
+  // that chooser closes (see the release effect), so a later self-opened
+  // Settings dialog is not torn down by a change of affiliation made in it.
+  const owned = useRef(false);
 
   useEffect(() => {
-    if (audience || chooserOpen) return;
-    openedByGate.current = true;
+    if (audience || chooserOpen || asked.current) return;
+    asked.current = true;
+    owned.current = true;
     onOpenAffiliation();
   }, [audience, chooserOpen, onOpenAffiliation]);
 
+  // Release ownership once the chooser has actually opened and closed again.
+  // Keyed on the open->closed transition rather than on `chooserOpen` being
+  // false, which is also its state in the commit where the effect above has
+  // only just asked for it to open.
+  const wasOpen = useRef(false);
   useEffect(() => {
-    if (!audience || !openedByGate.current) return;
-    openedByGate.current = false;
+    if (chooserOpen) wasOpen.current = true;
+    else if (wasOpen.current) {
+      wasOpen.current = false;
+      owned.current = false;
+    }
+  }, [chooserOpen]);
+
+  useEffect(() => {
+    if (!audience || !owned.current) return;
+    owned.current = false;
     onCloseChooser();
   }, [audience, onCloseChooser]);
 

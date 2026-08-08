@@ -179,21 +179,6 @@
   margin-top: 1.25rem;
 }
 
-/* Locked variant: the required first-visit affiliation chooser. With no
-   header and no section rail there is only one column of content, so the
-   window sizes to it instead of holding open the full settings frame. */
-.ucs-settings-dialog--locked {
-  width: min(30rem, calc(100vw - 2rem));
-  height: auto;
-  max-height: min(34rem, calc(100dvh - 3rem));
-}
-
-.ucs-settings-dialog-body--locked {
-  grid-template-columns: minmax(0, 1fr);
-  margin-top: 0;
-  overflow-y: auto;
-}
-
 .ucs-settings-dialog-nav {
   display: grid;
   align-content: start;

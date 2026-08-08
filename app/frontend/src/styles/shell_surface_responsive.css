@@ -334,18 +334,6 @@
     margin-top: 0.9rem;
   }
 
-  /* The locked chooser has no rail row to stack, so it keeps a single track
-     and stays snug to its content rather than filling the phone viewport. */
-  .ucs-settings-dialog--locked {
-    height: auto;
-    max-height: calc(100dvh - 1.5rem);
-  }
-
-  .ucs-settings-dialog-body--locked {
-    grid-template-rows: minmax(0, 1fr);
-    margin-top: 0;
-  }
-
   /* Vertical phone layout: the section options stack above the panel
      and sit top-right (justify-content: flex-end) rather than
      spanning from the left. */
