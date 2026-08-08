@@ -137,3 +137,98 @@ async def test_a_provider_error_is_logged_at_a_bounded_length(
         assert len(record.getMessage()) < 1000
     # The head identifies the failure, so truncation must keep it.
     assert any("Unterminated string" in r.getMessage() for r in caplog.records)
+
+
+def _llm_layer_records(
+    caplog: pytest.LogCaptureFixture,
+) -> list[logging.LogRecord]:
+    """Failure records from below the retry loop, which must stay silent.
+
+    Scoped to WARNING and above: those layers still trace at debug, and
+    the point is that a reader's diagnostics panel sees one record, not
+    that the modules never speak.
+    """
+    return [
+        r
+        for r in caplog.records
+        if r.name in ("co_scientist.llm", "co_scientist.llm_response")
+        and r.levelno >= logging.WARNING
+    ]
+
+
+async def test_one_failed_attempt_logs_one_failure_record(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Three layers saw the same failure and all three wrote it down.
+
+    ``llm_response`` logged the empty completion, ``call_llm`` logged the
+    call, and the retry loop logged the attempt -- one answerless
+    completion, three records saying the same sentence. A production
+    export of a run that recovered fine read as 27 errors and 29 warnings,
+    which is what a reader has to page through to find a real fault.
+    """
+    _disable_cache(monkeypatch)
+    _serve(monkeypatch, [_answerless(), _completion(_message('{"a":1}'))])
+
+    with caplog.at_level(logging.DEBUG, logger="co_scientist"):
+        await call_llm_json(
+            "a prompt",
+            CompletionSpec(model_name=_MODEL, json_schema=_INT_SCHEMA),
+            max_attempts=5,
+        )
+
+    failures = [r for r in caplog.records if "LLM call failed" in r.message]
+    assert len(failures) == 1
+    assert failures[0].name == "co_scientist.llm_json_retry"
+    assert _llm_layer_records(caplog) == []
+
+
+async def test_the_failure_record_carries_the_budget_actually_sent(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """The surviving record reports the floored budget, not the asked one.
+
+    The thinking floor raises the budget before the request goes out, so a
+    record printing the call site's own number sat beside a reasoning-token
+    count larger than it and read as a provider fault. Folding three
+    records into one must not drop the number that settles that.
+    """
+    _disable_cache(monkeypatch)
+    _serve(monkeypatch, [_answerless(), _completion(_message('{"a":1}'))])
+
+    with caplog.at_level(logging.DEBUG, logger="co_scientist"):
+        await call_llm_json(
+            "a prompt",
+            CompletionSpec(
+                model_name=_MODEL, max_tokens=8000, json_schema=_INT_SCHEMA
+            ),
+            max_attempts=5,
+        )
+
+    failure = next(r for r in caplog.records if "LLM call failed" in r.message)
+    assert "max_tokens 18000" in failure.getMessage()
+    assert "asked for 8000" in failure.getMessage()
+
+
+async def test_a_direct_call_llm_failure_still_logs_once(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Silencing the call layer under the retry loop must not silence it.
+
+    ``debate`` and the literature-review synthesis call ``call_llm``
+    directly, with no retry loop above them to report anything.
+    """
+    from co_scientist.llm import call_llm
+
+    _disable_cache(monkeypatch)
+    _serve(monkeypatch, [RuntimeError("provider exploded")])
+
+    with (
+        caplog.at_level(logging.DEBUG, logger="co_scientist"),
+        pytest.raises(RuntimeError),
+    ):
+        await call_llm("a prompt", CompletionSpec(model_name=_MODEL))
+
+    failures = [r for r in caplog.records if "LLM call failed" in r.message]
+    assert len(failures) == 1
+    assert failures[0].name == "co_scientist.llm"

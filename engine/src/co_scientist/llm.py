@@ -129,6 +129,9 @@ from co_scientist.llm_request import (
     _save_prompt_if_named as _save_prompt_if_named,
 )
 from co_scientist.llm_request import (
+    annotate_failure_budget as annotate_failure_budget,
+)
+from co_scientist.llm_request import (
     effective_max_tokens as effective_max_tokens,
 )
 from co_scientist.llm_telemetry import record_retry as _record_retry
@@ -213,34 +216,48 @@ async def _call_llm_and_cache(
     return content
 
 
-def _log_call_llm_failure(
-    spec: CompletionSpec, enable_thinking: bool, error: Exception
+def _report_call_llm_failure(
+    spec: CompletionSpec,
+    opt: LLMCallOptions,
+    error: Exception,
 ) -> None:
-    """Records the one log line ``call_llm`` emits for a failed call.
+    """Annotates a failed call's budget, and logs it if nobody above will.
 
-    One record, at warning. ``call_llm`` re-raises unconditionally and
-    cannot know whether a retry follows -- call_llm_json's ladder recovers
-    most of what lands here -- so logging it as an error reported a healthy
-    run as a broken one: a single recovered answerless completion put four
-    ERROR rows in the diagnostics panel, and eight of one export's ten
-    errors were this. The attempt that actually gives up logs the error, in
-    llm_json_retry, which is the layer that knows.
+    The annotation is unconditional: it records the budget the request
+    actually carried, so whichever layer ends up writing the record reports
+    the number that went out. The thinking floor raises it before the
+    request leaves, and printing the pre-floor number beside a
+    reasoning-token count that exceeds it made a budget failure read as a
+    provider one.
 
-    The budget reported is the one sent, not the one the call site asked
-    for: the thinking floor raises it before the request goes out, and
-    logging the pre-floor number next to a reasoning-token count that
-    exceeds it made a budget failure read as a provider one.
+    The log is conditional, because ``call_llm`` re-raises unconditionally
+    and cannot tell whether a retry follows. Under ``call_llm_json`` one
+    does, and its retry loop says everything this would plus the attempt
+    number and whether the ladder gave up -- so that caller turns this off
+    (``log_failures``) rather than have one failure written down twice.
+    A direct caller has nothing above it, and keeps the record.
+
+    Warning, not error, for the same reason: a single recovered answerless
+    completion put four ERROR rows in the diagnostics panel, and eight of
+    one export's ten errors were this.
 
     Args:
         spec: The spec the failed call was made with.
-        enable_thinking: Whether thinking was requested, which decides
-            whether the floor applied to the budget actually sent.
+        opt: The options it was made with; carries the thinking flag that
+            decides the floor, and whether to log here at all.
         error: The failure being reported.
     """
+    annotate_failure_budget(
+        error, spec.model_name, spec.max_tokens, opt.enable_thinking
+    )
+    if not opt.log_failures:
+        return
     logger.warning(
         "LLM call failed (model %s, max_tokens %s, call site asked for %s): %s",
         spec.model_name,
-        effective_max_tokens(spec.model_name, spec.max_tokens, enable_thinking),
+        effective_max_tokens(
+            spec.model_name, spec.max_tokens, opt.enable_thinking
+        ),
         spec.max_tokens,
         short_error_text(error),
     )
@@ -282,7 +299,7 @@ async def call_llm(
                 request, opt.enable_thinking, cache
             )
         except Exception as e:
-            _log_call_llm_failure(spec, opt.enable_thinking, e)
+            _report_call_llm_failure(spec, opt, e)
             raise
 
 
@@ -311,12 +328,16 @@ async def _call_llm_for_json(
             json_schema=spec.json_schema,
             force_json=not spec.json_schema,
         ),
-        LLMCallOptions(use_cache=False, enable_thinking=enable_thinking),
+        LLMCallOptions(
+            use_cache=False,
+            enable_thinking=enable_thinking,
+            log_failures=False,
+        ),
     )
     if not response_text:
-        # Warning, not error: the raise below is what carries this, and the
-        # retry loop decides whether it was terminal.
-        logger.warning("LLM returned None or empty response")
+        # Silent: the raise carries the whole message, and the retry loop
+        # -- which knows the attempt number and whether it was terminal --
+        # is the one layer that writes it down.
         raise ValueError(
             "LLM returned None or empty response. "
             "Check API keys, rate limits, and model availability."

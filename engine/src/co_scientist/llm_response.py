@@ -150,18 +150,16 @@ def _extract_completion_content(response: Any, model_name: str) -> str:
     content = response.choices[0].message.content
 
     if content is None or not content.strip():
-        diagnosis = _empty_content_diagnosis(response)
-        # Warning, not error: the classified exception raised on the next
-        # line is what carries this, and the retry ladder answers most of
-        # these (a raised budget, then thinking off) without the caller ever
-        # seeing a failure. Only the attempt that gives up is an error, and
-        # llm_json_retry logs that one.
-        logger.warning(
-            "LLM returned None or empty content. Model: %s (%s)",
-            model_name,
-            diagnosis,
+        # Deliberately silent: the exception raised here carries the model
+        # and the same diagnosis, and every layer above prints that text.
+        # Logging it as well made one answerless completion write three
+        # records saying the same sentence -- an export of a run that
+        # recovered fine read as 27 errors and 29 warnings. The layer that
+        # knows whether a retry follows does the logging (llm_json_retry
+        # under call_llm_json, call_llm itself for a direct caller).
+        raise _empty_content_error(
+            response, model_name, _empty_content_diagnosis(response)
         )
-        raise _empty_content_error(response, model_name, diagnosis)
 
     return cast(str, content)
 

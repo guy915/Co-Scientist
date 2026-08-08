@@ -7,7 +7,7 @@ from ``co_scientist.llm_request`` so that module's namespace is unchanged.
 """
 
 import logging
-from typing import Any
+from typing import Any, Final
 
 from co_scientist.constants import THINKING_FLOOR_MAX_TOKENS
 
@@ -157,3 +157,54 @@ def _apply_thinking_args(
     completion_args["max_tokens"] = effective_max_tokens(
         model_name, completion_args["max_tokens"], enable_thinking
     )
+
+
+_BUDGET_ATTR: Final = "_co_scientist_failure_budget"
+
+
+def annotate_failure_budget(
+    error: Exception,
+    model_name: str,
+    max_tokens: int,
+    enable_thinking: bool,
+) -> None:
+    """Record on ``error`` the token budget its request actually carried.
+
+    The number travels on the exception rather than being recomputed
+    wherever the failure is finally logged: the floor, and the retry
+    ladder's own escalations, both move it, and a reader comparing
+    ``max_tokens`` against ``reasoning_tokens`` is relying on the two
+    having come from the same request. A second computation is a second
+    chance to disagree with the wire.
+
+    Args:
+        error: The failure to annotate; annotating twice is harmless.
+        model_name: Model name in litellm format.
+        max_tokens: The budget the call site asked for.
+        enable_thinking: Whether this call requested thinking.
+    """
+    setattr(
+        error,
+        _BUDGET_ATTR,
+        (
+            effective_max_tokens(model_name, max_tokens, enable_thinking),
+            max_tokens,
+        ),
+    )
+
+
+def failure_budget_text(error: Exception) -> str:
+    """Render an annotated error's budget as a parenthetical, or "".
+
+    Args:
+        error: A failure that may carry a budget annotation.
+
+    Returns:
+        " (max_tokens N, call site asked for M)", or the empty string when
+        the failure was raised somewhere that never sent a request.
+    """
+    budget = getattr(error, _BUDGET_ATTR, None)
+    if budget is None:
+        return ""
+    sent, asked = budget
+    return f" (max_tokens {sent}, call site asked for {asked})"

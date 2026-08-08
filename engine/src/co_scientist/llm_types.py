@@ -56,6 +56,11 @@ class LLMCallOptions:
         prompt_metadata: Extra metadata saved alongside the prompt.
         enable_thinking: Whether to request provider thinking/reasoning.
             Unused by the tool-calling path.
+        log_failures: Whether ``call_llm`` reports a failed call itself.
+            Off for calls made under ``call_llm_json``, whose retry loop
+            logs the same failure knowing the attempt number and whether
+            another attempt follows -- strictly more than call_llm can say,
+            and one record instead of two.
     """
 
     use_cache: bool = True
@@ -63,6 +68,7 @@ class LLMCallOptions:
     prompt_name: str | None = None
     prompt_metadata: dict[str, Any] | None = None
     enable_thinking: bool = True
+    log_failures: bool = True
 
 
 def indexed_prompt_name(stem: str, index: int | None) -> str:
