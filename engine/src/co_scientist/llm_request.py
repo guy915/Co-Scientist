@@ -19,7 +19,7 @@ import logging
 import time
 import warnings
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Final
 
 import litellm
 
@@ -284,6 +284,19 @@ def _supports_json_schema_response_format(model_name: str) -> bool:
         return True
 
 
+# Goes ahead of the restated schema, never after it -- see reason 3 in
+# _inject_schema_into_prompt's docstring for the measurement, and note that
+# the position is the effect.
+_ANSWER_DISCIPLINE: Final = (
+    "\n\n## Answer Discipline\n\n"
+    "Your reasoning is not your answer. When you have finished reasoning, "
+    "you must write the JSON object described below as the content of your "
+    "reply. A reply whose content is empty is discarded in full, however "
+    "good the reasoning behind it was, so never end your turn without "
+    "emitting the JSON."
+)
+
+
 def _inject_schema_into_prompt(prompt: str, json_schema: dict[str, Any]) -> str:
     """Appends the JSON schema to the prompt for json_object-only models.
 
@@ -301,6 +314,25 @@ def _inject_schema_into_prompt(prompt: str, json_schema: dict[str, Any]) -> str:
     2. Adding a plausible-sounding field the schema does not declare
        (``cross_agent_feedback_used`` and friends), because nothing in the
        instruction said the property list was closed.
+    3. Reasoning the answer out and then writing nothing, because on a
+       thinking model a restated schema is something the chain of thought
+       can satisfy and then treat as done. That is the answerless
+       completion behind ``LLMThinkingOnlyError``, and it is this block
+       that creates it: measured against the real ranking-matchup prompt,
+       thinking alone produced none in 20 calls and the schema alone
+       produced none in 20 calls, while the two together produced 12 in
+       65. Naming the reply as the deliverable took that to 2 in 65 with
+       thinking left on -- which is why the sentence is here rather than
+       in any one node's template, and why the remedy is not to stop
+       restating the schema.
+
+    Note where that sentence sits: **before** the schema, not after it.
+    The same sentence appended after the schema did nothing at all (3 in 40
+    against a control's 3 in 40) while the identical text ahead of it took
+    a 4-in-40 control to 0 in 40. Whatever the model reads last is what it
+    orients to, which is the same effect reason 1 above is about -- so a
+    later edit that tidies these instructions into one trailing block
+    silently reverts the fix.
 
     Args:
         prompt: The original user prompt.
@@ -312,7 +344,7 @@ def _inject_schema_into_prompt(prompt: str, json_schema: dict[str, Any]) -> str:
     actual_schema = json_schema.get("schema", json_schema)
     schema_str = json.dumps(actual_schema, indent=2)
     return (
-        prompt + "\n\n---\nRESPOND WITH VALID JSON ONLY. "
+        prompt + _ANSWER_DISCIPLINE + "\n\n---\nRESPOND WITH VALID JSON ONLY. "
         "Your output MUST strictly match this JSON schema "
         "(all required fields must be present):\n" + schema_str + "\n\n"
         "Output a JSON object that CONFORMS TO the schema above -- the "

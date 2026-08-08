@@ -135,7 +135,18 @@ _NESTED_SCHEMA: dict[str, Any] = {
     },
 }
 
-_SCHEMA_PROMPT_SUFFIX = (
+# Precedes the schema, and the order is load-bearing -- see the position
+# note in _inject_schema_into_prompt's docstring.
+_ANSWER_DISCIPLINE = (
+    "\n\n## Answer Discipline\n\n"
+    "Your reasoning is not your answer. When you have finished reasoning, "
+    "you must write the JSON object described below as the content of your "
+    "reply. A reply whose content is empty is discarded in full, however "
+    "good the reasoning behind it was, so never end your turn without "
+    "emitting the JSON."
+)
+
+_SCHEMA_PROMPT_SUFFIX = _ANSWER_DISCIPLINE + (
     "\n\n---\nRESPOND WITH VALID JSON ONLY. "
     "Your output MUST strictly match this JSON schema "
     "(all required fields must be present):\n"
@@ -349,6 +360,40 @@ async def test_downgraded_prompt_forbids_echoing_the_schema(
     content = captured[0]["messages"][0]["content"]
     assert "Do NOT output the schema itself" in content
     assert "any field it does not declare will be rejected" in content
+
+
+async def test_downgraded_prompt_names_the_reply_as_the_deliverable(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The shim tells the model that its reasoning is not the answer.
+
+    A restated schema is something a thinking model can satisfy inside its
+    chain of thought and then treat as done, which is the answerless
+    completion behind ``LLMThinkingOnlyError``. Measured against the real
+    ranking-matchup prompt: thinking alone produced none in 20 calls, the
+    schema alone none in 20, the two together 12 in 65 -- and this
+    instruction took that to 2 in 65 with thinking left on. It belongs on
+    this route because this route is what creates the condition.
+
+    The position is asserted, not just the presence: the identical text
+    *after* the schema measured as no fix at all (3 in 40 against a
+    control's 3 in 40), so a tidy-up that folds it into the trailing
+    instruction block would revert this while still containing the words.
+    """
+    _disable_cache(monkeypatch)
+    _patch_registry(monkeypatch, supported=False)
+    captured = _capture_acompletion(monkeypatch, [_completion("{}")])
+
+    await call_llm(
+        "a prompt",
+        CompletionSpec(model_name="test-model", json_schema=_NESTED_SCHEMA),
+    )
+
+    content = captured[0]["messages"][0]["content"]
+    assert "Your reasoning is not your answer" in content
+    assert content.index("Your reasoning is not your answer") < content.index(
+        "RESPOND WITH VALID JSON ONLY"
+    )
 
 
 async def test_schema_instructions_absent_for_supported_models(
