@@ -19,7 +19,6 @@ export function GoogleTeamControl() {
       icon="lightbulb"
       label={GOOGLE_PROPOSALS.label}
       to={GOOGLE_PROPOSALS.to}
-      lang="he"
     />
   );
 }

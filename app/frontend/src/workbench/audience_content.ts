@@ -26,12 +26,12 @@ export const AUDIENCE_OPTIONS: {
 ];
 
 // The Google team's header control: a link straight to the proposals graph,
-// which is what the note it replaced existed to point at. The label keeps
-// the Hebrew wording the note's own link used ("view the proposals") -- the
-// reviewing team is Israeli -- so the destination reads the same as it did
-// inside the popover, only reached in one click instead of two.
+// which is what the note it replaced existed to point at. Named in English
+// like every other control in this header -- it briefly inherited the
+// Hebrew wording of the note's own link, which left one right-to-left pill
+// in a left-to-right header.
 export const GOOGLE_PROPOSALS: {label: string; to: string} = {
-  label: 'לצפייה בהצעות',
+  label: 'Proposals',
   to: '/proposals',
 };
 
