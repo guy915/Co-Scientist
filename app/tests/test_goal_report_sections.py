@@ -1,6 +1,8 @@
 """Tests for evidence-derived Goal Report sections."""
 
-from app import report_markdown, report_render
+from app import report_markdown, report_render, store
+from tests._drain_helpers import _build_report
+from tests._store_helpers import _add
 
 
 def _hypothesis(identifier: str, title: str) -> dict[str, object]:
@@ -343,3 +345,38 @@ def test_synthesized_topics_map_only_to_persisted_evidence() -> None:
     assert len(topics) == 1
     assert topics[0]["reference_ids"] == ["ev-1"]
     assert topics[0]["uncertainty"].startswith("The causal direction")
+
+
+def test_report_body_opens_with_the_same_idea_as_the_standings(
+    isolated_db: str,
+) -> None:
+    """The markdown's top ideas must follow the leaderboard's order.
+
+    The store returns hypotheses by raw Elo, and the report body sliced
+    that list directly while the payload's leaderboard applied the
+    undermined demotion. So one run told two stories: the standings led
+    with the sound idea and the prose beneath them led with the idea a
+    probe had found a fundamental flaw in.
+    """
+    run = store.create_run("ordering goal", "standard", "engine", {})
+    doubted = _add(run.id, "Doubted idea", "A doubted proposal.", isolated_db)
+    sound = _add(run.id, "Sound idea", "A sound proposal.", isolated_db)
+    store.update_hypothesis_state(
+        doubted,
+        store.HypothesisStateChanges(
+            elo_rating=1300,
+            win_delta=3,
+            verification_verdict="undermined",
+        ),
+        db_path=isolated_db,
+    )
+    store.update_hypothesis_state(
+        sound,
+        store.HypothesisStateChanges(elo_rating=1100, win_delta=1),
+        db_path=isolated_db,
+    )
+
+    payload, markdown = _build_report(run, isolated_db)
+
+    assert [row["id"] for row in payload["leaderboard"]] == [sound, doubted]
+    assert markdown.index("Sound idea") < markdown.index("Doubted idea")

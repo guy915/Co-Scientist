@@ -45,23 +45,23 @@ def _leaderboard_row(rank: int, h: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def live_leaderboard(
-    hyps: list[dict[str, Any]], cap: int = 10
+def rank_for_publication(
+    hyps: list[dict[str, Any]],
 ) -> list[dict[str, Any]]:
-    """Compact Elo standings snapshot carried on workflow event payloads.
+    """Order hypothesis rows the way a reader should meet them.
 
-    The one payload shape the frontend's live-standings reader relies on.
+    Every reader-facing surface has to agree on this, or the same run tells
+    two stories: the store returns rows by raw Elo, so the report body and
+    the standings beside it would open with different ideas.
 
     Args:
         hyps: Hypothesis dicts carrying ``elo_rating``, ``win_count``,
-            ``loss_count``, and a title under ``title`` or ``text``.
-        cap: Maximum number of standings to include.
+            ``loss_count``, and ``verification_verdict``.
 
     Returns:
-        A list of ``{rank, id, title, elo, wins, losses}`` dicts, ordered
-        with sound played hypotheses first, then sound unplayed ones, then
-        the ideas deep verification undermined, each group by descending
-        Elo.
+        The same rows, sound played hypotheses first, then sound unplayed
+        ones, then the ideas deep verification undermined, each group by
+        descending Elo.
     """
 
     def _played(h: dict[str, Any]) -> int:
@@ -84,7 +84,7 @@ def live_leaderboard(
     # with six unplayed ideas at 1200 and buried the real runner-up at 1136
     # beneath them. Falsy ratings (0/None) still fall back to INITIAL_ELO
     # rather than sorting to the very bottom.
-    ordered = sorted(
+    return sorted(
         hyps,
         key=lambda h: (
             _undermined(h),
@@ -92,6 +92,25 @@ def live_leaderboard(
             -int(h.get("elo_rating", INITIAL_ELO) or INITIAL_ELO),
         ),
     )
+
+
+def live_leaderboard(
+    hyps: list[dict[str, Any]], cap: int = 10
+) -> list[dict[str, Any]]:
+    """Compact Elo standings snapshot carried on workflow event payloads.
+
+    The one payload shape the frontend's live-standings reader relies on.
+
+    Args:
+        hyps: Hypothesis dicts carrying ``elo_rating``, ``win_count``,
+            ``loss_count``, and a title under ``title`` or ``text``.
+        cap: Maximum number of standings to include.
+
+    Returns:
+        A list of ``{rank, id, title, elo, wins, losses}`` dicts in
+        ``rank_for_publication`` order.
+    """
+    ordered = rank_for_publication(hyps)
     return [
         _leaderboard_row(rank, h)
         for rank, h in enumerate(ordered[:cap], start=1)

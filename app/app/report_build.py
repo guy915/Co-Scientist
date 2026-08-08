@@ -13,7 +13,7 @@ from __future__ import annotations
 from typing import Any, NamedTuple
 
 from app import store
-from app.elo import live_leaderboard
+from app.elo import live_leaderboard, rank_for_publication
 from app.knowledge_facts import derive_knowledge_facts
 from app.report_content import (
     _agent_insights,
@@ -152,7 +152,12 @@ def _gather_report_data(run_id: str, db_path: str | None) -> _ReportData:
     claim_edges = store.list_claim_evidence(run_id, db_path=db_path)
     # Exclude any hypothesis a per-hypothesis safety review blocks (recorded as
     # an audit decision) before it can appear in the leaderboard or top ideas.
-    hyps = _exclude_unsafe_hypotheses(run_id, all_hyps, db_path, claim_edges)
+    # Ordered once, here, so the report body's top ideas and the standings
+    # beside them open with the same idea. The store returns rows by raw
+    # Elo, which puts an undermined idea first.
+    hyps = rank_for_publication(
+        _exclude_unsafe_hypotheses(run_id, all_hyps, db_path, claim_edges)
+    )
     evidence = store.list_evidence(run_id, db_path=db_path)
     released_claim_edges = _released_claim_evidence(hyps, claim_edges, evidence)
     # The payload wants two numbers, and one of them is already in hand:
