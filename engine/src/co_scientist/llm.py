@@ -32,12 +32,17 @@ from co_scientist.cache import get_cache as get_cache
 from co_scientist.constants import (
     EXTENDED_MAX_TOKENS as EXTENDED_MAX_TOKENS,
 )
-from co_scientist.exceptions import short_error_text
 from co_scientist.llm_credentials import (
     current_api_key as current_api_key,
 )
 from co_scientist.llm_credentials import (
     scoped_api_key as scoped_api_key,
+)
+from co_scientist.llm_failure import (
+    _failure_call_site as _failure_call_site,
+)
+from co_scientist.llm_failure import (
+    _report_call_llm_failure as _report_call_llm_failure,
 )
 from co_scientist.llm_json import (
     _backfill_required_fields as _backfill_required_fields,
@@ -166,6 +171,7 @@ from co_scientist.llm_types import (
 logger = logging.getLogger(__name__)
 
 # Re-exported by assignment: the alias re-export form exceeds 80 columns.
+# Read off llm_request, which is where the monkeypatch seam lives.
 _supports_json_schema_response_format = (
     llm_request._supports_json_schema_response_format
 )
@@ -214,79 +220,6 @@ async def _call_llm_and_cache(
     content = _extract_completion_content(response, request.model_name)
     cache.set(request, {"text": content})
     return content
-
-
-def _failure_call_site(spec: CompletionSpec, opt: LLMCallOptions) -> str | None:
-    """Names the call for a failure record, as specifically as it can.
-
-    ``prompt_name`` is the better label where a node sets one -- it is
-    already per-hypothesis or per-matchup, so it distinguishes items within
-    a fan-out wave. The schema name is the fallback because every
-    structured call has one, and it still identifies the prompt family,
-    which is what separates the ten call sites sharing a budget constant.
-
-    Args:
-        spec: The spec the failed call was made with.
-        opt: The options it was made with.
-
-    Returns:
-        A short label, or ``None`` for an unnamed free-text call.
-    """
-    if opt.prompt_name:
-        return opt.prompt_name
-    schema_name = (spec.json_schema or {}).get("name")
-    return schema_name if isinstance(schema_name, str) else None
-
-
-def _report_call_llm_failure(
-    spec: CompletionSpec,
-    opt: LLMCallOptions,
-    error: Exception,
-) -> None:
-    """Annotates a failed call's context, and logs it if nobody above will.
-
-    The annotation is unconditional: it records which call failed and the
-    budget the request actually carried, so whichever layer ends up writing
-    the record reports what went out. The thinking floor raises the budget
-    before the request leaves, and printing the pre-floor number beside a
-    reasoning-token count that exceeds it made a budget failure read as a
-    provider one.
-
-    The log is conditional, because ``call_llm`` re-raises unconditionally
-    and cannot tell whether a retry follows. Under ``call_llm_json`` one
-    does, and its retry loop says everything this would plus the attempt
-    number and whether the ladder gave up -- so that caller turns this off
-    (``log_failures``) rather than have one failure written down twice.
-    A direct caller has nothing above it, and keeps the record.
-
-    Warning, not error, for the same reason: a single recovered answerless
-    completion put four ERROR rows in the diagnostics panel, and eight of
-    one export's ten errors were this.
-
-    Args:
-        spec: The spec the failed call was made with.
-        opt: The options it was made with; carries the thinking flag that
-            decides the floor, and whether to log here at all.
-        error: The failure being reported.
-    """
-    annotate_failure_context(
-        error,
-        spec.model_name,
-        spec.max_tokens,
-        opt.enable_thinking,
-        _failure_call_site(spec, opt),
-    )
-    if not opt.log_failures:
-        return
-    logger.warning(
-        "LLM call failed (model %s, max_tokens %s, call site asked for %s): %s",
-        spec.model_name,
-        effective_max_tokens(
-            spec.model_name, spec.max_tokens, opt.enable_thinking
-        ),
-        spec.max_tokens,
-        short_error_text(error),
-    )
 
 
 async def call_llm(

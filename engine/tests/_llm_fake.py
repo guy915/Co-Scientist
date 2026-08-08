@@ -233,3 +233,29 @@ def install_fake_llm(monkeypatch: pytest.MonkeyPatch) -> None:
     )
     monkeypatch.setenv("COSCIENTIST_CACHE_ENABLED", "false")
     monkeypatch.setattr(cache, "_global_cache", None)
+
+
+# A schema with a nested required object, shared by the capability-shim
+# tests (prompt injection) and the back-fill tests (recursion into
+# nested objects) so both exercise the same shape.
+NESTED_SCHEMA: dict[str, Any] = {
+    "name": "capability_shim_test",
+    "schema": {
+        "type": "object",
+        "properties": {
+            "summary": {"type": "string"},
+            "assessment": {
+                "type": "object",
+                "properties": {
+                    "verdict": {
+                        "type": "string",
+                        "enum": ["holds", "weakened"],
+                    },
+                    "notes": {"type": "array", "items": {"type": "string"}},
+                },
+                "required": ["verdict", "notes"],
+            },
+        },
+        "required": ["summary", "assessment"],
+    },
+}

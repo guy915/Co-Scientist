@@ -30,7 +30,7 @@ from co_scientist.llm import (
     call_llm,
     call_llm_json,
 )
-from co_scientist.llm_json import _backfill_required_fields
+from tests._llm_fake import NESTED_SCHEMA as _NESTED_SCHEMA
 from tests._llm_fake import disable_llm_cache as _disable_cache
 
 # --- helpers ---------------------------------------------------------------
@@ -113,28 +113,6 @@ def _capture_acompletion(
     return captured
 
 
-_NESTED_SCHEMA: dict[str, Any] = {
-    "name": "capability_shim_test",
-    "schema": {
-        "type": "object",
-        "properties": {
-            "summary": {"type": "string"},
-            "assessment": {
-                "type": "object",
-                "properties": {
-                    "verdict": {
-                        "type": "string",
-                        "enum": ["holds", "weakened"],
-                    },
-                    "notes": {"type": "array", "items": {"type": "string"}},
-                },
-                "required": ["verdict", "notes"],
-            },
-        },
-        "required": ["summary", "assessment"],
-    },
-}
-
 # Precedes the schema, and the order is load-bearing -- see the position
 # note in _inject_schema_into_prompt's docstring.
 _ANSWER_DISCIPLINE = (
@@ -216,93 +194,6 @@ def test_registry_lookup_failure_defaults_to_supported(
     )
 
     assert _supports_json_schema_response_format("some/other-model") is True
-
-
-# --- back-fill ---------------------------------------------------------------
-
-
-def test_backfill_fills_missing_required_fields_by_type() -> None:
-    """Each missing required field gets a type-appropriate empty default."""
-    schema = {
-        "type": "object",
-        "properties": {
-            "s": {"type": "string"},
-            "o": {"type": "object"},
-            "a": {"type": "array"},
-            "i": {"type": "integer"},
-            "n": {"type": "number"},
-            "u": {},
-        },
-        "required": ["s", "o", "a", "i", "n", "u"],
-    }
-    obj: dict[str, Any] = {}
-
-    _backfill_required_fields(obj, schema)
-
-    assert obj == {"s": "", "o": {}, "a": [], "i": 0, "n": 0, "u": ""}
-
-
-def test_backfill_uses_first_enum_value_for_strings() -> None:
-    """A missing required enum string defaults to the first enum value."""
-    schema = {
-        "type": "object",
-        "properties": {
-            "verdict": {"type": "string", "enum": ["holds", "weakened"]}
-        },
-        "required": ["verdict"],
-    }
-    obj: dict[str, Any] = {}
-
-    _backfill_required_fields(obj, schema)
-
-    assert obj == {"verdict": "holds"}
-
-
-def test_backfill_recurses_into_nested_objects() -> None:
-    """Missing required fields inside present nested objects are filled."""
-    obj: dict[str, Any] = {"summary": "ok", "assessment": {}}
-
-    _backfill_required_fields(obj, _NESTED_SCHEMA["schema"])
-
-    assert obj == {
-        "summary": "ok",
-        "assessment": {"verdict": "holds", "notes": []},
-    }
-
-
-def test_backfill_leaves_present_fields_untouched() -> None:
-    """Fields already present keep their values, even schema-invalid ones."""
-    obj: dict[str, Any] = {
-        "summary": 42,
-        "assessment": {"verdict": "custom", "notes": ["kept"]},
-    }
-
-    _backfill_required_fields(obj, _NESTED_SCHEMA["schema"])
-
-    assert obj == {
-        "summary": 42,
-        "assessment": {"verdict": "custom", "notes": ["kept"]},
-    }
-
-
-def test_backfill_ignores_required_fields_without_property_schema() -> None:
-    """Required names absent from ``properties`` are not invented."""
-    schema = {
-        "type": "object",
-        "properties": {},
-        "required": ["mystery"],
-    }
-    obj: dict[str, Any] = {}
-
-    _backfill_required_fields(obj, schema)
-
-    assert obj == {}
-
-
-def test_backfill_noop_for_non_dict_inputs() -> None:
-    """Non-dict payloads and non-dict schemas are silently ignored."""
-    _backfill_required_fields(["not", "a", "dict"], {"required": ["x"]})
-    _backfill_required_fields({}, "not a schema")  # no exception == pass
 
 
 # --- call_llm request shaping ------------------------------------------------

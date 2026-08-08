@@ -222,22 +222,30 @@ async def _handle_json_call_failure(
     if attempt.is_final:
         raise
     if _is_rate_limited(error):
-        # Unlike a schema failure -- where the next attempt carries
-        # corrective feedback and should go out at once -- throttling is
-        # answered by waiting. Retrying a throttled call immediately feeds
-        # the burst that caused it.
-        global _rate_limited_attempts
-        _rate_limited_attempts += 1
-        delay = _rate_limit_backoff_seconds(attempt.number)
-        logger.warning(
-            "Rate limited on attempt %s; waiting %.1fs before retrying",
-            attempt.number,
-            delay,
-        )
-        await asyncio.sleep(delay)
+        await _wait_out_rate_limit(attempt)
     return _JsonAttemptOutcome(
         value=None, error=error, response_text=None, next_prompt=None
     )
+
+
+async def _wait_out_rate_limit(attempt: _JsonAttempt) -> None:
+    """Space the next attempt out from the burst that caused the throttle.
+
+    Unlike a schema failure -- where the next attempt carries corrective
+    feedback and should go out at once -- throttling is answered by
+    waiting. Retrying a throttled call immediately feeds the burst that
+    caused it, and an unjittered backoff releases every throttled caller
+    at the same moment, reproducing it.
+    """
+    global _rate_limited_attempts
+    _rate_limited_attempts += 1
+    delay = _rate_limit_backoff_seconds(attempt.number)
+    logger.warning(
+        "Rate limited on attempt %s; waiting %.1fs before retrying",
+        attempt.number,
+        delay,
+    )
+    await asyncio.sleep(delay)
 
 
 async def _run_json_attempt(

@@ -12,7 +12,7 @@ either way.
 import dataclasses
 import logging
 import re
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from co_scientist.agents.reflection.evidence_context import (
     RETRIEVED_LABEL,
@@ -21,6 +21,11 @@ from co_scientist.agents.reflection.evidence_context import (
 )
 from co_scientist.models import Article
 from co_scientist.state import WorkflowState
+
+if TYPE_CHECKING:
+    from co_scientist.agents.generation.literature_review.search_support import (  # noqa: E501
+        SearchConfig,
+    )
 
 logger = logging.getLogger(__name__)
 
@@ -172,28 +177,13 @@ async def _retrieve_probe_evidence(
     from co_scientist.agents.generation.literature_review.helpers import (
         build_articles_from_metadata,
     )
-    from co_scientist.agents.generation.literature_review.orchestration import (
-        _phase2_collect_papers,
-    )
-    from co_scientist.agents.generation.literature_review.run_config import (
-        _get_search_config,
-    )
-    from co_scientist.mcp_client import get_mcp_client
 
-    config = dataclasses.replace(
-        _get_search_config(state),
-        papers_to_read_count=_MAX_PROBE_SOURCES,
-        semantic_relevance_enabled=False,
+    config = _probe_search_config(state)
+    metadata, errors, failure = await _collect_probe_papers(
+        state, queries, config
     )
-    errors: list[str] = []
-    try:
-        client = await get_mcp_client(tool_registry=config.tool_registry)
-        metadata, _ = await _phase2_collect_papers(
-            queries, state, config, client, errors
-        )
-    except Exception as exc:
-        logger.warning("Probe evidence retrieval unavailable: %s", exc)
-        return [], [*errors, str(exc)]
+    if failure is not None:
+        return [], failure
 
     articles = build_articles_from_metadata(metadata, config.source_name)
     usable = [
@@ -202,6 +192,55 @@ async def _retrieve_probe_evidence(
         if not article.is_retracted and (article.abstract or article.content)
     ]
     return usable[:_MAX_PROBE_SOURCES], errors
+
+
+def _probe_search_config(state: WorkflowState) -> "SearchConfig":
+    """Narrow the run's search config to what one probe round may spend.
+
+    Two departures from the run-level review. The read budget drops to
+    the probe's own cap, and the model-judged relevance pass is off: it
+    costs one LLM call per candidate, which the review spends once per
+    run but which probe retrieval would re-spend per hypothesis, per
+    cycle, in each of its three callers. See
+    ``SearchConfig.semantic_relevance_enabled``.
+    """
+    from co_scientist.agents.generation.literature_review.run_config import (
+        _get_search_config,
+    )
+
+    return dataclasses.replace(
+        _get_search_config(state),
+        papers_to_read_count=_MAX_PROBE_SOURCES,
+        semantic_relevance_enabled=False,
+    )
+
+
+async def _collect_probe_papers(
+    state: WorkflowState, queries: list[str], config: "SearchConfig"
+) -> tuple[dict[str, Any], list[str], list[str] | None]:
+    """Run the probe searches, reporting failure as data rather than raising.
+
+    Returns:
+        ``(metadata, errors, None)`` on success, or ``(_, _, failure)``
+        where ``failure`` is the error list the caller returns with no
+        articles -- a probe whose search back end is unreachable degrades
+        to ungrounded rather than aborting the verification around it.
+    """
+    from co_scientist.agents.generation.literature_review.orchestration import (
+        _phase2_collect_papers,
+    )
+    from co_scientist.mcp_client import get_mcp_client
+
+    errors: list[str] = []
+    try:
+        client = await get_mcp_client(tool_registry=config.tool_registry)
+        metadata, _ = await _phase2_collect_papers(
+            queries, state, config, client, errors
+        )
+    except Exception as exc:
+        logger.warning("Probe evidence retrieval unavailable: %s", exc)
+        return {}, errors, [*errors, str(exc)]
+    return metadata, errors, None
 
 
 def _retrieved_evidence_context(articles: list[Article]) -> str:
