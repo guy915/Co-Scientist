@@ -2,9 +2,11 @@
 
 The recents surfaces show a bold title above the full goal. Deriving the title
 from the goal's opening words duplicates the goal, so instead a small language
-model condenses the goal into a distinct 3-6 word heading (in the spirit of how
-Gemini/ChatGPT name chats). Generation is best-effort: any failure returns None
-and callers fall back to a clause of the goal.
+model condenses the goal into a distinct 3-6 word heading, prompted after the
+Gemini Enterprise chat-naming prompt (see the comment on ``_SYSTEM_PROMPT``
+for what that baseline contributes and what it does not). Generation is
+best-effort: any failure returns None and callers fall back to a clause of the
+goal.
 """
 
 from __future__ import annotations
@@ -32,12 +34,58 @@ _TITLE_MAX_TOKENS = 24
 # paragraph; a title longer than this is discarded in favor of the fallback.
 _MAX_TITLE_CHARS = 80
 
+# Adapted from the Gemini Enterprise chat-naming prompt kept at
+# references/ui-ux/gemini-enterprise/chat-naming-prompt.md. Three of its
+# rules are dropped as inapplicable here: it names a chat from an evolving
+# conversation, so it branches on user-only vs. full history, handles
+# attached filenames, and special-cases questions about the assistant's own
+# identity. This call sees one research goal, once, at run create. Its
+# 30-character ceiling is dropped too -- that budget exists for a sidebar
+# chip that truncates, whereas the recents row shows the full goal beneath
+# the title, and a fair share of real research titles ("Ferroptosis Targets
+# in Pancreatic Cancer") do not fit in 30 characters.
 _SYSTEM_PROMPT = (
-    "You name research sessions. Given a research goal, reply with a concise "
-    "title of 3 to 6 words that captures its topic — like a chat title. Use "
-    "Title Case. Do not restate the goal verbatim or begin with filler such "
-    "as 'What', 'How', 'Find', 'Propose', or 'Develop'. Reply with the title "
-    "only: no quotes, no trailing punctuation, no preamble."
+    "You generate the sidebar title for a research session. Given the "
+    "session's research goal, reply with a short title summarizing its "
+    "subject.\n"
+    "\n"
+    "Rules:\n"
+    "- The title MUST be 3 to 6 words and MUST summarize the goal, not "
+    "repeat its opening words.\n"
+    "- Put the most distinctive words first: the disease, organism, "
+    "molecule, method, or system the goal is about. DO NOT begin with an "
+    "article or a preposition.\n"
+    "- DO NOT begin with the goal's framing verb or question word, such as "
+    "'Find', 'Propose', 'Develop', 'Investigate', 'How', or 'What'.\n"
+    "- Use Title Case. Write the title in the same language as the goal; "
+    "where the goal has typos, infer the intended wording.\n"
+    "- DO NOT use colons, quotation marks, or trailing punctuation.\n"
+    "- DO NOT use words like 'research', 'goal', 'study', 'session', or "
+    "'title' unless they carry real meaning in the goal.\n"
+    "- Reply with the title alone, as a standalone string: no preamble, no "
+    "explanation, no surrounding data structure.\n"
+    "\n"
+    "Examples:\n"
+    "\n"
+    "Goal: Find drug repurposing candidates that could slow the "
+    "progression of amyotrophic lateral sclerosis.\n"
+    "Title: Drug Repurposing in ALS\n"
+    "\n"
+    "Goal: What mechanisms allow senescent cells to escape immune "
+    "clearance in aged tissue?\n"
+    "Title: Senescent Cell Immune Escape\n"
+    "\n"
+    "Goal: Propose experiments testing whether ferroptosis regulators can "
+    "be targeted in pancreatic cancer.\n"
+    "Title: Ferroptosis Targets in Pancreatic Cancer\n"
+    "\n"
+    "Goal: How does antibiotic resistance emerge in Pseudomonas "
+    "aeruginosa biofilms, and how might it be disrupted?\n"
+    "Title: Pseudomonas Biofilm Antibiotic Resistance\n"
+    "\n"
+    "Goal: Develop a computational model of tau propagation across "
+    "cortical networks.\n"
+    "Title: Tau Propagation Network Modeling"
 )
 
 
