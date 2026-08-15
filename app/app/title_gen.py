@@ -89,8 +89,8 @@ _SYSTEM_PROMPT = (
 )
 
 
-def _clean_title(raw: str) -> str | None:
-    """Normalize a model reply into a usable title, or None if unusable.
+def clean_title(raw: str) -> str | None:
+    """Normalize a candidate title into a usable one, or None if unusable.
 
     Strips wrapping quotes, surrounding whitespace, and trailing sentence
     punctuation, then collapses internal whitespace. Returns None when the
@@ -168,4 +168,4 @@ async def generate_run_title(goal: str) -> str | None:
     if not choices:
         return None
     content = choices[0].message.content or ""
-    return _clean_title(content)
+    return clean_title(content)

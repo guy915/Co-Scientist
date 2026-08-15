@@ -39,7 +39,7 @@ from app.runs_models import (
 )
 from app.runs_support import _run_or_404
 from app.store import RunStatus
-from app.title_gen import generate_run_title
+from app.title_gen import clean_title, generate_run_title
 
 
 async def _populate_run_title(
@@ -53,6 +53,9 @@ async def _populate_run_title(
     isn't blocked on a model round-trip. A None result (generation
     unavailable) leaves the title unset and surfaces fall back to a clause of
     the goal. A bring-your-own-key run titles under its own credential.
+
+    Scheduled only for a run that has no title yet, so it never overwrites
+    one the run's interview chose (see ``create_run``).
 
     Args:
         run_id: The run to title.
@@ -208,7 +211,19 @@ def _persist_new_run(
     """Create the DRAFT run row and log its creation event.
 
     The run is persisted in DRAFT; nothing executes until /start is called.
+
+    An interview-supplied title is normalized through the same cleaner a
+    generated one passes, because it is now kept rather than overwritten
+    (see ``create_run``'s scheduling guard). It arrives straight from the
+    model with only whitespace stripped, so without this an overlong one
+    would reach surfaces sized for ``_MAX_TITLE_CHARS``; rejected here, it
+    becomes None and titling falls through to generation.
     """
+    interview_title = (
+        clean_title(interview["fields"].get("title") or "")
+        if interview
+        else None
+    )
     run = store.create_run(
         req.research_goal,
         resolved.run_mode,
@@ -216,7 +231,7 @@ def _persist_new_run(
         resolved.config,
         store.RunCreateOptions(
             client_id=client_id(request),
-            title=interview["fields"].get("title") if interview else None,
+            title=interview_title,
             llm_backend=resolved.llm_backend,
         ),
     )
@@ -341,8 +356,13 @@ async def create_run(
         credentials.store_run_credential(run.id, run.client_id, byok)
     # Title generation needs a real model: either the run brought its own
     # key or the deployment has one. Offline/keyless runs keep the
-    # goal-clause fallback.
-    if byok is not None or not engine_adapter.offline_mode():
+    # goal-clause fallback. A run whose interview already named it keeps
+    # that name: the interview chose it with the whole conversation in
+    # view, where generation sees only the goal, so regenerating here
+    # would overwrite the better title with the worse one.
+    if run.title is None and (
+        byok is not None or not engine_adapter.offline_mode()
+    ):
         background_tasks.add_task(
             _populate_run_title, run.id, req.research_goal, byok
         )
@@ -422,11 +442,12 @@ async def get_run(run_id: str) -> dict[str, Any]:
 
 
 async def rename_run(run_id: str, body: RenameRunRequest) -> dict[str, Any]:
-    """Rename an owned run, replacing its generated session title.
+    """Rename an owned run, replacing its existing session title.
 
-    The title is only ever a label: it is generated from the goal after
-    creation (see ``_populate_run_title``) and read by the sidebar, the run
-    titlebar and the report header, but nothing scientific derives from it.
+    The title is only ever a label: it comes from the run's interview, or
+    is generated from the goal after creation when the interview named
+    nothing (see ``_populate_run_title``), and is read by the sidebar, the
+    run titlebar and the report header -- nothing scientific derives from it.
     Renaming therefore has no run-state precondition -- an active run is
     renameable, and the new name is what its report carries when it lands.
 

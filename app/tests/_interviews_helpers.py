@@ -1,8 +1,10 @@
 """Shared builders for the interview test modules.
 
-These helpers are imported by both ``test_interviews.py`` (endpoint and field
-CRUD cases) and ``test_interviews_model.py`` (direct ``_call_interview_model``
-cases), so they live in a non-test module to avoid pytest collecting them.
+These helpers are imported by ``test_interviews.py`` (endpoint and field
+CRUD cases), ``test_interviews_model.py`` (direct ``_call_interview_model``
+cases) and ``test_run_title_from_interview.py`` (the title a completed
+interview hands the run it seeds), so they live in a non-test module to
+avoid pytest collecting them.
 """
 
 from __future__ import annotations
@@ -13,6 +15,7 @@ from types import SimpleNamespace
 from typing import Any, cast
 
 import pytest
+from fastapi.testclient import TestClient
 
 from app import interviews
 
@@ -76,6 +79,61 @@ def _patch_model_sequence(
         return next(replies)
 
     monkeypatch.setattr(interviews, "_call_interview_model", _model)
+
+
+def _antibiotic_responses() -> list[dict[str, Any]]:
+    """Return the three model turns of the antibiotic-resistance interview."""
+    return [
+        _response("Which resistance mechanism should the study prioritize?"),
+        _response(
+            "What models, constraints, or exclusions should guide it?",
+            InterviewFields(focus=["Efflux-pump regulation"]),
+        ),
+        _response(
+            "The goal is ready for run configuration.",
+            InterviewFields(
+                focus=["Efflux-pump regulation"],
+                preferences=[
+                    "Use clinical Gram-negative isolates",
+                    "Exclude new antibiotic discovery",
+                ],
+                title="Restoring Antibiotic Susceptibility",
+                completed=True,
+            ),
+        ),
+    ]
+
+
+def _run_antibiotic_interview(
+    client: TestClient, headers: dict[str, str]
+) -> tuple[str, Any, Any, Any]:
+    """Drive the three-turn antibiotic interview; return id and responses."""
+    created = client.post(
+        "/api/interviews",
+        headers=headers,
+        json={
+            "research_challenge": (
+                "How can resistant bacteria regain drug susceptibility?"
+            )
+        },
+    )
+    interview_id = _interview_payload(created)["id"]
+    second = client.post(
+        f"/api/interviews/{interview_id}/turns",
+        headers=headers,
+        json={"content": "Prioritize efflux-pump regulation."},
+    )
+    final = client.post(
+        f"/api/interviews/{interview_id}/turns",
+        headers=headers,
+        json={
+            "content": (
+                "Use clinical Gram-negative isolates and exclude new "
+                "antibiotic discovery."
+            )
+        },
+    )
+    return interview_id, created, second, final
 
 
 def _fake_stream(content: str, reasoning: str = "") -> Any:

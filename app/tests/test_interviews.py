@@ -21,10 +21,12 @@ from app.main import app
 
 from ._interviews_helpers import (
     InterviewFields,
+    _antibiotic_responses,
     _fake_stream,
     _interview_payload,
     _patch_model_sequence,
     _response,
+    _run_antibiotic_interview,
 )
 
 
@@ -64,61 +66,6 @@ def _patch_streaming_litellm(
 
     monkeypatch.setattr(litellm, "acompletion", _fake_acompletion)
     monkeypatch.setattr(settings, "chat_model_name", "deepseek/deepseek-v4-pro")
-
-
-def _antibiotic_responses() -> list[dict[str, Any]]:
-    """Return the three model turns of the antibiotic-resistance interview."""
-    return [
-        _response("Which resistance mechanism should the study prioritize?"),
-        _response(
-            "What models, constraints, or exclusions should guide it?",
-            InterviewFields(focus=["Efflux-pump regulation"]),
-        ),
-        _response(
-            "The goal is ready for run configuration.",
-            InterviewFields(
-                focus=["Efflux-pump regulation"],
-                preferences=[
-                    "Use clinical Gram-negative isolates",
-                    "Exclude new antibiotic discovery",
-                ],
-                title="Restoring Antibiotic Susceptibility",
-                completed=True,
-            ),
-        ),
-    ]
-
-
-def _run_antibiotic_interview(
-    client: TestClient, headers: dict[str, str]
-) -> tuple[str, Any, Any, Any]:
-    """Drive the three-turn antibiotic interview; return id and responses."""
-    created = client.post(
-        "/api/interviews",
-        headers=headers,
-        json={
-            "research_challenge": (
-                "How can resistant bacteria regain drug susceptibility?"
-            )
-        },
-    )
-    interview_id = _interview_payload(created)["id"]
-    second = client.post(
-        f"/api/interviews/{interview_id}/turns",
-        headers=headers,
-        json={"content": "Prioritize efflux-pump regulation."},
-    )
-    final = client.post(
-        f"/api/interviews/{interview_id}/turns",
-        headers=headers,
-        json={
-            "content": (
-                "Use clinical Gram-negative isolates and exclude new "
-                "antibiotic discovery."
-            )
-        },
-    )
-    return interview_id, created, second, final
 
 
 def test_interview_persists_turns_progress_and_final_plan(

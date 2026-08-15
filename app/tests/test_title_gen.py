@@ -9,7 +9,7 @@ import pytest
 
 from app import store
 from app.config import settings
-from app.title_gen import _clean_title, generate_run_title
+from app.title_gen import clean_title, generate_run_title
 
 
 @pytest.mark.parametrize(
@@ -28,12 +28,12 @@ from app.title_gen import _clean_title, generate_run_title
     ],
 )
 def test_clean_title_normalizes(raw: str, expected: str) -> None:
-    assert _clean_title(raw) == expected
+    assert clean_title(raw) == expected
 
 
 @pytest.mark.parametrize("raw", ["", "   ", '""', "A" * 200])
 def test_clean_title_rejects_empty_or_overlong(raw: str) -> None:
-    assert _clean_title(raw) is None
+    assert clean_title(raw) is None
 
 
 def test_set_run_title_persists_and_serializes(isolated_db: str) -> None:
