@@ -81,6 +81,10 @@ function useComposerFlags() {
   // model's reasoning as it streams. Display-only and never persisted, so it
   // is cleared at the start of each turn rather than kept with the messages.
   const [agentReasoning, setAgentReasoning] = useState('');
+  // The Agent's reply itself, accumulated as it streams. Display-only in the
+  // same way: the turn's durable text arrives with the resolved interview and
+  // replaces this, so it is cleared at the start of each turn.
+  const [agentDraft, setAgentDraft] = useState('');
   return {
     isStarting,
     setIsStarting,
@@ -88,6 +92,8 @@ function useComposerFlags() {
     setIsAwaitingAgent,
     agentReasoning,
     setAgentReasoning,
+    agentDraft,
+    setAgentDraft,
   };
 }
 
@@ -96,6 +102,7 @@ export function useComposerLog(clearSessionState: () => void) {
   const [input, setInput] = useState('');
   const flags = useComposerFlags();
   const {setIsStarting, setIsAwaitingAgent, setAgentReasoning} = flags;
+  const {setAgentDraft} = flags;
   // Append-only log of user/assistant chat bubbles (spec cards are rendered
   // from the spec state, not stored here).
   const [messages, setMessages] = useState<ChatEntry[]>([]);
@@ -112,10 +119,17 @@ export function useComposerLog(clearSessionState: () => void) {
     setIsStarting(false);
     setIsAwaitingAgent(false);
     setAgentReasoning('');
+    setAgentDraft('');
     setMessages([]);
     setError(null);
     setPendingAttachments([]);
-  }, [clearSessionState, setIsStarting, setIsAwaitingAgent, setAgentReasoning]);
+  }, [
+    clearSessionState,
+    setIsStarting,
+    setIsAwaitingAgent,
+    setAgentReasoning,
+    setAgentDraft,
+  ]);
 
   return {
     input,

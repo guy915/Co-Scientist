@@ -44,7 +44,10 @@ test('handleRetryDraftSpec re-derives the plan from its own turn', () => {
   expect(retryInterviewTurn).toHaveBeenCalledWith(
     'interview-1',
     9,
-    expect.any(Function),
+    expect.objectContaining({
+      onReasoning: expect.any(Function),
+      onProse: expect.any(Function),
+    }),
   );
   expect(deps.setDraft).toHaveBeenCalledWith(null);
 });

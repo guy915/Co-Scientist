@@ -6,6 +6,7 @@ import {
   retryInterviewTurn,
   stageDocument,
   type Interview,
+  type InterviewSinks,
   type StagedDocument,
 } from '@/api/runs';
 import {type InferredRunSpec} from '../run_spec';
@@ -36,6 +37,7 @@ type SubmitComposerDeps = Pick<
   | 'setIsStarting'
   | 'setIsAwaitingAgent'
   | 'setAgentReasoning'
+  | 'setAgentDraft'
   | 'setPendingAttachments'
   | 'setDraft'
   | 'setConfirmed'
@@ -98,18 +100,13 @@ async function stageTurnFiles(
 function startInterviewTurn(
   deps: Pick<SubmitComposerDeps, 'interview' | 'audience'>,
   text: string,
-  onReasoning: (fragment: string) => void,
+  sinks: InterviewSinks,
   documentIds: string[],
 ): Promise<Interview> {
   if (deps.interview) {
-    return addInterviewTurn(deps.interview.id, text, onReasoning, documentIds);
+    return addInterviewTurn(deps.interview.id, text, sinks, documentIds);
   }
-  return createInterview(
-    text,
-    onReasoning,
-    deps.audience ?? undefined,
-    documentIds,
-  );
+  return createInterview(text, sinks, deps.audience ?? undefined, documentIds);
 }
 
 // User-facing message for a failed interview turn.
@@ -138,17 +135,23 @@ async function submitComposerMessage(deps: SubmitComposerDeps): Promise<void> {
   appendChatMessage(deps.setMessages, {role: 'user', content: text});
   deps.setIsStarting(true);
   deps.setIsAwaitingAgent(true);
-  // Each turn shows only its own thinking, so drop the previous turn's.
+  // Each turn shows only its own thinking and its own reply in progress,
+  // so drop the previous turn's.
   deps.setAgentReasoning('');
-  const onReasoning = (fragment: string) =>
-    deps.setAgentReasoning(current => current + fragment);
+  deps.setAgentDraft('');
+  const sinks = {
+    onReasoning: (fragment: string) =>
+      deps.setAgentReasoning(current => current + fragment),
+    onProse: (fragment: string) =>
+      deps.setAgentDraft(current => current + fragment),
+  };
   const isFirstTurn = deps.interview === null;
   try {
     const staged = await stageTurnFiles(deps);
     const updated = await startInterviewTurn(
       deps,
       text,
-      onReasoning,
+      sinks,
       staged.map(document => document.id),
     );
     deps.setInterview(updated);
@@ -282,16 +285,19 @@ function truncateAtMessage(
  */
 async function reviseInterviewTurn(
   deps: HandlerDeps,
-  revise: (onReasoning: (fragment: string) => void) => Promise<Interview>,
+  revise: (sinks: InterviewSinks) => Promise<Interview>,
 ): Promise<void> {
   deps.setError(null);
   deps.setToast(null);
   deps.setIsAwaitingAgent(true);
   deps.setAgentReasoning('');
+  deps.setAgentDraft('');
   try {
-    const updated = await revise(fragment =>
-      deps.setAgentReasoning(current => current + fragment),
-    );
+    const updated = await revise({
+      onReasoning: fragment =>
+        deps.setAgentReasoning(current => current + fragment),
+      onProse: fragment => deps.setAgentDraft(current => current + fragment),
+    });
     applyAgentTurn(updated, deps);
     announceChatsChanged();
   } catch (error) {
@@ -327,8 +333,8 @@ function editUserMessage(
   const text = content.trim();
   if (!target || !text) return;
   deps.setMessages(current => truncateAtMessage(current, message, text));
-  void reviseInterviewTurn(deps, onReasoning =>
-    editInterviewTurn(target.interviewId, target.turnId, text, onReasoning),
+  void reviseInterviewTurn(deps, sinks =>
+    editInterviewTurn(target.interviewId, target.turnId, text, sinks),
   );
   emitDiagnosticEvent({stage: 'CHAT', payload: {event: 'prompt_edited'}});
 }
@@ -338,8 +344,8 @@ function retryAssistantMessage(deps: HandlerDeps, message: ChatEntry): void {
   const target = revisableTurn(deps, message);
   if (!target) return;
   deps.setMessages(current => truncateAtMessage(current, message));
-  void reviseInterviewTurn(deps, onReasoning =>
-    retryInterviewTurn(target.interviewId, target.turnId, onReasoning),
+  void reviseInterviewTurn(deps, sinks =>
+    retryInterviewTurn(target.interviewId, target.turnId, sinks),
   );
   emitDiagnosticEvent({stage: 'CHAT', payload: {event: 'response_retried'}});
 }
@@ -368,8 +374,8 @@ function retryDraftSpec(deps: HandlerDeps): void {
   const target = draftRevisionTarget(deps);
   if (!target) return;
   deps.setDraft(null);
-  void reviseInterviewTurn(deps, onReasoning =>
-    retryInterviewTurn(target.interviewId, target.turnId, onReasoning),
+  void reviseInterviewTurn(deps, sinks =>
+    retryInterviewTurn(target.interviewId, target.turnId, sinks),
   );
   emitDiagnosticEvent({stage: 'CHAT', payload: {event: 'plan_retried'}});
 }
@@ -427,6 +433,7 @@ export function toHandlerDeps(
     setIsStarting: composer.setIsStarting,
     setIsAwaitingAgent: composer.setIsAwaitingAgent,
     setAgentReasoning: composer.setAgentReasoning,
+    setAgentDraft: composer.setAgentDraft,
     setMessages: composer.setMessages,
     setError: composer.setError,
     pendingAttachments: composer.pendingAttachments,

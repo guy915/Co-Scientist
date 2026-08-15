@@ -7,6 +7,7 @@ import {
 } from 'react';
 import {type NavigateFunction} from 'react-router-dom';
 import {type RunFocus, type RunTier} from '@/api/runs';
+import {MarkdownMessage} from '@/components/markdown_message';
 import {type InferredRunSpec} from '../run_spec';
 import {type SpecStage} from '../hooks/chat_session_types';
 import {
@@ -59,6 +60,7 @@ export interface BuildTimelineItemsArgs {
   isStarting: boolean;
   isAwaitingAgent: boolean;
   agentReasoning: string;
+  agentDraft: string;
   handleCancelDraftSpec: () => void;
   handleEditPlan: (spec: InferredRunSpec) => void;
   handleRetryDraftSpec: () => void;
@@ -156,18 +158,41 @@ function AgentThinking({reasoning}: {reasoning: string}) {
   );
 }
 
-// The Agent's thinking, shown at the tail of the timeline while it composes its
-// reply to an interview turn; timestamped "now" so it sorts after the just-sent
-// user message, and cleared the moment the response arrives.
+/**
+ * The Agent's reply as it is being written.
+ *
+ * Rendered in the same bubble the finished turn lands in, so the reply does
+ * not visibly move or restyle when the stream resolves -- the durable turn
+ * simply replaces it. Not announced: the resolved message is what a screen
+ * reader should read, once, rather than a partial sentence per token.
+ */
+function AgentDraft({draft}: {draft: string}) {
+  return (
+    <div className="reference-bubble-row assistant" aria-hidden="true">
+      <MarkdownMessage
+        content={draft}
+        className="min-w-0 text-base leading-[1.45] text-cosci-fg"
+      />
+    </div>
+  );
+}
+
+// The Agent's thinking and its reply-in-progress, shown at the tail of the
+// timeline while it composes an interview turn; timestamped "now" so they sort
+// after the just-sent user message, and cleared the moment the turn resolves.
+// The thinking stays visible under the reply because a thinking model has
+// finished reasoning before its first answer token, so the trail is a record
+// of how the reply was reached rather than something still filling.
 function thinkingTimelineItems({
   isAwaitingAgent,
   agentReasoning,
+  agentDraft,
 }: Pick<
   BuildTimelineItemsArgs,
-  'isAwaitingAgent' | 'agentReasoning'
+  'isAwaitingAgent' | 'agentReasoning' | 'agentDraft'
 >): TimelineItem[] {
   if (!isAwaitingAgent) return [];
-  return [
+  const items: TimelineItem[] = [
     {
       id: 'agent-thinking',
       at: Date.now() / 1000,
@@ -175,6 +200,15 @@ function thinkingTimelineItems({
       node: <AgentThinking reasoning={agentReasoning} />,
     },
   ];
+  if (agentDraft) {
+    items.push({
+      id: 'agent-draft',
+      at: Date.now() / 1000,
+      order: 46,
+      node: <AgentDraft draft={agentDraft} />,
+    });
+  }
+  return items;
 }
 
 // Merges a partial spec edit into the pending draft, leaving a null draft

@@ -32,6 +32,7 @@ function baseArgs(
     isStarting: false,
     isAwaitingAgent: false,
     agentReasoning: '',
+    agentDraft: '',
     handleCancelDraftSpec: vi.fn(),
     handleEditPlan: vi.fn(),
     handleRetryDraftSpec: vi.fn(),

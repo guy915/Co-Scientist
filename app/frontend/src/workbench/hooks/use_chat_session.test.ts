@@ -183,7 +183,10 @@ it('editing a message revises it in place, not via the composer', async () => {
     'interview-1',
     prompt.turnId,
     'Revised prompt',
-    expect.any(Function),
+    expect.objectContaining({
+      onReasoning: expect.any(Function),
+      onProse: expect.any(Function),
+    }),
   );
   // The correction replaces the prompt where it stands; the composer stays
   // clear for the next thing the scientist wants to say.
@@ -280,7 +283,10 @@ it('resetting a started session reopens the composer for a new chat', async () =
   expect(runsApi.createInterview).toHaveBeenCalledTimes(2);
   expect(runsApi.createInterview).toHaveBeenLastCalledWith(
     'A brand new goal',
-    expect.any(Function),
+    expect.objectContaining({
+      onReasoning: expect.any(Function),
+      onProse: expect.any(Function),
+    }),
     undefined,
     [],
   );
@@ -317,7 +323,10 @@ it('stages attached documents before the run is created', async () => {
   expect(runsApi.stageDocument).toHaveBeenCalledWith(file);
   expect(runsApi.createInterview).toHaveBeenCalledWith(
     'Use my private result',
-    expect.any(Function),
+    expect.objectContaining({
+      onReasoning: expect.any(Function),
+      onProse: expect.any(Function),
+    }),
     undefined,
     ['doc-1'],
   );

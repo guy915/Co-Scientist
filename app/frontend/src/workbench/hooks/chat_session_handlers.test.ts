@@ -21,7 +21,10 @@ test('starts a model-driven interview with no local draft', async () => {
   // group; undefined here because this fixture declares no audience.
   expect(createInterview).toHaveBeenCalledWith(
     'Study liver fibrosis',
-    expect.any(Function),
+    expect.objectContaining({
+      onReasoning: expect.any(Function),
+      onProse: expect.any(Function),
+    }),
     undefined,
     [],
   );
@@ -46,7 +49,10 @@ test('conducts the interview under the declared audience', async () => {
 
   expect(createInterview).toHaveBeenCalledWith(
     'Study liver fibrosis',
-    expect.any(Function),
+    expect.objectContaining({
+      onReasoning: expect.any(Function),
+      onProse: expect.any(Function),
+    }),
     'sbi_ucd',
     [],
   );
@@ -94,7 +100,10 @@ test('stages only a completed persisted interview derivation', async () => {
   expect(addInterviewTurn).toHaveBeenCalledWith(
     active.id,
     'Focus on metabolism',
-    expect.any(Function),
+    expect.objectContaining({
+      onReasoning: expect.any(Function),
+      onProse: expect.any(Function),
+    }),
     [],
   );
   expect(deps.stageDraftSpec).toHaveBeenCalledWith(

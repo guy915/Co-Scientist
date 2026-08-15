@@ -46,3 +46,14 @@ test('omits the fallback notice on model-driven turns', () => {
   renderBubble({role: 'assistant', content: 'A model reply.'});
   expect(screen.queryByText(FALLBACK_NOTICE_TEXT)).not.toBeInTheDocument();
 });
+
+test('renders assistant markdown, and leaves user text literal', () => {
+  // The two roles carry different things: an assistant bubble shows model
+  // prose, which is markdown now, while a user bubble shows what the
+  // scientist typed and must never reinterpret it as markup.
+  renderBubble({role: 'assistant', content: 'Use **primary** cells'});
+  expect(screen.getByText('primary').tagName).toBe('STRONG');
+
+  renderBubble({role: 'user', content: 'Use **primary** cells'});
+  expect(screen.getByText('Use **primary** cells')).toBeInTheDocument();
+});

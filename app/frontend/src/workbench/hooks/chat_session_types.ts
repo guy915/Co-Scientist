@@ -101,6 +101,7 @@ export interface HandlerDeps {
   setIsStarting: (value: boolean) => void;
   setIsAwaitingAgent: (value: boolean) => void;
   setAgentReasoning: Dispatch<SetStateAction<string>>;
+  setAgentDraft: Dispatch<SetStateAction<string>>;
   setMessages: Dispatch<SetStateAction<ChatEntry[]>>;
   setError: (message: string | null) => void;
   // Documents already staged through /api/documents for this session:

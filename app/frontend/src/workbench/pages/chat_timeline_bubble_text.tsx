@@ -9,6 +9,7 @@ import {
   useState,
 } from 'react';
 import {Icon} from '@/components/icon';
+import {MarkdownMessage} from '@/components/markdown_message';
 import {tooltipClassNames} from '../tooltip';
 import {
   USER_BUBBLE_TEXT_CLAMP_CLASSES,
@@ -330,6 +331,13 @@ export interface BubbleTextProps {
 
 // The bubble's text span, with the collapse/expand toggle appended for
 // collapsible (user) bubbles.
+//
+// An assistant bubble renders its content as markdown: the Agent writes
+// ordinary markdown now rather than one line inside a JSON field, so a reply
+// laying out options as a list has to arrive as a list rather than as
+// literal hyphens and asterisks. A user bubble stays a plain text span --
+// it carries what the scientist typed, which must never be reinterpreted as
+// markup, and the collapse measurement above reads that span's own metrics.
 export function BubbleText({
   isUser,
   bubbleClassName,
@@ -342,10 +350,17 @@ export function BubbleText({
   toggleExpanded,
   handleBubbleTransitionEnd,
 }: BubbleTextProps) {
+  if (!isUser) {
+    return (
+      <div className={bubbleClassName}>
+        <MarkdownMessage content={content} className={bubbleTextClassName} />
+      </div>
+    );
+  }
   return (
     <div className={bubbleClassName}>
       <span
-        ref={isUser ? textRef : undefined}
+        ref={textRef}
         className={bubbleTextClassName}
         style={bubbleTextStyle}
         onTransitionEnd={collapsible ? handleBubbleTransitionEnd : undefined}

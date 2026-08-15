@@ -58,6 +58,7 @@ export function useChatSession(deps: ChatSessionDeps) {
     isStarting: composer.isStarting,
     isAwaitingAgent: composer.isAwaitingAgent,
     agentReasoning: composer.agentReasoning,
+    agentDraft: composer.agentDraft,
     messages: composer.messages,
     setMessages: composer.setMessages,
     error: composer.error,

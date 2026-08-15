@@ -45,7 +45,10 @@ test('handleRetryMessage asks the Agent to answer that turn again', () => {
   expect(retryInterviewTurn).toHaveBeenCalledWith(
     'interview-1',
     7,
-    expect.any(Function),
+    expect.objectContaining({
+      onReasoning: expect.any(Function),
+      onProse: expect.any(Function),
+    }),
   );
   // The rejected answer leaves the transcript rather than being duplicated
   // below itself, which is what "retry" appeared to do before.
@@ -105,7 +108,10 @@ test('handleEditMessage replaces the turn in place', () => {
     'interview-1',
     3,
     'Revised prompt',
-    expect.any(Function),
+    expect.objectContaining({
+      onReasoning: expect.any(Function),
+      onProse: expect.any(Function),
+    }),
   );
   // The edited prompt stays where it was and the answer derived from the old
   // wording goes; the composer is left alone for the next thing to say.

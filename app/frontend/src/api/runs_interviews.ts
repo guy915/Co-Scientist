@@ -15,28 +15,43 @@ import {
 /** A frame of a streamed interview turn. */
 type InterviewFrame =
   | {type: 'reasoning'; content: string}
+  | {type: 'chunk'; content: string}
   | {type: 'interview'; interview: Interview}
   | {type: 'error'; detail: string};
 
 /**
+ * Where a streamed turn's two live channels go.
+ *
+ * A turn streams the Agent's chain of thought and then its answer, so both
+ * arrive while it is still being composed. Bundled rather than passed as two
+ * positional callbacks, so a caller wanting only one names the one it wants
+ * and the four turn functions below keep their existing argument order.
+ */
+export interface InterviewSinks {
+  /** Receives each chain-of-thought fragment as it arrives. */
+  onReasoning?: (fragment: string) => void;
+  /** Receives each fragment of the answer's prose as it is written. */
+  onProse?: (fragment: string) => void;
+}
+
+/**
  * Applies one streamed interview frame to the in-progress interview: relays
- * reasoning fragments, adopts a completed interview snapshot, or throws on
- * an error frame. Returns the interview unchanged for a reasoning frame.
+ * a reasoning or prose fragment, adopts a completed interview snapshot, or
+ * throws on an error frame. Returns the interview unchanged for a fragment.
+ *
+ * The two terminal frames are handled first so what remains is a live
+ * fragment differing only in which channel it belongs to.
  */
 function applyInterviewFrame(
   frame: InterviewFrame,
   interview: Interview | undefined,
-  onReasoning?: (fragment: string) => void,
+  sinks: InterviewSinks,
 ): Interview | undefined {
-  switch (frame.type) {
-    case 'reasoning':
-      onReasoning?.(frame.content);
-      return interview;
-    case 'interview':
-      return frame.interview;
-    case 'error':
-      throw new Error(frame.detail);
-  }
+  if (frame.type === 'interview') return frame.interview;
+  if (frame.type === 'error') throw new Error(frame.detail);
+  const sink = frame.type === 'reasoning' ? sinks.onReasoning : sinks.onProse;
+  sink?.(frame.content);
+  return interview;
 }
 
 /**
@@ -48,14 +63,14 @@ function applyInterviewFrame(
  *
  * @param path The interview endpoint to post to.
  * @param body The JSON request body.
- * @param onReasoning Receives each chain-of-thought fragment as it arrives.
+ * @param sinks Where the turn's live reasoning and prose are relayed.
  * @param method HTTP method; the revision endpoints replace a turn rather
  *   than appending one, so one of them is a PUT.
  */
 async function streamInterviewTurn(
   path: string,
   body: unknown,
-  onReasoning?: (fragment: string) => void,
+  sinks: InterviewSinks = {},
   method = 'POST',
 ): Promise<Interview> {
   const init = jsonRequest(body, true);
@@ -69,7 +84,7 @@ async function streamInterviewTurn(
   });
   let interview: Interview | undefined;
   for await (const frame of readSseFrames<InterviewFrame>(res)) {
-    interview = applyInterviewFrame(frame, interview, onReasoning);
+    interview = applyInterviewFrame(frame, interview, sinks);
   }
   if (!interview) {
     throw new Error('The Agent could not continue the interview.');
@@ -86,7 +101,7 @@ async function streamInterviewTurn(
  */
 export async function createInterview(
   researchChallenge: string,
-  onReasoning?: (fragment: string) => void,
+  sinks?: InterviewSinks,
   audience?: Audience,
   documentIds: string[] = [],
 ): Promise<Interview> {
@@ -97,7 +112,7 @@ export async function createInterview(
       audience,
       document_ids: documentIds,
     },
-    onReasoning,
+    sinks,
   );
 }
 
@@ -111,13 +126,13 @@ export async function createInterview(
 export async function addInterviewTurn(
   interviewId: string,
   content: string,
-  onReasoning?: (fragment: string) => void,
+  sinks?: InterviewSinks,
   documentIds: string[] = [],
 ): Promise<Interview> {
   return streamInterviewTurn(
     `/api/interviews/${interviewId}/turns`,
     {content, document_ids: documentIds},
-    onReasoning,
+    sinks,
   );
 }
 
@@ -132,12 +147,12 @@ export async function editInterviewTurn(
   interviewId: string,
   turnId: number,
   content: string,
-  onReasoning?: (fragment: string) => void,
+  sinks?: InterviewSinks,
 ): Promise<Interview> {
   return streamInterviewTurn(
     `/api/interviews/${interviewId}/turns/${turnId}`,
     {content},
-    onReasoning,
+    sinks,
     'PUT',
   );
 }
@@ -146,12 +161,12 @@ export async function editInterviewTurn(
 export async function retryInterviewTurn(
   interviewId: string,
   turnId: number,
-  onReasoning?: (fragment: string) => void,
+  sinks?: InterviewSinks,
 ): Promise<Interview> {
   return streamInterviewTurn(
     `/api/interviews/${interviewId}/turns/${turnId}/retry`,
     {},
-    onReasoning,
+    sinks,
   );
 }
 

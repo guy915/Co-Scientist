@@ -84,6 +84,7 @@ export {
   listInterviews,
   retryInterviewTurn,
 } from './runs_interviews';
+export type {InterviewSinks} from './runs_interviews';
 export {
   addScientistHypothesis,
   addScientistReview,
