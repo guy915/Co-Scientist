@@ -47,9 +47,11 @@ export const CHAT_COLUMN_CLASSES =
 // (CHAT_BUBBLE_ROW_CLASSES), user messages right-align and carry the
 // `group/user` marker that the hover-revealed action row
 // (MESSAGE_ACTIONS_END_CLASSES) keys off of.
+// The assistant row's gap is the space between a reply and the action row
+// under it, which sat close enough to read as part of the reply's last line.
 export const CHAT_BUBBLE_ROW_CLASSES =
   'reference-bubble-row relative flex flex-col items-start justify-start ' +
-  'gap-[0.35rem]';
+  'gap-[0.7rem]';
 
 export const CHAT_BUBBLE_USER_ROW_CLASSES =
   'reference-bubble-row user group/user relative flex flex-col items-end ' +

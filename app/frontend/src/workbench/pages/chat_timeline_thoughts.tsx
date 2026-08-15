@@ -1,36 +1,40 @@
 import {useState} from 'react';
 import {Icon} from '@/components/icon';
+import {MarkdownMessage} from '@/components/markdown_message';
 
 // Open while the Agent is still writing, collapsed once the turn is done:
 // the thinking is there to be checked afterwards, not read every time. The
 // marker is suppressed so the summary can carry its own chevron.
-const THOUGHTS_CLASSES = 'ucs-thoughts group mt-1 mb-2 [&>summary]:list-none';
+const THOUGHTS_CLASSES = 'ucs-thoughts group mt-1 mb-4 [&>summary]:list-none';
 
 // One summary for both states, at one size. The control used to change
 // shape as the turn resolved -- a pulsing "Thinking…" at one size became a
 // chevroned "Thinking" at another -- which read as two different controls
 // swapping places rather than as one settling.
+//
+// No horizontal padding: the label is the first thing in the bubble, and any
+// left padding stood it inset from the reply beneath it.
 const THOUGHTS_SUMMARY_CLASSES =
-  'inline-flex cursor-pointer items-center gap-1 rounded-full px-1 ' +
-  'text-sm font-medium text-cosci-muted hover:text-cosci-fg ' +
+  'inline-flex cursor-pointer items-center gap-1 rounded-full ' +
+  'text-base font-medium text-cosci-muted hover:text-cosci-fg ' +
   'focus-visible:text-cosci-fg';
 
-// Reasoning is plain text, not markdown, so it keeps `whitespace-pre-wrap`:
-// the model's own line breaks are the only structure it has. Just text, a
-// step smaller and grey -- no rule down the left (it is the Agent's own
+// The thinking is rendered as markdown like any other model prose: the
+// chain of thought comes back with its own paragraphs, dashes and emphasis,
+// and showing that as literal characters is the same defect the reply had.
+// A step smaller and grey -- no rule down the left (it is the Agent's own
 // thinking, not a quotation of anything) and no height cap (a reader
 // following a live turn should not have to scroll a box inside the page to
 // see the end of a thought).
 const THOUGHTS_BODY_CLASSES =
-  'reference-thoughts-trail mt-2 max-w-[47rem] text-sm leading-relaxed ' +
-  'whitespace-pre-wrap text-cosci-muted';
+  'reference-thoughts-trail mt-2 max-w-[47rem] text-sm text-cosci-muted';
 
 // The disclosure chevron, trailing the label and the ellipsis. It points
 // down while the panel is open -- which is its default, and the state a live
 // turn is in -- and flips up when the thinking is folded away. Rotated
 // rather than swapped for a second glyph so both states are one shape.
 const THOUGHTS_CHEVRON_CLASSES =
-  'text-sm transition-transform duration-150 rotate-180 group-open:rotate-0';
+  'text-base transition-transform duration-150 rotate-180 group-open:rotate-0';
 
 /**
  * The counting ellipsis shown while the Agent is still thinking.
@@ -91,7 +95,7 @@ function ThoughtsSummary({live}: {live: boolean}) {
  */
 function ThoughtsTrail({trail}: {trail: string}) {
   if (!trail) return null;
-  return <div className={THOUGHTS_BODY_CLASSES}>{trail}</div>;
+  return <MarkdownMessage content={trail} className={THOUGHTS_BODY_CLASSES} />;
 }
 
 /**
