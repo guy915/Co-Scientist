@@ -118,7 +118,9 @@ def _capture_model_input(
     """Record the interview each model call is given, and answer with it."""
 
     async def _model(
-        interview: dict[str, Any], _on_reasoning: Any = None
+        interview: dict[str, Any],
+        _on_reasoning: Any = None,
+        _on_prose: Any = None,
     ) -> dict[str, Any]:
         seen.append(interview)
         return reply

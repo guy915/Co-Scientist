@@ -41,7 +41,13 @@ from app.interviews_model import (
     _INTERVIEW_TOTAL_SECONDS as _INTERVIEW_TOTAL_SECONDS,
 )
 from app.interviews_model import (
+    ProseSink as ProseSink,
+)
+from app.interviews_model import (
     ReasoningSink as ReasoningSink,
+)
+from app.interviews_model import (
+    TurnSinks as TurnSinks,
 )
 from app.interviews_model import (
     _call_interview_model as _call_interview_model,
@@ -63,9 +69,6 @@ from app.interviews_models import (
 )
 from app.interviews_models import (
     InterviewTurnRequest as InterviewTurnRequest,
-)
-from app.interviews_prompts import (
-    _RESPONSE_SCHEMA as _RESPONSE_SCHEMA,
 )
 from app.interviews_prompts import (
     _SYSTEM_PROMPT as _SYSTEM_PROMPT,
@@ -157,7 +160,9 @@ def _reasoning_capture(
 
 
 async def _advance(
-    interview_id: str, on_reasoning: ReasoningSink | None = None
+    interview_id: str,
+    on_reasoning: ReasoningSink | None = None,
+    on_prose: ProseSink | None = None,
 ) -> dict[str, Any]:
     """Run one Agent turn and persist its derivation for later resume.
 
@@ -169,6 +174,7 @@ async def _advance(
     Args:
         interview_id: The interview to advance.
         on_reasoning: Optional sink for live chain-of-thought fragments.
+        on_prose: Optional sink for the answer's prose as it is written.
 
     Returns:
         The updated interview row.
@@ -176,7 +182,9 @@ async def _advance(
     interview = store.get_interview(interview_id)
     assert interview is not None
     sink, fragments = _reasoning_capture(on_reasoning)
-    response, used_fallback = await _run_interview_turn(interview, sink)
+    response, used_fallback = await _run_interview_turn(
+        interview, sink, on_prose
+    )
     turn = _resolved_turn(response, used_fallback, "".join(fragments))
     _persist_interview_turn(interview_id, turn)
     updated = store.get_interview(interview_id)
@@ -253,7 +261,9 @@ def _persist_interview_turn(interview_id: str, turn: _ResolvedTurn) -> None:
 
 
 async def _run_interview_turn(
-    interview: dict[str, Any], on_reasoning: ReasoningSink | None
+    interview: dict[str, Any],
+    on_reasoning: ReasoningSink | None,
+    on_prose: ProseSink | None = None,
 ) -> tuple[dict[str, Any], bool]:
     """Call the interview model, falling back on a 503.
 
@@ -266,7 +276,10 @@ async def _run_interview_turn(
         A ``(response, used_fallback)`` pair.
     """
     try:
-        return await _call_interview_model(interview, on_reasoning), False
+        response = await _call_interview_model(
+            interview, on_reasoning, on_prose
+        )
+        return response, False
     except HTTPException as exc:
         if exc.status_code != 503:
             raise

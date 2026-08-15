@@ -27,6 +27,7 @@ from ._interviews_helpers import (
     _patch_model_sequence,
     _response,
     _run_antibiotic_interview,
+    _wire_turn,
 )
 
 
@@ -45,7 +46,9 @@ def _patch_model_raising(
     """Patch the interview model to raise ``exc`` on every call."""
 
     async def _unavailable(
-        _interview: dict[str, Any], _on_reasoning: Any = None
+        _interview: dict[str, Any],
+        _on_reasoning: Any = None,
+        _on_prose: Any = None,
     ) -> dict[str, Any]:
         raise exc
 
@@ -62,7 +65,7 @@ def _patch_streaming_litellm(
     import litellm
 
     async def _fake_acompletion(**_kwargs: Any) -> Any:
-        return _fake_stream(json.dumps(response), reasoning=reasoning)
+        return _fake_stream(_wire_turn(response), reasoning=reasoning)
 
     monkeypatch.setattr(litellm, "acompletion", _fake_acompletion)
     monkeypatch.setattr(settings, "chat_model_name", "deepseek/deepseek-v4-pro")
@@ -174,7 +177,9 @@ def test_interview_is_owner_scoped_and_requires_completion(
     """Private interview state cannot be read or used by another client."""
 
     async def _model(
-        _interview: dict[str, Any], _on_reasoning: Any = None
+        _interview: dict[str, Any],
+        _on_reasoning: Any = None,
+        _on_prose: Any = None,
     ) -> dict[str, Any]:
         return _response("Which mechanism should be prioritized?")
 
@@ -208,7 +213,9 @@ def test_scientist_can_edit_and_finalize_fields(
     """Explicit edits persist and complete once all required fields exist."""
 
     async def _model(
-        _interview: dict[str, Any], _on_reasoning: Any = None
+        _interview: dict[str, Any],
+        _on_reasoning: Any = None,
+        _on_prose: Any = None,
     ) -> dict[str, Any]:
         return _response("Clarify the focus area.")
 
@@ -263,10 +270,19 @@ def test_turn_streams_real_reasoning_before_resolving(
         )
 
     frames = _stream_frames(created)
-    assert [frame["type"] for frame in frames] == ["reasoning", "interview"]
+    # The answer's prose streams too, as `chunk` frames between the
+    # reasoning and the resolved turn.
+    assert [frame["type"] for frame in frames] == [
+        "reasoning",
+        "chunk",
+        "interview",
+    ]
     assert frames[0]["content"] == "No mechanism named yet, so ask for one."
+    assert frames[1]["content"].strip() == (
+        "Which mechanism should we prioritize?"
+    )
 
-    interview = frames[1]["interview"]
+    interview = frames[2]["interview"]
     assert interview["status"] == "active"
     agent_turns = [
         turn for turn in interview["turns"] if turn["role"] == "agent"

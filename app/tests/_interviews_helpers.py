@@ -18,6 +18,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app import interviews
+from app.interviews_wire import CLOSE_MARKER, OPEN_MARKER
 
 
 @dataclasses.dataclass(frozen=True)
@@ -45,6 +46,24 @@ def _response(
     }
 
 
+def _wire_turn(response: dict[str, Any]) -> str:
+    """Render a response dict as one turn in the model's wire format.
+
+    The prose the scientist reads, then the trailing spec block carrying
+    everything else, which is what the model is asked to produce and what
+    ``TurnSplitter`` is written to take apart.
+    """
+    fields = {
+        key: value
+        for key, value in response.items()
+        if key != "assistant_message"
+    }
+    return (
+        f"{response['assistant_message']}\n\n"
+        f"{OPEN_MARKER}\n{json.dumps(fields)}\n{CLOSE_MARKER}"
+    )
+
+
 def _interview_payload(response: Any) -> dict[str, Any]:
     """Return the interview carried by a streamed turn's terminal frame.
 
@@ -70,11 +89,19 @@ def _interview_payload(response: Any) -> dict[str, Any]:
 def _patch_model_sequence(
     monkeypatch: pytest.MonkeyPatch, responses: list[dict[str, Any]]
 ) -> None:
-    """Patch the interview model to return each response in turn."""
+    """Patch the interview model to return each response in turn.
+
+    The prose sink is accepted and ignored: these cases assert on what a
+    turn resolves to, not on how it streamed, and a fake that refused the
+    argument would fail every turn as a provider outage rather than as the
+    signature mismatch it is.
+    """
     replies = iter(responses)
 
     async def _model(
-        _interview: dict[str, Any], _on_reasoning: Any = None
+        _interview: dict[str, Any],
+        _on_reasoning: Any = None,
+        _on_prose: Any = None,
     ) -> dict[str, Any]:
         return next(replies)
 

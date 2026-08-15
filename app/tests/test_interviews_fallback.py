@@ -55,7 +55,9 @@ def _patch_model_failing_after(
     replies: Iterator[dict[str, Any]] = iter(responses)
 
     async def _model(
-        _interview: dict[str, Any], _on_reasoning: Any = None
+        _interview: dict[str, Any],
+        _on_reasoning: Any = None,
+        _on_prose: Any = None,
     ) -> dict[str, Any]:
         try:
             return next(replies)
@@ -71,7 +73,9 @@ def test_keyless_fallback_turns_are_marked(
     """Every turn the scripted recovery authors is marked, durably."""
 
     async def _unavailable(
-        _interview: dict[str, Any], _on_reasoning: Any = None
+        _interview: dict[str, Any],
+        _on_reasoning: Any = None,
+        _on_prose: Any = None,
     ) -> dict[str, Any]:
         raise HTTPException(status_code=503, detail="unavailable")
 
@@ -113,7 +117,9 @@ def test_credentialed_turns_are_not_marked(
     replies = iter([first, second])
 
     async def _model(
-        _interview: dict[str, Any], _on_reasoning: Any = None
+        _interview: dict[str, Any],
+        _on_reasoning: Any = None,
+        _on_prose: Any = None,
     ) -> dict[str, Any]:
         return next(replies)
 
@@ -177,12 +183,15 @@ def test_byok_turn_is_not_marked(
     the deployment key produced.
     """
 
-    async def fake_stream(interview: dict[str, Any], on_reasoning: Any) -> str:
-        return (
-            '{"assistant_message": "Which focus area matters most?",'
-            ' "research_challenge": "challenge",'
-            ' "focus_area": [], "preferences": [], "completed": false}'
-        )
+    async def fake_stream(
+        interview: dict[str, Any], sinks: Any
+    ) -> tuple[str, dict[str, Any]]:
+        return "Which focus area matters most?", {
+            "research_challenge": "challenge",
+            "focus_area": [],
+            "preferences": [],
+            "completed": False,
+        }
 
     monkeypatch.setattr(
         "app.interviews_model._stream_interview_content", fake_stream

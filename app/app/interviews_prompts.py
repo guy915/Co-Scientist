@@ -16,45 +16,49 @@ from typing import Any
 from app import paper_corpus, store
 from app.audience import audience_chat_context
 from app.config import settings
+from app.interviews_wire import CLOSE_MARKER, OPEN_MARKER
 from app.text_utils import combine_blocks
 
-# ``lab_constraints`` (K5) is declared but not required: the scientist may
-# legitimately have none, the field is elicited when relevant rather than on
-# a fixed schedule, and normalization defaults an omission to the empty list.
-_RESPONSE_SCHEMA = {
-    "name": "research_goal_interview",
-    "schema": {
-        "type": "object",
-        "properties": {
-            "assistant_message": {"type": "string", "minLength": 1},
-            "research_challenge": {"type": "string", "minLength": 1},
-            "focus_area": {"type": "array", "items": {"type": "string"}},
-            "preferences": {"type": "array", "items": {"type": "string"}},
-            "lab_constraints": {
-                "type": "array",
-                "items": {"type": "string"},
-            },
-            "title": {"type": ["string", "null"]},
-            "completed": {"type": "boolean"},
-        },
-        "required": [
-            "assistant_message",
-            "research_challenge",
-            "focus_area",
-            "preferences",
-            "title",
-            "completed",
-        ],
-        "additionalProperties": False,
-    },
-}
+# The turn's shape, restated for the model. The five fields are unchanged
+# from the JSON-object format this replaced; what changed is where they
+# live -- a trailing block, after prose that is now ordinary markdown rather
+# than a string inside a JSON document. ``lab_constraints`` (K5) is optional:
+# the scientist may legitimately have none, the field is elicited when
+# relevant rather than on a fixed schedule, and normalization defaults an
+# omission to the empty list.
+_FORMAT_PROMPT = (
+    "Write your reply to the scientist as ordinary markdown. Then, on its "
+    "own line after the reply, emit exactly one block:\n\n"
+    f"{OPEN_MARKER}\n"
+    '{"research_challenge": "...", "focus_area": ["..."], '
+    '"preferences": ["..."], "lab_constraints": ["..."], '
+    '"title": "..." or null, "completed": true or false}\n'
+    f"{CLOSE_MARKER}\n\n"
+    "Rules for the block:\n"
+    "- It MUST be the last thing in your reply, and MUST appear exactly "
+    "once. Never open it before you have finished writing to the "
+    "scientist.\n"
+    "- It carries the interview's whole current state, not just what this "
+    "turn changed. Repeat fields that did not change.\n"
+    "- It is machine-read and never shown to the scientist, so never "
+    "mention it, and never refer to it in your reply.\n"
+    "- Its contents MUST be valid JSON. Do not wrap it in a code fence."
+)
 
 _SYSTEM_PROMPT = (
     "You are the Agent conducting Google Hypothesis Generation's "
     "research-goal interview. Collaboratively scope one scientific research "
-    "goal. Ask exactly one concise, context-sensitive question at a time. "
-    "Derive only information the scientist supplied; never invent laboratory "
-    "capabilities, data, constraints, or preferences.\n\n"
+    "goal. Derive only information the scientist supplied; never invent "
+    "laboratory capabilities, data, constraints, or preferences.\n\n"
+    "Ask about one thing at a time: a turn raises a single topic, so the "
+    "scientist is never handed a questionnaire. Within that, write the way "
+    "a knowledgeable colleague would -- brief prose, and markdown where it "
+    "genuinely helps (a short list when you are laying out options, bold "
+    "for the term you are asking about, a table only when comparing). "
+    "Reflect back what you understood before asking, so the scientist can "
+    "correct you. Do not pad: a single clear sentence is a complete turn, "
+    "and formatting used for its own sake makes the interview slower to "
+    "read, not richer.\n\n"
     "Maintain exactly five structured fields:\n"
     "1. Research Challenge: the precise scientific question or hypothesis.\n"
     "2. Focus Area: scientific subareas or mechanisms to prioritize.\n"
@@ -75,8 +79,8 @@ _SYSTEM_PROMPT = (
     "Continue until the challenge is precise, at least one focus area is "
     "known, and meaningful preferences or an explicit statement that there "
     "are none is captured. Then summarize the finalized goal, set "
-    "completed=true, and ask no further question. Return only schema-valid "
-    "JSON."
+    "completed to true, and ask no further question.\n\n"
+    f"{_FORMAT_PROMPT}"
 )
 
 
@@ -206,49 +210,27 @@ def _prompt(interview: dict[str, Any]) -> str:
     return json.dumps(context, ensure_ascii=False)
 
 
-def _interview_request(interview: dict[str, Any]) -> tuple[str, Any, Any]:
-    """Build the model, messages, and response_format for one Agent turn.
+def _interview_request(interview: dict[str, Any]) -> tuple[str, Any]:
+    """Build the model and messages for one Agent turn.
+
+    The turn carries no ``response_format`` at all. It used to: a
+    ``json_schema`` request for providers that support it and a
+    ``json_object`` downgrade (with the schema restated in the prompt) for
+    those that do not. Both are gone with the JSON envelope they enforced --
+    the answer is now prose plus a trailing block, which no provider-side
+    format can describe. Little was lost with the branch: production runs
+    DeepSeek, which only ever got the ``json_object`` downgrade, and that
+    mode constrains the response to *some* JSON object, never to this
+    schema.
 
     Args:
         interview: The durable interview row being advanced.
 
     Returns:
-        A ``(model, messages, response_format)`` triple ready for litellm.
+        A ``(model, messages)`` pair ready for litellm.
     """
-    from co_scientist.llm_request import _supports_json_schema_response_format
-
-    model = settings.effective_chat_model
-    system_prompt = _system_prompt(interview)
-    user_prompt = _prompt(interview)
-    if _supports_json_schema_response_format(model):
-        return model, *_json_schema_turn(system_prompt, user_prompt)
-    # DeepSeek and other json_object-only providers reject the json_schema
-    # response format; downgrade to json_object and restate the schema in the
-    # prompt, mirroring the engine's provider-capability shim so the interview
-    # survives providers the science path already handles.
-    return model, *_json_object_turn(system_prompt, user_prompt)
-
-
-def _json_schema_turn(system_prompt: str, user_prompt: str) -> tuple[Any, Any]:
-    """Build the messages/response_format pair for a schema-capable model."""
     messages = [
-        {"role": "system", "content": system_prompt},
-        {"role": "user", "content": user_prompt},
+        {"role": "system", "content": _system_prompt(interview)},
+        {"role": "user", "content": _prompt(interview)},
     ]
-    return messages, {"type": "json_schema", "json_schema": _RESPONSE_SCHEMA}
-
-
-def _json_object_turn(system_prompt: str, user_prompt: str) -> tuple[Any, Any]:
-    """Build the messages/response_format pair for a json_object-only model."""
-    from co_scientist.llm_request import _inject_schema_into_prompt
-
-    messages = [
-        {"role": "system", "content": system_prompt},
-        {
-            "role": "user",
-            "content": _inject_schema_into_prompt(
-                user_prompt, _RESPONSE_SCHEMA
-            ),
-        },
-    ]
-    return messages, {"type": "json_object"}
+    return settings.effective_chat_model, messages

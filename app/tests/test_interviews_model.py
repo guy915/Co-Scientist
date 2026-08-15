@@ -1,8 +1,8 @@
 """Tests for the interview model call (``interviews._call_interview_model``).
 
 These cases drive the model-call boundary directly rather than through the
-streaming endpoints: response-format downgrade for DeepSeek, native schema for
-supporting models, and audience-context injection.
+streaming endpoints: the turn's wire format, what a turn missing its spec
+block resolves to, and audience-context injection.
 """
 
 from __future__ import annotations
@@ -13,28 +13,29 @@ import pytest
 
 from app import interviews
 from app.config import settings
+from app.interviews_wire import CLOSE_MARKER, OPEN_MARKER
 
-from ._interviews_helpers import _fake_stream, _response
+from ._interviews_helpers import _fake_stream, _response, _wire_turn
 
 
-async def test_interview_downgrades_response_format_for_deepseek(
+async def test_interview_asks_for_prose_and_a_spec_block(
     monkeypatch: pytest.MonkeyPatch, reachable_provider: None
 ) -> None:
-    """DeepSeek rejects json_schema, so the interview must use json_object.
+    """The turn carries no response_format, and says so in the prompt.
 
-    The engine already downgrades DeepSeek to json_object + schema-in-prompt;
-    the interview call must defer to the same provider-capability check rather
-    than hardcoding json_schema (which DeepSeek returns a BadRequest for).
+    Both response formats are gone with the JSON envelope they enforced --
+    a json_schema request for providers that support it and a json_object
+    downgrade for those that do not. The answer is prose plus a trailing
+    block now, which no provider-side format can describe, so the shape is
+    stated in the prompt and taken apart by ``interviews_wire``.
     """
-    import json
-
     import litellm
 
     captured: dict[str, Any] = {}
 
     async def _fake_acompletion(**kwargs: Any) -> Any:
         captured.update(kwargs)
-        return _fake_stream(json.dumps(_response("Which mechanism?")))
+        return _fake_stream(_wire_turn(_response("Which mechanism?")))
 
     monkeypatch.setattr(litellm, "acompletion", _fake_acompletion)
     monkeypatch.setattr(settings, "chat_model_name", "deepseek/deepseek-chat")
@@ -45,37 +46,48 @@ async def test_interview_downgrades_response_format_for_deepseek(
     }
     result = await interviews._call_interview_model(interview)
 
-    assert captured["response_format"] == {"type": "json_object"}
-    # The schema is restated in the prompt so structure survives the downgrade.
+    assert "response_format" not in captured
     prompt_text = " ".join(m["content"] for m in captured["messages"])
-    assert "assistant_message" in prompt_text
+    assert OPEN_MARKER in prompt_text
+    assert CLOSE_MARKER in prompt_text
     assert result["assistant_message"] == "Which mechanism?"
 
 
-async def test_interview_keeps_json_schema_for_supporting_model(
+async def test_interview_keeps_fields_when_a_turn_omits_its_block(
     monkeypatch: pytest.MonkeyPatch, reachable_provider: None
 ) -> None:
-    """A model that supports json_schema still gets the native schema format."""
-    import json
+    """A turn with no spec block keeps the prose and the previous fields.
 
+    The old format made this fatal: unparseable output raised 503 and the
+    whole turn was discarded into the deterministic fallback. The fields are
+    cumulative interview state, so a turn that reports none has simply
+    learned nothing new about them, and the scientist should still be shown
+    what the Agent said.
+    """
     import litellm
 
-    captured: dict[str, Any] = {}
-
-    async def _fake_acompletion(**kwargs: Any) -> Any:
-        captured.update(kwargs)
-        return _fake_stream(json.dumps(_response("ok")))
+    async def _fake_acompletion(**_kwargs: Any) -> Any:
+        return _fake_stream("Which mechanism should we prioritize?")
 
     monkeypatch.setattr(litellm, "acompletion", _fake_acompletion)
-    monkeypatch.setattr(settings, "chat_model_name", "openai/gpt-4o")
+    monkeypatch.setattr(settings, "chat_model_name", "deepseek/deepseek-chat")
 
-    interview = {
-        "turns": [{"role": "user", "content": "test"}],
-        "fields": {},
+    previous = {
+        "research_challenge": "Restore susceptibility",
+        "focus_area": ["Efflux-pump regulation"],
     }
-    await interviews._call_interview_model(interview)
+    interview = {
+        "turns": [{"role": "user", "content": "restore susceptibility"}],
+        "fields": previous,
+    }
+    result = await interviews._call_interview_model(interview)
 
-    assert captured["response_format"]["type"] == "json_schema"
+    assert (
+        result["assistant_message"] == "Which mechanism should we prioritize?"
+    )
+    assert result["research_challenge"] == "Restore susceptibility"
+    assert result["focus_area"] == ["Efflux-pump regulation"]
+    assert result["completed"] is False
 
 
 async def test_interview_carries_audience_lab_context(

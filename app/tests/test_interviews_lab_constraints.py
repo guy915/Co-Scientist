@@ -55,7 +55,9 @@ def test_model_turn_persists_elicited_lab_constraints(
     """Constraints the model derives from the scientist are persisted."""
 
     async def _model(
-        _interview: dict[str, Any], _on_reasoning: Any = None
+        _interview: dict[str, Any],
+        _on_reasoning: Any = None,
+        _on_prose: Any = None,
     ) -> dict[str, Any]:
         return _lab_response(
             "The goal is ready for run configuration.",
@@ -84,7 +86,9 @@ def test_model_turn_omitting_lab_constraints_normalizes_empty(
     """A response without the field (an older model turn) records none."""
 
     async def _model(
-        _interview: dict[str, Any], _on_reasoning: Any = None
+        _interview: dict[str, Any],
+        _on_reasoning: Any = None,
+        _on_prose: Any = None,
     ) -> dict[str, Any]:
         return _response(
             "The goal is ready.",
@@ -130,7 +134,9 @@ def test_scripted_fallback_completes_without_the_field(
     """
 
     async def _unavailable(
-        _interview: dict[str, Any], _on_reasoning: Any = None
+        _interview: dict[str, Any],
+        _on_reasoning: Any = None,
+        _on_prose: Any = None,
     ) -> dict[str, Any]:
         raise HTTPException(status_code=503, detail="unavailable")
 
