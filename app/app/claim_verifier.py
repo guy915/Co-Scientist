@@ -186,7 +186,7 @@ def _call_llm_entailment(
             timeout=thinking_safe_timeout(model, timeout),
             response_format={"type": "json_object"},
             **deepseek_thinking_kwargs(model),
-            **({"api_key": api_key} if api_key else {}),
+            api_key=api_key,
         )
         return response.choices[0].message.content or ""
     except Exception as exc:

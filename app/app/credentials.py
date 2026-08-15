@@ -34,7 +34,7 @@ import logging
 from collections.abc import Iterator, Mapping
 from contextvars import ContextVar
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from app.config import byok_default_model, settings
 
@@ -271,8 +271,13 @@ def delete_run_credential(run_id: str, db_path: str | None = None) -> None:
 # ---------------------------------------------------------------------------
 
 
-async def _acompletion(**kwargs: object) -> object:
-    """Indirection over litellm.acompletion so tests can monkeypatch."""
+async def _acompletion(**kwargs: Any) -> object:
+    """Indirection over litellm.acompletion so tests can monkeypatch.
+
+    Typed ``Any`` rather than ``object`` because these are forwarded
+    verbatim to a signature of ~40 specifically-typed parameters, which a
+    checker resolving that signature reads as one type error per parameter.
+    """
     import litellm
 
     return await litellm.acompletion(**kwargs)

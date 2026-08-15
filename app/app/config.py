@@ -1,6 +1,7 @@
 """Application configuration using pydantic-settings."""
 
 import os
+from typing import Any
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -353,7 +354,7 @@ def _is_deepseek(model_name: str) -> bool:
     return "deepseek" in model_name.lower()
 
 
-def deepseek_non_thinking_extra_body(model_name: str) -> dict[str, object]:
+def deepseek_non_thinking_extra_body(model_name: str) -> dict[str, Any]:
     """Return an ``extra_body`` that disables DeepSeek V4 thinking mode.
 
     Used by one call site: title generation, a 3-6 word extraction whose
@@ -376,7 +377,7 @@ def deepseek_non_thinking_extra_body(model_name: str) -> dict[str, object]:
     return {"thinking": {"type": "disabled"}}
 
 
-def deepseek_thinking_kwargs(model_name: str) -> dict[str, object]:
+def deepseek_thinking_kwargs(model_name: str) -> dict[str, Any]:
     """Build litellm kwargs enabling DeepSeek V4 thinking at low effort.
 
     DeepSeek V4 (pro/flash) return chain-of-thought separately as

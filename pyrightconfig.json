@@ -1,0 +1,48 @@
+// Editor-only configuration. The enforced gates stay mypy (app, engine,
+// evaluations, mcp_server) and ruff; nothing in CI reads this file. It exists
+// because an editor's Pyright, rooted at the repo, resolves neither the
+// interpreter nor the import roots: it has no venv to read third-party
+// packages from, and "app" resolves to this directory rather than to the
+// app/app package, so every "from app import ..." in a file that is perfectly
+// type-clean under mypy reads as an unknown symbol.
+//
+// One venv per config is all Pyright supports, so this points at app/.venv --
+// the superset, since "make setup" installs the engine into it editable. The
+// mcp_server package keeps its own 3.12 environment at .venv-mcp (see
+// AGENTS.md) whose third-party imports this cannot resolve; run mypy from
+// engine/mcp_server for that package.
+//
+// executionEnvironments is first-match-wins, so engine/mcp_server must stay
+// ahead of engine.
+{
+  "venvPath": "app",
+  "venv": ".venv",
+  "pythonVersion": "3.12",
+  "exclude": [
+    "**/node_modules",
+    "**/__pycache__",
+    "**/.venv*",
+    "**/build",
+    "**/dist",
+    "references",
+    "corpus"
+  ],
+  "executionEnvironments": [
+    {
+      "root": "app",
+      "extraPaths": ["app"]
+    },
+    {
+      "root": "engine/mcp_server",
+      "extraPaths": ["engine"]
+    },
+    {
+      "root": "engine",
+      "extraPaths": ["engine/src"]
+    },
+    {
+      "root": "evaluations",
+      "extraPaths": ["evaluations", "app", "engine/src"]
+    }
+  ]
+}

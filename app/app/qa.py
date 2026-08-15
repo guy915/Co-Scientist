@@ -328,7 +328,7 @@ async def _stream_llm_deltas(
         timeout=_QA_TOTAL_SECONDS,
         stream=True,
         **deepseek_thinking_kwargs(model),
-        **({"api_key": api_key} if api_key else {}),
+        api_key=api_key,
     )
     async for chunk in stream_chunks(
         response,

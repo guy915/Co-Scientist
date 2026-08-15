@@ -81,7 +81,7 @@ async def _call_semantic_safety_model(
         max_tokens=thinking_safe_max_tokens(model, 1_000),
         timeout=thinking_safe_timeout(model, 20),
         **deepseek_thinking_kwargs(model),
-        **({"api_key": api_key} if api_key else {}),
+        api_key=api_key,
     )
     content = response.choices[0].message.content or "{}"
     parsed: dict[str, Any] = json.loads(content)

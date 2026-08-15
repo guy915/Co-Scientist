@@ -135,7 +135,7 @@ async def _request_title_completion(goal: str) -> Any:
             temperature=0.3,
             max_tokens=_TITLE_MAX_TOKENS,
             extra_body=deepseek_non_thinking_extra_body(model),
-            **({"api_key": api_key} if api_key else {}),
+            api_key=api_key,
         ),
         timeout=_TITLE_TIMEOUT_SECONDS,
     )
