@@ -1,4 +1,4 @@
-import {useState} from 'react';
+import {type Dispatch, type SetStateAction, useEffect, useState} from 'react';
 import {Icon} from '@/components/icon';
 import {MarkdownMessage} from '@/components/markdown_message';
 
@@ -83,6 +83,26 @@ function ThoughtsSummary({live}: {live: boolean}) {
 }
 
 /**
+ * Folds the thinking away as soon as the answer starts arriving.
+ *
+ * The thinking is open while it is the only thing there is to watch, and the
+ * first token of the reply is what makes it stale -- waiting for the turn to
+ * finish left a wall of reasoning above the answer being written. Fires on
+ * the transition only, so a reader who opens it back up keeps it open.
+ *
+ * @param answering Whether the reply has started arriving.
+ * @param setOpen The disclosure's open-state setter.
+ */
+function useCollapseOnAnswer(
+  answering: boolean,
+  setOpen: Dispatch<SetStateAction<boolean>>,
+) {
+  useEffect(() => {
+    if (answering) setOpen(false);
+  }, [answering, setOpen]);
+}
+
+/**
  * The chain of thought itself: plain running text that grows with the turn.
  *
  * It used to live in a capped, scrolling box, which meant following a live
@@ -116,16 +136,21 @@ function ThoughtsTrail({trail}: {trail: string}) {
  *
  * @param reasoning The chain of thought, as far as it has been written.
  * @param live Whether the turn producing it is still in flight.
+ * @param answering Whether the reply has begun arriving, which folds the
+ *   thinking away (see useCollapseOnAnswer).
  */
 export function ThoughtsDisclosure({
   reasoning,
   live = false,
+  answering,
 }: {
   reasoning?: string;
   live?: boolean;
+  answering?: boolean;
 }) {
   const [open, setOpen] = useState(live);
   const trail = (reasoning ?? '').trim();
+  useCollapseOnAnswer(Boolean(answering), setOpen);
   // A finished turn with no reasoning has nothing to disclose. A live one
   // shows the label from the first moment, before any thought has arrived.
   if (!live && !trail) return null;

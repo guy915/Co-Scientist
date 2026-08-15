@@ -146,7 +146,13 @@ function thinkingTimelineItems({
       id: 'agent-thinking',
       at: Date.now() / 1000,
       order: 45,
-      node: <ThoughtsDisclosure reasoning={agentReasoning} live />,
+      node: (
+        <ThoughtsDisclosure
+          reasoning={agentReasoning}
+          live
+          answering={Boolean(agentDraft)}
+        />
+      ),
     },
   ];
   if (agentDraft) {

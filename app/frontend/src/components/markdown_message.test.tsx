@@ -17,6 +17,17 @@ describe('MarkdownMessage', () => {
     expect(screen.queryByText(/\*\*Primary\*\*/)).toBeNull();
   });
 
+  it('gives emphasis weight but never a color of its own', () => {
+    // The thinking trail renders through this too, in grey. Naming a
+    // foreground color here made bold text inside it jump to the reply's
+    // color and read as a different voice.
+    render(<MarkdownMessage content={'A **bold** word'} />);
+
+    const strong = screen.getByText('bold');
+    expect(strong.className).toContain('font-medium');
+    expect(strong.className).not.toMatch(/text-/);
+  });
+
   it('renders a table, which is what GFM support is for', () => {
     render(
       <MarkdownMessage

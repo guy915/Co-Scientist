@@ -32,25 +32,75 @@ function timelineScrollTarget(
   return {signature, anchorMode};
 }
 
+// How close to the bottom still counts as following along. Anything further
+// up is a reader who scrolled there deliberately, and that position is
+// theirs to keep: a streaming turn appends text on every token, so without
+// this the timeline hauled them back down several times a second and reading
+// back over the reply was impossible until the turn finished.
+const FOLLOW_THRESHOLD_PX = 64;
+
+// The two refs the scroll effects below share: the scroller itself and the
+// last signature auto-scrolled for.
+interface TimelineScrollRefs {
+  scroller: RefObject<HTMLDivElement | null>;
+  previousSignature: RefObject<string>;
+}
+
+/**
+ * Whether the reader is close enough to the bottom to be following along.
+ *
+ * Measured here, at the moment of the scroll, rather than tracked from a
+ * `scroll` listener. The listener version has a hole: the browser delivers
+ * scroll events asynchronously, so a token landing in the same frame as the
+ * reader's gesture still sees the stale "at the bottom" flag and hauls them
+ * back down -- and once back at the bottom the flag is true again, so they
+ * are stuck there. This runs after the DOM has already grown, which only
+ * costs the growth itself (a line or so per fragment), well inside the
+ * threshold.
+ */
+function isFollowingBottom(scroller: HTMLDivElement): boolean {
+  const gap =
+    scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight;
+  return gap <= FOLLOW_THRESHOLD_PX;
+}
+
 // Effect body for the signature-based auto-scroll below: fires whenever the
 // timeline's signature changes (new item, or an item's timestamp changed),
 // skipping the very first render's signature and any re-render that doesn't
-// actually change the timeline. The zero-delay timeout defers until after
-// layout so scrollHeight reflects the new DOM.
+// actually change the timeline. A bottom anchor only follows a reader who is
+// already at the bottom; a top anchor (a tall spec card arriving) is a
+// discrete event and jumps regardless. The zero-delay timeout defers until
+// after layout so scrollHeight reflects the new DOM.
 function syncTimelineScroll(
-  scrollRef: RefObject<HTMLDivElement | null>,
-  previousTimelineSignature: RefObject<string>,
+  refs: TimelineScrollRefs,
   timelineSignature: string,
   timelineAnchorMode: 'top' | 'bottom',
 ) {
-  const scroller = scrollRef.current;
-  if (!scroller || previousTimelineSignature.current === timelineSignature) {
+  const scroller = refs.scroller.current;
+  if (!scroller || refs.previousSignature.current === timelineSignature) {
     return;
   }
-  previousTimelineSignature.current = timelineSignature;
+  refs.previousSignature.current = timelineSignature;
+  if (timelineAnchorMode === 'bottom' && !isFollowingBottom(scroller)) return;
   const timeout = window.setTimeout(() => {
     scroller.scrollTop =
       timelineAnchorMode === 'top' ? 0 : scroller.scrollHeight;
+  }, 0);
+  return () => window.clearTimeout(timeout);
+}
+
+// Effect body for the scroll that follows sending a turn. Sending is an
+// explicit act, so it re-attaches the view wherever the reader had scrolled
+// to -- otherwise a follow-up typed while reading back would appear off
+// screen with nothing seeming to happen.
+function syncSentTurnScroll(
+  refs: TimelineScrollRefs,
+  isAwaitingAgent: boolean,
+) {
+  const scroller = refs.scroller.current;
+  if (!isAwaitingAgent || !scroller) return;
+  const timeout = window.setTimeout(() => {
+    scroller.scrollTop = scroller.scrollHeight;
   }, 0);
   return () => window.clearTimeout(timeout);
 }
@@ -81,31 +131,34 @@ function syncStartedSessionScroll(
  *
  * @param timelineItems The current, already-sorted timeline items.
  * @param startedSession The started session, if any (always anchors bottom).
+ * @param isAwaitingAgent Whether a turn is in flight; its rising edge is the
+ *   reader's own send, which re-attaches the view to the bottom.
  * @returns The ref to attach to the scrollable timeline container.
  */
 export function useChatTimelineScroll(
   timelineItems: TimelineItem[],
   startedSession: StartedSession | null,
+  isAwaitingAgent = false,
 ) {
   // Scrollable timeline container; scrollTop is driven imperatively below.
   const scrollRef = useRef<HTMLDivElement>(null);
   // Last timeline signature we auto-scrolled for, so the effect below only
   // fires when the timeline actually changed shape/order.
   const previousTimelineSignature = useRef('');
+  const refs: TimelineScrollRefs = {
+    scroller: scrollRef,
+    previousSignature: previousTimelineSignature,
+  };
 
   const {signature: timelineSignature, anchorMode: timelineAnchorMode} =
     timelineScrollTarget(timelineItems, startedSession);
 
   useEffect(
-    () =>
-      syncTimelineScroll(
-        scrollRef,
-        previousTimelineSignature,
-        timelineSignature,
-        timelineAnchorMode,
-      ),
+    () => syncTimelineScroll(refs, timelineSignature, timelineAnchorMode),
     [timelineAnchorMode, timelineSignature],
   );
+
+  useEffect(() => syncSentTurnScroll(refs, isAwaitingAgent), [isAwaitingAgent]);
 
   useEffect(
     () => syncStartedSessionScroll(scrollRef, startedSession),

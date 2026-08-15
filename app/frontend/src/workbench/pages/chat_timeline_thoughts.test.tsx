@@ -50,6 +50,20 @@ test('drops the dots and closes once the turn has landed', () => {
   expect(container.querySelector('details')?.open).toBe(false);
 });
 
+test('folds itself away as soon as the answer starts arriving', () => {
+  // Not when the turn ends: the first token of the reply is what makes the
+  // thinking stale, and leaving it open until then buries the answer being
+  // written under a wall of reasoning.
+  const {container, rerender} = render(
+    <ThoughtsDisclosure reasoning="A thought." live />,
+  );
+  expect(container.querySelector('details')?.open).toBe(true);
+
+  rerender(<ThoughtsDisclosure reasoning="A thought." live answering />);
+
+  expect(container.querySelector('details')?.open).toBe(false);
+});
+
 test('renders nothing for a finished turn that produced no reasoning', () => {
   const {container} = render(<ThoughtsDisclosure reasoning="   " />);
   expect(container).toBeEmptyDOMElement();

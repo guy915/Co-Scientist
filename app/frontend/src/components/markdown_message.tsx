@@ -82,8 +82,11 @@ const COMPONENTS = {
   li: ({children}: Props<'li'>) => (
     <li className="leading-[1.5]">{children}</li>
   ),
+  // Weight only, never a color: emphasis inherits whatever the surface sets,
+  // so bold text inside the grey thinking trail stays grey instead of
+  // jumping to the reply's foreground and reading as a different voice.
   strong: ({children}: Props<'strong'>) => (
-    <strong className="font-medium text-cosci-fg">{children}</strong>
+    <strong className="font-medium">{children}</strong>
   ),
   code: ({children}: Props<'code'>) => (
     <code className="rounded-md bg-cosci-hover px-1 py-0.5 font-mono text-[0.9em]">
@@ -131,13 +134,12 @@ const COMPONENTS = {
   hr: () => <hr className={`${BLOCK} my-3 border-cosci-border`} />,
 };
 
-/** A heading in model prose, at one size for every markdown level. */
+/**
+ * A heading in model prose, at one size for every markdown level. Weight
+ * only, no color of its own, for the same reason as `strong` above.
+ */
 function MarkdownHeading({children}: {children: ReactNode}) {
-  return (
-    <p className={`${BLOCK} mt-3 mb-1.5 font-medium text-cosci-fg`}>
-      {children}
-    </p>
-  );
+  return <p className={`${BLOCK} mt-3 mb-1.5 font-medium`}>{children}</p>;
 }
 
 /**

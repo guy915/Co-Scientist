@@ -74,6 +74,7 @@ export function useConversationLayout(
   const scrollRef = useChatTimelineScroll(
     timelineItems,
     session.startedSession,
+    session.isAwaitingAgent,
   );
 
   // The composer overlays the timeline, so its measured height becomes the
