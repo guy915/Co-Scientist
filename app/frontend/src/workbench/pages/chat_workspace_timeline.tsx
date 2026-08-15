@@ -1,10 +1,4 @@
-import {
-  type Dispatch,
-  type ReactNode,
-  type SetStateAction,
-  useEffect,
-  useRef,
-} from 'react';
+import {type Dispatch, type ReactNode, type SetStateAction} from 'react';
 import {type NavigateFunction} from 'react-router-dom';
 import {type RunFocus, type RunTier} from '@/api/runs';
 import {MarkdownMessage} from '@/components/markdown_message';
@@ -18,10 +12,6 @@ import {
   StartedSessionCard,
 } from './chat_timeline_cards';
 import {ThoughtsDisclosure} from './chat_timeline_thoughts';
-
-const EVENT_DETAIL_CLASSES =
-  'mt-2 max-h-24 overflow-y-auto border-l-2 border-th-border pl-3 text-xs ' +
-  'leading-relaxed whitespace-pre-wrap text-th-muted-fg';
 
 /**
  * One renderable entry in the chat timeline.
@@ -114,51 +104,6 @@ function messageTimelineItems({
 }
 
 /**
- * The Agent's live chain of thought while it composes an interview turn.
- *
- * The text is the model's own reasoning, streamed as it is produced: DeepSeek
- * emits its whole chain of thought before the first token of the answer, so
- * the trail fills while the scientist waits. Until the first fragment lands
- * there is nothing real to show, so the label stands alone.
- */
-function AgentThinking({reasoning}: {reasoning: string}) {
-  const trailRef = useRef<HTMLDivElement>(null);
-
-  // Follow the newest thought as the model writes, like a log tail.
-  useEffect(() => {
-    const trail = trailRef.current;
-    if (trail) trail.scrollTop = trail.scrollHeight;
-  }, [reasoning]);
-
-  return (
-    <div className="px-1 py-2">
-      {/* The only thing announced: a single stable message that never
-          changes per token. The streamed reasoning below is real,
-          model-authored chain of thought -- putting it in a live region too
-          would re-announce the whole trail to a screen reader on every
-          token, which is unusable. It stays visible, just not spoken. */}
-      <span
-        className="animate-pulse text-sm text-th-muted-fg"
-        role="status"
-        aria-live="polite"
-      >
-        Thinking…
-      </span>
-      {reasoning && (
-        <div
-          ref={trailRef}
-          // Capped and scrollable: reasoning can outrun the viewport, and it
-          // must never push the composer or the arriving reply off screen.
-          className={EVENT_DETAIL_CLASSES}
-        >
-          {reasoning}
-        </div>
-      )}
-    </div>
-  );
-}
-
-/**
  * The Agent's reply as it is being written.
  *
  * Rendered in the same bubble the finished turn lands in, so the reply does
@@ -183,6 +128,10 @@ function AgentDraft({draft}: {draft: string}) {
 // The thinking stays visible under the reply because a thinking model has
 // finished reasoning before its first answer token, so the trail is a record
 // of how the reply was reached rather than something still filling.
+//
+// It is the same disclosure the finished turn keeps, in its live state: one
+// control that stops counting and closes, rather than one control replaced by
+// another as the turn resolves.
 function thinkingTimelineItems({
   isAwaitingAgent,
   agentReasoning,
@@ -197,7 +146,7 @@ function thinkingTimelineItems({
       id: 'agent-thinking',
       at: Date.now() / 1000,
       order: 45,
-      node: <AgentThinking reasoning={agentReasoning} />,
+      node: <ThoughtsDisclosure reasoning={agentReasoning} live />,
     },
   ];
   if (agentDraft) {

@@ -102,6 +102,15 @@ export const MODEL_BUBBLE_CLASSES =
   'reference-model-bubble max-w-[50.75rem] text-base leading-[1.45] ' +
   'text-cosci-fg';
 
+// Assistant bubble text. Deliberately *not* USER_BUBBLE_TEXT_CLASSES: that
+// carries `whitespace-pre-wrap`, which is right for a plain-text span and
+// wrong for rendered markdown. React-markdown emits a literal newline text
+// node between adjacent block elements, so under pre-wrap every paragraph
+// boundary painted a full extra line on top of its own margin and the reply
+// read as double-spaced.
+export const MODEL_BUBBLE_TEXT_CLASSES =
+  'reference-model-bubble-text min-w-0 break-words';
+
 // Message action row (retry/copy/download icons): the inline row shown below
 // assistant bubbles (MESSAGE_ACTIONS_CLASSES) versus the row that floats over
 // a user bubble's right edge on hover/focus (MESSAGE_ACTIONS_END_CLASSES),

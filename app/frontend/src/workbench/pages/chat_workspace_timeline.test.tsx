@@ -69,7 +69,7 @@ it('shows the model reasoning it has streamed so far', () => {
     ),
   );
 
-  expect(screen.getByText('Thinking…')).toBeInTheDocument();
+  expect(screen.getByText('Thinking')).toBeInTheDocument();
   expect(
     screen.getByText('The scientist named no mechanism, so ask for one.'),
   ).toBeInTheDocument();
@@ -80,7 +80,7 @@ it('shows only the label until the first reasoning arrives', () => {
     buildTimelineItems(baseArgs({isAwaitingAgent: true, agentReasoning: ''})),
   );
 
-  expect(screen.getByText('Thinking…')).toBeInTheDocument();
+  expect(screen.getByText('Thinking')).toBeInTheDocument();
   // No empty reasoning trail before the model has produced any.
   expect(container.querySelector('.border-l-2')).toBeNull();
 });
@@ -95,7 +95,7 @@ it('keeps the streamed reasoning out of the announced live region', () => {
     ),
   );
 
-  const label = screen.getByText('Thinking…');
+  const label = screen.getByText('Thinking');
   expect(label.closest('[role="status"], [aria-live]')).not.toBeNull();
 
   const trail = screen.getByText(
@@ -114,7 +114,7 @@ it('renders nothing once the turn resolves', () => {
     ),
   );
 
-  expect(screen.queryByText('Thinking…')).toBeNull();
+  expect(screen.queryByText('Thinking')).toBeNull();
   expect(screen.queryByText('stale thought')).toBeNull();
 });
 

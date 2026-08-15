@@ -154,12 +154,24 @@ export function MarkdownMessage({
   className?: string;
 }) {
   return (
+    // `whitespace-normal` is load-bearing, not tidying: react-markdown emits
+    // a literal newline text node between adjacent block elements, so under
+    // pre-wrap every paragraph boundary paints a full extra line. This
+    // defends against pre-wrap *inherited* from an ancestor, where an
+    // explicit value on this element always wins. It does not defend against
+    // a competing whitespace class arriving through `className`, since two
+    // classes on one element are resolved by stylesheet order -- so the
+    // surface passing the class stays responsible for not sending one
+    // (see MODEL_BUBBLE_TEXT_CLASSES).
+    //
     // A markdown list written with blank lines between its items is "loose",
     // and every item's content is then wrapped in a paragraph. Those inherit
     // the paragraph margin above, which double-spaces the list and reads as
     // broken rather than as emphasis -- so a paragraph inside a list item
     // carries no vertical margin of its own.
-    <div className={`min-w-0 break-words [&_li_p]:my-0 ${className}`}>
+    <div
+      className={`min-w-0 break-words whitespace-normal [&_li_p]:my-0 ${className}`}
+    >
       <Markdown remarkPlugins={[remarkGfm]} components={COMPONENTS}>
         {content}
       </Markdown>

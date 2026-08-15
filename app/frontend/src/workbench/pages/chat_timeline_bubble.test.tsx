@@ -57,3 +57,20 @@ test('renders assistant markdown, and leaves user text literal', () => {
   renderBubble({role: 'user', content: 'Use **primary** cells'});
   expect(screen.getByText('Use **primary** cells')).toBeInTheDocument();
 });
+
+test('does not render assistant markdown under pre-wrap whitespace', () => {
+  // React-markdown puts a literal newline text node between adjacent blocks,
+  // so pre-wrap paints a whole extra line at every paragraph boundary and the
+  // reply reads as double-spaced. The user bubble keeps pre-wrap (the test
+  // below it), which is exactly the divergence: one shows rendered blocks,
+  // the other a plain-text span whose typed line breaks must survive.
+  const {container} = renderBubble({
+    role: 'assistant',
+    content: 'First para.\n\nSecond para.',
+  });
+  const wrapper = container.querySelector('.reference-model-bubble-text');
+  expect(wrapper).not.toBeNull();
+  expect(wrapper?.className).not.toContain('whitespace-pre-wrap');
+  expect(wrapper?.className).toContain('whitespace-normal');
+  expect(container.querySelectorAll('p')).toHaveLength(2);
+});

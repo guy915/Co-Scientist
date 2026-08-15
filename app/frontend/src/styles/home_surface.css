@@ -50,6 +50,80 @@
   margin-top: 0;
 }
 
+/* The live "Thinking" trail's ellipsis, which counts 1-2-3 and starts over
+   rather than sitting still. Three fixed dots whose opacity animates, never
+   inserted or removed characters: the summary's width is then constant, so
+   the label and the chevron beside it cannot shuffle sideways mid-thought.
+   The three keyframes run one shared 1.4s timeline with no delays, which is
+   what keeps them in phase -- each dot lights at its own quarter and all
+   three go out together at the wrap. */
+.reference-thinking-dots {
+  display: inline-flex;
+  align-self: flex-end;
+  align-items: center;
+  gap: 0.15rem;
+  padding-bottom: 0.28rem;
+}
+
+.reference-thinking-dots > span {
+  width: 0.22rem;
+  height: 0.22rem;
+  border-radius: 9999px;
+  background: currentcolor;
+}
+
+@keyframes reference-thinking-dot-1 {
+  0%,
+  24% {
+    opacity: 0;
+  }
+
+  25%,
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes reference-thinking-dot-2 {
+  0%,
+  49% {
+    opacity: 0;
+  }
+
+  50%,
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes reference-thinking-dot-3 {
+  0%,
+  74% {
+    opacity: 0;
+  }
+
+  75%,
+  to {
+    opacity: 1;
+  }
+}
+
+/* Gated on no-preference, so reduced-motion readers get all three dots
+   standing still rather than a blinking ellipsis. */
+@media (prefers-reduced-motion: no-preference) {
+  .reference-thinking-dots > span:nth-child(1) {
+    animation: reference-thinking-dot-1 1.4s infinite;
+  }
+
+  .reference-thinking-dots > span:nth-child(2) {
+    animation: reference-thinking-dot-2 1.4s infinite;
+  }
+
+  .reference-thinking-dots > span:nth-child(3) {
+    animation: reference-thinking-dot-3 1.4s infinite;
+  }
+}
+
 .reference-home-stage {
   box-sizing: border-box;
   display: grid;

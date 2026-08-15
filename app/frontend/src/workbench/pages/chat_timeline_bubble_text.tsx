@@ -12,6 +12,7 @@ import {Icon} from '@/components/icon';
 import {MarkdownMessage} from '@/components/markdown_message';
 import {tooltipClassNames} from '../tooltip';
 import {
+  MODEL_BUBBLE_TEXT_CLASSES,
   USER_BUBBLE_TEXT_CLAMP_CLASSES,
   USER_BUBBLE_TEXT_CLASSES,
   USER_BUBBLE_TEXT_COLLAPSIBLE_CLASSES,
@@ -335,9 +336,12 @@ export interface BubbleTextProps {
 // An assistant bubble renders its content as markdown: the Agent writes
 // ordinary markdown now rather than one line inside a JSON field, so a reply
 // laying out options as a list has to arrive as a list rather than as
-// literal hyphens and asterisks. A user bubble stays a plain text span --
-// it carries what the scientist typed, which must never be reinterpreted as
-// markup, and the collapse measurement above reads that span's own metrics.
+// literal hyphens and asterisks. It takes MODEL_BUBBLE_TEXT_CLASSES rather
+// than the hook's className, whose `whitespace-pre-wrap` double-spaced the
+// rendered blocks (see that constant). A user bubble stays a plain text span
+// -- it carries what the scientist typed, which must never be reinterpreted
+// as markup, and the collapse measurement above reads that span's own
+// metrics, pre-wrap included.
 export function BubbleText({
   isUser,
   bubbleClassName,
@@ -353,7 +357,10 @@ export function BubbleText({
   if (!isUser) {
     return (
       <div className={bubbleClassName}>
-        <MarkdownMessage content={content} className={bubbleTextClassName} />
+        <MarkdownMessage
+          content={content}
+          className={MODEL_BUBBLE_TEXT_CLASSES}
+        />
       </div>
     );
   }
