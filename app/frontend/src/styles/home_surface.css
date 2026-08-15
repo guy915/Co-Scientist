@@ -50,26 +50,15 @@
   margin-top: 0;
 }
 
-/* The live "Thinking" trail's ellipsis, which counts 1-2-3 and starts over
-   rather than sitting still. Three fixed dots whose opacity animates, never
-   inserted or removed characters: the summary's width is then constant, so
-   the label and the chevron beside it cannot shuffle sideways mid-thought.
+/* The live "Thinking" ellipsis, which counts 1-2-3 and starts over rather
+   than sitting still. Three ordinary periods in the label's own type, faded
+   in and out rather than typed and deleted: all three occupy their space the
+   whole time, so the chevron beside them cannot shuffle sideways mid-thought.
    The three keyframes run one shared 1.4s timeline with no delays, which is
-   what keeps them in phase -- each dot lights at its own quarter and all
+   what keeps them in phase -- each period lights at its own quarter and all
    three go out together at the wrap. */
 .reference-thinking-dots {
-  display: inline-flex;
-  align-self: flex-end;
-  align-items: center;
-  gap: 0.15rem;
-  padding-bottom: 0.28rem;
-}
-
-.reference-thinking-dots > span {
-  width: 0.22rem;
-  height: 0.22rem;
-  border-radius: 9999px;
-  background: currentcolor;
+  display: inline;
 }
 
 @keyframes reference-thinking-dot-1 {

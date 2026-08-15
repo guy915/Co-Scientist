@@ -14,6 +14,19 @@ test('counts dots and stands open while the turn is still being written', () => 
   expect(container.querySelector(DOTS)).not.toBeNull();
   expect(container.querySelector('details')?.open).toBe(true);
   expect(screen.getByText('Weighing two mechanisms.')).toBeInTheDocument();
+  // Real periods in the label's own type, not drawn circles.
+  expect(container.querySelector(DOTS)?.textContent).toBe('...');
+});
+
+test('lets the thinking run as plain text, uncapped and unquoted', () => {
+  const {container} = render(
+    <ThoughtsDisclosure reasoning="A long thought." live />,
+  );
+  const trail = container.querySelector('.reference-thoughts-trail');
+
+  // It is the Agent's own thinking, not a quotation, and a reader following
+  // a live turn should not have to scroll a box inside the scrolling page.
+  expect(trail?.className).not.toMatch(/border-l|max-h-|overflow-y/);
 });
 
 test('shows the label before the first thought arrives', () => {
@@ -21,8 +34,8 @@ test('shows the label before the first thought arrives', () => {
 
   expect(screen.getByText('Thinking')).toBeInTheDocument();
   expect(container.querySelector(DOTS)).not.toBeNull();
-  // No empty trail: the left rule appears with the first fragment.
-  expect(container.querySelector('.border-l-2')).toBeNull();
+  // No empty trail: the text block appears with the first fragment.
+  expect(container.querySelector('.reference-thoughts-trail')).toBeNull();
 });
 
 test('drops the dots and closes once the turn has landed', () => {

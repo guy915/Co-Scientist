@@ -82,7 +82,7 @@ it('shows only the label until the first reasoning arrives', () => {
 
   expect(screen.getByText('Thinking')).toBeInTheDocument();
   // No empty reasoning trail before the model has produced any.
-  expect(container.querySelector('.border-l-2')).toBeNull();
+  expect(container.querySelector('.reference-thoughts-trail')).toBeNull();
 });
 
 it('keeps the streamed reasoning out of the announced live region', () => {

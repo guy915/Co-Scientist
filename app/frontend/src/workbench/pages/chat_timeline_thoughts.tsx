@@ -1,4 +1,4 @@
-import {useEffect, useRef, useState} from 'react';
+import {useState} from 'react';
 import {Icon} from '@/components/icon';
 
 // Open while the Agent is still writing, collapsed once the turn is done:
@@ -16,33 +16,35 @@ const THOUGHTS_SUMMARY_CLASSES =
   'focus-visible:text-cosci-fg';
 
 // Reasoning is plain text, not markdown, so it keeps `whitespace-pre-wrap`:
-// the model's own line breaks are the only structure it has. Sized a step
-// under the reply and quoted by a left rule, so it reads as an aside to the
-// message rather than as part of it.
+// the model's own line breaks are the only structure it has. Just text, a
+// step smaller and grey -- no rule down the left (it is the Agent's own
+// thinking, not a quotation of anything) and no height cap (a reader
+// following a live turn should not have to scroll a box inside the page to
+// see the end of a thought).
 const THOUGHTS_BODY_CLASSES =
-  'mt-2 max-h-56 max-w-[47rem] overflow-y-auto border-l-2 border-th-border ' +
-  'pl-3 text-sm leading-relaxed whitespace-pre-wrap text-cosci-muted';
+  'reference-thoughts-trail mt-2 max-w-[47rem] text-sm leading-relaxed ' +
+  'whitespace-pre-wrap text-cosci-muted';
 
-// The disclosure chevron, trailing the label (and the dots, while they are
-// there) and pointing the way the next click moves the panel. Rotated rather
-// than swapped for a second glyph so open and closed are the same shape in
-// two positions.
+// The disclosure chevron, trailing the label and the ellipsis. It points
+// down while the panel is open -- which is its default, and the state a live
+// turn is in -- and flips up when the thinking is folded away. Rotated
+// rather than swapped for a second glyph so both states are one shape.
 const THOUGHTS_CHEVRON_CLASSES =
-  'text-sm transition-transform duration-150 group-open:rotate-180';
+  'text-sm transition-transform duration-150 rotate-180 group-open:rotate-0';
 
 /**
  * The counting ellipsis shown while the Agent is still thinking.
  *
- * Three dots that fill in one at a time and start over, so the label reads
- * as live work rather than a stalled one. Decorative: the label beside it is
- * what gets announced.
+ * Three ordinary periods in the label's own type, fading in one at a time
+ * and starting over, so the label reads as live work rather than a stalled
+ * one. Decorative: the word beside them is what gets announced.
  */
 function ThinkingDots() {
   return (
     <span className="reference-thinking-dots" aria-hidden="true">
-      <span />
-      <span />
-      <span />
+      <span>.</span>
+      <span>.</span>
+      <span>.</span>
     </span>
   );
 }
@@ -57,13 +59,16 @@ function ThinkingDots() {
 function ThoughtsSummary({live}: {live: boolean}) {
   return (
     <summary className={THOUGHTS_SUMMARY_CLASSES}>
+      {/* The ellipsis sits inside the label rather than beside it, so the
+          summary's own gap does not push it off the word: it has to read as
+          "Thinking..." and not as a word followed by three loose periods. */}
       <span
         role={live ? 'status' : undefined}
         aria-live={live ? 'polite' : undefined}
       >
         Thinking
+        {live && <ThinkingDots />}
       </span>
-      {live && <ThinkingDots />}
       <Icon
         aria-hidden="true"
         className={THOUGHTS_CHEVRON_CLASSES}
@@ -74,36 +79,19 @@ function ThoughtsSummary({live}: {live: boolean}) {
 }
 
 /**
- * Keeps the trail scrolled to the newest thought as the model writes.
+ * The chain of thought itself: plain running text that grows with the turn.
  *
- * @param reasoning The chain of thought so far; each fragment re-tails it.
- * @returns The ref to attach to the scrolling trail element.
- */
-function useThoughtsTrail(reasoning: string) {
-  const trailRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    const trail = trailRef.current;
-    if (trail) trail.scrollTop = trail.scrollHeight;
-  }, [reasoning]);
-  return trailRef;
-}
-
-/**
- * The chain of thought itself, capped and scrollable: reasoning can outrun
- * the viewport, and it must never push the composer or the arriving reply off
- * screen. Renders nothing until the first fragment lands, so a live turn does
- * not open on an empty rule.
+ * It used to live in a capped, scrolling box, which meant following a live
+ * turn required scrolling a panel inside the scrolling page. It now flows
+ * with the timeline, which already follows the newest content. Renders
+ * nothing until the first fragment lands, so a live turn does not open on an
+ * empty block.
  *
  * @param trail The reasoning written so far.
  */
 function ThoughtsTrail({trail}: {trail: string}) {
-  const trailRef = useThoughtsTrail(trail);
   if (!trail) return null;
-  return (
-    <div ref={trailRef} className={THOUGHTS_BODY_CLASSES}>
-      {trail}
-    </div>
-  );
+  return <div className={THOUGHTS_BODY_CLASSES}>{trail}</div>;
 }
 
 /**
