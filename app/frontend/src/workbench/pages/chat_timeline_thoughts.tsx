@@ -1,13 +1,24 @@
-import {type Dispatch, type SetStateAction, useEffect, useState} from 'react';
+import {
+  type Dispatch,
+  type SetStateAction,
+  useEffect,
+  useId,
+  useState,
+} from 'react';
 import {Icon} from '@/components/icon';
 import {MarkdownMessage} from '@/components/markdown_message';
 
 // Open while the Agent is still writing, collapsed once the turn is done:
-// the thinking is there to be checked afterwards, not read every time. The
-// marker is suppressed so the summary can carry its own chevron.
-const THOUGHTS_CLASSES = 'ucs-thoughts group mt-1 mb-4 [&>summary]:list-none';
+// the thinking is there to be checked afterwards, not read every time.
+//
+// Built as a button and a panel rather than <details>/<summary>. A native
+// details element hides its content outright, so opening and closing can
+// only ever snap; nothing about the state change is animatable. The
+// disclosure state therefore lives in React (it already did, to seed open
+// from `live`) and drives the panel's own transition below.
+const THOUGHTS_CLASSES = 'ucs-thoughts mt-1 mb-4';
 
-// One summary for both states, at one size. The control used to change
+// One label for both states, at one size. The control used to change
 // shape as the turn resolved -- a pulsing "Thinking…" at one size became a
 // chevroned "Thinking" at another -- which read as two different controls
 // swapping places rather than as one settling.
@@ -15,9 +26,34 @@ const THOUGHTS_CLASSES = 'ucs-thoughts group mt-1 mb-4 [&>summary]:list-none';
 // No horizontal padding: the label is the first thing in the bubble, and any
 // left padding stood it inset from the reply beneath it.
 const THOUGHTS_SUMMARY_CLASSES =
-  'inline-flex cursor-pointer items-center gap-1 rounded-full ' +
+  'inline-flex cursor-pointer items-center gap-1 rounded-full border-0 ' +
+  'bg-transparent p-0 text-left ' +
   'text-base font-medium text-cosci-muted hover:text-cosci-fg ' +
   'focus-visible:text-cosci-fg';
+
+// The panel opens and closes by animating its grid track between 0fr and
+// 1fr, which transitions to the content's own natural height without any
+// measuring -- the reasoning grows the whole time a turn streams, so a
+// measured max-height would be stale before it finished animating. The
+// child below owns the overflow clip; this element only animates the track.
+const THOUGHTS_PANEL_CLASSES =
+  'grid transition-[grid-template-rows,opacity] duration-300 ease-out ' +
+  'motion-reduce:transition-none';
+
+// Pure: the panel's open/closed track and fade.
+function panelStateClasses(open: boolean): string {
+  return open ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0';
+}
+
+// Pure: the chevron's rotation, timed with the panel so the two read as one
+// movement rather than a glyph that snaps ahead of the text it labels.
+function chevronClasses(open: boolean): string {
+  return (
+    'text-base transition-transform duration-300 ease-out ' +
+    'motion-reduce:transition-none ' +
+    (open ? 'rotate-0' : 'rotate-180')
+  );
+}
 
 // The thinking is rendered as markdown like any other model prose: the
 // chain of thought comes back with its own paragraphs, dashes and emphasis,
@@ -28,13 +64,6 @@ const THOUGHTS_SUMMARY_CLASSES =
 // see the end of a thought).
 const THOUGHTS_BODY_CLASSES =
   'reference-thoughts-trail mt-2 max-w-[47rem] text-sm text-cosci-muted';
-
-// The disclosure chevron, trailing the label and the ellipsis. It points
-// down while the panel is open -- which is its default, and the state a live
-// turn is in -- and flips up when the thinking is folded away. Rotated
-// rather than swapped for a second glyph so both states are one shape.
-const THOUGHTS_CHEVRON_CLASSES =
-  'text-base transition-transform duration-150 rotate-180 group-open:rotate-0';
 
 /**
  * The counting ellipsis shown while the Agent is still thinking.
@@ -58,13 +87,35 @@ function ThinkingDots() {
  *
  * Only the live state announces itself. The finished disclosure renders the
  * same word, and a screen reader meeting it as a status update would hear
- * "Thinking" about a turn that has already landed.
+ * "Thinking" about a turn that has already landed. The button carries the
+ * disclosure semantics <summary> used to give for free.
+ *
+ * @param live Whether the turn is still in flight.
+ * @param open Whether the panel is currently open.
+ * @param panelId The id of the panel this button controls.
+ * @param onToggle Flips the panel open or closed.
  */
-function ThoughtsSummary({live}: {live: boolean}) {
+function ThoughtsSummary({
+  live,
+  open,
+  panelId,
+  onToggle,
+}: {
+  live: boolean;
+  open: boolean;
+  panelId: string;
+  onToggle: () => void;
+}) {
   return (
-    <summary className={THOUGHTS_SUMMARY_CLASSES}>
+    <button
+      type="button"
+      className={THOUGHTS_SUMMARY_CLASSES}
+      aria-expanded={open}
+      aria-controls={panelId}
+      onClick={onToggle}
+    >
       {/* The ellipsis sits inside the label rather than beside it, so the
-          summary's own gap does not push it off the word: it has to read as
+          row's own gap does not push it off the word: it has to read as
           "Thinking..." and not as a word followed by three loose periods. */}
       <span
         role={live ? 'status' : undefined}
@@ -75,10 +126,10 @@ function ThoughtsSummary({live}: {live: boolean}) {
       </span>
       <Icon
         aria-hidden="true"
-        className={THOUGHTS_CHEVRON_CLASSES}
+        className={chevronClasses(open)}
         name="expand_more"
       />
-    </summary>
+    </button>
   );
 }
 
@@ -149,19 +200,32 @@ export function ThoughtsDisclosure({
   answering?: boolean;
 }) {
   const [open, setOpen] = useState(live);
+  const panelId = useId();
   const trail = (reasoning ?? '').trim();
   useCollapseOnAnswer(Boolean(answering), setOpen);
   // A finished turn with no reasoning has nothing to disclose. A live one
   // shows the label from the first moment, before any thought has arrived.
   if (!live && !trail) return null;
   return (
-    <details
-      className={THOUGHTS_CLASSES}
-      open={open}
-      onToggle={event => setOpen(event.currentTarget.open)}
-    >
-      <ThoughtsSummary live={live} />
-      <ThoughtsTrail trail={trail} />
-    </details>
+    <div className={THOUGHTS_CLASSES}>
+      <ThoughtsSummary
+        live={live}
+        open={open}
+        panelId={panelId}
+        onToggle={() => setOpen(current => !current)}
+      />
+      {/* `inert` while closed so a collapsed panel is out of the tab order
+          and the accessibility tree, which <details> gave for free and a
+          zero-height grid track does not. */}
+      <div
+        id={panelId}
+        inert={!open}
+        className={`${THOUGHTS_PANEL_CLASSES} ${panelStateClasses(open)}`}
+      >
+        <div className="overflow-hidden">
+          <ThoughtsTrail trail={trail} />
+        </div>
+      </div>
+    </div>
   );
 }

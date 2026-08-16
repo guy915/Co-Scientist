@@ -6,13 +6,22 @@ import {ThoughtsDisclosure} from './chat_timeline_thoughts';
 // rather than by role or text.
 const DOTS = '.reference-thinking-dots';
 
+// The panel is a button plus a region rather than <details>/<summary>, so
+// that opening and closing can animate; `aria-expanded` is where the
+// disclosure state now reads from.
+function isOpen(container: HTMLElement): boolean {
+  return (
+    container.querySelector('button')?.getAttribute('aria-expanded') === 'true'
+  );
+}
+
 test('counts dots and stands open while the turn is still being written', () => {
   const {container} = render(
     <ThoughtsDisclosure reasoning="Weighing two mechanisms." live />,
   );
 
   expect(container.querySelector(DOTS)).not.toBeNull();
-  expect(container.querySelector('details')?.open).toBe(true);
+  expect(isOpen(container)).toBe(true);
   expect(screen.getByText('Weighing two mechanisms.')).toBeInTheDocument();
   // Real periods in the label's own type, not drawn circles.
   expect(container.querySelector(DOTS)?.textContent).toBe('...');
@@ -47,7 +56,7 @@ test('drops the dots and closes once the turn has landed', () => {
   // the whole difference between the two states.
   expect(screen.getByText('Thinking')).toBeInTheDocument();
   expect(container.querySelector(DOTS)).toBeNull();
-  expect(container.querySelector('details')?.open).toBe(false);
+  expect(isOpen(container)).toBe(false);
 });
 
 test('folds itself away as soon as the answer starts arriving', () => {
@@ -57,11 +66,11 @@ test('folds itself away as soon as the answer starts arriving', () => {
   const {container, rerender} = render(
     <ThoughtsDisclosure reasoning="A thought." live />,
   );
-  expect(container.querySelector('details')?.open).toBe(true);
+  expect(isOpen(container)).toBe(true);
 
   rerender(<ThoughtsDisclosure reasoning="A thought." live answering />);
 
-  expect(container.querySelector('details')?.open).toBe(false);
+  expect(isOpen(container)).toBe(false);
 });
 
 test('renders nothing for a finished turn that produced no reasoning', () => {
@@ -73,16 +82,11 @@ test('lets the reader close the panel while the Agent is still writing', () => {
   const {container} = render(
     <ThoughtsDisclosure reasoning="A thought." live />,
   );
-  const details = container.querySelector('details');
+  expect(isOpen(container)).toBe(true);
 
-  // jsdom does not implement the summary click that toggles a details, so
-  // the open state is driven the way the browser would drive it.
-  if (details) {
-    details.open = false;
-    fireEvent(details, new Event('toggle'));
-  }
+  fireEvent.click(screen.getByRole('button'));
 
-  expect(details?.open).toBe(false);
+  expect(isOpen(container)).toBe(false);
 });
 
 test('announces the live label only, never the raw chain of thought', () => {
@@ -98,4 +102,24 @@ test('announces the live label only, never the raw chain of thought', () => {
 test('does not announce a finished turn as a live status', () => {
   render(<ThoughtsDisclosure reasoning="A thought." />);
   expect(screen.getByText('Thinking').closest('[role="status"]')).toBeNull();
+});
+
+test('animates between the two states rather than snapping', () => {
+  // A native <details> hides its content outright, so the panel is a grid
+  // track animated between 0fr and 1fr instead -- which reaches the
+  // content's own height without measuring reasoning that is still growing.
+  const {container} = render(
+    <ThoughtsDisclosure reasoning="A thought." live />,
+  );
+  const panel = container.querySelector('[id]');
+
+  expect(panel?.className).toContain('transition-');
+  expect(panel?.className).toContain('grid-rows-[1fr]');
+
+  fireEvent.click(screen.getByRole('button'));
+
+  expect(panel?.className).toContain('grid-rows-[0fr]');
+  // Out of the tab order and the accessibility tree while collapsed, which
+  // <details> gave for free.
+  expect(panel?.hasAttribute('inert')).toBe(true);
 });
