@@ -33,14 +33,26 @@ def _semantic_prompt(text: str, stage: str) -> str:
     """Build a bounded contextual-risk classification prompt."""
     return (
         "Classify the scientific content under a research safety policy. "
-        "Return JSON only with category, reason, risk_domains, and "
-        "operational_detail. category must be one of prohibited, "
-        "ethical_concern, uncertain, redacted, allowed. Treat requests that "
-        "meaningfully enable weaponization, harmful pathogen enhancement, "
-        "mass-casualty capability, non-consensual human experimentation, or "
-        "evasion as prohibited or ethical_concern. Legitimate dual-use work "
-        "with actionable harmful operational detail is redacted. Ambiguous "
-        "risk is uncertain. Do not reproduce or elaborate unsafe detail.\n"
+        "Return JSON only with category, reason, risk_domains, "
+        "operational_detail, offensive_score, "
+        "is_personal_medical_recommendation, and "
+        "is_personal_finance_recommendation. category must be one of "
+        "prohibited, ethical_concern, uncertain, redacted, allowed. Treat "
+        "requests that meaningfully enable weaponization, harmful pathogen "
+        "enhancement, mass-casualty capability, non-consensual human "
+        "experimentation, or evasion as prohibited or ethical_concern. "
+        "Legitimate dual-use work with actionable harmful operational detail "
+        "is redacted. Ambiguous risk is uncertain. Do not reproduce or "
+        "elaborate unsafe detail.\n"
+        "offensive_score is 1-5, where 5 is content a colleague would report "
+        "as demeaning, harassing, or discriminatory toward a group of people; "
+        "clinical or frank language about a disease, a population, or a body "
+        "is 1.\n"
+        "The two recommendation flags are true only when the content asks "
+        "for, or gives, a course of action for one named person's own health "
+        "or money -- their diagnosis, their treatment, their portfolio. "
+        "Research about a disease, a drug, a market or a cohort is false, "
+        "including when the person writing has the condition themselves.\n"
         f"Stage: {stage}\nContent:\n{text[:16000]}"
     )
 
@@ -52,6 +64,71 @@ _SEMANTIC_CATEGORY_TO_DECISION = {
     "redacted": "redact",
     "allowed": "allow",
 }
+
+# Structured signals the reference product carries on its run config
+# (offensive_score 1-5, is_personal_medical_recommendation,
+# is_personal_finance_recommendation) rather than leaving to prose. They are
+# read here, inside the one authoritative screen, and not as a second verdict
+# beside it: each fires a named risk domain on the decision the caller
+# already gates on, and can only raise an otherwise-clean pass to a hold for
+# human adjudication. Nothing here lowers a verdict, and nothing here blocks
+# -- these three name a misuse of the product or a tone problem, neither of
+# which is the deterministic policy's hard-hazard case.
+_OFFENSIVE_HOLD_SCORE = 4
+
+_PERSONAL_RECOMMENDATION_FLAGS = {
+    "is_personal_medical_recommendation": "personal_medical_recommendation",
+    "is_personal_finance_recommendation": "personal_finance_recommendation",
+}
+
+
+def _offensive_score(parsed: dict[str, Any]) -> float:
+    """Read the 1-5 offensiveness score, unparseable values reading lowest."""
+    try:
+        return float(parsed.get("offensive_score") or 0)
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def _structured_flag_domains(parsed: dict[str, Any]) -> list[str]:
+    """Name the risk domains the model's structured flags raise.
+
+    Args:
+        parsed: The semantic model's parsed JSON response.
+
+    Returns:
+        Risk-domain names, in a stable order; empty when nothing fires.
+    """
+    domains = [
+        domain
+        for key, domain in _PERSONAL_RECOMMENDATION_FLAGS.items()
+        if parsed.get(key) is True
+    ]
+    if _offensive_score(parsed) >= _OFFENSIVE_HOLD_SCORE:
+        domains.append("offensive_content")
+    return domains
+
+
+_FLAG_HOLD_REASONS = {
+    "personal_medical_recommendation": (
+        "reads as a personal medical recommendation rather than a research goal"
+    ),
+    "personal_finance_recommendation": (
+        "reads as a personal financial recommendation rather than a research "
+        "goal"
+    ),
+    "offensive_content": "was assessed as offensive toward a group of people",
+}
+
+
+def _flag_hold_reason(domains: list[str]) -> str:
+    """Phrase the hold a structured flag raises, naming what fired."""
+    causes = " and it ".join(
+        _FLAG_HOLD_REASONS[domain]
+        for domain in domains
+        if domain in _FLAG_HOLD_REASONS
+    )
+    return f"Content {causes}; human review required."
 
 
 async def _call_semantic_safety_model(
@@ -88,6 +165,30 @@ async def _call_semantic_safety_model(
     return parsed
 
 
+def _merge_risk_domains(
+    parsed: dict[str, Any], flagged: list[str]
+) -> list[str]:
+    """Combine the model's free-text risk domains with the flagged ones.
+
+    Deduplicated because the model can name a domain in prose that a
+    structured flag also raises, and a decision listing the same risk twice
+    reads as two findings.
+
+    Args:
+        parsed: The semantic model's parsed JSON response.
+        flagged: Risk domains raised by the structured flags.
+
+    Returns:
+        The domains in first-seen order.
+    """
+    reported = parsed.get("risk_domains")
+    merged = (
+        [str(item) for item in reported] if isinstance(reported, list) else []
+    )
+    merged.extend(domain for domain in flagged if domain not in merged)
+    return merged
+
+
 def _build_semantic_decision(
     stage: str, model: str, parsed: dict[str, Any]
 ) -> SafetyDecision:
@@ -96,15 +197,21 @@ def _build_semantic_decision(
     if category not in _SEMANTIC_CATEGORY_TO_DECISION:
         category = "uncertain"
     decision = _SEMANTIC_CATEGORY_TO_DECISION[category]
-    domains = parsed.get("risk_domains")
+    reason = str(parsed.get("reason") or "Contextual safety assessment.")
+    flagged = _structured_flag_domains(parsed)
+    # Escalate-only, and only from a clean pass: a structured flag can turn
+    # an "allowed" verdict into a hold, but never softens a category the
+    # model already withheld on, and never overwrites its reason for doing so.
+    if flagged and decision == "allow":
+        decision = "hold"
+        category = "uncertain"
+        reason = _flag_hold_reason(flagged)
     return SafetyDecision(
         stage=stage,
         decision=decision,
-        reason=str(parsed.get("reason") or "Contextual safety assessment."),
+        reason=reason,
         category=category,
-        risk_domains=(
-            [str(item) for item in domains] if isinstance(domains, list) else []
-        ),
+        risk_domains=_merge_risk_domains(parsed, flagged),
         requires_review=decision in {"hold", "redact"},
         assessor=f"semantic:{model}",
     )

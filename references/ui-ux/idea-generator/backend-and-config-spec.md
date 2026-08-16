@@ -20,10 +20,29 @@ against it.
   guidance, kept distinct from preferences), and up to 3 stratification
   `attributes` each with a 1-5 rubric — carried in `supervisor_guidance` and
   surfaced to the reviewer via `_format_supervisor_guidance_for_review`.
+- **Mode-specific writer instructions.** `config_synthesis` also carries
+  `draft_instructions` and `debate_instructions`, the reference's
+  `text_instructions` / `self_play_instructions` mapped onto the two writer
+  modes we actually have (we have no prompt-writer mode). Each generation
+  path renders the shared `preferences` plus its own list —
+  `format_supervisor_guidance_for_generation` and
+  `_format_supervisor_guidance_for_debate`. Pinned by
+  `engine/tests/test_prompts_generation_guidance.py`.
+- **Structured safety flags.** `offensive_score` (1-5),
+  `is_personal_medical_recommendation`, and
+  `is_personal_finance_recommendation` are read by the contextual screen in
+  `app/app/safety_semantic.py`. Deliberately *not* a second verdict beside
+  `app/app/safety.py`: each raises a named risk domain on the one decision
+  the gate already acts on, and can only escalate an otherwise-clean pass to
+  a `hold` for human adjudication — never lower a verdict, never block
+  (blocking stays the deterministic hard-hazard policy's). We read them at
+  intake and at the final output rather than at config time, because that is
+  where our gates already are. Pinned by
+  `app/tests/test_safety_structured_flags.py`.
 
-Still a map: the full `Config` textproto's mode-specific writer instruction
-sets (self_play/prompt/text) and structured safety flags (§1); distinct
-`reviews[].type` — our `reviewer_agent` already covers review kinds.
+Still a map: the reference's prompt-writer mode (`prompt_instructions`), which
+has no counterpart here; distinct `reviews[].type` — our `reviewer_agent`
+already covers review kinds.
 
 ## 1. Config generation (`system-prompt.md`)
 
@@ -70,7 +89,8 @@ Key ideas worth mirroring in our supervisor/config:
 - **Safety is structured, not prose**: `offensive_score` (1-5),
   `is_personal_medical_recommendation`, `is_personal_finance_recommendation` —
   compare to our `app/app/safety.py` screening. The reference gates at config
-  time; we screen intake + final output.
+  time; we screen intake + final output. Adopted, at our own gates — see the
+  "structured safety flags" note above.
 - Self-critique loop is explicit: "generate proposals → critically evaluate →
   revise → only then emit textproto."
 
