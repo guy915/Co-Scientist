@@ -8,8 +8,8 @@
   display: inline-block;
   border: 0;
   border-radius: 9999px;
-  background: var(--cosci-step-dot-bg);
-  color: var(--cosci-step-dot-text);
+  background: var(--cosci-accent);
+  color: var(--cosci-accent-fg);
   cursor: pointer;
   font: inherit;
   font-size: 0.82rem;
@@ -21,8 +21,8 @@
 .ucs-panel-button:hover:not(:disabled) {
   background: color-mix(
     in srgb,
-    var(--cosci-step-dot-bg) 88%,
-    var(--cosci-step-dot-text)
+    var(--cosci-accent) 88%,
+    var(--cosci-accent-fg)
   );
 }
 
@@ -91,8 +91,8 @@
    re-theme, so no dark-mode override is needed. */
 .ucs-feedback-chip--selected,
 .ucs-feedback-chip--selected:hover {
-  background: var(--cosci-step-dot-bg);
-  color: var(--cosci-step-dot-text);
+  background: var(--cosci-accent);
+  color: var(--cosci-accent-fg);
 }
 
 .ucs-feedback-input {

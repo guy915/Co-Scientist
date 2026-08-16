@@ -62,7 +62,7 @@ colors:
   cosci-rail: "#e9eef6"       # MD3 surface-container-high (dark: surface-container #1e1f20)
   cosci-teal: "#1A6B6B"       # light-mode accent (composer submit)
   cosci-green: "#7FD7BF"      # brand mint; the DARK-mode accent resolves to #68D0C0
-  cosci-step-dot-bg: "#238A84" # step dots + logo, light (dark swaps to the green accent; see Colors)
+  cosci-accent: "#238A84"     # the app accent: logo, step dots, popover actions, focus rings (dark swaps to the green accent; see Colors)
   cosci-blue: "#0b57d0"
   cosci-btn-primary-bg: "#0b57d0"   # Google-blue filled button (setup surface; dark: #a8c7fa)
 
@@ -300,7 +300,7 @@ Where possible, semantic tokens **alias baseline tokens** rather than introducin
 
 The raw-color/palette files split by role: `reference_surface.css` holds the Gemini product palette and the ideas-surface (`--cosci-idea-*`) tokens; `component_tokens.css` holds the semantic component tokens above; `shell_surface.css` / `home_surface.css` hold the shell and home *layout* rules that consume them. The import order in `styles/surfaces.css` is `reference_surface → component_tokens → shell → home → tooltips`, so component tokens can alias palette tokens defined before them.
 
-The mode-dependent **accent** is worth internalizing: light mode accents in teal — the composer submit uses `--cosci-teal` (`#1A6B6B`) while the logo and step dots use the deeper product teal `#238a84`; dark mode swaps all of those roles (logo, step dots, composer submit, Logs pill) to the mint accent `--cosci-green`, which itself darkens from `#7fd7bf` to `#68d0c0` in dark mode. Components get this for free by using the role tokens (`--cosci-step-dot-bg`, `--cosci-composer-submit`, `--cosci-logo-color`), never the raw teal/green.
+The mode-dependent **accent** is worth internalizing: light mode accents in teal — the composer submit uses `--cosci-teal` (`#1A6B6B`) while everything else accented uses the deeper product teal `#238a84` via `--cosci-accent`; dark mode swaps all of those roles (accent, composer submit) to the mint accent `--cosci-green`, which itself darkens from `#7fd7bf` to `#68d0c0` in dark mode. Components get this for free by using the role tokens (`--cosci-accent`/`--cosci-accent-fg`, `--cosci-composer-submit`), never the raw teal/green. `--cosci-step-dot-*` aliases the accent and belongs to the home step circle alone, so its treatment can change without repainting every accented surface.
 
 The **step timeline is a deliberate green divergence** from the reference (whose step dots are purple70 `#c597ff`, line `#b9a9d7`): we use our own brand greens — light dot `#238a84` with a near-white `#f2f2f2` number, dark dot mint (`#68d0c0`) with a near-black `#131314` number; the connecting line blends the accent with the neutral outline (`color-mix(in srgb, #238a84 38%, #c4c7c5)`). The home greeting is **center-aligned** under the flask mark and the reference's agent-name eyebrow above it is omitted — both deliberate divergences. The one gradient surface in the app is the **started-session card** (teal gradient, brighter in dark mode, defined in `reference_surface.css`).
 
@@ -515,7 +515,7 @@ Empty placeholders use the shared `EmptyState` component (`components/empty_stat
 - **Don't** use `rounded-2xl` or larger on MD3 data surfaces. The three-size system (md / xl / full) covers those; Gemini shell/chat surfaces copy the reference geometry instead (see Shapes).
 - **Don't** snap the arbitrary rem values on reference-matched surfaces (setup / home / `reference-*`) onto the 8px grid — they are literal reference measurements. Conversely, don't introduce off-grid values on MD3 data surfaces (see Layout & Spacing).
 - **Don't** add a global margin reset (`* { margin: 0 }` or a preflight that includes one) — the markdown Goal Report depends on default margins. Zero margins per-component.
-- **Don't** fold the `--cosci-*` product palette into the MD3 tokens, and don't use raw `--cosci-teal` / `--cosci-green` directly — use the accent role tokens (`--cosci-step-dot-bg`, `--cosci-composer-submit`, `--cosci-logo-color`) so light/dark swap correctly.
+- **Don't** fold the `--cosci-*` product palette into the MD3 tokens, and don't use raw `--cosci-teal` / `--cosci-green` directly — use the accent role tokens (`--cosci-accent`, `--cosci-composer-submit`, `--cosci-logo-color`) so light/dark swap correctly.
 - **Don't** give any element a `prefers-reduced-motion`-exempt animation; every transition must have the reduce escape.
 - **Don't** use more than two font weights on a single card or panel, and don't bold display headings — Google Sans display roles are weight 400.
 - **Don't** reintroduce status pills, phase-colored progress segments, dashboards, or landing/marketing surfaces — run status is communicated through activity text tones and the recents step flow. (The proposals graph's legend chips and the Logs panel's count chips are category/tally chips, not run-status pills; they are fine.)

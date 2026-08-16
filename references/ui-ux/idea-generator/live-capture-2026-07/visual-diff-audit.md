@@ -54,6 +54,15 @@ which changes the treatment, not just the hue. Faithful-to-source would be a
 light teal tint. Flagged for the owner; left as a size/weight fix only for now
 (30px, w400) so the brand-fill decision stays reversible.
 
+*Update (2026-08-16):* still the owner's call, but it is now actually cheap to
+reverse. `--cosci-step-dot-bg` had quietly become the app's shared accent —
+the logs and feedback popovers, the proposals focus ring and relation links,
+and the logo all aliased it — so repainting the step circle would have
+repainted six unrelated surfaces. Those consumers now read `--cosci-accent` /
+`--cosci-accent-fg` (`styles/reference_surface.css`), and `--cosci-step-dot-*`
+is the step circle's alone. Switching to a light teal tint is a two-line token
+change in that file, per theme, touching nothing else.
+
 ## Ideas / report surface
 
 | Element | Ours | Reference | Fix |

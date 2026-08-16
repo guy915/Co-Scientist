@@ -380,7 +380,7 @@
 /* Keyboard focus keeps a ring, in the app's accent rather than the
    Settings rail's selection blue. */
 .proposals-node:focus-visible rect {
-  stroke: var(--cosci-step-dot-bg);
+  stroke: var(--cosci-accent);
   stroke-width: calc(3px * var(--proposals-stroke-scale));
 }
 

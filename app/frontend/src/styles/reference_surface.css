@@ -36,15 +36,24 @@
   --cosci-surface-bg: #fff;
   --cosci-home-heading: #1f1f1f;
 
+  /* The app's one accent: the brand teal-green and the text that reads on
+     it. Every surface that wants "our accent" — the logo, the logs and
+     feedback popovers, the proposals focus ring — aliases these. They used
+     to alias --cosci-step-dot-bg instead, which made the home step circle's
+     own styling load-bearing for six unrelated surfaces. Unlike the
+     reference these DO swap per theme: mint green in dark. */
+  --cosci-accent: #238a84;
+  --cosci-accent-fg: #f2f2f2;
+
   /* Step timeline. Our own brand greens (the reference's dots are purple70
-     #c597ff / line #b9a9d7, but we prefer green here): a teal-green dot with
-     a near-white number, and a line blending the brand teal with the neutral
-     outline. Unlike the reference these DO swap per theme — mint green in
-     dark, matching our logo/submit accent. */
-  --cosci-step-line: color-mix(in srgb, #238a84 38%, #c4c7c5);
-  --cosci-step-dot-bg: #238a84;
-  --cosci-step-dot-text: #f2f2f2;
-  --cosci-logo-color: #238a84;
+     #c597ff / line #b9a9d7, and a *light pastel* fill rather than our dark
+     filled one — a deliberate divergence, see the visual-diff audit): a
+     teal-green dot with a near-white number, and a line blending the brand
+     teal with the neutral outline. */
+  --cosci-step-line: color-mix(in srgb, var(--cosci-accent) 38%, #c4c7c5);
+  --cosci-step-dot-bg: var(--cosci-accent);
+  --cosci-step-dot-text: var(--cosci-accent-fg);
+  --cosci-logo-color: var(--cosci-accent);
   --cosci-step-heading: #444746;
   --cosci-step-text: #1f1f1f;
   --cosci-suggestion-border: #c4c7c5;
@@ -131,16 +140,19 @@
   --cosci-surface-bg: var(--cosci-bg);
   --cosci-home-heading: #fff;
 
-  /* Dark: same brand greens as the logo/submit accent (mint green dot on a
-     near-black number, line blends mint with the dark outline). */
+  /* Dark: the accent is the mint green (matching the submit button), with a
+     near-black text color on it; the step line blends mint with the dark
+     outline. */
+  --cosci-accent: var(--cosci-green);
+  --cosci-accent-fg: #131314;
   --cosci-step-line: color-mix(
     in srgb,
-    var(--cosci-green) 52%,
+    var(--cosci-accent) 52%,
     var(--cosci-border)
   );
-  --cosci-step-dot-bg: var(--cosci-green);
-  --cosci-step-dot-text: #131314;
-  --cosci-logo-color: var(--cosci-green);
+  --cosci-step-dot-bg: var(--cosci-accent);
+  --cosci-step-dot-text: var(--cosci-accent-fg);
+  --cosci-logo-color: var(--cosci-accent);
   --cosci-step-heading: var(--cosci-muted);
   --cosci-step-text: var(--cosci-text);
   --cosci-suggestion-border: var(--cosci-border);

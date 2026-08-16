@@ -209,7 +209,7 @@
 }
 
 .proposals-relation-link:hover {
-  color: var(--cosci-step-dot-bg);
+  color: var(--cosci-accent);
 }
 
 .proposals-relation-note {

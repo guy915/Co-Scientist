@@ -46,24 +46,24 @@
      bespoke hex. The teal tonal is the app's one green; surface/border/text/
      meta reuse the neutral scale. Because those tokens already re-theme, the
      logs need no dark-mode overrides. */
-  --cosci-logs-accent-bg: var(--cosci-step-dot-bg);
-  --cosci-logs-accent-fg: var(--cosci-step-dot-text);
+  --cosci-logs-accent-bg: var(--cosci-accent);
+  --cosci-logs-accent-fg: var(--cosci-accent-fg);
   --cosci-logs-accent-hover: color-mix(
     in srgb,
-    var(--cosci-step-dot-bg) 88%,
-    var(--cosci-step-dot-text)
+    var(--cosci-accent) 88%,
+    var(--cosci-accent-fg)
   );
   --cosci-logs-count-bg: color-mix(
     in srgb,
-    var(--cosci-step-dot-text) 16%,
+    var(--cosci-accent-fg) 16%,
     transparent
   );
-  --cosci-logs-action-border: var(--cosci-step-dot-bg);
+  --cosci-logs-action-border: var(--cosci-accent);
   --cosci-logs-action-bg: transparent;
-  --cosci-logs-action-fg: var(--cosci-step-dot-bg);
+  --cosci-logs-action-fg: var(--cosci-accent);
   --cosci-logs-action-hover: color-mix(
     in srgb,
-    var(--cosci-step-dot-bg) 10%,
+    var(--cosci-accent) 10%,
     transparent
   );
   --cosci-logs-surface: var(--cosci-surface-raised);
