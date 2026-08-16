@@ -122,8 +122,10 @@ Provide guidance for each phase. Use the ACTUAL configuration values ({{initial_
 - **iteration_strategy**: describe refinement strategy across the {{max_iterations}} configured iteration(s)
 
 ### config_synthesis
-Synthesize a normalized run configuration from the goal (and any user preferences/attributes above). Keep the three lists STRICTLY separate — do not repeat an item across them:
+Synthesize a normalized run configuration from the goal (and any user preferences/attributes above). Keep the four lists STRICTLY separate — do not repeat an item across them:
 - **preferences**: the hard scope constraints AND the soft "what makes a good idea" qualities. These guide BOTH generation and review. (e.g. "must be experimentally testable within 2 years", "prefer mechanisms with a clear intervention point")
+- **draft_instructions**: writing guidance for the DRAFTING generator only, which reads the literature review and writes hypotheses straight out of it. Say what to mine the papers for and what a good draft looks like in this domain — not what makes a good idea, which the preferences already carry. (e.g. "anchor each idea in a specific reported result, not a general theme", "state the mechanism before the intervention")
+- **debate_instructions**: writing guidance for the DEBATE generator only, which argues one hypothesis out across several turns before committing to it. Say what the turns should contest. (e.g. "make the second turn attack the weakest causal link, not the framing", "settle on the version that survives the strongest stated objection")
 - **review_instructions**: comparative critique guidance for REVIEWERS ONLY — how to validate soundness and distinguish strong ideas from weak ones. Do NOT restate the preferences here; focus on what to scrutinize and how to compare. (e.g. "check that the proposed assay actually measures the claimed effect", "penalize ideas that only restate known biology")
 - **attributes**: UP TO 3 axes used to stratify and compare ideas, each with a 1-5 scoring rubric. Each attribute: **name** (short) and **rubric** (how to score it from 1=worst to 5=best).
 

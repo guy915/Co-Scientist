@@ -12,6 +12,7 @@ from co_scientist.prompts._common import (
 from co_scientist.prompts.generation_formatting import (
     _build_citation_reference_section,
     format_articles_metadata,
+    format_config_generation_guidance,
     format_user_hypotheses,
 )
 from co_scientist.prompts.loading import (
@@ -80,8 +81,9 @@ def _format_supervisor_guidance_for_debate(
         supervisor_guidance: Supervisor guidance dict from workflow state.
 
     Returns:
-        A guidance section combining key research areas and generation-phase
-        focus areas, or an empty string when neither is present.
+        A guidance section combining key research areas, generation-phase
+        focus areas, and the run's debate-mode config, or an empty string
+        when none of the three is present.
     """
     if not supervisor_guidance or not isinstance(supervisor_guidance, dict):
         return ""
@@ -98,6 +100,13 @@ def _format_supervisor_guidance_for_debate(
             generation_phase, needs_header=not sections
         )
     )
+    config_sections = format_config_generation_guidance(
+        supervisor_guidance, "debate_instructions"
+    )
+    if config_sections:
+        if sections:
+            sections.append("\n")
+        sections.extend(config_sections)
 
     return "".join(sections)
 

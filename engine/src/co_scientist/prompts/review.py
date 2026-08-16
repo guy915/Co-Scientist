@@ -7,6 +7,7 @@ from co_scientist.prompts._common import (
     PromptSections,
     _csv_value,
     _format_meta_review_context,
+    _guidance_items,
     _run_guidance_section,
 )
 from co_scientist.prompts.loading import _build_prompt
@@ -152,10 +153,11 @@ def _format_config_preferences_guidance(
     preferences: list[Any] | None,
 ) -> list[str]:
     """Format the config_synthesis preferences slice of supervisor guidance."""
-    if not preferences:
+    items = _guidance_items(preferences)
+    if not items:
         return []
     sections = ["**Preferences (a good idea should satisfy):**\n"]
-    sections.extend(f"- {p}\n" for p in preferences)
+    sections.extend(f"- {p}\n" for p in items)
     return sections
 
 
@@ -163,13 +165,14 @@ def _format_config_review_instructions_guidance(
     review_instructions: list[Any] | None,
 ) -> list[str]:
     """Format the config_synthesis review-instructions guidance slice."""
-    if not review_instructions:
+    items = _guidance_items(review_instructions)
+    if not items:
         return []
     sections = [
         "\n**Review instructions (validate, do not restate the"
         " preferences):**\n"
     ]
-    sections.extend(f"- {r}\n" for r in review_instructions)
+    sections.extend(f"- {r}\n" for r in items)
     return sections
 
 

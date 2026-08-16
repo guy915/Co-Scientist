@@ -2,6 +2,8 @@
 
 from typing import Any
 
+from ._common import _csv_value, _guidance_items
+
 # Formatting helpers for generate node
 # Used by the generation prompt getters in this module (draft and debate);
 # each turns an optional user input into prompt-ready text, substituting a
@@ -29,27 +31,105 @@ def format_user_hypotheses(user_hypotheses: list[str] | None) -> str:
     return "No user-provided starting hypotheses."
 
 
+# Header for each writer mode's own slice of config_synthesis. The
+# supervisor writes one list per mode because the two writers are asked for
+# different things -- a draft is written straight from the literature, a
+# debate is argued out over turns -- so guidance that sharpens one can be
+# noise or an outright miscue in the other.
+_MODE_INSTRUCTION_HEADERS = {
+    "draft_instructions": "\n**How to draft in this run:**\n",
+    "debate_instructions": "\n**How to run the debate in this run:**\n",
+}
+
+
+def _format_guidance_bullets(header: str, value: Any) -> list[str]:
+    """Render one bolded header plus a bullet per item, or nothing."""
+    items = _guidance_items(value)
+    if not items:
+        return []
+    return [header, *(f"- {item}\n" for item in items)]
+
+
+def format_config_generation_guidance(
+    supervisor_guidance: dict[str, Any], instructions_key: str
+) -> list[str]:
+    """Format the config_synthesis slices a writing agent should read.
+
+    `preferences` is the run's "what makes a good idea" list, which the
+    schema has always described as steering generation as well as review
+    even though only the review prompt read it back out. It is rendered
+    here alongside the mode's own instruction list.
+
+    Args:
+        supervisor_guidance: Supervisor guidance dict from workflow state.
+        instructions_key: The config_synthesis field holding this writer
+            mode's instructions; a key of `_MODE_INSTRUCTION_HEADERS`.
+
+    Returns:
+        Section lines, or an empty list when the run carries neither
+        preferences nor instructions for this mode.
+    """
+    config = supervisor_guidance.get("config_synthesis")
+    if not isinstance(config, dict):
+        return []
+    sections = _format_guidance_bullets(
+        "**Preferences (a good idea should satisfy):**\n",
+        config.get("preferences"),
+    )
+    sections.extend(
+        _format_guidance_bullets(
+            _MODE_INSTRUCTION_HEADERS[instructions_key],
+            config.get(instructions_key),
+        )
+    )
+    return sections
+
+
 def format_supervisor_guidance_for_generation(
     supervisor_guidance: dict[str, Any] | None,
 ) -> str:
-    """Format supervisor guidance for generation prompts.
+    """Format supervisor guidance for the draft-with-tools generation prompt.
 
-    Renders the guidance as a research-strategy section.
+    This used to render a free-text "research_plan" key, which no run ever
+    supplies: `research_plan` is what the *streamed output payload* renames
+    supervisor_guidance to, not a field inside it, so the draft writer was
+    handed an empty block on every real run while every other agent read
+    the plan. It now reads the same SUPERVISOR_SCHEMA fields the sibling
+    formatters do.
+
+    Args:
+        supervisor_guidance: Supervisor guidance dict from workflow state.
+
+    Returns:
+        A guidance section, or an empty string when the plan carries
+        nothing the drafting writer acts on.
     """
-    if not supervisor_guidance:
+    if not isinstance(supervisor_guidance, dict) or not supervisor_guidance:
         return ""
 
-    # Unlike the other guidance formatters, this reads a free-text
-    # "research_plan" key rather than SUPERVISOR_SCHEMA fields, so it only
-    # renders when a caller supplies that plan-style guidance shape.
-    research_plan = supervisor_guidance.get("research_plan", "")
-    if research_plan and research_plan.strip():
-        return f"""
-## Research Strategy
-
-{research_plan}
-"""
-    return ""
+    # Every .get() below is isinstance-guarded because production runs on a
+    # provider whose json_object mode does not enforce the schema, so an
+    # object field can come back as a scalar.
+    workflow_plan = supervisor_guidance.get("workflow_plan")
+    generation_phase = (
+        workflow_plan.get("generation_phase")
+        if isinstance(workflow_plan, dict)
+        else None
+    )
+    sections = []
+    if isinstance(generation_phase, dict) and generation_phase.get(
+        "focus_areas"
+    ):
+        focus = _csv_value(generation_phase["focus_areas"])
+        sections.append(f"**Focus on:** {focus}\n\n")
+    sections.extend(
+        format_config_generation_guidance(
+            supervisor_guidance, "draft_instructions"
+        )
+    )
+    if not sections:
+        return ""
+    return "## Supervisor Guidance for Generation\n\n" + "".join(sections)
 
 
 def _format_pdf_status(article: Any) -> str:

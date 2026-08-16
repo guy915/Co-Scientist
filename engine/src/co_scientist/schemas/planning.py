@@ -97,10 +97,11 @@ SUPERVISOR_SCHEMA: dict[str, Any] = {
                     ),
                 }
             ),
-            # Read by _format_supervisor_guidance_for_review in prompts.py.
-            # Despite the "used by BOTH generation and review" language in
-            # the preferences description below, only the review prompt
-            # path currently reads config_synthesis back out.
+            # Read by _format_supervisor_guidance_for_review (preferences,
+            # review_instructions, attributes) and by the two generation
+            # formatters in prompts/generation_formatting.py and
+            # prompts/generation_debate.py (preferences plus that writer
+            # mode's own instruction list).
             "config_synthesis": {
                 **obj(
                     {
@@ -108,6 +109,16 @@ SUPERVISOR_SCHEMA: dict[str, Any] = {
                             "Hard scope constraints plus the soft 'what makes"
                             " a good idea' qualities. Used by BOTH generation"
                             " and review."
+                        ),
+                        "draft_instructions": str_array(
+                            "Writing guidance for the drafting generator"
+                            " ONLY, which writes hypotheses straight from the"
+                            " literature. Do NOT restate the preferences."
+                        ),
+                        "debate_instructions": str_array(
+                            "Writing guidance for the debate generator ONLY,"
+                            " which argues a hypothesis out over several"
+                            " turns. Do NOT restate the preferences."
                         ),
                         "review_instructions": str_array(
                             "Comparative critique guidance for reviewers"
@@ -141,8 +152,8 @@ SUPERVISOR_SCHEMA: dict[str, Any] = {
                 ),
                 "description": (
                     "Normalized run configuration synthesized from the goal,"
-                    " mirroring the reference product's Config. Keep the three"
-                    " lists strictly separate."
+                    " mirroring the reference product's Config. Keep the four"
+                    " instruction lists strictly separate."
                 ),
             },
             # performance_assessment, adjustment_recommendations, and

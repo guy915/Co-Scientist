@@ -294,6 +294,25 @@ def _csv_value(value: Any) -> str:
     return ", ".join(value) if isinstance(value, list) else str(value)
 
 
+def _guidance_items(value: Any) -> list[Any]:
+    """Coerce a supervisor-guidance string-array field to a list.
+
+    The same provider reality `_csv_value` documents, met by the call sites
+    that bullet a field rather than comma-joining it: a bare string is
+    iterable, so bulleting one directly renders a bullet per character. It
+    is wrapped as a single item instead.
+
+    Args:
+        value: A supervisor-guidance field value.
+
+    Returns:
+        The value as a list of items; empty when it is absent or empty.
+    """
+    if not value:
+        return []
+    return value if isinstance(value, list) else [value]
+
+
 def _format_csv_list(items: list[str] | None) -> str:
     """Comma-join items, or "None provided" when empty."""
     return ", ".join(items) if items else "None provided"
