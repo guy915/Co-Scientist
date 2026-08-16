@@ -297,6 +297,37 @@ def _index_setup_documents(run_id: str, staged: list[dict[str, Any]]) -> None:
     store.mark_documents_used_by_run(run_id, [str(d["id"]) for d in staged])
 
 
+def _apply_post_commit_effects(
+    run: store.RunRow,
+    req: CreateRunRequest,
+    byok: Any,
+    background_tasks: BackgroundTasks,
+) -> None:
+    """Run the effects that only make sense once the run row exists.
+
+    Both need a persisted run id, so neither can move ahead of the commit
+    the way credential and document resolution do. Title generation also
+    needs a real model -- offline/keyless runs keep the goal-clause fallback
+    -- and skips a run its interview already named: the interview chose that
+    name with the whole conversation in view, where generation sees only the
+    goal, so regenerating would overwrite the better title with the worse.
+
+    Args:
+        run: The freshly persisted run row.
+        req: The create request, read for the research goal.
+        byok: The caller's resolved bring-your-own-key credential, if any.
+        background_tasks: Queue used to title the run off the critical path.
+    """
+    if byok is not None:
+        credentials.store_run_credential(run.id, run.client_id, byok)
+    if run.title is None and (
+        byok is not None or not engine_adapter.offline_mode()
+    ):
+        background_tasks.add_task(
+            _populate_run_title, run.id, req.research_goal, byok
+        )
+
+
 async def create_run(
     req: CreateRunRequest,
     request: Request,
@@ -352,20 +383,7 @@ async def create_run(
         _resolve_run_settings(req, interview, byok),
     )
     _index_setup_documents(run.id, staged)
-    if byok is not None:
-        credentials.store_run_credential(run.id, run.client_id, byok)
-    # Title generation needs a real model: either the run brought its own
-    # key or the deployment has one. Offline/keyless runs keep the
-    # goal-clause fallback. A run whose interview already named it keeps
-    # that name: the interview chose it with the whole conversation in
-    # view, where generation sees only the goal, so regenerating here
-    # would overwrite the better title with the worse one.
-    if run.title is None and (
-        byok is not None or not engine_adapter.offline_mode()
-    ):
-        background_tasks.add_task(
-            _populate_run_title, run.id, req.research_goal, byok
-        )
+    _apply_post_commit_effects(run, req, byok, background_tasks)
     return run.to_dict()
 
 
