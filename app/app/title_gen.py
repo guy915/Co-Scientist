@@ -34,8 +34,9 @@ _TITLE_MAX_TOKENS = 24
 # paragraph; a title longer than this is discarded in favor of the fallback.
 _MAX_TITLE_CHARS = 80
 
-# Adapted from the Gemini Enterprise chat-naming prompt kept at
-# references/ui-ux/gemini-enterprise/chat-naming-prompt.md. Three of its
+# Adapted from the Gemini Enterprise chat-naming prompt, captured 2026-06
+# at references/ui-ux/gemini-enterprise/chat-naming-prompt.md and since
+# deleted -- read it out of git history. Three of its
 # rules are dropped as inapplicable here: it names a chat from an evolving
 # conversation, so it branches on user-only vs. full history, handles
 # attached filenames, and special-cases questions about the assistant's own

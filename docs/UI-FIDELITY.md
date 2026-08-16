@@ -13,12 +13,23 @@ earlier partial draft (see "Corrections vs. the prior draft" near the end).
 
 ## 1. The two-product reference model (read this first)
 
-The repo carries **two** distinct real references plus several secondary skins.
+> **The `references/ui-ux/` captures were deleted on 2026-08-16**, once
+> everything worth extracting from them had been extracted into the code and
+> into the notes cited throughout this file. They were 290 MB of saved pages
+> and screenshots — ~148 MB of it ten byte-identical copies of one minified
+> Google bundle — and nothing reads them at runtime. Every path under
+> `references/ui-ux/` named below is therefore historical: it says where a
+> claim was measured, not where to look today. To re-open one, check it out of
+> git history (`git log --all -- references/ui-ux/<path>`); deleting it did not
+> remove it from the repository's history. `references/core/` — source A, the
+> functional source of truth — is **untouched and still on disk.**
+
+The repo carried **two** distinct real references plus several secondary skins.
 They play different roles and must not be conflated — the prior audit's failure
 came from auditing against one and inferring "invented" from its absence.
 
-**A. `references/core/google-co-scientist/` — the FUNCTIONAL SOURCE OF TRUTH.**
-This is the real AI Co-Scientist. It carries written specs
+**A. `references/core/google-co-scientist/` — the FUNCTIONAL SOURCE OF TRUTH**
+(still on disk). This is the real AI Co-Scientist. It carries written specs
 (`product-surface-and-ux.md` et al.) *and*, most importantly,
 `media/live-footage/*.mp4` — the real UI in motion. When a spec still and a
 live-footage frame disagree, **the live footage wins** (it is the newest, and it
@@ -40,7 +51,8 @@ is the running product, not a description of it).
 > scope* — hence they are filed as **decisions**, not drift. Confirming the
 > canonical era (Question Q1) collapses most of them.
 
-**B. `references/ui-ux/idea-generator/` — the PIXEL-TRUTH TWIN.** Gemini
+**B. `references/ui-ux/idea-generator/` — the PIXEL-TRUTH TWIN** (deleted;
+see the note above). Gemini
 Enterprise "Idea Generation" is Co-Scientist's business twin on the same base
 UI. It is the richest *pixel* source (downloaded HTML + real CSS in `*_files/`
 dirs, light+dark screenshots), so it is authoritative for **exact colours,
@@ -48,7 +60,8 @@ spacing, fonts, radii**. But it diverged for a different product: it renames
 "hypothesis" → "idea" and uses Google's blue `#0b57d0` primary. Use it for
 pixels, not for lexicon or product structure.
 
-**C. Secondary skins** — `references/ui-ux/gemini-enterprise/` (shared base
+**C. Secondary skins** (all deleted; see the note above) —
+`references/ui-ux/gemini-enterprise/` (shared base
 shell; HTML/CSS), `references/ui-ux/gemini/` (plain consumer Gemini — mostly
 unrelated, do not anchor on it), `references/ui-ux/notebooklm/` (UI lineage
 only), `references/ui-ux/legacy-workbench-ui/` (**our own** pre-refactor UI — not
@@ -293,7 +306,8 @@ internal hygiene; severity DECISION.*
   **two** ways: it listed the orphaned tabs as the live set, **and** named a
   `report_tab.tsx` that no longer existed. → **RESOLVED (Question Q3).** The 5
   dead files were retired to
-  `references/ui-ux/legacy-workbench-ui/retired-orphan-tabs/`, and `CLAUDE.md`
+  `references/ui-ux/legacy-workbench-ui/retired-orphan-tabs/` (deleted with the
+  rest of `references/ui-ux/` on 2026-08-16; in git history), and `CLAUDE.md`
   now names the current wired set correctly (`run_detail_specifications.tsx`,
   `run_detail_learning.tsx`, `run_detail_overview.tsx`,
   `components/tabs/ideas_tab.tsx`) with no `report_tab.tsx` reference. This is
@@ -363,7 +377,8 @@ it resolves D2 and D3's scope.
 - **Q3 — Orphaned tab components. RESOLVED: deleted, not re-wired.**
   `overview_tab`, `evidence_tab`, `tournament_tab`, `run_specifications_tab`,
   `chat_tab` were retired to
-  `references/ui-ux/legacy-workbench-ui/retired-orphan-tabs/`; `CLAUDE.md`
+  `references/ui-ux/legacy-workbench-ui/retired-orphan-tabs/`, since deleted
+  with the rest of `references/ui-ux/` (in git history); `CLAUDE.md`
   documents the current four-tab set correctly and no longer references the
   nonexistent `report_tab.tsx`.
 - **Q4 — Home 3-step copy.** Real variants: *Create a Research goal / Generate

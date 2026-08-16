@@ -45,8 +45,9 @@ _FORMAT_PROMPT = (
     "- Its contents MUST be valid JSON. Do not wrap it in a code fence."
 )
 
-# Rebased on Google's own two prompts for this product family, kept in
-# references/ui-ux/: the Gemini Enterprise chat system prompt supplies the
+# Rebased on Google's own two prompts for this product family (captured
+# 2026-06 under references/ui-ux/, since deleted -- read them out of git
+# history): the Gemini Enterprise chat system prompt supplies the
 # voice and formatting rules and the multi-turn block, and Idea Generation's
 # config-generation prompt -- the structural twin of this interview, which
 # also turns a chat into a machine-read block -- supplies the derivation

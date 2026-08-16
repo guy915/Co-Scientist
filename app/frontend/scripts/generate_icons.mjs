@@ -69,8 +69,8 @@ const ICONS = {
   neurology: 'neurology',
   open_in_new: 'open_in_new',
   // Painter's palette — the glyph the reference settings menu renders for
-  // "Appearance" (an <md-icon>palette</md-icon> ligature in the capture under
-  // references/ui-ux/gemini-enterprise/).
+  // "Appearance" (an <md-icon>palette</md-icon> ligature in the 2026-06
+  // gemini-enterprise capture, since deleted from references/).
   palette: 'palette',
   // "Generating ideas" progress step — a speech bubble with a pencil.
   rate_review: 'rate_review',
