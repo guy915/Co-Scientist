@@ -251,6 +251,24 @@ from app.engine_tasks_support import (
 from app.engine_tasks_support import (
     _successor_task_type as _successor_task_type,
 )
+from app.engine_tasks_variants import (
+    VARIANT_AGGREGATE_TASK as VARIANT_AGGREGATE_TASK,
+)
+from app.engine_tasks_variants import (
+    VARIANT_EVALUATE_TASK as VARIANT_EVALUATE_TASK,
+)
+from app.engine_tasks_variants import (
+    VARIANT_PROPOSE_TASK as VARIANT_PROPOSE_TASK,
+)
+from app.engine_tasks_variants import (
+    execute_variant_aggregate as execute_variant_aggregate,
+)
+from app.engine_tasks_variants import (
+    execute_variant_evaluate as execute_variant_evaluate,
+)
+from app.engine_tasks_variants import (
+    execute_variant_propose as execute_variant_propose,
+)
 from app.report_render import make_emitter
 from app.run_modes import resolved_run_config
 from app.safety import (
@@ -416,6 +434,9 @@ _ENGINE_TASK_DISPATCH: dict[str, Callable[..., Awaitable[dict[str, Any]]]] = {
     GENERATION_AGGREGATE_TASK: execute_generation_aggregate,
     MATURE_REFLECTION_ITEM_TASK: execute_mature_reflection_item,
     MATURE_REFLECTION_AGGREGATE_TASK: execute_mature_reflection_aggregate,
+    VARIANT_PROPOSE_TASK: execute_variant_propose,
+    VARIANT_EVALUATE_TASK: execute_variant_evaluate,
+    VARIANT_AGGREGATE_TASK: execute_variant_aggregate,
     FINALIZE_TASK: execute_finalize,
 }
 
