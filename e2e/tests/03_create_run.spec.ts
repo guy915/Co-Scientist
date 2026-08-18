@@ -93,24 +93,29 @@ async function openRunDetail(page: Page, id: string): Promise<void> {
 }
 
 // The Goal Report tabs appear only after the run reaches publication. Walk the
-// Ideas, Research Overview, and Learning tabs to observe the streamed run
+// All Ideas, Research Overview, and Learning tabs to observe the streamed run
 // reaching completion.
+//
+// The tab strip is a nav of real deep-linkable links (not buttons), so each
+// tab is matched by its link role and its exact accessible name -- the labels
+// ReportTabNav renders in run_detail_shell.tsx.
 async function assertStreamedRunCompletes(page: Page): Promise<void> {
-  await expect(page.getByRole('button', {name: 'Ideas'})).toBeVisible({
-    timeout: 30_000,
-  });
-  await page.getByRole('button', {name: 'Ideas'}).click();
+  const ideasTab = page.getByRole('link', {name: 'All Ideas', exact: true});
+  await expect(ideasTab).toBeVisible({timeout: 30_000});
+  await ideasTab.click();
   await expect(
     page.getByRole('list', {name: /ranked hypothesis list/i}),
   ).toBeVisible();
-  await page.getByRole('button', {name: 'Research Overview'}).click();
+  await page
+    .getByRole('link', {name: 'Research Overview', exact: true})
+    .click();
   await expect(
     page.getByRole('heading', {name: /specific aims/i}),
   ).toBeVisible();
   await expect(
     page.getByRole('heading', {name: /agent insights/i}),
   ).toBeVisible();
-  await page.getByRole('button', {name: 'Learning'}).click();
+  await page.getByRole('link', {name: 'Learning', exact: true}).click();
   await expect(page.getByText('private-lactate-result.txt')).toBeVisible();
 }
 

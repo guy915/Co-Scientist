@@ -22,22 +22,27 @@ test('run detail tabs render hypotheses, Elo, and report content', async ({
   ).toBeVisible();
   await expect(page.getByText(/staphylococcus aureus/i).first()).toBeVisible();
 
-  // Ideas tab: the Elo-ranked hypothesis list.
-  await page.getByRole('button', {name: 'Ideas'}).click();
+  // All Ideas tab: the Elo-ranked hypothesis list. The tab strip is a nav of
+  // real deep-linkable links (not buttons), so each tab is matched by its link
+  // role and its exact accessible name -- the labels ReportTabNav renders in
+  // run_detail_shell.tsx.
+  await page.getByRole('link', {name: 'All Ideas', exact: true}).click();
   await expect(
     page.getByRole('list', {name: /ranked hypothesis list/i}),
   ).toBeVisible();
   await expect(page.getByText(/elo rating:/i).first()).toBeVisible();
 
   // Learning tab: the synthesized learning sections and searchable references.
-  await page.getByRole('button', {name: 'Learning'}).click();
+  await page.getByRole('link', {name: 'Learning', exact: true}).click();
   await expect(page.getByRole('heading', {name: /references/i})).toBeVisible();
   await expect(
     page.getByRole('textbox', {name: /search references/i}),
   ).toBeVisible();
 
   // Overview tab: the synthesized report (winning ideas + tournament summary).
-  await page.getByRole('button', {name: 'Research Overview'}).click();
+  await page
+    .getByRole('link', {name: 'Research Overview', exact: true})
+    .click();
   await expect(
     page.getByRole('heading', {name: /agent insights/i}),
   ).toBeVisible();
