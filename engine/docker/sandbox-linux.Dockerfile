@@ -38,5 +38,6 @@ ENTRYPOINT ["/usr/local/bin/preflight"]
 # engine suite is platform-neutral and runs on the host.
 CMD ["python", "-m", "pytest", "-q", \
      "tests/test_sandbox.py", "tests/test_sandbox_runner.py", \
-     "tests/test_workspace.py", "tests/test_workspace_snapshot.py", \
+     "tests/test_workspace.py", "tests/test_workspace_output.py", \
+     "tests/test_workspace_snapshot.py", \
      "tests/test_command_safety.py"]

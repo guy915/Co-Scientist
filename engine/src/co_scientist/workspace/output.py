@@ -214,7 +214,7 @@ class OutputRecorder:
             secrets: Values to mask; an empty registry when omitted.
             preview_chars: Inline budget per stream.
         """
-        self.root = root
+        self.root = root.resolve()
         self.secrets = secrets if secrets is not None else SecretRegistry()
         self._preview_chars = preview_chars
 
@@ -256,6 +256,11 @@ class OutputRecorder:
             pointer=self._spill(label, redacted),
         )
 
+    def _is_inside_workspace(self, candidate: Path) -> bool:
+        """Reports whether a resolved path is under the workspace root."""
+        resolved = candidate.resolve()
+        return resolved == self.root or self.root in resolved.parents
+
     def _spill(self, label: str, redacted: str) -> OutputPointer | None:
         """Writes the full redacted text into the workspace.
 
@@ -265,6 +270,22 @@ class OutputRecorder:
         digest = hashlib.sha256(redacted.encode("utf-8")).hexdigest()
         relative = f"{SPILL_DIRECTORY}/{label}-{digest[:12]}.txt"
         target = self.root / relative
+        if not self._is_inside_workspace(target.parent):
+            # A symlink stands where the metadata directory should be.
+            # This write runs in the host process, outside the sandbox,
+            # so following it would put command output in a directory
+            # the command chose. Checked before the mkdir, not after:
+            # creating the directory and then declining to write into it
+            # still lets a confined command make the host create
+            # directories wherever it likes. Sessions pre-create the
+            # metadata directory so this cannot arise; this is the
+            # backstop for workspaces made before they did.
+            logger.error(
+                "refusing to spill %s: %s resolves outside the workspace",
+                label,
+                relative,
+            )
+            return None
         try:
             target.parent.mkdir(parents=True, exist_ok=True)
             target.write_text(redacted, encoding="utf-8")

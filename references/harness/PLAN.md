@@ -81,6 +81,18 @@ The preflight exists because this class of failure passes. A probe reported
 `OUTSIDE: denied (good)` while bwrap had never started — a suite can report
 green while confining nothing.
 
+The same shape then produced a second Linux-only escape, worth stating because
+it is the one a reviewer will re-derive. `--ro-bind-try` **skips a path that
+does not exist**, so on a fresh workspace `.cosci` was ordinary writable space
+and the first confined command could replace it with a symlink; the spill then
+ran in the *host* process, outside the sandbox, writing command-influenced
+bytes into a command-chosen directory. Seatbelt's deny rule matches a path
+whether or not it exists, so macOS could not show it. `WorkspaceSession` now
+creates the directory up front and `OutputRecorder._spill` refuses a target
+resolving outside the root — before the `mkdir`, since creating a directory and
+then declining to write into it still lets a command make the host `mkdir`
+wherever it likes. **A read-only bind protects a path that exists.**
+
 **3. The normalizer was skipped on evidence, not forgotten.** Codex needs it
 because it resumes mid-turn; this host restarts the whole task. Verified:
 `message_history` is written only on success and read only on a cache hit, and

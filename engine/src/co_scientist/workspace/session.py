@@ -34,6 +34,7 @@ from co_scientist.sandbox import (
     workspace_write,
 )
 from co_scientist.tool_effects import ToolEffect
+from co_scientist.workspace.output import SPILL_DIRECTORY
 
 logger = logging.getLogger(__name__)
 
@@ -41,6 +42,29 @@ logger = logging.getLogger(__name__)
 # short enough that a hung process does not hold a durable task's lease
 # past its renewal.
 DEFAULT_COMMAND_TIMEOUT_SECONDS = 300.0
+
+
+def _ensure_metadata_directory(root: Path) -> None:
+    """Creates the harness's metadata directory before any command runs.
+
+    Not a convenience -- it closes a real escape on Linux. bwrap's
+    ``--ro-bind-try`` *skips* a path that does not exist, so on a fresh
+    workspace ``.cosci`` is an ordinary writable location and the first
+    confined command can replace it with a symlink to anywhere. The
+    recorder then spills through that symlink from *this* process, which
+    is outside the sandbox: attacker-influenced bytes, attacker-chosen
+    directory, host privileges.
+
+    Creating it up front means the try-bind binds from command one.
+    macOS cannot show this -- seatbelt's deny rule matches the path
+    whether or not it exists -- so it is Linux, which is production, that
+    was exposed. Same shape as the tmpfs escape: a protection present in
+    the source that does not bind at run time.
+    """
+    try:
+        (root / SPILL_DIRECTORY).mkdir(parents=True, exist_ok=True)
+    except OSError as exc:  # pragma: no cover - filesystem-dependent
+        logger.warning("could not create the workspace metadata dir: %s", exc)
 
 
 def _is_metadata(relative: Path) -> bool:
@@ -114,6 +138,7 @@ class WorkspaceSession:
         """
         root.mkdir(parents=True, exist_ok=True)
         self.root = root.resolve()
+        _ensure_metadata_directory(self.root)
         self.policy = policy or workspace_write(
             self.root, network_allowed=network_allowed
         )

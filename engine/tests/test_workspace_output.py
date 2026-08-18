@@ -259,3 +259,62 @@ def test_listing_files_omits_harness_metadata(tmp_path: Path) -> None:
         )
     )
     assert payload["files"] == ["analysis.py"]
+
+
+def test_a_symlinked_metadata_directory_does_not_redirect_the_spill(
+    tmp_path: Path,
+) -> None:
+    """The escape a fresh Linux workspace allowed until sessions made it.
+
+    bwrap's --ro-bind-try skips a path that does not exist, so on a fresh
+    workspace .cosci was ordinary writable space and the first confined
+    command could replace it with a symlink. The spill then ran in *this*
+    process, outside the sandbox, and wrote command-influenced bytes into
+    a command-chosen directory. macOS never showed it: seatbelt's deny
+    rule matches the path whether or not it exists.
+    """
+    root = tmp_path / "workspace"
+    root.mkdir()
+    outside = tmp_path / "elsewhere"
+    outside.mkdir()
+    (root / SPILL_DIRECTORY.split("/")[0]).symlink_to(outside)
+
+    bounded = OutputRecorder(root, preview_chars=50).record(
+        "stdout", "x" * 5000
+    )
+
+    assert bounded.pointer is None
+    # Not even a directory: creating one and then declining to write
+    # still lets a command make the host mkdir wherever it likes.
+    assert list(outside.rglob("*")) == []
+
+
+def test_a_session_creates_the_metadata_directory_up_front(
+    tmp_path: Path,
+) -> None:
+    """What makes the read-only bind bind at all, from command one."""
+    session = WorkspaceSession(tmp_path)
+    assert (session.root / SPILL_DIRECTORY).is_dir()
+
+
+def test_a_truncated_read_hands_back_a_way_to_the_rest(
+    tmp_path: Path,
+) -> None:
+    """Otherwise the preview's own advice is a dead end.
+
+    "Read the full output with read_file" is what the preview says, and
+    re-reading the same path returns the same preview forever.
+    """
+    session = WorkspaceSession(tmp_path)
+    (tmp_path / "big.txt").write_text("y" * 40_000)
+
+    payload = _content(
+        asyncio.run(
+            WorkspaceToolProvider(session).execute_tool_call(
+                _call(READ_FILE, json.dumps({"path": "big.txt"}))
+            )
+        )
+    )
+
+    assert payload["truncated"] is True
+    assert payload["full_output"].startswith(SPILL_DIRECTORY)

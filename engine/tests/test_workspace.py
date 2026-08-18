@@ -5,12 +5,18 @@ tests check that it composes the pieces correctly -- and, at the two
 points where it resolves a path itself, that it refuses an escape.
 """
 
+import shutil
 from pathlib import Path
 
 import pytest
 
 from co_scientist.patch import PatchError
-from co_scientist.workspace import WorkspaceSession
+from co_scientist.sandbox import sandbox_backend
+from co_scientist.workspace import SPILL_DIRECTORY, WorkspaceSession
+
+_requires_sandbox = pytest.mark.skipif(
+    sandbox_backend() is None, reason="no sandbox backend on this platform"
+)
 
 
 def _session(tmp_path: Path) -> WorkspaceSession:
@@ -149,3 +155,31 @@ def test_a_failed_patch_reports_and_changes_nothing(tmp_path: Path) -> None:
             )
         )
     assert (session.root / "a.py").read_text() == "actual\n"
+
+
+@_requires_sandbox
+@pytest.mark.asyncio
+async def test_a_command_cannot_replace_the_metadata_directory(
+    tmp_path: Path,
+) -> None:
+    """The end-to-end half of the fresh-workspace spill escape.
+
+    The session creates .cosci so bwrap's --ro-bind-try has something to
+    bind; without that, a command could put a symlink there and redirect
+    the host process's spill writes to a directory it chose. Runs on
+    whichever backend the platform has, because the hole only existed on
+    one of them.
+    """
+    link = shutil.which("ln")
+    if link is None:  # pragma: no cover - environment-dependent
+        pytest.skip("ln is not installed")
+    session = _session(tmp_path)
+    metadata = SPILL_DIRECTORY.split("/")[0]
+
+    outcome = await session.run_command(
+        [link, "-sfn", "/tmp", metadata], timeout_seconds=30
+    )
+
+    assert not outcome.result.ok
+    assert not (session.root / metadata).is_symlink()
+    assert (session.root / SPILL_DIRECTORY).is_dir()

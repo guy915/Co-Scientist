@@ -344,10 +344,20 @@ async def _handle_read_file(
     if not isinstance(path, str) or not path.strip():
         raise WorkspaceToolInputError("path must be a non-empty string")
     content = await asyncio.to_thread(context.session.read_file, path)
-    return {
+    bounded = context.recorder.record("read_file", content)
+    payload: dict[str, Any] = {
         "path": path,
-        "content": context.recorder.record("read_file", content).text,
+        "content": bounded.text,
+        "truncated": bounded.truncated,
     }
+    if bounded.pointer is not None:
+        # Without this the preview's own "read the full output with
+        # read_file" is a dead end: re-reading the same path returns the
+        # same preview forever, and the model has no other handle. With
+        # it, the remaining text is reachable -- through this path, or by
+        # slicing the spill file with run_command.
+        payload["full_output"] = bounded.pointer.path
+    return payload
 
 
 async def _handle_list_files(
