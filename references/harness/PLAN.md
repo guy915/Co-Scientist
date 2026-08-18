@@ -27,7 +27,7 @@ the mutation was run to confirm it fails against one.
 | Output redaction + spillover | 2 | **done** | `workspace/output.py` |
 | Post-edit checks fed back | 2 | **done, parse checks only** | `workspace/checks.py` — a linter is absent from the prod image; see below |
 | Long-running commands as sessions | 2 | not built | needs the app's durable task layer |
-| Per-run session construction | 2 | not built | app-side wiring; see §5 |
+| Per-run session construction | 2 | **done** | `workspace/run_workspace.py` |
 | Production exec topology | 1 | **open, and now the blocker** | see below |
 | Tool registration (D5) | 2 | **done** | `workspace/tools.py` |
 | Everything in Phase 3 and Phase 4 | 3, 4 | not built | |
@@ -329,9 +329,13 @@ Still open:
   private network (`SandboxKind.EXTERNAL`, the seam already exists) or a
   different confinement primitive. Until it is answered, `run_command` is a
   development-only tool: correct, tested, and withheld in production.
-- **D10 — per-run session construction.** Which node builds the
-  `WorkspaceSession`, where its root lives, and whether the workspace outlives
-  a single durable task. Blocked on nothing; it is the next commit.
+- **D10 — which agent gets the workspace.** The *resolution* half is settled:
+  `open_run_workspace(run_id)` is idempotent, off-volume, and treats the run id
+  as untrusted input, so a restarted worker reopens the directory the killed one
+  wrote rather than starting again beside it. What is still open is which node
+  is handed `build_workspace_tools(...)`. Not the draft-generation loop —
+  reading literature does not need a terminal — so on the current phasing the
+  first caller is Phase 3's evaluator.
 - **D6 — dataset storage.** Blocked on how large "large" needs to be for the
   first real use case.
 - **`docs/FIDELITY.md:93`** currently records Computational Discovery as an

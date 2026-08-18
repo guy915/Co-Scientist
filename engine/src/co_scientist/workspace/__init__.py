@@ -11,6 +11,14 @@ from co_scientist.workspace.output import (
     SecretRegistrationError,
     SecretRegistry,
 )
+from co_scientist.workspace.run_workspace import (
+    WORKSPACE_DIR_ENV,
+    WorkspaceIdError,
+    build_workspace_tools,
+    open_run_workspace,
+    workspace_path,
+    workspaces_root,
+)
 from co_scientist.workspace.session import (
     DEFAULT_COMMAND_TIMEOUT_SECONDS,
     CommandOutcome,
@@ -41,6 +49,7 @@ __all__ = [
     "READ_FILE",
     "RUN_COMMAND",
     "SPILL_DIRECTORY",
+    "WORKSPACE_DIR_ENV",
     "BoundedOutput",
     "CheckFinding",
     "CommandOutcome",
@@ -50,11 +59,16 @@ __all__ = [
     "SecretRegistrationError",
     "SecretRegistry",
     "Snapshot",
+    "WorkspaceIdError",
     "WorkspaceSession",
     "WorkspaceSnapshotter",
     "WorkspaceToolInputError",
     "WorkspaceToolProvider",
+    "build_workspace_tools",
     "can_run_commands",
     "check_paths",
+    "open_run_workspace",
+    "workspace_path",
     "workspace_tool_schemas",
+    "workspaces_root",
 ]
