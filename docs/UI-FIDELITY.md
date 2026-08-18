@@ -1,5 +1,10 @@
 # UI Fidelity Audit — replica vs. reference
 
+> **Precedence:** the authoritative gap analysis is
+> [`fidelity-audit/`](fidelity-audit/README.md) — it does not credit this
+> document as evidence, and where the two disagree, it wins. Read that first;
+> this file remains useful as narrative background.
+
 This audits the **visual/UX fidelity** of `app/frontend` (the workbench) against
 the real Google product it replicates. It is separate from
 [`FIDELITY.md`](FIDELITY.md), which covers *behavioural/engine* fidelity.

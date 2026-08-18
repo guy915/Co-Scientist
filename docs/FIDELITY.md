@@ -1,5 +1,10 @@
 # Fidelity to Google's AI Co-Scientist
 
+> **Precedence:** the authoritative gap analysis is
+> [`fidelity-audit/`](fidelity-audit/README.md) — it does not credit this
+> document as evidence, and where the two disagree, it wins. Read that first;
+> this file remains useful as narrative background.
+
 > **The authoritative, requirement-level parity record is
 > [PARITY.md](PARITY.md)** — it tracks every published behavior with a stable
 > ID, implementation evidence, an automated test/eval, and a status
