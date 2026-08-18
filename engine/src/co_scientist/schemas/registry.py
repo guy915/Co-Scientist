@@ -7,6 +7,9 @@ pair a markdown prompt template with its response schema.
 
 from typing import Any
 
+from co_scientist.schemas.code_evolution import (
+    CODE_EVOLUTION_SCHEMA,
+)
 from co_scientist.schemas.generation import (
     ASSUMPTION_SUB_SCHEMA,
     ASSUMPTION_TREE_SCHEMA,
@@ -47,6 +50,7 @@ from co_scientist.schemas.synthesis import (
 # get_schema_for_prompt returns None and load_prompt_with_schema in
 # prompts.py yields a schema-less call.
 _PROMPT_SCHEMA_MAP: dict[str, dict[str, Any]] = {
+    "code_evolution": CODE_EVOLUTION_SCHEMA,
     "generation_draft_with_tools": GENERATION_DRAFT_SCHEMA,
     "generation_assumptions": GENERATION_SCHEMA,
     "generation_assumption_tree": ASSUMPTION_TREE_SCHEMA,

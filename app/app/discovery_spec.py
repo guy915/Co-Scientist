@@ -1,0 +1,163 @@
+"""Reading a run's evaluator spec out of its stored config.
+
+A discovery run is configured once, at creation, with what to optimize
+and how to measure it. This module turns that JSON into the engine's
+``EvaluatorSpec``.
+
+**Every failure here raises.** The tempting alternative -- fall back to
+an empty cascade, or to a default objective -- produces a run that
+executes normally and scores every variant identically, which reads as
+"the model cannot write working code" rather than as "the run was
+misconfigured". A spec that cannot be built is a permanent, unretryable
+condition, so it must surface as one at the boundary rather than as a
+uniform absence of progress across hundreds of variants.
+"""
+
+from __future__ import annotations
+
+from typing import Any
+
+from co_scientist.code_eval import (
+    DEFAULT_STAGE_TIMEOUT_SECONDS,
+    Direction,
+    EvaluationStage,
+    EvaluatorSpec,
+    Objective,
+)
+
+# Key under which a run's config carries its discovery configuration.
+# Its presence is what makes a run a discovery run.
+DISCOVERY_CONFIG_KEY = "discovery"
+
+_DIRECTIONS = {
+    "maximize": Direction.MAXIMIZE,
+    "minimize": Direction.MINIMIZE,
+}
+
+
+class DiscoverySpecError(ValueError):
+    """Raised when a run's evaluator spec is absent or malformed."""
+
+
+def discovery_config(config: dict[str, Any] | None) -> dict[str, Any] | None:
+    """Returns a run's discovery block, or None if it has none."""
+    block = (config or {}).get(DISCOVERY_CONFIG_KEY)
+    return block if isinstance(block, dict) else None
+
+
+def is_discovery_run(config: dict[str, Any] | None) -> bool:
+    """Reports whether a run is a computational-discovery run."""
+    return discovery_config(config) is not None
+
+
+def _objective(raw: Any) -> Objective:
+    """Builds the objective, refusing an unknown optimization direction."""
+    if not isinstance(raw, dict):
+        raise DiscoverySpecError("discovery.objective must be an object")
+    metric = raw.get("metric")
+    if not isinstance(metric, str) or not metric:
+        raise DiscoverySpecError("discovery.objective.metric must be a name")
+    name = str(raw.get("direction", "maximize")).lower()
+    direction = _DIRECTIONS.get(name)
+    if direction is None:
+        raise DiscoverySpecError(
+            f"discovery.objective.direction must be one of "
+            f"{sorted(_DIRECTIONS)}, got {name!r}"
+        )
+    return Objective(metric=metric, direction=direction)
+
+
+def _argv(raw: Any, index: int) -> tuple[str, ...]:
+    """Validates one stage's command.
+
+    A stage with no command would run nothing, report nothing, and score
+    every variant the same -- the exact silent-uniformity failure this
+    module exists to prevent.
+    """
+    if not isinstance(raw, list) or not raw:
+        raise DiscoverySpecError(
+            f"discovery.stages[{index}].argv must be a non-empty list"
+        )
+    if not all(isinstance(part, str) for part in raw):
+        raise DiscoverySpecError(
+            f"discovery.stages[{index}].argv must contain only strings"
+        )
+    return tuple(str(part) for part in raw)
+
+
+def _optional_float(raw: Any, field: str) -> float | None:
+    """Reads an optional numeric field, refusing a non-number."""
+    if raw is None:
+        return None
+    if isinstance(raw, bool) or not isinstance(raw, (int, float)):
+        raise DiscoverySpecError(f"{field} must be a number")
+    return float(raw)
+
+
+def _stage(raw: Any, index: int) -> EvaluationStage:
+    """Builds one cascade stage."""
+    if not isinstance(raw, dict):
+        raise DiscoverySpecError(f"discovery.stages[{index}] must be an object")
+    timeout = _optional_float(
+        raw.get("timeout_seconds"), f"discovery.stages[{index}].timeout_seconds"
+    )
+    return EvaluationStage(
+        name=str(raw.get("name") or f"stage-{index + 1}"),
+        argv=_argv(raw.get("argv"), index),
+        timeout_seconds=(
+            DEFAULT_STAGE_TIMEOUT_SECONDS if timeout is None else timeout
+        ),
+        min_fitness=_optional_float(
+            raw.get("min_fitness"), f"discovery.stages[{index}].min_fitness"
+        ),
+    )
+
+
+def evaluator_spec(config: dict[str, Any] | None) -> EvaluatorSpec:
+    """Builds the evaluator spec for a discovery run.
+
+    Args:
+        config: The run's stored config.
+
+    Returns:
+        The spec its variants are evaluated against.
+
+    Raises:
+        DiscoverySpecError: If the run is not a discovery run, or its
+            discovery block is malformed. Never a default spec -- see the
+            module docstring.
+    """
+    block = discovery_config(config)
+    if block is None:
+        raise DiscoverySpecError("run has no discovery configuration")
+    raw_stages = block.get("stages")
+    if not isinstance(raw_stages, list) or not raw_stages:
+        raise DiscoverySpecError("discovery.stages must be a non-empty list")
+    return EvaluatorSpec(
+        stages=tuple(
+            _stage(raw, index) for index, raw in enumerate(raw_stages)
+        ),
+        objective=_objective(block.get("objective")),
+        metrics_path=str(block.get("metrics_path") or "metrics.json"),
+    )
+
+
+def seed_source(config: dict[str, Any] | None) -> dict[str, str]:
+    """Returns the starting program, ``{path: contents}``.
+
+    Raises:
+        DiscoverySpecError: If it is absent or is not a map of text
+            files. A discovery run with nothing to evolve from would
+            propose its first variant against an empty program.
+    """
+    block = discovery_config(config) or {}
+    raw = block.get("seed_source")
+    if not isinstance(raw, dict) or not raw:
+        raise DiscoverySpecError(
+            "discovery.seed_source must be a non-empty map"
+        )
+    if not all(
+        isinstance(k, str) and isinstance(v, str) for k, v in raw.items()
+    ):
+        raise DiscoverySpecError("discovery.seed_source must map paths to text")
+    return {str(k): str(v) for k, v in raw.items()}

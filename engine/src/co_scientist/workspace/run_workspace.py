@@ -43,6 +43,9 @@ WORKSPACE_DIR_ENV = "COSCIENTIST_WORKSPACE_DIR"
 # root is resolved.
 _WORKSPACES_DIRNAME = "coscientist-workspaces"
 
+# Subdirectory of a run's workspace holding one directory per variant.
+_VARIANTS_DIRNAME = "variants"
+
 # Everything else in a run id is replaced. Deliberately narrow: real ids
 # are uuids, so anything outside this set is either a bug or an attempt.
 _UNSAFE_IN_RUN_ID = re.compile(r"[^A-Za-z0-9_-]")
@@ -134,6 +137,40 @@ def open_run_workspace(
         root,
     )
     return session
+
+
+def variant_workspace_path(run_id: str, variant_id: str) -> Path:
+    """Returns one variant's directory, without creating it."""
+    return workspace_path(run_id) / _VARIANTS_DIRNAME / _safe_run_id(variant_id)
+
+
+def open_variant_workspace(
+    run_id: str, variant_id: str, *, network_allowed: bool = False
+) -> WorkspaceSession:
+    """Opens the workspace belonging to one variant of one run.
+
+    Variants of a run are proposed and evaluated concurrently, so they
+    cannot share the run's directory: two evaluations writing their
+    programs to the same paths would each run partly the other's code,
+    and the resulting scores would be attributed to the wrong variants.
+    Nothing about that failure is visible in a result -- both variants
+    return a plausible number -- so the isolation has to be structural
+    rather than a convention about who writes when.
+
+    Args:
+        run_id: The run identifier.
+        variant_id: The variant identifier.
+        network_allowed: Whether commands may reach the network.
+
+    Returns:
+        A session confined to that variant's directory.
+    """
+    root = variant_workspace_path(run_id, variant_id)
+    # The run's own directory is created (and permission-restricted)
+    # first, so the variant tree never exists under a world-readable
+    # parent even for the moment between the two mkdirs.
+    open_run_workspace(run_id, network_allowed=network_allowed)
+    return WorkspaceSession(root, network_allowed=network_allowed)
 
 
 def build_workspace_tools(

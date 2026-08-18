@@ -16,6 +16,8 @@ from co_scientist.workspace.run_workspace import (
     WorkspaceIdError,
     build_workspace_tools,
     open_run_workspace,
+    open_variant_workspace,
+    variant_workspace_path,
     workspace_path,
     workspaces_root,
 )
@@ -70,6 +72,8 @@ __all__ = [
     "can_run_commands",
     "check_paths",
     "open_run_workspace",
+    "open_variant_workspace",
+    "variant_workspace_path",
     "workspace_path",
     "workspace_tool_schemas",
     "workspaces_root",
