@@ -1,4 +1,3 @@
-
 """Downloads the source (tar.gz) of a paper from arXiv given its ID.
 
 This script allows downloading the LaTeX source files of arXiv papers
@@ -25,64 +24,64 @@ _CLIENT = http_client.HttpClient("https://export.arxiv.org/", qps=1.0 / 3.0)
 
 
 def parse_args() -> argparse.Namespace:
-  """Parses command-line arguments for the download script.
+    """Parses command-line arguments for the download script.
 
-  Returns:
-    argparse.Namespace: An object containing the parsed arguments.
-  """
-  parser = argparse.ArgumentParser(
-      description="Download paper source (tar.gz) from arXiv"
-  )
-  parser.add_argument(
-      "--id", type=str, required=True, help="arXiv ID (e.g., 2010.11645)"
-  )
-  parser.add_argument(
-      "--output",
-      type=str,
-      required=True,
-      help="Output file path for the tar.gz file",
-  )
-  return parser.parse_args()
+    Returns:
+      argparse.Namespace: An object containing the parsed arguments.
+    """
+    parser = argparse.ArgumentParser(
+        description="Download paper source (tar.gz) from arXiv"
+    )
+    parser.add_argument(
+        "--id", type=str, required=True, help="arXiv ID (e.g., 2010.11645)"
+    )
+    parser.add_argument(
+        "--output",
+        type=str,
+        required=True,
+        help="Output file path for the tar.gz file",
+    )
+    return parser.parse_args()
 
 
 def download_source(args: argparse.Namespace):
-  """Downloads the source of a paper from arXiv based on the provided arguments.
+    """Downloads the source of a paper from arXiv based on the provided arguments.
 
-  This function fetches the source (tar.gz) from arXiv using the
-  specified ID, saving it to the given output path. It includes
-  error handling for common issues like 404 Not Found and network errors,
-  and enforces a rate limit after each download attempt.
+    This function fetches the source (tar.gz) from arXiv using the
+    specified ID, saving it to the given output path. It includes
+    error handling for common issues like 404 Not Found and network errors,
+    and enforces a rate limit after each download attempt.
 
-  Args:
-    args: An argparse.Namespace object containing: - id (str): The arXiv ID of
-      the paper. - output (str): The file path where the tar.gz will be saved.
-  """
-  # Ensure ID is clean
-  paper_id = args.id.strip()
+    Args:
+      args: An argparse.Namespace object containing: - id (str): The arXiv ID of
+        the paper. - output (str): The file path where the tar.gz will be saved.
+    """
+    # Ensure ID is clean
+    paper_id = args.id.strip()
 
-  url = f"https://export.arxiv.org/e-print/{paper_id}"
-  print(f"Attempting to download source from {url}...")
+    url = f"https://export.arxiv.org/e-print/{paper_id}"
+    print(f"Attempting to download source from {url}...")
 
-  try:
-    content = _CLIENT.fetch_bytes(url)
-    out_dir = os.path.dirname(args.output)
-    if out_dir:
-      os.makedirs(out_dir, exist_ok=True)
-    with open(args.output, "wb") as f:
-      f.write(content)
-    print(f"Success! Saved to {args.output}")
+    try:
+        content = _CLIENT.fetch_bytes(url)
+        out_dir = os.path.dirname(args.output)
+        if out_dir:
+            os.makedirs(out_dir, exist_ok=True)
+        with open(args.output, "wb") as f:
+            f.write(content)
+        print(f"Success! Saved to {args.output}")
 
-  except urllib.error.HTTPError as e:
-    if e.code == 404:
-      print(
-          f"Error 404: Source not found (ID: {paper_id}). Not all papers have"
-          " source available.",
-          file=sys.stderr,
-      )
-    else:
-      raise
+    except urllib.error.HTTPError as e:
+        if e.code == 404:
+            print(
+                f"Error 404: Source not found (ID: {paper_id}). Not all papers have"
+                " source available.",
+                file=sys.stderr,
+            )
+        else:
+            raise
 
 
 if __name__ == "__main__":
-  main_args = parse_args()
-  download_source(main_args)
+    main_args = parse_args()
+    download_source(main_args)

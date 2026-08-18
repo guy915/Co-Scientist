@@ -1,4 +1,3 @@
-
 """Fetches variant frequency from gnomAD."""
 
 # /// script
@@ -22,29 +21,27 @@ CLIENT = http_client.HttpClient("https://gnomad.broadinstitute.org", qps=0.1666)
 
 
 def resolve_rsid(rsid: str, dataset: str) -> str:
-  """Resolves an rsID to a variant ID."""
-  url = "https://gnomad.broadinstitute.org/api"
-  query = """
+    """Resolves an rsID to a variant ID."""
+    url = "https://gnomad.broadinstitute.org/api"
+    query = """
   query($query: String!, $dataset: DatasetId!) {
     variant_search(query: $query, dataset: $dataset) {
       variant_id
     }
   }
   """
-  variables = {"query": rsid, "dataset": dataset}
-  response_data = CLIENT.fetch_json(
-      url, method="POST", json_body={"query": query, "variables": variables}
-  )
-
-  variants = response_data.get("data", {}).get("variant_search", [])
-  if not variants:
-    print(
-        json.dumps({"error": f"Could not resolve rsID {rsid}"}), file=sys.stderr
+    variables = {"query": rsid, "dataset": dataset}
+    response_data = CLIENT.fetch_json(
+        url, method="POST", json_body={"query": query, "variables": variables}
     )
-    sys.exit(1)
 
-  # For simplicity, return the first match if multiple
-  return variants[0]["variant_id"]
+    variants = response_data.get("data", {}).get("variant_search", [])
+    if not variants:
+        print(json.dumps({"error": f"Could not resolve rsID {rsid}"}), file=sys.stderr)
+        sys.exit(1)
+
+    # For simplicity, return the first match if multiple
+    return variants[0]["variant_id"]
 
 
 def get_variant_frequency(
@@ -53,19 +50,19 @@ def get_variant_frequency(
     dataset: str,
     output_path: str,
 ):
-  """Fetches variant frequency from gnomAD."""
-  if rsid and not variant_id:
-    variant_id = resolve_rsid(rsid, dataset)
-  elif not variant_id:
-    print(
-        json.dumps({"error": "Must provide either variant_id or rsid"}),
-        file=sys.stderr,
-    )
-    sys.exit(1)
+    """Fetches variant frequency from gnomAD."""
+    if rsid and not variant_id:
+        variant_id = resolve_rsid(rsid, dataset)
+    elif not variant_id:
+        print(
+            json.dumps({"error": "Must provide either variant_id or rsid"}),
+            file=sys.stderr,
+        )
+        sys.exit(1)
 
-  url = "https://gnomad.broadinstitute.org/api"
-  # GraphQL query for variant frequency and filtering allele frequency
-  query = """
+    url = "https://gnomad.broadinstitute.org/api"
+    # GraphQL query for variant frequency and filtering allele frequency
+    query = """
   query($variantId: String!, $dataset: DatasetId!) {
     variant(variantId: $variantId, dataset: $dataset) {
       variant_id
@@ -132,39 +129,37 @@ def get_variant_frequency(
   }
   """
 
-  variables = {"variantId": variant_id, "dataset": dataset}
+    variables = {"variantId": variant_id, "dataset": dataset}
 
-  response_data = CLIENT.fetch_json(
-      url, method="POST", json_body={"query": query, "variables": variables}
-  )
-  result = json.dumps(response_data, indent=2)
-  os.makedirs(os.path.dirname(output_path), exist_ok=True)
-  with open(output_path, "w") as f:
-    f.write(result)
-    f.write("\n")
+    response_data = CLIENT.fetch_json(
+        url, method="POST", json_body={"query": query, "variables": variables}
+    )
+    result = json.dumps(response_data, indent=2)
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
+    with open(output_path, "w") as f:
+        f.write(result)
+        f.write("\n")
 
 
 if __name__ == "__main__":
-  parser = argparse.ArgumentParser(
-      description="Fetch variant frequency from gnomAD"
-  )
-  parser.add_argument(
-      "--variant_id",
-      help="Variant ID in chrom-pos-ref-alt format",
-  )
-  parser.add_argument(
-      "--rsid",
-      help="Variant rsID (e.g. rs121918506)",
-  )
-  parser.add_argument(
-      "--dataset", default="gnomad_r4", help="gnomAD dataset to query"
-  )
-  parser.add_argument(
-      "--output",
-      "-o",
-      required=True,
-      help="Output file path.",
-  )
-  args = parser.parse_args()
+    parser = argparse.ArgumentParser(description="Fetch variant frequency from gnomAD")
+    parser.add_argument(
+        "--variant_id",
+        help="Variant ID in chrom-pos-ref-alt format",
+    )
+    parser.add_argument(
+        "--rsid",
+        help="Variant rsID (e.g. rs121918506)",
+    )
+    parser.add_argument(
+        "--dataset", default="gnomad_r4", help="gnomAD dataset to query"
+    )
+    parser.add_argument(
+        "--output",
+        "-o",
+        required=True,
+        help="Output file path.",
+    )
+    args = parser.parse_args()
 
-  get_variant_frequency(args.variant_id, args.rsid, args.dataset, args.output)
+    get_variant_frequency(args.variant_id, args.rsid, args.dataset, args.output)

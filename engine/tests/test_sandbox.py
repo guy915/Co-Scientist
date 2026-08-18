@@ -15,6 +15,7 @@ from pathlib import Path
 import pytest
 
 from co_scientist.sandbox import (
+    PROTECTED_METADATA_NAMES,
     SandboxKind,
     SandboxPolicy,
     UnsupportedSandboxError,
@@ -249,13 +250,20 @@ class TestRealConfinement:
         assert result.returncode != 0
         assert not outside.exists()
 
-    def test_git_metadata_inside_a_writable_root_is_protected(
-        self, tmp_path: Path
+    @pytest.mark.parametrize("name", PROTECTED_METADATA_NAMES)
+    def test_metadata_inside_a_writable_root_is_protected(
+        self, tmp_path: Path, name: str
     ) -> None:
-        """A command may write to the workspace, not rewrite its history."""
-        git_dir = tmp_path / ".git"
-        git_dir.mkdir()
-        target = git_dir / "HEAD"
+        """A command may write to the workspace, not rewrite its records.
+
+        Parametrized over the whole tuple rather than testing .git alone:
+        both backends build these rules by iterating it, so a name added
+        without a test looks protected in the source and is only ever
+        confirmed by the one entry someone happened to check.
+        """
+        metadata_dir = tmp_path / name
+        metadata_dir.mkdir()
+        target = metadata_dir / "record"
         result = _run_confined(
             [_bin("touch"), str(target)], workspace_write(tmp_path)
         )

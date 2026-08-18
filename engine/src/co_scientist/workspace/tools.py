@@ -32,12 +32,18 @@ longer happens.
 import asyncio
 import json
 import logging
+from dataclasses import dataclass
 from typing import Any
 
 from co_scientist.patch import PatchError
 from co_scientist.sandbox import SandboxKind, SandboxPolicy, sandbox_backend
 from co_scientist.tool_effects import declare_local_tool
 from co_scientist.tools.messages import tool_error_message, tool_result_message
+from co_scientist.workspace.output import (
+    BoundedOutput,
+    OutputRecorder,
+    SecretRegistry,
+)
 from co_scientist.workspace.session import (
     DEFAULT_COMMAND_TIMEOUT_SECONDS,
     WorkspaceSession,
@@ -69,6 +75,19 @@ _BACKEND_EXEMPT_KINDS = (SandboxKind.EXTERNAL, SandboxKind.DANGER_FULL_ACCESS)
 
 class WorkspaceToolInputError(ValueError):
     """Arguments the model sent that this module will not act on."""
+
+
+@dataclass(frozen=True)
+class _ToolContext:
+    """What every handler acts on: one workspace and its output policy.
+
+    Attributes:
+        session: The workspace the call operates in.
+        recorder: Redacts and bounds anything on its way to the model.
+    """
+
+    session: WorkspaceSession
+    recorder: OutputRecorder
 
 
 def can_run_commands(policy: SandboxPolicy) -> bool:
@@ -247,28 +266,50 @@ def _resolve_timeout(args: dict[str, Any]) -> float:
     return min(float(requested), DEFAULT_COMMAND_TIMEOUT_SECONDS)
 
 
-async def _handle_run_command(
-    session: WorkspaceSession, args: dict[str, Any]
-) -> dict[str, Any]:
-    """Runs a confined command and reports its outcome to the model."""
-    outcome = await session.run_command(
-        _require_argv(args), timeout_seconds=_resolve_timeout(args)
-    )
-    result = outcome.result
+def _full_output_paths(
+    streams: dict[str, BoundedOutput],
+) -> dict[str, str]:
+    """Maps each spilled stream to the path holding its full text."""
     return {
-        "exit_code": result.exit_code,
-        "stdout": result.stdout,
-        "stderr": result.stderr,
-        "timed_out": result.timed_out,
-        "output_truncated": result.truncated,
-        "required_approval": outcome.required_approval,
+        name: bounded.pointer.path
+        for name, bounded in streams.items()
+        if bounded.pointer is not None
     }
 
 
+async def _handle_run_command(
+    context: "_ToolContext", args: dict[str, Any]
+) -> dict[str, Any]:
+    """Runs a confined command and reports its outcome to the model."""
+    outcome = await context.session.run_command(
+        _require_argv(args), timeout_seconds=_resolve_timeout(args)
+    )
+    result = outcome.result
+    streams = {
+        "stdout": context.recorder.record("stdout", result.stdout),
+        "stderr": context.recorder.record("stderr", result.stderr),
+    }
+    payload: dict[str, Any] = {
+        "exit_code": result.exit_code,
+        "stdout": streams["stdout"].text,
+        "stderr": streams["stderr"].text,
+        "timed_out": result.timed_out,
+        "truncated": {
+            name: bounded.truncated for name, bounded in streams.items()
+        },
+        "required_approval": outcome.required_approval,
+    }
+    spilled = _full_output_paths(streams)
+    if spilled:
+        payload["full_output"] = spilled
+    return payload
+
+
 async def _handle_apply_patch(
-    session: WorkspaceSession, args: dict[str, Any]
+    context: "_ToolContext", args: dict[str, Any]
 ) -> dict[str, Any]:
     """Applies a patch envelope and reports what changed."""
+    session = context.session
     patch_text = args.get("patch")
     if not isinstance(patch_text, str) or not patch_text.strip():
         raise WorkspaceToolInputError("patch must be a non-empty string")
@@ -284,22 +325,30 @@ async def _handle_apply_patch(
 
 
 async def _handle_read_file(
-    session: WorkspaceSession, args: dict[str, Any]
+    context: "_ToolContext", args: dict[str, Any]
 ) -> dict[str, Any]:
-    """Reads one workspace file."""
+    """Reads one workspace file.
+
+    Redacted like command output: a file the model just wrote may hold
+    whatever a command printed into it, and this path would otherwise be
+    the way around the redaction on the other.
+    """
     path = args.get("path")
     if not isinstance(path, str) or not path.strip():
         raise WorkspaceToolInputError("path must be a non-empty string")
-    content = await asyncio.to_thread(session.read_file, path)
-    return {"path": path, "content": content}
+    content = await asyncio.to_thread(context.session.read_file, path)
+    return {
+        "path": path,
+        "content": context.recorder.record("read_file", content).text,
+    }
 
 
 async def _handle_list_files(
-    session: WorkspaceSession, args: dict[str, Any]
+    context: "_ToolContext", args: dict[str, Any]
 ) -> dict[str, Any]:
     """Lists the workspace's files."""
     del args
-    files = await asyncio.to_thread(session.list_files)
+    files = await asyncio.to_thread(context.session.list_files)
     return {"files": list(files)}
 
 
@@ -339,6 +388,7 @@ class WorkspaceToolProvider:
         self,
         session: WorkspaceSession,
         delegate: Any | None = None,
+        secrets: SecretRegistry | None = None,
     ) -> None:
         """Binds a provider to one run's workspace.
 
@@ -349,9 +399,21 @@ class WorkspaceToolProvider:
                 model sees one tool surface. A local name always wins,
                 loudly: shadowing an MCP tool is a configuration mistake
                 worth a log line rather than a silent reordering.
+            secrets: Values to mask in anything returned to the model.
+                Defaults to the host environment's credential-shaped
+                variables -- the default has to be the protective one,
+                since a caller who forgets this argument is exactly the
+                caller who most needs it.
         """
         self.session = session
         self._delegate = delegate
+        if secrets is None:
+            secrets = SecretRegistry()
+            secrets.register_environment()
+        self._context = _ToolContext(
+            session=session,
+            recorder=OutputRecorder(session.root, secrets),
+        )
         self._names = {
             schema["function"]["name"]
             for schema in workspace_tool_schemas(session.policy)
@@ -406,7 +468,7 @@ class WorkspaceToolProvider:
 
         try:
             payload = await handler(
-                self.session, _parse_arguments(tool_call.function.arguments)
+                self._context, _parse_arguments(tool_call.function.arguments)
             )
         except (WorkspaceToolInputError, PatchError) as exc:
             # Expected and actionable: the model can fix its own call.

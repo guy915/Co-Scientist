@@ -25,6 +25,7 @@ from pathlib import Path
 
 from co_scientist.patch import PatchError, apply_patch, parse_patch
 from co_scientist.sandbox import (
+    PROTECTED_METADATA_NAMES,
     ExecRequest,
     ExecResult,
     SandboxPolicy,
@@ -40,6 +41,11 @@ logger = logging.getLogger(__name__)
 # short enough that a hung process does not hold a durable task's lease
 # past its renewal.
 DEFAULT_COMMAND_TIMEOUT_SECONDS = 300.0
+
+
+def _is_metadata(relative: Path) -> bool:
+    """Reports whether a workspace-relative path is harness metadata."""
+    return any(part in PROTECTED_METADATA_NAMES for part in relative.parts)
 
 
 @dataclass(frozen=True)
@@ -196,12 +202,19 @@ class WorkspaceSession:
         return raw.decode("utf-8", errors="replace")
 
     def list_files(self) -> tuple[str, ...]:
-        """Lists the workspace's files, relative to its root."""
+        """Lists the workspace's files, relative to its root.
+
+        Protected metadata directories are omitted. They hold the
+        harness's own records -- spilled command output, snapshot state
+        -- and listing them among the work invites the model to treat
+        its own transcript as an input.
+        """
         return tuple(
             sorted(
-                str(path.relative_to(self.root))
+                str(relative)
                 for path in self.root.rglob("*")
                 if path.is_file()
+                and not _is_metadata(relative := path.relative_to(self.root))
             )
         )
 

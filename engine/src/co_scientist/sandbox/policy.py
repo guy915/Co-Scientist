@@ -43,9 +43,12 @@ class SandboxKind(Enum):
 
 # Names forced read-only inside every writable root. A command that may
 # write to a workspace still must not rewrite the history of the
-# repository it was handed, or the agent configuration that decides what
-# it is allowed to do next.
-PROTECTED_METADATA_NAMES = (".git", ".agents", ".claude")
+# repository it was handed, the agent configuration that decides what it
+# is allowed to do next, or the harness's own record of what earlier
+# commands printed (see workspace/output.py -- this process writes those
+# from outside the sandbox, so forcing them read-only inside costs
+# nothing and stops one command editing another's transcript).
+PROTECTED_METADATA_NAMES = (".git", ".agents", ".claude", ".cosci")
 
 
 @dataclass(frozen=True)
