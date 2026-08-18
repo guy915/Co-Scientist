@@ -340,6 +340,41 @@ def _finalize_tool_loop_success(
     return final_content, messages
 
 
+# A hard cap alone produces truncated, wasted work: the model spends its
+# last iteration mid-investigation and the loop raises on top of it. Warning
+# it while it still has room converts the stop into a handoff -- it can state
+# what it has rather than being cut off. Injected as a *user* turn because a
+# system message mid-conversation is ignored by several providers, and as a
+# fraction rather than a fixed count so it scales with the caller's budget.
+_HANDOFF_FRACTION = 0.8
+
+# Below this, 80% lands on iteration 1 or 2 and the warning arrives before
+# the model has done anything worth wrapping up.
+_MIN_ITERATIONS_FOR_HANDOFF = 4
+
+
+def _handoff_iteration(max_iterations: int) -> int:
+    """Returns the 0-based iteration to warn on, or -1 to never warn."""
+    if max_iterations < _MIN_ITERATIONS_FOR_HANDOFF:
+        return -1
+    return int(max_iterations * _HANDOFF_FRACTION)
+
+
+def _handoff_message(remaining: int) -> dict[str, Any]:
+    """Builds the one-shot wrap-up turn injected near the loop's bound."""
+    return {
+        "role": "user",
+        "content": (
+            f"You have {remaining} tool-calling turn(s) left before this "
+            "task is stopped. Stop opening new lines of investigation. "
+            "Use any remaining turns to finish what is in progress, then "
+            "give your final answer, reporting what you established and "
+            "what remains uncertain. A partial answer that says what is "
+            "missing is far more useful than being cut off mid-step."
+        ),
+    }
+
+
 async def _run_tool_call_loop(
     request: LLMCacheRequest,
     messages: list[dict[str, Any]],
@@ -351,13 +386,21 @@ async def _run_tool_call_loop(
 
     ``messages`` (seeded with the initial user turn) is mutated in place.
 
+    Near the bound a one-shot wrap-up turn is injected (see
+    ``_handoff_iteration``) so the model can land a partial answer instead
+    of being cut off mid-investigation. The hard cap remains as the
+    backstop -- the handoff makes reaching it rarer, not impossible.
+
     Raises:
         RuntimeError: If max_iterations is exhausted without a response.
     """
+    handoff_at = _handoff_iteration(max_iterations)
     for iteration in range(max_iterations):
         logger.debug(
             "llm tool call iteration %s/%s", iteration + 1, max_iterations
         )
+        if iteration == handoff_at:
+            messages.append(_handoff_message(max_iterations - iteration))
         done, final_content = await _run_iteration_logged(
             messages, request, tool_executor, iteration
         )
