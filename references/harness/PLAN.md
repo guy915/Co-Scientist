@@ -5,6 +5,70 @@ Supersedes the open questions in `SCOPE.md`. Grounded in the four teardowns in
 
 ---
 
+## Build status (2026-08-18)
+
+Phase 0 and Phase 1 are complete; Phase 2 is partly built. Everything below
+ships with tests, and where a test could pass against a broken implementation
+the mutation was run to confirm it fails against one.
+
+| Item | Phase | State | Where |
+| --- | --- | --- | --- |
+| Effect-typed tools + contiguous batching | 0 | **done** | `tool_effects.py`, `llm_tool_loop.py` |
+| Iteration soft-handoff | 0 | **done** | `llm_tool_loop.py` |
+| Interrupted-turn normalizer | 0 | **not built, deliberately** | see below |
+| `SandboxPolicy` + `wrap_argv` | 1 | **done, macOS verified** | `sandbox/policy.py`, `sandbox/argv.py`, `sandbox/seatbelt.py` |
+| bubblewrap backend | 1 | **written, UNVERIFIED** | `sandbox/bwrap.py` — see below |
+| `run_sandboxed` + real SIGKILL | 1 | **done** | `sandbox/runner.py` |
+| Resource/pid limits | 1 | **out of scope by design** | container's job; see §3 |
+| Trusted-command classifier | 2 | **done** | `sandbox/command_safety.py` |
+| `apply_patch` V4A | 2 | **done** | `patch/` |
+| Workspace session | 2 | **done** | `workspace/session.py` |
+| Shadow-git snapshots | 2 | **done** | `workspace/snapshot.py` |
+| Output redaction | 2 | not built | |
+| Post-edit checks fed back | 2 | not built | |
+| Long-running commands as sessions | 2 | not built | needs the app's durable task layer |
+| Tool registration (D5) | 2 | **not built — the blocking gap** | see below |
+| Everything in Phase 3 and Phase 4 | 3, 4 | not built | |
+
+### Three things to know before picking this up
+
+**1. The agent cannot reach any of this yet.** Every primitive works and is
+tested, but nothing is registered as a tool the model can call. That is D5,
+still open: the engine's tool path is MCP-only (`tools.yaml` entries with an
+`mcp_tool_name`, dispatched through `llm_tool_loop`), and a local exec tool is
+the first tool that is not an MCP call. Either it becomes an MCP tool on a
+local server — one registration path, but an HTTP hop and the 300 s
+`COSCIENTIST_MCP_TOOL_TIMEOUT_SECONDS` — or `ToolRegistry` grows a second kind.
+Until this is decided and wired, the capability exists as a library and not as
+a product.
+
+**2. Linux confinement is unverified.** `bwrap.py` is written from Codex's
+argv shape but has never run: development was on macOS, where seatbelt is
+exercised by real escape attempts in `tests/test_sandbox.py`. It must not be
+trusted until an equivalent escape test runs under Linux in CI or a container.
+The macOS suite being green says nothing about it.
+
+**3. The normalizer was skipped on evidence, not forgotten.** Codex needs it
+because it resumes mid-turn; this host restarts the whole task. Verified:
+`message_history` is written only on success and read only on a cache hit, and
+nothing reconstructs a partial tool transcript. It becomes necessary with
+start-then-poll long-running commands, and belongs in that change where it can
+be tested against a real interrupted command.
+
+### One defect worth remembering
+
+Writable roots were not resolved before reaching seatbelt. On macOS `/var` is a
+symlink, so a granted directory came back *unwritable* — it fails closed, so it
+reads as a broken sandbox rather than as a path bug. Every argv-shape test
+passed throughout, including one named `test_write_inside_a_writable_root_
+succeeds`, which passed only because pytest's `tmp_path` arrives already
+resolved. It was caught by running commands by hand with `tempfile.mkdtemp()`.
+
+The lesson generalizes to the whole area, and the teardowns kept saying it:
+**a sandbox's tests must try to escape it.** Shape assertions confirm shape.
+
+---
+
 ## 1. What the four sources actually settled
 
 Five findings converged hard enough to treat as decided.
