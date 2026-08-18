@@ -34,10 +34,11 @@ colors:
   error-container: "#FFDAD6"
   on-error-container: "#410002"
 
-  # Semantic extras — no MD3 equivalent; hardcoded in index.css with explicit
-  # dark overrides. success + warning are in active use (run completion and
-  # safety-screening activity tones); info + link are defined but currently
-  # unreferenced — reserved.
+  # Semantic extras — no MD3 equivalent; hardcoded as --color-th-* in
+  # theme_tokens.css, with explicit dark overrides in index.css's
+  # :root[data-theme="dark"] block. success + warning are in active use (run
+  # completion and safety-screening activity tones); info + link are defined
+  # but currently unreferenced — reserved.
   success: "hsl(142 71% 45%)"
   success-container: "hsl(138 38% 93%)"
   on-success-container: "hsl(138 45% 20%)"
@@ -80,14 +81,14 @@ typography:
     fontWeight: 400
     lineHeight: 1.156
 
-  # Goal-report document H1 (run detail, shared report)
+  # Goal-report document H2 (run detail) + ideas detail-pane headings
   headline-lg:
     fontFamily: Google Sans
     fontSize: 32px
     fontWeight: 400
     lineHeight: 1.25
 
-  # Goal-report document H2 / ideas detail-pane headings
+  # Goal-report document H3
   headline-md:
     fontFamily: Google Sans
     fontSize: 28px
@@ -158,9 +159,13 @@ typography:
     lineHeight: 1
 
 rounded:
+  # Tailwind v4's default radius scale, unchanged except for `--radius`
+  # (theme_tokens.css), which backs the bare `rounded` utility EmptyState uses.
+  # `rounded-sm` is unused.
   sm: 4px
-  md: 8px
-  lg: 12px
+  base: 8px
+  md: 6px
+  lg: 8px
   xl: 12px
   2xl: 16px
   full: 9999px
@@ -174,7 +179,7 @@ spacing:
   xl: 32px
   2xl: 48px
   container-x: 24px
-  content-max-width: 896px
+  content-max-width: 928px   # run-detail document column, w-[min(100% - 3rem, 58rem)]
 
 components:
   # MD3 filled primary button (rare — e.g. the error-boundary "Reload" action)
@@ -261,11 +266,11 @@ components:
     rounded: 0.45rem
     padding: "0.34rem 0.52rem"
 
-  # Empty-state placeholder box (components/empty_state.tsx)
+  # Empty-state placeholder box (workbench/components/empty_state.tsx)
   empty-state:
     backgroundColor: transparent
     textColor: "{colors.on-surface-variant}"
-    rounded: "{rounded.sm}"
+    rounded: "{rounded.base}"
     padding: 24px
 
   # Skeleton loader (.wb-skeleton) — shimmer over --cosci-skeleton-bg
@@ -279,7 +284,7 @@ components:
 
 ## Overview
 
-Co-Scientist is a Gemini Enterprise-style workbench for multi-agent idea development. The live surface is a single-page workbench: a chat workspace at `/` (greeting, composer, recents), a tabbed run detail at `/runs/:id/:tab` (Goal Details, Learning, Research Overview, All Ideas), the proposals relationship graph at `/proposals` (with `/recommendations` redirecting there), a shared read-only goal report at `/shared/:token`, and a researcher-access page at `/access`. First visits pass through the AudienceGate, which opens the Settings dialog on its Affiliation section. The earlier public surface — landing page, `/runs` dashboard, demo pages — was deliberately removed; do not reintroduce or style for it.
+Co-Scientist is a Gemini Enterprise-style workbench for multi-agent idea development. The live surface is a single-page workbench: a chat workspace at `/` (greeting, composer, recents) and at `/chats/:id` for a reopened session, a tabbed run detail at `/runs/:id/:tab` (Goal Details, Learning, Research Overview, All Ideas), the proposals relationship graph at `/proposals` (with `/recommendations` redirecting there), a shared read-only goal report at `/shared/:token`, and a researcher-access page at `/access`. First visits pass through the AudienceGate, which opens the Settings dialog on its Affiliation section. The earlier public surface — landing page, `/runs` dashboard, demo pages — was deliberately removed; do not reintroduce or style for it.
 
 The visual language is **precise, neutral, and data-forward** — more Google product workspace than consumer app. Whitespace is generous but purposeful. Color is used sparingly and always semantically: teal/blue accents for primary actions, tonal containers for states, semantic tones for run outcomes. The palette adapts fluidly between light and dark modes through Material Design 3 dynamic color, not manual dark-mode overrides.
 
@@ -298,7 +303,7 @@ The `--cosci-*` palette extends beyond raw colors into a **semantic component to
 
 Where possible, semantic tokens **alias baseline tokens** rather than introducing bespoke hex: the Logs system (`--cosci-logs-*`) derives every value from the step-dot accent and the neutral scale (via `var()` and `color-mix()`), so it re-themes for free with no dark block of its own. Prefer aliasing when a new surface is "the same color as X"; reserve new hex pairs for genuinely new surfaces.
 
-The raw-color/palette files split by role: `reference_surface.css` holds the Gemini product palette and the ideas-surface (`--cosci-idea-*`) tokens; `component_tokens.css` holds the semantic component tokens above; `shell_surface.css` / `home_surface.css` hold the shell and home *layout* rules that consume them. The import order in `styles/surfaces.css` is `reference_surface → component_tokens → shell → home → tooltips`, so component tokens can alias palette tokens defined before them.
+The raw-color/palette files split by role: `reference_surface.css` holds the Gemini product palette and the ideas-surface (`--cosci-idea-*`) tokens; `component_tokens.css` holds the semantic component tokens above; `shell_surface.css` / `home_surface.css` hold the shell and home *layout* rules that consume them. The import order in `styles/surfaces.css` is `reference_surface → component_tokens → shell* → home* → tooltips → proposals*` (the shell, home, and proposals sheets are each split into sequential parts), so component tokens can alias palette tokens defined before them.
 
 The mode-dependent **accent** is worth internalizing: light mode accents in teal — the composer submit uses `--cosci-teal` (`#1A6B6B`) while everything else accented uses the deeper product teal `#238a84` via `--cosci-accent`; dark mode swaps all of those roles (accent, composer submit) to the mint accent `--cosci-green`, which itself darkens from `#7fd7bf` to `#68d0c0` in dark mode. Components get this for free by using the role tokens (`--cosci-accent`/`--cosci-accent-fg`, `--cosci-composer-submit`), never the raw teal/green. `--cosci-step-dot-*` aliases the accent and belongs to the home step circle alone, so its treatment can change without repainting every accented surface.
 
@@ -315,7 +320,7 @@ The MD3-palette semantics below apply to the data/semantic surfaces:
 - **On-surface-variant (#3F4949):** Secondary/helper text on MD3 surfaces — metadata, helper text, empty states.
 - **Outline-variant (#BEC9C9):** The default 1px border for MD3-surface boxes (e.g. `EmptyState`). Borders never use a raw color — always this token.
 - **Error / error-container:** Reserved strictly for failed/blocked run states and form validation. Not used for warnings or info.
-- **Success, Warning, Info, Link:** Hardcoded semantic extras with no MD3 counterpart, each with explicit dark overrides in `:root[data-theme="dark"]`. Success maps to completed-run activity tones; **warning is the safety-screening activity tone** on run detail. Info and link are currently defined but unreferenced — reserved, not dead; remove only with a deliberate decision.
+- **Success, Warning, Info, Link:** Hardcoded semantic extras with no MD3 counterpart — light values in `theme_tokens.css`, each with an explicit dark override in `index.css`'s `:root[data-theme="dark"]`. Success maps to completed-run activity tones; **warning is the safety-screening activity tone** on run detail. Info and link are currently defined but unreferenced — reserved, not dead; remove only with a deliberate decision.
 
 Run-detail **activity tones** are the run-status color system (there is no status-pill component): `text-th-warning` for safety screening, `text-th-success` for completion, `text-th-primary` for supervisor activity, `text-cosci-muted` for the rest, with Tailwind's `animate-pulse` on the live row.
 
@@ -331,7 +336,7 @@ Two faces from one family cover every typographic role — this split matches th
 Both are **self-hosted woff2** at weights 400/500/700 — Google Sans vendored from `@fontsource/google-sans`, Google Sans Text from local files in `src/assets/fonts/` — declared via `@font-face` in `index.css` with `font-display: swap`. No CDN requests; `system-ui, sans-serif` is a render-failure fallback only.
 
 - **Display (36–45px fluid / weight 400):** The home greeting only — `clamp(2.25rem, 3.4vw, 2.8125rem)`, line-height 1.156, center-aligned. Note the weight: display text is *regular*, not bold.
-- **Headline-lg (32px / 400) and Headline-md (28px / 400):** Goal-report document H1/H2 (`run_detail_document.tsx`) and ideas detail-pane headings. Google Sans, regular weight, generous leading.
+- **Headline-lg (32px / 400) and Headline-md (28px / 400):** The goal-report document's own H2/H3 (`run_detail_document.tsx`; its `<h1>` is the shell titlebar, at 1.2rem) — headline-lg also covers the ideas detail-pane headings. Google Sans, regular weight, generous leading.
 - **Title-lg / md / sm (22 / 20 / 16.8px, 500):** Settings dialog title, product wordmark, settings card titles.
 - **Setup-title (23.2px / 600) and Setup-section (18.9px / 700):** The setup document's plan-sheet title and section headings — Google Sans Text, the one place heavier weights appear.
 - **Body-md (16px / 400):** Default readable copy.
@@ -347,7 +352,7 @@ The **MD3 data surfaces** follow an **8px base grid**. All spacing values on tho
 
 - **App shell:** `.ucs-app-shell` is a two-column grid — collapsible nav rail plus workspace — whose `grid-template-columns` animates over 240ms on rail toggle. The workspace panel is inset with a rounded top-left corner (`border-top-left-radius: 1.85rem`). Below the mobile breakpoint the rail becomes an off-canvas drawer with a `.ucs-scrim` overlay.
 - **Header:** `.ucs-header-action-bar` is sticky, 64px min-height (the shell reserves 72px), `padding-inline: 1.625rem`, solid `--cosci-surface-bg` fill.
-- **Run detail content:** constrained to `max-w-4xl` (896px) inside the workspace, with the four-tab bar spanning `grid-cols-4`.
+- **Run detail content:** the document column is `w-[min(100% - 3rem, 58rem)]` (928px) inside the workspace, shared by the skeleton and toast; the in-flight view uses `max-w-4xl` (896px). The four-tab bar spans `grid-cols-4`.
 - **Home stage:** a single centered column (greeting ≤ `34.375rem` wide) laid out as a grid whose **empty spacer rows are the shrinkable tracks** — under vertical pressure the gaps compress instead of the composer or stepper colliding. Vertical rhythm uses `clamp()` values so the stage breathes with the viewport. Preserve this spacer-track scheme when editing the home grid; fixed margins reintroduce overlap.
 - **Chat column:** user bubbles cap near `31rem`; model turns run the full column width.
 
@@ -375,7 +380,7 @@ The shape language is **restrained and consistent**, but it splits along the sam
 
 **MD3 data surfaces** — three radii cover all cases:
 
-- **`rounded-md` (8px):** Error/alert boxes, data blocks, skeletons. The default for any "block" that contains data.
+- **`rounded-md` (6px):** Error/alert boxes, data blocks, skeletons. The default for any "block" that contains data. (The bare `rounded` utility — Tailwind's 8px `--radius` — is the other block radius in use, on `EmptyState` and similar.)
 - **`rounded-xl` (12px):** Containers with more visual weight or interactive importance.
 - **`rounded-full` (9999px):** All buttons (MD3 buttons are pill-shaped), chips, the live-dot indicator. Used for anything that is interactive or badge-like.
 
@@ -405,7 +410,7 @@ Bespoke **styled** CSS class names (as opposed to Tailwind utilities) use **exac
 - **`ucs-*`** — app **shell chrome** the reference doesn't dictate: the app shell grid, nav rail items, header bar, chat list, popovers, the settings menu/dialog/FAQ, and the canonical tooltip system (`ucs-tooltip-*`).
 - **`reference-*`** — surfaces that reproduce a **specific Gemini reference** screen 1:1: the composer, recents cards, step timeline, chat bubbles, setup document, spec grid, option cards, connectors menu, report tabs/toast, workspace-main.
 
-Two intentional strays remain: `wb-skeleton` (the one surviving `wb-*` utility) and `md-state` / `md-elevation-*` (MD3 primitives). The Ideas tab additionally uses bare `idea-*` class names (`idea-split-shell`, `idea-rank-row`, `idea-detail-pane`, …) as **unstyled structural/test markers** — they carry no CSS rules (styling comes from Tailwind `cosci-idea-*` utilities) and must stay that way; if an `idea-*` class ever needs a stylesheet rule, rename it into one of the two families instead. Everything else is a Tailwind utility. Note the `--cosci-*` **custom-property** prefix is unrelated to class names — it's the token namespace (see Colors) and stays.
+Two intentional strays remain: `wb-skeleton` (the one surviving `wb-*` utility) and `md-state` / `md-elevation-*` (MD3 primitives). The `/proposals` page is the one scoped exception: its `proposals-*` classes are styled, but every rule lives in `proposals.css` / `proposals_detail.css` and is used by that page alone — not a general family to draw on elsewhere. The Ideas tab additionally uses bare `idea-*` class names (`idea-split-shell`, `idea-rank-row`, `idea-detail-pane`, …) as **unstyled structural/test markers** — they carry no CSS rules (styling comes from Tailwind `cosci-idea-*` utilities) and must stay that way; if an `idea-*` class ever needs a stylesheet rule, rename it into one of the two families instead. Everything else is a Tailwind utility. Note the `--cosci-*` **custom-property** prefix is unrelated to class names — it's the token namespace (see Colors) and stays.
 
 ### Interaction states
 
@@ -474,13 +479,13 @@ A first-party `<nav>` of `<button>` tabs (`.reference-report-tabs`, `grid-cols-4
 
 ### Logs / Diagnostics
 
-A header **Logs pill** (filled with the mode accent — teal in light, mint in dark — plus an entry-count badge) opens a floating **popover panel** (`ucs-popover--logs`, MD3 elevation) rendering the **persisted app-wide log** (the backend's `app_logs` store): the newest 100 records with consecutive `#N` numbering, identical on every route, with a Total chip carrying the filtered-stream size. Clear deletes server-side; Copy serializes the newest 50 as JSON. The pill stays present in **every audience mode**, next to any audience-specific control (Google team note / SBI-UCD pilot guide, each on its own popover slot). Every color in the panel is a `--cosci-logs-*` token that **aliases a baseline token** — the accent from the step-dot pair, surfaces/borders/text from the neutral scale — so the panel re-themes with no dark overrides of its own. Status chips are filled (accent for ok, danger pair for errors); Clear/Copy actions are outlined in the accent; log messages render as plain text in monospace on a `--cosci-logs-panel-bg` code block.
+A header **Logs pill** (filled with the mode accent — teal in light, mint in dark — plus an entry-count badge) opens a floating **popover panel** (`ucs-popover--logs`, MD3 elevation) rendering the **persisted app-wide log** (the backend's `app_logs` store): the newest 100 records with consecutive `#N` numbering, identical on every route, with a Total chip carrying the filtered-stream size. Clear deletes server-side; Copy writes a context preamble followed by the newest 100 entries as JSON. The pill is the **general audience's** header control and is **replaced**, not accompanied, by the other audiences' — Google gets a link to the proposals graph, SBI/UCD a feedback-form popover — so exactly one control holds that slot. Every color in the panel is a `--cosci-logs-*` token that **aliases a baseline token** — the accent from the step-dot pair, surfaces/borders/text from the neutral scale — so the panel re-themes with no dark overrides of its own. Status chips are filled (accent for ok, danger pair for errors); Clear/Copy actions are outlined in the accent; log messages render as plain text in monospace on a `--cosci-logs-panel-bg` code block.
 
 ### Tooltips
 
 One canonical tooltip system: set `data-tooltip="…"` plus the `.ucs-tooltip-anchor` class — build the class list with `tooltipClassNames()` in `tooltip.ts` rather than hand-assembling modifiers. The tooltip is an **inverted surface** — dark chip (`#303030`, MD3 inverse-surface) with `#f2f2f2` text in light mode, light chip (`#e3e3e3`) with `#303030` text in dark mode — with a small shadow, `0.45rem` radius, 0.78rem medium text, and a subtle scale/translate entrance on hover/focus-visible. Placement modifiers: `.ucs-tooltip-top/bottom/left/right`, alignment `.ucs-tooltip-align-start/end`, and `.ucs-tooltip-wrap` for multi-line content. Never hand-roll a bespoke tooltip; new affordances must use this system.
 
-**Cascade, not `!important`.** `tooltips.css` is **unlayered author CSS imported last** (after Tailwind's `@layer utilities`), so its rules already outrank utility classes — an `overflow-hidden` utility on an anchor can't clip the tooltip, and no declaration needs `!important`. This is deliberate and load-bearing: keep the file unlayered and imported last rather than reaching for `!important` to win a specificity fight. The placement/alignment modifiers share the base selector's specificity and rely on source order (they appear after the base rule).
+**Cascade, not `!important`.** `tooltips.css` is **unlayered author CSS** imported after Tailwind's `@layer utilities`, so its rules already outrank utility classes — an `overflow-hidden` utility on an anchor can't clip the tooltip, and no declaration needs `!important`. This is deliberate and load-bearing: keep the file unlayered rather than reaching for `!important` to win a specificity fight. The placement/alignment modifiers share the base selector's specificity and rely on source order (they appear after the base rule).
 
 ### Scrollbars
 
@@ -497,7 +502,7 @@ The setup flow's Focus/Tier pickers are card-shaped radio groups (`--cosci-optio
 
 ### Empty states
 
-Empty placeholders use the shared `EmptyState` component (`components/empty_state.tsx`): a centered `rounded` bordered box, `outline-variant` border, `on-surface-variant` text. Don't inline one-off empty-state markup in views.
+Empty placeholders use the shared `EmptyState` component (`workbench/components/empty_state.tsx`): a centered `rounded` bordered box, `outline-variant` border, `on-surface-variant` text. Don't inline one-off empty-state markup in views.
 
 ## Do's and Don'ts
 
@@ -519,4 +524,4 @@ Empty placeholders use the shared `EmptyState` component (`components/empty_stat
 - **Don't** give any element a `prefers-reduced-motion`-exempt animation; every transition must have the reduce escape.
 - **Don't** use more than two font weights on a single card or panel, and don't bold display headings — Google Sans display roles are weight 400.
 - **Don't** reintroduce status pills, phase-colored progress segments, dashboards, or landing/marketing surfaces — run status is communicated through activity text tones and the recents step flow. (The proposals graph's legend chips and the Logs panel's count chips are category/tally chips, not run-status pills; they are fine.)
-- **Don't** introduce new semantic colors without adding both light and dark hardcoded overrides to `index.css`.
+- **Don't** introduce new semantic colors without both halves of the pair — the light value in `theme_tokens.css` and a hardcoded dark override in `index.css`.

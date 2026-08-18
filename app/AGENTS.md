@@ -121,7 +121,7 @@ React 19 + Vite 7 + TypeScript + Tailwind v4. Package manager is **Bun**. Linter
 - Palette is Material Design 3, generated at runtime from seed `#1A6B6B` via `applyMd3Theme()` in `src/lib/theme.ts`. Never hardcode `--md-sys-color-*` values.
 - Two token bridges live in `src/index.css`'s `@theme` block: `--color-th-*` over the MD3 seed palette (data and status UI — run tones, error/success, primary actions) and `--color-cosci-*` over the `--cosci-*` Gemini product palette (shell, home, chat surfaces). `cosci-` is the larger layer; use the named utility, never an arbitrary `[var(--cosci-*)]` class.
 - The palette and layout CSS itself lives in `src/styles/`, imported by `main.tsx` via `styles/surfaces.css` in a fixed order (`reference_surface` → `component_tokens` → `shell_surface*` → `home_surface*` → `tooltips` → `proposals*` — the shell/home/proposals sheets are split into sequential parts whose concatenated order matches the original cascade) so component tokens can alias palette tokens defined before them. Theme a new surface by adding a paired light/dark token in `component_tokens.css` — never an inline `dark:[#hex]` in a component.
-- Three border-radius values only: `rounded-md` (8px) for data blocks, `rounded-xl` (12px) for interactive containers, `rounded-full` (9999px) for pills/buttons/chips.
+- Three border-radius values only: `rounded-md` (6px) for data blocks, `rounded-xl` (12px) for interactive containers, `rounded-full` (9999px) for pills/buttons/chips. (The bare `rounded` utility is 8px and is actually the most-used radius in the code — see `frontend/DESIGN.md`.)
 - No `box-shadow` on cards or inputs — tonal layers only.
 
 **Commands** (run from `app/frontend/`):

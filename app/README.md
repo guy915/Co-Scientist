@@ -7,8 +7,9 @@ A web workbench for running and monitoring the multi-agent hypothesis-generation
 ```
 app/
 ├── app/            FastAPI backend (Python)
-│   ├── main.py     App setup, diagnostics endpoints (/health, /config, /status), router mounting
-│   ├── runs.py     Durable run-lifecycle router (create / start / stream / cancel); runs_events/models/registry back it
+│   ├── main.py     App setup, lifespan, ownership middleware, router mounting
+│   ├── runs.py     Durable run-lifecycle router (create / start / stream / cancel); runs_lifecycle/collections/contrib/chat back it
+│   ├── diagnostics_api.py  /health, /config, /status (re-exported from app.main)
 │   ├── engine_tasks.py    Durable run execution — the production path — plus task_worker.py
 │   ├── store/      SQLite persistence layer (WAL, append-only event log)
 │   ├── engine_adapter/    Provider selection + offline/real LLM backend switch
@@ -18,15 +19,15 @@ app/
 │   ├── qa.py, human_input.py    Q&A and scientist-in-the-loop steering
 │   ├── elo.py      Elo rating utilities
 │   ├── cli/        `cosci` operator CLI (see below)
-│   ├── dev/        Offline maintenance scripts (corpus_ingest.py, build_catalog.py) — not shipped code
 │   └── config.py   Pydantic-settings config (loads .env)
+├── dev/            Offline maintenance scripts (corpus_ingest.py, build_catalog.py) — not shipped code
 └── frontend/       React 19 + Vite 7 + TypeScript + Tailwind v4
     └── src/
         ├── workbench/
         │   ├── pages/      chat workspace, run detail, proposals, researcher access, shared report
         │   ├── proposals/  proposals graph data/layout/rendering
         │   ├── hooks/      chat-session, run-history, and utility hooks
-        │   └── components/  run views incl. tabs/ (ideas_tab is the only live tab component)
+        │   └── components/  shared workbench UI (settings dialog, audience gate) + tabs/ (ideas_tab)
         ├── api/runs.ts     HTTP + SSE client
         └── hooks/          Shared app-level hooks (use_run_stream, ...)
 ```
@@ -103,7 +104,7 @@ This starts three containers:
 |---|---|---|
 | `api` | 8008 | FastAPI backend |
 | `ui` | 5173 | Vite dev server |
-| `mcp` | 8888 | Reference MCP server (PubMed + INDRA) |
+| `mcp` | 8888 | Reference MCP server (PubMed, OpenAlex, ChEMBL/UniProt, INDRA, web fetch/search) |
 
 The `api` container mounts the engine from `../engine`. Override `COSCIENTIST_ENGINE_PATH` in `.env` if the engine checkout is elsewhere; set `COSCIENTIST_ENGINE_REPO` only when you want the entrypoint to clone a checkout instead of using a local mount.
 
@@ -129,18 +130,18 @@ The frontend reads a single variable:
 
 | Variable | Default | Description |
 |---|---|---|
-| `VITE_API_BASE_URL` | `http://localhost:8008` | Backend URL |
+| `VITE_API_BASE_URL` | — (same origin) | Backend URL. Unset, the API client uses same-origin relative paths; `frontend/.env.example` sets `http://localhost:8008`, and the Vite dev server proxies `/api`, `/status`, and `/health` there. |
 
 ## Using the workbench
 
 1. **Chat workspace** (`/`) — the session home. Describe a research goal in chat,
    review the inferred run setup, and hit Start. The timeline keeps progress,
    steering messages, leading hypotheses, and report status in chronological order.
-2. **Run detail** (`/runs/:id`) — four views, updating live via SSE:
+2. **Run detail** (`/runs/:id/:tab`) — four views, updating live via SSE:
    - **Goal Details** — the run's goal, configuration, provider, artifact counts, and safety gates.
    - **Learning** — retrieved literature and citations.
    - **Research Overview** — synthesized Markdown report, downloadable.
-   - **Ideas** — ranked hypothesis list with Elo scores and lineage.
+   - **All Ideas** — ranked hypothesis list with Elo scores and lineage.
 
 Runs can be paused, resumed, or cancelled mid-flight. The backend stores the full event log so completed runs can be re-explored after the fact.
 
@@ -164,7 +165,7 @@ below; for the complete, always-current surface use the interactive docs at
 | `POST` | `/api/runs/{id}/resume` | Resume a paused workflow |
 | `POST` | `/api/runs/{id}/cancel` | Cancel a running workflow |
 | `GET` | `/api/runs/{id}/events` | SSE stream (live + replay via `?after=`) |
-| `GET` | `/api/runs/{id}/events/log` | Persisted event log as JSON |
+| `GET` | `/api/runs/{id}/events?stream=false` | Persisted event log as a one-shot JSON snapshot |
 | `GET` | `/api/runs/{id}/hypotheses` | Hypotheses with Elo scores and lineage |
 | `GET` | `/api/runs/{id}/evidence` | Retrieved literature |
 | `GET` | `/api/runs/{id}/matches` | Tournament matchup history |
@@ -183,9 +184,11 @@ below; for the complete, always-current surface use the interactive docs at
 |---|---|---|
 | `GET` | `/health` | Health check |
 | `GET` | `/config` | Server-default config values |
-| `GET` | `/status` | MCP/PubMed availability, provider, API key presence |
+| `GET` | `/status` | MCP/PubMed/web-search availability, provider, LLM backend |
 
-Interactive docs are available when the server is running:
+Interactive docs are available when the server is running, to operator
+callers only — a loopback client, or one sending `X-Logs-Token:
+$LOGS_ADMIN_TOKEN`. Anyone else gets a 404.
 - Swagger UI: http://localhost:8008/docs
 - ReDoc: http://localhost:8008/redoc
 
@@ -272,18 +275,18 @@ Pixi users can substitute `pixi run <task>` for any `make` target:
 ```bash
 bun install
 bun run dev      # Vite dev server on :5173
-bun run build    # tsc && vite build
+bun run build    # tsc && vite build && node scripts/prerender.mjs
 bun run lint     # gts lint
 bun run fix      # gts fix (format + autofix)
 ```
 
 ## Offline mode
 
-Every run executes on the real engine; the engine is a hard runtime dependency. If no LLM API key is set (or `COSCIENTIST_FORCE_OFFLINE=1` is set — the deprecated alias `COSCIENTIST_FORCE_MOCK=1` is still honored), the server pins the engine's `offline/` model backend instead of a real provider, producing deterministic, schema-valid hypotheses and evidence with no API spend. The `/status` endpoint reports `llm_backend: "offline"` (`mock_mode: true` remains as a deprecated mirror). This is useful for frontend development and CI.
+Every run executes on the real engine; the engine is a hard runtime dependency. If no LLM API key is set (or `COSCIENTIST_FORCE_OFFLINE=1` is set — the deprecated alias `COSCIENTIST_FORCE_MOCK=1` is still honored), the server pins the engine's `offline/` model backend instead of a real provider, producing deterministic, schema-valid hypotheses and evidence with no API spend. The `/status` endpoint reports `llm_backend: "offline"`. This is useful for frontend development and CI.
 
 ## Literature review (MCP)
 
-The literature review and reflection nodes connect to an MCP server that provides PubMed search and INDRA CoGex tools. Without a running MCP server the nodes fall back to LLM-only mode — hypothesis quality is reduced but the workflow still completes.
+The literature review and reflection nodes connect to an MCP server that provides PubMed and OpenAlex search, full-text retrieval, ChEMBL/UniProt lookups, INDRA CoGex queries, URL fetching, and web search (registered only when `BRAVE_API_KEY` or `TAVILY_API_KEY` is set on the MCP server). Without a running MCP server the nodes fall back to LLM-only mode — hypothesis quality is reduced but the workflow still completes.
 
 The reference MCP server lives in `../engine/mcp_server/`. Run it separately or let Docker Compose manage it:
 
