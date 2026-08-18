@@ -33,7 +33,7 @@ explicitly says otherwise; machine-readable results are written under
   item's `should_block` is `false`, including a broad domain-diverse sample,
   not just adversarial near-misses). Each item also carries a `difficulty`:
   `easy` is the literal-trigger regression floor the classifier was written
-  against (gated at 0 false positives/negatives by `smoke.py`); `hard` is
+  against (gated at 0 false negatives by `smoke.py`); `hard` is
   genuinely adversarial -- paraphrase/synonym evasion, character-gap
   padding past the regex's window, a word-boundary spacing trick, and
   vocabulary the classifier has no pattern for at all (nuclear, explosive),
@@ -91,7 +91,15 @@ explicitly says otherwise; machine-readable results are written under
 - `release_gate.py` — fail-closed scientific publication readiness over claim,
   safety, and provenance artifacts.
 - `smoke.py` — the offline smoke suite with documented regression tolerances.
-- `prod_smoke.py` — the one deliberate exception to "runs offline": a
+- `golden_run.py` — a deliberate exception to "runs offline": drives one small
+  biomedical run through the real durable path (`store.create_run` ->
+  `task_worker` -> `engine_tasks` -> engine -> MCP -> drain -> report) against
+  a **local** MCP server with `indra_cancer.yaml` and the semantic claim
+  assessor, then asserts real (non-offline) evidence, nonempty support
+  passages, and at least one authorized INDRA invocation. Needs a provider key
+  and a running local MCP server; never in CI, never against production, fresh
+  temp DB each time.
+- `prod_smoke.py` — another deliberate exception to "runs offline": a
   **non-mutating** live smoke against a deployed Co-Scientist API (auth,
   CORS, ownership isolation, MCP/SMTP status disclosure, sanitized share
   404). GET/OPTIONS only, never wired into CI (hermetic-CI forbids live
@@ -109,7 +117,9 @@ explicitly says otherwise; machine-readable results are written under
   monkeypatched transport.
 - `datasets/` — versioned, synthetic, legally shareable labeled sets.
 - `results/` — dated machine-readable result artifacts.
-- `tests/` — unit tests for every runner.
+- `tests/` — unit tests for the runners, plus the repo-wide source gates
+  (file length, function length, docs truth) that `make parity` runs alongside
+  the ledger check.
 
 ## Commands
 
@@ -117,7 +127,7 @@ explicitly says otherwise; machine-readable results are written under
 # From the repo root, using the shared venv python:
 python -m evaluations.parity_check          # ledger gate
 python -m evaluations.smoke                 # offline smoke (safety + citation)
-python -m evaluations.citation_eval         # writes results/citation-entailment-<date>.json
+python -m evaluations.citation_eval         # writes results/citation-entailment-deterministic-<date>.json
 python -m evaluations.citation_eval --challenge --llm  # adversarial panel, semantic assessor, enforces gates
 python -m evaluations.safety_eval           # writes results/hypothesis-safety-<date>.json
 python -m evaluations.scaling_eval path/to/controlled-runs.json
@@ -127,6 +137,7 @@ python -m evaluations.ablation_driver                     # offline; writes resu
 python -m evaluations.ablation_driver --live               # needs DEEPSEEK_API_KEY + reachable MCP
 python -m evaluations.elo_concordance_eval                 # offline stub; writes results/elo-concordance-<date>.json
 python -m evaluations.elo_concordance_eval --llm            # needs DEEPSEEK_API_KEY; scores the real judge
+python -m evaluations.golden_run            # LIVE; needs DEEPSEEK_API_KEY + a local MCP server
 python -m evaluations.prod_smoke            # LIVE, non-mutating; not in CI
 python -m evaluations.prod_smoke --base-url https://api.ai-co-scientist.com
 python -m evaluations.mcp_live_smoke        # LIVE, non-mutating; not in CI
