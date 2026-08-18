@@ -6,10 +6,16 @@ from co_scientist.workspace.session import (
     PatchOutcome,
     WorkspaceSession,
 )
+from co_scientist.workspace.snapshot import (
+    Snapshot,
+    WorkspaceSnapshotter,
+)
 
 __all__ = [
     "DEFAULT_COMMAND_TIMEOUT_SECONDS",
     "CommandOutcome",
     "PatchOutcome",
+    "Snapshot",
     "WorkspaceSession",
+    "WorkspaceSnapshotter",
 ]
