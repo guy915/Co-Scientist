@@ -1,4 +1,4 @@
-.PHONY: help setup start dev-api dev-ui dev-all dev-mcp preflight ensure-deps open-when-ready test test-app test-engine test-mcp test-all parity eval-smoke e2e lint typecheck build clean stop reset-db
+.PHONY: help setup start dev-api dev-ui dev-all dev-mcp preflight ensure-deps open-when-ready test test-app test-engine test-mcp test-sandbox-linux test-all parity eval-smoke e2e lint typecheck build clean stop reset-db
 
 ROOT := $(shell pwd)
 ENGINE := $(ROOT)/engine
@@ -197,6 +197,27 @@ test-app:
 
 test-engine:
 	@cd "$(ENGINE)" && "$(PY)" -m pytest -q
+
+# Sandbox suites on Linux -- the platform production actually runs on.
+#
+# The confinement backends are per-platform: macOS uses seatbelt, Linux
+# uses bubblewrap, and `make test-engine` on a Mac exercises only the
+# first. Running the escape tests here caught two real faults in the
+# Linux backend that the macOS suite could not have shown, including a
+# write that escaped the workspace.
+#
+# --privileged is required, not a convenience: an unprivileged container
+# blocks the user namespace bwrap needs, bwrap fails to launch, and the
+# escape tests then pass because nothing ran. The image's preflight
+# refuses to proceed in that state rather than reporting a false green.
+test-sandbox-linux:
+	@docker info >/dev/null 2>&1 || { \
+		echo "Docker is not running. Start Docker Desktop and retry."; \
+		exit 1; }
+	@echo "Building the Linux sandbox harness..."
+	@docker build -q -f "$(ENGINE)/docker/sandbox-linux.Dockerfile" \
+		-t coscientist-sandbox-linux "$(ENGINE)" >/dev/null
+	@docker run --rm --privileged coscientist-sandbox-linux
 
 # Reference MCP server suite. It pins Python 3.12, so it runs from the
 # dedicated $(MCP_VENV) that `make dev-mcp` also uses (created on demand).

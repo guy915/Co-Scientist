@@ -201,9 +201,16 @@ async def test_orphaned_children_die_with_the_group(tmp_path: Path) -> None:
     the pipe. Signalling only the direct child would leave this one
     running -- and, before the group kill, would hang the read instead
     of ending it.
+
+    Liveness is measured by a heartbeat file rather than by a pid,
+    because under a PID namespace (bwrap's --unshare-pid) the pid the
+    child sees is not the pid the host sees: checking it would test an
+    unrelated host process and pass or fail for no reason.
     """
-    marker = tmp_path / "child_pid"
-    script = f"sh -c 'echo $$ > {marker}; sleep 60' & wait"
+    beat = tmp_path / "heartbeat"
+    script = (
+        f"sh -c 'while true; do date +%s%N > {beat}; sleep 0.1; done' & wait"
+    )
 
     result = await run_sandboxed(
         ExecRequest(
@@ -214,13 +221,14 @@ async def test_orphaned_children_die_with_the_group(tmp_path: Path) -> None:
     )
 
     assert result.timed_out
-    child_pid = int(marker.read_text().strip())
-    for _ in range(50):
-        if not _pid_alive(child_pid):
-            break
-        time.sleep(0.05)
-    assert not _pid_alive(child_pid), (
-        f"grandchild {child_pid} survived the group kill"
+    assert beat.exists(), "the grandchild never started; test is inert"
+
+    # Give any survivor time to prove it is still beating.
+    first = beat.read_text()
+    time.sleep(0.5)
+    assert beat.read_text() == first, (
+        "the heartbeat advanced after the timeout: a grandchild survived "
+        "the group kill"
     )
 
 

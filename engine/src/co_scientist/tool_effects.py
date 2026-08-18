@@ -93,6 +93,25 @@ def is_barrier(effects: ToolEffect) -> bool:
     return bool(effects & BARRIER_EFFECTS)
 
 
+# Effects for tools that are not MCP calls. Local tools -- the ones that
+# execute commands and write files -- have no registry entry to read, so
+# they declare here at import time. A plain dict rather than anything
+# stateful: this is a static description of code, written once at module
+# import and never mutated per run, so it is not the kind of
+# process-global state the host's threading rules are about.
+_LOCAL_EFFECTS: dict[str, ToolEffect] = {}
+
+
+def declare_local_tool(name: str, effects: ToolEffect) -> None:
+    """Records the effects of a tool that is not backed by MCP.
+
+    Args:
+        name: The tool name as the model sees it.
+        effects: What the tool does to the world.
+    """
+    _LOCAL_EFFECTS[name] = effects
+
+
 def resolve_tool_effects(mcp_tool_name: str) -> ToolEffect:
     """Looks up one tool's declared effects by its MCP tool name.
 

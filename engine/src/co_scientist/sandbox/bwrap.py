@@ -15,7 +15,10 @@ here rather than being approximated.
 
 from pathlib import Path
 
-from co_scientist.sandbox.policy import SandboxPolicy
+from co_scientist.sandbox.policy import (
+    PROTECTED_METADATA_NAMES,
+    SandboxPolicy,
+)
 
 BWRAP_EXECUTABLE = "bwrap"
 
@@ -40,17 +43,40 @@ _BASE_FLAGS = (
 # before this --ro-bind would be masked by it.
 _READ_ONLY_ROOT = ("--ro-bind", "/", "/")
 
-# /proc and /dev are needed by essentially every runtime; /tmp is given
-# as a private tmpfs so a confined command has somewhere to scribble
-# without that being a grant against the host's /tmp.
-_RUNTIME_MOUNTS = (
-    "--proc",
-    "/proc",
-    "--dev",
-    "/dev",
-    "--tmpfs",
-    "/tmp",
-)
+# /proc and /dev are needed by essentially every runtime.
+_RUNTIME_MOUNTS = ("--proc", "/proc", "--dev", "/dev")
+
+# No private /tmp is mounted, deliberately. A tmpfs over /tmp both
+# widens and narrows the policy at once, and both directions were caught
+# by running the escape tests on Linux:
+#
+#   * it makes the whole of /tmp WRITABLE, so a workspace under /tmp --
+#     where pytest puts them, and where container scratch space often
+#     lives -- meant a write anywhere in /tmp succeeded; and
+#   * it MASKS the real /tmp, so a read-only sandbox could not read
+#     files that were actually there.
+#
+# Neither is what the policy says. /tmp is therefore left read-only like
+# the rest of the filesystem, and a command needing scratch space writes
+# into a declared root -- WorkspaceSession points TMPDIR at one.
+#
+# macOS never showed either fault: seatbelt grants by path and has no
+# equivalent blanket mount.
+
+
+def _metadata_protection(policy: SandboxPolicy) -> list[str]:
+    """Re-binds protected metadata read-only inside each writable root.
+
+    bwrap has no deny rule, so protection is a later read-only bind that
+    covers the earlier writable one. ``--ro-bind-try`` is used so a root
+    without a .git directory is not an error.
+    """
+    args: list[str] = []
+    for root in policy.writable_roots:
+        for name in PROTECTED_METADATA_NAMES:
+            target = str(root / name)
+            args.extend(["--ro-bind-try", target, target])
+    return args
 
 
 def _writable_binds(policy: SandboxPolicy) -> list[str]:
@@ -73,6 +99,8 @@ def build_args(policy: SandboxPolicy) -> list[str]:
     """
     args = [*_BASE_FLAGS, *_READ_ONLY_ROOT, *_RUNTIME_MOUNTS]
     args.extend(_writable_binds(policy))
+    # After the writable binds, so it covers them: last mount wins.
+    args.extend(_metadata_protection(policy))
     if not policy.allows_network:
         args.append("--unshare-net")
     return args

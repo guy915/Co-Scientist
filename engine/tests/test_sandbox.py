@@ -7,6 +7,7 @@ test here passes just as happily against a sandbox that confines nothing,
 which is the exact failure mode this module exists to avoid.
 """
 
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -25,9 +26,32 @@ from co_scientist.sandbox import (
 from co_scientist.sandbox import argv as sandbox_argv
 
 _ON_MACOS = sys.platform == "darwin"
+
+# Seatbelt-specific argv assertions only make sense on macOS.
 _requires_seatbelt = pytest.mark.skipif(
     not _ON_MACOS, reason="seatbelt confinement is macOS-only"
 )
+
+# The escape tests, by contrast, are backend-agnostic: they go through
+# wrap_argv and assert on what the kernel actually permitted. They must
+# run on every platform that claims a backend -- Linux is production, and
+# leaving it unexercised is how an unverified backend ships.
+_requires_sandbox = pytest.mark.skipif(
+    sandbox_argv.sandbox_backend() is None,
+    reason="no sandbox backend on this platform",
+)
+
+
+def _bin(name: str) -> str:
+    """Resolves a coreutil's absolute path for this platform.
+
+    Hardcoding /bin or /usr/bin makes a test pass on one distribution
+    and error on another, which reads as a confinement failure.
+    """
+    found = shutil.which(name)
+    if found is None:  # pragma: no cover - environment-dependent
+        pytest.skip(f"{name} is not installed")
+    return found
 
 
 # --- policy ---------------------------------------------------------------
@@ -157,13 +181,13 @@ def _run_confined(
     )
 
 
-@_requires_seatbelt
+@_requires_sandbox
 class TestRealConfinement:
     """Commands that try to escape, and are expected to fail."""
 
     def test_a_confined_command_still_runs(self) -> None:
         """Baseline: if this fails, every denial below is meaningless."""
-        result = _run_confined(["/bin/echo", "hello"], read_only())
+        result = _run_confined([_bin("echo"), "hello"], read_only())
         assert result.returncode == 0
         assert result.stdout.strip() == "hello"
 
@@ -183,7 +207,7 @@ class TestRealConfinement:
         target = real / "written.txt"
 
         result = _run_confined(
-            ["/usr/bin/touch", str(target)], workspace_write(link)
+            [_bin("touch"), str(target)], workspace_write(link)
         )
 
         assert result.returncode == 0, result.stderr
@@ -192,13 +216,13 @@ class TestRealConfinement:
     def test_reads_are_permitted(self, tmp_path: Path) -> None:
         target = tmp_path / "readable.txt"
         target.write_text("content")
-        result = _run_confined(["/bin/cat", str(target)], read_only())
+        result = _run_confined([_bin("cat"), str(target)], read_only())
         assert result.returncode == 0
         assert result.stdout == "content"
 
     def test_read_only_policy_denies_a_write(self, tmp_path: Path) -> None:
         target = tmp_path / "forbidden.txt"
-        result = _run_confined(["/usr/bin/touch", str(target)], read_only())
+        result = _run_confined([_bin("touch"), str(target)], read_only())
         assert result.returncode != 0
         assert not target.exists()
 
@@ -207,7 +231,7 @@ class TestRealConfinement:
     ) -> None:
         target = tmp_path / "allowed.txt"
         result = _run_confined(
-            ["/usr/bin/touch", str(target)], workspace_write(tmp_path)
+            [_bin("touch"), str(target)], workspace_write(tmp_path)
         )
         assert result.returncode == 0, result.stderr
         assert target.exists()
@@ -220,7 +244,7 @@ class TestRealConfinement:
         workspace.mkdir()
         outside = tmp_path / "outside.txt"
         result = _run_confined(
-            ["/usr/bin/touch", str(outside)], workspace_write(workspace)
+            [_bin("touch"), str(outside)], workspace_write(workspace)
         )
         assert result.returncode != 0
         assert not outside.exists()
@@ -233,7 +257,7 @@ class TestRealConfinement:
         git_dir.mkdir()
         target = git_dir / "HEAD"
         result = _run_confined(
-            ["/usr/bin/touch", str(target)], workspace_write(tmp_path)
+            [_bin("touch"), str(target)], workspace_write(tmp_path)
         )
         assert result.returncode != 0
         assert not target.exists()
@@ -242,7 +266,7 @@ class TestRealConfinement:
         """Outbound is denied unless the policy names it."""
         result = _run_confined(
             [
-                "/usr/bin/curl",
+                _bin("curl"),
                 "--max-time",
                 "5",
                 "-s",

@@ -136,13 +136,18 @@ class WorkspaceSession:
         from co_scientist.sandbox.runner import build_env
 
         needs_approval = not is_known_safe(argv)
+        # The sandbox mounts no private /tmp (see sandbox/bwrap.py), so
+        # scratch space has to be somewhere the policy actually grants.
+        # The workspace is the one such place, and pointing TMPDIR at it
+        # keeps temp files with the run that made them.
+        env = {"TMPDIR": str(self.root), **(env_extra or {})}
         result = await run_sandboxed(
             ExecRequest(
                 argv=argv,
                 policy=self.policy,
                 cwd=self.root,
                 timeout_seconds=timeout_seconds,
-                env=build_env(extra=env_extra),
+                env=build_env(extra=env),
             )
         )
         logger.debug(
