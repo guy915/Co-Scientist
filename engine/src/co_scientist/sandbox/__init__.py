@@ -23,13 +23,25 @@ from co_scientist.sandbox.policy import (
     read_only,
     workspace_write,
 )
+from co_scientist.sandbox.runner import (
+    DEFAULT_ENV_ALLOWLIST,
+    ExecRequest,
+    ExecResult,
+    build_env,
+    run_sandboxed,
+)
 
 __all__ = [
+    "DEFAULT_ENV_ALLOWLIST",
     "PROTECTED_METADATA_NAMES",
+    "ExecRequest",
+    "ExecResult",
     "SandboxKind",
     "SandboxPolicy",
     "UnsupportedSandboxError",
+    "build_env",
     "read_only",
+    "run_sandboxed",
     "sandbox_backend",
     "workspace_write",
     "wrap_argv",
