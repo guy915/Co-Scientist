@@ -16,6 +16,7 @@ from co_scientist.sandbox.argv import (
     sandbox_backend,
     wrap_argv,
 )
+from co_scientist.sandbox.command_safety import is_known_safe
 from co_scientist.sandbox.policy import (
     PROTECTED_METADATA_NAMES,
     SandboxKind,
@@ -40,6 +41,7 @@ __all__ = [
     "SandboxPolicy",
     "UnsupportedSandboxError",
     "build_env",
+    "is_known_safe",
     "read_only",
     "run_sandboxed",
     "sandbox_backend",
