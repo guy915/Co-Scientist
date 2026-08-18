@@ -112,23 +112,42 @@ def declare_local_tool(name: str, effects: ToolEffect) -> None:
     _LOCAL_EFFECTS[name] = effects
 
 
-def resolve_tool_effects(mcp_tool_name: str) -> ToolEffect:
-    """Looks up one tool's declared effects by its MCP tool name.
+def is_local_tool(name: str) -> bool:
+    """Reports whether a tool name is served locally rather than by MCP."""
+    return name in _LOCAL_EFFECTS
 
-    The tool registry is consulted lazily and failures are swallowed: a
-    configuration problem must degrade this to "run everything serially",
-    never break a run that was working. Import is deferred because
-    ``config.registry`` imports the tool schema, which would otherwise
-    close a cycle back through this module.
+
+def resolve_tool_effects(mcp_tool_name: str) -> ToolEffect:
+    """Looks up one tool's declared effects by the name the model called.
+
+    Local tools are consulted first, because they are the ones whose
+    effects actually differ: they execute commands and write files, and
+    they have no registry entry to fall back on. The MCP registry is then
+    consulted lazily and its failures are swallowed -- a configuration
+    problem must degrade this to "run everything serially", never break a
+    run that was working. Import is deferred because ``config.registry``
+    imports the tool schema, which would otherwise close a cycle back
+    through this module.
+
+    Note what the fail-closed default hides here. An unregistered local
+    tool already resolves to a barrier, so a *write* tool behaves
+    identically whether or not this function knows about it. The
+    difference is only visible on a local tool that reads: it batches
+    with its siblings once declared, and serializes when the declaration
+    is not consulted.
 
     Args:
-        mcp_tool_name: The name the model called, which is the MCP tool
-            name rather than the YAML tool id.
+        mcp_tool_name: The name the model called -- a local tool name, or
+            an MCP tool name rather than the YAML tool id.
 
     Returns:
         The tool's declared effects, or ``UNDECLARED_EFFECTS`` when the
         tool is unknown or the registry is unavailable.
     """
+    local = _LOCAL_EFFECTS.get(mcp_tool_name)
+    if local is not None:
+        return local
+
     try:
         from co_scientist.config.registry import get_tool_registry
 

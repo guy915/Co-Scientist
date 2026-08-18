@@ -40,7 +40,7 @@ from co_scientist.llm_request import (
 )
 from co_scientist.llm_telemetry import record_cache_result
 from co_scientist.llm_types import CompletionSpec, LLMCallOptions
-from co_scientist.tool_effects import batch_by_effects
+from co_scientist.tool_effects import batch_by_effects, is_local_tool
 
 logger = logging.getLogger(__name__)
 
@@ -475,6 +475,46 @@ class ToolLoop:
     tool_contract: dict[str, Any] | None = None
 
 
+def _contains_local_tool(tools: list[dict[str, Any]]) -> bool:
+    """Reports whether any offered tool acts on this machine."""
+    return any(
+        is_local_tool(schema.get("function", {}).get("name", ""))
+        for schema in tools
+    )
+
+
+def _guard_cache_for_local_tools(
+    loop: "ToolLoop", options: LLMCallOptions
+) -> LLMCallOptions:
+    """Disables caching for any loop that can execute local tools.
+
+    A cached tool-loop entry replays the whole transcript, tool results
+    included. That is sound while every tool is a literature lookup, whose
+    answer does not depend on this machine. It is not sound for a tool
+    that ran a command in a workspace: the replay would hand the model
+    output from a *different* run's directory as though it had just
+    executed there, and the failure is invisible -- plausible output,
+    correct shape, describing files that do not exist.
+
+    Enforced here rather than trusted to each call site, because the cost
+    of forgetting is fabricated evidence rather than a crash, and the loss
+    from being wrong in this direction is only a cache miss.
+
+    Args:
+        loop: The tool set offered to the model.
+        options: The caller's cache and telemetry choices.
+
+    Returns:
+        ``options``, or a copy with caching disabled.
+    """
+    if not options.use_cache or not _contains_local_tool(loop.tools):
+        return options
+    logger.debug(
+        "disabling the tool-loop cache: local tools cannot be replayed"
+    )
+    return replace(options, use_cache=False)
+
+
 async def call_llm_with_tools(
     prompt: str,
     spec: CompletionSpec,
@@ -497,6 +537,7 @@ async def call_llm_with_tools(
             ``LLMCallOptions()``.
     """
     opt = options if options is not None else LLMCallOptions()
+    opt = _guard_cache_for_local_tools(loop, opt)
     # An explicit spec key temporarily overrides any run-scoped key for
     # this loop; every iteration reads the effective key back from the
     # context (see _build_tool_loop_completion_args).

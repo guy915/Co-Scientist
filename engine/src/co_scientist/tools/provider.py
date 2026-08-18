@@ -1,12 +1,12 @@
 """Tool provider wrapping MCPToolClient for LLM tool calling."""
 
-import json
 import logging
 from collections.abc import Awaitable, Callable
 from typing import Any
 
 from co_scientist.exceptions import ConfigError
 from co_scientist.mcp_client import MCPToolClient
+from co_scientist.tools.messages import tool_error_message
 
 logger = logging.getLogger(__name__)
 
@@ -159,9 +159,4 @@ class MCPToolProvider:
         Returns:
             tool response message dict with error
         """
-        return {
-            "role": "tool",
-            "name": tool_name,
-            "tool_call_id": tool_call_id,
-            "content": json.dumps({"error": error_msg}),
-        }
+        return tool_error_message(tool_name, tool_call_id, error_msg)

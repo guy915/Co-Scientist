@@ -17,7 +17,7 @@ the mutation was run to confirm it fails against one.
 | Iteration soft-handoff | 0 | **done** | `llm_tool_loop.py` |
 | Interrupted-turn normalizer | 0 | **not built, deliberately** | see below |
 | `SandboxPolicy` + `wrap_argv` | 1 | **done, macOS verified** | `sandbox/policy.py`, `sandbox/argv.py`, `sandbox/seatbelt.py` |
-| bubblewrap backend | 1 | **written, UNVERIFIED** | `sandbox/bwrap.py` — see below |
+| bubblewrap backend | 1 | **done, Linux verified** | `sandbox/bwrap.py`, `make test-sandbox-linux` |
 | `run_sandboxed` + real SIGKILL | 1 | **done** | `sandbox/runner.py` |
 | Resource/pid limits | 1 | **out of scope by design** | container's job; see §3 |
 | Trusted-command classifier | 2 | **done** | `sandbox/command_safety.py` |
@@ -27,26 +27,59 @@ the mutation was run to confirm it fails against one.
 | Output redaction | 2 | not built | |
 | Post-edit checks fed back | 2 | not built | |
 | Long-running commands as sessions | 2 | not built | needs the app's durable task layer |
-| Tool registration (D5) | 2 | **not built — the blocking gap** | see below |
+| Per-run session construction | 2 | not built | app-side wiring; see §5 |
+| Production exec topology | 1 | **open, and now the blocker** | see below |
+| Tool registration (D5) | 2 | **done** | `workspace/tools.py` |
 | Everything in Phase 3 and Phase 4 | 3, 4 | not built | |
 
 ### Three things to know before picking this up
 
-**1. The agent cannot reach any of this yet.** Every primitive works and is
-tested, but nothing is registered as a tool the model can call. That is D5,
-still open: the engine's tool path is MCP-only (`tools.yaml` entries with an
-`mcp_tool_name`, dispatched through `llm_tool_loop`), and a local exec tool is
-the first tool that is not an MCP call. Either it becomes an MCP tool on a
-local server — one registration path, but an HTTP hop and the 300 s
-`COSCIENTIST_MCP_TOOL_TIMEOUT_SECONDS` — or `ToolRegistry` grows a second kind.
-Until this is decided and wired, the capability exists as a library and not as
-a product.
+**1. The agent can now reach the tools; nothing constructs a session yet.**
+D5 is resolved as a local tool kind rather than a local MCP server:
+`workspace/tools.py` declares `run_command`, `apply_patch`, `read_file` and
+`list_files`, and `tool_effects.resolve_tool_effects` consults local
+declarations before the MCP registry. `WorkspaceToolProvider` delegates every
+other name to the run's `MCPToolProvider`, so the model sees one tool surface.
+The MCP route was rejected on its timeout: `COSCIENTIST_MCP_TOOL_TIMEOUT_SECONDS`
+would bound the tool call and the command with one number, making a long
+analysis and a hung provider the same event. What remains is the call site —
+something has to build a `WorkspaceSession` per run and pass the provider into
+a `ToolLoop`.
 
-**2. Linux confinement is unverified.** `bwrap.py` is written from Codex's
-argv shape but has never run: development was on macOS, where seatbelt is
-exercised by real escape attempts in `tests/test_sandbox.py`. It must not be
-trusted until an equivalent escape test runs under Linux in CI or a container.
-The macOS suite being green says nothing about it.
+Two traps this area sets, both of which pass silently:
+
+- *Effects.* Asserting `run_command` is a barrier proves nothing, because an
+  unregistered tool is a barrier too. Only a local tool that **reads** can tell
+  whether the declarations are consulted at all — hence
+  `test_read_file_batches_with_sibling_reads`.
+- *Caching.* `call_llm_with_tools` caches whole transcripts, tool results
+  included. Replaying one that contains a `run_command` result hands the model
+  output from another run's directory as though it had just executed there:
+  plausible, correctly shaped, and describing files that do not exist.
+  `_guard_cache_for_local_tools` disables the cache structurally rather than
+  leaving it to each call site, because forgetting produces fabricated evidence
+  rather than a crash.
+
+**2. Linux confinement is verified; the production topology is not.**
+`make test-sandbox-linux` builds a bubblewrap image and runs the escape tests
+there (91 passed). It found five real faults macOS could not show, one of them
+an actual escape: `--tmpfs /tmp` made every workspace under `/tmp` writable
+while simultaneously masking the real `/tmp` from read-only sandboxes. It also
+found that `.git` protection had no bwrap implementation at all.
+
+The harness refuses to run without `--privileged`, and that is the finding.
+Bubblewrap cannot create a namespace under a normal container profile —
+`seccomp=unconfined`, `apparmor=unconfined` and `cap-add SYS_ADMIN` were each
+tried and each failed. So bwrap inside the api container is very likely not
+viable on Railway, and the production answer is `SandboxKind.EXTERNAL` with a
+dedicated exec container, which is where F3 pointed anyway. Today production
+fails closed: `Dockerfile.api` has no bwrap, `sandbox_backend()` returns None,
+and `workspace_tool_schemas` withholds `run_command` rather than offering a
+tool every call would refuse.
+
+The preflight exists because this class of failure passes. A probe reported
+`OUTSIDE: denied (good)` while bwrap had never started — a suite can report
+green while confining nothing.
 
 **3. The normalizer was skipped on evidence, not forgotten.** Codex needs it
 because it resumes mid-turn; this host restarts the whole task. Verified:
@@ -290,11 +323,15 @@ which is the phase most likely to be wrong in ways only usage reveals.
 
 Still open:
 
-- **D5 — tool exposure route.** MCP tool on a local server vs a second
-  `ToolRegistry` kind. Leaning MCP with the exec server as a sibling container,
-  so the sandbox boundary is also a process boundary — but the 300 s MCP timeout
-  and the divergent raise-vs-return timeout semantics at the two call sites need
-  resolving first.
+- **D9 — production exec topology.** The new blocker, promoted from D5's
+  second half. Bubblewrap needs `--privileged`, which Railway does not give an
+  app container, so the choice is a dedicated exec service reached over the
+  private network (`SandboxKind.EXTERNAL`, the seam already exists) or a
+  different confinement primitive. Until it is answered, `run_command` is a
+  development-only tool: correct, tested, and withheld in production.
+- **D10 — per-run session construction.** Which node builds the
+  `WorkspaceSession`, where its root lives, and whether the workspace outlives
+  a single durable task. Blocked on nothing; it is the next commit.
 - **D6 — dataset storage.** Blocked on how large "large" needs to be for the
   first real use case.
 - **`docs/FIDELITY.md:93`** currently records Computational Discovery as an
