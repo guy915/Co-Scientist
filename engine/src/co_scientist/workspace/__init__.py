@@ -29,11 +29,13 @@ from co_scientist.workspace.snapshot import (
     Snapshot,
     WorkspaceSnapshotter,
 )
-from co_scientist.workspace.tools import (
+from co_scientist.workspace.tool_schemas import (
     APPLY_PATCH,
     LIST_FILES,
     READ_FILE,
     RUN_COMMAND,
+)
+from co_scientist.workspace.tools import (
     WorkspaceToolInputError,
     WorkspaceToolProvider,
     can_run_commands,
