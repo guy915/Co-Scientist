@@ -110,7 +110,10 @@ jobs:
               - 'Dockerfile.api'
               - 'Dockerfile.mcp'
               - 'app/docker/**'
-              - 'docker-compose.yml'
+              - 'app/docker-compose.yml'
+              # The compose smoke derives its env_file from this example,
+              # so an edit here can break that job and nothing else.
+              - 'app/.env.example'
               - '.github/workflows/ci.yml'
             # Root-level files with no dedicated job of their own. CI encodes
             # its own commands rather than shelling to make (see docs/CI.md),
@@ -383,6 +386,17 @@ jobs:
         run: docker build -f Dockerfile.api -t coscientist-api-ci .
       - name: Build mcp image
         run: docker build -f Dockerfile.mcp -t coscientist-mcp-ci .
+      - name: Derive app/.env from the committed example
+        # The api service declares `env_file: .env`, and compose refuses to
+        # resolve a compose file whose env_file is missing -- app/.env is a
+        # developer symlink to the gitignored root .env, so it never exists
+        # in a fresh checkout and this job failed on every run. The example
+        # is the committed, secret-free stand-in, which also makes the smoke
+        # check that app/.env.example stays a valid compose env_file.
+        # `--env-file` is not a substitute: it only feeds ${VAR} interpolation
+        # and does not satisfy a service-level `env_file:` requirement.
+        working-directory: app
+        run: cp .env.example .env
       - name: Validate docker-compose.yml
         # Full `compose up` needs a sibling engine checkout (the entrypoint
         # clones one over the network otherwise -- see AGENTS.md's Docker

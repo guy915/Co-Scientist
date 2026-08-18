@@ -145,7 +145,7 @@ the MCP server runs on 3.12 (its own floor — the package requires >=3.12).
   conclusion, which branch protection counts as passing — workflow-level
   `paths:` would leave required checks pending forever. Every path in the
   repo is covered by at least one filter now: `docker` (root Dockerfiles,
-  `app/docker/`, `docker-compose.yml`) and `root_config` (`Makefile`,
+  `app/docker/`, `app/docker-compose.yml`) and `root_config` (`Makefile`,
   `vercel.json`, the `.env.example` templates) exist specifically so a
   change to those files is not silently invisible to every job — it used to
   be, since none of the per-tree filters matched them.
