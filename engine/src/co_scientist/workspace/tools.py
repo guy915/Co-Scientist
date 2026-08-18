@@ -39,6 +39,7 @@ from co_scientist.patch import PatchError
 from co_scientist.sandbox import SandboxKind, SandboxPolicy, sandbox_backend
 from co_scientist.tool_effects import declare_local_tool
 from co_scientist.tools.messages import tool_error_message, tool_result_message
+from co_scientist.workspace.checks import check_paths
 from co_scientist.workspace.output import (
     BoundedOutput,
     OutputRecorder,
@@ -316,12 +317,18 @@ async def _handle_apply_patch(
     # Parsing and writing are synchronous and can touch many files; a
     # cohort's event loop runs several tasks, so this does not hold it.
     outcome = await asyncio.to_thread(session.apply_patch_text, patch_text)
-    return {
+    payload: dict[str, Any] = {
         "changed": list(outcome.changed),
         "match_rungs": {
             path: list(rungs) for path, rungs in outcome.rungs.items()
         },
     }
+    findings = await asyncio.to_thread(
+        check_paths, session.root, outcome.changed
+    )
+    if findings:
+        payload["problems"] = [finding.as_dict() for finding in findings]
+    return payload
 
 
 async def _handle_read_file(

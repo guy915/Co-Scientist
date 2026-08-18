@@ -1,5 +1,6 @@
 """A run's confined working directory and the tools that act on it."""
 
+from co_scientist.workspace.checks import CheckFinding, check_paths
 from co_scientist.workspace.output import (
     DEFAULT_PREVIEW_CHARS,
     MIN_SECRET_LENGTH,
@@ -41,6 +42,7 @@ __all__ = [
     "RUN_COMMAND",
     "SPILL_DIRECTORY",
     "BoundedOutput",
+    "CheckFinding",
     "CommandOutcome",
     "OutputPointer",
     "OutputRecorder",
@@ -53,5 +55,6 @@ __all__ = [
     "WorkspaceToolInputError",
     "WorkspaceToolProvider",
     "can_run_commands",
+    "check_paths",
     "workspace_tool_schemas",
 ]

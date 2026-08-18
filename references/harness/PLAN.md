@@ -24,8 +24,8 @@ the mutation was run to confirm it fails against one.
 | `apply_patch` V4A | 2 | **done** | `patch/` |
 | Workspace session | 2 | **done** | `workspace/session.py` |
 | Shadow-git snapshots | 2 | **done** | `workspace/snapshot.py` |
-| Output redaction | 2 | not built | |
-| Post-edit checks fed back | 2 | not built | |
+| Output redaction + spillover | 2 | **done** | `workspace/output.py` |
+| Post-edit checks fed back | 2 | **done, parse checks only** | `workspace/checks.py` — a linter is absent from the prod image; see below |
 | Long-running commands as sessions | 2 | not built | needs the app's durable task layer |
 | Per-run session construction | 2 | not built | app-side wiring; see §5 |
 | Production exec topology | 1 | **open, and now the blocker** | see below |
@@ -231,8 +231,8 @@ and `_reclaim_disk_space()` cannot VACUUM.
 | Bash AST decomposition + arity prefixes | opencode | `tree_sitter` exists for Python. Makes "always allow" mean `git checkout *` rather than `git`. |
 | Approval axis ⟂ sandbox axis | Codex | Never let an escalation silently drop a restriction. ~20 lines; the reasoning is the value. |
 | Output spillover + redaction | Pi | Bounded preview + pointer; redact **before** persisting; refuse if raw secret bytes would survive. Close Pi's own gap: they redact artifacts but not the inline output, so `bash env` leaks credentials into the transcript. Do both. |
-| Secret registry | OpenHands | Scan command → inject only the needed vars → mask exported values even if the source later fails. |
-| Post-edit checks fed back | opencode | Not LSP — run `ruff`/`mypy` on the touched file and append failures to the tool result, capped. |
+| Secret registry | OpenHands | Scan command → inject only the needed vars → mask exported values even if the source later fails. **Built as the masking half** (`SecretRegistry`, registered once and masked forever after); injection has no caller yet. |
+| Post-edit checks fed back | opencode | Not LSP. Built as **deterministic parse checks** (Python/JSON/YAML, stdlib, in-process) rather than shelling out to `ruff`/`mypy`: both are dev dependencies absent from the production image, so an automatic linter pass would be a subprocess per edit that silently does nothing exactly where the model most needs it — the missing-backend-reads-as-clean-result failure again. A linter is one `run_command` away, where the model can see for itself whether it exists. |
 | Shadow-git snapshots | opencode | Bare tree hash in a separate git dir with `objects/info/alternates` into the real repo. No commits, no refs, invisible in `git log`. **For hypothesis testing this is provenance, not undo:** "this hypothesis was tested against this exact worktree state." |
 
 **Attachment shape:** the model-facing tool call enqueues a durable task and
