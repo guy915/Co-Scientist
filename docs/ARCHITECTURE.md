@@ -11,6 +11,11 @@ This document describes the current runtime shape of the Co-Scientist workspace.
 |   /runs, /runs/new   -> redirect to /                              |
 |   /runs/:id          -> redirect to the details tab                |
 |   /runs/:id/:tab     -> RunDetail (active tab persisted in URL)    |
+|   /chats/:id         -> ChatWorkspace   (one saved conversation)   |
+|   /proposals         -> ProposalsPage   (/recommendations aliases) |
+|   /access            -> researcher access-code exchange            |
+|   /shared/:token     -> public read-only Goal Report               |
+|   *                  -> NotFoundPage                               |
 |                                                                    |
 | useChatSession (chat timeline, steering + Q&A)                     |
 | useRunStream  (EventSource on /api/runs/:id/events)                |
@@ -33,8 +38,11 @@ This document describes the current runtime shape of the Co-Scientist workspace.
 |   store/         — SQLite store (runs/events/hypotheses/evidence/  |
 |                    citations/matches/reviews/reports/safety/       |
 |                    scientific_tasks/checkpoints/supervisor_plan)   |
-|   elo.py         — pure Elo helpers (initial=1200, configurable K) |
-|   safety.py      — intake + final regex-based gate                 |
+|   elo.py         — app-side leaderboard projection (initial=1200,  |
+|                    configurable K); the Elo math lives in the      |
+|                    engine's ranking agent                          |
+|   safety.py      — intake + final gate: deterministic rules first, |
+|                    then an optional contextual model assessment    |
 |   citations.py   — verified|partial|unsupported|unavailable        |
 +------------------------------+-------------------------------------+
                                |
@@ -54,31 +62,33 @@ This document describes the current runtime shape of the Co-Scientist workspace.
 
 ## Pipeline events (canonical timeline)
 
-Every run executes on the engine, and the engine adapter emits its events into the same event-log table regardless of which LLM backend (offline or real) is behind it. A standard run produces this canonical sequence:
+Every run executes through the durable task queue, and the same event-log table is written regardless of which LLM backend (offline or real) is behind it. A run produces this sequence:
 
 ```
-1.  lifecycle      (created)
-2.  lifecycle      (queued)
-3.  safety.intake  (allow/redact/block)
-4.  status         (running)
-5.  supervisor.plan
-6.  literature_review (N evidence)
-7.  generate          (initial_hypotheses_count rows)
-8.  reflection
-9.  proximity         (cluster summary, when the pool grew since the previous proximity pass)
-10. ranking           (iter 1)
-11. evolve            (evolution_max_count children with parent_id)
-12. meta_review       (per-iteration critique)
-13. ranking           (iter 2, …)
-14. deep_verification (probing questions on the top-k by Elo)
-15. citation_audit    ({verified, partial, unsupported, unavailable})
-16. research_overview (roadmap + NIH Specific Aims)
-17. safety.final
-18. report            (structured payload + markdown)
-19. status            (completed)
+1.  lifecycle       (created)                    written by POST /api/runs
+2.  lifecycle       (queued)                     written by POST /{id}/start
+3.  safety.intake   (allow/redact/block)
+4.  scientific_task (task=bootstrap)
+5.  scientific_task (task=supervisor,        successor=generate)
+    scientific_task (task=generate,          successor=review)
+    scientific_task (task=review,            successor=comprehensive_reflection)
+    …                                            one row per durable node commit,
+    scientific_task (task=research_overview, successor=null)
+6.  safety.hypothesis  (per-hypothesis screen counts)
+7.  citation.grounding (claim-grounding counts)
+8.  citation_audit     ({verified, partial, unsupported, unavailable})
+9.  safety.final
+10. report             (structured payload + markdown)
+11. status             (completed)
 ```
 
-The frontend's active-run view (`run_detail_active.tsx`) renders this as a live timeline while a run is in flight. The SSE endpoint at `GET /api/runs/{id}/events?after=<seq>` always replays history starting at the requested sequence, then tails live. This is what makes "reopen after restart" work: the client never depends on in-memory event state.
+Events 1-2 come from the HTTP layer. Events 3-5 come from the worker: `safety.intake` is the `engine.bootstrap` task's first act (`engine_tasks.py::_screen_bootstrap_intake`, which is also where the run flips to `running`), then one `scientific_task` per node commit. Events 6-11 come from the terminal `engine.finalize` task (`report_render.finalize_report`), which is why the citation audit lands *after* `research_overview` rather than before it. There is no `status (running)` event — the transition into `running` is a `runs` row update, not an event.
+
+Every graph node reports under the single `scientific_task` type, carrying the node it completed in `payload.task` and the node it scheduled next in `payload.successor` (`engine_tasks_emit.py::_emit_node_completion`). The engine's named stage vocabulary (`supervisor.plan`, `literature_review`, `generate`, `ranking`, …) survives only as milestone *chat messages* appended to `messages` by `engine_adapter.events.append_node_milestone`; no `run_events` row carries those types. The frontend's active-run view reads the node out of `payload.task` for exactly that reason (`run_detail_active.tsx::activityPhase`).
+
+Which nodes appear, and how often, is the orchestrator's decision rather than a fixed script: `review → comprehensive_reflection → safety_screen → ranking → deep_verification → orchestrator` recurs once per cycle, `meta_review → evolve` precedes a re-review, `proximity` runs only when the pool grew since the previous pass, and `literature_review`/`reflection` are absent entirely when no MCP server is reachable (they are excluded from the graph, not skipped at runtime).
+
+The SSE endpoint at `GET /api/runs/{id}/events?after=<seq>` always replays history starting at the requested sequence, then tails live. This is what makes "reopen after restart" work: the client never depends on in-memory event state.
 
 ## Persistence model
 
@@ -112,7 +122,7 @@ What varies per run is the **LLM backend**, not the provider. `engine_adapter.of
 1. `COSCIENTIST_FORCE_OFFLINE=1` is set (or its deprecated alias `COSCIENTIST_FORCE_MOCK=1`), OR
 2. no supported provider key is configured.
 
-An offline-backed run still executes the real engine graph; `co_scientist.offline_llm.install_offline_router()` intercepts `litellm.acompletion` for `offline/`-prefixed models and returns deterministic, schema-valid content instead of calling a real provider. The resolved backend (`"offline"` | `"real"`) is persisted per run as `llm_backend` and reported at `/status`; `mock_mode` remains as a deprecated mirror of the same value. A re-opened run remembers which backend produced it.
+An offline-backed run still executes the real engine graph; `co_scientist.offline_llm.install_offline_router()` intercepts `litellm.acompletion` for `offline/`-prefixed models and returns deterministic, schema-valid content instead of calling a real provider. The resolved backend (`"offline"` | `"real"`) is persisted per run as `llm_backend` and reported at `/status`; the deprecated `mock_mode` mirror of that value has since been removed from the API surface. A re-opened run remembers which backend produced it.
 
 ## Frontend state
 
@@ -144,11 +154,13 @@ still holds: nothing here lets a view render without hitting the API.
 ## Why this shape
 
 -   Original engine LangGraph workflow is preserved — every run drives the
-    engine through the durable task queue (`engine_tasks`), translating event
-    names; only the LLM backend underneath (offline or real) varies with
-    configuration.
--   FastAPI single-file app is preserved; the new router is mounted alongside
-    the diagnostics endpoints (`/health`, `/config`, `/status`).
+    engine through the durable task queue (`engine_tasks`), one leased task
+    per graph node, fan-out item, and tournament match; only the LLM backend
+    underneath (offline or real) varies with configuration.
+-   The FastAPI app is a single ASGI application composed from routers in
+    `main.py` — the run router alongside the diagnostics endpoints
+    (`/health`, `/config`, `/status`, defined in `diagnostics_api.py` and
+    re-exported from `app.main`).
 -   Frontend stack is preserved: React 19 + Vite 7 + Tailwind v4 + Bun + gts.
     The workbench lives under `src/workbench/`; the earlier public landing
     page and demo routes were removed, and `src/public/` now holds only
