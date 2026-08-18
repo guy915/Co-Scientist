@@ -107,7 +107,7 @@ configuration.
 | `corpus/` | Domain paper corpus baked into the API and MCP images |
 | `docs/` | Live architecture, fidelity notes, screenshots, and diagrams (see [`docs/README.md`](docs/README.md) for the index) |
 | `.github/` | CI and nightly workflows |
-| `references/` | Source research, product captures, and comparison material (large: ~370 MB) |
+| `references/` | Source research, product captures, and comparison material (~39 MB) |
 
 ## Documentation
 
@@ -126,8 +126,8 @@ configuration.
 ```bash
 make test          # viewer backend pytest suite
 make test-engine   # engine pytest suite
-make test-all      # engine + app pytest suites, plus the docs/PARITY.md evidence gate and its tests
-make lint          # ruff format --check + ruff check (app, engine, evaluations)
+make test-all      # engine + app + MCP server pytest suites, plus the docs/PARITY.md evidence gate and its tests
+make lint          # ruff format --check + ruff check (app, engine, evaluations) + gts lint (frontend)
 make typecheck     # mypy (app, engine, evaluations)
 make build         # frontend typecheck + production build
 make e2e           # Playwright browser suite (headless, isolated stack)
@@ -168,7 +168,7 @@ underneath changes. The system reports which one at `/status`:
 Force offline mode for development with `COSCIENTIST_FORCE_OFFLINE=1` (the
 deprecated alias `COSCIENTIST_FORCE_MOCK=1` is still honored). Check the
 current backend with `curl localhost:8008/status | jq .llm_backend`
-(`mock_mode` remains as a deprecated mirror of the same value).
+(`offline` or `real`).
 
 ### Environment
 

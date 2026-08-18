@@ -29,8 +29,9 @@ Sources referenced throughout:
 
 SWE book ch. 23 defines presubmit as "fast and reliable" checks gating merge,
 with "slower or less deterministic" comprehensive testing moved to
-postsubmit. This project's full suite is small enough (~3 minutes end to end)
-that presubmit and postsubmit run the *same commands*; the split that remains
+postsubmit. This project's full suite is small enough (a complete pass takes
+on the order of ten minutes on GitHub-hosted runners) that presubmit
+and postsubmit run the *same commands*; the split that remains
 meaningful at this scale is (a) presubmit is path-filtered and cancellable,
 (b) postsubmit runs everything on every main commit and keeps every result
 for culprit-finding, and (c) the nightly pass catches breakage that arrives
@@ -43,7 +44,7 @@ without a commit (dependency drift, runner image changes).
 Test Sizes / ch. 11: small and medium tests get no external network access —
 that is what makes them deterministic and trustworthy as merge gates.
 
-- Engine tests: pure unit/graph tests, LLM calls mocked (961 tests, ~12 s).
+- Engine tests: pure unit/graph tests, LLM calls mocked (1773 tests, ~18 s).
 - App tests: the suite's autouse `isolated_db` fixture forces the real
   engine's deterministic offline LLM backend (`COSCIENTIST_FORCE_OFFLINE=1`);
   no model API keys exist in CI.
@@ -59,12 +60,13 @@ that is what makes them deterministic and trustworthy as merge gates.
   client). Both have their own hermetic unit tests, in CI, that exercise the
   check *logic* against a mocked transport rather than the network.
 - Verified locally by running the app suite with a scrubbed environment
-  (`env -i`, no `.env` file present): 231 passed.
+  (`env -i`, no `.env` file present): 1179 passed.
 
 The only network CI uses is fetching the repo, actions, and packages
-(PyPI/npm registry via bun, plus apt and the Docker base image inside
-`docker-build`) — infrastructure, not test traffic. `docker-build` builds
-both root Dockerfiles and never pushes or runs them (deploys stay manual);
+(PyPI/npm registry via bun, the Chromium download in `e2e`, plus apt and
+the Docker base image inside `docker-build`) — infrastructure, not test
+traffic. `docker-build` builds both root Dockerfiles and never pushes or
+runs them (deploys stay manual);
 `root-config` runs `make setup`/`lint`/`typecheck` against the checkout
 itself, so it is exactly as hermetic as the jobs it exercises.
 
@@ -117,9 +119,9 @@ change that added CI, so `make typecheck` and the CI job agree.
 
 | Pattern | Source example | Here |
 |---|---|---|
-| Separate lint / type / test jobs, one concern per job | googleapis `lint.yml` + `unittest.yml` | `format-lint`, `typecheck`, `test-engine`, `test-app`, `evaluations`, `frontend`, `mcp-server`, `docker-build`, `root-config` |
+| Separate lint / type / test jobs, one concern per job | googleapis `lint.yml` + `unittest.yml` | `format-lint`, `typecheck`, `test-engine`, `test-app`, `evaluations`, `frontend`, `mcp-server`, `e2e`, `docker-build`, `root-config` |
 | `fail-fast: false` matrix over interpreter versions | abseil-py `test.yml` | `test-engine` on 3.10 + 3.12 |
-| Per-job `timeout-minutes` | adk-python `continuous-integration.yml` | every job (5–20 min) |
+| Per-job `timeout-minutes` | adk-python `continuous-integration.yml` | every job (5–25 min) |
 | Concurrency group cancelling superseded runs | adk-python | `concurrency:` with `cancel-in-progress` only for `pull_request` |
 | Path filters as affected-targets approximation | (adaptation, see below) | `changes` job with `dorny/paths-filter` |
 
@@ -209,13 +211,16 @@ Deliberately out of scope for CI: deployments. Railway (API/MCP) and Vercel
 
 - Every command CI runs is also runnable locally (`make lint`,
   `make typecheck`, `make test-engine`, `make test-app`, `make parity`,
-  `make eval-smoke`, `bun run lint|test|build`); every job except
-  `root-config` encodes the same commands directly rather than shelling to
-  make, so a Makefile refactor can't silently change those gates.
-  `root-config` is the deliberate exception: it exists specifically to
-  catch a Makefile edit that breaks a target (nothing else in CI would),
-  so it has to actually invoke `make`.
+  `make eval-smoke`, `bun run lint|test|build`); the test/lint jobs encode
+  the same commands directly rather than shelling to make, so a Makefile
+  refactor can't silently change those gates. Two jobs deliberately invoke
+  `make`: `root-config`, which exists specifically to catch a Makefile edit
+  that breaks a target (nothing else in CI would), and `e2e`, whose
+  `make setup` + `make e2e` targets already launch the isolated stack the
+  browser suite needs.
 - Version pins to bump deliberately: `ruff==0.15.21` (ci.yml), bun `1.3.14`
-  (ci.yml), action tags (`actions/checkout@v7`, `actions/setup-python@v6`,
-  `actions/cache@v6`, `oven-sh/setup-bun@v2`, `dorny/paths-filter@v4`).
-  Hardening option: pin actions to commit SHAs instead of tags.
+  (ci.yml), and every action, each pinned to a commit SHA with its version
+  in a trailing comment (`actions/checkout` v7.0.1, `actions/setup-python`
+  v6.3.0, `actions/cache` v6.1.0, `oven-sh/setup-bun` v2.2.0,
+  `dorny/paths-filter` v4.0.3). Remaining hardening: the composite action
+  `.github/actions/setup-backend` still pins `actions/setup-python` by tag.

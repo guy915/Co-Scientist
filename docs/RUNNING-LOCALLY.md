@@ -16,7 +16,7 @@ make stop         # stop them
 | Service | Port | Notes |
 |---|---|---|
 | API (FastAPI) | 8008 | seeds 3 demo runs on startup; served at `/api/runs/demo` |
-| UI (Vite/React) | 5173 | reads `VITE_API_BASE_URL`, defaults to `http://localhost:8008` |
+| UI (Vite/React) | 5173 | with `VITE_API_BASE_URL` unset the client calls same-origin paths, which the Vite dev server proxies (`/api`, `/status`, `/health`) to `http://localhost:8008` |
 | MCP (PubMed lit-review) | 8888 | Python **3.12** only; `make dev-mcp` auto-creates its venv |
 
 Individual pieces: `make dev-api`, `make dev-ui`, `make dev-mcp`.

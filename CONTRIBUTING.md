@@ -14,18 +14,20 @@ This project follows
 From the repo root:
 
 ```bash
-make setup          # Python venvs (engine + app) and frontend deps
+make setup          # one Python venv (engine + app, editable) and frontend deps
 make start          # API on :8008, UI on :5173, MCP on :8888
 ```
 
 See [`docs/RUNNING-LOCALLY.md`](docs/RUNNING-LOCALLY.md) for running individual
-pieces and the git-worktree gotchas, and [`AGENTS.md`](AGENTS.md) for the full
-repository guide.
+pieces and the git-worktree gotchas. [`AGENTS.md`](AGENTS.md) is the full
+repository guide (layout, gotchas, environment); per-project detail lives in
+[`app/AGENTS.md`](app/AGENTS.md) and [`engine/AGENTS.md`](engine/AGENTS.md),
+and production hosting in [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md).
 
 ## Testing
 
 ```bash
-make test-all       # engine + app pytest suites plus the parity ledger gate
+make test-all       # engine + app + MCP server suites plus the parity ledger gate
 make e2e            # Playwright end-to-end suite
 cd app/frontend && bun run test   # frontend unit tests
 ```
@@ -59,6 +61,10 @@ for this purpose.
     LLM responses, event payloads, and YAML config fragments
     (`dict[str, Any]`) — and should not appear on interfaces whose types
     are known.
+-   Size ceilings are gated, not conventional: 500 lines per source file and
+    40 lines of code per function (docstrings excluded), both checked by
+    `make parity`; ruff enforces a cyclomatic complexity of 5 and at most
+    five arguments per function.
 -   Docstrings are Google style: a one-line summary on the first line, ending
     with a period, followed by `Args:`, `Returns:`, and `Raises:` sections as
     applicable.
