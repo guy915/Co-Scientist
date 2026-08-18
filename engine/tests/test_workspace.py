@@ -12,7 +12,11 @@ import pytest
 
 from co_scientist.patch import PatchError
 from co_scientist.sandbox import sandbox_backend
-from co_scientist.workspace import SPILL_DIRECTORY, WorkspaceSession
+from co_scientist.workspace import (
+    SPILL_DIRECTORY,
+    OutputRecorder,
+    WorkspaceSession,
+)
 
 _requires_sandbox = pytest.mark.skipif(
     sandbox_backend() is None, reason="no sandbox backend on this platform"
@@ -159,17 +163,19 @@ def test_a_failed_patch_reports_and_changes_nothing(tmp_path: Path) -> None:
 
 @_requires_sandbox
 @pytest.mark.asyncio
-async def test_a_command_cannot_replace_the_metadata_directory(
+async def test_a_carve_out_backend_refuses_to_replace_the_metadata_dir(
     tmp_path: Path,
 ) -> None:
-    """The end-to-end half of the fresh-workspace spill escape.
+    """Only two of the three backends can express this.
 
-    The session creates .cosci so bwrap's --ro-bind-try has something to
-    bind; without that, a command could put a symlink there and redirect
-    the host process's spill writes to a directory it chose. Runs on
-    whichever backend the platform has, because the hole only existed on
-    one of them.
+    seatbelt denies by path and bwrap re-binds read-only; landlock rules
+    can only *add* access, so it has no spelling for "writable, except
+    here". Skipped rather than relaxed, because the guarantee genuinely
+    differs by platform and a test that accepted either outcome would
+    stop noticing if the two that can enforce it stopped.
     """
+    if sandbox_backend() == "landlock":
+        pytest.skip("landlock cannot express a carve-out; see the next test")
     link = shutil.which("ln")
     if link is None:  # pragma: no cover - environment-dependent
         pytest.skip("ln is not installed")
@@ -182,4 +188,32 @@ async def test_a_command_cannot_replace_the_metadata_directory(
 
     assert not outcome.result.ok
     assert not (session.root / metadata).is_symlink()
-    assert (session.root / SPILL_DIRECTORY).is_dir()
+
+
+@_requires_sandbox
+@pytest.mark.asyncio
+async def test_replacing_the_metadata_dir_cannot_redirect_a_host_write(
+    tmp_path: Path,
+) -> None:
+    """The invariant that does hold on every backend.
+
+    Where the carve-out exists a command cannot replace the directory;
+    where it does not, the command succeeds and the host's own write
+    then refuses the redirected target. Either way nothing lands outside
+    the workspace -- and this, not the carve-out, is what makes spilling
+    output safe.
+    """
+    link = shutil.which("ln")
+    if link is None:  # pragma: no cover - environment-dependent
+        pytest.skip("ln is not installed")
+    outside = tmp_path / "elsewhere"
+    outside.mkdir()
+    session = _session(tmp_path)
+    metadata = SPILL_DIRECTORY.split("/")[0]
+
+    await session.run_command(
+        [link, "-sfn", str(outside), metadata], timeout_seconds=30
+    )
+    OutputRecorder(session.root, preview_chars=50).record("stdout", "x" * 900)
+
+    assert list(outside.rglob("*")) == []

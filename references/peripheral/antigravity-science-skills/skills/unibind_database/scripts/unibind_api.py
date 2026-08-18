@@ -22,7 +22,7 @@ from science_skills.skills.scienceskillscommon import http_client
 
 UNIBIND_API_PREFIX = "api/v1"
 # This has to be the bare domain to support download links
-CLIENT = http_client.HttpClient(f"https://unibind.uio.no/", qps=20.0)
+CLIENT = http_client.HttpClient("https://unibind.uio.no/", qps=20.0)
 
 
 def make_request(url: str) -> Any:

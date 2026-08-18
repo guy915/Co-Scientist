@@ -16,7 +16,7 @@ here rather than being approximated.
 from pathlib import Path
 
 from co_scientist.sandbox.policy import (
-    PROTECTED_METADATA_NAMES,
+    METADATA_NAMES,
     SandboxPolicy,
 )
 
@@ -73,7 +73,7 @@ def _metadata_protection(policy: SandboxPolicy) -> list[str]:
     """
     args: list[str] = []
     for root in policy.writable_roots:
-        for name in PROTECTED_METADATA_NAMES:
+        for name in METADATA_NAMES:
             target = str(root / name)
             args.extend(["--ro-bind-try", target, target])
     return args

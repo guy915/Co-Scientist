@@ -17,7 +17,8 @@ the mutation was run to confirm it fails against one.
 | Iteration soft-handoff | 0 | **done** | `llm_tool_loop.py` |
 | Interrupted-turn normalizer | 0 | **not built, deliberately** | see below |
 | `SandboxPolicy` + `wrap_argv` | 1 | **done, macOS verified** | `sandbox/policy.py`, `sandbox/argv.py`, `sandbox/seatbelt.py` |
-| bubblewrap backend | 1 | **done, Linux verified** | `sandbox/bwrap.py`, `make test-sandbox-linux` |
+| bubblewrap backend | 1 | **done, verified privileged** | `sandbox/bwrap.py` |
+| landlock + seccomp backend | 1 | **done, verified in the api image** | `sandbox/landlock.py`, `sandbox/seccomp.py`, `sandbox/confine_exec.py` |
 | `run_sandboxed` + real SIGKILL | 1 | **done** | `sandbox/runner.py` |
 | Resource/pid limits | 1 | **out of scope by design** | container's job; see §3 |
 | Trusted-command classifier | 2 | **done** | `sandbox/command_safety.py` |
@@ -28,7 +29,7 @@ the mutation was run to confirm it fails against one.
 | Post-edit checks fed back | 2 | **done, parse checks only** | `workspace/checks.py` — a linter is absent from the prod image; see below |
 | Long-running commands as sessions | 2 | not built | needs the app's durable task layer |
 | Per-run session construction | 2 | **done** | `workspace/run_workspace.py` |
-| Production exec topology | 1 | **open, and now the blocker** | see below |
+| Production exec topology | 1 | **resolved — no separate service needed** | see below |
 | Tool registration (D5) | 2 | **done** | `workspace/tools.py` |
 | Variant evaluator (cascade, artifacts, sign) | 3 | **done** | `code_eval/` |
 | `code_evolve` agent, tables, task types | 3 | not built | app seam; see §5 |
@@ -62,38 +63,57 @@ Two traps this area sets, both of which pass silently:
   leaving it to each call site, because forgetting produces fabricated evidence
   rather than a crash.
 
-**2. Linux confinement is verified; the production topology is not.**
-`make test-sandbox-linux` builds a bubblewrap image and runs the escape tests
-there (91 passed). It found five real faults macOS could not show, one of them
-an actual escape: `--tmpfs /tmp` made every workspace under `/tmp` writable
-while simultaneously masking the real `/tmp` from read-only sandboxes. It also
-found that `.git` protection had no bwrap implementation at all.
+**2. Linux is verified twice, because production is the unprivileged one.**
+`make test-sandbox-linux` builds one image and runs the escape tests in it
+*twice*: once unprivileged, which is what production is, and once
+`--privileged`, which is the only way to exercise bubblewrap. The preflight
+prints which backend was selected, because a run that silently used the other
+one proves nothing about the platform it claims to cover.
 
-The harness refuses to run without `--privileged`, and that is the finding.
-Bubblewrap cannot create a namespace under a normal container profile —
-`seccomp=unconfined`, `apparmor=unconfined` and `cap-add SYS_ADMIN` were each
-tried and each failed. So bwrap inside the api container is very likely not
-viable on Railway, and the production answer is `SandboxKind.EXTERNAL` with a
-dedicated exec container, which is where F3 pointed anyway. Today production
-fails closed: `Dockerfile.api` has no bwrap, `sandbox_backend()` returns None,
-and `workspace_tool_schemas` withholds `run_command` rather than offering a
-tool every call would refuse.
+The first Linux run found five faults macOS could not show, one an actual
+escape (`--tmpfs /tmp` made every workspace under `/tmp` writable *and* masked
+the real `/tmp`), and `.git` protection turned out to have no bwrap
+implementation at all.
 
-The preflight exists because this class of failure passes. A probe reported
-`OUTSIDE: denied (good)` while bwrap had never started — a suite can report
-green while confining nothing.
+**Bubblewrap cannot run unprivileged, and that turned out not to matter.**
+It builds confinement out of namespaces, and a container runtime's default
+seccomp profile refuses `unshare(CLONE_NEWUSER)` — measured, EPERM, in a stock
+`python:3.12-slim`. `seccomp=unconfined`, `apparmor=unconfined` and
+`cap-add SYS_ADMIN` were each tried and each failed; only `--privileged` works,
+which Railway does not give an app container. The conclusion drawn from that —
+that production needed a separate exec service — was wrong, because it
+generalized from one primitive to the whole problem.
 
-The same shape then produced a second Linux-only escape, worth stating because
-it is the one a reviewer will re-derive. `--ro-bind-try` **skips a path that
-does not exist**, so on a fresh workspace `.cosci` was ordinary writable space
-and the first confined command could replace it with a symlink; the spill then
-ran in the *host* process, outside the sandbox, writing command-influenced
-bytes into a command-chosen directory. Seatbelt's deny rule matches a path
-whether or not it exists, so macOS could not show it. `WorkspaceSession` now
-creates the directory up front and `OutputRecorder._spill` refuses a target
-resolving outside the root — before the `mkdir`, since creating a directory and
-then declining to write into it still lets a command make the host `mkdir`
-wherever it likes. **A read-only bind protects a path that exists.**
+**Landlock is the opposite shape and needs nothing.** A process restricts
+*itself*, asks the kernel for no privilege it does not have, and the
+restriction survives `execve` because `no_new_privs` is set with it. Measured
+in the same container: ABI 6, and the escape tests pass. `Dockerfile.api`
+selects it today, as uid 999, with no package added — the real image, running
+real escape attempts, denies writes outside the workspace, writes to `/etc`,
+TCP and UDP, while reads and a granted network still work.
+
+Two things Landlock cannot do, both handled rather than hidden:
+
+- **Its rules only add access.** There is no deny and no last-match-wins, so
+  "writable, except `.git`" has no spelling. `landlock.can_enforce` therefore
+  *refuses* such a policy and the helper exits before the exec — enforcing the
+  expressible part would grant write access to the directory the policy names
+  as protected while every log line still said "confined". This forced a real
+  distinction: `PROTECTED_METADATA_NAMES` (`.git`, `.agents`, `.claude` — the
+  caller's, a stated guarantee) versus `HARNESS_METADATA_NAME` (`.cosci` —
+  ours, best-effort). While `.cosci` sat in the first tuple, every workspace
+  policy was inexpressible and the backend refused every command.
+- **Its network denial is TCP-only** (ABI 4+), so a confined process still sent
+  UDP freely. A seccomp filter refusing `socket()` for the internet address
+  families covers every protocol at once; `AF_UNIX` is untouched, because local
+  IPC is not network access.
+
+Two bugs from this work are worth carrying forward, because neither is visible
+to a test that only asks "was it denied". A transposed pair of BPF returns
+denies *every* syscall and reads as the interpreter crashing, not as a policy
+error. And `os.execv` does no PATH lookup, so every non-absolute command — the
+normal case for anything a model writes — failed with ENOENT under this backend
+alone, while every absolute-path test kept passing.
 
 **3. The normalizer was skipped on evidence, not forgotten.** Codex needs it
 because it resumes mid-turn; this host restarts the whole task. Verified:
@@ -337,12 +357,16 @@ which is the phase most likely to be wrong in ways only usage reveals.
 
 Still open:
 
-- **D9 — production exec topology.** The new blocker, promoted from D5's
-  second half. Bubblewrap needs `--privileged`, which Railway does not give an
-  app container, so the choice is a dedicated exec service reached over the
-  private network (`SandboxKind.EXTERNAL`, the seam already exists) or a
-  different confinement primitive. Until it is answered, `run_command` is a
-  development-only tool: correct, tested, and withheld in production.
+- **D9 — production exec topology. CLOSED: no separate service.** Landlock
+  plus a seccomp filter confines in the api container as it ships, unprivileged
+  and with nothing installed, verified by running real escape attempts inside
+  the built `Dockerfile.api` image. `SandboxKind.EXTERNAL` stays as a seam for
+  a future dedicated exec container — worth having when execution needs to
+  scale past one replica, which is a capacity decision rather than a security
+  one — but it is no longer a prerequisite for shipping. **The one thing still
+  worth confirming on the real host** is that Railway's kernel exposes
+  Landlock; if it does not, `sandbox_backend()` returns None and `run_command`
+  is withheld, which is the fail-closed direction and not a regression.
 - **D10 — which agent gets the workspace.** The *resolution* half is settled:
   `open_run_workspace(run_id)` is idempotent, off-volume, and treats the run id
   as untrusted input, so a restarted worker reopens the directory the killed one

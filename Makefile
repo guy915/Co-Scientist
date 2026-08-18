@@ -217,6 +217,11 @@ test-sandbox-linux:
 	@echo "Building the Linux sandbox harness..."
 	@docker build -q -f "$(ENGINE)/docker/sandbox-linux.Dockerfile" \
 		-t coscientist-sandbox-linux "$(ENGINE)" >/dev/null
+	@echo ""
+	@echo "== unprivileged (what production actually runs) =="
+	@docker run --rm coscientist-sandbox-linux
+	@echo ""
+	@echo "== privileged (exercises the bubblewrap backend) =="
 	@docker run --rm --privileged coscientist-sandbox-linux
 
 # Reference MCP server suite. It pins Python 3.12, so it runs from the

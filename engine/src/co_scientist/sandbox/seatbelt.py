@@ -16,7 +16,7 @@ sandbox while every test that only inspects argv keeps passing.
 from pathlib import Path
 
 from co_scientist.sandbox.policy import (
-    PROTECTED_METADATA_NAMES,
+    METADATA_NAMES,
     SandboxPolicy,
 )
 
@@ -100,7 +100,7 @@ def _metadata_denials(param_names: list[str]) -> str:
         return ""
     clauses = []
     for name in param_names:
-        for metadata in PROTECTED_METADATA_NAMES:
+        for metadata in METADATA_NAMES:
             escaped = _escape_regex(metadata)
             clauses.append(
                 f'(regex (string-append (param "{name}")'

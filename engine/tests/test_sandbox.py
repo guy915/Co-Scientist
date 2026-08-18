@@ -283,3 +283,57 @@ class TestRealConfinement:
             workspace_write(),
         )
         assert result.returncode != 0
+
+
+@pytest.mark.skipif(
+    sandbox_argv.sandbox_backend() != "landlock",
+    reason="the refusal is landlock-specific",
+)
+def test_landlock_refuses_a_policy_it_cannot_express(tmp_path: Path) -> None:
+    """Pins *why* the parametrized denial above passes under landlock.
+
+    It passes because the command never ran, which is the shape this
+    file exists to be suspicious of -- so the reason is asserted rather
+    than left to coincide. Landlock rules only add access, so a writable
+    root already containing protected metadata would silently be granted
+    write access to it; the helper exits before the exec instead.
+    """
+    from co_scientist.sandbox.confine_exec import EXIT_POLICY_REFUSED
+
+    (tmp_path / ".git").mkdir()
+
+    result = _run_confined([_bin("echo"), "hi"], workspace_write(tmp_path))
+
+    assert result.returncode == EXIT_POLICY_REFUSED
+    assert "landlock cannot express" in result.stderr
+
+
+@pytest.mark.skipif(
+    sandbox_argv.sandbox_backend() != "landlock",
+    reason="the fallback is Linux-specific",
+)
+def test_landlock_is_chosen_only_when_bubblewrap_cannot_run() -> None:
+    """Installed is not usable, and selecting on presence is the trap.
+
+    A container's default seccomp profile refuses the user namespace
+    bwrap needs, so bwrap is on PATH and fails every invocation. Picking
+    it anyway yields a backend that refuses every command, which reads
+    as a broken harness rather than as a platform limit.
+    """
+    assert shutil.which("bwrap") is not None
+    assert not sandbox_argv.bwrap_is_usable()
+
+
+@_requires_sandbox
+def test_a_command_on_the_path_runs_without_an_absolute_path() -> None:
+    """Every backend must resolve a bare command name through PATH.
+
+    Regression: the landlock helper used execv, which does no lookup, so
+    "python3" failed with ENOENT while every absolute-path test kept
+    passing -- and the escape tests could not see it, because a command
+    that never runs is denied everything.
+    """
+    result = _run_confined(["echo", "resolved"], read_only())
+
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.strip() == "resolved"

@@ -13,11 +13,14 @@ holds by running a command that tries to escape it.
 
 from co_scientist.sandbox.argv import (
     UnsupportedSandboxError,
+    bwrap_is_usable,
     sandbox_backend,
     wrap_argv,
 )
 from co_scientist.sandbox.command_safety import is_known_safe
 from co_scientist.sandbox.policy import (
+    HARNESS_METADATA_NAME,
+    METADATA_NAMES,
     PROTECTED_METADATA_NAMES,
     SandboxKind,
     SandboxPolicy,
@@ -34,6 +37,8 @@ from co_scientist.sandbox.runner import (
 
 __all__ = [
     "DEFAULT_ENV_ALLOWLIST",
+    "HARNESS_METADATA_NAME",
+    "METADATA_NAMES",
     "PROTECTED_METADATA_NAMES",
     "ExecRequest",
     "ExecResult",
@@ -41,6 +46,7 @@ __all__ = [
     "SandboxPolicy",
     "UnsupportedSandboxError",
     "build_env",
+    "bwrap_is_usable",
     "is_known_safe",
     "read_only",
     "run_sandboxed",

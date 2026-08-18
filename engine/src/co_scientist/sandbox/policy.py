@@ -41,14 +41,29 @@ class SandboxKind(Enum):
     EXTERNAL = "external"
 
 
-# Names forced read-only inside every writable root. A command that may
-# write to a workspace still must not rewrite the history of the
-# repository it was handed, the agent configuration that decides what it
-# is allowed to do next, or the harness's own record of what earlier
-# commands printed (see workspace/output.py -- this process writes those
-# from outside the sandbox, so forcing them read-only inside costs
-# nothing and stops one command editing another's transcript).
-PROTECTED_METADATA_NAMES = (".git", ".agents", ".claude", ".cosci")
+# Names a command must not rewrite even inside a directory it may write
+# to: the history of the repository it was handed, and the agent
+# configuration that decides what it is allowed to do next. These belong
+# to whoever handed us the directory, so failing to protect them is a
+# real loss of a stated guarantee -- the landlock backend REFUSES a
+# policy whose writable root already contains one rather than enforcing
+# less than the policy says (see landlock.can_enforce).
+PROTECTED_METADATA_NAMES = (".git", ".agents", ".claude")
+
+# The harness's own scratch inside a workspace: spilled command output,
+# snapshot bookkeeping. Deliberately NOT in the tuple above, and the
+# distinction is the point. Protecting it is nice -- one command cannot
+# then rewrite the record of an earlier one -- but nothing's safety
+# depends on it. The host writes these files from outside the sandbox and
+# guards that write by resolving the target and refusing anything outside
+# the workspace (workspace/output.py), which is what actually stops a
+# symlink redirecting it. Conflating the two cost a working landlock
+# backend: because this name is always present, every workspace policy
+# looked inexpressible and every command was refused.
+HARNESS_METADATA_NAME = ".cosci"
+
+# What the backends that CAN express a read-only carve-out apply it to.
+METADATA_NAMES = (*PROTECTED_METADATA_NAMES, HARNESS_METADATA_NAME)
 
 
 @dataclass(frozen=True)

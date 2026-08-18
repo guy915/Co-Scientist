@@ -23,11 +23,15 @@ does not know about could reconstruct the value downstream. Losing a
 command's output is recoverable. Publishing a key is not.
 
 Spillover is the third concern and the mild one. Output beyond the
-preview budget is written into the workspace under a protected metadata
-directory -- protected because the sandbox forces it read-only, so a
-later command cannot rewrite the record of an earlier one, while this
-process (outside the sandbox) still can. The model reads it back with
-``read_file`` when it wants the middle.
+preview budget is written into the workspace under the harness metadata
+directory. Two backends force that directory read-only inside the
+sandbox, so a later command cannot rewrite the record of an earlier one;
+the landlock backend cannot, because its rules only ever add access. That
+difference is deliberately not load-bearing -- what actually stops a
+command redirecting these writes is `_spill` resolving the target and
+refusing anything outside the workspace, which holds on every backend.
+The model reads the file back with ``read_file`` when it wants the
+middle.
 """
 
 import hashlib
@@ -37,15 +41,17 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
+from co_scientist.sandbox.policy import HARNESS_METADATA_NAME
+
 logger = logging.getLogger(__name__)
 
 # Below this, a value occurs in ordinary output by coincidence often
 # enough that masking it does more damage than the exposure it prevents.
 MIN_SECRET_LENGTH = 8
 
-# Where spilled output lands, relative to the workspace root. Inside
-# PROTECTED_METADATA_NAMES, so a confined command cannot rewrite it.
-SPILL_DIRECTORY = ".cosci/output"
+# Where spilled output lands, relative to the workspace root, under
+# the harness metadata directory (see sandbox/policy.py).
+SPILL_DIRECTORY = f"{HARNESS_METADATA_NAME}/output"
 
 # How much of one stream reaches the model inline. Large enough for a
 # real traceback or test run, small enough that a chatty command does not

@@ -17,7 +17,12 @@ from typing import Any
 
 import pytest
 
-from co_scientist.sandbox import PROTECTED_METADATA_NAMES, sandbox_backend
+from co_scientist.sandbox import (
+    HARNESS_METADATA_NAME,
+    METADATA_NAMES,
+    PROTECTED_METADATA_NAMES,
+    sandbox_backend,
+)
 from co_scientist.workspace import (
     LIST_FILES,
     MIN_SECRET_LENGTH,
@@ -241,10 +246,18 @@ def test_a_failed_spill_costs_the_middle_not_the_command(
 # --- the metadata directory ----------------------------------------------
 
 
-def test_the_spill_directory_is_protected_from_confined_commands() -> None:
-    """A later command must not be able to edit an earlier one's record."""
-    root = SPILL_DIRECTORY.split("/")[0]
-    assert root in PROTECTED_METADATA_NAMES
+def test_the_spill_directory_is_harness_scratch_not_a_guarantee() -> None:
+    """Which tuple it is in decides whether landlock can run at all.
+
+    Everything in PROTECTED_METADATA_NAMES makes a workspace policy
+    inexpressible under landlock, whose rules can only add access. This
+    directory always exists, so listing it there refused every command
+    on the platform production runs -- and the protection it bought was
+    never what made the spill safe (see _is_inside_workspace).
+    """
+    assert SPILL_DIRECTORY.split("/")[0] == HARNESS_METADATA_NAME
+    assert HARNESS_METADATA_NAME not in PROTECTED_METADATA_NAMES
+    assert HARNESS_METADATA_NAME in METADATA_NAMES
 
 
 def test_listing_files_omits_harness_metadata(tmp_path: Path) -> None:

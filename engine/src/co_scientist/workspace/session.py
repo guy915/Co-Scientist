@@ -25,7 +25,7 @@ from pathlib import Path
 
 from co_scientist.patch import PatchError, apply_patch, parse_patch
 from co_scientist.sandbox import (
-    PROTECTED_METADATA_NAMES,
+    METADATA_NAMES,
     ExecRequest,
     ExecResult,
     SandboxPolicy,
@@ -69,7 +69,7 @@ def _ensure_metadata_directory(root: Path) -> None:
 
 def _is_metadata(relative: Path) -> bool:
     """Reports whether a workspace-relative path is harness metadata."""
-    return any(part in PROTECTED_METADATA_NAMES for part in relative.parts)
+    return any(part in METADATA_NAMES for part in relative.parts)
 
 
 @dataclass(frozen=True)
