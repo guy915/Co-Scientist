@@ -6,6 +6,9 @@ stays in ``db.py``. Inline comments document each table's role and the
 compatibility notes behind non-obvious column choices.
 """
 
+from app.store.schema_code_variants import (
+    CODE_VARIANTS_SCHEMA as CODE_VARIANTS_SCHEMA,
+)
 from app.store.schema_knowledge_facts import (
     KNOWLEDGE_FACTS_SCHEMA as KNOWLEDGE_FACTS_SCHEMA,
 )
@@ -496,5 +499,6 @@ SCHEMA = (
     _SCHEMA_HEAD
     + KNOWLEDGE_FACTS_SCHEMA
     + SUPERVISOR_PLAN_SCHEMA
+    + CODE_VARIANTS_SCHEMA
     + _SCHEMA_TAIL
 )
