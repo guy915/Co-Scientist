@@ -104,6 +104,9 @@ class ToolConfig:
         category: Tool category (search, search_with_content, read, utility)
         source_type: Source type for articles (academic, preprint, etc.)
         enabled: Whether this tool is enabled
+        effects: What the tool does to the world, as tool_effects tokens;
+            governs whether it may run concurrently with sibling calls.
+            Defaults to the barrier value when absent -- see below.
         response_format: Configuration for parsing responses
         prompt_snippet: Prompt text to include when this tool is available
         parameters: Tool parameter configurations
@@ -119,6 +122,14 @@ class ToolConfig:
     category: str = "utility"
     source_type: str = "academic"
     enabled: bool = True
+    # What this tool does to the world, as tokens from tool_effects's
+    # vocabulary (read/write/append/network/process). Drives whether the
+    # tool may run concurrently with its siblings in one model turn. The
+    # default is deliberately the most restrictive value rather than the
+    # common one: a tool added to YAML without an effects key serializes,
+    # which costs latency, instead of running in parallel with a process
+    # spawn, which costs correctness. See tool_effects.py.
+    effects: list[str] = field(default_factory=lambda: ["write"])
     response_format: ResponseFormat = field(default_factory=ResponseFormat)
     prompt_snippet: str = ""
     parameters: dict[str, ParameterConfig] = field(default_factory=dict)

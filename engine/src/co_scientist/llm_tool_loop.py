@@ -40,6 +40,7 @@ from co_scientist.llm_request import (
 )
 from co_scientist.llm_telemetry import record_cache_result
 from co_scientist.llm_types import CompletionSpec, LLMCallOptions
+from co_scientist.tool_effects import batch_by_effects
 
 logger = logging.getLogger(__name__)
 
@@ -154,7 +155,18 @@ async def _execute_tool_calls(
     tool_calls: list[Any],
     tool_executor: Callable[[Any], Awaitable[dict[str, Any]]],
 ) -> list[dict[str, Any]]:
-    """Executes all requested tool calls concurrently.
+    """Executes a turn's tool calls, concurrently where effects allow it.
+
+    Calls are grouped into contiguous runs that may share a batch (see
+    ``tool_effects.batch_by_effects``); each batch is gathered, and a
+    barrier tool -- one that writes, appends, or spawns a process -- is a
+    batch of one, so it runs alone. Batches execute in order, so a model
+    that asked for read-then-write-then-read gets exactly that.
+
+    Every tool on this host is a read-only MCP call today, which resolves
+    to a single batch and the same unconditional concurrency this function
+    had before effects existed. The grouping earns its keep the moment a
+    tool executes code.
 
     Args:
         tool_calls: The tool_calls list from the assistant message.
@@ -164,7 +176,12 @@ async def _execute_tool_calls(
     Returns:
         The tool response messages, in the same order as ``tool_calls``.
     """
-    return await asyncio.gather(*[tool_executor(tc) for tc in tool_calls])
+    results: list[dict[str, Any]] = []
+    for batch in batch_by_effects(tool_calls):
+        results.extend(
+            await asyncio.gather(*[tool_executor(tc) for tc in batch])
+        )
+    return results
 
 
 def _finalize_tool_call_response(message: Any, model_name: str) -> str:

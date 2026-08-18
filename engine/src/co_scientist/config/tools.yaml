@@ -18,6 +18,15 @@ servers:
 # Tool Definitions
 # Organized by category: search_tools, read_tools, utility_tools
 #
+# Every tool declares `effects` from the vocabulary in tool_effects.py
+# (read/write/append/network/process). Tools sharing a model turn run
+# concurrently only while none of them is a barrier (write/append/process),
+# so every tool here -- all of which are remote read-only MCP calls --
+# declares ["read", "network"] and keeps the parallelism the loop provides.
+# Omitting the key is not a shortcut to that: an undeclared tool resolves to
+# `write` and runs alone, deliberately, so that a tool which spawns a process
+# can never race its siblings just because someone forgot to describe it.
+#
 # Deliberately omitted: the reference MCP server also registers 8 INDRA CoGex
 # knowledge-graph tools -- query_gene_disease_network, query_gene_codependents,
 # query_drug_info, query_clinical_trials, query_pathways, query_causal_subnetwork,
@@ -56,6 +65,7 @@ tools:
       category: "search"
       source_type: "academic"
       enabled: true
+      effects: ["read", "network"]
 
       response_format:
         type: "json"
@@ -91,6 +101,7 @@ tools:
       category: "search"
       source_type: "academic"
       enabled: true
+      effects: ["read", "network"]
 
       response_format:
         type: "json"
@@ -131,6 +142,7 @@ tools:
       category: "search_with_content"
       source_type: "academic"
       enabled: true
+      effects: ["read", "network"]
 
       response_format:
         type: "json"
@@ -192,6 +204,7 @@ tools:
       category: "search"
       source_type: "academic"
       enabled: true
+      effects: ["read", "network"]
       response_format:
         type: "json"
         results_path: "."
@@ -221,6 +234,7 @@ tools:
       category: "search"
       source_type: "scientific_database"
       enabled: true
+      effects: ["read", "network"]
       parameter_mapping:
         entity_name: "query"
         limit: "max_results"
@@ -236,6 +250,7 @@ tools:
       category: "search"
       source_type: "scientific_database"
       enabled: true
+      effects: ["read", "network"]
       parameter_mapping:
         entity_name: "query"
         limit: "max_results"
@@ -253,6 +268,7 @@ tools:
       category: "search"
       source_type: "web"
       enabled: true
+      effects: ["read", "network"]
 
       response_format:
         type: "json"
@@ -309,6 +325,7 @@ tools:
       description: "Fetch a web page or PDF and return its readable text"
       category: "read"
       enabled: true
+      effects: ["read", "network"]
 
       prompt_snippet: |
         Use `read_url` to read a page you found via search, or any URL you already
@@ -339,6 +356,7 @@ tools:
       description: "Check if PubMed API is accessible via the MCP server"
       category: "utility"
       enabled: true
+      effects: ["read", "network"]
 
       response_format:
         type: "boolean_string"
