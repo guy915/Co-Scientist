@@ -88,8 +88,8 @@ def _tool_calling_disabled_before_availability(
 
     These two conditions hold regardless of tool availability: the
     offline responder never emits tool calls (a tool loop would finish
-    on its first free-text reply), and an explicit False is the caller
-    opt-out the default-on resolution preserves.
+    on its first free-text reply), and an explicit False short-circuits
+    before any availability check.
 
     Args:
         requested: The caller's explicit tool-calling request, or None.
@@ -120,17 +120,17 @@ def _resolve_tool_calling_given_mcp_available(
 ) -> bool:
     """Resolves tool-calling generation once MCP is known to be available.
 
-    Still requires the literature review node; raises if the caller
-    explicitly disabled it while explicitly requesting tool-calling
-    generation, otherwise disables tool-calling (with a warning for an
-    explicit request, silently for the default-on resolution).
+    Tool-calling generation is opt-in: with the literature review node
+    running, it is enabled only for an explicit request. Raises if the
+    caller explicitly disabled that node while explicitly requesting
+    tool-calling generation, and otherwise disables tool-calling.
 
     Args:
         opts: Caller-supplied generation options.
         enable_literature_review_node: Whether the literature review node
             will run for this call.
         requested: The caller's explicit tool-calling request, or None
-            when the option was omitted (default-on resolution).
+            when the option was omitted (which is not a request).
 
     Returns:
         Whether tool-calling generation should be enabled.

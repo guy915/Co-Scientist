@@ -79,11 +79,11 @@ class HypothesisGenerator(
           review node (default: auto-detect MCP availability).
         - enable_tool_calling_generation: Tool-calling generation where
           the generate node's draft agent queries literature tools
-          directly. Defaults ON whenever the run has literature tools
-          available (MCP server + enable_literature_review_node=True,
-          and not the offline backend); pass False to opt out of it, or
-          True to request it explicitly (still validated against
-          availability).
+          directly. Opt-in: pass True to request it. An omitted option
+          is not a request, because the draft agent costs ~9 LLM calls
+          per hypothesis per cycle. A request is still validated against
+          availability (MCP server + enable_literature_review_node=True,
+          and not the offline backend).
         - dev_test_lit_tools_isolation: Dev mode - force lit review cache,
           all hypotheses to lit tools (default: False).
         - dev_mode: Dev mode - read a far smaller number of papers in the
