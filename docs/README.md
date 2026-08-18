@@ -10,6 +10,7 @@ but do not update them to match later changes.
 |---|---|
 | [ARCHITECTURE.md](ARCHITECTURE.md) | System architecture across app, engine, and MCP server |
 | [CI.md](CI.md) | CI pipeline: jobs, gates, and their local `make` equivalents |
+| [DEPLOYMENT.md](DEPLOYMENT.md) | Production hosting: the three deployed services, their Dockerfiles, env vars, and networking |
 | [EXPLAINER.md](EXPLAINER.md) | End-to-end walkthrough of how a run executes through the engine graph |
 | [FIDELITY.md](FIDELITY.md) | Behavioural/engine fidelity vs. Google's AI Co-Scientist (defers to PARITY.md) |
 | [PARITY.md](PARITY.md) | Parity ledger, machine-checked by `make parity` |
