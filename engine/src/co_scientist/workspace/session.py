@@ -220,7 +220,7 @@ class WorkspaceSession:
                 patch error type keeps one containment message for the
                 model to act on, whichever operation tripped it.
         """
-        target = self._resolve(relative)
+        target = self.resolve_path(relative)
         if not target.is_file():
             raise PatchError(f"no such file in workspace: {relative!r}")
         raw = target.read_bytes()[:max_bytes]
@@ -243,8 +243,23 @@ class WorkspaceSession:
             )
         )
 
-    def _resolve(self, relative: str) -> Path:
-        """Resolves a workspace-relative path, refusing any escape."""
+    def resolve_path(self, relative: str) -> Path:
+        """Resolves a workspace-relative path, refusing any escape.
+
+        Public because callers that are not the tool surface need it --
+        the evaluator writes a variant's source and reads its metrics
+        file, and doing that with a bare ``root / relative`` would skip
+        the containment check the tools get for free.
+
+        Args:
+            relative: Path relative to the workspace root.
+
+        Returns:
+            The absolute path.
+
+        Raises:
+            PatchError: If the path resolves outside the workspace.
+        """
         candidate = (self.root / relative).resolve()
         if candidate != self.root and self.root not in candidate.parents:
             raise PatchError(

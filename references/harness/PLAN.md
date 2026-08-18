@@ -30,7 +30,9 @@ the mutation was run to confirm it fails against one.
 | Per-run session construction | 2 | **done** | `workspace/run_workspace.py` |
 | Production exec topology | 1 | **open, and now the blocker** | see below |
 | Tool registration (D5) | 2 | **done** | `workspace/tools.py` |
-| Everything in Phase 3 and Phase 4 | 3, 4 | not built | |
+| Variant evaluator (cascade, artifacts, sign) | 3 | **done** | `code_eval/` |
+| `code_evolve` agent, tables, task types | 3 | not built | app seam; see §5 |
+| Everything in Phase 4 | 4 | not built | |
 
 ### Three things to know before picking this up
 
