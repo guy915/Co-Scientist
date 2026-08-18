@@ -30,10 +30,12 @@ pip install -e '.[dev]'
 
 ## Quick start
 
-Set an API key for your LLM provider (Gemini is the default model):
+Set an API key for your LLM provider. The constructor default model is
+`deepseek/deepseek-v4-flash`; `examples/run.py` pins `gemini/gemini-2.5-flash`.
 
 ```bash
-export GEMINI_API_KEY=your_key_here
+export DEEPSEEK_API_KEY=your_key_here
+export GEMINI_API_KEY=your_key_here   # for examples/run.py and the snippets below
 ```
 
 Run the interactive CLI demo:
@@ -61,39 +63,58 @@ async def main():
     )
 
     for hyp in result["hypotheses"]:
-        print(f"[{hyp.elo_rating}] {hyp.text[:120]}")
+        print(f"[{hyp['elo_rating']}] {hyp['text'][:120]}")
 
 asyncio.run(main())
 ```
 
-`generate_hypotheses` returns a dict with the full `WorkflowState`. The `hypotheses` list is sorted by Elo rating descending.
+`generate_hypotheses` returns a shaped result dict — `hypotheses`, `meta_review`, `research_overview`, `research_plan`, `execution_time`, `metrics`, plus the run ledger fields — not the raw `WorkflowState`. Each hypothesis is a plain dict, and the list comes out of the last ranking pass ordered by Elo rating descending.
 
 ## Streaming
 
-Pass `stream=True` to get an async generator of node-level events:
+Pass `stream=True` to get an async generator of `(node_name, state)` pairs, one per completed node:
 
 ```python
-async for event in generator.generate_hypotheses(
+async for node_name, state in generator.generate_hypotheses(
     research_goal="...",
     stream=True,
 ):
-    phase = event.get("phase")
-    data  = event.get("data", {})
-    print(phase, data)
+    print(node_name, len(state["hypotheses"]))
 ```
 
 ## Constructor parameters
 
 | Parameter | Type | Default | Description |
 |---|---|---|---|
-| `model_name` | `str` | `"gemini/gemini-2.5-flash"` | LiteLLM model string |
+| `model_name` | `str` | `"deepseek/deepseek-v4-flash"` | LiteLLM model string |
 | `max_iterations` | `int` | `1` | Refinement iterations after initial generation |
 | `initial_hypotheses_count` | `int` | `5` | Number of hypotheses to generate initially |
 | `evolution_max_count` | `int` | `3` | Top-k hypotheses to evolve each iteration |
+| `options` | `GeneratorOptions \| None` | `None` | Everything below; see `generator/options.py` |
+
+Every knob beyond the four run-size arguments lives on `GeneratorOptions`, passed as `options=`:
+
+| Field | Type | Default | Description |
+|---|---|---|---|
+| `supervisor_model_name` | `str \| None` | `None` | Model for planning and meta-review (`None` = `model_name`) |
+| `tournament_pairs` | `int` | `12` | Elo comparisons per ranking pass |
+| `elo_k_factor` | `int` | `24` | Rating change magnitude per match |
+| `literature_review_papers_count` | `int` | `8` | Papers to read and analyze |
 | `enable_cache` | `bool \| None` | `None` | Override `COSCIENTIST_CACHE_ENABLED` env var |
 | `cache_dir` | `str \| None` | `None` | Override cache directory |
 | `tools_config` | `str \| None` | `None` | Path to a custom tools YAML config |
 | `disable_tools` | `list[str] \| None` | `None` | Tool IDs to disable from the config |
+| `budget` | `dict \| None` | `None` | Serialized scheduler `Budget` (`max_llm_calls`, `max_tasks`, ...) |
+| `api_key` | `str \| None` | `None` | Per-run provider credential; forces caching off |
+
+```python
+from co_scientist import GeneratorOptions, HypothesisGenerator
+
+generator = HypothesisGenerator(
+    model_name="deepseek/deepseek-v4-flash",
+    options=GeneratorOptions(tools_config="path/to/tools.yaml"),
+)
+```
 
 `generate_hypotheses` accepts optional `opts` dict for per-run feature flags:
 
@@ -107,55 +128,71 @@ await generator.generate_hypotheses(
 )
 ```
 
-Additional per-run steering via keyword arguments:
+Additional per-run steering goes in the same `opts` dict; user-supplied hypotheses and literature go under `opts["user_inputs"]`:
 
 ```python
 await generator.generate_hypotheses(
     research_goal="...",
-    preferences="Focus on non-invasive biomarkers",
-    attributes=["novelty", "experimental feasibility"],
-    constraints=["must be testable in mouse models"],
-    starting_hypotheses=["Tau protein changes precede amyloid plaques"],
+    opts={
+        "preferences": "Focus on non-invasive biomarkers",
+        "attributes": ["novelty", "experimental feasibility"],
+        "constraints": ["must be testable in mouse models"],
+        "user_inputs": {
+            "starting_hypotheses": [
+                "Tau protein changes precede amyloid plaques"
+            ],
+        },
+    },
 )
 ```
 
 ## Workflow
 
-The graph executes the following nodes in order:
+Every work phase converges on the same review-through-ranking spine, then returns to the orchestrator loop point, which picks the next task from live state rather than following a fixed iteration count:
 
 ```
 Supervisor
     └─► Literature Review  (optional, requires MCP server)
             └─► Generate
-                    └─► Reflection  (if Literature Review ran)
+                    └─► Reflection  (only if Literature Review ran)
                             └─► Review
-                                    └─► Ranking / Elo Tournament
-                                            ├─► [end if max_iterations = 0]
-                                            └─► Meta-Review
-                                                    └─► Evolve
-                                                            └─► Review
-                                                                    └─► Ranking
-                                                                            └─► Proximity (dedup)
-                                                                                    └─► [loop or end]
+                                    └─► Comprehensive Reflection
+                                            └─► Safety Screen
+                                                    └─► Ranking / Elo Tournament
+                                                            └─► Deep Verification
+                                                                    └─► Orchestrator
+
+Orchestrator (the single loop point) routes to the task it picked:
+    generate   ─► Generate     ─► (back into the spine at Review)
+    reflect    ─► Review
+    rank       ─► Safety Screen
+    evolve     ─► Meta-Review ─► Evolve ─► Review
+    proximity  ─► Proximity   ─► Orchestrator
+    terminate  ─► Research Overview ─► END
 ```
 
 | Node | Purpose | Key Operations |
 |---|---|---|
 | Supervisor | Decomposes the research goal into a structured plan | Analyzes research goal, identifies key areas, creates workflow strategy |
-| Literature Review *(recommended)* | Runs MCP-provided search tools; falls back to LLM-only if unavailable | Queries databases (PubMed, Google Scholar), retrieves and analyzes real published papers |
+| Literature Review *(recommended)* | Runs MCP-provided search tools; falls back to LLM-only if unavailable | Queries the configured sources (PubMed, OpenAlex, and web search in the default config), retrieves and analyzes real published papers |
 | Generate | Produces initial hypotheses via debate or literature-grounded tool calls | Generates N initial hypotheses using LLM with high temperature for diversity |
 | Reflection *(recommended)* | Compares hypotheses against retrieved literature | Analyzes hypotheses against literature review findings, identifies novel contributions |
 | Review | Parallel peer reviews scoring novelty, soundness, relevance, etc. | Reviews hypotheses across 6 criteria using adaptive strategy (comparative batch for ≤5, parallel for >5) |
+| Comprehensive Reflection | Deeper critique of the hypotheses that cleared the review gate | Tool-grounded observation, full, simulation, and recurrent reviews |
+| Safety Screen | Per-hypothesis screen before the tournament | Removes blocked hypotheses and records the decision audit trail |
 | Ranking | Sorts by score, then runs an Elo pairwise tournament | LLM ranks all hypotheses considering composite scores and review feedback |
+| Deep Verification | Probes the top hypotheses by Elo with targeted questions | Decomposes assumptions and checks them against retrieved evidence |
+| Orchestrator | The adaptive loop point; picks the next task each cycle | Computes scheduler stats from live state and applies the deterministic policy |
 | Meta-Review | Synthesizes cross-hypothesis insights to guide evolution | Analyzes all reviews to identify common strengths, weaknesses, and strategic directions |
 | Evolve | Refines the top-k hypotheses using meta-review feedback | Refines top-k hypotheses with context awareness to preserve diversity |
 | Proximity | Semantic deduplication; removes near-duplicate hypotheses | Clusters similar hypotheses and removes high-similarity duplicates |
+| Research Overview | Terminal synthesis once the orchestrator decides to stop | Produces the research overview and roadmap |
 
 State flows through `WorkflowState` (a LangGraph `TypedDict`). The `hypotheses` field uses a custom `deduplicate_hypotheses` reducer that auto-removes duplicates on every state update.
 
 ## Literature review and MCP server
 
-Literature review requires a running MCP server. The bundled reference server (`mcp_server/`) provides PubMed search + fulltext extraction via Biopython and FastMCP.
+Literature review requires a running MCP server. The bundled reference server (`mcp_server/`) is built on FastMCP and provides PubMed search + fulltext extraction (via Biopython), OpenAlex search, ChEMBL/UniProt lookups, INDRA CoGex knowledge-graph queries, a local paper-corpus fetch, and open-web search/read tools.
 
 ### Starting the reference server
 
@@ -167,10 +204,9 @@ cp mcp_server/.env.example mcp_server/.env
 # edit mcp_server/.env: set ENTREZ_EMAIL
 docker compose up -d
 
-# Local
+# Local (run from engine/)
 python3.12 -m venv .venv-mcp && source .venv-mcp/bin/activate
 pip install -e mcp_server/
-cd ..   # parent of engine/
 uvicorn mcp_server.server:app --host 0.0.0.0 --port 8888
 ```
 
@@ -197,7 +233,9 @@ Pass a config at construction time:
 
 ```python
 generator = HypothesisGenerator(
-    tools_config="src/co_scientist/config/examples/indra_cancer.yaml",
+    options=GeneratorOptions(
+        tools_config="src/co_scientist/config/examples/indra_cancer.yaml",
+    ),
 )
 ```
 
@@ -225,7 +263,10 @@ clear_cache()
 Model strings follow the LiteLLM convention (`provider/model-name`). Any provider supported by LiteLLM works — set the corresponding API key:
 
 ```bash
-# Gemini (default)
+# DeepSeek (the default model's provider)
+export DEEPSEEK_API_KEY=...
+
+# Gemini
 export GEMINI_API_KEY=...
 
 # OpenAI
@@ -349,6 +390,7 @@ src/co_scientist/
 ├── progress.py         # Shared progress-event emission used by agent nodes
 ├── schemas/            # JSON schemas for structured LLM output
 ├── prompts/            # Prompt builders; templates/ has the markdown files (bundled as package data)
+├── scheduling/         # Deterministic orchestrator scheduling policy and budget
 ├── config/             # ToolRegistry, YAML tool configs, domain examples
 └── agents/             # Node implementations, one package per agent
     ├── supervisor/     # supervisor.py (planning), orchestrator.py (per-cycle routing)
@@ -364,7 +406,9 @@ src/co_scientist/
 ## Documentation
 
 - [Architecture](docs/ARCHITECTURE.md) — workflow diagram, node descriptions, state management
+- [Development](docs/DEVELOPMENT.md) — project structure, adding a node, debugging
 - [MCP Integration](docs/MCP_INTEGRATION.md) — literature review setup and configuration
+- [Web Search](docs/WEB_SEARCH.md) — open-web search and browsing tools
 - [Generation Modes](docs/GENERATION_MODES.md) — three generate node modes explained
 - [Configuration](docs/CONFIGURATION.md) — all parameters, caching, performance tuning
 - [Domain Customization](docs/DOMAIN_CUSTOMIZATION.md) — adapting to new domains via YAML config

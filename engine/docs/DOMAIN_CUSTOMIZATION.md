@@ -136,12 +136,12 @@ Pass the YAML path when creating `HypothesisGenerator`:
 
 ```python
 import asyncio
-from co_scientist import HypothesisGenerator
+from co_scientist import GeneratorOptions, HypothesisGenerator
 
 async def main():
     generator = HypothesisGenerator(
         model_name="gemini/gemini-2.5-flash",
-        tools_config="path/to/my_domain.yaml"
+        options=GeneratorOptions(tools_config="path/to/my_domain.yaml"),
     )
 
     async for node_name, state in generator.generate_hypotheses(
@@ -149,7 +149,7 @@ async def main():
         stream=True
     ):
         print(f"Completed: {node_name}")
-        if node_name == "rank":
+        if node_name == "ranking":
             for h in state["hypotheses"]:
                 print(h["text"])
                 print(h.get("enrichments", {}))  # domain-specific enrichment data

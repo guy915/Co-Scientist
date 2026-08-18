@@ -99,7 +99,7 @@ Supervisor → Literature Review → Generate (with tools) → Reflection → Re
 **Requirements:**
 - MCP server must be running
 - `enable_literature_review_node=True` must be set
-- Will fall back to Mode 2 (standard literature generation) if MCP unavailable
+- If MCP is unavailable, the literature review node is disabled too, so the run falls back to Mode 1 (LLM-only). Tool-calling generation is also refused for the offline backend, which never emits tool calls.
 
 **Important:** If you try to enable this without the literature review node, you'll get a validation error.
 
@@ -122,7 +122,8 @@ Development/testing mode for isolating tool-calling generation behavior.
 When `enable_literature_review_node=True`:
 
 1. **Query Generation**: Supervisor creates research plan, Literature Review node generates targeted search queries
-2. **Paper Search**: Queries PubMed via MCP tools
+2. **Paper Search**: Queries every enabled search source via MCP tools (PubMed, OpenAlex, and web search in the default config)
+3. **Paper Analysis**: Retrieves content for the selected papers and analyzes each one
 4. **Summary Creation**: Creates formatted literature summary for downstream nodes
 
 The summary of the review is stored in `state["articles_with_reasoning"]` and used by:
@@ -152,7 +153,7 @@ opts = {"enable_literature_review_node": True}
 ```
 
 **Behavior:**
-- Logs warning: "literature review node requested but mcp server unavailable - disabling"
+- Logs warning: "Literature review node requested but MCP server unavailable - disabling"
 - Automatically disables literature review node
 - Falls back to Mode 1 (no literature review), also known as "standard".
 - Generation continues without error

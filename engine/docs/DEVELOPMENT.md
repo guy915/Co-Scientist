@@ -20,7 +20,7 @@ engine/
 │       ├── config/             # YAML-based tool/domain configuration
 │       │   ├── registry.py     # Config loading and merge logic
 │       │   ├── schema.py       # Config schema validation
-│       │   ├── tools.yaml      # Default PubMed config
+│       │   ├── tools.yaml      # Default tool/source config (PubMed, OpenAlex, web)
 │       │   └── examples/       # Domain-specific example configs
 │       ├── agents/             # Node implementations, one package per agent
 │       │   ├── supervisor/     # supervisor.py (planning), orchestrator.py (routing)
@@ -50,11 +50,11 @@ engine/
 Each node is an async function that follows a consistent pattern:
 
 ```python
-from typing import Dict, Any
-from ..state import WorkflowState
-from ..llm import CompletionSpec, call_llm_json
+from typing import Any
+from co_scientist.state import WorkflowState
+from co_scientist.llm import CompletionSpec, call_llm_json
 
-async def node_name(state: WorkflowState) -> Dict[str, Any]:
+async def node_name(state: WorkflowState) -> dict[str, Any]:
     """
     Brief description of what this node does.
 
@@ -104,11 +104,11 @@ Create the node inside the agent package that owns it, e.g.
 `src/co_scientist/agents/my_agent/my_node.py`:
 
 ```python
-from typing import Dict, Any
-from ..state import WorkflowState
-from ..llm import call_llm_json
+from typing import Any
+from co_scientist.state import WorkflowState
+from co_scientist.llm import call_llm_json
 
-async def my_node(state: WorkflowState) -> Dict[str, Any]:
+async def my_node(state: WorkflowState) -> dict[str, Any]:
     """Your node implementation."""
     # Implementation here
     return {"hypotheses": state["hypotheses"]}
@@ -130,20 +130,26 @@ Your prompt instructions here.
 {hypotheses}
 ```
 
-### 3. Add to Workflow Graph
+### 3. Register the Node and Wire It
 
-Update `src/co_scientist/generator/graph.py` (node registration and edges),
-and add the node to the `co_scientist.agents.NODE_TO_AGENT` mapping:
+`co_scientist.agents.NODE_REGISTRY` is the single source of truth for durable
+graph-node keys: `graph.py` registers nodes by iterating it, `task_runtime`
+derives its task nodes from it, and `NODE_TO_AGENT` is projected from it. Add
+a `NodeSpec` there, then add the edges in
+`src/co_scientist/generator/graph.py`:
 
 ```python
-from co_scientist.agents.my_agent.my_node import my_node
+# In src/co_scientist/agents/__init__.py: import my_agent alongside the
+# other agent packages, then add its node inside NODE_REGISTRY:
+"my_node": NodeSpec("my_agent", my_agent.my_node),
 
-# In _add_workflow_nodes:
-workflow.add_node("my_node", my_node)
-# In _add_workflow_edges:
+# In graph.py, in the relevant _add_*_edges helper:
 workflow.add_edge("previous_node", "my_node")
 workflow.add_edge("my_node", "next_node")
 ```
+
+Node keys are persisted verbatim in durable tasks, checkpoints, and
+idempotency keys, so an existing key must never change value.
 
 ### 4. Update State Type (if needed)
 
@@ -163,16 +169,16 @@ class WorkflowState(TypedDict, total=False):
 |-------|------|-------------|
 | `research_goal` | `str` | Original research question |
 | `supervisor_guidance` | `dict` | Strategy from supervisor (exposed to stream/result consumers as `research_plan`) |
-| `hypotheses` | `List[Dict]` | Current hypothesis pool |
-| `articles_with_reasoning` | `str` | Literature summary (if MCP available) |
-| `articles` | `List[Dict]` | Retrieved papers (literature review) |
-| `metrics` | `Metrics` | Performance tracking |
+| `hypotheses` | `list[Hypothesis]` | Current hypothesis pool (serialized to dicts in stream/result payloads) |
+| `articles_with_reasoning` | `str \| None` | Literature summary (if MCP available) |
+| `articles` | `list[Article] \| None` | Retrieved papers (literature review) |
+| `metrics` | `ExecutionMetrics` | Performance tracking |
 
 There are many other fields. Inspect state as each node completed or view state.py for other captured state.
 
 ### Hypothesis Structure
 
-Each hypothesis is a dictionary. Key fields:
+Each hypothesis is a `Hypothesis` dataclass in state, serialized to a dict in stream and result payloads. Key fields:
 
 | Field | Type | Description |
 |-------|------|-------------|
@@ -188,7 +194,7 @@ Each hypothesis is a dictionary. Key fields:
 | `reviews` | list | Per-review scores and feedback |
 | `evolution_history` | list | Refinement summaries from Evolve node |
 | `reflection_notes` | string | Reflection node analysis against literature |
-| `generation_method` | string | `"literature_tools"` or `"debate"` |
+| `generation_method` | string | One of `"debate"`, `"literature_tools"`, `"assumptions"`, `"research_expansion"` |
 
 See `models.py` for the full `Hypothesis` dataclass.
 

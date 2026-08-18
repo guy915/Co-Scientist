@@ -5,32 +5,50 @@ Complete guide to configuring Co-Scientist for your needs.
 ## Basic Configuration
 
 ```python
-from co_scientist import HypothesisGenerator
+from co_scientist import GeneratorOptions, HypothesisGenerator
 
 generator = HypothesisGenerator(
-    model_name="gemini/gemini-2.5-flash",   # Default; Any LiteLLM-supported model
-    max_iterations=1,                       # Number of refinement cycles
-    initial_hypotheses_count=5,             # Initial pool size
-    evolution_max_count=3,                  # How many to evolve and keep
-    enable_cache=True,                      # LLM response caching
-    cache_dir=".coscientist_cache",         # Cache location (relative to CWD)
-    tools_config="path/to/tools.yaml",      # Optional: custom domain/source config
+    model_name="deepseek/deepseek-v4-flash",  # Default; any LiteLLM-supported model
+    max_iterations=1,                         # Number of refinement cycles
+    initial_hypotheses_count=5,               # Initial pool size
+    evolution_max_count=3,                    # How many to evolve and keep
+    options=GeneratorOptions(
+        enable_cache=True,                    # LLM response caching
+        cache_dir=".coscientist_cache",       # Cache location (relative to CWD)
+        tools_config="path/to/tools.yaml",    # Optional: custom domain/source config
+    ),
 )
 ```
 
-See constants.py for other defaults.
+Only the four run-size knobs are top-level constructor arguments; every other
+knob lives on `GeneratorOptions` and is passed as `options=`. See constants.py
+for other defaults.
 
 ## Configuration Parameters
 
+Constructor arguments:
+
 | Parameter | Default | Description |
 |-----------|---------|-------------|
-| `model_name` | `"gemini/gemini-2.5-flash"` | LLM model in LiteLLM format (e.g., `"claude-sonnet-4-6"`, `"gpt-4o"`, `"gemini/gemini-2.5-flash"`) |
+| `model_name` | `"deepseek/deepseek-v4-flash"` | LLM model in LiteLLM format (e.g., `"claude-sonnet-4-6"`, `"gpt-4o"`, `"gemini/gemini-2.5-flash"`) |
 | `max_iterations` | `1` | Number of refinement cycles (0 = no evolution/meta-review phase) |
 | `initial_hypotheses_count` | `5` | Initial hypothesis pool size |
 | `evolution_max_count` | `3` | Number of top hypotheses to evolve in each iteration |
-| `enable_cache` | `True` | Enable LLM response caching for faster iteration |
-| `cache_dir` | `".coscientist_cache"` | Cache directory (relative or absolute path) |
+
+`GeneratorOptions` fields (see `generator/options.py`):
+
+| Field | Default | Description |
+|-----------|---------|-------------|
+| `supervisor_model_name` | `None` | Model for the supervisor and meta-review steps (`None` = `model_name`) |
+| `tournament_pairs` | `12` | Elo tournament comparisons per ranking pass |
+| `elo_k_factor` | `24` | Rating change magnitude per match |
+| `literature_review_papers_count` | `8` | Number of papers to read and analyze |
+| `enable_cache` | `None` | Override caching for this generator (`None` = the `COSCIENTIST_CACHE_ENABLED` process default, which is on) |
+| `cache_dir` | `None` | Cache directory (`None` = `COSCIENTIST_CACHE_DIR`, default `.coscientist_cache`) |
 | `tools_config` | `None` | Path to a custom YAML tools configuration file; see [Literature Review Tools Configuration](LITERATURE_REVIEW_TOOLS_CONFIGURATION.md) |
+| `disable_tools` | `None` | Tool IDs to disable from the resolved config |
+| `budget` | `None` | Serialized scheduler `Budget` (`max_iterations`, `max_llm_calls`, `max_tasks`, `max_wall_clock_s`) |
+| `api_key` | `None` | Per-run provider credential; forces caching off for the run |
 
 ## Model Selection
 
@@ -182,12 +200,12 @@ COSCIENTIST_LIT_REVIEW_DIR=./cache/literature_review
 
 **Important Notes**:
 - The MCP server runs separately with its own environment - set API keys in `mcp_server/.env`, not in the main co-scientist-engine environment
-- Without `ENTREZ_EMAIL`, the literature review node will be skipped and hypothesis generation will use standard mode (without literature analysis)
+- The literature review node is gated on the MCP **server** being reachable, not on any single source. Without `ENTREZ_EMAIL` the PubMed tools report themselves unavailable, but the node still runs and the other configured sources (OpenAlex, web search) still contribute. Only an unreachable MCP server disables the node entirely, falling back to standard mode (no literature analysis)
 
 ### Cache Behavior
 
 - **Default location**: `.coscientist_cache/` relative to current working directory
-- **Cache key includes**: prompt, model name, temperature, max_tokens
+- **Cache key includes**: prompt, model name, temperature, max_tokens, cache schema version, plus the response-shape parameters when set (`tools`, `json_schema`, `force_json`, `tool_contract`)
 - **Benefits**: faster iteration during development, significant cost savings
 - **Safe to delete**: Cache directory can be deleted at any time
 
@@ -245,7 +263,7 @@ generator = HypothesisGenerator(
     model_name="gemini/gemini-2.5-flash",   # Fast, cheap model
     max_iterations=1,                       # Not many iterations
     initial_hypotheses_count=3,             # Smaller pool
-    enable_cache=True,                      # Reuse responses
+    options=GeneratorOptions(enable_cache=True),  # Reuse responses
 )
 ```
 
@@ -265,7 +283,7 @@ generator = HypothesisGenerator(
 ```python
 generator = HypothesisGenerator(
     model_name="gemini/gemini-2.5-flash",   # Cost-effective model
-    enable_cache=True,                      # Avoid redundant calls
     initial_hypotheses_count=5,             # Moderate pool size
+    options=GeneratorOptions(enable_cache=True),  # Avoid redundant calls
 )
 ```

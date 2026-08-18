@@ -57,6 +57,8 @@ workflows:
     # Tools available to the Generate node in tool-calling mode
   validation:
     # Tools available for novelty validation
+  reflection:
+    # Tools available for entity-based evidence lookup during reflection
 
 enrichments:
   # Post-generation per-hypothesis tool calls (see below)
@@ -238,6 +240,11 @@ workflows:
     utility_tools:
       - "find_pdf_links"
 
+    # Knowledge-graph/external tools called once for the phase; their results
+    # are injected as background context into the phase's synthesis prompt
+    context_enrichment_tools:
+      - "chembl_search"
+
   # Tools available to the Generate node in tool-calling mode (Mode 3)
   draft_generation:
     search_tools:
@@ -252,6 +259,11 @@ workflows:
       - "arxiv_search"
     read_tools:
       - "read_pdf"
+
+  # Entity-based evidence lookup during reflection
+  reflection:
+    search_tools:
+      - "arxiv_search"
 ```
 
 #### Multi-Source Fields
@@ -266,6 +278,7 @@ workflows:
 | `pdf_discovery_tool` | string | Tool for finding PDF URLs from landing pages (optional) |
 | `pdf_discovery_url_field` | string | Field containing landing page URL (optional) |
 | `content_params` | object | Extra parameters passed to content tool (optional); supports `{research_goal}` placeholder |
+| `reserved_slots` | integer | Evidence-budget slots guaranteed to this source before the rest are filled by retrieval score (default `0`). Use it for a source whose papers cannot compete on the scored axes — a local corpus has no citation count or publication year, so it loses to any indexed paper however well it matches |
 
 **Content retrieval strategies:**
 
@@ -353,12 +366,12 @@ Each entry in `enrichments` produces a key under `hypothesis["enrichments"]`. Mu
 
 ```python
 import asyncio
-from co_scientist import HypothesisGenerator
+from co_scientist import GeneratorOptions, HypothesisGenerator
 
 async def main():
     generator = HypothesisGenerator(
         model_name="gemini/gemini-2.5-flash",
-        tools_config="path/to/my_config.yaml"
+        options=GeneratorOptions(tools_config="path/to/my_config.yaml"),
     )
 
     async for node_name, state in generator.generate_hypotheses(

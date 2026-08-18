@@ -28,9 +28,11 @@ LLM tool-calling loop, and both tools are in its whitelist by default. Here the
 model decides for itself when to search, which results are worth opening, and
 whether to search again with what it learned. This loop is active only when the
 run enables tool-calling generation (`enable_tool_calling_generation=True`),
-which also requires the MCP server and the literature-review node. It is an
-engine-level option; the web app does not expose a toggle for it yet, so reach
-it through the library:
+which also requires the MCP server and the literature-review node. An omitted
+option is not a request: each tool call is an LLM round-trip carrying every
+prior result forward, so the loop is opt-in rather than default-on. The web app
+exposes no user-facing toggle — it opts in by run tier, asking for the loop on
+the `extended` and `ultra` tiers only. From the library, request it explicitly:
 
 ```python
 result = await generator.generate_hypotheses(
@@ -50,8 +52,8 @@ sources (`papers_per_query: 2` against their 4) and its results carry
 `source: "web"`, so web-derived evidence stays distinguishable from
 peer-reviewed evidence downstream.
 
-This is the path that runs in the app today, because the tool-calling
-generation loop above is off unless a caller opts in. If you would rather keep
+This is the path that runs on every tier, including the ones where the
+tool-calling generation loop above stays off. If you would rather keep
 web content out of the evidence base entirely, delete the `web_search` entry
 from `literature_review.search_sources` — the tool stays available to the
 agentic phase.
