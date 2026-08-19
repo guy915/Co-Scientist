@@ -41,7 +41,6 @@ logger = logging.getLogger(__name__)
 # cost is the product of these two numbers with the run's own iteration.
 DEFAULT_MAX_GENERATIONS = 8
 DEFAULT_CHILDREN_PER_GENERATION = 4
-DEFAULT_PARENTS_PER_GENERATION = 2
 
 
 def budget_value(config: dict[str, Any] | None, key: str, fallback: int) -> int:
@@ -58,29 +57,73 @@ def budget_value(config: dict[str, Any] | None, key: str, fallback: int) -> int:
     return raw
 
 
+def _archive_entries(variants: list[dict[str, Any]]) -> list[Any]:
+    """Rebuilds the archive's view of a run from stored rows.
+
+    The niche was computed once, at evaluation time, and stored -- so
+    this reads it back rather than recomputing a grid over every variant
+    on every generation. The other fields are what dominance and the
+    elite comparison need.
+    """
+    from co_scientist.agents.code_evolve import ArchiveEntry
+
+    return [
+        ArchiveEntry(
+            variant_id=str(v["id"]),
+            fitness=v["fitness"],
+            objective_values=tuple(v.get("objective_values") or [v["fitness"]]),
+            operator=v.get("operator"),
+            ordinal=int(v["ordinal"]),
+        )
+        for v in variants
+    ]
+
+
 def select_parents(
-    variants: list[dict[str, Any]], limit: int
+    variants: list[dict[str, Any]],
+    count: int,
+    *,
+    config: dict[str, Any] | None = None,
 ) -> list[dict[str, Any]]:
     """Chooses which variants the next generation breeds from.
 
-    Scored variants come first, best last-attempt-wins-ties order; then
-    unscored ones, most recent first, because a failure is only worth
-    breeding from while its error is still the one blocking progress.
+    Delegates the strategy to the engine's MAP-Elites archive: parents
+    come from the best variant *of each kind* rather than from the top of
+    one ranked list. Selecting by score alone is what made a run polish
+    a single basin for its whole budget -- the best few variants of a
+    generation are usually near-copies, so breeding from them produces
+    more of the same while the score creeps up and nothing looks wrong.
 
-    Failures are included at all -- rather than filtered out as useless
-    parents -- because the repair operator turns one into a working
-    program, and a generation in which everything failed would otherwise
-    have nothing to breed from and end the run at its first bad round.
+    Variants that never scored are kept in the pool. The repair operator
+    turns one into a working program, and a generation in which
+    everything failed would otherwise have nothing to breed from and end
+    the run at its first bad round.
     """
-    scored = sorted(
-        (v for v in variants if v["fitness"] is not None),
-        key=lambda v: (-float(v["fitness"]), int(v["ordinal"])),
+    from co_scientist.agents.code_evolve import select_parents as choose
+
+    from app.discovery_spec import descriptors
+
+    by_id = {str(v["id"]): v for v in variants}
+    chosen = choose(
+        _archive_entries(variants), count, descriptors=descriptors(config)
     )
-    unscored = sorted(
-        (v for v in variants if v["fitness"] is None),
-        key=lambda v: -int(v["ordinal"]),
-    )
-    return (scored + unscored)[:limit]
+    return [by_id[entry.variant_id] for entry in chosen]
+
+
+def pareto_variant_ids(variants: list[dict[str, Any]]) -> set[str]:
+    """The variants no other variant dominates across every objective.
+
+    With one objective this is the joint best; with several it is the set
+    of real trades, which is what a multi-objective run's reader needs to
+    see instead of a single "winner" that is only best on axis one.
+    """
+    from co_scientist.code_eval import pareto_front
+
+    scored = [v for v in variants if v["fitness"] is not None]
+    values = [
+        tuple(v.get("objective_values") or [v["fitness"]]) for v in scored
+    ]
+    return {str(scored[index]["id"]) for index in pareto_front(values)}
 
 
 def _enqueue_child(

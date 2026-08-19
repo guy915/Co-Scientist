@@ -17,6 +17,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from co_scientist.agents.code_evolve import DEFAULT_DESCRIPTORS, Descriptor
 from co_scientist.code_eval import (
     DEFAULT_STAGE_TIMEOUT_SECONDS,
     Direction,
@@ -48,6 +49,26 @@ def discovery_config(config: dict[str, Any] | None) -> dict[str, Any] | None:
 def is_discovery_run(config: dict[str, Any] | None) -> bool:
     """Reports whether a run is a computational-discovery run."""
     return discovery_config(config) is not None
+
+
+def _objectives(block: dict[str, Any]) -> tuple[Objective, ...]:
+    """Reads the run's objectives, in declared order.
+
+    Accepts ``objectives`` (a list) or ``objective`` (one). The first is
+    the primary: it is what the cascade thresholds compare against and
+    what the surface plots. The rest reach the search through Pareto
+    dominance, never through a weighted sum -- see the note in
+    ``code_eval/spec.py`` for why summing them silently discards
+    whichever objective has the smaller scale.
+    """
+    raw = block.get("objectives")
+    if raw is None:
+        return (_objective(block.get("objective")),)
+    if not isinstance(raw, list) or not raw:
+        raise DiscoverySpecError(
+            "discovery.objectives must be a non-empty list"
+        )
+    return tuple(_objective(item) for item in raw)
 
 
 def _objective(raw: Any) -> Objective:
@@ -137,9 +158,58 @@ def evaluator_spec(config: dict[str, Any] | None) -> EvaluatorSpec:
         stages=tuple(
             _stage(raw, index) for index, raw in enumerate(raw_stages)
         ),
-        objective=_objective(block.get("objective")),
+        objectives=_objectives(block),
         metrics_path=str(block.get("metrics_path") or "metrics.json"),
     )
+
+
+def _descriptor(raw: Any, index: int) -> Descriptor:
+    """Builds one archive axis."""
+    if not isinstance(raw, dict):
+        raise DiscoverySpecError(
+            f"discovery.descriptors[{index}] must be an object"
+        )
+    feature = raw.get("feature")
+    if not isinstance(feature, str) or not feature:
+        raise DiscoverySpecError(
+            f"discovery.descriptors[{index}].feature must be a name"
+        )
+    edges = raw.get("bins") or []
+    if not isinstance(edges, list) or not all(
+        isinstance(edge, (int, float)) and not isinstance(edge, bool)
+        for edge in edges
+    ):
+        raise DiscoverySpecError(
+            f"discovery.descriptors[{index}].bins must be a list of numbers"
+        )
+    return Descriptor(
+        feature=feature, bins=tuple(sorted(float(edge) for edge in edges))
+    )
+
+
+def descriptors(config: dict[str, Any] | None) -> tuple[Descriptor, ...]:
+    """Returns the archive axes a run's variants are niched along.
+
+    Defaults rather than raising when unset, because every run gets a
+    usable grid for free: the operator that produced a variant and how
+    long its program is already separate a tuned constant from a
+    rewritten algorithm. A run that knows its own behaviour space should
+    declare ``descriptors`` instead.
+
+    Raises:
+        DiscoverySpecError: If ``descriptors`` is present but malformed.
+            Present-and-wrong is a different case from absent: silently
+            falling back would leave a run niching along axes its author
+            did not choose and has no way to notice.
+    """
+    raw = (discovery_config(config) or {}).get("descriptors")
+    if raw is None:
+        return tuple(DEFAULT_DESCRIPTORS)
+    if not isinstance(raw, list) or not raw:
+        raise DiscoverySpecError(
+            "discovery.descriptors must be a non-empty list when present"
+        )
+    return tuple(_descriptor(item, index) for index, item in enumerate(raw))
 
 
 def seed_source(config: dict[str, Any] | None) -> dict[str, str]:

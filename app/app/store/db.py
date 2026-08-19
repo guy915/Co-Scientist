@@ -390,6 +390,22 @@ def _migrate_hypothesis_parent_ids(conn: sqlite3.Connection) -> None:
     _add_column_if_missing(conn, "hypotheses", "parent_ids", "TEXT")
 
 
+def _migrate_variant_archive_columns(conn: sqlite3.Connection) -> None:
+    """Add the multi-objective and archive columns to variant state.
+
+    ``code_variant_state`` shipped with only a scalar ``fitness``, so any
+    database created before multi-objective search has the table without
+    these columns -- and ``CREATE TABLE IF NOT EXISTS`` in ``_SCHEMA``
+    will not add them to a table that already exists. ``objective_values_json``
+    carries every objective's sign-corrected score for Pareto dominance;
+    ``niche_json`` carries the archive cell the variant occupies.
+    """
+    _add_column_if_missing(
+        conn, "code_variant_state", "objective_values_json", "TEXT"
+    )
+    _add_column_if_missing(conn, "code_variant_state", "niche_json", "TEXT")
+
+
 def _run_migrations(conn: sqlite3.Connection) -> None:
     """Apply idempotent in-place schema migrations to an open connection."""
     _migrate_client_isolation(conn)
@@ -401,6 +417,7 @@ def _run_migrations(conn: sqlite3.Connection) -> None:
     _migrate_hypothesis_parent_ids(conn)
     _migrate_evidence_identity_columns(conn)
     _migrate_evidence_retrieval_scoring_columns(conn)
+    _migrate_variant_archive_columns(conn)
 
 
 def checkpoint_wal(db_path: str | None = None) -> None:

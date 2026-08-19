@@ -67,11 +67,38 @@ def _variant_for_task(
     return variant
 
 
-def _to_evaluation(result: Any) -> store.VariantEvaluation:
+def _archive_entry(variant: dict[str, Any], result: Any) -> Any:
+    """Describes a just-evaluated variant to the archive.
+
+    Built here rather than in the store because the niche depends on the
+    program's shape -- how many lines it is -- which only the source
+    carries, and on the run's descriptors, which only the config does.
+    """
+    from co_scientist.agents.code_evolve import ArchiveEntry
+
+    source = dict(variant["source"])
+    text = "\n".join(source.values())
+    return ArchiveEntry(
+        variant_id=str(variant["id"]),
+        fitness=result.fitness,
+        objective_values=tuple(result.objective_values),
+        operator=variant.get("operator"),
+        source_lines=text.count("\n") + 1 if text else 0,
+        source_bytes=len(text.encode("utf-8")),
+        metrics=dict(result.metrics),
+        ordinal=int(variant["ordinal"]),
+    )
+
+
+def _to_evaluation(
+    result: Any, niche: tuple[Any, ...]
+) -> store.VariantEvaluation:
     """Converts an engine EvaluationResult into its stored form."""
     return store.VariantEvaluation(
         status=str(result.status.value),
         fitness=result.fitness,
+        objective_values=list(result.objective_values),
+        niche=list(niche),
         duration_seconds=sum(stage.duration_seconds for stage in result.stages),
         stages=[
             {
@@ -97,11 +124,15 @@ async def execute_variant_evaluate(
         A variant that crashed returns just as normally as one that
         scored -- ``status`` is what tells them apart.
     """
+    from co_scientist.agents.code_evolve import niche_key
     from co_scientist.code_eval import EvaluationRequest, evaluate_variant
     from co_scientist.workspace import open_variant_workspace
 
+    from app.discovery_spec import descriptors
+
     variant = _variant_for_task(task, db_path)
-    spec = evaluator_spec(_run_config(task.run_id, db_path))
+    config = _run_config(task.run_id, db_path)
+    spec = evaluator_spec(config)
     # The variant's own directory, never the run's: evaluations run
     # concurrently, and two of them writing their programs to the same
     # paths would each run partly the other's code. Both would return a
@@ -112,8 +143,9 @@ async def execute_variant_evaluate(
         session,
         EvaluationRequest(spec=spec, files=dict(variant["source"])),
     )
+    niche = niche_key(_archive_entry(variant, result), descriptors(config))
     store.record_variant_evaluation(
-        str(variant["id"]), _to_evaluation(result), db_path=db_path
+        str(variant["id"]), _to_evaluation(result, niche), db_path=db_path
     )
     logger.info(
         "Variant %s scored %s (%s)",
@@ -274,16 +306,14 @@ def _next_generation_parents(
 ) -> list[str | None]:
     """Chooses one parent per child of the next generation.
 
-    Parents are cycled rather than drawn independently so that a
-    generation covers every selected parent before it revisits one. With
-    an independent draw per child, a four-child generation regularly
-    spends all four on the same parent, which wastes the round: the
-    operator deck varies the move, but four moves against one program
-    explore far less than the same four spread across two.
+    One parent per child, drawn from the diversity archive rather than
+    cycled through a fixed top-k: the archive already spends part of the
+    generation on the strongest elites and part on a uniform draw across
+    occupied niches, so a separate "how many distinct parents" knob would
+    only be able to contradict it.
     """
     from app.engine_tasks_variants_schedule import (
         DEFAULT_CHILDREN_PER_GENERATION,
-        DEFAULT_PARENTS_PER_GENERATION,
         budget_value,
         select_parents,
     )
@@ -291,17 +321,8 @@ def _next_generation_parents(
     children = budget_value(
         config, "children_per_generation", DEFAULT_CHILDREN_PER_GENERATION
     )
-    parents = select_parents(
-        variants,
-        budget_value(
-            config, "parents_per_generation", DEFAULT_PARENTS_PER_GENERATION
-        ),
-    )
-    if not parents:
-        return []
-    return [
-        str(parents[index % len(parents)]["id"]) for index in range(children)
-    ]
+    parents = select_parents(variants, children, config=config)
+    return [str(parent["id"]) for parent in parents]
 
 
 def _finish_run(

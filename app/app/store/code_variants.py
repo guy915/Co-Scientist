@@ -66,6 +66,8 @@ class VariantEvaluation:
 
     status: str
     fitness: float | None = None
+    objective_values: list[float | None] = field(default_factory=list)
+    niche: list[Any] = field(default_factory=list)
     duration_seconds: float | None = None
     stages: list[dict[str, Any]] = field(default_factory=list)
     metrics: dict[str, float] = field(default_factory=dict)
@@ -145,11 +147,14 @@ def _write_state(
     """Writes the mutable evaluation row for one variant."""
     conn.execute(
         "UPDATE code_variant_state SET status = ?, fitness = ?, "
+        "objective_values_json = ?, niche_json = ?, "
         "duration_seconds = ?, stages_json = ?, updated_at = ? "
         "WHERE variant_id = ?",
         (
             ev.status,
             ev.fitness,
+            json.dumps(ev.objective_values),
+            json.dumps(ev.niche),
             ev.duration_seconds,
             json.dumps(ev.stages),
             _now(),
@@ -250,7 +255,8 @@ _VARIANT_SELECT = (
     "SELECT v.id, v.run_id, v.parent_id, v.generation, v.ordinal, "
     "v.operator, v.rationale, v.diff, v.source_json, v.created_by_agent, "
     "v.created_at, s.status, s.fitness, s.is_best_so_far, "
-    "s.duration_seconds, s.stages_json FROM code_variants v "
+    "s.duration_seconds, s.stages_json, s.objective_values_json, "
+    "s.niche_json FROM code_variants v "
     "JOIN code_variant_state s ON s.variant_id = v.id"
 )
 
@@ -274,6 +280,8 @@ def _variant_row_to_dict(row: sqlite3.Row) -> dict[str, Any]:
         "is_best_so_far": bool(row["is_best_so_far"]),
         "duration_seconds": row["duration_seconds"],
         "stages": json.loads(row["stages_json"] or "[]"),
+        "objective_values": json.loads(row["objective_values_json"] or "[]"),
+        "niche": json.loads(row["niche_json"] or "[]"),
     }
 
 

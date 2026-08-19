@@ -71,6 +71,15 @@ CREATE TABLE IF NOT EXISTS code_variant_state (
     is_best_so_far INTEGER NOT NULL DEFAULT 0,
     duration_seconds REAL,
     stages_json TEXT,                -- per-stage outcomes, for the detail view
+    -- Every objective's sign-corrected score, JSON, in the spec's
+    -- declared order; `fitness` is its first entry. Stored rather than
+    -- re-derived from the metrics because deriving needs the run's spec,
+    -- and the two would then have to agree forever.
+    objective_values_json TEXT,
+    -- The archive cell this variant occupies, JSON, computed from the
+    -- run's descriptors at evaluation time. Stored so parent selection
+    -- does not recompute a grid over every variant on every generation.
+    niche_json TEXT,
     updated_at REAL NOT NULL,
     FOREIGN KEY (variant_id) REFERENCES code_variants(id) ON DELETE CASCADE
 );
