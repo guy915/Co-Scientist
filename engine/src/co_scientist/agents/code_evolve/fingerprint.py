@@ -22,12 +22,38 @@ run stops keeping different approaches and starts keeping every
 maturity of one. Fractions describe composition, which is what "kind"
 means here.
 
-**It is low-dimensional.** Eight buckets, not the thousands a learned
-embedding would give. A discovery run evaluates tens of variants, and in
-high dimensions the distance between tens of points concentrates until
-every variant is equidistant from every other -- clustering on a 1536-
-dimensional embedding of forty programs would niche them by nothing at
-all, expensively.
+**It is low-dimensional, and the width was measured rather than
+guessed.** Thirty-two buckets, not the thousands a learned embedding
+would give: a discovery run evaluates tens of variants, and in high
+dimensions the distance between tens of points concentrates until every
+variant is equidistant from every other. That argument rules out an
+embedding; it does not by itself pick a number, and the number it was
+first given -- eight -- was too small. Measured against the un-hashed
+profile, which has no collisions by construction, on thirty small
+programs that compute the same thing different ways:
+
+| Buckets | Distance fidelity | Pairs wrongly identical |
+|---|---|---|
+| 8 | 0.80 | 1 |
+| 16 | 0.87 | 0 |
+| 32 | 0.92 | 0 |
+| 64 | 0.96 | 0 |
+
+Two costs were expected of widening and neither appeared. Relative
+contrast -- the measure that collapses when distances concentrate --
+stayed flat from 8 buckets to 128, because this vector is a normalized
+*composition* rather than an arbitrary point: extra buckets add zeros,
+and distance is decided by how much mass moved, not by how many bins
+exist. And the block's share of the distance between two programs
+stayed at ~0.51 across every width, so widening does not let the
+fingerprint outvote the scalar axes beside it. Thirty-two takes most of
+the available fidelity; sixty-four buys 0.04 more for twice the stored
+width.
+
+At eight, the collision was not hypothetical: a generator expression and
+a set comprehension differ only in grams that hashed to the same
+buckets, so the two were *exactly* the same point -- permanently, for
+every run. `test_code_fingerprint.py` pins that pair apart.
 
 **It is deterministic.** A stable checksum, not Python's randomized
 `hash`, so a variant's fingerprint is the same in the process that
@@ -59,8 +85,20 @@ from collections.abc import Iterator, Mapping
 
 # How many buckets the n-gram profile is folded into. Small enough that
 # tens of variants can be told apart reliably, large enough that
-# unrelated structures rarely collide into one coordinate.
-SHAPE_BUCKETS = 8
+# unrelated structures rarely collide into one coordinate. Changing it
+# changes what a stored ``ast_shape`` means, and the two widths do not
+# even share a basis -- a bucket is a residue class, so bucket 3 of 32
+# holds roughly a quarter of what bucket 3 of 8 held. A tessellation
+# frozen at the old width keeps only the components it has columns for
+# (growth mints columns for categories and metrics, never for vector
+# components), so those components no longer sum to one and every
+# variant measured after the change sits at a systematic offset from
+# every centroid placed before it -- likely reading as an outlier and
+# spending cells until the extension ceiling stops it. That is bounded
+# and lasts one run, since behaviour is recomputed from source at each
+# evaluation and a seeded run carries source rather than vectors. It is
+# a reason to change this rarely, not a reason it cannot change.
+SHAPE_BUCKETS = 32
 
 # Node categories that describe how a program computes, collapsed from
 # the AST's much finer vocabulary. The collapse is what makes the

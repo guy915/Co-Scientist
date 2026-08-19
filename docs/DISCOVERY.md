@@ -255,14 +255,16 @@ such a run nothing at all.
 Nesting depth, branch count and imports agree on a memoized recursion
 and an iterative DP table, so they share a cell and the archive keeps
 only one. `fingerprint.py` adds a hashed n-gram over parent-child node
-pairs in the syntax tree, normalized to fractions and folded into eight
-buckets, plus `recursion` (none / direct / indirect / unknown) and the
-three densities. Fractions, not counts, for the same reason
-`source_lines` is not a default axis: a count grows as a program grows,
-so it niches by maturity rather than by kind. Eight buckets rather than
-an embedding, because forty points in 1536 dimensions have no usable
-distances between them, and because a bucket is deterministic --
-`zlib.crc32`, never Python's randomized `hash()`.
+pairs in the syntax tree, normalized to fractions and folded into
+thirty-two buckets, plus `recursion` (none / direct / indirect /
+unknown) and the three densities. Fractions, not counts, for the same
+reason `source_lines` is not a default axis: a count grows as a program
+grows, so it niches by maturity rather than by kind. Buckets rather
+than an embedding, because forty points in 1536 dimensions have no
+usable distances between them, and because a bucket is deterministic --
+`zlib.crc32`, never Python's randomized `hash()`. How many buckets is a
+measured question rather than an obvious one; see "What was measured
+and settled".
 
 Two rules the fingerprint follows that look like details and are not.
 **A program is read file by file, never as one blob**: concatenating
@@ -534,7 +536,7 @@ Two rules it keeps:
 
 ## What was measured and settled
 
-Three things that read like limitations of the design are settled
+Four things that read like limitations of the design are settled
 questions with numbers behind them, and it is worth knowing which is
 which before reopening one.
 
@@ -554,9 +556,24 @@ which before reopening one.
   because a cell that can move is not an identity, and every number
   built on cell counts stops being comparable across a run.
 
-Remaining, and genuinely open: the fingerprint's eight buckets collide
-by construction, so two unrelated algorithms can share a shape vector.
-The cost is bounded -- they are one axis of several, and a colliding
-pair is still separated by anything else that differs -- and widening
-the fingerprint trades that for a sparser space, which is the concentration
-problem the eight buckets exist to avoid.
+- **The fingerprint's width was measured, not guessed.** It hashes
+  n-grams into a fixed number of buckets, so collisions are possible by
+  construction, and at the eight buckets it started with they were not
+  hypothetical: a generator expression and a set comprehension were
+  *exactly* the same point, permanently. Widening was assumed to cost
+  two things and measured to cost neither. Distances do not concentrate
+  -- relative contrast is flat from 8 buckets to 128 -- because the
+  vector is a normalized composition, so extra buckets add zeros and
+  the distance is decided by how much mass moved rather than by how
+  many bins exist. And the block does not outvote the scalar axes
+  beside it: its share of the distance between two programs stayed at
+  ~0.51 at every width, for the same reason. Against the un-hashed
+  profile, fidelity rises 0.80 -> 0.87 -> 0.92 -> 0.96 across 8, 16, 32
+  and 64 buckets, and the false ties are gone by 16. It runs at 32.
+  `test_code_fingerprint.py` pins the pair that collided.
+
+What remains genuinely open is narrower than the width: two programs
+whose n-gram *compositions* genuinely coincide are one point at any
+width, and no amount of widening separates them. That cost is bounded
+-- the fingerprint is one axis of several, and such a pair is still
+separated by anything else that differs, including what it measured.

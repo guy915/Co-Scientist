@@ -77,6 +77,18 @@ class TestShape:
         # depth, same operator, different algorithm.
         assert _apart(_FOR, _WHILE) > 0.0
 
+    def test_a_generator_and_a_set_comprehension_are_not_one_point(
+        self,
+    ) -> None:
+        # At eight buckets these were *exactly* equal: the grams that
+        # separate them landed together, so the archive could not hold
+        # both -- not occasionally, but for every run, forever. A
+        # collision this cheap to hit is what decided the width; see
+        # the table in the fingerprint module docstring.
+        generator = "def f(n):\n    return sum(i for i in range(n))\n"
+        set_comp = "def f(n):\n    return sum({i for i in range(n)})\n"
+        assert _apart(generator, set_comp) > 0.0
+
     def test_the_profile_is_a_composition(self) -> None:
         # Fractions, not counts: a count grows as a variant is refined,
         # and an axis that grows with refinement degrades the archive.
