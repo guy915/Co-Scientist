@@ -50,6 +50,33 @@ async def get_hypotheses(run_id: str) -> dict[str, Any]:
     return {"hypotheses": hyps}
 
 
+@router.get("/{run_id}/variants")
+async def get_code_variants(run_id: str) -> dict[str, Any]:
+    """Return a discovery run's code variants, in attempt order.
+
+    Failed attempts are included and keep their ordinal. Omitting them
+    would make the breakthrough plot read as faster progress than
+    actually happened, which is the one thing the sequence is for.
+    """
+    _require_run(run_id)
+    return {"variants": store.list_code_variants(run_id)}
+
+
+@router.get("/{run_id}/variants/{variant_id}")
+async def get_code_variant_detail(
+    run_id: str, variant_id: str
+) -> dict[str, Any]:
+    """Return one variant with its metrics, artifacts, and source."""
+    _require_run(run_id)
+    variant = store.get_code_variant(variant_id)
+    # Checked against the path's run rather than trusted from the id, so
+    # a variant id cannot be used to read across runs the caller does
+    # not own -- ownership is enforced on the run, not on the variant.
+    if variant is None or variant["run_id"] != run_id:
+        raise HTTPException(status_code=404, detail="variant not found")
+    return variant
+
+
 @router.get("/{run_id}/evidence")
 async def get_evidence(run_id: str) -> dict[str, Any]:
     """Return the literature evidence retrieved for the run."""
