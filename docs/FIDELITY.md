@@ -101,11 +101,11 @@ These features are described in the published material but are not implemented h
     variant evaluation retries, resumes and cancels on the same terms as any
     other task, and it searches through a MAP-Elites diversity archive over
     behavioural niches with Pareto dominance across several objectives
-    (`agents/code_evolve/archive.py`, `code_eval/pareto.py`). The remaining
-    divergences are in the archive's resolution rather than its presence:
-    the grid is declared up front rather than recomputed from the data
-    (no CVT-MAP-Elites), and each cell keeps one elite by primary fitness
-    rather than a Pareto front per cell (no MOME).
+    (`agents/code_evolve/`, `code_eval/pareto.py`), with cells derived by
+    CVT-MAP-Elites over measured structural behaviour and a Pareto front
+    kept per cell (MOME). What remains different is the behaviour space
+    itself: features are hand-written rather than learned, so two
+    programs that differ only in algorithm can still share a cell.
 -   **PDF / LaTeX export.** Markdown + JSON only.
 -   **Vector / hybrid retrieval.** The store has no vector column; proximity
     clustering is instead driven by an LLM-graded similarity call

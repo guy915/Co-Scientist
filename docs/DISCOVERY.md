@@ -45,8 +45,10 @@ disagree with it.
     ],
     "descriptors": [
       {"feature": "operator"},
-      {"feature": "source_lines", "bins": [20, 80, 250]}
+      {"feature": "max_depth"},
+      {"feature": "imports"}
     ],
+    "grid": {"strategy": "cvt", "cells": 12},
     "metrics_path": "metrics.json",
     "seed_source": {"main.py": "..."},
     "max_generations": 8,
@@ -128,26 +130,71 @@ approach about equally often -- the `explore` operator sees to that. The
 difference is that top-k discards it immediately for being behind, and
 the archive keeps investing in it while it catches up.
 
-**Niches** come from `descriptors`. Each is a `feature` plus ascending
-`bins`; a value falls in the bin counting how many edges it meets.
-Features are `operator`, `source_lines`, `source_bytes`, or
-`metric:<key>` for anything the program reports. A run that declares none
-gets `operator` x `source_lines`, which already separates a tuned
-constant from a rewritten algorithm. A `descriptors` key that is present
-but malformed is refused rather than defaulted -- silently falling back
-would niche a run along axes its author did not choose and cannot see.
+**Cells** come from `descriptors` plus a `grid` strategy.
 
-**Selection is half exploit, half explore.** Textbook MAP-Elites samples
-occupied niches uniformly, which is right at tens of thousands of
-evaluations and wrong at the tens this runs. Half the children come from
-the strongest elites and the Pareto front, half from a uniform draw
-across niches. The uniform half prevents collapse; the greedy half makes
-progress inside a small budget.
+A descriptor is a `feature` and, for the `fixed` strategy, ascending
+`bins`. Features are `operator`, `imports`, `max_depth`, `branch_count`,
+`call_diversity`, `source_lines`, `source_bytes`, or `metric:<key>` for
+anything the program reports. Structure is measured from the AST when
+the program parses as Python and from indentation and token shape
+otherwise, so a run in another language still gets nesting, branching
+and dependencies -- just more crudely.
 
-The niche is computed once, at evaluation time, and stored. Pareto
-membership is *not* stored: it is a property of the whole set, so one new
-variant can take an older one off the front, and a stored flag would be
-stale for every row but the newest.
+Three strategies, because they fail differently:
+
+| Strategy | Cells from | Fails when |
+|---|---|---|
+| `fixed` | Declared bin edges | The author was guessing the scale |
+| `adaptive` | Per-axis quantiles of observed values | A cell's meaning drifts as the run moves |
+| `cvt` (default) | k-means over the whole behaviour vector | — bounded to `cells` by construction |
+
+**An axis must describe a variant's kind, not its progress.** This is
+the rule that matters most, and it is the opposite of the intuition that
+more axes are safer. A fixed grid whose edges are too coarse quietly
+collapses a useless axis into one bin -- a crude accident that happens
+to protect the run. `adaptive` and `cvt` have no such accident: they
+subdivide whatever axis they are given. An axis that mostly tracks how
+*refined* a variant is therefore turns the archive into "keep every
+refinement level of every approach", and the uniform half of selection
+spends its budget re-drawing one approach at different maturities.
+
+Measured on the decoy landscape (200 seeds, identical budget and
+mutation operator, `test_code_archive_basins.py`):
+
+| Default axes | CVT mean best | Escaped the decoy |
+|---|---|---|
+| kind only (`operator`, `max_depth`, `imports`) | 7.84 | 144 / 200 |
+| the same plus `source_lines` | 5.71 | 38 / 200 |
+
+That is why program length is **not** a default axis despite being the
+cheapest one available. Nesting and dependencies are: a variant does not
+become deeper or import more simply by being polished. Note also what
+the same measurement showed about strategies -- with the right axes,
+`fixed`, `adaptive` and `cvt` all scored identically (7.84). The
+strategy is not what rescues a badly chosen axis; nothing is.
+
+**A cell keeps a front, not an elite.** Reducing a cell to its single
+best variant re-introduces, inside the cell, exactly the collapse the
+archive exists to prevent: two genuinely different trades that happen to
+share a niche compete for one slot, and whichever loses on the primary
+objective is discarded even though nothing dominates it. So each cell
+holds its own non-dominated set (this is MOME), capped at
+`DEFAULT_CELL_CAPACITY`, and an overflowing cell drops its most
+*crowded* member rather than its lowest-scoring one -- dropping by score
+would again delete the trade.
+
+Selection draws a **cell** first and a member within it second. Drawing
+from all members at once would hand a cell holding three trades three
+times the attention of a cell holding one, which is population size
+deciding selection -- the exact bias the archive removes.
+
+**Behaviour is stored; the cell is not.** Under an adaptive or CVT grid
+a variant's cell depends on every other variant, so a cell id written at
+evaluation time is wrong by the next generation. The raw measurement is
+persisted and the cell derived on read, which keeps one source of truth
+rather than two that drift apart silently. Pareto membership is derived
+for the same reason -- one new variant can take an older one off the
+front.
 
 ## Proposing a variant
 
@@ -213,18 +260,22 @@ Four rules the surface keeps, each of which is easy to get wrong:
 - **"Best trade-off" is only shown when it is not already "best so far".**
   With one objective the front *is* the best, and two badges for one fact
   reads as two findings.
+- **Cell count is reported with its evenness.** Forty variants in one
+  cell and one in each of five others has reached six cells and explored
+  almost nothing, so a lopsided run is told it piled into one.
 
 ## Known limits
 
-- **The grid is fixed, not adaptive.** Bin edges are declared up front,
-  so a run whose metrics land in one bin gets one niche on that axis and
-  no diversity from it. CVT-MAP-Elites recomputes cells from the data;
-  this does not.
-- **Elites are single-objective per cell.** A cell keeps the best variant
-  by primary fitness, not a Pareto front per cell (MOME). The global
-  front is preserved in selection, so a trade is never lost outright, but
-  two different trades inside one niche compete for one slot.
-- **No novelty pressure inside a niche.** Two structurally different
-  programs of the same size, from the same operator, are one cell.
+- **Behaviour is measured, not learned.** The features are hand-written
+  (nesting, branching, dependencies, size, reported metrics). A learned
+  descriptor -- an embedding of the program, say -- would capture
+  similarity these miss, at the cost of an axis nobody can read.
+- **Structural features are shallow.** Two programs with the same
+  nesting depth, branch count and dependencies are one cell even if they
+  implement different algorithms. `imports` catches the common case (a
+  numpy rewrite versus a tuned loop) and nothing catches the rest.
+- **CVT cells move as the run grows.** Adding variants re-clusters, so a
+  cell is not a stable identity across time and "cells occupied" is a
+  snapshot rather than a monotonic count.
 - A discovery run publishes no report; it ends when its generation
   budget runs out, and the aggregate marks it completed.
