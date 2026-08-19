@@ -10,10 +10,17 @@ retry surface.
 
 import dataclasses
 import enum
+import logging
 from dataclasses import dataclass
 from typing import Any
 
 from co_scientist.constants import BUDGET_ESCALATION_MAX_TOKENS
+from co_scientist.exceptions import (
+    LLMBudgetExhaustedError,
+    LLMThinkingOnlyError,
+)
+
+logger = logging.getLogger(__name__)
 
 
 class BudgetEscalation(enum.Enum):
@@ -49,6 +56,69 @@ _ESCALATION_LADDER: dict[BudgetEscalation, BudgetEscalation] = {
     BudgetEscalation.RAISED_BUDGET: BudgetEscalation.NO_THINKING,
     BudgetEscalation.NO_THINKING: BudgetEscalation.NO_THINKING,
 }
+
+
+def escalation_for_error(
+    error: BaseException | None, current: BudgetEscalation
+) -> BudgetEscalation | None:
+    """The rung answering this error, or None when no rung answers it.
+
+    The two answerless shapes enter the ladder at different points.
+    Budget exhaustion climbs one rung, because a chain of thought cut off
+    at the ceiling may genuinely have been close to finishing. A
+    thinking-only response skips to the top: the model *chose* to stop, so
+    it did not want for room, and the intermediate rung would spend a
+    whole attempt proving that.
+
+    Everything else -- a schema failure, a parse failure, an ordinary
+    provider error -- returns None. They say nothing about thinking, and
+    changing the request would spend more tokens on a problem tokens do
+    not solve. None also ends the ladder at its top rung, which is what
+    stops a caller escalating forever.
+
+    Args:
+        error: The failure the attempt raised, if any.
+        current: The rung that attempt was made at.
+
+    Returns:
+        The rung to send next, or None to stop escalating.
+    """
+    if isinstance(error, LLMThinkingOnlyError):
+        if current is BudgetEscalation.NO_THINKING:
+            return None
+        return BudgetEscalation.NO_THINKING
+    if not isinstance(error, LLMBudgetExhaustedError):
+        return None
+    escalated = _ESCALATION_LADDER[current]
+    return None if escalated is current else escalated
+
+
+def log_escalation(
+    error: BaseException | None, escalated: BudgetEscalation
+) -> None:
+    """Says what the next attempt will do differently, and why.
+
+    One sentence per escalating failure, written where the decision is
+    made rather than where the call failed: the layer that knows a retry
+    follows is the only one that can say so, and the error text itself is
+    already printed by whoever ends up raising it.
+
+    Args:
+        error: The failure that triggered the escalation.
+        escalated: The rung the next attempt will be made at.
+    """
+    if isinstance(error, LLMThinkingOnlyError):
+        logger.warning(
+            "LLM finished thinking without answering; retrying with "
+            "thinking disabled"
+        )
+        return
+    logger.warning(
+        "LLM spent its whole token budget reasoning; retrying with %s",
+        "thinking disabled"
+        if escalated is BudgetEscalation.NO_THINKING
+        else "a raised token budget",
+    )
 
 
 @dataclass(frozen=True)

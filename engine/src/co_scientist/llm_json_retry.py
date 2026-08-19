@@ -14,8 +14,6 @@ import logging
 
 from co_scientist.backoff import jittered_backoff_seconds
 from co_scientist.exceptions import (
-    LLMBudgetExhaustedError,
-    LLMThinkingOnlyError,
     LLMTimeoutError,
     short_error_text,
 )
@@ -63,6 +61,12 @@ from co_scientist.llm_json_escalation import (
 )
 from co_scientist.llm_json_escalation import (
     escalated_spec as escalated_spec,
+)
+from co_scientist.llm_json_escalation import (
+    escalation_for_error as escalation_for_error,
+)
+from co_scientist.llm_json_escalation import (
+    log_escalation as log_escalation,
 )
 from co_scientist.llm_thinking import failure_context_text
 
@@ -137,21 +141,10 @@ def escalation_after(
     Returns:
         The rung for the next attempt, or ``current`` unchanged.
     """
-    if isinstance(outcome.error, LLMThinkingOnlyError):
-        logger.warning(
-            "LLM finished thinking without answering; retrying with "
-            "thinking disabled"
-        )
-        return BudgetEscalation.NO_THINKING
-    if not isinstance(outcome.error, LLMBudgetExhaustedError):
+    escalated = escalation_for_error(outcome.error, current)
+    if escalated is None:
         return current
-    escalated = _ESCALATION_LADDER[current]
-    logger.warning(
-        "LLM spent its whole token budget reasoning; retrying with %s",
-        "thinking disabled"
-        if escalated is BudgetEscalation.NO_THINKING
-        else "a raised token budget",
-    )
+    log_escalation(outcome.error, escalated)
     return escalated
 
 
