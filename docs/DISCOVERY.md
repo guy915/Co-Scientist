@@ -628,7 +628,7 @@ which before reopening one.
   computing different things. That is the boundary of reading a
   program's text, and it is the boundary `metric:*` exists to cross:
   the pair separates as soon as they report different measurements
-  (`test_code_grid.py::test_it_separates_programs_no_static_axis_can`).
+  (`test_code_grid_metrics.py::test_it_separates_programs_no_static_axis_can`).
   Two such programs that measure the *same* belong in one cell -- the
   archive keeps the best of each kind, and nothing has shown them to be
   different kinds.
