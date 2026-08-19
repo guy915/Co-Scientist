@@ -14,7 +14,8 @@
 # reports false passes.
 #
 # The same restriction is why bwrap inside the app container is very
-# likely not the production answer; see references/harness/PLAN.md.
+# likely not the production answer: production confinement is Landlock,
+# which needs no privilege, plus seccomp for the UDP it cannot reach.
 FROM python:3.12-slim
 
 RUN apt-get update -qq \

@@ -66,8 +66,3 @@ cache/
 # The paper corpus is committed in full, so retrieval works from a clean
 # checkout with no setup. Rebuild it with: python -m app.corpus_ingest <dir>
 
-# Upstream coding-agent harnesses cloned for reference analysis (~730 MB of
-# third-party code). Not ours to redistribute and retrievable at the pinned
-# SHAs recorded in references/harness/MANIFEST.md, which IS committed.
-references/harness/*/
-!references/harness/_analysis/
