@@ -16,11 +16,11 @@ from typing import Any
 import pytest
 
 from app import engine_tasks, store
-from app.task_worker_outcomes import _handle_task_failure
 from app.engine_tasks_variants_schedule import (
     enqueue_discovery_bootstrap,
     select_parents,
 )
+from app.task_worker_outcomes import _handle_task_failure
 
 _GOOD = "import json\njson.dump({'score': 7.0}, open('metrics.json', 'w'))\n"
 _CRASHES = "raise RuntimeError('boom')\n"
@@ -75,7 +75,7 @@ async def _drain(run_id: str, limit: int = 60) -> list[dict[str, Any]]:
             return results
         try:
             result = await engine_tasks.execute_engine_task(task)
-        except Exception as exc:  # noqa: BLE001 - mirrors the worker
+        except Exception as exc:
             # Classified by the production handler rather than by a
             # restatement of it here, so a test cannot pass on a rule the
             # worker does not actually apply.
@@ -326,3 +326,46 @@ async def test_a_rejected_proposal_is_reported_not_retried(
     enqueue_discovery_bootstrap(run.id)
     await _drain(run.id)
     assert len(calls) == 1
+
+
+@pytest.mark.asyncio
+async def test_bootstrap_starts_a_discovery_run_at_its_seed(
+    db: str, workspace_root: str
+) -> None:
+    run = _run(_config(_GOOD, max_generations=1))
+    engine_tasks.enqueue_bootstrap(run.id)
+    await _drain(run.id)
+    assert len(store.list_code_variants(run.id)) == 1
+
+
+@pytest.mark.asyncio
+async def test_a_finished_discovery_run_leaves_running(
+    db: str, workspace_root: str
+) -> None:
+    # Nothing else moves a discovery run out of `running` -- it has no
+    # report to publish -- and a run stuck there is indistinguishable
+    # from one that died.
+    run = _run(_config(_GOOD, max_generations=1))
+    engine_tasks.enqueue_bootstrap(run.id)
+    await _drain(run.id)
+    finished = store.get_run(run.id)
+    assert finished is not None and finished.status == "completed"
+
+
+@pytest.mark.asyncio
+async def test_a_misconfigured_run_fails_at_bootstrap(
+    db: str, workspace_root: str
+) -> None:
+    # Rather than enqueueing a generation whose every variant then fails
+    # identically for a reason no single result explains.
+    from app.discovery_spec import DiscoverySpecError
+
+    config = _config(_GOOD)
+    config["discovery"]["objective"] = {"metric": "score", "direction": "up"}
+    run = _run(config)
+    task = engine_tasks.enqueue_bootstrap(run.id)
+    claimed = store.claim_task("test-worker", run_id=run.id)
+    assert claimed is not None and claimed.id == task.id
+    with pytest.raises(DiscoverySpecError):
+        await engine_tasks.execute_engine_task(claimed)
+    assert store.list_code_variants(run.id) == []

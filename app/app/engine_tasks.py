@@ -19,6 +19,7 @@ from collections.abc import Awaitable, Callable
 from typing import Any
 
 from app import store
+from app.discovery_spec import is_discovery_run
 from app.engine_adapter.drain import (
     _persist_final_state as _persist_final_state,
 )
@@ -349,10 +350,46 @@ async def _prepare_bootstrap_state(
     return state, commit, None
 
 
+async def _bootstrap_discovery(
+    run: store.RunRow, emit: Any, db_path: str | None
+) -> dict[str, Any]:
+    """Starts a discovery run at its seed program.
+
+    The evaluator spec is built here, before anything is enqueued, so a
+    misconfigured run fails at its first task with a message naming the
+    problem -- rather than enqueueing a generation whose every variant
+    then fails identically for a reason no single result explains.
+    """
+    from app.discovery_spec import evaluator_spec
+    from app.engine_tasks_variants_schedule import (
+        enqueue_discovery_bootstrap,
+    )
+
+    spec = evaluator_spec(run.config)
+    enqueue_discovery_bootstrap(run.id, db_path=db_path)
+    await emit(
+        "scientific_task",
+        {"task": "bootstrap", "status": "completed", "mode": "discovery"},
+    )
+    return {
+        "mode": "discovery",
+        "objective": spec.objective.metric,
+        "direction": spec.objective.direction.value,
+        "stages": [stage.name for stage in spec.stages],
+    }
+
+
 async def execute_bootstrap(
     task: ScientificTask, *, db_path: str | None = None
 ) -> dict[str, Any]:
-    """Safety-gate a run, prepare state, and enqueue the Supervisor task."""
+    """Safety-gate a run, prepare state, and enqueue its first task.
+
+    A discovery run diverges after the safety gate: it has no workflow
+    state and no Supervisor, so it is handed to the variant scheduler
+    instead. The gate itself is deliberately shared -- a run that
+    evolves programs is screened on the same terms as one that evolves
+    hypotheses, because the goal text is what is being screened.
+    """
     run = _require_run(task, db_path)
     emit = make_emitter(run.id, db_path=db_path)
     withheld = await _screen_bootstrap_intake(run, emit, db_path)
@@ -361,6 +398,8 @@ async def execute_bootstrap(
     run = _require_run(task, db_path)  # the gate may have redacted the goal
 
     store.update_run_status(run.id, RunStatus.RUNNING, db_path=db_path)
+    if is_discovery_run(run.config):
+        return await _bootstrap_discovery(run, emit, db_path)
     # Sync the run row before the generator is built (_generator_and_opts
     # reads it back via run_used_offline), so a config-pinned llm_backend
     # takes effect on this boundary.

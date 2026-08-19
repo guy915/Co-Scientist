@@ -38,8 +38,14 @@ DEFAULT_CHILDREN_PER_GENERATION = 4
 DEFAULT_PARENTS_PER_GENERATION = 2
 
 
-def _budget(config: dict[str, Any] | None, key: str, fallback: int) -> int:
-    """Reads one positive integer from the run's discovery block."""
+def budget_value(config: dict[str, Any] | None, key: str, fallback: int) -> int:
+    """Reads one positive integer from the run's discovery block.
+
+    A malformed or non-positive value falls back rather than raising:
+    unlike the evaluator spec, a bad budget has an obviously correct
+    default, so refusing the run over one would be stricter without
+    being safer.
+    """
     raw = (discovery_config(config) or {}).get(key)
     if isinstance(raw, bool) or not isinstance(raw, int) or raw < 1:
         return fallback

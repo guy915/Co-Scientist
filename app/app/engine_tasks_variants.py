@@ -28,7 +28,7 @@ from typing import Any
 from app import store
 from app.discovery_spec import evaluator_spec
 from app.engine_tasks_support import SupersededTaskError
-from app.store import ScientificTask
+from app.store import RunStatus, ScientificTask
 
 logger = logging.getLogger(__name__)
 
@@ -269,16 +269,16 @@ def _next_generation_parents(
     from app.engine_tasks_variants_schedule import (
         DEFAULT_CHILDREN_PER_GENERATION,
         DEFAULT_PARENTS_PER_GENERATION,
-        _budget,
+        budget_value,
         select_parents,
     )
 
-    children = _budget(
+    children = budget_value(
         config, "children_per_generation", DEFAULT_CHILDREN_PER_GENERATION
     )
     parents = select_parents(
         variants,
-        _budget(
+        budget_value(
             config, "parents_per_generation", DEFAULT_PARENTS_PER_GENERATION
         ),
     )
@@ -287,6 +287,25 @@ def _next_generation_parents(
     return [
         str(parents[index % len(parents)]["id"]) for index in range(children)
     ]
+
+
+def _finish_run(
+    run_id: str, summary: dict[str, Any], db_path: str | None
+) -> None:
+    """Marks a discovery run completed once its last generation lands.
+
+    A discovery run publishes no report, so nothing else would ever move
+    it out of ``running`` -- and a run that stays running forever is
+    indistinguishable from one that is stuck, both to the reader and to
+    the recovery sweep that re-schedules interrupted runs on boot.
+    """
+    logger.info(
+        "Discovery run %s finished after generation %s (best %s)",
+        run_id,
+        summary["generation"],
+        summary["best_fitness"],
+    )
+    store.update_run_status(run_id, RunStatus.COMPLETED, db_path=db_path)
 
 
 async def execute_variant_aggregate(
@@ -301,7 +320,7 @@ async def execute_variant_aggregate(
     """
     from app.engine_tasks_variants_schedule import (
         DEFAULT_MAX_GENERATIONS,
-        _budget,
+        budget_value,
         enqueue_generation,
     )
 
@@ -316,15 +335,10 @@ async def execute_variant_aggregate(
         "best_variant_id": None if best is None else best["id"],
     }
 
-    limit = _budget(config, "max_generations", DEFAULT_MAX_GENERATIONS)
+    limit = budget_value(config, "max_generations", DEFAULT_MAX_GENERATIONS)
     parents = _next_generation_parents(variants, config)
     if generation + 1 >= limit or not parents:
-        logger.info(
-            "Discovery run %s finished after generation %s (best %s)",
-            task.run_id,
-            generation,
-            summary["best_fitness"],
-        )
+        _finish_run(task.run_id, summary, db_path)
         return {**summary, "continued": False}
 
     with store.transaction(db_path) as conn:
