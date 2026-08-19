@@ -12,7 +12,7 @@ from typing import Any
 from fastapi import APIRouter, Request, Response
 from pydantic import BaseModel, Field
 
-from app import diagnostics, engine_adapter, paper_corpus
+from app import diagnostics, discovery_spec, engine_adapter, paper_corpus
 from app.config import settings
 from app.notifications import email_notifications_configured
 from app.run_modes import (
@@ -145,6 +145,13 @@ class SystemStatusResponse(BaseModel):
         description=(
             "whether an SMTP transport is configured, so a run can actually "
             "be opted in to a completion email"
+        ),
+    )
+    code_execution_available: bool = Field(
+        False,
+        description=(
+            "whether this host offers a confinement primitive, so a "
+            "computational-discovery run can execute the code it evolves"
         ),
     )
     # The fields below this point (through `enabled_tools`) are operator
@@ -312,6 +319,22 @@ async def get_config() -> ConfigResponse:
     )
 
 
+def _local_capabilities() -> dict[str, Any]:
+    """The two availability answers this process knows without probing.
+
+    An SMTP transport is either configured here or it is not, and the
+    plan card's completion-email opt-in is gated on the answer.
+    Confinement is a property of the host kernel, which makes `/status`
+    the only way to learn it short of starting a discovery run and
+    watching every variant fail.
+    """
+    return {
+        "email_notifications_available": email_notifications_configured(),
+        "code_execution_available": discovery_spec.code_execution_backend()
+        is not None,
+    }
+
+
 def _build_status_payload(
     mcp: diagnostics.ProbeResult,
     pubmed: diagnostics.ProbeResult,
@@ -327,10 +350,7 @@ def _build_status_payload(
         # True only when the MCP server advertises its web search tool, which
         # requires a search-provider API key on that server.
         "web_search_available": web_search.available,
-        # Local, not probed: an SMTP transport is either configured on this
-        # process or it is not, and the plan card's completion-email opt-in
-        # is gated on the answer.
-        "email_notifications_available": email_notifications_configured(),
+        **_local_capabilities(),
         "probes": {
             "mcp": {"state": mcp.state, "error": mcp.error},
             "pubmed": {"state": pubmed.state, "error": pubmed.error},
@@ -365,6 +385,7 @@ _PUBLIC_STATUS_FIELDS = frozenset(
         "literature_review_available",
         "web_search_available",
         "email_notifications_available",
+        "code_execution_available",
         "connectors",
         "provider",
         "llm_backend",

@@ -5,9 +5,9 @@ Supersedes the open questions in `SCOPE.md`. Grounded in the four teardowns in
 
 ---
 
-## Build status (2026-08-18)
+## Build status (2026-08-19)
 
-Phase 0 and Phase 1 are complete; Phase 2 is partly built. Everything below
+Phases 0, 1, 3 and 4 are complete; Phase 2 is partly built. Everything below
 ships with tests, and where a test could pass against a broken implementation
 the mutation was run to confirm it fails against one.
 
@@ -32,12 +32,14 @@ the mutation was run to confirm it fails against one.
 | Production exec topology | 1 | **resolved — no separate service needed** | see below |
 | Tool registration (D5) | 2 | **done** | `workspace/tools.py` |
 | Variant evaluator (cascade, artifacts, sign) | 3 | **done** | `code_eval/` |
-| `code_evolve` agent, tables, task types | 3 | not built | app seam; see §5 |
-| Everything in Phase 4 | 4 | not built | |
+| `code_evolve` agent, tables, task types | 3 | **done** | `agents/code_evolve/`, `app/store/code_variants.py`, `app/engine_tasks_variants*.py` |
+| MAP-Elites/MOME archive + Pareto objectives | 3 | **done, measured** | `agents/code_evolve/archive.py`, `code_eval/pareto.py` |
+| Start a run: API, CLI, workbench | 4 | **done** | `POST /api/runs`, `cosci runs create --discovery`, `discovery_dialog.tsx` |
+| Live view, variants tab, report | 4 | **done** | `run_detail_active.tsx`, `run_detail_variants.tsx`, `app/discovery_report.py` |
 
 ### Three things to know before picking this up
 
-**1. The agent can now reach the tools; nothing constructs a session yet.**
+**1. The agent can reach the tools, and Phase 3 constructs the session.**
 D5 is resolved as a local tool kind rather than a local MCP server:
 `workspace/tools.py` declares `run_command`, `apply_patch`, `read_file` and
 `list_files`, and `tool_effects.resolve_tool_effects` consults local
@@ -47,7 +49,9 @@ The MCP route was rejected on its timeout: `COSCIENTIST_MCP_TOOL_TIMEOUT_SECONDS
 would bound the tool call and the command with one number, making a long
 analysis and a hung provider the same event. What remains is the call site —
 something has to build a `WorkspaceSession` per run and pass the provider into
-a `ToolLoop`.
+a `ToolLoop`. That is now built for the *evaluator*
+(`open_variant_workspace`, one directory per variant) but not for a
+conversational terminal loop, which is the Phase 2 remainder.
 
 Two traps this area sets, both of which pass silently:
 

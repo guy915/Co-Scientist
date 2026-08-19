@@ -26,6 +26,7 @@ import logging
 from typing import Any
 
 from app import discovery_report, store
+from app.discovery_execution import evaluate_confined
 from app.discovery_spec import evaluator_spec
 from app.engine_tasks_support import SupersededTaskError
 from app.store import RunStatus, ScientificTask
@@ -197,7 +198,7 @@ async def execute_variant_evaluate(
         A variant that crashed returns just as normally as one that
         scored -- ``status`` is what tells them apart.
     """
-    from co_scientist.code_eval import EvaluationRequest, evaluate_variant
+    from co_scientist.code_eval import EvaluationRequest
     from co_scientist.workspace import open_variant_workspace
 
     variant = _variant_for_task(task, db_path)
@@ -209,9 +210,8 @@ async def execute_variant_evaluate(
     # plausible number attributed to the wrong variant, and nothing in
     # either result would show it.
     session = open_variant_workspace(task.run_id, str(variant["id"]))
-    result = await evaluate_variant(
-        session,
-        EvaluationRequest(spec=spec, files=dict(variant["source"])),
+    result = await evaluate_confined(
+        session, EvaluationRequest(spec=spec, files=dict(variant["source"]))
     )
     _record_evaluation(
         task.run_id,

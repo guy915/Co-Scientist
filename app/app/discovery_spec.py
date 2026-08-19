@@ -36,6 +36,14 @@ from co_scientist.code_eval import (
     Objective,
 )
 
+# Whether the *host* can run what a spec asks for is a different kind of
+# fact from what the spec says, and lives in app/discovery_execution.py.
+# Imported back and re-exported (a redundant alias) so callers and tests
+# keep reaching it at app.discovery_spec exactly as before.
+from app.discovery_execution import (
+    code_execution_backend as code_execution_backend,
+)
+
 # Key under which a run's config carries its discovery configuration.
 # Its presence is what makes a run a discovery run.
 DISCOVERY_CONFIG_KEY = "discovery"

@@ -18,6 +18,7 @@ from app.audience import AUDIENCE_PATTERN, audience_context
 from app.discovery_spec import (
     DISCOVERY_CONFIG_KEY,
     DiscoverySpecError,
+    code_execution_backend,
     evaluator_spec,
     seed_from_run,
     seed_source,
@@ -203,6 +204,37 @@ def _run_overrides_from_request(
     return overrides
 
 
+def _require_code_execution() -> None:
+    """Refuses a discovery run this deployment could not execute.
+
+    A discovery run runs model-authored code, and the engine will not
+    run any of it unconfined. Without a confinement primitive every
+    variant is unrunnable, so accepting the run would spend a full
+    generation of proposal calls to arrive at a failure decided before
+    the first one.
+
+    A courtesy, not the guarantee: with a separate worker service the
+    host answering this request is not the host that evaluates, so this
+    can be wrong in either direction. `engine_tasks_variants` converts
+    the executing host's own refusal into a permanent task failure, and
+    that is what actually holds. Hence the 503 rather than a 422 -- the
+    request is fine and there is nothing in the spec to edit.
+
+    Raises:
+        HTTPException: 503 when this host offers no confinement.
+    """
+    if code_execution_backend() is None:
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                "this deployment cannot run sandboxed code, so it cannot "
+                "run a discovery run: no confinement backend is available "
+                "(Landlock needs Linux 5.13 or newer; failing that, "
+                "bubblewrap). Hypothesis-generation runs are unaffected."
+            ),
+        )
+
+
 def _validate_discovery_block(block: dict[str, Any] | None) -> None:
     """Rejects a malformed discovery spec at create time.
 
@@ -217,6 +249,7 @@ def _validate_discovery_block(block: dict[str, Any] | None) -> None:
     """
     if block is None:
         return
+    _require_code_execution()
     config = {DISCOVERY_CONFIG_KEY: block}
     try:
         evaluator_spec(config)

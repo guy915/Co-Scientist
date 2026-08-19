@@ -205,3 +205,75 @@ def test_a_seed_reference_that_is_not_a_run_id_is_refused(
         },
     )
     assert refused.status_code == 422
+
+
+class TestUnconfinableHost:
+    """A host with no confinement primitive, e.g. a pre-5.13 kernel.
+
+    Every variant is unrunnable there, and neither half of that is the
+    run's fault, so both halves have to say so rather than looking like
+    a program that will not compile.
+    """
+
+    def test_creation_is_refused_rather_than_accepted_and_doomed(
+        self, client: TestClient, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # 503, not 422: nothing in the spec is wrong and there is
+        # nothing for the caller to edit.
+        monkeypatch.setattr(
+            "app.runs_models.code_execution_backend", lambda: None
+        )
+        response = client.post(
+            "/api/runs",
+            json={"research_goal": "evolve it", "discovery": _spec()},
+        )
+        assert response.status_code == 503
+        assert "sandboxed code" in response.json()["detail"]
+
+    def test_an_ordinary_run_is_unaffected(
+        self, client: TestClient, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # The gate is per discovery run, not per deployment: hypothesis
+        # generation executes nothing and must not be taken down with it.
+        monkeypatch.setattr(
+            "app.runs_models.code_execution_backend", lambda: None
+        )
+        response = client.post("/api/runs", json={"research_goal": "why?"})
+        assert response.status_code in (200, 201)
+
+    async def test_evaluation_fails_permanently_instead_of_retrying(
+        self, client: TestClient, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # The guarantee the create-time gate only approximates: with a
+        # separate worker service the evaluating host is not the one
+        # that answered the request. Anything but UnsupportedTaskError
+        # here spends the retry budget on a refusal that is identical
+        # every time, and strands the run with no reason attached.
+        from app.discovery_execution import evaluate_confined
+        from app.task_worker_outcomes import UnsupportedTaskError
+
+        monkeypatch.setattr(
+            "co_scientist.sandbox.argv.sandbox_backend", lambda: None
+        )
+        with pytest.raises(UnsupportedTaskError, match="sandboxed code"):
+            await evaluate_confined(*_unconfinable_evaluation())
+
+
+def _unconfinable_evaluation() -> tuple[Any, Any]:
+    """A real session and request, so the refusal comes from the sandbox."""
+    import tempfile
+    from pathlib import Path
+
+    from co_scientist.code_eval import EvaluationRequest
+    from co_scientist.workspace.session import WorkspaceSession
+
+    root = Path(tempfile.mkdtemp())
+    spec_config = {"discovery": _spec()}
+    from app.discovery_spec import evaluator_spec
+
+    return (
+        WorkspaceSession(root),
+        EvaluationRequest(
+            spec=evaluator_spec(spec_config), files={"main.py": "print(1)"}
+        ),
+    )

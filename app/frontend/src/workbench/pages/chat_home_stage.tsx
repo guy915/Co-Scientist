@@ -8,6 +8,7 @@ import {type Run} from '@/api/runs';
 import {joinClasses} from '../classes';
 import {DiscoveryDialog} from '../components/discovery_dialog';
 import {useIsMobile} from '../hooks/use_is_mobile';
+import {useSystemStatus} from '../hooks/system_status_context';
 import {
   HOME_LOGO_CLASSES,
   HOME_MAIN_CLASSES,
@@ -130,8 +131,14 @@ function HomeMainColumn(
 // takes a spec the composer has no way to ask for. Beneath the composer
 // and understated on purpose -- it is the second thing this product
 // does, not a peer of the thing it opens on.
-function DiscoveryEntry() {
+export function DiscoveryEntry() {
   const [open, setOpen] = useState(false);
+  const {status} = useSystemStatus();
+  // Only an explicit no hides it. Before the first poll the answer is
+  // unknown, and hiding the feature on an unknown is worse than offering
+  // one that would be refused with a reason -- the refusal is a 503 that
+  // says why, whereas a missing button says nothing at all.
+  if (status?.code_execution_available === false) return null;
   return (
     <>
       <button
