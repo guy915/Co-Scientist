@@ -132,31 +132,85 @@ def _build_tool_loop_completion_args(
     return completion_args
 
 
+def _final_content(response: Any, model_name: str) -> str | None:
+    """The turn's answer, or None when it asked for tools instead.
+
+    Raises:
+        ValueError: If the turn asked for no tools and answered nothing;
+            the subclass says which remedy applies.
+    """
+    message = response.choices[0].message
+    if getattr(message, "tool_calls", None):
+        return None
+    return _extract_completion_content(response, model_name)
+
+
+async def _answered_completion(
+    messages: list[dict[str, Any]],
+    request: LLMCacheRequest,
+    iteration: int,
+) -> tuple[Any, str | None]:
+    """One turn's completion, escalating if it comes back answerless.
+
+    A turn that spent its whole budget reasoning is not answered by
+    sending it again: the same request reasons its way into the same wall
+    and is billed for it each time. So the rungs are climbed here rather
+    than by spending the loop's turn budget -- a turn is for the model's
+    next *step*, and burning steps on a request that cannot answer would
+    end the investigation with the work half done. The rung resets for
+    the next turn, since the budget was only ever wrong for this one
+    chain of thought.
+
+    Scope matters as much as the ladder: this covers the completion and
+    the answer's validation, and deliberately stops before the tools run.
+    A retry that spanned tool execution would run a turn's tools twice
+    for one request -- which for a local tool means writing the same
+    files or starting the same command again, and leaves the earlier
+    assistant turn in the transcript with nothing answering its calls.
+
+    Returns:
+        The (response, final_content) pair, where final_content is None
+        when the model asked for tools instead of answering.
+    """
+    escalation = BudgetEscalation.NONE
+    while True:
+        try:
+            response = await _acompletion_within_timeout(
+                _build_tool_loop_completion_args(messages, request, escalation),
+                request.model_name,
+            )
+            return response, _final_content(response, request.model_name)
+        except Exception as exc:
+            escalated = escalation_for_error(exc, escalation)
+            if escalated is None:
+                logger.error(
+                    "Error in LLM tool call loop (iteration %s): %s",
+                    iteration + 1,
+                    exc,
+                )
+                raise
+            log_escalation(exc, escalated)
+            escalation = escalated
+
+
 async def _run_tool_call_iteration(
     messages: list[dict[str, Any]],
     request: LLMCacheRequest,
     tool_executor: Callable[[Any], Awaitable[dict[str, Any]]],
-    escalation: BudgetEscalation = BudgetEscalation.NONE,
+    iteration: int = 0,
 ) -> tuple[bool, str | None]:
     """Runs one LLM-with-tools iteration; mutates `messages` in place.
 
     Returns:
         Tuple of (done, final_content). When done is True, final_content
-        holds the finalized response text (already validated via
-        _finalize_tool_call_response); when False, tool calls were
-        dispatched and appended to `messages` and the caller should iterate
-        again.
+        holds the finalized response text; when False, tool calls were
+        dispatched and appended to `messages` and the caller should
+        iterate again.
     """
-    completion_args = _build_tool_loop_completion_args(
-        messages, request, escalation
-    )
-    response = await _acompletion_within_timeout(
-        completion_args, request.model_name
-    )
-
+    response, final = await _answered_completion(messages, request, iteration)
     message = response.choices[0].message
 
-    if hasattr(message, "tool_calls") and message.tool_calls:
+    if final is None:
         # LLM wants to call tools: execute them in parallel, add the
         # results to message history, and continue the loop.
         logger.debug("llm requested %s tool calls", len(message.tool_calls))
@@ -166,17 +220,9 @@ async def _run_tool_call_iteration(
         )
         return False, None
 
-    # No tool calls - this is the final response. Classified by
-    # `_extract_completion_content` rather than by a check of its own,
-    # because an empty answer here has the same three causes it has on
-    # the plain path and only one of them is answered by a different
-    # budget -- and writing a program is the most reasoning-heavy thing
-    # anything asks a model for, so this path meets that wall often.
-    #
     # Recorded only once it validates: an answerless turn contributed
     # nothing, and leaving it in the transcript would resend it as an
     # empty assistant message on the very retry that answers it.
-    final = _extract_completion_content(response, request.model_name)
     messages.append(_message_to_history_dict(message))
     return True, final
 
@@ -187,31 +233,12 @@ async def _run_iteration_logged(
     tool_executor: Callable[[Any], Awaitable[dict[str, Any]]],
     iteration: int,
 ) -> tuple[bool, str | None]:
-    """Runs one tool-call iteration, escalating an answerless completion.
+    """Runs one tool-call iteration.
 
-    A turn that spent its whole budget reasoning is not answered by
-    sending it again: the same request reasons its way into the same wall
-    and is billed for it each time. So the rungs are climbed here, inside
-    the iteration, rather than by spending the loop's turn budget on it --
-    a turn is for the model's next *step*, and burning steps on a request
-    that cannot answer would end the investigation with the work half
-    done. The rung resets for the next iteration, since the budget was
-    only ever wrong for that one turn's chain of thought.
+    Failures are logged where they are classified, in
+    ``_answered_completion``, which is the layer that knows whether a
+    retry follows.
     """
-    escalation = BudgetEscalation.NONE
-    while True:
-        try:
-            return await _run_tool_call_iteration(
-                messages, request, tool_executor, escalation
-            )
-        except Exception as e:
-            escalated = escalation_for_error(e, escalation)
-            if escalated is None:
-                logger.error(
-                    "Error in LLM tool call loop (iteration %s): %s",
-                    iteration + 1,
-                    e,
-                )
-                raise
-            log_escalation(e, escalated)
-            escalation = escalated
+    return await _run_tool_call_iteration(
+        messages, request, tool_executor, iteration
+    )

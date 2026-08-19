@@ -200,10 +200,11 @@ class WorkspaceSession:
         nothing else ends one that the model never killed. Sessions are
         process-local, which bounds the leak at the worker's own
         lifetime -- but a caller that keeps one process alive across
-        many workspaces has to call this, and the conversational loop
-        that will do so is not built yet. See the module docstring in
-        ``command_session`` for why the reaper belongs to that caller
-        rather than here.
+        many workspaces has to call this. The simulation review does,
+        in a ``finally`` around its tool loop
+        (``agents/reflection/simulation_execution``). See the module
+        docstring in ``command_session`` for why the reaper belongs to
+        the caller rather than here.
         """
         await self.sessions.close()
 

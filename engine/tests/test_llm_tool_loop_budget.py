@@ -21,6 +21,7 @@ from typing import Any
 import pytest
 
 from co_scientist.constants import BUDGET_ESCALATION_MAX_TOKENS
+from co_scientist.exceptions import LLMBudgetExhaustedError
 from co_scientist.llm import CompletionSpec, ToolLoop, call_llm_with_tools
 from tests._llm_fake import disable_llm_cache as _disable_cache
 from tests._llm_wrapper_fakes import (
@@ -158,6 +159,52 @@ class TestItIsAnsweredWithADifferentRequest:
 
         assert text == "what the tool showed"
         assert len(calls) == 3
+
+
+class TestTheLadderStopsShortOfTheTools:
+    """A retry may resend a request; it may never rerun a turn's tools."""
+
+    async def test_a_failing_executor_does_not_replay_the_tools(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The escalation must not span tool execution.
+
+        A local tool is not a question -- it writes files and starts
+        commands -- so running a turn's tools twice for one request is a
+        side effect the model never asked for. It also strands the first
+        assistant turn in the transcript with nothing answering its
+        calls, which is the one shape the provider rejects outright.
+        Both executors swallow their own exceptions today, so this pins
+        the boundary rather than a live bug.
+        """
+        _disable_cache(monkeypatch)
+        _record(
+            monkeypatch,
+            [
+                _completion(
+                    _message(
+                        None, tool_calls=[_tool_call("c1", "search", "{}")]
+                    )
+                ),
+                _completion(_message("the answer")),
+            ],
+        )
+        runs: list[str] = []
+
+        async def _explodes(tc: Any) -> dict[str, Any]:
+            runs.append(tc.id)
+            raise LLMBudgetExhaustedError("the executor gave up")
+
+        with pytest.raises(LLMBudgetExhaustedError):
+            await call_llm_with_tools(
+                prompt="a prompt",
+                spec=CompletionSpec(model_name=_MODEL, max_tokens=8000),
+                loop=ToolLoop(
+                    tools=_SEARCH_TOOL, executor=_explodes, max_iterations=4
+                ),
+            )
+
+        assert runs == ["c1"]
 
 
 class TestWhatIsNotEscalated:

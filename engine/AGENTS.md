@@ -45,7 +45,8 @@ workspace and a bounded tool loop (`MAX_SIMULATION_TURNS`) first, and hands
 what it observed to the same schema-constrained review call as before -- so
 the verdict vocabulary and every downstream consumer are untouched, and a run
 that cannot execute produces exactly the review it always did. This is the
-first production caller of the conversational tool surface. Gated three ways,
+first production caller of the **workspace** tool surface -- `call_llm_with_tools`
+itself has driven the literature tools on these tiers for some time. Gated three ways,
 all of which must hold: the app asks by **tier** on `extended`/`ultra` only
 (`opts._resolve_simulation_execution_toggle` -- a tool loop per hypothesis is
 a cost that multiplies by pool size), the engine refuses it for the offline

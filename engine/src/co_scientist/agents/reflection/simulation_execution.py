@@ -16,10 +16,16 @@ consumer downstream are untouched, and a run where execution is
 unavailable produces exactly the review it produced before.
 
 **It never fails the review.** Every failure -- no sandbox, no tools
-offered, a model that never calls one, an exception anywhere in the loop
--- returns None, which is the mental-simulation path. A review that
-errors because its optional instrument was missing would be worse than
-the review that had no instrument.
+offered, a model that never calls one, an exception anywhere in the
+loop, *and opening the workspace itself* -- returns None, which is the
+mental-simulation path. A review that errors because its optional
+instrument was missing would be worse than the review that had no
+instrument. The workspace-open case is the one worth naming: it is
+outside the loop and so outside the loop's own guard, it is the failure
+a full or read-only workspace root actually produces, and a review that
+raises spends its whole retry budget on the durable path, which leaves
+the hypothesis with no simulation review at all rather than a mental
+one.
 
 **Whether it ran is recorded by the caller, not the model.** A verdict
 reached by running code and one reached by imagining it are different
@@ -32,7 +38,11 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from co_scientist.constants import EXTENDED_MAX_TOKENS, LOW_TEMPERATURE
+from co_scientist.constants import (
+    EXTENDED_MAX_TOKENS,
+    LOW_TEMPERATURE,
+    truncate_for_prompt,
+)
 from co_scientist.llm import (
     CompletionSpec,
     LLMCallOptions,
@@ -63,6 +73,14 @@ logger = logging.getLogger(__name__)
 # why this is not simply large; the loop's own wrap-up turn fires at 80%
 # and lands a partial answer before the cap in the ordinary case.
 MAX_SIMULATION_TURNS = 14
+
+# Longest observation kept. Capped here, at the one place observations are
+# produced, so the same bound reaches both readers: the review prompt,
+# whose every other section is bounded, and the stored result, which rides
+# into `enrichments` and from there into every checkpoint envelope. An
+# uncapped field in either is the tool loop's whole output budget --
+# thousands of tokens of prose -- landing somewhere sized for a paragraph.
+MAX_OBSERVATION_CHARS = 12000
 
 
 def _tool_provider(
@@ -100,7 +118,21 @@ async def simulation_observations(
         None if this run cannot execute or the attempt produced nothing.
     """
     run_id = str(state.get("run_id") or "unknown")
-    opened = _tool_provider(run_id, hypothesis.id)
+    try:
+        opened = _tool_provider(run_id, hypothesis.id)
+    except Exception as exc:
+        # Opening the workspace is the one step outside the loop that
+        # touches the machine, so it is the one failure the guard around
+        # the loop cannot see: a full or read-only workspace root raises
+        # from `mkdir` before any of this module's own handling starts.
+        # Unguarded it left the review raising the disk error rather than
+        # degrading -- and on the durable path a raising review spends
+        # its whole retry budget, so the hypothesis ends up with no
+        # simulation review at all rather than a mental one.
+        logger.warning(
+            "simulation workspace unavailable for %s: %s", hypothesis.id, exc
+        )
+        return None
     if opened is None:
         logger.info(
             "simulation execution unavailable for %s; reviewing by "
@@ -109,7 +141,9 @@ async def simulation_observations(
         )
         return None
     observations = await _run_simulation_loop(state, hypothesis, opened)
-    return observations or None
+    if not observations:
+        return None
+    return truncate_for_prompt(observations, MAX_OBSERVATION_CHARS)
 
 
 async def _run_simulation_loop(
@@ -127,7 +161,19 @@ async def _run_simulation_loop(
         # expected failure of model-written code -- an orphan holding a
         # sandbox open after the loop that started it is over. Nothing
         # else ends one the model never killed, so the caller does.
-        await provider.session.close()
+        #
+        # Guarded because this runs in a `finally`: an exception here
+        # would replace whatever the loop was returning, so a cleanup
+        # failure after a *successful* simulation would fail the review
+        # that had already got its answer.
+        try:
+            await provider.session.close()
+        except Exception as exc:
+            logger.warning(
+                "could not close the simulation workspace for %s: %s",
+                hypothesis.id,
+                exc,
+            )
 
 
 async def _observe(

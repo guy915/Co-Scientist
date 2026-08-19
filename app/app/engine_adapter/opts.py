@@ -142,9 +142,15 @@ def _resolve_tool_calling_generation_toggle(cfg: dict[str, Any]) -> bool:
 # same reasoning as the agentic draft path above, and the same answer: a
 # tool loop runs per hypothesis, so its cost is a product with the pool
 # size rather than a fixed addition, and express and standard promise a
-# fast cheap answer instead of depth. Unlike that path this one fires
-# once per hypothesis for the whole run -- the simulation review is due
-# only at first maturity -- so the deep tiers pay for it once each.
+# fast cheap answer instead of depth.
+
+# Two things make the per-hypothesis figure a floor rather than the
+# cost. A turn that comes back answerless is retried at a raised budget
+# and then with thinking off, so one turn can be up to three completions
+# (`llm_json_escalation.BudgetEscalation`). And the maturity scheduler
+# keys on the full review alone, so a hypothesis whose *full* review
+# fails re-issues its simulation review -- tool loop included -- on
+# every later iteration.
 _SIMULATION_EXECUTION_TIERS: frozenset[str] = frozenset({"extended", "ultra"})
 
 

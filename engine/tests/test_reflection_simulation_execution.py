@@ -152,6 +152,62 @@ class TestDegradation:
         assert result is None
         assert loop.await_count == 0
 
+    async def test_an_unopenable_workspace_reviews_mentally(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The one failure outside the loop, and so outside its guard.
+
+        A full or read-only workspace root raises from ``mkdir`` before
+        any of this module's handling begins. Unguarded, the review
+        raised the disk error instead of degrading -- and on the durable
+        path a raising review spends its whole retry budget, so the
+        hypothesis ends with no simulation review at all rather than the
+        mental one this module promises.
+        """
+
+        def _no_space(*_args: Any, **_kwargs: Any) -> None:
+            raise OSError(28, "No space left on device")
+
+        monkeypatch.setattr(se, "open_review_workspace", _no_space)
+
+        assert (
+            await se.simulation_observations(
+                _state(run_id="r1"), make_hypothesis(text="a")
+            )
+            is None
+        )
+
+    async def test_a_failing_close_does_not_lose_the_observations(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        # The close runs in a `finally`, so an exception there replaces
+        # what the loop was returning -- failing a review that had
+        # already got its answer.
+        session = WorkspaceSession(tmp_path)
+
+        async def _wont_close() -> None:
+            raise OSError("the sandbox is gone")
+
+        monkeypatch.setattr(session.sessions, "close", _wont_close)
+        monkeypatch.setattr(
+            se, "open_review_workspace", lambda *a, **k: session
+        )
+        monkeypatch.setattr(
+            se, "workspace_tool_schemas", lambda policy: _RUNNABLE_TOOLS
+        )
+        monkeypatch.setattr(
+            se,
+            "call_llm_with_tools",
+            AsyncMock(return_value=("the model held", [])),
+        )
+
+        assert (
+            await se.simulation_observations(
+                _state(run_id="r1"), make_hypothesis(text="a")
+            )
+            == "the model held"
+        )
+
     async def test_a_failing_loop_reviews_mentally(
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
     ) -> None:

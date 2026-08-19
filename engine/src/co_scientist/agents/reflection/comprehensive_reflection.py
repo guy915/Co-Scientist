@@ -199,8 +199,17 @@ def _record_review_provenance(
     Whether a simulation was executed is stamped here -- by the caller,
     which knows -- rather than asked of the model, which would make "did
     this verdict come from a run or from imagination" exactly as
-    reliable as the rest of its output. A reader weighing a
-    ``breaks_down`` needs to know which one it was.
+    reliable as the rest of its output.
+
+    Nothing reads either field yet: no report section, tab or later node
+    consults them, so they are a record kept against the day a reader
+    weighing a ``breaks_down`` needs to tell the two apart. Recorded
+    anyway because the fact is only available here and cannot be
+    reconstructed afterwards -- but that is the whole justification, so
+    the observations are capped before they arrive
+    (``simulation_execution.MAX_OBSERVATION_CHARS``): an uncapped
+    write-only field rides into `enrichments` and from there into every
+    checkpoint envelope.
     """
     result["retrieval_queries"] = evidence.queries
     result["retrieval_errors"] = evidence.errors
