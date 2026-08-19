@@ -176,6 +176,11 @@ from app.store.runs import (
     summary_counts,
     update_run_status,
 )
+
+# Straight from its own module rather than through ``runs``: the
+# re-exports there exist to preserve namespaces that predate a split,
+# and ``runs`` sits on the 500-line ceiling.
+from app.store.runs_reconcile import has_resumable_discovery_work
 from app.store.shares import (
     create_report_share,
     list_report_shares,
@@ -302,6 +307,7 @@ __all__ = [
     "get_supervisor_plan",
     "get_task",
     "has_checkpoint",
+    "has_resumable_discovery_work",
     "has_task_of_type",
     "interview_document_excerpts",
     "latest_event_seq",

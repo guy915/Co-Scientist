@@ -24,6 +24,14 @@ from app.store.db import _now, _use_conn
 # Every other value comes from code_eval.EvaluationStatus.
 PENDING_STATUS = "pending"
 
+# Key under which a run's config carries its discovery block; its
+# presence is what makes a run a discovery run. Defined here rather than
+# in ``app.discovery_spec`` because the store has to answer "is this a
+# discovery run?" for resumability, and reaching up to that module would
+# pull the engine into the store's import graph. ``discovery_spec``
+# re-exports this name, so every caller still reads it there.
+DISCOVERY_CONFIG_KEY = "discovery"
+
 
 @dataclass(frozen=True)
 class NewCodeVariant:

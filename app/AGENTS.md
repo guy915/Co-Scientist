@@ -188,7 +188,15 @@ than spending a retry budget on a refusal that repeats exactly.
 safety gate, and the loop runs as three durable task types
 (`engine.fanout.variant.propose|evaluate|aggregate`) over the
 `code_variants` tables. It has no Supervisor and no workflow checkpoint; the
-final aggregate publishes the report and marks the run completed. Modules:
+final aggregate publishes the report and marks the run completed. **Because it
+writes no checkpoint, resumability is a second, equal test**:
+`store.has_resumable_discovery_work` (a discovery block in the config plus one
+unfinished task) is what startup reconciliation, the `/resume` guard, the
+resume-mode choice and the resume enqueue all consult beside `has_checkpoint`.
+Without it the run whose state is *entirely* durable was the one a restart
+failed. A discovery run is a **true** resume, so its derived data is never
+cleared -- that would delete the `discovery` events narrating variants that
+survive in `code_variants`. Modules:
 `discovery_spec.py` (config -> `EvaluatorSpec` and archive descriptors, fails closed),
 `engine_tasks_variants.py` (the executors), `engine_tasks_variants_schedule.py`
 (what work exists), `discovery_report.py` (the report), `store/code_variants.py`.

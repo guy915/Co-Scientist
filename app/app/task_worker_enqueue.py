@@ -142,6 +142,54 @@ def _revive_dead_resume_target(
         )
 
 
+def _already_claimable_task(
+    run_id: str, db_path: str | None
+) -> ScientificTask | None:
+    """The engine task a resume should land on, if one already exists.
+
+    Two ways there is one: the run was paused, and un-pausing returned
+    its work to the queue; or it is a discovery run a restart
+    interrupted, whose queue was never emptied in the first place.
+    """
+    if store.resume_run_tasks(run_id, db_path=db_path):
+        unpaused = [
+            task
+            for task in store.list_tasks(run_id, db_path=db_path)
+            if task.status == "queued"
+            and task.task_type.startswith(engine_tasks.ENGINE_TASK_PREFIX)
+        ]
+        if unpaused:
+            return unpaused[0]
+    return _interrupted_discovery_task(run_id, db_path)
+
+
+def _interrupted_discovery_task(
+    run_id: str, db_path: str | None
+) -> ScientificTask | None:
+    """The discovery work a restart left in the queue, if any.
+
+    A discovery run writes no checkpoint, so without this a resume falls
+    through to ``enqueue_bootstrap``. That is inert rather than harmful
+    -- generation zero's idempotency key already exists, so the enqueue
+    hands back the succeeded bootstrap row and creates nothing -- but it
+    means the resume reports landing on a task nobody can claim, which
+    is precisely the "wedged run" tell ``runs_lifecycle
+    ._queue_resume_workflow`` logs this task to expose. The work is
+    already in the queue; name it.
+    """
+    if not store.has_resumable_discovery_work(run_id, db_path=db_path):
+        return None
+    return next(
+        (
+            task
+            for task in store.list_tasks(run_id, db_path=db_path)
+            if task.status in ("queued", "leased")
+            and task.task_type.startswith(engine_tasks.ENGINE_TASK_PREFIX)
+        ),
+        None,
+    )
+
+
 def enqueue_run_workflow(
     run_id: str,
     *,
@@ -150,15 +198,10 @@ def enqueue_run_workflow(
     db_path: str | None = None,
 ) -> ScientificTask:
     """Enqueue one idempotent workflow attempt for a run."""
-    if resume and store.resume_run_tasks(run_id, db_path=db_path):
-        resumed = [
-            task
-            for task in store.list_tasks(run_id, db_path=db_path)
-            if task.status == "queued"
-            and task.task_type.startswith(engine_tasks.ENGINE_TASK_PREFIX)
-        ]
-        if resumed:
-            return resumed[0]
+    if resume:
+        claimable = _already_claimable_task(run_id, db_path)
+        if claimable is not None:
+            return claimable
     checkpoint = store.get_latest_checkpoint(run_id, db_path=db_path)
     if resume and checkpoint:
         return _enqueue_resume_task(run_id, checkpoint, db_path)

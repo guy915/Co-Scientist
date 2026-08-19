@@ -36,6 +36,7 @@ the mutation was run to confirm it fails against one.
 | MAP-Elites/MOME archive + Pareto objectives | 3 | **done, measured** | `agents/code_evolve/archive.py`, `code_eval/pareto.py` |
 | Start a run: API, CLI, workbench | 4 | **done** | `POST /api/runs`, `cosci runs create --discovery`, `discovery_dialog.tsx` |
 | Live view, variants tab, report | 4 | **done** | `run_detail_active.tsx`, `run_detail_variants.tsx`, `app/discovery_report.py` |
+| Restart survival for a discovery run | 4 | **done** | `store.has_resumable_discovery_work` — no checkpoint, so resumability is a second test; see below |
 
 ### Three things to know before picking this up
 
@@ -416,6 +417,20 @@ Still open — and each is blocked on a fact, not on effort:
   advance. Above that is a different mechanism — a mounted volume, or a
   reference into an object store — deliberately not built, because nothing has
   yet asked for it. Text only; binary sets the same boundary.
+- **Restart survival was the one place the discovery run's checkpoint-free
+  design leaked.** Everything it produces is durable — variants, metrics,
+  task rows — and it deliberately writes no workflow checkpoint, because a
+  checkpoint would be a second copy of facts the store already holds. But
+  resumability was decided by a single question, *is there a checkpoint?*,
+  so the sweep failed the one kind of run whose state survives a restart
+  intact while resuming hypothesis runs whose engine state was gone. Fixed
+  by adding a second, equal test rather than by making discovery write a
+  checkpoint it does not need: `store.has_resumable_discovery_work`, asked
+  by all four gates that had each been answering the question themselves.
+  Full rationale in `docs/DISCOVERY.md` ("Surviving a restart");
+  `app/tests/test_discovery_resume.py` pins it, including that a discovery
+  run with nothing claimable is still failed and that a hypothesis run
+  without a checkpoint still is too.
 - **`docs/FIDELITY.md`** recorded Computational Discovery as an accepted
   divergence, to be revised when Phase 3 was committed to. Done: it now records
   the capability as built and describes what it does.

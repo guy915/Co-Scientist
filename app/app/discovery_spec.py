@@ -45,8 +45,13 @@ from app.discovery_execution import (
 )
 
 # Key under which a run's config carries its discovery configuration.
-# Its presence is what makes a run a discovery run.
-DISCOVERY_CONFIG_KEY = "discovery"
+# Its presence is what makes a run a discovery run. Defined in the store
+# (``store/code_variants.py``) because resumability is decided there and
+# the store must not import this module; re-exported here so every
+# caller keeps reading it at ``app.discovery_spec``.
+from app.store.code_variants import (
+    DISCOVERY_CONFIG_KEY as DISCOVERY_CONFIG_KEY,
+)
 
 _DIRECTIONS = {
     "maximize": Direction.MAXIMIZE,

@@ -551,6 +551,56 @@ Four rules the surface keeps, each of which is easy to get wrong:
   cell and one in each of five others has reached six cells and explored
   almost nothing, so a lopsided run is told it piled into one.
 
+## Surviving a restart
+
+A discovery run writes **no workflow checkpoint**. It has no Supervisor
+and no graph state to restore: its progress is the `code_variants`
+rows, and its position in the search is the task queue. That is not a
+gap -- a checkpoint would be a second copy of facts already durable.
+
+It did make the run fragile in one specific way, because resumability
+was decided by a single question -- *is there a checkpoint?* -- that a
+discovery run can never answer yes to. Startup reconciliation therefore
+failed the one kind of run whose state survives a restart completely,
+while resuming a hypothesis run whose engine state was gone. So there
+is now a second, equal test: `store.has_resumable_discovery_work` --
+the run carries a discovery block **and** at least one unfinished task.
+
+Four surfaces ask it, and they ask the same function rather than each
+re-deriving the fact: startup reconciliation, the `/resume` endpoint's
+409 guard, the choice of resume mode, and the resume enqueue. Written
+once because four hand-written copies of one rule is how they come to
+disagree.
+
+What makes re-entry safe is that **the generation keys are
+deterministic** -- `variant:propose:{gen}:{index}`, `variant:evaluate:`
+the same, `variant:aggregate:{gen}` -- so continuing a run duplicates
+nothing. A task left leased by the dead worker is reclaimed once its
+lease expires, with its retry budget untouched. The resume therefore
+lands on the work already queued rather than enqueuing a fresh
+bootstrap, which would collide with generation zero's key and hand back
+a succeeded row: a resume reporting that it landed on nothing
+claimable.
+
+Two consequences worth stating.
+
+**A discovery resume is a *true* resume**, so derived data is never
+cleared. Clearing deletes `run_events`, and with them every `discovery`
+event narrating a variant that is still sitting in `code_variants` --
+the run would come back with its search intact and no account of it.
+
+**A discovery run with nothing unfinished is still failed.** Being a
+discovery run is not on its own a reason to resume: with no claimable
+task there is nothing for a worker to take, and calling it resumable
+produces a run that announces a resume on every restart and then sits
+silent. That run is genuinely stuck, and saying so is the honest
+outcome.
+
+Because failing an interrupted run never touched its task rows, this is
+also the recovery path for runs the narrower test already gave up on: a
+failed discovery run still holds its queued work with its retry budget
+intact, and `POST /api/runs/{id}/resume` picks it back up.
+
 ## The report
 
 A finished run publishes a report (`app/app/discovery_report.py`),
