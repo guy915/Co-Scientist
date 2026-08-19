@@ -26,7 +26,9 @@ export type {
 } from './report_types';
 export type {
   CodeVariant,
+  CodeVariantPage,
   DiscoveryConfig,
+  DiscoveryObjective,
   VariantStage,
 } from './discovery_types';
 import {

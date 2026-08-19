@@ -33,6 +33,17 @@ export interface CodeVariant {
   is_best_so_far: boolean;
   duration_seconds: number | null;
   stages: VariantStage[];
+  // Every objective's sign-corrected score, in the run's declared order;
+  // `fitness` is the first entry. Higher is better on every axis, so a
+  // minimized metric arrives negated.
+  objective_values: (number | null)[];
+  // The archive cell this variant occupies, one coordinate per
+  // descriptor. Empty for a variant evaluated before niching existed.
+  niche: (string | number)[];
+  // Whether no other variant beats it on every objective at once. A
+  // property of the whole set, so it is computed per response rather
+  // than stored -- one new variant can take an older one off the front.
+  is_pareto_optimal?: boolean;
   // present on the detail response only
   metrics?: Record<string, number>;
   artifacts?: Record<string, string>;
@@ -46,13 +57,30 @@ export interface VariantStage {
   duration_seconds: number;
 }
 
+/** One objective a discovery run is optimizing. */
+export interface DiscoveryObjective {
+  metric: string;
+  direction: string;
+}
+
+/** A run's variants plus what the surface needs to read them. */
+export interface CodeVariantPage {
+  variants: CodeVariant[];
+  // Declared order; the first is the primary, which `fitness` reports.
+  objectives: DiscoveryObjective[];
+  // Distinct archive cells reached. The number the diversity mechanism
+  // exists to move, so it is reported rather than inferred.
+  niches_occupied: number;
+}
+
 /** What a discovery run optimizes, and how it measures it. */
 export interface DiscoveryConfig {
   objective?: {metric?: string; direction?: string};
+  objectives?: {metric?: string; direction?: string}[];
+  descriptors?: {feature?: string; bins?: number[]}[];
   stages?: {name?: string; argv?: string[]}[];
   metrics_path?: string;
   seed_source?: Record<string, string>;
   max_generations?: number;
   children_per_generation?: number;
-  parents_per_generation?: number;
 }

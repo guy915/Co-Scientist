@@ -13,7 +13,7 @@ import type {
   SafetyDecision,
   SharedGoalReport,
 } from './run_types';
-import type {CodeVariant} from './discovery_types';
+import type {CodeVariant, CodeVariantPage} from './discovery_types';
 import type {Report} from './report_types';
 import {
   API_BASE_URL,
@@ -53,10 +53,13 @@ export function getHypotheses(id: string): Promise<Hypothesis[]> {
  * Fetches a discovery run's code variants, in attempt order.
  *
  * @param id Run identifier.
- * @returns Every attempt the run made, failures included.
+ * @returns Every attempt the run made (failures included), the run's
+ *   objectives, and how many archive niches it has reached.
  */
-export function getCodeVariants(id: string): Promise<CodeVariant[]> {
-  return getRunList<CodeVariant>(id, 'variants');
+export function getCodeVariants(id: string): Promise<CodeVariantPage> {
+  return fetchJson<CodeVariantPage>(`/api/runs/${id}/variants`, {
+    headers: clientHeaders(),
+  });
 }
 
 /**

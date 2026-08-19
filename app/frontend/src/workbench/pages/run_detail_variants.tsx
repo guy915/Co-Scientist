@@ -1,6 +1,11 @@
 import {useEffect, useMemo, useState} from 'react';
-import {type CodeVariant, getCodeVariants} from '@/api/runs';
+import {
+  type CodeVariant,
+  type CodeVariantPage,
+  getCodeVariants,
+} from '@/api/runs';
 import {VariantsPlot} from '../components/tabs/variants_plot';
+import {VariantsTradeoff} from '../components/tabs/variants_tradeoff';
 import {
   REPORT_H3_CLASSES,
   REPORT_SECTION_CLASSES,
@@ -89,12 +94,63 @@ function VariantRow({
           {variant.is_best_so_far ? (
             <span className="ml-2 text-xs text-cosci-accent">best so far</span>
           ) : null}
+          {variant.is_pareto_optimal && !variant.is_best_so_far ? (
+            // Only worth saying when it is not already flagged best:
+            // with one objective the front *is* the best, and two
+            // badges for one fact reads as two findings.
+            <span className="ml-2 text-xs text-cosci-accent">
+              best trade-off
+            </span>
+          ) : null}
         </span>
         <span className="text-cosci-muted">{variant.status}</span>
         <span className="text-right tabular-nums">{scoreLabel(variant)}</span>
       </button>
       {expanded ? <VariantDetail variant={variant} /> : null}
     </>
+  );
+}
+
+// How the run has gone, in one line: the best score and how much of the
+// behaviour space it reached. The coverage half is what makes the
+// diversity archive legible -- without it a reader sees a score creeping
+// up and cannot tell whether the run explored or polished one idea.
+function scoreSummary(
+  variants: CodeVariant[],
+  best: CodeVariant | null,
+  metric: string,
+): string {
+  if (best === null) return `${variants.length} attempts, none scored.`;
+  return (
+    `Best ${metric} ${scoreLabel(best)}, reached on attempt ` +
+    `${best.ordinal} of ${variants.length}.`
+  );
+}
+
+function coverageSummary(nichesOccupied: number): string {
+  if (nichesOccupied === 0) return '';
+  const noun = nichesOccupied === 1 ? 'approach' : 'approaches';
+  return ` Explored ${nichesOccupied} distinct ${noun}.`;
+}
+
+function progressSummary(
+  variants: CodeVariant[],
+  best: CodeVariant | null,
+  objectives: CodeVariantPage['objectives'],
+  nichesOccupied: number,
+): string {
+  const metric = objectives[0]?.metric ?? 'score';
+  return scoreSummary(variants, best, metric) + coverageSummary(nichesOccupied);
+}
+
+function NoVariantsYet() {
+  return (
+    <ReportDocument title="Variants">
+      <section className={REPORT_SECTION_CLASSES}>
+        <h3 className={REPORT_H3_CLASSES}>Variants</h3>
+        <p>This run has not produced any variants yet.</p>
+      </section>
+    </ReportDocument>
   );
 }
 
@@ -106,7 +162,15 @@ function VariantRow({
  * itself invisible -- and the search, not any single program, is what the
  * run actually did.
  */
-export function VariantsView({variants}: {variants: CodeVariant[]}) {
+export function VariantsView({
+  variants,
+  objectives = [],
+  nichesOccupied = 0,
+}: {
+  variants: CodeVariant[];
+  objectives?: CodeVariantPage['objectives'];
+  nichesOccupied?: number;
+}) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const best = useMemo(
     () =>
@@ -121,16 +185,7 @@ export function VariantsView({variants}: {variants: CodeVariant[]}) {
     [variants],
   );
 
-  if (variants.length === 0) {
-    return (
-      <ReportDocument title="Variants">
-        <section className={REPORT_SECTION_CLASSES}>
-          <h3 className={REPORT_H3_CLASSES}>Variants</h3>
-          <p>This run has not produced any variants yet.</p>
-        </section>
-      </ReportDocument>
-    );
-  }
+  if (variants.length === 0) return <NoVariantsYet />;
 
   return (
     <ReportDocument title="Variants">
@@ -138,11 +193,20 @@ export function VariantsView({variants}: {variants: CodeVariant[]}) {
         <h3 className={REPORT_H3_CLASSES}>Best score over time</h3>
         <VariantsPlot variants={variants} />
         <p className="text-sm text-cosci-muted">
-          {best === null
-            ? `${variants.length} attempts, none scored.`
-            : `Best score ${scoreLabel(best)}, reached on attempt ${best.ordinal} of ${variants.length}.`}
+          {progressSummary(variants, best, objectives, nichesOccupied)}
         </p>
       </section>
+      {objectives.length > 1 ? (
+        <section className={REPORT_SECTION_CLASSES}>
+          <h3 className={REPORT_H3_CLASSES}>The trade-off</h3>
+          <VariantsTradeoff variants={variants} objectives={objectives} />
+          <p className="text-sm text-cosci-muted">
+            This run optimizes {objectives.length} things at once, so there is
+            no single best program. The highlighted attempts are the ones
+            nothing beats on every objective — the real choices.
+          </p>
+        </section>
+      ) : null}
       <section className={REPORT_SECTION_CLASSES}>
         <h3 className={REPORT_H3_CLASSES}>Every attempt</h3>
         <div className={HEAD_CLASSES}>
@@ -178,23 +242,29 @@ export function VariantsView({variants}: {variants: CodeVariant[]}) {
  * @param runId The run whose variants to show.
  */
 export function VariantsSection({runId}: {runId: string}) {
-  const [variants, setVariants] = useState<CodeVariant[] | null>(null);
+  const [page, setPage] = useState<CodeVariantPage | null>(null);
   useEffect(() => {
     let live = true;
     getCodeVariants(runId)
-      .then(rows => {
-        if (live) setVariants(rows);
+      .then(loaded => {
+        if (live) setPage(loaded);
       })
       .catch(() => {
-        // An older backend has no variants endpoint. An empty list is the
+        // An older backend has no variants endpoint. An empty page is the
         // honest reading -- this run has no variants we can see -- and it
         // keeps the rest of the report readable during a rolling upgrade.
-        if (live) setVariants([]);
+        if (live) setPage({variants: [], objectives: [], niches_occupied: 0});
       });
     return () => {
       live = false;
     };
   }, [runId]);
-  if (variants === null) return null;
-  return <VariantsView variants={variants} />;
+  if (page === null) return null;
+  return (
+    <VariantsView
+      variants={page.variants}
+      objectives={page.objectives}
+      nichesOccupied={page.niches_occupied}
+    />
+  );
 }

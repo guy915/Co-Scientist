@@ -23,6 +23,8 @@ function variant(over: Partial<CodeVariant>): CodeVariant {
     is_best_so_far: false,
     duration_seconds: null,
     stages: [],
+    objective_values: [over.fitness ?? null],
+    niche: [],
     ...over,
   };
 }
@@ -146,5 +148,109 @@ describe('VariantsView', () => {
   it('calls the seed what it is rather than leaving the cell blank', () => {
     render(<VariantsView variants={[variant({ordinal: 1, fitness: 1})]} />);
     expect(screen.getByText('seed')).toBeInTheDocument();
+  });
+});
+
+describe('VariantsView, multi-objective', () => {
+  const objectives = [
+    {metric: 'accuracy', direction: 'maximize'},
+    {metric: 'latency', direction: 'minimize'},
+  ];
+
+  it('shows the trade-off only when there is more than one objective', () => {
+    const {rerender} = render(
+      <VariantsView
+        variants={[variant({ordinal: 1, fitness: 1})]}
+        objectives={[{metric: 'score', direction: 'maximize'}]}
+      />,
+    );
+    expect(screen.queryByText('The trade-off')).not.toBeInTheDocument();
+    rerender(
+      <VariantsView
+        variants={[
+          variant({
+            ordinal: 1,
+            fitness: 1,
+            objective_values: [1, -2],
+            is_pareto_optimal: true,
+          }),
+        ]}
+        objectives={objectives}
+      />,
+    );
+    expect(screen.getByText('The trade-off')).toBeInTheDocument();
+  });
+
+  it('says there is no single best when objectives compete', () => {
+    render(
+      <VariantsView
+        variants={[
+          variant({ordinal: 1, fitness: 9, objective_values: [9, -5]}),
+          variant({ordinal: 2, fitness: 1, objective_values: [1, -1]}),
+        ]}
+        objectives={objectives}
+      />,
+    );
+    expect(screen.getByText(/no single best program/)).toBeInTheDocument();
+  });
+
+  it('names the primary objective in the score summary', () => {
+    render(
+      <VariantsView
+        variants={[variant({ordinal: 1, fitness: 4})]}
+        objectives={objectives}
+      />,
+    );
+    expect(screen.getByText(/Best accuracy 4/)).toBeInTheDocument();
+  });
+
+  it('reports how much of the behaviour space was explored', () => {
+    // Without this a reader sees a score creeping up and cannot tell
+    // whether the run explored or polished one idea.
+    render(
+      <VariantsView
+        variants={[variant({ordinal: 1, fitness: 1})]}
+        nichesOccupied={4}
+      />,
+    );
+    expect(
+      screen.getByText(/Explored 4 distinct approaches/),
+    ).toBeInTheDocument();
+  });
+
+  it('does not badge the front twice when it is also the best', () => {
+    // With one objective the front is the best, and two badges for one
+    // fact reads as two findings.
+    render(
+      <VariantsView
+        variants={[
+          variant({
+            ordinal: 1,
+            fitness: 5,
+            is_best_so_far: true,
+            is_pareto_optimal: true,
+          }),
+        ]}
+      />,
+    );
+    expect(screen.getByText('best so far')).toBeInTheDocument();
+    expect(screen.queryByText('best trade-off')).not.toBeInTheDocument();
+  });
+
+  it('badges a variant that leads only on the second objective', () => {
+    render(
+      <VariantsView
+        variants={[
+          variant({
+            ordinal: 1,
+            fitness: 1,
+            objective_values: [1, -1],
+            is_pareto_optimal: true,
+          }),
+        ]}
+        objectives={objectives}
+      />,
+    );
+    expect(screen.getByText('best trade-off')).toBeInTheDocument();
   });
 });
