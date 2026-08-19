@@ -16,6 +16,17 @@ happens once, here.
 few hundred variants at full evaluation is the entire budget of a run.
 Cheap stages first, each gating the next, means a variant that fails to
 import is rejected for the price of an import.
+
+**Several objectives are kept several.** A run optimizing accuracy *and*
+latency has no single best program, and the tempting collapse -- a
+weighted sum -- is worse than it looks: the weights multiply raw values
+on unrelated scales, so an objective measured in seconds and one measured
+in [0, 1] produce a total that the seconds term decides entirely, whatever
+weights were written. Nothing reports an error; the second objective just
+stops mattering. So `fitness` stays the *first* objective's score, used
+for ordering and for the cascade thresholds, and every other objective
+reaches the search through Pareto dominance instead (`pareto.py`), where
+no cross-scale arithmetic is required.
 """
 
 from collections.abc import Mapping
@@ -95,7 +106,12 @@ class EvaluatorSpec:
 
     Attributes:
         stages: Cascade steps, cheapest first.
-        objective: What is being optimized, and which way.
+        objectives: What is being optimized, in declared order. The first
+            is the primary: it is what `fitness` reports, what the
+            cascade thresholds compare against, and what the surface
+            plots. The rest are equally real, but they act through
+            dominance rather than through a score -- see the module
+            docstring for why they are not summed.
         metrics_path: Workspace-relative JSON file the program writes its
             metrics to. A file rather than stdout because a real program
             prints warnings, progress bars and library chatter, and a
@@ -105,9 +121,37 @@ class EvaluatorSpec:
     """
 
     stages: tuple[EvaluationStage, ...]
-    objective: Objective
+    objectives: tuple[Objective, ...]
     metrics_path: str = "metrics.json"
     artifact_chars: int = DEFAULT_ARTIFACT_CHARS
+
+    def __post_init__(self) -> None:
+        """Refuses a spec with nothing to optimize."""
+        if not self.objectives:
+            raise ValueError("an evaluator spec needs at least one objective")
+
+    @property
+    def objective(self) -> Objective:
+        """The primary objective: the one `fitness` reports."""
+        return self.objectives[0]
+
+    def objective_values(
+        self, metrics: Mapping[str, float]
+    ) -> tuple[float | None, ...]:
+        """Scores every objective, higher-is-better, in declared order.
+
+        Args:
+            metrics: What the program reported.
+
+        Returns:
+            One entry per objective, None where that objective's metric
+            was not reported. A None is not a zero and not a floor: a
+            variant missing an objective simply has no position on that
+            axis, which is what keeps dominance from ranking it.
+        """
+        return tuple(
+            objective.fitness(metrics) for objective in self.objectives
+        )
 
 
 @dataclass(frozen=True)

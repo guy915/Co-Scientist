@@ -6,6 +6,15 @@ in interesting ways, and an evaluation is a subprocess that must be
 wrong in boring ones.
 """
 
+from co_scientist.agents.code_evolve.archive import (
+    DEFAULT_DESCRIPTORS,
+    EXPLOIT_SHARE,
+    ArchiveEntry,
+    Descriptor,
+    build_archive,
+    niche_key,
+    select_parents,
+)
 from co_scientist.agents.code_evolve.context import (
     MAX_ARTIFACT_CHARS,
     MAX_SOURCE_CHARS,
@@ -25,15 +34,22 @@ from co_scientist.agents.code_evolve.proposal import (
 )
 
 __all__ = [
+    "DEFAULT_DESCRIPTORS",
+    "EXPLOIT_SHARE",
     "MAX_ARTIFACT_CHARS",
     "MAX_SOURCE_CHARS",
+    "ArchiveEntry",
     "CodeOperator",
+    "Descriptor",
     "ParentVariant",
     "ProposalRejectedError",
     "VariantProposal",
     "apply_proposal",
+    "build_archive",
     "build_prompt",
     "instructions_for",
+    "niche_key",
     "propose_variant",
     "select_operator",
+    "select_parents",
 ]

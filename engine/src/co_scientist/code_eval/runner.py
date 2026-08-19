@@ -166,12 +166,17 @@ class _Accumulator:
         # -- the alternative discards a real measurement because a later,
         # more expensive one crashed.
         self.fitness: float | None = None
+        # Every objective's score, not just the primary's. Carried
+        # alongside rather than derived later because deriving needs the
+        # spec, and the two would then have to agree forever.
+        self.objective_values: tuple[float | None, ...] = ()
 
     def result(self, status: EvaluationStatus) -> EvaluationResult:
         """Freezes what has accumulated into a result."""
         return EvaluationResult(
             status=status,
             fitness=self.fitness,
+            objective_values=self.objective_values,
             metrics=dict(self.metrics),
             artifacts=dict(self.artifacts),
             stages=tuple(self.stages),
@@ -242,7 +247,8 @@ async def _advance(
         return state.result(outcome.status)
 
     state.metrics.update(metrics)
-    state.fitness = spec.objective.fitness(state.metrics)
+    state.objective_values = spec.objective_values(state.metrics)
+    state.fitness = state.objective_values[0]
     if not _is_gated(stage, state.fitness):
         return None
     logger.debug(

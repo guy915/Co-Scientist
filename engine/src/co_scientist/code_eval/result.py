@@ -62,8 +62,13 @@ class EvaluationResult:
 
     Attributes:
         status: How the evaluation ended overall.
-        fitness: Higher-is-better score, already sign-corrected by the
-            objective. None when nothing usable was reported.
+        fitness: Higher-is-better score for the *primary* objective,
+            already sign-corrected. None when nothing usable was
+            reported.
+        objective_values: Every objective's sign-corrected score, in the
+            spec's declared order, so a caller can compute dominance
+            without re-deriving them from metrics and directions. The
+            first entry is always ``fitness``.
         metrics: Everything the program reported, unmodified -- the raw
             values, so a minimized metric still reads as itself in a
             report even though ``fitness`` is its negation.
@@ -74,6 +79,7 @@ class EvaluationResult:
 
     status: EvaluationStatus
     fitness: float | None = None
+    objective_values: tuple[float | None, ...] = ()
     metrics: dict[str, float] = field(default_factory=dict)
     artifacts: dict[str, str] = field(default_factory=dict)
     stages: tuple[StageOutcome, ...] = ()

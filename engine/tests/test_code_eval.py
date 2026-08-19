@@ -40,7 +40,9 @@ def _spec(
     *stages: EvaluationStage, direction: Direction = Direction.MAXIMIZE
 ) -> EvaluatorSpec:
     """Builds a spec optimizing "score" over the given stages."""
-    return EvaluatorSpec(stages=stages, objective=Objective("score", direction))
+    return EvaluatorSpec(
+        stages=stages, objectives=(Objective("score", direction),)
+    )
 
 
 def _stage(

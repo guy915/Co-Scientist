@@ -6,6 +6,12 @@ propose something better. Confinement comes from `workspace`; nothing
 here is a security boundary.
 """
 
+from co_scientist.code_eval.pareto import (
+    ObjectiveValues,
+    dominates,
+    is_multi_objective,
+    pareto_front,
+)
 from co_scientist.code_eval.result import (
     EvaluationResult,
     EvaluationStatus,
@@ -32,6 +38,10 @@ __all__ = [
     "EvaluationStatus",
     "EvaluatorSpec",
     "Objective",
+    "ObjectiveValues",
     "StageOutcome",
+    "dominates",
     "evaluate_variant",
+    "is_multi_objective",
+    "pareto_front",
 ]

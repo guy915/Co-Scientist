@@ -46,7 +46,7 @@ def session(tmp_path: Path) -> WorkspaceSession:
 def _spec() -> EvaluatorSpec:
     return EvaluatorSpec(
         stages=(EvaluationStage(name="run", argv=("python", "main.py")),),
-        objective=Objective(metric="score", direction=Direction.MAXIMIZE),
+        objectives=(Objective(metric="score", direction=Direction.MAXIMIZE),),
     )
 
 
@@ -90,7 +90,7 @@ def test_the_prompt_carries_the_program_and_the_move() -> None:
 def test_the_prompt_states_the_objective_direction() -> None:
     spec = EvaluatorSpec(
         stages=(EvaluationStage(name="run", argv=("python", "main.py")),),
-        objective=Objective(metric="latency", direction=Direction.MINIMIZE),
+        objectives=(Objective(metric="latency", direction=Direction.MINIMIZE),),
     )
     prompt, _ = build_prompt(
         ParentVariant(source={"main.py": _PARENT}),
