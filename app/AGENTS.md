@@ -155,3 +155,17 @@ Vite reads `VITE_API_BASE_URL`; when it is unset the api client falls back to **
 `app/docker-compose.yml` runs three services: `api` (FastAPI), `ui` (Vite), `mcp` (reference MCP server). The api container expects a sibling engine checkout mounted at `/workspace/co-scientist-engine`; if absent, the entrypoint clones from `COSCIENTIST_ENGINE_REPO` at ref `COSCIENTIST_ENGINE_REF` — that ref is deliberately floating (`main`) for this opt-in clone-a-fork workflow; pin a commit SHA there for a reproducible build. Override `COSCIENTIST_ENGINE_PATH` in `.env` if the engine checkout is elsewhere. `TOOLS_CONFIG` defaults to the `indra_cancer.yaml` reference example but reads `${TOOLS_CONFIG:-...}` from the top-level `.env` compose itself reads for variable substitution (the same file `app/.env` is symlinked to — see the root `Makefile`), so setting `TOOLS_CONFIG=` there now overrides the default instead of being silently outranked by it. The api service also mounts `./data:/app/data` and sets `COSCIENTIST_DB_PATH=/app/data/coscientist.db`, so the SQLite store survives `docker compose up --build` instead of living in the container's discarded writable layer. Both the api entrypoint (`app/docker/entrypoint.sh`) and the mcp service run with `--reload`, a deliberate dev-only trade-off that mirrors `make dev-api`'s own `--reload` and carries the same risk documented in the root AGENTS.md Gotchas (a mid-run edit can drop the embedded worker cohort or an in-flight literature-review call) — never carried into either production Dockerfile.
 
 Compose builds `api` from `app/docker/Dockerfile.api` + `app/docker/entrypoint.sh` — **a different file** from the repo-root `Dockerfile.api` that Railway builds, and the two diverge (compose installs the engine at startup from the mount; Railway bakes it into the image), so container changes usually need applying to both. Both `api` and `mcp` mount `../corpus:/app/corpus:ro` and set `SBI_CORPUS_DIR`: the corpus lives at the repo root, outside either service's build context, so compose mounts it where the Railway images `COPY` it in.
+
+## Computational discovery
+
+A `discovery` key in a run's config makes it a discovery run: it evolves a
+program against a measured objective instead of generating hypotheses.
+`execute_bootstrap` branches to `bootstrap_discovery` after the shared
+safety gate, and the loop runs as three durable task types
+(`engine.fanout.variant.propose|evaluate|aggregate`) over the
+`code_variants` tables. It has no Supervisor, no workflow checkpoint and no
+report -- the final aggregate is what marks the run completed. Modules:
+`discovery_spec.py` (config -> `EvaluatorSpec`, fails closed),
+`engine_tasks_variants.py` (the executors), `engine_tasks_variants_schedule.py`
+(what work exists), `store/code_variants.py`. Full rationale in
+`docs/DISCOVERY.md`.

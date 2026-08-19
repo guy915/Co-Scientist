@@ -37,6 +37,14 @@ Individual nodes can be exercised in isolation via the scripts in `dev/` (`run_s
 | Proximity (dedup) | `agents/proximity/proximity.py` |
 | Safety screen (cross-cutting) | `agents/safety/safety_screen.py` |
 
+**Computational discovery** is a second, separate product built on the same
+foundations, and is *not* a node in the hypothesis graph.
+`agents/code_evolve/` proposes one child program per generation as a V4A
+patch under a named code operator; `code_eval/` runs the resulting cascade
+and scores it; `workspace/` and `sandbox/` confine every command. The app
+drives the loop as durable tasks rather than through LangGraph. See
+`docs/DISCOVERY.md`.
+
 Shared state flows through `WorkflowState` in `state.py`; note the custom `deduplicate_hypotheses` reducer that auto-dedupes on every state update. Prompts are markdown files in `src/co_scientist/prompts/templates/` (also bundled via `package-data`), loaded by the `prompts/` package. YAML tool/domain configs live in `src/co_scientist/config/` with examples per domain (biomed/cyber/web-research/etc.).
 
 Key supporting modules: `models.py` (dataclasses: `Hypothesis`, `HypothesisReview`, `ExecutionMetrics`, `Article`), `schemas/` (JSON-schema package for structured LLM output — one module per prompt family plus `registry.py`), `constants.py` (Elo params, token limits, temperatures), `exceptions.py` (domain exception hierarchy), `progress.py` (shared progress-event emission used by all agent nodes), `tools/` (tool registry subpackage for YAML-based tool configuration).
