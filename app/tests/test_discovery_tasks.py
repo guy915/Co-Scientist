@@ -369,3 +369,37 @@ async def test_a_misconfigured_run_fails_at_bootstrap(
     with pytest.raises(DiscoverySpecError):
         await engine_tasks.execute_engine_task(claimed)
     assert store.list_code_variants(run.id) == []
+
+
+@pytest.mark.asyncio
+async def test_concurrent_evaluations_do_not_share_a_directory(
+    db: str, workspace_root: str
+) -> None:
+    # The serial drain above cannot show this. Two evaluations writing to
+    # one directory each run partly the other's code, and both return a
+    # plausible number attributed to the wrong variant -- nothing in
+    # either result reveals it, so it has to be tested directly.
+    import asyncio
+
+    config = _config(_GOOD)
+    run = _run(config)
+    tasks = []
+    for score in (3.0, 8.0):
+        program = _GOOD.replace("7.0", str(score))
+        variant_id = store.add_code_variant(
+            store.NewCodeVariant(run_id=run.id, source={"main.py": program})
+        )
+        tasks.append(
+            store.enqueue_task(
+                store.NewTask(
+                    run_id=run.id,
+                    task_type="engine.fanout.variant.evaluate",
+                    inputs={"variant_id": variant_id},
+                    idempotency_key=f"evaluate:{variant_id}",
+                )
+            )
+        )
+    results = await asyncio.gather(
+        *(engine_tasks.execute_engine_task(task) for task in tasks)
+    )
+    assert sorted(r["fitness"] for r in results) == [3.0, 8.0]

@@ -98,11 +98,16 @@ async def execute_variant_evaluate(
         scored -- ``status`` is what tells them apart.
     """
     from co_scientist.code_eval import EvaluationRequest, evaluate_variant
-    from co_scientist.workspace import open_run_workspace
+    from co_scientist.workspace import open_variant_workspace
 
     variant = _variant_for_task(task, db_path)
     spec = evaluator_spec(_run_config(task.run_id, db_path))
-    session = open_run_workspace(task.run_id)
+    # The variant's own directory, never the run's: evaluations run
+    # concurrently, and two of them writing their programs to the same
+    # paths would each run partly the other's code. Both would return a
+    # plausible number attributed to the wrong variant, and nothing in
+    # either result would show it.
+    session = open_variant_workspace(task.run_id, str(variant["id"]))
     result = await evaluate_variant(
         session,
         EvaluationRequest(spec=spec, files=dict(variant["source"])),

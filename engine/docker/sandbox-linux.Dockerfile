@@ -41,4 +41,5 @@ CMD ["python", "-m", "pytest", "-q", \
      "tests/test_workspace.py", "tests/test_workspace_output.py", \
      "tests/test_workspace_snapshot.py", \
      "tests/test_command_safety.py", "tests/test_code_eval.py", \
-     "tests/test_sandbox_landlock.py"]
+     "tests/test_sandbox_landlock.py", \
+     "tests/test_code_evolve.py"]
