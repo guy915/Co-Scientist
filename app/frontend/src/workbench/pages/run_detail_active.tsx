@@ -1,7 +1,9 @@
 import {useMemo} from 'react';
 import {Icon, type IconName} from '@/components/icon';
 import type {StreamConnectionState, StreamEvent} from '@/hooks/use_run_stream';
+import type {DiscoveryObjective} from '@/api/runs';
 import {formatDurationPhrase} from '@/lib/duration';
+import {formatMeasured} from '@/lib/objectives';
 import {capitalizeTerm} from '@/lib/text';
 import {useNowTick} from '@/workbench/hooks/use_now_tick';
 import {joinClasses} from '../classes';
@@ -30,6 +32,12 @@ interface ActiveRunViewProps {
   events: StreamEvent[];
   evidenceCount: number;
   ideaCount: number;
+  // A discovery run evolves a program, so its headline numbers are
+  // attempts and best score rather than sources and ideas.
+  isDiscovery?: boolean;
+  // Its primary objective, needed to print the score in the units it
+  // was measured in rather than as a sign-corrected negative.
+  objective?: DiscoveryObjective;
 }
 
 // How long the run has been going, floored at zero to guard against clock
@@ -41,15 +49,42 @@ function elapsedLabel(run: RunWithStreamState, nowSeconds: number): string {
   return formatDurationPhrase(elapsedSeconds, {subMinute: true});
 }
 
-// The headline metrics row: time elapsed, sources, and idea count.
+/**
+ * What a discovery run has done so far, read off its own events.
+ *
+ * From the events rather than a second fetch: the stream already
+ * carries one record per evaluated variant, replayed from the start on
+ * reload, so the numbers are exactly what the activity log below is
+ * showing and cannot drift from it.
+ *
+ * @param events The run's event stream, live plus replay.
+ * @returns The attempt count and the best score, sign-corrected values
+ *   as stored; null when nothing has scored.
+ */
+export function discoveryProgress(events: StreamEvent[]): {
+  attempts: number;
+  best: number | null;
+} {
+  const scores = events
+    .filter(event => event.type === 'discovery')
+    .map(event => (event.payload as {fitness?: number | null}).fitness)
+    .filter((value): value is number => typeof value === 'number');
+  return {
+    attempts: events.filter(event => event.type === 'discovery').length,
+    best: scores.length > 0 ? Math.max(...scores) : null,
+  };
+}
+
+// The headline metrics row. Which pair of numbers follows the elapsed
+// clock depends on what the run is doing: a discovery run has no
+// sources and no ideas, so the hypothesis labels sat at 0 for its whole
+// duration -- a live view that reads as a stalled one.
 function RunMetrics({
   elapsed,
-  evidenceCount,
-  ideaCount,
+  metrics,
 }: {
   elapsed: string;
-  evidenceCount: number;
-  ideaCount: number;
+  metrics: [string, string][];
 }) {
   // `my-0`: a <dl> carries a 1em user-agent block margin, which stacked on
   // top of the section's own 28px gap and separated these cards from the
@@ -58,18 +93,30 @@ function RunMetrics({
   return (
     <dl className="my-0 grid grid-cols-3 gap-3 max-[700px]:grid-cols-1">
       <RunMetric label="Time elapsed" value={elapsed} />
-      <RunMetric label="Sources Analyzed" value={String(evidenceCount)} />
-      <RunMetric label="Ideas explored" value={String(ideaCount)} />
+      {metrics.map(([label, value]) => (
+        <RunMetric key={label} label={label} value={value} />
+      ))}
     </dl>
   );
 }
 
-export function ActiveRunView({
-  run,
-  events,
-  evidenceCount,
-  ideaCount,
-}: ActiveRunViewProps) {
+// The two run-kind-specific cards beside the clock.
+function headlineMetrics(props: ActiveRunViewProps): [string, string][] {
+  if (!props.isDiscovery) {
+    return [
+      ['Sources Analyzed', String(props.evidenceCount)],
+      ['Ideas explored', String(props.ideaCount)],
+    ];
+  }
+  const {attempts, best} = discoveryProgress(props.events);
+  return [
+    ['Attempts', String(attempts)],
+    ['Best score', formatMeasured(best, props.objective)],
+  ];
+}
+
+export function ActiveRunView(props: ActiveRunViewProps) {
+  const {run, events} = props;
   // Ticks every second so the elapsed clock advances visibly even while a slow
   // node holds the run without emitting a new event. The activity log's
   // relative timestamps ride the same clock.
@@ -98,11 +145,7 @@ export function ActiveRunView({
           <h2 className="mt-1 text-2xl font-medium">Research in progress</h2>
           <RunExecutionProgress run={run} />
         </div>
-        <RunMetrics
-          elapsed={elapsed}
-          evidenceCount={evidenceCount}
-          ideaCount={ideaCount}
-        />
+        <RunMetrics elapsed={elapsed} metrics={headlineMetrics(props)} />
         <ActivityLog
           activity={activity}
           connection={run.stream_connection}

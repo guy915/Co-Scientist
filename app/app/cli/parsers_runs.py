@@ -111,6 +111,14 @@ def _add_create(
         action="store_true",
         help="immediately start the created run",
     )
+    parser.add_argument(
+        "--discovery",
+        metavar="PATH",
+        help=(
+            "JSON or YAML discovery spec; makes this a computational-"
+            "discovery run that evolves a program instead of hypotheses"
+        ),
+    )
     _add_create_planning_options(parser)
     _add_create_size_overrides(parser)
 

@@ -127,6 +127,43 @@ async def test_a_report_that_cannot_be_built_still_completes_the_run(
 
 
 @pytest.mark.asyncio
+async def test_every_evaluated_variant_is_narrated(
+    db: str, workspace_root: str
+) -> None:
+    # The loop is three durable tasks and none of them emitted, so a
+    # discovery run streamed nothing at all: the live activity log sat
+    # empty for its whole duration and a working search was
+    # indistinguishable from a stalled one.
+    run = _run(_config(_GOOD, max_generations=1))
+    enqueue_discovery_bootstrap(run.id)
+    await _drain(run.id)
+
+    events = store.list_events(run.id)
+    variants = [event for event in events if event["type"] == "discovery"]
+    assert len(variants) == 1
+    assert variants[0]["payload"]["ordinal"] == 1
+    assert variants[0]["payload"]["fitness"] == 7.0
+    assert variants[0]["payload"]["operator"] == "seed"
+
+
+@pytest.mark.asyncio
+async def test_a_crashed_variant_is_narrated_too(
+    db: str, workspace_root: str
+) -> None:
+    # Silence on failure is the reading the log must not give: a run
+    # whose every attempt crashes is still a run making progress.
+    run = _run(_config(_CRASHES, max_generations=1))
+    enqueue_discovery_bootstrap(run.id)
+    await _drain(run.id)
+
+    narrated = [
+        e for e in store.list_events(run.id) if e["type"] == "discovery"
+    ]
+    assert narrated[0]["payload"]["status"] == "failed"
+    assert narrated[0]["payload"]["fitness"] is None
+
+
+@pytest.mark.asyncio
 async def test_a_failing_event_write_does_not_retry_the_finished_run(
     db: str, workspace_root: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -232,6 +269,13 @@ def test_a_minimized_metric_reads_in_its_own_units() -> None:
     )
     assert "scored 1.9 via" in markdown
     assert "-1.9" not in markdown
+
+
+def test_one_attempt_is_not_reported_as_one_attempts() -> None:
+    markdown = discovery_report.build_markdown(
+        _fake_run(_config("pass\n")), [_variant(1, 3.0)], (1, 1.0)
+    )
+    assert "1 attempt across" in markdown
 
 
 def test_a_lopsided_run_is_called_out_rather_than_flattered() -> None:

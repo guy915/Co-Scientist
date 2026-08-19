@@ -108,6 +108,40 @@ def _to_evaluation(
     )
 
 
+def _announce_variant(
+    run_id: str,
+    variant: dict[str, Any],
+    result: Any,
+    db_path: str | None,
+) -> None:
+    """Records one evaluated variant as a run event.
+
+    Without this a discovery run streams nothing at all: the loop is
+    three durable tasks and none of them emitted, so the live activity
+    log sat empty for the whole run and a search that was working looked
+    identical to one that had stalled. An evaluated variant is the right
+    unit -- it is minutes of work, not a poll tick, so this is nowhere
+    near the per-tick write stream that starves the single writer.
+
+    Best effort: a run must not fail because its narration did.
+    """
+    try:
+        store.append_event(
+            run_id,
+            "discovery",
+            {
+                "ordinal": variant["ordinal"],
+                "generation": variant["generation"],
+                "operator": variant["operator"] or "seed",
+                "status": result.status.value,
+                "fitness": result.fitness,
+            },
+            db_path=db_path,
+        )
+    except Exception:
+        logger.exception("Could not record variant %s", variant["ordinal"])
+
+
 async def execute_variant_evaluate(
     task: ScientificTask, *, db_path: str | None = None
 ) -> dict[str, Any]:
@@ -145,6 +179,7 @@ async def execute_variant_evaluate(
         result.fitness,
         result.status.value,
     )
+    _announce_variant(task.run_id, variant, result, db_path)
     return {
         "variant_id": variant["id"],
         "ordinal": variant["ordinal"],

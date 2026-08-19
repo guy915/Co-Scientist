@@ -3,6 +3,7 @@ import {
   type ChatSummary,
   discoveryReportPayload,
   isActiveStatus,
+  primaryObjective,
   type RunStatus,
   type RunWithSummary,
   runGoal,
@@ -223,27 +224,28 @@ function RunDetailBody({
       </main>
     );
   }
-  if (active && data.run) {
-    return (
-      <ActiveRunView
-        run={data.run}
-        events={data.events}
-        evidenceCount={Math.max(
-          data.evidence.length,
-          data.run.summary.evidence,
-        )}
-        ideaCount={Math.max(
-          data.hypotheses.length,
-          data.run.summary.hypotheses,
-        )}
-      />
-    );
-  }
+  if (active && data.run) return <LiveRunSection data={data} />;
   return (
     <RunDetailTabContent
       activeTab={activeTab}
       ideasViewKey={ideasViewKey}
       data={data}
+    />
+  );
+}
+
+// The live view of an in-flight run, told what kind of run it is: a
+// discovery run counts attempts where a hypothesis run counts ideas.
+function LiveRunSection({data}: {data: RunDetailData}) {
+  if (!data.run) return null;
+  return (
+    <ActiveRunView
+      run={data.run}
+      events={data.events}
+      isDiscovery={isDiscoveryRun(data.run)}
+      objective={primaryObjective(data.run.config?.discovery)}
+      evidenceCount={Math.max(data.evidence.length, data.run.summary.evidence)}
+      ideaCount={Math.max(data.hypotheses.length, data.run.summary.hypotheses)}
     />
   );
 }

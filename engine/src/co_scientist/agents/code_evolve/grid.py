@@ -138,6 +138,25 @@ class Grid:
         default_factory=tessellation.Projection
     )
 
+    def __post_init__(self) -> None:
+        """Refuses a combination that can never bin a single variant.
+
+        The strategy and the axes are both known here, so an axis this
+        strategy cannot place is decidable now. Left to binning time it
+        raises once per variant instead -- a whole run failing
+        identically at every step, with the one-line cause visible only
+        in a task traceback.
+        """
+        if self.strategy is GridStrategy.CVT:
+            return
+        for descriptor in self.descriptors:
+            if is_vector(descriptor.feature):
+                raise UnbinnableFeatureError(
+                    f"feature {descriptor.feature!r} is a vector and can "
+                    f"only be used with the {GridStrategy.CVT.value!r} "
+                    f"strategy, not {self.strategy.value!r}"
+                )
+
 
 # What a run gets when it declares nothing. Every axis here describes a
 # kind of program -- the move that produced it, how it is structured,

@@ -354,6 +354,12 @@ _OVERRIDE_HANDLERS: dict[str, Callable[[dict[str, Any], str, Any], None]] = {
     "llm_backend": _apply_llm_backend_override,
     "enable_web_search": _apply_bool_override,
     "enable_paper_corpus": _apply_bool_override,
+    # A discovery run's whole specification: what to optimize, how to
+    # measure it, and the program to start from. Verbatim because it is a
+    # dict -- the numeric fallback cannot coerce one and would drop it
+    # silently, which turns "start a discovery run" into an ordinary
+    # hypothesis run with no error anywhere.
+    "discovery": _apply_verbatim_override,
 }
 
 

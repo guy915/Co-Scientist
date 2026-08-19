@@ -157,22 +157,21 @@ def test_a_declared_vector_axis_under_a_scalar_strategy_is_refused(
 ) -> None:
     # Declared, not defaulted: dropping it silently would leave a run
     # niching along fewer axes than its author wrote, with nothing to
-    # show that it happened.
-    from co_scientist.agents.code_evolve import (
-        UnbinnableFeatureError,
-        assign_cells,
-    )
+    # show that it happened. Refused while reading the spec rather than
+    # while binning a variant, so the run is rejected at creation
+    # instead of failing identically on every attempt -- and as a
+    # DiscoverySpecError, since this module is the boundary every caller
+    # reads the spec through and one type is what lets the create
+    # endpoint answer 422 rather than 500.
+    from app.discovery_spec import DiscoverySpecError, grid
 
-    from app.discovery_spec import grid
-
-    built = grid(
-        _config_for(
-            descriptors=[{"feature": "ast_shape"}],
-            grid={"strategy": "fixed"},
+    with pytest.raises(DiscoverySpecError, match="ast_shape"):
+        grid(
+            _config_for(
+                descriptors=[{"feature": "ast_shape"}],
+                grid={"strategy": "fixed"},
+            )
         )
-    )
-    with pytest.raises(UnbinnableFeatureError):
-        assign_cells([{"ast_shape": (0.5, 0.5)}], built)
 
 
 def test_the_default_grid_is_cvt(db: str) -> None:

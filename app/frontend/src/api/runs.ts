@@ -32,7 +32,7 @@ export type {
   DiscoveryReportPayload,
   VariantStage,
 } from './discovery_types';
-export {discoveryReportPayload} from './discovery_types';
+export {discoveryReportPayload, primaryObjective} from './discovery_types';
 import {
   API_BASE_URL,
   byokHeaders,

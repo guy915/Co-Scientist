@@ -236,9 +236,15 @@ class TestVectorFeatures:
     def test_a_vector_feature_is_refused_by_a_binning_strategy(self) -> None:
         # Silently dropping it would leave the run niching along fewer
         # axes than its author declared, with nothing to show for it.
-        grid = Grid((Descriptor("ast_shape"),), GridStrategy.FIXED)
+        # Refused when the grid is built, not when a variant is binned:
+        # both halves are known here, so deferring turns one bad
+        # declaration into every variant of the run failing alike.
         with pytest.raises(UnbinnableFeatureError):
-            assign_cells([{"ast_shape": (1.0, 0.0)}], grid)
+            Grid((Descriptor("ast_shape"),), GridStrategy.FIXED)
+
+    def test_the_refusal_covers_the_adaptive_strategy_too(self) -> None:
+        with pytest.raises(UnbinnableFeatureError):
+            Grid((Descriptor("ast_shape"),), GridStrategy.ADAPTIVE)
 
     def test_a_variant_missing_the_vector_sits_apart(self) -> None:
         grid = Grid((Descriptor("ast_shape"),), GridStrategy.CVT, cells=2)

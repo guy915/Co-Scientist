@@ -139,3 +139,28 @@ export function discoveryReportPayload(
   if (report?.payload.report_kind !== 'discovery') return null;
   return report.payload as unknown as DiscoveryReportPayload;
 }
+
+// The objective a run declared first, in whichever of the two shapes
+// it used: `objectives` for several, `objective` for one.
+function declaredObjective(config: DiscoveryConfig | undefined) {
+  if (!config) return undefined;
+  const declared = config.objectives ?? [];
+  return declared.length > 0 ? declared[0] : config.objective;
+}
+
+/**
+ * A discovery run's primary objective, as declared in its config.
+ *
+ * Needed wherever a stored score is printed: sign correction can only
+ * be undone with the direction in hand.
+ *
+ * @param config A run's discovery block, if it has one.
+ * @returns The primary objective, or undefined.
+ */
+export function primaryObjective(
+  config: DiscoveryConfig | undefined,
+): DiscoveryObjective | undefined {
+  const raw = declaredObjective(config);
+  if (!raw?.metric) return undefined;
+  return {metric: raw.metric, direction: raw.direction ?? 'maximize'};
+}

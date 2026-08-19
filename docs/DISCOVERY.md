@@ -62,13 +62,58 @@ The program reports by writing `metrics_path` as a flat JSON object; each
 objective names one of its keys. A single `objective` object is still
 accepted in place of the list.
 
-**A malformed `discovery` block fails the run at bootstrap**
-(`app/app/discovery_spec.py`). This is deliberate and is the one place
-the code refuses rather than defaults: falling back to an empty cascade
-would give a run that executes normally and scores every variant
-identically, which reads as "the model cannot write working code" rather
-than as "the run was misconfigured". The *budgets* do default, because
-unlike the cascade they have an obviously correct fallback.
+**A malformed `discovery` block is refused when the run is created**
+(`app/app/discovery_spec.py`, via `runs_models._validate_discovery_block`).
+Refusing rather than defaulting is deliberate and is the one place the
+code does it: falling back to an empty cascade would give a run that
+executes normally and scores every variant identically, which reads as
+"the model cannot write working code" rather than as "the run was
+misconfigured". The *budgets* do default, because unlike the cascade
+they have an obviously correct fallback.
+
+**Refuse at the earliest point where the answer is knowable**, which is
+the same rule twice. The spec is read once per variant, so a bad one
+left to bootstrap becomes hundreds of identically-failing evaluations
+with the cause visible only in a task traceback -- hence the check at
+creation, where it is a 422 on the request that wrote it. For the same
+reason `Grid` refuses a vector axis under a binning strategy in its
+constructor rather than when a variant is binned: the axes and the
+strategy are both known then, so leaving it to `assign_cells` turns one
+bad declaration into every step of the run failing alike.
+
+## Starting a run
+
+There is no UI for this yet. Two ways in, both carrying the same block:
+
+```bash
+cosci runs create "Find a faster prime sieve" --discovery spec.json --start
+```
+
+`--discovery` reads JSON or YAML, chosen by the file's suffix so a
+`.json` file with a YAML typo fails as JSON rather than quietly parsing
+as something else. The file holds the contents of the `discovery` key
+above, not the whole run config.
+
+Or over HTTP, where it is one more field on the ordinary create call:
+
+```
+POST /api/runs
+{"research_goal": "Find a faster prime sieve", "discovery": { ... }}
+POST /api/runs/{id}/start
+```
+
+The block survives creation verbatim. That is worth stating because the
+config override path coerces unknown keys to numbers and would otherwise
+drop a dict without a word, leaving an ordinary hypothesis run and no
+error anywhere -- `run_modes._OVERRIDE_HANDLERS` carries `discovery` as a
+verbatim key for exactly that reason.
+
+Note what the API accepts: `stages[].argv` is a command line, and
+starting a discovery run therefore means asking the server to execute
+it. That is the feature, not a hole -- every stage runs through
+`workspace.run_command`, which confines it to the variant's own
+directory with no network, and **fails closed** where no sandbox backend
+exists rather than running the command unconfined.
 
 ## Several objectives
 
@@ -272,6 +317,22 @@ closed: on a platform with no backend the tools are withheld from the
 model rather than offered and run unconfined. See `docs/DEPLOYMENT.md`.
 
 ## Reading a run
+
+While a run is in flight it narrates itself: each evaluated variant is
+appended as a `discovery` run event carrying its ordinal, generation,
+operator, status and score. Without it the loop emitted nothing at all
+-- it is three durable tasks and none of them wrote an event -- so the
+live activity log sat empty for a run's whole duration and a search that
+was working looked exactly like one that had stalled. An evaluated
+variant is the right unit to write on: it is minutes of work, not a poll
+tick, so this is nowhere near the per-tick write stream that starves the
+single SQLite writer.
+
+The live view reads its headline numbers off that stream rather than
+fetching them separately, so they cannot disagree with the activity log
+beside them, and it counts **attempts and best score** where a
+hypothesis run counts sources and ideas -- those two cards sat at zero
+for every discovery run before, which reads as a stalled run.
 
 `GET /api/runs/{id}/variants` lists every attempt in ordinal order;
 `/variants/{variant_id}` adds metrics, artifacts and full source. The

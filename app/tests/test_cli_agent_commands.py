@@ -264,6 +264,7 @@ def _create_args(**overrides: Any) -> argparse.Namespace:
         "evolution_max_count": None,
         "k_factor": None,
         "enable_literature_review": None,
+        "discovery": None,
         "start": False,
         "json": False,
     }
@@ -286,6 +287,41 @@ def test_create_start_flag_creates_then_starts(
     assert rc == 0
     assert paths == ["/api/runs", "/api/runs/r9/start"]
     assert "r9\trunning" in capsys.readouterr().out
+
+
+def test_create_sends_a_discovery_spec_from_a_file(
+    tmp_path: Any, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # The spec file is the only way to start a discovery run from a
+    # terminal, so a body that silently dropped it would leave an
+    # ordinary hypothesis run with no error anywhere.
+    spec = tmp_path / "spec.json"
+    spec.write_text(json.dumps({"objective": {"metric": "score"}}))
+    bodies: list[Any] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        bodies.append(json.loads(request.content))
+        return httpx.Response(200, json={"id": "r9", "status": "draft"})
+
+    rc = runs_cmd.handle_create(
+        _create_args(discovery=str(spec)), api_client(handler)
+    )
+    assert rc == 0
+    assert bodies[0]["discovery"] == {"objective": {"metric": "score"}}
+    capsys.readouterr()
+
+
+def test_create_refuses_a_spec_that_does_not_parse(tmp_path: Any) -> None:
+    spec = tmp_path / "spec.json"
+    spec.write_text("{not json")
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        raise AssertionError("the request must not be sent")
+
+    with pytest.raises(CliError, match="does not parse"):
+        runs_cmd.handle_create(
+            _create_args(discovery=str(spec)), api_client(handler)
+        )
 
 
 def test_create_goal_from_stdin(

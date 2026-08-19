@@ -15,6 +15,8 @@ keep resolving for ``app.cli.parsers_runs`` and the CLI test suite.
 from __future__ import annotations
 
 import argparse
+import json
+from pathlib import Path
 from typing import Any
 
 from app.cli.http import (
@@ -154,11 +156,48 @@ def handle_show(args: argparse.Namespace, client: ApiClient) -> int:
 # ---------------------------------------------------------------------------
 
 
+def _parse_spec_text(text: str, suffix: str) -> Any:
+    """Parses a spec file's text by its suffix.
+
+    By suffix rather than by sniffing, so a `.json` file with a YAML typo
+    in it fails as JSON instead of quietly parsing as something else.
+    YAML is imported lazily to keep ``cosci --help`` on stdlib plus httpx.
+    """
+    try:
+        if suffix in (".yaml", ".yml"):
+            import yaml
+
+            return yaml.safe_load(text)
+        return json.loads(text)
+    except Exception as exc:
+        raise CliError(f"the discovery spec does not parse: {exc}") from exc
+
+
+def _discovery_spec(path: str | None) -> dict[str, Any] | None:
+    """Reads a discovery spec from a JSON or YAML file.
+
+    Raises:
+        CliError: The file is missing, unreadable, not one of the two
+            formats, or does not hold an object.
+    """
+    if path is None:
+        return None
+    try:
+        text = Path(path).read_text(encoding="utf-8")
+    except OSError as exc:
+        raise CliError(f"cannot read the discovery spec: {exc}") from exc
+    spec = _parse_spec_text(text, Path(path).suffix.lower())
+    if not isinstance(spec, dict):
+        raise CliError("the discovery spec must be an object")
+    return spec
+
+
 def _create_body(args: argparse.Namespace) -> dict[str, Any]:
     """Build the create-run request body, omitting unset optional fields."""
     goal = _text_arg(args.goal, "the research goal")
     body: dict[str, Any] = {"research_goal": goal}
     optional: list[tuple[str, Any]] = [
+        ("discovery", _discovery_spec(args.discovery)),
         ("requirements", args.requirements),
         ("attributes", args.attributes),
         ("criteria", args.criteria),

@@ -82,8 +82,9 @@ def _variant_row(variant: dict[str, Any], direction: str) -> str:
 
 def _coverage_sentence(occupied: int, evenness: float, total: int) -> str:
     """States how much of the behaviour space the run actually reached."""
+    attempts = f"{total} attempt" + ("" if total == 1 else "s")
     if occupied == 0:
-        return f"{total} attempts; none were measured for behaviour."
+        return f"{attempts}; none were measured for behaviour."
     spread = (
         " Most attempts landed in one of them, so the run explored less "
         "than that count suggests."
@@ -91,7 +92,7 @@ def _coverage_sentence(occupied: int, evenness: float, total: int) -> str:
         else ""
     )
     noun = "approach" if occupied == 1 else "distinct approaches"
-    return f"{total} attempts across {occupied} {noun}.{spread}"
+    return f"{attempts} across {occupied} {noun}.{spread}"
 
 
 def _one_source(path: str, whole: str, budget: int) -> list[str]:

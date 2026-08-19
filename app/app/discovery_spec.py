@@ -22,6 +22,7 @@ from co_scientist.agents.code_evolve import (
     Descriptor,
     Grid,
     GridStrategy,
+    UnbinnableFeatureError,
     default_descriptors_for,
     projection_from_json,
 )
@@ -245,9 +246,22 @@ def grid(config: dict[str, Any] | None) -> Grid:
     one cell, too fine and every variant gets its own.
 
     Raises:
-        DiscoverySpecError: If ``grid`` is present but malformed.
+        DiscoverySpecError: If ``grid`` is present but malformed, or if
+            the axes and the strategy are a combination the engine
+            refuses. That refusal is translated here rather than left to
+            propagate: this module is the boundary every caller reads
+            the spec through, and one exception type is what lets the
+            create endpoint answer 422 instead of 500.
     """
     raw = (discovery_config(config) or {}).get("grid")
+    try:
+        return _grid(config, raw)
+    except UnbinnableFeatureError as exc:
+        raise DiscoverySpecError(str(exc)) from exc
+
+
+def _grid(config: dict[str, Any] | None, raw: Any) -> Grid:
+    """Builds the grid from an already-extracted ``grid`` block."""
     if raw is None:
         return Grid(descriptors=descriptors(config))
     if not isinstance(raw, dict):
