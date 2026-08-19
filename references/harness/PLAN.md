@@ -359,7 +359,7 @@ The cost is that the parity gap stays open longer; the benefit is that Phase 3
 inherits a Phase-1 sandbox that has been exercised by Phase 2 against real work,
 which is the phase most likely to be wrong in ways only usage reveals.
 
-Still open:
+Still open — and each is blocked on a fact, not on effort:
 
 - **D9 — production exec topology. CLOSED: no separate service.** Landlock
   plus a seccomp filter confines in the api container as it ships, unprivileged
@@ -367,18 +367,28 @@ Still open:
   the built `Dockerfile.api` image. `SandboxKind.EXTERNAL` stays as a seam for
   a future dedicated exec container — worth having when execution needs to
   scale past one replica, which is a capacity decision rather than a security
-  one — but it is no longer a prerequisite for shipping. **The one thing still
-  worth confirming on the real host** is that Railway's kernel exposes
-  Landlock; if it does not, `sandbox_backend()` returns None and `run_command`
-  is withheld, which is the fail-closed direction and not a regression.
+  one — but it is no longer a prerequisite for shipping. The last thing worth
+  confirming on the real host was that Railway's kernel exposes Landlock, and
+  **it does**: production `/status` reports `code_execution_available: true`
+  (2026-08-19). Note what the earlier verification did and did not settle —
+  running the built `Dockerfile.api` image locally exercises the *developer's*
+  kernel, and Landlock is a host-kernel feature, so it never answered this
+  question. `/status` is what made the answer readable without starting a run.
+  Were it false, the terminal surface would withhold `run_command` (fail-closed,
+  not a regression) but discovery would be dead rather than degraded, so run
+  creation answers 503 and the evaluator raises `UnsupportedTaskError` instead
+  of retrying a refusal that repeats exactly.
 - **D10 — which agent gets the workspace.** The *resolution* half is settled:
   `open_run_workspace(run_id)` is idempotent, off-volume, and treats the run id
   as untrusted input, so a restarted worker reopens the directory the killed one
-  wrote rather than starting again beside it. What is still open is which node
-  is handed `build_workspace_tools(...)`. Not the draft-generation loop —
-  reading literature does not need a terminal — so on the current phasing the
-  first caller is Phase 3's evaluator.
+  wrote rather than starting again beside it. **The rest is resolved by
+  shipping Phase 3**: the evaluator is the caller, through
+  `open_variant_workspace(run_id, variant_id)` — per variant rather than per
+  run, because evaluations run concurrently and one shared directory has two
+  of them each running part of the other's code. Open only for a
+  conversational terminal loop, which still has no caller.
 - **D6 — dataset storage.** Blocked on how large "large" needs to be for the
   first real use case.
-- **`docs/FIDELITY.md:93`** currently records Computational Discovery as an
-  accepted divergence. Revise when Phase 3 is committed to, not before.
+- **`docs/FIDELITY.md`** recorded Computational Discovery as an accepted
+  divergence, to be revised when Phase 3 was committed to. Done: it now records
+  the capability as built and describes what it does.
