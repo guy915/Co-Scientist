@@ -1,7 +1,10 @@
 // Types for computational-discovery runs: the program a run is evolving,
-// each attempt at it, and how those attempts are scored. Kept out of
-// `run_types` so that file stays under the line ceiling, and because
-// nothing here is meaningful for a hypothesis run.
+// each attempt at it, how those attempts are scored, and the report the
+// run leaves behind. Kept out of `run_types` so that file stays under the
+// line ceiling, and because nothing here is meaningful for a hypothesis
+// run.
+
+import type {Report} from './report_types';
 
 /** One attempt at the program a discovery run is evolving. */
 export interface CodeVariant {
@@ -91,4 +94,48 @@ export interface DiscoveryConfig {
   seed_source?: Record<string, string>;
   max_generations?: number;
   children_per_generation?: number;
+}
+
+/**
+ * A discovery run's report payload.
+ *
+ * Deliberately shares no field name with `ReportPayload`'s counts: a
+ * discovery run produces no hypotheses, no evidence and no matches, so
+ * borrowing those names would leave every surface reading a number
+ * named for something the run never had.
+ */
+export interface DiscoveryReportPayload {
+  report_kind: 'discovery';
+  research_goal: string;
+  run_mode?: string;
+  provider: string;
+  // Declared order; the first is the primary, which `best_fitness`
+  // reports. Carried so a reader can undo the sign correction: without
+  // the direction, a minimized metric renders as negative seconds.
+  objectives: DiscoveryObjective[];
+  // every attempt, failures included
+  variant_count: number;
+  // attempts that produced a usable score
+  scored_count: number;
+  generation_count: number;
+  // Distinct archive cells reached, and how evenly they were filled.
+  // Both, because either alone misleads -- see CodeVariantPage.
+  niches_occupied: number;
+  niche_evenness: number;
+  best_variant_id: string | null;
+  best_fitness: number | null;
+}
+
+/**
+ * Narrows a run's report to the discovery shape, or null when it is a
+ * hypothesis report (or there is none yet).
+ *
+ * @param report The run's persisted report, if any.
+ * @returns The discovery payload, or null.
+ */
+export function discoveryReportPayload(
+  report: Report | null,
+): DiscoveryReportPayload | null {
+  if (report?.payload.report_kind !== 'discovery') return null;
+  return report.payload as unknown as DiscoveryReportPayload;
 }

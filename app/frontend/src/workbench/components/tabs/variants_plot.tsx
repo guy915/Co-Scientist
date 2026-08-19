@@ -1,4 +1,5 @@
-import {type CodeVariant} from '@/api/runs';
+import {type CodeVariant, type DiscoveryObjective} from '@/api/runs';
+import {formatMeasured} from '@/lib/objectives';
 
 // Plot geometry, in the SVG's own user units. The viewBox scales to the
 // container, so these are proportions rather than pixels.
@@ -63,9 +64,11 @@ function scale(
   return from + ((value - lo) / (hi - lo)) * (to - from);
 }
 
-function formatScore(value: number): string {
-  const rounded = Math.round(value * 1000) / 1000;
-  return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(3);
+// The axis labels read in the metric's own units, so a minimized
+// objective is un-negated here rather than printing a negative number of
+// seconds beside a report that prints a positive one.
+function formatScore(value: number, objective?: DiscoveryObjective): string {
+  return formatMeasured(value, objective);
 }
 
 /**
@@ -75,7 +78,13 @@ function formatScore(value: number): string {
  * reads as "the plot is broken", where an explicit empty state reads as
  * "nothing has worked yet", which is the true and more useful statement.
  */
-export function VariantsPlot({variants}: {variants: CodeVariant[]}) {
+export function VariantsPlot({
+  variants,
+  objective,
+}: {
+  variants: CodeVariant[];
+  objective?: DiscoveryObjective;
+}) {
   const points = runningBest(variants);
   const attempts = variants.length;
   if (points.length === 0 || attempts === 0) {
@@ -114,7 +123,7 @@ export function VariantsPlot({variants}: {variants: CodeVariant[]}) {
       className="h-auto w-full"
       role="img"
       aria-label={
-        `Best score against attempt number: ${formatScore(hi)} ` +
+        `Best score against attempt number: ${formatScore(hi, objective)} ` +
         `after ${attempts} attempts`
       }
     >
@@ -132,7 +141,7 @@ export function VariantsPlot({variants}: {variants: CodeVariant[]}) {
         textAnchor="end"
         className="fill-cosci-muted text-[11px]"
       >
-        {formatScore(hi)}
+        {formatScore(hi, objective)}
       </text>
       <text
         x={PAD_LEFT - 8}
@@ -140,7 +149,7 @@ export function VariantsPlot({variants}: {variants: CodeVariant[]}) {
         textAnchor="end"
         className="fill-cosci-muted text-[11px]"
       >
-        {formatScore(lo)}
+        {formatScore(lo, objective)}
       </text>
       <text
         x={WIDTH - PAD_RIGHT}

@@ -2,8 +2,10 @@ import {useEffect, useMemo, useState} from 'react';
 import {
   type CodeVariant,
   type CodeVariantPage,
+  type DiscoveryObjective,
   getCodeVariants,
 } from '@/api/runs';
+import {formatMeasured} from '@/lib/objectives';
 import {VariantsPlot} from '../components/tabs/variants_plot';
 import {VariantsTradeoff} from '../components/tabs/variants_tradeoff';
 import {
@@ -29,10 +31,11 @@ const CODE_CLASSES =
  * rendering them alike is how a table starts implying that a crashed
  * attempt was merely a bad one.
  */
-function scoreLabel(variant: CodeVariant): string {
-  if (variant.fitness === null) return '—';
-  const rounded = Math.round(variant.fitness * 1000) / 1000;
-  return String(rounded);
+function scoreLabel(
+  variant: CodeVariant,
+  objective?: DiscoveryObjective,
+): string {
+  return formatMeasured(variant.fitness, objective);
 }
 
 // Human-readable operator name. The seed has none, and saying so beats
@@ -75,10 +78,12 @@ function VariantRow({
   variant,
   expanded,
   onToggle,
+  objective,
 }: {
   variant: CodeVariant;
   expanded: boolean;
   onToggle: () => void;
+  objective?: DiscoveryObjective;
 }) {
   return (
     <>
@@ -104,7 +109,9 @@ function VariantRow({
           ) : null}
         </span>
         <span className="text-cosci-muted">{variant.status}</span>
-        <span className="text-right tabular-nums">{scoreLabel(variant)}</span>
+        <span className="text-right tabular-nums">
+          {scoreLabel(variant, objective)}
+        </span>
       </button>
       {expanded ? <VariantDetail variant={variant} /> : null}
     </>
@@ -118,11 +125,12 @@ function VariantRow({
 function scoreSummary(
   variants: CodeVariant[],
   best: CodeVariant | null,
-  metric: string,
+  objective?: DiscoveryObjective,
 ): string {
   if (best === null) return `${variants.length} attempts, none scored.`;
+  const metric = objective?.metric ?? 'score';
   return (
-    `Best ${metric} ${scoreLabel(best)}, reached on attempt ` +
+    `Best ${metric} ${scoreLabel(best, objective)}, reached on attempt ` +
     `${best.ordinal} of ${variants.length}.`
   );
 }
@@ -139,8 +147,10 @@ function progressSummary(
   objectives: CodeVariantPage['objectives'],
   nichesOccupied: number,
 ): string {
-  const metric = objectives[0]?.metric ?? 'score';
-  return scoreSummary(variants, best, metric) + coverageSummary(nichesOccupied);
+  return (
+    scoreSummary(variants, best, objectives[0]) +
+    coverageSummary(nichesOccupied)
+  );
 }
 
 // Says so when a run reached several cells but piled almost everything
@@ -222,7 +232,7 @@ export function VariantsView({
     <ReportDocument title="Variants">
       <section className={REPORT_SECTION_CLASSES}>
         <h3 className={REPORT_H3_CLASSES}>Best score over time</h3>
-        <VariantsPlot variants={variants} />
+        <VariantsPlot variants={variants} objective={objectives[0]} />
         <p className="text-sm text-cosci-muted">
           {progressSummary(variants, best, objectives, nichesOccupied) +
             coverageCaveat(nichesOccupied, nicheEvenness)}
@@ -245,6 +255,7 @@ export function VariantsView({
             onToggle={() =>
               setExpandedId(expandedId === variant.id ? null : variant.id)
             }
+            objective={objectives[0]}
           />
         ))}
       </section>

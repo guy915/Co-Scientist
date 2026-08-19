@@ -133,12 +133,34 @@ the archive keeps investing in it while it catches up.
 **Cells** come from `descriptors` plus a `grid` strategy.
 
 A descriptor is a `feature` and, for the `fixed` strategy, ascending
-`bins`. Features are `operator`, `imports`, `max_depth`, `branch_count`,
-`call_diversity`, `source_lines`, `source_bytes`, or `metric:<key>` for
-anything the program reports. Structure is measured from the AST when
-the program parses as Python and from indentation and token shape
-otherwise, so a run in another language still gets nesting, branching
-and dependencies -- just more crudely.
+`bins`. Features are `operator`, `imports`, `recursion`, `ast_shape`,
+`max_depth`, `branch_count`, `call_diversity`, `loop_density`,
+`branch_density`, `comprehension_density`, `source_lines`,
+`source_bytes`, or `metric:<key>` for anything the program reports.
+Structure is measured from the AST when the program parses as Python and
+from indentation and token shape otherwise, so a run in another language
+still gets nesting, branching and dependencies -- just more crudely.
+
+**`ast_shape` is what separates two algorithms with the same surface.**
+Nesting depth, branch count and imports agree on a memoized recursion
+and an iterative DP table, so they share a cell and the archive keeps
+only one. `fingerprint.py` adds a hashed n-gram over parent-child node
+pairs in the syntax tree, normalized to fractions and folded into eight
+buckets, plus `recursion` (none / direct / indirect / unknown) and the
+three densities. Fractions, not counts, for the same reason
+`source_lines` is not a default axis: a count grows as a program grows,
+so it niches by maturity rather than by kind. Eight buckets rather than
+an embedding, because forty points in 1536 dimensions have no usable
+distances between them, and because a bucket is deterministic --
+`zlib.crc32`, never Python's randomized `hash()`.
+
+Two rules the fingerprint follows that look like details and are not.
+**A program is read file by file, never as one blob**: concatenating
+first makes an unparseable README erase the whole fingerprint, taking
+`recursion` to "unknown" and the densities to nothing. And **whether a
+file is Python is decided by its name, not by whether it parses**: prose
+parses surprisingly often, since `notes` is a valid expression and
+`a,b` is a tuple.
 
 Three strategies, because they fail differently:
 
@@ -195,6 +217,18 @@ persisted and the cell derived on read, which keeps one source of truth
 rather than two that drift apart silently. Pareto membership is derived
 for the same reason -- one new variant can take an older one off the
 front.
+
+**The coordinate system is frozen once, and freezing it means freezing
+all of it.** Cells derived on read are stable within one reading and
+still move between generations, so "cells occupied" would never be
+comparable across time. Once a run has enough variants to tessellate,
+`freeze_grid_if_ready` computes the projection and writes it into the
+run config; every later assignment uses it. Freezing only the centroids
+is the version that looks like it works: the normalization bounds and
+the one-hot column layout are derived from the population too, so
+leaving those free moves every point underneath fixed centroids.
+`tessellation.py` therefore freezes columns *and* centroids as one
+object.
 
 ## Proposing a variant
 
@@ -264,18 +298,54 @@ Four rules the surface keeps, each of which is easy to get wrong:
   cell and one in each of five others has reached six cells and explored
   almost nothing, so a lopsided run is told it piled into one.
 
+## The report
+
+A finished run publishes a report (`app/app/discovery_report.py`),
+persisted through the same `store.save_report` the hypothesis path uses
+and rendered on the **Overview** tab. It carries `report_kind:
+"discovery"` and **shares no field name with a hypothesis report**:
+that payload's counts are all named for things a discovery run does not
+have, and filling `hypothesis_count` with a variant count produces a
+report that contradicts its own tabs.
+
+The Variants tab already shows every attempt live, so the report answers
+the three questions it cannot: what the run settled on (the winning
+program, in full), what it traded away (the Pareto front, when there is
+more than one objective), and whether it explored or polished — which is
+why coverage *and* its evenness are in the summary rather than derived
+by the reader.
+
+Two rules it keeps:
+
+- **Every printed value reads in the units it was measured in.** Scores
+  are stored sign-corrected so higher is always better, which holds a
+  minimized metric negated. Printing that straight reports 1.9 seconds
+  as `-1.9`. `frontend/src/lib/objectives.ts` is the one place that
+  undoes it, shared by the report, the table and both plots, because
+  each surface doing its own version is how the table came to disagree
+  with the plot beside it.
+- **Publishing can never fail the run.** The search is over and every
+  variant is durable by the time it happens, so `publish` swallows its
+  own errors: a formatting bug leaves a completed run without a report,
+  not a retrying task re-running a finished search. The `report` event
+  is emitted only after the save, so it can never announce one that was
+  not written.
+
 ## Known limits
 
-- **Behaviour is measured, not learned.** The features are hand-written
-  (nesting, branching, dependencies, size, reported metrics). A learned
-  descriptor -- an embedding of the program, say -- would capture
-  similarity these miss, at the cost of an axis nobody can read.
-- **Structural features are shallow.** Two programs with the same
-  nesting depth, branch count and dependencies are one cell even if they
-  implement different algorithms. `imports` catches the common case (a
-  numpy rewrite versus a tuned loop) and nothing catches the rest.
-- **CVT cells move as the run grows.** Adding variants re-clusters, so a
-  cell is not a stable identity across time and "cells occupied" is a
-  snapshot rather than a monotonic count.
-- A discovery run publishes no report; it ends when its generation
-  budget runs out, and the aggregate marks it completed.
+- **Behaviour is measured, not learned.** The features are hand-written.
+  A learned descriptor would capture similarity they miss; an embedding
+  specifically was tried against this and rejected, because a few dozen
+  points in a thousand dimensions have no usable distances.
+- **The fingerprint is syntactic.** It separates a recursion from a
+  loop, and a comprehension-heavy rewrite from a nested one, because
+  those differ in the shape of the tree. It does not separate two
+  programs that compute different things in the same shape, and eight
+  buckets collide by construction.
+- **A frozen projection cannot learn.** Freezing is what makes cells
+  comparable over time, and the cost is that behaviour appearing after
+  it lands in an edge cell rather than earning one of its own. A run
+  that changes character late is niched by the run it used to be.
+- **Nothing carries across runs.** Each run starts from its seed with an
+  empty archive; a program discovered yesterday is not available as a
+  parent today.

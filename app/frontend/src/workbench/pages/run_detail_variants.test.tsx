@@ -157,6 +157,24 @@ describe('VariantsView, multi-objective', () => {
     {metric: 'latency', direction: 'minimize'},
   ];
 
+  it('reads a minimized primary metric in its own units', () => {
+    // Scores are stored so higher is always better, which holds a
+    // minimized metric negated. The table printed that straight, so a
+    // 1.9-second attempt read as -1.9 beside a trade-off plot that
+    // already said 1.9.
+    render(
+      <VariantsView
+        variants={[variant({ordinal: 1, fitness: -1.9})]}
+        objectives={[{metric: 'latency', direction: 'minimize'}]}
+      />,
+    );
+    // Several: the table cell and the plot's axis labels, which is the
+    // agreement being pinned.
+    expect(screen.getAllByText('1.9').length).toBeGreaterThan(0);
+    expect(screen.queryByText('-1.9')).not.toBeInTheDocument();
+    expect(screen.getByText(/Best latency 1.9/)).toBeInTheDocument();
+  });
+
   it('shows the trade-off only when there is more than one objective', () => {
     const {rerender} = render(
       <VariantsView

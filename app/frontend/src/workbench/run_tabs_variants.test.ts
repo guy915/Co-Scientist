@@ -20,6 +20,13 @@ describe('tabsForRun', () => {
     ]);
   });
 
+  it('hides the hypothesis tabs on a discovery run', () => {
+    // It generates no ideas and reads no literature, so both would be
+    // permanently empty -- the same defect as an always-empty Variants
+    // tab, in the other direction.
+    expect(tabsForRun(true)).toEqual(['details', 'overview', 'variants']);
+  });
+
   it('resolves the variants route and its alias', () => {
     expect(normalizeTab('variants')).toBe('variants');
     expect(normalizeTab('programs')).toBe('variants');

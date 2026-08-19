@@ -43,7 +43,10 @@ foundations, and is *not* a node in the hypothesis graph.
 patch under a named code operator and picks parents from a MAP-Elites
 diversity archive (`archive.py` for MOME cells, `grid.py` for the
 fixed/adaptive/CVT strategies, `behaviour.py` for the structural
-features they niche by); `code_eval/` runs the resulting cascade
+features they niche by, `fingerprint.py` for the hashed AST n-gram that
+separates two algorithms sharing a surface shape, `tessellation.py` for
+the frozen projection that keeps a cell meaning the same thing from one
+generation to the next); `code_eval/` runs the resulting cascade
 and scores it against one or more objectives, keeping the extra ones
 separate via Pareto dominance (`pareto.py`) rather than summing them; `workspace/` and `sandbox/` confine every command. The app
 drives the loop as durable tasks rather than through LangGraph. See

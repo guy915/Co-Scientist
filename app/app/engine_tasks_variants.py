@@ -25,7 +25,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from app import store
+from app import discovery_report, store
 from app.discovery_spec import evaluator_spec
 from app.engine_tasks_support import SupersededTaskError
 from app.store import RunStatus, ScientificTask
@@ -318,14 +318,21 @@ def _next_generation_parents(
 
 
 def _finish_run(
-    run_id: str, summary: dict[str, Any], db_path: str | None
+    run_id: str,
+    summary: dict[str, Any],
+    variants: list[dict[str, Any]],
+    coverage: tuple[int, float],
+    db_path: str | None,
 ) -> None:
-    """Marks a discovery run completed once its last generation lands.
+    """Publishes the run's report and marks it completed.
 
-    A discovery run publishes no report, so nothing else would ever move
-    it out of ``running`` -- and a run that stays running forever is
-    indistinguishable from one that is stuck, both to the reader and to
+    In that order, and both here: the report is what moves the run out
+    of ``running`` in the reader's terms, and a run left running forever
+    is indistinguishable from one that is stuck -- to the reader and to
     the recovery sweep that re-schedules interrupted runs on boot.
+    Publishing is best effort inside ``discovery_report.publish``, so a
+    report that cannot be built still leaves a completed run rather than
+    a failing task that retries the whole finished search.
     """
     logger.info(
         "Discovery run %s finished after generation %s (best %s)",
@@ -333,6 +340,7 @@ def _finish_run(
         summary["generation"],
         summary["best_fitness"],
     )
+    discovery_report.publish(run_id, variants, coverage, db_path=db_path)
     store.update_run_status(run_id, RunStatus.COMPLETED, db_path=db_path)
 
 
@@ -348,6 +356,7 @@ async def execute_variant_aggregate(
     """
     from app.engine_tasks_variants_schedule import (
         DEFAULT_MAX_GENERATIONS,
+        archive_summary,
         budget_value,
         enqueue_generation,
         freeze_grid_if_ready,
@@ -370,7 +379,8 @@ async def execute_variant_aggregate(
     limit = budget_value(config, "max_generations", DEFAULT_MAX_GENERATIONS)
     parents = _next_generation_parents(variants, config)
     if generation + 1 >= limit or not parents:
-        _finish_run(task.run_id, summary, db_path)
+        coverage = archive_summary(variants, config)
+        _finish_run(task.run_id, summary, variants, coverage, db_path)
         return {**summary, "continued": False}
 
     with store.transaction(db_path) as conn:

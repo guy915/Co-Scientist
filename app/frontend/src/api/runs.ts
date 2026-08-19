@@ -29,8 +29,10 @@ export type {
   CodeVariantPage,
   DiscoveryConfig,
   DiscoveryObjective,
+  DiscoveryReportPayload,
   VariantStage,
 } from './discovery_types';
+export {discoveryReportPayload} from './discovery_types';
 import {
   API_BASE_URL,
   byokHeaders,

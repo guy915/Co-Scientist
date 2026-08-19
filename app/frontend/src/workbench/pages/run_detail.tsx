@@ -1,6 +1,7 @@
 import {useParams} from 'react-router-dom';
 import {
   type ChatSummary,
+  discoveryReportPayload,
   isActiveStatus,
   type RunStatus,
   type RunWithSummary,
@@ -11,6 +12,7 @@ import {useRunHistoryContext} from '@/workbench/hooks/run_history_context';
 import {IdeasTab} from '../components/tabs/ideas_tab';
 import {ActiveRunView} from './run_detail_active';
 import {useRunDetailData} from './run_detail_data';
+import {DiscoveryReportView} from './run_detail_discovery_report';
 import {LearningView} from './run_detail_learning';
 import {ResearchOverviewView} from './run_detail_overview';
 import {
@@ -246,6 +248,25 @@ function RunDetailBody({
   );
 }
 
+// The Overview tab body. A discovery run's report shares no field with a
+// hypothesis run's, so which one exists decides the view -- read off the
+// payload the backend actually wrote rather than off the run's config, so
+// the surface cannot claim a report shape that was never persisted.
+function OverviewSection({data}: {data: RunDetailData}) {
+  const discovery = discoveryReportPayload(data.report);
+  if (discovery && data.report) {
+    return <DiscoveryReportView report={data.report} payload={discovery} />;
+  }
+  return (
+    <ResearchOverviewView
+      run={data.run}
+      report={data.report}
+      hypotheses={data.hypotheses}
+      matches={data.matches}
+    />
+  );
+}
+
 // The Ideas tab body, remount-keyed so switching back resets its selection.
 function IdeasSection({
   ideasViewKey,
@@ -288,14 +309,7 @@ const TAB_SECTIONS: Record<
       report={data.report}
     />
   ),
-  overview: (_key, data) => (
-    <ResearchOverviewView
-      run={data.run}
-      report={data.report}
-      hypotheses={data.hypotheses}
-      matches={data.matches}
-    />
-  ),
+  overview: (_key, data) => <OverviewSection data={data} />,
   ideas: (ideasViewKey, data) => (
     <IdeasSection ideasViewKey={ideasViewKey} data={data} />
   ),

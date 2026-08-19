@@ -12,6 +12,14 @@ import type {ClaimEvidenceRow, RunMode} from './run_types';
  * `report_render.build_report_payload`.
  */
 export interface ReportPayload {
+  /**
+   * Set only by a discovery run, whose report shares none of the counts
+   * below -- it has no hypotheses, no evidence and no tournament. Read
+   * it through `discoveryReportPayload`, which narrows to that shape
+   * rather than leaving a reader to guess from which fields happen to
+   * be populated.
+   */
+  report_kind?: 'discovery';
   research_goal: string;
   run_mode?: RunMode;
   provider: string;

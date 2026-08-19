@@ -163,10 +163,14 @@ program against a measured objective instead of generating hypotheses.
 `execute_bootstrap` branches to `bootstrap_discovery` after the shared
 safety gate, and the loop runs as three durable task types
 (`engine.fanout.variant.propose|evaluate|aggregate`) over the
-`code_variants` tables. It has no Supervisor, no workflow checkpoint and no
-report -- the final aggregate is what marks the run completed. Modules:
+`code_variants` tables. It has no Supervisor and no workflow checkpoint; the
+final aggregate publishes the report and marks the run completed. Modules:
 `discovery_spec.py` (config -> `EvaluatorSpec` and archive descriptors, fails closed),
 `engine_tasks_variants.py` (the executors), `engine_tasks_variants_schedule.py`
-(what work exists), `store/code_variants.py`. Parent selection delegates to the engine's
-MAP-Elites archive and the Pareto front rather than ranking by score.
+(what work exists), `discovery_report.py` (the report), `store/code_variants.py`.
+Parent selection delegates to the engine's MAP-Elites archive and the Pareto
+front rather than ranking by score. The report carries `report_kind:
+"discovery"` and deliberately shares no field name with the hypothesis
+payload -- every count there is named for something this run does not have --
+and publishing is best effort, since the search is already durable by then.
 Full rationale in `docs/DISCOVERY.md`.

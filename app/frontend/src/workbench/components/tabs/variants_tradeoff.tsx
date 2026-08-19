@@ -1,4 +1,5 @@
 import {type CodeVariant, type DiscoveryObjective} from '@/api/runs';
+import {directionArrow, measuredValue} from '@/lib/objectives';
 
 const WIDTH = 720;
 const HEIGHT = 300;
@@ -21,13 +22,11 @@ function scale(
 // minimized metric arrives negated. Undo that for the label, or the
 // reader sees "-2.4 seconds".
 function axisLabel(objective: DiscoveryObjective): string {
-  const arrow = objective.direction === 'minimize' ? '↓' : '↑';
-  return `${objective.metric} ${arrow}`;
+  return `${objective.metric} ${directionArrow(objective)}`;
 }
 
 function displayValue(value: number, objective: DiscoveryObjective): number {
-  const raw = objective.direction === 'minimize' ? -value : value;
-  return Math.round(raw * 1000) / 1000;
+  return Math.round(measuredValue(value, objective) * 1000) / 1000;
 }
 
 interface Placed {
