@@ -26,7 +26,7 @@ import logging
 from typing import Any
 
 from app import discovery_report, store
-from app.discovery_execution import evaluate_confined
+from app.discovery_execution import evaluate_confined, place_dataset
 from app.discovery_spec import evaluator_spec
 from app.engine_tasks_support import SupersededTaskError
 from app.store import RunStatus, ScientificTask
@@ -210,6 +210,9 @@ async def execute_variant_evaluate(
     # plausible number attributed to the wrong variant, and nothing in
     # either result would show it.
     session = open_variant_workspace(task.run_id, str(variant["id"]))
+    # Before the program: a stage that opens a file the run was given
+    # must find it there, and the workspace is fresh per variant.
+    place_dataset(task.run_id, session, db_path)
     result = await evaluate_confined(
         session, EvaluationRequest(spec=spec, files=dict(variant["source"]))
     )

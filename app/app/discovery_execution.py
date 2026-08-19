@@ -34,6 +34,28 @@ def code_execution_backend() -> str | None:
     return backend
 
 
+def place_dataset(run_id: str, session: Any, db_path: str | None) -> None:
+    """Copies the run's dataset into one variant's workspace.
+
+    Copied rather than shared: variants evaluate concurrently and each
+    is confined to its own directory, which is what stops one evaluation
+    running part of another's code. A shared directory would trade that
+    property for disk, and a hard link would trade it for a quieter
+    version of the same bug -- a variant writing to its input would
+    corrupt every sibling's copy with nothing in either result to show
+    it. `discovery_dataset.MAX_DATASET_BYTES` is what keeps the cost of
+    that choice bounded.
+    """
+    from app import store
+
+    for path, content in store.get_code_dataset(
+        run_id, db_path=db_path
+    ).items():
+        target = session.resolve_path(path)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(content, encoding="utf-8")
+
+
 async def evaluate_confined(session: Any, request: Any) -> Any:
     """Evaluates a variant, keeping only the host's own refusal fatal.
 

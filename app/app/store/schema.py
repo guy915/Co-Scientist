@@ -7,6 +7,9 @@ compatibility notes behind non-obvious column choices.
 """
 
 from app.store.schema_code_variants import (
+    CODE_DATASETS_SCHEMA as CODE_DATASETS_SCHEMA,
+)
+from app.store.schema_code_variants import (
     CODE_VARIANTS_SCHEMA as CODE_VARIANTS_SCHEMA,
 )
 from app.store.schema_knowledge_facts import (
@@ -473,5 +476,6 @@ SCHEMA = (
     + SUPERVISOR_PLAN_SCHEMA
     + SCIENTIFIC_TASKS_SCHEMA
     + CODE_VARIANTS_SCHEMA
+    + CODE_DATASETS_SCHEMA
     + _SCHEMA_TAIL
 )

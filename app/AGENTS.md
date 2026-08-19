@@ -170,8 +170,20 @@ creates and starts in one action). `discovery.seed_from_run` carries an earlier
 run's archive elites forward as this run's starting programs, and is
 **ownership-checked at creation** -- it reads another run's whole source straight
 from the store, below the ownership middleware that guards every HTTP path to
-it, so an unowned id answers 404. `run_modes._OVERRIDE_HANDLERS` carries the key
-verbatim, without which the numeric override path drops the dict silently.
+it, so an unowned id answers 404. `discovery.dataset` (`{path: text}`) is the
+read-only input a run's programs open: creation moves the bytes out of the
+config into `code_datasets` and leaves a `dataset_paths` manifest behind, and
+`discovery_execution.place_dataset` copies them into each variant's workspace
+before evaluation. Not in the variant's source, which the proposal agent
+rewrites; not in the config row, which every task reads; copied rather than
+shared, because concurrent evaluations in one directory is how two variants
+each run part of the other's code. That copy is what bounds it --
+`MAX_DATASET_BYTES` is 4 MiB because a run's disk is that times its variant
+count. `run_modes._OVERRIDE_HANDLERS` carries the key verbatim, without which
+the numeric override path drops the dict silently. A host with no confinement
+primitive cannot run any of this: `/status` reports `code_execution_available`,
+creation answers 503, and the evaluator raises `UnsupportedTaskError` rather
+than spending a retry budget on a refusal that repeats exactly.
 `execute_bootstrap` branches to `bootstrap_discovery` after the shared
 safety gate, and the loop runs as three durable task types
 (`engine.fanout.variant.propose|evaluate|aggregate`) over the

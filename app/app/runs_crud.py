@@ -31,6 +31,7 @@ from app import (
     store,
 )
 from app.auth import client_id, principal_for_request, require_client_scope
+from app.discovery_dataset import dataset_files
 from app.runs_crud_resolve import (
     _build_run_config as _build_run_config,
 )
@@ -266,8 +267,25 @@ async def create_run(
         _resolve_run_settings(req, interview, byok),
     )
     _index_setup_documents(run.id, staged)
+    _store_discovery_dataset(run.id, req)
     _apply_post_commit_effects(run, req, byok, background_tasks)
     return run.to_dict()
+
+
+def _store_discovery_dataset(run_id: str, req: CreateRunRequest) -> None:
+    """Writes a discovery run's dataset, after the run row exists.
+
+    Validated during `_build_create_run_config`, so anything reaching
+    here has already survived the 422; this is the write, not the check.
+    """
+    if req.discovery is None:
+        return
+    # No seed paths passed: the collision check ran at validation, and
+    # repeating it here would re-derive the same refusal after the write
+    # it was meant to prevent.
+    files = dataset_files(req.discovery)
+    if files:
+        store.save_code_dataset(run_id, files)
 
 
 def _runs_payload(runs: list[store.RunRow]) -> dict[str, Any]:

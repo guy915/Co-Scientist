@@ -355,3 +355,38 @@ def best_code_variant(
             (run_id,),
         ).fetchone()
     return None if row is None else _variant_row_to_dict(row)
+
+
+def save_code_dataset(
+    run_id: str,
+    files: dict[str, str],
+    *,
+    db_path: str | None = None,
+    conn: Any = None,
+) -> None:
+    """Stores a run's read-only dataset, replacing anything there.
+
+    Written once at creation. Kept out of ``code_variants`` because the
+    proposal agent rewrites every file it is handed, and out of the run
+    config because that row is read by every task of every type.
+    """
+    with _use_conn(conn, db_path) as active:
+        active.execute("DELETE FROM code_datasets WHERE run_id = ?", (run_id,))
+        active.executemany(
+            "INSERT INTO code_datasets (run_id, path, content, created_at) "
+            "VALUES (?, ?, ?, ?)",
+            [(run_id, path, text, _now()) for path, text in files.items()],
+        )
+
+
+def get_code_dataset(
+    run_id: str, *, db_path: str | None = None, conn: Any = None
+) -> dict[str, str]:
+    """Returns a run's dataset as ``{path: contents}``."""
+    with _use_conn(conn, db_path) as active:
+        rows = active.execute(
+            "SELECT path, content FROM code_datasets WHERE run_id = ? "
+            "ORDER BY path",
+            (run_id,),
+        ).fetchall()
+    return {str(row["path"]): str(row["content"]) for row in rows}

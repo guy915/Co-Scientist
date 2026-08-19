@@ -8,6 +8,7 @@ You are improving a program that is being optimized against a measured objective
 
 The program reports its metrics by writing `{{metrics_path}}`. Whatever else you change, it must still write that file, with {{objective_metric}} among the keys — a program that stops reporting cannot be scored, and an unscored variant is discarded no matter how good it is.
 
+{{dataset_manifest}}
 ## The parent program
 
 {{parent_summary}}

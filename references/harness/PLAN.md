@@ -387,8 +387,20 @@ Still open — and each is blocked on a fact, not on effort:
   run, because evaluations run concurrently and one shared directory has two
   of them each running part of the other's code. Open only for a
   conversational terminal loop, which still has no caller.
-- **D6 — dataset storage.** Blocked on how large "large" needs to be for the
-  first real use case.
+- **D6 — dataset storage. DECIDED: in the store, copied per variant.** A run's
+  dataset is written once at creation into its own `code_datasets` table and
+  copied into each variant's workspace before evaluation. Not in the variant's
+  `source`, which the proposal agent rewrites wholesale; not in the run config,
+  which every task of every type reads. Copied rather than shared or
+  hard-linked because variants evaluate concurrently in their own directories
+  — sharing trades that isolation for disk, and a hard link trades it for the
+  quieter version of the same bug, where a variant writing to its input
+  corrupts every sibling's copy silently. **The copy is what answers "how large
+  is large"**: a run's disk is the dataset times its variant count, so the
+  ceiling is `MAX_DATASET_BYTES` (4 MiB) rather than a number picked in
+  advance. Above that is a different mechanism — a mounted volume, or a
+  reference into an object store — deliberately not built, because nothing has
+  yet asked for it. Text only; binary sets the same boundary.
 - **`docs/FIDELITY.md`** recorded Computational Discovery as an accepted
   divergence, to be revised when Phase 3 was committed to. Done: it now records
   the capability as built and describes what it does.

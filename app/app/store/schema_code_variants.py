@@ -110,3 +110,19 @@ CREATE TABLE IF NOT EXISTS code_variant_artifacts (
     FOREIGN KEY (variant_id) REFERENCES code_variants(id) ON DELETE CASCADE
 );
 """
+
+CODE_DATASETS_SCHEMA = """
+-- Read-only input a run's programs open, kept out of both the variant
+-- rows and the run's config. Out of the variants because the proposal
+-- agent rewrites every file it is handed, so data placed there would be
+-- patched like code and stored again in full per variant; out of the
+-- config because that row is read by every task of every type.
+CREATE TABLE IF NOT EXISTS code_datasets (
+    run_id TEXT NOT NULL,
+    path TEXT NOT NULL,
+    content TEXT NOT NULL,
+    created_at REAL NOT NULL,
+    PRIMARY KEY (run_id, path),
+    FOREIGN KEY (run_id) REFERENCES runs(id) ON DELETE CASCADE
+);
+"""

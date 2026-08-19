@@ -152,6 +152,17 @@ def _stage(raw: Any, index: int) -> EvaluationStage:
     )
 
 
+def _dataset_paths(block: dict[str, Any]) -> tuple[str, ...]:
+    """Reads the dataset manifest the config kept after creation.
+
+    Local rather than imported from `discovery_dataset`, which imports
+    this module for its error type; the manifest is a list of strings
+    and needs nothing that module knows.
+    """
+    raw = block.get("dataset_paths")
+    return tuple(str(path) for path in raw) if isinstance(raw, list) else ()
+
+
 def evaluator_spec(config: dict[str, Any] | None) -> EvaluatorSpec:
     """Builds the evaluator spec for a discovery run.
 
@@ -178,6 +189,7 @@ def evaluator_spec(config: dict[str, Any] | None) -> EvaluatorSpec:
         ),
         objectives=_objectives(block),
         metrics_path=str(block.get("metrics_path") or "metrics.json"),
+        dataset_paths=_dataset_paths(block),
     )
 
 

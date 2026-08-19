@@ -118,12 +118,20 @@ class EvaluatorSpec:
             metric parsed out of that stream is a metric that breaks when
             somebody adds a log line.
         artifact_chars: Ceiling on captured output carried forward.
+        dataset_paths: Read-only inputs placed in the workspace before
+            every run. Part of the evaluation environment rather than of
+            the program, which is why they live here and not in a
+            variant's source: the proposal agent rewrites every file it
+            is handed, so data given to it as source would be patched
+            like code. Names only -- the proposal prompt states them so
+            a program can open them, and never their contents.
     """
 
     stages: tuple[EvaluationStage, ...]
     objectives: tuple[Objective, ...]
     metrics_path: str = "metrics.json"
     artifact_chars: int = DEFAULT_ARTIFACT_CHARS
+    dataset_paths: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
         """Refuses a spec with nothing to optimize."""

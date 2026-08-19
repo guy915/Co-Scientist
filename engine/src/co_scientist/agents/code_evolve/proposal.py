@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import dataclasses
 import logging
+from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any
 
@@ -77,11 +78,33 @@ class VariantProposal:
     changed: tuple[str, ...]
 
 
+def render_dataset(paths: Sequence[str]) -> str:
+    """Names the read-only files the program may open, never their text.
+
+    A manifest rather than content, for the reason the proximity node
+    records: a prompt whose length scales with its input truncates
+    silently at the far end. And naming them is not optional -- a model
+    told nothing about the data writes a program that does not know it
+    exists, so the run evolves against a file it never opens.
+    """
+    if not paths:
+        return ""
+    listed = "\n".join(f"- `{path}`" for path in paths)
+    return (
+        "## Data the program may read\n\n"
+        "These files are placed in the working directory before every "
+        "run, read-only inputs rather than part of the program. Do not "
+        "add, move or rewrite them; open them.\n\n"
+        f"{listed}\n\n"
+    )
+
+
 def build_prompt(
     parent: ParentVariant,
     *,
     operator: CodeOperator,
     evaluator: EvaluatorSpec,
+    dataset_paths: Sequence[str] = (),
 ) -> tuple[str, dict[str, Any] | None]:
     """Renders the proposal prompt and its response schema."""
     return load_prompt_with_schema(
@@ -99,6 +122,7 @@ def build_prompt(
             "parent_outcome": render_outcome(parent),
             "operator_name": operator.value,
             "operator_instructions": instructions_for(operator),
+            "dataset_manifest": render_dataset(dataset_paths),
         },
     )
 
@@ -175,7 +199,10 @@ async def propose_variant(
         ProposalRejectedError: If the model's patch does not apply.
     """
     prompt, schema = build_prompt(
-        parent, operator=operator, evaluator=evaluator
+        parent,
+        operator=operator,
+        evaluator=evaluator,
+        dataset_paths=evaluator.dataset_paths,
     )
     response = await call_llm_json(
         prompt, dataclasses.replace(spec, json_schema=schema)

@@ -15,6 +15,7 @@ from pydantic import BaseModel, Field
 
 from app import paper_corpus
 from app.audience import AUDIENCE_PATTERN, audience_context
+from app.discovery_dataset import dataset_files, without_payload
 from app.discovery_spec import (
     DISCOVERY_CONFIG_KEY,
     DiscoverySpecError,
@@ -186,7 +187,10 @@ def _run_overrides_from_request(
     if req.audience is not None:
         overrides["audience"] = req.audience
     if req.discovery is not None:
-        overrides["discovery"] = req.discovery
+        # The dataset's bytes do not belong in the run row -- every task
+        # of every type reads it. `create_run` writes them to their own
+        # table; what the config keeps is the manifest.
+        overrides["discovery"] = without_payload(req.discovery)
     # Only explicitly-sent knobs become overrides; each (key, value) pair
     # is dropped when the request left the field unset.
     numeric_overrides: tuple[tuple[str, Any], ...] = (
@@ -254,8 +258,9 @@ def _validate_discovery_block(block: dict[str, Any] | None) -> None:
     try:
         evaluator_spec(config)
         discovery_grid(config)
-        seed_source(config)
+        seed = seed_source(config)
         seed_from_run(config)
+        dataset_files(block, frozenset(seed))
     except DiscoverySpecError as exc:
         raise HTTPException(
             status_code=422, detail=f"invalid discovery spec: {exc}"

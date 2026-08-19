@@ -36,9 +36,11 @@ from app.store.code_variants import (
     VariantEvaluation,
     add_code_variant,
     best_code_variant,
+    get_code_dataset,
     get_code_variant,
     list_code_variants,
     record_variant_evaluation,
+    save_code_dataset,
 )
 from app.store.db import (
     checkpoint_wal,
@@ -287,6 +289,7 @@ __all__ = [
     "delete_staged_documents_older_than",
     "enqueue_task",
     "fail_task",
+    "get_code_dataset",
     "get_code_variant",
     "get_hypothesis",
     "get_interview",
@@ -356,6 +359,7 @@ __all__ = [
     "run_used_offline",
     "safety_stage_is_approved",
     "save_checkpoint",
+    "save_code_dataset",
     "save_report",
     "save_run_metrics",
     "save_supervisor_plan",
