@@ -14,6 +14,7 @@ import pytest
 
 from co_scientist.agents.code_evolve.grid import (
     DEFAULT_CELLS,
+    METRIC_WILDCARD,
     Descriptor,
     Grid,
     GridStrategy,
@@ -319,3 +320,167 @@ class TestExtension:
 
     def _population(self) -> list[dict[str, Any]]:
         return [{"source_lines": float(i)} for i in range(12)]
+
+
+class TestColumnGrowth:
+    """Minting a column for a category the frozen population never saw.
+
+    Without one every unseen value reads zero in every column of its
+    feature, so they all share one corner: "an operator this run had
+    never used" is the same point as any other unfamiliar value. The
+    property that makes minting safe is that appending a column is
+    exactly distance-preserving.
+    """
+
+    def _frozen(self) -> Grid:
+        seen = [
+            {"operator": name, "max_depth": float(index)}
+            for index, name in enumerate(["seed", "refine", "rewrite"] * 4)
+        ]
+        grid = Grid((Descriptor("operator"), Descriptor("max_depth")), cells=3)
+        return freeze(seen, grid)
+
+    def _population(self) -> list[dict[str, Any]]:
+        return [
+            {"operator": name, "max_depth": float(index)}
+            for index, name in enumerate(["seed", "refine", "rewrite"] * 4)
+        ]
+
+    def test_an_unseen_category_gets_a_column(self) -> None:
+        grid = self._frozen()
+        novel = {"operator": "quantum_leap", "max_depth": 1.0}
+        grown = extend([*self._population(), novel], grid)
+        assert len(grown.projection.columns) > len(grid.projection.columns)
+        assert any(
+            column.category == "quantum_leap"
+            for column in grown.projection.columns
+        )
+
+    def test_two_unseen_categories_stop_sharing_a_corner(self) -> None:
+        # The failure minting removes: every unfamiliar value read as the
+        # same point, so two genuinely different kinds shared a cell.
+        grid = self._frozen()
+        first = {"operator": "quantum_leap", "max_depth": 1.0}
+        second = {"operator": "time_travel", "max_depth": 1.0}
+        before = assign_cells([first, second], grid)
+        grown = extend([*self._population(), first, second], grid)
+        assert before[0] == before[1]
+        assert (
+            assign_cells([first, second], grown)[0]
+            != assign_cells([first, second], grown)[1]
+        )
+
+    def test_every_existing_distance_is_unchanged(self) -> None:
+        # Not "close enough": a column testing for a category a point is
+        # not reads zero, and so does every padded centroid, so each new
+        # coordinate adds exactly zero to every existing squared
+        # distance. Asserted exactly, because approximately-preserved is
+        # how a frozen grid starts drifting again.
+        from co_scientist.agents.code_evolve.tessellation import (
+            _distance,
+            project,
+        )
+
+        grid = self._frozen()
+        settled = self._population()
+        novel = {"operator": "quantum_leap", "max_depth": 1.0}
+        grown = extend([*settled, novel], grid)
+
+        before = project(settled, grid.projection.columns)
+        after = project(settled, grown.projection.columns)
+        for point, moved in zip(before, after, strict=True):
+            for old_centre, new_centre in zip(
+                grid.projection.centroids,
+                grown.projection.centroids,
+                strict=False,
+            ):
+                assert _distance(point, old_centre) == _distance(
+                    moved, new_centre
+                )
+
+    def test_nothing_already_placed_changes_cell(self) -> None:
+        grid = self._frozen()
+        settled = self._population()
+        before = assign_cells(settled, grid)
+        grown = extend(
+            [*settled, {"operator": "quantum_leap", "max_depth": 1.0}], grid
+        )
+        assert assign_cells(settled, grown) == before
+
+    def test_a_familiar_population_mints_nothing(self) -> None:
+        grid = self._frozen()
+        assert extend(self._population(), grid) is grid
+
+
+class TestMetricWildcard:
+    """``metric:*`` -- one axis per measurement the programs reported.
+
+    The only descriptor that is not a reading of a program's text, and
+    the only one whose keys are unknowable until something has run.
+    """
+
+    def _cells(
+        self, descriptors: tuple[Descriptor, ...], behaviours: Any
+    ) -> list[tuple[Any, ...]]:
+        return assign_cells(behaviours, Grid(descriptors, cells=4))
+
+    def test_it_separates_variants_that_only_a_metric_tells_apart(
+        self,
+    ) -> None:
+        twins = [
+            {"max_depth": 2.0, "metric:footprint": 1.0},
+            {"max_depth": 2.0, "metric:footprint": 40.0},
+        ]
+        shape_only = self._cells((Descriptor("max_depth"),), twins)
+        with_metric = self._cells(
+            (Descriptor("max_depth"), Descriptor(METRIC_WILDCARD)), twins
+        )
+        assert shape_only[0] == shape_only[1]
+        assert with_metric[0] != with_metric[1]
+
+    def test_an_objective_metric_is_excluded_from_expansion(self) -> None:
+        # An objective's value *is* the variant's score, so niching on
+        # it niches by progress -- the failure the module docstring
+        # measures, arriving through the one axis nobody declared.
+        refining = [
+            {"max_depth": 2.0, "metric:score": float(level)}
+            for level in range(8)
+        ]
+        cells = self._cells(
+            (
+                Descriptor("max_depth"),
+                Descriptor(METRIC_WILDCARD, exclude=("score",)),
+            ),
+            refining,
+        )
+        assert len(set(cells)) == 1
+
+    def test_it_costs_nothing_when_nothing_reports_a_metric(self) -> None:
+        plain = [{"max_depth": 1.0}, {"max_depth": 9.0}]
+        assert self._cells(
+            (Descriptor("max_depth"), Descriptor(METRIC_WILDCARD)), plain
+        ) == self._cells((Descriptor("max_depth"),), plain)
+
+    def test_a_metric_appearing_later_earns_a_column(self) -> None:
+        # A program that starts reporting something new has told the
+        # archive a fact it could not otherwise represent.
+        early = [
+            {"max_depth": float(i), "metric:footprint": float(i)}
+            for i in range(8)
+        ]
+        grid = freeze(
+            early,
+            Grid(
+                (Descriptor("max_depth"), Descriptor(METRIC_WILDCARD)),
+                cells=4,
+            ),
+        )
+        assert grid.projection
+        novel = {"max_depth": 2.0, "metric:footprint": 2.0, "metric:new": 5.0}
+        grown = extend([*early, novel], grid)
+        assert any(
+            column.feature == "metric:new"
+            for column in grown.projection.columns
+        )
+        # And every variant already placed is still where it was.
+        assert assign_cells(early, grown) == assign_cells(early, grid)

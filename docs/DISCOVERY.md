@@ -221,6 +221,36 @@ Structure is measured from the AST when the program parses as Python and
 from indentation and token shape otherwise, so a run in another language
 still gets nesting, branching and dependencies -- just more crudely.
 
+**`metric:*` is the one axis that is not a reading of the program's
+text.** Every structural feature describes shape, and two programs in
+the same shape that compute different things are precisely the case a
+static reading cannot separate -- that is not a gap in the fingerprint,
+it is undecidable in general. What *can* separate them is what they
+computed: the wildcard expands to one axis per metric the programs
+actually reported, resolved at runtime because which keys exist is not
+knowable when the run is configured.
+
+Measured on a landscape built from exactly that pair -- two approaches
+with identical nesting, dependencies and shape, differing only in a
+reported metric, one a decoy capped at 5.0 and one reaching 16.0
+(`test_code_archive_basins.py`, 60 seeds):
+
+| Axes | Mean best | Escaped the decoy |
+|---|---|---|
+| Structural only | 5.00 | 0 / 60 |
+| Plus `metric:*` | 11.16 | 55 / 60 |
+
+Structural axes alone end at *exactly* the decoy's ceiling in every run,
+the same signature as score-only selection: the two approaches share a
+cell, so the archive keeps one elite and collapses to top-k inside it.
+
+The run's **own objectives are excluded** from the expansion, and that
+is not an optimization. An objective's value *is* the variant's score,
+so niching on it niches by progress -- the failure measured below,
+arriving through the one axis nobody declared. The wildcard expands to
+nothing when a run's programs report only their objective, so it costs
+such a run nothing at all.
+
 **`ast_shape` is what separates two algorithms with the same surface.**
 Nesting depth, branch count and imports agree on a memoized recursion
 and an iterative DP table, so they share a cell and the archive keeps
@@ -268,8 +298,32 @@ mutation operator, `test_code_archive_basins.py`):
 | kind only (`operator`, `max_depth`, `imports`) | 7.84 | 144 / 200 |
 | the same plus `source_lines` | 5.71 | 38 / 200 |
 
-That is why program length is **not** a default axis despite being the
-cheapest one available. Nesting and dependencies are: a variant does not
+**Learning the axes does not rescue a bad choice of features either.**
+The obvious next move is to stop choosing and let the data decide --
+derive the axes from the population instead of writing them down. It was
+tried, with PCA over the observed behaviour (the cheapest honest learner:
+directions from the data, no judgement about what matters), and measured
+on the same landscape:
+
+| Axes | Mean best | Escaped the decoy |
+|---|---|---|
+| Hand-written kind axes | 8.23 | 45 / 60 |
+| Learned over every feature | 5.78 | 11 / 60 |
+| Learned over the curated features | 8.23 | 45 / 60 |
+
+PCA maximizes variance, and in program space the direction of greatest
+variance is *maturity* -- programs grow as they are refined. Handed every
+available feature it finds that direction first and reproduces the
+refinement collapse almost exactly, matching what declaring
+`source_lines` outright does. Handed the curated features it is
+**indistinguishable** from the hand-written grid, to two decimal places
+and the same escape count.
+
+So the learner is not what rescues a badly chosen axis, any more than the
+strategy is: it can only re-mix what it is given, and what it is given is
+the decision that mattered. That is why the axes are written down rather
+than learned, and why program length is **not** a default axis despite
+being the cheapest one available. Nesting and dependencies are: a variant does not
 become deeper or import more simply by being polished. Note also what
 the same measurement showed about strategies -- with the right axes,
 `fixed`, `adaptive` and `cvt` all scored identically (7.84). The
@@ -321,13 +375,27 @@ and the columns come from the run. **It moves no existing centroid**, so
 what was already placed stays placed; that property is what makes
 growing safe, and `test_code_grid.py::TestExtension` pins it.
 
-Two things extension deliberately does not do. It never adds *columns*:
-a categorical value the frozen population never saw has no column, and
-minting one would change the vector space and move every point in it --
-so growth adds regions, never dimensions. And it stops at
-`EXTENSION_CEILING_FACTOR` times the declared cell count, because
-unbounded growth is re-clustering under another name and an archive with
-a cell per variant has stopped compressing anything.
+**Growth adds dimensions too, and appending one is exactly
+distance-preserving.** A categorical value the frozen population never
+saw has no column, so every unfamiliar value reads zero across that
+feature and they all share one corner of the space: "an operator this
+run has never used" is the same point as any other unknown. A metric a
+program only starts reporting later has the same problem. `extend`
+therefore mints columns for both -- and appending is safe because a
+variant already placed does not report the new column's feature, so it
+reads the *absent* value there, and so does every padded centroid. Each
+new coordinate contributes exactly zero to every distance that already
+existed; `test_code_grid.py::TestColumnGrowth` asserts that with `==`,
+not approximately, because approximately-preserved is how a frozen grid
+starts drifting again. The padding is per column kind: a category a
+variant is not reads zero, an unreported quantity sits mid-range.
+
+Centroid growth does stop at `EXTENSION_CEILING_FACTOR` times the
+declared cell count, because unbounded growth is re-clustering under
+another name and an archive with a cell per variant has stopped
+compressing anything. Column growth has no such ceiling: a column is a
+distinction the run actually observed, and refusing to represent it is
+the blindness this exists to remove.
 
 ## Proposing a variant
 
@@ -464,21 +532,31 @@ Two rules it keeps:
   is emitted only after the save, so it can never announce one that was
   not written.
 
-## Known limits
+## What was measured and settled
 
-- **Behaviour is measured, not learned.** The features are hand-written.
-  A learned descriptor would capture similarity they miss; an embedding
-  specifically was tried against this and rejected, because a few dozen
-  points in a thousand dimensions have no usable distances.
-- **The fingerprint is syntactic.** It separates a recursion from a
-  loop, and a comprehension-heavy rewrite from a nested one, because
-  those differ in the shape of the tree. It cannot separate two programs
-  that compute different things in the same shape -- no static analysis
-  can, in general -- and eight buckets collide by construction. The
-  escape hatch is a `metric:<key>` axis: a program can report whatever
-  distinguishes it and be niched on that directly.
-- **Growth adds regions, not dimensions.** A frozen projection can gain
-  cells for new behaviour, but a categorical value the frozen population
-  never saw still has no column of its own. Minting one would change the
-  vector space and move every point already in it, which is the
-  instability freezing exists to remove.
+Three things that read like limitations of the design are settled
+questions with numbers behind them, and it is worth knowing which is
+which before reopening one.
+
+- **The axes are hand-written rather than learned, and that costs
+  nothing.** Learning them was measured against choosing them: given the
+  curated features a learner scores identically to the hand-written
+  grid, and given every available feature it collapses onto the
+  refinement direction. What to measure is the decision; how to combine
+  it is not. See "Learning the axes" above.
+- **The structural fingerprint cannot separate two programs that compute
+  different things in the same shape, and nothing static can** -- that
+  is undecidable, not unimplemented. `metric:*` closes it from the other
+  side, with what the programs reported having run.
+- **A frozen tessellation grows rather than being rebuilt.** It gains
+  cells for new behaviour and columns for values it had never seen, and
+  moves nothing already placed. What it will never do is re-cluster,
+  because a cell that can move is not an identity, and every number
+  built on cell counts stops being comparable across a run.
+
+Remaining, and genuinely open: the fingerprint's eight buckets collide
+by construction, so two unrelated algorithms can share a shape vector.
+The cost is bounded -- they are one axis of several, and a colliding
+pair is still separated by anything else that differs -- and widening
+the fingerprint trades that for a sparser space, which is the concentration
+problem the eight buckets exist to avoid.

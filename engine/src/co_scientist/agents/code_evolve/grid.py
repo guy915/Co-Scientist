@@ -57,11 +57,20 @@ from dataclasses import dataclass, field, replace
 from enum import Enum
 from typing import Any
 
-from co_scientist.agents.code_evolve import tessellation
+from co_scientist.agents.code_evolve import (
+    tessellation,
+    tessellation_growth,
+)
 from co_scientist.agents.code_evolve.behaviour import (
+    METRIC_PREFIX,
     is_categorical,
     is_vector,
 )
+
+# Descriptor feature meaning "one axis per metric the programs report".
+# Resolved against observed behaviour rather than declared, because
+# which keys exist is only knowable once something has run.
+METRIC_WILDCARD = f"{METRIC_PREFIX}*"
 
 # Default number of CVT cells. Small on purpose: a discovery run
 # evaluates tens of variants, and an archive with more cells than
@@ -106,10 +115,16 @@ class Descriptor:
         bins: Ascending edges, used by the ``fixed`` strategy. Under
             ``adaptive`` their *count* sets the resolution; under
             ``cvt`` they are ignored entirely.
+        exclude: For ``metric:*`` only -- metric names it must not
+            expand to.
     """
 
     feature: str
     bins: tuple[float, ...] = ()
+    # Metric names the ``metric:*`` wildcard must not expand to --
+    # in practice the run's own objectives, whose values are its score.
+    # Ignored by every other feature.
+    exclude: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -169,6 +184,16 @@ DEFAULT_DESCRIPTORS: tuple[Descriptor, ...] = (
     Descriptor(feature="imports"),
     Descriptor(feature="recursion"),
     Descriptor(feature="ast_shape"),
+    # The one axis that is not a reading of the program's text. Every
+    # feature above describes shape, and two programs in the same shape
+    # that compute different things are the case no static analysis can
+    # separate -- measured on a landscape built from exactly that pair
+    # (`test_code_archive_basins.py`), structural axes alone end at the
+    # decoy's ceiling in 60 of 60 runs while this one escapes in 55.
+    # It expands to nothing when a run's programs report only their
+    # objective, so it costs a run that has no second measurement
+    # nothing at all.
+    Descriptor(feature=METRIC_WILDCARD),
 )
 
 DEFAULT_GRID = Grid(descriptors=DEFAULT_DESCRIPTORS)
@@ -247,12 +272,52 @@ def _adaptive_edges(
     return _quantile_edges(observed, max(2, len(descriptor.bins) + 1))
 
 
+def _expand_metrics(
+    descriptor: Descriptor, behaviours: Sequence[Behaviour]
+) -> list[Descriptor]:
+    """Resolves ``metric:*`` against what the programs actually reported.
+
+    The one axis that is not a guess about a program's text: a metric is
+    something the program computed and wrote down, so two variants with
+    identical syntax that compute different things are different here
+    and nowhere else. Which keys exist is only knowable at runtime,
+    which is why this is a wildcard rather than a declaration.
+
+    ``exclude`` carries the objectives' own metrics, and dropping them
+    is not an optimization -- an objective's value *is* the variant's
+    score, so niching on it niches by progress, the failure the module
+    docstring measures.
+    """
+    keys = {
+        key
+        for behaviour in behaviours
+        for key in behaviour
+        if key.startswith(METRIC_PREFIX)
+    }
+    wanted = keys - {f"{METRIC_PREFIX}{name}" for name in descriptor.exclude}
+    return [Descriptor(feature=key) for key in sorted(wanted)]
+
+
+def _resolved(
+    descriptors: Sequence[Descriptor], behaviours: Sequence[Behaviour]
+) -> list[Descriptor]:
+    """The declared axes with every wildcard replaced by what it names."""
+    resolved: list[Descriptor] = []
+    for descriptor in descriptors:
+        if descriptor.feature == METRIC_WILDCARD:
+            resolved.extend(_expand_metrics(descriptor, behaviours))
+        else:
+            resolved.append(descriptor)
+    return resolved
+
+
 def _feature_kinds(
     descriptors: Sequence[Descriptor],
+    behaviours: Sequence[Behaviour] = (),
 ) -> list[tuple[str, str]]:
     """Pairs each descriptor with the column kind it projects to."""
     kinds = []
-    for descriptor in descriptors:
+    for descriptor in _resolved(descriptors, behaviours):
         if is_categorical(descriptor.feature):
             kinds.append((descriptor.feature, tessellation.CATEGORY))
         elif is_vector(descriptor.feature):
@@ -313,7 +378,7 @@ def assign_cells(
         labels = tessellation.nearest(points, grid.projection.centroids)
     else:
         columns = tessellation.derive_columns(
-            behaviours, _feature_kinds(grid.descriptors)
+            behaviours, _feature_kinds(grid.descriptors, behaviours)
         )
         labels, _ = tessellation.cluster(
             tessellation.project(behaviours, columns), grid.cells
@@ -348,7 +413,7 @@ def freeze(behaviours: Sequence[Behaviour], grid: Grid) -> Grid:
     ):
         return grid
     columns = tessellation.derive_columns(
-        behaviours, _feature_kinds(grid.descriptors)
+        behaviours, _feature_kinds(grid.descriptors, behaviours)
     )
     _, centroids = tessellation.cluster(
         tessellation.project(behaviours, columns), grid.cells
@@ -390,7 +455,7 @@ def extend(behaviours: Sequence[Behaviour], grid: Grid) -> Grid:
     """
     if grid.strategy is not GridStrategy.CVT or not grid.projection:
         return grid
-    grown = tessellation.extend(
+    grown = tessellation_growth.extend(
         grid.projection,
         behaviours,
         grid.cells * EXTENSION_CEILING_FACTOR,

@@ -135,7 +135,40 @@ def test_absent_descriptors_fall_back_to_the_defaults(db: str) -> None:
         "imports",
         "recursion",
         "ast_shape",
+        "metric:*",
     ]
+
+
+def test_the_metric_wildcard_is_told_which_metrics_are_the_score(
+    db: str,
+) -> None:
+    # An objective's value *is* the variant's score, so expanding the
+    # wildcard onto it would niche by progress -- through the one axis
+    # nobody declared.
+    from app.discovery_spec import descriptors
+
+    axes = descriptors(
+        {
+            "discovery": {
+                "objectives": [
+                    {"metric": "score", "direction": "maximize"},
+                    {"metric": "seconds", "direction": "minimize"},
+                ]
+            }
+        }
+    )
+    wildcard = next(a for a in axes if a.feature == "metric:*")
+    assert wildcard.exclude == ("score", "seconds")
+
+
+def test_a_single_objective_is_excluded_too(db: str) -> None:
+    from app.discovery_spec import descriptors
+
+    axes = descriptors(
+        {"discovery": {"objective": {"metric": "score"}}},
+    )
+    wildcard = next(a for a in axes if a.feature == "metric:*")
+    assert wildcard.exclude == ("score",)
 
 
 def test_a_non_clustering_strategy_gets_only_the_scalar_defaults(

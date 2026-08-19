@@ -15,10 +15,12 @@ uniform absence of progress across hundreds of variants.
 
 from __future__ import annotations
 
+from dataclasses import replace
 from typing import Any
 
 from co_scientist.agents.code_evolve import (
     DEFAULT_CELLS,
+    METRIC_WILDCARD,
     Descriptor,
     Grid,
     GridStrategy,
@@ -195,6 +197,42 @@ def _descriptor(raw: Any, index: int) -> Descriptor:
     )
 
 
+def _objective_metric_names(block: dict[str, Any]) -> tuple[str, ...]:
+    """The metrics this run scores on, read without raising.
+
+    Feeds the ``metric:*`` wildcard's exclusion list: an objective's
+    value *is* the variant's score, so niching on it niches by progress
+    -- the failure the grid module measures -- and it would arrive
+    through the one axis nobody declared.
+
+    Deliberately tolerant where ``_objectives`` is strict: a malformed
+    objective is already refused when the run is created, and this is
+    also reached from read-only paths where raising would be new.
+    """
+    raw = block.get("objectives")
+    items = raw if isinstance(raw, list) else [block.get("objective")]
+    return tuple(
+        item["metric"]
+        for item in items
+        if isinstance(item, dict)
+        and isinstance(item.get("metric"), str)
+        and item["metric"]
+    )
+
+
+def _with_objectives_excluded(
+    axes: tuple[Descriptor, ...], block: dict[str, Any]
+) -> tuple[Descriptor, ...]:
+    """Tells the metric wildcard which metrics are this run's score."""
+    names = _objective_metric_names(block)
+    return tuple(
+        replace(axis, exclude=names)
+        if axis.feature == METRIC_WILDCARD
+        else axis
+        for axis in axes
+    )
+
+
 def descriptors(
     config: dict[str, Any] | None,
     strategy: GridStrategy = GridStrategy.CVT,
@@ -214,14 +252,18 @@ def descriptors(
             falling back would leave a run niching along axes its author
             did not choose and has no way to notice.
     """
-    raw = (discovery_config(config) or {}).get("descriptors")
+    block = discovery_config(config) or {}
+    raw = block.get("descriptors")
     if raw is None:
-        return tuple(default_descriptors_for(strategy))
+        return _with_objectives_excluded(
+            tuple(default_descriptors_for(strategy)), block
+        )
     if not isinstance(raw, list) or not raw:
         raise DiscoverySpecError(
             "discovery.descriptors must be a non-empty list when present"
         )
-    return tuple(_descriptor(item, index) for index, item in enumerate(raw))
+    declared = tuple(_descriptor(item, index) for index, item in enumerate(raw))
+    return _with_objectives_excluded(declared, block)
 
 
 def _grid_strategy(raw: Any) -> GridStrategy:
