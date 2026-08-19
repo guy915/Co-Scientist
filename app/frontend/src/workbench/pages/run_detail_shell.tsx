@@ -4,7 +4,7 @@ import {type RunStatus} from '@/api/runs';
 import {Icon, type IconName} from '@/components/icon';
 import {TruncatedLabel} from '../components/truncated_label';
 import {useIsMobile} from '../hooks/use_is_mobile';
-import {TABS, tabPath, type TabName} from '../run_tabs';
+import {tabPath, type TabName} from '../run_tabs';
 import {
   REPORT_DOCUMENT_CLASSES,
   REPORT_H2_CLASSES,
@@ -17,6 +17,7 @@ const TAB_META: Record<TabName, {icon: IconName; label: string}> = {
   learning: {icon: 'menu_book', label: 'Learning'},
   overview: {icon: 'summarize', label: 'Research Overview'},
   ideas: {icon: 'lightbulb', label: 'All Ideas'},
+  variants: {icon: 'science', label: 'Variants'},
 };
 
 /**
@@ -218,16 +219,20 @@ export function ReportTitlebar({
 export function ReportTabNav({
   activeTab,
   onTabChange,
+  tabs,
 }: {
   activeTab: TabName;
   onTabChange: (tab: TabName) => void;
+  // Which tabs this run has. Passed in rather than read from the
+  // module-level TABS so the nav renders exactly what the run supports.
+  tabs: readonly TabName[];
 }) {
   // Read from the route rather than a prop so the nav's own signature (and
   // its call site) stays as it was.
   const {id} = useParams<{id: string}>();
   return (
     <nav className={REPORT_TABS_CLASSES} aria-label="Goal report sections">
-      {TABS.map(tabName => (
+      {tabs.map(tabName => (
         <Link
           key={tabName}
           to={tabPath(id ?? '', tabName)}

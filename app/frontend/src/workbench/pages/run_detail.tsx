@@ -27,7 +27,8 @@ import {
   useTabNavigation,
 } from './run_detail_shell';
 import {RunSpecificationsView} from './run_detail_specifications';
-import {normalizeTab, type TabName} from '../run_tabs';
+import {VariantsSection} from './run_detail_variants';
+import {normalizeTab, tabsForRun, type TabName} from '../run_tabs';
 
 // max-[700px]:overflow-x-auto (not overflow-hidden): the ancestor .ucs-page
 // --report was given a horizontal-scroll fallback for content that shrinks
@@ -47,6 +48,13 @@ const REPORT_SCROLL_CLASSES =
 const ALL_IDEAS_CLASSES = 'cosci-all-ideas h-full p-0 max-[700px]:h-auto';
 
 type RunDetailData = ReturnType<typeof useRunDetailData>;
+
+// Whether a run evolves programs rather than ideas. Read from the config
+// key that makes it one, so the nav cannot disagree with what the backend
+// actually scheduled.
+function isDiscoveryRun(run: RunWithSummary | null): boolean {
+  return run?.config?.discovery !== undefined;
+}
 
 // Whether the run is executing. 'unknown' is a real third state: until the
 // run row (or the shell's history) says otherwise, neither the results chrome
@@ -168,7 +176,11 @@ export function RunDetail() {
       />
 
       {showTabs && (
-        <ReportTabNav activeTab={activeTab} onTabChange={onTabChange} />
+        <ReportTabNav
+          activeTab={activeTab}
+          onTabChange={onTabChange}
+          tabs={tabsForRun(isDiscoveryRun(data.run))}
+        />
       )}
 
       <ReportErrorAlert message={data.error} />
@@ -255,41 +267,48 @@ function IdeasSection({
   );
 }
 
+// One tab's content, given the loaded run data. A table rather than an
+// if-chain so adding a tab is one entry and a missing one is a compile
+// error -- the same reason TAB_META is keyed by TabName.
+const TAB_SECTIONS: Record<
+  TabName,
+  (ideasViewKey: number, data: RunDetailData) => React.ReactNode
+> = {
+  details: (_key, data) => (
+    <RunSpecificationsView
+      run={data.run}
+      safety={data.safety}
+      onSafetyChanged={data.refreshNow}
+    />
+  ),
+  learning: (_key, data) => (
+    <LearningView
+      goal={runGoal(data.run)}
+      evidence={data.evidence}
+      report={data.report}
+    />
+  ),
+  overview: (_key, data) => (
+    <ResearchOverviewView
+      run={data.run}
+      report={data.report}
+      hypotheses={data.hypotheses}
+      matches={data.matches}
+    />
+  ),
+  ideas: (ideasViewKey, data) => (
+    <IdeasSection ideasViewKey={ideasViewKey} data={data} />
+  ),
+  variants: (_key, data) => <VariantsSection runId={data.run?.id ?? ''} />,
+};
+
 // The active tab's content section.
 function tabSection(
   activeTab: TabName,
   ideasViewKey: number,
   data: RunDetailData,
 ) {
-  if (activeTab === 'details') {
-    return (
-      <RunSpecificationsView
-        run={data.run}
-        safety={data.safety}
-        onSafetyChanged={data.refreshNow}
-      />
-    );
-  }
-  if (activeTab === 'learning') {
-    return (
-      <LearningView
-        goal={runGoal(data.run)}
-        evidence={data.evidence}
-        report={data.report}
-      />
-    );
-  }
-  if (activeTab === 'overview') {
-    return (
-      <ResearchOverviewView
-        run={data.run}
-        report={data.report}
-        hypotheses={data.hypotheses}
-        matches={data.matches}
-      />
-    );
-  }
-  return <IdeasSection ideasViewKey={ideasViewKey} data={data} />;
+  return TAB_SECTIONS[activeTab](ideasViewKey, data);
 }
 
 // Active tab content for a loaded run. Keying <main> by activeTab remounts it

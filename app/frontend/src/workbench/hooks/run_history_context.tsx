@@ -87,3 +87,18 @@ export function useRunHistoryContext(): RunHistoryContextValue {
   }
   return ctx;
 }
+
+/**
+ * Reads the run history when there is one, and an empty list otherwise.
+ *
+ * For consumers that only *refine* their behaviour with the history and
+ * have a correct answer without it. The throwing reader above is right
+ * for a view that would render wrong data without the context; a global
+ * keyboard handler is not that -- taking the whole shell down over a
+ * missing provider is a worse failure than cycling one tab too few.
+ *
+ * @returns The loaded run history, or `[]` outside a provider.
+ */
+export function useOptionalRunHistory(): Run[] {
+  return useContext(RunHistoryContext)?.history ?? [];
+}

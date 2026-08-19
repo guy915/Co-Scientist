@@ -15,6 +15,20 @@ import type {
   RunTier,
   RunWithSummary,
 } from './run_types';
+export type {
+  AgentInsights,
+  IdeaBucketEntry,
+  KnowledgeBaseTopic,
+  RecommendedDirection,
+  Report,
+  ReportPayload,
+  ResearchOverview,
+} from './report_types';
+export type {
+  CodeVariant,
+  DiscoveryConfig,
+  VariantStage,
+} from './discovery_types';
 import {
   API_BASE_URL,
   byokHeaders,
@@ -28,7 +42,6 @@ import {
 // '@/api/runs'` alongside the API functions below, without a second import
 // from './run_types'.
 export type {
-  AgentInsights,
   Audience,
   ChatSummary,
   ClaimEvidenceRow,
@@ -38,18 +51,12 @@ export type {
   InterviewDocument,
   InterviewFields,
   InterviewTurn,
-  IdeaBucketEntry,
   JsonPrimitive,
   JsonValue,
-  KnowledgeBaseTopic,
   LegacyRunProfile,
   MatchRow,
   ProximityEdge,
-  RecommendedDirection,
-  Report,
-  ReportPayload,
   ReportShare,
-  ResearchOverview,
   Review,
   Run,
   RunConfig,
@@ -92,6 +99,8 @@ export {
   createReportShare,
   fetchReportMarkdown,
   getClaimEvidence,
+  getCodeVariant,
+  getCodeVariants,
   getEvidence,
   getHypotheses,
   getMatches,

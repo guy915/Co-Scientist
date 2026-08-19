@@ -2,7 +2,7 @@ import {render, screen} from '@testing-library/react';
 import {it, expect, vi} from 'vitest';
 import {MemoryRouter, Route, Routes} from 'react-router-dom';
 import {ReportTabNav} from './run_detail_shell';
-import type {TabName} from '../run_tabs';
+import {tabsForRun, type TabName} from '../run_tabs';
 
 // The tab strip is a 4-column grid with min-w-0 cells and no width floor on
 // the label span, sitting inside ancestors that clip horizontal overflow
@@ -17,14 +17,21 @@ vi.mock('../components/truncated_label', () => ({
   ),
 }));
 
-function renderTabs(activeTab: TabName = 'details') {
+function renderTabs(
+  activeTab: TabName = 'details',
+  tabs: readonly TabName[] = tabsForRun(false),
+) {
   return render(
     <MemoryRouter initialEntries={[`/runs/run-1/${activeTab}`]}>
       <Routes>
         <Route
           path="/runs/:id/:tab"
           element={
-            <ReportTabNav activeTab={activeTab} onTabChange={() => {}} />
+            <ReportTabNav
+              activeTab={activeTab}
+              onTabChange={() => {}}
+              tabs={tabs}
+            />
           }
         />
       </Routes>

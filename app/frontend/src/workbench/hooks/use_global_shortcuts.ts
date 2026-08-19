@@ -4,7 +4,8 @@ import {
   useLocation,
   useNavigate,
 } from 'react-router-dom';
-import {TABS, normalizeTab, type TabName} from '../run_tabs';
+import {normalizeTab, tabsForRun, type TabName} from '../run_tabs';
+import {useOptionalRunHistory} from './run_history_context';
 
 /**
  * Global keyboard shortcuts, bound on `document` regardless of what has
@@ -90,24 +91,33 @@ function parseRunTabRoute(
 }
 
 // Index of the tab adjacent to `currentIdx` in the given arrow direction,
-// clamped at the ends of TABS rather than wrapping around.
-function adjacentTabIndex(currentIdx: number, key: string): number {
+// clamped at the ends of the list rather than wrapping around.
+function adjacentTabIndex(
+  currentIdx: number,
+  key: string,
+  tabCount: number,
+): number {
   return key === 'ArrowRight'
-    ? Math.min(TABS.length - 1, currentIdx + 1)
+    ? Math.min(tabCount - 1, currentIdx + 1)
     : Math.max(0, currentIdx - 1);
 }
 
 // Resolves an ArrowLeft/ArrowRight press on a /runs/:id(/:tab) route to the
 // path for the adjacent tab, or null when the key/route doesn't apply or the
-// current tab is already at that end of TABS (no wraparound).
-function nextTabPath(pathname: string, key: string): string | null {
+// current tab is already at that end of the list (no wraparound).
+function nextTabPath(
+  pathname: string,
+  key: string,
+  tabs: readonly TabName[],
+): string | null {
   if (!TAB_CYCLE_KEYS.includes(key)) return null;
   const route = parseRunTabRoute(pathname);
   if (!route) return null;
-  const idx = TABS.indexOf(route.current);
-  const next = adjacentTabIndex(idx, key);
+  const idx = tabs.indexOf(route.current);
+  if (idx === -1) return null;
+  const next = adjacentTabIndex(idx, key, tabs.length);
   if (next === idx) return null;
-  const nextTab = TABS[next];
+  const nextTab = tabs[next];
   return `/runs/${route.id}/${nextTab}`;
 }
 
@@ -121,6 +131,7 @@ function nextTabPath(pathname: string, key: string): string | null {
 function createKeyDownHandler(
   navigate: NavigateFunction,
   pathname: string,
+  tabs: readonly TabName[],
 ): (e: KeyboardEvent) => void {
   let lastG = 0;
   return e => {
@@ -144,7 +155,7 @@ function createKeyDownHandler(
     }
 
     // Tab nav while on a run page.
-    const path = nextTabPath(pathname, e.key);
+    const path = nextTabPath(pathname, e.key, tabs);
     if (path) {
       e.preventDefault();
       void navigate(path);
@@ -159,13 +170,24 @@ function createKeyDownHandler(
 export function useGlobalShortcuts() {
   const navigate = useNavigate();
   const location = useLocation();
+  // Cycles the tabs this run actually shows. Reading the run from the
+  // shared history rather than from a fetch keeps the shortcut free of
+  // its own request -- and a run the history has not loaded yet simply
+  // cycles the tabs every run has, which is the safe default: the worst
+  // case is that a discovery run's last tab is briefly unreachable by
+  // keyboard, not that any run cycles into a tab it does not have.
+  const history = useOptionalRunHistory();
+  const runId = parseRunTabRoute(location.pathname)?.id;
+  const isDiscovery =
+    history.find(run => run.id === runId)?.config?.discovery !== undefined;
+  const tabs = tabsForRun(isDiscovery);
 
   // Re-runs (removing and re-adding the single document keydown listener) on
   // every pathname change so the handler closure always sees the current
   // route; cleanup on unmount removes the last listener.
   useEffect(() => {
-    const onKeyDown = createKeyDownHandler(navigate, location.pathname);
+    const onKeyDown = createKeyDownHandler(navigate, location.pathname, tabs);
     document.addEventListener('keydown', onKeyDown);
     return () => document.removeEventListener('keydown', onKeyDown);
-  }, [navigate, location.pathname]);
+  }, [navigate, location.pathname, tabs]);
 }

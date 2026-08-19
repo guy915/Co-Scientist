@@ -8,12 +8,13 @@ import type {
   Hypothesis,
   MatchRow,
   ProximityEdge,
-  Report,
   ReportShare,
   Review,
   SafetyDecision,
   SharedGoalReport,
 } from './run_types';
+import type {CodeVariant} from './discovery_types';
+import type {Report} from './report_types';
 import {
   API_BASE_URL,
   assertOk,
@@ -46,6 +47,32 @@ function getRunList<T>(id: string, key: string): Promise<T[]> {
  */
 export function getHypotheses(id: string): Promise<Hypothesis[]> {
   return getRunList<Hypothesis>(id, 'hypotheses');
+}
+
+/**
+ * Fetches a discovery run's code variants, in attempt order.
+ *
+ * @param id Run identifier.
+ * @returns Every attempt the run made, failures included.
+ */
+export function getCodeVariants(id: string): Promise<CodeVariant[]> {
+  return getRunList<CodeVariant>(id, 'variants');
+}
+
+/**
+ * Fetches one variant with its metrics, artifacts, and full source.
+ *
+ * @param id Run identifier.
+ * @param variantId Variant identifier.
+ * @returns The variant's detail record.
+ */
+export function getCodeVariant(
+  id: string,
+  variantId: string,
+): Promise<CodeVariant> {
+  return fetchJson<CodeVariant>(`/api/runs/${id}/variants/${variantId}`, {
+    headers: clientHeaders(),
+  });
 }
 
 /**

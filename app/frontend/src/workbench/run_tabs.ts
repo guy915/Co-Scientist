@@ -4,7 +4,13 @@
 // renders the tabs) and the global keyboard shortcuts (which cycle them).
 
 // Canonical tab route segments, in the order the nav bar renders them.
-export const TABS = ['details', 'learning', 'overview', 'ideas'] as const;
+export const TABS = [
+  'details',
+  'learning',
+  'overview',
+  'ideas',
+  'variants',
+] as const;
 
 /** Canonical tab names for the goal-report surface's tab routes. */
 export type TabName = (typeof TABS)[number];
@@ -19,6 +25,7 @@ const TAB_ALIASES: Record<string, TabName> = {
   summary: 'overview',
   report: 'overview',
   hypotheses: 'ideas',
+  programs: 'variants',
 };
 
 /**
@@ -40,4 +47,20 @@ export function normalizeTab(tab: string | undefined): TabName {
  */
 export function tabPath(id: string, tab: string | undefined): string {
   return `/runs/${id}/${normalizeTab(tab)}`;
+}
+
+/**
+ * The tabs a given run actually shows.
+ *
+ * "Variants" exists only for a computational-discovery run: on a
+ * hypothesis run it would be a permanently empty tab, and an empty tab is
+ * indistinguishable from a broken one. Gated on the config key that makes
+ * a run a discovery run in the first place, so the nav cannot disagree
+ * with what the backend scheduled.
+ *
+ * @param isDiscovery Whether the run evolves programs rather than ideas.
+ * @returns The tabs to render, in nav order.
+ */
+export function tabsForRun(isDiscovery: boolean): readonly TabName[] {
+  return isDiscovery ? TABS : TABS.filter(tab => tab !== 'variants');
 }
