@@ -396,14 +396,49 @@ def _migrate_variant_archive_columns(conn: sqlite3.Connection) -> None:
     ``code_variant_state`` shipped with only a scalar ``fitness``, so any
     database created before multi-objective search has the table without
     these columns -- and ``CREATE TABLE IF NOT EXISTS`` in ``_SCHEMA``
-    will not add them to a table that already exists. ``objective_values_json``
-    carries every objective's sign-corrected score for Pareto dominance;
-    ``niche_json`` carries the archive cell the variant occupies.
+    will not add them to a table that already exists.
+    ``objective_values_json`` carries every objective's sign-corrected
+    score for Pareto dominance; ``behaviour_json`` carries the raw
+    behaviour the archive niches by.
+
+    ``niche_json`` is dropped where an earlier build added it. It held a
+    cell id computed at evaluation time, which an adaptive grid makes
+    wrong by the next generation -- keeping it would leave two sources
+    of truth for one fact, with the stale one indistinguishable from
+    the live one. Dropping is best-effort: startup work must never be
+    fatal, and serving with one vestigial column beats not serving.
     """
     _add_column_if_missing(
         conn, "code_variant_state", "objective_values_json", "TEXT"
     )
-    _add_column_if_missing(conn, "code_variant_state", "niche_json", "TEXT")
+    _add_column_if_missing(conn, "code_variant_state", "behaviour_json", "TEXT")
+    _drop_column_if_present(conn, "code_variant_state", "niche_json")
+
+
+def _drop_column_if_present(
+    conn: sqlite3.Connection, table: str, column: str
+) -> bool:
+    """Removes a column that a superseded build added, idempotently.
+
+    Returns:
+        Whether the column was dropped.
+
+    Never fatal. DROP COLUMN needs SQLite 3.35, and refuses a column an
+    index or a view depends on; neither is a reason to fail startup, so
+    both are logged and the vestigial column stays.
+    """
+    columns = {row[1] for row in conn.execute(f"PRAGMA table_info({table})")}
+    if column not in columns:
+        return False
+    try:
+        conn.execute(f"ALTER TABLE {table} DROP COLUMN {column}")
+    except sqlite3.Error as exc:
+        logger.warning(
+            "could not drop superseded column %s.%s: %s", table, column, exc
+        )
+        return False
+    logger.info("migration: dropped superseded column %s.%s", table, column)
+    return True
 
 
 def _run_migrations(conn: sqlite3.Connection) -> None:

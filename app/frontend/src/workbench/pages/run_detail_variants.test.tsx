@@ -24,7 +24,7 @@ function variant(over: Partial<CodeVariant>): CodeVariant {
     duration_seconds: null,
     stages: [],
     objective_values: [over.fitness ?? null],
-    niche: [],
+    behaviour: {},
     ...over,
   };
 }
@@ -202,6 +202,32 @@ describe('VariantsView, multi-objective', () => {
       />,
     );
     expect(screen.getByText(/Best accuracy 4/)).toBeInTheDocument();
+  });
+
+  it('warns when many cells hide one dominant pile', () => {
+    // A high cell count reads as exploration unless the evenness is
+    // shown beside it -- the false reassurance the archive removes.
+    render(
+      <VariantsView
+        variants={[variant({ordinal: 1, fitness: 1})]}
+        nichesOccupied={6}
+        nicheEvenness={0.1}
+      />,
+    );
+    expect(
+      screen.getByText(/Most attempts landed in one of them/),
+    ).toBeInTheDocument();
+  });
+
+  it('stays quiet when the spread is genuinely even', () => {
+    render(
+      <VariantsView
+        variants={[variant({ordinal: 1, fitness: 1})]}
+        nichesOccupied={6}
+        nicheEvenness={0.9}
+      />,
+    );
+    expect(screen.queryByText(/Most attempts landed/)).not.toBeInTheDocument();
   });
 
   it('reports how much of the behaviour space was explored', () => {

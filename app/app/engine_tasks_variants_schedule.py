@@ -60,10 +60,9 @@ def budget_value(config: dict[str, Any] | None, key: str, fallback: int) -> int:
 def _archive_entries(variants: list[dict[str, Any]]) -> list[Any]:
     """Rebuilds the archive's view of a run from stored rows.
 
-    The niche was computed once, at evaluation time, and stored -- so
-    this reads it back rather than recomputing a grid over every variant
-    on every generation. The other fields are what dominance and the
-    elite comparison need.
+    Behaviour is read back raw; the cell it lands in is computed by the
+    grid, because under an adaptive or CVT strategy a variant's cell
+    depends on every other variant and cannot be frozen at write time.
     """
     from co_scientist.agents.code_evolve import ArchiveEntry
 
@@ -72,7 +71,7 @@ def _archive_entries(variants: list[dict[str, Any]]) -> list[Any]:
             variant_id=str(v["id"]),
             fitness=v["fitness"],
             objective_values=tuple(v.get("objective_values") or [v["fitness"]]),
-            operator=v.get("operator"),
+            behaviour=dict(v.get("behaviour") or {}),
             ordinal=int(v["ordinal"]),
         )
         for v in variants
@@ -101,13 +100,34 @@ def select_parents(
     """
     from co_scientist.agents.code_evolve import select_parents as choose
 
-    from app.discovery_spec import descriptors
+    from app.discovery_spec import grid
 
     by_id = {str(v["id"]): v for v in variants}
-    chosen = choose(
-        _archive_entries(variants), count, descriptors=descriptors(config)
-    )
+    chosen = choose(_archive_entries(variants), count, grid=grid(config))
     return [by_id[entry.variant_id] for entry in chosen]
+
+
+def archive_summary(
+    variants: list[dict[str, Any]], config: dict[str, Any] | None
+) -> tuple[int, float]:
+    """How many archive cells a run reached, and how evenly.
+
+    Both numbers, because either alone misleads: a high cell count can
+    still be a collapsed run if almost every variant shares one cell,
+    and a high evenness over two cells is not coverage. See
+    ``grid.coverage`` for the measure.
+    """
+    from co_scientist.agents.code_evolve import archive_coverage
+
+    from app.discovery_spec import grid
+
+    scored = [v for v in variants if v.get("behaviour")]
+    if not scored:
+        return 0, 0.0
+    occupied, evenness = archive_coverage(
+        _archive_entries(scored), grid=grid(config)
+    )
+    return int(occupied), float(evenness)
 
 
 def pareto_variant_ids(variants: list[dict[str, Any]]) -> set[str]:

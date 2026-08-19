@@ -37,9 +37,11 @@ export interface CodeVariant {
   // `fitness` is the first entry. Higher is better on every axis, so a
   // minimized metric arrives negated.
   objective_values: (number | null)[];
-  // The archive cell this variant occupies, one coordinate per
-  // descriptor. Empty for a variant evaluated before niching existed.
-  niche: (string | number)[];
+  // Raw behaviour measurements: what move produced this variant, how
+  // deeply nested it is, what it depends on. Not the archive cell --
+  // under an adaptive grid a variant's cell depends on every other
+  // variant, so it is derived when read, never stored.
+  behaviour: Record<string, string | number>;
   // Whether no other variant beats it on every objective at once. A
   // property of the whole set, so it is computed per response rather
   // than stored -- one new variant can take an older one off the front.
@@ -71,6 +73,11 @@ export interface CodeVariantPage {
   // Distinct archive cells reached. The number the diversity mechanism
   // exists to move, so it is reported rather than inferred.
   niches_occupied: number;
+  // How evenly those cells are filled, 0 to 1. Reported beside the
+  // count because the count alone can be high while the run is still
+  // collapsed: forty variants in one cell and one in each of five
+  // others reaches six cells and has explored almost nothing.
+  niche_evenness: number;
 }
 
 /** What a discovery run optimizes, and how it measures it. */
@@ -78,6 +85,7 @@ export interface DiscoveryConfig {
   objective?: {metric?: string; direction?: string};
   objectives?: {metric?: string; direction?: string}[];
   descriptors?: {feature?: string; bins?: number[]}[];
+  grid?: {strategy?: string; cells?: number};
   stages?: {name?: string; argv?: string[]}[];
   metrics_path?: string;
   seed_source?: Record<string, string>;

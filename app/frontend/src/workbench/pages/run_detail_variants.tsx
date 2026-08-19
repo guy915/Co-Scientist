@@ -143,6 +143,35 @@ function progressSummary(
   return scoreSummary(variants, best, metric) + coverageSummary(nichesOccupied);
 }
 
+// Says so when a run reached several cells but piled almost everything
+// into one. Without it a high cell count reads as exploration, which is
+// exactly the false reassurance the archive was built to remove.
+function coverageCaveat(nichesOccupied: number, evenness: number): string {
+  if (nichesOccupied < 2 || evenness >= 0.5) return '';
+  return ' Most attempts landed in one of them.';
+}
+
+function TradeoffSection({
+  variants,
+  objectives,
+}: {
+  variants: CodeVariant[];
+  objectives: CodeVariantPage['objectives'];
+}) {
+  if (objectives.length < 2) return null;
+  return (
+    <section className={REPORT_SECTION_CLASSES}>
+      <h3 className={REPORT_H3_CLASSES}>The trade-off</h3>
+      <VariantsTradeoff variants={variants} objectives={objectives} />
+      <p className="text-sm text-cosci-muted">
+        This run optimizes {objectives.length} things at once, so there is no
+        single best program. The highlighted attempts are the ones nothing beats
+        on every objective — the real choices.
+      </p>
+    </section>
+  );
+}
+
 function NoVariantsYet() {
   return (
     <ReportDocument title="Variants">
@@ -166,10 +195,12 @@ export function VariantsView({
   variants,
   objectives = [],
   nichesOccupied = 0,
+  nicheEvenness = 0,
 }: {
   variants: CodeVariant[];
   objectives?: CodeVariantPage['objectives'];
   nichesOccupied?: number;
+  nicheEvenness?: number;
 }) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const best = useMemo(
@@ -193,20 +224,11 @@ export function VariantsView({
         <h3 className={REPORT_H3_CLASSES}>Best score over time</h3>
         <VariantsPlot variants={variants} />
         <p className="text-sm text-cosci-muted">
-          {progressSummary(variants, best, objectives, nichesOccupied)}
+          {progressSummary(variants, best, objectives, nichesOccupied) +
+            coverageCaveat(nichesOccupied, nicheEvenness)}
         </p>
       </section>
-      {objectives.length > 1 ? (
-        <section className={REPORT_SECTION_CLASSES}>
-          <h3 className={REPORT_H3_CLASSES}>The trade-off</h3>
-          <VariantsTradeoff variants={variants} objectives={objectives} />
-          <p className="text-sm text-cosci-muted">
-            This run optimizes {objectives.length} things at once, so there is
-            no single best program. The highlighted attempts are the ones
-            nothing beats on every objective — the real choices.
-          </p>
-        </section>
-      ) : null}
+      <TradeoffSection variants={variants} objectives={objectives} />
       <section className={REPORT_SECTION_CLASSES}>
         <h3 className={REPORT_H3_CLASSES}>Every attempt</h3>
         <div className={HEAD_CLASSES}>
@@ -253,7 +275,14 @@ export function VariantsSection({runId}: {runId: string}) {
         // An older backend has no variants endpoint. An empty page is the
         // honest reading -- this run has no variants we can see -- and it
         // keeps the rest of the report readable during a rolling upgrade.
-        if (live) setPage({variants: [], objectives: [], niches_occupied: 0});
+        if (live) {
+          setPage({
+            variants: [],
+            objectives: [],
+            niches_occupied: 0,
+            niche_evenness: 0,
+          });
+        }
       });
     return () => {
       live = false;
@@ -265,6 +294,7 @@ export function VariantsSection({runId}: {runId: string}) {
       variants={page.variants}
       objectives={page.objectives}
       nichesOccupied={page.niches_occupied}
+      nicheEvenness={page.niche_evenness}
     />
   );
 }

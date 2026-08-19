@@ -7,18 +7,32 @@ wrong in boring ones.
 """
 
 from co_scientist.agents.code_evolve.archive import (
-    DEFAULT_DESCRIPTORS,
+    DEFAULT_CELL_CAPACITY,
     EXPLOIT_SHARE,
     ArchiveEntry,
-    Descriptor,
+    archive_coverage,
     build_archive,
-    niche_key,
     select_parents,
+)
+from co_scientist.agents.code_evolve.behaviour import (
+    CATEGORICAL_FEATURES,
+    describe,
+    is_categorical,
 )
 from co_scientist.agents.code_evolve.context import (
     MAX_ARTIFACT_CHARS,
     MAX_SOURCE_CHARS,
     ParentVariant,
+)
+from co_scientist.agents.code_evolve.grid import (
+    DEFAULT_CELLS,
+    DEFAULT_DESCRIPTORS,
+    DEFAULT_GRID,
+    Descriptor,
+    Grid,
+    GridStrategy,
+    assign_cells,
+    coverage,
 )
 from co_scientist.agents.code_evolve.operators import (
     CodeOperator,
@@ -34,21 +48,31 @@ from co_scientist.agents.code_evolve.proposal import (
 )
 
 __all__ = [
+    "CATEGORICAL_FEATURES",
+    "DEFAULT_CELLS",
+    "DEFAULT_CELL_CAPACITY",
     "DEFAULT_DESCRIPTORS",
+    "DEFAULT_GRID",
     "EXPLOIT_SHARE",
     "MAX_ARTIFACT_CHARS",
     "MAX_SOURCE_CHARS",
     "ArchiveEntry",
     "CodeOperator",
     "Descriptor",
+    "Grid",
+    "GridStrategy",
     "ParentVariant",
     "ProposalRejectedError",
     "VariantProposal",
     "apply_proposal",
+    "archive_coverage",
+    "assign_cells",
     "build_archive",
     "build_prompt",
+    "coverage",
+    "describe",
     "instructions_for",
-    "niche_key",
+    "is_categorical",
     "propose_variant",
     "select_operator",
     "select_parents",

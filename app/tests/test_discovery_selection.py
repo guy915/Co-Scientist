@@ -121,12 +121,54 @@ def test_a_malformed_descriptor_is_refused(db: str) -> None:
 
 
 def test_absent_descriptors_fall_back_to_the_defaults(db: str) -> None:
+    # Nesting and dependencies are in the default grid deliberately:
+    # without them two programs of the same size from the same operator
+    # are one cell however differently they are built. Program length is
+    # deliberately absent -- it tracks how refined a variant is rather
+    # than what kind it is, which measurably degrades the archive
+    # (engine test_code_archive_basins.py).
     from app.discovery_spec import descriptors
 
     assert [d.feature for d in descriptors({"discovery": {}})] == [
         "operator",
-        "source_lines",
+        "max_depth",
+        "imports",
     ]
+
+
+def test_the_default_grid_is_cvt(db: str) -> None:
+    # The only strategy whose archive size is bounded by construction.
+    # Declared edges are guesses about a distribution nobody has seen,
+    # and both ways of guessing wrong disable the archive silently.
+    from co_scientist.agents.code_evolve import GridStrategy
+
+    from app.discovery_spec import grid
+
+    assert grid(_config_for()).strategy is GridStrategy.CVT
+
+
+def test_a_declared_grid_strategy_is_honoured(db: str) -> None:
+    from co_scientist.agents.code_evolve import GridStrategy
+
+    from app.discovery_spec import grid
+
+    built = grid(_config_for(grid={"strategy": "adaptive", "cells": 5}))
+    assert built.strategy is GridStrategy.ADAPTIVE
+    assert built.cells == 5
+
+
+def test_an_unknown_grid_strategy_is_refused(db: str) -> None:
+    from app.discovery_spec import DiscoverySpecError, grid
+
+    with pytest.raises(DiscoverySpecError):
+        grid(_config_for(grid={"strategy": "magic"}))
+
+
+def test_a_non_positive_cell_count_is_refused(db: str) -> None:
+    from app.discovery_spec import DiscoverySpecError, grid
+
+    with pytest.raises(DiscoverySpecError):
+        grid(_config_for(grid={"cells": 0}))
 
 
 def test_a_single_objective_config_still_parses(db: str) -> None:

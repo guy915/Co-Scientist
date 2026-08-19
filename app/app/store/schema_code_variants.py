@@ -76,10 +76,13 @@ CREATE TABLE IF NOT EXISTS code_variant_state (
     -- re-derived from the metrics because deriving needs the run's spec,
     -- and the two would then have to agree forever.
     objective_values_json TEXT,
-    -- The archive cell this variant occupies, JSON, computed from the
-    -- run's descriptors at evaluation time. Stored so parent selection
-    -- does not recompute a grid over every variant on every generation.
-    niche_json TEXT,
+    -- Raw behaviour features, JSON: size, nesting, dependencies, the
+    -- operator that produced it. The *cell* is deliberately not stored.
+    -- Under an adaptive or CVT grid a variant's cell depends on every
+    -- other variant, so a cell written at evaluation time is wrong by
+    -- the next generation; storing the measurement and deriving the
+    -- cell keeps one source of truth instead of two that drift.
+    behaviour_json TEXT,
     updated_at REAL NOT NULL,
     FOREIGN KEY (variant_id) REFERENCES code_variants(id) ON DELETE CASCADE
 );

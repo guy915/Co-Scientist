@@ -67,38 +67,32 @@ def _variant_for_task(
     return variant
 
 
-def _archive_entry(variant: dict[str, Any], result: Any) -> Any:
-    """Describes a just-evaluated variant to the archive.
+def _behaviour_of(variant: dict[str, Any], result: Any) -> dict[str, Any]:
+    """Measures the variant's behaviour for the archive.
 
-    Built here rather than in the store because the niche depends on the
-    program's shape -- how many lines it is -- which only the source
-    carries, and on the run's descriptors, which only the config does.
+    The raw measurement, not the cell it lands in: under an adaptive or
+    CVT grid the cell depends on the whole population, so it is derived
+    when selection runs rather than frozen here.
     """
-    from co_scientist.agents.code_evolve import ArchiveEntry
+    from co_scientist.agents.code_evolve import describe
 
-    source = dict(variant["source"])
-    text = "\n".join(source.values())
-    return ArchiveEntry(
-        variant_id=str(variant["id"]),
-        fitness=result.fitness,
-        objective_values=tuple(result.objective_values),
+    behaviour: dict[str, Any] = describe(
+        dict(variant["source"]),
         operator=variant.get("operator"),
-        source_lines=text.count("\n") + 1 if text else 0,
-        source_bytes=len(text.encode("utf-8")),
         metrics=dict(result.metrics),
-        ordinal=int(variant["ordinal"]),
     )
+    return behaviour
 
 
 def _to_evaluation(
-    result: Any, niche: tuple[Any, ...]
+    result: Any, behaviour: dict[str, Any]
 ) -> store.VariantEvaluation:
     """Converts an engine EvaluationResult into its stored form."""
     return store.VariantEvaluation(
         status=str(result.status.value),
         fitness=result.fitness,
         objective_values=list(result.objective_values),
-        niche=list(niche),
+        behaviour=behaviour,
         duration_seconds=sum(stage.duration_seconds for stage in result.stages),
         stages=[
             {
@@ -124,11 +118,8 @@ async def execute_variant_evaluate(
         A variant that crashed returns just as normally as one that
         scored -- ``status`` is what tells them apart.
     """
-    from co_scientist.agents.code_evolve import niche_key
     from co_scientist.code_eval import EvaluationRequest, evaluate_variant
     from co_scientist.workspace import open_variant_workspace
-
-    from app.discovery_spec import descriptors
 
     variant = _variant_for_task(task, db_path)
     config = _run_config(task.run_id, db_path)
@@ -143,9 +134,10 @@ async def execute_variant_evaluate(
         session,
         EvaluationRequest(spec=spec, files=dict(variant["source"])),
     )
-    niche = niche_key(_archive_entry(variant, result), descriptors(config))
     store.record_variant_evaluation(
-        str(variant["id"]), _to_evaluation(result, niche), db_path=db_path
+        str(variant["id"]),
+        _to_evaluation(result, _behaviour_of(variant, result)),
+        db_path=db_path,
     )
     logger.info(
         "Variant %s scored %s (%s)",

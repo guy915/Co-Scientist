@@ -404,25 +404,42 @@ async def test_a_run_records_every_objective_not_just_the_primary(
 
 
 @pytest.mark.asyncio
-async def test_a_variant_is_assigned_an_archive_niche(
+async def test_a_variant_records_its_measured_behaviour(
     db: str, workspace_root: str
 ) -> None:
+    # The raw measurement, not the cell: the cell depends on the whole
+    # population and is derived when selection runs.
     run = _run(_config(_GOOD, max_generations=1))
     enqueue_discovery_bootstrap(run.id)
     await _drain(run.id)
-    # Default descriptors: the operator that produced it, and its size.
-    assert store.list_code_variants(run.id)[0]["niche"] == ["seed", 0]
+    behaviour = store.list_code_variants(run.id)[0]["behaviour"]
+    assert behaviour["operator"] == "seed"
+    assert behaviour["source_lines"] == 3.0
+    assert behaviour["imports"] == "json"
+    assert behaviour["metric:score"] == 7.0
 
 
 @pytest.mark.asyncio
-async def test_declared_descriptors_replace_the_defaults(
+async def test_behaviour_separates_a_nested_program_from_a_flat_one(
     db: str, workspace_root: str
 ) -> None:
-    config = _config(_MULTI, max_generations=1)
-    config["discovery"]["descriptors"] = [
-        {"feature": "metric:latency", "bins": [1.0]}
-    ]
-    run = _run(config)
-    enqueue_discovery_bootstrap(run.id)
-    await _drain(run.id)
-    assert store.list_code_variants(run.id)[0]["niche"] == [1]
+    # The limit this closes: two programs of similar size from the same
+    # operator used to be one cell however differently they were built.
+    nested = (
+        "import json\n"
+        "total = 0\n"
+        "for i in range(3):\n"
+        "    for j in range(3):\n"
+        "        if i < j:\n"
+        "            total += 1\n"
+        "json.dump({'score': float(total)}, open('metrics.json', 'w'))\n"
+    )
+    flat = _run(_config(_GOOD, max_generations=1))
+    deep = _run(_config(nested, max_generations=1))
+    for run in (flat, deep):
+        enqueue_discovery_bootstrap(run.id)
+        await _drain(run.id)
+    flat_b = store.list_code_variants(flat.id)[0]["behaviour"]
+    deep_b = store.list_code_variants(deep.id)[0]["behaviour"]
+    assert deep_b["max_depth"] > flat_b["max_depth"]
+    assert deep_b["branch_count"] > flat_b["branch_count"]

@@ -78,21 +78,25 @@ async def get_code_variants(run_id: str) -> dict[str, Any]:
     stored flag would be stale for every row but the newest.
     """
     run = _run_or_404(run_id)
-    from app.engine_tasks_variants_schedule import pareto_variant_ids
+    from app.engine_tasks_variants_schedule import (
+        archive_summary,
+        pareto_variant_ids,
+    )
 
     variants = store.list_code_variants(run_id)
     front = pareto_variant_ids(variants)
     for variant in variants:
         variant["is_pareto_optimal"] = str(variant["id"]) in front
+    occupied, evenness = archive_summary(variants, run.config)
     return {
         "variants": variants,
         "objectives": _objective_labels(run),
-        # How many distinct archive niches the run has reached. The
-        # number the diversity mechanism exists to move, so it is
-        # reported rather than left to be inferred from the rows.
-        "niches_occupied": len(
-            {tuple(v["niche"]) for v in variants if v["niche"]}
-        ),
+        # How many archive cells the run reached, and how evenly it
+        # filled them. The count alone can be high while the run is
+        # still collapsed -- forty variants in one cell and one in each
+        # of five others reaches six cells and explored almost nothing.
+        "niches_occupied": occupied,
+        "niche_evenness": evenness,
     }
 
 

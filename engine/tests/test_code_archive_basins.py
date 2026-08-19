@@ -15,8 +15,21 @@ import random
 
 from co_scientist.agents.code_evolve.archive import (
     ArchiveEntry,
-    Descriptor,
     select_parents,
+)
+from co_scientist.agents.code_evolve.grid import (
+    DEFAULT_DESCRIPTORS,
+    Descriptor,
+    Grid,
+    GridStrategy,
+)
+
+# One categorical axis, fixed: the landscape's only real behaviour is
+# which approach a variant took, so the grid should say exactly that
+# rather than let CVT infer axes from a synthetic vector.
+_GRID = Grid(
+    descriptors=(Descriptor(feature="operator"),),
+    strategy=GridStrategy.FIXED,
 )
 
 # ceiling, gain per refinement. "quick" is the decoy -- ahead at the
@@ -54,7 +67,7 @@ def _entries(
             variant_id=str(index),
             fitness=fitness,
             objective_values=(fitness,),
-            operator=genome[0],
+            behaviour={"operator": genome[0]},
             ordinal=index,
         )
         for index, (genome, fitness) in enumerate(scored)
@@ -78,12 +91,7 @@ def _simulate(strategy: str, seed: int) -> float:
         picks = (
             _top_k(entries, _CHILDREN)
             if strategy == "top_k"
-            else select_parents(
-                entries,
-                _CHILDREN,
-                descriptors=[Descriptor(feature="operator")],
-                rng=rng,
-            )
+            else select_parents(entries, _CHILDREN, grid=_GRID, rng=rng)
         )
         for pick in picks:
             child = _mutate(scored[int(pick.variant_id)][0], rng)
@@ -110,3 +118,74 @@ def test_the_archive_beats_score_only_selection_on_average() -> None:
     greedy = [_simulate("top_k", seed) for seed in _SEEDS]
     archive = [_simulate("archive", seed) for seed in _SEEDS]
     assert sum(archive) / len(archive) > sum(greedy) / len(greedy) * 1.25
+
+
+# The same landscape, described two ways: once with axes that say what
+# kind of program a variant is, and once with an extra axis that only
+# grows as a variant is refined.
+_LIBS = {
+    "quick": "none",
+    "medium": "none",
+    "deep": "numpy",
+    "wild": "itertools",
+}
+_DEPTH = {"quick": 1.0, "medium": 2.0, "deep": 0.0, "wild": 3.0}
+
+_KIND_AXES = (
+    Descriptor(feature="operator"),
+    Descriptor(feature="max_depth"),
+    Descriptor(feature="imports"),
+)
+_WITH_PROGRESS_AXIS = (*_KIND_AXES, Descriptor(feature="source_lines"))
+
+
+def _simulate_with_axes(
+    descriptors: tuple[Descriptor, ...], seed: int
+) -> float:
+    """Runs one search under a CVT grid over the given axes."""
+    grid = Grid(descriptors, GridStrategy.CVT, cells=12)
+    rng = random.Random(seed)
+    scored: list[tuple[tuple[str, int], float]] = [
+        (("quick", 0), _score("quick", 0))
+    ]
+    for _ in range(_GENERATIONS):
+        entries = [
+            ArchiveEntry(
+                variant_id=str(index),
+                fitness=fitness,
+                objective_values=(fitness,),
+                behaviour={
+                    "operator": genome[0],
+                    "imports": _LIBS[genome[0]],
+                    "max_depth": _DEPTH[genome[0]],
+                    "source_lines": 20.0 + 8 * genome[1],
+                },
+                ordinal=index,
+            )
+            for index, (genome, fitness) in enumerate(scored)
+        ]
+        for pick in select_parents(entries, _CHILDREN, grid=grid, rng=rng):
+            child = _mutate(scored[int(pick.variant_id)][0], rng)
+            scored.append((child, _score(*child)))
+    return max(fitness for _, fitness in scored)
+
+
+def test_an_axis_that_tracks_refinement_degrades_the_archive() -> None:
+    # Why `source_lines` is not a default descriptor. An adaptive grid
+    # faithfully subdivides whatever axis it is given, so an axis that
+    # only grows as a variant is polished turns the archive into "keep
+    # every refinement level of every approach" and the uniform half of
+    # selection re-draws one approach at different maturities.
+    kind = [_simulate_with_axes(_KIND_AXES, seed) for seed in _SEEDS]
+    padded = [_simulate_with_axes(_WITH_PROGRESS_AXIS, seed) for seed in _SEEDS]
+    assert sum(kind) / len(kind) > sum(padded) / len(padded) * 1.15
+
+
+def test_the_shipped_defaults_describe_kind_rather_than_progress() -> None:
+    # A guard on the default itself, so the measurement above cannot be
+    # undone by quietly adding the cheapest available axis back.
+    assert [d.feature for d in DEFAULT_DESCRIPTORS] == [
+        "operator",
+        "max_depth",
+        "imports",
+    ]

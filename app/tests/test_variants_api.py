@@ -43,7 +43,12 @@ def _run_with_variants(client: TestClient) -> tuple[str, list[str]]:
                 status="ok" if fitness is not None else "failed",
                 fitness=fitness,
                 objective_values=[fitness],
-                niche=["targeted_edit" if index else "seed", 0],
+                behaviour={
+                    "operator": "targeted_edit" if index else "seed",
+                    "source_lines": 1.0 + index,
+                    "max_depth": 0.0,
+                    "imports": "none",
+                },
                 metrics={"score": fitness} if fitness is not None else {},
                 artifacts={} if fitness is not None else {"stderr": "boom"},
             ),
@@ -119,14 +124,25 @@ def test_the_front_is_flagged_per_variant(client: TestClient) -> None:
     assert flagged == {ids[2]}
 
 
-def test_archive_coverage_counts_distinct_niches(
-    client: TestClient,
-) -> None:
+def test_archive_coverage_is_reported(client: TestClient) -> None:
     run_id, _ = _run_with_variants(client)
     body = client.get(f"/api/runs/{run_id}/variants").json()
-    # Two operators across three variants (the first has none), and all
-    # three programs are the same size, so the grid has two cells.
-    assert body["niches_occupied"] == 2
+    # Three variants of two kinds, so the run reached more than one
+    # cell -- and the evenness says whether it actually spread across
+    # them or piled into one.
+    assert body["niches_occupied"] > 1
+    assert 0.0 < body["niche_evenness"] <= 1.0
+
+
+def test_archive_coverage_is_zero_before_anything_is_measured(
+    client: TestClient,
+) -> None:
+    run_id = client.post(
+        "/api/runs", json={"research_goal": "empty", "mode": "standard"}
+    ).json()["id"]
+    body = client.get(f"/api/runs/{run_id}/variants").json()
+    assert body["niches_occupied"] == 0
+    assert body["niche_evenness"] == 0.0
 
 
 def test_the_objectives_are_named_for_a_discovery_run(

@@ -17,7 +17,13 @@ from __future__ import annotations
 
 from typing import Any
 
-from co_scientist.agents.code_evolve import DEFAULT_DESCRIPTORS, Descriptor
+from co_scientist.agents.code_evolve import (
+    DEFAULT_CELLS,
+    DEFAULT_DESCRIPTORS,
+    Descriptor,
+    Grid,
+    GridStrategy,
+)
 from co_scientist.code_eval import (
     DEFAULT_STAGE_TIMEOUT_SECONDS,
     Direction,
@@ -191,10 +197,10 @@ def descriptors(config: dict[str, Any] | None) -> tuple[Descriptor, ...]:
     """Returns the archive axes a run's variants are niched along.
 
     Defaults rather than raising when unset, because every run gets a
-    usable grid for free: the operator that produced a variant and how
-    long its program is already separate a tuned constant from a
-    rewritten algorithm. A run that knows its own behaviour space should
-    declare ``descriptors`` instead.
+    usable grid for free: the operator that produced a variant, its
+    size, how deeply nested it is, and what it depends on. The last two
+    are what separate a vectorised rewrite from a tuned loop of the same
+    length -- the case size and operator alone read as one cell.
 
     Raises:
         DiscoverySpecError: If ``descriptors`` is present but malformed.
@@ -210,6 +216,47 @@ def descriptors(config: dict[str, Any] | None) -> tuple[Descriptor, ...]:
             "discovery.descriptors must be a non-empty list when present"
         )
     return tuple(_descriptor(item, index) for index, item in enumerate(raw))
+
+
+def _grid_strategy(raw: Any) -> GridStrategy:
+    """Reads the niching strategy, refusing one this build cannot run."""
+    name = str(raw or GridStrategy.CVT.value).lower()
+    try:
+        return GridStrategy(name)
+    except ValueError as exc:
+        allowed = sorted(item.value for item in GridStrategy)
+        raise DiscoverySpecError(
+            f"discovery.grid.strategy must be one of {allowed}, got {name!r}"
+        ) from exc
+
+
+def grid(config: dict[str, Any] | None) -> Grid:
+    """Returns how a run turns behaviour into archive cells.
+
+    Defaults to CVT, which is the only strategy whose archive size is
+    bounded by construction: declared bin edges are guesses about a
+    distribution nobody has seen yet, and both ways of guessing wrong
+    disable the archive silently -- too coarse and every variant shares
+    one cell, too fine and every variant gets its own.
+
+    Raises:
+        DiscoverySpecError: If ``grid`` is present but malformed.
+    """
+    raw = (discovery_config(config) or {}).get("grid")
+    if raw is None:
+        return Grid(descriptors=descriptors(config))
+    if not isinstance(raw, dict):
+        raise DiscoverySpecError("discovery.grid must be an object")
+    cells = raw.get("cells", DEFAULT_CELLS)
+    if isinstance(cells, bool) or not isinstance(cells, int) or cells < 1:
+        raise DiscoverySpecError(
+            "discovery.grid.cells must be a positive integer"
+        )
+    return Grid(
+        descriptors=descriptors(config),
+        strategy=_grid_strategy(raw.get("strategy")),
+        cells=cells,
+    )
 
 
 def seed_source(config: dict[str, Any] | None) -> dict[str, str]:
