@@ -81,6 +81,43 @@ def _resolve_tool_calling_generation(
     )
 
 
+def _resolve_simulation_execution(
+    opts: dict[str, Any], model_name: str
+) -> bool:
+    """Decides whether the simulation review may run what it simulates.
+
+    Opt-in, like tool-calling generation and for the same reason: it is a
+    tool loop per hypothesis, and the app asks for it on the deep tiers
+    only. Two conditions force it off regardless of the request -- the
+    offline backend never emits a tool call, so the loop would end on its
+    first free-text reply having run nothing, and an explicit False
+    short-circuits.
+
+    Not checked here: whether this host can confine a command. That is a
+    property of the machine the review executes on rather than of the
+    run, and a worker cohort can outlive the process that resolved this,
+    so ``simulation_execution`` asks at the point of use and degrades
+    there.
+
+    Args:
+        opts: The caller's run options.
+        model_name: The worker model name for this run.
+
+    Returns:
+        Whether the simulation review may execute.
+    """
+    requested = opts.get("enable_simulation_execution")
+    if not requested:
+        return False
+    if is_offline_model(model_name):
+        logger.warning(
+            "enable_simulation_execution=True but the offline backend is "
+            "active - the simulation review will step through mentally"
+        )
+        return False
+    return True
+
+
 def _tool_calling_disabled_before_availability(
     requested: bool | None, model_name: str
 ) -> bool:

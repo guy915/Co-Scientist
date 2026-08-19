@@ -138,6 +138,31 @@ def _resolve_tool_calling_generation_toggle(cfg: dict[str, Any]) -> bool:
     )
 
 
+# Tiers whose compute envelope funds an executed simulation review. The
+# same reasoning as the agentic draft path above, and the same answer: a
+# tool loop runs per hypothesis, so its cost is a product with the pool
+# size rather than a fixed addition, and express and standard promise a
+# fast cheap answer instead of depth. Unlike that path this one fires
+# once per hypothesis for the whole run -- the simulation review is due
+# only at first maturity -- so the deep tiers pay for it once each.
+_SIMULATION_EXECUTION_TIERS: frozenset[str] = frozenset({"extended", "ultra"})
+
+
+def _resolve_simulation_execution_toggle(cfg: dict[str, Any]) -> bool:
+    """Decide whether this run's simulation review may execute code.
+
+    Args:
+        cfg: The run's resolved config; ``resolved_run_config`` guarantees
+            a normalized ``tier``.
+
+    Returns:
+        True only for the deep tiers. A ceiling, not a guarantee: the
+        engine refuses it for the offline backend, and the review itself
+        falls back to mental simulation on a host with no sandbox.
+    """
+    return normalize_run_tier(cfg.get("tier")) in _SIMULATION_EXECUTION_TIERS
+
+
 def _lab_constraints_for_run(
     cfg: dict[str, Any], db_path: str | None
 ) -> list[str]:
@@ -226,6 +251,9 @@ def _build_engine_opts(
     )
     initial_opts["enable_tool_calling_generation"] = (
         _resolve_tool_calling_generation_toggle(cfg)
+    )
+    initial_opts["enable_simulation_execution"] = (
+        _resolve_simulation_execution_toggle(cfg)
     )
     # K5: thread the interview's lab constraints to the engine's
     # generation/evolution feasibility prompts; empty renders no section.

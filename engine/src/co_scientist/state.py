@@ -456,6 +456,13 @@ class WorkflowState(TypedDict):
     default False).
     """
 
+    enable_simulation_execution: bool | None
+    """Let the simulation review build and run a model of the mechanism
+    rather than stepping through it mentally (default False). A request,
+    not a guarantee: the review still falls back to mental simulation
+    where no sandbox backend can confine a command.
+    """
+
     dev_test_lit_tools_isolation: bool | None
     """Development mode: force cache on lit review, allocate all hypotheses to
     lit tools (no debate).

@@ -64,6 +64,12 @@ class RunCapabilities:
             stays False so a capabilities
             value assembled without that resolution never silently turns
             the agentic path on.
+        enable_simulation_execution: Whether the simulation review may
+            build and run a model of the mechanism instead of stepping
+            through it mentally. Resolved upstream (see
+            ``run_setup._resolve_simulation_execution``): opt-in, and a
+            request rather than a guarantee -- the review falls back to
+            mental simulation on a host that cannot confine a command.
         dev_test_lit_tools_isolation: Whether dev lit-tools isolation is
             enabled for this run.
         dev_mode: Whether dev mode (reduced literature budget) is enabled for
@@ -73,6 +79,7 @@ class RunCapabilities:
     mcp_available: bool = False
     pubmed_available: bool = False
     enable_tool_calling_generation: bool = False
+    enable_simulation_execution: bool = False
     dev_test_lit_tools_isolation: bool = False
     dev_mode: bool = False
 
@@ -138,6 +145,9 @@ def _initial_run_identity_fields(
         "pubmed_available": capabilities.pubmed_available,
         "enable_tool_calling_generation": (
             capabilities.enable_tool_calling_generation
+        ),
+        "enable_simulation_execution": (
+            capabilities.enable_simulation_execution
         ),
         "dev_test_lit_tools_isolation": (
             capabilities.dev_test_lit_tools_isolation

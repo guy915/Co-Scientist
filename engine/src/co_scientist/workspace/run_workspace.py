@@ -45,6 +45,7 @@ _WORKSPACES_DIRNAME = "coscientist-workspaces"
 
 # Subdirectory of a run's workspace holding one directory per variant.
 _VARIANTS_DIRNAME = "variants"
+_REVIEWS_DIRNAME = "reviews"
 
 # Everything else in a run id is replaced. Deliberately narrow: real ids
 # are uuids, so anything outside this set is either a bug or an attempt.
@@ -169,6 +170,41 @@ def open_variant_workspace(
     # The run's own directory is created (and permission-restricted)
     # first, so the variant tree never exists under a world-readable
     # parent even for the moment between the two mkdirs.
+    open_run_workspace(run_id, network_allowed=network_allowed)
+    return WorkspaceSession(root, network_allowed=network_allowed)
+
+
+def review_workspace_path(run_id: str, hypothesis_id: str) -> Path:
+    """Returns one review's directory, without creating it."""
+    return (
+        workspace_path(run_id) / _REVIEWS_DIRNAME / _safe_run_id(hypothesis_id)
+    )
+
+
+def open_review_workspace(
+    run_id: str, hypothesis_id: str, *, network_allowed: bool = False
+) -> WorkspaceSession:
+    """Opens the workspace one review of one hypothesis works in.
+
+    Per hypothesis for the same reason variants get their own
+    directory: reviews of a round's hypotheses are fanned out as
+    separate leased tasks and run concurrently, so a shared directory
+    would have two simulations each reading part of the other's model.
+    Both would then report a coherent-looking observation about the
+    wrong hypothesis, which no review makes visible.
+
+    Args:
+        run_id: The run identifier.
+        hypothesis_id: The hypothesis being reviewed.
+        network_allowed: Whether commands may reach the network.
+
+    Returns:
+        A session confined to that review's directory.
+    """
+    root = review_workspace_path(run_id, hypothesis_id)
+    # As with variants: the run directory is created (and
+    # permission-restricted) first so this tree is never briefly
+    # world-readable.
     open_run_workspace(run_id, network_allowed=network_allowed)
     return WorkspaceSession(root, network_allowed=network_allowed)
 

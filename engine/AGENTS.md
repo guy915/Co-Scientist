@@ -37,6 +37,25 @@ Individual nodes can be exercised in isolation via the scripts in `dev/` (`run_s
 | Proximity (dedup) | `agents/proximity/proximity.py` |
 | Safety screen (cross-cutting) | `agents/safety/safety_screen.py` |
 
+**The simulation review can run what it simulates.** Reflection's
+`simulation` review asks the model to step through a hypothesis's mechanism
+and find where it breaks; its prompt used to say *mentally, in your mind's
+eye*. `agents/reflection/simulation_execution.py` gives it a confined
+workspace and a bounded tool loop (`MAX_SIMULATION_TURNS`) first, and hands
+what it observed to the same schema-constrained review call as before -- so
+the verdict vocabulary and every downstream consumer are untouched, and a run
+that cannot execute produces exactly the review it always did. This is the
+first production caller of the conversational tool surface. Gated three ways,
+all of which must hold: the app asks by **tier** on `extended`/`ultra` only
+(`opts._resolve_simulation_execution_toggle` -- a tool loop per hypothesis is
+a cost that multiplies by pool size), the engine refuses it for the offline
+backend (`run_setup._resolve_simulation_execution`), and the review itself
+falls back to mental simulation where no sandbox backend can confine a
+command. Each review gets its **own** workspace
+(`open_review_workspace(run_id, hypothesis_id)`) because review items fan out
+as concurrent leased tasks. Whether it ran is stamped on the result by the
+caller (`executed`), never asked of the model.
+
 **Computational discovery** is a second, separate product built on the same
 foundations, and is *not* a node in the hypothesis graph.
 `agents/code_evolve/` proposes one child program per generation as a V4A

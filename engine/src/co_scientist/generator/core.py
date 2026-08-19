@@ -38,6 +38,7 @@ from co_scientist.generator.run_setup import (
     _resolve_dev_isolation_flag,
     _resolve_dev_mode_flag,
     _resolve_run_identity,
+    _resolve_simulation_execution,
     _resolve_tool_calling_generation,
 )
 from co_scientist.generator.streaming import _build_generation_result
@@ -278,6 +279,9 @@ class HypothesisGenerator(
                 mcp_available,
                 enable_literature_review_node,
                 self.model_name,
+            ),
+            enable_simulation_execution=_resolve_simulation_execution(
+                opts, self.model_name
             ),
             # These flags are threaded through to the initial state and the
             # consuming nodes branch on them directly.

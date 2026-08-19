@@ -394,15 +394,26 @@ Still open — and each is blocked on a fact, not on effort:
   `open_variant_workspace(run_id, variant_id)` — per variant rather than per
   run, because evaluations run concurrently and one shared directory has two
   of them each running part of the other's code. The terminal surface itself
-  is complete, sessions included; what has no caller is a *conversational*
-  loop over it, and inventing an agent to be that caller is a product
-  decision rather than a gap in the harness. That caller inherits one
-  responsibility with it: a command session's lifetime is bounded only by the
-  process that owns it, since a session outlives the call that started it by
-  design and nothing else ends one the model never killed.
-  `WorkspaceSession.close()` is the hook, and a loop holding one process across
-  many workspaces has to call it; a reaper on a timer belongs to that loop
-  rather than here, where every workspace dies with its worker anyway.
+  is complete, sessions included. **The conversational half now has a caller
+  too**: Reflection's `simulation` review, which asks the model to step
+  through a hypothesis's mechanism and had no way to run anything —
+  `agents/reflection/simulation_execution.py`, per hypothesis via
+  `open_review_workspace`, on `extended`/`ultra` only. That answers the
+  question this entry left open (which agent gets a conversational loop)
+  without inventing an agent for it: the answer was an existing review whose
+  own prompt named the limitation. What is still not built is a *standalone*
+  coding agent, which remains a product decision rather than a gap.
+
+  One responsibility comes with any such caller: a command session's lifetime
+  is bounded only by the process that owns it, since a session outlives the
+  call that started it by design and nothing else ends one the model never
+  killed. `WorkspaceSession.close()` is the hook, and a loop holding one
+  process across many workspaces has to call it; a reaper on a timer belongs
+  to that loop rather than here, where every workspace dies with its worker
+  anyway. The simulation review closes its workspace's sessions when its
+  loop ends, in a `finally`, which is what it needs instead of a reaper:
+  the command it is most likely to leave running is a model-written
+  simulation that hangs, and that one nothing else would ever end.
 - **D6 — dataset storage. DECIDED: in the store, copied per variant.** A run's
   dataset is written once at creation into its own `code_datasets` table and
   copied into each variant's workspace before evaluation. Not in the variant's

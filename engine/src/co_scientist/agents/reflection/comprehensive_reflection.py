@@ -7,20 +7,13 @@ without passing through the initial reflection node.
 import asyncio
 import dataclasses
 import hashlib
-import json
 import logging
 import weakref
-from dataclasses import asdict
 from typing import Any
 
 from co_scientist.agents.reflection.deep_verification import (
     _retrieve_probe_evidence,
     merge_retrieved_articles,
-)
-from co_scientist.agents.reflection.evidence_context import (
-    EvidenceCaps,
-    build_evidence_context,
-    showable_articles,
 )
 from co_scientist.agents.reflection.mature_reviews import (
     store_mature_review_result,
@@ -33,9 +26,24 @@ from co_scientist.agents.reflection.reflection import (
     _ReflectionContext,
     analyze_single_hypothesis,
 )
+from co_scientist.agents.reflection.review_prompt_context import (
+    _NO_EXECUTION_NOTE as _NO_EXECUTION_NOTE,
+)
+from co_scientist.agents.reflection.review_prompt_context import (
+    _build_domain_context as _build_domain_context,
+)
+from co_scientist.agents.reflection.review_prompt_context import (
+    _prompt_variables as _prompt_variables,
+)
+from co_scientist.agents.reflection.review_prompt_context import (
+    _recurrent_review_suffix as _recurrent_review_suffix,
+)
 from co_scientist.agents.reflection.review_types import (
     ReviewType,
     prompt_name_for,
+)
+from co_scientist.agents.reflection.simulation_execution import (
+    simulation_observations,
 )
 from co_scientist.constants import (
     DEFAULT_MAX_TOKENS,
@@ -56,10 +64,8 @@ from co_scientist.models import (
     phase_message,
 )
 from co_scientist.prompts import (
-    build_tool_instructions,
     get_hypothesis_query_generation_prompt,
 )
-from co_scientist.prompts._common import _format_meta_review_context
 from co_scientist.prompts.loading import load_prompt_with_schema
 from co_scientist.schemas import LITERATURE_QUERY_SCHEMA
 from co_scientist.state import WorkflowState
@@ -69,83 +75,6 @@ logger = logging.getLogger(__name__)
 # Bounds the searches (and downstream paper fan-out) per reviewed hypothesis,
 # sharing the literature-review node's own Phase 1 cap.
 _MAX_HYPOTHESIS_QUERIES = LITERATURE_REVIEW_MAX_QUERIES
-
-# How many sources one review prompt carries. Public papers and private
-# scientist-supplied sources are capped separately so a full run corpus
-# cannot squeeze the private context out of the prompt entirely.
-_MAX_REVIEW_ARTICLES = 12
-_MAX_REVIEW_PRIVATE_SOURCES = 4
-
-
-def _prompt_variables(
-    state: WorkflowState,
-    hypothesis: Hypothesis,
-    review_type: ReviewType,
-    targeted_articles: list[Article] | None = None,
-) -> dict[str, str]:
-    """Build disclosed scientific and tool context for one review task."""
-    registry = state.get("tool_registry")
-    tool_ids = registry.get_tools_for_workflow("reflection") if registry else []
-    tool_instructions = build_tool_instructions(tool_ids, registry)
-    hypothesis_text = hypothesis.text
-    if review_type is ReviewType.RECURRENT:
-        hypothesis_text += _recurrent_review_suffix(state, hypothesis)
-    domain_context = _build_domain_context(state, targeted_articles)
-    return {
-        "research_goal": state["research_goal"],
-        "hypothesis_text": hypothesis_text,
-        "domain_context": (
-            "Evidence available to this review:\n" + domain_context
-            if domain_context
-            else "No retrieved evidence is available to this review."
-        ),
-        "tool_instructions": tool_instructions,
-    }
-
-
-def _recurrent_review_suffix(
-    state: WorkflowState, hypothesis: Hypothesis
-) -> str:
-    """Builds the tournament + meta-review context for a recurrent review."""
-    tournament = {
-        "elo_rating": hypothesis.elo_rating,
-        "match_count": hypothesis.total_matches,
-        "reviews": [asdict(review) for review in hypothesis.reviews],
-    }
-    return (
-        "\n\nRecurrent-review context from the growing tournament:\n"
-        + json.dumps(tournament, indent=2)
-        + "\n\nCross-agent feedback:\n"
-        + _format_meta_review_context(state.get("meta_review"))
-    )
-
-
-def _build_domain_context(
-    state: WorkflowState, targeted_articles: list[Article] | None
-) -> str:
-    """Formats retrieved public and private evidence for a review prompt.
-
-    Bounds the block by source count rather than by total length: a review
-    weighs a handful of papers in depth, so it is the number of voices that
-    has to stay reviewable, not the character budget.
-    """
-    evidence = [
-        # The run corpus and this review's own targeted retrieval are
-        # filtered separately because only the former has been marked
-        # analyzed; both are then capped as one list, so a full corpus
-        # crowds out the targeted sources exactly as it did before.
-        *showable_articles(state.get("articles")),
-        *showable_articles(targeted_articles, require_analyzed=False),
-    ]
-    return build_evidence_context(
-        evidence,
-        private_sources=state.get("context_enrichment_sources"),
-        caps=EvidenceCaps(
-            articles=_MAX_REVIEW_ARTICLES,
-            private_sources=_MAX_REVIEW_PRIVATE_SOURCES,
-        ),
-        require_analyzed=False,
-    )
 
 
 async def _hypothesis_search_queries(
@@ -225,8 +154,9 @@ async def _run_review(
     """Execute one independently meaningful Reflection review call."""
     evidence = await _review_evidence_for(state, hypothesis, review_type)
     targeted_articles = evidence.articles
+    observations = await _observations_for(state, hypothesis, review_type)
     prompt, schema = _build_review_prompt(
-        state, hypothesis, review_type, targeted_articles
+        state, hypothesis, review_type, targeted_articles, observations
     )
     try:
         result = await call_llm_json(
@@ -247,15 +177,41 @@ async def _run_review(
             "%s review failed for %s: %s", review_type.value, hypothesis.id, exc
         )
         return review_type, None
+    _record_review_provenance(
+        result, evidence, targeted_articles, review_type, observations
+    )
+    return review_type, result
+
+
+def _record_review_provenance(
+    result: dict[str, Any],
+    evidence: "_ReviewEvidence",
+    targeted_articles: list[Article],
+    review_type: ReviewType,
+    observations: str | None,
+) -> None:
+    """Records what the review was given, on the review itself.
+
+    Each review persists the evidence it was handed, so the shared
+    retrieval survives the checkpoint through both of their results
+    rather than depending on the in-process cache outliving the task.
+
+    Whether a simulation was executed is stamped here -- by the caller,
+    which knows -- rather than asked of the model, which would make "did
+    this verdict come from a run or from imagination" exactly as
+    reliable as the rest of its output. A reader weighing a
+    ``breaks_down`` needs to know which one it was.
+    """
     result["retrieval_queries"] = evidence.queries
     result["retrieval_errors"] = evidence.errors
-    # Each review persists the evidence it was given, so the shared
-    # retrieval survives the checkpoint through both of their results
-    # rather than depending on the in-process cache outliving the task.
     result["retrieved_articles"] = [
         article.to_dict() for article in targeted_articles
     ]
-    return review_type, result
+    if review_type is not ReviewType.SIMULATION:
+        return
+    result["executed"] = observations is not None
+    if observations is not None:
+        result["execution_observations"] = observations
 
 
 # In-flight targeted retrievals, one map per event loop.
@@ -352,11 +308,32 @@ async def _review_evidence_for(
     return await _shared_review_evidence(state, hypothesis)
 
 
+async def _observations_for(
+    state: WorkflowState, hypothesis: Hypothesis, review_type: ReviewType
+) -> str | None:
+    """Runs a simulation of the mechanism, where this run may.
+
+    Gated three ways, all of which have to hold. The caller has to have
+    asked (the app asks on the deep tiers only, because this is a tool
+    loop per hypothesis and that shape has been the largest line in a
+    run's budget before); the review has to be the simulation; and the
+    host has to be able to confine a command, which
+    ``simulation_execution`` checks for itself. Anything short of all
+    three is the review that was always here.
+    """
+    if review_type is not ReviewType.SIMULATION:
+        return None
+    if not state.get("enable_simulation_execution"):
+        return None
+    return await simulation_observations(state, hypothesis)
+
+
 def _build_review_prompt(
     state: WorkflowState,
     hypothesis: Hypothesis,
     review_type: ReviewType,
     targeted_articles: list[Article],
+    observations: str | None = None,
 ) -> tuple[str, dict[str, Any] | None]:
     """Builds the review prompt/schema, adding the recurrent-review preamble."""
     template_type = (
@@ -364,7 +341,9 @@ def _build_review_prompt(
     )
     prompt, schema = load_prompt_with_schema(
         prompt_name_for(template_type),
-        _prompt_variables(state, hypothesis, review_type, targeted_articles),
+        _prompt_variables(
+            state, hypothesis, review_type, targeted_articles, observations
+        ),
     )
     if review_type is ReviewType.RECURRENT:
         prompt = (
