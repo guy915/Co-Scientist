@@ -536,7 +536,7 @@ Two rules it keeps:
 
 ## What was measured and settled
 
-Four things that read like limitations of the design are settled
+Five things that read like limitations of the design are settled
 questions with numbers behind them, and it is worth knowing which is
 which before reopening one.
 
@@ -572,8 +572,13 @@ which before reopening one.
   and 64 buckets, and the false ties are gone by 16. It runs at 32.
   `test_code_fingerprint.py` pins the pair that collided.
 
-What remains genuinely open is narrower than the width: two programs
-whose n-gram *compositions* genuinely coincide are one point at any
-width, and no amount of widening separates them. That cost is bounded
--- the fingerprint is one axis of several, and such a pair is still
-separated by anything else that differs, including what it measured.
+  Two programs whose n-gram *compositions* genuinely coincide are one
+  point at any width, and widening never separates them -- statement
+  order alone produces such a pair, identical on every static axis and
+  computing different things. That is the boundary of reading a
+  program's text, and it is the boundary `metric:*` exists to cross:
+  the pair separates as soon as they report different measurements
+  (`test_code_grid.py::test_it_separates_programs_no_static_axis_can`).
+  Two such programs that measure the *same* belong in one cell -- the
+  archive keeps the best of each kind, and nothing has shown them to be
+  different kinds.

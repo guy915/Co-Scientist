@@ -438,6 +438,39 @@ class TestMetricWildcard:
         assert shape_only[0] == shape_only[1]
         assert with_metric[0] != with_metric[1]
 
+    def test_it_separates_programs_no_static_axis_can(self) -> None:
+        """The limit of reading a program's text, and what closes it.
+
+        These two are identical on *every* static axis -- same node
+        multiset, so the same fingerprint at any width; same depth,
+        imports, recursion and densities -- and they compute different
+        things. No amount of widening separates them, because they do
+        not differ in composition at all; only running them does.
+
+        Note what is being pinned, and what is not. Two such programs
+        reporting the *same* measurements genuinely belong in one cell:
+        the archive keeps the best of each kind, and nothing has yet
+        shown these to be different kinds. The claim is only that a
+        difference the run can observe is one the archive can act on.
+        """
+        from co_scientist.agents.code_evolve.behaviour import describe
+
+        first = "def solve():\n    a = 1\n    b = 2\n    return a - b\n"
+        second = "def solve():\n    a = 2\n    b = 1\n    return a - b\n"
+        static = (
+            describe({"main.py": first}),
+            describe({"main.py": second}),
+        )
+        assert static[0] == static[1]  # the premise, not an assumption
+
+        measured = (
+            describe({"main.py": first}, metrics={"residual": -1.0}),
+            describe({"main.py": second}, metrics={"residual": 1.0}),
+        )
+        axes = (Descriptor("ast_shape"), Descriptor(METRIC_WILDCARD))
+        cells = self._cells(axes, list(measured))
+        assert cells[0] != cells[1]
+
     def test_an_objective_metric_is_excluded_from_expansion(self) -> None:
         # An objective's value *is* the variant's score, so niching on
         # it niches by progress -- the failure the module docstring
