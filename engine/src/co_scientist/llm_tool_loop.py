@@ -34,16 +34,7 @@ from co_scientist.llm_request import (
 )
 from co_scientist.llm_telemetry import record_cache_result
 from co_scientist.llm_tool_iteration import (
-    _build_tool_loop_completion_args as _build_tool_loop_completion_args,
-)
-from co_scientist.llm_tool_iteration import (
-    _escalated_max_tokens as _escalated_max_tokens,
-)
-from co_scientist.llm_tool_iteration import (
     _execute_tool_calls as _execute_tool_calls,
-)
-from co_scientist.llm_tool_iteration import (
-    _finalize_tool_call_response as _finalize_tool_call_response,
 )
 from co_scientist.llm_tool_iteration import (
     _run_iteration_logged,

@@ -150,9 +150,6 @@ from co_scientist.llm_tool_loop import (
     _execute_tool_calls as _execute_tool_calls,
 )
 from co_scientist.llm_tool_loop import (
-    _finalize_tool_call_response as _finalize_tool_call_response,
-)
-from co_scientist.llm_tool_loop import (
     _message_to_history_dict as _message_to_history_dict,
 )
 from co_scientist.llm_tool_loop import _prepare_llm_call

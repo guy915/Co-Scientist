@@ -19,10 +19,10 @@ from collections.abc import Awaitable, Callable
 from typing import Any
 
 from co_scientist.cache import LLMCacheRequest
-from co_scientist.constants import BUDGET_ESCALATION_MAX_TOKENS
 from co_scientist.llm_credentials import current_api_key
 from co_scientist.llm_json_escalation import (
     BudgetEscalation,
+    escalated_max_tokens,
     escalation_for_error,
     log_escalation,
 )
@@ -75,36 +75,6 @@ async def _execute_tool_calls(
     return results
 
 
-def _finalize_tool_call_response(response: Any, model_name: str) -> str:
-    """Validates and returns the final (non-tool-call) assistant response.
-
-    Classification is ``_extract_completion_content``'s rather than this
-    module's, because an empty answer here has the same three causes it
-    has on the plain path and the remedy differs by cause. Writing a
-    program is the most reasoning-heavy thing anything asks a model for,
-    so the tool loop meets the budget wall more often than the callers
-    that ladder was built for: a measured simulation turn came back
-    ``finish_reason="length"`` with 18000 reasoning tokens, no content and
-    no tool calls, which as a flat ``ValueError`` ended the whole loop on
-    its first turn.
-
-    Args:
-        response: The raw completion from the iteration where the LLM
-            stopped requesting tool calls.
-        model_name: Model name in litellm format, included in the error
-            message when the response is empty.
-
-    Returns:
-        The final response text.
-
-    Raises:
-        LLMBudgetExhaustedError: If the whole budget went on reasoning.
-        LLMThinkingOnlyError: If it stopped normally having written none.
-        ValueError: If the response is empty for any other reason.
-    """
-    return _extract_completion_content(response, model_name)
-
-
 def _build_tool_loop_completion_args(
     messages: list[dict[str, Any]],
     request: LLMCacheRequest,
@@ -148,7 +118,7 @@ def _build_tool_loop_completion_args(
         # pairing, since the provider rejects the whole request.
         "messages": normalize_tool_transcript(messages),
         "tools": request.tools,
-        "max_tokens": _escalated_max_tokens(request, escalation),
+        "max_tokens": escalated_max_tokens(request.max_tokens, escalation),
         "temperature": request.temperature,
         "drop_params": True,
     }
@@ -160,19 +130,6 @@ def _build_tool_loop_completion_args(
     _apply_timeout(completion_args)
     _apply_api_key(completion_args, current_api_key())
     return completion_args
-
-
-def _escalated_max_tokens(
-    request: LLMCacheRequest, escalation: BudgetEscalation
-) -> int:
-    """The budget to send at a rung, raised rather than replaced.
-
-    A loop already sized above ``BUDGET_ESCALATION_MAX_TOKENS`` is not cut
-    down by the very step meant to give it room.
-    """
-    if escalation is BudgetEscalation.NONE:
-        return request.max_tokens
-    return max(request.max_tokens, BUDGET_ESCALATION_MAX_TOKENS)
 
 
 async def _run_tool_call_iteration(
@@ -209,11 +166,17 @@ async def _run_tool_call_iteration(
         )
         return False, None
 
-    # No tool calls - this is the final response. Recorded only once it
-    # validates: an answerless turn contributed nothing, and leaving it in
-    # the transcript would resend it as an empty assistant message on the
-    # escalated retry that answers it.
-    final = _finalize_tool_call_response(response, request.model_name)
+    # No tool calls - this is the final response. Classified by
+    # `_extract_completion_content` rather than by a check of its own,
+    # because an empty answer here has the same three causes it has on
+    # the plain path and only one of them is answered by a different
+    # budget -- and writing a program is the most reasoning-heavy thing
+    # anything asks a model for, so this path meets that wall often.
+    #
+    # Recorded only once it validates: an answerless turn contributed
+    # nothing, and leaving it in the transcript would resend it as an
+    # empty assistant message on the very retry that answers it.
+    final = _extract_completion_content(response, request.model_name)
     messages.append(_message_to_history_dict(message))
     return True, final
 

@@ -93,6 +93,25 @@ def escalation_for_error(
     return None if escalated is current else escalated
 
 
+def escalated_max_tokens(max_tokens: int, escalation: BudgetEscalation) -> int:
+    """The budget to send at a rung.
+
+    Raised rather than replaced, so a caller that already sized itself
+    above ``BUDGET_ESCALATION_MAX_TOKENS`` is not cut down by the very
+    step meant to give it room.
+
+    Args:
+        max_tokens: The budget as its caller sized it.
+        escalation: The rung this attempt is being made at.
+
+    Returns:
+        The unchanged budget at ``NONE``, otherwise the raised one.
+    """
+    if escalation is BudgetEscalation.NONE:
+        return max_tokens
+    return max(max_tokens, BUDGET_ESCALATION_MAX_TOKENS)
+
+
 def log_escalation(
     error: BaseException | None, escalated: BudgetEscalation
 ) -> None:
@@ -157,5 +176,5 @@ def escalated_spec(
     if escalation is BudgetEscalation.NONE:
         return spec
     return dataclasses.replace(
-        spec, max_tokens=max(spec.max_tokens, BUDGET_ESCALATION_MAX_TOKENS)
+        spec, max_tokens=escalated_max_tokens(spec.max_tokens, escalation)
     )
