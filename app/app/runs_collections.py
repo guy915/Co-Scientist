@@ -50,6 +50,20 @@ async def get_hypotheses(run_id: str) -> dict[str, Any]:
     return {"hypotheses": hyps}
 
 
+def _objective_labels(run: Any) -> list[dict[str, str]]:
+    """Names the run's objectives for the surface, or none if it has no spec."""
+    from app.discovery_spec import DiscoverySpecError, evaluator_spec
+
+    try:
+        spec = evaluator_spec(run.config)
+    except DiscoverySpecError:
+        return []
+    return [
+        {"metric": item.metric, "direction": item.direction.value}
+        for item in spec.objectives
+    ]
+
+
 @router.get("/{run_id}/variants")
 async def get_code_variants(run_id: str) -> dict[str, Any]:
     """Return a discovery run's code variants, in attempt order.
@@ -57,9 +71,29 @@ async def get_code_variants(run_id: str) -> dict[str, Any]:
     Failed attempts are included and keep their ordinal. Omitting them
     would make the breakthrough plot read as faster progress than
     actually happened, which is the one thing the sequence is for.
+
+    Each variant is flagged with whether it is on the Pareto front.
+    Computed here rather than stored because it is a property of the
+    *set* -- one new variant can take an old one off the front -- so a
+    stored flag would be stale for every row but the newest.
     """
-    _require_run(run_id)
-    return {"variants": store.list_code_variants(run_id)}
+    run = _run_or_404(run_id)
+    from app.engine_tasks_variants_schedule import pareto_variant_ids
+
+    variants = store.list_code_variants(run_id)
+    front = pareto_variant_ids(variants)
+    for variant in variants:
+        variant["is_pareto_optimal"] = str(variant["id"]) in front
+    return {
+        "variants": variants,
+        "objectives": _objective_labels(run),
+        # How many distinct archive niches the run has reached. The
+        # number the diversity mechanism exists to move, so it is
+        # reported rather than left to be inferred from the rows.
+        "niches_occupied": len(
+            {tuple(v["niche"]) for v in variants if v["niche"]}
+        ),
+    }
 
 
 @router.get("/{run_id}/variants/{variant_id}")

@@ -8,6 +8,7 @@ they are worth reading without the LLM plumbing around them.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -118,11 +119,37 @@ def render_summary(parent: ParentVariant) -> str:
     return f"Program from attempt {parent.ordinal}."
 
 
-def objective_description(objective: Any) -> str:
-    """Describes the objective in the direction the model should read it."""
+def _one_objective(objective: Any) -> str:
+    """Describes one objective in the direction the model should read it."""
     goal = (
         "as large as possible"
         if objective.direction.value == "maximize"
         else "as small as possible"
     )
-    return f"Make the reported metric `{objective.metric}` {goal}."
+    return f"make `{objective.metric}` {goal}"
+
+
+def objective_description(objectives: Sequence[Any]) -> str:
+    """Describes everything the run is optimizing.
+
+    Every objective is named, not just the primary one. A run optimizing
+    accuracy and latency whose prompt mentions only accuracy gets exactly
+    what it asked for: the search preserves latency-favouring variants
+    through dominance, but no proposal ever *tries* to improve latency,
+    because nothing told the model it mattered. The primary is called out
+    as the tie-breaker so the model knows which way to lean when it has
+    to trade -- that is the one asymmetry the scoring actually has.
+    """
+    if len(objectives) == 1:
+        one = _one_objective(objectives[0])
+        return f"Make the reported metric {one[len('make ') :]}."
+    goals = "; ".join(_one_objective(item) for item in objectives)
+    primary = objectives[0].metric
+    return (
+        f"This run optimizes several things at once: {goals}. Improving one"
+        f" without giving up the others is what counts as progress -- a"
+        f" variant that wins on only one axis is kept, but it does not"
+        f" advance the run. Where a trade is unavoidable, favour"
+        f" `{primary}`, which is the score the run is ordered by, and say"
+        f" in your rationale what you gave up."
+    )

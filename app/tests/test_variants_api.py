@@ -42,6 +42,8 @@ def _run_with_variants(client: TestClient) -> tuple[str, list[str]]:
             store.VariantEvaluation(
                 status="ok" if fitness is not None else "failed",
                 fitness=fitness,
+                objective_values=[fitness],
+                niche=["targeted_edit" if index else "seed", 0],
                 metrics={"score": fitness} if fitness is not None else {},
                 artifacts={} if fitness is not None else {"stderr": "boom"},
             ),
@@ -101,4 +103,53 @@ def test_a_run_with_no_variants_returns_an_empty_list(
     run_id = client.post(
         "/api/runs", json={"research_goal": "empty", "mode": "standard"}
     ).json()["id"]
-    assert client.get(f"/api/runs/{run_id}/variants").json() == {"variants": []}
+    body = client.get(f"/api/runs/{run_id}/variants").json()
+    assert body["variants"] == []
+    assert body["niches_occupied"] == 0
+    # A run with no discovery config has no objectives to name, and
+    # saying so beats inventing a default the run was never given.
+    assert body["objectives"] == []
+
+
+def test_the_front_is_flagged_per_variant(client: TestClient) -> None:
+    run_id, ids = _run_with_variants(client)
+    body = client.get(f"/api/runs/{run_id}/variants").json()
+    flagged = {v["id"] for v in body["variants"] if v["is_pareto_optimal"]}
+    # One objective, so the front is just the best-scoring variant.
+    assert flagged == {ids[2]}
+
+
+def test_archive_coverage_counts_distinct_niches(
+    client: TestClient,
+) -> None:
+    run_id, _ = _run_with_variants(client)
+    body = client.get(f"/api/runs/{run_id}/variants").json()
+    # Two operators across three variants (the first has none), and all
+    # three programs are the same size, so the grid has two cells.
+    assert body["niches_occupied"] == 2
+
+
+def test_the_objectives_are_named_for_a_discovery_run(
+    client: TestClient,
+) -> None:
+    created = client.post(
+        "/api/runs", json={"research_goal": "discovery", "mode": "standard"}
+    ).json()
+    store.set_run_config(
+        created["id"],
+        {
+            "discovery": {
+                "objectives": [
+                    {"metric": "accuracy", "direction": "maximize"},
+                    {"metric": "latency", "direction": "minimize"},
+                ],
+                "stages": [{"name": "run", "argv": ["true"]}],
+                "seed_source": {"main.py": "pass"},
+            }
+        },
+    )
+    body = client.get(f"/api/runs/{created['id']}/variants").json()
+    assert body["objectives"] == [
+        {"metric": "accuracy", "direction": "maximize"},
+        {"metric": "latency", "direction": "minimize"},
+    ]

@@ -84,12 +84,15 @@ def build_prompt(
     evaluator: EvaluatorSpec,
 ) -> tuple[str, dict[str, Any] | None]:
     """Renders the proposal prompt and its response schema."""
-    objective = evaluator.objective
     return load_prompt_with_schema(
         "code_evolution",
         {
-            "objective_description": objective_description(objective),
-            "objective_metric": objective.metric,
+            "objective_description": objective_description(
+                evaluator.objectives
+            ),
+            "objective_metric": ", ".join(
+                f"`{item.metric}`" for item in evaluator.objectives
+            ),
             "metrics_path": evaluator.metrics_path,
             "parent_summary": render_summary(parent),
             "parent_source": render_source(parent.source),

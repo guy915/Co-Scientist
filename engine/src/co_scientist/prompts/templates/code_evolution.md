@@ -6,7 +6,7 @@ You are improving a program that is being optimized against a measured objective
 
 {{objective_description}}
 
-The program reports its metrics by writing `{{metrics_path}}`. Whatever else you change, it must still write that file, with `{{objective_metric}}` among the keys — a program that stops reporting cannot be scored, and an unscored variant is discarded no matter how good it is.
+The program reports its metrics by writing `{{metrics_path}}`. Whatever else you change, it must still write that file, with {{objective_metric}} among the keys — a program that stops reporting cannot be scored, and an unscored variant is discarded no matter how good it is.
 
 ## The parent program
 

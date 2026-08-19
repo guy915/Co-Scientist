@@ -217,3 +217,55 @@ def test_the_first_variant_has_no_prior_run_to_report() -> None:
         evaluator=_spec(),
     )
     assert "no prior run" in prompt
+
+
+def _multi_spec() -> EvaluatorSpec:
+    return EvaluatorSpec(
+        stages=(EvaluationStage(name="run", argv=("python", "main.py")),),
+        objectives=(
+            Objective(metric="accuracy", direction=Direction.MAXIMIZE),
+            Objective(metric="latency", direction=Direction.MINIMIZE),
+        ),
+    )
+
+
+def test_the_prompt_names_every_objective() -> None:
+    # A second objective the model never hears about is one no proposal
+    # ever tries to improve, however well the archive preserves it.
+    prompt, _ = build_prompt(
+        ParentVariant(source={"main.py": _PARENT}),
+        operator=CodeOperator.TARGETED_EDIT,
+        evaluator=_multi_spec(),
+    )
+    assert "accuracy" in prompt
+    assert "latency" in prompt
+    assert "as small as possible" in prompt
+
+
+def test_the_prompt_names_the_primary_as_the_tie_breaker() -> None:
+    prompt, _ = build_prompt(
+        ParentVariant(source={"main.py": _PARENT}),
+        operator=CodeOperator.TARGETED_EDIT,
+        evaluator=_multi_spec(),
+    )
+    assert "favour `accuracy`" in prompt
+
+
+def test_a_single_objective_prompt_stays_a_plain_instruction() -> None:
+    prompt, _ = build_prompt(
+        ParentVariant(source={"main.py": _PARENT}),
+        operator=CodeOperator.TARGETED_EDIT,
+        evaluator=_spec(),
+    )
+    assert "several things at once" not in prompt
+    assert "Make the reported metric `score` as large as possible." in prompt
+
+
+def test_the_prompt_requires_every_objective_metric_be_reported() -> None:
+    prompt, _ = build_prompt(
+        ParentVariant(source={"main.py": _PARENT}),
+        operator=CodeOperator.VECTORIZE,
+        evaluator=_multi_spec(),
+    )
+    reporting = prompt.split("The program reports its metrics")[1][:200]
+    assert "`accuracy`" in reporting and "`latency`" in reporting
