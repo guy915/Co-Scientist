@@ -350,11 +350,15 @@ async def execute_variant_aggregate(
         DEFAULT_MAX_GENERATIONS,
         budget_value,
         enqueue_generation,
+        freeze_grid_if_ready,
     )
 
     config = _run_config(task.run_id, db_path)
     generation = int(task.inputs.get("generation", 0))
     variants = store.list_code_variants(task.run_id, db_path=db_path)
+    # Before selecting: once the run has enough variants to tessellate,
+    # fix the cells so they stop moving underneath it.
+    config = freeze_grid_if_ready(task.run_id, variants, config, db_path)
     best = store.best_code_variant(task.run_id, db_path=db_path)
     summary: dict[str, Any] = {
         "generation": generation,

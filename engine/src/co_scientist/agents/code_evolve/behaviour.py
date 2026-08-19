@@ -7,7 +7,9 @@ tell a tight vectorised routine from a deeply nested loop of the same
 length -- and those are exactly the two approaches a search should keep
 apart. So this module measures shape as well as size.
 
-Everything here is deliberately cheap and language-tolerant. A discovery
+Structure proper -- which algorithm a program uses, as opposed to how
+big it is -- lives in `fingerprint`, and is folded in here. Everything
+else is deliberately cheap and language-tolerant. A discovery
 run's program is usually Python, so the AST is used when it parses, but
 every feature has a text-based fallback: a run whose program is Rust
 still gets nesting depth, branch density and import structure, just
@@ -24,6 +26,8 @@ import re
 from collections.abc import Mapping
 from typing import Any
 
+from co_scientist.agents.code_evolve import fingerprint
+
 logger = logging.getLogger(__name__)
 
 # Feature names. `operator` and `imports` are categorical; the rest are
@@ -35,9 +39,16 @@ MAX_DEPTH = "max_depth"
 BRANCH_COUNT = "branch_count"
 CALL_DIVERSITY = "call_diversity"
 IMPORTS = "imports"
+RECURSION = "recursion"
+AST_SHAPE = "ast_shape"
 METRIC_PREFIX = "metric:"
 
-CATEGORICAL_FEATURES = frozenset({OPERATOR, IMPORTS})
+CATEGORICAL_FEATURES = frozenset({OPERATOR, IMPORTS, RECURSION})
+
+# Features whose value is a vector rather than one number. They carry
+# more than an axis can bin, so only a strategy that clusters the whole
+# behaviour vector can use them -- see `grid`.
+VECTOR_FEATURES = frozenset({AST_SHAPE})
 
 # Control-flow keywords counted as branching, across the languages a
 # discovery run is plausibly written in. Matched on word boundaries, so
@@ -160,6 +171,8 @@ def describe(
     text = _joined_source(source)
     ast_depth = _python_depth(text)
     behaviour: dict[str, Any] = {
+        RECURSION: fingerprint.recursion(source),
+        AST_SHAPE: fingerprint.shape(source),
         OPERATOR: operator or "seed",
         SOURCE_BYTES: float(len(text.encode("utf-8"))),
         SOURCE_LINES: float(text.count("\n") + 1 if text else 0),
@@ -169,6 +182,7 @@ def describe(
         BRANCH_COUNT: float(len(_BRANCH_PATTERN.findall(text))),
         CALL_DIVERSITY: float(len(set(_CALL_PATTERN.findall(text)))),
         IMPORTS: _imports(text),
+        **fingerprint.densities(source),
     }
     for key, value in (metrics or {}).items():
         behaviour[f"{METRIC_PREFIX}{key}"] = float(value)
@@ -178,3 +192,8 @@ def describe(
 def is_categorical(feature: str) -> bool:
     """Reports whether a feature names a category rather than a quantity."""
     return feature in CATEGORICAL_FEATURES
+
+
+def is_vector(feature: str) -> bool:
+    """Reports whether a feature's value is a vector rather than a scalar."""
+    return feature in VECTOR_FEATURES

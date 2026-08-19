@@ -17,8 +17,10 @@ from co_scientist.agents.code_evolve.grid import (
     Descriptor,
     Grid,
     GridStrategy,
+    UnbinnableFeatureError,
     assign_cells,
     coverage,
+    freeze,
 )
 
 
@@ -167,3 +169,80 @@ class TestCoverage:
 
     def test_no_variants_is_no_coverage(self) -> None:
         assert coverage([]) == 0.0
+
+
+class TestFreezing:
+    def _population(self, count: int) -> list[dict[str, Any]]:
+        return [{"source_lines": float(i)} for i in range(count)]
+
+    def test_an_unfrozen_grid_can_move_a_variant(self) -> None:
+        # The instability freezing removes: adding variants re-clusters,
+        # so a cell is a snapshot rather than an identity.
+        grid = Grid((Descriptor("source_lines"),), GridStrategy.CVT, cells=3)
+        early = self._population(6)
+        before = assign_cells(early, grid)
+        after = assign_cells(early + self._population(30), grid)[: len(early)]
+        assert before != after
+
+    def test_freezing_pins_every_variant_already_placed(self) -> None:
+        grid = Grid((Descriptor("source_lines"),), GridStrategy.CVT, cells=3)
+        early = self._population(6)
+        frozen = freeze(early, grid)
+        before = assign_cells(early, frozen)
+        after = assign_cells(early + self._population(30), frozen)[: len(early)]
+        assert before == after
+
+    def test_freezing_is_idempotent(self) -> None:
+        grid = Grid((Descriptor("source_lines"),), GridStrategy.CVT, cells=3)
+        once = freeze(self._population(6), grid)
+        twice = freeze(self._population(40), once)
+        assert once.projection == twice.projection
+
+    def test_a_run_with_too_few_variants_does_not_freeze(self) -> None:
+        # Freezing a one-point tessellation on the first generation
+        # would leave the run with it forever.
+        grid = Grid((Descriptor("source_lines"),), GridStrategy.CVT, cells=8)
+        assert not freeze(self._population(3), grid).projection
+
+    def test_a_non_clustering_strategy_never_freezes(self) -> None:
+        grid = Grid(
+            (Descriptor("source_lines", bins=(1.0,)),), GridStrategy.FIXED
+        )
+        assert not freeze(self._population(40), grid).projection
+
+    def test_a_frozen_grid_still_places_new_variants(self) -> None:
+        grid = Grid((Descriptor("source_lines"),), GridStrategy.CVT, cells=3)
+        frozen = freeze(self._population(9), grid)
+        cells = assign_cells(
+            [*self._population(9), {"source_lines": 99.0}], frozen
+        )
+        assert len(cells) == 10
+        assert len(set(cells)) <= 3
+
+
+class TestVectorFeatures:
+    def test_a_vector_feature_separates_under_clustering(self) -> None:
+        grid = Grid((Descriptor("ast_shape"),), GridStrategy.CVT, cells=2)
+        cells = assign_cells(
+            [
+                {"ast_shape": (1.0, 0.0)},
+                {"ast_shape": (0.9, 0.1)},
+                {"ast_shape": (0.0, 1.0)},
+            ],
+            grid,
+        )
+        assert cells[0] == cells[1] != cells[2]
+
+    def test_a_vector_feature_is_refused_by_a_binning_strategy(self) -> None:
+        # Silently dropping it would leave the run niching along fewer
+        # axes than its author declared, with nothing to show for it.
+        grid = Grid((Descriptor("ast_shape"),), GridStrategy.FIXED)
+        with pytest.raises(UnbinnableFeatureError):
+            assign_cells([{"ast_shape": (1.0, 0.0)}], grid)
+
+    def test_a_variant_missing_the_vector_sits_apart(self) -> None:
+        grid = Grid((Descriptor("ast_shape"),), GridStrategy.CVT, cells=2)
+        cells = assign_cells(
+            [{"ast_shape": (1.0, 1.0)}, {"ast_shape": (0.9, 1.0)}, {}], grid
+        )
+        assert cells[2] != cells[0]

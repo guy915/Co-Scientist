@@ -16,13 +16,21 @@ from co_scientist.agents.code_evolve.archive import (
 )
 from co_scientist.agents.code_evolve.behaviour import (
     CATEGORICAL_FEATURES,
+    VECTOR_FEATURES,
     describe,
     is_categorical,
+    is_vector,
 )
 from co_scientist.agents.code_evolve.context import (
     MAX_ARTIFACT_CHARS,
     MAX_SOURCE_CHARS,
     ParentVariant,
+)
+from co_scientist.agents.code_evolve.fingerprint import (
+    SHAPE_BUCKETS,
+    densities,
+    recursion,
+    shape,
 )
 from co_scientist.agents.code_evolve.grid import (
     DEFAULT_CELLS,
@@ -31,8 +39,11 @@ from co_scientist.agents.code_evolve.grid import (
     Descriptor,
     Grid,
     GridStrategy,
+    UnbinnableFeatureError,
     assign_cells,
     coverage,
+    default_descriptors_for,
+    freeze,
 )
 from co_scientist.agents.code_evolve.operators import (
     CodeOperator,
@@ -46,6 +57,11 @@ from co_scientist.agents.code_evolve.proposal import (
     build_prompt,
     propose_variant,
 )
+from co_scientist.agents.code_evolve.tessellation import (
+    Projection,
+    projection_from_json,
+    projection_to_json,
+)
 
 __all__ = [
     "CATEGORICAL_FEATURES",
@@ -56,13 +72,17 @@ __all__ = [
     "EXPLOIT_SHARE",
     "MAX_ARTIFACT_CHARS",
     "MAX_SOURCE_CHARS",
+    "SHAPE_BUCKETS",
+    "VECTOR_FEATURES",
     "ArchiveEntry",
     "CodeOperator",
     "Descriptor",
     "Grid",
     "GridStrategy",
     "ParentVariant",
+    "Projection",
     "ProposalRejectedError",
+    "UnbinnableFeatureError",
     "VariantProposal",
     "apply_proposal",
     "archive_coverage",
@@ -70,10 +90,18 @@ __all__ = [
     "build_archive",
     "build_prompt",
     "coverage",
+    "default_descriptors_for",
+    "densities",
     "describe",
+    "freeze",
     "instructions_for",
     "is_categorical",
+    "is_vector",
+    "projection_from_json",
+    "projection_to_json",
     "propose_variant",
+    "recursion",
     "select_operator",
     "select_parents",
+    "shape",
 ]

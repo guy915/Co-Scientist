@@ -19,10 +19,11 @@ from typing import Any
 
 from co_scientist.agents.code_evolve import (
     DEFAULT_CELLS,
-    DEFAULT_DESCRIPTORS,
     Descriptor,
     Grid,
     GridStrategy,
+    default_descriptors_for,
+    projection_from_json,
 )
 from co_scientist.code_eval import (
     DEFAULT_STAGE_TIMEOUT_SECONDS,
@@ -193,14 +194,18 @@ def _descriptor(raw: Any, index: int) -> Descriptor:
     )
 
 
-def descriptors(config: dict[str, Any] | None) -> tuple[Descriptor, ...]:
+def descriptors(
+    config: dict[str, Any] | None,
+    strategy: GridStrategy = GridStrategy.CVT,
+) -> tuple[Descriptor, ...]:
     """Returns the archive axes a run's variants are niched along.
 
     Defaults rather than raising when unset, because every run gets a
-    usable grid for free: the operator that produced a variant, its
-    size, how deeply nested it is, and what it depends on. The last two
-    are what separate a vectorised rewrite from a tuned loop of the same
-    length -- the case size and operator alone read as one cell.
+    usable grid for free: what move produced a variant, how deeply
+    nested it is, what it depends on, whether it recurses, and a
+    fingerprint of its syntax. The last is what separates a `for` loop
+    from a `while` loop from a comprehension -- three different
+    algorithms that every surface feature reads as one cell.
 
     Raises:
         DiscoverySpecError: If ``descriptors`` is present but malformed.
@@ -210,7 +215,7 @@ def descriptors(config: dict[str, Any] | None) -> tuple[Descriptor, ...]:
     """
     raw = (discovery_config(config) or {}).get("descriptors")
     if raw is None:
-        return tuple(DEFAULT_DESCRIPTORS)
+        return tuple(default_descriptors_for(strategy))
     if not isinstance(raw, list) or not raw:
         raise DiscoverySpecError(
             "discovery.descriptors must be a non-empty list when present"
@@ -252,10 +257,12 @@ def grid(config: dict[str, Any] | None) -> Grid:
         raise DiscoverySpecError(
             "discovery.grid.cells must be a positive integer"
         )
+    strategy = _grid_strategy(raw.get("strategy"))
     return Grid(
-        descriptors=descriptors(config),
-        strategy=_grid_strategy(raw.get("strategy")),
+        descriptors=descriptors(config, strategy),
+        strategy=strategy,
         cells=cells,
+        projection=projection_from_json(raw.get("projection")),
     )
 
 

@@ -52,13 +52,16 @@ polished.
 from __future__ import annotations
 
 import math
-import random
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field, replace
 from enum import Enum
 from typing import Any
 
-from co_scientist.agents.code_evolve.behaviour import is_categorical
+from co_scientist.agents.code_evolve import tessellation
+from co_scientist.agents.code_evolve.behaviour import (
+    is_categorical,
+    is_vector,
+)
 
 # Default number of CVT cells. Small on purpose: a discovery run
 # evaluates tens of variants, and an archive with more cells than
@@ -70,6 +73,18 @@ DEFAULT_CELLS = 12
 # reproducible rather than optimal.
 _KMEANS_ITERATIONS = 25
 _KMEANS_SEED = 20260819
+
+
+class UnbinnableFeatureError(ValueError):
+    """A vector-valued feature under a strategy that can only bin scalars.
+
+    Raised rather than silently dropping the axis. A structural
+    fingerprint is eight numbers describing what algorithm a program
+    uses; `fixed` and `adaptive` place values on one dimension at a time
+    and have nothing to do with it. Ignoring it would leave a run niching
+    along fewer axes than its author declared, with nothing to show that
+    it happened -- the same silent under-enforcement the sandbox refuses.
+    """
 
 
 class GridStrategy(Enum):
@@ -105,11 +120,23 @@ class Grid:
         descriptors: The axes, in order.
         strategy: How cells are derived from them.
         cells: Target cell count for ``cvt``.
+        projection: A frozen coordinate system and its centroids, once
+            the run has one. While this is empty, CVT re-clusters on
+            every read, so a cell is a snapshot rather than an identity:
+            adding a variant can move an older one to a different cell,
+            and "cells occupied" is not monotonic. Freezing ends that --
+            see `freeze`. Note it pins the *projection*, not just the
+            centroids: the scaling and one-hot layout are derived from
+            the population too, so pinning centroids alone would let the
+            coordinate system drift underneath them.
     """
 
     descriptors: tuple[Descriptor, ...]
     strategy: GridStrategy = GridStrategy.CVT
     cells: int = DEFAULT_CELLS
+    projection: tessellation.Projection = field(
+        default_factory=tessellation.Projection
+    )
 
 
 # What a run gets when it declares nothing. Every axis here describes a
@@ -121,9 +148,30 @@ DEFAULT_DESCRIPTORS: tuple[Descriptor, ...] = (
     Descriptor(feature="operator"),
     Descriptor(feature="max_depth"),
     Descriptor(feature="imports"),
+    Descriptor(feature="recursion"),
+    Descriptor(feature="ast_shape"),
 )
 
 DEFAULT_GRID = Grid(descriptors=DEFAULT_DESCRIPTORS)
+
+
+def default_descriptors_for(strategy: GridStrategy) -> tuple[Descriptor, ...]:
+    """The default axes a strategy can actually use.
+
+    ``ast_shape`` is a vector and only the clustering strategy can read
+    one, so the scalar subset is what a `fixed` or `adaptive` run gets by
+    default. This is a narrowing of defaults the author never asked for,
+    not a silent drop of something they declared -- a vector feature
+    named explicitly under those strategies still raises.
+    """
+    if strategy is GridStrategy.CVT:
+        return DEFAULT_DESCRIPTORS
+    return tuple(
+        descriptor
+        for descriptor in DEFAULT_DESCRIPTORS
+        if not is_vector(descriptor.feature)
+    )
+
 
 Behaviour = Mapping[str, Any]
 
@@ -137,6 +185,11 @@ def _numeric(value: Any) -> float | None:
 
 def _fixed_coord(value: Any, descriptor: Descriptor) -> Any:
     """Places a value on one axis using declared edges."""
+    if is_vector(descriptor.feature):
+        raise UnbinnableFeatureError(
+            f"feature {descriptor.feature!r} is a vector and can only be "
+            f"used with the {GridStrategy.CVT.value!r} strategy"
+        )
     if is_categorical(descriptor.feature) or not descriptor.bins:
         return value if value is not None else "unknown"
     number = _numeric(value)
@@ -175,129 +228,19 @@ def _adaptive_edges(
     return _quantile_edges(observed, max(2, len(descriptor.bins) + 1))
 
 
-def _vectorize(
-    behaviours: Sequence[Behaviour], descriptors: Sequence[Descriptor]
-) -> list[list[float]]:
-    """Encodes behaviours as comparable numeric vectors for clustering.
-
-    Numeric axes are min-max normalized so an axis measured in bytes
-    cannot dominate one measured in nesting levels -- the same
-    cross-scale trap that makes a weighted-sum objective meaningless.
-    Categorical axes become a one-hot block, so two variants differ by a
-    constant on that axis whatever the categories are named.
-    """
-    columns: list[list[float]] = []
+def _feature_kinds(
+    descriptors: Sequence[Descriptor],
+) -> list[tuple[str, str]]:
+    """Pairs each descriptor with the column kind it projects to."""
+    kinds = []
     for descriptor in descriptors:
-        raw = [b.get(descriptor.feature) for b in behaviours]
         if is_categorical(descriptor.feature):
-            columns.extend(_one_hot(raw))
+            kinds.append((descriptor.feature, tessellation.CATEGORY))
+        elif is_vector(descriptor.feature):
+            kinds.append((descriptor.feature, tessellation.COMPONENT))
         else:
-            columns.append(_normalized([_numeric(value) for value in raw]))
-    return [list(row) for row in zip(*columns, strict=False)] or [
-        [] for _ in behaviours
-    ]
-
-
-def _normalized(values: Sequence[float | None]) -> list[float]:
-    """Scales one numeric axis into [0, 1], centring a constant axis."""
-    present = [value for value in values if value is not None]
-    if not present:
-        return [0.0 for _ in values]
-    low, high = min(present), max(present)
-    if high == low:
-        return [0.5 for _ in values]
-    return [
-        0.5 if value is None else (value - low) / (high - low)
-        for value in values
-    ]
-
-
-def _one_hot(values: Sequence[Any]) -> list[list[float]]:
-    """Encodes one categorical axis as equidistant columns."""
-    categories = sorted({str(value) for value in values})
-    return [
-        [1.0 if str(value) == category else 0.0 for value in values]
-        for category in categories
-    ]
-
-
-def _distance(left: Sequence[float], right: Sequence[float]) -> float:
-    """Squared euclidean distance, which is all k-means needs."""
-    return sum((a - b) ** 2 for a, b in zip(left, right, strict=False))
-
-
-def _initial_centroids(
-    points: Sequence[Sequence[float]], k: int, rng: random.Random
-) -> list[list[float]]:
-    """k-means++ seeding: spread the first centroids out deliberately."""
-    centroids = [list(rng.choice(points))]
-    while len(centroids) < k:
-        weights = [
-            min(_distance(point, centre) for centre in centroids)
-            for point in points
-        ]
-        total = sum(weights)
-        if total <= 0:
-            centroids.append(list(rng.choice(points)))
-            continue
-        centroids.append(list(rng.choices(points, weights=weights)[0]))
-    return centroids
-
-
-def _assign(
-    points: Sequence[Sequence[float]], centroids: Sequence[Sequence[float]]
-) -> list[int]:
-    """Labels each point with its nearest centroid."""
-    return [
-        min(range(len(centroids)), key=lambda i: _distance(point, centroids[i]))
-        for point in points
-    ]
-
-
-def _recentre(
-    points: Sequence[Sequence[float]], labels: Sequence[int], k: int
-) -> list[list[float]]:
-    """Moves each centroid to the mean of the points assigned to it."""
-    centroids = []
-    for index in range(k):
-        members = [
-            p
-            for p, label in zip(points, labels, strict=False)
-            if label == index
-        ]
-        if not members:
-            centroids.append(list(points[index % len(points)]))
-            continue
-        centroids.append(
-            [
-                sum(values) / len(members)
-                for values in zip(*members, strict=False)
-            ]
-        )
-    return centroids
-
-
-def _kmeans_labels(points: Sequence[Sequence[float]], k: int) -> list[int]:
-    """Clusters behaviour vectors into at most ``k`` cells.
-
-    Seeded from a constant so the same variants always produce the same
-    cells: parent selection is already stochastic, and a grid that also
-    moved between two reads of the same run would make a diversity
-    regression impossible to reproduce.
-    """
-    if not points or not points[0]:
-        return [0 for _ in points]
-    k = max(1, min(k, len(points)))
-    rng = random.Random(_KMEANS_SEED)
-    centroids = _initial_centroids(points, k, rng)
-    labels = _assign(points, centroids)
-    for _ in range(_KMEANS_ITERATIONS):
-        centroids = _recentre(points, labels, k)
-        updated = _assign(points, centroids)
-        if updated == labels:
-            break
-        labels = updated
-    return labels
+            kinds.append((descriptor.feature, tessellation.NUMERIC))
+    return kinds
 
 
 def _static_cells(
@@ -336,15 +279,68 @@ def assign_cells(
     Returns:
         One cell key per variant, in the same order. Keys are opaque:
         compare them, do not read them.
+
+    With a frozen tessellation each variant goes to its nearest
+    centroid and nothing else moves. Without one, CVT re-clusters the
+    whole population, which is correct but unstable -- so a run freezes
+    as soon as it has enough variants to tessellate meaningfully.
     """
     if not behaviours:
         return []
     if grid.strategy is not GridStrategy.CVT:
         return _static_cells(behaviours, grid)
-    labels = _kmeans_labels(
-        _vectorize(behaviours, grid.descriptors), grid.cells
-    )
+    if grid.projection:
+        points = tessellation.project(behaviours, grid.projection.columns)
+        labels = tessellation.nearest(points, grid.projection.centroids)
+    else:
+        columns = tessellation.derive_columns(
+            behaviours, _feature_kinds(grid.descriptors)
+        )
+        labels, _ = tessellation.cluster(
+            tessellation.project(behaviours, columns), grid.cells
+        )
     return [(label,) for label in labels]
+
+
+def freeze(behaviours: Sequence[Behaviour], grid: Grid) -> Grid:
+    """Fixes the tessellation, so a cell becomes a durable identity.
+
+    Until a CVT grid is frozen, every read re-clusters: a variant can
+    change cells because a later variant arrived, so cell ids cannot be
+    compared across time and the occupied-cell count can go *down*.
+    Freezing takes the centroids the population implies right now and
+    keeps them, after which assignment is nearest-centroid and nothing
+    already placed ever moves.
+
+    Args:
+        behaviours: The population to tessellate from.
+        grid: The run's current configuration.
+
+    Returns:
+        The grid with centroids fixed, or unchanged when it is already
+        frozen, is not CVT, or has fewer variants than cells. That last
+        condition is what stops a run freezing a one-point tessellation
+        on its first generation and living with it forever.
+    """
+    if (
+        grid.strategy is not GridStrategy.CVT
+        or grid.projection
+        or len(behaviours) < grid.cells
+    ):
+        return grid
+    columns = tessellation.derive_columns(
+        behaviours, _feature_kinds(grid.descriptors)
+    )
+    _, centroids = tessellation.cluster(
+        tessellation.project(behaviours, columns), grid.cells
+    )
+    return replace(
+        grid,
+        projection=tessellation.Projection(
+            columns=columns,
+            centroids=tuple(tuple(centre) for centre in centroids),
+        ),
+    )
 
 
 def coverage(cells: Sequence[tuple[Any, ...]]) -> float:

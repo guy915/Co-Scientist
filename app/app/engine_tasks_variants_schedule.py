@@ -107,6 +107,57 @@ def select_parents(
     return [by_id[entry.variant_id] for entry in chosen]
 
 
+def freeze_grid_if_ready(
+    run_id: str,
+    variants: list[dict[str, Any]],
+    config: dict[str, Any],
+    db_path: str | None = None,
+) -> dict[str, Any]:
+    """Fixes the run's tessellation once it has enough variants to.
+
+    Until a CVT grid is frozen every read re-clusters, so a variant can
+    change cells because a later one arrived: cell ids cannot be
+    compared across generations and the occupied-cell count can go
+    *down*. Freezing writes the centroids into the run config, after
+    which assignment is nearest-centroid and nothing already placed
+    moves again.
+
+    Done here, in the aggregate, because it is the one task per
+    generation -- a per-variant freeze would race, and several workers
+    would each write a different tessellation over the same run.
+
+    Returns:
+        The run config, updated in place when a freeze happened.
+    """
+    from co_scientist.agents.code_evolve import freeze, projection_to_json
+
+    from app.discovery_spec import DISCOVERY_CONFIG_KEY, grid
+
+    current = grid(config)
+    frozen = freeze([v.get("behaviour") or {} for v in variants], current)
+    if frozen.projection == current.projection:
+        return config
+    block = dict(config.get(DISCOVERY_CONFIG_KEY) or {})
+    block["grid"] = {
+        **(block.get("grid") or {}),
+        "strategy": frozen.strategy.value,
+        "cells": frozen.cells,
+        # The whole projection, not just the centroids: the scaling and
+        # one-hot layout are derived from the population too, so storing
+        # centroids alone would let the coordinate system drift
+        # underneath them and re-label old variants anyway.
+        "projection": projection_to_json(frozen.projection),
+    }
+    updated = {**config, DISCOVERY_CONFIG_KEY: block}
+    store.set_run_config(run_id, updated, db_path=db_path)
+    logger.info(
+        "Discovery run %s froze its archive at %s cells",
+        run_id,
+        len(frozen.projection.centroids),
+    )
+    return updated
+
+
 def archive_summary(
     variants: list[dict[str, Any]], config: dict[str, Any] | None
 ) -> tuple[int, float]:

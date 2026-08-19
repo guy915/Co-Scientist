@@ -188,4 +188,11 @@ def test_the_shipped_defaults_describe_kind_rather_than_progress() -> None:
         "operator",
         "max_depth",
         "imports",
+        "recursion",
+        "ast_shape",
     ]
+    # Every one of those describes a kind of program. Program length --
+    # the cheapest feature available -- stays out, because it grows as a
+    # variant is polished and an axis that tracks maturity turns the
+    # archive into "keep every refinement level of every approach".
+    assert "source_lines" not in [d.feature for d in DEFAULT_DESCRIPTORS]

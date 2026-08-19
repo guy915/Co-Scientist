@@ -133,7 +133,46 @@ def test_absent_descriptors_fall_back_to_the_defaults(db: str) -> None:
         "operator",
         "max_depth",
         "imports",
+        "recursion",
+        "ast_shape",
     ]
+
+
+def test_a_non_clustering_strategy_gets_only_the_scalar_defaults(
+    db: str,
+) -> None:
+    # `ast_shape` is a vector and only clustering can read one, so a
+    # `fixed` run's defaults narrow rather than failing on axes its
+    # author never asked for.
+    from co_scientist.agents.code_evolve import GridStrategy
+
+    from app.discovery_spec import descriptors
+
+    axes = descriptors({"discovery": {}}, GridStrategy.FIXED)
+    assert "ast_shape" not in [d.feature for d in axes]
+
+
+def test_a_declared_vector_axis_under_a_scalar_strategy_is_refused(
+    db: str,
+) -> None:
+    # Declared, not defaulted: dropping it silently would leave a run
+    # niching along fewer axes than its author wrote, with nothing to
+    # show that it happened.
+    from co_scientist.agents.code_evolve import (
+        UnbinnableFeatureError,
+        assign_cells,
+    )
+
+    from app.discovery_spec import grid
+
+    built = grid(
+        _config_for(
+            descriptors=[{"feature": "ast_shape"}],
+            grid={"strategy": "fixed"},
+        )
+    )
+    with pytest.raises(UnbinnableFeatureError):
+        assign_cells([{"ast_shape": (0.5, 0.5)}], built)
 
 
 def test_the_default_grid_is_cvt(db: str) -> None:
