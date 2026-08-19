@@ -16,6 +16,23 @@ RUN_COMMAND = "run_command"
 APPLY_PATCH = "apply_patch"
 READ_FILE = "read_file"
 LIST_FILES = "list_files"
+POLL_COMMAND = "poll_command"
+
+# How long `run_command` waits before handing back a session id instead
+# of a result. Short: the point is that a long command keeps running, so
+# holding the turn open buys nothing the next poll does not.
+DEFAULT_YIELD_SECONDS = 10.0
+
+# Declared once: it is the only argument `run_command` grew, and the
+# schema functions are at the length ceiling without it inline.
+_YIELD_SECONDS = {
+    "type": "number",
+    "description": (
+        "How long to wait for the command before returning a session to "
+        f"poll instead. Capped at {int(DEFAULT_COMMAND_TIMEOUT_SECONDS)} "
+        f"seconds; defaults to {int(DEFAULT_YIELD_SECONDS)}."
+    ),
+}
 
 
 def run_command_schema() -> dict[str, Any]:
@@ -32,7 +49,10 @@ def run_command_schema() -> dict[str, Any]:
                 "ask for one -- pass "
                 '["bash", "-lc", "..."] to use pipes, redirection or '
                 "environment assignment. Output is captured and truncated "
-                "if very large."
+                "if very large. A command that has not finished within "
+                "yield_seconds is NOT killed and is NOT an error: the "
+                "reply comes back with running=true and a session_id, "
+                "and you continue it with poll_command."
             ),
             "parameters": {
                 "type": "object",
@@ -45,13 +65,7 @@ def run_command_schema() -> dict[str, Any]:
                             'e.g. ["python3", "analyze.py", "--fast"].'
                         ),
                     },
-                    "timeout_seconds": {
-                        "type": "number",
-                        "description": (
-                            "Wall-clock ceiling for this command. Capped at "
-                            f"{int(DEFAULT_COMMAND_TIMEOUT_SECONDS)} seconds."
-                        ),
-                    },
+                    "yield_seconds": _YIELD_SECONDS,
                 },
                 "required": ["argv"],
             },
@@ -125,5 +139,68 @@ def list_files_schema() -> dict[str, Any]:
                 "its root."
             ),
             "parameters": {"type": "object", "properties": {}},
+        },
+    }
+
+
+def _poll_properties() -> dict[str, Any]:
+    """The arguments a poll takes, as JSON schema."""
+    return {
+        "session_id": {
+            "type": "string",
+            "description": "The id run_command returned.",
+        },
+        "cursor": {
+            "type": "object",
+            "description": (
+                "The cursor from your previous reply. Omit to read the "
+                "command's output from the start."
+            ),
+            "properties": {
+                "stdout": {"type": "integer"},
+                "stderr": {"type": "integer"},
+            },
+        },
+        "wait_seconds": {
+            "type": "number",
+            "description": (
+                "How long to wait for it to finish before replying. "
+                f"Capped at {int(DEFAULT_COMMAND_TIMEOUT_SECONDS)} "
+                "seconds; 0 to look and reply immediately."
+            ),
+        },
+        "input": {
+            "type": "string",
+            "description": (
+                "Text to send to the command's stdin. Include a trailing "
+                "newline if it reads by line."
+            ),
+        },
+        "kill": {
+            "type": "boolean",
+            "description": "End the command and its children.",
+        },
+    }
+
+
+def poll_command_schema() -> dict[str, Any]:
+    """Builds the OpenAI schema for continuing a running command."""
+    return {
+        "type": "function",
+        "function": {
+            "name": POLL_COMMAND,
+            "description": (
+                "Continue a command that run_command left running. "
+                "Returns whatever it has written since your last cursor "
+                "-- not from the start, so polling a chatty command does "
+                "not re-read it -- and its exit code once it finishes. "
+                "Use `input` to answer a prompt it is waiting on, and "
+                "`kill` to end it."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": _poll_properties(),
+                "required": ["session_id"],
+            },
         },
     }

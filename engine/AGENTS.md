@@ -51,7 +51,13 @@ sharing a surface shape, `tessellation.py` for the frozen projection that
 keeps a cell meaning the same thing from one generation to the next while
 still growing cells and columns for behaviour it has never seen); `code_eval/` runs the resulting cascade
 and scores it against one or more objectives, keeping the extra ones
-separate via Pareto dominance (`pareto.py`) rather than summing them; `workspace/` and `sandbox/` confine every command. The app
+separate via Pareto dominance (`pareto.py`) rather than summing them; `workspace/` and `sandbox/` confine every command --
+including ones that outlive the call that started them
+(`workspace/command_session.py`: `run_command` hands back a session id
+rather than killing a command at its deadline, `poll_command` continues
+it from a cursor, and `llm_tool_transcript.normalize_tool_transcript`
+turns a turn cut off mid-call into an explicit aborted result instead of
+a conversation the provider rejects). The app
 drives the loop as durable tasks rather than through LangGraph. See
 `docs/DISCOVERY.md`.
 

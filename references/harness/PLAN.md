@@ -7,7 +7,7 @@ Supersedes the open questions in `SCOPE.md`. Grounded in the four teardowns in
 
 ## Build status (2026-08-19)
 
-Phases 0, 1, 3 and 4 are complete; Phase 2 is partly built. Everything below
+Phases 0, 1, 2, 3 and 4 are complete. Everything below
 ships with tests, and where a test could pass against a broken implementation
 the mutation was run to confirm it fails against one.
 
@@ -15,7 +15,7 @@ the mutation was run to confirm it fails against one.
 | --- | --- | --- | --- |
 | Effect-typed tools + contiguous batching | 0 | **done** | `tool_effects.py`, `llm_tool_loop.py` |
 | Iteration soft-handoff | 0 | **done** | `llm_tool_loop.py` |
-| Interrupted-turn normalizer | 0 | **not built, deliberately** | see below |
+| Interrupted-turn normalizer | 0 | **done** | `llm_tool_transcript.py` — built with sessions, as planned |
 | `SandboxPolicy` + `wrap_argv` | 1 | **done, macOS verified** | `sandbox/policy.py`, `sandbox/argv.py`, `sandbox/seatbelt.py` |
 | bubblewrap backend | 1 | **done, verified privileged** | `sandbox/bwrap.py` |
 | landlock + seccomp backend | 1 | **done, verified in the api image** | `sandbox/landlock.py`, `sandbox/seccomp.py`, `sandbox/confine_exec.py` |
@@ -27,7 +27,7 @@ the mutation was run to confirm it fails against one.
 | Shadow-git snapshots | 2 | **done** | `workspace/snapshot.py` |
 | Output redaction + spillover | 2 | **done** | `workspace/output.py` |
 | Post-edit checks fed back | 2 | **done, parse checks only** | `workspace/checks.py` — a linter is absent from the prod image; see below |
-| Long-running commands as sessions | 2 | not built | needs the app's durable task layer |
+| Long-running commands as sessions | 2 | **done** | `workspace/command_session.py`, `poll_command` |
 | Per-run session construction | 2 | **done** | `workspace/run_workspace.py` |
 | Production exec topology | 1 | **resolved — no separate service needed** | see below |
 | Tool registration (D5) | 2 | **done** | `workspace/tools.py` |
@@ -119,12 +119,19 @@ error. And `os.execv` does no PATH lookup, so every non-absolute command — the
 normal case for anything a model writes — failed with ENOENT under this backend
 alone, while every absolute-path test kept passing.
 
-**3. The normalizer was skipped on evidence, not forgotten.** Codex needs it
-because it resumes mid-turn; this host restarts the whole task. Verified:
-`message_history` is written only on success and read only on a cache hit, and
-nothing reconstructs a partial tool transcript. It becomes necessary with
-start-then-poll long-running commands, and belongs in that change where it can
-be tested against a real interrupted command.
+**3. The normalizer was skipped on evidence, then built when the evidence
+changed.** Codex needs it because it resumes mid-turn; this host restarted the
+whole task, `message_history` was written only on success, and nothing
+reconstructed a partial tool transcript. Sessions are what made an interrupted
+turn a real state: a command now outlives the call that started it, a poll can
+be cancelled with the command still running, and a worker restart ends every
+session it held. So it was built in that change, as planned, and is tested
+against a command that really was cut off
+(`test_workspace_sessions.py::TestAnInterruptedCommand`). It synthesizes an
+aborted result rather than dropping the assistant's message: erasing the
+request would leave the model free to ask again forever with no record of why
+the last attempt produced nothing, and the result says the call *may have run*,
+because an aborted `run_command` can have had every effect it was going to.
 
 ### One defect worth remembering
 
@@ -385,8 +392,16 @@ Still open — and each is blocked on a fact, not on effort:
   shipping Phase 3**: the evaluator is the caller, through
   `open_variant_workspace(run_id, variant_id)` — per variant rather than per
   run, because evaluations run concurrently and one shared directory has two
-  of them each running part of the other's code. Open only for a
-  conversational terminal loop, which still has no caller.
+  of them each running part of the other's code. The terminal surface itself
+  is complete, sessions included; what has no caller is a *conversational*
+  loop over it, and inventing an agent to be that caller is a product
+  decision rather than a gap in the harness. That caller inherits one
+  responsibility with it: a command session's lifetime is bounded only by the
+  process that owns it, since a session outlives the call that started it by
+  design and nothing else ends one the model never killed.
+  `WorkspaceSession.close()` is the hook, and a loop holding one process across
+  many workspaces has to call it; a reaper on a timer belongs to that loop
+  rather than here, where every workspace dies with its worker anyway.
 - **D6 — dataset storage. DECIDED: in the store, copied per variant.** A run's
   dataset is written once at creation into its own `code_datasets` table and
   copied into each variant's workspace before evaluation. Not in the variant's

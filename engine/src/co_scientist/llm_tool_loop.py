@@ -51,9 +51,19 @@ from co_scientist.llm_tool_policy import (
 from co_scientist.llm_tool_policy import (
     _handoff_message as _handoff_message,
 )
+from co_scientist.llm_tool_transcript import (
+    _message_to_history_dict as _message_to_history_dict,
+)
+from co_scientist.llm_tool_transcript import (
+    normalize_tool_transcript,
+)
 from co_scientist.llm_types import CompletionSpec, LLMCallOptions
 from co_scientist.tool_effects import batch_by_effects
 
+# `_message_to_history_dict` is re-exported above under its original
+# private name: the transcript-shaping helpers moved to
+# `llm_tool_transcript` to keep this module under the size ceiling, and
+# tests and `llm.py` patch the name here.
 logger = logging.getLogger(__name__)
 
 
@@ -123,44 +133,6 @@ async def _prepare_llm_call(
     if isinstance(cache, LLMCache):
         record_cache_result(request.model_name, hit=cached_response is not None)
     return request, cache, cached_response
-
-
-def _message_to_history_dict(message: Any) -> dict[str, Any]:
-    """Converts a litellm assistant message into a plain history dict.
-
-    litellm's message object is a Pydantic model, not a plain dict; this
-    converts it so it can be cached and replayed as message history, with
-    tool_calls included when present.
-    """
-    message_dict: dict[str, Any] = {
-        "role": message.role,
-        "content": message.content,
-    }
-
-    # DeepSeek thinking returns the chain of thought as reasoning_content, and
-    # the API requires it to be echoed back on any assistant message that
-    # carries tool_calls -- omitting it 400s the next iteration. Preserve it so
-    # the replayed history stays valid; harmless for non-thinking models, which
-    # never populate the field.
-    reasoning = getattr(message, "reasoning_content", None)
-    if reasoning:
-        message_dict["reasoning_content"] = reasoning
-
-    # Add tool calls if present
-    if hasattr(message, "tool_calls") and message.tool_calls:
-        message_dict["tool_calls"] = [
-            {
-                "id": tc.id,
-                "type": "function",
-                "function": {
-                    "name": tc.function.name,
-                    "arguments": tc.function.arguments,
-                },
-            }
-            for tc in message.tool_calls
-        ]
-
-    return message_dict
 
 
 async def _execute_tool_calls(
@@ -253,7 +225,10 @@ def _build_tool_loop_completion_args(
     """
     completion_args: dict[str, Any] = {
         "model": request.model_name,
-        "messages": messages,
+        # Repaired here rather than at each place a transcript can be
+        # cut: the send is the one point that must never see a broken
+        # pairing, since the provider rejects the whole request.
+        "messages": normalize_tool_transcript(messages),
         "tools": request.tools,
         "max_tokens": request.max_tokens,
         "temperature": request.temperature,
@@ -321,7 +296,11 @@ def _cache_tool_call_result(
     """
     cache.set(
         request,
-        {"final_response": final_content, "message_history": messages},
+        # Stored repaired, so a replay is valid however this turn ended.
+        {
+            "final_response": final_content,
+            "message_history": normalize_tool_transcript(messages),
+        },
     )
 
 

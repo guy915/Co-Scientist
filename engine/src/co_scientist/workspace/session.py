@@ -34,6 +34,7 @@ from co_scientist.sandbox import (
     workspace_write,
 )
 from co_scientist.tool_effects import ToolEffect
+from co_scientist.workspace.command_session import SessionRegistry
 from co_scientist.workspace.output import SPILL_DIRECTORY
 
 logger = logging.getLogger(__name__)
@@ -142,6 +143,9 @@ class WorkspaceSession:
         self.policy = policy or workspace_write(
             self.root, network_allowed=network_allowed
         )
+        # Commands that outlive the call that started them. Lazily
+        # populated: a workspace used only for patches never starts one.
+        self.sessions = SessionRegistry()
 
     async def run_command(
         self,
@@ -188,6 +192,20 @@ class WorkspaceSession:
             needs_approval,
         )
         return CommandOutcome(result=result, required_approval=needs_approval)
+
+    async def close(self) -> None:
+        """Ends every command still running in this workspace.
+
+        A session outlives the call that started it by design, so
+        nothing else ends one that the model never killed. Sessions are
+        process-local, which bounds the leak at the worker's own
+        lifetime -- but a caller that keeps one process alive across
+        many workspaces has to call this, and the conversational loop
+        that will do so is not built yet. See the module docstring in
+        ``command_session`` for why the reaper belongs to that caller
+        rather than here.
+        """
+        await self.sessions.close()
 
     def apply_patch_text(self, patch_text: str) -> PatchOutcome:
         """Applies a V4A patch envelope inside this workspace.

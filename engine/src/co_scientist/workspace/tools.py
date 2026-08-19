@@ -36,10 +36,16 @@ from dataclasses import dataclass
 from typing import Any
 
 from co_scientist.patch import PatchError
-from co_scientist.sandbox import SandboxKind, SandboxPolicy, sandbox_backend
+from co_scientist.sandbox import (
+    SandboxKind,
+    SandboxPolicy,
+    is_known_safe,
+    sandbox_backend,
+)
 from co_scientist.tool_effects import declare_local_tool
 from co_scientist.tools.messages import tool_error_message, tool_result_message
 from co_scientist.workspace.checks import check_paths
+from co_scientist.workspace.command_session import CommandSession, SessionRead
 from co_scientist.workspace.output import (
     BoundedOutput,
     OutputRecorder,
@@ -51,11 +57,14 @@ from co_scientist.workspace.session import (
 )
 from co_scientist.workspace.tool_schemas import (
     APPLY_PATCH,
+    DEFAULT_YIELD_SECONDS,
     LIST_FILES,
+    POLL_COMMAND,
     READ_FILE,
     RUN_COMMAND,
     apply_patch_schema,
     list_files_schema,
+    poll_command_schema,
     read_file_schema,
     run_command_schema,
 )
@@ -71,6 +80,9 @@ declare_local_tool(RUN_COMMAND, WorkspaceSession.RUN_COMMAND_EFFECTS)
 declare_local_tool(APPLY_PATCH, WorkspaceSession.APPLY_PATCH_EFFECTS)
 declare_local_tool(READ_FILE, WorkspaceSession.READ_FILE_EFFECTS)
 declare_local_tool(LIST_FILES, WorkspaceSession.READ_FILE_EFFECTS)
+# Polling touches a live process -- it can write to its stdin and end
+# it -- so it is a barrier for the same reason starting one is.
+declare_local_tool(POLL_COMMAND, WorkspaceSession.RUN_COMMAND_EFFECTS)
 
 # Policies whose confinement is somebody else's job: EXTERNAL means the
 # caller placed the boundary outside this process, DANGER_FULL_ACCESS
@@ -129,6 +141,7 @@ def workspace_tool_schemas(policy: SandboxPolicy) -> list[dict[str, Any]]:
     ]
     if can_run_commands(policy):
         schemas.insert(0, run_command_schema())
+        schemas.insert(1, poll_command_schema())
     else:
         logger.warning(
             "no sandbox backend on this platform; withholding %r from the "
@@ -153,12 +166,23 @@ def _require_argv(args: dict[str, Any]) -> list[str]:
     return argv
 
 
-def _resolve_timeout(args: dict[str, Any]) -> float:
-    """Clamps a requested command timeout to the session's ceiling."""
-    requested = args.get("timeout_seconds")
-    if not isinstance(requested, int | float) or requested <= 0:
-        return DEFAULT_COMMAND_TIMEOUT_SECONDS
-    return min(float(requested), DEFAULT_COMMAND_TIMEOUT_SECONDS)
+def _resolve_seconds(raw: Any, default: float, floor: float = 0.0) -> float:
+    """Clamps a requested wait to the ceiling one command may hold."""
+    if not isinstance(raw, int | float) or raw < floor:
+        return default
+    return min(float(raw), DEFAULT_COMMAND_TIMEOUT_SECONDS)
+
+
+def _resolve_yield(args: dict[str, Any]) -> float:
+    """How long to wait before handing back a session id instead."""
+    return _resolve_seconds(
+        args.get("yield_seconds"), DEFAULT_YIELD_SECONDS, floor=0.001
+    )
+
+
+def _resolve_wait(args: dict[str, Any]) -> float:
+    """How long a poll waits for the command to finish. Zero is valid."""
+    return _resolve_seconds(args.get("wait_seconds"), DEFAULT_YIELD_SECONDS)
 
 
 def _full_output_paths(
@@ -172,32 +196,99 @@ def _full_output_paths(
     }
 
 
-async def _handle_run_command(
-    context: "_ToolContext", args: dict[str, Any]
+def _session_payload(
+    context: "_ToolContext", read: SessionRead
 ) -> dict[str, Any]:
-    """Runs a confined command and reports its outcome to the model."""
-    outcome = await context.session.run_command(
-        _require_argv(args), timeout_seconds=_resolve_timeout(args)
-    )
-    result = outcome.result
+    """Renders one look at a session for the model.
+
+    ``running`` is the field that matters: a command still going is a
+    successful answer carrying a session id, not a timeout and not an
+    error. The caller's next move is to poll it, not to start over.
+    """
     streams = {
-        "stdout": context.recorder.record("stdout", result.stdout),
-        "stderr": context.recorder.record("stderr", result.stderr),
+        "stdout": context.recorder.record("stdout", read.stdout),
+        "stderr": context.recorder.record("stderr", read.stderr),
     }
     payload: dict[str, Any] = {
-        "exit_code": result.exit_code,
+        "session_id": read.session_id,
+        "running": read.running,
+        "exit_code": read.exit_code,
         "stdout": streams["stdout"].text,
         "stderr": streams["stderr"].text,
-        "timed_out": result.timed_out,
+        "cursor": read.cursor,
         "truncated": {
-            name: bounded.truncated for name, bounded in streams.items()
+            name: bounded.truncated or read.truncated[name]
+            for name, bounded in streams.items()
         },
-        "required_approval": outcome.required_approval,
     }
     spilled = _full_output_paths(streams)
     if spilled:
         payload["full_output"] = spilled
     return payload
+
+
+async def _handle_run_command(
+    context: "_ToolContext", args: dict[str, Any]
+) -> dict[str, Any]:
+    """Starts a confined command and reports how far it got.
+
+    It is started as a session rather than awaited to completion,
+    because the interesting commands here -- a build, a test suite, a
+    training run -- routinely outlast any deadline short enough to be
+    worth waiting on, and killing one at that deadline discards both the
+    work and the output it had already produced.
+    """
+    argv = _require_argv(args)
+    session = await context.session.sessions.start(
+        argv, policy=context.session.policy, cwd=context.session.root
+    )
+    await session.wait_for(_resolve_yield(args))
+    payload = _session_payload(context, session.read())
+    payload["required_approval"] = not is_known_safe(argv)
+    return payload
+
+
+def _named_session(
+    context: "_ToolContext", args: dict[str, Any]
+) -> CommandSession:
+    """Resolves the session a poll names, or says why it cannot."""
+    session_id = args.get("session_id")
+    if not isinstance(session_id, str) or not session_id:
+        raise WorkspaceToolInputError("session_id must be a string")
+    try:
+        return context.session.sessions.get(session_id)
+    except KeyError:
+        raise WorkspaceToolInputError(
+            f"no command session {session_id!r} is open here. A worker "
+            f"restart ends every session it was running."
+        ) from None
+
+
+async def _send_input(session: CommandSession, args: dict[str, Any]) -> None:
+    """Passes a poll's `input` to the command, if it asked for one."""
+    if not isinstance(args.get("input"), str):
+        return
+    try:
+        await session.write(str(args["input"]))
+    except ValueError as exc:
+        # Actionable, not a harness fault: the command answered or
+        # exited before the input arrived, and polling without it still
+        # returns what it printed.
+        raise WorkspaceToolInputError(str(exc)) from None
+
+
+async def _handle_poll_command(
+    context: "_ToolContext", args: dict[str, Any]
+) -> dict[str, Any]:
+    """Continues a command a previous call left running."""
+    session = _named_session(context, args)
+    await _send_input(session, args)
+    if args.get("kill"):
+        await session.close()
+    else:
+        await session.wait_for(_resolve_wait(args))
+    cursor = args.get("cursor") if isinstance(args.get("cursor"), dict) else {}
+    return _session_payload(context, session.read(cursor))
 
 
 async def _handle_apply_patch(
@@ -265,6 +356,7 @@ async def _handle_list_files(
 
 _HANDLERS = {
     RUN_COMMAND: _handle_run_command,
+    POLL_COMMAND: _handle_poll_command,
     APPLY_PATCH: _handle_apply_patch,
     READ_FILE: _handle_read_file,
     LIST_FILES: _handle_list_files,

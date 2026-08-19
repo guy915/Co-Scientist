@@ -143,6 +143,44 @@ to read somebody else's programs back out of your own run. A run the
 caller does not own answers 404, matching how a non-owned run reads
 everywhere else.
 
+### The data a program reads
+
+`discovery.dataset` is a `{path: text}` map of read-only input files --
+the measurements a program is fitting, the cases it is scored against.
+Every variant's workspace gets a copy before its cascade runs, so a
+stage can open `data/train.csv` by the name the spec gave it.
+
+Three placements were available and two are wrong. **Not in the seed
+source**: the proposal agent rewrites a program wholesale, so a dataset
+living there is one the model may edit, and a variant that quietly
+improved its own test set would score well and mean nothing. **Not in
+the run config**: every task of every type reads that row, so a few
+megabytes of data would be paid for on each of them. So it is written
+once at creation into its own `code_datasets` table
+(`app/app/discovery_dataset.py` validates, `store/code_variants.py`
+persists) and the config keeps only a `dataset_paths` manifest.
+
+**Copied per variant, not shared.** One directory holding the data for
+concurrent evaluations is the same hazard as one workspace: a stage
+that writes beside its input, or rewrites it, would be corrupting
+another variant's run. Copying is what makes the isolation total, and
+it is also what bounds the size -- a run's disk cost is the dataset
+times its variant count, which is why `MAX_DATASET_BYTES` is 4 MiB and
+why the ceiling is on the *text*, not on a file count.
+
+The model is told the paths and never the contents
+(`code_evolve/proposal.render_dataset` renders a manifest). A dataset
+big enough to be worth having is big enough to displace the program
+from the prompt, and the program is what the model is being asked to
+write; a stage reads the file at run time regardless. A path that is
+absolute, escapes the workspace, or collides with a seed program's name
+is refused at creation, where it is a 422 rather than a variant that
+fails identically every generation.
+
+Note what this is not: the API and the CLI carry `dataset`, the
+workbench form does not. A run needing one is started with
+`cosci runs create ... --discovery spec.json` or over HTTP.
+
 Note what the API accepts: `stages[].argv` is a command line, and
 starting a discovery run therefore means asking the server to execute
 it. That is the feature, not a hole -- every stage runs through
@@ -439,6 +477,18 @@ both would return a plausible number attributed to the wrong variant.
 Confinement comes from `engine/src/co_scientist/sandbox/` and fails
 closed: on a platform with no backend the tools are withheld from the
 model rather than offered and run unconfined. See `docs/DEPLOYMENT.md`.
+
+A host with no confinement primitive at all is answered on three
+surfaces, and the last one is the guarantee. `/status` reports
+`code_execution_available`, creation answers **503** -- the service
+cannot do this, rather than 422, since nothing in the spec is wrong --
+and `discovery_execution.evaluate_confined` converts an escaping
+`UnsupportedSandboxError` into `UnsupportedTaskError`. The first two are
+courtesies that can be wrong: with a separate worker service the host
+answering the request is not the host that will evaluate. The third
+runs where the refusal actually happens, and it is the difference
+between a run that stops with a reason and one that spends every
+variant's retry budget re-reading the same refusal.
 
 ## Reading a run
 
