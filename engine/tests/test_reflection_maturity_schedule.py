@@ -55,3 +55,31 @@ class TestOnceMature:
 
         assert _modes(hypothesis, 2) == []
         assert _modes(hypothesis, 3) == ["recurrent"]
+
+
+class TestWhatIsDeliberatelyNotRetried:
+    """A failed simulation review is not re-issued once the run matures."""
+
+    def test_a_failed_simulation_is_not_retried_after_full_succeeds(
+        self,
+    ) -> None:
+        """Recorded as a decision, because it is one and it is arguable.
+
+        Maturity turns on the full review, so a hypothesis whose full
+        review succeeded moves to recurrent reviews carrying whatever
+        simulation result it got -- including none. Retrying the
+        simulation later would mean a fresh tool loop, on the tiers where
+        that is the expensive part, to fill in a review the hypothesis
+        has already been assessed without. The complete review set is
+        worth less than the cost of completing it, so the gap stands.
+
+        If that trade is ever revisited, this test is the thing to
+        change; today it stops the behaviour being re-derived by
+        accident in either direction.
+        """
+        hypothesis = make_hypothesis(text="a")
+        hypothesis.enrichments["full"] = {"verdict": "sound"}
+
+        for iteration in (0, 1, 2):
+            assert "simulation" not in _modes(hypothesis, iteration)
+            hypothesis.enrichments["recurrent_review_iteration"] = iteration

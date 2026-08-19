@@ -49,10 +49,21 @@ first production caller of the **workspace** tool surface -- `call_llm_with_tool
 itself has driven the literature tools on these tiers for some time. Gated three ways,
 all of which must hold: the app asks by **tier** on `extended`/`ultra` only
 (`opts._resolve_simulation_execution_toggle` -- a tool loop per hypothesis is
-a cost that multiplies by pool size), the engine refuses it for the offline
+a cost that multiplies by pool size; measured below), the engine refuses it for the offline
 backend (`run_setup._resolve_simulation_execution`), and the review itself
 falls back to mental simulation where no sandbox backend can confine a
-command. Each review gets its **own** workspace
+command. Measured cost, four mechanisms through the real path concurrently
+(`deepseek-v4-flash`, 2026-08-20): **231s wall clock for all four**, against
+824s if they had run one after another -- so the pool multiplies *tokens*,
+not wall clock, as long as the review fan-out actually runs concurrently.
+Three of the four finished in 6-8 turns and ~150s. The fourth exhausted the
+14-turn ceiling and returned nothing, and that is the expensive outcome
+rather than a cheap one: it spent 291k prompt tokens against the ~104k a
+successful one spends, because every turn resends the whole transcript. Budget
+~150k prompt tokens per hypothesis and assume roughly one in four pays double
+for no observation.
+
+Each review gets its **own** workspace
 (`open_review_workspace(run_id, hypothesis_id)`) because review items fan out
 as concurrent leased tasks. Whether it ran is stamped on the result by the
 caller (`executed`), never asked of the model.
