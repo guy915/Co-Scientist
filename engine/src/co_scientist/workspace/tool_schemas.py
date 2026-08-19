@@ -94,7 +94,13 @@ def apply_patch_schema() -> dict[str, Any]:
                         "type": "string",
                         "description": (
                             "The full patch envelope, beginning with "
-                            "*** Begin Patch and ending with *** End Patch."
+                            "*** Begin Patch and ending with *** End Patch. "
+                            "Inside it every operation starts with one of "
+                            "*** Add File: <path>, *** Update File: <path> "
+                            "or *** Delete File: <path> -- spelled exactly "
+                            "that way, since a near-miss is refused and "
+                            "costs a turn. Use Add for a new file and "
+                            "Update for one that exists."
                         ),
                     }
                 },

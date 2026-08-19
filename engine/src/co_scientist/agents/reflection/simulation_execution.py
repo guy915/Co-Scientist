@@ -51,11 +51,18 @@ from co_scientist.workspace.tools import (
 
 logger = logging.getLogger(__name__)
 
-# Model<->tool round-trips one simulation may spend. Small on purpose: a
-# mechanism worth modelling here is a few dozen lines that runs in
-# seconds, so a loop that wants more turns than this is not converging,
-# and every turn re-sends the whole transcript.
-MAX_SIMULATION_TURNS = 6
+# Model<->tool round-trips one simulation may spend. The floor is set by
+# what writing a program actually costs: write, run, fix what it got
+# wrong, run again, sweep the uncertain parameters, report -- and a
+# single crash spends two of those. Measured rather than guessed: at 6
+# the first real run (an NF-kB delay model, deepseek-v4-flash) wrote a
+# working DDE integrator and a Hopf scan, then hit the ceiling with the
+# program still unrun, so the review that asked for it got nothing. The
+# neighbouring literature loop budgets 11-50 turns for reading papers.
+# The cost of a turn is one LLM call re-sending the transcript, which is
+# why this is not simply large; the loop's own wrap-up turn fires at 80%
+# and lands a partial answer before the cap in the ordinary case.
+MAX_SIMULATION_TURNS = 14
 
 
 def _tool_provider(
