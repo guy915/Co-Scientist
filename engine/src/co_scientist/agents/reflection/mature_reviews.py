@@ -101,6 +101,46 @@ def apply_mature_review_disposition(
         hypothesis.review_disposition = "needs_revision"
 
 
+def reviews_needed(hypothesis: Hypothesis, iteration: int) -> list[ReviewType]:
+    """Return the maturity-appropriate reviews due for one hypothesis.
+
+    A hypothesis with no full review yet gets full + simulation; one
+    already reviewed gets a recurrent review only if a later iteration
+    has not yet been recorded.
+
+    **A review whose result is already stored is not re-issued.** Maturity
+    is read from the full review because that is what the phases turn on,
+    but the two first-maturity reviews fail independently, and asking for
+    both whenever the *full* one is missing re-ran a simulation review
+    that had already succeeded -- on every later iteration, for as long
+    as the full review kept failing. That was invisible while both were
+    one LLM call each. It stopped being invisible when the simulation
+    review gained a tool loop it pays for per firing.
+
+    Refreshing a review against newer context is what the recurrent
+    review is for; it is not what re-issuing a passed one does, since
+    ``store_mature_review_result`` overwrites the earlier result rather
+    than accumulating it.
+
+    Args:
+        hypothesis: The hypothesis whose reviews are being scheduled.
+        iteration: The current workflow iteration.
+
+    Returns:
+        The review types due now, in the order they should be issued.
+    """
+    if ReviewType.FULL.value not in hypothesis.enrichments:
+        return [
+            review
+            for review in (ReviewType.FULL, ReviewType.SIMULATION)
+            if review.value not in hypothesis.enrichments
+        ]
+    recorded = int(hypothesis.enrichments.get("recurrent_review_iteration", -1))
+    if iteration > recorded:
+        return [ReviewType.RECURRENT]
+    return []
+
+
 def store_mature_review_result(
     hypothesis: Hypothesis,
     review_type: ReviewType,

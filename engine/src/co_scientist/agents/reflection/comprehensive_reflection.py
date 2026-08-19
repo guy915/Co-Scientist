@@ -16,6 +16,7 @@ from co_scientist.agents.reflection.deep_verification import (
     merge_retrieved_articles,
 )
 from co_scientist.agents.reflection.mature_reviews import (
+    reviews_needed,
     store_mature_review_result,
 )
 from co_scientist.agents.reflection.observation_feedback import (
@@ -364,21 +365,6 @@ def _build_review_prompt(
     return prompt, schema
 
 
-def _reviews_needed(hypothesis: Hypothesis, iteration: int) -> list[ReviewType]:
-    """Return the maturity-appropriate reviews due for one hypothesis.
-
-    A hypothesis with no full review yet gets full + simulation; one
-    already reviewed gets a recurrent review only if a later iteration
-    has not yet been recorded.
-    """
-    if ReviewType.FULL.value not in hypothesis.enrichments:
-        return [ReviewType.FULL, ReviewType.SIMULATION]
-    recorded = int(hypothesis.enrichments.get("recurrent_review_iteration", -1))
-    if iteration > recorded:
-        return [ReviewType.RECURRENT]
-    return []
-
-
 def _apply_review_results(
     hypothesis: Hypothesis,
     iteration: int,
@@ -407,7 +393,7 @@ async def _review_hypothesis(
 ) -> int:
     """Apply maturity-appropriate reviews to one viable hypothesis."""
     iteration = int(state.get("current_iteration", 0))
-    reviews = _reviews_needed(hypothesis, iteration)
+    reviews = reviews_needed(hypothesis, iteration)
     if not reviews:
         return 0
     results = await asyncio.gather(

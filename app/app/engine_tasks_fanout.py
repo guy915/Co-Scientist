@@ -249,14 +249,24 @@ def _enqueue_verification_fanout(
 
 
 def _maturity_specs(hypothesis: Any, iteration: int) -> list[tuple[str, str]]:
-    """Return full/simulation/recurrent specs by enrichment maturity."""
-    if "full" not in hypothesis.enrichments:
-        return [(hypothesis.id, "full"), (hypothesis.id, "simulation")]
-    if iteration > int(
-        hypothesis.enrichments.get("recurrent_review_iteration", -1)
-    ):
-        return [(hypothesis.id, "recurrent")]
-    return []
+    """Return full/simulation/recurrent specs by enrichment maturity.
+
+    Delegates to the engine's rule rather than restating it. This was a
+    second copy, and a copy of a scheduling rule is a copy that will one
+    day disagree: both copies carried the same defect (re-issuing a
+    simulation review that had already succeeded, whenever the full
+    review had not), and fixing it in one place would have left the
+    durable path -- the one production actually runs -- still paying for
+    it.
+    """
+    from co_scientist.agents.reflection.mature_reviews import (
+        reviews_needed,
+    )
+
+    return [
+        (hypothesis.id, review.value)
+        for review in reviews_needed(hypothesis, iteration)
+    ]
 
 
 def _mature_reflection_specs(state: dict[str, Any]) -> list[tuple[str, str]]:
