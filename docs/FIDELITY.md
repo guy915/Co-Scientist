@@ -99,9 +99,13 @@ These features are described in the published material but are not implemented h
     `engine/src/co_scientist/code_eval/`, `app/app/engine_tasks_variants.py`).
     It reuses the durable task queue rather than a second scheduler, so a
     variant evaluation retries, resumes and cancels on the same terms as any
-    other task. What it does not have is the product's archive-based search:
-    parents are chosen by score alone, with no MAP-Elites-style diversity
-    archive, so a run can converge on one basin and stay there.
+    other task, and it searches through a MAP-Elites diversity archive over
+    behavioural niches with Pareto dominance across several objectives
+    (`agents/code_evolve/archive.py`, `code_eval/pareto.py`). The remaining
+    divergences are in the archive's resolution rather than its presence:
+    the grid is declared up front rather than recomputed from the data
+    (no CVT-MAP-Elites), and each cell keeps one elite by primary fitness
+    rather than a Pareto front per cell (no MOME).
 -   **PDF / LaTeX export.** Markdown + JSON only.
 -   **Vector / hybrid retrieval.** The store has no vector column; proximity
     clustering is instead driven by an LLM-graded similarity call

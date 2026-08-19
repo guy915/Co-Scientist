@@ -165,7 +165,8 @@ safety gate, and the loop runs as three durable task types
 (`engine.fanout.variant.propose|evaluate|aggregate`) over the
 `code_variants` tables. It has no Supervisor, no workflow checkpoint and no
 report -- the final aggregate is what marks the run completed. Modules:
-`discovery_spec.py` (config -> `EvaluatorSpec`, fails closed),
+`discovery_spec.py` (config -> `EvaluatorSpec` and archive descriptors, fails closed),
 `engine_tasks_variants.py` (the executors), `engine_tasks_variants_schedule.py`
-(what work exists), `store/code_variants.py`. Full rationale in
-`docs/DISCOVERY.md`.
+(what work exists), `store/code_variants.py`. Parent selection delegates to the engine's
+MAP-Elites archive and the Pareto front rather than ranking by score.
+Full rationale in `docs/DISCOVERY.md`.

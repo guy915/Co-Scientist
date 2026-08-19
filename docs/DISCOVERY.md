@@ -34,24 +34,31 @@ disagree with it.
 ```json
 {
   "discovery": {
-    "objective": {"metric": "score", "direction": "maximize"},
+    "objectives": [
+      {"metric": "accuracy", "direction": "maximize"},
+      {"metric": "latency_seconds", "direction": "minimize"}
+    ],
     "stages": [
       {"name": "smoke", "argv": ["python", "main.py", "--smoke"],
        "timeout_seconds": 30, "min_fitness": 0.1},
       {"name": "full", "argv": ["python", "main.py"], "timeout_seconds": 600}
     ],
+    "descriptors": [
+      {"feature": "operator"},
+      {"feature": "source_lines", "bins": [20, 80, 250]}
+    ],
     "metrics_path": "metrics.json",
     "seed_source": {"main.py": "..."},
     "max_generations": 8,
-    "children_per_generation": 4,
-    "parents_per_generation": 2
+    "children_per_generation": 4
   }
 }
 ```
 
 Stages run cheapest-first and each may gate the next with `min_fitness`.
-The program reports by writing `metrics_path` as a flat JSON object; the
-objective names one of its keys.
+The program reports by writing `metrics_path` as a flat JSON object; each
+objective names one of its keys. A single `objective` object is still
+accepted in place of the list.
 
 **A malformed `discovery` block fails the run at bootstrap**
 (`app/app/discovery_spec.py`). This is deliberate and is the one place
@@ -60,6 +67,87 @@ would give a run that executes normally and scores every variant
 identically, which reads as "the model cannot write working code" rather
 than as "the run was misconfigured". The *budgets* do default, because
 unlike the cascade they have an obviously correct fallback.
+
+## Several objectives
+
+A run may optimize more than one thing. The objectives are kept several
+rather than collapsed into one score, because the obvious collapse -- a
+weighted sum -- is worse than it looks: the weights multiply raw values
+on unrelated scales, so an objective in seconds and one in [0, 1] give a
+total the seconds term decides entirely, whatever weights were written.
+Nothing errors; the second objective just stops mattering.
+
+So there are two mechanisms, and neither does cross-scale arithmetic:
+
+- **`fitness` is the first objective**, sign-corrected. It is what the
+  cascade thresholds compare against, what orders the variant list, and
+  what the breakthrough plot draws. The first objective is the primary by
+  declaration order.
+- **Every other objective acts through Pareto dominance**
+  (`code_eval/pareto.py`). One variant dominates another when it is at
+  least as good on every objective and strictly better on one. The
+  variants nothing dominates are the **front** -- the set of real trades
+  -- and they are preserved as parents and flagged in the API, so a
+  variant that wins only on the second objective is never bred out by
+  variants that win on the first.
+
+A missing objective value is not a bad one. A variant that reported
+accuracy but no latency has no position on the latency axis, so it is
+skipped in that comparison rather than treated as the worst possible
+value -- which would let anything dominate it and drop it silently.
+
+The proposal prompt names **every** objective, not just the primary. A
+second objective the model never hears about is one no proposal ever
+tries to improve, however well the archive preserves it.
+
+## The diversity archive
+
+Selecting parents by score alone is the obvious strategy and a
+consistently bad one. The best few programs in a generation are usually
+near-copies, so breeding from them produces more of the same, and the
+search settles into the first decent basin and polishes it for the rest
+of its budget. Nothing looks wrong while this happens -- the score
+improves, slowly, forever.
+
+`agents/code_evolve/archive.py` keeps **the best of each kind** instead.
+Every variant is assigned a niche from its behaviour, the archive holds
+one elite per occupied niche, and parents are drawn from the archive.
+
+Measured on a landscape with an easy approach that saturates at 5.0 and
+a harder one that reaches 16.0 (`test_code_archive_basins.py`, 60 seeds,
+identical budget and mutation operator for both):
+
+| Selection | Mean best | Escaped the decoy |
+|---|---|---|
+| Score-only top-k | 5.00 | 0 / 60 |
+| Diversity archive | ~8.9 | most runs |
+
+Score-only selection ends at *exactly* the easy approach's ceiling in
+every run. Note what that is not: both strategies generate the harder
+approach about equally often -- the `explore` operator sees to that. The
+difference is that top-k discards it immediately for being behind, and
+the archive keeps investing in it while it catches up.
+
+**Niches** come from `descriptors`. Each is a `feature` plus ascending
+`bins`; a value falls in the bin counting how many edges it meets.
+Features are `operator`, `source_lines`, `source_bytes`, or
+`metric:<key>` for anything the program reports. A run that declares none
+gets `operator` x `source_lines`, which already separates a tuned
+constant from a rewritten algorithm. A `descriptors` key that is present
+but malformed is refused rather than defaulted -- silently falling back
+would niche a run along axes its author did not choose and cannot see.
+
+**Selection is half exploit, half explore.** Textbook MAP-Elites samples
+occupied niches uniformly, which is right at tens of thousands of
+evaluations and wrong at the tens this runs. Half the children come from
+the strongest elites and the Pareto front, half from a uniform draw
+across niches. The uniform half prevents collapse; the greedy half makes
+progress inside a small budget.
+
+The niche is computed once, at evaluation time, and stored. Pareto
+membership is *not* stored: it is a property of the whole set, so one new
+variant can take an older one off the front, and a stored flag would be
+stale for every row but the newest.
 
 ## Proposing a variant
 
@@ -108,7 +196,11 @@ model rather than offered and run unconfined. See `docs/DEPLOYMENT.md`.
 `/variants/{variant_id}` adds metrics, artifacts and full source. The
 **Variants** tab renders both, and appears only for discovery runs.
 
-Three rules the surface keeps, each of which is easy to get wrong:
+A multi-objective run also gets a trade-off scatter -- objective one
+against objective two, with the front highlighted -- because plotting
+only the primary score would show a ranking that does not exist.
+
+Four rules the surface keeps, each of which is easy to get wrong:
 
 - **Failed attempts keep their number.** The ordinal is dense and
   includes everything. Skipping dead attempts makes the breakthrough
@@ -118,13 +210,21 @@ Three rules the surface keeps, each of which is easy to get wrong:
 - **The best-so-far line is a step, not an interpolation.** The record
   holds flat until something beats it; drawing a slope between records
   invents steady progress.
+- **"Best trade-off" is only shown when it is not already "best so far".**
+  With one objective the front *is* the best, and two badges for one fact
+  reads as two findings.
 
 ## Known limits
 
-- Parent selection is by score alone. There is no diversity archive, so
-  a run can converge on one basin and stay there. The operator deck's
-  `explore` move is the only counterweight.
-- The objective is one metric. Multi-objective search would need the
-  archive above, not just a second key.
+- **The grid is fixed, not adaptive.** Bin edges are declared up front,
+  so a run whose metrics land in one bin gets one niche on that axis and
+  no diversity from it. CVT-MAP-Elites recomputes cells from the data;
+  this does not.
+- **Elites are single-objective per cell.** A cell keeps the best variant
+  by primary fitness, not a Pareto front per cell (MOME). The global
+  front is preserved in selection, so a trade is never lost outright, but
+  two different trades inside one niche compete for one slot.
+- **No novelty pressure inside a niche.** Two structurally different
+  programs of the same size, from the same operator, are one cell.
 - A discovery run publishes no report; it ends when its generation
   budget runs out, and the aggregate marks it completed.

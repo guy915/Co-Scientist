@@ -40,8 +40,10 @@ Individual nodes can be exercised in isolation via the scripts in `dev/` (`run_s
 **Computational discovery** is a second, separate product built on the same
 foundations, and is *not* a node in the hypothesis graph.
 `agents/code_evolve/` proposes one child program per generation as a V4A
-patch under a named code operator; `code_eval/` runs the resulting cascade
-and scores it; `workspace/` and `sandbox/` confine every command. The app
+patch under a named code operator and picks parents from a MAP-Elites
+diversity archive (`archive.py`); `code_eval/` runs the resulting cascade
+and scores it against one or more objectives, keeping the extra ones
+separate via Pareto dominance (`pareto.py`) rather than summing them; `workspace/` and `sandbox/` confine every command. The app
 drives the loop as durable tasks rather than through LangGraph. See
 `docs/DISCOVERY.md`.
 
