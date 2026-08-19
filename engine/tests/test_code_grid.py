@@ -20,6 +20,7 @@ from co_scientist.agents.code_evolve.grid import (
     UnbinnableFeatureError,
     assign_cells,
     coverage,
+    extend,
     freeze,
 )
 
@@ -252,3 +253,69 @@ class TestVectorFeatures:
             [{"ast_shape": (1.0, 1.0)}, {"ast_shape": (0.9, 1.0)}, {}], grid
         )
         assert cells[2] != cells[0]
+
+
+class TestExtension:
+    """Growing a frozen tessellation without moving what it placed.
+
+    Freezing is what makes a cell a durable identity, and its cost is
+    that behaviour appearing afterwards lands in whichever edge cell is
+    nearest -- filed beside variants it has nothing in common with.
+    Extension buys that back, and the property that makes it safe is
+    that no existing centroid moves.
+    """
+
+    def _grid(self) -> Grid:
+        early = [{"source_lines": float(i)} for i in range(12)]
+        return freeze(early, Grid((Descriptor("source_lines"),), cells=4))
+
+    def test_novel_behaviour_earns_a_cell_instead_of_the_nearest_edge(
+        self,
+    ) -> None:
+        grid = self._grid()
+        far = [{"source_lines": 4000.0}, {"source_lines": 4001.0}]
+        before = assign_cells(far, grid)
+        after = assign_cells(far, extend([*self._population(), *far], grid))
+        assert before[0] != after[0]
+
+    def test_nothing_already_placed_moves(self) -> None:
+        # The whole point of freezing. An extension that re-clustered
+        # would give back the instability it exists to remove.
+        grid = self._grid()
+        settled = list(self._population())
+        before = assign_cells(settled, grid)
+        grown = extend([*settled, {"source_lines": 9000.0}], grid)
+        assert assign_cells(settled, grown) == before
+
+    def test_existing_centroids_are_kept_verbatim(self) -> None:
+        grid = self._grid()
+        grown = extend([*self._population(), {"source_lines": 9000.0}], grid)
+        assert (
+            grown.projection.centroids[: len(grid.projection.centroids)]
+            == grid.projection.centroids
+        )
+
+    def test_a_population_that_stayed_put_grows_nothing(self) -> None:
+        grid = self._grid()
+        assert extend(list(self._population()), grid) is grid
+
+    def test_growth_stops_at_its_ceiling(self) -> None:
+        # Unbounded growth is re-clustering by another name: an archive
+        # with a cell per variant has stopped compressing anything.
+        grid = self._grid()
+        wandering = list(self._population())
+        for _ in range(6):
+            wandering += [
+                {"source_lines": float(10 ** (i + 3))} for i in range(6)
+            ]
+            grid = extend(wandering, grid)
+        assert len(grid.projection.centroids) <= grid.cells * 2
+
+    def test_an_unfrozen_grid_is_left_alone(self) -> None:
+        # There is nothing to preserve yet, and re-clustering is what an
+        # unfrozen grid already does on every read.
+        grid = Grid((Descriptor("source_lines"),), cells=4)
+        assert extend([{"source_lines": 1.0}], grid) is grid
+
+    def _population(self) -> list[dict[str, Any]]:
+        return [{"source_lines": float(i)} for i in range(12)]

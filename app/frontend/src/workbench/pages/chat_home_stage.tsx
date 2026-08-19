@@ -6,6 +6,7 @@ import {
 } from 'react';
 import {type Run} from '@/api/runs';
 import {joinClasses} from '../classes';
+import {DiscoveryDialog} from '../components/discovery_dialog';
 import {useIsMobile} from '../hooks/use_is_mobile';
 import {
   HOME_LOGO_CLASSES,
@@ -119,7 +120,29 @@ function HomeMainColumn(
         onSelect={props.onSelect}
       />
       <HomeComposer {...props} />
+      <DiscoveryEntry />
     </div>
+  );
+}
+
+// The way into a computational-discovery run: it evolves a program
+// against a measured objective rather than generating hypotheses, so it
+// takes a spec the composer has no way to ask for. Beneath the composer
+// and understated on purpose -- it is the second thing this product
+// does, not a peer of the thing it opens on.
+function DiscoveryEntry() {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <button
+        type="button"
+        className="reference-home-discovery-entry"
+        onClick={() => setOpen(true)}
+      >
+        Or evolve a program against a measured objective
+      </button>
+      {open && <DiscoveryDialog onClose={() => setOpen(false)} />}
+    </>
   );
 }
 

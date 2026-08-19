@@ -181,6 +181,17 @@ export interface Run {
    * indicator. Absent/null on single-run reads and before the first stage.
    */
   latest_stage?: string | null;
+  /**
+   * A discovery run's attempts and best score, served by the run-list
+   * endpoint. What `top_elo`/`top_hypotheses` are for the other kind of
+   * run: the two share nothing worth summarizing, so a card showing an
+   * empty ideas block reads as a run that produced nothing rather than
+   * one that produced something else. `best_fitness` is null when
+   * nothing scored, which is not a score of zero, and is stored
+   * sign-corrected -- undo it with `formatMeasured`.
+   */
+  variant_count?: number;
+  best_fitness?: number | null;
   execution_progress?: {
     determinate: boolean;
     completed_tasks: number;

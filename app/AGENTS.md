@@ -164,8 +164,13 @@ A `discovery` key in a run's config makes it a discovery run: it evolves a
 program against a measured objective instead of generating hypotheses. It is
 set by `POST /api/runs` (a `discovery` object beside `research_goal`, validated
 at create time -- a malformed spec is a 422, never a run that fails identically
-on every variant) or by `cosci runs create ... --discovery spec.json|yaml`;
-there is no UI for it. `run_modes._OVERRIDE_HANDLERS` carries the key
+on every variant), by `cosci runs create ... --discovery spec.json|yaml`, or from
+the workbench home ("Or evolve a program against a measured objective", which
+creates and starts in one action). `discovery.seed_from_run` carries an earlier
+run's archive elites forward as this run's starting programs, and is
+**ownership-checked at creation** -- it reads another run's whole source straight
+from the store, below the ownership middleware that guards every HTTP path to
+it, so an unowned id answers 404. `run_modes._OVERRIDE_HANDLERS` carries the key
 verbatim, without which the numeric override path drops the dict silently.
 `execute_bootstrap` branches to `bootstrap_discovery` after the shared
 safety gate, and the loop runs as three durable task types

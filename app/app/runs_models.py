@@ -19,6 +19,7 @@ from app.discovery_spec import (
     DISCOVERY_CONFIG_KEY,
     DiscoverySpecError,
     evaluator_spec,
+    seed_from_run,
     seed_source,
 )
 from app.discovery_spec import grid as discovery_grid
@@ -221,6 +222,7 @@ def _validate_discovery_block(block: dict[str, Any] | None) -> None:
         evaluator_spec(config)
         discovery_grid(config)
         seed_source(config)
+        seed_from_run(config)
     except DiscoverySpecError as exc:
         raise HTTPException(
             status_code=422, detail=f"invalid discovery spec: {exc}"

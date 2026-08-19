@@ -7,6 +7,7 @@
 // - runs_collections.ts: per-run collections, reports, and shares
 
 import {mergeByIdNewestFirst} from '@/lib/merge';
+import type {DiscoverySpec} from './discovery_types';
 import type {
   Audience,
   Run,
@@ -30,6 +31,7 @@ export type {
   DiscoveryConfig,
   DiscoveryObjective,
   DiscoveryReportPayload,
+  DiscoverySpec,
   VariantStage,
 } from './discovery_types';
 export {discoveryReportPayload, primaryObjective} from './discovery_types';
@@ -194,6 +196,12 @@ export async function createRun(input: {
   notify_on_completion?: boolean;
   completion_email?: string;
   audience?: Audience;
+  // Makes this a computational-discovery run: it evolves a program
+  // against a measured objective instead of generating hypotheses. The
+  // shape is owned by the backend's `discovery_spec`, which validates it
+  // on this call -- a malformed one is a 422, not a run that fails
+  // identically on every variant.
+  discovery?: DiscoverySpec;
 }): Promise<Run> {
   const init = jsonRequest(input, true);
   // Bring-your-own-key: the stored key/provider ride along as request

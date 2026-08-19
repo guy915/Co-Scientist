@@ -97,6 +97,39 @@ def _top_hypotheses_by_run(
     return by_run
 
 
+def _variant_progress_by_run(
+    conn: sqlite3.Connection, run_ids: list[str]
+) -> dict[str, tuple[int, float | None]]:
+    """Return each discovery run's attempt count and best score.
+
+    What a hypothesis run's ``top_elo``/``top_hypotheses`` are for the
+    other kind of run: a list card that has neither shows an empty
+    "Winning ideas" block, which reads as a run that produced nothing
+    rather than one that produced something else. One grouped aggregate
+    over the listed ids, matching the shape of the lookups either side.
+
+    Args:
+        conn: Open database connection.
+        run_ids: Run ids to summarize.
+
+    Returns:
+        Mapping of run id to (attempts, best fitness). Best fitness is
+        None when nothing scored -- which is not a score of zero. Runs
+        with no variants are absent.
+    """
+    if not run_ids:
+        return {}
+    placeholders = ",".join("?" for _ in run_ids)
+    rows = conn.execute(
+        "SELECT v.run_id AS run_id, COUNT(*) AS attempts, "
+        " MAX(s.fitness) AS best FROM code_variants v "
+        " JOIN code_variant_state s ON s.variant_id = v.id "
+        f" WHERE v.run_id IN ({placeholders}) GROUP BY v.run_id",
+        tuple(run_ids),
+    ).fetchall()
+    return {row["run_id"]: (int(row["attempts"]), row["best"]) for row in rows}
+
+
 def _latest_stage_by_run(
     conn: sqlite3.Connection, run_ids: list[str]
 ) -> dict[str, str]:
@@ -189,11 +222,15 @@ def list_runs(
         # Two windowed lookups over just the listed ids, rather than per-run.
         top_hypotheses = _top_hypotheses_by_run(conn, run_ids)
         latest_stage = _latest_stage_by_run(conn, run_ids)
+        variants = _variant_progress_by_run(conn, run_ids)
     for run in runs:
         # Absent from the map means no hypotheses yet -> an explicit empty list
         # so clients can distinguish "none" from the None single-read default.
         run.top_hypotheses = top_hypotheses.get(run.id, [])
         run.latest_stage = latest_stage.get(run.id)
+        attempts, best = variants.get(run.id, (0, None))
+        run.variant_count = attempts
+        run.best_fitness = best
     return runs
 
 

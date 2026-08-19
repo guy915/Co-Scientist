@@ -41,7 +41,24 @@ export function formatMeasured(
   objective?: DiscoveryObjective,
 ): string {
   if (value === null) return '—';
-  return String(Math.round(measuredValue(value, objective) * 1000) / 1000);
+  return compactNumber(measuredValue(value, objective));
+}
+
+// Magnitudes outside this band print in exponent form. A search is free
+// to find something absurd -- an early run scored 9.33e+157 -- and the
+// plain rounding this used to do rendered that as a 160-character string
+// that broke out of its tile. Three significant figures is what a score
+// tile can show; the exact value stays on the variant.
+const BIG = 1e6;
+const SMALL = 1e-4;
+
+function compactNumber(value: number): string {
+  if (!Number.isFinite(value)) return String(value);
+  const magnitude = Math.abs(value);
+  if (magnitude !== 0 && (magnitude >= BIG || magnitude < SMALL)) {
+    return value.toExponential(2);
+  }
+  return String(Math.round(value * 1000) / 1000);
 }
 
 /**

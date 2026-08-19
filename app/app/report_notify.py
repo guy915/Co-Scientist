@@ -52,6 +52,7 @@ def _completion_email_task(
     title: str,
     email: str,
     report_id: str,
+    tab: str = "ideas",
 ) -> store.NewTask:
     """Build the durable task that mails one run's completion notice.
 
@@ -60,6 +61,8 @@ def _completion_email_task(
         title: Subject line material -- the run's title or its goal.
         email: Address the scientist asked to be notified at.
         report_id: Identifier of the published report, keying the task.
+        tab: Run-detail tab the mail links to. A discovery run has no
+            Ideas tab, so its mail must not point at one.
 
     Returns:
         The task row to enqueue.
@@ -67,7 +70,12 @@ def _completion_email_task(
     return store.NewTask(
         run_id=run_id,
         task_type="notification.email",
-        inputs={"run_id": run_id, "email": email, "title": title},
+        inputs={
+            "run_id": run_id,
+            "email": email,
+            "title": title,
+            "tab": tab,
+        },
         idempotency_key=f"completion-email:{report_id}",
         priority=-100,
         dependencies=(),
@@ -84,19 +92,28 @@ def _enqueue_completion_notification(
     *,
     db_path: str | None,
 ) -> None:
-    """Enqueue the completion email task when the run opted in."""
+    """Enqueue the completion email task when the run opted in.
+
+    Shared by both kinds of run: the opt-in lives in the run config, so a
+    discovery run that asked to be told would otherwise have been the one
+    kind that silently never was.
+    """
+    from app.discovery_spec import is_discovery_run
+
     run = store.get_run(run_id, db_path=db_path)
     notification = (
         run.config.get("completion_notification") if run else {}
     ) or {}
     if not _completion_email_deliverable(run_id, notification):
         return
+    discovery = run is not None and is_discovery_run(run.config)
     store.enqueue_task(
         _completion_email_task(
             run_id,
             run.title or research_goal if run else research_goal,
             notification["email"],
             report_id,
+            "overview" if discovery else "ideas",
         ),
         db_path=db_path,
     )

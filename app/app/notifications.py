@@ -61,7 +61,12 @@ async def deliver_completion_notification(
     recipient = str(inputs["email"])
     run_id = str(inputs["run_id"])
     title = str(inputs.get("title") or "Goal Report")
-    report_url = f"{settings.public_app_url.rstrip('/')}/runs/{run_id}/ideas"
+    # Which tab the mail links to. Carried on the task rather than fixed
+    # here: a discovery run's nav has no Ideas tab, so the one link in
+    # the mail would land on a tab the run does not show. Defaulted for
+    # rows enqueued before this existed.
+    tab = str(inputs.get("tab") or "ideas")
+    report_url = f"{settings.public_app_url.rstrip('/')}/runs/{run_id}/{tab}"
     await deliver_email(
         recipient,
         f"Your Co-Scientist Goal Report is ready: {title}",

@@ -83,6 +83,21 @@ export interface CodeVariantPage {
   niche_evenness: number;
 }
 
+/**
+ * A discovery spec as sent when creating a run.
+ *
+ * The same shape as `DiscoveryConfig` below, with the fields the backend
+ * requires made non-optional here: a spec missing any of them is refused
+ * at creation, so a caller that can send one has already decided them.
+ */
+export interface DiscoverySpec {
+  objective: DiscoveryObjective;
+  stages: {name: string; argv: string[]; timeout_seconds?: number}[];
+  seed_source: Record<string, string>;
+  max_generations?: number;
+  children_per_generation?: number;
+}
+
 /** What a discovery run optimizes, and how it measures it. */
 export interface DiscoveryConfig {
   objective?: {metric?: string; direction?: string};

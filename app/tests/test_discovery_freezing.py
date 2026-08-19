@@ -160,3 +160,48 @@ async def test_a_frozen_run_keeps_its_cells_still(
     early = assign_cells(behaviours[:2], frozen)
     whole = assign_cells(behaviours, frozen)[:2]
     assert early == whole
+
+
+@pytest.mark.asyncio
+async def test_a_run_grows_its_tessellation_for_new_behaviour(
+    db: str, workspace_root: str
+) -> None:
+    """A frozen grid still learns, without moving what it placed.
+
+    Freezing is what makes a cell a durable identity across
+    generations. Its cost was that behaviour appearing afterwards landed
+    in whichever edge cell happened to be nearest -- a run that changed
+    character late was niched by the run it used to be.
+    """
+    from co_scientist.agents.code_evolve import assign_cells
+
+    from app.discovery_spec import grid
+    from app.engine_tasks_variants_schedule import freeze_grid_if_ready
+
+    run = _run(
+        _config(
+            _GOOD,
+            max_generations=1,
+            descriptors=[{"feature": "source_lines"}],
+            grid={"strategy": "cvt", "cells": 4},
+        )
+    )
+    settled = [{"source_lines": float(i)} for i in range(12)]
+    variants = [{"behaviour": b} for b in settled]
+    config = freeze_grid_if_ready(run.id, variants, run.config)
+    frozen = grid(config)
+    assert frozen.projection
+
+    novel = [{"source_lines": 9000.0}, {"source_lines": 9001.0}]
+    before = assign_cells(novel, frozen)
+    grown = grid(
+        freeze_grid_if_ready(
+            run.id,
+            variants + [{"behaviour": b} for b in novel],
+            config,
+        )
+    )
+    # The new behaviour is its own kind now, and every variant that was
+    # already placed is still where it was.
+    assert assign_cells(novel, grown) != before
+    assert assign_cells(settled, grown) == assign_cells(settled, frozen)

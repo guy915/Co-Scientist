@@ -83,7 +83,20 @@ bad declaration into every step of the run failing alike.
 
 ## Starting a run
 
-There is no UI for this yet. Two ways in, both carrying the same block:
+Three ways in, all carrying the same block.
+
+**In the workbench**, "Or evolve a program against a measured objective"
+under the home composer opens a form: what the run is for, the metric
+and its direction, the program and the command that runs it, and the
+budget. It creates the run and starts it in one action rather than
+leaving a draft, because a discovery run has no interview step to come
+back to -- a spec is either startable or it is not, and the form already
+said which. The program field opens on a runnable starter that writes
+`metrics.json`, because that file is the whole contract between a
+program and the search and a reader who has to infer it from prose gets
+it wrong on the first run.
+
+**From a terminal:**
 
 ```bash
 cosci runs create "Find a faster prime sieve" --discovery spec.json --start
@@ -94,7 +107,7 @@ cosci runs create "Find a faster prime sieve" --discovery spec.json --start
 as something else. The file holds the contents of the `discovery` key
 above, not the whole run config.
 
-Or over HTTP, where it is one more field on the ordinary create call:
+**Or over HTTP**, where it is one more field on the ordinary create call:
 
 ```
 POST /api/runs
@@ -107,6 +120,28 @@ config override path coerces unknown keys to numbers and would otherwise
 drop a dict without a word, leaving an ordinary hypothesis run and no
 error anywhere -- `run_modes._OVERRIDE_HANDLERS` carries `discovery` as a
 verbatim key for exactly that reason.
+
+### Carrying an archive forward
+
+`discovery.seed_from_run` names an earlier discovery run. The new run's
+first generation then starts from that run's **archive elites** -- the
+best program of each kind it found, capped at
+`MAX_INHERITED_SEEDS` -- instead of the configured seed, so a search
+continues where an earlier one stopped rather than rediscovering it.
+
+The elites rather than the single best, deliberately: carrying one
+program forward carries one basin forward, which is the collapse the
+archive exists to prevent. The configured `seed_source` stays required
+and is the fallback -- a referenced run that is gone or produced nothing
+costs this run its head start, not its existence.
+
+The reference is **ownership-checked at creation** (`runs_crud.
+_require_owned_seed_run`). It reads another run's variants -- their whole
+source -- straight from the store, below the ownership middleware that
+guards every HTTP path to them, so without that check any run id is a way
+to read somebody else's programs back out of your own run. A run the
+caller does not own answers 404, matching how a non-owned run reads
+everywhere else.
 
 Note what the API accepts: `stages[].argv` is a command line, and
 starting a discovery run therefore means asking the server to execute
@@ -263,8 +298,7 @@ rather than two that drift apart silently. Pareto membership is derived
 for the same reason -- one new variant can take an older one off the
 front.
 
-**The coordinate system is frozen once, and freezing it means freezing
-all of it.** Cells derived on read are stable within one reading and
+**The coordinate system is frozen once, then grows.** Cells derived on read are stable within one reading and
 still move between generations, so "cells occupied" would never be
 comparable across time. Once a run has enough variants to tessellate,
 `freeze_grid_if_ready` computes the projection and writes it into the
@@ -274,6 +308,26 @@ the one-hot column layout are derived from the population too, so
 leaving those free moves every point underneath fixed centroids.
 `tessellation.py` therefore freezes columns *and* centroids as one
 object.
+
+Freezing alone buys stability at the price of blindness: behaviour that
+appears afterwards lands in whichever edge cell happens to be nearest,
+filed beside variants it has nothing in common with, so a run that
+changes character late is niched by the run it used to be. `extend`
+(called on every aggregate, right after `freeze`) adds centroids for
+behaviour sitting outside the tessellation's own resolution -- the mean
+gap between neighbouring centroids, which is self-calibrating where any
+constant would be wrong, since distance grows with the number of columns
+and the columns come from the run. **It moves no existing centroid**, so
+what was already placed stays placed; that property is what makes
+growing safe, and `test_code_grid.py::TestExtension` pins it.
+
+Two things extension deliberately does not do. It never adds *columns*:
+a categorical value the frozen population never saw has no column, and
+minting one would change the vector space and move every point in it --
+so growth adds regions, never dimensions. And it stops at
+`EXTENSION_CEILING_FACTOR` times the declared cell count, because
+unbounded growth is re-clustering under another name and an archive with
+a cell per variant has stopped compressing anything.
 
 ## Proposing a variant
 
@@ -320,7 +374,12 @@ model rather than offered and run unconfined. See `docs/DEPLOYMENT.md`.
 
 While a run is in flight it narrates itself: each evaluated variant is
 appended as a `discovery` run event carrying its ordinal, generation,
-operator, status and score. Without it the loop emitted nothing at all
+operator, status, score, and a `message` naming what it did ("Attempt 3
+(vectorize) scored 8.25"). The message is on the event rather than
+assembled per surface because `message` is the key every consumer
+already reads -- the live activity row, the stage log, the SSE console
+-- and without one each attempt renders as the bare word "Discovery",
+which is a heartbeat rather than a narrative. Without it the loop emitted nothing at all
 -- it is three durable tasks and none of them wrote an event -- so the
 live activity log sat empty for a run's whole duration and a search that
 was working looked exactly like one that had stalled. An evaluated
@@ -332,7 +391,20 @@ The live view reads its headline numbers off that stream rather than
 fetching them separately, so they cannot disagree with the activity log
 beside them, and it counts **attempts and best score** where a
 hypothesis run counts sources and ideas -- those two cards sat at zero
-for every discovery run before, which reads as a stalled run.
+for every discovery run before, which reads as a stalled run. The same
+split runs through the finished surfaces: the home recents card reports
+attempts and best score instead of an empty "Winning ideas" block (the
+two numbers ride on the run-list payload the way `top_elo` does), and a
+completion email links to the Overview tab rather than to an Ideas tab
+this kind of run does not show.
+
+**Every printed score reads in the units it was measured in**, and
+compactly: values are stored sign-corrected so higher is always better,
+which holds a minimized metric negated, and a search is free to find
+something absurd -- one run scored 9.33e+157, which plain rounding
+rendered as a 160-character string that broke out of its tile.
+`frontend/src/lib/objectives.ts` is the single place that undoes both,
+shared by the report, the table, the tiles and both plots.
 
 `GET /api/runs/{id}/variants` lists every attempt in ordinal order;
 `/variants/{variant_id}` adds metrics, artifacts and full source. The
@@ -400,13 +472,13 @@ Two rules it keeps:
   points in a thousand dimensions have no usable distances.
 - **The fingerprint is syntactic.** It separates a recursion from a
   loop, and a comprehension-heavy rewrite from a nested one, because
-  those differ in the shape of the tree. It does not separate two
-  programs that compute different things in the same shape, and eight
-  buckets collide by construction.
-- **A frozen projection cannot learn.** Freezing is what makes cells
-  comparable over time, and the cost is that behaviour appearing after
-  it lands in an edge cell rather than earning one of its own. A run
-  that changes character late is niched by the run it used to be.
-- **Nothing carries across runs.** Each run starts from its seed with an
-  empty archive; a program discovered yesterday is not available as a
-  parent today.
+  those differ in the shape of the tree. It cannot separate two programs
+  that compute different things in the same shape -- no static analysis
+  can, in general -- and eight buckets collide by construction. The
+  escape hatch is a `metric:<key>` axis: a program can report whatever
+  distinguishes it and be niched on that directly.
+- **Growth adds regions, not dimensions.** A frozen projection can gain
+  cells for new behaviour, but a categorical value the frozen population
+  never saw still has no column of its own. Minting one would change the
+  vector space and move every point already in it, which is the
+  instability freezing exists to remove.

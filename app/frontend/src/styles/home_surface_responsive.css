@@ -46,7 +46,7 @@
     grid-template-rows:
       minmax(1.5rem, clamp(4.85rem, 8.8vh, 6.4rem)) auto
       minmax(1.25rem, clamp(3.85rem, 7.6vh, 5.8rem)) auto
-      minmax(2rem, 1fr) auto max-content;
+      minmax(2rem, 1fr) auto max-content max-content;
     padding-top: 0;
     padding-bottom: clamp(1.35rem, 3.2vh, 2.25rem);
   }
@@ -72,6 +72,14 @@
 
   .reference-home-main > .reference-home-composer {
     grid-row: 7;
+  }
+
+  /* Appended below the composer rather than folded into an existing
+     track: every child here is pinned, so an unplaced one flows into
+     row 1 and lands above the title. A trailing max-content row takes
+     its height off the 1fr spacer above and moves nothing else. */
+  .reference-home-main > .reference-home-discovery-entry {
+    grid-row: 8;
   }
 
   .reference-home-title {
@@ -238,7 +246,7 @@
     height: calc(100dvh - 4.5rem);
     grid-template-rows:
       minmax(0, clamp(2.4rem, 7vh, 3.5rem)) auto auto
-      minmax(2rem, 1fr) auto max-content;
+      minmax(2rem, 1fr) auto max-content max-content;
     padding-top: 0;
     padding-bottom: clamp(1rem, 2.5vh, 1.75rem);
   }
@@ -257,6 +265,10 @@
 
   .reference-home-main > .reference-home-composer {
     grid-row: 6;
+  }
+
+  .reference-home-main > .reference-home-discovery-entry {
+    grid-row: 7;
   }
 
   .reference-step-timeline {

@@ -299,3 +299,30 @@ def seed_source(config: dict[str, Any] | None) -> dict[str, str]:
     ):
         raise DiscoverySpecError("discovery.seed_source must map paths to text")
     return {str(k): str(v) for k, v in raw.items()}
+
+
+# Key naming a previous discovery run to carry an archive forward from.
+SEED_FROM_RUN_KEY = "seed_from_run"
+
+# How many inherited programs a run may start from. A cap, not a target:
+# every one of them is a full evaluation before the search has proposed
+# anything, so an unbounded archive would spend a whole budget
+# re-measuring what the previous run already knew.
+MAX_INHERITED_SEEDS = 6
+
+
+def seed_from_run(config: dict[str, Any] | None) -> str | None:
+    """Returns the run this one inherits its starting programs from.
+
+    Raises:
+        DiscoverySpecError: If the key is present but is not a run id.
+    """
+    block = discovery_config(config) or {}
+    raw = block.get(SEED_FROM_RUN_KEY)
+    if raw is None:
+        return None
+    if not isinstance(raw, str) or not raw.strip():
+        raise DiscoverySpecError(
+            f"discovery.{SEED_FROM_RUN_KEY} must be a run id"
+        )
+    return raw.strip()

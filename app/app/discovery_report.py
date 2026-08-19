@@ -39,7 +39,7 @@ LOPSIDED_BELOW = 0.5
 MINIMIZE = "minimize"
 
 
-def _measured(value: float | None, direction: str) -> str:
+def measured(value: float | None, direction: str) -> str:
     """Renders one objective value as the metric it was measured in.
 
     Stored values are sign-corrected so that higher is always better,
@@ -67,7 +67,7 @@ def _objective_lines(spec: Any) -> list[str]:
 
 def _variant_row(variant: dict[str, Any], direction: str) -> str:
     """One row of the attempt table."""
-    score = _measured(variant["fitness"], direction)
+    score = measured(variant["fitness"], direction)
     operator = variant["operator"] or "seed"
     flags = []
     if variant.get("is_best_so_far"):
@@ -129,7 +129,7 @@ def _best_section(best: dict[str, Any] | None, direction: str) -> list[str]:
         "## Result",
         "",
         f"Attempt {best['ordinal']} scored "
-        f"{_measured(best['fitness'], direction)}"
+        f"{measured(best['fitness'], direction)}"
         f" via `{(best['operator'] or 'seed').replace('_', ' ')}`.",
     ]
     if best.get("rationale"):
@@ -142,7 +142,7 @@ def _front_row(variant: dict[str, Any], directions: list[str]) -> str:
     values = list(variant.get("objective_values") or [])
     padded = (values + [None] * len(directions))[: len(directions)]
     cells = [
-        _measured(value, direction)
+        measured(value, direction)
         for value, direction in zip(padded, directions, strict=True)
     ]
     return f"| {variant['ordinal']} | " + " | ".join(cells) + " |"
@@ -298,6 +298,34 @@ def build_payload(
     }
 
 
+def _after_publishing(
+    run: store.RunRow, payload: dict[str, Any], db_path: str | None
+) -> None:
+    """Tells everyone the report exists: the reader, and the mail queue.
+
+    After the save, never before, so neither can announce a report that
+    was not written.
+    """
+    from app.report_notify import _enqueue_completion_notification
+
+    # The completion opt-in lives in the run config, so it applies to
+    # both kinds of run; without this a discovery run is the one kind
+    # that asks to be told and never is.
+    _enqueue_completion_notification(
+        run.id, run.research_goal, payload["report_id"], db_path=db_path
+    )
+    store.append_event(
+        run.id,
+        "report",
+        {
+            "variant_count": payload["variant_count"],
+            "best_fitness": payload["best_fitness"],
+            "niches_occupied": payload["niches_occupied"],
+        },
+        db_path=db_path,
+    )
+
+
 def publish(
     run_id: str,
     variants: list[dict[str, Any]],
@@ -309,35 +337,21 @@ def publish(
     Never raises. This runs at the very end of a discovery run, after
     every variant is already durable, so a formatting bug here must not
     turn a finished run into a failed task that retries the whole
-    aggregate -- the search is done either way.
+    aggregate -- the search is done either way. The event and mail
+    writes sit inside the same guard, or a full volume would raise past
+    a report that was already saved and append another on every retry.
     """
     run = store.get_run(run_id, db_path=db_path)
     if run is None:
         return
     try:
         payload = build_payload(run, variants, coverage)
-        store.save_report(
+        saved = store.save_report(
             run_id,
             payload,
             build_markdown(run, variants, coverage),
             db_path=db_path,
         )
-        # The event is what the reader's stage narrative is made of, and
-        # what tells a live surface a report now exists. Emitted after
-        # the save so it can never announce one that was not written,
-        # and inside this guard because it writes too: a full volume
-        # would otherwise raise past a report that was already saved,
-        # retry the finished aggregate, and append another report row
-        # on every attempt.
-        store.append_event(
-            run_id,
-            "report",
-            {
-                "variant_count": payload["variant_count"],
-                "best_fitness": payload["best_fitness"],
-                "niches_occupied": payload["niches_occupied"],
-            },
-            db_path=db_path,
-        )
+        _after_publishing(run, {**payload, "report_id": saved["id"]}, db_path)
     except Exception:
         logger.exception("Could not publish the report for run %s", run_id)

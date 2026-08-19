@@ -43,6 +43,7 @@ from co_scientist.agents.code_evolve.grid import (
     assign_cells,
     coverage,
     default_descriptors_for,
+    extend,
     freeze,
 )
 from co_scientist.agents.code_evolve.operators import (
@@ -93,6 +94,7 @@ __all__ = [
     "default_descriptors_for",
     "densities",
     "describe",
+    "extend",
     "freeze",
     "instructions_for",
     "is_categorical",

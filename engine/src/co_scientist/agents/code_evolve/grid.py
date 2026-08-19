@@ -362,6 +362,44 @@ def freeze(behaviours: Sequence[Behaviour], grid: Grid) -> Grid:
     )
 
 
+# How far a frozen tessellation may grow, as a multiple of its declared
+# cell count. Growth exists so a run that changes character late is not
+# niched by the run it used to be; a ceiling exists because unbounded
+# growth is re-clustering under another name, and an archive with a cell
+# per variant has stopped compressing anything.
+EXTENSION_CEILING_FACTOR = 2
+
+
+def extend(behaviours: Sequence[Behaviour], grid: Grid) -> Grid:
+    """Grows a frozen tessellation to cover behaviour it does not.
+
+    The complement of ``freeze``. Freezing keeps a cell meaning the same
+    thing across generations, at the cost that behaviour appearing
+    afterwards lands in whichever edge cell is nearest -- filed beside
+    variants it has nothing in common with. This adds cells for
+    behaviour outside the tessellation's own resolution and moves none
+    of the existing centroids, so what was already placed stays placed.
+
+    Args:
+        behaviours: Every variant measured so far.
+        grid: The run's configuration, already frozen.
+
+    Returns:
+        The grid with any new centroids appended, or unchanged when it
+        is not frozen, is not CVT, or has nothing far enough away.
+    """
+    if grid.strategy is not GridStrategy.CVT or not grid.projection:
+        return grid
+    grown = tessellation.extend(
+        grid.projection,
+        behaviours,
+        grid.cells * EXTENSION_CEILING_FACTOR,
+    )
+    if grown is grid.projection:
+        return grid
+    return replace(grid, projection=grown)
+
+
 def coverage(cells: Sequence[tuple[Any, ...]]) -> float:
     """How evenly a run's variants are spread across the cells it reached.
 

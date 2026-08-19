@@ -108,10 +108,54 @@ def _to_evaluation(
     )
 
 
+def _variant_message(
+    variant: dict[str, Any], result: Any, direction: str
+) -> str:
+    """One line naming what this attempt did, for the reader's timeline.
+
+    Carried on the event as ``message`` because that is the key every
+    consumer already reads -- the live activity row, the stage log, the
+    SSE console. Without it each attempt renders as the bare word
+    "Discovery", which is a heartbeat rather than a narrative.
+    """
+    from app.discovery_report import measured
+
+    move = (variant["operator"] or "seed").replace("_", " ")
+    if result.fitness is None:
+        return f"Attempt {variant['ordinal']} ({move}) {result.status.value}"
+    return (
+        f"Attempt {variant['ordinal']} ({move}) scored "
+        f"{measured(result.fitness, direction)}"
+    )
+
+
+def _record_evaluation(
+    run_id: str,
+    variant: dict[str, Any],
+    result: Any,
+    direction: str,
+    db_path: str | None,
+) -> None:
+    """Persists one evaluation, then narrates it -- in that order."""
+    store.record_variant_evaluation(
+        str(variant["id"]),
+        _to_evaluation(result, _behaviour_of(variant, result)),
+        db_path=db_path,
+    )
+    logger.info(
+        "Variant %s scored %s (%s)",
+        variant["ordinal"],
+        result.fitness,
+        result.status.value,
+    )
+    _announce_variant(run_id, variant, result, direction, db_path)
+
+
 def _announce_variant(
     run_id: str,
     variant: dict[str, Any],
     result: Any,
+    direction: str,
     db_path: str | None,
 ) -> None:
     """Records one evaluated variant as a run event.
@@ -130,6 +174,7 @@ def _announce_variant(
             run_id,
             "discovery",
             {
+                "message": _variant_message(variant, result, direction),
                 "ordinal": variant["ordinal"],
                 "generation": variant["generation"],
                 "operator": variant["operator"] or "seed",
@@ -168,18 +213,13 @@ async def execute_variant_evaluate(
         session,
         EvaluationRequest(spec=spec, files=dict(variant["source"])),
     )
-    store.record_variant_evaluation(
-        str(variant["id"]),
-        _to_evaluation(result, _behaviour_of(variant, result)),
-        db_path=db_path,
+    _record_evaluation(
+        task.run_id,
+        variant,
+        result,
+        spec.objectives[0].direction.value,
+        db_path,
     )
-    logger.info(
-        "Variant %s scored %s (%s)",
-        variant["ordinal"],
-        result.fitness,
-        result.status.value,
-    )
-    _announce_variant(task.run_id, variant, result, db_path)
     return {
         "variant_id": variant["id"],
         "ordinal": variant["ordinal"],
@@ -220,14 +260,26 @@ def _seed_variant(
     an LLM call to reproduce a program we already have -- badly, since
     the prompt would be showing the model an empty parent.
     """
-    from app.discovery_spec import seed_source
+    from app.engine_tasks_variants_schedule import inherited_sources
 
+    starting = inherited_sources(config, db_path=db_path)
+    # A run that inherits an archive has one seed task per program it
+    # carries forward; the index names which. Clamped rather than
+    # indexed blindly, because the previous run can lose a variant
+    # between the generation being enqueued and this task running.
+    index = min(
+        int(task.inputs.get("seed_index", 0)), len(starting.sources) - 1
+    )
     variant_id = store.add_code_variant(
         store.NewCodeVariant(
             run_id=task.run_id,
             variant_id=task.id,
-            source=seed_source(config),
-            rationale="Starting program, as configured for the run.",
+            source=starting.sources[index],
+            rationale=(
+                "Carried forward from an earlier run's archive."
+                if starting.inherited
+                else "Starting program, as configured for the run."
+            ),
             created_by_agent="discovery.seed",
         ),
         db_path=db_path,

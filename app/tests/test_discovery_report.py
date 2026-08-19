@@ -59,11 +59,19 @@ def _run(config: dict[str, Any]) -> Any:
 
 
 async def _drain(run_id: str, limit: int = 60) -> None:
+    """Runs the real queue until this run has nothing claimable left.
+
+    Non-engine tasks (the completion email) are completed rather than
+    executed: they belong to the worker's other dispatch table, and
+    running an SMTP delivery is not what any test here is about.
+    """
     for _ in range(limit):
         task = store.claim_task("test-worker", run_id=run_id)
         if task is None:
             return
-        result = await engine_tasks.execute_engine_task(task)
+        result: dict[str, Any] = {"skipped": True}
+        if task.task_type.startswith("engine."):
+            result = await engine_tasks.execute_engine_task(task)
         store.complete_task(task.id, "test-worker", result)
     raise AssertionError("discovery loop did not settle")
 
@@ -144,6 +152,40 @@ async def test_every_evaluated_variant_is_narrated(
     assert variants[0]["payload"]["ordinal"] == 1
     assert variants[0]["payload"]["fitness"] == 7.0
     assert variants[0]["payload"]["operator"] == "seed"
+    # The line the reader's timeline actually shows. Without it every
+    # attempt renders as the bare word "Discovery" -- a heartbeat, not a
+    # narrative.
+    assert variants[0]["payload"]["message"] == "Attempt 1 (seed) scored 7.0"
+
+
+@pytest.mark.asyncio
+async def test_a_discovery_run_can_ask_to_be_told_it_finished(
+    db: str, workspace_root: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # The opt-in lives in the run config, which both kinds of run carry,
+    # so a discovery run was the one kind that asked and never was told.
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "smtp_host", "smtp.example.org")
+    monkeypatch.setattr(settings, "smtp_from_email", "noreply@example.org")
+    config = _config(_GOOD, max_generations=1)
+    config["completion_notification"] = {
+        "enabled": True,
+        "email": "someone@example.com",
+    }
+    run = _run(config)
+    enqueue_discovery_bootstrap(run.id)
+    await _drain(run.id)
+
+    mail = [
+        task
+        for task in store.list_tasks(run.id)
+        if task.task_type == "notification.email"
+    ]
+    assert len(mail) == 1
+    # Not the Ideas tab: a discovery run's nav does not show one, so the
+    # single link in the mail would land on a tab that is not there.
+    assert mail[0].inputs["tab"] == "overview"
 
 
 @pytest.mark.asyncio
@@ -161,6 +203,7 @@ async def test_a_crashed_variant_is_narrated_too(
     ]
     assert narrated[0]["payload"]["status"] == "failed"
     assert narrated[0]["payload"]["fitness"] is None
+    assert narrated[0]["payload"]["message"] == "Attempt 1 (seed) failed"
 
 
 @pytest.mark.asyncio

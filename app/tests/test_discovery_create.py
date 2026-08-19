@@ -90,13 +90,29 @@ def test_a_malformed_spec_is_refused_at_creation(
     assert "discovery spec" in created.json()["detail"]
 
 
+async def _drain(run_id: str, limit: int = 60) -> None:
+    """Starts the run and drains its queue until nothing is claimable."""
+    from app import engine_tasks, store
+
+    engine_tasks.enqueue_bootstrap(run_id)
+    for _ in range(limit):
+        task = store.claim_task("test-worker", run_id=run_id)
+        if task is None:
+            return
+        result: dict[str, Any] = {"skipped": True}
+        if task.task_type.startswith("engine."):
+            result = await engine_tasks.execute_engine_task(task)
+        store.complete_task(task.id, "test-worker", result)
+    raise AssertionError("discovery loop did not settle")
+
+
 @pytest.mark.asyncio
 async def test_an_api_created_run_reaches_the_discovery_loop(
     client: TestClient, tmp_path: Any, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     # The point of the endpoint. Asserting the config key alone would
     # pass even if bootstrap ignored it and ran the hypothesis graph.
-    from app import engine_tasks, store
+    from app import store
 
     monkeypatch.setenv("COSCIENTIST_WORKSPACE_DIR", str(tmp_path / "ws"))
     created = client.post(
@@ -106,14 +122,7 @@ async def test_an_api_created_run_reaches_the_discovery_loop(
             "discovery": _spec(max_generations=1),
         },
     ).json()
-    engine_tasks.enqueue_bootstrap(created["id"])
-    for _ in range(40):
-        task = store.claim_task("test-worker", run_id=created["id"])
-        if task is None:
-            break
-        store.complete_task(
-            task.id, "test-worker", await engine_tasks.execute_engine_task(task)
-        )
+    await _drain(created["id"])
 
     variants = store.list_code_variants(created["id"])
     assert [v["source"] for v in variants] == [_spec()["seed_source"]]
@@ -122,3 +131,77 @@ async def test_an_api_created_run_reaches_the_discovery_loop(
         store.get_latest_report(created["id"])["payload"]["report_kind"]
         == "discovery"
     )
+
+
+@pytest.mark.asyncio
+async def test_a_run_inherits_the_archive_of_an_earlier_one(
+    client: TestClient, tmp_path: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Nothing carried across runs before this: a program found yesterday
+    # was not available as a starting point today.
+    from app import store
+
+    monkeypatch.setenv("COSCIENTIST_WORKSPACE_DIR", str(tmp_path / "ws"))
+    scoring = dict(
+        _spec(max_generations=1),
+        seed_source={
+            "main.py": (
+                "import json\n"
+                "json.dump({'score': 4.0}, open('metrics.json', 'w'))\n"
+            )
+        },
+    )
+    first = client.post(
+        "/api/runs",
+        json={"research_goal": "first pass", "discovery": scoring},
+    ).json()
+    await _drain(first["id"])
+
+    second = client.post(
+        "/api/runs",
+        json={
+            "research_goal": "carry on",
+            "discovery": dict(scoring, seed_from_run=first["id"]),
+        },
+    ).json()
+    await _drain(second["id"])
+
+    carried = store.list_code_variants(second["id"])
+    assert (
+        carried[0]["source"]
+        == store.list_code_variants(first["id"])[0]["source"]
+    )
+    assert "Carried forward" in carried[0]["rationale"]
+
+
+def test_inheriting_from_another_client_s_run_is_refused(
+    client: TestClient,
+) -> None:
+    # It reads the other run's whole source out of the store, below the
+    # ownership middleware that guards every HTTP path to it.
+    theirs = client.post(
+        "/api/runs",
+        headers={"X-Client-ID": "someone-else"},
+        json={"research_goal": "theirs", "discovery": _spec()},
+    ).json()
+    refused = client.post(
+        "/api/runs",
+        json={
+            "research_goal": "mine",
+            "discovery": dict(_spec(), seed_from_run=theirs["id"]),
+        },
+    )
+    assert refused.status_code == 404
+
+
+def test_a_seed_reference_that_is_not_a_run_id_is_refused(
+    client: TestClient,
+) -> None:
+    refused = client.post(
+        "/api/runs",
+        json={
+            "research_goal": "mine",
+            "discovery": dict(_spec(), seed_from_run=42),
+        },
+    )
+    assert refused.status_code == 422
