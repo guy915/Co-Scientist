@@ -190,6 +190,33 @@ def _completion_spec(model_name: str) -> Any:
     )
 
 
+def _record_child(
+    task: ScientificTask,
+    parent_row: dict[str, Any],
+    proposal: Any,
+    db_path: str | None,
+) -> dict[str, Any]:
+    """Stores an accepted proposal as a child of its parent."""
+    variant_id = store.add_code_variant(
+        store.NewCodeVariant(
+            run_id=task.run_id,
+            variant_id=task.id,
+            source=proposal.source,
+            parent_id=str(parent_row["id"]),
+            generation=int(parent_row["generation"]) + 1,
+            operator=proposal.operator.value,
+            rationale=proposal.rationale,
+            diff=proposal.patch,
+        ),
+        db_path=db_path,
+    )
+    return {
+        "variant_id": variant_id,
+        "operator": proposal.operator.value,
+        "changed": list(proposal.changed),
+    }
+
+
 async def execute_variant_propose(
     task: ScientificTask, *, db_path: str | None = None
 ) -> dict[str, Any]:
@@ -234,24 +261,7 @@ async def execute_variant_propose(
         logger.info("Variant proposal rejected: %s", exc)
         return {"variant_id": None, "rejected": str(exc)}
 
-    variant_id = store.add_code_variant(
-        store.NewCodeVariant(
-            run_id=task.run_id,
-            variant_id=task.id,
-            source=proposal.source,
-            parent_id=str(parent_row["id"]),
-            generation=int(parent_row["generation"]) + 1,
-            operator=proposal.operator.value,
-            rationale=proposal.rationale,
-            diff=proposal.patch,
-        ),
-        db_path=db_path,
-    )
-    return {
-        "variant_id": variant_id,
-        "operator": proposal.operator.value,
-        "changed": list(proposal.changed),
-    }
+    return _record_child(task, parent_row, proposal, db_path)
 
 
 def _next_generation_parents(

@@ -15,6 +15,9 @@ from app.store.schema_knowledge_facts import (
 from app.store.schema_supervisor_plan import (
     SUPERVISOR_PLAN_SCHEMA as SUPERVISOR_PLAN_SCHEMA,
 )
+from app.store.schema_tasks import (
+    SCIENTIFIC_TASKS_SCHEMA as SCIENTIFIC_TASKS_SCHEMA,
+)
 
 _SCHEMA_HEAD = """
 -- Primary lifecycle record for a single hypothesis-generation run.
@@ -146,37 +149,6 @@ CREATE TABLE IF NOT EXISTS run_events (
 );
 CREATE INDEX IF NOT EXISTS idx_events_run_seq ON run_events(run_id, seq);
 
--- Durable global scientific task queue. A unique idempotency key prevents a
--- Supervisor retry or worker redelivery from duplicating scientific effects.
-CREATE TABLE IF NOT EXISTS scientific_tasks (
-    id TEXT PRIMARY KEY,
-    run_id TEXT NOT NULL,
-    task_type TEXT NOT NULL,
-    -- queued | leased | paused | completed | failed | cancelled
-    status TEXT NOT NULL,
-    priority INTEGER NOT NULL DEFAULT 0,
-    inputs_json TEXT NOT NULL,
-    dependencies_json TEXT NOT NULL,
-    provenance_json TEXT NOT NULL,
-    idempotency_key TEXT NOT NULL,
-    budget_json TEXT NOT NULL,
-    attempt INTEGER NOT NULL DEFAULT 0,
-    max_attempts INTEGER NOT NULL DEFAULT 3,
-    lease_owner TEXT,
-    lease_expires_at REAL,
-    result_json TEXT,
-    error TEXT,
-    created_at REAL NOT NULL,
-    updated_at REAL NOT NULL,
-    started_at REAL,
-    completed_at REAL,
-    FOREIGN KEY (run_id) REFERENCES runs(id) ON DELETE CASCADE,
-    UNIQUE (run_id, idempotency_key)
-);
-CREATE INDEX IF NOT EXISTS idx_tasks_ready
-    ON scientific_tasks(status, priority DESC, created_at ASC);
-CREATE INDEX IF NOT EXISTS idx_tasks_run
-    ON scientific_tasks(run_id, created_at ASC);
 
 -- Append-only hypothesis records: `evolve` inserts a new row with parent_id
 -- set rather than mutating the parent. Mutable fields (Elo, scores, status)
@@ -499,6 +471,7 @@ SCHEMA = (
     _SCHEMA_HEAD
     + KNOWLEDGE_FACTS_SCHEMA
     + SUPERVISOR_PLAN_SCHEMA
+    + SCIENTIFIC_TASKS_SCHEMA
     + CODE_VARIANTS_SCHEMA
     + _SCHEMA_TAIL
 )

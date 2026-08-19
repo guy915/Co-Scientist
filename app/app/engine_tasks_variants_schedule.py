@@ -20,7 +20,13 @@ import sqlite3
 from typing import Any
 
 from app import store
-from app.discovery_spec import discovery_config
+from app.discovery_spec import (
+    discovery_config,
+    evaluator_spec,
+)
+from app.discovery_spec import (
+    is_discovery_run as is_discovery_run,
+)
 from app.engine_tasks_variants import (
     VARIANT_AGGREGATE_TASK,
     VARIANT_EVALUATE_TASK,
@@ -174,3 +180,27 @@ def enqueue_discovery_bootstrap(
     """Starts a discovery run at its seed program."""
     with store.transaction(db_path) as conn:
         enqueue_generation(run_id, 0, [None], conn=conn)
+
+
+async def bootstrap_discovery(
+    run: store.RunRow, emit: Any, db_path: str | None
+) -> dict[str, Any]:
+    """Starts a discovery run at its seed program.
+
+    The evaluator spec is built here, before anything is enqueued, so a
+    misconfigured run fails at its first task with a message naming the
+    problem -- rather than enqueueing a generation whose every variant
+    then fails identically for a reason no single result explains.
+    """
+    spec = evaluator_spec(run.config)
+    enqueue_discovery_bootstrap(run.id, db_path=db_path)
+    await emit(
+        "scientific_task",
+        {"task": "bootstrap", "status": "completed", "mode": "discovery"},
+    )
+    return {
+        "mode": "discovery",
+        "objective": spec.objective.metric,
+        "direction": spec.objective.direction.value,
+        "stages": [stage.name for stage in spec.stages],
+    }
