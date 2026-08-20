@@ -223,6 +223,15 @@ def _canonical_engine_payload(
     degraded = [str(name) for name in state.get("degraded_nodes") or []]
     if degraded:
         payload["degraded"] = degraded
+    # A run that can reach no literature source is routed around every
+    # node that would have used one, so the loss shows up as nodes that
+    # never emit rather than as an event of its own. Carried here for the
+    # same reason as the line above: from the first commit that holds it,
+    # on every event after, so a watcher sees it while the run is going
+    # instead of reading it off the finished report.
+    retrieval = state.get("retrieval_degradation")
+    if isinstance(retrieval, dict) and retrieval:
+        payload["retrieval_degraded"] = retrieval
     return payload
 
 

@@ -87,6 +87,12 @@ from app.engine_adapter.drain_matches import (
 from app.engine_adapter.drain_matches import (
     _resolve_match_sides as _resolve_match_sides,
 )
+from app.engine_adapter.drain_report_inputs import (
+    degraded_sections,
+    grounding_counts,
+    retrieval_degradation,
+    safety_counts,
+)
 from app.engine_adapter.drain_research import (
     _persist_retrieval_calls as _persist_retrieval_calls,
 )
@@ -219,17 +225,6 @@ def _persist_grounding_matches_and_proximity(
     return grounding_result
 
 
-def _degraded_sections(final_state: dict[str, Any]) -> list[str]:
-    """Return the engine nodes whose output degraded to a fallback.
-
-    The engine records every enhancement node served a placeholder fallback
-    instead of parseable LLM output (``co_scientist.progress.
-    record_schema_degradation``); the report carries the list so a section
-    left blank by a degradation can say so instead of showing silence.
-    """
-    return [str(name) for name in final_state.get("degraded_nodes") or []]
-
-
 def _build_drain_result(
     final_state: dict[str, Any],
     citation_summary: dict[str, int],
@@ -245,31 +240,13 @@ def _build_drain_result(
             "research_overview": _final_state_dict(
                 final_state, "research_overview"
             ),
-            "degraded_sections": _degraded_sections(final_state),
+            "degraded_sections": degraded_sections(final_state),
+            "retrieval_degradation": retrieval_degradation(final_state),
         },
-        safety_counts={
-            "screened": screening_result.screened_count,
-            "blocked": screening_result.blocked_count,
-            "eligible": (
-                screening_result.screened_count - screening_result.blocked_count
-            ),
-        },
-        # "assessed", not "grounded": reason_by_id carries a gate reason for
-        # every hypothesis put through the gate, blocked ones included, so
-        # publishing it as "grounded" made a run where both candidates were
-        # blocked read "grounded=2 blocked=2" -- four hypotheses' worth of
-        # outcome for two hypotheses, with the blocked ones counted twice.
-        grounding_counts={
-            "assessed": len(grounding_result.reason_by_id),
-            "grounded": (
-                len(grounding_result.reason_by_id)
-                - grounding_result.blocked_count
-            ),
-            "blocked": grounding_result.blocked_count,
-            "eligible": (
-                len(grounding_candidates) - grounding_result.blocked_count
-            ),
-        },
+        safety_counts=safety_counts(screening_result),
+        grounding_counts=grounding_counts(
+            grounding_result, grounding_candidates
+        ),
     )
 
 

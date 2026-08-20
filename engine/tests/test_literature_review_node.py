@@ -55,6 +55,28 @@ async def test_server_unavailable_returns_failure_without_search(
     assert fake_client.calls == []
 
 
+async def test_a_server_lost_mid_run_records_the_degradation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Reaching this node at all means the server was up at setup.
+
+    The graph routes around it when the run starts without one, so an
+    outage found here is the same degradation arriving later -- and it
+    has to reach the report the same way, or a run that lost its sources
+    halfway through publishes as though it never needed them.
+    """
+    _stub_node(monkeypatch, server_available=False)
+    state = make_state(research_goal="cancer immunotherapy resistance")
+    state["context_enrichment_sources"] = [{"title": "an attachment"}]
+
+    result = await literature_review_node(state)
+
+    degradation = result["retrieval_degradation"]
+    assert degradation["reason"] == "mcp_unreachable"
+    # The run's own documents are unaffected by a server outage.
+    assert degradation["floor"] == "run_attachments"
+
+
 async def test_node_gate_is_server_reachability_not_source_health(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

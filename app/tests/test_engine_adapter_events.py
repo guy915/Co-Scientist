@@ -238,3 +238,35 @@ def test_engine_adapter_generates_canonical_milestones(
     assert "1 clusters identified" in text
     assert "1 hypotheses verified" in text
     assert "Research overview ready" in text
+
+
+def test_a_retrieval_outage_rides_every_event_after_it() -> None:
+    """The lost work emits nothing, so the loss has to travel on what does.
+
+    A run with no reachable source is routed around the literature review
+    and the observation reviews, which means the absence of those events
+    is the only live signal -- and an absence looks exactly like a run
+    that has not got there yet. Carrying the fact forward is what lets a
+    watcher see it while the run is going.
+    """
+    state: dict[str, Any] = {
+        "current_iteration": 1,
+        "retrieval_degradation": {
+            "reason": "mcp_unreachable",
+            "lost": ["literature_review"],
+            "floor": "none",
+        },
+    }
+
+    payload = _canonical_engine_payload("generate", "generate", state)
+
+    assert payload["retrieval_degraded"]["reason"] == "mcp_unreachable"
+
+
+def test_a_healthy_run_carries_no_outage_key() -> None:
+    """Every ordinary event stays the shape its consumers already read."""
+    payload = _canonical_engine_payload(
+        "generate", "generate", {"current_iteration": 1}
+    )
+
+    assert "retrieval_degraded" not in payload

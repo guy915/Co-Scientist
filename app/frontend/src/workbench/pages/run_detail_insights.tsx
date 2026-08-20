@@ -37,6 +37,69 @@ export function DegradedSectionNotice() {
   );
 }
 
+// What each lost capability is called where a reader can recognize it.
+// Anything the engine names that this map does not know is dropped rather
+// than printed raw: an unexplained engine identifier in a report reads as
+// a bug, and the sentence is still true without it.
+const LOST_CAPABILITY_LABELS: Record<string, string> = {
+  literature_review: 'the literature review',
+  observation_review: 'observation reviews',
+  deep_research: 'follow-up research',
+  review_evidence: 'evidence for the deep reviews',
+  verification_probes: 'verification probes',
+  evolution_grounding: 'grounding for evolved ideas',
+};
+
+const FLOOR_LABELS: Record<string, string> = {
+  none: 'Nothing else was available to search.',
+  run_attachments:
+    'Only the documents attached to this run were available to search.',
+};
+
+/**
+ * A run-level notice: this run could reach no literature source.
+ *
+ * Worth its own notice rather than a per-section one. A run that cannot
+ * retrieve still completes and still writes an ordinary-looking report --
+ * the ideas in it were simply never checked against a paper, and no part
+ * of the output says so.
+ *
+ * @param report The run's persisted report, when one exists yet.
+ * @returns The notice, or null on a run that retrieved normally.
+ */
+export function RetrievalDegradationNotice({report}: {report: Report | null}) {
+  const degradation = report?.payload.retrieval_degradation;
+  if (!degradation) return null;
+  return (
+    <p className={DEGRADED_SECTION_NOTICE_CLASSES}>
+      {retrievalDegradationText(degradation)}
+    </p>
+  );
+}
+
+// The notice's sentence, built apart from the component so neither the
+// label lookups nor the empty cases live inside the render.
+function retrievalDegradationText(degradation: {
+  lost: string[];
+  floor: string;
+}): string {
+  const lost = (degradation.lost ?? [])
+    .map(name => LOST_CAPABILITY_LABELS[name])
+    .filter(label => !!label);
+  const without = lost.length
+    ? `, so it ran without ${joinReadable(lost)}`
+    : '';
+  const floor = FLOOR_LABELS[degradation.floor] ?? '';
+  return `No literature source was reachable during this run${without}. ${floor}`.trim();
+}
+
+// "a, b and c" -- the report is prose, and a bare comma list reads as a
+// dump of field names.
+function joinReadable(items: string[]): string {
+  if (items.length < 2) return items[0] ?? '';
+  return `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]}`;
+}
+
 /**
  * Whether the run's report names `schema` among its degraded sections.
  *

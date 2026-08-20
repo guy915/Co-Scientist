@@ -15,6 +15,7 @@ import {
   DegradedSectionNotice,
   META_REVIEW_SCHEMA,
   RESEARCH_OVERVIEW_SCHEMA,
+  RetrievalDegradationNotice,
   sectionDegraded,
 } from './run_detail_insights';
 import {
@@ -159,6 +160,7 @@ export function ResearchOverviewView({
   return (
     <ReportDocument title="Summary">
       {leadStat ? <p className={REPORT_LEAD_STAT_CLASSES}>{leadStat}</p> : null}
+      <RetrievalDegradationNotice report={report} />
       <SummaryStats payload={report?.payload} />
       <AgentInsightsSection
         insights={report?.payload.agent_insights}

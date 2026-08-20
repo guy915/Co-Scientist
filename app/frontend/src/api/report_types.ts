@@ -51,6 +51,20 @@ export interface ReportPayload {
    * clean runs and on reports written before the field existed.
    */
   degraded_sections?: string[];
+  /**
+   * What the run could not search, when no literature source was
+   * reachable: the reason, the capabilities it lost, and whatever was
+   * left to search instead (`none` when nothing was). Absent on a run
+   * that retrieved normally and on reports written before the field
+   * existed. Distinct from `degraded_sections`, which explains a section
+   * the model failed to write -- this explains work never attempted, and
+   * nothing else in the report reveals it.
+   */
+  retrieval_degradation?: {
+    reason: string;
+    lost: string[];
+    floor: string;
+  } | null;
 }
 
 /** One synthesized technical topic backed by claim-evidence references. */

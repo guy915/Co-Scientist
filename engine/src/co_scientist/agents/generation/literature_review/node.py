@@ -113,6 +113,9 @@ from co_scientist.mcp_client import (
 )
 from co_scientist.models import MetricDeltas, create_metrics_update
 from co_scientist.progress import emit_progress
+from co_scientist.retrieval_degradation import (
+    resolve_retrieval_degradation,
+)
 from co_scientist.state import WorkflowState
 
 logger = logging.getLogger(__name__)
@@ -250,7 +253,16 @@ async def _check_server_available(
         "Literature review failed (MCP server unavailable)",
         0.2,
     )
-    return make_failure_result("literature source service unavailable")
+    result = make_failure_result("literature source service unavailable")
+    # The server was reachable when the run was set up, or the graph would
+    # have routed around this node entirely. Losing it here is the same
+    # degradation arriving later, so it is recorded the same way rather
+    # than left as this node's private failure.
+    result["retrieval_degradation"] = resolve_retrieval_degradation(
+        mcp_available=False,
+        private_sources=state.get("context_enrichment_sources"),
+    )
+    return result
 
 
 def _with_llm_call_metrics(

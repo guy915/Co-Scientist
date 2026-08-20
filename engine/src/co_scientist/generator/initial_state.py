@@ -11,6 +11,9 @@ from dataclasses import dataclass
 from typing import Any, cast
 
 from co_scientist.models import ExecutionMetrics
+from co_scientist.retrieval_degradation import (
+    resolve_retrieval_degradation,
+)
 from co_scientist.state import WorkflowState
 
 ProgressCallback = Callable[[str, dict[str, Any]], Awaitable[None]] | None
@@ -231,6 +234,10 @@ def _build_initial_state(
             **_initial_run_identity_fields(identity, capabilities),
             **_initial_user_and_literature_fields(
                 opts=opts, user_inputs=user_inputs
+            ),
+            "retrieval_degradation": resolve_retrieval_degradation(
+                mcp_available=bool(capabilities.mcp_available),
+                private_sources=opts.get("context_enrichment_sources"),
             ),
         },
     )

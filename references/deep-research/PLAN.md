@@ -36,8 +36,9 @@ green with them in.
 | Provenance written end to end | C | **done** | `app/engine_adapter/drain_research.py` |
 | Owner chosen | C | **decided 2026-08-20** | Generation first, then Reflection on the same adapter |
 | Assigned to Reflection (full + simulation) | C | **done** | `reflection/research_evidence.py`, `review_evidence.py` |
+| Degradation made visible | D | **done 2026-08-20** | `retrieval_degradation.py`; the corpus floor D6 assumed does not exist |
 | Cross-level follow-up dedup | C | **done** | `research/loop.py` |
-| Degradation + the three metrics | D | not started | — |
+| The three metrics | D | not started | unsupported-claim rate, citation usefulness, replay reproducibility |
 
 Three things to know before picking this up:
 
@@ -314,11 +315,34 @@ whole, whose tie-break is the initial review's own score — written by the node
 immediately upstream. A local re-statement of that comparison is exactly how a
 second copy comes to disagree with it.
 
-### Stage D — Degradation and evaluation (resolves D6, D8)
+### Stage D — Degradation and evaluation (resolves D6, D8) — **degradation built 2026-08-20**
 
-- The MCP-down path stops being silent. The local corpus is a floor, not a
-  casualty of the server gate; a degraded run says so in its state and in the
-  workbench rather than quietly becoming LLM-only.
+- The MCP-down path stops being silent. **Done**, and the premise this row
+  was written on turned out to be wrong, which is worth recording: D6 says
+  "the local corpus is always available and could floor the degradation". It
+  is not available. The group's papers stopped being a literature search
+  source when the whole catalogue began arriving in run context instead
+  (`config/tools.yaml` says so in a comment), and the one tool that reads a
+  paper, `fetch_paper`, is served by the same MCP server the gate just
+  failed — so an outage takes it along with everything else, and nothing in
+  `engine/src` reads the corpus from disk. What actually survives is the
+  run's own attachments, which the app already passes in as
+  `context_enrichment_sources` and which are searched in-process.
+
+  So the floor is real but conditional, and the deliverable that is
+  unconditional is the visibility. `retrieval_degradation.py` states what a
+  run lost (four separate silent branches: two nodes routed around, plus
+  research, probes and grounding refusing themselves) and what it had left
+  (`run_attachments`, or an honest `none`). It is set at setup and again if
+  the server is lost mid-node, drained into the report payload, carried on
+  every node event so a live watcher sees it, and rendered as a run-level
+  notice on the Summary tab.
+
+  A real corpus floor — a disk-backed search source in the engine — remains
+  open. It would help `sbi_ucd` runs only, since the corpus is audience-gated
+  through `paper_corpus.disabled_tools_for()`, and any such adapter has to
+  pass through the same registry reconciliation or it leaks one lab's papers
+  into every other audience's runs.
 - Three metrics into `evaluations/`, in this order because the third depends
   on Stage B: **unsupported-claim rate**, **citation usefulness** (does the
   cited span support *this* claim — distinct from the existing four-state

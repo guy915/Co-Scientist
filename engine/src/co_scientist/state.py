@@ -329,6 +329,18 @@ class WorkflowState(TypedDict):
     returned as a node update.
     """
 
+    retrieval_degradation: dict[str, Any] | None
+    """What this run could not search, and what was left to it instead.
+
+    Set once at run setup and again if the server is lost mid-run
+    (``retrieval_degradation.resolve_retrieval_degradation``); None on a
+    run that reached its sources normally. Distinct from
+    ``degraded_nodes``, which names a section blank because its own model
+    output would not parse -- this one names capabilities the run never
+    attempted, which is invisible from the output rather than merely
+    missing from it.
+    """
+
     # Metrics
     metrics: Annotated[ExecutionMetrics, merge_metrics]
     """Execution metrics for the workflow (auto-merged from concurrent updates).

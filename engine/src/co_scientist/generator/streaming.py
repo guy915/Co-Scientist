@@ -44,6 +44,9 @@ _STREAMED_STATE_KEYS = (
     # progress.record_schema_degradation); seeded here and overlaid from a
     # restored state on resume so a blank report section can explain itself.
     "degraded_nodes",
+    # Set at run setup and again if the server is lost mid-run; streamed so
+    # a caller watching a degraded run learns it while the run is going.
+    "retrieval_degradation",
 )
 
 # Streamed keys copied last-write-wins; "hypotheses" is excluded because it
@@ -176,6 +179,7 @@ def _initial_cumulative_stream_state() -> dict[str, Any]:
         "safety_decisions": [],
         "held_for_review": [],
         "degraded_nodes": [],
+        "retrieval_degradation": None,
     }
 
 
@@ -235,6 +239,8 @@ def _build_generation_result(
         "held_for_review": final_state.get("held_for_review", []),
         # Enhancement nodes served a placeholder fallback during the run.
         "degraded_nodes": final_state.get("degraded_nodes", []),
+        # What the run could not search, and what it had left instead.
+        "retrieval_degradation": final_state.get("retrieval_degradation"),
         "execution_time": execution_time,
         # total_time reports the ainvoke wall-clock, overriding the metric's
         # own accumulated value.

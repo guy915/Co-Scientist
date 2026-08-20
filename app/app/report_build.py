@@ -49,6 +49,11 @@ class ReportRequest(NamedTuple):
         degraded_sections: Engine nodes whose output degraded to a
             placeholder fallback after repeated parse failures; the report
             carries the list so a blank section can explain itself.
+        retrieval_degradation: What the run could not search and what it
+            had left instead, when no literature source was reachable.
+            None on a run that retrieved normally. Unlike a degraded
+            section this leaves no trace in the output, so a reader has
+            no way to infer it from the report itself.
         execution_time: Wall-clock seconds the run took, when measured.
         summary: Optional summary paragraph for the markdown header.
         db_path: Optional override for the SQLite database path.
@@ -61,6 +66,7 @@ class ReportRequest(NamedTuple):
     meta_review: dict[str, Any] | None = None
     research_overview: dict[str, Any] | None = None
     degraded_sections: list[str] | None = None
+    retrieval_degradation: dict[str, Any] | None = None
     execution_time: float | None = None
     summary: str | None = None
     db_path: str | None = None
@@ -209,11 +215,26 @@ def _assemble_report_payload(
             execution_time=req.execution_time,
         )
     )
-    # A section left blank by a fallback reads as missing data unless the
-    # report says generation failed; the engine records the degraded nodes.
+    _attach_run_conditions(payload, data, req)
+    return payload
+
+
+def _attach_run_conditions(
+    payload: dict[str, Any], data: _ReportData, req: _ReportBuildArgs
+) -> None:
+    """Attach what the reader needs to read the payload correctly.
+
+    Not results: the conditions the run met. A section left blank by a
+    fallback reads as missing data unless the report says generation
+    failed, and retrieval the run never attempted is invisible in every
+    other field -- an unreachable literature server routes the graph
+    around every source and the run completes looking ordinary. The
+    reviews ride along here because they are the same kind of fact: what
+    was actually done to each idea, rather than the idea itself.
+    """
     payload["degraded_sections"] = list(req.degraded_sections or [])
+    payload["retrieval_degradation"] = req.retrieval_degradation
     # Every review row the drain persisted, so the report carries the
     # initial, deep-verification, and mature-cascade reviews to the reader
     # (audit E1); the ideas view reads the same rows from /reviews.
     payload["reviews"] = list(data.reviews)
-    return payload
