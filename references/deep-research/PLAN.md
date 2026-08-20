@@ -11,8 +11,10 @@ text on two `docs/PARITY.md` rows: `GEN-TECHNIQUES-001` and
 
 ## 0. Build status (2026-08-20)
 
-Stages A, B and C are built: the capability, its provenance, and both of
-its owners. Stage D is what remains. Everything below ships with tests;
+All four stages are built: the capability, its provenance, both of its
+owners, and the degradation and measurement work. What remains is listed
+under "Open" in section 5 — none of it is a leftover, each is a decision
+taken deliberately rather than a task half-finished. Everything below ships with tests;
 the engine and app suites, `ruff`, strict `mypy` and `make parity` are
 green with them in.
 
@@ -401,8 +403,24 @@ from the tier at the generator boundary (D3); a `retrieval_calls` table rather
 than widening `evidence` (D4); question and query as separate artifacts (D7);
 the three custom metrics, and no general-web benchmarks (D8).
 
-**Open, and needing a human call:** which caller gets the capability first,
-and how far a Reflection assignment goes (D5) — per-assumption retrieval for
-the top-K hypotheses is the requirement `REFLECT-TYPES-001` states, and it is
-also the largest new spend in this plan. Stage B can proceed while that is
-decided; Stage C cannot.
+**Since decided:** Generation gets the capability first, then Reflection on
+the same adapter (D5), both built 2026-08-20; the deep reviews retrieve for
+the top 3 (extended) or 5 (ultra) viable hypotheses, selected by the canonical
+`rank_by_elo` since the node runs before the tournament.
+
+**Open, and needing a human call:**
+
+1. **Run the three metrics against a real provider and a real run.** All three
+   currently run offline, where the deterministic backend answers identically
+   whatever was retrieved — so today's numbers prove the measurement path and
+   not that research improved anything. This is the cheapest open item and the
+   only one that answers whether this cycle earned its cost.
+2. **A disk-backed corpus source, if the D6 floor is wanted for real.** The
+   floor D6 assumed does not exist: the corpus is fetched through the same MCP
+   server the availability gate checks. Building a real one helps `sbi_ucd`
+   runs only and must pass the registry's audience reconciliation, or one
+   group's papers leak into another's run.
+3. **Deep verification as a third research owner.** It already decomposes a
+   claim into assumptions, which is most of a seeding policy — but it is a
+   third per-idea cost, and this repo's 299-call incident came from exactly
+   this shape. Cost it on its own or leave it.
