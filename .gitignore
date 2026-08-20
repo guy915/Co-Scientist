@@ -66,3 +66,9 @@ cache/
 # The paper corpus is committed in full, so retrieval works from a clean
 # checkout with no setup. Rebuild it with: python -m app.corpus_ingest <dir>
 
+
+# Upstream deep-research implementations cloned for design analysis (~62 MB of
+# third-party code). Not ours to redistribute and retrievable at the pinned
+# SHAs recorded in references/deep-research/MANIFEST.md, which IS committed.
+references/deep-research/*/
+!references/deep-research/_analysis/
