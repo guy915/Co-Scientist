@@ -229,12 +229,21 @@ def run(run_id: str | None) -> dict[str, Any]:
     """Score a named run, or a synthetic ledger when none is named."""
     if run_id:
         return {"mode": "persisted_run", **score_run(run_id)}
+    previous = os.environ.get("COSCIENTIST_DB_PATH")
     with tempfile.TemporaryDirectory() as tmp:
         db_path = str(pathlib.Path(tmp) / "replay.db")
-        # Read directly in store/db.py rather than through settings, so it
-        # has to be set before the first import rather than passed.
+        # `store.create_run` is the one call here that takes no `db_path`;
+        # it reads the env var directly in store/db.py. Restore it after,
+        # or a caller in the same process is left pointing at this
+        # directory once the temporary tree is gone.
         os.environ["COSCIENTIST_DB_PATH"] = db_path
-        return {"mode": "synthetic", **score_synthetic(db_path)}
+        try:
+            return {"mode": "synthetic", **score_synthetic(db_path)}
+        finally:
+            if previous is None:
+                os.environ.pop("COSCIENTIST_DB_PATH", None)
+            else:
+                os.environ["COSCIENTIST_DB_PATH"] = previous
 
 
 def main() -> int:

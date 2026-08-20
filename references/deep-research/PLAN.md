@@ -315,7 +315,7 @@ whole, whose tie-break is the initial review's own score — written by the node
 immediately upstream. A local re-statement of that comparison is exactly how a
 second copy comes to disagree with it.
 
-### Stage D — Degradation and evaluation (resolves D6, D8) — **degradation built 2026-08-20**
+### Stage D — Degradation and evaluation (resolves D6, D8) — **complete 2026-08-20**
 
 - The MCP-down path stops being silent. **Done**, and the premise this row
   was written on turned out to be wrong, which is worth recording: D6 says
