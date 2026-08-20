@@ -11,9 +11,10 @@ text on two `docs/PARITY.md` rows: `GEN-TECHNIQUES-001` and
 
 ## 0. Build status (2026-08-20)
 
-Stages A and B are built. Everything below ships with tests; the engine
-and app suites, `ruff`, strict `mypy` and `make parity` are green with
-them in.
+Stages A and B are built, and so is C's Generation half — the same
+adapter still has to be handed to Reflection before C closes. Everything
+below ships with tests; the engine and app suites, `ruff`, strict `mypy`
+and `make parity` are green with them in.
 
 | Item | Stage | State | Where |
 | --- | --- | --- | --- |
@@ -27,8 +28,14 @@ them in.
 | `REFLECT-TYPES-001` corrected | A | **done** | `docs/PARITY.md` |
 | `retrieval_calls` table + `evidence.retrieval_call_id` | B | **done** | `app/store/schema_retrieval_calls.py`, `app/store/retrieval_calls.py` |
 | Ledger-to-rows mapper | B | **done** | `app/research_provenance.py` |
-| Adapters over MCP and `llm.py` | C | not started | — |
+| Adapters over MCP and `llm.py` | C | **done** | `research_adapter/retrieval.py`, `model.py`, `budget.py` |
+| Five prompts + their schemas | C | **done** | `prompts/templates/research_*.md`, `schemas/research.py` |
+| Result round-trip through a checkpoint | C | **done** | `research/serialization.py` |
+| Assigned to Generation (phase 6 of the review) | C | **done** | `literature_review/research_phase.py` |
+| Tier gate, engine-side single source of truth | C | **done** | `research_adapter/budget.py`, `generator/run_setup.py` |
+| Provenance written end to end | C | **done** | `app/engine_adapter/drain_research.py` |
 | Owner chosen | C | **decided 2026-08-20** | Generation first, then Reflection on the same adapter |
+| Assigned to Reflection | C | not started | — |
 | Degradation + the three metrics | D | not started | — |
 
 Three things to know before picking this up:
@@ -201,12 +208,39 @@ to write; Stage C's adapter is the first thing that writes. Until then the
 column is NULL for every row, which is what it means: nothing recorded what
 was asked.
 
-### Stage C — Assignment (resolves D1, D5, and D3 at the boundary)
+### Stage C — Assignment (resolves D1, D5, and D3 at the boundary) — **Generation built 2026-08-20**
 
-A thin adapter per caller. Each one resolves the run tier into a
-`ResearchBudget` at the generator boundary, beside
-`literature_review_papers_count`, and implements the two ports over our MCP
-client and `llm.py`.
+One adapter, shared by every caller: `research_adapter/` implements the two
+ports over the MCP client and `llm.py`, and `budget_for_tier` turns a run
+tier into a `ResearchBudget`. Generation calls it as phase 6 of the
+literature review (`literature_review/research_phase.py`), seeded from the
+gaps Phase 3's per-paper analysis already recorded.
+
+Five things settled while building, none of them obvious from the plan:
+
+- **The adapter is top-level, not under `agents/generation/`.** Two callers
+  were decided from the start, so it cannot live inside one of them. It is
+  also exactly where the four imports `research/` refuses belong.
+- **The tier is passed verbatim, not as a yes/no.** The app sends
+  `research_tier` and `research_adapter.budget` alone decides what it buys.
+  A boolean would have put the tier list on both sides of the boundary,
+  which is how the two drift.
+- **The offline backend is not a refusal.** Unlike the tool loops, all five
+  model calls are ordinary schema-constrained completions, which the offline
+  responder answers deterministically — so the whole path, search included,
+  runs in tests without a key.
+- **The result round-trips.** `WorkflowState` is checkpointed as JSON and the
+  artifacts are frozen dataclasses holding enums, so `research/serialization.py`
+  writes the ledger as plain data and reads it back with the ids re-derived
+  rather than stored.
+- **The extraction schema names documents by index.** Echoing titles back
+  would make the reply scale with the number of documents read, which is the
+  silent-truncation failure the proximity node already paid for once.
+
+Stage C's own definition of done was an offline run whose evidence rows carry
+a `retrieval_call_id` resolving to a `retrieval_calls` row. That holds:
+`app/tests/test_engine_drain_research_provenance.py`. Reflection is next and
+writes no new adapter — only a budget and a seed-question policy.
 
 **Decided 2026-08-20: Generation first, then Reflection, on the same
 adapter.** Both get it; the order is what the owner chose, and it is also the
@@ -215,8 +249,8 @@ seed-question policy.
 
 Candidate owners, in the order they make sense:
 
-1. **Generation** — the largest win, and the owner's own instinct. Deepens
-   what `literature_review/` already does well.
+1. **Generation** — **done.** The largest win, and the owner's own instinct.
+   Deepens what `literature_review/` already does well.
 2. **Reflection** — specifically the `full` and `simulation` reviews, which
    already retrieve once per hypothesis (claim 5). Assignment here means
    giving them *follow-up*, not first-time retrieval. Deep verification is the

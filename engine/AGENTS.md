@@ -68,6 +68,41 @@ Each review gets its **own** workspace
 as concurrent leased tasks. Whether it ran is stamped on the result by the
 caller (`executed`), never asked of the model.
 
+**The literature review can go back for what it did not answer.** Phases 1-5
+search once, from the research goal, and synthesize what came back.
+`src/co_scientist/research/` is a standalone capability that reads a result,
+takes what it leaves open, and searches again -- a budgeted descent whose
+breadth halves per level with a floor, so the whole cost is arithmetic before
+the first call (`8 + 4 + 2` threads, never `8 x 4 x 2`). It imports nothing
+else in this repo and states its needs as two protocols;
+`src/co_scientist/research_adapter/` is the implementation of those for this
+engine (MCP search and full text over the run's configured sources, the five
+model judgements over `call_llm_json`, and the tier-to-ceilings table), and
+`literature_review/research_phase.py` is where Generation calls it. Assigning
+the same loop to another agent is a budget and a seed-question policy, not a
+second implementation.
+
+Seeded from the gaps Phase 3's per-paper analysis already recorded, so the
+first level asks what the reading raised rather than what the goal suggests.
+What it finds merges back into the review's own paper pool and its synthesis --
+a finding that lived only in a ledger would be recorded and never used. Gated
+the same three ways as the executed simulation: the app passes its tier
+verbatim (`engine_adapter/opts.py`) and `research_adapter.budget` alone decides
+which tiers buy it -- `extended` and `ultra` -- so the two sides cannot drift;
+`run_setup._resolve_research_tier` refuses it where MCP or the literature review
+node is unavailable, since a loop whose whole shape is search-read-search has
+nowhere to go; and a run with no enabled search source researches nothing.
+Unlike the tool loops, the offline backend is *not* a refusal -- these are
+ordinary schema-constrained completions it answers deterministically, which is
+what makes the whole path testable without a key.
+
+Everything the phase did leaves the node as `research_ledger` on the state
+(plain data, because a checkpoint carries JSON only -- see
+`research/serialization.py`), and each researched paper carries the id of the
+search that surfaced it. The app writes both: `retrieval_calls` rows and the
+`evidence.retrieval_call_id` that resolves to them, so a run can say which
+query found a piece of evidence and which question that query was serving.
+
 **Computational discovery** is a second, separate product built on the same
 foundations, and is *not* a node in the hypothesis graph.
 `agents/code_evolve/` proposes one child program per generation as a V4A

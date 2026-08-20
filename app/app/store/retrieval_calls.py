@@ -65,6 +65,26 @@ class NewRetrievalCall:
     duration_seconds: float | None = None
 
 
+def _row(call: NewRetrievalCall, now: float) -> tuple[Any, ...]:
+    """Order one search's fields the way the INSERT below names them."""
+    return (
+        call.id,
+        call.run_id,
+        call.question,
+        call.question_id,
+        call.query,
+        call.source,
+        call.depth,
+        call.status,
+        json.dumps(list(call.hits)),
+        json.dumps(list(call.admitted)),
+        json.dumps(list(call.dropped)),
+        call.error,
+        call.duration_seconds,
+        now,
+    )
+
+
 def add_retrieval_calls(
     calls: Sequence[NewRetrievalCall],
     *,
@@ -87,25 +107,7 @@ def add_retrieval_calls(
     if not calls:
         return 0
     now = _now()
-    rows = [
-        (
-            call.id,
-            call.run_id,
-            call.question,
-            call.question_id,
-            call.query,
-            call.source,
-            call.depth,
-            call.status,
-            json.dumps(list(call.hits)),
-            json.dumps(list(call.admitted)),
-            json.dumps(list(call.dropped)),
-            call.error,
-            call.duration_seconds,
-            now,
-        )
-        for call in calls
-    ]
+    rows = [_row(call, now) for call in calls]
     with _use_conn(conn, db_path) as active:
         # total_changes is this connection's own running total, so it
         # counts what this batch inserted and nothing another run's

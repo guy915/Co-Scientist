@@ -463,6 +463,17 @@ class WorkflowState(TypedDict):
     where no sandbox backend can confine a command.
     """
 
+    research_tier: str | None
+    """Tier whose ceilings the literature review researches under, "" for
+    none. An opaque label to the engine (``research_adapter.budget``).
+    """
+
+    research_ledger: dict[str, Any] | None
+    """What the deep-research phase did, as plain data: every question,
+    search and finding (``research.serialization``). Plain data because
+    this crosses a checkpoint, which carries JSON only.
+    """
+
     dev_test_lit_tools_isolation: bool | None
     """Development mode: force cache on lit review, allocate all hypotheses to
     lit tools (no debate).

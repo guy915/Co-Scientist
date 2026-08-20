@@ -157,6 +157,24 @@ class McpRetrieval:
             normalize_search_response(raw, tool_config), source, limit
         )
 
+    def record(self, locator: str) -> dict[str, Any] | None:
+        """Return the search record behind a locator, if this saw it.
+
+        The loop hands its caller findings bound to locators, and a
+        locator is opaque -- it carries no title, no URL and no year. A
+        caller turning findings into its own records needs what the
+        source actually returned, which only this instance still holds.
+
+        Args:
+            locator: Identifier from a hit this instance returned.
+
+        Returns:
+            A copy of the source's own metadata, or None for a locator
+            this instance never saw.
+        """
+        known = self._records.get(locator)
+        return dict(known[1]) if known is not None else None
+
     async def read(self, *, locator: str) -> str | None:
         """Fetch a hit's full text, when a content tool can reach it.
 

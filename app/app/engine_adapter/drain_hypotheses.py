@@ -124,6 +124,7 @@ def _persist_engine_evidence(
                 retrieval_score=art.get("retrieval_score"),
                 retrieval_rationale=art.get("retrieval_rationale"),
                 retriever_version=art.get("retriever_version"),
+                retrieval_call_id=art.get("retrieval_call_id"),
             ),
             conn=conn,
         )

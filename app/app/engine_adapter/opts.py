@@ -224,6 +224,30 @@ def _apply_private_sources(
         }
 
 
+def _apply_capability_opts(
+    initial_opts: dict[str, Any], cfg: dict[str, Any]
+) -> None:
+    """Set the four opts that decide how much depth a run may buy.
+
+    Three are resolved to a yes or no here, because the engine treats
+    each as a request it may still refuse. The fourth is the tier itself,
+    passed verbatim: which tiers fund the literature review's
+    deep-research phase is stated once, in the engine's
+    ``research_adapter``, and a second copy of that list on this side is
+    how the two drift apart.
+    """
+    initial_opts["enable_literature_review_node"] = (
+        _resolve_literature_review_toggle(cfg)
+    )
+    initial_opts["enable_tool_calling_generation"] = (
+        _resolve_tool_calling_generation_toggle(cfg)
+    )
+    initial_opts["enable_simulation_execution"] = (
+        _resolve_simulation_execution_toggle(cfg)
+    )
+    initial_opts["research_tier"] = normalize_run_tier(cfg.get("tier"))
+
+
 def _build_engine_opts(
     cfg: dict[str, Any], run_id: str, db_path: str | None
 ) -> dict[str, Any]:
@@ -252,15 +276,7 @@ def _build_engine_opts(
     )
     if preferences:
         initial_opts["preferences"] = preferences
-    initial_opts["enable_literature_review_node"] = (
-        _resolve_literature_review_toggle(cfg)
-    )
-    initial_opts["enable_tool_calling_generation"] = (
-        _resolve_tool_calling_generation_toggle(cfg)
-    )
-    initial_opts["enable_simulation_execution"] = (
-        _resolve_simulation_execution_toggle(cfg)
-    )
+    _apply_capability_opts(initial_opts, cfg)
     # K5: thread the interview's lab constraints to the engine's
     # generation/evolution feasibility prompts; empty renders no section.
     lab_constraints = _lab_constraints_for_run(cfg, db_path)

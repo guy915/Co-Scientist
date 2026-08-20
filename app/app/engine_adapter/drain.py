@@ -87,6 +87,9 @@ from app.engine_adapter.drain_matches import (
 from app.engine_adapter.drain_matches import (
     _resolve_match_sides as _resolve_match_sides,
 )
+from app.engine_adapter.drain_research import (
+    _persist_retrieval_calls as _persist_retrieval_calls,
+)
 from app.engine_adapter.drain_reviews import (
     _citation_map as _citation_map,
 )
@@ -418,6 +421,9 @@ def _persist_evidence_hypotheses_and_screen(
         persisted_engine_ids=inputs.persisted_engine_ids,
     )
     with store.transaction(db_path) as conn:
+        # Before the evidence, so a row that names the search which found
+        # it never points at a call that is not there yet.
+        _persist_retrieval_calls(run_id, inputs.final_state, conn)
         _persist_evidence_and_hypotheses(
             run_id,
             evidence,

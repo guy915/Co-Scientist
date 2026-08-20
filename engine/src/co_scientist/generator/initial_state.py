@@ -74,6 +74,10 @@ class RunCapabilities:
             enabled for this run.
         dev_mode: Whether dev mode (reduced literature budget) is enabled for
             this run.
+        research_tier: Which tier's ceilings the literature review's deep
+            research runs under, or "" for none. Resolved upstream (see
+            ``run_setup._resolve_research_tier``): opt-in, and refused
+            where the run has no literature tools to search with.
     """
 
     mcp_available: bool = False
@@ -82,6 +86,7 @@ class RunCapabilities:
     enable_simulation_execution: bool = False
     dev_test_lit_tools_isolation: bool = False
     dev_mode: bool = False
+    research_tier: str = ""
 
 
 def _initial_runtime_fields() -> dict[str, Any]:
@@ -153,6 +158,7 @@ def _initial_run_identity_fields(
             capabilities.dev_test_lit_tools_isolation
         ),
         "dev_mode": capabilities.dev_mode,
+        "research_tier": capabilities.research_tier,
     }
 
 

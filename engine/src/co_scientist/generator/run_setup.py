@@ -18,6 +18,7 @@ from typing import Any
 
 from co_scientist.config.registry import parse_bool_env
 from co_scientist.offline_llm import is_offline_model
+from co_scientist.research_adapter.budget import tier_researches
 
 logger = logging.getLogger(__name__)
 
@@ -116,6 +117,50 @@ def _resolve_simulation_execution(
         )
         return False
     return True
+
+
+def _resolve_research_tier(
+    opts: dict[str, Any],
+    mcp_available: bool,
+    enable_literature_review_node: bool,
+) -> str:
+    """Decides how much deep research this run may do, if any.
+
+    Opt-in and tier-shaped, like tool-calling generation and executed
+    simulation -- with one difference: the caller passes its tier
+    verbatim rather than a decision, because which tiers buy research is
+    already stated once, in ``research_adapter.budget``. A second copy of
+    that list on the caller's side is how the two drift apart. An unknown
+    or shallow tier buys nothing, so a caller that says nothing
+    researches nothing.
+
+    Two conditions force it off regardless of the request, both because
+    the loop would have nowhere to search: MCP unreachable, or the
+    literature review node disabled (which is where the run's search
+    sources are resolved). The offline backend is *not* one of them --
+    these are ordinary schema-constrained completions, which it answers
+    deterministically, so an offline run still exercises the whole path.
+
+    Args:
+        opts: Caller-supplied generation options.
+        mcp_available: Whether the MCP server is available.
+        enable_literature_review_node: Whether the literature review node
+            will run for this call.
+
+    Returns:
+        The tier to research at, or "" for no research.
+    """
+    requested = opts.get("research_tier")
+    if not isinstance(requested, str) or not tier_researches(requested):
+        return ""
+    if not mcp_available or not enable_literature_review_node:
+        logger.warning(
+            "research_tier=%s requested but no literature tools are"
+            " available - skipping deep research",
+            requested,
+        )
+        return ""
+    return requested
 
 
 def _tool_calling_disabled_before_availability(

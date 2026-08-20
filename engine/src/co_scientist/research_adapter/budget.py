@@ -62,3 +62,19 @@ def budget_for_tier(tier: str, sources: Sequence[str]) -> ResearchBudget | None:
         hits_per_question=hits,
         sources=tuple(sources),
     )
+
+
+def tier_researches(tier: str) -> bool:
+    """Whether this tier buys any research at all.
+
+    The one authority on the question, so a caller deciding whether to
+    warn about missing tools does not grow a second copy of the tier
+    list beside this one.
+
+    Args:
+        tier: Normalized run tier.
+
+    Returns:
+        True when the tier has ceilings here.
+    """
+    return tier in _TIER_CEILINGS

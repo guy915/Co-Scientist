@@ -17,7 +17,7 @@ than a top-level one.
 import asyncio
 import logging
 from dataclasses import dataclass
-from typing import Any, cast
+from typing import Any, NamedTuple, cast
 
 from co_scientist.agents.generation.literature_review.analysis import (
     _phase3_analyze_papers,
@@ -319,11 +319,29 @@ async def _handle_collection_edge_cases(
     return None
 
 
+class _ReviewSynthesis(NamedTuple):
+    """Phases 3 and 4 together: what was read, and what it amounts to.
+
+    ``analyses`` travels with the synthesis because Phase 6 seeds its
+    research from the gaps the papers themselves stated, and those are
+    recorded here and nowhere else.
+
+    Attributes:
+        text: The synthesis, or the LITERATURE_REVIEW_FAILED sentinel.
+        llm_calls: Real calls spent, a floor rather than an exact total.
+        analyses: One entry per successfully analyzed paper.
+    """
+
+    text: str
+    llm_calls: int
+    analyses: list[dict[str, Any]]
+
+
 async def _analyze_and_synthesize(
     all_paper_metadata: dict[str, dict[str, Any]],
     state: WorkflowState,
     background_context: str,
-) -> tuple[str, int]:
+) -> _ReviewSynthesis:
     """Phase 3 + 4: analyze papers for gaps/limitations, then synthesize.
 
     Guards against calling the synthesis LLM with an empty analyses list
@@ -331,7 +349,8 @@ async def _analyze_and_synthesize(
     call/log noise entirely when Phase 3 produced nothing).
 
     Returns:
-        Tuple of (synthesis text, llm_call_count). synthesis is the
+        The synthesis, the call count, and the analyses it was built
+        from (see :class:`_ReviewSynthesis`). synthesis is the
         LITERATURE_REVIEW_FAILED sentinel if Phase 3 produced no analyses.
         llm_call_count is one real call per successfully-analyzed paper
         (Phase 3 filters out failed attempts, so this is a floor, not an
@@ -342,11 +361,11 @@ async def _analyze_and_synthesize(
     """
     paper_analyses = await _phase3_analyze_papers(all_paper_metadata, state)
     if not paper_analyses:
-        return LITERATURE_REVIEW_FAILED, 0
+        return _ReviewSynthesis(LITERATURE_REVIEW_FAILED, 0, [])
     synthesis = await _phase4_synthesize(
         paper_analyses, state, background_context
     )
-    return synthesis, len(paper_analyses) + 1
+    return _ReviewSynthesis(synthesis, len(paper_analyses) + 1, paper_analyses)
 
 
 def _finalize_synthesis_and_articles(

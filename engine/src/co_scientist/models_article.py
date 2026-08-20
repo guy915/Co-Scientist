@@ -55,6 +55,12 @@ class Article:
     retrieval_score: float | None = None
     retrieval_rationale: str | None = None
     retriever_version: str | None = None
+    # Id of the search call that surfaced this article, when it came from
+    # the deep-research phase, so a caller persisting it can say which
+    # query found it and which question that query was serving. None for
+    # an article the ordinary literature search collected, whose query is
+    # not carried on the record.
+    retrieval_call_id: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for serialization."""

@@ -18,7 +18,10 @@ Three pieces, one per thing the loop cannot know for itself:
 * :func:`budget_for_tier` -- how much research a run tier is buying.
 """
 
-from co_scientist.research_adapter.budget import budget_for_tier
+from co_scientist.research_adapter.budget import (
+    budget_for_tier,
+    tier_researches,
+)
 from co_scientist.research_adapter.model import LlmResearchModel
 from co_scientist.research_adapter.retrieval import McpRetrieval
 
@@ -26,4 +29,5 @@ __all__ = [
     "LlmResearchModel",
     "McpRetrieval",
     "budget_for_tier",
+    "tier_researches",
 ]

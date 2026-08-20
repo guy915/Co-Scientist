@@ -11,13 +11,12 @@ get any.
 
 from __future__ import annotations
 
-import textwrap
 from pathlib import Path
 from typing import Any
 
 import pytest
 
-from co_scientist.config.registry import ToolRegistry
+from co_scientist.generator.run_setup import _resolve_research_tier
 from co_scientist.research import Document, RetrievalError, SourceHit
 from co_scientist.research_adapter import (
     LlmResearchModel,
@@ -25,73 +24,17 @@ from co_scientist.research_adapter import (
     budget_for_tier,
 )
 from co_scientist.research_adapter.retrieval import ResearchRun
-
-_CONFIG = textwrap.dedent("""
-    version: "2.0"
-    settings:
-      merge_strategy: replace
-    servers:
-      s:
-        url: "http://example.test/mcp"
-        transport: "streamable_http"
-        enabled: true
-    tools:
-      search_tools:
-        alpha:
-          server: "s"
-          mcp_tool_name: "search_alpha"
-          category: "search"
-          enabled: true
-        beta:
-          server: "s"
-          mcp_tool_name: "search_beta"
-          category: "search"
-          enabled: true
-      utility_tools:
-        reader:
-          server: "s"
-          mcp_tool_name: "read_pdf"
-          enabled: true
-    workflows:
-      literature_review:
-        search_sources:
-          - tool: "alpha"
-            papers_per_query: 2
-            enabled: true
-            content_tool: "reader"
-            content_url_field: "pdf_url"
-          - tool: "beta"
-            enabled: false
-""")
-
-
-class _FakeClient:
-    """Records tool calls and answers them from a scripted table."""
-
-    def __init__(self, responses: dict[str, Any]) -> None:
-        self.responses = responses
-        self.calls: list[tuple[str, dict[str, Any]]] = []
-
-    async def call_tool(self, tool_name: str, **kwargs: Any) -> Any:
-        self.calls.append((tool_name, kwargs))
-        answer = self.responses.get(tool_name)
-        if isinstance(answer, Exception):
-            raise answer
-        return answer
-
-
-def _registry(tmp_path: Path) -> ToolRegistry:
-    """A registry holding only the tools this file declares."""
-    path = tmp_path / "tools.yaml"
-    path.write_text(_CONFIG)
-    return ToolRegistry(config_path=str(path), skip_user_config=True)
+from tests._research_tools import (
+    FakeResearchClient,
+    research_registry,
+    research_workflow,
+)
 
 
 def _retrieval(tmp_path: Path, client: Any) -> McpRetrieval:
     """Retrieval bound to that registry's literature-review workflow."""
-    registry = _registry(tmp_path)
-    workflow = registry.get_workflow("literature_review")
-    assert workflow is not None
+    registry = research_registry(tmp_path)
+    workflow = research_workflow(registry)
     return McpRetrieval(
         client,
         registry,
@@ -113,7 +56,9 @@ async def test_search_keeps_the_source_ordering_it_was_given(
     tmp_path: Path,
 ) -> None:
     """Rank is the source's, not ours -- a replay has to reproduce it."""
-    retrieval = _retrieval(tmp_path, _FakeClient({"search_alpha": _HITS}))
+    retrieval = _retrieval(
+        tmp_path, FakeResearchClient({"search_alpha": _HITS})
+    )
 
     hits = await retrieval.search(query="fibrosis", source="alpha", limit=5)
 
@@ -128,7 +73,9 @@ async def test_search_takes_no_more_hits_than_it_was_asked_for(
     tmp_path: Path,
 ) -> None:
     """The evidence budget is the loop's, and the port must honour it."""
-    retrieval = _retrieval(tmp_path, _FakeClient({"search_alpha": _HITS}))
+    retrieval = _retrieval(
+        tmp_path, FakeResearchClient({"search_alpha": _HITS})
+    )
 
     hits = await retrieval.search(query="fibrosis", source="alpha", limit=1)
 
@@ -143,7 +90,7 @@ async def test_an_unconfigured_source_is_a_retrieval_error(
     The loop searches every source in its budget; one that has been
     disabled or renamed must cost that source's call and nothing more.
     """
-    retrieval = _retrieval(tmp_path, _FakeClient({}))
+    retrieval = _retrieval(tmp_path, FakeResearchClient({}))
 
     with pytest.raises(RetrievalError) as caught:
         await retrieval.search(query="q", source="gamma", limit=2)
@@ -160,7 +107,9 @@ async def test_a_broken_source_is_a_retrieval_error_naming_it(
         "search_retry._search_retry_delay",
         lambda attempt: 0.0,
     )
-    client = _FakeClient({"search_alpha": RuntimeError("connection refused")})
+    client = FakeResearchClient(
+        {"search_alpha": RuntimeError("connection refused")}
+    )
     retrieval = _retrieval(tmp_path, client)
 
     with pytest.raises(RetrievalError) as caught:
@@ -174,14 +123,14 @@ async def test_only_enabled_sources_are_offered_to_the_caller(
     tmp_path: Path,
 ) -> None:
     """The registry has already reconciled what is on; do not re-filter."""
-    retrieval = _retrieval(tmp_path, _FakeClient({}))
+    retrieval = _retrieval(tmp_path, FakeResearchClient({}))
 
     assert retrieval.sources == ("alpha",)
 
 
 async def test_reading_a_hit_fetches_its_full_text(tmp_path: Path) -> None:
     """A locator alone carries no URL, so the search record has to."""
-    client = _FakeClient(
+    client = FakeResearchClient(
         {"search_alpha": _HITS, "read_pdf": {"content": "the whole paper"}}
     )
     retrieval = _retrieval(tmp_path, client)
@@ -197,7 +146,9 @@ async def test_a_hit_with_no_url_reads_as_nothing_not_as_an_error(
     tmp_path: Path,
 ) -> None:
     """Unreadable is a normal answer: the loop falls back to the snippet."""
-    client = _FakeClient({"search_alpha": _HITS, "read_pdf": {"content": "x"}})
+    client = FakeResearchClient(
+        {"search_alpha": _HITS, "read_pdf": {"content": "x"}}
+    )
     retrieval = _retrieval(tmp_path, client)
     await retrieval.search(query="fibrosis", source="alpha", limit=5)
 
@@ -209,7 +160,7 @@ async def test_a_failed_read_does_not_lose_the_document(
     tmp_path: Path,
 ) -> None:
     """The document still has its snippet; a raised error would drop it."""
-    client = _FakeClient(
+    client = FakeResearchClient(
         {"search_alpha": _HITS, "read_pdf": RuntimeError("timeout")}
     )
     retrieval = _retrieval(tmp_path, client)
@@ -397,3 +348,36 @@ def test_a_tier_states_its_thread_count_before_spending_anything() -> None:
 def test_a_run_with_no_search_source_researches_nothing() -> None:
     """No source is a configuration state, not a budget to raise on."""
     assert budget_for_tier("ultra", []) is None
+
+
+# --- The gate the run passes through ----------------------------------------
+
+
+def test_a_run_that_names_no_tier_researches_nothing() -> None:
+    """Silence is not a request; a caller has to ask by name."""
+    assert _resolve_research_tier({}, True, True) == ""
+    assert _resolve_research_tier({"research_tier": ""}, True, True) == ""
+
+
+def test_research_is_refused_where_there_is_nothing_to_search() -> None:
+    """The loop's whole shape is search, read, search again.
+
+    Without MCP, or with the literature review node off, the run has no
+    resolved search sources at all -- so this is refused up front rather
+    than discovered one empty call at a time.
+    """
+    assert _resolve_research_tier({"research_tier": "ultra"}, False, True) == ""
+    assert _resolve_research_tier({"research_tier": "ultra"}, True, False) == ""
+
+
+def test_the_offline_backend_still_researches() -> None:
+    """Unlike the tool loops, these are ordinary schema-shaped calls.
+
+    The offline responder answers them deterministically, so an offline
+    run exercises the whole path rather than skipping it -- which is what
+    makes this testable without a provider key.
+    """
+    assert (
+        _resolve_research_tier({"research_tier": "ultra"}, True, True)
+        == "ultra"
+    )

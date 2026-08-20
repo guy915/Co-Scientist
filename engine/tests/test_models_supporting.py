@@ -34,6 +34,7 @@ _ARTICLE_DICT_KEYS = {
     "retrieval_score",
     "retrieval_rationale",
     "retriever_version",
+    "retrieval_call_id",
 }
 
 

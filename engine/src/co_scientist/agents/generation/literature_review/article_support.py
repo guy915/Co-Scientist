@@ -38,6 +38,14 @@ def _metadata_is_retracted(metadata: dict[str, Any]) -> bool:
 # =============================================================================
 
 
+def _correction_status(metadata: dict[str, Any], is_retracted: bool) -> str:
+    """Name a paper's correction state, deriving it when unstated."""
+    return str(
+        metadata.get("correction_status")
+        or ("retracted" if is_retracted else "current")
+    )
+
+
 def build_article_from_metadata(
     paper_id: str,
     metadata: dict[str, Any],
@@ -65,10 +73,7 @@ def build_article_from_metadata(
         source=source_name,
         doi=metadata.get("doi"),
         is_retracted=is_retracted,
-        correction_status=str(
-            metadata.get("correction_status")
-            or ("retracted" if is_retracted else "current")
-        ),
+        correction_status=_correction_status(metadata, is_retracted),
         publication_type=metadata.get("publication_type"),
         pdf_links=[],
         used_in_analysis=used_in_analysis,
@@ -78,6 +83,7 @@ def build_article_from_metadata(
         retrieval_score=metadata.get("retrieval_score"),
         retrieval_rationale=metadata.get("retrieval_rationale"),
         retriever_version=metadata.get("retriever_version"),
+        retrieval_call_id=metadata.get("retrieval_call_id"),
     )
 
 

@@ -47,6 +47,10 @@ from co_scientist.research.ports import (
     RetrievalError,
     RetrievalPort,
 )
+from co_scientist.research.serialization import (
+    result_from_dict,
+    result_to_dict,
+)
 
 __all__ = [
     "DEFAULT_BREADTH_FLOOR",
@@ -70,4 +74,6 @@ __all__ = [
     "conduct_research",
     "content_id",
     "dedupe_findings",
+    "result_from_dict",
+    "result_to_dict",
 ]

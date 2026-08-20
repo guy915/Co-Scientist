@@ -60,6 +60,9 @@ from co_scientist.agents.generation.literature_review.orchestration import (
 from co_scientist.agents.generation.literature_review.orchestration import (
     _ReviewCachePlan as _ReviewCachePlan,
 )
+from co_scientist.agents.generation.literature_review.orchestration import (
+    _ReviewSynthesis as _ReviewSynthesis,
+)
 from co_scientist.agents.generation.literature_review.outcomes import (
     _describe_exc as _describe_exc,
 )
@@ -78,6 +81,10 @@ from co_scientist.agents.generation.literature_review.outcomes import (
 from co_scientist.agents.generation.literature_review.queries import (
     QueryPhaseResult,
     _phase1_generate_queries,
+)
+from co_scientist.agents.generation.literature_review.research_phase import (
+    ResearchOutcome,
+    run_research_phase,
 )
 from co_scientist.agents.generation.literature_review.run_config import (
     _get_search_config as _get_search_config,
@@ -98,6 +105,7 @@ from co_scientist.agents.generation.literature_review.run_config import (
     _resolve_single_source_tool as _resolve_single_source_tool,
 )
 from co_scientist.cache import get_node_cache
+from co_scientist.constants import LITERATURE_REVIEW_FAILED
 from co_scientist.mcp_client import (
     MCPToolClient,
     check_mcp_available,
@@ -138,6 +146,9 @@ def _literature_cache_params(
         "research_goal": state["research_goal"],
         "model_name": state.get("model_name"),
         "papers_to_read_count": config.papers_to_read_count,
+        # A tier that researches produces a different review from one that
+        # does not, so the two must not share a cache entry.
+        "research_tier": state.get("research_tier"),
         "tool_contract": tool_contract,
         "run_setup_guidance": state.get("run_setup_guidance"),
         "run_focus_guidance": state.get("run_focus_guidance"),
@@ -299,24 +310,69 @@ async def _prepare_review(
     return config, cache_plan, mcp_client
 
 
-async def _finalize_review(
-    state: WorkflowState,
-    config: SearchConfig,
-    collected: _CollectionResult,
-    query_result: QueryPhaseResult,
-    cache_plan: _ReviewCachePlan,
-) -> dict[str, Any]:
-    """Phases 3-5: analyze, synthesize, finalize, and cache the result."""
-    queries = query_result.queries
-    synthesis, review_llm_calls = await _analyze_and_synthesize(
-        collected.all_paper_metadata, state, collected.background_context
-    )
+@dataclasses.dataclass(frozen=True)
+class _ReviewOutput:
+    """Everything the phases produced, on the way to the node's result.
 
+    Bundled because finalizing needs all of it and a six-parameter call
+    signature reads as an accident rather than a sequence.
+
+    Attributes:
+        config: The review's resolved search configuration.
+        collected: What Phase 2 collected, enriched.
+        query_result: Phase 1's queries and their cost.
+        cache_plan: Where the finished result is cached.
+        reviewed: Phases 3-4: the synthesis and the analyses behind it.
+        research: Phase 6's result, or None when no research ran.
+    """
+
+    config: SearchConfig
+    collected: _CollectionResult
+    query_result: QueryPhaseResult
+    cache_plan: _ReviewCachePlan
+    reviewed: _ReviewSynthesis
+    research: ResearchOutcome | None
+
+
+def _merge_research(output: _ReviewOutput) -> str:
+    """Fold Phase 6's papers into the pool and its findings into the text.
+
+    A researched paper the ordinary search already collected keeps the
+    record it was collected with: that record has been through content
+    fetch and per-paper analysis, and replacing it with a search result
+    would trade an analyzed paper for an unanalyzed one.
+
+    Returns:
+        The synthesis with the research section appended, unchanged when
+        no research ran. A failed review keeps the bare
+        LITERATURE_REVIEW_FAILED sentinel however much research found,
+        because downstream generation compares against it exactly
+        (see coordinator_strategy) and an appended section would read as
+        a review that succeeded.
+    """
+    research = output.research
+    if research is None:
+        return output.reviewed.text
+    pool = output.collected.all_paper_metadata
+    for locator, record in research.records.items():
+        if locator not in pool:
+            pool[locator] = record
+    if output.reviewed.text == LITERATURE_REVIEW_FAILED:
+        return output.reviewed.text
+    return output.reviewed.text + research.section
+
+
+async def _finalize_review(
+    state: WorkflowState, output: _ReviewOutput
+) -> dict[str, Any]:
+    """Phase 5: merge research, build articles, finalize and cache."""
+    collected = output.collected
+    queries = output.query_result.queries
     synthesis, articles = _finalize_synthesis_and_articles(
-        synthesis,
+        _merge_research(output),
         collected.all_paper_metadata,
         collected.context_enrichment_sources,
-        config.source_name,
+        output.config.source_name,
     )
 
     await _emit_and_log_completion(
@@ -328,10 +384,12 @@ async def _finalize_review(
         queries,
         articles,
         collected.context_enrichment_sources,
-        cache_plan,
+        output.cache_plan,
     )
+    if output.research is not None:
+        result["research_ledger"] = output.research.ledger
     return _with_llm_call_metrics(
-        result, query_result.llm_calls + review_llm_calls
+        result, output.query_result.llm_calls + output.reviewed.llm_calls
     )
 
 
@@ -374,6 +432,7 @@ async def literature_review_node(state: WorkflowState) -> dict[str, Any]:
     4. Fetch content (for sources without fulltext)
     5. Analyze each paper for gaps/limitations
     6. Synthesize findings into articles_with_reasoning
+    7. Research what the synthesis left open, where the tier funds it
     """
     logger.info("Starting literature review node")
 
@@ -387,6 +446,21 @@ async def literature_review_node(state: WorkflowState) -> dict[str, Any]:
         return phase_result
     query_result, collected = phase_result
 
+    reviewed = await _analyze_and_synthesize(
+        collected.all_paper_metadata, state, collected.background_context
+    )
+    research = await run_research_phase(
+        state, config, mcp_client, reviewed.analyses
+    )
+
     return await _finalize_review(
-        state, config, collected, query_result, cache_plan
+        state,
+        _ReviewOutput(
+            config=config,
+            collected=collected,
+            query_result=query_result,
+            cache_plan=cache_plan,
+            reviewed=reviewed,
+            research=research,
+        ),
     )
