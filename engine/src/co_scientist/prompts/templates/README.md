@@ -37,4 +37,6 @@ behavior (or local design where the paper is silent):
 `literature_review_synthesis.md`, `literature_review_paper_analysis.md`,
 `literature_review_query_generation_generic.md`,
 `literature_review_query_generation_pubmed.md`,
-`literature_review_query_generation_indra.md`
+`literature_review_query_generation_indra.md`,
+`research_stances.md`, `research_questions.md`, `research_query.md`,
+`research_extract.md`, `research_compress.md`

@@ -30,6 +30,13 @@ from co_scientist.schemas.ranking import (
     PROXIMITY_SCHEMA,
     RANKING_SCHEMA,
 )
+from co_scientist.schemas.research import (
+    RESEARCH_COMPRESS_SCHEMA,
+    RESEARCH_EXTRACT_SCHEMA,
+    RESEARCH_QUERY_SCHEMA,
+    RESEARCH_QUESTIONS_SCHEMA,
+    RESEARCH_STANCES_SCHEMA,
+)
 from co_scientist.schemas.review import (
     DEEP_VERIFICATION_SCHEMA,
     FULL_REVIEW_SCHEMA,
@@ -51,6 +58,11 @@ from co_scientist.schemas.synthesis import (
 # prompts.py yields a schema-less call.
 _PROMPT_SCHEMA_MAP: dict[str, dict[str, Any]] = {
     "code_evolution": CODE_EVOLUTION_SCHEMA,
+    "research_stances": RESEARCH_STANCES_SCHEMA,
+    "research_questions": RESEARCH_QUESTIONS_SCHEMA,
+    "research_query": RESEARCH_QUERY_SCHEMA,
+    "research_extract": RESEARCH_EXTRACT_SCHEMA,
+    "research_compress": RESEARCH_COMPRESS_SCHEMA,
     "generation_draft_with_tools": GENERATION_DRAFT_SCHEMA,
     "generation_assumptions": GENERATION_SCHEMA,
     "generation_assumption_tree": ASSUMPTION_TREE_SCHEMA,
