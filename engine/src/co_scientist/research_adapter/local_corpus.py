@@ -15,6 +15,17 @@ hand-rolled scorer -- it ships with the standard library, its ``bm25()``
 ranking is the one every other local search uses, and a second homegrown
 lexical metric in this repo is how the Jaccard incident happened.
 
+**It is a floor, not a competitor.** The loop admits a fixed number of
+documents per question (``hits_per_question``) by drawing sources in
+configured order, and this source is appended last, so while the network
+sources are up they usually fill the quota before the corpus is reached.
+That is the intended shape: the group's own library should not displace
+the public literature on an ordinary run. Making it compete would mean
+guaranteeing it places the way the literature review's evidence budget
+does for exactly this reason (``reserved_slots``, since a local corpus
+cannot score on citation count or recency at all) -- a policy change with
+its own cost, not an omission to fix in passing.
+
 Two boundaries this deliberately does not cross:
 
 * **It decides no permissions.** The corpus is one lab's library, and who

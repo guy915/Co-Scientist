@@ -1,0 +1,116 @@
+{
+  "judge": "deepseek/deepseek-v4-flash",
+  "panel": "citation_usefulness_v1",
+  "metrics": {
+    "n": 16,
+    "accuracy": 0.8125,
+    "recall_by_label": {
+      "useful": 1.0,
+      "partial": 0.6667,
+      "useless": 0.6667
+    },
+    "false_useful_rate": 0.0
+  },
+  "items": [
+    {
+      "id": "cu-001",
+      "expected": "useful",
+      "predicted": "useful"
+    },
+    {
+      "id": "cu-002",
+      "expected": "useless",
+      "predicted": "partial"
+    },
+    {
+      "id": "cu-003",
+      "expected": "useful",
+      "predicted": "useful"
+    },
+    {
+      "id": "cu-004",
+      "expected": "partial",
+      "predicted": "partial"
+    },
+    {
+      "id": "cu-005",
+      "expected": "useless",
+      "predicted": "useless"
+    },
+    {
+      "id": "cu-006",
+      "expected": "useful",
+      "predicted": "useful"
+    },
+    {
+      "id": "cu-007",
+      "expected": "partial",
+      "predicted": "partial"
+    },
+    {
+      "id": "cu-008",
+      "expected": "useful",
+      "predicted": "useful"
+    },
+    {
+      "id": "cu-009",
+      "expected": "useless",
+      "predicted": "useless"
+    },
+    {
+      "id": "cu-010",
+      "expected": "useful",
+      "predicted": "useful"
+    },
+    {
+      "id": "cu-011",
+      "expected": "partial",
+      "predicted": "useless"
+    },
+    {
+      "id": "cu-012",
+      "expected": "useless",
+      "predicted": "useless"
+    },
+    {
+      "id": "cu-013",
+      "expected": "useful",
+      "predicted": "useful"
+    },
+    {
+      "id": "cu-014",
+      "expected": "useless",
+      "predicted": "partial"
+    },
+    {
+      "id": "cu-015",
+      "expected": "useful",
+      "predicted": "useful"
+    },
+    {
+      "id": "cu-016",
+      "expected": "useless",
+      "predicted": "useless"
+    }
+  ],
+  "provenance": {
+    "source": {
+      "git_commit": "9b17a48c47a13dadf48086a5fa84d99937178731",
+      "git_branch": "main",
+      "git_dirty": false
+    },
+    "environment": {
+      "python_version": "3.12.12",
+      "platform": "macOS-26.6-arm64-arm-64bit"
+    },
+    "prompts": {
+      "templates_dir": "engine/src/co_scientist/prompts/templates",
+      "digest": "4b4bbbca212f3af4c60f5ea1c883d733f6a70803de756e85ae928c266d271f1c",
+      "file_count": 36
+    },
+    "model": null,
+    "seed": null,
+    "cost": null,
+    "captured_at": "2026-08-20T23:32:38"
+  }
+}
