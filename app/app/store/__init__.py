@@ -153,6 +153,11 @@ from app.store.reports import (
     read_report_markdown,
     save_report,
 )
+from app.store.retrieval_calls import (
+    NewRetrievalCall,
+    add_retrieval_calls,
+    list_retrieval_calls,
+)
 from app.store.runs import (
     RunCreateOptions,
     clear_publication_artifacts,
@@ -238,6 +243,7 @@ __all__ = [
     "NewMatch",
     "NewMessage",
     "NewProximityEdge",
+    "NewRetrievalCall",
     "NewReview",
     "NewSafetyDecision",
     "NewStagedDocument",
@@ -256,6 +262,7 @@ __all__ = [
     "add_hypothesis",
     "add_match",
     "add_proximity_edge",
+    "add_retrieval_calls",
     "add_review",
     "add_safety_decision",
     "add_staged_document",
@@ -330,6 +337,7 @@ __all__ = [
     "list_messages",
     "list_proximity_edges",
     "list_report_shares",
+    "list_retrieval_calls",
     "list_reviews",
     "list_runs",
     "list_safety_decisions",

@@ -175,3 +175,63 @@ def test_connect_upgrades_old_hypotheses_table(tmp_path: object) -> None:
 
     assert "parent_ids" in _columns(path, "hypotheses")
     assert [row[0] for row in rows] == [None]
+
+
+# The evidence table exactly as builds before retrieval provenance created
+# it: scoring columns present, but nothing naming the search behind a row.
+_OLD_EVIDENCE = """
+CREATE TABLE evidence (
+    id TEXT PRIMARY KEY,
+    run_id TEXT NOT NULL,
+    title TEXT NOT NULL,
+    source TEXT,
+    url TEXT,
+    authors_json TEXT,
+    year INTEGER,
+    abstract TEXT,
+    available INTEGER NOT NULL DEFAULT 1,
+    mime_type TEXT,
+    sha256 TEXT,
+    byte_size INTEGER,
+    document_version TEXT,
+    extraction_tool TEXT,
+    doi TEXT,
+    pmid TEXT,
+    passage_text TEXT,
+    retrieved_at REAL,
+    retrieval_score REAL,
+    retrieval_rationale TEXT,
+    retriever_version TEXT,
+    created_at REAL NOT NULL
+);
+CREATE INDEX idx_ev_run ON evidence(run_id);
+"""
+
+
+def test_connect_upgrades_evidence_for_retrieval_provenance(
+    tmp_path: object,
+) -> None:
+    """Evidence written before provenance opens with a NULL search link.
+
+    The column is added by migration rather than by ``_SCHEMA``, whose
+    ``CREATE TABLE IF NOT EXISTS`` is a no-op against the table a deployed
+    volume already holds. Existing rows read back NULL, which is the only
+    state they could represent: nothing recorded what was asked.
+    """
+    path = str(tmp_path / "old_evidence.db")  # type: ignore[operator]
+    conn = sqlite3.connect(path)
+    conn.executescript(_OLD_EVIDENCE)
+    conn.execute(
+        "INSERT INTO evidence (id, run_id, title, created_at) "
+        "VALUES ('e1', 'r1', 'A paper', 1.0)"
+    )
+    conn.commit()
+    conn.close()
+
+    with db.connect(path) as conn:
+        rows = conn.execute("SELECT retrieval_call_id FROM evidence").fetchall()
+        # The new table arrives on the same open, from _SCHEMA.
+        conn.execute("SELECT COUNT(*) FROM retrieval_calls").fetchone()
+
+    assert "retrieval_call_id" in _columns(path, "evidence")
+    assert [row[0] for row in rows] == [None]

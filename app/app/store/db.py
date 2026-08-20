@@ -378,6 +378,20 @@ def _migrate_evidence_retrieval_scoring_columns(
     _add_column_if_missing(conn, "evidence", "retriever_version", "TEXT")
 
 
+def _migrate_evidence_retrieval_call_id(conn: sqlite3.Connection) -> None:
+    """Add the retrieval-provenance link to evidence.
+
+    ``retrieval_call_id`` names the search that found a piece of evidence
+    (``retrieval_calls.id``), which is the one fact this store never kept:
+    a row recorded how well a source scored, never what was asked of it.
+    Nullable, and NULL is a real state rather than a gap to backfill --
+    an uploaded document and a directly fetched corpus paper have no
+    search behind them, and neither does any run written before the
+    deep-research capability existed.
+    """
+    _add_column_if_missing(conn, "evidence", "retrieval_call_id", "TEXT")
+
+
 def _migrate_hypothesis_parent_ids(conn: sqlite3.Connection) -> None:
     """Add the multi-parent lineage column to hypotheses.
 
@@ -452,6 +466,7 @@ def _run_migrations(conn: sqlite3.Connection) -> None:
     _migrate_hypothesis_parent_ids(conn)
     _migrate_evidence_identity_columns(conn)
     _migrate_evidence_retrieval_scoring_columns(conn)
+    _migrate_evidence_retrieval_call_id(conn)
     _migrate_variant_archive_columns(conn)
 
 

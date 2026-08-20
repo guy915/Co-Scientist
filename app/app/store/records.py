@@ -80,7 +80,10 @@ class NewEvidence:
     ``retriever_version`` are the persisted hybrid-retrieval provenance
     (see ``search_support.py``'s scorer): the combined lexical+semantic
     score, the semantic pass's stated reason, and the method/version that
-    produced both.
+    produced both. ``retrieval_call_id`` names the search that found this
+    row (``retrieval_calls.id``); None is a real state rather than a gap
+    -- an uploaded document and a directly fetched corpus paper have no
+    query behind them.
     """
 
     run_id: str
@@ -102,6 +105,7 @@ class NewEvidence:
     retrieval_score: float | None = None
     retrieval_rationale: str | None = None
     retriever_version: str | None = None
+    retrieval_call_id: str | None = None
 
 
 def _evidence_passage_text(f: NewEvidence) -> str:
@@ -122,8 +126,8 @@ def _insert_evidence_row(
         "authors_json, year, abstract, available, mime_type, sha256, "
         "byte_size, document_version, extraction_tool, doi, pmid, "
         "passage_text, retrieved_at, retrieval_score, retrieval_rationale, "
-        "retriever_version, created_at) "
-        "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        "retriever_version, retrieval_call_id, created_at) "
+        "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
         (
             ev_id,
             f.run_id,
@@ -146,6 +150,7 @@ def _insert_evidence_row(
             f.retrieval_score,
             f.retrieval_rationale,
             f.retriever_version,
+            f.retrieval_call_id,
             _now(),
         ),
     )

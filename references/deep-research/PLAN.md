@@ -11,8 +11,9 @@ text on two `docs/PARITY.md` rows: `GEN-TECHNIQUES-001` and
 
 ## 0. Build status (2026-08-20)
 
-Stage A is built. Everything below ships with tests; the whole engine
-suite, `ruff` and strict `mypy` are green with it in.
+Stages A and B are built. Everything below ships with tests; the engine
+and app suites, `ruff`, strict `mypy` and `make parity` are green with
+them in.
 
 | Item | Stage | State | Where |
 | --- | --- | --- | --- |
@@ -22,8 +23,10 @@ suite, `ruff` and strict `mypy` are green with it in.
 | Admission and finding provenance | A | **done** | `research/admission.py` |
 | The loop (levels, clamping, guards, containment) | A | **done** | `research/loop.py` |
 | Offline test suite (18 cases, fakes only) | A | **done** | `engine/tests/test_research_loop.py` |
+| Provenance tests + migration test | B | **done** | `app/tests/test_store_retrieval_calls.py` |
 | `REFLECT-TYPES-001` corrected | A | **done** | `docs/PARITY.md` |
-| `retrieval_calls` table + evidence FK | B | not started | — |
+| `retrieval_calls` table + `evidence.retrieval_call_id` | B | **done** | `app/store/schema_retrieval_calls.py`, `app/store/retrieval_calls.py` |
+| Ledger-to-rows mapper | B | **done** | `app/research_provenance.py` |
 | Adapters over MCP and `llm.py` | C | not started | — |
 | Owner chosen | C | **decided 2026-08-20** | Generation first, then Reflection on the same adapter |
 | Degradation + the three metrics | D | not started | — |
@@ -164,7 +167,7 @@ findings and follow-ups, compress a thread).
 
 Tests are offline fakes only — CI is hermetic, with no network and no keys.
 
-### Stage B — Persistence (resolves D4, D7)
+### Stage B — Persistence (resolves D4, D7) — **built 2026-08-20**
 
 The in-memory ledger from Stage A becomes rows: a `retrieval_calls` table
 (question, query, source, status, timings, the ranked result set including
@@ -173,6 +176,30 @@ volume worry raised in `SCOPE.md` does not survive contact with the repo —
 the log-capture thread already writes a row per emitted record. The
 single-writer rules still hold: the call row is written after the network work
 returns, never across it.
+
+Three things settled while building it, each of which would have been a bug
+found late:
+
+**The key is `(run_id, id)`, not `id`.** A call's content id is a hash over
+`(source, question, query)` and carries no run, so two runs asking the same
+question of the same source derive the *same* id. Every sibling table is
+per-run with `ON DELETE CASCADE`; under a bare primary key one run's deletion
+would take another run's provenance with it, and an `INSERT OR IGNORE` would
+silently attach the second run's evidence to the first run's row. The content
+id itself is untouched — it is the table's key that gains the run.
+
+**`evidence.retrieval_call_id` is deliberately not a foreign key.** A
+composite FK cannot be added by `ALTER TABLE`, so declaring one would make a
+migrated database differ from a fresh one — exactly the divergence the
+migration tests exist to catch. Both tables cascade with their run anyway.
+
+**The old literature-review path is not retrofitted here, and that is a
+decision rather than an omission.** `Article` carries no query, so threading a
+question and a query through the engine's existing search path and the drain
+is a separate change of its own size. Stage B gives the capability somewhere
+to write; Stage C's adapter is the first thing that writes. Until then the
+column is NULL for every row, which is what it means: nothing recorded what
+was asked.
 
 ### Stage C — Assignment (resolves D1, D5, and D3 at the boundary)
 

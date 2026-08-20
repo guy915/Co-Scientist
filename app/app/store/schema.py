@@ -15,6 +15,9 @@ from app.store.schema_code_variants import (
 from app.store.schema_knowledge_facts import (
     KNOWLEDGE_FACTS_SCHEMA as KNOWLEDGE_FACTS_SCHEMA,
 )
+from app.store.schema_retrieval_calls import (
+    RETRIEVAL_CALLS_SCHEMA as RETRIEVAL_CALLS_SCHEMA,
+)
 from app.store.schema_supervisor_plan import (
     SUPERVISOR_PLAN_SCHEMA as SUPERVISOR_PLAN_SCHEMA,
 )
@@ -229,6 +232,14 @@ CREATE TABLE IF NOT EXISTS evidence (
     retrieval_rationale TEXT,           -- the semantic pass's stated reason
     retriever_version TEXT,             -- method/version that produced the
                                          -- score (see relevance.py)
+    -- The search that found this evidence (retrieval_calls.id), or NULL for
+    -- evidence that arrived by another path -- an uploaded document, a
+    -- directly fetched corpus paper, or any run predating this column.
+    -- Deliberately not a foreign key: the retrieval_calls key is
+    -- (run_id, id), and a composite FK cannot be added by ALTER TABLE, so
+    -- declaring one here would make a migrated database differ from a fresh
+    -- one. Both tables cascade with their run regardless.
+    retrieval_call_id TEXT,
     created_at REAL NOT NULL,
     FOREIGN KEY (run_id) REFERENCES runs(id) ON DELETE CASCADE
 );
@@ -469,7 +480,10 @@ CREATE INDEX IF NOT EXISTS idx_proximity_run ON proximity_edges(run_id);
 # right after claim_evidence's -- adjacent in the executed script to the
 # table it derives from, matching the story an on-disk schema dump tells.
 # supervisor_plan/supervisor_allocations are spliced in right after, for the
-# same reason: both are derived at the same finalize drain.
+# same reason: both are derived at the same finalize drain. retrieval_calls
+# has no such adjacency to keep -- it is referenced by evidence.
+# retrieval_call_id, which is a plain column rather than a foreign key -- so
+# it goes last, before the tail.
 SCHEMA = (
     _SCHEMA_HEAD
     + KNOWLEDGE_FACTS_SCHEMA
@@ -477,5 +491,6 @@ SCHEMA = (
     + SCIENTIFIC_TASKS_SCHEMA
     + CODE_VARIANTS_SCHEMA
     + CODE_DATASETS_SCHEMA
+    + RETRIEVAL_CALLS_SCHEMA
     + _SCHEMA_TAIL
 )
