@@ -209,7 +209,7 @@ to write; Stage C's adapter is the first thing that writes. Until then the
 column is NULL for every row, which is what it means: nothing recorded what
 was asked.
 
-### Stage C — Assignment (resolves D1, D5, and D3 at the boundary) — **Generation built 2026-08-20**
+### Stage C — Assignment (resolves D1, D5, and D3 at the boundary) — **both owners built 2026-08-20**
 
 One adapter, shared by every caller: `research_adapter/` implements the two
 ports over the MCP client and `llm.py`, and `budget_for_tier` turns a run
@@ -303,6 +303,16 @@ could be researched once per level. Reflection is where that bites — its
 budget is 4 threads, so one repeat is a quarter of it — and re-asking was
 judged waste rather than a legitimate second look. `_follow_up_questions`
 now excludes every question already opened, at any level.
+
+A second was settled by the Reflection assignment. Which hypotheses a tier
+funds is "the best ones", and the obvious reading of that — sort by Elo — is
+wrong on the cycle that matters: comprehensive reflection runs *before*
+ranking (review → comprehensive reflection → safety screen → ranking), so on
+the first cycle, where every hypothesis gets its one full review, every rating
+is still the default. Selection therefore borrows the canonical `rank_by_elo`
+whole, whose tie-break is the initial review's own score — written by the node
+immediately upstream. A local re-statement of that comparison is exactly how a
+second copy comes to disagree with it.
 
 ### Stage D — Degradation and evaluation (resolves D6, D8)
 
