@@ -41,6 +41,37 @@ explicitly says otherwise; machine-readable results are written under
   ("mass casualty" disaster response, "nerve agent" detection assays,
   "bioweapon" treaty-compliance history). The `hard` split is measured and
   reported, never gated to pass -- see the eval's own module docstring.
+- `retrieval_replay_eval.py` — replay reproducibility: can a run's
+  retrieval be reconstructed from its record alone? Re-derives each
+  `retrieval_calls` row's content id from the fields the row carries,
+  checks that every evidence row naming a search resolves to one, and
+  checks that everything a call admitted or dropped appears in the hits it
+  recorded. Offline by default, persisting a synthetic ledger through the
+  real writer (`app.research_provenance` → `store.add_retrieval_calls`) --
+  a driven offline run does no research at all, so scoring one would
+  measure an empty set and report a perfect score. `--run <id>` scores a
+  real persisted run, which is the mode that says anything about
+  production.
+- `claim_support_eval.py` — unsupported-claim rate over the verdicts a run
+  already recorded, never re-judged here (a second lexical opinion inside
+  an eval is how a metric comes to disagree with the product; see the
+  Jaccard entry in the root AGENTS.md). Reports two rates: over claims,
+  and over ideas with nothing behind them, since a retrieval change can
+  move one without the other. **Offline by default proves the wiring, not
+  quality** -- the deterministic backend answers every assessment the same
+  canned way whatever was retrieved, and offline artifacts say so in an
+  `offline_disclaimer`. `--run <id>` scores a persisted run; `--live`
+  drives one against a real provider.
+- `citation_usefulness_eval.py` — does a retrieved span answer *the
+  question the search was serving*? Distinct from `citation_eval.py`,
+  which asks whether a span entails a claim: the two come apart exactly
+  where a research loop earns its cost, on a span that is squarely
+  on-topic and answers a different question. Scores
+  `datasets/citation_usefulness_v1.json`; the default deterministic judge
+  is lexical coverage and is kept as a floor (it scores ~0.38 on the
+  panel, by construction), `--llm` scores a real model. Note there is no
+  production assessor to score here -- the system does not yet judge its
+  own retrievals this way, so this eval's judge is its own.
 - `metrics.py` — pure hypothesis-quality metrics (diversity;
   generation-vs-evolution yield/diversity). Does **not** use the engine's own
   Elo as ground truth.

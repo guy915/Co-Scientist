@@ -1,0 +1,34 @@
+{
+  "mode": "offline",
+  "offline_disclaimer": "Offline run: the deterministic backend answers every claim assessment identically regardless of what was retrieved, so this rate proves the measurement path and not that research improved support.",
+  "goal": "Propose a mechanism for acquired resistance to EGFR tyrosine kinase inhibitors in EGFR-mutant lung adenocarcinoma.",
+  "run_id": "7617a185-baa2-4e8c-9c05-649f9dfb7a51",
+  "completed": true,
+  "used_real_backend": false,
+  "ideas": 7,
+  "ideas_with_assessed_claims": 7,
+  "claims_assessed": 28,
+  "claims_supported": 0,
+  "unsupported_claim_rate": 1.0,
+  "unverified_idea_rate": 1.0,
+  "provenance": {
+    "source": {
+      "git_commit": "6ddfe97e1f54fcd678092356d01ad76b55b49827",
+      "git_branch": "main",
+      "git_dirty": true
+    },
+    "environment": {
+      "python_version": "3.12.12",
+      "platform": "macOS-26.6-arm64-arm-64bit"
+    },
+    "prompts": {
+      "templates_dir": "engine/src/co_scientist/prompts/templates",
+      "digest": "4b4bbbca212f3af4c60f5ea1c883d733f6a70803de756e85ae928c266d271f1c",
+      "file_count": 36
+    },
+    "model": null,
+    "seed": null,
+    "cost": null,
+    "captured_at": "2026-08-20T21:26:59"
+  }
+}

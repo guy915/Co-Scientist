@@ -1,0 +1,30 @@
+{
+  "mode": "synthetic",
+  "run_id": "412aa7ca-c9fa-4e3e-8494-f3746cf67ea4",
+  "calls": 2,
+  "id_reproduction": 1.0,
+  "result_set_completeness": 1.0,
+  "evidence_rows": 1,
+  "evidence_with_provenance": 1,
+  "evidence_resolution": 1.0,
+  "provenance": {
+    "source": {
+      "git_commit": "6ddfe97e1f54fcd678092356d01ad76b55b49827",
+      "git_branch": "main",
+      "git_dirty": true
+    },
+    "environment": {
+      "python_version": "3.12.12",
+      "platform": "macOS-26.6-arm64-arm-64bit"
+    },
+    "prompts": {
+      "templates_dir": "engine/src/co_scientist/prompts/templates",
+      "digest": "4b4bbbca212f3af4c60f5ea1c883d733f6a70803de756e85ae928c266d271f1c",
+      "file_count": 36
+    },
+    "model": null,
+    "seed": null,
+    "cost": null,
+    "captured_at": "2026-08-20T21:25:46"
+  }
+}

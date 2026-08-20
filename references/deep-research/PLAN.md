@@ -38,7 +38,7 @@ green with them in.
 | Assigned to Reflection (full + simulation) | C | **done** | `reflection/research_evidence.py`, `review_evidence.py` |
 | Degradation made visible | D | **done 2026-08-20** | `retrieval_degradation.py`; the corpus floor D6 assumed does not exist |
 | Cross-level follow-up dedup | C | **done** | `research/loop.py` |
-| The three metrics | D | not started | unsupported-claim rate, citation usefulness, replay reproducibility |
+| The three metrics | D | **done 2026-08-20** | `claim_support_eval.py`, `citation_usefulness_eval.py`, `retrieval_replay_eval.py`; no credentialed run recorded yet |
 
 Three things to know before picking this up:
 
@@ -343,11 +343,27 @@ second copy comes to disagree with it.
   through `paper_corpus.disabled_tools_for()`, and any such adapter has to
   pass through the same registry reconciliation or it leaks one lab's papers
   into every other audience's runs.
-- Three metrics into `evaluations/`, in this order because the third depends
-  on Stage B: **unsupported-claim rate**, **citation usefulness** (does the
-  cited span support *this* claim — distinct from the existing four-state
-  classifier), and **replay reproducibility** (rerun against persisted
-  retrieval calls; measure evidence-set stability).
+- Three metrics into `evaluations/`. **Done**, one runner each, all three
+  offline by default and each saying in its own artifact what offline
+  proves. **unsupported-claim rate** (`claim_support_eval.py`) reduces the
+  verdicts a run already recorded rather than re-judging them, because a
+  second lexical opinion inside an eval is how a metric comes to disagree
+  with the product it measures. **citation usefulness**
+  (`citation_usefulness_eval.py`) turned out to be a sharper question than
+  the row above states: not "does the span support this claim" — that is
+  `citation_eval.py` — but does it answer *the question the search was
+  serving*, which only became askable once the question was a persisted
+  artifact. The panel is built around the case topical overlap cannot see,
+  and the lexical floor scores ~0.38 on it by construction. **replay
+  reproducibility** (`retrieval_replay_eval.py`) re-derives every persisted
+  call's content id from its own row and checks that evidence naming a
+  search resolves to one; its offline mode persists a synthetic ledger
+  through the real writer, since a driven offline run does no research at
+  all and would score a perfect zero-call replay.
+
+  What is not done is a credentialed run of any of them. The offline
+  numbers are wiring proofs; `--live`, `--llm` and `--run <id>` are the
+  modes that would say something, and none has been recorded.
 - Explicitly not adopted: BrowseComp, GAIA, FRAMES. General-web browsing
   benchmarks measure a capability that is not this system's job.
 
