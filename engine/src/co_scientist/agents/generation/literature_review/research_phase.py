@@ -119,7 +119,7 @@ async def run_research_phase(
     )
     return ResearchOutcome(
         ledger=result_to_dict(result),
-        records=_records_from(result, retrieval),
+        records=records_from_findings(result, retrieval),
         section=_synthesis_section(result),
     )
 
@@ -192,10 +192,14 @@ def _gaps_in(analysis: object) -> list[str]:
     ]
 
 
-def _records_from(
+def records_from_findings(
     result: ResearchResult, retrieval: McpRetrieval
 ) -> dict[str, dict[str, Any]]:
     """Turn the papers that produced findings into review-shaped records.
+
+    Public because Reflection researches too and needs the same records,
+    stamped the same way: the shape a paper takes on its way into the
+    pool is the literature review's to define, not each caller's.
 
     Only documents something was actually drawn from are carried over: a
     hit the loop searched up but read nothing useful from is already on

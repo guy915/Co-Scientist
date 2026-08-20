@@ -387,7 +387,7 @@ async def _finalize_review(
         output.cache_plan,
     )
     if output.research is not None:
-        result["research_ledger"] = output.research.ledger
+        result["research_ledgers"] = [output.research.ledger]
     return _with_llm_call_metrics(
         result, output.query_result.llm_calls + output.reviewed.llm_calls
     )

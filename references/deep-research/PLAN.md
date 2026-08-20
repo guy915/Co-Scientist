@@ -11,10 +11,10 @@ text on two `docs/PARITY.md` rows: `GEN-TECHNIQUES-001` and
 
 ## 0. Build status (2026-08-20)
 
-Stages A and B are built, and so is C's Generation half — the same
-adapter still has to be handed to Reflection before C closes. Everything
-below ships with tests; the engine and app suites, `ruff`, strict `mypy`
-and `make parity` are green with them in.
+Stages A, B and C are built: the capability, its provenance, and both of
+its owners. Stage D is what remains. Everything below ships with tests;
+the engine and app suites, `ruff`, strict `mypy` and `make parity` are
+green with them in.
 
 | Item | Stage | State | Where |
 | --- | --- | --- | --- |
@@ -35,7 +35,8 @@ and `make parity` are green with them in.
 | Tier gate, engine-side single source of truth | C | **done** | `research_adapter/budget.py`, `generator/run_setup.py` |
 | Provenance written end to end | C | **done** | `app/engine_adapter/drain_research.py` |
 | Owner chosen | C | **decided 2026-08-20** | Generation first, then Reflection on the same adapter |
-| Assigned to Reflection | C | not started | — |
+| Assigned to Reflection (full + simulation) | C | **done** | `reflection/research_evidence.py`, `review_evidence.py` |
+| Cross-level follow-up dedup | C | **done** | `research/loop.py` |
 | Degradation + the three metrics | D | not started | — |
 
 Three things to know before picking this up:
@@ -239,8 +240,37 @@ Five things settled while building, none of them obvious from the plan:
 
 Stage C's own definition of done was an offline run whose evidence rows carry
 a `retrieval_call_id` resolving to a `retrieval_calls` row. That holds:
-`app/tests/test_engine_drain_research_provenance.py`. Reflection is next and
-writes no new adapter — only a budget and a seed-question policy.
+`app/tests/test_engine_drain_research_provenance.py`.
+
+Settled while building the second owner:
+
+- **One ledger channel, many researchers.** `research_ledger` was a single
+  dict, which was correct while Generation was the only writer and silently
+  wrong the moment Reflection became the second: the later node's update
+  replaced the earlier one and its searches left no record. It is
+  `research_ledgers`, a list with an accumulating reducer — declared on the
+  state *and* mirrored in `task_runtime._CHANNEL_REDUCERS`, since a reducer
+  missing from that table falls through to last-write-wins on the only path
+  production runs.
+- **A per-hypothesis budget bounds nothing on its own.** The review
+  researches once per hypothesis, so cost is a product. Both factors are
+  capped: `review_budget_for_tier` (4 threads on extended, 5 on ultra) and
+  `reviewed_hypothesis_limit` (the 3 or 5 best-ranked by Elo). Ceiling per
+  run: 12 threads on extended, 25 on ultra, against Generation's 6 and 11.
+- **Selection is computed, not passed.** The funded set is derived from the
+  whole pool inside the module, so the in-process node and a durable
+  per-hypothesis task — which never sees the batch — choose identically.
+- **Research is additive to the probe round, and failing it is not fatal.**
+  A funded review keeps the articles its first search found and gains the
+  researched ones; research that raises degrades to the probe round rather
+  than failing the review item.
+- **The ledger travels beside the review, not inside it.** Stamped on the
+  review it would ride into every later checkpoint through `enrichments`.
+- **The literature-review node being off is no longer a refusal.** With two
+  owners, the reviews resolve the run's sources from its tool registry
+  themselves; only MCP being unreachable refuses the tier now.
+- **The tier keys the review cache.** A cached literature review from a tier
+  that did not research must not answer for one that did.
 
 **Decided 2026-08-20: Generation first, then Reflection, on the same
 adapter.** Both get it; the order is what the owner chose, and it is also the
@@ -251,10 +281,11 @@ Candidate owners, in the order they make sense:
 
 1. **Generation** — **done.** The largest win, and the owner's own instinct.
    Deepens what `literature_review/` already does well.
-2. **Reflection** — specifically the `full` and `simulation` reviews, which
-   already retrieve once per hypothesis (claim 5). Assignment here means
-   giving them *follow-up*, not first-time retrieval. Deep verification is the
-   natural second, since it already decomposes into assumptions.
+2. **Reflection** — **done**, for the `full` and `simulation` reviews, which
+   share one gathering per hypothesis. They now get *follow-up* rather than
+   first-time retrieval. Deep verification is the natural next one, since it
+   already decomposes a claim into assumptions, and is deliberately not in
+   this change: it is a third caller with a third multiplicity.
 3. **Supervisor** — not taking it. Not a reader: It is a deterministic scheduler over
    `SchedulerStats` and a budget; the model only advises it. There is nothing
    for a research loop to plug into. What it could take is a new *signal* to
@@ -265,16 +296,13 @@ The in-node-vs-durable-task question (D1) is answered per assignment, not
 once: the discriminator is provider spend across a restart, and Stage B is
 what makes an in-node loop resumable without re-paying for retrievals.
 
-One known behaviour to decide here rather than rediscover as a bill.
-Follow-ups are deduplicated *within* a level but not against questions
-already researched at earlier levels, so a question the reading keeps
-raising can be researched once per level. The thread bound still holds --
-`max_threads()` caps the whole descent either way -- so this is spend, not
-runaway. The fix is cheap when it is wanted: question ids are content
-addressed, so a set of ids already researched is a two-line guard in
-`_follow_up_questions`. It is deliberately not in Stage A, because whether
-re-asking is waste or a legitimate second look at deeper context is a
-judgement the first real caller can make and a fake cannot.
+One behaviour was left for the first real caller and is now decided.
+Follow-ups were deduplicated *within* a level but not against questions
+already researched at earlier levels, so a question the reading kept raising
+could be researched once per level. Reflection is where that bites — its
+budget is 4 threads, so one repeat is a quarter of it — and re-asking was
+judged waste rather than a legitimate second look. `_follow_up_questions`
+now excludes every question already opened, at any level.
 
 ### Stage D — Degradation and evaluation (resolves D6, D8)
 

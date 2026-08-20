@@ -238,11 +238,14 @@ class _Session:
     def _follow_up_questions(self, depth: int) -> list[Question]:
         """Collect this depth's follow-ups as the next level's questions.
 
-        Deduplicated by text: two threads reading adjacent literature
-        routinely surface the same open question, and researching it
-        twice buys nothing.
+        Deduplicated by text, and not only within the level: two threads
+        reading adjacent literature routinely surface the same open
+        question, and a level's reading routinely raises a question an
+        earlier level already researched. Both cost a thread out of a
+        small budget to re-answer something on record, and the second
+        one also makes the descent look deeper than it was.
         """
-        seen: set[str] = set()
+        seen: set[str] = {thread.question.text for thread in self.threads}
         questions: list[Question] = []
         for thread in self.threads:
             if thread.depth != depth:

@@ -23,6 +23,7 @@ from co_scientist.state import (
     accumulate_matchups,
     deduplicate_hypotheses,
 )
+from co_scientist.state_reducers import accumulate_research_ledgers
 
 TaskNode = Callable[[WorkflowState], Awaitable[dict[str, Any]]]
 
@@ -74,6 +75,9 @@ _CHANNEL_REDUCERS: dict[str, Callable[[Any, Any], Any]] = {
     "metrics": merge_metrics,
     "messages": _reduce_messages,
     "tournament_matchups": lambda existing, value: accumulate_matchups(
+        existing or [], value
+    ),
+    "research_ledgers": lambda existing, value: accumulate_research_ledgers(
         existing or [], value
     ),
 }

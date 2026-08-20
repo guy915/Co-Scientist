@@ -16,154 +16,17 @@ from __future__ import annotations
 
 import ast
 import pathlib
-from collections.abc import Sequence
 
 import pytest
 
 from co_scientist.research import (
     CallStatus,
-    Document,
-    ExtractedFinding,
-    Extraction,
-    Finding,
     ResearchBudget,
-    SourceHit,
     StopReason,
     ThreadStatus,
     conduct_research,
 )
-
-
-class FakeRetrieval:
-    """A search service that answers from a script.
-
-    Attributes:
-        hits_by_source: What each source returns for any query.
-        failing_sources: Sources that raise instead of answering.
-        unreadable: Locators whose text cannot be fetched.
-        queries: Every query issued, in order.
-    """
-
-    def __init__(
-        self,
-        hits_by_source: dict[str, list[SourceHit]] | None = None,
-        failing_sources: set[str] | None = None,
-        unreadable: set[str] | None = None,
-    ) -> None:
-        """Configure the scripted answers."""
-        self.hits_by_source = hits_by_source or {}
-        self.failing_sources = failing_sources or set()
-        self.unreadable = unreadable or set()
-        self.queries: list[str] = []
-
-    async def search(
-        self, *, query: str, source: str, limit: int
-    ) -> Sequence[SourceHit]:
-        """Return this source's scripted hits, or raise."""
-        self.queries.append(query)
-        if source in self.failing_sources:
-            raise RuntimeError(f"{source} is unreachable")
-        return self.hits_by_source.get(source, [])[:limit]
-
-    async def read(self, *, locator: str) -> str | None:
-        """Return document text unless the locator is unreadable."""
-        if locator in self.unreadable:
-            return None
-        return f"full text of {locator}"
-
-
-class FakeModel:
-    """A model that answers from a script.
-
-    Attributes:
-        stances: What stance planning returns.
-        follow_ups_by_question: Follow-ups each question raises.
-        barren: Questions that yield no findings.
-        exploding: Questions whose extraction raises.
-        extracted: Every question extraction ran for, in order.
-    """
-
-    def __init__(
-        self,
-        stances: Sequence[str] = ("mechanism", "prior art"),
-        follow_ups_by_question: dict[str, list[str]] | None = None,
-        barren: set[str] | None = None,
-        exploding: set[str] | None = None,
-    ) -> None:
-        """Configure the scripted answers."""
-        self.stances = tuple(stances)
-        self.follow_ups_by_question = follow_ups_by_question or {}
-        self.barren = barren or set()
-        self.exploding = exploding or set()
-        self.extracted: list[str] = []
-        self.documents_seen: list[Document] = []
-
-    async def plan_stances(self, *, goal: str, limit: int) -> Sequence[str]:
-        """Return the scripted stances, within the limit."""
-        return self.stances[:limit]
-
-    async def ask_questions(
-        self, *, goal: str, stance: str, limit: int
-    ) -> Sequence[str]:
-        """Ask one question per stance, named after the stance."""
-        return [f"what does {stance} say about {goal}?"][:limit]
-
-    async def to_query(self, *, question: str) -> str:
-        """Render the question as a query."""
-        return f"query::{question}"
-
-    async def extract(
-        self, *, question: str, documents: Sequence[Document]
-    ) -> Extraction:
-        """Return one finding per document, unless scripted otherwise."""
-        self.extracted.append(question)
-        self.documents_seen.extend(documents)
-        if question in self.exploding:
-            raise RuntimeError("extraction failed")
-        follow_ups = tuple(self.follow_ups_by_question.get(question, []))
-        if question in self.barren:
-            return Extraction(findings=(), follow_ups=follow_ups)
-        findings = tuple(
-            ExtractedFinding(
-                text=f"finding from {doc.hit.locator}",
-                locator=doc.hit.locator,
-                span=f"span from {doc.hit.locator}",
-            )
-            for doc in documents
-        )
-        return Extraction(findings=findings, follow_ups=follow_ups)
-
-    async def compress(
-        self, *, question: str, findings: Sequence[Finding]
-    ) -> str:
-        """Summarise a thread by counting what it found."""
-        return f"{len(findings)} findings for {question}"
-
-
-def _hits(*locators: str) -> list[SourceHit]:
-    """Build ranked hits for the given locators."""
-    return [
-        SourceHit(
-            locator=locator,
-            title=f"title {locator}",
-            snippet=f"snippet {locator}",
-            rank=index,
-        )
-        for index, locator in enumerate(locators)
-    ]
-
-
-def _budget(**overrides: object) -> ResearchBudget:
-    """A small default budget, overridable per test."""
-    defaults: dict[str, object] = {
-        "depth": 2,
-        "breadth": 2,
-        "concurrency": 2,
-        "hits_per_question": 2,
-        "sources": ("pubmed",),
-    }
-    defaults.update(overrides)
-    return ResearchBudget(**defaults)  # type: ignore[arg-type]
+from tests._research_fakes import FakeModel, FakeRetrieval, _budget, _hits
 
 
 def test_breadth_halves_on_descent_and_stops_at_the_floor() -> None:
@@ -478,13 +341,48 @@ def test_the_package_depends_on_nothing_in_this_repo_but_itself() -> None:
 
 
 class _Everything(dict):  # type: ignore[type-arg]
-    """A dict that answers the same list for every key."""
+    """A dict answering a fresh batch of follow-ups for every key.
+
+    Fresh rather than identical because the loop refuses a follow-up it
+    has already researched: a model repeating one question verbatim
+    forever would end the descent, which is a different behaviour from
+    the one under test here.
+    """
 
     def __init__(self, value: list[str]) -> None:
-        """Store the one answer."""
+        """Store the batch shape and start the run of answers."""
         super().__init__()
         self._value = value
+        self._asked = 0
 
     def get(self, key: object, default: object = None) -> list[str]:
-        """Return the one answer, whatever was asked."""
-        return self._value
+        """Return the next batch, distinct from every earlier one."""
+        self._asked += 1
+        return [f"{text}-{self._asked}" for text in self._value]
+
+
+async def test_a_question_already_researched_is_not_researched_again() -> None:
+    """A level's reading routinely re-raises an earlier level's question.
+
+    Re-answering it spends a thread out of a small budget on something
+    already on record, and makes the descent look deeper than it was.
+    """
+    model = FakeModel(
+        stances=("mechanism",),
+        follow_ups_by_question={
+            "seed question": ["seed question", "a new one"]
+        },
+    )
+    retrieval = FakeRetrieval({"pubmed": _hits("doc-a")})
+
+    result = await conduct_research(
+        goal="fibrosis",
+        model=model,
+        retrieval=retrieval,
+        budget=_budget(depth=2, breadth=2),
+        seed_questions=["seed question"],
+    )
+
+    asked = [thread.question.text for thread in result.threads]
+    assert asked.count("seed question") == 1
+    assert "a new one" in asked

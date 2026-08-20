@@ -38,6 +38,10 @@ class _AppliedItems:
         results: The raw per-item review payloads, in item order.
         model_usage: Per-(phase, model) telemetry folded from every
             completed item's captured usage.
+        research_ledgers: What research the items' evidence came from,
+            one per researching item. Carried through the aggregate
+            because the state is where a run's ledgers accumulate, and
+            an item's own result is discarded once it is applied.
     """
 
     successful: int
@@ -45,6 +49,7 @@ class _AppliedItems:
     llm_calls: int
     results: list[dict[str, Any]] = field(default_factory=list)
     model_usage: dict[str, dict[str, Any]] = field(default_factory=dict)
+    research_ledgers: list[dict[str, Any]] = field(default_factory=list)
 
 
 async def _checkpoint_and_advance(
@@ -139,6 +144,7 @@ def _apply_mature_reflection_items(
     failed = 0
     reflection_results: list[dict[str, Any]] = []
     usage_snapshots: list[dict[str, Any]] = []
+    ledgers: list[dict[str, Any]] = []
     for item_id in item_task_ids:
         item = _require_item_task(item_id, db_path, kind="reflection task")
         if item.status != "completed" or not item.result:
@@ -150,6 +156,9 @@ def _apply_mature_reflection_items(
         reflection_results.append(review)
         _apply_one_reflection_item(hypothesis, mode, review, current_iteration)
         usage_snapshots.append(item.result.get("model_usage") or {})
+        ledger = item.result.get("research_ledger")
+        if isinstance(ledger, dict) and ledger and ledger not in ledgers:
+            ledgers.append(ledger)
         successful += 1
     return _AppliedItems(
         successful=successful,
@@ -157,6 +166,7 @@ def _apply_mature_reflection_items(
         llm_calls=successful + failed,
         results=reflection_results,
         model_usage=merge_usage_snapshots(usage_snapshots),
+        research_ledgers=ledgers,
     )
 
 
@@ -180,6 +190,10 @@ def _mature_reflection_update(
     return {
         "hypotheses": state["hypotheses"],
         "articles": state["articles"],
+        # Accumulated by the state's own reducer, so a reviewed
+        # hypothesis's searches join the literature review's rather than
+        # replacing them (``state_reducers``).
+        "research_ledgers": items.research_ledgers,
         "metrics": create_metrics_update(
             deltas=MetricDeltas(llm_calls=items.llm_calls),
             model_usage=items.model_usage,

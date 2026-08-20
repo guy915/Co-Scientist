@@ -77,10 +77,10 @@ the first call (`8 + 4 + 2` threads, never `8 x 4 x 2`). It imports nothing
 else in this repo and states its needs as two protocols;
 `src/co_scientist/research_adapter/` is the implementation of those for this
 engine (MCP search and full text over the run's configured sources, the five
-model judgements over `call_llm_json`, and the tier-to-ceilings table), and
+model judgements over `call_llm_json`, and the tier-to-ceilings tables), and
 `literature_review/research_phase.py` is where Generation calls it. Assigning
 the same loop to another agent is a budget and a seed-question policy, not a
-second implementation.
+second implementation -- which is exactly what Reflection is (below).
 
 Seeded from the gaps Phase 3's per-paper analysis already recorded, so the
 first level asks what the reading raised rather than what the goal suggests.
@@ -89,19 +89,56 @@ a finding that lived only in a ledger would be recorded and never used. Gated
 the same three ways as the executed simulation: the app passes its tier
 verbatim (`engine_adapter/opts.py`) and `research_adapter.budget` alone decides
 which tiers buy it -- `extended` and `ultra` -- so the two sides cannot drift;
-`run_setup._resolve_research_tier` refuses it where MCP or the literature review
-node is unavailable, since a loop whose whole shape is search-read-search has
-nowhere to go; and a run with no enabled search source researches nothing.
+`run_setup._resolve_research_tier` refuses it where MCP is unavailable, since a
+loop whose whole shape is search-read-search has nowhere to go; and a run with
+no enabled search source researches nothing. Whether the literature review
+*node* runs is deliberately not a gate -- the reviews below resolve the run's
+sources from its tool registry themselves.
 Unlike the tool loops, the offline backend is *not* a refusal -- these are
 ordinary schema-constrained completions it answers deterministically, which is
 what makes the whole path testable without a key.
 
-Everything the phase did leaves the node as `research_ledger` on the state
+Everything the phase did leaves the node in `research_ledgers` on the state
 (plain data, because a checkpoint carries JSON only -- see
 `research/serialization.py`), and each researched paper carries the id of the
 search that surfaced it. The app writes both: `retrieval_calls` rows and the
 `evidence.retrieval_call_id` that resolves to them, so a run can say which
 query found a piece of evidence and which question that query was serving.
+Note the channel is a *list* with an accumulating reducer
+(`state_reducers.accumulate_research_ledgers`, mirrored in
+`task_runtime._CHANNEL_REDUCERS` -- a reducer missing from that table falls
+through to last-write-wins in silence on the durable path). Research has two
+owners, and under a single-ledger channel whichever ran last was the only one
+on record.
+
+**The deep reviews go back too, and their cost is a product.** The full and
+simulation reviews already retrieve once per hypothesis;
+`reflection/research_evidence.py` gives them the same loop as a second round,
+sharing one gathering between both modes (`reflection/review_evidence.py`).
+The policy is what differs from Generation's, and it has to be: the literature
+review researches once per *run*, a review once per *hypothesis*, so a
+per-hypothesis budget alone bounds nothing. Both factors are capped in
+`research_adapter/budget.py` -- what one hypothesis may buy
+(`review_budget_for_tier`: 4 threads on extended, 5 on ultra) and how many
+hypotheses buy anything (`reviewed_hypothesis_limit`: the 3 or 5 best of the
+pool, ordered by the canonical `rank_by_elo` and selected from the whole pool
+so the in-process node and a per-hypothesis durable task choose identically).
+Note *which* half of that key decides: this node runs before ranking, so on the
+first cycle -- where every hypothesis gets its one full review -- every Elo is
+still the default and the tie breaks on the initial review's score, written by
+the node immediately upstream. The product of the two caps is a per-run
+ceiling of 12 threads on extended and 25 on ultra, and that quote depends on
+the two review modes sharing one gathering per hypothesis: they are separate
+leased tasks, and it is the run cohort executing them on one thread's loop
+that lets the second reuse the first's in-flight retrieval. A lease lost
+mid-task re-pays one gathering, as the probe round already did. Seeds are the
+doubts this run already recorded about *this* claim: assumptions a previous
+cycle's full review marked
+uncertain or likely false, and its simulation's failure points. Research that
+fails degrades to the probe round rather than failing the review, and the
+ledger travels beside the review rather than inside it -- through the item
+result and the fan-out aggregate -- so a provenance record does not ride into
+every later checkpoint through `enrichments`.
 
 **Computational discovery** is a second, separate product built on the same
 foundations, and is *not* a node in the hypothesis graph.

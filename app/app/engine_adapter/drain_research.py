@@ -1,10 +1,13 @@
 """Persisting what a run's deep-research phase did.
 
 The engine's literature review can go back for the questions its reading
-left open (``co_scientist.research``), and it carries everything that
-search did out on the final state as plain data: every question asked,
-every query issued against every source, the ranking each one returned,
-and which of those results the evidence budget could afford to read.
+left open, and its deep reviews can do the same for one hypothesis's own
+claim (``co_scientist.research``). Each research request carries
+everything it did out on the final state as plain data -- every question
+asked, every query issued against every source, the ranking each one
+returned, and which of those results the evidence budget could afford to
+read -- and the state accumulates one ledger per request rather than
+keeping only the last researcher's.
 
 This module is where that lands in the store. It is deliberately thin --
 the mapping from a research result to insertable rows is
@@ -44,15 +47,24 @@ def _persist_retrieval_calls(
         conn: Open connection of the caller's transaction.
 
     Returns:
-        How many rows were inserted -- fewer than the ledger holds
-        whenever a resumed run re-offered searches it already paid for.
+        How many rows were inserted -- fewer than the ledgers hold
+        whenever a resumed run re-offered searches it already paid for,
+        or whenever two researchers issued the same search, which the
+        content-addressed id makes one row rather than two.
     """
-    ledger = final_state.get("research_ledger")
-    if not isinstance(ledger, dict) or not ledger:
+    ledgers = final_state.get("research_ledgers")
+    if not isinstance(ledgers, list):
         return 0
-    rows = research_provenance.retrieval_call_rows(
-        run_id, result_from_dict(ledger)
-    )
+    rows = [
+        row
+        for ledger in ledgers
+        if isinstance(ledger, dict) and ledger
+        for row in research_provenance.retrieval_call_rows(
+            run_id, result_from_dict(ledger)
+        )
+    ]
+    if not rows:
+        return 0
     written = store.add_retrieval_calls(rows, conn=conn)
     logger.info(
         "Recorded %s of %s research searches for run %s",

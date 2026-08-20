@@ -17,6 +17,10 @@ from co_scientist.models import (
     Hypothesis,
     merge_metrics,
 )
+from co_scientist.state_reducers import (
+    accumulate_matchups as accumulate_matchups,
+)
+from co_scientist.state_reducers import accumulate_research_ledgers
 
 logger = logging.getLogger(__name__)
 
@@ -158,53 +162,6 @@ def deduplicate_hypotheses(
     if not new:
         return existing
     return _dedup_by_id(new)
-
-
-def accumulate_matchups(
-    existing: list[dict[str, Any]], new: list[dict[str, Any]]
-) -> list[dict[str, Any]]:
-    """State reducer keeping every tournament's matchups, not just the last.
-
-    The ranking node runs once per cycle and returns only the matchups it
-    just judged. Under last-write-wins each tournament erased the record of
-    the ones before it, so a multi-cycle run persisted a single cycle's
-    matches and the earlier Elo history simply vanished from the matches
-    table. The hypotheses' own win/loss tallies carried forward, which is
-    why the loss stayed invisible.
-
-    Deduplicated on the matchup's identity -- the two hypotheses and the
-    ratings they came in with -- so a replayed or resumed ranking task
-    cannot double-count a match it already committed, while a genuine
-    rematch in a later cycle (necessarily at different ratings) is kept.
-
-    Args:
-        existing: Matchups already accumulated this run.
-        new: Matchups the ranking node just judged.
-
-    Returns:
-        The combined matchup list in judging order.
-    """
-    if not new:
-        return existing
-    combined = list(existing)
-    seen = {_matchup_identity(item) for item in existing}
-    for item in new:
-        identity = _matchup_identity(item)
-        if identity in seen:
-            continue
-        seen.add(identity)
-        combined.append(item)
-    return combined
-
-
-def _matchup_identity(matchup: dict[str, Any]) -> tuple[Any, ...]:
-    """Identity of one judged matchup: the pair plus its pre-match ratings."""
-    return (
-        matchup.get("hypothesis_a_id"),
-        matchup.get("hypothesis_b_id"),
-        matchup.get("winner_elo_before"),
-        matchup.get("loser_elo_before"),
-    )
 
 
 # Fields wrapped in Annotated[T, reducer] use `reducer` to combine a node's
@@ -468,10 +425,12 @@ class WorkflowState(TypedDict):
     none. An opaque label to the engine (``research_adapter.budget``).
     """
 
-    research_ledger: dict[str, Any] | None
-    """What the deep-research phase did, as plain data: every question,
-    search and finding (``research.serialization``). Plain data because
-    this crosses a checkpoint, which carries JSON only.
+    research_ledgers: Annotated[
+        list[dict[str, Any]], accumulate_research_ledgers
+    ]
+    """One entry per research request a run made, as plain data: every
+    question, search and finding (``research.serialization``). Plain
+    because this crosses a checkpoint, which carries JSON only.
     """
 
     dev_test_lit_tools_isolation: bool | None

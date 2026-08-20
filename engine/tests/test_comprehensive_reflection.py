@@ -6,6 +6,8 @@ from unittest.mock import AsyncMock
 import pytest
 
 from co_scientist.agents.reflection import comprehensive_reflection as cr
+from co_scientist.agents.reflection import review_evidence as ev
+from co_scientist.agents.reflection.research_evidence import ReviewResearch
 from co_scientist.agents.reflection.review_types import ReviewType
 from co_scientist.models import Article
 from tests._state import make_hypothesis, make_state
@@ -180,15 +182,15 @@ async def test_full_review_executes_targeted_retrieval(
     would retrieve nothing and leave the review ungrounded.
     """
     # First call formulates the queries, second is the review itself.
-    call = AsyncMock(
-        side_effect=[
-            {"queries": ["mechanism X response Y"]},
-            {"verdict": "sound"},
-        ]
-    )
+    call = AsyncMock(return_value={"verdict": "sound"})
     retrieve = AsyncMock(return_value=([_validation_article()], []))
     monkeypatch.setattr(cr, "call_llm_json", call)
-    monkeypatch.setattr(cr, "_retrieve_probe_evidence", retrieve)
+    monkeypatch.setattr(
+        ev,
+        "call_llm_json",
+        AsyncMock(return_value={"queries": ["mechanism X response Y"]}),
+    )
+    monkeypatch.setattr(ev, "_retrieve_probe_evidence", retrieve)
     hypothesis = make_hypothesis(text="Mechanism X controls response Y")
     state = make_state(
         hypotheses=[hypothesis],
@@ -196,7 +198,7 @@ async def test_full_review_executes_targeted_retrieval(
         mcp_available=True,
     )
 
-    _, result = await cr._run_review(state, hypothesis, ReviewType.FULL)
+    _, result, _ = await cr._run_review(state, hypothesis, ReviewType.FULL)
 
     retrieve.assert_awaited_once_with(state, ["mechanism X response Y"])
     assert result is not None
@@ -222,7 +224,7 @@ async def test_query_generation_is_skipped_without_a_search_backend(
         mcp_available=False,
     )
 
-    _, result = await cr._run_review(state, hypothesis, ReviewType.FULL)
+    _, result, _ = await cr._run_review(state, hypothesis, ReviewType.FULL)
 
     assert result is not None
     assert result["retrieval_queries"] == []
@@ -261,8 +263,8 @@ async def test_full_and_simulation_share_one_targeted_retrieval(
         await asyncio.sleep(0)
         return [_validation_article()], []
 
-    monkeypatch.setattr(cr, "_call_hypothesis_query_llm", _queries)
-    monkeypatch.setattr(cr, "_retrieve_probe_evidence", _retrieve)
+    monkeypatch.setattr(ev, "_call_hypothesis_query_llm", _queries)
+    monkeypatch.setattr(ev, "_retrieve_probe_evidence", _retrieve)
     monkeypatch.setattr(
         cr,
         "call_llm_json",
@@ -272,7 +274,7 @@ async def test_full_and_simulation_share_one_targeted_retrieval(
     hypothesis = make_hypothesis(text="a mechanism worth reviewing")
     state = make_state(hypotheses=[hypothesis], mcp_available=True)
 
-    reviewed = await cr._review_hypothesis(state, hypothesis)
+    reviewed, _ = await cr._review_hypothesis(state, hypothesis)
 
     assert reviewed == 2
     assert query_calls == 1
@@ -291,7 +293,126 @@ async def test_rewritten_hypothesis_does_not_reuse_stale_evidence(
     hypothesis = make_hypothesis(text="original claim")
     state = make_state(hypotheses=[hypothesis], mcp_available=True)
 
-    before = cr._evidence_key(state, hypothesis)
+    before = ev._evidence_key(state, hypothesis)
     hypothesis.text = "a materially different claim"
 
-    assert cr._evidence_key(state, hypothesis) != before
+    assert ev._evidence_key(state, hypothesis) != before
+
+
+# =============================================================================
+# Research: the second retrieval round the deep tiers buy
+# =============================================================================
+
+
+def _stub_review_research(
+    monkeypatch: pytest.MonkeyPatch, *, fails: bool = False
+) -> None:
+    """Make research return one article and a ledger, or blow up."""
+
+    async def fake_research(_state: object, _hypothesis: object) -> object:
+        if fails:
+            raise RuntimeError("source unreachable")
+        return ReviewResearch(
+            articles=[
+                Article(
+                    title="Researched paper",
+                    source_id="researched-1",
+                    abstract="Human evidence for the mechanism.",
+                    retrieval_call_id="call-1",
+                )
+            ],
+            ledger={"goal": "g", "threads": [], "calls": [], "findings": []},
+        )
+
+    monkeypatch.setattr(ev, "research_for_review", fake_research)
+
+
+async def test_research_adds_to_the_probe_round_rather_than_replacing_it(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A funded review keeps what its first search found and gains more."""
+
+    async def _retrieve(
+        _state: object, _queries: list[str]
+    ) -> tuple[list[Article], list[str]]:
+        return [_validation_article()], []
+
+    monkeypatch.setattr(ev, "_retrieve_probe_evidence", _retrieve)
+    monkeypatch.setattr(
+        ev,
+        "_call_hypothesis_query_llm",
+        AsyncMock(return_value={"queries": ["targeted query"]}),
+    )
+    monkeypatch.setattr(
+        cr, "call_llm_json", AsyncMock(return_value={"verdict": "sound"})
+    )
+    _stub_review_research(monkeypatch)
+    hypothesis = make_hypothesis(text="a mechanism worth reviewing")
+    state = make_state(hypotheses=[hypothesis], mcp_available=True)
+
+    reviewed, ledgers = await cr._review_hypothesis(state, hypothesis)
+
+    assert reviewed == 2
+    stored = hypothesis.enrichments["full"]["retrieved_articles"]
+    assert [item["source_id"] for item in stored] == [
+        "validation-1",
+        "researched-1",
+    ]
+    # Both reviews share one retrieval, so the run is billed one ledger.
+    assert len(ledgers) == 1
+
+
+async def test_a_review_whose_research_broke_is_still_a_review(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Grounding in what the first round found beats failing the item."""
+
+    async def _retrieve(
+        _state: object, _queries: list[str]
+    ) -> tuple[list[Article], list[str]]:
+        return [_validation_article()], []
+
+    monkeypatch.setattr(ev, "_retrieve_probe_evidence", _retrieve)
+    monkeypatch.setattr(
+        ev,
+        "_call_hypothesis_query_llm",
+        AsyncMock(return_value={"queries": ["targeted query"]}),
+    )
+    monkeypatch.setattr(
+        cr, "call_llm_json", AsyncMock(return_value={"verdict": "sound"})
+    )
+    _stub_review_research(monkeypatch, fails=True)
+    hypothesis = make_hypothesis(text="a mechanism worth reviewing")
+    state = make_state(hypotheses=[hypothesis], mcp_available=True)
+
+    reviewed, ledgers = await cr._review_hypothesis(state, hypothesis)
+
+    assert reviewed == 2
+    assert ledgers == []
+    stored = hypothesis.enrichments["full"]["retrieved_articles"]
+    assert [item["source_id"] for item in stored] == ["validation-1"]
+
+
+async def test_the_node_carries_every_hypothesis_ledger_out(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The ledgers are the run's, so the node returns them on its update.
+
+    Left inside the reviews they would never reach the drain, and the
+    searches a review paid for would be unrecorded.
+    """
+    monkeypatch.setattr(
+        cr, "call_llm_json", AsyncMock(return_value={"verdict": "sound"})
+    )
+    _stub_review_research(monkeypatch)
+    viable = [make_hypothesis(text="a"), make_hypothesis(text="b")]
+    for hypothesis in viable:
+        hypothesis.review_disposition = "viable"
+
+    result = await cr.comprehensive_reflection_node(
+        make_state(hypotheses=viable, current_iteration=0)
+    )
+
+    # One per hypothesis: identical ledgers here, deduplicated by the
+    # state's own reducer rather than by the node.
+    assert len(result["research_ledgers"]) == 2

@@ -143,16 +143,22 @@ async def execute_mature_reflection_item(
     hypothesis_id, hypothesis = _hypothesis_for_item(task, state)
     mode = ReviewType(str(task.inputs["review_mode"]))
     with scoped_telemetry("comprehensive_reflection") as telemetry:
+        ledger: dict[str, Any] | None = None
         if mode is ReviewType.OBSERVATION:
             result = await _run_observation_reflection(state, hypothesis)
         else:
-            _, result = await _run_review(state, hypothesis, mode)
+            _, result, ledger = await _run_review(state, hypothesis, mode)
     if result is None:
         raise RuntimeError(f"{mode.value} review failed for {hypothesis_id}")
     return {
         "hypothesis_id": hypothesis_id,
         "review_mode": mode.value,
         "review": result,
+        # Beside the review rather than inside it: the aggregate hands
+        # this to the run's state, while the review goes to the
+        # hypothesis. A ledger stamped on the review would ride into
+        # every later checkpoint through enrichments.
+        "research_ledger": ledger,
         "model_usage": telemetry.snapshot(),
         "checkpoint_seq": expected_seq,
     }

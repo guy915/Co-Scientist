@@ -284,9 +284,7 @@ class HypothesisGenerator(
             enable_simulation_execution=_resolve_simulation_execution(
                 opts, self.model_name
             ),
-            research_tier=_resolve_research_tier(
-                opts, mcp_available, enable_literature_review_node
-            ),
+            research_tier=_resolve_research_tier(opts, mcp_available),
             # These flags are threaded through to the initial state and the
             # consuming nodes branch on them directly.
             dev_test_lit_tools_isolation=_resolve_dev_isolation_flag(opts),

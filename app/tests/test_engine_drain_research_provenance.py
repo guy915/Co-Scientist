@@ -8,8 +8,9 @@ went back for its open questions leaves searches on record, and every
 piece of evidence it found names the search that found it.
 
 The final states here are synthetic, in the shape the engine's literature
-review produces -- a ``research_ledger`` of everything the research did,
-and articles stamped with the call that surfaced them.
+review and its deep reviews produce -- a ``research_ledgers`` list, one
+entry per research request, and articles stamped with the call that
+surfaced them.
 """
 
 from __future__ import annotations
@@ -103,7 +104,7 @@ def _final_state(*, researched: bool) -> dict[str, Any]:
     }
     if researched:
         article["retrieval_call_id"] = _CALL.id
-        state["research_ledger"] = _ledger()
+        state["research_ledgers"] = [_ledger()]
     return state
 
 
@@ -174,3 +175,116 @@ def test_the_run_tier_reaches_the_engine_verbatim(isolated_db: str) -> None:
     opts = _build_engine_opts({"tier": "advanced"}, run.id, isolated_db)
 
     assert opts["research_tier"] == "ultra"
+
+
+_REVIEW_CALL = SearchCall(
+    question="Is the receptor expressed in humans?",
+    query="TGF-beta receptor human expression",
+    source="pubmed",
+    status=CallStatus.OK,
+    hits=(
+        SourceHit(
+            locator="55555555",
+            title="Expression atlas",
+            snippet="The receptor is expressed in human lung.",
+            rank=0,
+        ),
+    ),
+    admitted=("55555555",),
+)
+
+
+def _review_ledger() -> dict[str, Any]:
+    """A second research request, from one hypothesis's own review."""
+    return result_to_dict(
+        ResearchResult(
+            goal="reverse fibrosis",
+            stances=(),
+            threads=(
+                ThreadRecord(
+                    question=Question(
+                        text=_REVIEW_CALL.question, stance="seed"
+                    ),
+                    depth=1,
+                    status=ThreadStatus.OK,
+                    call_ids=(_REVIEW_CALL.id,),
+                ),
+            ),
+            calls=(_REVIEW_CALL,),
+            findings=(),
+            stop_reason=StopReason.NO_FOLLOW_UPS,
+            levels_run=1,
+        )
+    )
+
+
+def test_every_researcher_in_a_run_leaves_its_searches_on_record(
+    isolated_db: str,
+) -> None:
+    """Research has two owners, and the state holds one ledger each.
+
+    Under a single-ledger state the second writer replaced the first,
+    so whichever researched last was the only one on record -- and the
+    loss is invisible, because the surviving ledger looks complete.
+    """
+    run = store.create_run("two researchers", "ultra", "engine", {})
+    state = _final_state(researched=True)
+    state["research_ledgers"].append(_review_ledger())
+
+    _persist_and_finalize(run, state, isolated_db)
+
+    calls = store.list_retrieval_calls(run.id, db_path=isolated_db)
+    assert {call["query"] for call in calls} == {
+        "TGF-beta blockade human fibrosis",
+        "TGF-beta receptor human expression",
+    }
+
+
+def test_the_same_search_from_two_researchers_is_one_row(
+    isolated_db: str,
+) -> None:
+    """A call's id is its content, so the store deduplicates for free."""
+    run = store.create_run("same search twice", "ultra", "engine", {})
+    state = _final_state(researched=True)
+    state["research_ledgers"].append(_ledger())
+
+    _persist_and_finalize(run, state, isolated_db)
+
+    assert len(store.list_retrieval_calls(run.id, db_path=isolated_db)) == 1
+
+
+def test_a_reviews_own_paper_resolves_to_the_reviews_own_search(
+    isolated_db: str,
+) -> None:
+    """The reflection half of the path, end to end.
+
+    Its ledger arrives through a different route from the literature
+    review's -- the item result, then the fan-out aggregate -- so the
+    join it makes possible is worth pinning on its own rather than
+    inferred from the review-less case.
+    """
+    run = store.create_run("review provenance", "ultra", "engine", {})
+    state = _final_state(researched=True)
+    state["research_ledgers"].append(_review_ledger())
+    state["articles"].append(
+        {
+            "title": "Expression atlas",
+            "source": "pubmed",
+            "source_id": "55555555",
+            "url": "https://pubmed.ncbi.nlm.nih.gov/55555555/",
+            "abstract": "The receptor is expressed in human lung.",
+            "retrieval_call_id": _REVIEW_CALL.id,
+        }
+    )
+
+    _persist_and_finalize(run, state, isolated_db)
+
+    evidence = store.list_evidence(run.id, db_path=isolated_db)
+    by_title = {row["title"]: row for row in evidence}
+    calls = {
+        call["id"]: call
+        for call in store.list_retrieval_calls(run.id, db_path=isolated_db)
+    }
+    found_by = calls[by_title["Expression atlas"]["retrieval_call_id"]]
+    assert found_by["question"] == "Is the receptor expressed in humans?"
+    assert found_by["query"] == "TGF-beta receptor human expression"

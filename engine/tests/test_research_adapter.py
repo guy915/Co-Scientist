@@ -355,19 +355,20 @@ def test_a_run_with_no_search_source_researches_nothing() -> None:
 
 def test_a_run_that_names_no_tier_researches_nothing() -> None:
     """Silence is not a request; a caller has to ask by name."""
-    assert _resolve_research_tier({}, True, True) == ""
-    assert _resolve_research_tier({"research_tier": ""}, True, True) == ""
+    assert _resolve_research_tier({}, True) == ""
+    assert _resolve_research_tier({"research_tier": ""}, True) == ""
 
 
 def test_research_is_refused_where_there_is_nothing_to_search() -> None:
     """The loop's whole shape is search, read, search again.
 
-    Without MCP, or with the literature review node off, the run has no
-    resolved search sources at all -- so this is refused up front rather
-    than discovered one empty call at a time.
+    Without MCP the run has no reachable source at all -- so this is
+    refused up front rather than discovered one empty call at a time.
+    Note what is *not* a refusal: the literature review node being off.
+    Research has a second owner in the deep reviews, which resolve the
+    run's sources from its tool registry themselves.
     """
-    assert _resolve_research_tier({"research_tier": "ultra"}, False, True) == ""
-    assert _resolve_research_tier({"research_tier": "ultra"}, True, False) == ""
+    assert _resolve_research_tier({"research_tier": "ultra"}, False) == ""
 
 
 def test_the_offline_backend_still_researches() -> None:
@@ -377,7 +378,4 @@ def test_the_offline_backend_still_researches() -> None:
     run exercises the whole path rather than skipping it -- which is what
     makes this testable without a provider key.
     """
-    assert (
-        _resolve_research_tier({"research_tier": "ultra"}, True, True)
-        == "ultra"
-    )
+    assert _resolve_research_tier({"research_tier": "ultra"}, True) == "ultra"

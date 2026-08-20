@@ -47,6 +47,26 @@ def test_apply_task_update_uses_graph_state_reducers() -> None:
     assert merged["metrics"].llm_calls == 2
 
 
+def test_a_second_researcher_does_not_erase_the_first_one() -> None:
+    """The durable path is the only path production runs.
+
+    A reducer annotated on the state but missing from the runtime's own
+    table falls through to last-write-wins in silence -- which is how a
+    run whose literature review and whose reviews both researched would
+    persist one of their ledgers and lose the other's searches.
+    """
+    state = make_state(research_ledgers=[{"goal": "from the review"}])
+
+    merged = apply_task_update(
+        state, {"research_ledgers": [{"goal": "from a hypothesis"}]}
+    )
+
+    assert merged["research_ledgers"] == [
+        {"goal": "from the review"},
+        {"goal": "from a hypothesis"},
+    ]
+
+
 @pytest.mark.parametrize(
     ("completed", "mcp", "decision", "expected"),
     [

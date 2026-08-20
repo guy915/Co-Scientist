@@ -225,7 +225,7 @@ async def test_generation_strategies_are_independently_leased_and_aggregated(
 
 async def _fake_mature_review(
     _state: Any, _hypothesis: Any, mode: Any
-) -> tuple[Any, dict[str, Any]]:
+) -> tuple[Any, dict[str, Any], dict[str, Any] | None]:
     result: dict[str, Any] = {"verdict": f"{mode.value}-complete"}
     if mode.value == "full":
         result["retrieved_articles"] = [
@@ -235,7 +235,9 @@ async def _fake_mature_review(
                 abstract="Targeted review evidence.",
             ).to_dict()
         ]
-    return mode, result
+    # A review that researched nothing, which is every review on a tier
+    # that does not fund it.
+    return mode, result, None
 
 
 async def _fake_observation(**_: Any) -> dict[str, Any]:

@@ -125,6 +125,21 @@ def test_literature_cache_key_covers_tool_contract_and_budget() -> None:
     assert legacy != multi_source
 
 
+def test_a_tier_that_researches_cannot_replay_one_that_did_not() -> None:
+    """The review a deep tier produces is a different review.
+
+    Without the tier in the key, an extended run replays an express
+    run's cached review and gets no research despite paying for the
+    tier, and the reverse imports another tier's ledger.
+    """
+    shallow = make_state(model_name="model-a", research_tier="")
+    deep = make_state(model_name="model-a", research_tier="extended")
+
+    assert lr._literature_cache_params(
+        shallow, lr._get_search_config(shallow)
+    ) != lr._literature_cache_params(deep, lr._get_search_config(deep))
+
+
 def test_format_kg_section_empty_returns_empty_string() -> None:
     """No enrichment sources produces no knowledge-graph section."""
     assert lr_enrichment._format_kg_section_with_keys([], 0) == ""

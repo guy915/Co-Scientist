@@ -367,7 +367,7 @@ class TestProvenance:
             AsyncMock(return_value="it held to 3 sig figs"),
         )
 
-        _, result = await cr._run_review(
+        _, result, _ = await cr._run_review(
             _state(enable_simulation_execution=True),
             make_hypothesis(text="a"),
             ReviewType.SIMULATION,
@@ -389,7 +389,7 @@ class TestProvenance:
             AsyncMock(return_value={"verdict": "breaks_down"}),
         )
 
-        _, result = await cr._run_review(
+        _, result, _ = await cr._run_review(
             _state(), make_hypothesis(text="a"), ReviewType.SIMULATION
         )
 
@@ -404,7 +404,7 @@ class TestProvenance:
             cr, "call_llm_json", AsyncMock(return_value={"verdict": "sound"})
         )
 
-        _, result = await cr._run_review(
+        _, result, _ = await cr._run_review(
             _state(), make_hypothesis(text="a"), ReviewType.FULL
         )
 

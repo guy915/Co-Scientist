@@ -9,9 +9,9 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from co_scientist.agents.reflection import comprehensive_reflection as cr
 from co_scientist.agents.reflection import deep_verification as dv
 from co_scientist.agents.reflection import deep_verification_evidence as dve
+from co_scientist.agents.reflection import review_evidence as ev
 from tests._state import make_article, make_hypothesis, make_state
 
 
@@ -142,13 +142,13 @@ async def test_review_queries_still_formulated_when_corpus_exists(
 ) -> None:
     """MCP down with a corpus still spends a query-generation call."""
     call = AsyncMock(return_value={"queries": ["term one"]})
-    monkeypatch.setattr(cr, "_call_hypothesis_query_llm", call)
+    monkeypatch.setattr(ev, "_call_hypothesis_query_llm", call)
 
     state = make_state(
         articles=[make_article("Paper", abstract="x")],
         mcp_available=False,
     )
-    queries = await cr._hypothesis_search_queries(
+    queries = await ev._hypothesis_search_queries(
         state, make_hypothesis(text="h")
     )
 
@@ -161,10 +161,10 @@ async def test_review_queries_skipped_when_nothing_to_ground_against(
 ) -> None:
     """No MCP and no corpus: a query call would only burn the budget."""
     call = AsyncMock(return_value={"queries": ["term one"]})
-    monkeypatch.setattr(cr, "_call_hypothesis_query_llm", call)
+    monkeypatch.setattr(ev, "_call_hypothesis_query_llm", call)
 
     state = make_state(articles=None, mcp_available=False)
-    queries = await cr._hypothesis_search_queries(
+    queries = await ev._hypothesis_search_queries(
         state, make_hypothesis(text="h")
     )
 

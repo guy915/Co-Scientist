@@ -181,3 +181,75 @@ def test_review_aggregate_without_criteria_keeps_the_default_gate(
     assert (gated, failed) == (1, 0)
     assert hypothesis.review_disposition == "viable"
     assert hypothesis.is_rankable()
+
+
+def test_the_aggregate_carries_each_item_s_research_to_the_run(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An item's own result is discarded once it has been applied.
+
+    The searches a review paid for belong to the run, not to the
+    hypothesis, so the aggregate has to lift them out on the state
+    update -- and the two reviews of one hypothesis share one
+    retrieval, so the same ledger arriving twice is one ledger.
+    """
+    hypothesis = Hypothesis(text="idea")
+    hypothesis.review_disposition = "viable"
+    ledger = {"goal": "reverse fibrosis", "calls": []}
+    _patch_items(
+        monkeypatch,
+        {
+            "item-full": {
+                "hypothesis_id": hypothesis.id,
+                "review_mode": "full",
+                "review": {"verdict": "sound"},
+                "research_ledger": ledger,
+            },
+            "item-simulation": {
+                "hypothesis_id": hypothesis.id,
+                "review_mode": "simulation",
+                "review": {"verdict": "holds"},
+                "research_ledger": dict(ledger),
+            },
+        },
+    )
+
+    items = reflection._apply_mature_reflection_items(
+        {hypothesis.id: hypothesis},
+        ["item-full", "item-simulation"],
+        current_iteration=1,
+        db_path=None,
+    )
+    update = reflection._mature_reflection_update(
+        {"hypotheses": [hypothesis], "articles": []}, items
+    )
+
+    assert update["research_ledgers"] == [ledger]
+
+
+def test_an_unresearched_review_adds_no_ledger(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Most reviews research nothing, and must not write an empty one."""
+    hypothesis = Hypothesis(text="idea")
+    hypothesis.review_disposition = "viable"
+    _patch_items(
+        monkeypatch,
+        {
+            "item-full": {
+                "hypothesis_id": hypothesis.id,
+                "review_mode": "full",
+                "review": {"verdict": "sound"},
+                "research_ledger": None,
+            }
+        },
+    )
+
+    items = reflection._apply_mature_reflection_items(
+        {hypothesis.id: hypothesis},
+        ["item-full"],
+        current_iteration=1,
+        db_path=None,
+    )
+
+    assert items.research_ledgers == []

@@ -363,11 +363,9 @@ async def test_research_reaches_the_result_the_run_persists(
 
     result = await literature_review_node(make_state(research_goal="goal"))
 
-    assert result["research_ledger"] == {
-        "threads": [],
-        "calls": [],
-        "findings": [],
-    }
+    assert result["research_ledgers"] == [
+        {"threads": [], "calls": [], "findings": []}
+    ]
     assert "## Research" in result["articles_with_reasoning"]
     researched = [a for a in result["articles"] if a.source_id == "PMID7"]
     assert len(researched) == 1
@@ -395,5 +393,5 @@ async def test_a_failed_review_stays_failed_however_much_research_found(
 
     assert result["articles_with_reasoning"] == LITERATURE_REVIEW_FAILED
     # The papers and the ledger still survive; only the text is held back.
-    assert result["research_ledger"] is not None
+    assert result["research_ledgers"]
     assert any(a.source_id == "PMID7" for a in result["articles"])

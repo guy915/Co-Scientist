@@ -119,11 +119,7 @@ def _resolve_simulation_execution(
     return True
 
 
-def _resolve_research_tier(
-    opts: dict[str, Any],
-    mcp_available: bool,
-    enable_literature_review_node: bool,
-) -> str:
+def _resolve_research_tier(opts: dict[str, Any], mcp_available: bool) -> str:
     """Decides how much deep research this run may do, if any.
 
     Opt-in and tier-shaped, like tool-calling generation and executed
@@ -134,18 +130,19 @@ def _resolve_research_tier(
     or shallow tier buys nothing, so a caller that says nothing
     researches nothing.
 
-    Two conditions force it off regardless of the request, both because
-    the loop would have nowhere to search: MCP unreachable, or the
-    literature review node disabled (which is where the run's search
-    sources are resolved). The offline backend is *not* one of them --
-    these are ordinary schema-constrained completions, which it answers
-    deterministically, so an offline run still exercises the whole path.
+    One condition forces it off regardless of the request, because the
+    loop would have nowhere to search: MCP unreachable. Whether the
+    literature review *node* runs is deliberately not a condition --
+    research has two owners now, and the reviews resolve the run's
+    search sources from its tool registry themselves, so a run with the
+    review turned off still researches inside its deep reviews. The
+    offline backend is not a condition either: these are ordinary
+    schema-constrained completions, which it answers deterministically,
+    so an offline run still exercises the whole path.
 
     Args:
         opts: Caller-supplied generation options.
         mcp_available: Whether the MCP server is available.
-        enable_literature_review_node: Whether the literature review node
-            will run for this call.
 
     Returns:
         The tier to research at, or "" for no research.
@@ -153,7 +150,7 @@ def _resolve_research_tier(
     requested = opts.get("research_tier")
     if not isinstance(requested, str) or not tier_researches(requested):
         return ""
-    if not mcp_available or not enable_literature_review_node:
+    if not mcp_available:
         logger.warning(
             "research_tier=%s requested but no literature tools are"
             " available - skipping deep research",
