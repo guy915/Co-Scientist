@@ -258,3 +258,50 @@ async def _review_evidence_for(
     if review_type not in {ReviewType.FULL, ReviewType.SIMULATION}:
         return _ReviewEvidence([], [], [])
     return await _shared_review_evidence(state, hypothesis)
+
+
+def researched_articles_for(
+    state: WorkflowState, hypothesis: Hypothesis
+) -> list[Article]:
+    """Return research already gathered for a hypothesis, never starting any.
+
+    This is what makes deep verification a third owner of the research
+    loop *for free*. It runs after comprehensive reflection, on the same
+    run cohort's event loop, over largely the same leaders -- so the
+    gathering it needs has usually already happened and is sitting in
+    the flight cache. Reading it costs nothing.
+
+    What this deliberately will not do is start one. A gathering begun
+    here would be a third per-hypothesis retrieval, multiplying by pool
+    size and iteration exactly like the relevance pass that turned an
+    express run into 299 model calls. So a leader the reviews did not
+    research is verified against its probes alone, as it always was --
+    the assignment adds depth where depth was already bought and adds no
+    spend anywhere.
+
+    Note the seeding needs no new policy either: research is seeded from
+    the assumptions a previous cycle marked uncertain or likely false,
+    and those assumptions are deep verification's own output. The loop
+    it now reads from was already being pointed by it.
+
+    Args:
+        state: Current workflow state.
+        hypothesis: The hypothesis being verified.
+
+    Returns:
+        The articles research found for it, or an empty list when none
+        was gathered, the gathering is still running, or it failed.
+    """
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        return []
+    flight = _review_evidence_flights.get(loop, {}).get(
+        _evidence_key(state, hypothesis)
+    )
+    if flight is None or not flight.done() or flight.cancelled():
+        return []
+    if flight.exception() is not None:
+        return []
+    evidence = flight.result()
+    return list(evidence.articles) if evidence.ledger is not None else []

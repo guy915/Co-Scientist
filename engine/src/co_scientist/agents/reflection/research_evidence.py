@@ -40,7 +40,12 @@ from co_scientist.research import (
     conduct_research,
     result_to_dict,
 )
-from co_scientist.research_adapter import LlmResearchModel, McpRetrieval
+from co_scientist.research_adapter import (
+    LlmResearchModel,
+    McpRetrieval,
+    ResearchRetrieval,
+    local_corpus_for,
+)
 from co_scientist.research_adapter.budget import (
     review_budget_for_tier,
     reviewed_hypothesis_limit,
@@ -123,29 +128,50 @@ async def research_for_review(
 
 async def _prepare(
     state: WorkflowState, hypothesis: Hypothesis
-) -> tuple[McpRetrieval, ResearchBudget] | None:
+) -> tuple[ResearchRetrieval, ResearchBudget] | None:
     """Resolve what this hypothesis may search, and whether it may at all.
+
+    An unreachable search server no longer ends this: a run whose
+    audience carries the group's own papers still has one source, on
+    local disk, and researching one source is the degradation this is
+    supposed to have rather than researching nothing. With neither, the
+    budget is offered no sources and refuses itself.
 
     Returns:
         The retrieval port and its budget, or None when this hypothesis
-        researches nothing. Both gates are checked before any client is
+        researches nothing. Every gate is checked before any client is
         opened, so an unfunded review costs nothing.
     """
     from co_scientist.agents.reflection.deep_verification_evidence import (
         _probe_search_config,
     )
-    from co_scientist.mcp_client import get_mcp_client
 
     tier = str(state.get("research_tier") or "")
-    if not tier or not state.get("mcp_available"):
+    local = local_corpus_for(state)
+    if not tier or (not state.get("mcp_available") and local is None):
         return None
     if hypothesis.id not in _researched_hypothesis_ids(state, tier):
         return None
     config = _probe_search_config(state)
     if config.workflow is None or config.tool_registry is None:
         return None
+    retrieval = ResearchRetrieval(await _remote_for(state, config), local)
+    budget = review_budget_for_tier(tier, retrieval.sources)
+    return None if budget is None else (retrieval, budget)
+
+
+async def _remote_for(state: WorkflowState, config: Any) -> McpRetrieval | None:
+    """Open the MCP half of retrieval, or None when there is no server.
+
+    Kept separate so the client is opened only where one can exist: a
+    corpus-only review must not open an MCP client to prove it cannot.
+    """
+    from co_scientist.mcp_client import get_mcp_client
+
+    if not state.get("mcp_available"):
+        return None
     client = await get_mcp_client(tool_registry=config.tool_registry)
-    retrieval = McpRetrieval(
+    return McpRetrieval(
         client,
         config.tool_registry,
         config.workflow,
@@ -154,8 +180,6 @@ async def _prepare(
             research_goal=config.research_goal,
         ),
     )
-    budget = review_budget_for_tier(tier, retrieval.sources)
-    return None if budget is None else (retrieval, budget)
 
 
 def _researched_hypothesis_ids(state: WorkflowState, tier: str) -> set[str]:

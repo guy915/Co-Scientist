@@ -261,6 +261,7 @@ async def _check_server_available(
     result["retrieval_degradation"] = resolve_retrieval_degradation(
         mcp_available=False,
         private_sources=state.get("context_enrichment_sources"),
+        local_corpus=bool(state.get("local_corpus_dir")),
     )
     return result
 

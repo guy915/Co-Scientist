@@ -38,7 +38,9 @@ green with them in.
 | Provenance written end to end | C | **done** | `app/engine_adapter/drain_research.py` |
 | Owner chosen | C | **decided 2026-08-20** | Generation first, then Reflection on the same adapter |
 | Assigned to Reflection (full + simulation) | C | **done** | `reflection/research_evidence.py`, `review_evidence.py` |
-| Degradation made visible | D | **done 2026-08-20** | `retrieval_degradation.py`; the corpus floor D6 assumed does not exist |
+| Degradation made visible | D | **done 2026-08-20** | `retrieval_degradation.py` |
+| Corpus floor, built for real | D | **done 2026-08-20** | `research_adapter/local_corpus.py`; D6's premise was false and is now true |
+| Deep verification as third owner | D | **done 2026-08-20** | `deep_verification_evidence.with_researched`; reads the reviews' gathering, starts none |
 | Cross-level follow-up dedup | C | **done** | `research/loop.py` |
 | The three metrics | D | **done 2026-08-20** | `claim_support_eval.py`, `citation_usefulness_eval.py`, `retrieval_replay_eval.py`; no credentialed run recorded yet |
 
@@ -415,12 +417,13 @@ the top 3 (extended) or 5 (ultra) viable hypotheses, selected by the canonical
    whatever was retrieved — so today's numbers prove the measurement path and
    not that research improved anything. This is the cheapest open item and the
    only one that answers whether this cycle earned its cost.
-2. **A disk-backed corpus source, if the D6 floor is wanted for real.** The
-   floor D6 assumed does not exist: the corpus is fetched through the same MCP
-   server the availability gate checks. Building a real one helps `sbi_ucd`
-   runs only and must pass the registry's audience reconciliation, or one
-   group's papers leak into another's run.
-3. **Deep verification as a third research owner.** It already decomposes a
-   claim into assumptions, which is most of a seeding policy — but it is a
-   third per-idea cost, and this repo's 299-call incident came from exactly
-   this shape. Cost it on its own or leave it.
+**Both engineering items are now built** (2026-08-20). The corpus floor is
+`research_adapter/local_corpus.py`: the same directory D6 assumed, searched
+from disk with SQLite FTS5 and gated by reading the audience decision the app
+already made rather than restating it. `_resolve_research_tier` therefore no
+longer ends research on an MCP outage alone, and `deep_research` and
+`review_evidence` drop out of the reported `lost` list when a corpus is there.
+Deep verification is the third owner via
+`deep_verification_evidence.with_researched`, which *reads* the gathering the
+reviews already bought and never starts one — so the third per-idea cost the
+299-call incident warns about is zero rather than bounded.

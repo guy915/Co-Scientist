@@ -119,7 +119,43 @@ def _resolve_simulation_execution(
     return True
 
 
-def _resolve_research_tier(opts: dict[str, Any], mcp_available: bool) -> str:
+def _resolve_local_corpus_dir(opts: dict[str, Any], registry: Any) -> str:
+    """Resolve the group's corpus directory for this run, or "" for none.
+
+    Two independent questions, both answered here so no node has to ask
+    either again. *May* this run read the corpus: settled once by the
+    caller, which withholds the corpus tools from every other audience,
+    and read back off the registry rather than restated. *Is there* a
+    corpus: a directory with a catalog in it, which most deployments do
+    not have.
+
+    Args:
+        opts: Caller-supplied generation options, carrying the directory
+            the caller resolved.
+        registry: This run's tool registry, already reconciled against
+            the caller's disabled-tool list.
+
+    Returns:
+        The directory to search, or "" when this run has no corpus or
+        may not read one.
+    """
+    from co_scientist.research_adapter.local_corpus import (
+        corpus_root,
+        corpus_search_permitted,
+    )
+
+    configured = opts.get("local_corpus_dir")
+    if not isinstance(configured, str) or not configured:
+        return ""
+    if not corpus_search_permitted(registry):
+        return ""
+    root = corpus_root(configured)
+    return str(root) if root is not None else ""
+
+
+def _resolve_research_tier(
+    opts: dict[str, Any], mcp_available: bool, local_corpus: bool = False
+) -> str:
     """Decides how much deep research this run may do, if any.
 
     Opt-in and tier-shaped, like tool-calling generation and executed
@@ -131,7 +167,10 @@ def _resolve_research_tier(opts: dict[str, Any], mcp_available: bool) -> str:
     researches nothing.
 
     One condition forces it off regardless of the request, because the
-    loop would have nowhere to search: MCP unreachable. Whether the
+    loop would then have nowhere at all to search: no MCP server *and*
+    no local corpus. Either one on its own is enough to research with --
+    the corpus is on local disk and survives an outage of the search
+    server, which is the whole reason it exists as a source. Whether the
     literature review *node* runs is deliberately not a condition --
     research has two owners now, and the reviews resolve the run's
     search sources from its tool registry themselves, so a run with the
@@ -143,6 +182,7 @@ def _resolve_research_tier(opts: dict[str, Any], mcp_available: bool) -> str:
     Args:
         opts: Caller-supplied generation options.
         mcp_available: Whether the MCP server is available.
+        local_corpus: Whether this run has a local corpus it may search.
 
     Returns:
         The tier to research at, or "" for no research.
@@ -150,7 +190,7 @@ def _resolve_research_tier(opts: dict[str, Any], mcp_available: bool) -> str:
     requested = opts.get("research_tier")
     if not isinstance(requested, str) or not tier_researches(requested):
         return ""
-    if not mcp_available:
+    if not mcp_available and not local_corpus:
         logger.warning(
             "research_tier=%s requested but no literature tools are"
             " available - skipping deep research",

@@ -20,6 +20,9 @@ from co_scientist.agents.reflection.deep_verification_evidence import (
 from co_scientist.agents.reflection.deep_verification_evidence import (
     merge_retrieved_articles as merge_retrieved_articles,
 )
+from co_scientist.agents.reflection.deep_verification_evidence import (
+    with_researched as _with_researched,
+)
 from co_scientist.agents.reflection.evidence_context import (
     PUBLIC_SNIPPET_CHARS,
     EvidenceCaps,
@@ -191,12 +194,19 @@ async def _verify_with_probes(
     context: _VerificationContext,
     evidence_context: str,
 ) -> dict[str, Any]:
-    """Runs the initial verification call, then a targeted probe retry."""
+    """Runs the initial verification call, then a targeted probe retry.
+
+    The probe round searches once from what the first call asked about
+    and stops. Where the reviews already researched this hypothesis,
+    ``with_researched`` adds what they found, so verification answers
+    its own questions against evidence that went back a level.
+    """
     initial = await _call_verification(hypothesis, context, evidence_context)
     queries = _probe_queries(initial)
-    articles, retrieval_errors = await _retrieve_probe_evidence(
+    probed, retrieval_errors = await _retrieve_probe_evidence(
         context.state, queries
     )
+    articles = _with_researched(context.state, hypothesis, probed)
     if not articles:
         initial["retrieval_queries"] = queries
         initial["retrieval_errors"] = retrieval_errors

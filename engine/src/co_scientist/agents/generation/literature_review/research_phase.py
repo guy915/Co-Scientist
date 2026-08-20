@@ -36,7 +36,9 @@ from co_scientist.research import (
 from co_scientist.research_adapter import (
     LlmResearchModel,
     McpRetrieval,
+    ResearchRetrieval,
     budget_for_tier,
+    local_corpus_for,
 )
 from co_scientist.research_adapter.retrieval import ResearchRun
 from co_scientist.state import WorkflowState
@@ -126,7 +128,7 @@ async def run_research_phase(
 
 def _prepare(
     state: WorkflowState, config: SearchConfig, mcp_client: MCPToolClient
-) -> tuple[McpRetrieval, ResearchBudget] | None:
+) -> tuple[ResearchRetrieval, ResearchBudget] | None:
     """Resolve what this run may search and how much of it it may buy.
 
     Returns:
@@ -137,14 +139,17 @@ def _prepare(
     tier = str(state.get("research_tier") or "")
     if not tier or config.workflow is None or config.tool_registry is None:
         return None
-    retrieval = McpRetrieval(
-        mcp_client,
-        config.tool_registry,
-        config.workflow,
-        ResearchRun(
-            run_id=str(state.get("run_id") or ""),
-            research_goal=config.research_goal,
+    retrieval = ResearchRetrieval(
+        McpRetrieval(
+            mcp_client,
+            config.tool_registry,
+            config.workflow,
+            ResearchRun(
+                run_id=str(state.get("run_id") or ""),
+                research_goal=config.research_goal,
+            ),
         ),
+        local_corpus_for(state),
     )
     budget = budget_for_tier(tier, retrieval.sources)
     return None if budget is None else (retrieval, budget)
@@ -193,7 +198,7 @@ def _gaps_in(analysis: object) -> list[str]:
 
 
 def records_from_findings(
-    result: ResearchResult, retrieval: McpRetrieval
+    result: ResearchResult, retrieval: ResearchRetrieval
 ) -> dict[str, dict[str, Any]]:
     """Turn the papers that produced findings into review-shaped records.
 

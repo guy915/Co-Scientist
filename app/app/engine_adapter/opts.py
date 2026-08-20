@@ -284,6 +284,11 @@ def _build_engine_opts(
         initial_opts["lab_constraints"] = lab_constraints
     goal = str((cfg.get("setup") or {}).get("goal") or "")
     _apply_private_sources(initial_opts, run_id, goal, db_path)
+    # Where the group's papers are, not whether this run may read them:
+    # that half is already decided by withholding the corpus tools above,
+    # and the engine reads the same decision off its registry. Passing a
+    # second permission here is how two gates come to disagree.
+    initial_opts["local_corpus_dir"] = str(paper_corpus.corpus_dir())
     return initial_opts
 
 

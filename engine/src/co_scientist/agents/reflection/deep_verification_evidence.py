@@ -19,7 +19,7 @@ from co_scientist.agents.reflection.evidence_context import (
     build_evidence_context,
     showable_articles,
 )
-from co_scientist.models import Article
+from co_scientist.models import Article, Hypothesis
 from co_scientist.state import WorkflowState
 
 if TYPE_CHECKING:
@@ -253,3 +253,45 @@ def _retrieved_evidence_context(articles: list[Article]) -> str:
     return build_evidence_context(
         articles, require_analyzed=False, article_label=RETRIEVED_LABEL
     )
+
+
+def with_researched(
+    state: WorkflowState,
+    hypothesis: Hypothesis,
+    probed: list[Article],
+) -> list[Article]:
+    """Add the research already gathered for this hypothesis, if any.
+
+    This is what makes deep verification the third owner of the research
+    loop. The gathering is not started here and never will be: it runs
+    after comprehensive reflection on the same cohort's loop, so where
+    the reviews bought research for a leader the result is already in
+    hand, and where they did not, this adds nothing and verification is
+    the probe-only one it has always been. A gathering begun here would
+    be a third per-hypothesis retrieval, multiplying by pool size and by
+    iteration -- the shape that turned an express run into 299 calls.
+
+    Deduplicated on ``source_id`` because a probe query and a research
+    question can surface the same paper, and a document repeated in the
+    prompt spends the evidence budget twice to say one thing while
+    reading to the model as two sources agreeing.
+
+    Args:
+        state: Current workflow state.
+        hypothesis: The hypothesis being verified.
+        probed: What this verification's own probe round retrieved.
+
+    Returns:
+        The probe articles, followed by any researched ones they do not
+        already include.
+    """
+    from co_scientist.agents.reflection.review_evidence import (
+        researched_articles_for,
+    )
+
+    known = {article.source_id for article in probed}
+    return probed + [
+        article
+        for article in researched_articles_for(state, hypothesis)
+        if article.source_id not in known
+    ]

@@ -81,6 +81,12 @@ class RunCapabilities:
             research runs under, or "" for none. Resolved upstream (see
             ``run_setup._resolve_research_tier``): opt-in, and refused
             where the run has no literature tools to search with.
+        local_corpus_dir: Where the group's own papers sit for this run,
+            or "" when it has none or may not read them. Resolved
+            upstream (see ``run_setup._resolve_local_corpus_dir``), which
+            is also where the audience decision is read, so a node
+            holding a non-empty value here may search it without asking
+            anything further.
     """
 
     mcp_available: bool = False
@@ -90,6 +96,7 @@ class RunCapabilities:
     dev_test_lit_tools_isolation: bool = False
     dev_mode: bool = False
     research_tier: str = ""
+    local_corpus_dir: str = ""
 
 
 def _initial_runtime_fields() -> dict[str, Any]:
@@ -162,6 +169,7 @@ def _initial_run_identity_fields(
         ),
         "dev_mode": capabilities.dev_mode,
         "research_tier": capabilities.research_tier,
+        "local_corpus_dir": capabilities.local_corpus_dir,
     }
 
 
@@ -238,6 +246,7 @@ def _build_initial_state(
             "retrieval_degradation": resolve_retrieval_degradation(
                 mcp_available=bool(capabilities.mcp_available),
                 private_sources=opts.get("context_enrichment_sources"),
+                local_corpus=bool(capabilities.local_corpus_dir),
             ),
         },
     )
