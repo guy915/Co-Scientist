@@ -10,6 +10,7 @@ import logging
 from typing import Any, Final
 
 from co_scientist.constants import THINKING_FLOOR_MAX_TOKENS
+from co_scientist.constants_pricing import MODEL_PRICING
 
 logger = logging.getLogger(__name__)
 
@@ -45,6 +46,22 @@ _REASONING_PARAM_ROUTES: tuple[str, ...] = ("openrouter/",)
 _REASONING_EFFORT: Final[str] = "high"
 
 
+# How far above a model's listed rate a routed call may land. A gateway
+# spreads one model across hosts an order of magnitude apart in price as
+# well as speed -- seventeen for `deepseek-v4-flash`, from $0.068 to $0.44
+# per million input tokens -- and ``sort`` below picks on throughput,
+# which does not consider price at all. Without a ceiling a call can be
+# billed at five times what ``constants_pricing`` estimates, so the run
+# cost this project reports is not an upper bound on anything.
+#
+# Two is deliberately loose. It keeps thirteen of the seventeen hosts
+# eligible, so throughput routing still has a real field to choose from
+# and losing a host is not an outage, while excluding the tail that costs
+# 2.7x to 8x the listed rate. A cap tight enough to force the single
+# cheapest host would make every price move a hard 404 on every call.
+_MAX_PRICE_MULTIPLE: Final[float] = 2.0
+
+
 # How a gateway route is addressed, beyond the reasoning knob itself.
 # ``require_parameters`` is part of the same concern rather than a separate
 # tuning: it restricts routing to hosts that actually accept every
@@ -67,6 +84,29 @@ def _is_gateway_route(model_name: str) -> bool:
     """Whether this route is served through a model gateway."""
     lowered = model_name.lower()
     return any(lowered.startswith(r) for r in _REASONING_PARAM_ROUTES)
+
+
+def _gateway_provider(model_name: str) -> dict[str, Any]:
+    """Return the routing block for a gateway call, price-capped.
+
+    Args:
+        model_name: Model name in litellm format, already lowercased.
+
+    Returns:
+        ``_GATEWAY_PROVIDER`` plus a ``max_price`` ceiling derived from
+        the model's listed rate. The ceiling is omitted for a model absent
+        from ``MODEL_PRICING``: an unpriced model has no rate to be a
+        multiple of, and capping it at zero would refuse every host.
+    """
+    provider = dict(_GATEWAY_PROVIDER)
+    price = MODEL_PRICING.get(model_name)
+    if price is None or not price.prompt_usd_per_million:
+        return provider
+    provider["max_price"] = {
+        "prompt": price.prompt_usd_per_million * _MAX_PRICE_MULTIPLE,
+        "completion": (price.completion_usd_per_million * _MAX_PRICE_MULTIPLE),
+    }
+    return provider
 
 
 def deepseek_thinking_extra_body(
@@ -112,7 +152,7 @@ def deepseek_thinking_extra_body(
     reasoning: dict[str, Any] = {"enabled": enabled}
     if enabled:
         reasoning["effort"] = _REASONING_EFFORT
-    return {"reasoning": reasoning, "provider": dict(_GATEWAY_PROVIDER)}
+    return {"reasoning": reasoning, "provider": _gateway_provider(lowered)}
 
 
 def reasoning_effort_args(

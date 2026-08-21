@@ -33,11 +33,20 @@ class TokenUsage:
         completion_tokens: Completion (output) tokens the provider billed.
         reasoning_tokens: Reasoning tokens billed separately from
             ``completion_tokens``, when the provider reports them.
+        cached_prompt_tokens: The share of ``prompt_tokens`` the provider
+            served from a prompt cache and bills at its cache-read rate --
+            roughly a fifth of the input rate across DeepSeek's hosts. Not
+            a separate charge on top of ``prompt_tokens``: it is a cheaper
+            slice of the same number, so a cost estimate must subtract it
+            before applying the full input rate. Zero from any provider
+            that does not report the field, which prices the call exactly
+            as it did before this existed.
     """
 
     prompt_tokens: int = 0
     completion_tokens: int = 0
     reasoning_tokens: int = 0
+    cached_prompt_tokens: int = 0
 
 
 def extract_token_usage(response: Any) -> TokenUsage:
@@ -59,10 +68,13 @@ def extract_token_usage(response: Any) -> TokenUsage:
     completion_tokens = getattr(usage, "completion_tokens", None) or 0
     details = getattr(usage, "completion_tokens_details", None)
     reasoning_tokens = getattr(details, "reasoning_tokens", None) or 0
+    prompt_details = getattr(usage, "prompt_tokens_details", None)
+    cached = getattr(prompt_details, "cached_tokens", None) or 0
     return TokenUsage(
         prompt_tokens=prompt_tokens,
         completion_tokens=completion_tokens,
         reasoning_tokens=reasoning_tokens,
+        cached_prompt_tokens=min(cached, prompt_tokens),
     )
 
 

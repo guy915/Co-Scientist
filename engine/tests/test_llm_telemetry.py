@@ -7,11 +7,15 @@ the real code path end to end. These tests pin the accumulator's own
 aggregation and scoping contract in isolation.
 """
 
+from types import SimpleNamespace
+
+from co_scientist.constants_pricing import estimate_cost_usd
 from co_scientist.llm_telemetry import (
     ModelCallStats,
     TelemetryAccumulator,
     record_cache_result,
     record_call,
+    record_completion_response,
     record_retry,
     scoped_telemetry,
 )
@@ -34,6 +38,7 @@ def test_scoped_telemetry_records_under_its_phase() -> None:
             "prompt_tokens": 10,
             "completion_tokens": 0,
             "reasoning_tokens": 0,
+            "cached_prompt_tokens": 0,
             "cost_usd": 0.0,
             "latency_seconds": 0.0,
             "retries": 0,
@@ -114,3 +119,32 @@ def test_record_retry_and_cache_result_helpers() -> None:
 def test_telemetry_accumulator_starts_empty() -> None:
     """A fresh accumulator's snapshot is an empty dict."""
     assert TelemetryAccumulator().snapshot() == {}
+
+
+def test_the_cached_share_of_a_prompt_reaches_telemetry() -> None:
+    """A run cannot be costed from counters that never see the cache.
+
+    ``cache_hits`` counts this engine's own response cache, so a call that
+    reached the provider and was served almost entirely from *its* prompt
+    cache reads as a plain miss. That is the normal case for a tool loop,
+    and without this field the run's reported cost prices every re-sent
+    transcript at the full input rate.
+    """
+    model = "openrouter/deepseek/deepseek-v4-flash"
+    response = SimpleNamespace(
+        usage=SimpleNamespace(
+            prompt_tokens=10_000,
+            completion_tokens=100,
+            completion_tokens_details=SimpleNamespace(reasoning_tokens=0),
+            prompt_tokens_details=SimpleNamespace(cached_tokens=9_500),
+        )
+    )
+
+    with scoped_telemetry("generate") as accumulator:
+        record_completion_response(model, response, latency_seconds=0.0)
+
+    stats = accumulator.snapshot()[f"generate::{model}"]
+    assert stats["prompt_tokens"] == 10_000
+    assert stats["cached_prompt_tokens"] == 9_500
+    assert stats["cache_hits"] == 0
+    assert stats["cost_usd"] < estimate_cost_usd(model, 10_000, 100)

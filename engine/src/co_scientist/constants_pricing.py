@@ -21,10 +21,18 @@ class ModelPrice:
             tokens. Reasoning tokens are billed at this same rate: most
             providers do not price them separately, and this table has no
             third rate to place them under.
+        cached_prompt_usd_per_million: Cost per million prompt tokens the
+            provider served from its prompt cache. Zero means *not
+            measured for this model*, not free: ``estimate_cost_usd`` then
+            prices every prompt token at the full input rate, which is
+            what this table did before caching was read at all. Set it
+            only for a model whose cache-read rate has been checked
+            against the provider's own quote.
     """
 
     prompt_usd_per_million: float = 0.0
     completion_usd_per_million: float = 0.0
+    cached_prompt_usd_per_million: float = 0.0
 
 
 # Published list prices, in USD per million tokens, verified against each
@@ -44,10 +52,16 @@ class ModelPrice:
 #   higher one is listed and an off-peak run simply comes in under
 #   estimate. The previous entries were neither rate -- they predated the
 #   V4 price rise and understated output by more than half.
-# * **Cache-miss input everywhere.** Providers that cache prompts bill a
-#   repeated prefix at a small fraction of the input rate (DeepSeek at
-#   roughly 3%), and ``extract_token_usage`` does not report the cached
-#   share, so there is nothing here to apply a second rate to.
+# * **Cache-miss input for any model without a measured cache rate.**
+#   ``extract_token_usage`` now reads the cached share of each prompt, so
+#   a model carrying ``cached_prompt_usd_per_million`` prices that share
+#   at the cheaper rate. A model without one keeps pricing every prompt
+#   token at the full input rate, which over-states rather than flatters.
+#   Measured on ``deepseek-v4-flash`` through OpenRouter: an 11k-token
+#   prefix re-sent cost $0.00090 cold and $0.00020 once cached, and a
+#   concurrent fan-out of eight re-sending the same prefix reported 95%
+#   of its prompt tokens cached -- so the un-cached estimate this table
+#   produced was several times the real bill on any tool loop.
 MODEL_PRICING: Final[dict[str, ModelPrice]] = {
     "deepseek/deepseek-v4-flash": ModelPrice(0.44, 1.32),
     "deepseek/deepseek-v4-pro": ModelPrice(1.32, 3.96),
@@ -58,15 +72,19 @@ MODEL_PRICING: Final[dict[str, ModelPrice]] = {
     "gemini/gemini-2.5-pro": ModelPrice(1.25, 10.00),
     "gemini/gemini-3.1-flash-lite": ModelPrice(0.25, 1.50),
     # The same DeepSeek weights reached through OpenRouter, which routes
-    # to whichever host is cheapest rather than to DeepSeek's own API.
+    # across seventeen hosts spanning 6.5x on input and 7.9x on output.
+    # Which one a call lands on is a routing decision, not a property of
+    # the model (see ``llm_thinking._GATEWAY_PROVIDER``), so these are the
+    # rates a price-capped route can actually be held to rather than an
+    # average over hosts the cap excludes.
     # Listed separately because they are a different bill, not a different
     # model: the worker tier costs roughly a fifth of first-party peak.
     # Rates move as hosts come and go -- these were OpenRouter's quoted
     # prices in August 2026, and OpenRouter reports the exact cost of each
     # call in its own dashboard, which is the billing record this only
     # estimates.
-    "openrouter/deepseek/deepseek-v4-flash": ModelPrice(0.083, 0.165),
-    "openrouter/deepseek/deepseek-v4-pro": ModelPrice(1.60, 3.20),
+    "openrouter/deepseek/deepseek-v4-flash": ModelPrice(0.083, 0.165, 0.017),
+    "openrouter/deepseek/deepseek-v4-pro": ModelPrice(1.60, 3.20, 0.13),
     "openai/gpt-4o": ModelPrice(2.50, 10.00),
     "openai/gpt-4o-mini": ModelPrice(0.15, 0.60),
     "anthropic/claude-sonnet-4-5": ModelPrice(3.00, 15.00),
@@ -74,7 +92,10 @@ MODEL_PRICING: Final[dict[str, ModelPrice]] = {
 
 
 def estimate_cost_usd(
-    model_name: str, prompt_tokens: int, completion_tokens: int
+    model_name: str,
+    prompt_tokens: int,
+    completion_tokens: int,
+    cached_prompt_tokens: int = 0,
 ) -> float:
     """Estimates one call's USD cost from its token counts.
 
@@ -83,6 +104,11 @@ def estimate_cost_usd(
         prompt_tokens: Prompt (input) tokens billed for the call.
         completion_tokens: Completion (output) tokens billed for the call,
             including any reasoning tokens the provider bills alongside it.
+        cached_prompt_tokens: The share of ``prompt_tokens`` served from
+            the provider's prompt cache. Priced at the model's cache-read
+            rate and the remainder at the full input rate. Ignored for a
+            model whose cache rate is unlisted, so an unmeasured model
+            keeps costing exactly what it did before.
 
     Returns:
         The estimated cost in USD, or 0.0 for a model absent from
@@ -92,7 +118,11 @@ def estimate_cost_usd(
     price = MODEL_PRICING.get(model_name)
     if price is None:
         return 0.0
+    cached = 0
+    if price.cached_prompt_usd_per_million:
+        cached = max(0, min(cached_prompt_tokens, prompt_tokens))
     return (
-        prompt_tokens / 1_000_000 * price.prompt_usd_per_million
+        (prompt_tokens - cached) / 1_000_000 * price.prompt_usd_per_million
+        + cached / 1_000_000 * price.cached_prompt_usd_per_million
         + completion_tokens / 1_000_000 * price.completion_usd_per_million
     )

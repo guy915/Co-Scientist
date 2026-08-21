@@ -52,6 +52,13 @@ class ModelCallStats:
         prompt_tokens: Prompt tokens billed across those calls.
         completion_tokens: Completion tokens billed across those calls.
         reasoning_tokens: Reasoning tokens billed separately, when reported.
+        cached_prompt_tokens: The share of ``prompt_tokens`` the provider
+            served from its prompt cache and billed at its cache-read
+            rate. A slice of ``prompt_tokens``, never an addition to it.
+            Distinct from ``cache_hits``, which counts this engine's own
+            response cache: a call can miss ours and still be almost
+            entirely cached at the provider, which is the normal case for
+            a tool loop re-sending its transcript.
         cost_usd: Estimated cost in USD (see ``constants_pricing``).
         latency_seconds: Wall-clock time spent in the physical calls.
         retries: ``call_llm_json`` schema-repair retries, distinct from
@@ -66,6 +73,7 @@ class ModelCallStats:
     prompt_tokens: int = 0
     completion_tokens: int = 0
     reasoning_tokens: int = 0
+    cached_prompt_tokens: int = 0
     cost_usd: float = 0.0
     latency_seconds: float = 0.0
     retries: int = 0
@@ -88,6 +96,7 @@ def _add_stats(a: ModelCallStats, b: ModelCallStats) -> ModelCallStats:
         prompt_tokens=a.prompt_tokens + b.prompt_tokens,
         completion_tokens=a.completion_tokens + b.completion_tokens,
         reasoning_tokens=a.reasoning_tokens + b.reasoning_tokens,
+        cached_prompt_tokens=(a.cached_prompt_tokens + b.cached_prompt_tokens),
         cost_usd=a.cost_usd + b.cost_usd,
         latency_seconds=a.latency_seconds + b.latency_seconds,
         retries=a.retries + b.retries,
@@ -186,7 +195,10 @@ def record_completion_response(
     """
     usage = extract_token_usage(response)
     cost = estimate_cost_usd(
-        model_name, usage.prompt_tokens, usage.completion_tokens
+        model_name,
+        usage.prompt_tokens,
+        usage.completion_tokens,
+        usage.cached_prompt_tokens,
     )
     record_call(
         model_name,
@@ -195,6 +207,7 @@ def record_completion_response(
             prompt_tokens=usage.prompt_tokens,
             completion_tokens=usage.completion_tokens,
             reasoning_tokens=usage.reasoning_tokens,
+            cached_prompt_tokens=usage.cached_prompt_tokens,
             cost_usd=cost,
             latency_seconds=latency_seconds,
         ),
