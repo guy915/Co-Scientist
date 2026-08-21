@@ -261,7 +261,11 @@ Settled while building the second owner:
   researches once per hypothesis, so cost is a product. Both factors are
   capped: `review_budget_for_tier` (4 threads on extended, 5 on ultra) and
   `reviewed_hypothesis_limit` (the 3 or 5 best-ranked by Elo). Ceiling per
-  run: 12 threads on extended, 25 on ultra, against Generation's 6 and 11.
+  cycle: 12 threads on extended, 25 on ultra, against Generation's 6 and 11
+  per run. Measured 2026-08-21 on a live 3-iteration extended run: 9 review
+  gatherings, 28 review threads, 41 questions and 102 searches in total --
+  so the review ceiling is per cycle and scales with `max_iterations`,
+  which the earlier "per run" phrasing understated.
 - **Selection is computed, not passed.** The funded set is derived from the
   whole pool inside the module, so the in-process node and a durable
   per-hypothesis task — which never sees the batch — choose identically.

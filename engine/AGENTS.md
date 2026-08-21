@@ -126,8 +126,13 @@ so the in-process node and a per-hypothesis durable task choose identically).
 Note *which* half of that key decides: this node runs before ranking, so on the
 first cycle -- where every hypothesis gets its one full review -- every Elo is
 still the default and the tie breaks on the initial review's score, written by
-the node immediately upstream. The product of the two caps is a per-run
-ceiling of 12 threads on extended and 25 on ultra, and that quote depends on
+the node immediately upstream. The product of the two caps is a per-*cycle*
+ceiling of 12 threads on extended and 25 on ultra -- **not per run**: comprehensive
+reflection runs once per cycle over a fresh top-3, and evolution rewriting a
+hypothesis makes it need its full review, and so its research, again. A live
+extended run (3 iterations) bought 9 gatherings and 28 review threads against the
+12 this was previously quoted as bounding, so multiply by `max_iterations` for a
+run-level number. That quote also depends on
 the two review modes sharing one gathering per hypothesis: they are separate
 leased tasks, and it is the run cohort executing them on one thread's loop
 that lets the second reuse the first's in-flight retrieval. A lease lost

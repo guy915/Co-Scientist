@@ -97,10 +97,22 @@ _REVIEW_CEILINGS: dict[str, tuple[int, int, int]] = {
 }
 
 # How many of a run's hypotheses a tier researches during review, best
-# ranked first. The other factor in the product, and the reason a run's
-# total is quotable: at most this many times the budget's own thread
-# ceiling -- 3 x 4 = 12 threads on extended, 5 x 5 = 25 on ultra. The
-# breadth floor is why a level never halves to one: 2 + 2 and 3 + 2.
+# ranked first. The other factor in the product: at most this many times
+# the budget's own thread ceiling -- 3 x 4 = 12 threads on extended,
+# 5 x 5 = 25 on ultra. The breadth floor is why a level never halves to
+# one: 2 + 2 and 3 + 2.
+#
+# **That ceiling is per cycle, not per run**, and the difference was
+# measured rather than reasoned: one live extended run bought 9 review
+# gatherings and 28 threads against the 12 this table was being quoted
+# as bounding. Comprehensive reflection runs once per cycle, and each
+# cycle has a fresh top-3 -- evolution rewrites hypotheses, and a
+# rewritten one needs its full review again. So a run's real ceiling is
+# this product times `max_iterations`, and a quote that omits the
+# iteration factor understates by exactly that. Two independently
+# reasonable caps whose product is larger than either suggests is the
+# shape of this repo's 299-call incident; the fix here is an honest
+# quote, since the spend itself is bounded and small.
 _REVIEW_HYPOTHESES: dict[str, int] = {
     "extended": 3,
     "ultra": 5,
