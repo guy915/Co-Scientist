@@ -10,6 +10,8 @@ import dataclasses
 from dataclasses import dataclass, field
 from typing import Any
 
+from co_scientist.llm_telemetry import ModelCallStats
+
 
 def _known_field_kwargs(cls: Any, data: dict[str, Any]) -> dict[str, Any]:
     """Return the items of ``data`` whose keys are fields of ``cls``.
@@ -107,17 +109,15 @@ def _merge_usage_entry(
     Every field a ``ModelCallStats.as_dict()`` entry carries is additive
     (see that dataclass), so this is a plain field-by-field sum with the
     "errors" sub-dict merged by ``_merge_error_counts``.
+
+    The field list is read off ``ModelCallStats`` rather than restated
+    here. A hand-written list is a second place to remember, and the one
+    that gets forgotten: fan-out is how the most expensive phase in a run
+    aggregates, so a field missing from the list is not partially counted
+    but silently zeroed for exactly the phase whose cost matters most.
     """
-    numeric_fields = (
-        "calls",
-        "prompt_tokens",
-        "completion_tokens",
-        "reasoning_tokens",
-        "cost_usd",
-        "latency_seconds",
-        "retries",
-        "cache_hits",
-        "cache_misses",
+    numeric_fields = tuple(
+        f.name for f in dataclasses.fields(ModelCallStats) if f.name != "errors"
     )
     merged = {
         field_name: existing_entry.get(field_name, 0)

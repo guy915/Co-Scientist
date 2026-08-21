@@ -148,3 +148,27 @@ def test_the_cached_share_of_a_prompt_reaches_telemetry() -> None:
     assert stats["cached_prompt_tokens"] == 9_500
     assert stats["cache_hits"] == 0
     assert stats["cost_usd"] < estimate_cost_usd(model, 10_000, 100)
+
+
+def test_merging_fan_out_usage_keeps_every_field_stats_carries() -> None:
+    """A field the merge forgets is zeroed, not partially counted.
+
+    Fan-out is how the most expensive phase in a run aggregates its
+    per-item telemetry, so a numeric field missing from the merge is
+    silently dropped for exactly the phase whose cost matters most. The
+    merge therefore reads its field list off ``ModelCallStats``; this
+    fails if the two ever drift apart again.
+    """
+    import dataclasses
+
+    from co_scientist.models_metrics import _merge_usage_entry
+
+    numeric = {
+        f.name: 2
+        for f in dataclasses.fields(ModelCallStats)
+        if f.name != "errors"
+    }
+    merged = _merge_usage_entry({**numeric, "errors": {}}, {**numeric})
+
+    for name in numeric:
+        assert merged[name] == 4, f"{name} was dropped by the merge"
