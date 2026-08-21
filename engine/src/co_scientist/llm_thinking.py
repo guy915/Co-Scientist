@@ -28,6 +28,28 @@ logger = logging.getLogger(__name__)
 # trusted for these providers.
 _JSON_OBJECT_ONLY_MODEL_FAMILIES: tuple[str, ...] = ("deepseek",)
 
+# Routes that normalize reasoning control into their own parameter rather
+# than forwarding the provider's. A gateway serves many models through one
+# schema, so it cannot honour each provider's native knob, and the failure
+# is silent in the worst direction: sending DeepSeek's ``thinking`` object
+# through OpenRouter does not disable thinking, it *enables* it. Measured
+# on `openrouter/deepseek/deepseek-v4-flash` -- a max_tokens=24 call
+# carrying ``{"thinking": {"type": "disabled"}}` spent all 24 tokens on
+# reasoning and returned empty content, which is exactly the budget-
+# exhaustion shape documented in AGENTS.md, arriving from a parameter that
+# was asking for the opposite.
+_REASONING_PARAM_ROUTES: tuple[str, ...] = ("openrouter/",)
+
+# The tier requested when thinking is on. DeepSeek implements only `high`
+# and `max`, so this is the floor rather than a high setting.
+_REASONING_EFFORT: Final[str] = "high"
+
+
+def _uses_reasoning_param(model_name: str) -> bool:
+    """Whether this route expects a gateway ``reasoning`` object."""
+    lowered = model_name.lower()
+    return any(lowered.startswith(r) for r in _REASONING_PARAM_ROUTES)
+
 
 def deepseek_thinking_extra_body(
     model_name: str, *, enabled: bool = True
@@ -58,13 +80,19 @@ def deepseek_thinking_extra_body(
             default is enabled.
 
     Returns:
-        ``{"thinking": {"type": "enabled"|"disabled"}}`` for DeepSeek models,
-        else ``{}``.
+        The knob this model's route understands -- DeepSeek's native
+        ``thinking`` object, or a gateway's ``reasoning`` object where the
+        route normalizes it (see ``_REASONING_PARAM_ROUTES``) -- and ``{}``
+        for a model with no thinking mode.
     """
     lowered = model_name.lower()
-    if any(family in lowered for family in _JSON_OBJECT_ONLY_MODEL_FAMILIES):
+    if not any(f in lowered for f in _JSON_OBJECT_ONLY_MODEL_FAMILIES):
+        return {}
+    if not _uses_reasoning_param(lowered):
         return {"thinking": {"type": "enabled" if enabled else "disabled"}}
-    return {}
+    if not enabled:
+        return {"reasoning": {"enabled": False}}
+    return {"reasoning": {"enabled": True, "effort": _REASONING_EFFORT}}
 
 
 def reasoning_effort_args(

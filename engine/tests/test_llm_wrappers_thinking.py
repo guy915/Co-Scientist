@@ -196,3 +196,52 @@ async def test_ranking_matchup_thinks(
 
     assert seen["extra_body"] == {"thinking": {"type": "enabled"}}
     assert seen["reasoning_effort"] == "high"
+
+
+# --- Gateway routes ----------------------------------------------------------
+
+
+def test_a_gateway_route_gets_its_own_reasoning_parameter() -> None:
+    """A gateway normalizes reasoning; the provider's own knob is not it.
+
+    Measured against `openrouter/deepseek/deepseek-v4-flash`: a call
+    carrying DeepSeek's ``{"thinking": {"type": "disabled"}}`` came back
+    with the whole budget spent on reasoning and empty content -- the
+    parameter asking for thinking off is read as asking for it on. That
+    fails in the shape AGENTS.md records for an exhausted budget, so it
+    reads as a token-budget defect rather than as a wrong parameter, and
+    the first casualty is title generation, whose 24-token budget a
+    chain of thought consumes entirely.
+    """
+    from co_scientist.llm_request import deepseek_thinking_extra_body
+
+    routed = "openrouter/deepseek/deepseek-v4-flash"
+
+    assert deepseek_thinking_extra_body(routed, enabled=False) == {
+        "reasoning": {"enabled": False}
+    }
+    assert deepseek_thinking_extra_body(routed, enabled=True) == {
+        "reasoning": {"enabled": True, "effort": "high"}
+    }
+
+
+def test_the_direct_route_still_speaks_deepseek() -> None:
+    """Adding a gateway must not change what the first-party call sends."""
+    from co_scientist.llm_request import deepseek_thinking_extra_body
+
+    direct = "deepseek/deepseek-v4-flash"
+
+    assert deepseek_thinking_extra_body(direct, enabled=True) == {
+        "thinking": {"type": "enabled"}
+    }
+    assert deepseek_thinking_extra_body(direct, enabled=False) == {
+        "thinking": {"type": "disabled"}
+    }
+
+
+def test_a_model_without_thinking_is_untouched_on_either_route() -> None:
+    """The route decides the shape, never whether there is one at all."""
+    from co_scientist.llm_request import deepseek_thinking_extra_body
+
+    assert deepseek_thinking_extra_body("gemini/gemini-2.5-flash") == {}
+    assert deepseek_thinking_extra_body("openrouter/openai/gpt-4o") == {}

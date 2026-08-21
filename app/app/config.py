@@ -3,6 +3,9 @@
 import os
 from typing import Any
 
+from co_scientist.llm_request import (
+    deepseek_thinking_extra_body as _thinking_body,
+)
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -376,12 +379,14 @@ def deepseek_non_thinking_extra_body(model_name: str) -> dict[str, Any]:
         model_name: Model name in litellm format.
 
     Returns:
-        ``{"thinking": {"type": "disabled"}}`` for DeepSeek models, else
-        ``{}``.
+        The disable knob this model's route understands, or ``{}`` for a
+        model with no thinking mode. The engine picks the shape: a gateway
+        normalizes reasoning into its own parameter, and DeepSeek's native
+        one sent through OpenRouter enables thinking instead of disabling.
     """
-    if not _is_deepseek(model_name):
-        return {}
-    return {"thinking": {"type": "disabled"}}
+    # Annotated because this project's mypy treats engine symbols as Any.
+    knob: dict[str, Any] = _thinking_body(model_name, enabled=False)
+    return knob
 
 
 def deepseek_thinking_kwargs(model_name: str) -> dict[str, Any]:
@@ -412,15 +417,13 @@ def deepseek_thinking_kwargs(model_name: str) -> dict[str, Any]:
         model_name: Model name in litellm format.
 
     Returns:
-        ``{"extra_body": {"thinking": {"type": "enabled"}}, "reasoning_effort":
-        "high"}`` for DeepSeek models, else ``{}``.
+        ``extra_body`` in the shape this model's route understands, plus
+        the reasoning tier; ``{}`` for a model with no thinking mode.
     """
-    if not _is_deepseek(model_name):
+    extra_body = _thinking_body(model_name, enabled=True)
+    if not extra_body:
         return {}
-    return {
-        "extra_body": {"thinking": {"type": "enabled"}},
-        "reasoning_effort": "high",
-    }
+    return {"extra_body": extra_body, "reasoning_effort": "high"}
 
 
 THINKING_FLOOR_MAX_TOKENS = 18_000

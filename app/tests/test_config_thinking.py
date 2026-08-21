@@ -128,3 +128,34 @@ def test_thinking_timeout_floor_admits_the_token_floor() -> None:
         THINKING_FLOOR_MAX_TOKENS / pessimistic_tokens_per_second
         <= THINKING_FLOOR_TIMEOUT_SECONDS
     )
+
+
+def test_the_thinking_knob_is_the_engine_s_to_choose() -> None:
+    """One place decides how a route expresses thinking, not two.
+
+    The app and the engine both send thinking parameters, and the shape
+    depends on the route rather than on the model: a gateway normalizes
+    reasoning into its own parameter and ignores DeepSeek's. Two copies
+    of that rule is one more thing to keep in step, and the copy that
+    gets forgotten sends a disable that reads as an enable -- which
+    costs a whole token budget and returns nothing.
+    """
+    from app.config import (
+        deepseek_non_thinking_extra_body,
+        deepseek_thinking_kwargs,
+    )
+
+    routed = "openrouter/deepseek/deepseek-v4-flash"
+    direct = "deepseek/deepseek-v4-flash"
+
+    assert deepseek_non_thinking_extra_body(routed) == {
+        "reasoning": {"enabled": False}
+    }
+    assert deepseek_non_thinking_extra_body(direct) == {
+        "thinking": {"type": "disabled"}
+    }
+    assert deepseek_thinking_kwargs(routed)["extra_body"] == {
+        "reasoning": {"enabled": True, "effort": "high"}
+    }
+    assert deepseek_non_thinking_extra_body("gemini/gemini-2.5-flash") == {}
+    assert deepseek_thinking_kwargs("gemini/gemini-2.5-flash") == {}
