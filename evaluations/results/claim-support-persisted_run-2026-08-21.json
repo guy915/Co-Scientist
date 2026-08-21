@@ -1,17 +1,18 @@
 {
   "mode": "persisted_run",
+  "offline_disclaimer": null,
   "run_id": "8eb10fb2-626e-45d7-8cc1-a688fa792fb6",
-  "calls": 78,
-  "id_reproduction": 1.0,
-  "result_set_completeness": 1.0,
-  "evidence_rows": 98,
-  "evidence_with_provenance": 15,
-  "evidence_resolution": 1.0,
+  "ideas": 28,
+  "ideas_with_assessed_claims": 11,
+  "claims_assessed": 139,
+  "claims_supported": 18,
+  "unsupported_claim_rate": 0.8705,
+  "unverified_idea_rate": 0.1818,
   "provenance": {
     "source": {
       "git_commit": "f15c75efe65a85319d5794d6ccd606594e3339c1",
       "git_branch": "main",
-      "git_dirty": true
+      "git_dirty": false
     },
     "environment": {
       "python_version": "3.12.12",
@@ -25,6 +26,6 @@
     "model": null,
     "seed": null,
     "cost": null,
-    "captured_at": "2026-08-21T18:15:53"
+    "captured_at": "2026-08-21T18:15:52"
   }
 }
