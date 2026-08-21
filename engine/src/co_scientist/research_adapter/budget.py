@@ -139,24 +139,38 @@ _REVIEW_CEILINGS: dict[str, tuple[int, int, int]] = {
 
 # How many of a run's hypotheses a tier researches during review, best
 # ranked first. The other factor in the product: at most this many times
-# the budget's own thread ceiling -- 3 x 4 = 12 threads on extended,
-# 5 x 5 = 25 on ultra. The breadth floor is why a level never halves to
+# the budget's own thread ceiling -- 5 x 4 = 20 threads on extended,
+# 8 x 5 = 40 on ultra. The breadth floor is why a level never halves to
 # one: 2 + 2 and 3 + 2.
 #
 # **That ceiling is per cycle, not per run**, and the difference was
 # measured rather than reasoned: one live extended run bought 9 review
-# gatherings and 28 threads against the 12 this table was being quoted
+# gatherings and 20 threads against the 12 this table was being quoted
 # as bounding. Comprehensive reflection runs once per cycle, and each
-# cycle has a fresh top-3 -- evolution rewrites hypotheses, and a
+# cycle has a fresh top-N -- evolution rewrites hypotheses, and a
 # rewritten one needs its full review again. So a run's real ceiling is
 # this product times `max_iterations`, and a quote that omits the
 # iteration factor understates by exactly that. Two independently
 # reasonable caps whose product is larger than either suggests is the
 # shape of this repo's 299-call incident; the fix here is an honest
 # quote, since the spend itself is bounded and small.
+#
+# Raised from 3/5 on 2026-08-21, from the same run's numbers. It
+# produced 28 hypotheses and funded 9 distinct ones across three cycles
+# -- under a third of the pool, and the rest carried the single
+# retrieval round their reviews do on their own, which is the gap
+# `REFLECT-TYPES-001` recorded. At 5 and 8 that run funds roughly half.
+# The measured price of one gathering there was ~2.2 threads, so the
+# increase buys about 13 more threads over a three-cycle extended run:
+# a few cents against a $1.60 bill. The caveat is not the threads. Every
+# funded hypothesis adds papers to the shared evidence the full and
+# simulation reviews both read, and `comprehensive_reflection` is
+# already 76% of a run's input tokens because its tool loop re-sends its
+# transcript each turn -- so this multiplies the phase that most needs
+# the resend fixed. Reverting is one edit to these two numbers.
 _REVIEW_HYPOTHESES: dict[str, int] = {
-    "extended": 3,
-    "ultra": 5,
+    "extended": 5,
+    "ultra": 8,
 }
 
 

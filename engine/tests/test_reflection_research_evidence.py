@@ -28,54 +28,12 @@ from co_scientist.research_adapter.budget import (
     reviewed_hypothesis_limit,
 )
 from tests._research_tools import (
+    _PAPERS,
     FakeResearchClient,
+    _ScriptedModel,
     research_registry,
 )
 from tests._state import make_hypothesis, make_state
-
-_PAPERS = {
-    "doc-a": {
-        "title": "Blockade in humans",
-        "abstract": "TGF-beta blockade reduced fibrosis in a human cohort.",
-        "pdf_url": "u/a",
-    },
-    "doc-b": {"title": "Merely listed", "abstract": "Unrelated."},
-}
-
-
-class _ScriptedModel:
-    """Answers each of the five research prompts by what it was asked."""
-
-    def __init__(self) -> None:
-        """Start with nothing asked."""
-        self.prompts: list[str] = []
-
-    async def __call__(
-        self, prompt: str, spec: Any, *args: Any, **kwargs: Any
-    ) -> dict[str, Any]:
-        """Answer one prompt, recording it."""
-        self.prompts.append(prompt)
-        if "perspectives to research" in prompt:
-            return {"stances": ["mechanism"]}
-        if "questions this perspective needs" in prompt:
-            return {"questions": ["is the mechanism shown in humans?"]}
-        if "search query" in prompt:
-            return {"query": "TGF-beta blockade human"}
-        if "retrieved documents" in prompt:
-            return {
-                "findings": [
-                    {
-                        "document": 0,
-                        "claim": "Blockade reduced fibrosis in humans",
-                        "quote": (
-                            "TGF-beta blockade reduced fibrosis in a"
-                            " human cohort."
-                        ),
-                    }
-                ],
-                "follow_ups": [],
-            }
-        return {"summary": "Human evidence exists but is thin."}
 
 
 @pytest.fixture
@@ -148,13 +106,14 @@ async def test_only_the_best_ranked_hypotheses_are_researched(
     tmp_path: Path, scripted: _ScriptedModel, client: FakeResearchClient
 ) -> None:
     """The cap is half the ceiling; without it the cost is a product."""
-    pool = [_viable(f"mechanism {n}", elo=1000 + n) for n in range(6)]
+    limit = reviewed_hypothesis_limit("extended")
+    pool = [_viable(f"mechanism {n}", elo=1000 + n) for n in range(limit + 3)]
     state = _state(tmp_path, pool, tier="extended")
 
     funded = _researched_hypothesis_ids(state, "extended")
 
-    assert len(funded) == reviewed_hypothesis_limit("extended")
-    assert funded == {h.id for h in pool[-3:]}
+    assert len(funded) == limit
+    assert funded == {h.id for h in pool[-limit:]}
     assert await research_for_review(state, pool[0]) is None
     assert client.calls == []
 
@@ -165,11 +124,12 @@ def test_before_any_tournament_the_review_score_decides(
     """This node runs before ranking, so cycle one has no Elo to sort by.
 
     Every rating is the default on the first cycle. Without a second key
-    the funded set would be an arbitrary three of the pool -- and the
+    the funded set would be an arbitrary slice of the pool -- and the
     first cycle is where every hypothesis gets its one full review.
     """
+    limit = reviewed_hypothesis_limit("extended")
     pool = []
-    for n in range(6):
+    for n in range(limit + 3):
         hypothesis = _viable(f"mechanism {n}", elo=1200)
         hypothesis.score = 50.0 + n
         pool.append(hypothesis)
@@ -178,7 +138,7 @@ def test_before_any_tournament_the_review_score_decides(
         _state(tmp_path, pool, tier="extended"), "extended"
     )
 
-    assert funded == {h.id for h in pool[-3:]}
+    assert funded == {h.id for h in pool[-limit:]}
 
 
 async def test_a_funded_hypothesis_researches_and_names_its_searches(
