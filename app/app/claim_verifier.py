@@ -226,9 +226,16 @@ def make_llm_assessor(
             return deterministic_assessor(claim, passages)
         draft = _parse_draft(content)
         if draft is None:
+            # The reply itself, truncated, because without it this line
+            # is undiagnosable: a run routed through a gateway logged it
+            # eleven times, and 32 calls reproducing the same prompt
+            # shape afterwards all parsed cleanly. Whether the failure is
+            # a wrong label, a leaked chain of thought or a truncated
+            # object decides which fix applies, and only the reply says.
             logger.warning(
-                "LLM claim assessor returned unparseable output; falling back "
-                "to deterministic assessor"
+                "LLM claim assessor returned unparseable output; falling "
+                "back to deterministic assessor. Reply began: %.200r",
+                content,
             )
             return deterministic_assessor(claim, passages)
         return draft
