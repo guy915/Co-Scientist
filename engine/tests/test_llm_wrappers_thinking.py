@@ -217,11 +217,15 @@ def test_a_gateway_route_gets_its_own_reasoning_parameter() -> None:
 
     routed = "openrouter/deepseek/deepseek-v4-flash"
 
+    gateway = {"require_parameters": True, "sort": "throughput"}
+
     assert deepseek_thinking_extra_body(routed, enabled=False) == {
-        "reasoning": {"enabled": False}
+        "reasoning": {"enabled": False},
+        "provider": gateway,
     }
     assert deepseek_thinking_extra_body(routed, enabled=True) == {
-        "reasoning": {"enabled": True, "effort": "high"}
+        "reasoning": {"enabled": True, "effort": "high"},
+        "provider": gateway,
     }
 
 
@@ -245,3 +249,29 @@ def test_a_model_without_thinking_is_untouched_on_either_route() -> None:
 
     assert deepseek_thinking_extra_body("gemini/gemini-2.5-flash") == {}
     assert deepseek_thinking_extra_body("openrouter/openai/gpt-4o") == {}
+
+
+def test_the_gateway_route_is_pinned_to_hosts_that_honour_the_call() -> None:
+    """A gateway spreads one model over hosts that are not interchangeable.
+
+    Two of them matter here. A host that ignores an unsupported parameter
+    makes the reasoning knob advisory, which is the failure this route
+    already produced once. And hosts differ by an order of magnitude in
+    speed while the default ordering picks on price, so a call can land
+    on one serving single digit tokens per second -- measured, the
+    slowest of six concurrent calls took 32.9s unconstrained against 7.1s
+    constrained, and two calls in the first routed run hit the engine's
+    own 600s ceiling outright.
+    """
+    from co_scientist.llm_request import deepseek_thinking_extra_body
+
+    body = deepseek_thinking_extra_body("openrouter/deepseek/deepseek-v4-flash")
+
+    assert body["provider"] == {
+        "require_parameters": True,
+        "sort": "throughput",
+    }
+    # The direct route has no gateway to constrain, and must not grow one.
+    assert "provider" not in deepseek_thinking_extra_body(
+        "deepseek/deepseek-v4-flash"
+    )

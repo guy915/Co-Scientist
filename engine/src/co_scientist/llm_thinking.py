@@ -45,8 +45,26 @@ _REASONING_PARAM_ROUTES: tuple[str, ...] = ("openrouter/",)
 _REASONING_EFFORT: Final[str] = "high"
 
 
-def _uses_reasoning_param(model_name: str) -> bool:
-    """Whether this route expects a gateway ``reasoning`` object."""
+# How a gateway route is addressed, beyond the reasoning knob itself.
+# ``require_parameters`` is part of the same concern rather than a separate
+# tuning: it restricts routing to hosts that actually accept every
+# parameter sent, which is what makes the reasoning knob above binding
+# instead of advisory. ``sort`` is a latency fix -- a gateway spreads one
+# model across hosts an order of magnitude apart in speed, and by default
+# picks on price, so a call can land on one serving single-digit tokens per
+# second. Measured over six concurrent calls on
+# `openrouter/deepseek/deepseek-v4-flash`: unconstrained, the slowest took
+# 32.9s against a 2.3s median; constrained, 7.1s. The tail is what matters,
+# because a node waits on its slowest call and the engine's own ceiling is
+# 600s -- two calls hit exactly that during the first routed run.
+_GATEWAY_PROVIDER: Final[dict[str, Any]] = {
+    "require_parameters": True,
+    "sort": "throughput",
+}
+
+
+def _is_gateway_route(model_name: str) -> bool:
+    """Whether this route is served through a model gateway."""
     lowered = model_name.lower()
     return any(lowered.startswith(r) for r in _REASONING_PARAM_ROUTES)
 
@@ -80,19 +98,21 @@ def deepseek_thinking_extra_body(
             default is enabled.
 
     Returns:
-        The knob this model's route understands -- DeepSeek's native
-        ``thinking`` object, or a gateway's ``reasoning`` object where the
-        route normalizes it (see ``_REASONING_PARAM_ROUTES``) -- and ``{}``
-        for a model with no thinking mode.
+        The ``extra_body`` this model's route needs: DeepSeek's native
+        ``thinking`` object direct, or a gateway's ``reasoning`` object
+        plus the routing constraint that makes it binding (see
+        ``_REASONING_PARAM_ROUTES`` and ``_GATEWAY_PROVIDER``). Empty for
+        a model with no thinking mode.
     """
     lowered = model_name.lower()
     if not any(f in lowered for f in _JSON_OBJECT_ONLY_MODEL_FAMILIES):
         return {}
-    if not _uses_reasoning_param(lowered):
+    if not _is_gateway_route(lowered):
         return {"thinking": {"type": "enabled" if enabled else "disabled"}}
-    if not enabled:
-        return {"reasoning": {"enabled": False}}
-    return {"reasoning": {"enabled": True, "effort": _REASONING_EFFORT}}
+    reasoning: dict[str, Any] = {"enabled": enabled}
+    if enabled:
+        reasoning["effort"] = _REASONING_EFFORT
+    return {"reasoning": reasoning, "provider": dict(_GATEWAY_PROVIDER)}
 
 
 def reasoning_effort_args(

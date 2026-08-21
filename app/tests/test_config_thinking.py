@@ -148,14 +148,18 @@ def test_the_thinking_knob_is_the_engine_s_to_choose() -> None:
     routed = "openrouter/deepseek/deepseek-v4-flash"
     direct = "deepseek/deepseek-v4-flash"
 
+    gateway = {"require_parameters": True, "sort": "throughput"}
+
     assert deepseek_non_thinking_extra_body(routed) == {
-        "reasoning": {"enabled": False}
+        "reasoning": {"enabled": False},
+        "provider": gateway,
     }
     assert deepseek_non_thinking_extra_body(direct) == {
         "thinking": {"type": "disabled"}
     }
     assert deepseek_thinking_kwargs(routed)["extra_body"] == {
-        "reasoning": {"enabled": True, "effort": "high"}
+        "reasoning": {"enabled": True, "effort": "high"},
+        "provider": gateway,
     }
     assert deepseek_non_thinking_extra_body("gemini/gemini-2.5-flash") == {}
     assert deepseek_thinking_kwargs("gemini/gemini-2.5-flash") == {}
