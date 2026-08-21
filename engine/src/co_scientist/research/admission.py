@@ -57,6 +57,60 @@ def bind_findings(
     )
 
 
+def _claim_locators(
+    calls: Sequence[SearchCall],
+) -> list[tuple[SearchCall, list[SourceHit]]]:
+    """Pair each call with the hits no earlier call already returned.
+
+    Deduplication happens once, before either fill, so a paper both a
+    reserved source and an unreserved one returned is seated once and
+    counted against whichever came first -- the same collapse-onto-the-
+    first-source rule as before reservations existed.
+
+    Args:
+        calls: This question's calls, in the order they were issued.
+
+    Returns:
+        One entry per call, hits in the source's own ranking.
+    """
+    seen: set[str] = set()
+    paired = []
+    for call in calls:
+        hits = [hit for hit in call.hits if hit.locator not in seen]
+        seen.update(hit.locator for hit in hits)
+        paired.append((call, hits))
+    return paired
+
+
+def _fill_reserved(
+    paired: Sequence[tuple[SearchCall, list[SourceHit]]],
+    budget: ResearchBudget,
+) -> list[SourceHit]:
+    """Seat the hits a source's reservation guarantees a place.
+
+    Reservations are filled best-first from within their own source,
+    never padded when the source returned fewer hits than it reserved,
+    and cannot push the question past ``hits_per_question``.
+
+    Args:
+        paired: Calls with their deduplicated hits.
+        budget: The level's ceilings, carrying ``reserved_slots``.
+
+    Returns:
+        The reserved hits, in call order.
+    """
+    quotas = dict(budget.reserved_slots)
+    if not quotas:
+        return []
+    taken: list[SourceHit] = []
+    for call, hits in paired:
+        room = budget.hits_per_question - len(taken)
+        places = min(quotas.get(call.source, 0), room)
+        if places > 0:
+            taken.extend(hits[:places])
+    return taken
+
+
 def admit_within_budget(
     calls: Sequence[SearchCall], budget: ResearchBudget
 ) -> tuple[list[SourceHit], list[SearchCall]]:
@@ -67,6 +121,14 @@ def admit_within_budget(
     the sources gave. A locator returned by two sources collapses onto
     the first one that returned it.
 
+    The one departure from that order is a source holding
+    ``reserved_slots``: it is seated first, up to its reservation. That
+    exists because preference order is a proxy for quality that one
+    source cannot compete on -- the group's own papers are searched last
+    and the indexed literature fills every place before they are reached,
+    so without a reservation a corpus that answers the question well is
+    never read at all.
+
     Args:
         calls: This question's calls, one per source.
         budget: The level's ceilings.
@@ -75,15 +137,14 @@ def admit_within_budget(
         The admitted hits, and the calls updated with what each of them
         contributed and what was refused.
     """
-    admitted: list[SourceHit] = []
-    admitted_locators: set[str] = set()
-    seen: set[str] = set()
+    paired = _claim_locators(calls)
+    admitted = _fill_reserved(paired, budget)
+    admitted_locators = {hit.locator for hit in admitted}
 
-    for call in calls:
-        for hit in call.hits:
-            if hit.locator in seen:
+    for _call, hits in paired:
+        for hit in hits:
+            if hit.locator in admitted_locators:
                 continue
-            seen.add(hit.locator)
             if len(admitted) < budget.hits_per_question:
                 admitted.append(hit)
                 admitted_locators.add(hit.locator)

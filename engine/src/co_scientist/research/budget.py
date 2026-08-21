@@ -40,9 +40,14 @@ class ResearchBudget:
         sources: Source names to search, in preference order. Opaque
             strings; the retrieval port decides what they mean.
         breadth_floor: Breadth never decays below this.
+        reserved_slots: ``(source, places)`` pairs guaranteeing a source
+            that many of each question's documents before the rest are
+            filled in source order. Empty by default, which is the
+            preference-order behaviour on its own.
 
     Raises:
-        ValueError: If any ceiling is below one, or no source is named.
+        ValueError: If any ceiling is below one, no source is named, or a
+            reservation is unfillable (see :meth:`_check_reservations`).
     """
 
     depth: int = 2
@@ -51,6 +56,7 @@ class ResearchBudget:
     hits_per_question: int = 4
     sources: tuple[str, ...] = ()
     breadth_floor: int = DEFAULT_BREADTH_FLOOR
+    reserved_slots: tuple[tuple[str, int], ...] = ()
 
     def __post_init__(self) -> None:
         """Reject a budget that cannot describe any work."""
@@ -62,6 +68,32 @@ class ResearchBudget:
             raise ValueError("breadth_floor must be at least 1")
         if not self.sources:
             raise ValueError("at least one source is required")
+        self._check_reservations()
+
+    def _check_reservations(self) -> None:
+        """Reject reservations that cannot be honoured.
+
+        A reservation naming a source this budget will not search is a
+        typo that would otherwise do nothing at all, and reserving every
+        place leaves preference order deciding nothing -- both are
+        configuration mistakes worth failing on rather than absorbing.
+
+        Raises:
+            ValueError: A reservation names an unsearched source, asks
+                for fewer than one place, or the reservations together
+                claim every document the question may read.
+        """
+        total = 0
+        for source, places in self.reserved_slots:
+            if source not in self.sources:
+                raise ValueError(f"reserved slots for unsearched {source!r}")
+            if places < 1:
+                raise ValueError(f"reserved slots for {source!r} must be >= 1")
+            total += places
+        if total >= self.hits_per_question and total:
+            raise ValueError(
+                f"reservations claim all {self.hits_per_question} hits"
+            )
 
     def descend(self) -> ResearchBudget | None:
         """Return the budget for the next level down.
