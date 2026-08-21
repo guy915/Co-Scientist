@@ -7,6 +7,21 @@ the co-scientist can ground hypotheses outside biomedicine too.
 
 The tool returns a ``{work_id: metadata}`` dict shaped for the engine's
 literature-review field mapping (title / authors / year / abstract / url).
+
+**A source that could not be asked raises; only a source that answered
+with nothing returns nothing.** This used to collapse both into an empty
+dict, on the reasoning that one failed source should not fail the whole
+literature-review step. It does not -- the review retries each source and
+records hard failures per source (``literature_review/search_retry.py``),
+and the research loop contains a failure at the call and carries on with
+its siblings. What the empty dict actually bought was invisibility: one
+credentialed run issued 26 OpenAlex searches, every one of them refused
+with HTTP 429, and every one was recorded as "this source has nothing to
+say about your question". Two thirds of that run's questions ended their
+descent on `no_results` with no indication that a third of the intended
+literature was never reached. The rate limit is not hypothetical: OpenAlex
+now meters the free tier and answers "Insufficient budget ... resets at
+midnight UTC" once a day's allowance is spent.
 """
 
 import logging
@@ -20,6 +35,46 @@ logger = logging.getLogger(__name__)
 
 _OPENALEX_WORKS_URL = "https://api.openalex.org/works"
 _MAX_PER_PAGE = 100  # Current documented OpenAlex page-size ceiling.
+
+
+class OpenAlexUnavailableError(RuntimeError):
+    """OpenAlex could not be searched, as distinct from having no match."""
+
+
+def _refusal_detail(response: httpx.Response) -> str:
+    """Lift OpenAlex's own explanation out of an error body, if it gave one."""
+    try:
+        body = response.json()
+    except ValueError:
+        return ""
+    if not isinstance(body, dict):
+        return ""
+    return str(body.get("message") or body.get("error") or "")
+
+
+def _unavailable_reason(exc: Exception) -> str:
+    """Describe why OpenAlex refused, in terms worth reading in a log.
+
+    A rate limit is the failure this source actually has, and its body
+    carries the only useful part -- how long the caller is locked out and
+    why -- so it is lifted out rather than left as a bare status code.
+
+    Args:
+        exc: The failure raised while searching.
+
+    Returns:
+        A single-line reason.
+    """
+    if not isinstance(exc, httpx.HTTPStatusError):
+        return f"{type(exc).__name__}: {exc}"
+    parts = [f"HTTP {exc.response.status_code}"]
+    detail = _refusal_detail(exc.response)
+    if detail:
+        parts.append(detail)
+    retry_after = exc.response.headers.get("retry-after")
+    if retry_after:
+        parts.append(f"retry after {retry_after}s")
+    return "; ".join(parts)
 
 
 def _inverted_index_positions(
@@ -311,15 +366,21 @@ async def search_openalex(
         run_id: Unused; accepted for interface parity with other search tools.
 
     Returns:
-        A dict of normalized works, or an empty dict on any error so the
-        literature-review node degrades gracefully.
+        A dict of normalized works, empty when OpenAlex answered and had
+        no match.
+
+    Raises:
+        OpenAlexUnavailableError: OpenAlex could not be asked -- refused,
+            unreachable, or answering with something unparseable. Raised
+            rather than returned as no results so the caller can tell a
+            missing source from an empty one.
     """
     params, per_page = _build_search_params(query, max_papers, recency_years)
     try:
         return await _collect_openalex_works(params, per_page, max_papers)
     except (httpx.HTTPError, ValueError) as exc:
-        # Network/parsing failures degrade to no results rather than
-        # propagating, so a single failed source doesn't fail the whole
-        # literature-review step.
-        logger.warning("OpenAlex search failed for %r: %s", query, exc)
-        return {}
+        reason = _unavailable_reason(exc)
+        logger.warning("OpenAlex search failed for %r: %s", query, reason)
+        raise OpenAlexUnavailableError(
+            f"OpenAlex could not be searched: {reason}"
+        ) from exc

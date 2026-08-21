@@ -9,7 +9,9 @@ import asyncio
 from typing import Any
 
 import httpx
+import pytest
 from mcp_server.tools.lit_review.openalex_search import (
+    OpenAlexUnavailableError,
     _build_search_params,
     normalize_works,
     search_openalex,
@@ -132,14 +134,64 @@ def test_search_openalex_returns_normalized(monkeypatch: Any) -> None:
     assert out["W123"]["source"] == "openalex"
 
 
-def test_search_openalex_degrades_on_http_error(monkeypatch: Any) -> None:
+def test_search_openalex_raises_when_it_cannot_be_asked(
+    monkeypatch: Any,
+) -> None:
+    """A source that refused is not a source with nothing to say.
+
+    Collapsing the two hid a dead source for a whole credentialed run:
+    26 searches, every one refused, every one recorded as an empty
+    result set.
+    """
     err = httpx.HTTPError("boom")
     monkeypatch.setattr(
         httpx,
         "AsyncClient",
         lambda **_: _FakeClient(_FakeResp(None, raise_exc=err)),
     )
-    # A transport error must degrade to an empty dict, not raise.
+
+    with pytest.raises(OpenAlexUnavailableError, match="could not be"):
+        asyncio.run(search_openalex("q"))
+
+
+def test_a_rate_limit_says_how_long_and_why(monkeypatch: Any) -> None:
+    """A 429 says how long the caller is locked out, and why.
+
+    OpenAlex meters its free tier, so this is the failure this source
+    actually has, and its body carries the only part worth reading.
+    """
+    response = httpx.Response(
+        429,
+        headers={"retry-after": "6810"},
+        json={"error": "Rate limit exceeded", "message": "Insufficient budget"},
+        request=httpx.Request("GET", "https://api.openalex.org/works"),
+    )
+    err = httpx.HTTPStatusError(
+        "429", request=response.request, response=response
+    )
+    monkeypatch.setattr(
+        httpx,
+        "AsyncClient",
+        lambda **_: _FakeClient(_FakeResp(None, raise_exc=err)),
+    )
+
+    with pytest.raises(OpenAlexUnavailableError) as raised:
+        asyncio.run(search_openalex("q"))
+
+    message = str(raised.value)
+    assert "HTTP 429" in message
+    assert "Insufficient budget" in message
+    assert "retry after 6810s" in message
+
+
+def test_no_match_is_still_an_empty_result(monkeypatch: Any) -> None:
+    """The other half of the distinction: asked, answered, nothing there."""
+    monkeypatch.setattr(
+        httpx,
+        "AsyncClient",
+        lambda **_: _FakeClient(_FakeResp({"results": [], "meta": {}})),
+    )
+
     assert asyncio.run(search_openalex("q")) == {}
 
 
