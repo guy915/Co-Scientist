@@ -27,19 +27,36 @@ class ModelPrice:
     completion_usd_per_million: float = 0.0
 
 
-# Approximate list prices at time of writing, in USD per million tokens.
-# A model absent from this table prices at zero (see estimate_cost_usd)
-# rather than raising or guessing -- a new or renamed model then degrades
-# to "no cost tracked" instead of breaking telemetry for every call site
-# that names it. Keep in sync with the deployed defaults in
-# app/app/config.py when those change; nothing enforces that automatically.
+# Published list prices, in USD per million tokens, verified against each
+# provider's own pricing page in August 2026. A model absent from this
+# table prices at zero (see estimate_cost_usd) rather than raising or
+# guessing -- a new or renamed model then degrades to "no cost tracked"
+# instead of breaking telemetry for every call site that names it. Keep in
+# sync with the deployed defaults in app/app/config.py when those change;
+# nothing enforces that automatically.
+#
+# Two ways a figure here is deliberately the pessimistic one, because an
+# estimate that flatters the bill is worse than no estimate:
+#
+# * **Peak rate for DeepSeek.** DeepSeek bills at half these rates outside
+#   01:00-04:00 and 06:00-10:00 UTC. One rate per model is all this table
+#   has room for, and the clock is not a property of the model, so the
+#   higher one is listed and an off-peak run simply comes in under
+#   estimate. The previous entries were neither rate -- they predated the
+#   V4 price rise and understated output by more than half.
+# * **Cache-miss input everywhere.** Providers that cache prompts bill a
+#   repeated prefix at a small fraction of the input rate (DeepSeek at
+#   roughly 3%), and ``extract_token_usage`` does not report the cached
+#   share, so there is nothing here to apply a second rate to.
 MODEL_PRICING: Final[dict[str, ModelPrice]] = {
-    "deepseek/deepseek-v4-flash": ModelPrice(0.28, 0.42),
-    "deepseek/deepseek-v4-pro": ModelPrice(0.56, 1.68),
-    "deepseek/deepseek-chat": ModelPrice(0.28, 0.42),
-    "deepseek/deepseek-reasoner": ModelPrice(0.56, 1.68),
+    "deepseek/deepseek-v4-flash": ModelPrice(0.44, 1.32),
+    "deepseek/deepseek-v4-pro": ModelPrice(1.32, 3.96),
+    "deepseek/deepseek-chat": ModelPrice(0.44, 1.32),
+    "deepseek/deepseek-reasoner": ModelPrice(1.32, 3.96),
     "gemini/gemini-2.5-flash": ModelPrice(0.30, 2.50),
+    "gemini/gemini-2.5-flash-lite": ModelPrice(0.10, 0.40),
     "gemini/gemini-2.5-pro": ModelPrice(1.25, 10.00),
+    "gemini/gemini-3.1-flash-lite": ModelPrice(0.25, 1.50),
     "openai/gpt-4o": ModelPrice(2.50, 10.00),
     "openai/gpt-4o-mini": ModelPrice(0.15, 0.60),
     "anthropic/claude-sonnet-4-5": ModelPrice(3.00, 15.00),
