@@ -224,6 +224,7 @@ PROVIDER_CREDENTIAL_ENV: dict[str, tuple[str, ...]] = {
     "deepseek": ("DEEPSEEK_API_KEY",),
     "gemini": ("GEMINI_API_KEY", "GOOGLE_API_KEY"),
     "openai": ("OPENAI_API_KEY",),
+    "openrouter": ("OPENROUTER_API_KEY",),
 }
 """Env vars that credential each LiteLLM provider prefix.
 
@@ -308,6 +309,12 @@ BYOK_PROVIDER_DEFAULT_MODELS: dict[str, str] = {
     # of thought against max_tokens, and this table cannot revisit every
     # call site's budget the way switching thinking on for one requires.
     "openai": "openai/gpt-4o",
+    # One key that reaches every model, including the ones this
+    # deployment already runs. A scientist bringing an OpenRouter key
+    # gets the same DeepSeek weights the deployment defaults to, so a
+    # BYOK run is comparable to a house run rather than a different
+    # experiment.
+    "openrouter": "openrouter/deepseek/deepseek-v4-flash",
 }
 """Default model each BYOK provider runs, in litellm format.
 

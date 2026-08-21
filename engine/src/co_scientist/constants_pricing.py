@@ -57,6 +57,16 @@ MODEL_PRICING: Final[dict[str, ModelPrice]] = {
     "gemini/gemini-2.5-flash-lite": ModelPrice(0.10, 0.40),
     "gemini/gemini-2.5-pro": ModelPrice(1.25, 10.00),
     "gemini/gemini-3.1-flash-lite": ModelPrice(0.25, 1.50),
+    # The same DeepSeek weights reached through OpenRouter, which routes
+    # to whichever host is cheapest rather than to DeepSeek's own API.
+    # Listed separately because they are a different bill, not a different
+    # model: the worker tier costs roughly a fifth of first-party peak.
+    # Rates move as hosts come and go -- these were OpenRouter's quoted
+    # prices in August 2026, and OpenRouter reports the exact cost of each
+    # call in its own dashboard, which is the billing record this only
+    # estimates.
+    "openrouter/deepseek/deepseek-v4-flash": ModelPrice(0.083, 0.165),
+    "openrouter/deepseek/deepseek-v4-pro": ModelPrice(1.60, 3.20),
     "openai/gpt-4o": ModelPrice(2.50, 10.00),
     "openai/gpt-4o-mini": ModelPrice(0.15, 0.60),
     "anthropic/claude-sonnet-4-5": ModelPrice(3.00, 15.00),

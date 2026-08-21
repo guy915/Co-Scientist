@@ -8,6 +8,7 @@ export const PROVIDER_LABELS: Record<ByokProvider, string> = {
   deepseek: 'DeepSeek',
   gemini: 'Gemini',
   openai: 'OpenAI',
+  openrouter: 'OpenRouter',
 };
 
 const TRIGGER_ID = 'cosci-settings-provider';

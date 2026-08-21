@@ -20,6 +20,7 @@ export const BYOK_PROVIDERS = [
   'deepseek',
   'gemini',
   'openai',
+  'openrouter',
 ] as const;
 
 /** One provider a user may bring their own key for. */
