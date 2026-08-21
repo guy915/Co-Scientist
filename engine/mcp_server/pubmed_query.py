@@ -24,6 +24,20 @@ retmax-capped maximum on a starved query), but it anchors every match to the
 paper's own title/abstract text or its indexed MeSH heading rather than
 whatever field ATM's own broader expansion happens to touch.
 
+**Broadening has to keep the subject, which is why there is a rung between
+the two.** ORing every term is not a broader version of the question, it is
+a different question: measured live, the six-term query "PHGDH knockdown
+osimertinib resistance EGFR adenocarcinoma" ANDs to 0 hits and ORs to
+1,966,502 -- and a caller reading the first three of those got a gastric
+cancer case report, a uterine leiomyosarcoma series and a paper on
+antimicrobial resistance, which matched "adenocarcinoma" and "resistance"
+and nothing else. There is no downstream relevance filter to save it when
+the read budget is three documents, so those three *are* the evidence, and
+the reading model spends its call explaining that none of them are on
+topic. ``anchored_relaxed_query`` is the middle rung: the leading terms
+stay required, the rest relax to an OR. On the same query it returns 18
+hits rather than 0 or two million.
+
 The module is pure and stdlib-only (no Biopython, no network) so the ladder and
 the retry policy are unit-testable in isolation; the call sites supply the
 actual ``esearch`` as a callable.
@@ -90,6 +104,45 @@ def field_tag_terms(query: str, joiner: str) -> str:
     return joiner.join(_field_tagged_term(term) for term in terms)
 
 
+# Leading terms an anchored rung keeps required. Two, because one is not
+# enough to hold a topic (anchoring the same query on "PHGDH" alone
+# returns 170 hits against 18 for the leading pair) and three is the
+# arity at which these queries already AND to zero, which is the state
+# the rung exists to leave.
+_ANCHOR_TERMS = 2
+
+
+def anchored_relaxed_query(query: str) -> str | None:
+    """Relax a keyword query while keeping its leading terms required.
+
+    The query-writing prompt asks for the question's subject first, so the
+    leading terms are the ones a relaxation cannot drop without answering
+    a different question. They stay ANDed; everything after them becomes a
+    single OR group, which is where the recall comes from.
+
+    Args:
+        query: The distilled keyword query.
+
+    Returns:
+        The anchored query, or None when there is nothing to relax this
+        way -- the query already carries explicit boolean structure, or
+        has no terms past the anchors to loosen -- so the caller can skip
+        a redundant search.
+    """
+    if _has_boolean_structure(query):
+        return None
+    tokens = query.split()
+    if len(tokens) <= _ANCHOR_TERMS:
+        return None
+    anchors = " AND ".join(
+        _field_tagged_term(term) for term in tokens[:_ANCHOR_TERMS]
+    )
+    loosened = " OR ".join(
+        _field_tagged_term(term) for term in tokens[_ANCHOR_TERMS:]
+    )
+    return f"{anchors} AND ({loosened})"
+
+
 def or_relaxed_query(query: str) -> str | None:
     """Rewrite an implicitly-ANDed keyword query to a field-tagged OR.
 
@@ -117,12 +170,18 @@ def relaxation_ladder(
 ) -> list[tuple[str, int]]:
     """Ordered ``(query, recency_years)`` attempts, most precise to broadest.
 
-    The ladder broadens along two axes in turn: first drop the recency window
-    (same terms, all years, still exactly as PubMed's own automatic term
-    mapping receives it -- see the module docstring for why this rung is
-    deliberately left untagged), then field-tag and OR the terms (broad
-    recall, all years). A rung is included only when it differs from every
-    rung before it, so the caller never issues a redundant network search.
+    The ladder broadens along three axes in turn: first drop the recency
+    window (same terms, all years, still exactly as PubMed's own automatic
+    term mapping receives it -- see the module docstring for why this rung is
+    deliberately left untagged), then relax everything except the leading
+    terms, then field-tag and OR every term (broadest recall, all years). A
+    rung is included only when it differs from every rung before it, so the
+    caller never issues a redundant network search.
+
+    The anchored rung sits in the middle because the two rungs around it are
+    further apart than they look: the queries this ladder receives AND to
+    zero and OR to millions, with nothing in between (module docstring). It
+    is where a broadened search still answers the question it was given.
 
     Args:
         query: The distilled keyword query.
@@ -134,9 +193,9 @@ def relaxation_ladder(
     ladder: list[tuple[str, int]] = [(query, recency_years)]
     if recency_years > 0:
         ladder.append((query, 0))
-    broadened = or_relaxed_query(query)
-    if broadened is not None:
-        ladder.append((broadened, 0))
+    for rung in (anchored_relaxed_query(query), or_relaxed_query(query)):
+        if rung is not None and rung not in {term for term, _ in ladder}:
+            ladder.append((rung, 0))
     return ladder
 
 

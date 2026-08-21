@@ -14,6 +14,7 @@ from __future__ import annotations
 
 from mcp_server.pubmed_query import (
     MIN_RESULTS_BEFORE_RELAX,
+    anchored_relaxed_query,
     field_tag_terms,
     or_relaxed_query,
     relaxation_ladder,
@@ -90,16 +91,21 @@ def test_single_term_and_boolean_queries_are_not_relaxed() -> None:
 # =============================================================================
 
 
-def test_ladder_broadens_recency_then_terms() -> None:
-    """The ladder drops the recency window, then ORs the terms, in order.
+def test_ladder_broadens_recency_then_anchored_then_terms() -> None:
+    """Recency, then all-but-the-subject, then every term, in that order.
 
-    Only the final OR rung carries field tags. The exact and recency-dropped
-    rungs are left exactly as PubMed's own automatic term mapping receives
-    them -- see the module docstring for the live measurement showing a
-    naive per-word tag on those rungs regresses queries ATM already handles
-    well.
+    Only the two broadened rungs carry field tags. The exact and
+    recency-dropped rungs are left exactly as PubMed's own automatic term
+    mapping receives them -- see the module docstring for the live
+    measurement showing a naive per-word tag on those rungs regresses
+    queries ATM already handles well.
     """
     ladder = relaxation_ladder("kinase inhibition tumor", recency_years=7)
+    anchored = (
+        "(kinase[tiab] OR kinase[mesh])"
+        " AND (inhibition[tiab] OR inhibition[mesh])"
+        " AND ((tumor[tiab] OR tumor[mesh]))"
+    )
     tagged_or = (
         "(kinase[tiab] OR kinase[mesh])"
         " OR (inhibition[tiab] OR inhibition[mesh])"
@@ -108,8 +114,38 @@ def test_ladder_broadens_recency_then_terms() -> None:
     assert ladder == [
         ("kinase inhibition tumor", 7),
         ("kinase inhibition tumor", 0),
+        (anchored, 0),
         (tagged_or, 0),
     ]
+
+
+def test_the_anchored_rung_keeps_the_leading_terms_required() -> None:
+    """Broadening must answer the question it was given.
+
+    ORing every term is a different question, not a wider one: measured
+    live, "PHGDH knockdown osimertinib resistance EGFR adenocarcinoma"
+    ANDs to 0 hits and ORs to 1,966,502, and the three documents a caller
+    then read were a gastric cancer case report, a leiomyosarcoma series
+    and a paper on antimicrobial resistance.
+    """
+    anchored = anchored_relaxed_query("PHGDH knockdown osimertinib resistance")
+
+    assert anchored is not None
+    # The leading pair stays ANDed; only the tail relaxes.
+    assert anchored.startswith(
+        "(PHGDH[tiab] OR PHGDH[mesh])"
+        " AND (knockdown[tiab] OR knockdown[mesh]) AND ("
+    )
+    assert " AND (osimertinib" not in anchored
+    assert "osimertinib[tiab] OR osimertinib[mesh]" in anchored
+    assert "resistance[tiab] OR resistance[mesh]" in anchored
+
+
+def test_a_query_with_nothing_past_its_anchors_is_not_anchored() -> None:
+    """Anchoring every term would just restate the exact rung."""
+    assert anchored_relaxed_query("kinase") is None
+    assert anchored_relaxed_query("kinase tumor") is None
+    assert anchored_relaxed_query("kinase AND tumor") is None
 
 
 def test_ladder_omits_redundant_rungs() -> None:
@@ -152,21 +188,41 @@ def test_runner_returns_first_rung_when_it_has_enough() -> None:
 
 
 def test_runner_relaxes_until_a_rung_returns_enough() -> None:
-    """A starved first rung falls through to the broader OR rung."""
+    """A starved query falls through every rung to the broadest one."""
     calls: list[tuple[str, int, int]] = []
 
     def _esearch(term: str, retmax: int, recency: int) -> list[str]:
         calls.append((term, retmax, recency))
-        # Only the OR-broadened rung returns results.
-        if " OR (" in term:
+        # Only the fully-ORed rung returns results.
+        if term.startswith("(kinase[tiab] OR kinase[mesh]) OR"):
             return ["1", "2", "3", "4"]
         return []
 
     ids = search_with_relaxation("kinase inhibition tumor", 10, 7, _esearch)
     assert ids == ["1", "2", "3", "4"]
-    assert [c[1:] for c in calls] == [(10, 7), (10, 0), (10, 0)]
+    assert [c[1:] for c in calls] == [(10, 7), (10, 0), (10, 0), (10, 0)]
     assert calls[0][0] == "kinase inhibition tumor"
-    assert " OR (" in calls[2][0]
+    assert " AND (" in calls[2][0]  # the anchored rung was tried first
+
+
+def test_the_anchored_rung_is_taken_before_the_fully_ored_one() -> None:
+    """The point of the middle rung: it stops the descent short.
+
+    Reaching the OR rung is what returned three off-topic documents on a
+    real run, so a rung that keeps the subject and clears the bar has to
+    end the descent rather than merely precede it.
+    """
+    calls: list[str] = []
+
+    def _esearch(term: str, retmax: int, recency: int) -> list[str]:
+        calls.append(term)
+        return ["1", "2", "3"] if " AND (" in term else []
+
+    ids = search_with_relaxation("kinase inhibition tumor", 10, 0, _esearch)
+
+    assert ids == ["1", "2", "3"]
+    assert len(calls) == 2
+    assert not calls[-1].startswith("(kinase[tiab] OR kinase[mesh]) OR")
 
 
 def test_runner_keeps_a_thin_result_when_no_rung_clears_the_bar() -> None:
