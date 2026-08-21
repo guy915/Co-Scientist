@@ -68,7 +68,7 @@ async def _run_exhausting_loop(
         ],
     )
 
-    with pytest.raises(RuntimeError, match="exceeded max iterations"):
+    with pytest.raises(RuntimeError, match="exhausted its budget"):
         await call_llm_with_tools(
             prompt="a prompt",
             spec=CompletionSpec(model_name="test/model", max_tokens=100),
@@ -152,3 +152,61 @@ async def test_no_handoff_turn_on_a_short_budget(
         ),
     )
     assert _handoff_turns(history) == []
+
+
+async def test_a_loop_stops_on_spend_before_it_runs_out_of_turns(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A turn count cannot bound what a growing transcript costs.
+
+    Every turn re-sends the whole conversation, so spend grows with the
+    square of the turn count. On a live extended run nine reflection items
+    reached their 14-turn ceiling and re-sent 1.81M prompt tokens between
+    them -- 24% of the run's entire input -- for no observation, because
+    reaching the ceiling is what failing means. The token ceiling stops
+    that case without shortening a loop that is converging cheaply.
+    """
+    _disable_cache(monkeypatch)
+    fat = "x" * 40_000  # ~10k tokens of tool output per turn
+    _patch_acompletion(
+        monkeypatch,
+        [
+            _completion(
+                _message(
+                    fat, tool_calls=[_tool_call(f"call-{i}", "search", "{}")]
+                )
+            )
+            for i in range(50)
+        ],
+    )
+
+    with pytest.raises(RuntimeError, match="exhausted its budget"):
+        await call_llm_with_tools(
+            prompt="a prompt",
+            spec=CompletionSpec(model_name="test/model", max_tokens=100),
+            loop=ToolLoop(
+                tools=_SEARCH_TOOL,
+                executor=_tool_executor,
+                # Far more turns than the spend ceiling will allow.
+                max_iterations=50,
+                max_prompt_tokens=60_000,
+            ),
+        )
+
+
+def test_the_transcript_estimate_counts_what_is_actually_resent() -> None:
+    """Tool calls are billed too, so the estimate cannot ignore them."""
+    from co_scientist.llm_tool_policy import transcript_tokens
+
+    plain = [{"role": "user", "content": "a" * 400}]
+    with_calls = [
+        {
+            "role": "assistant",
+            "content": "a" * 400,
+            "tool_calls": [{"id": "c1", "function": {"name": "search"}}],
+        }
+    ]
+
+    assert transcript_tokens(plain) == 100
+    assert transcript_tokens(with_calls) > 100
+    assert transcript_tokens([]) == 0

@@ -74,6 +74,19 @@ logger = logging.getLogger(__name__)
 # and lands a partial answer before the cap in the ordinary case.
 MAX_SIMULATION_TURNS = 14
 
+# Prompt tokens one simulation may re-send across those turns. The turn
+# ceiling above cannot bound this on its own: a turn re-sends the whole
+# transcript, so the fourteenth costs several times the first and total
+# spend grows with the square of the turn count. Measured on a live
+# extended run, the two separate cleanly -- the items that produced an
+# observation spent 50-130k prompt tokens, and the nine that reached the
+# turn ceiling and therefore produced nothing spent 190-266k, between
+# them 1.81M tokens, 44% of comprehensive reflection and 24% of the run's
+# entire input. 150k sits above every success measured and below every
+# failure, so this ends the runaway case a turn count cannot see while
+# leaving a converging simulation the room the comment above argues for.
+SIMULATION_TOKEN_BUDGET = 150_000
+
 # Longest observation kept. Capped here, at the one place observations are
 # produced, so the same bound reaches both readers: the review prompt,
 # whose every other section is bounded, and the stored result, which rides
@@ -202,6 +215,7 @@ async def _observe(
                 tools=schemas,
                 executor=provider.execute_tool_call,
                 max_iterations=MAX_SIMULATION_TURNS,
+                max_prompt_tokens=SIMULATION_TOKEN_BUDGET,
             ),
             options=LLMCallOptions(
                 run_id=state.get("run_id"),

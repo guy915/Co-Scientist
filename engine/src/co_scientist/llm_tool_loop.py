@@ -43,6 +43,10 @@ from co_scientist.llm_tool_iteration import (
     _run_tool_call_iteration as _run_tool_call_iteration,
 )
 from co_scientist.llm_tool_policy import (
+    DEFAULT_TOOL_LOOP_TOKEN_BUDGET,
+    transcript_tokens,
+)
+from co_scientist.llm_tool_policy import (
     _contains_local_tool as _contains_local_tool,
 )
 from co_scientist.llm_tool_policy import (
@@ -53,6 +57,9 @@ from co_scientist.llm_tool_policy import (
 )
 from co_scientist.llm_tool_policy import (
     _handoff_message as _handoff_message,
+)
+from co_scientist.llm_tool_policy import (
+    _handoff_spend as _handoff_spend,
 )
 from co_scientist.llm_tool_transcript import (
     _message_to_history_dict as _message_to_history_dict,
@@ -179,27 +186,49 @@ async def _run_tool_call_loop(
     request: LLMCacheRequest,
     messages: list[dict[str, Any]],
     tool_executor: Callable[[Any], Awaitable[dict[str, Any]]],
-    max_iterations: int,
+    loop: "ToolLoop",
     cache: LLMCache | NullCache,
 ) -> tuple[str, list[dict[str, Any]]]:
     """Runs tool-call iterations until a final response, then caches it.
 
     ``messages`` (seeded with the initial user turn) is mutated in place.
 
-    Near the bound a one-shot wrap-up turn is injected (see
+    Bounded twice, by turns and by the prompt tokens those turns re-send
+    (see ``llm_tool_policy``), because a turn count does not bound cost:
+    each turn resends the whole transcript, so the last turns of a long
+    loop cost several times the first. Whichever ceiling is reached first
+    ends the loop.
+
+    Near either bound a one-shot wrap-up turn is injected (see
     ``_handoff_iteration``) so the model can land a partial answer instead
-    of being cut off mid-investigation. The hard cap remains as the
-    backstop -- the handoff makes reaching it rarer, not impossible.
+    of being cut off mid-investigation. The hard caps remain as the
+    backstop -- the handoff makes reaching them rarer, not impossible.
 
     Raises:
-        RuntimeError: If max_iterations is exhausted without a response.
+        RuntimeError: If either ceiling is exhausted without a response.
     """
+    max_iterations = loop.max_iterations
     handoff_at = _handoff_iteration(max_iterations)
+    handed_off = False
+    spent = 0
     for iteration in range(max_iterations):
         logger.debug(
             "llm tool call iteration %s/%s", iteration + 1, max_iterations
         )
-        if iteration == handoff_at:
+        spent += transcript_tokens(messages)
+        if spent >= loop.max_prompt_tokens:
+            logger.warning(
+                "Token budget (%s) reached in tool call loop after %s"
+                " iterations; %s tokens re-sent",
+                loop.max_prompt_tokens,
+                iteration,
+                spent,
+            )
+            break
+        if iteration == handoff_at or (
+            not handed_off and spent >= _handoff_spend(loop.max_prompt_tokens)
+        ):
+            handed_off = True
             messages.append(_handoff_message(max_iterations - iteration))
         done, final_content = await _run_iteration_logged(
             messages, request, tool_executor, iteration
@@ -212,10 +241,15 @@ async def _run_tool_call_loop(
             )
 
     logger.warning(
-        "Max iterations (%s) reached in tool call loop", max_iterations
+        "Tool call loop gave no final answer within %s iterations /"
+        " %s prompt tokens",
+        max_iterations,
+        loop.max_prompt_tokens,
     )
     raise RuntimeError(
-        f"LLM tool call loop exceeded max iterations ({max_iterations})"
+        "LLM tool call loop exhausted its budget"
+        f" (max_iterations={max_iterations},"
+        f" max_prompt_tokens={loop.max_prompt_tokens})"
     )
 
 
@@ -260,6 +294,12 @@ class ToolLoop:
         executor: Async callable that runs one tool call and returns its
             result payload.
         max_iterations: Maximum model<->tool round-trips before giving up.
+        max_prompt_tokens: Prompt tokens this loop may re-send in total,
+            summed over every turn. The second ceiling, and the one that
+            actually bounds cost: a turn re-sends the whole transcript, so
+            spend grows with the square of the turn count and a turn count
+            alone cannot say what a loop will cost. Whichever ceiling is
+            reached first ends the loop.
         tool_contract: Optional resolved configuration behind ``tools`` --
             e.g. a tool registry's enabled sources and endpoints -- that can
             change how a tool call behaves without changing the schema
@@ -272,6 +312,7 @@ class ToolLoop:
     tools: list[dict[str, Any]]
     executor: Callable[[Any], Awaitable[dict[str, Any]]]
     max_iterations: int = 10
+    max_prompt_tokens: int = DEFAULT_TOOL_LOOP_TOKEN_BUDGET
     tool_contract: dict[str, Any] | None = None
 
 
@@ -317,5 +358,5 @@ async def call_llm_with_tools(
         # iteration.
         messages = [{"role": "user", "content": prompt}]
         return await _run_tool_call_loop(
-            request, messages, loop.executor, loop.max_iterations, cache
+            request, messages, loop.executor, loop, cache
         )
