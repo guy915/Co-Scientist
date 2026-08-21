@@ -14,7 +14,12 @@ behavior for the generation paths this package owns:
 - bounded coverage of the already-explored pool, so expansion targets
   regions the run has not staked out yet;
 - a larger tool-loop budget for the draft agent, since broad retrieval
-  legitimately needs more search/read round-trips than focused drafting.
+  legitimately needs more search/read round-trips than focused drafting;
+- on the deep tiers, a budgeted exploration of the regions the run has
+  not staked out, run before any drafting and rendered into the section
+  below (``expansion_research``). That is what makes this an exploration
+  program rather than a differently-worded generation pass, which is the
+  gap ``GEN-TECHNIQUES-001`` recorded.
 
 Detection keys off ``current_iteration``: generation in iteration 0 is
 initial generation; every later generate cycle is research expansion
@@ -86,6 +91,26 @@ def _explored_coverage_block(summaries: list[str]) -> str:
     )
 
 
+def _widened_evidence_block(state: WorkflowState) -> str:
+    """Renders the exploration's findings, when this cycle bought one.
+
+    On the deep tiers an expansion cycle first runs its own budgeted
+    exploration (``expansion_research.research_for_expansion``) and
+    leaves the result here. Absent on every other tier, where expansion
+    is the prompt and the wider tool-loop budget alone.
+
+    Args:
+        state: The workflow state, as the generate node's strategies see
+            it after the exploration has been applied.
+
+    Returns:
+        The findings block, or an empty string when nothing was
+        explored.
+    """
+    findings = str(state.get("research_expansion_findings") or "").strip()
+    return f"\n{findings}\n" if findings else ""
+
+
 def build_expansion_section(state: WorkflowState) -> str:
     """Renders the research-expansion prompt section for a generate cycle.
 
@@ -105,6 +130,7 @@ def build_expansion_section(state: WorkflowState) -> str:
         state.get("current_iteration"),
     )
     coverage = _explored_coverage_block(explored_hypothesis_summaries(state))
+    widened = _widened_evidence_block(state)
     return (
         "## Research Expansion Cycle (broad exploratory retrieval)\n\n"
         "This is NOT the initial focused drafting pass. The goal of this"
@@ -119,4 +145,5 @@ def build_expansion_section(state: WorkflowState) -> str:
         " in the newly widened evidence, targeting regions this run has"
         " not explored yet.\n\n"
         f"{coverage}"
+        f"{widened}"
     )

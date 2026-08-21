@@ -448,6 +448,14 @@ class WorkflowState(TypedDict):
     server is gone.
     """
 
+    research_expansion_findings: str | None
+    """What a research-expansion cycle's own exploration found, rendered
+    for the generation prompts (``generation.expansion_research``). Set
+    for the strategies of one generate cycle and not persisted: the
+    durable record of the same request is its entry in
+    ``research_ledgers``.
+    """
+
     research_ledgers: Annotated[
         list[dict[str, Any]], accumulate_research_ledgers
     ]

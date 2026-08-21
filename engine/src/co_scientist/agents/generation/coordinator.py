@@ -85,6 +85,9 @@ from co_scientist.agents.generation.coordinator_strategy import (
 from co_scientist.agents.generation.debate import (
     generate_with_debate,
 )
+from co_scientist.agents.generation.expansion_research import (
+    research_for_expansion,
+)
 from co_scientist.agents.generation.literature_tools import (
     generate_with_tools,
 )
@@ -422,6 +425,10 @@ async def generate_hypotheses(state: WorkflowState) -> dict[str, Any]:
     """
     logger.info("Starting hypothesis generation")
 
+    expansion = await research_for_expansion(state)
+    if expansion is not None:
+        state = expansion.applied_to(state)
+
     (
         counts,
         reference_index,
@@ -432,7 +439,11 @@ async def generate_hypotheses(state: WorkflowState) -> dict[str, Any]:
         results = await _execute_generation_tasks(
             state, counts, articles_with_reasoning, reference_index
         )
-        return await _finalize_generation(state, counts, results)
+        result = await _finalize_generation(state, counts, results)
+        if expansion is not None:
+            result["articles"] = state.get("articles")
+            result["research_ledgers"] = [expansion.ledger]
+        return result
 
     except Exception as e:
         # Log with full context here (this is the top-level entry point),

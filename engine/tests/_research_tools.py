@@ -86,3 +86,48 @@ def research_workflow(registry: ToolRegistry) -> WorkflowConfig:
     workflow = registry.get_workflow("literature_review")
     assert workflow is not None
     return workflow
+
+
+_PAPERS = {
+    "doc-a": {
+        "title": "Blockade in humans",
+        "abstract": "TGF-beta blockade reduced fibrosis in a human cohort.",
+        "pdf_url": "u/a",
+    },
+    "doc-b": {"title": "Merely listed", "abstract": "Unrelated."},
+}
+
+
+class _ScriptedModel:
+    """Answers each of the five research prompts by what it was asked."""
+
+    def __init__(self) -> None:
+        """Start with nothing asked."""
+        self.prompts: list[str] = []
+
+    async def __call__(
+        self, prompt: str, spec: Any, *args: Any, **kwargs: Any
+    ) -> dict[str, Any]:
+        """Answer one prompt, recording it."""
+        self.prompts.append(prompt)
+        if "perspectives to research" in prompt:
+            return {"stances": ["mechanism"]}
+        if "questions this perspective needs" in prompt:
+            return {"questions": ["is the mechanism shown in humans?"]}
+        if "search query" in prompt:
+            return {"query": "TGF-beta blockade human"}
+        if "retrieved documents" in prompt:
+            return {
+                "findings": [
+                    {
+                        "document": 0,
+                        "claim": "Blockade reduced fibrosis in humans",
+                        "quote": (
+                            "TGF-beta blockade reduced fibrosis in a"
+                            " human cohort."
+                        ),
+                    }
+                ],
+                "follow_ups": [],
+            }
+        return {"summary": "Human evidence exists but is thin."}
