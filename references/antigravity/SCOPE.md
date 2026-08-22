@@ -79,16 +79,35 @@ now ships verbatim on every call. Progressive disclosure has been tried here
 once and abandoned once, and a plan that reintroduces it owes an account of why
 this time differs.
 
+## Settled
+
+Three of the decisions below are answered and no longer open:
+
+- **The consumer is the autonomous run.** Skills reach the engine's tool loops
+  — draft generation, the research loop, the deep reviews — not the chat or
+  interview surface. Grounding is what we are buying, and the report's
+  reliability result is the one that translates.
+- **The bundle is vendored as-is**, upstream directories and scripts intact,
+  bringing `uv` and `scienceskillscommon` with it. This settles decision 2 in
+  favour of breadth over house style, and makes the vendored tree a standing
+  exception to the repo's lint, type and file-length gates — that exception is
+  explicit and scoped, not silent.
+- **Keyed sources are in scope.** AlphaGenome is included from the start.
+  NCBI/Entrez is already keyed on both the local and production MCP server, so
+  ClinVar, dbSNP and the E-utilities skills inherit usable rate limits with no
+  new configuration.
+
 ## Decisions stage 2 must resolve
 
 1. **Where the catalogue is injected, and how big it is.** 34 name+description
    pairs is on the order of 3–4k tokens. Which callers see it — the
    `draft_generation` tool loop only, or also the research loop and the deep
    reviews — and whether it is filtered by run focus rather than sent whole.
-2. **Whether skills are first-party or vendored.** Authoring a small number of
-   skills in this repo's own voice, versus running the bundle's directories
-   as-is. This decides the licence question (`MANIFEST.md`), the per-skill
-   attribution obligations, and whether `scienceskillscommon` enters the image.
+2. **What vendoring costs, now that it is chosen.** Where the tree lives once
+   it stops being reference material; how it is excluded from ruff, mypy, the
+   500-line file cap and the CC ceiling without those exclusions widening;
+   how the upstream SHA is pinned and re-synced; and where Apache-2.0
+   attribution lands in the root `NOTICE`.
 3. **Network inside the sandbox, on the deploy host.** `network_allowed`
    exists as policy, but the Landlock+seccomp path was only ever confirmed on
    Railway through a `/status` probe, and seccomp exists precisely because

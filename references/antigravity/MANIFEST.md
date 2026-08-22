@@ -10,12 +10,16 @@ Python across the skill scripts.
 Unlike the deep-research clones, this tree is **committed** (all 192 files are
 tracked). Two provenance facts to carry:
 
-- **The clone has no `LICENSE` file.** `SKILL_LICENSES.md` is not a code
-  licence — it maps each skill to the terms of use of the *data source* it
-  queries, 34 rows of them (UniProt, gnomAD, GTEx, HPA, Open Targets, Reactome
-  and openFDA each publish their own). Reusing any skill's code means
-  establishing the upstream code licence first; reusing any skill's *source*
-  means reading that row.
+- **Upstream is Apache-2.0**, with CC-BY 4.0 for non-software material. Our
+  clone was taken without the `LICENSE` file; it has been restored from
+  upstream. Vendoring is therefore clear, subject to Apache-2.0's attribution
+  and NOTICE obligations — which means an entry in this repository's root
+  `NOTICE`, not just this line.
+- **`SKILL_LICENSES.md` is a separate matter and is not a code licence.** It
+  maps each skill to the terms of use of the *data source* it queries, 34 rows
+  of them (UniProt, gnomAD, GTEx, HPA, Open Targets, Reactome and openFDA each
+  publish their own). Shipping a skill means reading its row; Apache-2.0 says
+  nothing about the data behind the endpoint.
 - **Some skills enforce attribution themselves.** `uniprot_database` will not
   proceed until it has told the user to check the UniProt licence terms and
   written a `LICENSE_NOTIFICATION.txt` recording that it did, and requires the
