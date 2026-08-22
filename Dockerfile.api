@@ -58,17 +58,34 @@ ENV SBI_CORPUS_DIR=/app/corpus/sbi_ucd
 # not the MCP image.
 COPY vendor/science-skills/ ./vendor/science-skills/
 
-# COSCIENTIST_SKILLS_DIR is deliberately NOT set yet, and it is the only
-# gate: the engine's catalogue is empty unless it points somewhere, so
-# the bundle ships inert and one line turns it on. It stays off until the
-# cost is measured over more than one hypothesis. What a live run showed
-# (2026-08-22, deepseek-v4-flash, one mechanism): with skills the
-# simulation reviewer does reach for them and does get real data back --
-# one skill read, a Europe PMC search run, its JSON read -- but it spent
-# 85k prompt tokens over 9 turns doing it and never wrote the model, so
-# the review degraded to no observation at all. A skill's own attribution
-# ritual cost four of those turns on its own. Enabling this before that
-# is fixed makes simulation reviews worse, not better.
+# COSCIENTIST_SKILLS_DIR is the only gate -- the engine's catalogue is
+# empty unless it points somewhere -- and it is now set, which arms the
+# skills for the one consumer that asks for them. That consumer is the
+# hypothesis-drafting pass, and nothing else: WorkspaceSession.skills_enabled
+# defaults off, so installing the bundle cannot hand it to a node that was
+# measured worse with it.
+#
+# It is the drafting pass because the drafting pass is where retrieval *is*
+# the task. The simulation reviewer was tried first and rejected on
+# eighteen runs (2026-08-22, deepseek-v4-flash): it reached for the skills
+# and got real data back, but spent 85k prompt tokens over 9 turns doing it
+# and then never wrote the model it was there to write, so the review
+# degraded to no observation at all. Retrieval competed with the
+# deliverable there; here it serves it.
+#
+# Measured on the drafting pass over three research goals x four
+# hypotheses, same date and model. Successful skill commands: 0 of 1
+# before the instruction fixes in skills/catalog.py, 3 of 4 after. Draft
+# count and literature sourcing unchanged (4/4 and 12/12 in every arm),
+# latency within the no-skills spread, ~1 extra LLM call per pass. One
+# run's STRING partner query became the mechanistic scaffold for two of
+# its four hypotheses -- a gap argued from a record rather than from what
+# someone wrote up, which is the point.
+#
+# The third-party licence notices the sources require are discharged by
+# the report naming what each run queried (skills/usage.py). Turning this
+# back off is deleting the ENV line; nothing else changes.
+ENV COSCIENTIST_SKILLS_DIR=/app/vendor/science-skills/skills
 
 # The skills declare their dependencies as PEP 723 inline metadata and their
 # SKILL.md files say to invoke them with `uv run`, which resolves those
