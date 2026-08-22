@@ -16,7 +16,7 @@ would be a cycle. Note for tests: caching is therefore stubbed by patching
 import logging
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, replace
-from typing import Any
+from typing import Any, NoReturn
 
 from co_scientist.cache import (
     LLMCache,
@@ -182,6 +182,81 @@ def _finalize_tool_loop_success(
     return final_content, messages
 
 
+def _raise_budget_exhausted(loop: "ToolLoop") -> NoReturn:
+    """Ends a loop that never produced a final answer.
+
+    Args:
+        loop: The loop, for the ceilings to name in the message.
+
+    Raises:
+        RuntimeError: Always. Callers that can degrade catch it -- the
+            simulation review falls back to mental simulation.
+    """
+    logger.warning(
+        "Tool call loop gave no final answer within %s iterations /"
+        " %s prompt tokens",
+        loop.max_iterations,
+        loop.max_prompt_tokens,
+    )
+    raise RuntimeError(
+        "LLM tool call loop exhausted its budget"
+        f" (max_iterations={loop.max_iterations},"
+        f" max_prompt_tokens={loop.max_prompt_tokens})"
+    )
+
+
+def _spend_exhausted(spent: int, loop: "ToolLoop", iteration: int) -> bool:
+    """Whether this loop has re-sent all the prompt tokens it may.
+
+    Args:
+        spent: Prompt tokens re-sent so far, this turn included.
+        loop: The loop carrying the ceiling.
+        iteration: The 0-based turn about to run, for the log line.
+
+    Returns:
+        True when the loop must stop before sending another turn.
+    """
+    if spent < loop.max_prompt_tokens:
+        return False
+    logger.warning(
+        "Token budget (%s) reached in tool call loop after %s iterations;"
+        " %s tokens re-sent",
+        loop.max_prompt_tokens,
+        iteration,
+        spent,
+    )
+    return True
+
+
+def _handoff_due(
+    iteration: int,
+    handoff_at: int,
+    spent: int,
+    loop: "ToolLoop",
+    handed_off: bool,
+) -> bool:
+    """Whether this turn is the one to inject the wrap-up message on.
+
+    Either ceiling can trigger it, since either can end the loop. The
+    turn-count trigger fires on its exact iteration (matching the
+    behaviour before spend was bounded); the spend trigger fires once, on
+    the first turn at or past its threshold.
+
+    Args:
+        iteration: The 0-based turn about to run.
+        handoff_at: The turn the turn-count policy warns on, or -1.
+        spent: Prompt tokens re-sent so far.
+        loop: The loop carrying the spend ceiling.
+        handed_off: Whether a wrap-up turn was already injected.
+
+    Returns:
+        True to inject the wrap-up turn before this iteration.
+    """
+    if iteration == handoff_at:
+        return True
+    return not handed_off and spent >= _handoff_spend(loop.max_prompt_tokens)
+
+
 async def _run_tool_call_loop(
     request: LLMCacheRequest,
     messages: list[dict[str, Any]],
@@ -216,18 +291,9 @@ async def _run_tool_call_loop(
             "llm tool call iteration %s/%s", iteration + 1, max_iterations
         )
         spent += transcript_tokens(messages)
-        if spent >= loop.max_prompt_tokens:
-            logger.warning(
-                "Token budget (%s) reached in tool call loop after %s"
-                " iterations; %s tokens re-sent",
-                loop.max_prompt_tokens,
-                iteration,
-                spent,
-            )
+        if _spend_exhausted(spent, loop, iteration):
             break
-        if iteration == handoff_at or (
-            not handed_off and spent >= _handoff_spend(loop.max_prompt_tokens)
-        ):
+        if _handoff_due(iteration, handoff_at, spent, loop, handed_off):
             handed_off = True
             messages.append(_handoff_message(max_iterations - iteration))
         done, final_content = await _run_iteration_logged(
@@ -240,17 +306,7 @@ async def _run_tool_call_loop(
                 cache, request, final_content, messages
             )
 
-    logger.warning(
-        "Tool call loop gave no final answer within %s iterations /"
-        " %s prompt tokens",
-        max_iterations,
-        loop.max_prompt_tokens,
-    )
-    raise RuntimeError(
-        "LLM tool call loop exhausted its budget"
-        f" (max_iterations={max_iterations},"
-        f" max_prompt_tokens={loop.max_prompt_tokens})"
-    )
+    _raise_budget_exhausted(loop)
 
 
 async def _prepare_tool_call(

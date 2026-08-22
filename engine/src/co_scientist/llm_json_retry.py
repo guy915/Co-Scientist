@@ -12,6 +12,8 @@ surface, which ``co_scientist.llm`` re-exports from in turn.
 import asyncio
 import logging
 
+from litellm.exceptions import ContextWindowExceededError
+
 from co_scientist.backoff import jittered_backoff_seconds
 from co_scientist.exceptions import (
     LLMTimeoutError,
@@ -249,11 +251,23 @@ async def _run_json_attempt(
     A genuine call failure (network, provider error, etc.) is surfaced to the
     retry loop as an outcome carrying the error, except on the final attempt,
     where it is re-raised so the caller's exception propagates unchanged.
-    ``LLMTimeoutError`` is deliberately never retried: a provider that
-    accepted the request and then stopped answering will not answer the same
-    request faster next time, so retrying multiplies one stalled call by the
-    attempt count -- exactly the unbounded stall the timeout ceiling exists
-    to prevent.
+    Two failures are deliberately never retried, for the same reason: the
+    identical request cannot succeed, so retrying is one doomed call
+    repeated by the attempt count. ``LLMTimeoutError`` is one -- a provider
+    that accepted the request and then stopped answering will not answer
+    the same request faster next time, which is the unbounded stall the
+    timeout ceiling exists to prevent.
+
+    ``ContextWindowExceededError`` is the other, and it is the one this
+    repo has already been bitten by: a prompt too large for the model's
+    window is still too large on the next attempt. A live run rejected
+    single simulation prompts of 1.18M to 1.65M tokens and re-sent them
+    **eleven times unchanged**. AGENTS.md states the rule this restores --
+    "the retry has to change the request" -- and nothing here can change
+    this one, since the oversized prompt is the caller's whole transcript.
+    Raising hands it back to that caller, which is where a shorter
+    transcript could come from; the simulation loop degrades to mental
+    simulation on it, as it already did after five wasted attempts.
 
     Args:
         prompt: The prompt to send on this attempt.
@@ -268,6 +282,13 @@ async def _run_json_attempt(
     except LLMTimeoutError:
         logger.error(
             "LLM call timed out on attempt %s; not retrying", attempt.number
+        )
+        raise
+    except ContextWindowExceededError:
+        logger.error(
+            "Prompt exceeded the model's context window on attempt %s;"
+            " not retrying, since the same prompt cannot fit on a retry",
+            attempt.number,
         )
         raise
     except Exception as e:

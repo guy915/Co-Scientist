@@ -189,6 +189,28 @@ async def _run_simulation_loop(
             )
 
 
+def _simulation_loop(
+    provider: WorkspaceToolProvider, schemas: list[dict[str, Any]]
+) -> ToolLoop:
+    """The bounds one simulation runs under, both of them.
+
+    Args:
+        provider: The workspace whose tools this simulation may call.
+        schemas: Those tools, as the model sees them.
+
+    Returns:
+        A loop bounded by turns and by the prompt tokens those turns
+        re-send -- see the two constants for why one ceiling is not
+        enough.
+    """
+    return ToolLoop(
+        tools=schemas,
+        executor=provider.execute_tool_call,
+        max_iterations=MAX_SIMULATION_TURNS,
+        max_prompt_tokens=SIMULATION_TOKEN_BUDGET,
+    )
+
+
 async def _observe(
     state: WorkflowState,
     hypothesis: Hypothesis,
@@ -211,12 +233,7 @@ async def _observe(
                 max_tokens=EXTENDED_MAX_TOKENS,
                 temperature=LOW_TEMPERATURE,
             ),
-            loop=ToolLoop(
-                tools=schemas,
-                executor=provider.execute_tool_call,
-                max_iterations=MAX_SIMULATION_TURNS,
-                max_prompt_tokens=SIMULATION_TOKEN_BUDGET,
-            ),
+            loop=_simulation_loop(provider, schemas),
             options=LLMCallOptions(
                 run_id=state.get("run_id"),
                 prompt_name=f"simulation_execution_{hypothesis.id}",

@@ -148,7 +148,15 @@ def test_the_thinking_knob_is_the_engine_s_to_choose() -> None:
     routed = "openrouter/deepseek/deepseek-v4-flash"
     direct = "deepseek/deepseek-v4-flash"
 
-    gateway = {"require_parameters": True, "sort": "throughput"}
+    # The price ceiling is the engine's too: a gateway spreads one model
+    # over hosts differing 6.5x in price, and `sort: throughput` does not
+    # consider price at all. Restating it here would be the second copy
+    # this test exists to prevent.
+    gateway = {
+        "require_parameters": True,
+        "sort": "throughput",
+        "max_price": {"prompt": 0.166, "completion": 0.33},
+    }
 
     assert deepseek_non_thinking_extra_body(routed) == {
         "reasoning": {"enabled": False},

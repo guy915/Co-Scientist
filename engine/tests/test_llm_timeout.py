@@ -11,6 +11,9 @@ from typing import Any
 
 import litellm
 import pytest
+from litellm.exceptions import (
+    ContextWindowExceededError,
+)
 
 from co_scientist import llm, llm_json_retry, llm_request
 from co_scientist.exceptions import LLMTimeoutError
@@ -288,3 +291,38 @@ async def test_schema_failure_still_retries_without_waiting(
         )
     assert calls == 3
     assert slept == [], "only throttling should slow the retry loop"
+
+
+async def test_an_oversized_prompt_is_not_retried(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A prompt too large for the window is still too large on a retry.
+
+    A live run rejected single simulation prompts of 1.18M to 1.65M tokens
+    and re-sent them eleven times unchanged. Nothing in the retry loop can
+    shrink the caller's transcript, so every attempt after the first is one
+    doomed call repeated -- the anti-pattern AGENTS.md names as "the retry
+    has to change the request". Raising hands it back to the caller, which
+    is the only layer that can send something shorter.
+    """
+    calls = 0
+
+    async def too_big(**_kwargs: Any) -> Any:
+        nonlocal calls
+        calls += 1
+        raise ContextWindowExceededError(
+            message="requested about 1645623 tokens",
+            model="deepseek/deepseek-v4-flash",
+            llm_provider="deepseek",
+        )
+
+    monkeypatch.setattr(litellm, "acompletion", too_big)
+
+    with pytest.raises(ContextWindowExceededError):
+        await llm.call_llm_json(
+            "prompt",
+            CompletionSpec(model_name="deepseek/deepseek-v4-flash"),
+            max_attempts=5,
+            options=LLMCallOptions(use_cache=False),
+        )
+    assert calls == 1, "an oversized prompt must not be sent again"
