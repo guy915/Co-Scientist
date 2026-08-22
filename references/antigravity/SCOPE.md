@@ -108,11 +108,23 @@ Three of the decisions below are answered and no longer open:
    500-line file cap and the CC ceiling without those exclusions widening;
    how the upstream SHA is pinned and re-synced; and where Apache-2.0
    attribution lands in the root `NOTICE`.
-3. **Network inside the sandbox, on the deploy host.** `network_allowed`
-   exists as policy, but the Landlock+seccomp path was only ever confirmed on
-   Railway through a `/status` probe, and seccomp exists precisely because
-   Landlock cannot reach UDP — DNS is the exposed case. This is a
-   verify-before-designing item, not an assumption.
+3. ~~Network inside the sandbox, on the deploy host.~~ **Resolved, and the
+   original worry was backwards.** Every backend implements the network as a
+   *denial* applied only when the policy withholds it: seatbelt appends
+   `(allow network-outbound)` when permitted, bwrap adds `--unshare-net` only
+   when not, and on the Landlock+seccomp path `confine_exec` calls
+   `seccomp.deny_network()` only when `allows_network` is false — so with it
+   true, no filter is installed at all. The UDP/DNS gap seccomp exists to
+   close is a gap in *denying* the network, not in allowing it. Measured
+   locally through the real `WorkspaceSession`: `network_allowed=True` returns
+   HTTP 200 from `rest.uniprot.org` inside the sandbox, `False` fails to
+   connect. Production reports `code_execution_available: true`, and the
+   container plainly has egress since it already calls PubMed and the model
+   provider. The plumbing is threaded end to end — `open_run_workspace`,
+   `open_review_workspace`, `open_variant_workspace` and
+   `build_workspace_tools` all take `network_allowed`, defaulting to false,
+   and **no production caller passes true today**. Enabling it is a call-site
+   argument, not a sandbox change.
 4. **The offline branch.** CI is hermetic: no network, no keys. Skill
    execution needs a deterministic refusal or replay path, following the
    existing sandbox-refusal and `offline_llm` patterns.
