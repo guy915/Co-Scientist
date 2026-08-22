@@ -32,6 +32,7 @@ longer happens.
 import asyncio
 import json
 import logging
+from collections.abc import Awaitable, Callable
 from typing import Any
 
 from co_scientist.patch import PatchError
@@ -49,6 +50,7 @@ from co_scientist.skills import (
 )
 from co_scientist.tool_effects import declare_local_tool
 from co_scientist.tools.messages import tool_error_message, tool_result_message
+from co_scientist.tools.tracking import tracked_executor as track_calls
 from co_scientist.workspace.command_session import CommandSession, SessionRead
 from co_scientist.workspace.file_tools import (
     WorkspaceToolInputError as WorkspaceToolInputError,
@@ -130,12 +132,18 @@ def can_run_commands(policy: SandboxPolicy) -> bool:
     return sandbox_backend() is not None
 
 
-def workspace_tool_schemas(policy: SandboxPolicy) -> list[dict[str, Any]]:
+def workspace_tool_schemas(
+    policy: SandboxPolicy, *, skills_enabled: bool = False
+) -> list[dict[str, Any]]:
     """Builds the tool schemas offerable under a policy.
 
     Args:
         policy: The confinement the session applies. Governs whether the
             command tool is offered at all.
+        skills_enabled: Whether this consumer asked for the vendored
+            science skills. Defaults off, which is what keeps installing
+            the bundle from silently re-arming a consumer measured to be
+            worse with it.
 
     Returns:
         OpenAI-format tool definitions. The file tools are always
@@ -147,13 +155,17 @@ def workspace_tool_schemas(policy: SandboxPolicy) -> list[dict[str, Any]]:
         read_file_schema(),
         list_files_schema(),
     ]
-    # Offered only where a skill could actually be used: the catalogue
-    # is empty unless COSCIENTIST_SKILLS_DIR is set, which the api image
-    # does and a checkout, a test and a CI job do not -- so this costs
-    # nothing anywhere skills are not installed. Gated on commands too,
-    # because instructions whose every step is a command are worse than
-    # useless to a model that cannot run one.
-    skills = available_skills() if can_run_commands(policy) else ()
+    # Offered only where a skill could actually be used: the consumer
+    # has to ask, the bundle has to be installed (the catalogue is empty
+    # unless COSCIENTIST_SKILLS_DIR is set, which a checkout, a test and
+    # a CI job do not set), and commands have to be runnable -- because
+    # instructions whose every step is a command are worse than useless
+    # to a model that cannot run one.
+    skills = (
+        available_skills()
+        if skills_enabled and can_run_commands(policy)
+        else ()
+    )
     if skills:
         schemas.append(read_skill_schema(tuple(s.name for s in skills)))
     if can_run_commands(policy):
@@ -260,7 +272,11 @@ async def _handle_run_command(
     # same workspace runs model-written programs against a network that
     # is open precisely so skills can use it, so a key in the shared
     # environment is a key any generated program could read and send on.
-    env_extra = skill_environment() if is_skill_invocation(argv) else None
+    env_extra = (
+        skill_environment()
+        if context.session.skills_enabled and is_skill_invocation(argv)
+        else None
+    )
     session = await context.session.sessions.start(
         argv,
         policy=context.session.policy,
@@ -330,13 +346,21 @@ async def _handle_read_skill(
     name = args.get("name")
     if not isinstance(name, str) or not name.strip():
         raise WorkspaceToolInputError("name must be a non-empty string")
-    document = await asyncio.to_thread(read_skill_document, name)
+    path = args.get("path")
+    if path is not None and not isinstance(path, str):
+        raise WorkspaceToolInputError("path must be a string")
+    document = await asyncio.to_thread(read_skill_document, name, path)
     if document is None:
+        if path:
+            raise WorkspaceToolInputError(
+                f"skill {name!r} has no file {path!r}; the path is relative "
+                "to the skill directory, as its own document writes it"
+            )
         available = ", ".join(skill.name for skill in available_skills())
         raise WorkspaceToolInputError(
             f"no skill named {name!r}; available skills: {available}"
         )
-    return {"name": name, "instructions": document}
+    return {"name": name, "path": path or "SKILL.md", "instructions": document}
 
 
 _HANDLERS = {
@@ -406,12 +430,33 @@ class WorkspaceToolProvider:
         )
         self._names = {
             schema["function"]["name"]
-            for schema in workspace_tool_schemas(session.policy)
+            for schema in workspace_tool_schemas(
+                session.policy, skills_enabled=session.skills_enabled
+            )
         }
+
+    def _schemas(self) -> list[dict[str, Any]]:
+        """Returns this session's tool schemas under its own gating."""
+        return workspace_tool_schemas(
+            self.session.policy, skills_enabled=self.session.skills_enabled
+        )
+
+    def tracked_executor(
+        self, label: str
+    ) -> tuple[Callable[[Any], Awaitable[dict[str, Any]]], dict[str, int]]:
+        """Wraps this provider's executor with per-tool-name counting.
+
+        Args:
+            label: Log prefix identifying the calling phase.
+
+        Returns:
+            An (executor, counts) pair; see ``tools.tracking``.
+        """
+        return track_calls(self, label)
 
     def get_tools(self) -> tuple[set[str], list[dict[str, Any]]]:
         """Returns the local tool names and their OpenAI schemas."""
-        return set(self._names), workspace_tool_schemas(self.session.policy)
+        return set(self._names), self._schemas()
 
     def merge_tools(
         self, mcp_tools: list[dict[str, Any]]
@@ -435,7 +480,7 @@ class WorkspaceToolProvider:
                 )
                 continue
             kept.append(schema)
-        return [*workspace_tool_schemas(self.session.policy), *kept]
+        return [*self._schemas(), *kept]
 
     async def execute_tool_call(self, tool_call: Any) -> dict[str, Any]:
         """Executes one tool call against the workspace, or delegates it.

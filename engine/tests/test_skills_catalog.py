@@ -130,3 +130,48 @@ def test_unknown_skill_reads_as_absent(
     monkeypatch.setenv(catalog.SKILLS_DIR_ENV, str(tmp_path))
     assert catalog.read_skill_document("pdb") is None
     assert catalog.find_skill("PDB-Database") is not None
+
+
+def test_a_reference_file_is_reachable_by_path(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path
+) -> None:
+    """The bundle's disclosure is two levels deep, so ours must be.
+
+    20 of the 38 skills put the overview in SKILL.md and the command
+    syntax in references/*.md. A model handed only the first level does
+    not stop -- it guesses the arguments, which a live drafting pass did
+    against STRING's CLI, for exit code 2.
+    """
+    (tmp_path / "string" / "references").mkdir(parents=True)
+    (tmp_path / "string" / "SKILL.md").write_text(
+        "---\nname: string\ndescription: Queries STRING.\n---\n\n"
+        "See references/interactions.md.\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "string" / "references" / "interactions.md").write_text(
+        "Run `string_cli.py partners --identifiers TP53`.\n", encoding="utf-8"
+    )
+    monkeypatch.setenv(catalog.SKILLS_DIR_ENV, str(tmp_path))
+
+    text = catalog.read_skill_document("string", "references/interactions.md")
+
+    assert text is not None
+    assert "partners --identifiers" in text
+    # The preamble belongs to the entry document, not to every page of it.
+    assert "Skill directory:" not in text
+
+
+def test_a_path_cannot_escape_the_skill(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path
+) -> None:
+    """The model chooses this path, so it is checked rather than trusted."""
+    (tmp_path / "string").mkdir(parents=True)
+    (tmp_path / "string" / "SKILL.md").write_text(
+        "---\nname: string\ndescription: Queries STRING.\n---\n\nBody.\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "secret.txt").write_text("not yours", encoding="utf-8")
+    monkeypatch.setenv(catalog.SKILLS_DIR_ENV, str(tmp_path))
+
+    assert catalog.read_skill_document("string", "../secret.txt") is None
+    assert catalog.read_skill_document("string", "/etc/hosts") is None

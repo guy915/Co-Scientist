@@ -53,7 +53,13 @@ def _log_lit_review_context(
 
 
 class _DraftStateContext(NamedTuple):
-    """Workflow-state values needed to assemble the Phase 1 draft prompt."""
+    """Per-pass values needed to assemble the Phase 1 draft prompt.
+
+    All but ``skills_section`` come from workflow state; that one comes
+    from the caller, because whether a pass was actually given the
+    science skills depends on the deployment and on whether this host
+    can confine a command, neither of which state records.
+    """
 
     research_goal: str
     supervisor_guidance: dict[str, Any]
@@ -68,9 +74,12 @@ class _DraftStateContext(NamedTuple):
     research_expansion_section: str
     falsified_assumptions_section: str
     lab_constraints: list[str] | None
+    skills_section: str
 
 
-def _gather_draft_state_context(state: WorkflowState) -> _DraftStateContext:
+def _gather_draft_state_context(
+    state: WorkflowState, skills_section: str = ""
+) -> _DraftStateContext:
     """Extract and log the workflow-state values the draft prompt needs.
 
     Also logs the shared corpus slug (reused by the validation phase for
@@ -78,9 +87,11 @@ def _gather_draft_state_context(state: WorkflowState) -> _DraftStateContext:
 
     Args:
         state: Current workflow state.
+        skills_section: Prompt text describing the science skills this
+            pass was given; empty when it was given none.
 
     Returns:
-        The bundled state values the draft prompt is built from.
+        The bundled values the draft prompt is built from.
     """
     articles_with_reasoning = state.get("articles_with_reasoning")
     articles = state.get("articles") or []
@@ -94,6 +105,7 @@ def _gather_draft_state_context(state: WorkflowState) -> _DraftStateContext:
 
     return _DraftStateContext(
         research_goal=state["research_goal"],
+        skills_section=skills_section,
         supervisor_guidance=state.get("supervisor_guidance", {}),
         meta_review=state.get("meta_review"),
         articles_with_reasoning=articles_with_reasoning,
@@ -131,7 +143,7 @@ def _invoke_draft_prompt_builder(
         max_iterations: Iteration budget for this draft call.
         tool_registry: Resolved ToolRegistry for tool selection.
         reference_index: Optional `[C*]` citation reference index.
-        ctx: State values from _gather_draft_state_context.
+        ctx: Per-pass values from _gather_draft_state_context.
 
     Returns:
         The assembled draft prompt text.
@@ -143,6 +155,7 @@ def _invoke_draft_prompt_builder(
             hypotheses_count=count,
             articles=ctx.articles,
             articles_with_reasoning=ctx.articles_with_reasoning,
+            skills_section=ctx.skills_section,
             preferences=ctx.preferences,
             attributes=ctx.attributes,
             user_hypotheses=ctx.user_hypotheses,
@@ -162,31 +175,3 @@ def _invoke_draft_prompt_builder(
     )
 
     return prompt
-
-
-def _build_draft_prompt(
-    state: WorkflowState,
-    count: int,
-    max_iterations: int,
-    tool_registry: Optional["ToolRegistry"],
-    reference_index: Any | None,
-) -> str:
-    """Assemble the Phase 1 draft prompt from workflow state and context.
-
-    Args:
-        state: Current workflow state.
-        count: Number of hypotheses to draft.
-        max_iterations: Iteration budget already computed for this draft
-            call.
-        tool_registry: Resolved ToolRegistry for config-driven tool
-            selection.
-        reference_index: Optional citation reference index supplying the
-            `[C*]` reference list.
-
-    Returns:
-        The assembled draft prompt text.
-    """
-    ctx = _gather_draft_state_context(state)
-    return _invoke_draft_prompt_builder(
-        count, max_iterations, tool_registry, reference_index, ctx
-    )

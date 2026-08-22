@@ -1,4 +1,4 @@
-"""Where the skills surface appears, and where it deliberately does not."""
+"""Which consumer gets the skills surface, and which deliberately does not."""
 
 from __future__ import annotations
 
@@ -35,10 +35,11 @@ def _install_skill(root: pathlib.Path, name: str) -> None:
     )
 
 
-def _tool_names(policy: SandboxPolicy) -> set[str]:
+def _tool_names(policy: SandboxPolicy, *, enabled: bool = True) -> set[str]:
     """Returns the tool names offered under a policy."""
     return {
-        schema["function"]["name"] for schema in workspace_tool_schemas(policy)
+        schema["function"]["name"]
+        for schema in workspace_tool_schemas(policy, skills_enabled=enabled)
     }
 
 
@@ -57,7 +58,7 @@ def test_catalogue_adds_the_skill_tool(
     _install_skill(tmp_path, "uniprot-database")
     monkeypatch.setenv(catalog.SKILLS_DIR_ENV, str(tmp_path))
 
-    schemas = workspace_tool_schemas(_RUNNABLE)
+    schemas = workspace_tool_schemas(_RUNNABLE, skills_enabled=True)
 
     (skill_schema,) = [
         schema for schema in schemas if schema["function"]["name"] == READ_SKILL
@@ -67,6 +68,22 @@ def test_catalogue_adds_the_skill_tool(
     assert skill_schema["function"]["parameters"]["properties"]["name"][
         "enum"
     ] == ["uniprot-database"]
+
+
+def test_installing_the_bundle_does_not_arm_a_consumer(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path
+) -> None:
+    """A consumer that did not ask gets nothing, however much is installed.
+
+    This is the whole point of the flag. The skills were measured
+    negative in the simulation review and positive in drafting, so the
+    deployment that installs them for the second must not silently hand
+    them back to the first.
+    """
+    _install_skill(tmp_path, "chembl-database")
+    monkeypatch.setenv(catalog.SKILLS_DIR_ENV, str(tmp_path))
+
+    assert READ_SKILL not in _tool_names(_RUNNABLE, enabled=False)
 
 
 def test_skills_are_withheld_where_commands_are(
@@ -89,23 +106,40 @@ def test_skills_are_withheld_where_commands_are(
     assert READ_SKILL not in names
 
 
-def test_environment_note_tracks_the_catalogue(
+def test_the_simulation_review_stays_offline_with_skills_installed(
     monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path
 ) -> None:
-    """What the prompt claims about the network follows what is installed.
+    """The node measured worse with skills opens a plain workspace.
 
-    A model told it has no network will not look a constant up, and one
-    told it has skills it does not have spends turns finding out.
+    Eighteen runs said retrieval competes with building and running a
+    model here (see the module docstring). Pinning it means asserting on
+    the session the node opens with a full catalogue installed, since
+    that is the state a deployment enabling skills for drafting puts the
+    process in.
     """
-    monkeypatch.delenv(catalog.SKILLS_DIR_ENV, raising=False)
-    assert "no network access" in simulation_execution._environment_note()
-
-    catalog.available_skills.cache_clear()
     _install_skill(tmp_path, "gnomad-database")
     monkeypatch.setenv(catalog.SKILLS_DIR_ENV, str(tmp_path))
+    opened: list[tuple[str, str]] = []
 
-    note = simulation_execution._environment_note()
+    def _open(run_id: str, hypothesis_id: str) -> _StubSession:
+        opened.append((run_id, hypothesis_id))
+        return _StubSession(tmp_path / "ws")
 
-    assert "no network access" not in note
-    assert "gnomad-database: Queries things." in note
-    assert "read_skill" in note
+    monkeypatch.setattr(simulation_execution, "open_review_workspace", _open)
+
+    simulation_execution._tool_provider("run-1", "hyp-1")
+
+    # No network_allowed and no skills_enabled among the arguments: the
+    # node asks for a plain workspace and takes the defaults.
+    assert opened == [("run-1", "hyp-1")]
+    assert "no network access" in simulation_execution._NO_NETWORK_NOTE
+
+
+class _StubSession:
+    """The smallest thing ``_tool_provider`` needs back."""
+
+    def __init__(self, root: pathlib.Path) -> None:
+        root.mkdir(parents=True, exist_ok=True)
+        self.root = root
+        self.policy = _RUNNABLE
+        self.skills_enabled = False

@@ -53,6 +53,12 @@ class DraftPromptRequest:
             until deep verification records one.
         lab_constraints: The scientist's lab constraints elicited by
             the goal interview (K5); empty or absent renders no section.
+        skills_section: Rendered science-skills instructions, appended
+            to the tool instructions. Empty unless the drafting pass was
+            actually given them, which depends on the deployment and on
+            whether commands can be confined on this host -- so it is
+            passed in by the caller that offered them rather than
+            derived here from what is installed.
         context: Run-scoped prompt context (supervisor guidance,
             meta-review, tool registry, run setup/focus guidance).
     """
@@ -70,6 +76,7 @@ class DraftPromptRequest:
     research_expansion_section: str = ""
     falsified_assumptions_section: str = ""
     lab_constraints: list[str] | None = None
+    skills_section: str = ""
     context: PromptRunContext = field(default_factory=PromptRunContext)
 
 
@@ -97,7 +104,8 @@ def _build_draft_prompt_variables(req: DraftPromptRequest) -> dict[str, Any]:
         " based on literature gaps.",
         "tool_instructions": _resolve_draft_tool_instructions(
             req.context.tool_registry
-        ),
+        )
+        + req.skills_section,
         # Empty outside their conditions, so the initial-cycle prompt
         # renders exactly what it did before these sections existed.
         "research_expansion_section": req.research_expansion_section,

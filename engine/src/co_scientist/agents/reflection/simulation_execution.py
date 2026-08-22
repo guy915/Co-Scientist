@@ -27,22 +27,28 @@ raises spends its whole retry budget on the durable path, which leaves
 the hypothesis with no simulation review at all rather than a mental
 one.
 
-**Skills are wired here and measured negative here.** This node can
-offer the vendored science skills, and should not be the one that does.
-Eighteen runs over three mechanisms, split by whether the reviewer
-actually engaged a skill: baseline produced an observation 9 times out
-of 9 (mean 4,771 chars), runs that were offered skills and ignored them
-2 of 2 (4,295), and runs that used one 5 of 7 (2,839). Two of seven
-skill-engaged runs beat the baseline mean; two produced nothing.
-Budget, per-turn overhead and prompt ordering were each tested and each
-rejected -- the last recovered reliability only by making the model
-stop reaching for skills, at which point quality returned to baseline.
-What is left is a role conflict: this node exists to build a model and
-run it, and retrieval competes with that rather than supporting it,
-which is why skill-engaged runs are consistently *faster* than baseline
-while producing less. Skills stay off unless
-`COSCIENTIST_SKILLS_DIR` is set, and the next consumer should be one
-whose task *is* retrieval. See `references/antigravity/SCOPE.md`.
+**The science skills are deliberately not offered here.** They were
+wired into this node first and measured negative. Eighteen runs over
+three mechanisms, split by whether the reviewer actually engaged a
+skill: baseline produced an observation 9 times out of 9 (mean 4,771
+chars), runs offered skills that ignored them 2 of 2 (4,295), and runs
+that used one 5 of 7 (2,839). Two of seven skill-engaged runs beat the
+baseline mean; two produced nothing. Budget, per-turn overhead and
+prompt ordering were each tested and each rejected -- the last
+recovered reliability only by making the model stop reaching for
+skills, at which point quality returned to baseline. What is left is a
+role conflict: this node exists to build a model and run it, and
+retrieval competes with that rather than supporting it, which is why
+skill-engaged runs are consistently *faster* than baseline while
+producing less.
+
+So the workspace opened here asks for neither the network nor the
+skills, and that is this node's decision rather than the deployment's:
+``WorkspaceSession.skills_enabled`` defaults off precisely so that
+installing the bundle for the consumer it does help -- hypothesis
+drafting, where retrieval *is* the task, in
+``agents/generation/literature_tools/draft_skills.py`` -- cannot
+silently re-arm this one. See `references/antigravity/SCOPE.md`.
 
 **Whether it ran is recorded by the caller, not the model.** A verdict
 reached by running code and one reached by imagining it are different
@@ -68,11 +74,6 @@ from co_scientist.llm import (
 )
 from co_scientist.models import Hypothesis
 from co_scientist.prompts import load_prompt
-from co_scientist.skills import (
-    available_skills,
-    catalogue_section,
-    seed_licence_notices,
-)
 from co_scientist.state import WorkflowState
 from co_scientist.workspace.run_workspace import open_review_workspace
 from co_scientist.workspace.tool_schemas import RUN_COMMAND
@@ -150,21 +151,6 @@ MAX_SIMULATION_TURNS = 14
 # its face value.
 SIMULATION_TOKEN_BUDGET = 45_000
 
-# What the same simulation may spend when skills are installed. The 45k
-# above was measured on a loop whose transcript held only the model's own
-# program and its output; a skill document is 200-430 lines of
-# instructions that every subsequent turn re-sends. The first live run
-# with skills spent its whole budget in three iterations -- five
-# documents read before a single command ran -- and produced no model at
-# all, which is the expensive failure this budget exists to avoid.
-#
-# The uplift funds roughly two documents and leaves the working turns
-# intact. It is not the fix on its own: the prompt and the tool
-# description tell the model to read one skill and act on it, because a
-# budget large enough for indiscriminate reading is large enough to spend
-# an entire review reading.
-SIMULATION_SKILLS_TOKEN_BUDGET = 75_000
-
 # Longest observation kept. Capped here, at the one place observations are
 # produced, so the same bound reaches both readers: the review prompt,
 # whose every other section is bounded, and the stored result, which rides
@@ -179,42 +165,6 @@ _NO_NETWORK_NOTE = (
     "reachable, so use only the standard library."
 )
 
-_SKILLS_NOTE_TEMPLATE = """ Nothing outside this directory is writable, and \
-the standard library is what your own programs have. This workspace does have \
-network access, and it is there for one reason: the **science skills** below, \
-which are installed on this machine and query real scientific databases.
-
-{catalogue}
-
-Call `read_skill` with one of those names to get its full instructions -- what \
-it can do, the exact command to run, and the mistakes to avoid -- then run \
-that command with `run_command`. The one-line summaries above are not enough \
-to use a skill correctly; read it first. Have each script write to a file and \
-read back the fields you need, rather than printing everything.
-
-The licence notices these skills ask for are already written in \
-`.licenses/`, so skip that step entirely and do not check for them.
-
-Do not touch a skill until your model has run once and produced a number. You \
-are here to simulate a mechanism, not to survey databases: a review that \
-queried three of them and never ran a model is worth less than one that ran on \
-stated assumptions. When you do, read **one** skill, use it, and stop -- each \
-document is hundreds of lines that every later turn re-sends."""
-
-
-def _environment_note() -> str:
-    """Returns the paragraph describing what this workspace can reach.
-
-    A model told it has no network will not try to look a constant up,
-    and a model told it has skills it does not have spends turns
-    discovering that. Both halves of the sentence therefore follow the
-    same fact the tool schemas follow -- whether a catalogue exists.
-    """
-    catalogue = catalogue_section()
-    if not catalogue:
-        return _NO_NETWORK_NOTE
-    return _SKILLS_NOTE_TEMPLATE.format(catalogue=catalogue)
-
 
 def _tool_provider(
     run_id: str, hypothesis_id: str
@@ -227,20 +177,12 @@ def _tool_provider(
     refuse, and a simulation that cannot run anything has nothing to
     add to the review.
 
-    The workspace is opened with the network only where skills exist to
-    use it. A simulation writes its own model and runs it, which needs
-    nothing outside the directory; the network is bought for the skills
-    and paid for in the one place that can tell whether any are
-    installed.
+    The workspace is opened without the network and without the skills:
+    a simulation writes its own model and runs it, which needs nothing
+    outside the directory, and the module docstring records what
+    offering it more than that was measured to cost.
     """
-    session = open_review_workspace(
-        run_id, hypothesis_id, network_allowed=bool(available_skills())
-    )
-    # 35 of the 38 skills refuse to work until their licence notice
-    # exists in the workspace, and every review gets a fresh workspace,
-    # so the model was paying that toll on first use of every skill --
-    # measured at four turns of fourteen. Seeding it costs nothing here.
-    seed_licence_notices(session.root)
+    session = open_review_workspace(run_id, hypothesis_id)
     schemas = workspace_tool_schemas(session.policy)
     if not any(
         schema.get("function", {}).get("name") == RUN_COMMAND
@@ -336,16 +278,11 @@ def _simulation_loop(
         re-send -- see the two constants for why one ceiling is not
         enough.
     """
-    budget = (
-        SIMULATION_SKILLS_TOKEN_BUDGET
-        if available_skills()
-        else SIMULATION_TOKEN_BUDGET
-    )
     return ToolLoop(
         tools=schemas,
         executor=provider.execute_tool_call,
         max_iterations=MAX_SIMULATION_TURNS,
-        max_prompt_tokens=budget,
+        max_prompt_tokens=SIMULATION_TOKEN_BUDGET,
     )
 
 
@@ -361,7 +298,7 @@ async def _observe(
         {
             "research_goal": state["research_goal"],
             "hypothesis_text": hypothesis.text,
-            "environment_note": _environment_note(),
+            "environment_note": _NO_NETWORK_NOTE,
         },
     )
     try:

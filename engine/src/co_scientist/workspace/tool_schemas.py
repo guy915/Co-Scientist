@@ -274,9 +274,12 @@ def read_skill_schema(names: tuple[str, ...]) -> dict[str, Any]:
                 "avoid. Call this before using a skill -- the catalogue "
                 "gives you only a one-line summary of each. The "
                 "instructions tell you which script to run; run it with "
-                "run_command. Each document is long and every later turn "
-                "re-sends it, so read one skill and use it before "
-                "considering another."
+                "run_command. Where those instructions point at a file "
+                "under references/, call this again with that path to "
+                "get it -- the exact command syntax is usually there. "
+                "Each document is long and every later turn re-sends "
+                "it, so read one skill and use it before considering "
+                "another."
             ),
             "parameters": {
                 "type": "object",
@@ -285,7 +288,16 @@ def read_skill_schema(names: tuple[str, ...]) -> dict[str, Any]:
                         "type": "string",
                         "enum": list(names),
                         "description": "The skill name from the catalogue.",
-                    }
+                    },
+                    "path": {
+                        "type": "string",
+                        "description": (
+                            "Optional file inside the skill, as its own "
+                            "document names it, e.g. "
+                            "references/interactions.md. Omit for the "
+                            "skill's main instructions."
+                        ),
+                    },
                 },
                 "required": ["name"],
             },

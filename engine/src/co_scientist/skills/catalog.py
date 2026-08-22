@@ -230,29 +230,72 @@ def catalogue_section() -> str:
     return "\n".join(lines)
 
 
-def read_skill_document(name: str) -> str | None:
-    """Returns one skill's full instructions, with how to run it.
+def _skill_file(skill: Skill, path: str) -> pathlib.Path | None:
+    """Resolves one file inside a skill directory, or None.
 
-    The preamble is the one thing the document does not say correctly
-    here: upstream tells the model to use ``uv run``, which this harness
-    cannot. Stating the substitution beside the document -- rather than
-    editing the vendored file -- keeps the tree byte-identical to the
-    revision it is pinned to.
+    The model chooses this path, so it is resolved and checked to be
+    inside the skill rather than trusted: ``../`` in a tool argument is
+    a file read anywhere on the image.
+    """
+    candidate = (skill.directory / path).resolve()
+    root = skill.directory.resolve()
+    if candidate == root or root not in candidate.parents:
+        return None
+    return candidate if candidate.is_file() else None
+
+
+def _read_text(target: pathlib.Path | None) -> str | None:
+    """Reads a file, or returns None where there is nothing to read."""
+    if target is None:
+        return None
+    try:
+        return target.read_text(encoding="utf-8")
+    except OSError:
+        return None
+
+
+def read_skill_document(name: str, path: str | None = None) -> str | None:
+    """Returns one skill's instructions, or one file it points at.
+
+    The bundle's own disclosure is two levels deep, not one: 20 of the
+    38 skills give the overview in ``SKILL.md`` and put the actual
+    command syntax in ``references/*.md``, told to the model as "read
+    the following reference files based on the request". Serving only
+    the first level leaves it holding a document that names a file it
+    cannot open, and what it does then is guess the arguments -- which
+    is what a live drafting pass did, reaching STRING's CLI with no
+    subcommand and getting exit 2 back.
+
+    The preamble is the part the document does not say correctly here.
+    Upstream tells the model to use ``uv run``, which this harness
+    cannot; and several skills instruct it to stop and ask the user
+    something, which in an autonomous run stops it in front of nobody.
+    Stating both beside the document -- rather than editing the vendored
+    file -- keeps the tree byte-identical to the revision it is pinned
+    to.
 
     Args:
         name: The skill's name, as advertised in the catalogue.
+        path: A file inside the skill, relative to its directory, as
+            named by its own document. Defaults to ``SKILL.md``.
 
     Returns:
-        The document, or None when no such skill exists or it could not
-        be read.
+        The text, or None when no such skill or file exists, or it could
+        not be read.
     """
     skill = find_skill(name)
     if skill is None:
         return None
-    try:
-        text = (skill.directory / _DOCUMENT_NAME).read_text(encoding="utf-8")
-    except OSError:
+    target = (
+        skill.directory / _DOCUMENT_NAME
+        if path is None
+        else _skill_file(skill, path)
+    )
+    text = _read_text(target)
+    if text is None:
         return None
+    if path is not None:
+        return text[:MAX_SKILL_DOCUMENT_CHARS]
     preamble = (
         f"Skill directory: {skill.directory}\n"
         f"Run this skill's scripts with `{skills_python()} "
@@ -260,6 +303,12 @@ def read_skill_document(name: str) -> str | None:
         "run_command. Ignore any instruction below to use `uv run` or to "
         "install packages: dependencies are already installed and the "
         "network is available for the skill's own API calls only.\n"
+        "Where this document points at a file under `references/`, read "
+        "it by calling read_skill again with that path -- the exact "
+        "command syntax usually lives there, not here.\n"
+        "There is no user to ask. Where this document says to stop and "
+        "ask a question, choose the most reasonable answer, say which "
+        "you chose, and carry on.\n"
         "Write results to a file with the script's own output option "
         "wherever it has one, then read the fields you need.\n\n"
     )

@@ -14,9 +14,6 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Optional
 
 from co_scientist.agents.generation.literature_tools.draft_prompt import (
-    _build_draft_prompt as _build_draft_prompt,
-)
-from co_scientist.agents.generation.literature_tools.draft_prompt import (
     _DraftStateContext as _DraftStateContext,
 )
 from co_scientist.agents.generation.literature_tools.draft_prompt import (
@@ -27,6 +24,10 @@ from co_scientist.agents.generation.literature_tools.draft_prompt import (
 )
 from co_scientist.agents.generation.literature_tools.draft_prompt import (
     _log_lit_review_context as _log_lit_review_context,
+)
+from co_scientist.agents.generation.literature_tools.draft_skills import (
+    DraftSkills,
+    attach_skills,
 )
 from co_scientist.agents.generation.literature_tools.draft_tools import (
     _resolve_mcp_whitelist as _resolve_mcp_whitelist,
@@ -57,7 +58,6 @@ from co_scientist.llm import (
 )
 from co_scientist.llm_json import parse_tool_loop_json
 from co_scientist.state import WorkflowState
-from co_scientist.tools.provider import MCPToolProvider
 
 if TYPE_CHECKING:
     from co_scientist.config import ToolRegistry
@@ -305,7 +305,7 @@ def _prepare_draft_call(
     mcp_client: Any,
     tool_registry: Optional["ToolRegistry"],
     reference_index: Any | None,
-) -> tuple[MCPToolProvider, list[Any], int, str]:
+) -> tuple[DraftSkills, int, str]:
     """Resolve tools and assemble the prompt for one draft-phase call.
 
     Args:
@@ -318,22 +318,33 @@ def _prepare_draft_call(
             `[C*]` reference list.
 
     Returns:
-        Tuple of (provider, openai_tools, max_iterations, prompt).
+        Tuple of (the surface to run against, max_iterations, prompt).
     """
     # Initialize hybrid tool provider with draft-specific whitelist
     provider, openai_tools, tool_registry = _setup_tool_provider(
         mcp_client, tool_registry, "draft_generation", "draft", logger
     )
 
-    max_iterations = _compute_draft_iteration_budget(
-        count, is_expansion=is_research_expansion(state)
+    # Adds the science skills where they are installed, and returns the
+    # arguments untouched where they are not.
+    skills = attach_skills(state, provider, openai_tools)
+
+    max_iterations = (
+        _compute_draft_iteration_budget(
+            count, is_expansion=is_research_expansion(state)
+        )
+        + skills.extra_iterations
     )
 
-    prompt = _build_draft_prompt(
-        state, count, max_iterations, tool_registry, reference_index
+    prompt = _invoke_draft_prompt_builder(
+        count,
+        max_iterations,
+        tool_registry,
+        reference_index,
+        _gather_draft_state_context(state, skills.section),
     )
 
-    return provider, openai_tools, max_iterations, prompt
+    return skills, max_iterations, prompt
 
 
 async def _run_draft_pipeline(
@@ -358,12 +369,12 @@ async def _run_draft_pipeline(
         Tuple of (draft agent's final response text, per-tool call counts,
         real LLM calls made).
     """
-    provider, openai_tools, max_iterations, prompt = _prepare_draft_call(
+    skills, max_iterations, prompt = _prepare_draft_call(
         state, count, mcp_client, tool_registry, reference_index
     )
 
     # Track tool calls in draft phase
-    draft_tracked_executor, tool_call_counts = provider.tracked_executor(
+    draft_tracked_executor, tool_call_counts = skills.provider.tracked_executor(
         "Draft"
     )
 
@@ -371,7 +382,7 @@ async def _run_draft_pipeline(
         state,
         _DraftCall(
             prompt=prompt,
-            openai_tools=openai_tools,
+            openai_tools=skills.tools,
             executor=draft_tracked_executor,
             count=count,
             max_iterations=max_iterations,

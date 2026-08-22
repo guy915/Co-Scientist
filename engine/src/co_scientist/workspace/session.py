@@ -110,6 +110,12 @@ class WorkspaceSession:
     Attributes:
         root: The directory every operation is confined to.
         policy: The confinement applied to commands run here.
+        skills_enabled: Whether the vendored science skills are offered
+            to the model working here. Off by default and decided per
+            consumer rather than by the installation: two agents have
+            been measured on the same bundle with opposite outcomes, so
+            installing the skills must not be what turns them on. See
+            ``skills/catalog.py``.
     """
 
     # Effect declarations for the tools this session exposes, in the
@@ -127,6 +133,7 @@ class WorkspaceSession:
         *,
         policy: SandboxPolicy | None = None,
         network_allowed: bool = False,
+        skills_enabled: bool = False,
     ) -> None:
         """Binds a session to a directory.
 
@@ -137,6 +144,8 @@ class WorkspaceSession:
                 the workspace and nothing else.
             network_allowed: Whether commands may reach the network.
                 Ignored when ``policy`` is given explicitly.
+            skills_enabled: Whether to offer the vendored science skills
+                here. Requires network access to be of any use.
         """
         root.mkdir(parents=True, exist_ok=True)
         self.root = root.resolve()
@@ -144,6 +153,7 @@ class WorkspaceSession:
         self.policy = policy or workspace_write(
             self.root, network_allowed=network_allowed
         )
+        self.skills_enabled = skills_enabled
         # Commands that outlive the call that started them. Lazily
         # populated: a workspace used only for patches never starts one.
         self.sessions = SessionRegistry()

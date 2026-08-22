@@ -7,6 +7,7 @@ from typing import Any
 from co_scientist.exceptions import ConfigError
 from co_scientist.mcp_client import MCPToolClient
 from co_scientist.tools.messages import tool_error_message
+from co_scientist.tools.tracking import tracked_executor as track_calls
 
 logger = logging.getLogger(__name__)
 
@@ -134,15 +135,7 @@ class MCPToolProvider:
             execute_tool_call; counts maps tool name to call count and is
             updated in place as the executor runs.
         """
-        counts: dict[str, int] = {}
-
-        async def executor(tool_call: Any) -> dict[str, Any]:
-            name = tool_call.function.name
-            counts[name] = counts.get(name, 0) + 1
-            logger.info("%s: %s call #%s", label, name, counts[name])
-            return await self.execute_tool_call(tool_call)
-
-        return executor, counts
+        return track_calls(self, label)
 
     # Shape matches the OpenAI/LiteLLM "tool" role message so downstream
     # code can treat error responses the same as successful tool results.

@@ -46,6 +46,7 @@ _WORKSPACES_DIRNAME = "coscientist-workspaces"
 # Subdirectory of a run's workspace holding one directory per variant.
 _VARIANTS_DIRNAME = "variants"
 _REVIEWS_DIRNAME = "reviews"
+_DRAFTS_DIRNAME = "drafts"
 
 # Everything else in a run id is replaced. Deliberately narrow: real ids
 # are uuids, so anything outside this set is either a bug or an attempt.
@@ -172,6 +173,41 @@ def open_variant_workspace(
     # parent even for the moment between the two mkdirs.
     open_run_workspace(run_id, network_allowed=network_allowed)
     return WorkspaceSession(root, network_allowed=network_allowed)
+
+
+def draft_workspace_path(run_id: str, draft_id: str) -> Path:
+    """Returns one drafting pass's directory, without creating it."""
+    return workspace_path(run_id) / _DRAFTS_DIRNAME / _safe_run_id(draft_id)
+
+
+def open_draft_workspace(run_id: str, draft_id: str) -> WorkspaceSession:
+    """Opens the workspace one hypothesis-drafting pass works in.
+
+    This is the generation agent's literature-exploration step, and the
+    one consumer the science skills are turned on for: retrieval is what
+    the step is for, so a skill that queries a database serves the work
+    rather than competing with it. The network comes with them and is
+    the reason they are here -- a skill that cannot reach its API is a
+    document about an API.
+
+    Per pass rather than per run because a run drafts on every
+    generation cycle, and a directory holding the previous cycle's
+    result files invites the model to read a stale one as its own.
+
+    Args:
+        run_id: The run identifier.
+        draft_id: Identifier unique to this drafting pass.
+
+    Returns:
+        A session confined to that pass's directory, with the network
+        open and the skills offered.
+    """
+    root = draft_workspace_path(run_id, draft_id)
+    # As with variants and reviews: the run directory is created (and
+    # permission-restricted) first so this tree is never briefly
+    # world-readable.
+    open_run_workspace(run_id)
+    return WorkspaceSession(root, network_allowed=True, skills_enabled=True)
 
 
 def review_workspace_path(run_id: str, hypothesis_id: str) -> Path:

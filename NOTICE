@@ -18,3 +18,31 @@ Licensed under the Apache License, Version 2.0.
   A copy of the Apache License, Version 2.0 is available at
   http://www.apache.org/licenses/LICENSE-2.0
 -------------------------------------------------------------------------
+
+-------------------------------------------------------------------------
+Science Skills (Google DeepMind)
+https://github.com/google-deepmind/science-skills
+Licensed under the Apache License, Version 2.0 (code) and CC-BY 4.0
+(non-software material).
+
+  vendor/science-skills/
+
+    Copied verbatim from revision
+    0b42509800f49e6eb7809505d96e20a890ef99bd (plugin "science" v1.1.0).
+    Upstream ships no NOTICE file of its own, so nothing from one is
+    reproduced here; the full license text is retained at
+    vendor/science-skills/LICENSE.
+
+    The individual skills reach third-party data sources whose terms are
+    separate from this license and not granted by it. Those terms are
+    listed per source in vendor/science-skills/SKILL_LICENSES.md, and
+    most skills additionally require that the user be notified of them
+    before use; the harness writes that notice into each workspace
+    (engine/src/co_scientist/skills/licences.py). Surfacing it to the
+    reader of a run is tracked in references/antigravity/SCOPE.md and
+    must land before skills are enabled in a deployment other people
+    use.
+
+  A copy of the Apache License, Version 2.0 is available at
+  http://www.apache.org/licenses/LICENSE-2.0
+-------------------------------------------------------------------------
