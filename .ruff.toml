@@ -1,0 +1,14 @@
+# Root ruff configuration.
+#
+# The three first-party Python trees carry their own `[tool.ruff]` blocks
+# (`engine/pyproject.toml`, `app/pyproject.toml`, `evaluations/` via the root
+# invocation in the Makefile), and ruff resolves the nearest config per file,
+# so those still win for their own sources. This file exists for the files
+# none of them covers.
+#
+# Its whole job is the exclusion below. `make lint` never reaches these trees,
+# but a hand-run `ruff format .` from the repository root does -- and did:
+# commit 5821d4fc reformatted 63 files of vendored third-party code as a side
+# effect of an unrelated change, which is how a pinned vendored tree silently
+# stops matching the upstream revision it claims to be.
+extend-exclude = ["vendor", "references"]

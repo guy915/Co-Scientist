@@ -51,6 +51,49 @@ COPY app/app/ ./app/
 COPY corpus/ ./corpus/
 ENV SBI_CORPUS_DIR=/app/corpus/sbi_ucd
 
+# The vendored Google DeepMind Science Skills bundle, pinned in
+# vendor/science-skills (see references/antigravity/MANIFEST.md for the
+# revision). The engine executes these scripts inside a confined workspace,
+# which runs in this process, so the api image is the one that needs them --
+# not the MCP image.
+COPY vendor/science-skills/ ./vendor/science-skills/
+ENV COSCIENTIST_SKILLS_DIR=/app/vendor/science-skills/skills
+
+# The skills declare their dependencies as PEP 723 inline metadata and their
+# SKILL.md files say to invoke them with `uv run`, which resolves those
+# dependencies at execution time. Neither half of that survives contact with
+# this harness, and both failures were found by running it rather than by
+# reading it.
+#
+# Resolving at execution time would put a package-index install inside a
+# sandboxed workspace on the request path -- third-party code fetched and
+# executed in production -- and would make a run depend on index
+# reachability that hermetic CI does not have. And `uv` cannot run inside
+# the sandbox at all: its cache layout contains a directory literally named
+# `.git` (`sdists-v9/.git`), which is in PROTECTED_METADATA_NAMES, so the
+# confinement that exists to stop a command rewriting a repository's history
+# also stops uv initialising its cache. The observed failure is
+# `Failed to initialize cache ... Operation not permitted (os error 1)`.
+#
+# So the closure is resolved once here into an ordinary venv and the scripts
+# are invoked with that interpreter directly. The PEP 723 header is inert
+# metadata to a plain `python`, so the scripts themselves stay unmodified --
+# only the invocation differs from what SKILL.md describes.
+#
+# The closure is deliberately the light one: polite-http and python-dotenv
+# cover 65 of the bundle's scripts -- every database and literature skill --
+# for 256 KB. The heavy closure the AlphaGenome and Predicting-the-Past
+# skills declare (alphagenome, jax, pandas, numpy, pyarrow, matplotlib: 52
+# packages, measured at 695 MB) is ~2700x the size for six scripts, on a
+# service whose deploy healthcheck allows a 60s start period and which pulls
+# this image on every deploy. Those skills are therefore not installed, and
+# enabling them is a separate, explicit image decision rather than a cost
+# every deploy pays by default.
+RUN python -m venv /app/skills-venv \
+    && /app/skills-venv/bin/pip install --no-cache-dir --quiet \
+        polite-http python-dotenv
+ENV COSCIENTIST_SKILLS_PYTHON=/app/skills-venv/bin/python
+
 # Explicit persistent-path defaults so the image is correct even when a
 # deployment forgets to set them: /app/data is where the Railway volume
 # mounts (COSCIENTIST_DB_PATH), /app/cache is a plain container path for

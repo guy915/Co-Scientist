@@ -2,6 +2,16 @@
 
 **Status:** Accepted · 2026-06-21
 **Drains reference:** `references/peripheral/antigravity-science-skills/`
+(the bundle has since been vendored to `vendor/science-skills/` and the
+reference copy deleted — see `references/antigravity/`)
+
+> **Partially superseded, 2026-08-22.** Decision 1 below ("do not port the
+> skills wholesale") rested on the format having nowhere to run here. The
+> coding-harness work has since built a confined workspace with command
+> execution, so that leg no longer holds and the bundle is now vendored and
+> executed. Decision 2 (build OpenAlex) and the roadmap in decision 3 stand,
+> and the "Co-Scientist is the main character" constraint still governs how
+> much of the bundle is reachable. See `references/antigravity/SCOPE.md`.
 
 Records what we take from the Antigravity science-skills bundle (Google
 DeepMind) — a collection of ~36 skills wrapping science databases (PubMed,

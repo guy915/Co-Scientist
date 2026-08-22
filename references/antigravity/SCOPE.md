@@ -103,11 +103,16 @@ Three of the decisions below are answered and no longer open:
    pairs is on the order of 3–4k tokens. Which callers see it — the
    `draft_generation` tool loop only, or also the research loop and the deep
    reviews — and whether it is filtered by run focus rather than sent whole.
-2. **What vendoring costs, now that it is chosen.** Where the tree lives once
-   it stops being reference material; how it is excluded from ruff, mypy, the
-   500-line file cap and the CC ceiling without those exclusions widening;
-   how the upstream SHA is pinned and re-synced; and where Apache-2.0
-   attribution lands in the root `NOTICE`.
+2. ~~What vendoring costs, now that it is chosen.~~ **Mostly done.** The tree
+   lives at `vendor/science-skills/`, pinned to upstream v1.1.0. No gate
+   exclusions were needed: `make lint` and `make typecheck` only ever run
+   inside `engine/`, `app/` and `evaluations/`, and the source-hygiene gates
+   walk an allowlist (`evaluations/tests/_source_tree.py::SOURCE_DIRS`), so a
+   top-level directory is outside all of them by construction. The one thing
+   that *did* need config is a root `.ruff.toml` excluding `vendor/` and
+   `references/`, because a hand-run root-level `ruff format` had already
+   rewritten 63 vendored files once. Still open: Apache-2.0 attribution in the
+   root `NOTICE`.
 3. ~~Network inside the sandbox, on the deploy host.~~ **Resolved, and the
    original worry was backwards.** Every backend implements the network as a
    *denial* applied only when the policy withholds it: seatbelt appends
@@ -127,7 +132,11 @@ Three of the decisions below are answered and no longer open:
    argument, not a sandbox change.
 4. **The offline branch.** CI is hermetic: no network, no keys. Skill
    execution needs a deterministic refusal or replay path, following the
-   existing sandbox-refusal and `offline_llm` patterns.
+   existing sandbox-refusal and `offline_llm` patterns. Note the shape the
+   image already forces: the dependency closure is resolved at build time
+   into `/app/skills-venv` and nothing resolves packages at runtime, so the
+   only thing a hermetic environment lacks is the *API* call — which is the
+   part the refusal path has to cover.
 5. **Which sources become first-class tools**, ordered by what this
    deployment's audience needs — systems-biology runs against the SBI corpus —
    rather than by the 2026-06-21 roadmap's original ordering.

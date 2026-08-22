@@ -86,10 +86,14 @@ standard. The rules that transfer regardless of format:
    pitfalls stated as prohibitions.
 7. **Cap skill output at 500 lines or redirect it to a file.**
 
-`scienceskillscommon/http_client.py` (833 lines, stdlib only — `urllib`, no
-third-party transport) implements 5: per-API rate limiting via `fcntl` file
-locks, jittered exponential backoff, `Retry-After`, and `X-Throttling-Control`
-proactive backpressure for PubChem/NCBI.
+Rule 5 used to be implemented in-tree by `scienceskillscommon/http_client.py`
+(833 lines, stdlib only — `urllib`, no third-party transport): per-API rate
+limiting via `fcntl` file locks, jittered exponential backoff, `Retry-After`,
+and `X-Throttling-Control` proactive backpressure for PubChem/NCBI. **In
+v1.1.0 that module is gone from the repository** and lives on PyPI as
+`polite-http`, which 51 scripts import. The behaviour is unchanged; what
+changed is that reading the bundle no longer tells you what the rate limiter
+does, and shipping the bundle no longer ships it.
 
 ## What the prose carries that a tool signature cannot
 
@@ -137,3 +141,40 @@ signature, and it is also the part most likely to move a reliability number.
 - The negative-routing convention in descriptions is directly applicable to
   `prompt_snippet` in `config/tools.yaml`, which today says only what a tool is
   for.
+
+
+## What running it taught, that reading it did not
+
+Two things about executing this bundle inside a confined workspace are not
+visible anywhere in the bundle or the report, and both were found by running
+it.
+
+**`uv run` cannot be used inside the sandbox.** uv's cache layout contains a
+directory literally named `.git` (`sdists-v9/.git`). `.git` is in
+`sandbox/policy.py::PROTECTED_METADATA_NAMES`, so the confinement that exists
+to stop a command rewriting the history of a repository it was handed also
+stops uv initialising its cache:
+
+```
+error: Failed to initialize cache at `...`
+  Caused by: failed to open file `.../sdists-v9/.git`: Operation not permitted (os error 1)
+```
+
+Moving the cache inside the workspace does not help — the protection applies
+to writable roots, which is exactly where it has to live. The answer is not to
+run uv at all: resolve the closure once at image build into an ordinary venv
+and invoke the scripts with that interpreter. A PEP 723 header is inert
+metadata to a plain `python`, so the scripts stay byte-identical to upstream
+and only the invocation differs from what `SKILL.md` describes.
+
+**A skill denied the network hangs rather than failing.** Run confined with
+`network_allowed=False`, `uniprot_tools.py get P04637` produced no output and
+no error; it blocked until the harness's 120s ceiling and was killed
+(`rc=-15`). With the network permitted the same command returned the live
+Swiss-Prot entry. So a misconfigured policy costs a full timeout per call, not
+a fast failure — the runner has to bound skill commands tightly and treat a
+timeout as a configuration signal, not a slow API.
+
+**And the bundle's own rule 4 is load-bearing, not stylistic.** That same
+`get` wrote its entire response to stdout, which the harness truncated at its
+1 MB inline ceiling. Any subcommand offering `--output` must be given one.
