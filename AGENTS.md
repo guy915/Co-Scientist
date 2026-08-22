@@ -13,7 +13,7 @@ This is a research/reference workspace organized around replicating Google's AI 
 - `e2e/` — Playwright browser end-to-end suite (`tests/*.spec.ts`, `support/` fixtures)
 - `references/` — folder containing research, product screenshots, and design specs
   - `core/google-co-scientist/` — long-form architecture/spec markdown analyzing the original system (incl. `media/` UX captures and `research/` papers)
-  - `peripheral/` — secondary reference projects (`antigravity-science-skills/`, `ai-chatbot-interface/`, `deep-research-agent/`)
+  - `peripheral/` — secondary reference projects (`antigravity-science-skills/`, `ai-chatbot-interface/`)
 - `docs/` — live project docs; `docs/README.md` indexes them (`ARCHITECTURE.md`, `CI.md`, `DEPLOYMENT.md`, `DISCOVERY.md`, `EXPLAINER.md`, `FIDELITY.md`, `PARITY.md`, `RUNNING-LOCALLY.md`, `UI-FIDELITY.md`), plus dated historical records (`PARITY-VERIFICATION.md`, `decisions/` ADRs, `superpowers/`) and `assets/` (screenshots + SVG diagrams)
 - `.github/` — GitHub Actions. `ci.yml` runs as presubmit (on `pull_request`, with `dorny/paths-filter` job-level path filters, superseded runs cancelled) and as postsubmit (on push to `main`: every job, never cancelled); `nightly.yml` re-runs the whole pipeline on cron via `workflow_call`. Every CI command is hermetic — no network, no API keys, no retries — so a test needing a provider key must be skipped or offline. Rationale in `docs/CI.md`.
 - `.remember/` — session handoff notes (`remember.md` is the live handoff file; also `now.md`, `recent.md`, daily logs, `logs/`, `tmp/`)

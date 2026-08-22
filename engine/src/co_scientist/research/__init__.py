@@ -14,8 +14,8 @@ to a Reflection review, or to something not yet written is an adapter
 rather than a rewrite -- the same reason the execution harness was built
 before it had a caller.
 
-Three ideas here are borrowed rather than invented, from
-`references/deep-research/_analysis/`: arithmetic budget decay and
+Three ideas here are borrowed rather than invented, from the
+teardowns that preceded this package: arithmetic budget decay and
 follow-ups-become-the-next-query from `gpt-researcher`, overflow that
 answers instead of failing from `open_deep_research`, and evidence
 identity that includes the question that fetched it from `storm`.

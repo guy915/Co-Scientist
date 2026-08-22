@@ -9,9 +9,9 @@ paper. That is the failure this module exists to end -- not by changing
 what the run does, but by making it a fact the run carries, the same way
 a fallback-served section is.
 
-**The floor the plan assumed did not exist, and now does.**
-`references/deep-research/` recorded the group's paper corpus as an
-always-available source the degradation could rest on. It was neither:
+**The floor the plan assumed did not exist, and now does.** This
+work's plan recorded the group's paper corpus as an always-available
+source the degradation could rest on. It was neither:
 it stopped being a literature search source when its whole catalogue
 began arriving in run context instead (`config/tools.yaml`), and the one
 tool that read it, ``fetch_paper``, is served by the same MCP server the
