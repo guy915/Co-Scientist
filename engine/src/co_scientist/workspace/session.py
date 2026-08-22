@@ -119,6 +119,7 @@ class WorkspaceSession:
     RUN_COMMAND_EFFECTS = ToolEffect.PROCESS | ToolEffect.READ
     APPLY_PATCH_EFFECTS = ToolEffect.WRITE | ToolEffect.READ
     READ_FILE_EFFECTS = ToolEffect.READ
+    WRITE_FILE_EFFECTS = ToolEffect.WRITE | ToolEffect.READ
 
     def __init__(
         self,
@@ -223,6 +224,33 @@ class WorkspaceSession:
         """
         result = apply_patch(parse_patch(patch_text), self.root)
         return PatchOutcome(changed=result.changed, rungs=result.rungs)
+
+    def write_file(self, relative: str, content: str) -> None:
+        """Writes one whole file into the workspace, creating parents.
+
+        The model's most common intent in a simulation is "here is the
+        program I want to run". Expressing that as a context-anchored
+        patch is the wrong shape for it: there is no context to anchor
+        to in a new file, so the whole envelope is ceremony, and getting
+        the ceremony wrong costs a turn. Measured on a real simulation,
+        33 of one loop's tool results were ``apply_patch`` rejections
+        over exactly that -- the model never got its program written and
+        spent the turn budget on the format. ``apply_patch`` remains the
+        right tool for *editing* a file, where the context anchoring is
+        the point.
+
+        Args:
+            relative: Path relative to the workspace root.
+            content: The file's full text, replacing anything there.
+
+        Raises:
+            PatchError: If the path escapes the workspace. Reusing the
+                patch error type keeps one containment message for the
+                model to act on, whichever operation tripped it.
+        """
+        target = self.resolve_path(relative)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(content, encoding="utf-8")
 
     def read_file(self, relative: str, max_bytes: int = 200_000) -> str:
         """Reads a file from the workspace.

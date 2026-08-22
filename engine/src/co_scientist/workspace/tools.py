@@ -62,11 +62,13 @@ from co_scientist.workspace.tool_schemas import (
     POLL_COMMAND,
     READ_FILE,
     RUN_COMMAND,
+    WRITE_FILE,
     apply_patch_schema,
     list_files_schema,
     poll_command_schema,
     read_file_schema,
     run_command_schema,
+    write_file_schema,
 )
 
 logger = logging.getLogger(__name__)
@@ -79,6 +81,7 @@ logger = logging.getLogger(__name__)
 declare_local_tool(RUN_COMMAND, WorkspaceSession.RUN_COMMAND_EFFECTS)
 declare_local_tool(APPLY_PATCH, WorkspaceSession.APPLY_PATCH_EFFECTS)
 declare_local_tool(READ_FILE, WorkspaceSession.READ_FILE_EFFECTS)
+declare_local_tool(WRITE_FILE, WorkspaceSession.WRITE_FILE_EFFECTS)
 declare_local_tool(LIST_FILES, WorkspaceSession.READ_FILE_EFFECTS)
 # Polling touches a live process -- it can write to its stdin and end
 # it -- so it is a barrier for the same reason starting one is.
@@ -135,6 +138,7 @@ def workspace_tool_schemas(policy: SandboxPolicy) -> list[dict[str, Any]]:
         present; ``run_command`` only when it could actually be confined.
     """
     schemas = [
+        write_file_schema(),
         apply_patch_schema(),
         read_file_schema(),
         list_files_schema(),
@@ -345,6 +349,30 @@ async def _handle_read_file(
     return payload
 
 
+async def _handle_write_file(
+    context: "_ToolContext", args: dict[str, Any]
+) -> dict[str, Any]:
+    """Writes one whole file, then runs the same checks a patch does.
+
+    The safety scan is not optional here: without it this tool would be
+    the way around the one ``apply_patch`` runs on everything it writes.
+    """
+    path = args.get("path")
+    if not isinstance(path, str) or not path.strip():
+        raise WorkspaceToolInputError("path must be a non-empty string")
+    content = args.get("content")
+    if not isinstance(content, str):
+        raise WorkspaceToolInputError("content must be a string")
+    await asyncio.to_thread(context.session.write_file, path, content)
+    payload: dict[str, Any] = {"path": path, "bytes": len(content.encode())}
+    findings = await asyncio.to_thread(
+        check_paths, context.session.root, [path]
+    )
+    if findings:
+        payload["problems"] = [finding.as_dict() for finding in findings]
+    return payload
+
+
 async def _handle_list_files(
     context: "_ToolContext", args: dict[str, Any]
 ) -> dict[str, Any]:
@@ -359,6 +387,7 @@ _HANDLERS = {
     POLL_COMMAND: _handle_poll_command,
     APPLY_PATCH: _handle_apply_patch,
     READ_FILE: _handle_read_file,
+    WRITE_FILE: _handle_write_file,
     LIST_FILES: _handle_list_files,
 }
 

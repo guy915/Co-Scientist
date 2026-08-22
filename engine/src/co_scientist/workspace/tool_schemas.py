@@ -15,6 +15,7 @@ from co_scientist.workspace.session import DEFAULT_COMMAND_TIMEOUT_SECONDS
 RUN_COMMAND = "run_command"
 APPLY_PATCH = "apply_patch"
 READ_FILE = "read_file"
+WRITE_FILE = "write_file"
 LIST_FILES = "list_files"
 POLL_COMMAND = "poll_command"
 
@@ -99,8 +100,11 @@ def apply_patch_schema() -> dict[str, Any]:
                             "*** Add File: <path>, *** Update File: <path> "
                             "or *** Delete File: <path> -- spelled exactly "
                             "that way, since a near-miss is refused and "
-                            "costs a turn. Use Add for a new file and "
-                            "Update for one that exists."
+                            "costs a turn. Every content line inside a "
+                            "hunk carries a leading +, - or space; an Add "
+                            "File body is therefore all + lines. To create "
+                            "a whole new file, prefer write_file, which "
+                            "takes the text as-is."
                         ),
                     }
                 },
@@ -129,6 +133,40 @@ def read_file_schema() -> dict[str, Any]:
                     }
                 },
                 "required": ["path"],
+            },
+        },
+    }
+
+
+def write_file_schema() -> dict[str, Any]:
+    """Builds the OpenAI schema for the workspace file writer."""
+    return {
+        "type": "function",
+        "function": {
+            "name": WRITE_FILE,
+            "description": (
+                "Write one whole file into the workspace, creating parent "
+                "directories and replacing any existing content. Use this "
+                "to create a new file -- a script you are about to run, an "
+                "input data file. Prefer apply_patch only when editing "
+                "part of a file that already exists."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "path": {
+                        "type": "string",
+                        "description": "Path relative to the workspace root.",
+                    },
+                    "content": {
+                        "type": "string",
+                        "description": (
+                            "The file's full text, written verbatim. No "
+                            "patch envelope and no line prefixes."
+                        ),
+                    },
+                },
+                "required": ["path", "content"],
             },
         },
     }

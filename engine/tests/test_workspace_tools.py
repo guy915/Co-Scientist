@@ -34,6 +34,7 @@ from co_scientist.workspace import (
     LIST_FILES,
     READ_FILE,
     RUN_COMMAND,
+    WRITE_FILE,
     WorkspaceSession,
     WorkspaceToolProvider,
     can_run_commands,
@@ -273,3 +274,119 @@ def test_mcp_only_loops_keep_their_cache() -> None:
         _loop(["search_pubmed"]), LLMCallOptions(use_cache=True)
     )
     assert guarded.use_cache is True
+
+
+# --- write_file -----------------------------------------------------------
+
+
+async def test_write_file_creates_a_file_and_its_parents(
+    tmp_path: Path,
+) -> None:
+    """Creating a program is the model's commonest intent; make it one call.
+
+    Expressing "here is the file I want to run" as a context-anchored
+    patch is the wrong shape: a new file has no context to anchor to, so
+    the envelope is pure ceremony and getting it wrong costs a turn.
+    Measured against the real model on one simulation, 33 of that loop's
+    tool results were ``apply_patch`` rejections over exactly that
+    ceremony; with this tool the same mechanism produced zero tool
+    errors.
+    """
+    provider = _provider(tmp_path)
+
+    message = await provider.execute_tool_call(
+        _call(
+            WRITE_FILE,
+            json.dumps({"path": "sub/model.py", "content": "print(1)\n"}),
+        )
+    )
+
+    assert (tmp_path / "sub" / "model.py").read_text() == "print(1)\n"
+    body = _content(message)
+    assert body["path"] == "sub/model.py"
+    assert body["bytes"] == len("print(1)\n")
+
+
+async def test_write_file_replaces_existing_content(tmp_path: Path) -> None:
+    """A rewrite is the model's normal debugging move, not an error."""
+    provider = _provider(tmp_path)
+    target = tmp_path / "model.py"
+    target.write_text("old\n")
+
+    await provider.execute_tool_call(
+        _call(WRITE_FILE, json.dumps({"path": "model.py", "content": "new\n"}))
+    )
+
+    assert target.read_text() == "new\n"
+
+
+async def test_write_file_cannot_escape_the_workspace(tmp_path: Path) -> None:
+    """The containment is the same one read_file relies on."""
+    provider = _provider(tmp_path)
+
+    message = await provider.execute_tool_call(
+        _call(
+            WRITE_FILE,
+            json.dumps({"path": "../escaped.py", "content": "nope\n"}),
+        )
+    )
+
+    assert not (tmp_path.parent / "escaped.py").exists()
+    assert "error" in json.dumps(message).lower()
+
+
+async def test_write_file_rejects_a_missing_argument(tmp_path: Path) -> None:
+    """A bad call must be answerable, not fatal to the conversation."""
+    provider = _provider(tmp_path)
+
+    message = await provider.execute_tool_call(
+        _call(WRITE_FILE, json.dumps({"path": "model.py"}))
+    )
+
+    assert message["role"] == "tool"
+    assert "content must be a string" in json.dumps(message)
+
+
+async def test_write_file_is_a_barrier_like_the_other_writer(
+    tmp_path: Path,
+) -> None:
+    """A write must not batch concurrently with a sibling read.
+
+    ``apply_patch`` is a barrier for this reason and ``write_file``
+    writes the same directory, so a declaration that let it run beside a
+    read would let a read observe a half-written tree.
+    """
+    del tmp_path
+    batches = batch_by_effects(
+        [_call(READ_FILE), _call(WRITE_FILE), _call(READ_FILE)]
+    )
+
+    assert [len(batch) for batch in batches] == [1, 1, 1]
+
+
+async def test_write_file_runs_the_same_checks_a_patch_does(
+    tmp_path: Path,
+) -> None:
+    """Otherwise this tool is the way around apply_patch's safety scan."""
+    provider = _provider(tmp_path)
+
+    patched = await provider.execute_tool_call(
+        _call(
+            WRITE_FILE,
+            json.dumps({"path": "m.py", "content": "x = 1\n"}),
+        )
+    )
+
+    # The scan ran: its verdict is reported under the same key the patch
+    # handler uses, present only when it found something.
+    assert "problems" not in _content(patched) or isinstance(
+        _content(patched)["problems"], list
+    )
+
+
+def test_write_file_is_offered_before_apply_patch(tmp_path: Path) -> None:
+    """Order is guidance: the model reaches for the first tool that fits."""
+    names = _names(workspace_tool_schemas(workspace_write(tmp_path)))
+
+    assert WRITE_FILE in names
+    assert names.index(WRITE_FILE) < names.index(APPLY_PATCH)

@@ -36,6 +36,7 @@ from co_scientist.workspace.tool_schemas import (
     LIST_FILES,
     READ_FILE,
     RUN_COMMAND,
+    WRITE_FILE,
 )
 from co_scientist.workspace.tools import (
     WorkspaceToolInputError,
@@ -54,6 +55,7 @@ __all__ = [
     "RUN_COMMAND",
     "SPILL_DIRECTORY",
     "WORKSPACE_DIR_ENV",
+    "WRITE_FILE",
     "BoundedOutput",
     "CheckFinding",
     "CommandOutcome",
