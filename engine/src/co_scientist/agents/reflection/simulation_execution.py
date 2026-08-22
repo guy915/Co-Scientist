@@ -29,18 +29,20 @@ one.
 
 **Skills are wired here and measured negative here.** This node can
 offer the vendored science skills, and should not be the one that does.
-Three mechanisms, twice each, against the same runs without them: the
-baseline produced an observation six times out of six, and the
-skill-enabled arm four out of six, two of those a hundred-character
-stub. The skill-enabled runs were also *faster*, which is the tell --
-they are not running out of room, they finish early with nothing to
-report, because a reviewer given databases spends its turns querying
-them instead of building the model it exists to build. Removing the two
-real overheads (the catalogue's per-turn cost, the bundle's licence
-toll) did not change it, which is what rules out budget as the
-explanation. Skills stay off unless `COSCIENTIST_SKILLS_DIR` is set,
-and the next consumer should be one whose task *is* retrieval. See
-`references/antigravity/SCOPE.md`.
+Eighteen runs over three mechanisms, split by whether the reviewer
+actually engaged a skill: baseline produced an observation 9 times out
+of 9 (mean 4,771 chars), runs that were offered skills and ignored them
+2 of 2 (4,295), and runs that used one 5 of 7 (2,839). Two of seven
+skill-engaged runs beat the baseline mean; two produced nothing.
+Budget, per-turn overhead and prompt ordering were each tested and each
+rejected -- the last recovered reliability only by making the model
+stop reaching for skills, at which point quality returned to baseline.
+What is left is a role conflict: this node exists to build a model and
+run it, and retrieval competes with that rather than supporting it,
+which is why skill-engaged runs are consistently *faster* than baseline
+while producing less. Skills stay off unless
+`COSCIENTIST_SKILLS_DIR` is set, and the next consumer should be one
+whose task *is* retrieval. See `references/antigravity/SCOPE.md`.
 
 **Whether it ran is recorded by the caller, not the model.** A verdict
 reached by running code and one reached by imagining it are different
@@ -193,12 +195,11 @@ read back the fields you need, rather than printing everything.
 The licence notices these skills ask for are already written in \
 `.licenses/`, so skip that step entirely and do not check for them.
 
-Read **one** skill and use it before considering another. Each document is \
-hundreds of lines that every later turn re-sends, so reading several before \
-running anything spends the budget you need for the model itself. You are here \
-to simulate a mechanism, not to survey the databases: look something up only \
-when a specific number your model turns on is one you would otherwise \
-invent."""
+Do not touch a skill until your model has run once and produced a number. You \
+are here to simulate a mechanism, not to survey databases: a review that \
+queried three of them and never ran a model is worth less than one that ran on \
+stated assumptions. When you do, read **one** skill, use it, and stop -- each \
+document is hundreds of lines that every later turn re-sends."""
 
 
 def _environment_note() -> str:

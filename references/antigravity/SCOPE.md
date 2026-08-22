@@ -99,45 +99,53 @@ Three of the decisions below are answered and no longer open:
 
 ## Measured: skills on vs off, through the real simulation review
 
-Three mechanisms, `deepseek-v4-flash` via OpenRouter, 2026-08-22. Run twice:
-once as first wired, once after removing the two overheads found in the first
-round (the per-turn catalogue tax and the licence toll below).
+Three mechanisms, `deepseek-v4-flash` via OpenRouter, 2026-08-22, run three
+times — as first wired, after removing the two overheads below, and after
+moving retrieval to *after* the model's first run. 18 runs, 9 per arm.
 
-| Mechanism | Skills off | Skills on, round 1 | Skills on, round 2 |
+| Round | Change under test | Baseline | Skills |
 | --- | --- | --- | --- |
-| WEE1/MEK synthetic lethality | 4,856 / 3,788 | **371** | **5,197** |
-| SGLT2 in HFpEF | 4,837 / 5,195 | **8,105** | **111** |
-| EGFR/MET resistance | 4,133 / 5,359 | **none** | **none** |
-| Observations produced | **6/6** | 2/3 | 2/3 |
-| Mean observation | 4,694 chars | 2,825 | 1,769 |
-| Mean tool calls | 5.2 | 9.7 | 8.3 |
-| Mean seconds | 131 | 47 | 59 |
+| 1 | as first wired | 3/3 | 2/3 |
+| 2 | catalogue trimmed, licence toll seeded | 3/3 | 2/3 |
+| 3 | retrieval moved after the first run | 3/3 | **3/3** |
 
-**The overhead fixes did not change the outcome, and that is the finding.**
-Both rounds land at 2/3 with the same bimodal shape: one observation better
-than baseline, one reduced to a hundred-character stub, one lost entirely.
-Across six skill-enabled runs, four produced an observation and two of those
-four were stubs. The baseline produced six of six, every one of them
-substantial.
+Round 3 recovered reliability, and the reason is the finding. Split the skills
+arm by whether the reviewer *actually engaged a skill*:
 
-Note the direction of the time column. Skill-enabled runs are *faster* — 59s
-against 131s — while producing less. They are not running out of room; they
-are finishing early with nothing to say.
+| | Runs | Produced an observation | Mean length |
+| --- | --- | --- | --- |
+| Baseline, no skills offered | 9 | **9/9** | 4,771 chars |
+| Skills offered and **ignored** | 2 | 2/2 | 4,295 chars |
+| Skills offered and **used** | 7 | 5/7 | 2,839 chars |
 
-**So the problem is not budget, and the first consumer was the wrong one.**
-The simulation review exists to build a model of a mechanism and run it. Given
-databases, the reviewer spends its turns querying them and then has no model
-to report — retrieval substitutes for simulation rather than grounding it.
-That is a role conflict, not a cost one, and no amount of budget fixes it.
-The simulation review was chosen because it already owned a confined workspace
-and a bounded tool loop: convenience, not fit.
+**Every time this reviewer engages a skill, its observation gets worse.** Two
+of seven skill-engaged runs beat the baseline mean; two produced nothing at
+all; the rest were stubs of 111 to 411 characters. The two runs that ignored
+the skills entirely landed back at baseline. Round 3 did not fix the
+integration — it made the model largely stop using it, and quality returned.
 
-Skills therefore stay **inert** — the api image ships the bundle and the
-interpreter but does not set `COSCIENTIST_SKILLS_DIR`, the single gate the
-engine reads. The mechanism itself measured sound and is reusable as-is; what
-needs to change is which agent gets it. The next integration belongs where
-looking something up *is* the task rather than a distraction from it: the
-literature review's research loop, or draft generation.
+Three explanations were tested and rejected in order: budget (raising it
+changed nothing), overhead (removing both changed nothing), and prompt
+ordering (fixing it recovered reliability only by suppressing skill use).
+What remains is a role conflict. The simulation review exists to build a model
+of a mechanism and run it; retrieval competes with that job rather than
+supporting it, and a reviewer that spends its turns querying databases has
+nothing to report. Note the time column across every round: skill-engaged runs
+are consistently *faster* than baseline while producing less. They are not
+running out of room — they finish early with nothing to say.
+
+**So the first consumer was the wrong one**, chosen because it already owned a
+confined workspace and a bounded tool loop: convenience, not fit. Skills stay
+**inert** — the api image ships the bundle and the interpreter but does not set
+`COSCIENTIST_SKILLS_DIR`, the single gate the engine reads. The mechanism
+measured sound and is reusable unchanged; the next integration belongs where
+looking something up *is* the task: the literature review's research loop, or
+draft generation.
+
+The round-3 prompt ordering is kept regardless. Retrieval as a refinement of a
+result rather than a precondition for one is the better instruction with or
+without skills, and the baseline arm was unharmed by it (4,771 mean across all
+rounds).
 
 ### The two overheads, removed regardless
 
